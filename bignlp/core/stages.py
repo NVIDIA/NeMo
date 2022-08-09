@@ -446,6 +446,7 @@ class Conversion(BigNLPStage):
         nemo_file_path = self.get_job_path().results_folder / nemo_file_name
         code_path = self._nemo_code_path / "examples/nlp/language_modeling/megatron_ckpt_to_nemo.py"
         args = create_args_list(
+            replace_underscore=False,
             gpus_per_node=run_cfg.get("ntasks_per_node"),
             model_type=model_cfg.get("model_type"),
             checkpoint_folder=model_cfg.get("checkpoint_folder"),
@@ -573,13 +574,14 @@ def _hydra_interpolation(cfg) -> None:
     interpolate(cfg)
 
 
-def create_args_list(hydra=False, **kwargs):
+def create_args_list(hydra=False, replace_underscore=True, **kwargs):
     args = []
     for k, v in kwargs.items():
         if hydra:
             args.append(f"{k}={v}")
         else:
             # use "store_true" to add keys only args
-            k = k.replace("_", "-")
+            if replace_underscore:
+                k = k.replace("_", "-")
             args.append(f"--{k}" if v == "store_true" else f"--{k}={v}")
     return args
