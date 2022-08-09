@@ -24,6 +24,7 @@ from torch import nn
 from nemo.collections.tts.helpers.helpers import binarize_attention, get_mask_from_lengths, plot_alignment_to_numpy
 from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
 from nemo.core.classes import ModelPT
+from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging, model_utils
 
 HAVE_WANDB = True
@@ -230,6 +231,19 @@ class AlignerModel(ModelPT):
         pass
 
     @classmethod
-    def list_available_models(cls):
-        """Empty."""
-        pass
+    def list_available_models(cls) -> 'List[PretrainedModelInfo]':
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+        Returns:
+            List of available pre-trained models.
+        """
+        list_of_models = []
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_en_radtts_aligner",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_radtts_aligner/versions/ARPABET_1.11.0/files/Aligner.nemo",
+            description="This model is trained on LJSpeech sampled at 22050Hz with and can be used to align text and audio.",
+            class_=cls,
+        )
+        list_of_models.append(model)
+
+        return list_of_models
