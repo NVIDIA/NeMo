@@ -19,7 +19,7 @@ from pytorch_lightning.callbacks.timer import Timer
 from pytorch_lightning.plugins.environments.torchelastic_environment import TorchElasticEnvironment
 from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
 from nemo.collections.common.parts import adapter_modules
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_adapter_model import MegatronGPTAdapterLearningModel
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
     MegatronHalfPrecisionPlugin,
@@ -57,37 +57,20 @@ def main(cfg) -> None:
         if isinstance(callback, Timer):
             trainer.callbacks[idx] = StatelessTimer(cfg.trainer.max_time,)
 
-    model_cfg = MegatronGPTModel.restore_from(
-            cfg.model.get('gpt_model_file'), trainer=trainer, return_config=True
-        )
-    with open_dict(model_cfg):
-            model_cfg.megatron_amp_O2 = False
-            model_cfg.micro_batch_size = cfg.model.micro_batch_size
-            model_cfg.global_batch_size = cfg.model.global_batch_size
-            model_cfg.precision = cfg.trainer.precision
-            model_cfg.data.data_prefix = cfg.model.data.data_prefix
-            model_cfg.data.splits_string = cfg.model.data.splits_string
-
     # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
-    model = MegatronGPTModel.restore_from(
-                cfg.model.get('gpt_model_file'),
-                trainer=trainer,
-                save_restore_connector=NLPSaveRestoreConnector(),
-                override_config_path=model_cfg,
-            )
+    with open_dict(cfg):
+        cfg.model.precision = cfg.trainer.precision
 
-    print(model.summarize())
-    for name, module in model.named_modules():
-        if hasattr(module, 'add_adapter'):
-            print(f'Adding adapter to {name}')
-            module.add_adapter(name='adapter_1', cfg=adapter_modules.LinearAdapterConfig(in_features=768, dim=50))
-    model.freeze()
-    for name, module in model.named_modules():
-        if hasattr(module, 'add_adapter'):
-            print(f'unfreezing to {name}')
-            module.set_enabled_adapters(enabled=True) 
-            module.unfreeze_enabled_adapters()
-    print(model.summarize())
+    # load existing or init new soft prompt GPT model
+    if cfg.model.get("restore_path", None):
+        model = MegatronGPTAdapterLearningModel.restore_from(
+            cfg.model.restore_path, cfg.model, trainer=trainer, save_restore_connector=NLPSaveRestoreConnector()
+        )
+    else:
+        model = MegatronGPTAdapterLearningModel(cfg.model, trainer=trainer)
+
+
+    
     trainer.fit(model)
 
 

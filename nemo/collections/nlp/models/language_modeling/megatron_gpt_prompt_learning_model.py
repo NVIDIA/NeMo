@@ -139,7 +139,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         self.pseudo_tokens = get_pseudo_tokens(self.max_virtual_tokens)
         self.tokenizer.add_special_tokens({'additional_special_tokens': self.pseudo_tokens})
         self.pseudo_token_ids = self.tokenizer.tokens_to_ids(self.pseudo_tokens)
-        self.pseudo_token_ids_start = self.pseudo_token_ids[0]
+        self.pseudo_token_ids_start = self.pseudo_token_ids[0] if self.pseudo_token_ids else None
         self.pad_token_id = self.tokenizer.pad_id if self.tokenizer.pad_id is not None else self.tokenizer.unk_id
 
         # Prompt tuning stores virtual prompts in the prompt table and tunes their weight directly
@@ -149,6 +149,8 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         # P-Tuning uses an LSTM Encoder to produce virtual token embeddings
         elif self.virtual_prompt_style == VirtualPromptStyle.P_TUNING:
             self.virtual_prompt_source = VirtualPromptSource.PROMPT_ENCODER
+        elif self.virtual_prompt_style == VirtualPromptStyle.NO_PROMPT:
+            self.virtual_prompt_source = VirtualPromptSource.NO_PROMPT
         else:
             raise ValueError(
                 f"\nvirtual prompt style '{cfg.virtual_prompt_style}' not recognized, please use one of 'prompt-tuning' or 'p-tuning'"
@@ -443,7 +445,8 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         """
         # Replace virtual token ids with padding for forward pass through vocab embeddings
         discrete_token_ids = input_ids.clone()
-        discrete_token_ids[(input_ids >= self.pseudo_token_ids_start)] = self.pad_token_id
+        if self.pseudo_token_ids_start is not None:
+            discrete_token_ids[(input_ids >= self.pseudo_token_ids_start)] = self.pad_token_id
         discrete_token_embeds = self.word_embeddings(discrete_token_ids).clone()
 
         # Find the indicies where virtual tokens should be inserted
