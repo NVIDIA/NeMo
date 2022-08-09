@@ -19,6 +19,7 @@ from typing import Callable, Dict, Optional, Type
 import onnx
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from nemo.utils import logging
 
@@ -72,6 +73,18 @@ class CastToFloat(nn.Module):
         else:
             ret = self.mod.forward(x)
         return ret
+
+class LinearWithBiasSkip(nn.Module):
+    def __init__(self, weight, bias, skip_bias_add):
+        super(LinearWithBiasSkip, self).__init__()
+        self.bias = bias
+        self.weight = weight
+        self.skip_bias_add = skip_bias_add
+
+    def forward(self, x):
+        if self.skip_bias_add:
+            return F.linear(x, self.weight), self.bias
+        return F.linear(x, self.weight, self.bias), None
 
 
 def get_export_format(filename: str):
@@ -179,6 +192,7 @@ apex_available = True
 try:
     from apex.normalization.fused_layer_norm import FusedLayerNorm, MixedFusedLayerNorm
     from apex.contrib.layer_norm.layer_norm import FastLayerNorm
+    from apex.transformer.tensor_parallel.layers import RowParallelLinear
 
     def replace_FusedLayerNorm(n: nn.Module) -> Optional[nn.BatchNorm2d]:
         """
@@ -196,7 +210,28 @@ try:
             return None
 
         dev = next(n.parameters()).device
-        mod = nn.LayerNorm(n.normalized_shape, eps=n.eps, elementwise_affine=n.elementwise_affine,).to(dev)
+        if isinstance(n, FusedLayerNorm) or isinstance(n, MixedFusedLayerNorm):
+            mod = nn.LayerNorm(n.normalized_shape, eps=n.eps, elementwise_affine=n.elementwise_affine,).to(dev)
+        elif isinstance(n, FastLayerNorm):
+            mod = nn.LayerNorm(n.weight.shape, eps=n.epsilon, elementwise_affine=True, dtype=torch.float16,).to(dev)
+
+        n_state = n.state_dict()
+        mod.load_state_dict(n_state)
+        return mod
+
+    def replace_RowParallelLinear(n: nn.Module) -> Optional[nn.Linear]:
+        """
+        Replaces Apex's FusedLayerNorm with nn.LayerNorm. This is required for ONNX export.
+        Args:
+           n: the FusedLayerNorm pytorch module to replace
+        Returns:
+           Equivalent LayerNorm module
+        """
+        if not isinstance(n, RowParallelLinear):
+            return None
+
+        dev = next(n.parameters()).device
+        mod = LinearWithBiasSkip(n.weight, n.bias, n.skip_bias_add).to(dev)
 
         n_state = n.state_dict()
         mod.load_state_dict(n_state)
@@ -206,6 +241,7 @@ try:
         "FusedLayerNorm": replace_FusedLayerNorm,
         "MixedFusedLayerNorm": replace_FusedLayerNorm,
         "FastLayerNorm": replace_FusedLayerNorm,
+        "RowParallelLinear": replace_RowParallelLinear,
     }
 
 except Exception as e:

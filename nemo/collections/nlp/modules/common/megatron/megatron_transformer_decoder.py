@@ -22,6 +22,8 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     attn_mask_postprocess,
     build_attention_mask_3d,
 )
+from nemo.core.classes.exportable import Exportable
+from nemo.collections.nlp.modules.common.megatron.megatron_decoder_module import MegatronDecoderModule
 
 try:
     from apex.transformer.enums import AttnMaskType, ModelType
@@ -38,7 +40,7 @@ except (ImportError, ModuleNotFoundError):
 __all__ = ["MegatronTransformerDecoderModule"]
 
 
-class MegatronTransformerDecoderModule(MegatronModule):
+class MegatronTransformerDecoderModule(MegatronModule, Exportable, MegatronDecoderModule):
     """Transformer decoder model.
     """
 
