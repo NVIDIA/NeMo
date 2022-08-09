@@ -8,6 +8,7 @@ Features:
 - navigation across dataset (sorting, filtering)
 - inspection of individual utterances (waveform, spectrogram, audio player)
 - errors' analysis (Word Error Rate, Character Error Rate, Word Match Rate, Mean Word Accuracy, diff)
+- visual comparation of two models (on same dataset)
 
 Please make sure that requirements are installed. Then run:
 ```
@@ -29,3 +30,5 @@ Errors' analysis requires "pred_text" (ASR transcript) for all utterances.
 Any additional field will be parsed and displayed in 'Samples' tab.
 
 ![Speech Data Explorer](screenshot.png)
+![Comparation tool](![image](https://user-images.githubusercontent.com/37293288/183735463-ae7ebe3d-e491-4be7-bcc3-1cc280da01de.png)
+)
