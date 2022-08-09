@@ -30,5 +30,5 @@ Errors' analysis requires "pred_text" (ASR transcript) for all utterances.
 Any additional field will be parsed and displayed in 'Samples' tab.
 
 ![Speech Data Explorer](screenshot.png)
-![Comparation tool](![image](https://user-images.githubusercontent.com/37293288/183735463-ae7ebe3d-e491-4be7-bcc3-1cc280da01de.png)
-)
+![image](https://user-images.githubusercontent.com/37293288/183735563-ba6c1819-a320-46bc-8eaa-14ed77e93787.png)
+
