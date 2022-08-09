@@ -15,6 +15,7 @@
 import json
 import os
 import pickle as pkl
+import shutil
 from collections import OrderedDict
 from statistics import mode
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -775,32 +776,34 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
                 - Each data sample is indexed by using the following naming convention: `<uniq_id>_<start time in ms>_<end time in ms>`
                     Example: `fe_03_00106_mixed_626310_642300`
         """
-        _speaker_dir = os.path.join(_out_dir, 'speaker_outputs')
-        if not os.path.exists(_speaker_dir):
-            os.makedirs(_speaker_dir)
-        if not os.path.exists(f'{_out_dir}/speaker_outputs/embeddings'):
-            os.makedirs(f'{_out_dir}/speaker_outputs/embeddings')
-
+        self._speaker_dir = os.path.join(_out_dir, 'speaker_outputs')
+        # Only if this is for the first run of modelPT instance, remove temp folders.
+        if self.trainer.global_rank == 0:
+            if os.path.exists(self._speaker_dir):
+                shutil.rmtree(self._speaker_dir)
+            os.makedirs(self._speaker_dir)
         split_audio_rttm_map = audio_rttm_map(manifest_filepath, attatch_dur=True)
-
         out_rttm_dir = os.path.join(_out_dir, 'pred_rttms')
         os.makedirs(out_rttm_dir, exist_ok=True)
 
         # Speech Activity Detection part
-        _speaker_manifest_path = os.path.join(_speaker_dir, f'oracle_vad_manifest_rank{self.trainer.global_rank}.json')
-        _speaker_manifest_path = write_rttm2manifest(
-            split_audio_rttm_map, _speaker_manifest_path, include_uniq_id=True
-        )
+        _speaker_manifest_path = os.path.join(self._speaker_dir, f'oracle_vad_manifest.json')
+        logging.info(f"Extracting oracle VAD timestamps and saving at {self._speaker_dir}")
+        if not os.path.exists(_speaker_manifest_path):
+             write_rttm2manifest(
+                split_audio_rttm_map, _speaker_manifest_path, include_uniq_id=True
+            )
 
         multiscale_and_timestamps = {}
 
         # Segmentation
         for scale_idx, (window, shift) in self.multiscale_args_dict['scale_dict'].items():
-
-            # Segmentation for the current scale (scale_idx)
-            subsegments_manifest_path = self.run_segmentation(
-                window, shift, _speaker_dir, _speaker_manifest_path, scale_tag=f'_scale{scale_idx}'
-            )
+            subsegments_manifest_path = os.path.join(self._speaker_dir, f'subsegments_scale{scale_idx}.json')
+            if not os.path.exists(subsegments_manifest_path):
+                # Segmentation for the current scale (scale_idx)
+                self.run_segmentation(
+                    window, shift, self._speaker_dir, _speaker_manifest_path, scale_tag=f'_scale{scale_idx}'
+                )
             multiscale_timestamps = self._extract_timestamps(subsegments_manifest_path)
             multiscale_and_timestamps[scale_idx] = multiscale_timestamps
 
@@ -819,7 +822,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
             time_stamps (dict):
                 Dictionary containing lists of timestamps.
         """
-        logging.info("Extracting timestamps for multiscale segmentation.")
+        logging.info(f"Extracting timestamps from {manifest_file} for multiscale subsegmentation.")
         time_stamps = {}
         with open(manifest_file, 'r', encoding='utf-8') as manifest:
             for i, line in enumerate(manifest.readlines()):
@@ -851,14 +854,11 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
                 A dictionary containing embeddings and timestamps of each scale, indexed by unique ID.
         """
         timestamps_dict = {
-            uniq_id: {'multiscale_weights': [], 'scale_dict': {}} for uniq_id in multiscale_and_timestamps[0].keys()
+            uniq_id: {'scale_dict': {}} for uniq_id in multiscale_and_timestamps[0].keys()
         }
         for scale_idx in sorted(multiscale_args_dict['scale_dict'].keys()):
             time_stamps = multiscale_and_timestamps[scale_idx]
             for uniq_id in time_stamps.keys():
-                timestamps_dict[uniq_id]['multiscale_weights'] = (
-                    torch.tensor(multiscale_args_dict['multiscale_weights']).unsqueeze(0).half()
-                )
                 timestamps_dict[uniq_id]['scale_dict'][scale_idx] = {
                     'time_stamps': time_stamps[uniq_id],
                 }
@@ -955,10 +955,10 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
                 Path to the output subsegment _manifest file.
         """
         subsegments_manifest_path = os.path.join(
-            _speaker_dir, f'subsegments{scale_tag}_rank{self.trainer.global_rank}.json'
+            _speaker_dir, f'subsegments{scale_tag}.json'
         )
         logging.info(
-            f"Subsegmentation for embedding extraction:{scale_tag.replace('_',' ')}, {subsegments_manifest_path}"
+            f"Subsegmentation for timestamp extraction:{scale_tag.replace('_',' ')}, {subsegments_manifest_path}"
         )
         subsegments_manifest_path = segments_manifest_to_subsegments_manifest(
             segments_manifest_file=_speaker_manifest_path,

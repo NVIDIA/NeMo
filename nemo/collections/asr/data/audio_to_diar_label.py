@@ -249,8 +249,8 @@ class _AudioMSDDTrainDataset(Dataset):
         uniq_scale_mapping = get_scale_mapping_list(self.multiscale_timestamp_dict[uniq_id])
         for scale_index in range(self.scale_n):
             new_clus_label = []
-            max_index = max(uniq_scale_mapping[scale_index])
-            for seg_idx in range(max_index + 1):
+            scale_seq_len = len(self.multiscale_timestamp_dict[uniq_id]["scale_dict"][scale_index]["time_stamps"])
+            for seg_idx in range(scale_seq_len):
                 if seg_idx in uniq_scale_mapping[scale_index]:
                     seg_clus_label = mode(base_scale_clus_label[uniq_scale_mapping[scale_index] == seg_idx])
                 else:
@@ -270,7 +270,7 @@ class _AudioMSDDTrainDataset(Dataset):
             uniq_id (str):
                 Unique file ID that refers to an input audio file and corresponding RTTM (Annotation) file.
             sample:
-                ``DiarizationSpeechLabel`` instance containing sample information such as audio filepath and RTTM filepath.
+                `DiarizationSpeechLabel` instance containing sample information such as audio filepath and RTTM filepath.
             fr_level_target (torch.tensor):
                 Tensor containing label for each feature-level frame.
 
@@ -315,7 +315,7 @@ class _AudioMSDDTrainDataset(Dataset):
 
         Args:
             sample:
-                ``DiarizationSpeechLabel`` instance containing sample information such as audio filepath and RTTM filepath.
+                `DiarizationSpeechLabel` instance containing sample information such as audio filepath and RTTM filepath.
             target_spks (tuple):
                 Speaker indices that are generated from combinations. If there are only one or two speakers,
                 only a single target_spks tuple is generated.
@@ -348,7 +348,7 @@ class _AudioMSDDTrainDataset(Dataset):
 
         Args:
             sample:
-                ``DiarizationSpeechLabel`` instance from collections.
+                `DiarizationSpeechLabel` instance from collections.
 
         Returns:
             uniq_id (str):
@@ -368,7 +368,7 @@ class _AudioMSDDTrainDataset(Dataset):
 
         Args:
             sample:
-                ``DiarizationSpeechLabel`` instance from preprocessing.collections
+                `DiarizationSpeechLabel` instance from preprocessing.collections
         Returns:
             ms_seg_timestamps (torch.tensor):
                 Tensor containing Multiscale segment timestamps.

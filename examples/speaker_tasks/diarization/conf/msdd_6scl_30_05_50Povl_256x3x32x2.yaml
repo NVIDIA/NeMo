@@ -12,13 +12,13 @@ diarizer: &diarizer
   oracle_vad: True # If True, uses RTTM files provided in manifest file to get speech activity (VAD) timestamps
 
   speaker_embeddings:
-    model_path: ??? # .nemo local model path or pretrained model name (titanet_large is recommended)
+    model_path: null # .nemo local model path or pretrained model name (titanet_large is recommended)
     parameters:
-      window_length_in_sec: [1.5,1.25,1.0,0.75,0.5] # Window length(s) in sec (floating-point number). either a number or a list. ex) 1.5 or [1.5,1.0,0.5]
-      shift_length_in_sec: [0.75,0.625,0.5,0.375,0.25] # Shift length(s) in sec (floating-point number). either a number or a list. ex) 0.75 or [0.75,0.5,0.25]
-      multiscale_weights: [1,1,1,1,1] # Weight for each scale. should be null (for single scale) or a list matched with window/shift scale count. ex) [0.33,0.33,0.33]
+      window_length_in_sec: [3.0,2.5,2.0,1.5,1.0,0.5] # Window length(s) in sec (floating-point number). either a number or a list. ex) 1.5 or [1.5,1.0,0.5]
+      shift_length_in_sec: [1.5,1.25,1.0,0.75,0.5,0.25] # Shift length(s) in sec (floating-point number). either a number or a list. ex) 0.75 or [0.75,0.5,0.25]
+      multiscale_weights: [1,1,1,1,1,1] # Weight for each scale. should be null (for single scale) or a list matched with window/shift scale count. ex) [0.33,0.33,0.33]
       save_embeddings: True # Save embeddings as pickle file for each audio input.
-
+  
   clustering:
     parameters:
       oracle_num_speakers: False # If True, use num of speakers value provided in manifest file.
@@ -31,7 +31,8 @@ diarizer: &diarizer
 msdd_model: 
   base:
     diarizer: *diarizer
-  max_num_of_spks: &max_num_of_spks 2 # Number of speakers in a MSDD model. This is currently fixed s 2.
+    num_workers: *num_workers
+  max_num_of_spks: &max_num_of_spks 2 # Number of speakers in a MSDD model. This is currently fixed at 2.
   scale_n: &scale_n # Number of scales for MSDD model and initializing clustering.
   soft_label_thres: &soft_label_thres 0.5 # Threshold for creating discretized speaker label from continuous speaker label in RTTM files.
   emb_batch_size: &emb_batch_size 0 # If this value is bigger than 0, corresponding number of embedding vectors are attached to torch graph and trained.
@@ -84,10 +85,10 @@ msdd_model:
     _target_: nemo.collections.asr.modules.msdd_diarizer.MSDD_module
     num_spks: *max_num_of_spks
     hidden_size: 256
-    num_lstm_layers: 2
+    num_lstm_layers: 3
     dropout_rate: 0.5
-    cnn_output_ch: 16
-    conv_repeat: 1
+    cnn_output_ch: 32
+    conv_repeat: 2
     emb_sizes: 192
     scale_n: *scale_n
     weighting_scheme: 'conv_scale_weight'
