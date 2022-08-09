@@ -10,7 +10,7 @@ from bignlp.core.stages import BigNLPStage
 from bignlp.core.stages import Training, FineTuning, PromptLearning
 from bignlp.core.stages import Conversion
 from bignlp.core.stages import EvalHarnessEvaluation, NeMoEvaluation
-from bignlp.core.stages import PileDataPreparation, MC4DataPreparation, CustomDataPreparation
+from bignlp.core.data_stages import PileDataPreparation, MC4DataPreparation, CustomDataPreparation
 
 
 omegaconf.OmegaConf.register_new_resolver("multiply", lambda x, y: x * y, replace=True)
