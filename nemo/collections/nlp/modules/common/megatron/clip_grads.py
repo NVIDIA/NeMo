@@ -15,6 +15,7 @@
 """Gradient clipping."""
 
 import itertools
+
 import torch
 from torch._six import inf
 
@@ -34,9 +35,11 @@ HAVE_APEX_DISTRIBUTED_ADAM = False
 if HAVE_APEX:
     try:
         from apex.contrib.optimizers.distributed_fused_adam import DistributedFusedAdam
+
         HAVE_APEX_DISTRIBUTED_ADAM = True
     except (ImportError, ModuleNotFoundError):
         pass
+
 
 def clip_grad_norm_fp32(parameters, max_norm, norm_type=2):
     """Clips gradient norm of an iterable of parameters whose gradients
@@ -153,6 +156,7 @@ def count_zeros_fp32(parameters):
 
     return total_num_zeros
 
+
 def clip_grad_norm_distributed_optimizer(optimizer, max_norm, norm_type=2):
     """Clips gradient norm of parameters in distributed optimizer
 
@@ -175,11 +179,7 @@ def clip_grad_norm_distributed_optimizer(optimizer, max_norm, norm_type=2):
     # Filter parameters based on:
     #   - parameter should not be shared
     #   - should not be a replica due to tensor model parallelism
-    params = itertools.chain.from_iterable(
-        param_group['params']
-        for param_group
-        in optimizer.param_groups
-    )
+    params = itertools.chain.from_iterable(param_group['params'] for param_group in optimizer.param_groups)
     params_for_norm = []
     for param in params:
         is_not_shared = param_is_not_shared(param)
@@ -189,13 +189,9 @@ def clip_grad_norm_distributed_optimizer(optimizer, max_norm, norm_type=2):
 
     # Compute grad norm
     # Note: Compute norm of local grads and sum over all procs
-    grad_norm_sq = optimizer._local_grad_norm(
-        parameters=params_for_norm,
-        norm_type=norm_type,
-    )
+    grad_norm_sq = optimizer._local_grad_norm(parameters=params_for_norm, norm_type=norm_type)
     torch.distributed.all_reduce(
-        grad_norm_sq,
-        op=torch.distributed.ReduceOp.SUM,
+        grad_norm_sq, op=torch.distributed.ReduceOp.SUM,
     )
     grad_norm = grad_norm_sq.sqrt()
 

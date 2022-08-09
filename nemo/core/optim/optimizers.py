@@ -60,6 +60,7 @@ if HAVE_APEX:
 
         # Try importing Apex distributed Adam optimizer
         from apex.contrib.optimizers.distributed_fused_adam import DistributedFusedAdam
+
         HAVE_APEX_DISTRIBUTED_ADAM = True
 
         # Wrapper class that supports main_grad buffer
@@ -68,6 +69,7 @@ if HAVE_APEX:
             def _init_param_state(self, param, param_group_id, param_id):
                 super()._init_param_state(param, param_group_id, param_id)
                 param.main_grad = self.grad_buffer_view(param)
+
         AVAILABLE_OPTIMIZERS['distributed_fused_adam'] = MegatronDistributedFusedAdam
 
     except (ImportError, ModuleNotFoundError):

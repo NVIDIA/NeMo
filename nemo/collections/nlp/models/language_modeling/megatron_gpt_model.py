@@ -174,19 +174,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self._optimizer_param_groups = get_params_for_weight_decay_optimization([self.model])
 
     def setup_optimization(
-            self,
-            optim_config: Optional[Union[DictConfig, Dict]] = None,
-            optim_kwargs: Optional[Dict[str, Any]] = None,
+        self, optim_config: Optional[Union[DictConfig, Dict]] = None, optim_kwargs: Optional[Dict[str, Any]] = None,
     ):
         optim_kwargs = {} if optim_kwargs is None else optim_kwargs.copy()
         if self.with_distributed_adam:
             optim_kwargs['process_group'] = parallel_state.get_data_parallel_group()
             optim_kwargs['param_sync_dtype'] = self.autocast_dtype
             optim_kwargs['contiguous_grad_buffer'] = True
-        return super().setup_optimization(
-            optim_config=optim_config,
-            optim_kwargs=optim_kwargs,
-        )
+        return super().setup_optimization(optim_config=optim_config, optim_kwargs=optim_kwargs)
 
     def forward(self, tokens, text_position_ids, attention_mask, labels):
         output_tensor = self.model(tokens, text_position_ids, attention_mask, labels=labels)
@@ -229,9 +224,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             # no pipeline parallelism so we reduce grads asynchronously if not using sequence parallelism
             if self.megatron_amp_o2 and not self.cfg.get('sequence_parallel', False):
                 if self.with_distributed_adam:
-                    custom_sync_context_handler = (
-                        lambda: self._optimizer.no_sync(greedy_grad_copy=True)
-                    )
+                    custom_sync_context_handler = lambda: self._optimizer.no_sync(greedy_grad_copy=True)
                 else:
                     custom_sync_context_handler = self._optimizer.no_sync
             else:
@@ -650,8 +643,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
             # Overlapped communication interferes with grad reductions
             # for pipeline parallelism and sequence parallelism
-            if (self.cfg.get('pipeline_model_parallel_size', 1) > 1
-                or self.cfg.get('sequence_parallel', False)):
+            if self.cfg.get('pipeline_model_parallel_size', 1) > 1 or self.cfg.get('sequence_parallel', False):
                 self._optimizer.overlap_grad_sync = False
 
         return retval

@@ -432,9 +432,7 @@ class ModelPT(LightningModule, Model):
                 self._test_names = ['test_{}_'.format(idx) for idx in range(len(self._test_dl))]
 
     def setup_optimization(
-            self,
-            optim_config: Optional[Union[DictConfig, Dict]] = None,
-            optim_kwargs: Optional[Dict[str, Any]] = None,
+        self, optim_config: Optional[Union[DictConfig, Dict]] = None, optim_kwargs: Optional[Dict[str, Any]] = None,
     ):
         """Prepares an optimizer from a string name and its optional config parameters.
 
