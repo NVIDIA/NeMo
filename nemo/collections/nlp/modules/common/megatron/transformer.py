@@ -394,9 +394,7 @@ class CoreAttention(MegatronModule):
             device=torch.cuda.current_device(),
         )
 
-        query_layer = query_layer.to(torch.cuda.current_device())
         # Raw attention scores. [b * np, sq, sk]
-        # print(matmul_input_buffer.device, query_layer.device, key_layer.device)
         matmul_result = torch.baddbmm(
             matmul_input_buffer,
             query_layer.transpose(0, 1),  # [b * np, sq, hn]
