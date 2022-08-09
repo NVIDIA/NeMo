@@ -799,7 +799,7 @@ class ParallelAttention(MegatronModule):
             self.inference_current_sequence_len += key_layer.size(0)
             end = self.inference_current_sequence_len
             # Copy key and values.
-            #print('MEM SIZES:', self.inference_key_memory[start:end, ...].shape, key_layer[-1].shape)
+            # print('MEM SIZES:', self.inference_key_memory[start:end, ...].shape, key_layer[-1].shape)
             self.inference_key_memory[start:end, ...] = key_layer
             self.inference_value_memory[start:end, ...] = value_layer
             # self.inference_query_memory[query_start:query_end, ...] = query_layer

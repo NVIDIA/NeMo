@@ -31,8 +31,8 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     parallel_lm_logits,
     scaled_init_method_normal,
 )
-from nemo.core.classes.exportable import Exportable
 from nemo.collections.nlp.modules.common.megatron.vocab_parallel_cross_entropy import vocab_parallel_cross_entropy
+from nemo.core.classes.exportable import Exportable
 
 try:
     from apex.transformer import tensor_parallel, parallel_state
@@ -397,7 +397,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         output_enc_hidden_only=False,
         set_inference_key_value_memory=False,
         inference_max_sequence_len=None,
-        memory_index=None
+        memory_index=None,
     ):
         """
         Return value is per token / per dimension (i.e., non collapsed loss value)
@@ -446,7 +446,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 if memory_index is not None:
                     # print(memory_index.shape)
                     dec_position_ids = memory_index
-                else:    
+                else:
                     dec_position_ids = build_position_ids(dec_input_ids)
                 dec_input = self.decoder_embedding(dec_input_ids, dec_position_ids, token_type_ids=token_type_ids)
 

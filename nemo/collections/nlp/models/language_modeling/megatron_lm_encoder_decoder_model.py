@@ -1029,9 +1029,12 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             inference_key_first = torch.tensor([[True] for _ in range(enc_output.shape[0])])
             inference_key_then = torch.tensor([[False] for _ in range(enc_output.shape[0])])
             inference_mem_size = torch.tensor([[256] for _ in range(enc_output.shape[0])])
-            
+
             # cache memory index
-            memory_ids = [ torch.tensor([i for _ in range(enc_output.shape[0])]).unsqueeze(-1) for i in range(num_tokens_to_generate)]
+            memory_ids = [
+                torch.tensor([i for _ in range(enc_output.shape[0])]).unsqueeze(-1)
+                for i in range(num_tokens_to_generate)
+            ]
 
         for i in range(num_tokens_to_generate):
             # No microbatches in decoding. Just the global batch.
@@ -1043,11 +1046,43 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 batch_for_pipeline = [enc_output, enc_output_attn_mask, predicted_tokens_dec, dec_mask]
                 arg_names = ['enc_output', 'enc_output_attn_mask', 'dec_input_ids', 'dec_attn_mask']
             elif i == 0:
-                batch_for_pipeline = [enc_output, enc_output_attn_mask, predicted_tokens_dec[..., i:i+1], dec_mask[..., i:i+1], inference_key_first, inference_mem_size, memory_ids[i]]
-                arg_names = ['enc_output', 'enc_output_attn_mask', 'dec_input_ids', 'dec_attn_mask', 'set_inference_key_value_memory', 'inference_max_sequence_len', 'memory_index']
+                batch_for_pipeline = [
+                    enc_output,
+                    enc_output_attn_mask,
+                    predicted_tokens_dec[..., i : i + 1],
+                    dec_mask[..., i : i + 1],
+                    inference_key_first,
+                    inference_mem_size,
+                    memory_ids[i],
+                ]
+                arg_names = [
+                    'enc_output',
+                    'enc_output_attn_mask',
+                    'dec_input_ids',
+                    'dec_attn_mask',
+                    'set_inference_key_value_memory',
+                    'inference_max_sequence_len',
+                    'memory_index',
+                ]
             else:
-                batch_for_pipeline = [enc_output, enc_output_attn_mask, predicted_tokens_dec[..., i:i+1], dec_mask[..., i:i+1], inference_key_then, inference_mem_size, memory_ids[i]]
-                arg_names = ['enc_output', 'enc_output_attn_mask', 'dec_input_ids', 'dec_attn_mask', 'set_inference_key_value_memory', 'inference_max_sequence_len', 'memory_index']
+                batch_for_pipeline = [
+                    enc_output,
+                    enc_output_attn_mask,
+                    predicted_tokens_dec[..., i : i + 1],
+                    dec_mask[..., i : i + 1],
+                    inference_key_then,
+                    inference_mem_size,
+                    memory_ids[i],
+                ]
+                arg_names = [
+                    'enc_output',
+                    'enc_output_attn_mask',
+                    'dec_input_ids',
+                    'dec_attn_mask',
+                    'set_inference_key_value_memory',
+                    'inference_max_sequence_len',
+                    'memory_index',
+                ]
 
             forward_step_func = self._get_forward_output_only_func(arg_names=arg_names, output_name="logits")
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1:

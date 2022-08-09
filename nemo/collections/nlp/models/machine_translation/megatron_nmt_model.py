@@ -710,7 +710,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         target_lang: str = None,
         return_beam_scores: bool = False,
         log_timing: bool = False,
-        use_decoder_mems = False,
+        use_decoder_mems=False,
     ) -> List[str]:
         """
         Translates list of sentences from source language to target language.
