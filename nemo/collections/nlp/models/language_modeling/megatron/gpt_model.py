@@ -136,6 +136,7 @@ class GPTModel(MegatronModule):
         fp8_interval=1,
         fp8_amax_history_len=1,
         fp8_amax_compute_algo='most_recent',
+        use_emha=False,
     ):
 
         super(GPTModel, self).__init__()
@@ -200,6 +201,7 @@ class GPTModel(MegatronModule):
             fp8_interval=fp8_interval,
             fp8_amax_history_len=fp8_amax_history_len,
             fp8_amax_compute_algo=fp8_amax_compute_algo,
+            use_emha=use_emha,
         )
 
         self.initialize_word_embeddings(

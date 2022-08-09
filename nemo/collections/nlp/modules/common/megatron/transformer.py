@@ -1644,6 +1644,7 @@ class AutocastTransformerLayer(TransformerLayer):
         output_layernorm: bool = False,
         layer_type: str = "encoder",
         drop_path_rate: float = 0,
+        use_emha: bool = False,
         autocast_dtype: Any = 16,
     ) -> None:
         super().__init__(
@@ -1673,6 +1674,7 @@ class AutocastTransformerLayer(TransformerLayer):
             output_layernorm=output_layernorm,
             layer_type=layer_type,
             drop_path_rate=drop_path_rate,
+            use_emha=use_emha,
         )
 
         if autocast_dtype == 32:
@@ -1764,6 +1766,7 @@ class ParallelTransformer(MegatronModule):
         fp8_interval=1,
         fp8_amax_history_len=1,
         fp8_amax_compute_algo='most_recent',
+        use_emha=False,
     ):
         super(ParallelTransformer, self).__init__()
 
@@ -1882,6 +1885,7 @@ class ParallelTransformer(MegatronModule):
                     sequence_parallel=sequence_parallel,
                     apply_residual_connection_post_layernorm=False,
                     autocast_dtype=precision,
+                    use_emha=use_emha,
                 )
             else:
                 return ParallelTransformerLayer(
