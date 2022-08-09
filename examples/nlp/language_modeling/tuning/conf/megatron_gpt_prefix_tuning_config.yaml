@@ -1,4 +1,4 @@
-name: {model.new_tasks[0]}_max_epochs${trainer.max_epochs}_prefix_len${model.prefix_tuning.prefix_len}_lr${model.prefix_tuning.prefix_learning_rate}
+name: ${model.new_tasks[0]}_max_epochs${trainer.max_epochs}_prefix_len${model.prefix_tuning.prefix_len}_lr${model.prefix_tuning.prefix_learning_rate}
 
 trainer:
   devices: 1
