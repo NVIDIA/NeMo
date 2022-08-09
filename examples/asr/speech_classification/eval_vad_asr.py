@@ -32,22 +32,22 @@ def main():
     db_list = ['clean'] 
     modes = ['offline'] #streaming
     langs = [
-        'riva_silence',
-        'driveix', 
+        # 'riva_silence',
+        # 'driveix', 
         'chris', 
-        'hub5',
-        'GTC2019-keynote-parts', 
-        'tmobile',
-        'Ring_central_with_duration',
-        'logmein',
-        'StreamingInTheCloud',
-        'tedlium2_test',
-        'wsj-eval-92',
-        'librivox-test-other',
-        'yt_med_eval'
+        # 'hub5',
+        # 'GTC2019-keynote-parts', 
+        # 'tmobile',
+        # 'Ring_central_with_duration',
+        # 'logmein',
+        # 'StreamingInTheCloud',
+        # 'tedlium2_test',
+        # 'wsj-eval-92',
+        # 'librivox-test-other',
+        # 'yt_med_eval'
     ]
 
-    vad_exps = ["novad", "neural_vad"] 
+    vad_exps = ["novad"] 
     models = ['riva_citrinet_new'] 
 
     shift_length_in_sec = 0.08
@@ -64,7 +64,7 @@ def main():
     single= False # True
     exp = "_single" if single else ""
     exp = "_min10"
-    res_file = f"res_asr_{exp}_offlines_s8_tunedO_test_new.csv"
+    res_file = f"res_asr_{exp}_offlines_s8_tunedO_test_new_mask.csv"
 
     si_ratio = False  #True
 
@@ -75,7 +75,7 @@ def main():
             for j in range(0, 11, 2):
                 fixed_silence_set.add((i,j))
 
-    final_output_folder = f"asr_{exp}_s8_tuned_test_new"
+    final_output_folder = f"asr_{exp}_s8_tuned_test_new_mask"
 
     # final_output_folder = "final_tuned"
     save_neural_vad = True

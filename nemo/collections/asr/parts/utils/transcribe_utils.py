@@ -19,6 +19,7 @@ from nemo.collections.asr.models.ctc_models import EncDecCTCModel
 from nemo.collections.asr.models.rnnt_models import EncDecRNNTModel
 from nemo.utils import logging
 from math import ceil
+import torch
 
 def transcribe_partial_audio(
     asr_model,
@@ -71,9 +72,11 @@ def transcribe_partial_audio(
                 'right': right,
             }
             temporary_datalayer = asr_model._setup_transcribe_dataloader(config)
+            segment = torch.tensor([[0,1]])
             for test_batch in tqdm(temporary_datalayer, desc="Transcribing"):
                 logits, logits_len, greedy_predictions = asr_model.forward(
-                    input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
+                    input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device), 
+                    segment=segment
                 )
                 if logprobs:
                     # dump log probs per file
