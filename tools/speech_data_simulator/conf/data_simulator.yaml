@@ -6,7 +6,7 @@ data_simulator:
   random_seed: 42
 
   session_config:
-    num_speakers: 2 # number of unique speakers per diarization session
+    num_speakers: 4 # number of unique speakers per diarization session
     num_sessions: 60 # number of sessions
     session_length: 600 # length of each diarization session (seconds)
 
