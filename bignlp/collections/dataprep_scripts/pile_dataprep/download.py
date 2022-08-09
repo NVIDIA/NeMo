@@ -5,7 +5,7 @@ import hydra
 import utils
 
 
-@hydra.main(config_path="../../../conf", config_name="config")
+@hydra.main(config_path="conf", config_name="config")
 def main(cfg):
     """Function to download the pile dataset files on BCM.
 

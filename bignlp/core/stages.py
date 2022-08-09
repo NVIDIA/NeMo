@@ -193,13 +193,13 @@ class BigNLPStage:
 
     def get_env_vars(self) -> Dict:
         env_vars = {
-            k: v for k, v in self.cfg.get("env_vars")
+            k: v for k, v in self.cfg.get("env_vars").items()
             if v is not None
         }
         return env_vars
 
     def get_stage_config_choice(self):
-        stage_config_choice = cfg.get(f"{self.stage_name}_config")
+        stage_config_choice = self.cfg.get(f"{self.stage_name}_config")
         choice_model_type = stage_config_choice.rsplit("/", 1)[0]
         choice_name = stage_config_choice.rsplit("/", 1)[1]
         return choice_model_type, choice_name
@@ -648,8 +648,10 @@ class DataStage(BigNLPStage):
         elif cluster == "interactive":
             raise ValueError("Data preparation is not supported in interactive mode.")
 
+        return cluster_parameters
 
-class PileDataPreparation(BigNLPStage):
+
+class PileDataPreparation(DataStage):
 
     def _make_sub_stages(self):
         sub_stages = []
@@ -671,7 +673,7 @@ class PileDataPreparation(BigNLPStage):
         # Download vocab
         if download_vocab_url is not None:
             assert vocab_save_dir is not None, "vocab_save_dir must be a valid path."
-            utils.download_single_file(
+            download_single_file(
                 url=download_vocab_url,
                 save_dir=vocab_save_dir,
                 file_name="vocab.json" if download_vocab_url.endswith("json") else "vocab.txt",
@@ -679,7 +681,7 @@ class PileDataPreparation(BigNLPStage):
         # Download merges
         if download_merges_url is not None:
             assert merges_save_dir is not None, "merges_save_dir must be a valid path."
-            utils.download_single_file(
+            download_single_file(
                 url=download_merges_url,
                 save_dir=merges_save_dir,
                 file_name="merges.txt",

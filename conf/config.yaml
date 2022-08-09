@@ -49,7 +49,7 @@ numa_mapping:
   max_cores: 8  # Maximum number of physical cores per process. Can be null to use all available cores.
 
 # Do not modify below, use the values above instead.
-data_config: ${hydra:runtime.choices.data_preparation}
+data_preparation_config: ${hydra:runtime.choices.data_preparation}
 training_config: ${hydra:runtime.choices.training}
 fine_tuning_config: ${hydra:runtime.choices.fine_tuning}
 prompt_learning_config: ${hydra:runtime.choices.prompt_learning}
