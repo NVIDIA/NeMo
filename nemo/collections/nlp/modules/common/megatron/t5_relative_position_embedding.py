@@ -66,7 +66,7 @@ class T5RelativePositionEmbedding(torch.nn.Module):
 
         if (
             parallel_state.get_pipeline_model_parallel_rank() == 0
-            or parallel_state.get_pipeline_model_parallel_rank
+            or parallel_state.get_pipeline_model_parallel_rank()
             == parallel_state.get_pipeline_model_parallel_split_rank()
         ):
             self.relative_position_embedding.weight.data.fill_(0)
