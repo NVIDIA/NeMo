@@ -467,7 +467,7 @@ class SSLVocoderDataset(Dataset):
             pitch_contour = pitch_contour[: encoded_len.item()]
             assert pitch_contour.shape[0] == content_embedding.shape[1] == encoded_len.item()
 
-        if self.use_speakerwise_stats:
+        if self.use_speakerwise_stats and self.pitch_conditioning:
             self.update_speaker_stats(sample["speaker"], pitch_contour, speaker_embedding)
             speaker_embedding = self.speaker_stats[sample["speaker"]]["mean_speaker_embedding"]
 
