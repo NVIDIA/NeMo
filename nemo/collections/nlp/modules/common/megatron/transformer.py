@@ -802,7 +802,8 @@ class ParallelAttention(MegatronModule):
             key_layer = self.inference_key_memory[:end, ...]
             value_layer = self.inference_value_memory[:end, ...]
             # Adjust attention mask
-            attention_mask = attention_mask[..., start:end, :end]
+            if not (end == start + 1 and attention_mask.shape[1] == 1):
+                attention_mask = attention_mask[..., start:end, :end]
             # adjust the key rotary positional embedding
             if rotary_pos_emb is not None:
                 q_pos_emb, k_pos_emb = rotary_pos_emb
