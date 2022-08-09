@@ -344,7 +344,6 @@ class ClusterEmbedding:
     def __init__(self, cfg_base: DictConfig, cfg_msdd_model: DictConfig):
         self.cfg_base = cfg_base
         self._cfg_msdd = cfg_msdd_model
-        self.max_num_of_spks = int(self.cfg_base.diarizer.clustering.parameters.max_num_speakers)
         self.cluster_avg_emb_path = 'speaker_outputs/embeddings/clus_emb_info.pkl'
         self.speaker_mapping_path = 'speaker_outputs/embeddings/clus_mapping.pkl'
         self.scale_map_path = 'speaker_outputs/embeddings/scale_mapping.pkl'
@@ -352,10 +351,10 @@ class ClusterEmbedding:
         self.clusdiar_model = None
         self.msdd_model = None
         self.spk_emb_state_dict = {}
-        self.embs_filtering_thres = None
 
         self.run_clus_from_loaded_emb = False
         self.use_speaker_model_from_MSDD = False
+        self.max_num_speakers = self.cfg_base.diarizer.clustering.parameters.get('max_num_speakers', 8)
         self.scale_window_length_list = list(self.cfg_base.diarizer.speaker_embeddings.parameters.window_length_in_sec)
         self.scale_n = len(self.scale_window_length_list)
         self.base_scale_index = len(self.scale_window_length_list) - 1
@@ -476,12 +475,8 @@ class ClusterEmbedding:
                 spk_set = set(clus_label_list)
                 # Create a label array which identifies clustering result for each segment.
                 num_of_spks = len(spk_set)
-                if num_of_spks > self.max_num_of_spks:
-                    raise ValueError(
-                        f"uniq_id {uniq_id} - self.max_num_of_spks {self.max_num_of_spks} is smaller than the actual number of speakers: {num_of_spks}"
-                    )
                 label_array = torch.Tensor(clus_label_list)
-                avg_embs = torch.zeros(emb_dim, self.max_num_of_spks)
+                avg_embs = torch.zeros(emb_dim, self.max_num_speakers)
                 for spk_idx in spk_set:
                     selected_embs = emb_tensor[label_array == spk_idx]
                     avg_embs[:, spk_idx] = torch.mean(selected_embs, dim=0)
@@ -790,9 +785,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         _speaker_manifest_path = os.path.join(self._speaker_dir, f'oracle_vad_manifest.json')
         logging.info(f"Extracting oracle VAD timestamps and saving at {self._speaker_dir}")
         if not os.path.exists(_speaker_manifest_path):
-             write_rttm2manifest(
-                split_audio_rttm_map, _speaker_manifest_path, include_uniq_id=True
-            )
+            write_rttm2manifest(split_audio_rttm_map, _speaker_manifest_path, include_uniq_id=True)
 
         multiscale_and_timestamps = {}
 
@@ -853,9 +846,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
             timestamps_dict (dict)
                 A dictionary containing embeddings and timestamps of each scale, indexed by unique ID.
         """
-        timestamps_dict = {
-            uniq_id: {'scale_dict': {}} for uniq_id in multiscale_and_timestamps[0].keys()
-        }
+        timestamps_dict = {uniq_id: {'scale_dict': {}} for uniq_id in multiscale_and_timestamps[0].keys()}
         for scale_idx in sorted(multiscale_args_dict['scale_dict'].keys()):
             time_stamps = multiscale_and_timestamps[scale_idx]
             for uniq_id in time_stamps.keys():
@@ -954,9 +945,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
             subsegments_manifest_path (str):
                 Path to the output subsegment _manifest file.
         """
-        subsegments_manifest_path = os.path.join(
-            _speaker_dir, f'subsegments{scale_tag}.json'
-        )
+        subsegments_manifest_path = os.path.join(_speaker_dir, f'subsegments{scale_tag}.json')
         logging.info(
             f"Subsegmentation for timestamp extraction:{scale_tag.replace('_',' ')}, {subsegments_manifest_path}"
         )

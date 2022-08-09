@@ -12,21 +12,13 @@ diarizer: &diarizer
   oracle_vad: True # If True, uses RTTM files provided in manifest file to get speech activity (VAD) timestamps
 
   speaker_embeddings:
-    model_path: null # .nemo local model path or pretrained model name (titanet_large is recommended)
+    num_workers: *num_workers
+    model_path: ??? # .nemo local model path or pretrained model name (titanet_large is recommended)
     parameters:
       window_length_in_sec: [3.0,2.5,2.0,1.5,1.0,0.5] # Window length(s) in sec (floating-point number). either a number or a list. ex) 1.5 or [1.5,1.0,0.5]
       shift_length_in_sec: [1.5,1.25,1.0,0.75,0.5,0.25] # Shift length(s) in sec (floating-point number). either a number or a list. ex) 0.75 or [0.75,0.5,0.25]
       multiscale_weights: [1,1,1,1,1,1] # Weight for each scale. should be null (for single scale) or a list matched with window/shift scale count. ex) [0.33,0.33,0.33]
       save_embeddings: True # Save embeddings as pickle file for each audio input.
-  
-  clustering:
-    parameters:
-      oracle_num_speakers: False # If True, use num of speakers value provided in manifest file.
-      max_num_speakers: &max_num_speakers 8 # Max number of speakers for each recording. If oracle num speakers is passed, this value is ignored.
-      enhanced_count_thres: 80 # If the number of segments is lower than this number, enhanced speaker counting is activated.
-      max_rp_threshold: 0.15 # Determines the range of p-value search: 0 < p <= max_rp_threshold. 
-      sparse_search_volume: 30 # The higher the number, the more values will be examined with more time. 
-      maj_vote_spk_count: False  # If True, take a majority vote on multiple p-values to estimate the number of speakers.
 
 msdd_model: 
   base:

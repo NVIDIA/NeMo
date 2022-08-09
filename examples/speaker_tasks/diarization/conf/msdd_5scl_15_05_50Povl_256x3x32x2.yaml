@@ -20,20 +20,11 @@ diarizer: &diarizer
       multiscale_weights: [1,1,1,1,1] # Weight for each scale. should be null (for single scale) or a list matched with window/shift scale count. ex) [0.33,0.33,0.33]
       save_embeddings: True # Save embeddings as pickle file for each audio input.
 
-  clustering:
-    parameters:
-      oracle_num_speakers: False # If True, use num of speakers value provided in manifest file.
-      max_num_speakers: &max_num_speakers 8 # Max number of speakers for each recording. If oracle num speakers is passed, this value is ignored.
-      enhanced_count_thres: 80 # If the number of segments is lower than this number, enhanced speaker counting is activated.
-      max_rp_threshold: 0.15 # Determines the range of p-value search: 0 < p <= max_rp_threshold. 
-      sparse_search_volume: 30 # The higher the number, the more values will be examined with more time. 
-      maj_vote_spk_count: False  # If True, take a majority vote on multiple p-values to estimate the number of speakers.
-
 msdd_model: 
   base:
     diarizer: *diarizer
     num_workers: *num_workers
-  max_num_of_spks: &max_num_of_spks 2 # Number of speakers in a MSDD model. This is currently fixed s 2.
+  max_num_of_spks: &max_num_of_spks 2 # Number of speakers in a MSDD model. This is currently fixed at 2.
   scale_n: &scale_n # Number of scales for MSDD model and initializing clustering.
   soft_label_thres: &soft_label_thres 0.5 # Threshold for creating discretized speaker label from continuous speaker label in RTTM files.
   emb_batch_size: &emb_batch_size 0 # If this value is bigger than 0, corresponding number of embedding vectors are attached to torch graph and trained.
