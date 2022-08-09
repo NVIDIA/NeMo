@@ -824,8 +824,8 @@ class ParallelAttention(MegatronModule):
             key_layer = torch.cat((past_key.type_as(key_layer), key_layer), dim=0)
             value_layer = torch.cat((past_value.type_as(value_layer), value_layer), dim=0)
 
-        print(key_layer.shape, value_layer.shape, query_layer.shape)
-        print('=======')
+        # print(key_layer.shape, value_layer.shape, query_layer.shape)
+        # print('=======')
 
         if get_key_value:
             present = (key_layer, value_layer)

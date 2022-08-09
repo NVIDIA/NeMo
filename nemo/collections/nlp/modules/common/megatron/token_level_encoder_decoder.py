@@ -397,6 +397,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         output_enc_hidden_only=False,
         set_inference_key_value_memory=False,
         inference_max_sequence_len=None,
+        memory_index=None
     ):
         """
         Return value is per token / per dimension (i.e., non collapsed loss value)
@@ -442,8 +443,14 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 enc_output_attn_mask = enc_attn_mask
 
             if self.pre_process and self.add_decoder:
-                dec_position_ids = build_position_ids(dec_input_ids)
+                if memory_index is not None:
+                    # print(memory_index.shape)
+                    dec_position_ids = memory_index
+                else:    
+                    dec_position_ids = build_position_ids(dec_input_ids)
                 dec_input = self.decoder_embedding(dec_input_ids, dec_position_ids, token_type_ids=token_type_ids)
+
+                # print('POS IDs:', dec_position_ids)
 
                 if self.decoder_cfg.get("position_embedding_type", "learned_absolute") == 'relative':
                     decoder_self_attention_relative_position_bias = self.decoder_relative_position_embedding(
