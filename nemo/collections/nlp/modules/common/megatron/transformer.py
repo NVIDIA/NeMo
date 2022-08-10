@@ -848,7 +848,6 @@ class ParallelAttention(MegatronModule):
         # Output. [sq, b, h]
         # =================
 
-        # print(context_layer.device)
         output, bias = self.dense(context_layer)
 
         if get_key_value:

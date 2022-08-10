@@ -1474,6 +1474,7 @@ class ModelPT(LightningModule, Model):
                         logging.info("====== End nsys profiling ======")
                         torch.cuda.cudart().cudaProfilerStop()
 
+    # TODO: Remove in PTL 1.7.2
     def cuda(self, device=None):
         """ PTL is overriding this method and changing the pytorch behavior of a module.
             The PTL LightingModule override will move the module to device 0 if device is None.
