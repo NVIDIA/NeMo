@@ -16,14 +16,15 @@ from pathlib import Path
 
 import numpy as np
 import torch
+from einops import rearrange
 from scipy import ndimage
-from scipy.stats import betabinom
+from torch.special import gammaln
 
 
 class BetaBinomialInterpolator:
     """
-        This module calculates alignment prior matrices (based on beta-binomial distribution) using cached popular sizes and image interpolation.
-        The implementation is taken from https://github.com/NVIDIA/DeepLearningExamples/blob/master/PyTorch/SpeechSynthesis/FastPitch/fastpitch/data_function.py
+    This module calculates alignment prior matrices (based on beta-binomial distribution) using cached popular sizes and image interpolation.
+    The implementation is taken from https://github.com/NVIDIA/DeepLearningExamples/blob/master/PyTorch/SpeechSynthesis/FastPitch/fastpitch/data_function.py
     """
 
     def __init__(self, round_mel_len_to=50, round_text_len_to=10, cache_size=500):
@@ -38,7 +39,7 @@ class BetaBinomialInterpolator:
     def __call__(self, w, h):
         bw = BetaBinomialInterpolator.round(w, to=self.round_mel_len_to)
         bh = BetaBinomialInterpolator.round(h, to=self.round_text_len_to)
-        ret = ndimage.zoom(self.bank(bw, bh).T, zoom=(w / bw, h / bh), order=1)
+        ret = ndimage.zoom(self.bank(bw, bh).numpy().T, zoom=(w / bw, h / bh), order=1)
         assert ret.shape[0] == w, ret.shape
         assert ret.shape[1] == h, ret.shape
         return ret
@@ -50,14 +51,29 @@ def general_padding(item, item_len, max_len, pad_value=0):
     return item
 
 
-def beta_binomial_prior_distribution(phoneme_count, mel_count, scaling_factor=1.0):
-    x = np.arange(0, phoneme_count)
-    mel_text_probs = []
-    for i in range(1, mel_count + 1):
-        a, b = scaling_factor * i, scaling_factor * (mel_count + 1 - i)
-        mel_i_prob = betabinom(phoneme_count - 1, a, b).pmf(x)
-        mel_text_probs.append(mel_i_prob)
-    return np.array(mel_text_probs)
+def logbeta(x, y):
+    return gammaln(x) + gammaln(y) - gammaln(x + y)
+
+
+def logcombinations(n, k):
+    return gammaln(n + 1) - gammaln(k + 1) - gammaln(n - k + 1)   
+
+
+def logbetabinom(n, a, b, x):
+    return logcombinations(n, x) + logbeta(x + a, n - x + b) - logbeta(a, b)
+
+
+@torch.no_grad()
+def beta_binomial_prior_distribution(
+    phoneme_count: int, mel_count: int, scaling_factor: float = 1.0
+) -> torch.FloatTensor:
+    x = rearrange(torch.arange(0, phoneme_count), "b -> 1 b")
+    y = rearrange(torch.arange(1, mel_count + 1), "b -> b 1")
+    a = scaling_factor * y
+    b = scaling_factor * (mel_count + 1 - y)
+    n = torch.FloatTensor([phoneme_count - 1])
+
+    return logbetabinom(n, a, b, x).exp()
 
 
 def get_base_dir(paths):
