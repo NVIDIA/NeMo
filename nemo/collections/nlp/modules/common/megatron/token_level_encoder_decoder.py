@@ -375,10 +375,17 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         enc_output_attn_mask=None,
         enc_input=None,
         output_enc_hidden_only=False,
+        set_inference_key_value_memory=False,
+        inference_max_sequence_len=None,
+        memory_index=None,
     ):
         """
         Return value is per token / per dimension (i.e., non collapsed loss value)
         """
+
+        if inference_max_sequence_len is not None and memory_index is None:
+            raise ValueError('memory_index should be set when using key_value memory')
+
         (
             encoder_self_attention_relative_position_bias,
             decoder_self_attention_relative_position_bias,
@@ -420,7 +427,10 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 enc_output_attn_mask = enc_attn_mask
 
             if self.pre_process and self.add_decoder:
-                dec_position_ids = build_position_ids(dec_input_ids)
+                if memory_index is not None:
+                    dec_position_ids = memory_index
+                else:
+                    dec_position_ids = build_position_ids(dec_input_ids)
                 dec_input = self.decoder_embedding(dec_input_ids, dec_position_ids, token_type_ids=token_type_ids)
 
                 if self.decoder_cfg.get("position_embedding_type", "learned_absolute") == 'relative':
@@ -455,6 +465,8 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 enc_self_attention_relative_position_bias=encoder_self_attention_relative_position_bias,
                 dec_self_attention_relative_position_bias=decoder_self_attention_relative_position_bias,
                 dec_cross_attention_relative_position_bias=decoder_cross_attention_relative_position_bias,
+                set_inference_key_value_memory=set_inference_key_value_memory,
+                inference_max_sequence_len=inference_max_sequence_len,
             )
 
             if self.post_process and self.add_decoder:

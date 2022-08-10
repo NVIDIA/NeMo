@@ -709,6 +709,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         target_lang: str = None,
         return_beam_scores: bool = False,
         log_timing: bool = False,
+        use_decoder_mems=False,
     ) -> List[str]:
         """
         Translates list of sentences from source language to target language.
@@ -768,6 +769,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                 src.size(1)
                 + self._cfg.max_generation_delta,  # Generate up to src-length + max generation delta. TODO: Implement better stopping when everything hits <EOS>.
                 tokenizer=self.decoder_tokenizer,
+                use_memory=use_decoder_mems,
             )
             best_translations = self.postprocess_outputs(
                 outputs=predicted_tokens_ids, tokenizer=self.decoder_tokenizer, processor=self.target_processor
