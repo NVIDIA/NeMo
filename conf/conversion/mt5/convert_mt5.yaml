@@ -7,7 +7,6 @@ run:
   model_train_name: mt5_390m
   train_dir: ${base_results_dir}/${.model_train_name}
   results_dir: ${.train_dir}/${.convert_name}
-  output_path: ${.train_dir}/${.convert_name}
   nemo_file_name: megatron_mt5.nemo # name of nemo checkpoint; must be .nemo file
 
 model:
