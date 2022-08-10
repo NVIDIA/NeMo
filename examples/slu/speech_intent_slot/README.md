@@ -70,9 +70,6 @@ python data_utils/prepare_slurp.py --data_root $RAW_ANNO_DIR --output $MANIFESTS
 
 echo "Decoding audios and updating manifests..."
 python data_utils/decode_resample.py --data_root $DATA_DIR --manifest $MANIFESTS_DIR
-
-echo "Parsing manifests for ASR..."
-python data_utils/get_asr_manifests.py $DATA_DIR
 ```
 
 ### Building Tokenizers

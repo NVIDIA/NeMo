@@ -8,7 +8,7 @@ python ../../../scripts/checkpoint_averaging/checkpoint_averaging.py ${CKPT_DIR}
 
 NEMO_MODEL="${CKPT_DIR}/${EXP_NAME}-averaged.nemo"
 
-CUDA_VISIBLE_DEVICES=0 python run_slurp_eval.py \
+CUDA_VISIBLE_DEVICES=0 python run_speech_intent_slot_eval.py \
     dataset_manifest="${DATA_DIR}/test_slu.json" \
     model_path=${NEMO_MODEL} \
     batch_size=32 \
