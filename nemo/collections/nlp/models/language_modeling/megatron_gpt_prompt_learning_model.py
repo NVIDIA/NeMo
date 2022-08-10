@@ -121,7 +121,12 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         # Load templates for assigning virtual prompt token positions
         self.load_task_templates(self.cfg.task_templates)
 
-        if self.frozen_model.model.pre_process:
+        if self.frozen_model.model.pre_process and self.virtual_prompt_style in [
+            VirtualPromptStyle.P_TUNING,
+            VirtualPromptStyle.PROMPT_TUNING,
+            VirtualPromptStyle.INFERENCE,
+        ]:
+
             self.word_embeddings = self.frozen_model.model.language_model.embedding.word_embeddings
 
             # Prompt table stores all task embeddings, p-tuning virtual prompts get added to the table after training
@@ -445,8 +450,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         """
         # Replace virtual token ids with padding for forward pass through vocab embeddings
         discrete_token_ids = input_ids.clone()
-        if self.pseudo_token_ids_start is not None:
-            discrete_token_ids[(input_ids >= self.pseudo_token_ids_start)] = self.pad_token_id
+        discrete_token_ids[(input_ids >= self.pseudo_token_ids_start)] = self.pad_token_id
         discrete_token_embeds = self.word_embeddings(discrete_token_ids).clone()
 
         # Find the indicies where virtual tokens should be inserted
