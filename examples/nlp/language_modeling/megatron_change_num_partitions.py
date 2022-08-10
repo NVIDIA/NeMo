@@ -178,7 +178,7 @@ def main():
             merge_partition(model, partitions, args.target_file)
     else:
         app_state.model_parallel_size = 1
-        model = cls.restore_from(restore_path=args.model_file, trainer=trainer)
+        model = cls.restore_from(restore_path=args.model_file, trainer=trainer, map_location=torch.device("cpu"))
 
     if tgt_tp_size > 1:
         partitions = []
