@@ -44,8 +44,6 @@ from plotly.subplots import make_subplots
 import pandas as pd
 import matplotlib.pyplot as plt
 import plotly.express as px
-#import nemo
-#import nemo.collections.asr as nemo_asr
 import time
 
 
@@ -188,7 +186,6 @@ def load_data(data_filename, disable_caching=False, estimate_audio=False, vocab=
     sm = difflib.SequenceMatcher()
     metrics_available = False
     #new
-    #with open(
     
     
     
@@ -358,10 +355,10 @@ if args.compare_1st != None and args.compare_2nd != None:
     n1 = args.compare_1st
     n2 = args.compare_2nd
     #print(n1)
-    #print('n2 split', n2.split('.')[0])
     
-    model_name_1 = n1.split('.')[0]
-    model_name_2 = n2.split('.')[0]
+    
+    model_name_1 = n1.split('.')[-2]
+    model_name_2 = n2.split('.')[-2]
     
     
     for_col_names = pd.DataFrame()
@@ -660,37 +657,6 @@ def update_wordstable(page_current, sort_by, filter_query):
 
 
 
-
-##example
-
-
-
-
-#def get_vocabulary_tmp():
-    #import pandas as pd
-    #vocabulary_view_1 = vocabulary_1
-    #vocabulary_view_2 = vocabulary_2
-    
-    #with open('sde_vocab_1_tmp.csv', encoding='utf-8', mode='w', newline='') as fo_1:
-        #writer = csv.writer(fo_1)
-        #writer.writerow(vocabulary_view_1[0].keys())
-        #for item in vocabulary_view_1:
-            #writer.writerow([str(item[k]) for k in item])
-            
-    #with open('sde_vocab_2_tmp.csv', encoding='utf-8', mode='w', newline='') as fo_2:
-        #writer = csv.writer(fo_2)
-        #writer.writerow(vocabulary_view_2[0].keys())
-        #for item in vocabulary_view_2:
-            #writer.writerow([str(item[k]) for k in item])
-    #m1 = pd.read_csv("sde_vocab_1_tmp.csv")
-    #m2 = pd.read_csv("sde_vocab_2_tmp.csv")
-    #name1 = "Contexnet"
-    #name2 = "Conformer"
-    #res = Data_preparation_unrelated_models(m1, m2, name1, name2)
-    #res.to_csv("col_names.tmp")
-       
-
-
 def Data_preparation_unrelated_models(mod1, mod2, name1 = model_name_1, name2 = model_name_2):    
     res = pd.DataFrame()
     tmp = mod1['word']
@@ -707,25 +673,6 @@ def Data_preparation_unrelated_models(mod1, mod2, name1 = model_name_1, name2 = 
 
 
 
-#Output('datatable-advanced-filtering', 'filter_query'),
-#Output('filter-query-output', 'children'),
-#Output('datatable-query-structure', 'children'),
-#Input('datatable-advanced-filtering', 'derived_filter_query_structure')
-
-
-
-#@app.callback(
-    #Output('voc_graph', 'figure'),
-    #[Input('wordstable_with_acc', 'sort_by'), Input('datatable-advanced-filtering', 'filter_query'),
-     #Input('wordstable_with_acc', 'filter_query_1'), Input('xaxis-column', 'value'),
-     #Input('yaxis-column', 'value'), Input('filter-query-output', 'value')],
-    #[Input("datatable-advanced-filtering", "data")],
-    #prevent_initial_call=False,)
-
-
-
-
-
 
 @app.callback(
     Output('voc_graph', 'figure'),
@@ -733,23 +680,15 @@ def Data_preparation_unrelated_models(mod1, mod2, name1 = model_name_1, name2 = 
      Input('xaxis-column', 'value'), Input('yaxis-column', 'value'), Input('color-column', 'value'), Input('size-column', 'value'),
      Input("datatable-advanced-filtering", "derived_virtual_data"),],
     prevent_initial_call=False,)
-def Draw_vocab(filter_query, Ox, Oy, color, size, data, value=None): #Need to sent data after filtering here and convert it to pd format
+def Draw_vocab(filter_query, Ox, Oy, color, size, data, value=None): 
     import pandas as pd
 
     df = pd.DataFrame.from_records(data)
     with open('out.txt', 'w') as f:
         f.writelines(df.columns[::])   
-    #update_wordstable_with_acc(1, sort_by, filter_query)
-    #m1 = pd.read_csv("sde_vocab_1.csv")
-    #m2 = pd.read_csv("sde_vocab_2.csv")    
-    #m1, m2 = get_vocabulary()
-    name1 = "Contexnet"
-    name2 = "Conformer"
-    #res = Data_preparation_unrelated_models(m1, m2, name1, name2)
+
     res = Prepare_data(df)
-    
-    Ox_ax = 'accuracy' + '(' + name1 + ' - ' + name2 + ')'
-    #fig = px.scatter(df, x = 'word', y = 'accuracy_1')
+
     fig = px.scatter(res, x = Ox, y= Oy, color=color, size=size, hover_data={'word':True, Ox:True, Oy:True, 'count':True}, width=1300, height=1000)
     if (Ox == 'accuracy_model_' + model_name_1 and Oy == 'accuracy_model_' + model_name_2 ) or (Oy == 'accuracy_model_' + model_name_1 and Ox == 'accuracy_model_' + model_name_2 ):
         fig.add_shape(type="line",
@@ -771,23 +710,12 @@ def Prepare_data(df, name1 = model_name_1, name2 = model_name_2):
     res.insert(3, 'accuracy_model_' + name2 , df['accuracy_2'])
     res.insert(4, 'accuracy_diff ' + '(' + name1 + ' - ' + name2 + ')', df['accuracy_1'] - df['accuracy_2'])
     res.insert(2, 'count^(-1)', 1/df['count'])
-    #res.to_csv('fd.output')
     return res
 
 
 
 
 
-#@app.callback(
-    #Input("datatable-advanced-filtering", "derived_virtual_data"),
-    #Input('model_name_1-input', 'value'),
-    #Input('model_name_2-input', 'value'),
-#)
-#def Get_col_names(data, name1, name2):
-    #df = pd.DataFrame.from_records(data)
-    #tmp = Prepare_data(df, name1, name2)
-    #col = tmp.columns[::]
-    #col.to_csv('col_names.tmp')
 
 
 
@@ -797,9 +725,6 @@ comparation_layout = [
     
     
     html.Hr(),
-    
- 
-    #Get_col_names(data, name1, name2),
 
     html.Div([
         dcc.Dropdown(
