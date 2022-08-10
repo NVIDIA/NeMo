@@ -40,6 +40,7 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
     get_embs_and_timestamps,
     get_uniqname_from_filepath,
     labels_to_pyannote_object,
+    labels_to_rttmfile,
     merge_stamps,
     parse_scale_configs,
     rttm_to_labels,
@@ -307,6 +308,9 @@ def make_rttm_with_overlap(
             else:
                 hyp_labels = maj_labels
             hypothesis = labels_to_pyannote_object(hyp_labels, uniq_name=uniq_id)
+            if params['out_rttm_dir']:
+                hyp_labels = sorted(hyp_labels, key=lambda x: float(x.split()[0]))
+                labels_to_rttmfile(hyp_labels, uniq_id, params['out_rttm_dir'])
             all_hypothesis.append([uniq_id, hypothesis])
             rttm_file = manifest_dic.get('rttm_filepath', None)
             if rttm_file is not None and os.path.exists(rttm_file) and not no_references:
@@ -323,10 +327,6 @@ class ClusterEmbedding:
     def __init__(self, cfg_base: DictConfig, cfg_msdd_model: DictConfig):
         self.cfg_base = cfg_base
         self._cfg_msdd = cfg_msdd_model
-        self.cluster_avg_emb_path = 'speaker_outputs/embeddings/clus_emb_info.pkl'
-        self.speaker_mapping_path = 'speaker_outputs/embeddings/clus_mapping.pkl'
-        self.scale_map_path = 'speaker_outputs/embeddings/scale_mapping.pkl'
-        self.multiscale_weights_list = self._cfg_msdd.base.diarizer.speaker_embeddings.parameters.multiscale_weights
         self.clusdiar_model = None
         self.msdd_model = None
         self.spk_emb_state_dict = {}
@@ -492,6 +492,10 @@ class ClusterEmbedding:
 
         # Run ClusteringDiarizer which includes system VAD or oracle VAD.
         self.clusdiar_model = ClusteringDiarizer(cfg=self.cfg_base)
+        self._out_dir = self.clusdiar_model._diarizer_params.out_dir
+        # self._out_dir = self.clusdiar_model._diarizer_params.out_dir
+        self.out_rttm_dir = os.path.join(self._out_dir, 'pred_ovl_rttms')
+        os.makedirs(self.out_rttm_dir, exist_ok=True)
 
         # Load speaker embedding model state_dict which is loaded from the MSDD checkpoint.
         if self.use_speaker_model_from_MSDD:
@@ -756,8 +760,6 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
                 shutil.rmtree(self._speaker_dir)
             os.makedirs(self._speaker_dir)
         split_audio_rttm_map = audio_rttm_map(manifest_filepath, attatch_dur=True)
-        out_rttm_dir = os.path.join(_out_dir, 'pred_rttms')
-        os.makedirs(out_rttm_dir, exist_ok=True)
 
         # Speech Activity Detection part
         _speaker_manifest_path = os.path.join(self._speaker_dir, f'oracle_vad_manifest.json')
@@ -1345,6 +1347,9 @@ class OverlapAwareDiarizer:
         self.num_spks_per_model = cfg.diarizer.msdd_model.parameters.get('num_spks_per_model', 2)
         self.use_adaptive_thres = cfg.diarizer.msdd_model.parameters.get('use_adaptive_thres', True)
         self.max_pred_length = cfg.diarizer.msdd_model.parameters.get('max_pred_length', 0)
+        self.diar_eval_settings = cfg.diarizer.msdd_model.parameters.get(
+            'diar_eval_settings', [(0.25, True), (0.25, False), (0.0, False)]
+        )
 
     def transfer_diar_params_to_model_params(self, msdd_model, cfg):
         """
@@ -1673,6 +1678,7 @@ class OverlapAwareDiarizer:
                 List containing the actual length of each sequence in session.
         """
         test_cfg = self.msdd_model.cfg.test_ds
+        self.out_rttm_dir = self.clustering_embedding.out_rttm_dir
         self.msdd_model.setup_test_data(test_cfg)
         self.msdd_model = self.msdd_model.to(self.device)
         self.msdd_model.eval()
@@ -1716,7 +1722,7 @@ class OverlapAwareDiarizer:
         logging.info(
             f"     [Threshold: {threshold:.4f}] [use_clus_as_main={self.use_clus_as_main}] [diar_window={self.diar_window_length}]"
         )
-        for k, (collar, ignore_overlap) in enumerate([(0.25, True), (0.25, False), (0.0, False)]):
+        for k, (collar, ignore_overlap) in enumerate(self.diar_eval_settings):
             all_reference, all_hypothesis = make_rttm_with_overlap(
                 self.manifest_filepath,
                 self.msdd_model.clus_test_label_dict,
@@ -1727,6 +1733,7 @@ class OverlapAwareDiarizer:
                 overlap_infer_spk_limit=self.overlap_infer_spk_limit,
                 use_adaptive_thres=self.use_adaptive_thres,
                 max_overlap_spks=self.max_overlap_spks,
+                out_rttm_dir=self.out_rttm_dir,
             )
             score_labels(
                 self.AUDIO_RTTM_MAP, all_reference, all_hypothesis, collar=collar, ignore_overlap=ignore_overlap,
