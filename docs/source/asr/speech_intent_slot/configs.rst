@@ -1,14 +1,14 @@
-NeMo SLU Configuration Files
-============================
+NeMo Speech Intent Classification and Slot Filling Configuration Files
+=======================================================================
 
-This page covers NeMo configuration file setup that is specific to models in the Spoken Language Understanding collection.
+This page covers NeMo configuration file setup that is specific to models in the Speech Intent Classification and Slot Filling collection.
 For general information about how to set up and run experiments that is common to all NeMo models (e.g.
 experiment manager and PyTorch Lightning trainer parameters), see the :doc:`../../core/core`  page.
 
 Dataset Configuration
 ---------------------
 
-Dataset configuration for SLU model is mostly the same as for standard ASR training,
+Dataset configuration for Speech Intent Classification and Slot Filling model is mostly the same as for standard ASR training,
 covered `here <../configs.html#Dataset Configuration>`__. One exception is that ``use_start_end_token`` must be set to ``True``.
 
 An example of train and validation configuration should look similar to the following:
@@ -64,7 +64,7 @@ For details on how to write this section, refer to `Augmentation Configuration <
 Model Architecture Configurations
 ---------------------------------
 
-The ``encoder`` of the model is a `Conformer-large <./models.html#Conformer-CTC>`__ model, and can be initialized with pretrained checkpoints. The ``decoder`` is a Transforemr model, with additional ``embedding`` and ``classifier`` modules.
+The ``encoder`` of the model is a `Conformer-large <./models.html#Conformer-CTC>`__ model without the text decoder, and can be initialized with pretrained checkpoints. The ``decoder`` is a Transforemr model, with additional ``embedding`` and ``classifier`` modules.
 
 An example config for the model can be:
 

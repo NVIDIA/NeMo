@@ -32,7 +32,7 @@ python <NEMO_ROOT>/scripts/tokenizers/process_asr_text_tokenizer.py \
 
 # Training the model
 ```sh
-python run_slurp_train.py \
+python run_speech_intent_slot_train.py \
     # (Optional: --config-path=<path to dir of configs> --config-name=<name of config without .yaml>) \
     model.train_ds.manifest_filepath=<path to train manifest> \
     model.validation_ds.manifest_filepath=<path to val/test manifest> \
@@ -60,7 +60,7 @@ https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/configs.ht
 # Pretrained Models
 
 For documentation on existing pretrained models, please visit -
-https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/results.html
+https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/speech_intent_slot/results.html
 
 """
 
@@ -70,13 +70,18 @@ import pytorch_lightning as pl
 import torch
 from omegaconf import OmegaConf
 
-from nemo.collections.asr.models import SLUIntentSlotBPEModel, SpeechEncDecSelfSupervisedModel
+from nemo.collections.asr.models import (
+    EncDecCTCModelBPE,
+    EncDecRNNTBPEModel,
+    SLUIntentSlotBPEModel,
+    SpeechEncDecSelfSupervisedModel,
+)
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 
-@hydra_runner(config_path="./configs/", config_name="conformer_large_transformer_bpe")
+@hydra_runner(config_path="./configs/", config_name="conformer_transformer_large_bpe")
 def main(cfg):
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
 
@@ -89,14 +94,22 @@ def main(cfg):
     if pretrained_encoder_name is not None:
         if Path(pretrained_encoder_name).is_file():
             logging.info(f"Loading pretrained encoder from local: {pretrained_encoder_name}")
-            pretraind_model = SpeechEncDecSelfSupervisedModel.restore_from(
+            pretraind_model = EncDecCTCModelBPE.restore_from(
                 restore_path=pretrained_encoder_name, map_location=torch.device("cpu")
             )
             model.encoder.load_state_dict(pretraind_model.encoder.state_dict(), strict=False)
             del pretraind_model
         else:
             logging.info(f"Loading pretrained encoder from NGC: {pretrained_encoder_name}")
-            pretraind_model = SpeechEncDecSelfSupervisedModel.from_pretrained(
+            if pretrained_encoder_name.startswith("ssl_"):
+                model_cls = SpeechEncDecSelfSupervisedModel
+            elif pretrained_encoder_name.startswith("stt_") and "_ctc_" in pretrained_encoder_name:
+                model_cls = EncDecCTCModelBPE
+            elif pretrained_encoder_name.startswith("stt_") and "_transducer_" in pretrained_encoder_name:
+                model_cls = EncDecRNNTBPEModel
+            else:
+                raise ValueError(f"Unknown pretrained encoder: {pretrained_encoder_name}")
+            pretraind_model = model_cls.from_pretrained(
                 model_name=pretrained_encoder_name, map_location=torch.device("cpu")
             )
             model.encoder.load_state_dict(pretraind_model.encoder.state_dict(), strict=False)

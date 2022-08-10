@@ -1,7 +1,7 @@
 # End-to-End Spoken Language Intent Classification and Slot Filling on SLURP Dataset
 
 ## Introduction
-This example shows how to train an end-to-end model for spoken language understanding on the SLURP dataset [2]. The model is an encoder-decoder framework, where the encoder is a Conformer-large [3] model initialized from [here](https://ngc.nvidia.com/models/nvidia:nemo:stt_en_conformer_ctc_large), while the decoder is a Transformer decoder [4] randomly initialized. We first finetune the encoder with speech recognition on SLURP, then use it for the end-to-end spoken language intent classification and slot filling task.
+This example shows how to train an end-to-end model for spoken language understanding on the SLURP dataset [2]. The model is an encoder-decoder framework, where the encoder is a Conformer-large [3] model initialized from [here](https://ngc.nvidia.com/models/nvidia:nemo:stt_en_conformer_ctc_large), while the decoder is a Transformer decoder [4] randomly initialized. The model is trained by minimizing the negative log-likelihood loss with teacher forcing and label smoothing.
 
 ## Results
 
@@ -9,7 +9,7 @@ We present the main results of our models, as well as that of some baselines, in
 |                                                  |                |                          | **Intent (Scenario_Action)** |               | **Entity** |        |              | **SLURP Metrics** |                     |
 |--------------------------------------------------|----------------|--------------------------|------------------------------|---------------|------------|--------|--------------|-------------------|---------------------|
 |                     **Model**                    | **Params (M)** |      **Pretrained**      |         **Accuracy**         | **Precision** | **Recall** | **F1** | **Precsion** |     **Recall**    |        **F1**       |
-| NeMo-Conformer-Transformer-Large (ASR finetuned) | 127            | NeMo ASR, finetuned on SLURP ASR  |               91.23 |         78.29 |      74.65 |  76.43 |        83.93 |             80.31 |               82.08 |
+| NeMo-Conformer-Transformer-Large (ASR pretrained)| 127            | NeMo ASR-Set 3.0         |                        90.14 |         78.95 |      74.93 |  76.89 |        84.31 |             80.33 |               82.27 |
 | NeMo-Conformer-Transformer-Large                 | 127            | NeMo SSL-LL60kh          |                        89.04 |         73.19 |       71.8 |  72.49 |         77.9 |             76.65 |               77.22 |
 | NeMo-Conformer-Transformer-Large                 | 127            | None                     |                        72.56 |         43.19 |       43.5 |  43.34 |        53.59 |             53.92 |               53.76 |
 | NeMo-Conformer-Transformer-XLarge                | 617            | NeMo SSL-LL60kh          |                        91.04 |         76.67 |      74.36 |  75.49 |        82.44 |             80.14 |               81.28 |
@@ -33,33 +33,71 @@ pip install -r requirements.txt
 ### Data Preparation
 1. Under the current directory, run the following script to download the audio data, annotaion files and evaluation code.
 ```bash
-./scripts/download_data.sh
+DATA_DIR="./slurp_data"
+mkdir -p $DATA_DIR
+
+echo "Downloading slurp audio data..."
+wget https://zenodo.org/record/4274930/files/slurp_real.tar.gz -P $DATA_DIR
+wget https://zenodo.org/record/4274930/files/slurp_synth.tar.gz -P $DATA_DIR
+
+echo "Extracting audio files to ${DATA_DIR}/slurp*"
+tar -zxvf $DATA_DIR/slurp_real.tar.gz -C $DATA_DIR
+tar -zxvf $DATA_DIR/slurp_synth.tar.gz -C $DATA_DIR
+
+echo "Downloading annotations..."
+mkdir -p $DATA_DIR/raw_annotations
+wget https://github.com/pswietojanski/slurp/raw/master/dataset/slurp/test.jsonl -P $DATA_DIR/raw_annotations
+wget https://github.com/pswietojanski/slurp/raw/master/dataset/slurp/devel.jsonl -P $DATA_DIR/raw_annotations
+wget https://github.com/pswietojanski/slurp/raw/master/dataset/slurp/train_synthetic.jsonl -P $DATA_DIR/raw_annotations
+wget https://github.com/pswietojanski/slurp/raw/master/dataset/slurp/train.jsonl -P $DATA_DIR/raw_annotations
+
+echo "Downloading evaluation code..."
+wget https://github.com/pswietojanski/slurp/raw/master/scripts/evaluation/util.py -P eval_utils/evaluation
+wget https://github.com/pswietojanski/slurp/raw/master/scripts/evaluation/metrics/distance.py -P eval_utils/evaluation/metrics
+wget https://github.com/pswietojanski/slurp/raw/master/scripts/evaluation/metrics/metrics.py -P eval_utils/evaluation/metrics
+
+echo "Done."
 ```
 
 2. Prepare the manifests by running: 
 ```bash
-./scripts/prepare_data.sh
+DATA_DIR="./slurp_data"
+RAW_ANNO_DIR="${DATA_DIR}/raw_annotations"
+MANIFESTS_DIR="${DATA_DIR}/raw_manifests"
+
+echo "Preparing manifests..."
+python data_utils/prepare_slurp.py --data_root $RAW_ANNO_DIR --output $MANIFESTS_DIR
+
+echo "Decoding audios and updating manifests..."
+python data_utils/decode_resample.py --data_root $DATA_DIR --manifest $MANIFESTS_DIR
+
+echo "Parsing manifests for ASR..."
+python data_utils/get_asr_manifests.py $DATA_DIR
 ```
 
 ### Building Tokenizers
 1. Build the tokenizer for slu by running:
 ```bash
-./scripts/build_slu_tokenizer.sh
+DATA_ROOT="./slurp_data"
+python ../../../scripts/tokenizers/process_asr_text_tokenizer.py \
+  --manifest="${DATA_ROOT}/train_slu.json,${DATA_ROOT}/train_synthetic_slu.json" \
+  --data_root="${DATA_ROOT}/tokenizers_slu/" \
+  --vocab_size=58 \
+  --tokenizer="spe" \
+  --spe_type="unigram" \
+  --log \
+  --spe_bos \
+  --spe_eos \
+  --spe_pad
 ```
-
-2. (Optional) Build the tokenizer for finetuning encoder on SLURP ASR:
-```bash
-./scripts/build_asr_tokenizer.sh
-```
-
 
 
 ### Training
-Run with the default config that uses SSL-pretrained encoder on Librilight-60k (LL60kh). The default batch size is set to 16 for a GPU with 32GB memory, please adjust it to your own case. Training for 100 epochs takes around 18 hours on a single RTX A6000 GPU with 49GB memory.
+Run with the default config that uses ASR-pretrained encoder on NeMo ASR-set 3.0. The default batch size is set to 16 for a GPU with 32GB memory, please adjust it to your own case. Training for 100 epochs takes around 18 hours on a single RTX A6000 GPU with 49GB memory.
 
 ```bash
 DATA_DIR="./slurp_data"
-CUDA_VISIBLE_DEVICES=0 python run_slurp_train.py \
+CUDA_VISIBLE_DEVICES=0 python run_speech_intent_slot_train.py \
     --config-path="./configs" --config-name=conformer_transformer_large_bpe \
     model.train_ds.manifest_filepath="[${DATA_DIR}/train_slu.json,${DATA_DIR}/train_synthetic_slu.json]" \
     model.validation_ds.manifest_filepath="${DATA_DIR}/devel_slu.json" \
@@ -79,13 +117,13 @@ CUDA_VISIBLE_DEVICES=0 python run_slurp_train.py \
 After trainng, we can evaluate the model by running the following script, which will first perform checkpoint averaging and then run beam search with the averaged checkpoint on the test set.
 ```bash
 DATA_DIR="./slurp_data"
-EXP_NAME="ssl_en_conformer_large_transformer_CosineAnneal_adamwlr3e-4x2e-4_wd0_dec3_d2048h8"
+EXP_NAME="slurp_conformer_transformer_large"
 CKPT_DIR="./nemo_experiments/${EXP_NAME}/checkpoints"
 
 python ../../../scripts/checkpoint_averaging/checkpoint_averaging.py ${CKPT_DIR}
 
 NEMO_MODEL="${CKPT_DIR}/${EXP_NAME}-averaged.nemo"
-CUDA_VISIBLE_DEVICES=0 python run_slurp_eval.py \
+CUDA_VISIBLE_DEVICES=0 python run_speech_intent_slot_eval.py \
     dataset_manifest="${DATA_DIR}/test_slu.json" \
     model_path=${NEMO_MODEL} \
     batch_size=32 \

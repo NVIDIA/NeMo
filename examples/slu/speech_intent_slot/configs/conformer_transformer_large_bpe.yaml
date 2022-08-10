@@ -1,7 +1,7 @@
-name: "ssl_en_conformer_large_transformer_CosineAnneal_adamwlr3e-4x2e-4_wd0_dec3_d2048h8"
+name: "slurp_conformer_transformer_large"
 
 pretrained_encoder:
-  name: ssl_en_conformer_large
+  name: stt_en_conformer_ctc_large
   freeze: false
   
 model:

@@ -1,10 +1,10 @@
-NeMo SLU collection API
+NeMo Speech Intent Classification and Slot Filling collection API
 =============================
 
 
 Model Classes
 -------------
-.. autoclass:: nemo.collections.asr.models.SLUIntentSlotBPTModel
+.. autoclass:: nemo.collections.asr.models.SLUIntentSlotBPEModel
     :show-inheritance:
     :members: 
 

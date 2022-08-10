@@ -46,11 +46,11 @@ You may perform inference on a sample of speech after loading the model by using
 SLU Models
 -----------------------------------
 
-Below is a list of all the SLU models that are available in NeMo.
+Below is a list of all the Speech Intent Classification and Slot Filling models that are available in NeMo.
 
 
 .. csv-table::
-   :file: data/benchmark_slu.csv
+   :file: data/benchmark_sis.csv
    :align: left
    :widths: 40, 10, 50
    :header-rows: 1
