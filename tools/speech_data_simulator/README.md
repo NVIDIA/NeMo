@@ -65,6 +65,9 @@ Parameters
 
 Example Session
 ------------
+
+Example multispeaker audio session (using LibriSpeech audio samples and word alignments). RTTM and CTM output labels are highlighted.
+
 ![Example multispeaker audio session (using LibriSpeech audio samples and word alignments). RTTM and CTM output labels are highlighted](pictures/audio_session.png)
 
 Running the data simulator for the LibriSpeech dataset

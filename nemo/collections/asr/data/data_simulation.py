@@ -23,6 +23,7 @@ from scipy.signal import convolve
 from scipy.signal.windows import cosine, hamming, hann
 from scipy.stats import halfnorm
 from tqdm import trange
+from typing import List, Dict
 
 from nemo.collections.asr.parts.utils.manifest_utils import (
     create_manifest,
@@ -53,9 +54,57 @@ except ImportError:
 class MultiSpeakerSimulator(object):
     """
     Multispeaker Audio Session Simulator.
+    Simulates multispeaker audio sessions using single-speaker audio files and corresponding word alignments.
 
     Args:
         cfg: OmegaConf configuration loaded from yaml file.
+
+    Parameters:
+    manifest_filepath (str): Manifest file with paths to single speaker audio files
+    sr (int): Sampling rate of the input audio files from the manifest
+    random_seed (int): Seed to random number generator
+
+    session_config:
+      num_speakers (int): number of unique speakers per multispeaker audio session
+      num_sessions (int): number of sessions to simulate
+      session_length (int): length of each simulated multispeaker audio session (seconds)
+    session_params:
+      sentence_length_params (list): k,p values for a negative_binomial distribution which is sampled to get the sentence length (in number of words)
+      dominance_var (float): variance in speaker dominance (where each speaker's dominance is sampled from a normal distribution centered on 1/(num_speakers), and then the dominance values are together normalized to 1)
+      min_dominance (float): minimum percentage of speaking time per speaker (note that this can cause the dominance of the other speakers to be slightly reduced)
+      turn_prob (float): probability of switching speakers after each utterance
+      mean_overlap (float): mean proportion of overlap in the overall speaking time (overlap lengths are sampled from half normal distribution)
+      mean_silence (float): mean proportion of silence to speaking time in the audio session (overlap lengths are sampled from half normal distribution)
+      overlap_prob (float): proportion of overlap occurences versus silence between utterances (used to balance the length of silence gaps and overlapping segments, so a value close to mean_overlap/(mean_silence+mean_overlap) is suggested)
+      start_window (bool): whether to window the start of sentences to smooth the audio signal (and remove silence at the start of the clip)
+      window_type (str): type of windowing used when segmenting utterances (hamming, hann, cosine)
+      window_size (float): length of window at the start or the end of segmented utterance (seconds)
+      start_buffer (float): buffer of silence before the start of the sentence (to avoid cutting off speech or starting abruptly)
+      split_buffer (float): split RTTM labels if greater than twice this amount of silence (to avoid long gaps between utterances as being labelled as speech)
+      release_buffer (float): buffer before window at end of sentence (to avoid cutting off speech or ending abruptly)
+      normalize (bool): normalize speaker volumes
+      normalization_type (str): normalizing speakers (equal - same volume per speaker, var - variable volume per speaker)
+      normalization_var (str): variance in speaker volume (sample from standard deviation centered at 1)
+      min_volume (float): minimum speaker volume (only used when variable normalization is used)
+      max_volume (float): maximum speaker volume (only used when variable normalization is used)
+      end_buffer (float): buffer at the end of the session to leave blank
+    outputs:
+      output_dir (str): output directory for audio sessions and corresponding label files
+      output_filename (str): multispeaker_session # output filename for the wav and rttm files
+      overwrite_output (bool): if true, delete the output directory if it exists
+      output_precision (int): number of decimal places in output files
+    background_noise: 
+      add_bg (bool): add ambient background noise if true
+      background_manifest (str): path to background noise manifest file
+      snr (int): SNR for background noise (using average speaker power)
+    speaker_enforcement:
+      enforce_num_speakers (bool): enforce that all requested speakers are present in the output wav file
+      enforce_time (list): percentage of the way through the audio session that enforcement mode is triggered (sampled between time 1 and 2)
+    segment_manifest: (parameters for regenerating the segment manifest file)
+      window (float): Window length for segmentation
+      shift (float): Shift length for segmentation 
+      step_count (int): Number of the unit segments you want to create per utterance
+      deci (int): Rounding decimals for segment manifest file
     """
 
     def __init__(self, cfg):
@@ -147,7 +196,7 @@ class MultiSpeakerSimulator(object):
         ):
             raise Exception("Incorrect window type provided")
 
-    def _get_speaker_ids(self):
+    def _get_speaker_ids(self) -> List[str]:
         """
         Randomly select speaker IDs from the loaded manifest file.
 
@@ -164,7 +213,7 @@ class MultiSpeakerSimulator(object):
                 s += 1
         return speaker_ids
 
-    def _get_speaker_samples(self, speaker_ids):
+    def _get_speaker_samples(self, speaker_ids: List[str]) -> Dict[str, list]:
         """
         Get a list of the samples for each of the specified speakers.
 
@@ -183,7 +232,7 @@ class MultiSpeakerSimulator(object):
                 speaker_lists[str(new_speaker_id)].append(file)
         return speaker_lists
 
-    def _load_speaker_sample(self, speaker_lists, speaker_ids, speaker_turn):
+    def _load_speaker_sample(self, speaker_lists: List[str, dict], speaker_ids: List[str], speaker_turn: int) -> str:
         """
         Load a sample for the selected speaker ID.
 
@@ -199,7 +248,7 @@ class MultiSpeakerSimulator(object):
         file_path = speaker_lists[str(speaker_id)][file_id]
         return file_path
 
-    def _get_speaker_dominance(self):
+    def _get_speaker_dominance(self) -> List[float]:
         """
         Get the dominance value for each speaker, accounting for the dominance variance and
         the minimum per-speaker dominance.
@@ -235,7 +284,7 @@ class MultiSpeakerSimulator(object):
                 dominance[i] = dominance[i] + dominance[i - 1]
         return dominance
 
-    def _increase_speaker_dominance(self, base_speaker_dominance, factor):
+    def _increase_speaker_dominance(self, base_speaker_dominance: List[float], factor: int) -> List[float],bool:
         """
         Increase speaker dominance for unrepresented speakers (used only in enforce mode).
         Increases the dominance for these speakers by the input factor (and then renormalizes the probabilities to 1).
@@ -288,7 +337,7 @@ class MultiSpeakerSimulator(object):
                 if self._volume[i] > self._params.data_simulator.session_params.max_volume:
                     self._volume[i] = self._params.data_simulator.session_params.max_volume
 
-    def _get_next_speaker(self, prev_speaker, dominance):
+    def _get_next_speaker(self, prev_speaker: int, dominance: List[float]) -> int:
         """
         Get the next speaker (accounting for turn probability and dominance distribution).
 
@@ -309,7 +358,7 @@ class MultiSpeakerSimulator(object):
                     speaker_turn += 1
             return speaker_turn
 
-    def _get_window(self, window_amount, start=False):
+    def _get_window(self, window_amount: int, start: bool=False):
         """
         Get window curve to alleviate abrupt change of time-series signal when segmenting audio samples.
 
@@ -334,7 +383,7 @@ class MultiSpeakerSimulator(object):
         else:
             return window[window_amount:]
 
-    def _get_start_buffer_and_window(self, first_alignment):
+    def _get_start_buffer_and_window(self, first_alignment: int) -> int,int:
         """
         Get the start cutoff and window length for smoothing the start of the sentence.
 
@@ -358,7 +407,7 @@ class MultiSpeakerSimulator(object):
 
         return start_cutoff, window_amount
 
-    def _get_end_buffer_and_window(self, current_sr, remaining_duration_sr, remaining_len_audio_file):
+    def _get_end_buffer_and_window(self, current_sr: int, remaining_duration_sr: int, remaining_len_audio_file: int) -> int,int:
         """
         Get the end buffer and window length for smoothing the end of the sentence.
 
@@ -390,7 +439,7 @@ class MultiSpeakerSimulator(object):
 
         return release_buffer, window_amount
 
-    def _add_file(self, file, audio_file, sentence_duration, max_sentence_duration, max_sentence_duration_sr):
+    def _add_file(self, file: dict, audio_file, sentence_duration: int, max_sentence_duration: int, max_sentence_duration_sr: int):
         """
         Add audio file to current sentence (up to the desired number of words). 
         Uses the alignments to segment the audio file.
@@ -493,7 +542,7 @@ class MultiSpeakerSimulator(object):
 
         return sentence_duration + nw, len(self._sentence)
 
-    def _build_sentence(self, speaker_turn, speaker_ids, speaker_lists, max_sentence_duration_sr):
+    def _build_sentence(self, speaker_turn: int, speaker_ids: List[str], speaker_lists: List[dict], max_sentence_duration_sr: int):
         """
         Build a new sentences by attaching utterance samples together until the sentence has reached a desired length. 
         While generating the sentence, alignment information is used to segment the audio.
@@ -562,8 +611,8 @@ class MultiSpeakerSimulator(object):
 
     # returns new overlapped (or shifted) start position
     def _add_silence_or_overlap(
-        self, speaker_turn, prev_speaker, start, length, session_length_sr, prev_length_sr, enforce
-    ):
+            self, speaker_turn: int, prev_speaker: int, start: int, length: int, session_length_sr: int, prev_length_sr: int, enforce: bool
+    ) -> int:
         """
         Returns new overlapped (or shifted) start position after inserting overlap or silence.
 
@@ -654,7 +703,7 @@ class MultiSpeakerSimulator(object):
 
         return new_start
 
-    def _get_background(self, len_array, power_array):
+    def _get_background(self, len_array: int, power_array: float):
         """
         Augment with background noise (inserting ambient background noise up to the desired SNR for the full clip).
 
@@ -694,7 +743,7 @@ class MultiSpeakerSimulator(object):
 
         return bg_array
 
-    def _create_new_rttm_entry(self, start, end, speaker_id):
+    def _create_new_rttm_entry(self, start: int, end: int, speaker_id: int) -> List[str]:
         """
         Create new RTTM entries (to write to output rttm file)
 
@@ -725,7 +774,7 @@ class MultiSpeakerSimulator(object):
         rttm_list.append(f"{s} {e} {speaker_id}")
         return rttm_list
 
-    def _create_new_json_entry(self, wav_filename, start, length, speaker_id, rttm_filepath, ctm_filepath):
+    def _create_new_json_entry(self, wav_filename: str, start: int, length: int, speaker_id: int, rttm_filepath: str, ctm_filepath: str) -> dict:
         """
         Create new JSON entry (to write to output json file).
 
@@ -754,7 +803,7 @@ class MultiSpeakerSimulator(object):
         }
         return meta
 
-    def _create_new_ctm_entry(self, session_name, speaker_id, start):
+    def _create_new_ctm_entry(self, session_name: str, speaker_id: int, start: int) -> List[str]:
         """
         Create new CTM entry (to write to output ctm file)
 
@@ -785,7 +834,7 @@ class MultiSpeakerSimulator(object):
                 arr.append((align1, text))
         return arr
 
-    def create_base_manifest_ds(self):
+    def create_base_manifest_ds(self) -> str:
         """
         Create base diarization manifest file for online data simulation.
 
@@ -811,7 +860,7 @@ class MultiSpeakerSimulator(object):
         self.base_manifest_filepath = manifest_filepath
         return self.base_manifest_filepath
 
-    def create_segment_manifest_ds(self):
+    def create_segment_manifest_ds(self) -> str:
         """
         Create segmented diarization manifest file for online data simulation.
 
@@ -831,7 +880,7 @@ class MultiSpeakerSimulator(object):
         self.segment_manifest_filepath = output_manifest_filepath
         return self.segment_manifest_filepath
 
-    def _generate_session(self, idx, basepath, filename, enforce_counter=2):
+    def _generate_session(self, idx: int, basepath: str, filename: str, enforce_counter: int=2):
         """
         Generate multispeaker audio session and corresponding label files.
 
@@ -1003,6 +1052,29 @@ class MultiSpeakerSimulator(object):
 class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
     """
     RIR Augmented Multispeaker Audio Session Simulator.
+    Simulates multispeaker audio sessions using single-speaker audio files and corresponding word alignments, as well as simulated RIRs for augmentation.
+
+    Args:
+        cfg: OmegaConf configuration loaded from yaml file.
+
+    Parameters (in addition to the base MultiSpeakerSimulator parameters):
+    rir_generation:
+      use_rir (bool): whether to generate synthetic RIR
+      toolkit (str): which toolkit to use - either 'pyroomacoustics' or 'gpuRIR'
+      room_config:
+        room_sz (list): size of the shoebox room environment (1d array for specific, 2d array for random range to be sampled from)
+        pos_src (list): positions of the speakers in the simulated room environment (2d array for specific, 3d array for random ranges to be sampled from)
+        noise_src_pos (list): position in room for the ambient background noise source
+      mic_config:
+        num_channels (int): number of output audio channels
+        pos_rcv (list): microphone positions in the simulated room environment (1d/2d array for specific, 2d/3d array for range assuming num_channels is 1/2+)
+        orV_rcv (list or null):  microphone orientations (needed for non-omnidirectional microphones)
+        mic_pattern (str): microphone type (eg. omnidirectional) - currently only omnidirectional microphones are supported for pyroomacoustics
+      absorbtion_params: (Note that only T60 is used for pyroomacoustics simulations)
+        abs_weights (list): absorption coefficient ratios for each surface
+        T60 (float): room reverberation time (T60 is the time it takes for the RIR to decay by 60DB)
+        att_diff (float): starting attenuation (if this is different than att_max, the diffuse reverberation model is used by gpuRIR)
+        att_max (float): end attenuation when using the diffuse reverberation model (gpuRIR)
     """
 
     def __init__(self, cfg):
@@ -1181,7 +1253,7 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
                     rir_pad = pos.shape[0] - 1
         return room.rir, rir_pad
 
-    def _convolve_rir(self, input, speaker_turn, RIR):
+    def _convolve_rir(self, input, speaker_turn: int, RIR) -> list,int:
         """
         Augment one sentence (or background noise segment) using a synthetic RIR.
 
@@ -1205,7 +1277,7 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
             output_sound.append(torch.tensor(out_channel))
         return output_sound, length
 
-    def _generate_session(self, idx, basepath, filename):
+    def _generate_session(self, idx: int, basepath: str, filename: str, enforce_counter: int=2):
         """
         Generate multispeaker audio session and corresponding label files.
 
@@ -1213,6 +1285,7 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
             idx (int): Index for current session (out of total number of sessions).
             basepath (str): Path to output directory.
             filename (str): Filename for output files.
+            enforce_counter (int): In enforcement mode, dominance is increased by a factor of enforce_counter for unrepresented speakers
         """
         speaker_ids = self._get_speaker_ids()  # randomly select speaker ids
         speaker_dominance = self._get_speaker_dominance()  # randomly determine speaker dominance
@@ -1238,7 +1311,6 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
             raise Exception("Toolkit must be pyroomacoustics or gpuRIR")
 
         # hold enforce until all speakers have spoken
-        enforce_counter = 2
         enforce_time = np.random.uniform(
             self._params.data_simulator.speaker_enforcement.enforce_time[0],
             self._params.data_simulator.speaker_enforcement.enforce_time[1],
