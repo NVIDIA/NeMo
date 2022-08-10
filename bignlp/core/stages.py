@@ -522,6 +522,7 @@ class EvalHarnessEvaluation(BigNLPStage):
 
         code_path = self._bignlp_path / "bignlp/collections/eval_harness/evaluate.py"
         args = create_args_list(
+            replace_underscore=False,
             name=run_cfg.get("name"),
             model=model_cfg.get("model_type"),
             tasks=run_cfg.get("tasks"),
