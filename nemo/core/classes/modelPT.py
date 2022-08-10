@@ -1498,4 +1498,8 @@ class ModelPT(LightningModule, Model):
         Returns:
             Module: self
         """
-        return self._apply(lambda t: t.cuda(device))
+        if device is None:
+            device = torch.device("cuda", torch.cuda.current_device())
+        elif isinstance(device, int):
+            device = torch.device("cuda", index=device)
+        return super().cuda(device=device)
