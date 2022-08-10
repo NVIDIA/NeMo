@@ -18,6 +18,8 @@
 
 
 import torch
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.utils import logging
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -43,18 +45,25 @@ class MegatronGPTAdapterLearningModel(MegatronGPTPromptLearningModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
         
+        self.adapter_name_keys = ['adapter_1', 'adapter_2']
+        frozen_model_cfg = MegatronGPTModel.restore_from(
+            cfg.get('language_model_path'), trainer=trainer, return_config=True
+        ) 
         for _, layer in self.frozen_model.named_modules():
             if hasattr(layer, 'activations_checkpoint_method'):
                 layer.activations_checkpoint_method = None  # (@adithyare) adapter learning does not support activations checkpointing atm.
             if hasattr(layer, 'scale_mask_softmax'):
                 layer.scale_mask_softmax.scaled_masked_softmax_fusion = False
         
-        print(self.frozen_model.summarize())
-        for name, module in self.frozen_model.named_modules():
+        logging.info(f'Before adding adapters:\n{self.frozen_model.summarize()}')
+        for _, module in self.frozen_model.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin):
-                module.add_adapter(name='adapter_1', cfg=adapter_modules.LinearAdapterConfig(in_features=768, dim=cfg.adapter_tuning.adapter_dim))
+                for adapter_key in self.adapter_name_keys:
+                    module.add_adapter(name=adapter_key, cfg=adapter_modules.LinearAdapterConfig(in_features=frozen_model_cfg.hidden_size, dim=cfg.adapter_tuning.adapter_dim))
+                module.set_enabled_adapters(enabled=True)
+                module.unfreeze_enabled_adapters()
         
-        print("done")
+        logging.info(f'After adding adapters:\n{self.frozen_model.summarize()}')
 
     @classmethod
     def list_available_models(cls):
@@ -156,22 +165,22 @@ class MegatronGPTAdapterLearningModel(MegatronGPTPromptLearningModel):
         state_dict_ = {}
         for name, module in self.frozen_model.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin):
+                for adapter_key in self.adapter_name_keys:
+                    adapter_module = module.adapter_layer[adapter_key]
+                    state_adapter_key = ':'.join([name, adapter_key])
+                    state_dict_[state_adapter_key] = adapter_module.state_dict()
+
                 module.set_enabled_adapters(enabled=True) 
-                module.unfreeze_enabled_adapters() 
-                adapter_name = module.get_enabled_adapters()[0] # TODO: (@adithyare) add support for multiple adapter per transformer layer
-                adapter_module = module.adapter_layer[adapter_name]
-                adapter_key = ':'.join([name, adapter_name])
-                state_dict_[adapter_key] = adapter_module.state_dict()
         return state_dict_
     
     def load_state_dict(self, state_dict, strict: bool = True):
         for name, module in self.frozen_model.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin):
+                for adapter_key in self.adapter_name_keys:
+                    adapter_module = module.adapter_layer[adapter_key]
+                    state_adapter_key = ':'.join([name, adapter_key])
+                    adapter_module.load_state_dict(state_dict[state_adapter_key], strict)
                 module.set_enabled_adapters(enabled=True)
-                adapter_name = module.get_enabled_adapters()[0]
-                adapter_module = module.adapter_layer[adapter_name]
-                adapter_key = ':'.join([name, adapter_name])
-                adapter_module.load_state_dict(state_dict[adapter_key], strict)
         
     def setup_optimizer_param_groups(self):
         """
@@ -187,7 +196,6 @@ class MegatronGPTAdapterLearningModel(MegatronGPTPromptLearningModel):
         self.frozen_model.freeze()
         for name, module in self.frozen_model.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin):
-                print(f'unfreezing to {name}')
                 module.set_enabled_adapters(enabled=True) 
                 module.unfreeze_enabled_adapters()
         print(self.frozen_model.summarize())
