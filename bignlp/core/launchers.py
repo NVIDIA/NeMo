@@ -314,7 +314,7 @@ class SlurmLauncher(Launcher):
 
         job_id = ""
         if output:
-            job_id = _get_job_id_from_submission_command(output)
+            job_id = self._get_job_id_from_submission_command(output)
         return job_id
 
     def _make_submission_file_text(self, command_groups: List[List[str]]) -> str:
