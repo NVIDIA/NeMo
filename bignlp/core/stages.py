@@ -536,11 +536,13 @@ class EvalHarnessEvaluation(BigNLPStage):
 
         if self.prompt_evaluation:
             args += create_args_list(
+                replace_underscore=False,
                 nemo_model=model_cfg.get("nemo_model"),
                 prompt_dataset_paths=model_cfg.get("prompt_dataset_paths"),
             )
         else:
             args += create_args_list(
+                replace_underscore=False,
                 vocab_file=model_cfg.get("vocab_file"),
                 merge_file=model_cfg.get("merge_file"),
                 checkpoint_folder=model_cfg.get("checkpoint_folder"),
