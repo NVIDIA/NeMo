@@ -335,18 +335,24 @@ class TestOptimizersSchedulers:
         scheduler_setup = optim.lr_scheduler.prepare_lr_scheduler(opt, basic_sched_config)
         assert isinstance(scheduler_setup['scheduler'], torch.optim.lr_scheduler.ReduceLROnPlateau)
         for k, v in reduce_on_plateau_parameters.items():
+            if k == 'min_lr':
+                k += 's'
+                v = [v]
             found_v = getattr(scheduler_setup['scheduler'], k)
-            assert found_v == v, (
-                f"Wrong value `{repr(found_v)}` for `ReduceLROnPlateau` parameter `{k}`. Expected `{repr(v)}`."
-            )
+            assert (
+                found_v == v
+            ), f"Wrong value `{repr(found_v)}` for `ReduceLROnPlateau` parameter `{k}`. Expected `{repr(v)}`."
         dict_config = omegaconf.OmegaConf.create(basic_sched_config)
         scheduler_setup = optim.lr_scheduler.prepare_lr_scheduler(opt, dict_config)
         assert isinstance(scheduler_setup['scheduler'], torch.optim.lr_scheduler.ReduceLROnPlateau)
         for k, v in reduce_on_plateau_parameters.items():
+            if k == 'min_lr':
+                k += 's'
+                v = [v]
             found_v = getattr(scheduler_setup['scheduler'], k)
-            assert found_v == v, (
-                f"Wrong value `{repr(found_v)}` for `ReduceLROnPlateau` parameter `{k}`. Expected `{repr(v)}`."
-            )
+            assert (
+                found_v == v
+            ), f"Wrong value `{repr(found_v)}` for `ReduceLROnPlateau` parameter `{k}`. Expected `{repr(v)}`."
 
     @pytest.mark.unit
     def test_WarmupPolicy(self):
