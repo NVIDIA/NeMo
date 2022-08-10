@@ -296,8 +296,8 @@ class MC4DataPreparation(DataStage):
         if sub_stage == "prepare":
             args = create_args_list(
                 data_path=data_cfg.get("mc4_dir"),
-                git_lfs_path=data_cfg.get("git_lfs_path"),
-                langauges=data_cfg.get("langauges"),
+                git_lfs_path=data_cfg.get("git_lfs_dir"),
+                languages=data_cfg.get("languages"),
                 node_array_size=run_cfg.get("node_array_size"),
                 worker_mapping_file=data_cfg.get("download_worker_mapping"),
             )
@@ -313,7 +313,7 @@ class MC4DataPreparation(DataStage):
             args = create_args_list(
                 c4_path=Path(data_cfg.get("mc4_dir")) / "c4",
                 soft_link_path=data_cfg.get("softlinks_dir"),
-                langauges=data_cfg.get("langauges"),
+                languages=data_cfg.get("languages"),
                 node_array_size=run_cfg.get("node_array_size"),
                 workers_per_node=run_cfg.get("workers_per_node"),
                 max_split_size=200,
