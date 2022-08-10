@@ -684,8 +684,7 @@ def Draw_vocab(filter_query, Ox, Oy, color, size, data, value=None):
     import pandas as pd
 
     df = pd.DataFrame.from_records(data)
-    with open('out.txt', 'w') as f:
-        f.writelines(df.columns[::])   
+
 
     res = Prepare_data(df)
 
