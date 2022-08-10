@@ -15,6 +15,7 @@
 import os
 import shutil
 import warnings
+from typing import Dict, List, Tuple
 
 import numpy as np
 import soundfile as sf
@@ -23,7 +24,6 @@ from scipy.signal import convolve
 from scipy.signal.windows import cosine, hamming, hann
 from scipy.stats import halfnorm
 from tqdm import trange
-from typing import List, Dict
 
 from nemo.collections.asr.parts.utils.manifest_utils import (
     create_manifest,
@@ -232,7 +232,7 @@ class MultiSpeakerSimulator(object):
                 speaker_lists[str(new_speaker_id)].append(file)
         return speaker_lists
 
-    def _load_speaker_sample(self, speaker_lists: List[str, dict], speaker_ids: List[str], speaker_turn: int) -> str:
+    def _load_speaker_sample(self, speaker_lists: List[dict], speaker_ids: List[str], speaker_turn: int) -> str:
         """
         Load a sample for the selected speaker ID.
 
@@ -284,7 +284,9 @@ class MultiSpeakerSimulator(object):
                 dominance[i] = dominance[i] + dominance[i - 1]
         return dominance
 
-    def _increase_speaker_dominance(self, base_speaker_dominance: List[float], factor: int) -> List[float],bool:
+    def _increase_speaker_dominance(
+        self, base_speaker_dominance: List[float], factor: int
+    ) -> Tuple[List[float], bool]:
         """
         Increase speaker dominance for unrepresented speakers (used only in enforce mode).
         Increases the dominance for these speakers by the input factor (and then renormalizes the probabilities to 1).
@@ -358,7 +360,7 @@ class MultiSpeakerSimulator(object):
                     speaker_turn += 1
             return speaker_turn
 
-    def _get_window(self, window_amount: int, start: bool=False):
+    def _get_window(self, window_amount: int, start: bool = False):
         """
         Get window curve to alleviate abrupt change of time-series signal when segmenting audio samples.
 
@@ -383,7 +385,7 @@ class MultiSpeakerSimulator(object):
         else:
             return window[window_amount:]
 
-    def _get_start_buffer_and_window(self, first_alignment: int) -> int,int:
+    def _get_start_buffer_and_window(self, first_alignment: int) -> Tuple[int, int]:
         """
         Get the start cutoff and window length for smoothing the start of the sentence.
 
@@ -407,7 +409,9 @@ class MultiSpeakerSimulator(object):
 
         return start_cutoff, window_amount
 
-    def _get_end_buffer_and_window(self, current_sr: int, remaining_duration_sr: int, remaining_len_audio_file: int) -> int,int:
+    def _get_end_buffer_and_window(
+        self, current_sr: int, remaining_duration_sr: int, remaining_len_audio_file: int
+    ) -> Tuple[int, int]:
         """
         Get the end buffer and window length for smoothing the end of the sentence.
 
@@ -439,7 +443,14 @@ class MultiSpeakerSimulator(object):
 
         return release_buffer, window_amount
 
-    def _add_file(self, file: dict, audio_file, sentence_duration: int, max_sentence_duration: int, max_sentence_duration_sr: int):
+    def _add_file(
+        self,
+        file: dict,
+        audio_file: torch.Tensor,
+        sentence_duration: int,
+        max_sentence_duration: int,
+        max_sentence_duration_sr: int,
+    ) -> Tuple[int, torch.Tensor]:
         """
         Add audio file to current sentence (up to the desired number of words). 
         Uses the alignments to segment the audio file.
@@ -542,7 +553,9 @@ class MultiSpeakerSimulator(object):
 
         return sentence_duration + nw, len(self._sentence)
 
-    def _build_sentence(self, speaker_turn: int, speaker_ids: List[str], speaker_lists: List[dict], max_sentence_duration_sr: int):
+    def _build_sentence(
+        self, speaker_turn: int, speaker_ids: List[str], speaker_lists: List[dict], max_sentence_duration_sr: int
+    ):
         """
         Build a new sentences by attaching utterance samples together until the sentence has reached a desired length. 
         While generating the sentence, alignment information is used to segment the audio.
@@ -611,7 +624,14 @@ class MultiSpeakerSimulator(object):
 
     # returns new overlapped (or shifted) start position
     def _add_silence_or_overlap(
-            self, speaker_turn: int, prev_speaker: int, start: int, length: int, session_length_sr: int, prev_length_sr: int, enforce: bool
+        self,
+        speaker_turn: int,
+        prev_speaker: int,
+        start: int,
+        length: int,
+        session_length_sr: int,
+        prev_length_sr: int,
+        enforce: bool,
     ) -> int:
         """
         Returns new overlapped (or shifted) start position after inserting overlap or silence.
@@ -703,7 +723,7 @@ class MultiSpeakerSimulator(object):
 
         return new_start
 
-    def _get_background(self, len_array: int, power_array: float):
+    def _get_background(self, len_array: int, power_array: float) -> torch.Tensor:
         """
         Augment with background noise (inserting ambient background noise up to the desired SNR for the full clip).
 
@@ -774,7 +794,9 @@ class MultiSpeakerSimulator(object):
         rttm_list.append(f"{s} {e} {speaker_id}")
         return rttm_list
 
-    def _create_new_json_entry(self, wav_filename: str, start: int, length: int, speaker_id: int, rttm_filepath: str, ctm_filepath: str) -> dict:
+    def _create_new_json_entry(
+        self, wav_filename: str, start: int, length: int, speaker_id: int, rttm_filepath: str, ctm_filepath: str
+    ) -> dict:
         """
         Create new JSON entry (to write to output json file).
 
@@ -880,7 +902,7 @@ class MultiSpeakerSimulator(object):
         self.segment_manifest_filepath = output_manifest_filepath
         return self.segment_manifest_filepath
 
-    def _generate_session(self, idx: int, basepath: str, filename: str, enforce_counter: int=2):
+    def _generate_session(self, idx: int, basepath: str, filename: str, enforce_counter: int = 2):
         """
         Generate multispeaker audio session and corresponding label files.
 
@@ -1132,7 +1154,7 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
                 if len(sublist) != 3:
                     raise Exception("Three coordinates must be provided for orientations")
 
-    def _generate_rir_gpuRIR(self):
+    def _generate_rir_gpuRIR(self) -> Tuple[torch.Tensor, int]:
         """
         Create simulated RIR using the gpuRIR library
 
@@ -1189,7 +1211,7 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
         RIR_pad = RIR.shape[2] - 1
         return RIR, RIR_pad
 
-    def _generate_rir_pyroomacoustics(self):
+    def _generate_rir_pyroomacoustics(self) -> Tuple[torch.Tensor, int]:
         """
         Create simulated RIR using the pyroomacoustics library
 
@@ -1253,7 +1275,7 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
                     rir_pad = pos.shape[0] - 1
         return room.rir, rir_pad
 
-    def _convolve_rir(self, input, speaker_turn: int, RIR) -> list,int:
+    def _convolve_rir(self, input, speaker_turn: int, RIR: torch.Tensor) -> Tuple[list, int]:
         """
         Augment one sentence (or background noise segment) using a synthetic RIR.
 
@@ -1277,7 +1299,7 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
             output_sound.append(torch.tensor(out_channel))
         return output_sound, length
 
-    def _generate_session(self, idx: int, basepath: str, filename: str, enforce_counter: int=2):
+    def _generate_session(self, idx: int, basepath: str, filename: str, enforce_counter: int = 2):
         """
         Generate multispeaker audio session and corresponding label files.
 
