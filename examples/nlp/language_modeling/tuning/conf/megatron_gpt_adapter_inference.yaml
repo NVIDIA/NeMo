@@ -1,5 +1,5 @@
 inference:
-  greedy: False # Whether or not to use sampling ; use greedy decoding otherwise
+  greedy: True # Whether or not to use sampling ; use greedy decoding otherwise
   top_k: 0  # The number of highest probability vocabulary tokens to keep for top-k-filtering.
   top_p: 0.9 # If set to float < 1, only the most probable tokens with probabilities that add up to top_p or higher are kept for generation.
   temperature: 1.0 # sampling temperature
@@ -21,11 +21,13 @@ trainer:
 tensor_model_parallel_size: 1
 pipeline_model_parallel_size: 1
 pipeline_model_parallel_split_rank: 0 # used for encoder and decoder model
-gpt_model_file: /home/adithyare/NeMo/examples/nlp/language_modeling/nemo_experiments/megatron_gpt/checkpoints/megatron_gpt.nemo  # GPT nemo file path # used when starting from a .nemo file
+gpt_model_file: ??? # GPT nemo file path # used when starting from a .nemo file
+adapter_model_file: ??? # .nemo file saved during training (using megatron_gpt_adapter_tuning.py)
+output_file: null # save predictions to this file
 checkpoint_dir: null # checkpoint file dir. This is used to load the PTL checkpoint generated during the GPT training
 checkpoint_name: null # PTL checkpoint file name, only used for PTL checkpoint loading
 hparams_file: null # model configuration file, only used for PTL checkpoint loading
-prompts: ["hello"] # prompts for GPT inference
+data_paths: ??? # prompts for GPT inference
 server: False  # whether launch the inference server
 port: 5555 # the port number for the inference server
  

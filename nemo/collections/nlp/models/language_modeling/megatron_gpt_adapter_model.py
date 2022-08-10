@@ -56,6 +56,7 @@ class MegatronGPTAdapterLearningModel(MegatronGPTPromptLearningModel):
                 layer.scale_mask_softmax.scaled_masked_softmax_fusion = False
         
         logging.info(f'Before adding adapters:\n{self.frozen_model.summarize()}')
+        self.frozen_model.freeze()
         for _, module in self.frozen_model.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin):
                 for adapter_key in self.adapter_name_keys:
@@ -109,8 +110,8 @@ class MegatronGPTAdapterLearningModel(MegatronGPTPromptLearningModel):
     def setup(self, stage=None):
         if (
             stage == 'predict' or self.virtual_prompt_style == VirtualPromptStyle.INFERENCE
-        ) and self.frozen_model.model.pre_process:
-            self.freeze_existing_virtual_prompt_params()
+        ):
+            self.frozen_model.freeze()
             return
 
         self.setup_test_data()
@@ -119,6 +120,7 @@ class MegatronGPTAdapterLearningModel(MegatronGPTPromptLearningModel):
 
         self.setup_training_data()
         self.setup_validation_data()
+        logging.info(f'setup completed:\n{self.frozen_model.summarize()}') 
 
     def on_train_end(self):
         # Save the best nemo model
@@ -194,7 +196,7 @@ class MegatronGPTAdapterLearningModel(MegatronGPTPromptLearningModel):
         """
         # Freeze frozen model
         self.frozen_model.freeze()
-        for name, module in self.frozen_model.named_modules():
+        for _, module in self.frozen_model.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin):
                 module.set_enabled_adapters(enabled=True) 
                 module.unfreeze_enabled_adapters()
