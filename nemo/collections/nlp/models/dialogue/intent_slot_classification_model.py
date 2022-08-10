@@ -318,6 +318,7 @@ class IntentSlotClassificationModel(NLPModel):
         for token_idx, token in enumerate(tokens):
             if token_masks[token_idx].item():
                 tokens_stack.append([token])
+                
             elif tokens_stack:
                 clean_token = (
                     token.replace("##", '')
