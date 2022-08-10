@@ -60,6 +60,7 @@ if HAVE_APEX:
 
         # Try importing Apex distributed Adam optimizer
         from apex.contrib.optimizers.distributed_fused_adam import DistributedFusedAdam
+        import fused_adam_cuda, distributed_adam_cuda  # Required kernels
 
         HAVE_APEX_DISTRIBUTED_ADAM = True
 
