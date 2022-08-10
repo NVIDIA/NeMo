@@ -474,7 +474,6 @@ class ClusterEmbedding:
                 clus_label_list = all_scale_clus_label_dict[scale_index][uniq_id]
                 spk_set = set(clus_label_list)
                 # Create a label array which identifies clustering result for each segment.
-                num_of_spks = len(spk_set)
                 label_array = torch.Tensor(clus_label_list)
                 avg_embs = torch.zeros(emb_dim, self.max_num_speakers)
                 for spk_idx in spk_set:
