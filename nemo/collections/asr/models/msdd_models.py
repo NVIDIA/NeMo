@@ -248,27 +248,6 @@ def get_id_tup_dict(uniq_id_list: List[str], test_data_collection, preds_list: L
     return session_dict
 
 
-def compute_accuracies(diar_decoder_model):
-    """
-    Calculate F1 score and accuracy of the predicted sigmoid values.
-
-    Args:
-        diar_decoder_model:
-            class `EncDecDiarLabelModel` instance.
-
-    Returns:
-        f1_score (float):
-            F1 score of the estimated diarized speaker label sequences.
-        simple_acc (float):
-            Accuracy of predicted speaker labels: (total # of correct labels)/(total # of sigmoid values)
-    """
-    f1_score = diar_decoder_model._accuracy_test.compute()
-    num_correct = torch.sum(diar_decoder_model._accuracy_test.true.bool())
-    total_count = torch.prod(torch.tensor(diar_decoder_model._accuracy_test.targets.shape))
-    simple_acc = num_correct / total_count
-    return f1_score, simple_acc
-
-
 def get_uniq_id_from_manifest_line(line: str) -> str:
     """
     Retrieve `uniq_id` from the `audio_filepath` in manifest file.
@@ -1318,6 +1297,22 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
             'test_f1_acc': f1_acc,
         }
 
+    def compute_accuracies(self):
+        """
+        Calculate F1 score and accuracy of the predicted sigmoid values.
+
+        Returns:
+            f1_score (float):
+                F1 score of the estimated diarized speaker label sequences.
+            simple_acc (float):
+                Accuracy of predicted speaker labels: (total # of correct labels)/(total # of sigmoid values)
+        """
+        f1_score = self._accuracy_test.compute()
+        num_correct = torch.sum(self._accuracy_test.true.bool())
+        total_count = torch.prod(torch.tensor(self._accuracy_test.targets.shape))
+        simple_acc = num_correct / total_count
+        return f1_score, simple_acc
+
 
 class OverlapAwareDiarizer:
     """
@@ -1701,7 +1696,7 @@ class OverlapAwareDiarizer:
             signal_lengths_list.extend(list(torch.split(signal_lengths, 1)))
 
         if self._cfg.diarizer.msdd_model.parameters.seq_eval_mode:
-            f1_score, simple_acc = compute_accuracies(self.msdd_model)
+            f1_score, simple_acc = self.msdd_model.compute_accuracies()
             logging.info(f"Test Inference F1 score. {f1_score:.4f}, simple Acc. {simple_acc:.4f}")
         integrated_preds_list = self.get_integrated_preds_list(uniq_id_list, test_data_collection, preds_list)
         return integrated_preds_list, targets_list, signal_lengths_list
