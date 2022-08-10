@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,10 +15,23 @@
 from nemo.collections.asr.models.msdd_models import OverlapAwareDiarizer
 from nemo.core.config import hydra_runner
 
-@hydra_runner(config_path="conf", config_name="diarization_decoder.telephonic.yaml")
+"""
+Run the entire speaker diarization pipeline: VAD, clustering diarizer for initializing clustering then Multi-scale Diarization Decoder (MSDD).
+
+python multiscale_diar_decoder_infer.py --config-path='conf' --config-name='multiscale_diar_dec_infer.telephonic.yaml' \
+    diarizer.vad.model_path=<NeMo VAD model path> \
+    diarizer.msdd_model.model_path=<NeMo MSDD model path> \
+    diarizer.oracle_vad=False \
+    diarizer.manifest_filepath=<test_manifest> \
+    diarizer.out_dir=<test_temp_dir> \
+"""
+
+
+@hydra_runner(config_path="conf", config_name="multiscale_diar_decoder_infer.telephonic.yaml")
 def main(cfg):
     neural_diarizer = OverlapAwareDiarizer(cfg=cfg)
     neural_diarizer.diarize()
+
 
 if __name__ == '__main__':
     main()
