@@ -38,25 +38,25 @@ model:
     manifest_speaker_verification_fp: "/home/shehzeenh/datasets/speaker_verification_full/vox1/train_10.json"
     manifest_content_fp: "/home/shehzeenh/datasets/All_LibriSpeech/train_libri_small.json"
     sample_rate: ${model.sample_rate}
-    batch_size_content: 4 # you may increase batch_size if your memory allows
-    batch_size_sv: 16
+    batch_size_content: 8 # you may increase batch_size if your memory allows
+    batch_size_sv: 20
     shuffle: true
     num_workers_sv: 4
-    num_workers_content: 8
+    num_workers_content: 6
     pin_memory: false
     max_duration_content: 16.7
     min_duration_content: 8.0
     segment_max_duration: 2
     sup_data_path: "/home/shehzeenh/datasets/SupData/train"
     pitch_augment: ${model.pitch_augment}
-    cache_pitch_augment: True
+    cache_pitch_augment: true
 
   validation_ds:
     manifest_speaker_verification_fp: "/home/shehzeenh/datasets/speaker_verification_full/vox1/validation_10.json"
     manifest_content_fp: "/home/shehzeenh/datasets/All_LibriSpeech/dev_clean.json"
     sample_rate: ${model.sample_rate}
-    batch_size_content: 8 # you may increase batch_size if your memory allows
-    batch_size_sv: 16
+    batch_size_content: 4 # you may increase batch_size if your memory allows
+    batch_size_sv: 8
     shuffle: false
     num_workers_sv: 0
     num_workers_content: 0
@@ -67,7 +67,7 @@ model:
     segment_max_duration: 5
     sup_data_path: "/home/shehzeenh/datasets/SupData/val"
     pitch_augment: ${model.pitch_augment}
-    cache_pitch_augment: True
+    cache_pitch_augment: true
 
   # text_tokenizer:
   #   _target_: nemo.collections.tts.torch.tts_tokenizers.EnglishPhonemesTokenizer
