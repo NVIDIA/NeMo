@@ -95,7 +95,7 @@ def split_partition(model, partitions, tp_size, write_path=None):
 
         idx = 0
         for name, param in model.named_parameters():
-            split_val = splits[idx][i]
+            split_val = splits[idx][i].clone()
 
             if param.shape != split_val.shape:
                 logging.info(
