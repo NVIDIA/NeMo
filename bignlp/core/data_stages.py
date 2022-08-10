@@ -306,7 +306,7 @@ class MC4DataPreparation(DataStage):
         elif sub_stage == "download":
             args = create_args_list(
                 c4_path=Path(data_cfg.get("mc4_dir")) / "c4",
-                git_lfs_path=data_cfg.get("git_lfs_path"),
+                git_lfs_path=data_cfg.get("git_lfs_dir"),
                 worker_mapping_file=data_cfg.get("download_worker_mapping"),
             )
         elif sub_stage == "setup_preprocess":
