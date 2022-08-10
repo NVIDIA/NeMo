@@ -67,7 +67,17 @@ class TranslationDataConfig:
     concat_sampling_temperature: Optional[int] = 5
     concat_sampling_probabilities: Optional[List[float]] = None
     # Currently indices can be a list but the dbs are singular
-    retrieval: bool = False # train retrieval augmented model
+    # retrieval: bool = False # train retrieval augmented model
+    # retrieval_db_src: Optional[Any] = None  # Any = str or List[str] (TODO) # file with src of nns to retrieve
+    # retrieval_db_tgt: Optional[Any] = None  # Any = str or List[str] (TODO) # file with tgt of nns to retrieve
+    # retrieval_nns: int = 1  # number of nearest neighbors to retrieve
+    # retrieval_indices: Optional[Any] = None  # Any = str or List[str] # file with indices of nns to retrieve
+
+@dataclass
+class RetrievalTranslationDataConfig(TranslationDataConfig):
+    # Currently indices can be a list but the dbs are singular
+    retrieval: bool = True # train retrieval augmented model
+    # TODO: Make em compulsary
     retrieval_db_src: Optional[Any] = None  # Any = str or List[str] (TODO) # file with src of nns to retrieve
     retrieval_db_tgt: Optional[Any] = None  # Any = str or List[str] (TODO) # file with tgt of nns to retrieve
     retrieval_nns: int = 1  # number of nearest neighbors to retrieve
@@ -302,7 +312,7 @@ class TranslationDataset(Dataset):
 
 class RetrievalTranslationDataset(TranslationDataset):
     """
-    A dataset for retrieval nmt models. 
+    A dataset for retrieval NMT models. 
     """
 
     def __init__(
@@ -310,8 +320,8 @@ class RetrievalTranslationDataset(TranslationDataset):
         dataset_src: str,
         dataset_tgt: str,
         retrieval_indices: str,
-        retrieval_db_src: str = None,
-        retrieval_db_tgt: str = None,
+        retrieval_db_src: str,
+        retrieval_db_tgt: str,
         tokens_in_batch: int = 1024,
         clean: bool = False,
         max_seq_length: int = 512,
@@ -343,44 +353,18 @@ class RetrievalTranslationDataset(TranslationDataset):
 
         # Select only the number of nns specified
         self.nn_list = np.load(retrieval_indices)[:, :retrieval_nns]
+        self.retrieval_db_src = retrieval_db_src
+        self.retrieval_db_tgt = retrieval_db_tgt
 
-        if retrieval_db_src is None:
-            # Use the train dataset as the retrieval_database
-            self.retrieval_db_src = dataset_src
-        else:
-            # Use the specified retrieval_database
-            self.retrieval_db_src = retrieval_db_src
-
-        if retrieval_db_tgt is None:
-            self.retrieval_db_tgt = dataset_tgt
-        else:
-            self.retrieval_db_tgt = retrieval_db_tgt
-
-    def batchify(self, tokenizer_src, tokenizer_tgt):
+    def batchify(
+            self,
+            tokenizer_src, 
+            tokenizer_tgt, 
+            retrieval_tokenizer_src = None, 
+            retrieval_tokenizer_tgt = None,
+            add_special = False
+        ):
         compute_ids = False
-        add_special = False
-        add_tgt_to_tgt = True
-        if compute_ids:
-            src_retrieval_ids = dataset_to_ids(
-                self.retrieval_db_src,
-                tokenizer_src,
-                cache_ids=self.cache_ids,
-                cache_data_per_node=self.cache_data_per_node,
-                use_cache=self.use_cache,
-            )
-
-            with open(self.retrieval_db_src + '.ids', 'wb') as f:
-                pickle.dump(src_retrieval_ids, f)
-            import ipdb;ipdb.set_trace()
-            tgt_retrieval_ids = dataset_to_ids(
-                self.retrieval_db_tgt,
-                tokenizer_tgt,
-                cache_ids=self.cache_ids,
-                cache_data_per_node=self.cache_data_per_node,
-                use_cache=self.use_cache,
-            )
-            with open(self.retrieval_db_tgt + '.ids', 'wb') as f:
-                pickle.dump(tgt_retrieval_ids, f)
             
         src_ids = dataset_to_ids(
             self.dataset_src,
@@ -403,51 +387,21 @@ class RetrievalTranslationDataset(TranslationDataset):
         tgt_retrieval_ids = np.load(os.path.join(self.retrieval_db_tgt,'linearized.npy'), mmap_mode='r')
         tgt_retrieval_ids_start = np.load(os.path.join(self.retrieval_db_tgt,'start_indices.npy'))
 
-        src_ids_extended = []
-        tgt_ids_extended = []
-        for i in tqdm(range(len(src_ids)), desc='Adding retrieved sentences to src'):
+        nn_src_ids_list = []
+        nn_tgt_ids_list = []
+        for i in tqdm(range(len(src_ids)), desc='Adding neighbors to dataset in batchify'):
             to_add_src = []
             to_add_tgt = []
-
-            samp_prob = 0.1
-            copy_prob = 0.05
-            # samp_prob = 0.0
-            # copy_prob = 0.0
-            if np.random.uniform(0,1) > samp_prob:
-                for nn_id in self.nn_list[i].tolist():
-                    # Add the src and tgt of nearest neighbor
-                    if np.random.uniform(0,1) > copy_prob:
-                        if add_special:
-                            to_add_src.extend([tokenizer_src.token_to_id('[NN_SRC]')])
-                        to_add_src.extend(src_retrieval_ids[src_retrieval_ids_start[nn_id]:src_retrieval_ids_start[nn_id+1]])
-                        if add_special:
-                            to_add_src.extend([tokenizer_src.token_to_id('[NN_TGT]')])
-                        if add_tgt_to_tgt:
-                            to_add_tgt.extend(tgt_retrieval_ids[tgt_retrieval_ids_start[nn_id]:tgt_retrieval_ids_start[nn_id+1]])
-                        else:
-                            to_add_src.extend(tgt_retrieval_ids[tgt_retrieval_ids_start[nn_id]:tgt_retrieval_ids_start[nn_id+1]])
-
-                    else:
-                        if add_special:
-                            to_add_src.extend([tokenizer_src.token_to_id('[NN_SRC]')])
-                        to_add_src.extend(src_ids[i])
-                        if add_special:
-                            to_add_src.extend([tokenizer_src.token_to_id('[NN_TGT]')])
-                        if add_tgt_to_tgt:
-                            to_add_tgt.extend(tgt_ids[i])
-                        else:
-                            to_add_src.extend(tgt_ids[i])
-            # add the original src sentence and tgt sentence
-            to_add_src.extend(src_ids[i])
-            to_add_tgt.extend(tgt_ids[i])
+            for nn_id in self.nn_list[i].tolist():
+                # Add the src and tgt of nearest neighbor
+                to_add_src.append(src_retrieval_ids[src_retrieval_ids_start[nn_id]:src_retrieval_ids_start[nn_id+1]])
+                to_add_tgt.append(tgt_retrieval_ids[tgt_retrieval_ids_start[nn_id]:tgt_retrieval_ids_start[nn_id+1]])
             
-            src_ids_extended.append(to_add_src)
-            tgt_ids_extended.append(to_add_tgt)
-        
-        src_ids = src_ids_extended
-        tgt_ids = tgt_ids_extended
+            nn_src_ids_list.append(to_add_src)
+            nn_tgt_ids_list.append(to_add_tgt)
 
         if self.clean:
+            # Update clean by max_seq_lenght = 514 - 2 * num_neighbors * length of neighbors
             src_ids, tgt_ids = self.clean_src_and_target(
                 src_ids, tgt_ids, max_tokens=self.max_seq_length, min_tokens=self.min_seq_length,
             )
@@ -455,7 +409,210 @@ class RetrievalTranslationDataset(TranslationDataset):
         self.tgt_pad_id = tokenizer_tgt.pad_id
 
         self.batch_indices = self.pack_data_into_batches(src_ids, tgt_ids)
-        self.batches = self.pad_batches(src_ids, tgt_ids, self.batch_indices)
+        self.batches = self.pad_batches(src_ids, tgt_ids, nn_src_ids_list, nn_tgt_ids_list, self.batch_indices)
+    
+    def __getitem__(self, idx):
+        src_ids = self.batches[idx]["src"]
+        tgt = self.batches[idx]["tgt"]
+        if self.reverse_lang_direction:
+            src_ids, tgt = tgt, src_ids
+        labels = tgt[:, 1:]
+        tgt_ids = tgt[:, :-1]
+        if self.prepend_id:
+            src_ids = np.insert(src_ids, 0, self.prepend_id, axis=-1)
+        src_mask = (src_ids != self.src_pad_id).astype(np.int32)
+        tgt_mask = (tgt_ids != self.tgt_pad_id).astype(np.int32)
+        return src_ids, src_mask, tgt_ids, tgt_mask, labels, self.batches[idx]["nn_src_list"], self.batches[idx]["nn_tgt_list"], 
+    
+    def pad_batches(self, src_ids, tgt_ids, nn_src_ids_list, nn_tgt_ids_list, batch_indices):
+        """
+        Augments source and target ids in the batches with padding symbol
+        to make the lengths of all sentences in the batches equal.
+        """
+
+        batches = {}
+        for batch_idx, b in enumerate(batch_indices):
+            src_len = max([len(src_ids[i]) for i in b])
+            tgt_len = max([len(tgt_ids[i]) for i in b])
+            src_ids_ = self.src_pad_id * np.ones((len(b), src_len), dtype=np.int)
+            tgt_ids_ = self.tgt_pad_id * np.ones((len(b), tgt_len), dtype=np.int)
+            for i, sentence_idx in enumerate(b):
+                src_ids_[i][: len(src_ids[sentence_idx])] = src_ids[sentence_idx]
+                tgt_ids_[i][: len(tgt_ids[sentence_idx])] = tgt_ids[sentence_idx]
+            nn_src_ids_list_ = []
+            nn_tgt_ids_list_ = []
+            for k in self.retrieval_nns:
+                # iterate over neighbors to make batches
+                nn_src_k_len = max([len(nn_src_ids_list[i][k]) for i in b])
+                nn_tgt_k_len = max([len(nn_tgt_ids_list[i][k]) for i in b])
+                # TODO: Check if self.src_pad_id is same as self.nn_src_pad_id
+                nn_src_k_ids_ = self.src_pad_id * np.ones((len(b), nn_src_k_len), dtype=np.int)
+                nn_tgt_k_ids_ = self.tgt_pad_id * np.ones((len(b), nn_tgt_k_len), dtype=np.int)
+                for i, sentence_idx in enumerate(b):
+                    nn_src_k_ids_[i][: len(nn_src_ids_list[sentence_idx][k])] = nn_src_ids_list[sentence_idx][k]
+                    nn_tgt_k_ids_[i][: len(nn_tgt_ids_list[sentence_idx][k])] = nn_tgt_ids_list[sentence_idx][k]
+                nn_src_ids_list_.append(nn_src_k_ids_)
+                nn_tgt_ids_list_.append(nn_tgt_k_ids_)
+            batches[batch_idx] = {"src": src_ids_, "tgt": tgt_ids_, 'nn_src_list': nn_src_ids_list_, 'nn_tgt_list': nn_tgt_ids_list_}
+        return batches
+    
+
+# class RetrievalTranslationDataset(TranslationDataset):
+#     """
+#     A dataset for retrieval nmt models. 
+#     """
+
+#     def __init__(
+#         self,
+#         dataset_src: str,
+#         dataset_tgt: str,
+#         retrieval_indices: str,
+#         retrieval_db_src: str = None,
+#         retrieval_db_tgt: str = None,
+#         tokens_in_batch: int = 1024,
+#         clean: bool = False,
+#         max_seq_length: int = 512,
+#         min_seq_length: int = 1,
+#         max_seq_length_diff: int = 512,
+#         max_seq_length_ratio: int = 512,
+#         cache_ids: bool = False,
+#         cache_data_per_node: bool = False,
+#         use_cache: bool = False,
+#         reverse_lang_direction: bool = False,
+#         prepend_id: int = None,
+#         retrieval_nns: int = 1,
+#     ):
+#         super(RetrievalTranslationDataset, self).__init__(
+#             dataset_src=dataset_src,
+#             dataset_tgt=dataset_tgt,
+#             tokens_in_batch=tokens_in_batch,
+#             clean=clean,
+#             max_seq_length=max_seq_length,
+#             min_seq_length=min_seq_length,
+#             max_seq_length_diff=max_seq_length_diff,
+#             max_seq_length_ratio=max_seq_length_ratio,
+#             cache_ids=cache_ids,
+#             cache_data_per_node=cache_data_per_node,
+#             use_cache=use_cache,
+#             reverse_lang_direction=reverse_lang_direction,
+#             prepend_id=prepend_id,
+#         )
+
+#         # Select only the number of nns specified
+#         self.nn_list = np.load(retrieval_indices)[:, :retrieval_nns]
+
+#         if retrieval_db_src is None:
+#             # Use the train dataset as the retrieval_database
+#             self.retrieval_db_src = dataset_src
+#         else:
+#             # Use the specified retrieval_database
+#             self.retrieval_db_src = retrieval_db_src
+
+#         if retrieval_db_tgt is None:
+#             self.retrieval_db_tgt = dataset_tgt
+#         else:
+#             self.retrieval_db_tgt = retrieval_db_tgt
+
+#     def batchify(self, tokenizer_src, tokenizer_tgt):
+#         compute_ids = False
+#         add_special = False
+#         add_tgt_to_tgt = True
+#         if compute_ids:
+#             src_retrieval_ids = dataset_to_ids(
+#                 self.retrieval_db_src,
+#                 tokenizer_src,
+#                 cache_ids=self.cache_ids,
+#                 cache_data_per_node=self.cache_data_per_node,
+#                 use_cache=self.use_cache,
+#             )
+
+#             with open(self.retrieval_db_src + '.ids', 'wb') as f:
+#                 pickle.dump(src_retrieval_ids, f)
+#             import ipdb;ipdb.set_trace()
+#             tgt_retrieval_ids = dataset_to_ids(
+#                 self.retrieval_db_tgt,
+#                 tokenizer_tgt,
+#                 cache_ids=self.cache_ids,
+#                 cache_data_per_node=self.cache_data_per_node,
+#                 use_cache=self.use_cache,
+#             )
+#             with open(self.retrieval_db_tgt + '.ids', 'wb') as f:
+#                 pickle.dump(tgt_retrieval_ids, f)
+            
+#         src_ids = dataset_to_ids(
+#             self.dataset_src,
+#             tokenizer_src,
+#             cache_ids=self.cache_ids,
+#             cache_data_per_node=self.cache_data_per_node,
+#             use_cache=self.use_cache,
+#         )
+#         tgt_ids = dataset_to_ids(
+#             self.dataset_tgt,
+#             tokenizer_tgt,
+#             cache_ids=self.cache_ids,
+#             cache_data_per_node=self.cache_data_per_node,
+#             use_cache=self.use_cache,
+#         )
+
+#         # load bin and idx files
+#         src_retrieval_ids = np.load(os.path.join(self.retrieval_db_src,'linearized.npy'), mmap_mode='r')
+#         src_retrieval_ids_start = np.load(os.path.join(self.retrieval_db_src,'start_indices.npy'))
+#         tgt_retrieval_ids = np.load(os.path.join(self.retrieval_db_tgt,'linearized.npy'), mmap_mode='r')
+#         tgt_retrieval_ids_start = np.load(os.path.join(self.retrieval_db_tgt,'start_indices.npy'))
+
+#         src_ids_extended = []
+#         tgt_ids_extended = []
+#         for i in tqdm(range(len(src_ids)), desc='Adding retrieved sentences to src'):
+#             to_add_src = []
+#             to_add_tgt = []
+
+#             samp_prob = 0.1
+#             copy_prob = 0.05
+#             # samp_prob = 0.0
+#             # copy_prob = 0.0
+#             if np.random.uniform(0,1) > samp_prob:
+#                 for nn_id in self.nn_list[i].tolist():
+#                     # Add the src and tgt of nearest neighbor
+#                     if np.random.uniform(0,1) > copy_prob:
+#                         if add_special:
+#                             to_add_src.extend([tokenizer_src.token_to_id('[NN_SRC]')])
+#                         to_add_src.extend(src_retrieval_ids[src_retrieval_ids_start[nn_id]:src_retrieval_ids_start[nn_id+1]])
+#                         if add_special:
+#                             to_add_src.extend([tokenizer_src.token_to_id('[NN_TGT]')])
+#                         if add_tgt_to_tgt:
+#                             to_add_tgt.extend(tgt_retrieval_ids[tgt_retrieval_ids_start[nn_id]:tgt_retrieval_ids_start[nn_id+1]])
+#                         else:
+#                             to_add_src.extend(tgt_retrieval_ids[tgt_retrieval_ids_start[nn_id]:tgt_retrieval_ids_start[nn_id+1]])
+
+#                     else:
+#                         if add_special:
+#                             to_add_src.extend([tokenizer_src.token_to_id('[NN_SRC]')])
+#                         to_add_src.extend(src_ids[i])
+#                         if add_special:
+#                             to_add_src.extend([tokenizer_src.token_to_id('[NN_TGT]')])
+#                         if add_tgt_to_tgt:
+#                             to_add_tgt.extend(tgt_ids[i])
+#                         else:
+#                             to_add_src.extend(tgt_ids[i])
+#             # add the original src sentence and tgt sentence
+#             to_add_src.extend(src_ids[i])
+#             to_add_tgt.extend(tgt_ids[i])
+            
+#             src_ids_extended.append(to_add_src)
+#             tgt_ids_extended.append(to_add_tgt)
+        
+#         src_ids = src_ids_extended
+#         tgt_ids = tgt_ids_extended
+
+#         if self.clean:
+#             src_ids, tgt_ids = self.clean_src_and_target(
+#                 src_ids, tgt_ids, max_tokens=self.max_seq_length, min_tokens=self.min_seq_length,
+#             )
+#         self.src_pad_id = tokenizer_src.pad_id
+#         self.tgt_pad_id = tokenizer_tgt.pad_id
+
+#         self.batch_indices = self.pack_data_into_batches(src_ids, tgt_ids)
+#         self.batches = self.pad_batches(src_ids, tgt_ids, self.batch_indices)
 
 
 class TarredTranslationDataset(IterableDataset):

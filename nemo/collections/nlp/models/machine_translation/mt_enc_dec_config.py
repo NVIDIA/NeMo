@@ -17,7 +17,7 @@ from typing import Any, Optional, Tuple
 
 from omegaconf.omegaconf import MISSING
 
-from nemo.collections.nlp.data.machine_translation.machine_translation_dataset import TranslationDataConfig
+from nemo.collections.nlp.data.machine_translation.machine_translation_dataset import TranslationDataConfig, RetrievalTranslationDataConfig
 from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModelConfig
 from nemo.collections.nlp.modules.common.token_classifier import TokenClassifierConfig
 from nemo.collections.nlp.modules.common.tokenizer_utils import TokenizerConfig
@@ -64,7 +64,6 @@ class MTEncDecModelConfig(EncDecNLPModelConfig):
     shared_tokenizer: Optional[bool] = True
     multilingual: Optional[bool] = False
     preproc_out_dir: Optional[str] = None
-    retrieval: Optional[bool] = False
     validate_input_ids: Optional[bool] = True
     shared_embeddings: bool = False
 
@@ -179,4 +178,40 @@ class MTBottleneckModelConfig(AAYNBaseConfig):
         attn_score_dropout=0.1,
         attn_layer_dropout=0.1,
         arch='seq2seq',
+    )
+
+@dataclass
+class MTRetrievalModelConfig(AAYNBaseConfig):
+    retrieval_model_type: str = 'perceiver' # 'perceiver' or 'naive' 
+    latent_size: int = 16
+    retrieval_encoder: str = None # path to retrieval-encoder
+    # TODO: Decide to make new encoder and decoder classes or not? 
+
+    # override to retrieval translation configurations
+    train_ds: Optional[RetrievalTranslationDataConfig] = RetrievalTranslationDataConfig(
+        src_file_name=MISSING,
+        tgt_file_name=MISSING,
+        tokens_in_batch=512,
+        clean=True,
+        shuffle=True,
+        cache_ids=False,
+        use_cache=False,
+    )
+    validation_ds: Optional[RetrievalTranslationDataConfig] = RetrievalTranslationDataConfig(
+        src_file_name=MISSING,
+        tgt_file_name=MISSING,
+        tokens_in_batch=512,
+        clean=False,
+        shuffle=False,
+        cache_ids=False,
+        use_cache=False,
+    )
+    test_ds: Optional[RetrievalTranslationDataConfig] = RetrievalTranslationDataConfig(
+        src_file_name=MISSING,
+        tgt_file_name=MISSING,
+        tokens_in_batch=512,
+        clean=False,
+        shuffle=False,
+        cache_ids=False,
+        use_cache=False,
     )

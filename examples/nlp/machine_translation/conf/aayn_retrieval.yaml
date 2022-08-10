@@ -1,0 +1,50 @@
+# The retrieval nmt architecture supports adding nearest neighbors to the encoder-deocder architecture
+
+defaults:
+  - aayn_base
+
+name: AttentionIsAllYouNeedRetrieval
+
+do_training: True # set to False if only preprocessing data
+do_testing: False # set to True to run evaluation on test data after training
+
+
+model:
+
+  retrieval_model_type: 'perceiver'
+  latent_size: int = 16 # perceiver latents size to use
+  retrieval_encoder: str = None # path to retrieval-encoder
+  
+  train_ds: 
+    retrieval: True # train retrieval augmented model
+    retrieval_indices: null # file with indices of nns to retrieve for train
+    retrieval_db_src: null
+    retrieval_db_tgt: null
+    retrieval_nns: 1 # number of nearest neighbors to append
+  
+  validation_ds:
+    retrieval: True # train retrieval augmented model
+    retrieval_indices: null # file with indices of nns to retrieve fro val
+    retrieval_db_src: null
+    retrieval_db_tgt: null
+    retrieval_nns: 1 # number of nearest neighbors to append
+  
+  test_ds:
+    retrieval: True # train retrieval augmented model
+    retrieval_indices: null
+    retrieval_db_src: null
+    retrieval_db_tgt: null
+    retrieval_nns: 1 # number of nearest neighbors to append
+  
+  # encoder:
+  #   mask_future: false
+  #   arch: perceiver # avg_pool, max_pool, seq2seq, bridge, perceiver (see description above)
+  #   hidden_steps: 32 # fixed number of hidden steps
+  #   hidden_blocks: 1 # number of repeat blocks (see classes for description)
+  #   hidden_init_method: default # see classes for available values
+
+  # decoder:
+  #   arch: seq2seq # currently only seq2seq is supported
+
+exp_manager:
+  name: AAYNRetrieval
