@@ -2,8 +2,8 @@ run:
   name: eval_${.task_name}_${.model_train_name}
   time_limit: "04:00:00"
   dependency: "singleton"
-  model_train_name: mt5_390m
-  task_name: "xnli"
+  model_train_name: t5_220m
+  task_name: "squad"  # SQuAD v1.1
   fine_tuning_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
   results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}_eval
 
@@ -21,25 +21,25 @@ trainer:
 exp_manager:
   explicit_log_dir: ${evaluation.run.results_dir}/results
   exp_dir: null
-  name: megatron_mt5_glue_xnli_eval
+  name: megatron_t5_${finetuning.run.task_name}_eval
   create_checkpoint_callback: False
 
 model:
-  restore_from_path: ${evaluation.run.fine_tuning_dir}/results/checkpoints/megatron_mt5_glue_xnli.nemo # Path to a finetuned mT5 .nemo file
+  restore_from_path: ${evaluation.run.fine_tuning_dir}/results/checkpoints/megatron_t5_squad.nemo # Path to a finetuned T5 .nemo file
   gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
   megatron_amp_O2: False # Enable O2 optimization for megatron amp
-  eval_languages: ['fr', 'de', 'en', 'es'] # List of languages to evaluate zero-shot XNLI performance. Full language list: ar,bg,de,el,en,es,fr,hi,ru,sw,th,tr,ur,vi,zh
 
   data:
     validation_ds:
-      task_name: 'xnli'
-      file_path: ${data_dir}/glue_data/xnli/xnli.test.tsv # Path to the TSV file for XNLI test
-      global_batch_size: 32
-      micro_batch_size: 4
+      src_file_name: ${data_dir}/squad_data/v1.1/train-v1.1_src.txt
+      tgt_file_name: ${data_dir}/squad_data/v1.1/train-v1.1_tgt.txt
+      global_batch_size: 128
+      micro_batch_size: 16
       shuffle: False
       num_workers: 4
       pin_memory: True
-      max_seq_length: 512
+      max_src_seq_length: 512
+      max_tgt_seq_length: 128
       drop_last: False
       write_predictions_to_file: False
       output_file_path_prefix: null # Prefix of the file to write predictions to.

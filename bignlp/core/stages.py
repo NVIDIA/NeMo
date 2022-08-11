@@ -12,6 +12,7 @@ from bignlp.core.launchers import AutoLauncher
 from bignlp.core.logger import logger
 from bignlp.utils.job_utils import JobPaths
 from bignlp.utils.file_utils import download_single_file
+from bignlp.utils.data_utils.prepare_squad import prepare_squad_for_fine_tuning
 
 
 class BigNLPStage:
@@ -342,6 +343,10 @@ class FineTuning(NeMoStage):
         from bignlp.utils.data_utils.download_glue import download_glue, TASKS_LOWER
         if task_name in TASKS_LOWER:
             download_glue(data_dir=os.path.join(data_dir, "glue_data"), tasks=task_name)
+
+        # Prepare dataset for squad
+        if task_name in ["squad", "xquad"]:
+            prepare_squad_for_fine_tuning(data_dir=os.path.join(data_dir, "squad_data"))
 
     def _get_nemo_code_path(self, model_type):
         if model_type == "gpt3":

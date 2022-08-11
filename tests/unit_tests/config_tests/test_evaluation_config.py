@@ -53,6 +53,8 @@ class TestEvaluationT5Config:
                 name: "exact_string_match" # Name of the evaluation metric to use.
                 average: null # Average the metric over the dataset. Options: ['macro', 'micro']. Works only for 'F1', 'accuracy' etc. Refer to torchmetrics for metrics where this is supported.
                 num_classes: null
+                class_labels: null
+                labels_are_strings: False
         """
         expected = OmegaConf.create(s)
         assert (

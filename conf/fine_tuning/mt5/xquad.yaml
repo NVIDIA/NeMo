@@ -5,7 +5,7 @@ run:
   convert_name: convert_nemo
   model_train_name: mt5_390m
   convert_dir: ${base_results_dir}/${fine_tuning.run.model_train_name}/${fine_tuning.run.convert_name}
-  task_name: "custom_task"  # Rename this name to be more clear
+  task_name: "xquad"
   results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
 
 trainer:
@@ -26,25 +26,25 @@ trainer:
 exp_manager:
   explicit_log_dir: ${fine_tuning.run.results_dir}/results
   exp_dir: null
-  name: megatron_mt5_${fine_tuning.run.task_name}
+  name: megatron_mt5_${finetuning.run.task_name}
   create_wandb_logger: False
   wandb_logger_kwargs:
-    project: nemo_mt5_${fine_tuning.run.task_name}
-    name: ${fine_tuning.run.name}
+    project: nemo_mt5_${finetuning.run.task_name}
+    name: ${finetuning.run.name}
   resume_if_exists: True
   resume_ignore_no_checkpoint: True
   create_checkpoint_callback: True
   checkpoint_callback_params:
-    monitor: validation_${fine_tuning.model.data.validation_ds.metric.name}
+    monitor: validation_${finetuning.model.data.validation_ds.metric.name}
     save_top_k: 5
     mode: max
     always_save_nemo: False
     save_nemo_on_train_end: True # Set to true for subsequent validation runs.
     filename: 'megatron_mt5--{${.monitor}:.3f}-{step}'
-    model_parallel_size: ${fine_tuning.model.model_parallel_size}
+    model_parallel_size: ${finetuning.model.model_parallel_size}
     save_best_model: True
 
-model: # For different fine_tuning tasks, tuning the hyper parameters accordingly
+model: # For different finetuning tasks, tuning the hyper parameters accordingly
   restore_from_path: ${fine_tuning.run.convert_dir}/results/megatron_mt5.nemo # Path to a trained mt5 .nemo file
   tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1
@@ -58,8 +58,8 @@ model: # For different fine_tuning tasks, tuning the hyper parameters accordingl
 
   data:
     train_ds:
-      src_file_name: ??? # Path to the txt file corresponding to the source data.
-      tgt_file_name: ??? # Path to the txt file corresponding to the target data.
+      src_file_name: ${data_dir}/squad_data/v1.1/train-v1.1_src.txt
+      tgt_file_name: ${data_dir}/squad_data/v1.1/train-v1.1_tgt.txt
       global_batch_size: 128
       micro_batch_size: 16
       shuffle: True
@@ -73,9 +73,24 @@ model: # For different fine_tuning tasks, tuning the hyper parameters accordingl
       concat_sampling_probabilities: null # When providing a list of datasets, this arg defines the sampling probabilities from each dataset when strategy='random'
 
     validation_ds:
-      src_file_name: ??? # Path to the txt file corresponding to the source data.
-      tgt_file_name: ??? # Path to the txt file corresponding to the target data.
-      names: null # If src/tgt file names are ListConfigs, the corresponding label is used to log metrics.
+      src_file_name:
+        - ${data_dir}/squad_data/xquad/xquad.en_src.txt
+        - ${data_dir}/squad_data/xquad/xquad.es_src.txt
+        - ${data_dir}/squad_data/xquad/xquad.de_src.txt
+        - ${data_dir}/squad_data/xquad/xquad.hi_src.txt
+        - ${data_dir}/squad_data/xquad/xquad.zh_src.txt
+      tgt_file_name:
+        - ${data_dir}/squad_data/xquad/xquad.en_tgt.txt
+        - ${data_dir}/squad_data/xquad/xquad.es_tgt.txt
+        - ${data_dir}/squad_data/xquad/xquad.de_tgt.txt
+        - ${data_dir}/squad_data/xquad/xquad.hi_tgt.txt
+        - ${data_dir}/squad_data/xquad/xquad.zh_tgt.txt
+      names:
+        - xquad_en
+        - xquad_es
+        - xquad_de
+        - xquad_hi
+        - xquad_zh
       global_batch_size: 128
       micro_batch_size: 16
       shuffle: False

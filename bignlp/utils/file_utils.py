@@ -6,8 +6,11 @@ import tqdm
 import zstandard as zstd
 
 
-def download_single_file(url, save_dir, file_name):
+def download_single_file(url, save_dir, file_name=None):
     os.makedirs(save_dir, exist_ok=True)
+    if file_name is None:
+        file_name = os.path.basename(url)
+
     save_path = os.path.join(save_dir, file_name)
     if os.path.exists(save_path):
         print(f"File {save_path} already exists, skipping download.")
