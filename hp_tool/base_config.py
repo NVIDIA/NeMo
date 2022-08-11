@@ -319,7 +319,6 @@ def generate_base_config(
     wandb_cfg = cfg.get("wandb")
     enable = wandb_cfg.get("enable")
     project = wandb_cfg.get("project")
-    print(base_cfg)
     if enable:
         base_cfg["exp_manager"]["create_wandb_logger"] = bool(enable)
         base_cfg["exp_manager"]["wandb_logger_kwargs"]["project"] = project
