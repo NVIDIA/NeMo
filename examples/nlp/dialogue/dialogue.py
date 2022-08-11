@@ -116,7 +116,7 @@ def main(cfg: DictConfig) -> None:
             model = model_class.from_pretrained(cfg.pretrained_model)
         else:
             logging.info(f'Restoring model from {cfg.model.nemo_path}')
-            model = model_class.restore_from(cfg.model.nemo_path, trainer=trainer)
+            model = model_class.restore_from(cfg.model.nemo_path)
 
         if cfg.do_training:
             model.setup_training_data(train_data_config=cfg.model.train_ds)
