@@ -661,11 +661,10 @@ class RadTTSModule(NeuralModule, Exportable):
             dur = dur[:, 0]
             dur = dur.clamp(0, token_duration_max)
 
-
         # get attributes f0, energy, vpred, etc)
         txt_enc_time_expanded, out_lens = regulate_len(dur, txt_enc.transpose(1, 2), pace)
         n_groups = torch.div(out_lens, self.n_group_size, rounding_mode='trunc')
-        
+
         txt_enc_time_expanded.transpose_(1, 2)
         if voiced_mask is None:
             if self.use_vpred_module:
@@ -734,7 +733,7 @@ class RadTTSModule(NeuralModule, Exportable):
         if self.n_group_size > 1:
             mel = self.fold(mel)
 
-        return {'mel': mel, 'out_lens' : out_lens, 'dur': dur, 'f0': f0, 'energy_avg': energy_avg}
+        return {'mel': mel, 'out_lens': out_lens, 'dur': dur, 'f0': f0, 'energy_avg': energy_avg}
 
     def infer_f0(self, residual, txt_enc_time_expanded, spk_vec, voiced_mask=None, lens=None):
         print("txt_enc_time_expanded", txt_enc_time_expanded.size())
