@@ -92,7 +92,9 @@ def split_partition(model, partitions, tp_size, write_path=None, megatron_legacy
             if 'query_key_value.weight' in param_name and megatron_legacy:
                 split_dim = partitions[0][idx].data.shape[0]
                 if split_dim % (tp_size * 3) != 0:
-                    raise ValueError(f"Can not split Q,K,V parameter {param_name} with shape {param.shape} into tensor parallel size {tp_size}. Not divisible by {tp_size * 3}.")
+                    raise ValueError(
+                        f"Can not split Q,K,V parameter {param_name} with shape {param.shape} into tensor parallel size {tp_size}. Not divisible by {tp_size * 3}."
+                    )
                 tp_qkv_splits = torch.chunk(partitions[0][idx].data, tp_size * 3, dim=0)
                 split = []
                 for i in range(tp_size):
@@ -101,7 +103,9 @@ def split_partition(model, partitions, tp_size, write_path=None, megatron_legacy
             elif 'key_value.weight' in param_name and megatron_legacy:
                 split_dim = partitions[0][idx].data.shape[0]
                 if split_dim % (tp_size * 2) != 0:
-                    raise ValueError(f"Can not split K,V parameter {param_name} with shape {param.shape} into tensor parallel size {tp_size}. Not divisible by {tp_size * 2}.")
+                    raise ValueError(
+                        f"Can not split K,V parameter {param_name} with shape {param.shape} into tensor parallel size {tp_size}. Not divisible by {tp_size * 2}."
+                    )
                 tp_qkv_splits = torch.chunk(partitions[0][idx].data, tp_size * 2, dim=0)
                 split = []
                 for i in range(tp_size):
@@ -157,7 +161,11 @@ def main():
         help="NeMo model class. This script should support all NeMo megatron models that use Tensor Parallel",
     )
     parser.add_argument("--precision", default=16, help="PyTorch Lightning Trainer precision flag")
-    parser.add_argument("--megatron_legacy", action="store_true", help="Converter for legacy megatron modles that have different q,k,v weight splits")
+    parser.add_argument(
+        "--megatron_legacy",
+        action="store_true",
+        help="Converter for legacy megatron modles that have different q,k,v weight splits",
+    )
 
     args = parser.parse_args()
 
@@ -202,11 +210,7 @@ def main():
             merge_partition(model, partitions, args.target_file)
     else:
         app_state.model_parallel_size = 1
-        model = cls.restore_from(
-            restore_path=args.model_file,
-            trainer=trainer,
-            map_location=torch.device("cpu")
-        )
+        model = cls.restore_from(restore_path=args.model_file, trainer=trainer, map_location=torch.device("cpu"))
 
     if tgt_tp_size > 1:
         partitions = []

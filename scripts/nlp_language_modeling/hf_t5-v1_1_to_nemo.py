@@ -13,13 +13,28 @@
 # limitations under the License.
 
 """
-This script converts the state dict of Huggingface T5-v1_1 model to the state dict of NeMo-Meagatron T5 model.
+This script generates a NeMo-Megatron compatible `.nemo` file for a Huggingface T5-v1_1 model.
+
+List of Huggingface models that this script can covert:
+
+1. google/t5-v1_1-small
+2. google/t5-v1_1-base
+3. google/t5-v1_1-large
+4. google/t5-v1_1-xl
+5. google/t5-v1_1-xxl
+6. google/mt5-small
+7. google/mt5-base
+8. google/mt5-large
+9. google/mt5-xl
+10. google/mt5-xxl
+11. google/ul2
 
 Use instructions:
 
 python hf_t5_to_nemo_coverter.py \
     --hf_model_name google/ul2 \
-    --nemo_state_dict /path/to/nemo_state_dict.pt
+    --nemo_state_dict /path/to/nemo_state_dict.pt \
+    --nemo_file_path /path/to/nemo_file.nemo
 """
 import collections
 import os
@@ -27,11 +42,22 @@ import tempfile
 from argparse import ArgumentParser
 
 import torch
-from transformers import T5ForConditionalGeneration
+from omegaconf.omegaconf import OmegaConf, open_dict
+from pytorch_lightning import Trainer
+from transformers import AutoTokenizer, T5ForConditionalGeneration
+
+from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin, NLPSaveRestoreConnector
+
+try:
+    import accelerate
+except ImportError:
+    raise ImportError("Please install accelerate package via `pip install accelerate` to use this script.")
 
 
-def convert_weights(hf_model, nemo_model):
-    hf_model = T5ForConditionalGeneration.from_pretrained(hf_model)
+def convert_weights(hf_model, nemo_state_dict_path):
+    hf_model = T5ForConditionalGeneration.from_pretrained(hf_model, low_cpu_mem_usage=True)
+    hf_model_config = hf_model.config
     with tempfile.TemporaryDirectory() as tmp:
         torch.save(hf_model.state_dict(), os.path.join(tmp, 'model.pt'))
         hf_weights = torch.load(os.path.join(tmp, 'model.pt'))
@@ -246,10 +272,49 @@ def convert_weights(hf_model, nemo_model):
         else:
             raise ValueError(f"Unknown key: {k}")
 
-    torch.save(nemo_weights, nemo_model)
-    print("Saved weights to {}".format(nemo_model))
+    torch.save(nemo_weights, nemo_state_dict_path)
+    print("Saved weights to {}".format(nemo_state_dict_path))
+    return hf_model_config
 
-    # TODO: (sandeepsub) - Maybe automatically populate the equivalent nemo-megatron yaml config and bundle weights, config and tokenizer into a `.nemo` file.
+
+def package_into_nemo_file(state_dict_path, base_yaml_config, hf_model_config, nemo_file_path, hf_model_name):
+    """
+    Packages the state dict, config file and tokenizer into a `.nemo` file.
+    """
+    trainer = Trainer(devices=1, plugins=NLPDDPPlugin(), accelerator="cpu", precision=32)
+    base_cfg = OmegaConf.load(base_yaml_config)
+    if hf_model_config.dense_act_fn == "silu":
+        act_fn = "swiglu"
+    elif hf_model_config.dense_act_fn == "gelu_new":
+        act_fn = "geglu"
+    else:
+        raise ValueError(f"Unknown dense_act_fn: {hf_model_config.dense_act_fn}")
+
+    with open_dict(base_cfg):
+        base_cfg.encoder.num_layers = hf_model_config.num_layers
+        base_cfg.encoder.hidden_size = hf_model_config.d_model
+        base_cfg.encoder.ffn_hidden_size = hf_model_config.d_ff
+        base_cfg.encoder.kv_channels = hf_model_config.d_kv
+        base_cfg.encoder.num_attention_heads = hf_model_config.num_heads
+        base_cfg.encoder.activation = act_fn
+        base_cfg.encoder.relative_attention_num_buckets = hf_model_config.relative_attention_num_buckets
+
+        base_cfg.decoder.num_layers = hf_model_config.num_decoder_layers
+        base_cfg.decoder.hidden_size = hf_model_config.d_model
+        base_cfg.decoder.ffn_hidden_size = hf_model_config.d_ff
+        base_cfg.decoder.kv_channels = hf_model_config.d_kv
+        base_cfg.decoder.num_attention_heads = hf_model_config.num_heads
+        base_cfg.decoder.activation = act_fn
+        base_cfg.decoder.relative_attention_num_buckets = hf_model_config.relative_attention_num_buckets
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tokenizer = AutoTokenizer.from_pretrained(hf_model_name)
+        tokenizer_path = tokenizer.save_vocabulary(tmp)[0]
+        base_cfg.tokenizer.model = tokenizer_path
+        model = MegatronT5Model(base_cfg, trainer).to('cpu')
+        model._save_restore_connector = NLPSaveRestoreConnector()
+        model.load_state_dict(torch.load(state_dict_path))
+        model.save_to(nemo_file_path)
 
 
 if __name__ == '__main__':
@@ -264,7 +329,28 @@ if __name__ == '__main__':
         "--nemo_state_dict_path",
         type=str,
         required=True,
-        help="Path to write the converted nemo state dict. ex: /path/to/nemo_state_dict.pt",
+        help="Path to write the intermediate nemo state dict file ex: /path/to/nemo_state_dict.pt",
+    )
+    parser.add_argument(
+        "--nemo_file_path",
+        type=str,
+        required=True,
+        help="Path to write the converted .nemo file ex: /path/to/t5_base_converted_to_nemo.nemo",
+    )
+    parser.add_argument(
+        "--base_yaml_config",
+        type=str,
+        default="hf_t5v1_1_base_config.yaml",
+        help="Path to a base yaml config that we edit based on the provided model.",
     )
     args = parser.parse_args()
-    convert_weights(args.hf_model_name, args.nemo_state_dict_path)
+    if not os.path.exists(args.base_yaml_config):
+        raise FileNotFoundError(f"Base yaml config file {args.base_yaml_config} does not exist.")
+    hf_model_config = convert_weights(args.hf_model_name, args.nemo_state_dict_path)
+    package_into_nemo_file(
+        state_dict_path=args.nemo_state_dict_path,
+        base_yaml_config=args.base_yaml_config,
+        hf_model_config=hf_model_config,
+        nemo_file_path=args.nemo_file_path,
+        hf_model_name=args.hf_model_name,
+    )
