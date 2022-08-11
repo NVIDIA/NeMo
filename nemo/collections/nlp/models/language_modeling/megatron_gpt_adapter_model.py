@@ -60,9 +60,7 @@ class MegatronGPTAdapterLearningModel(MegatronGPTPromptLearningModel):
         for _, module in self.frozen_model.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin):
                 for adapter_key in self.adapter_name_keys:
-                    module.add_adapter(name=adapter_key, cfg=adapter_modules.LinearAdapterConfig(in_features=frozen_model_cfg.hidden_size, dim=cfg.adapter_tuning.adapter_dim))
-                module.set_enabled_adapters(enabled=True)
-                module.unfreeze_enabled_adapters()
+                    module.add_adapter(name=adapter_key, cfg=adapter_modules.LinearAdapterConfig(in_features=frozen_model_cfg.hidden_size, dim=cfg.adapter_tuning.adapter_dim, dropout=cfg.adapter_tuning.adapter_dropout))
         
         logging.info(f'After adding adapters:\n{self.frozen_model.summarize()}')
 
@@ -196,12 +194,16 @@ class MegatronGPTAdapterLearningModel(MegatronGPTPromptLearningModel):
         """
         # Freeze frozen model
         self.frozen_model.freeze()
+        param_groups = {'params': []}
         for _, module in self.frozen_model.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin):
+                for adapter_key in self.adapter_name_keys:
+                    adapter_module = module.adapter_layer[adapter_key]
+                    param_groups['params'].extend(adapter_module.parameters())
                 module.set_enabled_adapters(enabled=True) 
                 module.unfreeze_enabled_adapters()
-        print(self.frozen_model.summarize())
-        self._optimizer_param_groups = {'params': [p for p in self.frozen_model.parameters()]},
+        self._optimizer_param_groups = [param_groups]
+        logging.info(f'Optimizer groups set:\n{self.frozen_model.summarize()}')
 
         # Need to handle frozen model freezing differently when pp > 1
         if self.pipeline_parallel:
