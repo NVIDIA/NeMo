@@ -10,10 +10,10 @@ class TestTrainingT5Config:
           results_dir: ${base_results_dir}/${.name}
           time_limit: "7-00:00:00"
           dependency: "singleton"
-        
+
         name: megatron_t5
         restore_from_path: null # used when starting from a .nemo file
-        
+
         trainer:
           num_nodes: 4
           devices: 8
@@ -31,8 +31,8 @@ class TestTrainingT5Config:
           limit_test_batches: 500
           accumulate_grad_batches: 1
           gradient_clip_val: 1.0
-        
-        
+
+
         exp_manager:
           explicit_log_dir: ${training.run.results_dir}
           exp_dir: null
@@ -56,7 +56,7 @@ class TestTrainingT5Config:
           step_timing_kwargs:
             sync_cuda: True
             buffer_size: 5
-        
+
         model:
           # model parallelism
           micro_batch_size: 64
@@ -65,15 +65,15 @@ class TestTrainingT5Config:
           pipeline_model_parallel_size: 1
           resume_from_checkpoint: null # manually set the checkpoint file to load from
           pipeline_model_parallel_split_rank: ${divide_floor:${.pipeline_model_parallel_size}, 2}
-        
+
           # model architecture
           make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
           pre_process: True # add embedding
           post_process: True # add pooler
-        
+
           megatron_amp_O2: True # use AMP with O2 style mixed precision instead of native amp on-the-fly weight autocasting.
           grad_allreduce_chunk_size_mb: 125
-        
+
           seq_length: 512
           max_position_embeddings: ${.seq_length}
           num_layers: 12
@@ -103,7 +103,7 @@ class TestTrainingT5Config:
           activation: 'geglu' # Options ['gelu', 'geglu', 'swiglu', 'reglu']
           headscale: False # Whether to learn extra parameters that scale the output of the each self-attention head.
           transformer_block_type: 'pre_ln' # Options ['pre_ln', 'post_ln', 'normformer']
-        
+
           tokenizer:
             library: 'megatron'
             type: 'BertWordPieceCase'
@@ -111,19 +111,19 @@ class TestTrainingT5Config:
             vocab_file: ${data_dir}/bpe/vocab.txt
             merge_file: null
             num_sentinel_tokens: 100
-        
+
           # precision
           native_amp_init_scale: 4294967296 # 2 ** 32
           native_amp_growth_interval: 1000
           fp32_residual_connection: False # Move residual connections to fp32
           fp16_lm_cross_entropy: False # Move the cross entropy unreduced loss calculation for lm head to fp16
-        
+
           # miscellaneous
           seed: 1234
           use_cpu_initialization: False # Init weights on the CPU (slow for large models)
           onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
           apex_transformer_log_level: 30 # Python logging level displays logs with severity greater than or equal to this
-        
+
           activations_checkpoint_method: block # 'uniform', 'block'
           activations_checkpoint_num_layers: 0
 
@@ -133,7 +133,8 @@ class TestTrainingT5Config:
             start_step: 10  # Global batch to start profiling
             end_step: 10 # Global batch to end profiling
             ranks: [0] # Global rank IDs to profile
-            gen_shape: False # Generate model and kernel details including input shapes
+            gen_shape: False
+
 
           optim:
             name: fused_adam
@@ -148,8 +149,8 @@ class TestTrainingT5Config:
               min_lr: 0.00001
               last_epoch: -1
               warmup_ratio: 0.01
-        
-        
+
+
           data:
             data_impl: mmap
             splits_string: "999982,9,9"
@@ -243,10 +244,10 @@ class TestTrainingT5Config:
           results_dir: ${base_results_dir}/${.name}
           time_limit: "15-00:00:00"
           dependency: "singleton"
-        
+
         name: megatron_t5
         restore_from_path: null # used when starting from a .nemo file
-        
+
         trainer:
           num_nodes: 20
           devices: 8
@@ -264,8 +265,8 @@ class TestTrainingT5Config:
           limit_test_batches: 500
           accumulate_grad_batches: 1
           gradient_clip_val: 1.0
-        
-        
+
+
         exp_manager:
           explicit_log_dir: ${training.run.results_dir}
           exp_dir: null
@@ -289,7 +290,7 @@ class TestTrainingT5Config:
           step_timing_kwargs:
             sync_cuda: True
             buffer_size: 5
-        
+
         model:
           # model parallelism
           micro_batch_size: 24
@@ -298,15 +299,15 @@ class TestTrainingT5Config:
           pipeline_model_parallel_size: 1
           resume_from_checkpoint: null # manually set the checkpoint file to load from
           pipeline_model_parallel_split_rank: ${divide_floor:${.pipeline_model_parallel_size}, 2}
-        
+
           # model architecture
           make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
           pre_process: True # add embedding
           post_process: True # add pooler
-        
+
           megatron_amp_O2: True # use AMP with O2 style mixed precision instead of native amp on-the-fly weight autocasting.
           grad_allreduce_chunk_size_mb: 125
-        
+
           seq_length: 512
           max_position_embeddings: ${.seq_length}
           num_layers: 24
@@ -336,7 +337,7 @@ class TestTrainingT5Config:
           activation: 'geglu' # Options ['gelu', 'geglu', 'swiglu', 'reglu']
           headscale: False # Whether to learn extra parameters that scale the output of the each self-attention head.
           transformer_block_type: 'pre_ln' # Options ['pre_ln', 'post_ln', 'normformer']
-        
+
           tokenizer:
             library: 'megatron'
             type: 'BertWordPieceCase'
@@ -344,30 +345,31 @@ class TestTrainingT5Config:
             vocab_file: ${data_dir}/bpe/vocab.txt
             merge_file: null
             num_sentinel_tokens: 100
-        
+
           # precision
           native_amp_init_scale: 4294967296 # 2 ** 32
           native_amp_growth_interval: 1000
           fp32_residual_connection: False # Move residual connections to fp32
           fp16_lm_cross_entropy: False # Move the cross entropy unreduced loss calculation for lm head to fp16
-        
+
           # miscellaneous
           seed: 1234
           use_cpu_initialization: False # Init weights on the CPU (slow for large models)
           onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
           apex_transformer_log_level: 30 # Python logging level displays logs with severity greater than or equal to this
-        
+
           activations_checkpoint_method: block # 'uniform', 'block'
           activations_checkpoint_num_layers: 0
-        
+
           nsys_profile:
             enabled: False
             trace: [nvtx,cuda]
             start_step: 10  # Global batch to start profiling
             end_step: 10 # Global batch to end profiling
             ranks: [0] # Global rank IDs to profile
-            gen_shape: False # Generate model and kernel details including input shapes
-        
+            gen_shape: False
+
+
           optim:
             name: fused_adam
             lr: 0.0001
@@ -381,8 +383,8 @@ class TestTrainingT5Config:
               min_lr: 0.00001
               last_epoch: -1
               warmup_ratio: 0.01
-        
-        
+
+
           data:
             data_impl: mmap
             splits_string: "999982,9,9"
@@ -476,10 +478,10 @@ class TestTrainingT5Config:
           results_dir: ${base_results_dir}/${.name}
           time_limit: "45-00:00:00"
           dependency: "singleton"
-        
+
         name: megatron_t5
         restore_from_path: null # used when starting from a .nemo file
-        
+
         trainer:
           num_nodes: 20
           devices: 8
@@ -497,8 +499,8 @@ class TestTrainingT5Config:
           limit_test_batches: 500
           accumulate_grad_batches: 1
           gradient_clip_val: 1.0
-        
-        
+
+
         exp_manager:
           explicit_log_dir: ${training.run.results_dir}
           exp_dir: null
@@ -522,7 +524,7 @@ class TestTrainingT5Config:
           step_timing_kwargs:
             sync_cuda: True
             buffer_size: 5
-        
+
         model:
           # model parallelism
           micro_batch_size: 12
@@ -531,15 +533,15 @@ class TestTrainingT5Config:
           pipeline_model_parallel_size: 1
           resume_from_checkpoint: null # manually set the checkpoint file to load from
           pipeline_model_parallel_split_rank: ${divide_floor:${.pipeline_model_parallel_size}, 2}
-        
+
           # model architecture
           make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
           pre_process: True # add embedding
           post_process: True # add pooler
-        
+
           megatron_amp_O2: True # use AMP with O2 style mixed precision instead of native amp on-the-fly weight autocasting.
           grad_allreduce_chunk_size_mb: 125
-        
+
           seq_length: 512
           max_position_embeddings: ${.seq_length}
           num_layers: 24
@@ -569,7 +571,7 @@ class TestTrainingT5Config:
           activation: 'geglu' # Options ['gelu', 'geglu', 'swiglu', 'reglu']
           headscale: False # Whether to learn extra parameters that scale the output of the each self-attention head.
           transformer_block_type: 'pre_ln' # Options ['pre_ln', 'post_ln', 'normformer']
-        
+
           tokenizer:
             library: 'megatron'
             type: 'BertWordPieceCase'
@@ -577,30 +579,31 @@ class TestTrainingT5Config:
             vocab_file: ${data_dir}/bpe/vocab.txt
             merge_file: null
             num_sentinel_tokens: 100
-        
+
           # precision
           native_amp_init_scale: 4294967296 # 2 ** 32
           native_amp_growth_interval: 1000
           fp32_residual_connection: False # Move residual connections to fp32
           fp16_lm_cross_entropy: False # Move the cross entropy unreduced loss calculation for lm head to fp16
-        
+
           # miscellaneous
           seed: 1234
           use_cpu_initialization: False # Init weights on the CPU (slow for large models)
           onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
           apex_transformer_log_level: 30 # Python logging level displays logs with severity greater than or equal to this
-        
+
           activations_checkpoint_method: block # 'uniform', 'block'
           activations_checkpoint_num_layers: 0
-        
+
           nsys_profile:
             enabled: False
             trace: [nvtx,cuda]
             start_step: 10  # Global batch to start profiling
             end_step: 10 # Global batch to end profiling
             ranks: [0] # Global rank IDs to profile
-            gen_shape: False # Generate model and kernel details including input shapes
-        
+            gen_shape: False
+
+
           optim:
             name: fused_adam
             lr: 0.0001
@@ -614,8 +617,8 @@ class TestTrainingT5Config:
               min_lr: 0.00001
               last_epoch: -1
               warmup_ratio: 0.01
-        
-        
+
+
           data:
             data_impl: mmap
             splits_string: "999982,9,9"
@@ -709,10 +712,10 @@ class TestTrainingT5Config:
           results_dir: ${base_results_dir}/${.name}
           time_limit: "55-00:00:00"
           dependency: "singleton"
-        
+
         name: megatron_t5
         restore_from_path: null # used when starting from a .nemo file
-        
+
         trainer:
           num_nodes: 40
           devices: 8
@@ -730,8 +733,8 @@ class TestTrainingT5Config:
           limit_test_batches: 500
           accumulate_grad_batches: 1
           gradient_clip_val: 1.0
-        
-        
+
+
         exp_manager:
           explicit_log_dir: ${training.run.results_dir}
           exp_dir: null
@@ -755,7 +758,7 @@ class TestTrainingT5Config:
           step_timing_kwargs:
             sync_cuda: True
             buffer_size: 5
-        
+
         model:
           # model parallelism
           micro_batch_size: 4
@@ -764,15 +767,15 @@ class TestTrainingT5Config:
           pipeline_model_parallel_size: 2
           resume_from_checkpoint: null # manually set the checkpoint file to load from
           pipeline_model_parallel_split_rank: ${divide_floor:${.pipeline_model_parallel_size}, 2}
-        
+
           # model architecture
           make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
           pre_process: True # add embedding
           post_process: True # add pooler
-        
+
           megatron_amp_O2: True # use AMP with O2 style mixed precision instead of native amp on-the-fly weight autocasting.
           grad_allreduce_chunk_size_mb: 125
-        
+
           seq_length: 512
           max_position_embeddings: ${.seq_length}
           num_layers: 36
@@ -802,7 +805,7 @@ class TestTrainingT5Config:
           activation: 'geglu' # Options ['gelu', 'geglu', 'swiglu', 'reglu']
           headscale: False # Whether to learn extra parameters that scale the output of the each self-attention head.
           transformer_block_type: 'pre_ln' # Options ['pre_ln', 'post_ln', 'normformer']
-        
+
           tokenizer:
             library: 'megatron'
             type: 'BertWordPieceCase'
@@ -810,30 +813,31 @@ class TestTrainingT5Config:
             vocab_file: ${data_dir}/bpe/vocab.txt
             merge_file: null
             num_sentinel_tokens: 100
-        
+
           # precision
           native_amp_init_scale: 4294967296 # 2 ** 32
           native_amp_growth_interval: 1000
           fp32_residual_connection: False # Move residual connections to fp32
           fp16_lm_cross_entropy: False # Move the cross entropy unreduced loss calculation for lm head to fp16
-        
+
           # miscellaneous
           seed: 1234
           use_cpu_initialization: False # Init weights on the CPU (slow for large models)
           onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
           apex_transformer_log_level: 30 # Python logging level displays logs with severity greater than or equal to this
-        
+
           activations_checkpoint_method: block # 'uniform', 'block'
           activations_checkpoint_num_layers: 0
-        
+
           nsys_profile:
             enabled: False
             trace: [nvtx,cuda]
             start_step: 10  # Global batch to start profiling
             end_step: 10 # Global batch to end profiling
             ranks: [0] # Global rank IDs to profile
-            gen_shape: False # Generate model and kernel details including input shapes
-        
+            gen_shape: False
+
+
           optim:
             name: fused_adam
             lr: 0.0001
@@ -847,8 +851,8 @@ class TestTrainingT5Config:
               min_lr: 0.00001
               last_epoch: -1
               warmup_ratio: 0.01
-        
-        
+
+
           data:
             data_impl: mmap
             splits_string: "999982,9,9"
@@ -942,10 +946,10 @@ class TestTrainingT5Config:
           results_dir: ${base_results_dir}/${.name}
           time_limit: "100-00:00:00"
           dependency: "singleton"
-        
+
         name: megatron_t5
         restore_from_path: null # used when starting from a .nemo file
-        
+
         trainer:
           num_nodes: 40
           devices: 8
@@ -963,8 +967,8 @@ class TestTrainingT5Config:
           limit_test_batches: 500
           accumulate_grad_batches: 1
           gradient_clip_val: 1.0
-        
-        
+
+
         exp_manager:
           explicit_log_dir: ${training.run.results_dir}
           exp_dir: null
@@ -988,7 +992,7 @@ class TestTrainingT5Config:
           step_timing_kwargs:
             sync_cuda: True
             buffer_size: 5
-        
+
         model:
           # model parallelism
           micro_batch_size: 4
@@ -997,15 +1001,15 @@ class TestTrainingT5Config:
           pipeline_model_parallel_size: 4
           resume_from_checkpoint: null # manually set the checkpoint file to load from
           pipeline_model_parallel_split_rank: ${divide_floor:${.pipeline_model_parallel_size}, 2}
-        
+
           # model architecture
           make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
           pre_process: True # add embedding
           post_process: True # add pooler
-        
+
           megatron_amp_O2: True # use AMP with O2 style mixed precision instead of native amp on-the-fly weight autocasting.
           grad_allreduce_chunk_size_mb: 125
-        
+
           seq_length: 512
           max_position_embeddings: ${.seq_length}
           num_layers: 48
@@ -1035,7 +1039,7 @@ class TestTrainingT5Config:
           activation: 'geglu' # Options ['gelu', 'geglu', 'swiglu', 'reglu']
           headscale: False # Whether to learn extra parameters that scale the output of the each self-attention head.
           transformer_block_type: 'pre_ln' # Options ['pre_ln', 'post_ln', 'normformer']
-        
+
           tokenizer:
             library: 'megatron'
             type: 'BertWordPieceCase'
@@ -1043,30 +1047,31 @@ class TestTrainingT5Config:
             vocab_file: ${data_dir}/bpe/vocab.txt
             merge_file: null
             num_sentinel_tokens: 100
-        
+
           # precision
           native_amp_init_scale: 4294967296 # 2 ** 32
           native_amp_growth_interval: 1000
           fp32_residual_connection: False # Move residual connections to fp32
           fp16_lm_cross_entropy: False # Move the cross entropy unreduced loss calculation for lm head to fp16
-        
+
           # miscellaneous
           seed: 1234
           use_cpu_initialization: False # Init weights on the CPU (slow for large models)
           onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
           apex_transformer_log_level: 30 # Python logging level displays logs with severity greater than or equal to this
-        
+
           activations_checkpoint_method: block # 'uniform', 'block'
           activations_checkpoint_num_layers: 0
-        
+
           nsys_profile:
             enabled: False
             trace: [nvtx,cuda]
             start_step: 10  # Global batch to start profiling
             end_step: 10 # Global batch to end profiling
             ranks: [0] # Global rank IDs to profile
-            gen_shape: False # Generate model and kernel details including input shapes
-        
+            gen_shape: False
+
+
           optim:
             name: fused_adam
             lr: 0.0001
@@ -1080,8 +1085,8 @@ class TestTrainingT5Config:
               min_lr: 0.00001
               last_epoch: -1
               warmup_ratio: 0.01
-        
-        
+
+
           data:
             data_impl: mmap
             splits_string: "999982,9,9"
