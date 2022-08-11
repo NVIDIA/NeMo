@@ -4,7 +4,7 @@ from time import sleep
 
 import psutil
 import hydra
-import utils
+import bignlp.utils.file_utils as utils  #TODO: check if this in python path
 
 
 @hydra.main(config_path="conf", config_name="config")

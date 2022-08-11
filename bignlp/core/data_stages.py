@@ -81,6 +81,7 @@ class DataStage(BigNLPStage):
         time_limit = run_cfg.get("time_limit")
 
         env_vars = self.get_env_vars()
+        env_vars["PYTHONPATH"] = f"{self._bignlp_path}:${{PYTHONPATH}}" # Required by pile download
         env_vars["NGC_ARRAY_TYPE"] = "MPIJob" # Required by BCP
         setup = [
             f"export {k}={v}" for k, v in env_vars.items()

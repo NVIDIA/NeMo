@@ -2,7 +2,7 @@ import os
 import multiprocessing
 
 import hydra
-import utils
+import bignlp.utils.file_utils as utils
 
 
 @hydra.main(config_path="conf", config_name="config")
