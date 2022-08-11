@@ -13,7 +13,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, Union, Iterable
 
 import bignlp.utils.job_utils as job_utils
+from bignlp.core.logger import get_logger
 
+logger = get_logger()
 
 BIGNLP_DEBUG = os.getenv("BIGNLP_DEBUG", "False").lower() in ("true", "t", "1")
 
@@ -61,11 +63,14 @@ class Launcher:
         submission_file_path = self._make_submission_file(
             command_groups
         )
-        print(f"Job {self.job_name} submission file created at '{submission_file_path}'.")
+        logger.info(f"Job {self.job_name} submission file created at '{submission_file_path}'.")
 
         job_id = ""
         if not BIGNLP_DEBUG:
             job_id = self._submit_command(submission_file_path)
+            if job_id:
+                logger.info(f"Job {self.job_name} submitted with Job ID {job_id}.")
+
         return job_id
 
     def _submit_command(

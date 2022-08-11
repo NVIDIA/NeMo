@@ -9,8 +9,11 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, Union, Iterable
 
 from bignlp.core.launchers import AutoLauncher
+from bignlp.core.logger import get_logger
 from bignlp.utils.job_utils import JobPaths
 from bignlp.utils.file_utils import download_single_file
+
+logger = get_logger()
 
 class BigNLPStage:
     def __init__(self, cfg):
