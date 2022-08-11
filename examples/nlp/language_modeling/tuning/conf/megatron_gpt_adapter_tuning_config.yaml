@@ -103,6 +103,7 @@ model:
 
   adapter_tuning:
     adapter_dim: 50
+    adapter_dropout: 0.1
 
   prefix_tuning:
     prefix_len: 50
