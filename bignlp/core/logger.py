@@ -36,7 +36,7 @@ if level != "NOCONFIG":
 
 
 def get_logger() -> logging.Logger:
-    return logging.getLogger("bignlp")
+    return logging.getLogger("BIGNLP")
 
 
 def exception(*args: str) -> None:
