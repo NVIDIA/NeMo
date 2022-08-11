@@ -33,9 +33,10 @@ JSON manifests for comparation tool should have the same origin.
 examle: Lets assume, that we have manifest of dataset called data_1. To use comparation tool you need to do next steps:
 1) transcribe data_1.json by a first model and rename resulting .json file to <Model_1_name>.json
 2) transcribe data_1.json by a second model and rename resulting .json file to <Model_2_name>.json
-Then run with -c1 and -c2 options and go to "Comparation tool folder"
+Then run with -c1 and -c2 options and go to "Comparation tool" tab
 
-There you will see an interactive graph, and choose which data will display on each axis. I'd reccomend accuracy_model_1 from accuracy_model_2
+
+There you will see an interactive graph, and choose which data will display on each axis. I'd reccomend accuracy_model_1 from accuracy_model_2 as it's easy to understand
 
 
 ![Speech Data Explorer](screenshot.png)
