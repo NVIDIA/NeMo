@@ -42,13 +42,10 @@ from plotly import graph_objects as go
 from plotly.subplots import make_subplots
 
 import pandas as pd
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 import plotly.express as px
-import time
+#import time
 
-
-import os
-from IPython.display import Image
 
 # number of items in a table per page
 DATA_PAGE_SIZE = 10

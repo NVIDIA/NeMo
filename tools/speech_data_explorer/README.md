@@ -14,20 +14,29 @@ Please make sure that requirements are installed. Then run:
 ```
 python data_explorer.py path_to_manifest.json
 
-or to try new features:
+or to try new features (comparation tool):
 
-python data_explorer.py FTAll_books_train.json -c1 Conf_test.json -c2 Context_test.json
+python data_explorer.py path_to_manifest.json -c1 path_to_manifest_transcribed_1.json -c2 path_to_manifest_transcribed_2.json
 
 ```
+
+Errors' analysis requires "pred_text" (ASR transcript) for all utterances.
+
+Any additional field will be parsed and displayed in 'Samples' tab.
 
 JSON manifest file should contain the following fields:
 - "audio_filepath" (path to audio file)
 - "duration" (duration of the audio file in seconds)
 - "text" (reference transcript)
 
-Errors' analysis requires "pred_text" (ASR transcript) for all utterances.
+JSON manifests for comparation tool should have the same origin. 
+examle: Lets assume, that we have manifest of dataset called data_1. To use comparation tool you need to do next steps:
+1) transcribe data_1.json by a first model and rename resulting .json file to <Model_1_name>.json
+2) transcribe data_1.json by a second model and rename resulting .json file to <Model_2_name>.json
+Then run with -c1 and -c2 options and go to "Comparation tool folder"
 
-Any additional field will be parsed and displayed in 'Samples' tab.
+There you will see an interactive graph, and choose which data will display on each axis. I'd reccomend accuracy_model_1 from accuracy_model_2
+
 
 ![Speech Data Explorer](screenshot.png)
 
