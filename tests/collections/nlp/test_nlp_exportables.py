@@ -88,7 +88,8 @@ class TestExportableClassifiers:
             config.trainer.precision = 32
             config.trainer.strategy = None
             config.trainer.max_steps = -1
-            config.pop('checkpoint_callback', None)
+            if 'checkpoint_callback' in config.trainer: #TODO: Update this to create deafult config rather than pulling from git
+                del config.trainer.checkpoint_callback
             trainer = pl.Trainer(**config.trainer)
             model = IntentSlotClassificationModel(config.model, trainer=trainer)
             filename = os.path.join(tmpdir, 'isc.onnx')
