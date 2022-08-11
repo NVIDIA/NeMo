@@ -64,7 +64,10 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
 
         self.tokenizer = self.frozen_model.tokenizer
 
-        self.hidden_size = self.frozen_model.cfg.hidden_size
+        if hasattr(self.frozen_model.cfg, 'encoder'):
+            self.hidden_size = self.frozen_model.cfg.encoder.hidden_size
+        else:
+            self.hidden_size = self.frozen_model.cfg.hidden_size
         self.word_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.word_embeddings
         self.existing_tasks = list(self.cfg.get('existing_tasks', []))
         self.new_tasks = list(self.cfg.get('new_tasks', []))
