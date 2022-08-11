@@ -77,6 +77,7 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
         sequence_parallel=False,
         gradient_accumulation_fusion=False,
         normalize_attention_scores=True,
+        megatron_legacy=False
     ):
         super(MegatronRetrievalTransformerEncoderModule, self).__init__()
 
@@ -135,6 +136,7 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
             sequence_parallel=sequence_parallel,
             gradient_accumulation_fusion=gradient_accumulation_fusion,
             normalize_attention_scores=normalize_attention_scores,
+            megatron_legacy=megatron_legacy
         )
         rot_dim = hidden_size // num_attention_heads if kv_channels is None else kv_channels
         # partial rotary embeddings, which is better than full rotary
@@ -347,6 +349,7 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
         sequence_parallel=False,
         gradient_accumulation_fusion=False,
         normalize_attention_scores=True,
+        megatron_legacy=False
     ):
         super(MegatronRetrievalTransformerDecoderModule, self).__init__()
 
@@ -404,6 +407,7 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
             sequence_parallel=sequence_parallel,
             gradient_accumulation_fusion=gradient_accumulation_fusion,
             normalize_attention_scores=normalize_attention_scores,
+            megatron_legacy=megatron_legacy
         )
         rot_dim = hidden_size // num_attention_heads if kv_channels is None else kv_channels
         # partial rotary embeddings, which is better than full rotary
