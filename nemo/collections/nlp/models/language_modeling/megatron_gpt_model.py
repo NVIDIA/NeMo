@@ -315,13 +315,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             https://gitlab-master.nvidia.com/ADLR/megatron-lm/-/blob/3f91f09bb2ab32f9904b47f46f19d2fc3f518ed8/megatron/training.py#L425
         """
         grads = []
-        for param in self.model.parameters():
-            if getattr(param, 'sequence_parallel_enabled', False):
-                if self.megatron_amp_o2:
-                    grad = param.main_grad
-                else:
-                    grad = param.grad
-                grads.append(grad.data)
+        for module in self.model:
+            for param in module.parameters():
+                if getattr(param, 'sequence_parallel_enabled', False):
+                    if self.megatron_amp_o2:
+                        grad = param.main_grad
+                    else:
+                        grad = param.grad
+                    grads.append(grad.data)
         coalesced = torch._utils._flatten_dense_tensors(grads)
         torch.distributed.all_reduce(coalesced, group=parallel_state.get_tensor_model_parallel_group())
         for buf, synced in zip(grads, torch._utils._unflatten_dense_tensors(coalesced, grads)):
