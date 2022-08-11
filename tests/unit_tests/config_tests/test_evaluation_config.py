@@ -26,7 +26,7 @@ class TestEvaluationT5Config:
         
         
         exp_manager:
-          explicit_log_dir: ${evaluation.run.results_dir}
+          explicit_log_dir: ${evaluation.run.results_dir}/results
           exp_dir: null
           name: megatron_t5_glue_eval
           create_checkpoint_callback: False

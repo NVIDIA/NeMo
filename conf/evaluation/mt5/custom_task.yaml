@@ -4,7 +4,7 @@ run:
   dependency: "singleton"
   model_train_name: mt5_390m
   task_name: "custom_task"  # Rename this name to be more clear
-  fine_tuning_results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
+  fine_tuning_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
   results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}_eval
 
 trainer:
@@ -19,13 +19,13 @@ trainer:
 
 
 exp_manager:
-  explicit_log_dir: ${evaluation.run.results_dir}
+  explicit_log_dir: ${evaluation.run.results_dir}/results
   exp_dir: null
   name: megatron_mt5_${evaluation.run.task_name}_eval
   create_checkpoint_callback: False
 
 model:
-  restore_from_path: ${evaluation.run.fine_tuning_results_dir}/checkpoints/megatron_mt5_glue_xnli.nemo # Path to a finetuned mT5 .nemo file
+  restore_from_path: ${evaluation.run.fine_tuning_dir}/results/checkpoints/megatron_mt5_glue_xnli.nemo # Path to a finetuned mT5 .nemo file
   gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
   megatron_amp_O2: False # Enable O2 optimization for megatron amp
 

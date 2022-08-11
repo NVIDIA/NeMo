@@ -30,7 +30,7 @@ class TestFinetuningT5Config:
           gradient_clip_val: 1.0
         
         exp_manager:
-          explicit_log_dir: ${finetuning.run.results_dir}
+          explicit_log_dir: ${finetuning.run.results_dir}/results
           exp_dir: null
           name: megatron_t5_glue
           create_wandb_logger: False
