@@ -35,6 +35,39 @@ from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, Logprob
 from nemo.utils import logging
 
 __all__ = ['EncDecCTCModel']
+CONSTANT = 0.01
+def normalize_batch(x, seq_len, normalize_type, x_mean=None, x_std=None):
+    if normalize_type == "per_feature":
+        if x_mean is None and x_std is None:
+            x_mean = torch.zeros((seq_len.shape[0], x.shape[1]), dtype=x.dtype, device=x.device)
+            x_std = torch.zeros((seq_len.shape[0], x.shape[1]), dtype=x.dtype, device=x.device)
+            for i in range(x.shape[0]):
+                if x[i, :, : seq_len[i]].shape[1] == 1:
+                    raise ValueError(
+                        "normalize_batch with `per_feature` normalize_type received a tensor of length 1. This will result "
+                        "in torch.std() returning nan"
+                    )
+                x_mean[i, :] = x[i, :, : seq_len[i]].mean(dim=1)
+                x_std[i, :] = x[i, :, : seq_len[i]].std(dim=1)
+        # make sure x_std is not zero
+            x_std += CONSTANT
+        return (x - x_mean.unsqueeze(2)) / x_std.unsqueeze(2), x_mean, x_std
+    elif normalize_type == "all_features":
+        x_mean = torch.zeros(seq_len.shape, dtype=x.dtype, device=x.device)
+        x_std = torch.zeros(seq_len.shape, dtype=x.dtype, device=x.device)
+        for i in range(x.shape[0]):
+            x_mean[i] = x[i, :, : seq_len[i].item()].mean()
+            x_std[i] = x[i, :, : seq_len[i].item()].std()
+        # make sure x_std is not zero
+        x_std += CONSTANT
+        return (x - x_mean.view(-1, 1, 1)) / x_std.view(-1, 1, 1), x_mean, x_std
+    elif "fixed_mean" in normalize_type and "fixed_std" in normalize_type:
+        x_mean = torch.tensor(normalize_type["fixed_mean"], device=x.device)
+        x_std = torch.tensor(normalize_type["fixed_std"], device=x.device)
+        return (x - x_mean.view(x.shape[0], x.shape[1]).unsqueeze(2)) / x_std.view(x.shape[0], x.shape[1]).unsqueeze(2), x_mean, x_std
+    else:
+        return x, x_mean, x_std
+
 
 
 class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
@@ -371,7 +404,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             augmentor = None
 
         # Automatically inject args from model config to dataloader config
-        audio_to_text_dataset.inject_dataloader_value_from_model_config(self.cfg, config, key='sample_rate')MaskType
+        audio_to_text_dataset.inject_dataloader_value_from_model_config(self.cfg, config, key='sample_rate')
         audio_to_text_dataset.inject_dataloader_value_from_model_config(self.cfg, config, key='labels')
 
         shuffle = config['shuffle']
@@ -528,8 +561,8 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             "input_signal_length": NeuralType(tuple('B'), LengthsType(), optional=True),
             "processed_signal": NeuralType(('B', 'D', 'T'), SpectrogramType(), optional=True),
             "processed_signal_length": NeuralType(tuple('B'), LengthsType(), optional=True),
+            "batch_speech_segments": NeuralType(('B', 'T'), MaskType(), optional=True),
             "sample_id": NeuralType(tuple('B'), LengthsType(), optional=True),
-            "segment": NeuralType(('B', 'D', 'T'), MaskType(), optional=True)
         }
 
     @property
@@ -543,7 +576,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
     @typecheck()
     def forward(
         self, input_signal=None, input_signal_length=None, processed_signal=None, processed_signal_length=None, 
-        segment=None
+        batch_speech_segments=None
     ):
         """
         Forward pass of the model.
@@ -565,6 +598,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             2) The lengths of the acoustic sequence after propagation through the encoder, of shape [B].
             3) The greedy token predictions of the model of shape [B, T] (via argmax)
         """
+        norm_with_unmask = False
         has_input_signal = input_signal is not None and input_signal_length is not None
         has_processed_signal = processed_signal is not None and processed_signal_length is not None
         if (has_input_signal ^ has_processed_signal) == False:
@@ -574,30 +608,53 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             )
 
         if not has_processed_signal:
-            processed_signal, processed_signal_length = self.preprocessor(
+            processed_signal, processed_signal_length, x_mean, x_std, unnorm_processed_signal, unnorm_processed_signal_length = self.preprocessor(
                 input_signal=input_signal, length=input_signal_length,
             )
 
-        # unnormalize above
         # mask here
-        if segment is not None:
-            print(segment)
-            print(processed_signal.shape) #torch.Size([5, 80, 6367])
+        if batch_speech_segments is not None:
+            vad_mask = self.contruct_vad_mask(unnorm_processed_signal, batch_speech_segments) # False is speech
+            ZERO_LEVEL_SPEC_DB_VAL = -16.635  # Log-Melspectrogram value for zero signal
 
-        
-        contruct_vad_mask(segment, processed_signal)
+            if norm_with_unmask:
+                x_mean, x_std = None, None
 
+            unnorm_processed_signal = unnorm_processed_signal.masked_fill_(vad_mask, ZERO_LEVEL_SPEC_DB_VAL)
+            processed_signal, x_mean, x_std = normalize_batch(unnorm_processed_signal, unnorm_processed_signal_length, normalize_type="per_feature", x_mean=x_mean, x_std=x_std)
+            print(processed_signal)
+            
         if self.spec_augmentation is not None and self.training:
             processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
 
+    
         encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
         log_probs = self.decoder(encoder_output=encoded)
         greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
 
         return log_probs, encoded_len, greedy_predictions
     
-    def contruct_vad_mask(self, processed_signal):
-        max_dur = processed_signal.shape[-1] 
+
+    
+    def contruct_vad_mask(self, processed_signal, batch_speech_segments): 
+        device = processed_signal.device
+        vad_mask_shape = torch.Size([processed_signal.shape[0],processed_signal.shape[-1]])
+        vad_mask = torch.zeros(vad_mask_shape, dtype=torch.bool)
+
+        if len(batch_speech_segments) > 0:
+            for i in range(len(batch_speech_segments)):
+                speech_segments = batch_speech_segments[i]
+                for j in range(0, len(speech_segments), 2):
+                    if speech_segments[j] != -1:
+                        vad_mask[i, int(speech_segments[j]*100): int(speech_segments[j+1]*100)] = True
+
+        vad_mask = vad_mask.unsqueeze(1)
+        vad_mask = vad_mask.expand(processed_signal.shape)
+        
+        vad_mask = ~vad_mask
+        print(vad_mask)
+        
+        return vad_mask.to(device)
 
 
     # PTL-specific methods

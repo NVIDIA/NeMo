@@ -712,8 +712,8 @@ def prepare_gen_segment_table(sequence: torch.Tensor, per_args: dict) -> Tuple[s
     return out_dir, per_args_float
 
 
-@torch.jit.script
-def generate_vad_segment_table_per_tensor(sequence: torch.Tensor, per_args: Dict[str, float]) -> torch.Tensor:
+# @torch.jit.script
+def generate_vad_segment_table_per_tensor(sequence: torch.Tensor, per_args: Dict[str, float]) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     See description in generate_overlap_vad_seq.
     Use this for single instance pipeline. 
@@ -724,14 +724,14 @@ def generate_vad_segment_table_per_tensor(sequence: torch.Tensor, per_args: Dict
     speech_segments = filtering(speech_segments, per_args)
 
     if speech_segments.shape == torch.Size([0]):
-        return speech_segments
+        return speech_segments, speech_segments
 
-    speech_segments, _ = torch.sort(speech_segments, 0)
+    speech_segments_no_dur, _ = torch.sort(speech_segments, 0)
 
-    dur = speech_segments[:, 1:2] - speech_segments[:, 0:1] + UNIT_FRAME_LEN
-    speech_segments = torch.column_stack((speech_segments, dur))
+    dur = speech_segments_no_dur[:, 1:2] - speech_segments_no_dur[:, 0:1] + UNIT_FRAME_LEN
+    speech_segments = torch.column_stack((speech_segments_no_dur, dur))
 
-    return speech_segments
+    return speech_segments, speech_segments_no_dur
 
 
 def generate_vad_segment_table_per_file(pred_filepath: str, per_args: dict) -> str:
@@ -741,7 +741,7 @@ def generate_vad_segment_table_per_file(pred_filepath: str, per_args: dict) -> s
     sequence, name = load_tensor_from_file(pred_filepath)
     out_dir, per_args_float = prepare_gen_segment_table(sequence, per_args)
 
-    preds = generate_vad_segment_table_per_tensor(sequence, per_args_float)
+    preds, preds_no_dur = generate_vad_segment_table_per_tensor(sequence, per_args_float)
 
     # lang = pred_filepath.split("/")[2]
     # db = pred_filepath.split("/")[-2].split("_")[-1]
@@ -750,6 +750,12 @@ def generate_vad_segment_table_per_file(pred_filepath: str, per_args: dict) -> s
 
     save_name = name + ".txt"
     save_path = os.path.join(out_dir, save_name)
+
+
+    save_pt_name = name + ".pt"
+    save_pt_path = os.path.join(out_dir, save_pt_name)
+
+    torch.save(preds_no_dur.reshape(-1), save_pt_path)
 
     if preds.shape == torch.Size([0]):
         with open(save_path, "w", encoding='utf-8') as fp:

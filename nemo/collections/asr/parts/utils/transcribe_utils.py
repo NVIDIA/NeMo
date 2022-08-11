@@ -56,6 +56,11 @@ def transcribe_partial_audio(
         try:
             asr_model.preprocessor.featurizer.dither = 0.0
             asr_model.preprocessor.featurizer.pad_to = 0
+
+
+            # asr_model.preprocessor.featurizer.normalize = None
+
+
             # Switch model to evaluation mode
             asr_model.eval()
             # Freeze the encoder and decoder modules
@@ -72,18 +77,13 @@ def transcribe_partial_audio(
                 'right': right,
             }
             temporary_datalayer = asr_model._setup_transcribe_dataloader(config)
-            segment = [
-                torch.tensor([[0,1],[2,3]]),
-                torch.tensor([[0,2],[5,7]]),
-                torch.tensor([[0,1],]),
-                torch.tensor([[2,3]]),
-                torch.tensor([[0,1],[2,3]]),
-            ]
+
             for test_batch in tqdm(temporary_datalayer, desc="Transcribing"):
                 logits, logits_len, greedy_predictions = asr_model.forward(
                     input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device), 
-                    segment=segment
+                    batch_speech_segments=test_batch[4].to(device)
                 )
+
                 if logprobs:
                     # dump log probs per file
                     for idx in range(logits.shape[0]):
@@ -153,9 +153,11 @@ def transcribe_partial_audio(
                 }
 
             temporary_datalayer = asr_model._setup_transcribe_dataloader(config)
+
+
             for test_batch in tqdm(temporary_datalayer, desc="Transcribing"):
                 encoded, encoded_len = asr_model.forward(
-                    input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
+                    input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device),
                 )
                 best_hyp, all_hyp = asr_model.decoding.rnnt_decoder_predictions_tensor(
                     encoded,

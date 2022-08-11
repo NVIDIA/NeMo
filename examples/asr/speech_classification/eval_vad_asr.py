@@ -38,7 +38,7 @@ def main():
         # 'hub5',
         # 'GTC2019-keynote-parts', 
         # 'tmobile',
-        # 'Ring_central_with_duration',
+        # 'Ring_central_with_duration', #?
         # 'logmein',
         # 'StreamingInTheCloud',
         # 'tedlium2_test',
@@ -111,7 +111,8 @@ def main():
                             if db=='clean' :
                                 # input_manifest=f"/home/fjia/code/5_syn/{lang}_{subset}{exp}.json"
                                 # input_manifest=f"/home/fjia/code/5_syn/{lang}_{subset}{exp}.json"
-                                input_manifest = f"/home/fjia/code/asr_eval_manifests/{lang}.json"
+                                # input_manifest = f"/home/fjia/code/asr_eval_manifests/{lang}.json" # todo
+                                input_manifest =f"vad_ss_output/{lang}.json"
                             else:
                                 # silence only clean now need change
                                 # input_manifest = f"/data/syn_noise_augmented/manifests/{lang}_{subset}{exp}_test_noise_0_30_musan_fs_{db}db.json"

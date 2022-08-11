@@ -54,11 +54,11 @@ def _speech_collate_fn(batch, pad_id):
                assumes the signals are 1d torch tensors (i.e. mono audio).
     """
     packed_batch = list(zip(*batch))
-    if len(packed_batch) == 5:
-        _, audio_lengths, _, tokens_lengths, sample_ids = packed_batch
-    elif len(packed_batch) == 4:
+    if len(packed_batch) == 7:
+        _, audio_lengths, _, tokens_lengths, speech_segments_batch, speech_segments_lenghts_batch, sample_ids  = packed_batch
+    elif len(packed_batch) == 6:
         sample_ids = None
-        _, audio_lengths, _, tokens_lengths = packed_batch
+        _, audio_lengths, _, tokens_lengths, speech_segments_batch, speech_segments_lenghts_batch = packed_batch
     else:
         raise ValueError("Expects 4 or 5 tensors in the batch!")
     max_audio_len = 0
@@ -67,12 +67,15 @@ def _speech_collate_fn(batch, pad_id):
         max_audio_len = max(audio_lengths).item()
     max_tokens_len = max(tokens_lengths).item()
 
+    max_ss = max(speech_segments_lenghts_batch).item()
+
     audio_signal, tokens = [], []
+    speech_segments = []
     for b in batch:
-        if len(b) == 5:
-            sig, sig_len, tokens_i, tokens_i_len, _ = b
+        if len(b) == 7:
+            sig, sig_len, tokens_i, tokens_i_len, ss_i, ss_len_i, _ = b
         else:
-            sig, sig_len, tokens_i, tokens_i_len = b
+            sig, sig_len, tokens_i, tokens_i_len, ss_i, ss_len_i = b
         if has_audio:
             sig_len = sig_len.item()
             if sig_len < max_audio_len:
@@ -83,7 +86,13 @@ def _speech_collate_fn(batch, pad_id):
         if tokens_i_len < max_tokens_len:
             pad = (0, max_tokens_len - tokens_i_len)
             tokens_i = torch.nn.functional.pad(tokens_i, pad, value=pad_id)
+        
+        if ss_len_i < max_ss:
+            pad = (0, max_ss - ss_len_i)
+            ss_i = torch.nn.functional.pad(ss_i, pad, value=-1)
+
         tokens.append(tokens_i)
+        speech_segments.append(ss_i)
 
     if has_audio:
         audio_signal = torch.stack(audio_signal)
@@ -92,11 +101,13 @@ def _speech_collate_fn(batch, pad_id):
         audio_signal, audio_lengths = None, None
     tokens = torch.stack(tokens)
     tokens_lengths = torch.stack(tokens_lengths)
+    speech_segments = torch.stack(speech_segments)
+    speech_segments_lengths = torch.stack(speech_segments_lenghts_batch)
     if sample_ids is None:
-        return audio_signal, audio_lengths, tokens, tokens_lengths
+        return audio_signal, audio_lengths, tokens, tokens_lengths, speech_segments, speech_segments_lengths
     else:
         sample_ids = torch.tensor(sample_ids, dtype=torch.int32)
-        return audio_signal, audio_lengths, tokens, tokens_lengths, sample_ids
+        return audio_signal, audio_lengths, tokens, tokens_lengths, speech_segments, speech_segments_lengths, sample_ids
 
 
 class ASRManifestProcessor:
@@ -249,7 +260,10 @@ class _AudioTextDataset(Dataset):
             'a_sig_length': NeuralType(tuple('B'), LengthsType()),
             'transcripts': NeuralType(('B', 'T'), LabelsType()),
             'transcript_length': NeuralType(tuple('B'), LengthsType()),
+            'speech_segments': NeuralType(('B', 'T'), MaskType(), optional=True), #here
+            'speech_segments_length': NeuralType(tuple('B'), LengthsType(), optional=True),  #here
             'sample_id': NeuralType(tuple('B'), LengthsType(), optional=True),
+            
         }
 
     def __init__(
@@ -306,10 +320,14 @@ class _AudioTextDataset(Dataset):
 
         t, tl = self.manifest_processor.process_text_by_sample(sample=sample)
 
+
+        # load speech segments
+        s = torch.load(sample.speech_segments_filepath)
+        sl = torch.tensor(s.shape[0])
         if self.return_sample_id:
-            output = f, fl, torch.tensor(t).long(), torch.tensor(tl).long(), index
+            output = f, fl, torch.tensor(t).long(), torch.tensor(tl).long(), s, sl, index
         else:
-            output = f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
+            output = f, fl, torch.tensor(t).long(), torch.tensor(tl).long(), s, sl
 
         return output
 
@@ -916,6 +934,8 @@ class AudioToBPEDataset(_AudioTextDataset):
             'a_sig_length': NeuralType(tuple('B'), LengthsType()),
             'transcripts': NeuralType(('B', 'T'), LabelsType()),
             'transcript_length': NeuralType(tuple('B'), LengthsType()),
+            'speech_segments': NeuralType(('B', 'T',), MaskType(), optional=True), #here
+            'speech_segments_length': NeuralType(tuple('B'), LengthsType(), optional=True),
             'sample_id': NeuralType(tuple('B'), LengthsType(), optional=True),
         }
 

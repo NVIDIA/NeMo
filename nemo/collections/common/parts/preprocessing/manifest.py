@@ -112,6 +112,7 @@ def __parse_item(line: str, manifest_file: str) -> Dict[str, Any]:
         speaker=item.get('speaker', None),
         orig_sr=item.get('orig_sample_rate', None),
         lang=item.get('lang', None),
+        speech_segments_filepath=item.get('speech_segments_filepath', None),
     )
 
     return item

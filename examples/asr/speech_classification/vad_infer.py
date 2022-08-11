@@ -62,7 +62,10 @@ def main(cfg):
             uniq_audio_name = audio_filepath.split('/')[-1].rsplit('.', 1)[0]
             if uniq_audio_name in key_meta_map:
                 raise ValueError("Please make sure each line is with different audio_filepath! ")
-            key_meta_map[uniq_audio_name] = {'audio_filepath': audio_filepath}
+            key_meta_map[uniq_audio_name] = {
+                'audio_filepath': audio_filepath,
+                'text': json.loads(line.strip())['text']
+            }
 
     # Prepare manifest for streaming VAD
     manifest_vad_input = cfg.dataset
@@ -162,13 +165,20 @@ def main(cfg):
     if cfg.write_to_manifest:
         for i in key_meta_map:
             key_meta_map[i]['rttm_filepath'] = os.path.join(table_out_dir, i + ".txt")
+        
 
         if not cfg.out_manifest_filepath:
             out_manifest_filepath = "vad_out.json"
         else:
             out_manifest_filepath = cfg.out_manifest_filepath
-        out_manifest_filepath = write_rttm2manifest(key_meta_map, out_manifest_filepath)
+
+        single=True
+        out_manifest_filepath = write_rttm2manifest(key_meta_map, out_manifest_filepath, single=single)
         logging.info(f"Writing VAD output to manifest: {out_manifest_filepath}")
+
+
+
+        
 
 
 if __name__ == '__main__':

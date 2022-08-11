@@ -437,7 +437,7 @@ def score_labels(AUDIO_RTTM_MAP, all_reference, all_hypothesis, collar=0.25, ign
         return None
 
 
-def write_rttm2manifest(AUDIO_RTTM_MAP, manifest_file):
+def write_rttm2manifest(AUDIO_RTTM_MAP, manifest_file, single=False):
     """
     writes manifest file based on rttm files (or vad table out files). This manifest file would be used by 
     speaker diarizer to compute embeddings and cluster them. This function also takes care of overlap time stamps
@@ -453,72 +453,135 @@ def write_rttm2manifest(AUDIO_RTTM_MAP, manifest_file):
 
     with open(manifest_file, 'w') as outfile:
         for key in AUDIO_RTTM_MAP:
-            rttm_filename = AUDIO_RTTM_MAP[key]['rttm_filepath']
-            if rttm_filename and os.path.exists(rttm_filename):
-                f = open(rttm_filename, 'r')
-            else:
-                raise FileNotFoundError(
-                    "Requested to construct manifest from rttm with oracle VAD option or from NeMo VAD but received filename as {}".format(
-                        rttm_filename
-                    )
-                )
 
-            audio_path = AUDIO_RTTM_MAP[key]['audio_filepath']
-            if AUDIO_RTTM_MAP[key].get('duration', None):
-                max_duration = AUDIO_RTTM_MAP[key]['duration']
-            else:
-                sound = sf.SoundFile(audio_path)
-                max_duration = sound.frames / sound.samplerate
+            if single:
+                rttm_filename = AUDIO_RTTM_MAP[key]['rttm_filepath']
+                pt_filename = rttm_filename.split(".txt")[0] + ".pt"
 
-            lines = f.readlines()
-            time_tup = (-1, -1)
-            for line in lines:
-                vad_out = line.strip().split()
-                if len(vad_out) > 3:
-                    start, dur, _ = float(vad_out[3]), float(vad_out[4]), vad_out[7]
+
+                audio_path = AUDIO_RTTM_MAP[key]['audio_filepath']
+                if AUDIO_RTTM_MAP[key].get('duration', None):
+                    max_duration = AUDIO_RTTM_MAP[key]['duration']
                 else:
-                    start, dur, _ = float(vad_out[0]), float(vad_out[1]), vad_out[2]
-                start, dur = float("{:.3f}".format(start)), float("{:.3f}".format(dur))
+                    sound = sf.SoundFile(audio_path)
+                    max_duration = sound.frames / sound.samplerate
 
-                if start == 0 and dur == 0:  # No speech segments
-                    continue
-                else:
+                    
 
-                    if time_tup[0] >= 0 and start > time_tup[1]:
-                        dur2 = float("{:.3f}".format(time_tup[1] - time_tup[0]))
-                        if time_tup[0] < max_duration and dur2 > 0:
-                            meta = {
-                                "audio_filepath": audio_path,
-                                "offset": time_tup[0],
-                                "duration": dur2,
-                                "label": 'UNK',
-                            }
-                            json.dump(meta, outfile)
-                            outfile.write("\n")
-                        else:
-                            logging.warning(
-                                "RTTM label has been truncated since start is greater than duration of audio file"
-                            )
-                        time_tup = (start, start + dur)
-                    else:
-                        if time_tup[0] == -1:
-                            end_time = start + dur
-                            if end_time > max_duration:
-                                end_time = max_duration
-                            time_tup = (start, end_time)
-                        else:
-                            end_time = max(time_tup[1], start + dur)
-                            if end_time > max_duration:
-                                end_time = max_duration
-                            time_tup = (min(time_tup[0], start), end_time)
-            dur2 = float("{:.3f}".format(time_tup[1] - time_tup[0]))
-            if time_tup[0] < max_duration and dur2 > 0:
-                meta = {"audio_filepath": audio_path, "offset": time_tup[0], "duration": dur2, "label": 'UNK'}
+                meta = {
+                        'audio_filepath': AUDIO_RTTM_MAP[key]['audio_filepath'],
+                        'offset': 0 ,
+                        'duration': max_duration,
+                        'speech_segments_filepath': pt_filename,
+                        'text': AUDIO_RTTM_MAP[key]['text'] 
+                    }
                 json.dump(meta, outfile)
                 outfile.write("\n")
+                
             else:
-                logging.warning("RTTM label has been truncated since start is greater than duration of audio file")
-            f.close()
+                rttm_filename = AUDIO_RTTM_MAP[key]['rttm_filepath']
+                if rttm_filename and os.path.exists(rttm_filename):
+                    f = open(rttm_filename, 'r')
+                else:
+                    raise FileNotFoundError(
+                        "Requested to construct manifest from rttm with oracle VAD option or from NeMo VAD but received filename as {}".format(
+                            rttm_filename
+                        )
+                    )
+
+                audio_path = AUDIO_RTTM_MAP[key]['audio_filepath']
+                if AUDIO_RTTM_MAP[key].get('duration', None):
+                    max_duration = AUDIO_RTTM_MAP[key]['duration']
+                else:
+                    sound = sf.SoundFile(audio_path)
+                    max_duration = sound.frames / sound.samplerate
+
+                lines = f.readlines()
+                time_tup = (-1, -1)
+
+                for line in lines:
+                    vad_out = line.strip().split()
+                    if len(vad_out) > 3:
+                        start, dur, _ = float(vad_out[3]), float(vad_out[4]), vad_out[7]
+                    else:
+                        start, dur, _ = float(vad_out[0]), float(vad_out[1]), vad_out[2]
+                    start, dur = float("{:.3f}".format(start)), float("{:.3f}".format(dur))
+
+                    if start == 0 and dur == 0:  # No speech segments
+                        continue
+                    else:
+
+                        if time_tup[0] >= 0 and start > time_tup[1]:
+                            dur2 = float("{:.3f}".format(time_tup[1] - time_tup[0]))
+                            if time_tup[0] < max_duration and dur2 > 0:
+                                meta = {
+                                    "audio_filepath": audio_path,
+                                    "offset": time_tup[0],
+                                    "duration": dur2,
+                                    "label": 'UNK',
+                                }
+                                json.dump(meta, outfile)
+                                outfile.write("\n")
+                            else:
+                                logging.warning(
+                                    "RTTM label has been truncated since start is greater than duration of audio file"
+                                )
+                            time_tup = (start, start + dur)
+                        else:
+                            if time_tup[0] == -1:
+                                end_time = start + dur
+                                if end_time > max_duration:
+                                    end_time = max_duration
+                                time_tup = (start, end_time)
+                            else:
+                                end_time = max(time_tup[1], start + dur)
+                                if end_time > max_duration:
+                                    end_time = max_duration
+                                time_tup = (min(time_tup[0], start), end_time)
+                dur2 = float("{:.3f}".format(time_tup[1] - time_tup[0]))
+                if time_tup[0] < max_duration and dur2 > 0:
+                    meta = {"audio_filepath": audio_path, "offset": time_tup[0], "duration": dur2, "label": 'UNK'}
+                    json.dump(meta, outfile)
+                    outfile.write("\n")
+
+                    
+                else:
+                    logging.warning("RTTM label has been truncated since start is greater than duration of audio file")
+                f.close()
+            # else:
+            #     speech_segments =[]
+            #     for line in lines:
+            #         vad_out = line.strip().split()
+            #         if len(vad_out) > 3:
+            #             start, dur, _ = float(vad_out[3]), float(vad_out[4]), vad_out[7]
+            #         else:
+            #             start, dur, _ = float(vad_out[0]), float(vad_out[1]), vad_out[2]
+            #         start, dur = float("{:.3f}".format(start)), float("{:.3f}".format(dur))
+            #         end = start + dur
+            #         speech_segments.append(start)
+            #         speech_segments.append(end)
+            #         # new_seg = torch.tensor([start, end]).unsqueeze(0)
+            #         # print(new_seg)
+            #         # speech_segments = torch.cat((speech_segments, new_seg), 0)
+                    
+            #         vad_out = line.strip().split()
+            #         name = audio_path.split("/")[-1].rsplit(".", 1)[0]
+
+            #         speech_segments_tensor_dir = "speech_segments"
+            #         speech_segments_tensor_path = os.path.join(speech_segments_tensor_dir, name + '.pt')
+            #         torch.save(torch.Tensor(speech_segments), speech_segments_tensor_path)
+
+            #         meta = {
+            #             'audio_filepath': AUDIO_RTTM_MAP[key]['audio_filepath'],
+            #             'offset': 0 ,
+            #             'duration': max_duration,
+            #             'speech_segments_filepath': speech_segments_tensor_path,
+            #             'text': AUDIO_RTTM_MAP[key]['text'] 
+            #         }
+            #         json.dump(meta, outfile)
+            #         outfile.write("\n")
+                
+            
     return manifest_file
 
 
