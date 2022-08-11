@@ -70,7 +70,6 @@ class DialogueIntentBIOTypeClassificationDataset(DialogueDataset):
 
         self.features = dialogues_processor.get_dialog_examples(dataset_split)
         self.features = self.features if self.cfg.num_samples == -1 else self.features[: self.cfg.num_samples]
-
         queries = [feature.data["utterance"] for feature in self.features]
         if self.cfg.do_lowercase:
             queries = [query.lower() for query in queries]
