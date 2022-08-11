@@ -493,7 +493,6 @@ class ClusterEmbedding:
         # Run ClusteringDiarizer which includes system VAD or oracle VAD.
         self.clusdiar_model = ClusteringDiarizer(cfg=self.cfg_base)
         self._out_dir = self.clusdiar_model._diarizer_params.out_dir
-        # self._out_dir = self.clusdiar_model._diarizer_params.out_dir
         self.out_rttm_dir = os.path.join(self._out_dir, 'pred_ovl_rttms')
         os.makedirs(self.out_rttm_dir, exist_ok=True)
 
@@ -643,15 +642,14 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         """
         Initialize an MSDD model and the specified speaker embedding model. In this init function, training and validation datasets are prepared.
         """
-        self.trainer = trainer
         self.pairwise_infer = False
         self.cfg_msdd_model = cfg
         self.cfg_msdd_model.msdd_module.num_spks = self.cfg_msdd_model.max_num_of_spks
-
+        self._trainer = trainer if trainer else None
         self.cfg_msdd_model.train_ds.num_spks = self.cfg_msdd_model.max_num_of_spks
         self.cfg_msdd_model.validation_ds.num_spks = self.cfg_msdd_model.max_num_of_spks
         ClusterEmbedding.__init__(self, cfg_base=self.cfg_msdd_model.base, cfg_msdd_model=self.cfg_msdd_model)
-        if trainer:
+        if self._trainer:
             self._init_segmentation_info()
             self.prepare_splits()
             self.world_size = trainer.num_nodes * trainer.num_devices
@@ -701,7 +699,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         model_path = self.cfg_msdd_model.base.diarizer.speaker_embeddings.model_path
         self._diarizer_params = self.cfg_msdd_model.base.diarizer
         if model_path is not None and model_path.endswith('.nemo'):
-            rank_id = torch.device(self.trainer.global_rank)
+            rank_id = torch.device(self._trainer.global_rank)
             self.msdd._speaker_model = EncDecSpeakerLabelModel.restore_from(model_path, map_location=rank_id)
             logging.info("Speaker Model restored locally from {}".format(model_path))
         elif model_path.endswith('.ckpt'):
@@ -755,7 +753,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         """
         self._speaker_dir = os.path.join(_out_dir, 'speaker_outputs')
         # Only if this is for the first run of modelPT instance, remove temp folders.
-        if self.trainer.global_rank == 0:
+        if self._trainer.global_rank == 0:
             if os.path.exists(self._speaker_dir):
                 shutil.rmtree(self._speaker_dir)
             os.makedirs(self._speaker_dir)
@@ -1177,7 +1175,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         ms_mel_feat_len = torch.tensor(ms_mel_feat_len_list).to(device)
         seq_len = torch.tensor(sequence_lengths_list).to(device)
 
-        torch.manual_seed(self.trainer.current_epoch)
+        torch.manual_seed(self._trainer.current_epoch)
         if _emb_batch_size < self.min_detached_embs:
             attached, _emb_batch_size = torch.tensor([]), 0
             detached = torch.randperm(total_seg_count)
@@ -1204,8 +1202,6 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
             input_signal=features, length=feature_length
         )
         processed_signal = processed_signal.detach()
-        del features, feature_length
-        torch.cuda.empty_cache()
         audio_signal, audio_signal_len, sequence_lengths, detach_ids = self.get_ms_mel_feat(
             processed_signal, processed_signal_len, ms_seg_timestamps, ms_seg_counts
         )
@@ -1232,7 +1228,6 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         preds, scale_weights = self.msdd(
             ms_emb_seq=ms_emb_seq, length=sequence_lengths, ms_avg_embs=ms_avg_embs, targets=targets
         )
-        scale_weights = scale_weights.detach()
         return preds, scale_weights
 
     def training_step(self, batch: list, batch_idx: int):
@@ -1402,7 +1397,7 @@ class OverlapAwareDiarizer:
         if not torch.cuda.is_available():
             self.device = 'cpu'
             logging.warning(
-                "Running model on CPU, for faster performance it is adviced to use atleast one NVIDIA GPUs"
+                "Running model on CPU, for faster performance it is adviced to use at least one NVIDIA GPUs"
             )
 
         if cfg.diarizer.msdd_model.model_path.endswith('.nemo'):

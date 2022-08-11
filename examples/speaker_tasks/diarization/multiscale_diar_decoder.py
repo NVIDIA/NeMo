@@ -41,7 +41,6 @@ seed_everything(42)
 
 @hydra_runner(config_path="conf", config_name="msdd_5scl_15_05_50Povl_256x3x32x2.yaml")
 def main(cfg):
-
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
     trainer = pl.Trainer(**cfg.trainer)
     msdd_model = EncDecDiarLabelModel(cfg=cfg.msdd_model, trainer=trainer)
