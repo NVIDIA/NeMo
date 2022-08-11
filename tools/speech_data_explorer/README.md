@@ -8,7 +8,7 @@ Features:
 - navigation across dataset (sorting, filtering)
 - inspection of individual utterances (waveform, spectrogram, audio player)
 - errors' analysis (Word Error Rate, Character Error Rate, Word Match Rate, Mean Word Accuracy, diff)
-- visual comparation of two models (on same dataset)
+- visual comparation of two models (on same dataset) (beta)
 
 Please make sure that requirements are installed. Then run:
 ```
