@@ -21,12 +21,15 @@ from nemo.collections.nlp.data.dialogue.data_processor.sgd_data_processor import
 from nemo.collections.nlp.data.dialogue.dataset.dialogue_gpt_classification_dataset import (
     DialogueGPTClassificationDataset,
 )
+from nemo.collections.nlp.data.dialogue.dataset.dialogue_intent_bio_type_classification_dataset import (
+    DialogueIntentBIOTypeClassificationDataset,
+)
 from nemo.collections.nlp.data.dialogue.dataset.dialogue_s2s_generation_dataset import DialogueS2SGenerationDataset
 from nemo.collections.nlp.data.dialogue.dataset.dialogue_sgd_bert_dataset import DialogueSGDBERTDataset
-from nemo.collections.nlp.data.dialogue.dataset.dialogue_intent_bio_type_classification_dataset import DialogueIntentBIOTypeClassificationDataset
 from nemo.collections.nlp.metrics.dialogue_metrics import DialogueClassificationMetrics, DialogueGenerationMetrics
 from nemo.collections.nlp.models.dialogue.dialogue_nearest_neighbour_model import DialogueNearestNeighbourModel
 from nemo.collections.nlp.models.dialogue.intent_bio_type_classification_model import IntentBIOTypeClassificationModel
+
 
 @pytest.mark.unit
 def test_dialogue_metric_generation_f1():
@@ -409,4 +412,3 @@ def test_dialogue_bert_dataset_get_bio_mention_labels():
     expected_output = [6, 9, 10, -1, -1, -1, -1, -1, -1]
     actual_output = DialogueIntentBIOTypeClassificationDataset.get_bio_mention_labels(slot_list, bio_list)
     assert expected_output == actual_output
-    
