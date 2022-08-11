@@ -103,10 +103,8 @@ seed: 1234
 use_cpu_initialization: false
 apex_transformer_log_level: 30
 data:
-  data_prefix:
-  - 1.0
-  - /raid/Data/NMT/Datasources/Monolingual/Pile/the-eye.eu/public/AI/pile/train/test_replicated_4_text_document
-  index_mapping_dir: /raid/Data/npy_test
+  data_prefix: null
+  index_mapping_dir: null
   data_impl: mmap
   splits_string: 949,45,5
   seq_length: 512
