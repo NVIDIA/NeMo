@@ -3,7 +3,8 @@ import json
 from download_squad import download_squad
 
 # TODO: Merge with prompt squad
-def prepare_squad_for_fine_tuning(squad_dir):
+def prepare_squad_for_fine_tuning(data_dir):
+    squad_dir = data_dir
     download_squad(squad_dir, ["v1.1", "xquad"])
 
     squad_v1_dir = os.path.join(squad_dir, "v1.1")
