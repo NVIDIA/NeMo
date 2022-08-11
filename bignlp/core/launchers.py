@@ -208,7 +208,13 @@ class BCPLauncher(Launcher):
         if setup is not None:
             lines += ["", "# setup"] + setup
 
-        #TODO: Add prime_dns_connections
+        # Add pause_and_prime_dns_connection to command groups on BCP
+        bignlp_path = Path("/opt/bignlp/bignlp-scripts") # Hard code path on BCP
+        pause_and_prime_dns_connection_command = (
+            f"python3 -u {bignlp_path / 'bignlp/collections/pause_and_prime_dns_connections.py'}"
+        )
+        command_groups = [[pause_and_prime_dns_connection_command]] + command_groups
+
         for group_ind, command_group in enumerate(command_groups):
             command = ";\n  ".join(command_group)
             lines += [
@@ -216,7 +222,7 @@ class BCPLauncher(Launcher):
                 f"# command {group_ind + 1}",
                 f"bcprun --nnodes {nnodes} --npernode {npernode} "
                 f"{launcher_flags} {env_flags} --cmd \"",
-                f"  {command} \" 2>&1 | tee -a {stdout}", # TODO: Avoid override
+                f"  {command} \" 2>&1 | tee -a {stdout}",
                 "",
             ]
         return "\n".join(lines)
@@ -496,7 +502,3 @@ def _as_sbatch_flag(key: str, value: Any) -> str:
 
     value = shlex.quote(str(value))
     return f"#SBATCH --{key}={value}"
-
-if __name__ == "__main__": #TODO: delete
-    launcher = BCPLauncher("./test", ntasks_per_node=8, time="00:50:00", dependency="singleton", container_image="abcd", container_mounts="ab:cd")
-    launcher.launch(command_groups=[["whatever;", "it;", "is"], ["whatever;", "it;", "is"]])
