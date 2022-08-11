@@ -13,11 +13,10 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, Union, Iterable
 
 import bignlp.utils.job_utils as job_utils
-from bignlp.core.logger import get_logger
-
-logger = get_logger()
+from bignlp.core.logger import logger
 
 BIGNLP_DEBUG = os.getenv("BIGNLP_DEBUG", "False").lower() in ("true", "t", "1")
+
 
 class AutoLauncher:
     def __init__(

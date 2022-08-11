@@ -1,4 +1,5 @@
 import os
+import logging
 from logging import config
 from typing import Union
 
@@ -44,3 +45,6 @@ def exception(*args: str) -> None:
 
 def warning(*args: str) -> None:
     get_logger().warning(*args)
+
+
+logger = get_logger()
