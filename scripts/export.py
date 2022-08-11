@@ -57,6 +57,9 @@ def get_args(argv):
     parser.add_argument("--max-batch", type=int, default=None, help="Max batch size for model export")
     parser.add_argument("--max-dim", type=int, default=None, help="Max dimension(s) for model export")
     parser.add_argument("--onnx-opset", type=int, default=None, help="ONNX opset for model export")
+    parser.add_argument(
+        "--cache_support", action="store_true", help="enables caching inputs for the models support it."
+    )
     parser.add_argument("--device", default="cuda", help="Device to export for")
     args = parser.parse_args(argv)
     return args
@@ -87,7 +90,7 @@ def nemo_export(argv):
         num_nodes=1,
         # Need to set the following two to False as ExpManager will take care of them differently.
         logger=False,
-        checkpoint_callback=False,
+        enable_checkpointing=False,
     )
     trainer = Trainer(cfg_trainer)
 
@@ -113,20 +116,48 @@ def nemo_export(argv):
     #
     #  Add custom export parameters here
     #
+    check_trace = args.runtime_check
+
     in_args = {}
+    max_batch = 1
+    max_dim = None
     if args.max_batch is not None:
         in_args["max_batch"] = args.max_batch
+        max_batch = args.max_batch
     if args.max_dim is not None:
         in_args["max_dim"] = args.max_dim
+        max_dim = args.max_dim
+
+    if args.cache_support and model.hasattr("encoder") and model.encoder.hasattr("export_cache_support"):
+        export_cache_support_prev = model.encoder.export_cache_support
+        model.encoder.export_cache_support = True
+        logging.info("Caching support is enabled.")
+    else:
+        export_cache_support_prev = None
 
     autocast = nullcontext
     model.to(device=args.device).freeze()
+    model.eval()
+    with torch.inference_mode():
+        input_example = model.input_module.input_example(**in_args)
+    if check_trace:
+        check_trace = [input_example]
+        if max_dim:
+            in_args["max_dim"] = (max_dim + 1) // 2
+            in_args["max_batch"] = (max_batch + 1) // 2
+            input_example2 = model.input_module.input_example(**in_args)
+            check_trace.append(input_example2)
+
     if args.autocast:
         autocast = torch.cuda.amp.autocast
     try:
         with autocast(), torch.inference_mode():
             _, descriptions = model.export(
-                out, check_trace=args.runtime_check, onnx_opset_version=args.onnx_opset, verbose=args.verbose,
+                out,
+                input_example=input_example,
+                check_trace=check_trace,
+                onnx_opset_version=args.onnx_opset,
+                verbose=args.verbose,
             )
 
     except Exception as e:

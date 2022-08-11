@@ -132,6 +132,7 @@ class TestOptimizersSchedulers:
     INITIAL_LR = 0.1
     MIN_LR = 1e-3
     MAX_STEPS = 10
+    D_MODEL = 16
 
     # fused_adam is looking for CUDA and this test is being run on CPU only tests
     @pytest.mark.unit
@@ -616,6 +617,56 @@ class TestOptimizersSchedulers:
 
         assert final_lr == self.MIN_LR
 
+    # Noam scheduler should decay past MAX_STEPS - run two schedulers in parallel to test it
+    @pytest.mark.unit
+    def test_NoamAnnealing(self):
+        model = TempModel()
+        opt_cls = optim.get_optimizer('novograd')
+        opt1 = opt_cls(model.parameters(), lr=self.INITIAL_LR)
+        opt2 = opt_cls(model.parameters(), lr=self.INITIAL_LR)
+
+        # No warmup case
+        policy1 = optim.lr_scheduler.NoamAnnealing(
+            opt1, d_model=self.D_MODEL, max_steps=self.MAX_STEPS, min_lr=self.MIN_LR
+        )
+        policy2 = optim.lr_scheduler.NoamAnnealing(
+            opt2, d_model=self.D_MODEL, max_steps=self.MAX_STEPS * 2, min_lr=self.MIN_LR
+        )
+        initial_lr = policy1.get_last_lr()[0]
+
+        assert initial_lr == self.D_MODEL ** (-0.5) * self.INITIAL_LR
+
+        for i in range(self.MAX_STEPS * 2):
+            assert self.MIN_LR < policy1.get_last_lr()[0] <= self.INITIAL_LR
+            assert policy1.get_last_lr()[0] == policy2.get_last_lr()[0]
+            opt1.step()
+            opt2.step()
+            policy1.step()
+            policy2.step()
+
+        # Warmup steps available
+        policy1 = optim.lr_scheduler.NoamAnnealing(
+            opt1, d_model=self.D_MODEL, warmup_steps=5, max_steps=self.MAX_STEPS, min_lr=self.MIN_LR
+        )
+        policy2 = optim.lr_scheduler.NoamAnnealing(
+            opt2, d_model=self.D_MODEL, warmup_steps=5, max_steps=self.MAX_STEPS * 2, min_lr=self.MIN_LR
+        )
+        initial_lr = policy1.get_last_lr()[0]
+
+        assert initial_lr < self.INITIAL_LR
+
+        for i in range(self.MAX_STEPS * 2):
+            if i <= 5:
+                assert policy1.get_last_lr()[0] <= self.INITIAL_LR
+            else:
+                assert self.MIN_LR < policy1.get_last_lr()[0] < self.INITIAL_LR
+                assert policy1.get_last_lr()[0] == policy2.get_last_lr()[0]
+
+            opt1.step()
+            opt2.step()
+            policy1.step()
+            policy2.step()
+
     @pytest.mark.unit
     def test_PolynomialDecayAnnealing(self):
         model = TempModel()
@@ -825,8 +876,7 @@ class TestOptimizersSchedulers:
                 accumulate_grad_batches=accumulate_grad_batches,
                 limit_train_batches=limit_train_batches,
                 enable_checkpointing=False,
-                progress_bar_refresh_rate=0,
-                weights_summary=None,
+                enable_progress_bar=False,
             )
             max_steps = optim.lr_scheduler.compute_max_steps(
                 max_epochs, accumulate_grad_batches, limit_train_batches, devices, dataset_len, batch_size, drop_last,
@@ -901,8 +951,7 @@ class TestOptimizersSchedulers:
                 accumulate_grad_batches=accumulate_grad_batches,
                 limit_train_batches=limit_train_batches,
                 enable_checkpointing=False,
-                progress_bar_refresh_rate=0,
-                weights_summary=None,
+                enable_progress_bar=False,
             )
             model = ExampleModel(batch_size, dataset_len, drop_last, max_steps)
             trainer.callbacks.append(SchedulerNoOpCallback())

@@ -161,6 +161,7 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
         fp32_grad_accum=False,
         contiguous_grad_bucket=False,
         async_grad_allreduce=False,
+        grad_div_ar_fusion=True,
         grad_allreduce_chunk_size_mb=0,
     ):
         if not HAVE_APEX:
@@ -187,13 +188,16 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
         # used with tensor parallel only (no pipeline parallelism)
         # be careful, weight update cannot start until all async grad AR works are done
         self._async_grad_allreduce = async_grad_allreduce
+        self._grad_divisor = 1 / get_data_parallel_world_size()
 
         if self._async_grad_allreduce:
             # use @no_sync to disable backward grad sync during gradient accumulation
             self._require_backward_grad_sync = True
+            self._grad_div_ar_fusion = grad_div_ar_fusion
             self._grad_allreduce_chunk_size_mb = grad_allreduce_chunk_size_mb
         else:
             self._require_backward_grad_sync = False
+            self._grad_div_ar_fusion = False
             self._grad_allreduce_chunk_size_mb = 0
 
         # Dummy tensor needed for apex multi-apply tensor.
@@ -295,7 +299,7 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
         # Hook used for back-prop.
         def param_hook(*unused):
             # Accumulates gradients on main gradients
-            if param.grad.data is not None:
+            if param.grad is not None:
                 if main_param.grad is None:
                     main_param.grad = param.grad.float()
                 else:
@@ -311,11 +315,31 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
                         allreduce_tensor = self._main_grad_buffers[i].get_allreduce_tensor()
                         if allreduce_tensor is None:
                             break
-                        allreduce_tensor.div_(get_data_parallel_world_size())
-                        torch.distributed.all_reduce(allreduce_tensor, group=get_data_parallel_group(), async_op=True)
+                        if self._grad_div_ar_fusion:
+                            torch.distributed.all_reduce(
+                                allreduce_tensor,
+                                group=get_data_parallel_group(),
+                                async_op=True,
+                                op=torch.distributed.make_nccl_premul_sum(self._grad_divisor),
+                            )
+                        else:
+                            allreduce_tensor.div_(get_data_parallel_world_size())
+                            torch.distributed.all_reduce(
+                                allreduce_tensor, group=get_data_parallel_group(), async_op=True,
+                            )
                 else:
-                    main_param.grad.div_(get_data_parallel_world_size())
-                    torch.distributed.all_reduce(main_param.grad, group=get_data_parallel_group(), async_op=True)
+                    if self._grad_div_ar_fusion:
+                        torch.distributed.all_reduce(
+                            main_param.grad,
+                            group=get_data_parallel_group(),
+                            async_op=True,
+                            op=torch.distributed.make_nccl_premul_sum(self._grad_divisor),
+                        )
+                    else:
+                        main_param.grad.div_(get_data_parallel_world_size())
+                        torch.distributed.all_reduce(
+                            main_param.grad, group=get_data_parallel_group(), async_op=True,
+                        )
 
         return param_hook
 
@@ -384,6 +408,12 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
 
     @torch.no_grad()
     def step(self, **kwargs):
+        # while async grad allreduce is enabled, bprop will keep moving forward without waiting for
+        # the finish of async grad AR works. Hence, to guarantee the correctness of grads reduction,
+        # we cannot start weight update until all async grad AR works are done.
+        if self._async_grad_allreduce:
+            torch.cuda.synchronize()
+
         # Step the optimizer.
         self.optimizer.step(closure=None, **kwargs)
 
@@ -449,7 +479,10 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
     # Promote state so it can be retrieved or set via
     # "optimizer_instance.state"
     def _get_state(self):
-        return self.optimizer.state
+        if hasattr(self, 'optimizer'):
+            return self.optimizer.state
+        else:
+            return []
 
     def _set_state(self, value):
         self.optimizer.state = value
@@ -460,9 +493,25 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
     # "optimizer_instance.param_groups"
     # (for example, to adjust the learning rate)
     def _get_param_groups(self):
-        return self.optimizer.param_groups
+        if hasattr(self, 'optimizer'):
+            return self.optimizer.param_groups
+        else:
+            return []
 
     def _set_param_groups(self, value):
         self.optimizer.param_groups = value
 
     param_groups = property(_get_param_groups, _set_param_groups)
+
+    # Promote defaults so it can be retrieved or set via
+    # "optimizer_instance.defaults
+    def _get_defaults(self):
+        if hasattr(self, 'optimizer'):
+            return self.optimizer.defaults
+        else:
+            return []
+
+    def _set_defaults(self, value):
+        self.optimizer.defaults = value
+
+    defaults = property(_get_defaults, _set_defaults)

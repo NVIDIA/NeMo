@@ -13,10 +13,16 @@
 # limitations under the License.
 
 import pytest
-from nemo_text_processing.inverse_text_normalization.inverse_normalize import InverseNormalizer
 from parameterized import parameterized
 
-from ..utils import CACHE_DIR, PYNINI_AVAILABLE, parse_test_case_file
+from ..utils import CACHE_DIR, parse_test_case_file
+
+try:
+    from nemo_text_processing.inverse_text_normalization.inverse_normalize import InverseNormalizer
+
+    PYNINI_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    PYNINI_AVAILABLE = False
 
 
 class TestElectronic:
@@ -26,7 +32,8 @@ class TestElectronic:
 
     @parameterized.expand(parse_test_case_file('vi/data_inverse_text_normalization/test_cases_electronic.txt'))
     @pytest.mark.skipif(
-        not PYNINI_AVAILABLE, reason="`pynini` not installed, please install via nemo_text_processing/setup.sh"
+        not PYNINI_AVAILABLE,
+        reason="`pynini` not installed, please install via nemo_text_processing/pynini_install.sh",
     )
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit

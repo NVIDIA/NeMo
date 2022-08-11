@@ -17,7 +17,7 @@ import torch
 from omegaconf import DictConfig, ListConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.common.data import ConcatDataset
+from nemo.collections.common.data import ConcatMapDataset
 from nemo.collections.common.metrics import MetricStringToTorchMetric
 from nemo.collections.common.metrics.classification_accuracy import ExactStringPerCategoryMatchMetric
 from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import SequenceToSequenceDataset
@@ -63,15 +63,46 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                     raise KeyError(
                         f"{data_cfg.metric.name} is not supported. List of supported metrics: {MetricStringToTorchMetric.keys()}"
                     )
+                if data_cfg.metric.name in self._metrics_require_string2category_map:
+                    if data_cfg.metric.average is None:
+                        raise ValueError(
+                            f"{data_cfg.metric.name} requires specifying whether you want to compute a micro or macro average. Found None."
+                        )
+                if (
+                    data_cfg.metric.get('labels_are_strings', False)
+                    and data_cfg.metric.name in self._metrics_require_string2category_map
+                ):
+                    if data_cfg.metric.num_classes is None:
+                        raise ValueError(
+                            "Number of classes is not provided in the metric section within the data config. "
+                            f"Please provide the number of classes in the data config to use the {data_cfg.metric.name} metric."
+                        )
+                    if data_cfg.metric.get('class_labels', None) is None or not isinstance(
+                        data_cfg.metric.get('class_labels', None), ListConfig
+                    ):
+                        raise ValueError(
+                            "Class labels are not provided properly in the metric section witnin the data config. "
+                            f"Please provide the class labels as a list of strings in the data config to use the {data_cfg.metric.name} metric."
+                        )
+                    if len(data_cfg.metric.get('class_labels', None)) != data_cfg.metric.num_classes:
+                        raise ValueError(
+                            f"Number of class labels {len(data_cfg.metric.get('class_labels', None))} does not match `num_classes` : {data_cfg.metric.num_classes}"
+                        )
+
             metric_name = data_cfg.metric.name
             metric = MetricStringToTorchMetric[metric_name]
             # GLUE will not have a "src_file_name" attribute and will always have only a single metric.
-            if hasattr(data_cfg, "src_file_name"):
-                if isinstance(data_cfg.src_file_name, ListConfig):
+            if hasattr(data_cfg, "src_file_name") or hasattr(data_cfg, "file_names"):
+                if hasattr(data_cfg, "src_file_name") and isinstance(data_cfg.src_file_name, ListConfig):
                     # We pass average and num_classes to the metric constructor via kwargs even if they don't exist for each metric.
                     metric = [
                         metric(average=data_cfg.metric.average, num_classes=data_cfg.metric.num_classes)
-                        for _ in range(len(self.cfg.data.test_ds.src_file_name))
+                        for _ in range(len(data_cfg.src_file_name))
+                    ]
+                elif hasattr(data_cfg, "file_names") and isinstance(data_cfg.file_names, ListConfig):
+                    metric = [
+                        metric(average=data_cfg.metric.average, num_classes=data_cfg.metric.num_classes)
+                        for _ in range(len(data_cfg.file_names))
                     ]
                 else:
                     metric = [metric(average=data_cfg.metric.average, num_classes=data_cfg.metric.num_classes)]
@@ -79,6 +110,10 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                 metric = [metric()]  # GLUE does need to specify average or num_classes.
 
         return metric, metric_name
+
+    @property
+    def _metrics_require_string2category_map(self):
+        return set(["f1", "accuracy", "average_precision"])
 
     def setup(self, stage=None):
         # This is just to keep the parent class happy since we override its setup() method.
@@ -168,7 +203,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         batch = self._process_global_batch(batch)
         return super().training_step(batch, batch_idx)
 
-    def cast_for_metric(self, pred, label, metric_name):
+    def cast_for_metric(self, pred, label, metric_name, class_labels=None, labels_are_strings=False):
         if metric_name == 'exact_string_match':
             return pred, label
         pred = pred.replace(' ', '')
@@ -191,7 +226,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             label = torch.FloatTensor([label]).to(self.device)
 
         # Other metrics require casting to integers.
-        elif metric_name in ['accuracy', 'auc', 'auroc', 'average_precision', 'f1']:
+        elif metric_name in self._metrics_require_string2category_map and not labels_are_strings:
             # Text-to-text model predictions may not always be valid integers.
             try:
                 pred = int(pred)
@@ -206,6 +241,18 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             pred = torch.LongTensor([pred]).to(self.device)
             label = torch.LongTensor([label]).to(self.device)
 
+        # If labels are strings, we need to convert them to indices for some metrics.
+        elif metric_name in self._metrics_require_string2category_map and labels_are_strings:
+            # Cast string labels to integers before computing the metric.
+            if pred not in class_labels:
+                pred = 0  # If the prediction is not in the class labels, use the first class label.
+            else:
+                pred = class_labels.index(pred)
+            if label not in class_labels:
+                raise ValueError(f"Ground truth labe; {label} is not in the class labels list : {class_labels}")
+            label = class_labels.index(label)
+            pred = torch.LongTensor([pred]).to(self.device)
+            label = torch.LongTensor([label]).to(self.device)
         else:
             raise ValueError(f'Metric {metric_name} not supported.')
 
@@ -256,7 +303,11 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         for _, (pred, label, category) in enumerate(zip(preds_text, labels_text, categories)):
             # To compute metrics like pearson or spearman correlation, we need to cast the predicted string and labels to floats.
             pred, label = self.cast_for_metric(
-                pred, label, self.val_metric_name if mode == 'validation' else self.test_metric_name
+                pred=pred,
+                label=label,
+                metric_name=self.val_metric_name if mode == 'validation' else self.test_metric_name,
+                class_labels=self.cfg.data.validation_ds.metric.get('class_labels', None),
+                labels_are_strings=self.cfg.data.validation_ds.metric.get('labels_are_strings', False),
             )
             if batch_has_lang_information:
                 _ = metric(pred, label, category)
@@ -339,7 +390,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                     metric = metric['acc']
             else:
                 self.log(metric_log_key, metric)
-                logging.info(f"{mode} {metric_name}: {metric}")
+                logging.info(f"{metric_log_key}: {metric}")
             metric_object.reset()
 
             averaged_loss.append(loss)
@@ -394,9 +445,9 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                                     deduplicated_outputs['labels'].append(label)
                                     deduplicated_outputs['categories'].append(category)
                                     deduplicated_outputs['inputs'].append(input)
-                self.write_predictions_to_file(
-                    deduplicated_outputs, f"{data_cfg.output_file_path_prefix}_{filename_log_key}"
-                )
+                    self.write_predictions_to_file(
+                        deduplicated_outputs, f"{data_cfg.output_file_path_prefix}_{filename_log_key}"
+                    )
                 torch.distributed.barrier()
 
         # Logging of the averaged metrics:
@@ -475,10 +526,14 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                 f"trainer.val_check_interval {self.trainer.val_check_interval} is > number of global batches {sampler.num_samples // global_batch_size}"
             )
 
+        if isinstance(dataset, ConcatMapDataset):
+            collate_fn = dataset.datasets[0].collate_fn
+        else:
+            collate_fn = dataset.collate_fn
         # Data loader. Note that batch size is the per GPU batch size.
         return torch.utils.data.DataLoader(
             dataset,
-            collate_fn=dataset.collate_fn,
+            collate_fn=collate_fn,
             sampler=sampler,
             batch_size=micro_batch_size,
             num_workers=num_workers,
@@ -555,15 +610,13 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             datasets.append(dataset)
 
         if len(datasets) > 1:
-            dataset = ConcatDataset(
+            dataset = ConcatMapDataset(
                 datasets=datasets,
                 sampling_technique=data_cfg.get('concat_sampling_technique', 'temperature'),
                 sampling_temperature=data_cfg.get('concat_sampling_temperature', 5),
                 sampling_probabilities=data_cfg.get(
                     'concat_sampling_probabilities', [1 / len(datasets)] * len(datasets)
                 ),
-                global_rank=parallel_state.get_data_parallel_rank(),
-                world_size=parallel_state.get_data_parallel_world_size(),
             )
             return dataset
         else:
@@ -615,11 +668,11 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         if stage != 'test':
             self._validation_ds = self._build_eval_dataset(self.cfg.data.validation_ds)
 
-        if stage != 'validation':
+        if stage != 'validate':
             if hasattr(self.cfg.data, 'test_ds'):
                 self._test_ds = self._build_eval_dataset(self.cfg.data.test_ds)
 
-        if stage == 'validation' or stage == 'test':
+        if stage == 'validate' or stage == 'test':
             return
         self._train_ds = self._build_train_dataset(self.cfg.data.train_ds)
         logging.info(f'Finished building datasets ...')

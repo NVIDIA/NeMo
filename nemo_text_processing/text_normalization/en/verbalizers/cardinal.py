@@ -12,15 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pynini
 from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_QUOTE, GraphFst, delete_space
-
-try:
-    import pynini
-    from pynini.lib import pynutil
-
-    PYNINI_AVAILABLE = True
-except (ModuleNotFoundError, ImportError):
-    PYNINI_AVAILABLE = False
+from pynini.lib import pynutil
 
 
 class CardinalFst(GraphFst):
@@ -41,34 +35,8 @@ class CardinalFst(GraphFst):
             self.optional_sign |= pynini.cross("negative: \"true\"", "negative ")
         self.optional_sign = pynini.closure(self.optional_sign + delete_space, 0, 1)
 
-        # no_thousand_million = pynini.difference(
-        #     pynini.closure(NEMO_NOT_QUOTE),
-        #     pynini.closure(NEMO_NOT_QUOTE) + pynini.union("thousand", "million") + pynini.closure(NEMO_NOT_QUOTE),
-        # ).optimize()
-        # integer = (
-        #     pynini.closure(NEMO_NOT_QUOTE)
-        #     + pynini.closure(
-        #         pynutil.add_weight(pynini.cross("hundred ", "hundred and ") + no_thousand_million, -0.0001), 0, 1
-        #     ).optimize()
-        # )
-        # no_hundred = pynini.difference(
-        #     pynini.closure(NEMO_NOT_QUOTE),
-        #     pynini.closure(NEMO_NOT_QUOTE) + "hundred" + pynini.closure(NEMO_NOT_QUOTE),
-        # ).optimize()
-        # integer |= (
-        #     pynini.closure(NEMO_NOT_QUOTE)
-        #     + pynini.closure(
-        #         pynutil.add_weight(pynini.cross("thousand ", "thousand and ") + no_hundred, -0.0001), 0, 1
-        #     ).optimize()
-        # )
-        #
-        # if not deterministic:
-        #     integer |= (
-        #         pynini.closure(NEMO_NOT_QUOTE)
-        #         + pynini.closure(pynini.cross("hundred ", "hundred and ") | pynini.cross("hundred ", " "), 0, 1)
-        #         + pynini.closure(NEMO_NOT_QUOTE)
-        #     ).optimize()
         integer = pynini.closure(NEMO_NOT_QUOTE)
+
         self.integer = delete_space + pynutil.delete("\"") + integer + pynutil.delete("\"")
         integer = pynutil.delete("integer:") + self.integer
 

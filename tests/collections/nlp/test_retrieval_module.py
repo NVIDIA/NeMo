@@ -34,7 +34,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     init_method_normal,
     scaled_init_method_normal,
 )
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 
 try:
     from apex.transformer.enums import AttnMaskType
@@ -52,15 +52,12 @@ class TestRetrievalModule:
         if not torch.cuda.is_available():
             return
         GPUS = 1
-        plugins = [NLPDDPPlugin()]
         TP_SIZE = GPUS
         PP_SIZE = 1
         MB_SIZE = 4
         GB_SIZE = 8
         SEED = 1234
-        trainer = Trainer(
-            plugins=plugins, devices=GPUS, accelerator='gpu', num_nodes=1, logger=None, log_gpu_memory=None
-        )
+        trainer = Trainer(strategy=NLPDDPStrategy(), devices=GPUS, accelerator='gpu', num_nodes=1, logger=None,)
 
         initialize_model_parallel_for_nemo(
             world_size=trainer.world_size,
@@ -249,7 +246,7 @@ class TestRetrievalModule:
             .half()
         )
         out = decoder(hidden_emb, hidden_mask, retrieved_attn_mask=context_mask, retrieved_emb=retrieved_emb)
-        assert out.shape == torch.Size([batch, input_length, dim])
+        assert out.shape == torch.Size([input_length, batch, dim])
 
     @pytest.mark.unit
     def test_encoder_decoder_module(self):
