@@ -87,8 +87,6 @@ def split_partition(model, partitions, tp_size, write_path=None, megatron_legacy
             split = torch.split(partitions[0][idx].data, param.shape[-1], dim=-1)
         else:
             # For T5-converted weights, the splitting needs to be strided such that q,k,v weights are bunched together on each tensor-parallel rank.
-            # For TP=2:
-            # Q,K,V -> Q,K,V,Q,K,V
             if 'query_key_value.weight' in param_name and megatron_legacy:
                 split_dim = partitions[0][idx].data.shape[0]
                 if split_dim % (tp_size * 3) != 0:
