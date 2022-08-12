@@ -17,7 +17,7 @@ trainer:
   resume_from_checkpoint: null 
 
 exp_manager:
-  explicit_log_dir: null
+  explicit_log_dir: './prompt_learning_test'
   exp_dir: null
   name: ${name}
   create_wandb_logger: False
@@ -47,7 +47,7 @@ model:
   micro_batch_size: 8
   
   restore_path: null # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
-  pretrained_language_model_path: ??? # Path to the pretrained T5 language model .nemo file, always required
+  pretrained_language_model_path: /raid/Data/NMT/Models/hf_t5_small/nemo_t5v1_1_small_converted_weights.nemo # Path to the pretrained T5 language model .nemo file, always required
   existing_tasks: []
   new_tasks: ["squad"] 
 
@@ -56,7 +56,7 @@ model:
     prompt_template: "<|VIRTUAL_PROMPT_0|> {context} {question} {answer}" 
     total_virtual_tokens: 100
     virtual_token_splits: [100] 
-    truncate_field: context
+    truncate_field: null
     answer_field: answer
 
 
@@ -66,11 +66,11 @@ model:
 
   prompt_tuning: # Prompt tunin specific params
     new_prompt_init_methods: ['text'] # List of 'text' or 'random', should correspond to tasks listed in new tasks
-    new_prompt_init_text: ['some init text goes here'] # some init text if init method is text, or None if init method is random
+    new_prompt_init_text: ['Extractive question answering'] # some init text if init method is text, or None if init method is random
 
   data:
-    train_ds: ["data/squad_train.jsonl"]
-    validation_ds: ["data/squad_val.jsonl"]
+    train_ds: ["/raid/Data/prompt-learning-data/squad1.1/squad_train.jsonl"]
+    validation_ds: ["/raid/Data/prompt-learning-data/squad1.1/squad_val.jsonl"]
     add_eos: True
     shuffle: True
     num_workers: 8
@@ -91,5 +91,3 @@ model:
       min_lr: 0.0
       monitor: val_loss
       reduce_on_plateau: false
-  
-

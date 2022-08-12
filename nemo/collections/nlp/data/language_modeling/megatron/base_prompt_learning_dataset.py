@@ -77,7 +77,7 @@ class BasePromptLearningDataset(Dataset):
         for idx in range(len(virtual_token_splits)):
             split_start = total_inserted_tokens
             split_end = total_inserted_tokens + virtual_token_splits[idx]
-            pseudo_tokens_for_split = "".join(self.pseudo_tokens[split_start:split_end])
+            pseudo_tokens_for_split = " ".join(self.pseudo_tokens[split_start:split_end])
             input_example = input_example.replace(f'<|VIRTUAL_PROMPT_{idx}|>', pseudo_tokens_for_split)
             total_inserted_tokens = split_end
 
