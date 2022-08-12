@@ -517,10 +517,12 @@ def getTempInterpolMultiScaleCosAffinityMatrix(uniq_embs_and_timestamps: dict, d
         rep_mat_list.append(rep_emb_t)
     stacked_scale_embs = torch.stack(rep_mat_list)
     context_emb = torch.matmul(stacked_scale_embs.permute(2, 1, 0), multiscale_weights.t().half()).squeeze().t()
+    if len(context_emb.shape) < 2:
+        context_emb = context_emb.unsqueeze(0)
     fused_sim_d = getCosAffinityMatrix(context_emb)
     return fused_sim_d, context_emb, session_scale_mapping_dict
 
-@torch.jit.script
+# @torch.jit.script
 def getCosAffinityMatrix(_emb: torch.Tensor):
     """
     Calculate cosine similarity values among speaker embeddings then min-max normalize

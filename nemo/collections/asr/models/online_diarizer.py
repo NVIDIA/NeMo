@@ -340,8 +340,8 @@ class OnlineDiarizer(ClusteringDiarizer, ASR_DIAR_OFFLINE):
                 emb_hist = np.vstack((self.history_embedding_buffer_emb, update_to_history_emb))
                 self.before_cluster_labels = np.hstack((self.history_embedding_buffer_label, update_to_history_label))
                 self.history_buffer_seg_end = hist_curr_boundary
-        print(f"hist_curr_boundary: {hist_curr_boundary}")
-        print(f"self.history_buffer_seg_end: {self.history_buffer_seg_end}")
+        # print(f"hist_curr_boundary: {hist_curr_boundary}")
+        # print(f"self.history_buffer_seg_end: {self.history_buffer_seg_end}")
         return update_speaker_register, new_emb_n, emb_hist
        
     def make_constant_length_emb(self, emb_in):
@@ -618,14 +618,13 @@ class OnlineDiarizer(ClusteringDiarizer, ASR_DIAR_OFFLINE):
 
         # Get base-scale (the highest index) information from uniq_embs_and_timestamps.
         uniq_scale_dict = uniq_embs_and_timestamps['scale_dict']
-
         _mat, _emb, self.scale_mapping_dict = getTempInterpolMultiScaleCosAffinityMatrix(uniq_embs_and_timestamps, device)
-        print("Fusion embedding _emb shape:", _emb.shape)
+        # print("Fusion embedding _emb shape:", _emb.shape)
         
         org_mat = copy.deepcopy(_mat)
         _emb, _mat = _emb.cpu().numpy(), _mat.cpu().numpy()
         emb, reduced_labels, add_new = self.getReducedMat(_mat, _emb)
-        print("Reduced embedding emb shape:", emb.shape)
+        # print("Reduced embedding emb shape:", emb.shape)
         emb = torch.tensor(emb).to(device)
         mat = getCosAffinityMatrix(emb)
 
@@ -666,9 +665,9 @@ class OnlineDiarizer(ClusteringDiarizer, ASR_DIAR_OFFLINE):
         if len(self.num_spk_stat) > spk_counting_buffer_size:
             self.num_spk_stat.pop(0)
         num_spks_bincount = torch.bincount(torch.tensor(self.num_spk_stat))
-        print("num _spks bincount:", num_spks_bincount[1:])
-        print("spk_counting_buffer_size:", spk_counting_buffer_size)
-        print("emb ssize: ", emb.shape, int(1+emb.shape[0]/self.min_segment_per_spk))
+        # print("num _spks bincount:", num_spks_bincount[1:])
+        # print("spk_counting_buffer_size:", spk_counting_buffer_size)
+        # print("emb ssize: ", emb.shape, int(1+emb.shape[0]/self.min_segment_per_spk))
         maj_est_num_of_spk = torch.argmax(num_spks_bincount)
 
         spectral_model = SpectralClustering(n_clusters=maj_est_num_of_spk, cuda=cuda, device=device)
@@ -704,7 +703,7 @@ class OnlineDiarizer(ClusteringDiarizer, ASR_DIAR_OFFLINE):
             p_hat_value =  max(self.p_value_hist, key = self.p_value_hist.count)
             est_num_of_spk, g_p = nmesc.getEigRatio(p_hat_value)
             p_value_stat = torch.bincount(torch.tensor(self.p_value_hist))
-            print(f"p_value_stat: ", p_value_stat)
+            # print(f"p_value_stat: ", p_value_stat)
         else:
             est_num_of_spk, p_hat_value = nmesc.NMEanalysis()
         return est_num_of_spk, p_hat_value
@@ -834,6 +833,7 @@ class OnlineDiarizer(ClusteringDiarizer, ASR_DIAR_OFFLINE):
             end_idx = min(int(end_sec*asr_diar.sample_rate), slice_length + start_idx)
             signal = sig[start_idx:end_idx]
             if len(signal) == 0:
+                # continue
                 raise ValueError("len(signal) is zero. Signal length should not be zero.")
             if len(signal) < slice_length:
                 signal = repeat_signal(signal, len(signal), slice_length)
@@ -1030,8 +1030,6 @@ class OnlineDiarizer(ClusteringDiarizer, ASR_DIAR_OFFLINE):
                                                                             self.segment_range_ts[self.uniq_id][scale_idx], 
                                                                             self.segment_indexes[self.uniq_id][scale_idx],
                                                                             cluster_labels)
-            
-            print("sigs list:", len(sigs_list), "segment_ranges:", len(segment_ranges), "segment_indexes:", len(segment_indexes))
             self.embs_array[self.uniq_id][scale_idx] = embs_array
             self.segment_raw_audio[self.uniq_id][scale_idx] = sigs_list
             self.segment_range_ts[self.uniq_id][scale_idx] = segment_ranges

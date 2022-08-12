@@ -164,24 +164,98 @@ class ASR_DIAR_ONLINE_DEMO(ASR_DIAR_ONLINE):
         assert len(word_speaker_labels) == len(words)
         self.realign_speaker_labels(words, word_speaker_labels)
     
+    def punctuate_words(self, words):
+        """
+        Punctuate the transcribe word based on the loaded punctuation model.
+        """
+        if len(words) == 0:
+            return []
+        elif self.punctuation_model is not None:
+            words = self.punctuation_model.add_punctuation_capitalization([' '.join(words)])[0].split()
+            for idx in range(1, len(words)):
+                if any([ x in words[idx-1] for x in [".", "?"] ]):
+                    words[idx] = words[idx].capitalize()
+            # words = [w.replace(",", "") for w in words]
+            return words
+    
     def check_t(self, x):
         return any([ _str in x for _str in ['.', ',', '?'] ] )
     
     def callback_sim(self, sample_audio):
-        start_time = time.time()
+        loop_start_time = time.time()
         assert len(sample_audio) == int(self.sample_rate * self.frame_len)
         words, timestamps, diar_hyp = self.transcribe(sample_audio)
         if diar_hyp != []:
             assert len(words) == len(timestamps)
-            self._update_word_and_word_ts(words, timestamps)
+            self.update_word_and_word_ts(words, timestamps)
             if self.punctuation_model_path:
+                # import ipdb; ipdb.set_trace()
                 self._fix_speaker_label_per_word(self.word_seq, self.word_ts_seq, diar_hyp)
                 self.string_out = self._get_speaker_label_per_word(self.word_seq, self.word_ts_seq, diar_hyp)
+                # if self.string_out == None:
+                    # self.string_out = ''
+                write_txt(f"{self.diar._out_dir}/print_script.sh", self.string_out)
             else:
+                total_riva_dict = {}
                 word_dict_seq_list = self.get_word_dict_seq_list(diar_hyp, self.word_seq, self.word_ts_seq, self.word_ts_seq)
                 sentences = self.make_json_output(self.diar.uniq_id, diar_hyp, word_dict_seq_list, total_riva_dict, write_files=False)
                 self.string_out = self.print_sentences(sentences, self.params)
-            write_txt(f"{self.diar._out_dir}/print_script.sh", self.string_out.strip())
+                write_txt(f"{self.diar._out_dir}/print_script.sh", self.string_out.strip())
+        self.simulate_delay(loop_start_time) 
+    
+
+    def print_time_colored(self, string_out, speaker, start_point, end_point, params, replace_time=False, space=' '):
+        params['color'] == False
+        if params['color']:
+            color = self.color_palette[speaker]
+        else:
+            color = ''
+
+        datetime_offset = 16 * 3600
+        if float(start_point) > 3600:
+            time_str = "%H:%M:%S.%f"
+        else:
+            time_str = "%M:%S.%f"
+        start_point_str = datetime.fromtimestamp(float(start_point) - datetime_offset).strftime(time_str)[:-4]
+        end_point_str = datetime.fromtimestamp(float(end_point) - datetime_offset).strftime(time_str)[:-4]
+        
+        if replace_time:
+            old_start_point_str = string_out.split('\n')[-1].split(' - ')[0].split('[')[-1]
+            word_sequence = string_out.split('\n')[-1].split(' - ')[-1].split(':')[-1].strip() + space
+            string_out = '\n'.join(string_out.split('\n')[:-1])
+            time_str = "[{} - {}]".format(old_start_point_str, end_point_str)
+        else:
+            time_str = "[{} - {}]".format(start_point_str, end_point_str)
+            word_sequence = ''
+        
+        if not params['print_time']:
+            time_str = ''
+        strd = "\n{}{} {}: {}".format(color, time_str, speaker, word_sequence)
+        return string_out + strd
+
+    def print_word_colored(self, string_out, word, params, first_word=False):
+        word = word.strip()
+        if first_word:
+            space = ""
+            word = word.capitalize() if self.capitalize_first_word else word
+        else:
+            space = " "
+        word = word.replace(",", "").replace(".","").replace("?","").lower()
+        return string_out + space +  word
+
+    def punctuate_words(self, words):
+        """
+        Punctuate the transcribe word based on the loaded punctuation model.
+        """
+        if len(words) == 0:
+            return []
+        elif self.punctuation_model is not None:
+            words = self.punctuation_model.add_punctuation_capitalization([' '.join(words)])[0].split()
+            for idx in range(1, len(words)):
+                if any([ x in words[idx-1] for x in [".", "?"] ]):
+                    words[idx] = words[idx].capitalize()
+            # words = [w.replace(",", "") for w in words]
+            return words
 
     def _get_speaker_label_per_word(self, words, word_ts_list, pred_diar_labels):
         if len(words) == 0:
@@ -191,7 +265,7 @@ class ASR_DIAR_ONLINE_DEMO(ASR_DIAR_ONLINE):
         speaker = self.fixed_speaker_labels[0]
         old_speaker = speaker
         idx, string_out = 0, ''
-        string_out = self.print_time_colored(string_out, speaker, start_point, end_point, params)
+        string_out = self.print_time_colored(string_out, speaker, start_point, end_point, params, replace_time=False, space='')
         if len(words) == 0:
             return string_out
         for j, word_ts_stt_end in enumerate(word_ts_list):
@@ -208,6 +282,9 @@ class ASR_DIAR_ONLINE_DEMO(ASR_DIAR_ONLINE):
                 start_point, end_point = word_ts_stt_end
                 speaker = self.fixed_speaker_labels[j]
                 if speaker != old_speaker:
+                    last_word = string_out.split(" ")[-1]
+                    if "," in string_out[-1]:
+                        string_out = string_out[:-1] + string_out[-1].replace(",",".")
                     string_out = self.print_time_colored(string_out, speaker, start_point, end_point, params, space='')
                 else:
                     string_out = self.print_time_colored(string_out, speaker, start_point, end_point, params, replace_time=True, space='')
@@ -225,7 +302,8 @@ class ASR_DIAR_ONLINE_DEMO(ASR_DIAR_ONLINE):
 @hydra_runner(config_path="conf", config_name="online_diarization_with_asr.yaml")
 def main(cfg):
     diar = OnlineDiarizer(cfg)
-    asr_diar = ASR_DIAR_ONLINE(diar, cfg=cfg.diarizer)
+    # asr_diar = ASR_DIAR_ONLINE(diar, cfg=cfg.diarizer)
+    asr_diar = ASR_DIAR_ONLINE_DEMO(diar, cfg=cfg.diarizer)
 
     if cfg.diarizer.asr.parameters.streaming_simulation:
         diar.uniq_id = cfg.diarizer.simulation_uniq_id
@@ -239,9 +317,13 @@ def main(cfg):
     diar._init_segment_variables()
     diar.device = asr_diar.device
     write_txt(f"{diar._out_dir}/print_script.sh", "")
+    # import ipdb; ipdb.set_trace()
     
     if cfg.diarizer.asr.parameters.streaming_simulation:
         samplerate, sdata = wavfile.read(diar.single_audio_file_path)
+        if  diar.AUDIO_RTTM_MAP[diar.uniq_id]['offset'] and  diar.AUDIO_RTTM_MAP[diar.uniq_id]['duration']:
+            sdata = sdata[int(samplerate*diar.AUDIO_RTTM_MAP[diar.uniq_id]['offset']):int(samplerate*diar.AUDIO_RTTM_MAP[diar.uniq_id]['offset']+samplerate*diar.AUDIO_RTTM_MAP[diar.uniq_id]['duration'])]
+
         for index in range(int(np.floor(sdata.shape[0]/asr_diar.n_frame_len))):
             asr_diar.buffer_counter = index
             sample_audio = sdata[asr_diar.CHUNK_SIZE*(asr_diar.buffer_counter):asr_diar.CHUNK_SIZE*(asr_diar.buffer_counter+1)]
@@ -251,7 +333,7 @@ def main(cfg):
         iface = gr.Interface(
             fn=asr_diar.audio_queue_launcher,
             inputs=[
-                gr.inputs.Audio(source="microphone", type='filepath'), 
+                gr.Audio(source="microphone", type="filepath", streaming=True), 
                 "state",
             ],
             outputs=[
