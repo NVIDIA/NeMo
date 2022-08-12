@@ -159,8 +159,8 @@ class TestExportableClassifiers:
                 "exp_manager": {
                     "exp_dir": None,
                     "name": "IntentSlot",
-                    "create_tensorboard_logger": True,
-                    "create_checkpoint_callback": True,
+                    "create_tensorboard_logger": False,
+                    "create_checkpoint_callback": False,
                 },
                 "hydra": {"run": {"dir": "."}, "job_logging": {"root": {"handlers": None}}},
             }
@@ -173,6 +173,8 @@ class TestExportableClassifiers:
             self.setup_method()
             config = self.dict_config
             config.model.data_dir = dummy_data
+            if 'checkpoint_callback' in config.trainer:
+                del config.trainer.checkpoint_callback
             trainer = pl.Trainer(**config.trainer)
             model = IntentSlotClassificationModel(config.model, trainer=trainer)
             filename = os.path.join(tmpdir, 'isc.onnx')
