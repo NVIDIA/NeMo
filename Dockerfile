@@ -60,6 +60,10 @@ WORKDIR /tmp/nemo
 COPY requirements .
 RUN for f in $(ls requirements*.txt); do pip install --disable-pip-version-check --no-cache-dir -r $f; done
 
+# install pynini
+COPY nemo_text_processing/install_pynini.sh /tmp/nemo/
+RUN /bin/bash /tmp/nemo/install_pynini.sh
+
 # install k2, skip if installation fails
 COPY scripts /tmp/nemo/scripts/
 RUN /bin/bash /tmp/nemo/scripts/speech_recognition/k2/setup.sh || exit 0
