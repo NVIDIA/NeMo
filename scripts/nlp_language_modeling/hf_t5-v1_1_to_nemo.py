@@ -28,6 +28,9 @@ List of Huggingface models that this script can covert:
 9. google/mt5-xl
 10. google/mt5-xxl
 11. google/ul2
+13. bigscience/T0pp
+14. google/t5-xl-lm-adapt
+15. google/t5-xxl-lm-adapt
 
 Use instructions:
 
@@ -47,7 +50,7 @@ from pytorch_lightning import Trainer
 from transformers import AutoTokenizer, T5ForConditionalGeneration
 
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin, NLPSaveRestoreConnector
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 
 try:
     import accelerate
@@ -281,7 +284,7 @@ def package_into_nemo_file(state_dict_path, base_yaml_config, hf_model_config, n
     """
     Packages the state dict, config file and tokenizer into a `.nemo` file.
     """
-    trainer = Trainer(devices=1, plugins=NLPDDPPlugin(), accelerator="cpu", precision=32)
+    trainer = Trainer(devices=1, strategy=NLPDDPStrategy(), accelerator="cpu", precision=32)
     base_cfg = OmegaConf.load(base_yaml_config)
     if hf_model_config.dense_act_fn == "silu":
         act_fn = "swiglu"

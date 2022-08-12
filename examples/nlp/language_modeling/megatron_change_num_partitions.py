@@ -164,6 +164,13 @@ def main():
         action="store_true",
         help="Converter for legacy megatron modles that have different q,k,v weight splits",
     )
+    parser.add_argument(
+        "--tokenizer_model_path",
+        type=str,
+        required=False,
+        default=None,
+        help="Path to the tokenizer model path if your model uses a tokenizer model as an artifact. This is needed if your model uses a sentencepiece tokenizer.",
+    )
 
     args = parser.parse_args()
 
@@ -199,6 +206,8 @@ def main():
         model.cfg.tensor_model_parallel_size = 1
         app_state.model_parallel_size = 1
         trainer = Trainer(devices=1, strategy=NLPDDPStrategy(), accelerator="cpu", precision=precision)
+        if args.tokenizer_model_path is not None:
+            model.cfg.tokenizer.model = args.tokenizer_model_path
         model = cls(model.cfg, trainer).to('cpu')
         model._save_restore_connector = NLPSaveRestoreConnector()
 
@@ -218,6 +227,8 @@ def main():
         model.cfg.tensor_model_parallel_size = tgt_tp_size
         app_state.model_parallel_size = tgt_tp_size
         trainer = Trainer(devices=1, strategy=NLPDDPStrategy(), accelerator="cpu", precision=precision)
+        if args.tokenizer_model_path is not None:
+            model.cfg.tokenizer.model = args.tokenizer_model_path
         model = cls(model.cfg, trainer).to('cpu')
         model._save_restore_connector = NLPSaveRestoreConnector()
         split_partition(model, partitions, tgt_tp_size, args.target_file, args.megatron_legacy)
