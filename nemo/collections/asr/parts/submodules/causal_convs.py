@@ -141,11 +141,11 @@ class CausalConv1D(nn.Conv1d):
         if cache_next is not None:
             x_keep_size = input_x.size(-1) - self.cache_drop_size
             cache_keep_size = torch.tensor(x_keep_size, dtype=torch.int64)
-            cache_keep_size = cache_keep_size.clip(max=cache_next.size(-1))
-            #print(f"{q_length}, {self.cache_drop_size}, {q_keep_size}, {cache_next_length}, {cache_next.size()}")
+            #print(f"{cache_keep_size}, {input_x.size(-1)}, {self.cache_drop_size}, {cache.size()}, {cache_next.size()}, {self._right_padding}, {needed_cache.size()}")
+            cache_keep_size = cache_keep_size.clip(min=1, max=cache_next.size(-1))
 
-            cache_next[self._cache_id, :, :, :-x_keep_size] = cache[self._cache_id, :, :, cache_keep_size:]
-            input_x_kept = input_x[:, :, :x_keep_size]
+            cache_next[self._cache_id, :, :, :-cache_keep_size] = cache[self._cache_id, :, :, cache_keep_size:]
+            input_x_kept = input_x[:, :, :cache_keep_size]
             cache_next[self._cache_id, :, :, -cache_keep_size:] = input_x_kept[:, :, -cache_keep_size:]
         return x
 
