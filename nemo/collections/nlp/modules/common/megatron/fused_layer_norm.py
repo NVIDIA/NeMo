@@ -13,8 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import torch
+from torch import nn
 
 try:
+    from apex.contrib.layer_norm.layer_norm import _fast_layer_norm, FastLayerNorm as OrigFastLayerNorm
     from apex.transformer.layers.layer_norm import FastLayerNorm
     from apex.normalization.fused_layer_norm import MixedFusedLayerNorm
 
@@ -60,3 +63,17 @@ def get_layer_norm(hidden_size, eps=1e-5, persist_layer_norm=False, sequence_par
         return FastLayerNorm(hidden_size, eps, sequence_parallel_enabled=sequence_parallel)
     else:
         return MixedFusedLayerNorm(hidden_size, eps, sequence_parallel_enbaled=sequence_parallel)
+
+
+class LayerNorm1P(FastLayerNorm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        assert isinstance(self, OrigFastLayerNorm)
+        assert HAVE_APEX
+
+    def reset_parameters(self):
+        nn.init.zeros_(self.weight)
+        nn.init.zeros_(self.bias)
+
+    def forward(self, x):
+        return _fast_layer_norm(x, self.weight + 1, self.bias, self.epsilon)
