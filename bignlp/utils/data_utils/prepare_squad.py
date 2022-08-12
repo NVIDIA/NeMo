@@ -1,6 +1,6 @@
 import os
 import json
-from download_squad import download_squad
+from .download_squad import download_squad
 
 # TODO: Merge with prompt squad
 def prepare_squad_for_fine_tuning(data_dir):

@@ -21,7 +21,7 @@ trainer:
 exp_manager:
   explicit_log_dir: ${evaluation.run.results_dir}/results
   exp_dir: null
-  name: megatron_t5_${finetuning.run.task_name}_eval
+  name: megatron_t5_${fine_tuning.run.task_name}_eval
   create_checkpoint_callback: False
 
 model:
