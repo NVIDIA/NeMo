@@ -173,8 +173,6 @@ class TestExportableClassifiers:
             self.setup_method()
             config = self.dict_config
             config.model.data_dir = dummy_data
-            if 'checkpoint_callback' in config.trainer:
-                del config.trainer.checkpoint_callback
             trainer = pl.Trainer(**config.trainer)
             model = IntentSlotClassificationModel(config.model, trainer=trainer)
             filename = os.path.join(tmpdir, 'isc.onnx')
