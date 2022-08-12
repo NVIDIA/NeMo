@@ -13,6 +13,7 @@
 # limitations under the License.
 
 
+import pynini
 from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_ALPHA,
     NEMO_DIGIT,
@@ -22,15 +23,8 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     convert_space,
 )
 from nemo_text_processing.text_normalization.en.utils import get_abs_path, load_labels
-
-try:
-    import pynini
-    from pynini.lib import pynutil
-    from pynini.examples import plurals
-
-    PYNINI_AVAILABLE = True
-except (ModuleNotFoundError, ImportError):
-    PYNINI_AVAILABLE = False
+from pynini.examples import plurals
+from pynini.lib import pynutil
 
 
 class SerialFst(GraphFst):
@@ -86,6 +80,9 @@ class SerialFst(GraphFst):
 
         # serial graph with delimiter
         delimiter = pynini.accep("-") | pynini.accep("/") | pynini.accep(" ")
+        if not deterministic:
+            delimiter |= pynini.cross("-", " dash ") | pynini.cross("/", " slash ")
+
         alphas = pynini.closure(NEMO_ALPHA, 1)
         letter_num = alphas + delimiter + num_graph
         num_letter = pynini.closure(num_graph + delimiter, 1) + alphas
@@ -127,6 +124,13 @@ class SerialFst(GraphFst):
         serial_graph |= pynini.compose(graph_with_space, serial_graph.optimize()).optimize()
         serial_graph = pynini.compose(pynini.closure(NEMO_NOT_SPACE, 2), serial_graph).optimize()
 
+        # this is not to verbolize "/" as "slash" in cases like "import/export"
+        serial_graph = pynini.compose(
+            pynini.difference(
+                NEMO_SIGMA, pynini.closure(NEMO_ALPHA, 1) + pynini.accep("/") + pynini.closure(NEMO_ALPHA, 1)
+            ),
+            serial_graph,
+        )
         self.graph = serial_graph.optimize()
         graph = pynutil.insert("name: \"") + convert_space(self.graph).optimize() + pynutil.insert("\"")
         self.fst = graph.optimize()

@@ -142,7 +142,7 @@ class ASRManifestProcessor:
         return self.process_text_by_sample(sample)
 
     def process_text_by_file_id(self, file_id: str) -> (List[int], int):
-        manifest_idx = self.collection.mapping[file_id]
+        manifest_idx = self.collection.mapping[file_id][0]
         sample = self.collection[manifest_idx]
         return self.process_text_by_sample(sample)
 
@@ -579,10 +579,14 @@ class _TarredAudioToTextDataset(IterableDataset):
                 The benefit of replication is that it allows each node to sample data points from the entire
                 dataset independently of other nodes, and reduces dependence on value of `shuffle_n`.
 
-                Note: Replicated strategy allows every node to sample the entire set of available tarfiles,
-                and therefore more than one node may sample the same tarfile, and even sample the same
-                data points! As such, there is no assured guarantee that all samples in the dataset will be
-                sampled at least once during 1 epoch.
+                .. warning::
+                    Replicated strategy allows every node to sample the entire set of available tarfiles,
+                    and therefore more than one node may sample the same tarfile, and even sample the same
+                    data points! As such, there is no assured guarantee that all samples in the dataset will be
+                    sampled at least once during 1 epoch. Scattered strategy, on the other hand, on specific
+                    occasions (when the number of shards is not divisible with ``world_size``), will not sample
+                    the entire dataset. For these reasons it is not advisable to use tarred datasets as validation
+                    or test datasets.
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
         return_sample_id (bool): whether to return the sample_id as a part of each sample
@@ -644,9 +648,10 @@ class _TarredAudioToTextDataset(IterableDataset):
             logging.info("WebDataset will not shuffle files within the tar files.")
 
         self._dataset = (
-            self._dataset.rename(audio='wav;ogg', key='__key__')
+            self._dataset.rename(audio='wav;ogg;flac', key='__key__')
             .to_tuple('audio', 'key')
             .pipe(self._filter)
+            .pipe(self._loop_offsets)
             .map(f=self._build_sample)
         )
 
@@ -675,17 +680,48 @@ class _TarredAudioToTextDataset(IterableDataset):
 
         return TarredAudioFilter(self.manifest_processor.collection)
 
+    def _loop_offsets(self, iterator):
+        """This function is used to iterate through utterances with different offsets for each file.
+        """
+
+        class TarredAudioLoopOffsets:
+            def __init__(self, collection):
+                self.iterator = iterator
+                self.collection = collection
+                self.current_fn = None
+                self.current_bytes = None
+                self.offset_id = 0
+
+            def __iter__(self):
+                return self
+
+            def __next__(self):
+                if self.current_fn is None:
+                    self.current_bytes, self.current_fn = next(self.iterator)
+                    self.offset_id = 0
+                else:
+                    offset_list = self.collection.mapping[self.current_fn]
+                    if len(offset_list) == self.offset_id + 1:
+                        self.current_bytes, self.current_fn = next(self.iterator)
+                        self.offset_id = 0
+                    else:
+                        self.offset_id += 1
+
+                return self.current_bytes, self.current_fn, self.offset_id
+
+        return TarredAudioLoopOffsets(self.manifest_processor.collection)
+
     def _collate_fn(self, batch):
         return _speech_collate_fn(batch, self.pad_id)
 
     def _build_sample(self, tup):
         """Builds the training sample by combining the data from the WebDataset with the manifest info.
         """
-        audio_bytes, audio_filename = tup
+        audio_bytes, audio_filename, offset_id = tup
 
         # Grab manifest entry from self.manifest_preprocessor.collection
         file_id, _ = os.path.splitext(os.path.basename(audio_filename))
-        manifest_idx = self.manifest_processor.collection.mapping[file_id]
+        manifest_idx = self.manifest_processor.collection.mapping[file_id][offset_id]
         manifest_entry = self.manifest_processor.collection[manifest_idx]
 
         offset = manifest_entry.offset
@@ -808,10 +844,14 @@ class TarredAudioToCharDataset(_TarredAudioToTextDataset):
                 The benefit of replication is that it allows each node to sample data points from the entire
                 dataset independently of other nodes, and reduces dependence on value of `shuffle_n`.
 
-                Note: Replicated strategy allows every node to sample the entire set of available tarfiles,
-                and therefore more than one node may sample the same tarfile, and even sample the same
-                data points! As such, there is no assured guarantee that all samples in the dataset will be
-                sampled at least once during 1 epoch.
+                .. warning::
+                    Replicated strategy allows every node to sample the entire set of available tarfiles,
+                    and therefore more than one node may sample the same tarfile, and even sample the same
+                    data points! As such, there is no assured guarantee that all samples in the dataset will be
+                    sampled at least once during 1 epoch. Scattered strategy, on the other hand, on specific
+                    occasions (when the number of shards is not divisible with ``world_size``), will not sample
+                    the entire dataset. For these reasons it is not advisable to use tarred datasets as validation
+                    or test datasets.
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
         return_sample_id (bool): whether to return the sample_id as a part of each sample
@@ -935,10 +975,13 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
                 The benefit of replication is that it allows each node to sample data points from the entire
                 dataset independently of other nodes, and reduces dependence on value of `shuffle_n`.
 
-                Note: Replicated strategy allows every node to sample the entire set of available tarfiles,
-                and therefore more than one node may sample the same tarfile, and even sample the same
-                data points! As such, there is no assured guarantee that all samples in the dataset will be
-                sampled at least once during 1 epoch.
+                .. warning:: Replicated strategy allows every node to sample the entire set of available tarfiles,
+                    and therefore more than one node may sample the same tarfile, and even sample the same
+                    data points! As such, there is no assured guarantee that all samples in the dataset will be
+                    sampled at least once during 1 epoch. Scattered strategy, on the other hand, on specific
+                    occasions (when the number of shards is not divisible with ``world_size``), will not sample
+                    the entire dataset. For these reasons it is not advisable to use tarred datasets as validation
+                    or test datasets.
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
         return_sample_id (bool): whether to return the sample_id as a part of each sample

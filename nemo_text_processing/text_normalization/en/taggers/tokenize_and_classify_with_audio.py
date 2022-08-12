@@ -14,6 +14,7 @@
 
 import os
 
+import pynini
 from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_CHAR,
     NEMO_DIGIT,
@@ -54,16 +55,9 @@ from nemo_text_processing.text_normalization.en.verbalizers.roman import RomanFs
 from nemo_text_processing.text_normalization.en.verbalizers.telephone import TelephoneFst as vTelephone
 from nemo_text_processing.text_normalization.en.verbalizers.time import TimeFst as vTime
 from nemo_text_processing.text_normalization.en.verbalizers.word import WordFst as vWord
+from pynini.lib import pynutil
 
 from nemo.utils import logging
-
-try:
-    import pynini
-    from pynini.lib import pynutil
-
-    PYNINI_AVAILABLE = True
-except (ModuleNotFoundError, ImportError):
-    PYNINI_AVAILABLE = False
 
 
 class ClassifyFst(GraphFst):
@@ -121,14 +115,15 @@ class ClassifyFst(GraphFst):
             measure = MeasureFst(cardinal=cardinal, decimal=decimal, fraction=fraction, deterministic=deterministic)
             measure_graph = measure.fst
             date_graph = DateFst(cardinal=cardinal, deterministic=deterministic).fst
-            word_graph = WordFst(deterministic=deterministic).graph
+            punctuation = PunctuationFst(deterministic=True)
+            punct_graph = punctuation.graph
+            word_graph = WordFst(punctuation=punctuation, deterministic=deterministic).graph
             time_graph = TimeFst(cardinal=cardinal, deterministic=deterministic).fst
             telephone_graph = TelephoneFst(deterministic=deterministic).fst
             electronic_graph = ElectronicFst(deterministic=deterministic).fst
             money_graph = MoneyFst(cardinal=cardinal, decimal=decimal, deterministic=deterministic).fst
             whitelist = WhiteListFst(input_case=input_case, deterministic=deterministic, input_file=whitelist)
             whitelist_graph = whitelist.graph
-            punct_graph = PunctuationFst(deterministic=deterministic).graph
             serial_graph = SerialFst(cardinal=cardinal, ordinal=deterministic_ordinal, deterministic=deterministic).fst
 
             # VERBALIZERS

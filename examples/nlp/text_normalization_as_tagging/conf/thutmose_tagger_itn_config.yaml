@@ -8,7 +8,7 @@ trainer:
   devices: 1 # the number of gpus, 0 for CPU
   num_nodes: 1
   max_epochs: 3  # the number of training epochs
-  checkpoint_callback: false  # provided by exp_manager
+  enable_checkpointing: false  # provided by exp_manager
   logger: false  # provided by exp_manager
   accumulate_grad_batches: 1 # accumulates grads every k batches
   gradient_clip_val: 0.0
@@ -77,8 +77,6 @@ data:
     data_path: ???  # provide the full path to the file
     batch_size: 8
     shuffle: true
-    max_insts: -1 # Maximum number of instances (-1 means no limit)
-    use_cache: false # uses a cache to store the processed dataset, you may use it for large datasets for speed up (especially when using multi GPUs)
     num_workers: 3
     pin_memory: false
     drop_last: false
@@ -87,8 +85,6 @@ data:
     data_path: ???  # provide the full path to the file.
     batch_size: 8
     shuffle: false
-    max_insts: -1 # Maximum number of instances (-1 means no limit)
-    use_cache: false # uses a cache to store the processed dataset, you may use it for large datasets for speed up (especially when using multi GPUs)
     num_workers: 3
     pin_memory: false
     drop_last: false

@@ -19,6 +19,7 @@ import os
 import pickle
 import re
 import shutil
+import tempfile
 from collections import deque
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Optional, Set, Tuple, Type, Union
@@ -160,36 +161,44 @@ def process_fragment(
         special_tokens=special_tokens,
         use_fast=use_fast_tokenizer,
     )
-    tmp_text = output_dir / f'tmp_text_{fragment_idx}.txt'
-    tmp_labels = output_dir / f'tmp_labels_{fragment_idx}.txt'
-    with text_file.open() as tf, labels_file.open() as lf, tmp_text.open('w') as otf, tmp_labels.open('w') as olf:
-        tf.seek(text_start_pos)
-        lf.seek(label_start_pos)
-        for _ in range(lines_per_dataset_fragment):
-            text_line = tf.readline()
-            if not text_line:
-                break
-            otf.write(text_line)
-            olf.write(lf.readline())
-    dataset = BertPunctuationCapitalizationDataset(
-        tmp_text,
-        tmp_labels,
-        max_seq_length,
-        tokenizer,
-        tokens_in_batch=tokens_in_batch,
-        pad_label=pad_label,
-        punct_label_ids=punct_label_ids,
-        capit_label_ids=capit_label_ids,
-        n_jobs=0,
-        use_cache=False,
-        add_masks_and_segment_ids_to_batch=False,
-        verbose=False,
-        tokenization_progress_queue=tokenization_progress_queue,
-        batch_mark_up_progress_queue=batch_mark_up_progress_queue,
-        batch_building_progress_queue=batch_building_progress_queue,
-    )
-    tmp_text.unlink()
-    tmp_labels.unlink()
+    tmp_text: Optional[str] = None
+    tmp_labels: Optional[str] = None
+    try:
+        otfd, tmp_text = tempfile.mkstemp(suffix='.txt', prefix=f'text_{fragment_idx}_', dir=output_dir, text=True)
+        olfd, tmp_labels = tempfile.mkstemp(suffix='.txt', prefix=f'labels_{fragment_idx}_', dir=output_dir, text=True)
+        with text_file.open() as tf, labels_file.open() as lf, os.fdopen(otfd, 'w') as otf, os.fdopen(
+            olfd, 'w'
+        ) as olf:
+            tf.seek(text_start_pos)
+            lf.seek(label_start_pos)
+            for _ in range(lines_per_dataset_fragment):
+                text_line = tf.readline()
+                if not text_line:
+                    break
+                otf.write(text_line)
+                olf.write(lf.readline())
+        dataset = BertPunctuationCapitalizationDataset(
+            tmp_text,
+            tmp_labels,
+            max_seq_length,
+            tokenizer,
+            tokens_in_batch=tokens_in_batch,
+            pad_label=pad_label,
+            punct_label_ids=punct_label_ids,
+            capit_label_ids=capit_label_ids,
+            n_jobs=0,
+            use_cache=False,
+            add_masks_and_segment_ids_to_batch=False,
+            verbose=False,
+            tokenization_progress_queue=tokenization_progress_queue,
+            batch_mark_up_progress_queue=batch_mark_up_progress_queue,
+            batch_building_progress_queue=batch_building_progress_queue,
+        )
+    finally:
+        if tmp_text is not None and os.path.exists(tmp_text):
+            os.remove(tmp_text)
+        if tmp_labels is not None and os.path.exists(tmp_labels):
+            os.remove(tmp_labels)
     dataset.features_pkl.unlink()
     tar_ctr = 0
     current_file_name = output_dir / TAR_FRAGMENT_TMPL_IN_PROGRESS.format(fragment_idx=fragment_idx, file_idx=tar_ctr)
@@ -527,7 +536,7 @@ def repack_tar_files_with_not_enough_batches(output_dir: Path, num_batches_per_t
     ``repack_tar_files_with_not_enough_batches`` function into tar files with correct ``num_batches_per_tarfile``
     batches each. If there is no enough batches in repacked files, then up to ``num_batches_per_tarfile - 1``
     remaining batches may be discarded.
-    
+
     Args:
         output_dir: a path to the output directory which contains files to repack and where new files are saved
         num_batches_per_tarfile: a number of batches in 1 tar file. If number of batches in files matching a pattern
@@ -676,10 +685,10 @@ def create_tarred_dataset(
     `examples/nlp/token_classification/data/create_punctuation_capitalization_tarred_dataset.py
     <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/data/create_punctuation_capitalization_tarred_dataset.py>`_.
 
-    Tarred dataset is a directory which contains metadata file, tar files with batches, 
+    Tarred dataset is a directory which contains metadata file, tar files with batches,
     ``punct_label_vocab.csv`` and ``capit_label_vocab.csv`` files.
 
-    Metadata file is a JSON file with 4 items: ``'num_batches'``, ``'tar_files'``, ``'punct_label_vocab_file'``, 
+    Metadata file is a JSON file with 4 items: ``'num_batches'``, ``'tar_files'``, ``'punct_label_vocab_file'``,
     ``'capit_label_vocab_file'``. The item ``'num_batches'`` (``int``) is a total number of batches in tarred dataset.
     ``'tar_files'`` is a list of paths to tar files relative to directory containing the metadata file. The items
     ``'punct_label_vocab_file'`` and ``'capit_label_vocab_file'`` are correspondingly paths to punctuation and
@@ -862,6 +871,23 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
             be used in the current process.
         shuffle_n (:obj:`int`, `optional`, defaults to :obj:`1`): a number of shuffled batches in a buffer.
             ``shuffle_n`` batches are loaded into memory, shuffled, and then yielded by a dataset instance.
+        shard_strategy (:obj:`str`, defaults to :obj:``'scatter'``): Tarred dataset shard distribution strategy chosen as
+            a str value during ddp.
+            -   ``'scatter'``: The default shard strategy applied by WebDataset, where each node gets
+                a unique set of shards, which are permanently pre-allocated and never changed at runtime.
+            -   ``'replicate'``: Optional shard strategy, where each node gets all of the set of shards
+                available in the tarred dataset, which are permanently pre-allocated and never changed at runtime.
+                The benefit of replication is that it allows each node to sample data points from the entire
+                dataset independently of other nodes, and reduces dependence on value of :param:`shuffle_n`.
+
+                .. warning::
+                    Replicated strategy allows every node to sample the entire set of available tarfiles,
+                    and therefore more than one node may sample the same tarfile, and even sample the same
+                    data points! As such, there is no assured guarantee that all samples in the dataset will be
+                    sampled at least once during 1 epoch. Scattered strategy, on the other hand, on specific
+                    occasions (when the number of shards is not divisible with ``world_size``), will not sample
+                    the entire dataset. For these reasons it is not advisable to use tarred datasets as validation
+                    or test datasets.
     """
 
     @property
@@ -888,8 +914,18 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
         world_size: int = 1,
         global_rank: int = 0,
         shuffle_n: int = 1,
+        shard_strategy: str = "scatter",
     ) -> None:
         super().__init__()
+
+        valid_shard_strategies = ['scatter', 'replicate']
+        if shard_strategy not in valid_shard_strategies:
+            raise ValueError(
+                f"Invalid shard strategy of type {type(shard_strategy)} "
+                f"{repr(shard_strategy) if len(repr(shard_strategy)) < 100 else repr(shard_strategy)[:100] + '...'}! "
+                f"Allowed values are: {valid_shard_strategies}."
+            )
+
         self.tokenizer = tokenizer
         self.metadata_file = Path(metadata_file).expanduser()
         if label_info_save_dir is None:
@@ -913,13 +949,31 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
         self.capit_label_ids = load_label_ids(self.capit_label_vocab_file)
         self.pad_label = pad_label
         self._check_pad_label()
-        begin_idx = (len(self.tar_files) // world_size) * global_rank
-        end_idx = begin_idx + (len(self.tar_files) // world_size)
-        logging.info(
-            "Partitioning tarred dataset: process (%d) taking shards [%d, %d)", global_rank, begin_idx, end_idx
-        )
-        self.tar_files = self.tar_files[begin_idx:end_idx]
-        self.length = self.metadata['num_batches'] // world_size
+
+        if shard_strategy == 'scatter':
+            logging.info("Tarred dataset shards will be scattered evenly across all nodes.")
+            if len(self.tar_files) % world_size != 0:
+                logging.warning(
+                    f"Number of shards in tarred dataset ({len(self.tar_files)}) is not divisible "
+                    f"by number of distributed workers ({world_size}). "
+                    f"Some shards will not be used ({len(self.tar_files) % world_size})."
+                )
+            begin_idx = (len(self.tar_files) // world_size) * global_rank
+            end_idx = begin_idx + (len(self.tar_files) // world_size)
+            logging.info(
+                "Partitioning tarred dataset: process (%d) taking shards [%d, %d)", global_rank, begin_idx, end_idx
+            )
+            batches_per_tar = self.metadata['num_batches'] // len(self.tar_files)
+            self.tar_files = self.tar_files[begin_idx:end_idx]
+            self.length = batches_per_tar * len(self.tar_files) * world_size
+
+        elif shard_strategy == 'replicate':
+            logging.info("All tarred dataset shards will be replicated across all nodes.")
+            self.length = self.metadata['num_batches']
+
+        else:
+            raise ValueError(f"Invalid shard strategy! Allowed values are: {valid_shard_strategies}")
+
         self._dataset = wds.WebDataset(urls=self.tar_files, nodesplitter=None).decode(
             wds.handle_extension('.pyd', decode_pyd)
         )

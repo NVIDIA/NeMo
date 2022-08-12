@@ -31,7 +31,7 @@ import itertools
 import multiprocessing as mp
 import os
 import pickle
-import random
+import tempfile
 from dataclasses import dataclass
 from math import ceil
 from pathlib import Path
@@ -85,7 +85,7 @@ class PunctuationCapitalizationDataConfigBase:
 
     labels_file: Optional[str] = None
     """A path to a file with punctuation and capitalization labels in NeMo format. NeMo format is described in
-    `documentation 
+    `documentation
     <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/punctuation_and_capitalization.html#nemo-data-format>`_
     """
 
@@ -112,7 +112,7 @@ class PunctuationCapitalizationDataConfigBase:
     """A path to a directory containing cache or directory where newly created cache is saved. By default, it is
     a directory containing ``text_file``. You may need this parameter if cache for a dataset is going to be created
     and the dataset directory is read-only.
-    
+
     ``cache_dir`` and ``label_info_save_dir`` are separate parameters for the case when a cache is ready and this cache
     is stored in a read only directory. In this case you will separate ``label_info_save_dir``."""
 
@@ -141,6 +141,22 @@ class PunctuationCapitalizationDataConfigBase:
 
     tar_shuffle_n: int = 1
     """The size of shuffle buffer of `webdataset`. The number of batches which are permuted."""
+
+    shard_strategy: Optional[str] = 'scatter'
+    """Tarred dataset shard distribution strategy chosen as a str value during ddp. Accepted values are `scatter` and `replicate`.
+    `scatter`: The default shard strategy applied by WebDataset, where each node gets a unique set of shards, which are permanently
+    pre-allocated and never changed at runtime. `replicate` is an optional shard strategy, where each node gets the entire set of shards
+    available in the tarred dataset, which are permanently pre-allocated and never changed at runtime. The benefit of replication is that
+    it allows each node to sample data points from the entire dataset independently of other nodes, and reduces dependence on value of
+    ``tar_shuffle_n``.
+
+    .. warning::
+        Replicated strategy allows every node to sample the entire set of available tarfiles, and therefore more than one node may sample
+        the same tarfile, and even sample the same data points! As such, there is no assured guarantee that all samples in the dataset
+        will be sampled at least once during 1 epoch. Scattered strategy, on the other hand, on specific occasions (when the number of
+        shards is not divisible with ``world_size``), will not sample the entire dataset. For these reasons it is not advisable to use
+        tarred datasets as validation or test datasets.
+    """
 
     #################################################
     # PYTORCH DATALOADER PARAMETERS
@@ -827,8 +843,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         label_info_save_dir (:obj:`Union[str, os.PathLike]`, `optional`): a path to a directory where label frequencies
             are saved. Be default a ``text_file`` parent directory is used. When method
             :meth:`save_labels_and_get_file_paths` is called label ids are saved into ``label_info_save_dir``
-            directory. Parameters ``cache_dir`` and ``label_info_save_dir`` are added for cases when directory
-            containing. This parameter is useful if directory containing ``text_file`` is read-only.
+            directory. This parameter is useful if directory containing ``text_file`` is read-only.
         punct_label_vocab_file (:obj:`Union[str, os.PathLike]`, `optional`): a path to a .csv file containing
             punctuation label vocabulary. Each line in such a vocabulary file contains exactly one label. The first
             line has to contain `pad_label`, otherwise error will be raised.
@@ -943,7 +958,9 @@ class BertPunctuationCapitalizationDataset(Dataset):
         self.batch_building_progress_queue = batch_building_progress_queue
 
         master_device = is_global_rank_zero()
-        self.features_pkl = self._get_path_to_pkl_features(self.text_file, cache_dir, max_seq_length, num_samples)
+        self.features_pkl = self._get_path_to_pkl_features(
+            self.text_file, self.labels_file, cache_dir, max_seq_length, num_samples
+        )
         features = None
         if master_device and not (self.features_pkl.is_file() and use_cache):
             if verbose:
@@ -976,13 +993,24 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 n_jobs=n_jobs,
             )
             self.features_pkl.parent.mkdir(parents=True, exist_ok=True)
-            pickle.dump(tuple(list(features) + [punct_label_ids, capit_label_ids]), self.features_pkl.open("wb"))
+
+            # save features to a temp file first to make sure that non-master processes don't start reading the file
+            # until the master process is done with writing
+            ofd, tmp_features_pkl = tempfile.mkstemp(
+                suffix='.pkl', prefix=os.path.basename(self.features_pkl), dir=os.path.dirname(self.features_pkl)
+            )
+            with os.fdopen(ofd, 'wb') as temp_f:
+                pickle.dump(tuple(list(features) + [punct_label_ids, capit_label_ids]), temp_f)
+
+            os.rename(tmp_features_pkl, self.features_pkl)
+
             if self.verbose:
                 logging.info(f'Features saved to {self.features_pkl}')
 
         # wait until the master process writes to the processed data files
-        if torch.distributed.is_initialized():
-            torch.distributed.barrier()
+        if not master_device:
+            while features is None and not os.path.exists(self.features_pkl):
+                sleep(10)
 
         if features is None:
             features = pickle.load(self.features_pkl.open('rb'))
@@ -1010,7 +1038,12 @@ class BertPunctuationCapitalizationDataset(Dataset):
             self.capit_label_frequencies = self._calculate_and_save_label_frequencies(self.capit_labels, 'capit')
 
     def _get_path_to_pkl_features(
-        self, text_file: Path, cache_dir: Optional[Union[str, os.PathLike]], max_seq_length: int, num_samples: int
+        self,
+        text_file: Path,
+        labels_file: Path,
+        cache_dir: Optional[Union[str, os.PathLike]],
+        max_seq_length: int,
+        num_samples: int,
     ) -> Path:
         if cache_dir is None:
             cache_dir = text_file.parent
@@ -1018,7 +1051,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
             cache_dir = Path(cache_dir).expanduser()
         vocab_size = getattr(self.tokenizer, "vocab_size", 0)
         features_pkl = cache_dir / "cached.{}.{}.max_seq_length{}.vocab{}.{}.punctuation_capitalization.pkl".format(
-            text_file.stem,
+            '__' + text_file.name + '__' + labels_file.name + '__',
             self.tokenizer.name,
             max_seq_length,
             vocab_size,
@@ -1054,15 +1087,6 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 f'separated with spaces. Each line of the files should follow the format:\n'
                 f'   [WORD] [SPACE] [WORD] [SPACE] [WORD] (for text.txt) and '
                 f'   [LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (for labels.txt).'
-            )
-        if not str(text_file).endswith('.txt'):
-            raise ValueError(
-                f"Parameter `text_file` has to be path to a file with .txt extension, whereas `text_file={text_file}`"
-            )
-        if not str(labels_file).endswith('.txt'):
-            raise ValueError(
-                f"Parameter `labels_file` has to be path to a file with .txt extension, whereas "
-                f"`labels_file={labels_file}`"
             )
         if punct_label_ids is not None and punct_label_vocab_file is not None:
             punct_label_vocab_file = Path(punct_label_vocab_file).expanduser()
@@ -1110,7 +1134,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
     ) -> None:
         if not isinstance(pkl_punct_label_ids, dict):
             raise ValueError(
-                f"Punctuation label ids loaded from features file {self.features_pkl} has wrong type "
+                f"Punctuation label ids loaded from features file {self.features_pkl} have wrong type "
                 f"{type(pkl_punct_label_ids)}"
             )
         if parameter_punct_label_ids is not None:

@@ -34,9 +34,9 @@ from nemo.collections.asr.parts.mixins import ASRModuleMixin
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.core.classes.mixins import AccessMixin
 from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LengthsType, NeuralType, SpectrogramType
 from nemo.utils import logging
-from nemo.utils.export_utils import augment_filename
 
 
 class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
@@ -661,6 +661,10 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
 
     # PTL-specific methods
     def training_step(self, batch, batch_nb):
+        # Reset access registry
+        if AccessMixin.is_access_enabled():
+            AccessMixin.reset_registry(self)
+
         signal, signal_len, transcript, transcript_len = batch
 
         # forward() only performs encoder forward
@@ -688,7 +692,18 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
                 log_probs=joint, targets=transcript, input_lengths=encoded_len, target_lengths=target_length
             )
 
-            tensorboard_logs = {'train_loss': loss_value, 'learning_rate': self._optimizer.param_groups[0]['lr']}
+            # Add auxiliary losses, if registered
+            loss_value = self.add_auxiliary_losses(loss_value)
+
+            # Reset access registry
+            if AccessMixin.is_access_enabled():
+                AccessMixin.reset_registry(self)
+
+            tensorboard_logs = {
+                'train_loss': loss_value,
+                'learning_rate': self._optimizer.param_groups[0]['lr'],
+                'global_step': torch.tensor(self.trainer.global_step, dtype=torch.float32),
+            }
 
             if (sample_id + 1) % log_every_n_steps == 0:
                 self.wer.update(encoded, encoded_len, transcript, transcript_len)
@@ -713,7 +728,18 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
                 compute_wer=compute_wer,
             )
 
-            tensorboard_logs = {'train_loss': loss_value, 'learning_rate': self._optimizer.param_groups[0]['lr']}
+            # Add auxiliary losses, if registered
+            loss_value = self.add_auxiliary_losses(loss_value)
+
+            # Reset access registry
+            if AccessMixin.is_access_enabled():
+                AccessMixin.reset_registry(self)
+
+            tensorboard_logs = {
+                'train_loss': loss_value,
+                'learning_rate': self._optimizer.param_groups[0]['lr'],
+                'global_step': torch.tensor(self.trainer.global_step, dtype=torch.float32),
+            }
 
             if compute_wer:
                 tensorboard_logs.update({'training_batch_wer': wer})
@@ -802,6 +828,8 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             tensorboard_logs['val_wer_num'] = wer_num
             tensorboard_logs['val_wer_denom'] = wer_denom
             tensorboard_logs['val_wer'] = wer
+
+        self.log_dict({'global_step': torch.tensor(self.trainer.global_step, dtype=torch.float32)})
 
         return tensorboard_logs
 
@@ -918,18 +946,14 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
                     norm = param.grad.norm()
                     param.grad.data.div_(norm)
 
-    def export(self, output: str, input_example=None, **kwargs):
-        encoder_exp, encoder_descr = self.encoder.export(
-            augment_filename(output, 'Encoder'), input_example=input_example, **kwargs,
-        )
-        decoder_joint = RNNTDecoderJoint(self.decoder, self.joint)
-        decoder_exp, decoder_descr = decoder_joint.export(
-            augment_filename(output, 'Decoder-Joint'),
-            # TODO: propagate from export()
-            input_example=None,
-            **kwargs,
-        )
-        return encoder_exp + decoder_exp, encoder_descr + decoder_descr
+    # EncDecRNNTModel is exported in 2 parts
+    def list_export_subnets(self):
+        return ['encoder', 'decoder_joint']
+
+    # for export
+    @property
+    def decoder_joint(self):
+        return RNNTDecoderJoint(self.decoder, self.joint)
 
     @classmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:
@@ -939,5 +963,13 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         Returns:
             List of available pre-trained models.
         """
-        result = []
-        return result
+        results = []
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_zh_conformer_transducer_large",
+            description="For details about this model, please visit https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/stt_zh_conformer_transducer_large",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_zh_conformer_transducer_large/versions/1.8.0/files/stt_zh_conformer_transducer_large.nemo",
+        )
+        results.append(model)
+
+        return results

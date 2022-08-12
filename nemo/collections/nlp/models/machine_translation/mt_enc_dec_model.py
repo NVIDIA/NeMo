@@ -16,6 +16,7 @@ import itertools
 import json
 import os
 import random
+from math import ceil
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
@@ -48,7 +49,6 @@ from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGe
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.utils import logging, model_utils, timers
-from nemo.utils.export_utils import augment_filename
 
 __all__ = ['MTEncDecModel']
 
@@ -408,6 +408,9 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
 
     def eval_epoch_end(self, outputs, mode, global_rank):
         # if user specifies one validation dataloader, then PTL reverts to giving a list of dictionary instead of a list of list of dictionary
+        if not outputs:
+            return
+
         if isinstance(outputs[0], dict):
             outputs = [outputs]
 
@@ -607,6 +610,23 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         )
         self._train_dl = MTEncDecModel._setup_dataloader_from_config(cfg=train_data_config, dataset=self._train_ds,)
 
+        # Need to set this because if using an IterableDataset, the length of the dataloader is the total number
+        # of samples rather than the number of batches, and this messes up the tqdm progress bar.
+        # So we set the number of steps manually (to the correct number) to fix this.
+        if 'use_tarred_dataset' in train_data_config and train_data_config['use_tarred_dataset']:
+            # We also need to check if limit_train_batches is already set.
+            # If it's an int, we assume that the user has set it to something sane, i.e. <= # training batches,
+            # and don't change it. Otherwise, adjust batches accordingly if it's a float (including 1.0).
+            if self._trainer is not None and isinstance(self._trainer.limit_train_batches, float):
+                self._trainer.limit_train_batches = int(
+                    self._trainer.limit_train_batches * ceil(len(self._train_dl.dataset) / self.world_size)
+                )
+            elif self._trainer is None:
+                logging.warning(
+                    "Model Trainer was not set before constructing the dataset, incorrect number of "
+                    "training batches will be used. Please set the trainer and rebuild the dataset."
+                )
+
     def setup_multiple_validation_data(self, val_data_config: Union[DictConfig, Dict]):
         self.setup_validation_data(val_data_config)
 
@@ -624,6 +644,24 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         self._validation_dl = MTEncDecModel._setup_eval_dataloader_from_config(
             cfg=val_data_config, datasets=self._validation_ds
         )
+
+        # Need to set this because if using an IterableDataset, the length of the dataloader is the total number
+        # of samples rather than the number of batches, and this messes up the tqdm progress bar.
+        # So we set the number of steps manually (to the correct number) to fix this.
+        if 'use_tarred_dataset' in val_data_config and val_data_config['use_tarred_dataset']:
+            # We also need to check if limit_val_batches is already set.
+            # If it's an int, we assume that the user has set it to something sane, i.e. <= # validation batches,
+            # and don't change it. Otherwise, adjust batches accordingly if it's a float (including 1.0).
+            if self._trainer is not None and isinstance(self._trainer.limit_val_batches, float):
+                self._trainer.limit_val_batches = int(
+                    self._trainer.limit_val_batches * ceil(len(self._validation_dl.dataset) / self.world_size)
+                )
+            elif self._trainer is None:
+                logging.warning(
+                    "Model Trainer was not set before constructing the dataset, incorrect number of "
+                    "validation batches will be used. Please set the trainer and rebuild the dataset."
+                )
+
         # instantiate Torchmetric for each val dataloader
         if self._validation_dl is not None:
             for dataloader_idx in range(len(self._validation_dl)):
@@ -672,7 +710,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         multilingual,
         multilingual_ids,
     ):
-        if cfg.get("use_tarred_dataset", False):
+        if cfg.get("use_tarred_dataset", False) or cfg.get("dataset_type", "") == "tarred":
             if cfg.get("metadata_file") is None:
                 raise FileNotFoundError("Trying to use tarred data set but could not find metadata path in config.")
             metadata_file_list = cfg.get('metadata_file')
@@ -801,7 +839,13 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         return torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=1,
-            sampler=None if (cfg.get("use_tarred_dataset", False) or isinstance(dataset, ConcatDataset)) else sampler,
+            sampler=None
+            if (
+                cfg.get("use_tarred_dataset", False)
+                or cfg.get("dataset_type", "") == "tarred"
+                or isinstance(dataset, ConcatDataset)
+            )
+            else sampler,
             num_workers=cfg.get("num_workers", 2),
             pin_memory=cfg.get("pin_memory", False),
             drop_last=cfg.get("drop_last", False),
@@ -995,10 +1039,21 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
 
         return inputs, best_translations
 
-    def prepare_inference_batch(self, text, prepend_ids=[], target=False):
+    @classmethod
+    def prepare_inference_batch(
+        cls,
+        text,
+        prepend_ids=[],
+        target=False,
+        source_processor=None,
+        target_processor=None,
+        encoder_tokenizer=None,
+        decoder_tokenizer=None,
+        device=None,
+    ):
         inputs = []
-        processor = self.source_processor if not target else self.target_processor
-        tokenizer = self.encoder_tokenizer if not target else self.decoder_tokenizer
+        processor = source_processor if not target else target_processor
+        tokenizer = encoder_tokenizer if not target else decoder_tokenizer
         for txt in text:
             if processor is not None:
                 txt = processor.normalize(txt)
@@ -1011,8 +1066,8 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         for i, txt in enumerate(inputs):
             src_ids_[i][: len(txt)] = txt
 
-        src_mask = torch.FloatTensor((src_ids_ != tokenizer.pad_id)).to(self.device)
-        src = torch.LongTensor(src_ids_).to(self.device)
+        src_mask = torch.FloatTensor((src_ids_ != tokenizer.pad_id)).to(device)
+        src = torch.LongTensor(src_ids_).to(device)
 
         return src, src_mask
 
@@ -1066,7 +1121,16 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
 
         try:
             self.eval()
-            src, src_mask = self.prepare_inference_batch(text, prepend_ids)
+            src, src_mask = MTEncDecModel.prepare_inference_batch(
+                text=text,
+                prepend_ids=prepend_ids,
+                target=False,
+                source_processor=self.source_processor,
+                target_processor=self.target_processor,
+                encoder_tokenizer=self.encoder_tokenizer,
+                decoder_tokenizer=self.decoder_tokenizer,
+                device=self.device,
+            )
             if return_beam_scores:
                 _, all_translations, scores, best_translations = self.batch_translate(
                     src, src_mask, return_beam_scores=True, cache=cache,
@@ -1081,7 +1145,16 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         if log_timing:
             timing = timer.export()
             timing["mean_src_length"] = src_mask.sum().cpu().item() / src_mask.shape[0]
-            tgt, tgt_mask = self.prepare_inference_batch(best_translations, prepend_ids, target=True)
+            tgt, tgt_mask = self.prepare_inference_batch(
+                text=best_translations,
+                prepend_ids=prepend_ids,
+                target=True,
+                source_processor=self.source_processor,
+                target_processor=self.target_processor,
+                encoder_tokenizer=self.encoder_tokenizer,
+                decoder_tokenizer=self.decoder_tokenizer,
+                device=self.device,
+            )
             timing["mean_tgt_length"] = tgt_mask.sum().cpu().item() / tgt_mask.shape[0]
 
             if type(return_val) is tuple:
@@ -1123,17 +1196,9 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             translations = [normalizer.normalize(example) for example in translations]
         return translations
 
-    def export(self, output: str, input_example=None, **kwargs):
-        encoder_exp, encoder_descr = self.encoder.export(
-            augment_filename(output, 'Encoder'), input_example=input_example, **kwargs,
-        )
-        decoder_exp, decoder_descr = self.decoder.export(
-            augment_filename(output, 'Decoder'),
-            # TODO: propagate from export()
-            input_example=None,
-            **kwargs,
-        )
-        return encoder_exp + decoder_exp, encoder_descr + decoder_descr
+    # EncDecRNNTModel is exported in 2 parts
+    def list_export_subnets(self):
+        return ['encoder', 'decoder']
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:

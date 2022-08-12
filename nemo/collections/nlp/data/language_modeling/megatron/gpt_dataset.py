@@ -26,7 +26,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils imp
 )
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import make_dataset as make_indexed_dataset
-from nemo.collections.nlp.data.language_modeling.megatron.megatron_dataset import MegatronDataset
+from nemo.core import Dataset
 from nemo.utils import logging
 
 try:
@@ -97,16 +97,18 @@ def build_train_valid_test_datasets(
         if test_ds:
             test_datasets.append(test_ds)
 
+    train_n, valid_n, test_n = map(sum, zip(*datasets_train_valid_test_num_samples))
+
     # Blend.
     blending_train_dataset = None
     if train_datasets:
-        blending_train_dataset = BlendableDataset(train_datasets, weights)
+        blending_train_dataset = BlendableDataset(train_datasets, weights, train_n)
     blending_valid_dataset = None
     if valid_datasets:
-        blending_valid_dataset = BlendableDataset(valid_datasets, weights)
+        blending_valid_dataset = BlendableDataset(valid_datasets, weights, valid_n)
     blending_test_dataset = None
     if test_datasets:
-        blending_test_dataset = BlendableDataset(test_datasets, weights)
+        blending_test_dataset = BlendableDataset(test_datasets, weights, test_n)
 
     return (blending_train_dataset, blending_valid_dataset, blending_test_dataset)
 
@@ -182,7 +184,7 @@ def get_indexed_dataset_(data_prefix, data_impl, skip_warmup):
     return indexed_dataset
 
 
-class GPTDataset(MegatronDataset):
+class GPTDataset(Dataset):
     def __init__(
         self, cfg, trainer, tokenizer, name, data_prefix, documents, indexed_dataset, num_samples, seq_length, seed,
     ):
@@ -191,7 +193,7 @@ class GPTDataset(MegatronDataset):
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
 
-        super().__init__(cfg, trainer=trainer)
+        super().__init__()
         self.name = name
         self.indexed_dataset = indexed_dataset
 

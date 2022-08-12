@@ -36,6 +36,11 @@ from itertools import accumulate
 import numpy as np
 import torch
 
+from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_dataset import (
+    MMapRetrievalIndexedDataset,
+    MMapRetrievalIndexedDatasetBuilder,
+)
+from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import CSVMemMapDataset, TextMemMapDataset
 from nemo.utils import logging
 
 
@@ -47,7 +52,7 @@ def __best_fitting_dtype(vocab_size=None):
 
 
 def get_available_dataset_impl():
-    return ['lazy', 'cached', 'mmap']
+    return ['lazy', 'cached', 'mmap', "retmmap"]
 
 
 def infer_dataset_impl(path):
@@ -58,6 +63,8 @@ def infer_dataset_impl(path):
                 return 'cached'
             elif magic == MMapIndexedDataset.Index._HDR_MAGIC[:8]:
                 return 'mmap'
+            elif magic == MMapRetrievalIndexedDataset.Index._HDR_MAGIC[:8]:
+                return 'retmmap'
             else:
                 return None
     else:
@@ -66,14 +73,29 @@ def infer_dataset_impl(path):
         return None
 
 
-def make_builder(out_file, impl, vocab_size=None):
+def make_builder(out_file, impl, vocab_size=None, chunk_size=64, pad_id=0, retrieval_db=False):
     if impl == 'mmap':
         return MMapIndexedDatasetBuilder(out_file, dtype=__best_fitting_dtype(vocab_size))
+    elif impl == 'retmmap':
+        return MMapRetrievalIndexedDatasetBuilder(
+            out_file,
+            chunk_size=chunk_size,
+            pad_id=pad_id,
+            retrieval_db=retrieval_db,
+            dtype=__best_fitting_dtype(vocab_size),
+        )
     else:
         return IndexedDatasetBuilder(out_file)
 
 
-def make_dataset(path, impl, skip_warmup=False):
+def make_dataset(path, impl, skip_warmup=False, impl_kwargs={}):
+    # first handle text memap
+    if impl == 'text_mmap':
+        return TextMemMapDataset(path, **impl_kwargs)
+    elif impl == 'csv_mmap':
+        return CSVMemMapDataset(path, **impl_kwargs)
+
+    # now handle bin memap
     if not IndexedDataset.exists(path):
         print(f"Dataset does not exist: {path}")
         print("Path should be a basename that both .idx and .bin can be appended to get full filenames.")
@@ -86,13 +108,16 @@ def make_dataset(path, impl, skip_warmup=False):
         return IndexedCachedDataset(path)
     elif impl == 'mmap' and MMapIndexedDataset.exists(path):
         return MMapIndexedDataset(path, skip_warmup)
-    print(f"Unknown dataset implementation: {impl}")
-    return None
+    elif impl == 'retmmap':
+        return MMapRetrievalIndexedDataset(path, skip_warmup)
+    raise ValueError(f"Unknown dataset implementation: {impl}")
 
 
 def dataset_exists(path, impl):
     if impl == 'mmap':
         return MMapIndexedDataset.exists(path)
+    elif impl == 'retmmap':
+        return MMapRetrievalIndexedDataset.exists(path)
     else:
         return IndexedDataset.exists(path)
 

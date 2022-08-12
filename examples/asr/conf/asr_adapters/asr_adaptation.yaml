@@ -57,13 +57,27 @@ model:
   pretrained_model: null  # name of a pretrained model
   nemo_model: null  # path to a ASR model file (.nemo)
 
+  log_prediction: false # enables logging sample predictions in the output during training
+
   adapter:
+    # Config of the adapter training/eval script.
     adapter_name: ???  # Name of the adapter, used by the script
+    adapter_module_name: null  # Name of the adapter module. Combine multiple modules with '+' between module names.
+    adapter_state_dict_name: "adapters.pt"  # If the individual adapters must be saved, a file name can be provided here. null disables this.
+
+    # Config of the adapter module itself
     _target_: nemo.collections.common.parts.adapter_modules.LinearAdapter
     in_features: ???  # User must provide the output dimension of the layers of the model, which is the input dimension of this adapter.
     dim: 32  # The hidden dimension of the adapter, as chosen by user, but small values are preferred to reduce param count.
     activation: swish
-    norm_position: 'post'  # Can be `pre` or `post`
+    norm_position: 'pre'  # Can be `pre` or `post`
+    dropout: 0.0  # float, dropout for the adapter
+
+    # Adapter strategy config
+    adapter_strategy:
+      _target_: nemo.core.classes.mixins.adapter_mixin_strategies.ResidualAddAdapterStrategy
+      stochastic_depth: 0.0  # float, setting to > 0 will enable stochastic depth for each adapter block.
+      l2_lambda: 0.0  # float, setting to > 0 will enable l2 norm auxiliary loss for each adapter's output.
 
     # Optional global config available to all adapters at a global level.
     # A global config is shared across every layer of the adapters, defining global properties rather
@@ -71,7 +85,17 @@ model:
     # This can be useful in order to select *which type of adapter* is added, *what adapters to enable*,
     # and further global operations that can decide dynamically how to support the requested adapter.
     global_cfg:
-      encoder_adapter: True  # ASR adapter key, determines whether to add encoder adapter modules
+      check_encoder_adapter: True  # ASR adapter key, determines whether to check if encoder adapter modules is supported
+      check_decoder_adapter: True  # ASR adapter key, determines whether to check if decoder adapter modules is supported
+      check_joint_adapter: True  # ASR adapter key, determines whether to check if joint adapter modules is supported
+
+  # Overrides the model's internal spec augment configuration
+  spec_augment:
+    _target_: nemo.collections.asr.modules.SpectrogramAugmentation
+    freq_masks: 0
+    time_masks: 0
+    freq_width: 27
+    time_width: 0.05
 
   train_ds:
     # train dataset + dataloader config
@@ -113,19 +137,20 @@ model:
 
   optim:
     # optimizer arguments
-    # name will be merged with model config
-    # betas will be merged with model config
-    lr: 0.01  # LR depends on the scheduler used by the base model. Noam prefers 0.5, Cosine Annealing prefers 0.02
+    name: adamw
+    betas: [0.9, 0.98]
+    lr: 0.001  # LR depends on the scheduler used by the base model. Noam prefers 0.5, Cosine Annealing prefers 0.02
     weight_decay: 0  # During adaptation, since training run is short, WD is not required. Can be set if needed.
 
     # scheduler setup
     sched:
-      # name will be merged with model config
-      # d_model will be merged with model config
+      name: CosineAnnealing
+
       # scheduler config override
-      # min_lr will be merged with model config
-      warmup_steps: 1000  # Warmup steps should be set, and smaller than the trainer.max_steps set below.
-      warmup_ratio: null
+      warmup_steps: null  # Warmup steps should be set, and smaller than the trainer.max_steps set below.
+      warmup_ratio: 0.1   # Warmup steps will be 10% of the training steps.
+      min_lr: 1e-5
+      last_epoch: -1
 
 trainer:
   devices: -1 # number of GPUs, -1 would use all available GPUs
@@ -139,13 +164,14 @@ trainer:
   gradient_clip_val: null
   precision: 32 # Should be set to 16 for O1 and O2 to enable the AMP.
   log_every_n_steps: 10  # Interval of logging.
-  progress_bar_refresh_rate: 10
+  enable_progress_bar: True
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
   num_sanity_val_steps: 0 # number of steps to perform validation steps for sanity check the validation process before starting the training, setting to 0 disables it
   check_val_every_n_epoch: 1 # number of evaluations on validation every n epochs
   sync_batchnorm: true
   enable_checkpointing: False  # Provided by exp_manager
   logger: false  # Provided by exp_manager
+  benchmark: false # needs to be false for models with variable-length speech input as it slows down training
 
 
 exp_manager:
@@ -165,6 +191,9 @@ exp_manager:
     name: null
     project: null
     entity: null
+    save_dir: null
+    offline: false # If true, wandb logging will be done offline and would require manual syncing.
+    tags: null # List of tags to assign to the run
 
   resume_if_exists: false
   resume_ignore_no_checkpoint: false

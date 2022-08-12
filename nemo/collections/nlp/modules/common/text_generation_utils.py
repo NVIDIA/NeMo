@@ -649,7 +649,7 @@ def sample_sequence_batch(
             # Only prompt learning models will have a prompt table, and require task ids
             if isinstance(model, MegatronGPTPromptLearningModel):
                 batch = [tokens2use, attention_mask_repeat, positions2use, task_ids, setkey_value_array, len_array]
-                tensor_shape = [tokens2use.shape[1], micro_batch_size, model.model.cfg.hidden_size]
+                tensor_shape = [tokens2use.shape[1], micro_batch_size, model.frozen_model.cfg.hidden_size]
             else:
                 batch = [tokens2use, attention_mask_repeat, positions2use, setkey_value_array, len_array]
                 tensor_shape = [tokens2use.shape[1], micro_batch_size, model.cfg.hidden_size]
@@ -703,22 +703,22 @@ def sample_sequence_batch(
                 tokens[:, context_length] = new_tokens
 
                 if output_logits is None:
-                    output_context = F.log_softmax(output[:, :context_length, :], 2)
+                    output = F.log_softmax(output[:, :context_length, :], 2)
                     indices = torch.unsqueeze(tokens[:, 1 : context_length + 1], 2)
-                    output_logits = torch.gather(output_context, 2, indices).squeeze(2)
+                    output_logits = torch.gather(output, 2, indices).squeeze(2)
                     all_generated_indices = indices[:, :, 0]
                     if all_probs:
-                        full_logits = output_context
+                        full_logits = output
                 else:
-                    output_context = F.log_softmax(output, 2)
+                    output = F.log_softmax(output, 2)
                     indices = torch.unsqueeze(new_tokens, 1).unsqueeze(2)
-                    new_output_logits = torch.gather(output_context, 2, indices).squeeze(2)
+                    new_output_logits = torch.gather(output, 2, indices).squeeze(2)
 
                     # TODO(rprenger) we're copying output_logits every time.  Should pre-allocate
                     output_logits = torch.cat([output_logits, new_output_logits], 1)
                     all_generated_indices = torch.cat([all_generated_indices, indices[:, :, 0]], 1)
                     if all_probs:
-                        full_logits = torch.cat([full_logits, output_context], 1)
+                        full_logits = torch.cat([full_logits, output], 1)
 
                 src = parallel_state.get_pipeline_model_parallel_last_rank()
                 group = parallel_state.get_embedding_group()

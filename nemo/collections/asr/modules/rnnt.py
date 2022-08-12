@@ -29,12 +29,14 @@
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
+from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.modules import rnnt_abstract
-from nemo.collections.asr.parts.utils import rnnt_utils
+from nemo.collections.asr.parts.utils import adapter_utils, rnnt_utils
 from nemo.collections.common.parts import rnn
-from nemo.core.classes import typecheck
+from nemo.core.classes import adapter_mixins, typecheck
 from nemo.core.classes.exportable import Exportable
+from nemo.core.classes.mixins import AdapterModuleMixin
 from nemo.core.neural_types import (
     AcousticEncodedRepresentation,
     ElementType,
@@ -48,7 +50,7 @@ from nemo.core.neural_types import (
 from nemo.utils import logging
 
 
-class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
+class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMixin):
     """A Recurrent Neural Network Transducer Decoder / Prediction Network (RNN-T Prediction Network).
     An RNN-T Decoder/Prediction network, comprised of a stateful LSTM model.
 
@@ -280,6 +282,11 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         g = g.transpose(0, 1)  # (B, U + 1, H)
 
         del y, start, state
+
+        # Adapter module forward step
+        if self.is_adapter_available():
+            g = self.forward_enabled_adapters(g)
+
         return g, hid
 
     def _predict_modules(
@@ -609,8 +616,19 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
         return old_states
 
+    # Adapter method overrides
+    def add_adapter(self, name: str, cfg: DictConfig):
+        # Update the config with correct input dim
+        cfg = self._update_adapter_cfg_input_dim(cfg)
+        # Add the adapter
+        super().add_adapter(name=name, cfg=cfg)
 
-class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
+    def _update_adapter_cfg_input_dim(self, cfg: DictConfig):
+        cfg = adapter_utils.update_adapter_cfg_input_dim(self, cfg, module_dim=self.pred_hidden)
+        return cfg
+
+
+class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin):
     """A Recurrent Neural Network Transducer Joint Network (RNN-T Joint Network).
     An RNN-T Joint network, comprised of a feedforward model.
 
@@ -740,10 +758,6 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
         self._num_classes = num_classes + 1  # add 1 for blank symbol
 
         if experimental_fuse_loss_wer is not None:
-            # TODO: Deprecate in 1.6
-            logging.warning(
-                "`experimental_fuse_loss_wer` will be deprecated in NeMo 1.6. Please use `fuse_loss_wer` instead."
-            )
             # Override fuse_loss_wer from deprecated argument
             fuse_loss_wer = experimental_fuse_loss_wer
 
@@ -831,8 +845,6 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
                 )
 
             losses = []
-            wer_numer_list = []
-            wer_denom_list = []
             batch_size = int(encoder_outputs.size(0))  # actual batch size
 
             # Iterate over batch using fused_batch_size steps
@@ -900,31 +912,14 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
                 else:
                     losses = None
 
-                # Compute WER for sub batch
+                # Update WER for sub batch
                 if compute_wer:
                     sub_enc = sub_enc.transpose(1, 2)  # [B, T, D] -> [B, D, T]
                     sub_enc = sub_enc.detach()
                     sub_transcripts = sub_transcripts.detach()
 
-                    original_log_prediction = self.wer.log_prediction
-                    if original_log_prediction and batch_idx == 0:
-                        self.wer.log_prediction = True
-                    else:
-                        self.wer.log_prediction = False
-
-                    # Compute the wer (with logging for just 1st sub-batch)
+                    # Update WER on each process without syncing
                     self.wer.update(sub_enc, sub_enc_lens, sub_transcripts, sub_transcript_lens)
-                    wer, wer_num, wer_denom = self.wer.compute()
-                    self.wer.reset()
-
-                    wer_numer_list.append(wer_num)
-                    wer_denom_list.append(wer_denom)
-
-                    # Reset logging default
-                    self.wer.log_prediction = original_log_prediction
-
-                else:
-                    wer = None
 
                 del sub_enc, sub_transcripts, sub_enc_lens, sub_transcript_lens
 
@@ -937,12 +932,11 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
 
             # Collect sub batch wer results
             if compute_wer:
-                wer_num = torch.tensor(wer_numer_list, dtype=torch.long)
-                wer_denom = torch.tensor(wer_denom_list, dtype=torch.long)
-
-                wer_num = wer_num.sum()  # global sum of correct words/chars
-                wer_denom = wer_denom.sum()  # global sum of all words/chars
+                # Sync and all_reduce on all processes, compute global WER
+                wer, wer_num, wer_denom = self.wer.compute()
+                self.wer.reset()
             else:
+                wer = None
                 wer_num = None
                 wer_denom = None
 
@@ -989,6 +983,10 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
         inp = f + g  # [B, T, U, H]
 
         del f, g
+
+        # Forward adapter modules on joint hidden
+        if self.is_adapter_available():
+            inp = self.forward_enabled_adapters(inp)
 
         res = self.joint_net(inp)  # [B, T, U, V + 1]
 
@@ -1040,6 +1038,17 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
             + [torch.nn.Linear(joint_n_hidden, num_classes)]
         )
         return pred, enc, torch.nn.Sequential(*layers)
+
+    # Adapter method overrides
+    def add_adapter(self, name: str, cfg: DictConfig):
+        # Update the config with correct input dim
+        cfg = self._update_adapter_cfg_input_dim(cfg)
+        # Add the adapter
+        super().add_adapter(name=name, cfg=cfg)
+
+    def _update_adapter_cfg_input_dim(self, cfg: DictConfig):
+        cfg = adapter_utils.update_adapter_cfg_input_dim(self, cfg, module_dim=self.joint_hidden)
+        return cfg
 
     @property
     def num_classes_with_blank(self):
@@ -1127,3 +1136,41 @@ class RNNTDecoderJoint(torch.nn.Module, Exportable):
         state_h, state_c = decoder_outputs[2][0], decoder_outputs[2][1]
         joint_output = self.joint(encoder_outputs, decoder_output)
         return (joint_output, decoder_length, state_h, state_c)
+
+
+class RNNTDecoderJointSSL(torch.nn.Module):
+    def __init__(self, decoder, joint):
+        super().__init__()
+        self.decoder = decoder
+        self.joint = joint
+
+    @property
+    def needs_labels(self):
+        return True
+
+    @property
+    def input_types(self):
+        return OrderedDict(
+            {
+                "encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
+                "targets": NeuralType(('B', 'T'), LabelsType()),
+                "target_lengths": NeuralType(tuple('B'), LengthsType()),
+            }
+        )
+
+    @property
+    def output_types(self):
+        return OrderedDict({"log_probs": NeuralType(('B', 'T', 'D'), SpectrogramType())})
+
+    def forward(self, encoder_output, targets, target_lengths):
+
+        decoder, target_length, states = self.decoder(targets=targets, target_length=target_lengths)
+        log_probs = self.joint(encoder_outputs=encoder_output, decoder_outputs=decoder)
+
+        return log_probs
+
+
+# Add the adapter compatible modules to the registry
+for cls in [RNNTDecoder, RNNTJoint]:
+    if adapter_mixins.get_registered_adapter(cls) is None:
+        adapter_mixins.register_adapter(cls, cls)  # base class is adapter compatible itself
