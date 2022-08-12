@@ -398,13 +398,13 @@ if __name__ == "__main__":
                 tmp_neighbors = np.ones_like(I) * -1
                 dedup(chunk_id_to_doc_id_map, I, tmp_neighbors, chunk_id_start, start)
                 I = tmp_neighbors[:, : args.K_neighbors]
-                chunk_id_start += len(I)
                 end = time.time()
                 logging.info(f'dedup {slice_id[0]} - {slice_id[1]} takes {end-beg}')
             beg = time.time()
             w.write(I)
             end = time.time()
             logging.info(f'write {slice_id[0]} - {slice_id[1]} takes {end-beg}')
+            chunk_id_start += len(I)
 
     process.join()
     emb_process.join()
