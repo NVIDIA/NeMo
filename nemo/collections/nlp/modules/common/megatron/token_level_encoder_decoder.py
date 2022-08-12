@@ -30,6 +30,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     parallel_lm_logits,
     scaled_init_method_normal,
 )
+from nemo.collections.nlp.modules.common.megatron.vocab_parallel_cross_entropy import vocab_parallel_cross_entropy
 
 try:
     from apex.transformer import tensor_parallel, parallel_state
@@ -96,6 +97,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         precision=16,
         embedding_init_method_std=0.02,
         embedding_dropout=0.1,
+        label_smoothing=0.0,
         add_encoder=True,
         add_decoder=True,
         share_token_embeddings=True,
@@ -112,6 +114,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         self.precision = precision
         self.add_encoder = add_encoder
         self.add_decoder = add_decoder
+        self.label_smoothing = label_smoothing
         self.share_token_embeddings = share_token_embeddings
         self.share_decoder_tokens_head_embeddings = share_decoder_tokens_head_embeddings
 
@@ -384,7 +387,10 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
 
         enc_output_provided = enc_output is not None
 
-        if (enc_input is None) and (enc_input_ids is not None):
+        if enc_input is not None:
+            # If enc_input is provided, we need to transpose it from [B x S x H] -> [S x B x H].
+            enc_input = enc_input.transpose(0, 1)
+        elif (enc_input is None) and (enc_input_ids is not None):
             if self.pre_process and self.add_encoder:
                 # We don't need position ids for RPE, because the embedding layer does not have position embeddings.
                 if self.encoder_cfg.get("position_embedding_type", "learned_absolute") != 'relative':
@@ -404,7 +410,11 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
             # When pipeline parallel > 1 we need to make sure encoder exist (will be missing in decoder)
             if enc_output is None and self.enc_dec_model.encoder is not None:
                 enc_output = self.enc_dec_model.encode(
-                    enc_input=enc_input, enc_attn_mask=enc_attn_mask, enc_layer_past=None, enc_get_key_value=False,
+                    enc_input=enc_input,
+                    enc_attn_mask=enc_attn_mask,
+                    enc_layer_past=None,
+                    enc_get_key_value=False,
+                    enc_self_attention_relative_position_bias=encoder_self_attention_relative_position_bias,
                 )
             else:
                 enc_output = self.enc_dec_model.encoder_hidden_state
@@ -463,12 +473,15 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     # [b, s] -> [s, b]
                     labels = labels.transpose(0, 1).contiguous()
 
+                    # Set label smoothing to 0 if in eval mode.
+                    label_smoothing = self.label_smoothing if self.training else 0.0
+
                     # tensor_parallel.vocab_parallel_cross_entropy performs log_softmax and return log p(x_i|z) per token i
                     if self.fp16_cross_entropy:
                         assert token_logits.dtype == torch.half
-                        tokens_loss = tensor_parallel.vocab_parallel_cross_entropy(token_logits, labels)
+                        tokens_loss = vocab_parallel_cross_entropy(token_logits, labels, label_smoothing)
                     else:
-                        tokens_loss = tensor_parallel.vocab_parallel_cross_entropy(token_logits.float(), labels)
+                        tokens_loss = vocab_parallel_cross_entropy(token_logits.float(), labels, label_smoothing)
 
                     # [s, b] -> [b, s]
                     tokens_loss = tokens_loss.transpose(0, 1).contiguous()
