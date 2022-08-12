@@ -34,6 +34,7 @@ from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.rotary_pos_embedding import apply_rotary_pos_emb
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, attention_mask_func, erf_gelu
+from nemo.collections.nlp.modules.common.megatron.utils import openai_gelu as openai_gelu_func
 from nemo.utils import logging
 
 try:
@@ -125,6 +126,7 @@ class ParallelMLP(MegatronModule):
         persist_layer_norm=False,
         sequence_parallel=False,
         gradient_accumulation_fusion=False,
+        dropout=0.0,
     ):
         super(ParallelMLP, self).__init__()
         self.activation = activation
@@ -134,6 +136,7 @@ class ParallelMLP(MegatronModule):
         self.layernorm_epsilon = layernorm_epsilon
         self.persist_layer_norm = persist_layer_norm
         self.activation = activation
+        self.dropout = dropout
 
         if activation not in ['gelu', 'geglu', 'reglu', 'swiglu']:
             raise ValueError(f"Activation {activation} not supported. Only gelu, geglu, reglu, swiglu are supported.")
@@ -179,14 +182,9 @@ class ParallelMLP(MegatronModule):
                 f"Cannot use bias_activation_fusion with {activation} activation. Please turn bias gelu fusion off."
             )
 
-        if self.glu_activation_family and openai_gelu:
+        if self.glu_activation_family and onnx_safe and self.bias_activation_fusion:
             raise ValueError(
-                f"Cannot use openai_gelu with specificed activation function : {activation} Please turn openai gelu off."
-            )
-
-        if self.glu_activation_family and onnx_safe:
-            raise ValueError(
-                f"Cannot use onnx_safe with specificed activation function : {activation} Please turn onnx safe off."
+                f"Cannot use onnx_safe with specificed activation function and bias_activation_fusion : {activation} Please turn onnx safe off."
             )
 
         if bias_activation_fusion and not bias:
@@ -196,10 +194,11 @@ class ParallelMLP(MegatronModule):
 
         self.bias_activation_fusion = bias_activation_fusion
 
-        if activation in ["gelu", "geglu"]:
+        # Give openai_gelu precedence over other activations if set, for HF compatibility. Normally this is off and shouldn't affect regular model training.
+        if openai_gelu:
+            self.activation_func = openai_gelu_func
+        elif activation in ["gelu", "geglu"]:
             self.activation_func = F.gelu
-        elif openai_gelu:
-            self.activation_func = openai_gelu
         elif onnx_safe:
             self.activation_func = erf_gelu
         elif activation == "reglu":
@@ -264,6 +263,9 @@ class ParallelMLP(MegatronModule):
             else:
                 intermediate_parallel = self.activation_func(intermediate_parallel)
 
+        if self.dropout > 0:
+            intermediate_parallel = F.dropout(intermediate_parallel, p=self.dropout, training=self.training)
+
         # Normformer normalization
         if self.transformer_block_type == 'normformer':
             intermediate_parallel = self.normalization(intermediate_parallel)
@@ -293,6 +295,7 @@ class CoreAttention(MegatronModule):
         masked_softmax_fusion=True,
         attention_dropout=0.1,
         sequence_parallel=False,
+        normalize_attention_scores=True,
     ):
 
         super(CoreAttention, self).__init__()
@@ -309,6 +312,9 @@ class CoreAttention(MegatronModule):
         self.attention_type = attention_type
         self.attn_mask_type = attn_mask_type
         self.sequence_parallel = sequence_parallel
+        # If True, will scale attention scores by 1 / sqrt(hidden_size_per_attention_head).
+        # This arg is been provided mostly to support weight conversion of Huggingface models. (ex: T5v1.1)
+        self.normalize_attention_scores = normalize_attention_scores
 
         if kv_channels is None:
             assert (
@@ -400,7 +406,7 @@ class CoreAttention(MegatronModule):
             query_layer.transpose(0, 1),  # [b * np, sq, hn]
             key_layer.transpose(0, 1).transpose(1, 2),  # [b * np, hn, sk]
             beta=0.0,
-            alpha=(1.0 / self.norm_factor),
+            alpha=(1.0 / self.norm_factor) if self.normalize_attention_scores else 1.0,
         )
 
         # change view to [b, np, sq, sk]
@@ -508,12 +514,14 @@ class ParallelAttention(MegatronModule):
         activations_checkpoint_granularity=None,
         sequence_parallel=False,
         gradient_accumulation_fusion=False,
+        normalize_attention_scores=True,
     ):
         super(ParallelAttention, self).__init__()
 
         self.layer_number = max(1, layer_number)
         self.attention_type = attention_type
         self.attn_mask_type = attn_mask_type
+        self.normalize_attention_scores = normalize_attention_scores
 
         self.megatron_legacy = megatron_legacy
 
@@ -585,6 +593,7 @@ class ParallelAttention(MegatronModule):
             masked_softmax_fusion=masked_softmax_fusion,
             attention_dropout=attention_dropout,
             sequence_parallel=sequence_parallel,
+            normalize_attention_scores=normalize_attention_scores,
         )
         self.checkpoint_core_attention = activations_checkpoint_granularity == 'selective'
 
@@ -769,6 +778,8 @@ class ParallelAttention(MegatronModule):
                 self.num_attention_heads_per_partition,
                 2 * self.hidden_size_per_attention_head,
             )
+            if self.megatron_legacy:
+                mixed_kv_layer = self._transpose_last_dim(mixed_kv_layer, 2, True)
             mixed_kv_layer = mixed_kv_layer.view(*new_tensor_shape)
 
             # [sk, b, np, 2 * hn] --> 2 [sk, b, np, hn]
@@ -882,6 +893,7 @@ class ParallelChunkedCrossAttention(MegatronModule):
         bias=True,
         headscale=False,
         gradient_accumulation_fusion=False,
+        normalize_attention_scores=True,
     ):
         super(ParallelChunkedCrossAttention, self).__init__()
         self.cross_attention = ParallelAttention(
@@ -902,6 +914,7 @@ class ParallelChunkedCrossAttention(MegatronModule):
             bias=bias,
             headscale=headscale,
             gradient_accumulation_fusion=gradient_accumulation_fusion,
+            normalize_attention_scores=normalize_attention_scores,
         )
         self.chunk_size = chunk_size
 
@@ -1056,6 +1069,7 @@ class ParallelTransformerLayer_(MegatronModule):
         onnx_safe=False,
         masked_softmax_fusion=True,
         attention_dropout=0.1,
+        ffn_dropout=0.0,
         activation='gelu',
         megatron_legacy=False,
         bias=True,
@@ -1066,6 +1080,7 @@ class ParallelTransformerLayer_(MegatronModule):
         activations_checkpoint_granularity=None,
         sequence_parallel=False,
         gradient_accumulation_fusion=False,
+        normalize_attention_scores=True,
     ):
         super(ParallelTransformerLayer_, self).__init__()
 
@@ -1131,6 +1146,7 @@ class ParallelTransformerLayer_(MegatronModule):
                 activations_checkpoint_granularity=activations_checkpoint_granularity,
                 sequence_parallel=sequence_parallel,
                 gradient_accumulation_fusion=gradient_accumulation_fusion,
+                normalize_attention_scores=normalize_attention_scores,
             )
 
             if transformer_block_type == 'normformer':
@@ -1187,6 +1203,7 @@ class ParallelTransformerLayer_(MegatronModule):
                 activations_checkpoint_granularity=activations_checkpoint_granularity,
                 sequence_parallel=sequence_parallel,
                 gradient_accumulation_fusion=gradient_accumulation_fusion,
+                normalize_attention_scores=normalize_attention_scores,
             )
             # Normformer normalization
             if transformer_block_type == 'normformer':
@@ -1261,6 +1278,7 @@ class ParallelTransformerLayer_(MegatronModule):
             persist_layer_norm=persist_layer_norm,
             sequence_parallel=sequence_parallel,
             gradient_accumulation_fusion=gradient_accumulation_fusion,
+            dropout=ffn_dropout,
         )
 
     def _get_bias_droput_add_func(self, transformer_block_type='pre_ln', position_after='attention'):
@@ -1357,6 +1375,7 @@ class ParallelTransformerLayer_(MegatronModule):
                 attention_bias = attention_bias.expand_as(residual)
 
             layernorm_input = bias_dropout_add_func(attention_output, attention_bias, residual, self.hidden_dropout)
+            # print(f"Layer: {self.layer_number} Attention checksum {layernorm_input.sum()}")
 
             # Post-LN normalization after residual
             if self.transformer_block_type == 'post_ln':
@@ -1414,6 +1433,7 @@ class ParallelTransformerLayer_(MegatronModule):
             )
 
             layernorm_input = bias_dropout_add_func(attention_output, attention_bias, residual, self.hidden_dropout)
+            # print(f"Layer: {self.layer_number} Cross-Attention checksum {layernorm_input.sum()}")
             normalization_output = self.post_inter_attention_layernorm(layernorm_input)
             # Post-LN normalization after residual
             if self.transformer_block_type == 'post_ln':
@@ -1428,6 +1448,7 @@ class ParallelTransformerLayer_(MegatronModule):
         )
 
         output = bias_dropout_add_func(mlp_output, mlp_bias, residual, self.hidden_dropout)
+        # print(f"Layer: {self.layer_number} MLP + Dropout + Residual checksum {output.sum()}")
 
         if self.transformer_block_type == 'post_ln':
             output = self.post_attention_layernorm(output)
@@ -1519,6 +1540,7 @@ class ParallelTransformer(MegatronModule):
         layernorm_epsilon=1e-5,
         hidden_dropout=0.1,
         attention_dropout=0.1,
+        ffn_dropout=0.0,
         use_cpu_initialization=False,
         bias_activation_fusion=True,
         bias_dropout_fusion=True,
@@ -1538,6 +1560,7 @@ class ParallelTransformer(MegatronModule):
         activations_checkpoint_granularity=None,
         sequence_parallel=False,
         gradient_accumulation_fusion=False,
+        normalize_attention_scores=True,
     ):
         super(ParallelTransformer, self).__init__()
 
@@ -1619,6 +1642,7 @@ class ParallelTransformer(MegatronModule):
                 layernorm_epsilon=layernorm_epsilon,
                 hidden_dropout=hidden_dropout,
                 attention_dropout=attention_dropout,
+                ffn_dropout=ffn_dropout,
                 use_cpu_initialization=use_cpu_initialization,
                 bias_activation_fusion=bias_activation_fusion,
                 bias_dropout_fusion=bias_dropout_fusion,
@@ -1636,6 +1660,7 @@ class ParallelTransformer(MegatronModule):
                 activations_checkpoint_granularity=activations_checkpoint_granularity,
                 sequence_parallel=sequence_parallel,
                 gradient_accumulation_fusion=gradient_accumulation_fusion,
+                normalize_attention_scores=normalize_attention_scores,
             )
 
         if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
@@ -1889,6 +1914,7 @@ class ParallelTransformer(MegatronModule):
                         self_attention_relative_position_bias=self_attention_relative_position_bias,
                         cross_attention_relative_position_bias=cross_attention_relative_position_bias,
                     )
+                    # print(f'Layer {index + 1} checksum : {hidden_states.sum().item()}')
 
         output = hidden_states
         # Final layer norm.

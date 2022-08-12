@@ -171,6 +171,13 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             # After the call below, self.cfg.encoder and self.cfg.decoder will be populated with the cfg.model configs from old checkpoints.
             self._populate_encoder_decoder_configs_for_backward_compatibility(self.cfg)
 
+            # NOTE: For old models there are two scenarios:
+            # 1. If we share decoder embeddings with the output layer, we would always set tokens_head_bias=True
+            # 2. If we do not share decoder embeddings with the output layer, we would always set tokens_head_bias=False
+            self.cfg.tokens_head_bias = (
+                True if self.cfg.share_decoder_tokens_head_embeddings else False
+            )  # For models before separate encoder/decoder configs, tokens_head_bias was always True.
+
         if parallel_state.get_pipeline_model_parallel_world_size() > 1 and self.cfg.encoder.arch == 'perceiver':
             raise ValueError(f"Perceivers with pipeline parallel > 1 is not supported yet.")
 
@@ -203,6 +210,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             add_decoder=add_decoder,
             share_token_embeddings=self.cfg.get('share_token_embeddings', True),
             share_decoder_tokens_head_embeddings=self.cfg.get('share_decoder_tokens_head_embeddings', True),
+            tokens_head_bias=self.cfg.get('tokens_head_bias', True),
         )
         return model
 
@@ -427,7 +435,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         """
         Returns a dict {kwarg name: arg index} to be used when mapping
         kwargs into a list of args.
-        
+
         Computed on first call, and then cached.
         """
         # build mapping of kwargs to arg index at first run
@@ -439,7 +447,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     def _build_forward_args_from_kwargs(self, args_name, args, **kwargs):
         """
         A helper method that converts arguments into positional arguments (by name)
-        
+
         args - a list of arguments to pass to self.enc_dec_model (tensors from batch)
         args_name - a list of argument name (to be matched against allowed kwargs)
         kwargs - a dict {arg name: arg value} (used for non-tensor values)
@@ -846,7 +854,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     def encode(self, tokens_enc, enc_mask, encoder_input=None, reconfigure_microbatch=True):
         """
-        tokens_enc - encoder input tokens 
+        tokens_enc - encoder input tokens
         enc_mask - corresponding mask
         encoder_input - encoder input (bypass tokens), if given tokens_enc can be None.
         """
@@ -996,9 +1004,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             device = tokens_enc.device
             encoder_seq_length = tokens_enc.size(1)
         else:
-            global_batch_per_gpu = enc_output.size(1)
+            global_batch_per_gpu = enc_output.size(0)
             device = enc_output.device
-            encoder_seq_length = enc_output.size(0)
+            encoder_seq_length = enc_output.size(1)
 
         num_micro_batches_before_decode = get_num_microbatches()
         # Reconfigure microbatch calculator here to set num microbatches to 1 while decoding since its not clear how to decode with "grad acc".
@@ -1168,7 +1176,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         """ PTL hook: https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#transfer-batch-to-device
             When using pipeline parallelism, we need the global batch to remain on the CPU,
             since the memory overhead will be too high when using a large number of microbatches.
-            Microbatches are transferred from CPU to GPU inside the pipeline. 
+            Microbatches are transferred from CPU to GPU inside the pipeline.
         """
         return batch
 
