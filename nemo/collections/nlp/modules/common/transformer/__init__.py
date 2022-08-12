@@ -12,16 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.common.parts.transformer import (
-    bridge_encoders,
-    perceiver_encoders,
-    text_generation,
-    transformer,
-    transformer_bottleneck,
-    transformer_decoders,
-    transformer_encoders,
-    transformer_generators,
-)
 from nemo.collections.common.parts.transformer.bridge_encoders import *
 from nemo.collections.common.parts.transformer.perceiver_encoders import *
 from nemo.collections.common.parts.transformer.transformer_bottleneck import *
