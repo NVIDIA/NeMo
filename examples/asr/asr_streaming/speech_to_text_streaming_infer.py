@@ -218,6 +218,12 @@ def main():
         help="The chunk_size to be used for models trained with full context and offline models",
     )
     parser.add_argument(
+        "--shift_size",
+        type=int,
+        default=-1,
+        help="The shift_size to be used for models trained with full context and offline models",
+    )
+    parser.add_argument(
         "--left_chunks",
         type=int,
         default=2,
@@ -279,7 +285,7 @@ def main():
 
     # chunk_size is set automatically for models trained for streaming. For models trained for offline mode with full context, we need to pass the chunk_size explicitly.
     if args.chunk_size > 0:
-        asr_model.encoder.setup_streaming_params(chunk_size=args.chunk_size, left_chunks=args.left_chunks)
+        asr_model.encoder.setup_streaming_params(chunk_size=args.chunk_size, left_chunks=args.left_chunks, shift_size=args.shift_size)
 
     # In streaming, offline normalization is not feasible as we don't have access to the whole audio at the beginning
     # When online_normalization is enabled, the normalization of the input features (mel-spectrograms) are done per step
