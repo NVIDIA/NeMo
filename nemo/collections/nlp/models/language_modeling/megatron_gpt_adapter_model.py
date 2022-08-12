@@ -21,6 +21,7 @@ import torch
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.utils import logging
 from omegaconf.dictconfig import DictConfig
+from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
@@ -54,7 +55,10 @@ class MegatronGPTAdapterLearningModel(MegatronGPTPromptLearningModel):
                 layer.activations_checkpoint_method = None  # (@adithyare) adapter learning does not support activations checkpointing atm.
             if hasattr(layer, 'scale_mask_softmax'):
                 layer.scale_mask_softmax.scaled_masked_softmax_fusion = False
-        
+
+        with open_dict(cfg):
+            cfg.adapter_tuning.adapter_dropout = 0.0 
+
         logging.info(f'Before adding adapters:\n{self.frozen_model.summarize()}')
         self.frozen_model.freeze()
         for _, module in self.frozen_model.named_modules():
