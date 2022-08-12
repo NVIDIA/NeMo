@@ -1176,13 +1176,17 @@ def timeit(method):
         return result
     return timed
 
-def process_audio_file(file):
-    TARGET_SR = 16000
-    data, sr = librosa.load(file, sr=TARGET_SR)
-    os.remove(file)
-    # data, sr = sf.read(file)
-    # print("librosa loaded data: ", data.shape, data)
-    data = librosa.to_mono(data)
+def process_audio_file(file, orig_sr=48000, target_sr=16000, MAX_INT32=2147483647):
+
+    # If input type is "filepath":
+    if type(file) == str:
+        TARGET_SR = 16000
+        data, sr = librosa.load(file, sr=TARGET_SR)
+        os.remove(file)
+    # If input type is "numpy":
+    else:
+        data = (file[1]/MAX_INT32).astype(np.float32)
+        data = librosa.resample(data, orig_sr=orig_sr, target_sr=target_sr)
     return data
 
 def get_wer_feat_logit_single(samples, frame_asr, frame_len, tokens_per_chunk, delay, model_stride_in_secs, frame_mask):
@@ -1335,7 +1339,7 @@ class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
 
         # Text display
         self.word_update_margin = 0.25 
-    
+        self.end_time = 0.0 
     def get_audio_rttm_map(self, uniq_id):
         self.uniq_id = uniq_id
         self.AUDIO_RTTM_MAP = {self.uniq_id: self.AUDIO_RTTM_MAP[uniq_id]}
@@ -1562,23 +1566,7 @@ class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
         Place holder for VAD integration. This function returns vad_mask that is identical for ASR feature matrix for
         the current buffer.
         """
-        # vad_logits, speech_segments, feats_shape = get_vad_feat_logit_single(buffer,
-                                                    # self.frame_vad,
-                                                    # self.chunk_len_in_sec,
-                                                    # self.tokens_per_chunk,
-                                                    # self.mid_delay,
-                                                    # self.model_stride_in_secs,
-                                                    # threshold=0.05,
-                                                # )
         # A Placeholder which should be replaced with streaming VAD instance
-        hyps, tokens_list, feats_shape, log_prob = get_wer_feat_logit_single(buffer,
-                                                    self.frame_asr,
-                                                    self.chunk_len_in_sec,
-                                                    self.tokens_per_chunk,
-                                                    self.mid_delay,
-                                                    self.model_stride_in_secs,
-                                                    frame_mask=None,
-                                                )
         vad_mask = torch.ones(feats_shape)
         vad_timestamps = None
         return vad_mask, vad_timestamps
@@ -1656,11 +1644,13 @@ class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
 
     def callback_sim(self, sample_audio):
         loop_start_time = time.time()
-        assert len(sample_audio) == int(self.sample_rate * self.frame_len)
+        if len(sample_audio) != int(self.sample_rate * self.frame_len):
+            raise ValueError(f"`sample_audio` does not have the expected length.")
         words, timestamps, diar_hyp = self.transcribe(sample_audio)
         if diar_hyp != []:
             total_riva_dict = {}
-            assert len(words) == len(timestamps)
+            if len(words) != len(timestamps):
+                raise ValueError(f"Mismatched ASR results: `words` has length of {len(words)} but `timestamps` has length of {len(timestamps)}")
             self.update_word_and_word_ts(words, timestamps)
             word_dict_seq_list = self.get_word_dict_seq_list(diar_hyp, self.word_seq, self.word_ts_seq, self.word_ts_seq)
             sentences = self.make_json_output(self.diar.uniq_id, diar_hyp, word_dict_seq_list, total_riva_dict, write_files=False)
@@ -1683,30 +1673,27 @@ class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
         audio stream is resumed.
         """
         stt = time.time()
-        # print("Audio path:", Audio)
-        # try:
+        logging.info(f"Streaming launcher took {(stt-self.end_time):.3f}s")
+        audio_read_stt = time.time()
+        print(f"[        ] Audio Queue Length {len(self.audio_queue_buffer)/self.sample_rate:.2f}s")
+        print("Reading tmp audio file....")
         audio_queue = process_audio_file(Audio)
         self.audio_queue_buffer = np.append(self.audio_queue_buffer, audio_queue)
-        # import ipdb; ipdb.set_trace()
-        # self.frame_len = 0.25
-        # self.CHUNK_SIZE = 0.25 * self.sample_rate
+        print(f"Audio loading took {(time.time() - audio_read_stt):.3f} sec")
         try:
             count = 0
+            print("Running Callback functions:")
             while len(self.audio_queue_buffer) > self.CHUNK_SIZE:
                 sample_audio, self.audio_queue_buffer = self.audio_queue_buffer[:self.CHUNK_SIZE], self.audio_queue_buffer[self.CHUNK_SIZE:]
                 self.callback_sim(sample_audio)
                 count += 1
-            # if count > 3:
-            print(f"Count is : {count}, sleeping for 0.5s")
-                # time.sleep(0.25)
-
+            print(f"Continuous count is : {count}, call back ETA: {(time.time() - stt):.3f}")
         except:
-            logging.info("Audio stream is off.")
-            # time.sleep(self.audio_queue_pause)
-            time.sleep(0.5)
+            logging.info(f"Audio buffer did not save enough signal to be processed: audio buffer {len(self.audio_queue_buffer)/self.sample_rate:.2f}s")
         eta = time.time() - stt
-        print(f"Waiting for {self.frame_len - eta}")
-        time.sleep(max(self.frame_len - eta, 0))
+        print(f"=== TOTAL Processing time: {(eta):.3f}s")
+        # time.sleep(max(self.frame_len - eta, 0))
+        self.end_time = time.time()
         return f"Audio Queue Length {len(self.audio_queue_buffer)/self.sample_rate:.2f}s", ""
     
     @torch.no_grad()

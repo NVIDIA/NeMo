@@ -38,7 +38,7 @@ import torch
 from torch.linalg import eigh
 
 
-@torch.jit.script
+# @torch.jit.script
 def cos_similarity(a: torch.Tensor, b: torch.Tensor, eps=torch.tensor(3.5e-4)):
     """
     Args:
@@ -57,7 +57,7 @@ def cos_similarity(a: torch.Tensor, b: torch.Tensor, eps=torch.tensor(3.5e-4)):
     return res
 
 
-@torch.jit.script
+# @torch.jit.script
 def ScalerMinMax(X: torch.Tensor):
     """
     Min-max scale the input affinity matrix X, which will lead to a dynamic range of
@@ -76,7 +76,7 @@ def ScalerMinMax(X: torch.Tensor):
     return v_norm
 
 
-@torch.jit.script
+#@torch.jit.script
 def getEuclideanDistance(specEmbA: torch.Tensor, specEmbB: torch.Tensor, device: torch.device = torch.device('cpu')):
     """
     Args:
@@ -97,7 +97,7 @@ def getEuclideanDistance(specEmbA: torch.Tensor, specEmbB: torch.Tensor, device:
     return dis
 
 
-@torch.jit.script
+#@torch.jit.script
 def kmeans_plusplus_torch(
     X: torch.Tensor,
     n_clusters: int,
@@ -187,7 +187,7 @@ def kmeans_plusplus_torch(
     return centers, indices
 
 
-@torch.jit.script
+#@torch.jit.script
 def kmeans_torch(
     X: torch.Tensor,
     num_clusters: int,
@@ -315,7 +315,7 @@ def isGraphFullyConnected(affinity_mat: torch.Tensor, device: torch.device):
     return getTheLargestComponent(affinity_mat, 0, device).sum() == affinity_mat.shape[0]
 
 
-@torch.jit.script
+#@torch.jit.script
 def getKneighborsConnections(affinity_mat: torch.Tensor, p_value: int):
     """
     Binarize top-p values for each row from the given affinity matrix.
@@ -329,7 +329,7 @@ def getKneighborsConnections(affinity_mat: torch.Tensor, p_value: int):
     return binarized_affinity_mat
 
 
-@torch.jit.script
+#@torch.jit.script
 def getAffinityGraphMat(affinity_mat_raw: torch.Tensor, p_value: int):
     """
     Calculate a binarized graph matrix and
@@ -360,15 +360,19 @@ def getMinimumConnection(mat: torch.Tensor, max_N: torch.Tensor, n_list: torch.T
     return affinity_mat, p_value
 
 
-@torch.jit.script
-def getRepeatedList(mapping_argmat: torch.Tensor, score_mat_size: torch.Tensor):
+# @torch.jit.script
+def getRepeatedList(mapping_argmat: torch.Tensor, score_mat_size: torch.Tensor, device: torch.device):
     """
     Count the numbers in the mapping dictionary and create lists that contain
     repeated indices that will be used for creating a repeated affinity matrix.
     This repeated matrix is then used for fusing multiple affinity values.
     """
-    repeat_list = torch.zeros(score_mat_size, dtype=torch.int32)
-    idxs, counts = torch.unique(mapping_argmat, return_counts=True)
+    repeat_list = torch.zeros(score_mat_size, dtype=torch.int32).to(device)
+    try:
+        idxs, counts = torch.unique(mapping_argmat, return_counts=True)
+    except:
+        import ipdb; ipdb.set_trace()
+    idxs, counts = idxs.to(device), counts.to(device) 
     repeat_list[idxs] = counts.int()
     return repeat_list
 
@@ -434,7 +438,7 @@ def getMultiScaleCosAffinityMatrix(uniq_embs_and_timestamps: dict, device: torch
         mapping_argmat = session_scale_mapping_dict[scale_idx]
         emb_t = uniq_scale_dict[scale_idx]['embeddings'].half().to(device)
         score_mat_torch = getCosAffinityMatrix(emb_t)
-        repeat_list = getRepeatedList(mapping_argmat, torch.tensor(score_mat_torch.shape[0])).to(device)
+        repeat_list = getRepeatedList(mapping_argmat, torch.tensor(score_mat_torch.shape[0]), device=device).to(device)
         repeated_tensor_0 = torch.repeat_interleave(score_mat_torch, repeats=repeat_list, dim=0)
         repeated_tensor_1 = torch.repeat_interleave(repeated_tensor_0, repeats=repeat_list, dim=1)
         repeated_tensor_list.append(repeated_tensor_1)
@@ -512,7 +516,13 @@ def getTempInterpolMultiScaleCosAffinityMatrix(uniq_embs_and_timestamps: dict, d
     for scale_idx in sorted(uniq_scale_dict.keys()):
         mapping_argmat = session_scale_mapping_dict[scale_idx]
         emb_t = uniq_scale_dict[scale_idx]['embeddings'].half().to(device)
-        repeat_list = getRepeatedList(mapping_argmat, torch.tensor(emb_t.shape[0])).to(device)
+        # try:
+            # repeat_list = getRepeatedList(mapping_argmat, torch.tensor(emb_t.shape[0])).to(device)
+        mapping_argmat = mapping_argmat.to(device)
+    
+        repeat_list = getRepeatedList(mapping_argmat, emb_t.shape[0], device=device).to(device)
+        # except:
+            # import ipdb; ipdb.set_trace()
         rep_emb_t = torch.repeat_interleave(emb_t, repeats=repeat_list, dim=0)
         rep_mat_list.append(rep_emb_t)
     stacked_scale_embs = torch.stack(rep_mat_list)
@@ -523,7 +533,7 @@ def getTempInterpolMultiScaleCosAffinityMatrix(uniq_embs_and_timestamps: dict, d
     return fused_sim_d, context_emb, session_scale_mapping_dict
 
 # @torch.jit.script
-def getCosAffinityMatrix(_emb: torch.Tensor):
+def getCosAffinityMatrix(_emb: torch.Tensor, device=None):
     """
     Calculate cosine similarity values among speaker embeddings then min-max normalize
     the affinity matrix.
@@ -534,7 +544,7 @@ def getCosAffinityMatrix(_emb: torch.Tensor):
     return sim_d
 
 
-@torch.jit.script
+#@torch.jit.script
 def getLaplacian(X: torch.Tensor):
     """
     Calculate a laplacian matrix from an affinity matrix X.
@@ -546,7 +556,7 @@ def getLaplacian(X: torch.Tensor):
     return L
 
 
-@torch.jit.script
+#@torch.jit.script
 def eigDecompose(laplacian: torch.Tensor, cuda: bool, device: torch.device = torch.device('cpu')):
     """
     Calculate eigenvalues and eigenvectors from the Laplacian matrix.
@@ -561,7 +571,7 @@ def eigDecompose(laplacian: torch.Tensor, cuda: bool, device: torch.device = tor
     return lambdas, diffusion_map
 
 
-@torch.jit.script
+#@torch.jit.script
 def getLamdaGaplist(lambdas: torch.Tensor):
     """
     Calculate the gaps between lambda values.
@@ -674,7 +684,7 @@ def getEnhancedSpeakerCount(
     return comp_est_num_of_spk
 
 
-@torch.jit.script
+#@torch.jit.script
 def estimateNumofSpeakers(affinity_mat: torch.Tensor, max_num_speaker: int, cuda: bool = False):
     """
     Estimate the number of speakers using eigendecomposition on the Laplacian Matrix.
@@ -707,7 +717,7 @@ def estimateNumofSpeakers(affinity_mat: torch.Tensor, max_num_speaker: int, cuda
     return num_of_spk, lambdas, lambda_gap
 
 
-@torch.jit.script
+# @torch.jit.script
 class SpectralClustering:
     """
     Perform spectral clustering by calculating spectral embeddings then run k-means clustering
@@ -962,10 +972,7 @@ class NMESC:
             est_num_of_spk_list.append(est_num_of_spk)
             # print(f"Scanning p_value: {p_value}, est_num_of_spk: {est_num_of_spk} g_p {g_p}")
             
-        try:
-            index_nn = torch.argmin(torch.tensor(eig_ratio_list))
-        except:
-            import ipdb; ipdb.set_trace()
+        index_nn = torch.argmin(torch.tensor(eig_ratio_list))
         rp_p_value = self.p_value_list[index_nn]
         affinity_mat = getAffinityGraphMat(self.mat, rp_p_value)
 
@@ -1049,7 +1056,8 @@ class NMESC:
             self.max_N = torch.floor(torch.tensor(self.mat.shape[0] * self.max_rp_threshold)).type(torch.int)
             if self.sparse_search:
                 N = torch.min(self.max_N, torch.tensor(self.sparse_search_volume).type(torch.int))
-                p_value_list = torch.unique(torch.linspace(start=2, end=self.max_N, steps=N).type(torch.int))
+                p_value_list = torch.unique(torch.linspace(start=2, end=self.max_N, steps=N).to(self.device).type(torch.int))
+
             else:
                 p_value_list = torch.arange(2, self.max_N)
 

@@ -3,7 +3,7 @@
 
 import time
 import numpy as np
-import pyaudio as pa
+# import pyaudio as pa
 import argparse
 import os
 import nemo
@@ -317,7 +317,6 @@ def main(cfg):
     diar._init_segment_variables()
     diar.device = asr_diar.device
     write_txt(f"{diar._out_dir}/print_script.sh", "")
-    # import ipdb; ipdb.set_trace()
     
     if cfg.diarizer.asr.parameters.streaming_simulation:
         samplerate, sdata = wavfile.read(diar.single_audio_file_path)
@@ -333,7 +332,7 @@ def main(cfg):
         iface = gr.Interface(
             fn=asr_diar.audio_queue_launcher,
             inputs=[
-                gr.Audio(source="microphone", type="filepath", streaming=True), 
+                gr.Audio(source="microphone", type="numpy", streaming=True), 
                 "state",
             ],
             outputs=[
