@@ -134,7 +134,9 @@ def create_ctm_alignments(input_manifest_filepath, base_alignment_path, ctm_dire
         alignment_file.close()
 
 
-def create_manifest_with_alignments(input_manifest_filepath, ctm_directory, output_manifest_filepath, output_precision=3):
+def create_manifest_with_alignments(
+    input_manifest_filepath, ctm_directory, output_manifest_filepath, output_precision=3
+):
     """
     Create new manifest file with word alignments using CTM files
 
@@ -151,7 +153,7 @@ def create_manifest_with_alignments(input_manifest_filepath, ctm_directory, outp
     while src_i < len(manifest):
         f = manifest[src_i]
         fn = f['audio_filepath'].split('/')[-1]
-        filename = fn.split('.')[0] # assuming that there is only one period in the input filenames
+        filename = fn.split('.')[0]  # assuming that there is only one period in the input filenames
 
         ctm_filepath = os.path.join(ctm_directory, filename + '.ctm')
 
@@ -220,7 +222,9 @@ def main():
     if not use_ctm:
         create_ctm_alignments(input_manifest_filepath, base_alignment_path, ctm_directory, dataset)
 
-    create_manifest_with_alignments(input_manifest_filepath, ctm_directory, output_manifest_filepath, output_precision=output_precision)
+    create_manifest_with_alignments(
+        input_manifest_filepath, ctm_directory, output_manifest_filepath, output_precision=output_precision
+    )
 
 
 if __name__ == "__main__":
@@ -244,9 +248,7 @@ if __name__ == "__main__":
     """
     parser = argparse.ArgumentParser(description="LibriSpeech Alignment Manifest Creator")
     parser.add_argument("--input_manifest_filepath", help="path to input manifest file", type=str, required=True)
-    parser.add_argument(
-        "--base_alignment_path", help="path to alignments (LibriSpeech)", type=str, required=False
-    )
+    parser.add_argument("--base_alignment_path", help="path to alignments (LibriSpeech)", type=str, required=False)
     parser.add_argument("--output_manifest_filepath", help="path to output manifest file", type=str, required=True)
     parser.add_argument(
         "--ctm_directory",

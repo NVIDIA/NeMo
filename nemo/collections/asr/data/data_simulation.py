@@ -63,10 +63,10 @@ def clamp_min_list(target_list: List[float], min_val: float) -> List[float]:
     Returns:
         (list) List containing clamped numbers
     """
-    return  [ max(x, min_val) for x in target_list ]
+    return [max(x, min_val) for x in target_list]
 
 
-def clamp_max_list(target_list: List[float], max_val: float)-> List[float]:
+def clamp_max_list(target_list: List[float], max_val: float) -> List[float]:
     """
     Clamp numbers in the given list with `max_val`.
     Args:
@@ -78,7 +78,7 @@ def clamp_max_list(target_list: List[float], max_val: float)-> List[float]:
     Returns:
         (list) List containing clamped numbers
     """
-    return  [ min(x, max_val) for x in target_list ]
+    return [min(x, max_val) for x in target_list]
 
 
 class MultiSpeakerSimulator(object):
