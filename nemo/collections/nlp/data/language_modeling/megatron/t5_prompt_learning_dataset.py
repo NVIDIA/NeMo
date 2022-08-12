@@ -79,7 +79,6 @@ class T5PromptLearningDataset(BasePromptLearningDataset):
             )
 
             # Format the input example according to the template
-            import ipdb; ipdb.set_trace()
             input_example = self._insert_text_in_template(input_example, prompt_template_fields, doc, answer_field)
             input_example = self._insert_virtual_token_placeholders(input_example, virtual_token_splits)
 
