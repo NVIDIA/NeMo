@@ -29,6 +29,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_base_prompt_learning
     MegatronBasePromptLearningModel,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
+from nemo.collections.nlp.models.language_modeling.megatron_finetune_model import MegatronT5FinetuneModel
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
@@ -83,8 +84,11 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         else:
             input_embeds = self.embed_input_train(input_ids, taskname_ids)
 
-        position_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.position_embeddings(position_ids)
-        encoder_input = input_embeds + position_embeddings
+        if hasattr(self.frozen_model.enc_dec_model.encoder_embedding, 'position_embeddings'):
+            position_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.position_embeddings(position_ids)
+            encoder_input = input_embeds + position_embeddings
+        else:
+            encoder_input = input_embeds
 
         # Call forward on T5 model with preprocessed embeddings
         if self.autocast_dtype == torch.float32:
@@ -123,7 +127,11 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         )
         OmegaConf.set_struct(t5_cfg, True)
         with open_dict(t5_cfg):
-            t5_cfg.masked_softmax_fusion = False
+            if hasattr(t5_cfg, 'encoder') and hasattr(t5_cfg, 'decoder'):
+                t5_cfg.encoder.masked_softmax_fusion = False
+                t5_cfg.decoder.masked_softmax_fusion = False
+            else:
+                t5_cfg.masked_softmax_fusion = False
             t5_cfg.megatron_amp_O2 = self.megatron_amp_o2
             # hack to make the _GLOBAL_NUM_MICROBATCHES_CALCULATOR initialize
             t5_cfg.micro_batch_size = cfg.get('micro_batch_size', 4)
@@ -139,6 +147,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
         # Freeze all T5 model weights for prompt-tuning/p-tuning
         self.frozen_model.freeze()
+        self.frozen_model.training = False
 
     def fwd_bwd_step(self, batch, batch_idx, forward_only):
         """
@@ -237,8 +246,11 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
         input_embeds = self.embed_input_train(enc_input, taskname_ids)
 
-        position_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.position_embeddings(position_ids)
-        encoder_input = input_embeds + position_embeddings
+        if hasattr(self.frozen_model.enc_dec_model.encoder_embedding, 'position_embeddings'):
+            position_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.position_embeddings(position_ids)
+            encoder_input = input_embeds + position_embeddings
+        else:
+            encoder_input = input_embeds
 
         loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=True)
 
@@ -249,34 +261,18 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             encoder_input=encoder_input,
         )
 
-        processed_inputs, processed_preds, processed_labels = [], [], []
-        preds = predicted_token_ids.cpu().numpy().tolist()
-        labels = labels.cpu().numpy().tolist()
-        enc_inputs = enc_input.cpu().numpy().tolist()
-
-        for i, (enc_input, pred, label) in enumerate(zip(enc_inputs, preds, labels)):
-            if self.tokenizer.eos_id in pred:
-                idx = pred.index(self.tokenizer.eos_id)
-                pred = pred[:idx]
-
-            pred = [id for id in pred if id not in self.tokenizer.tokenizer.additional_special_tokens_ids]
-            label = [id for id in label if id not in self.tokenizer.tokenizer.additional_special_tokens_ids]
-            enc_input = [id for id in enc_input if id not in self.tokenizer.tokenizer.additional_special_tokens_ids]
-
-            pred = self.tokenizer.ids_to_text(pred)
-            label = self.tokenizer.ids_to_text(label)
-            enc_input = self.tokenizer.ids_to_text(enc_input)
-
-            processed_preds.append(pred)
-            processed_labels.append(label)
-            processed_inputs.append(enc_input)
+        # Special ids to text function to handle stripping <eos> and special tokens with sentencepiece tokenizers.
+        preds_text = MegatronT5FinetuneModel.ids_to_text(predicted_token_ids, self.tokenizer)
+        labels_text = MegatronT5FinetuneModel.ids_to_text(labels, self.tokenizer)
+        input_text = MegatronT5FinetuneModel.ids_to_text(enc_input, self.tokenizer)
 
         self.train(mode=mode)
+        self.frozen_model.training = False
         return {
             'loss': loss_mean,
-            'predicted_token_ids': processed_preds,
-            'labels': processed_labels,
-            'enc_inputs': processed_inputs,
+            'predicted_token_ids': preds_text,
+            'labels': labels_text,
+            'enc_inputs': input_text,
         }
 
     def inference_epoch_end(self, outputs):
@@ -374,8 +370,11 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
         input_embeds = self.embed_input_inference(enc_input, taskname_ids)
 
-        position_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.position_embeddings(position_ids)
-        encoder_input = input_embeds + position_embeddings
+        if hasattr(self.frozen_model.enc_dec_model.encoder_embedding, 'position_embeddings'):
+            position_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.position_embeddings(position_ids)
+            encoder_input = input_embeds + position_embeddings
+        else:
+            encoder_input = input_embeds
 
         predicted_token_ids, log_probs = self.frozen_model.decode(
             tokens_enc=enc_input,
