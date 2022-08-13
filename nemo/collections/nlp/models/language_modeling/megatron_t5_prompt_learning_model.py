@@ -90,6 +90,10 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         else:
             encoder_input = input_embeds
 
+        # If the decoder input starts with <pad> instead of <bos>, which is the case for huggingface T5 models, we don't want to mask the first token.
+        # For NeMo-Megatron, the sequence starts with <bos>, which is never masked so we can always set index 0 to be unmasked.
+        dec_mask[:, 0] = 1
+
         # Call forward on T5 model with preprocessed embeddings
         if self.autocast_dtype == torch.float32:
             output = self.frozen_model.enc_dec_model(
@@ -267,7 +271,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         input_text = MegatronT5FinetuneModel.ids_to_text(enc_input, self.tokenizer)
 
         self.train(mode=mode)
-        self.frozen_model.training = False
+        self.frozen_model.eval()
         return {
             'loss': loss_mean,
             'predicted_token_ids': preds_text,
@@ -343,6 +347,8 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             min_seq_length=self.cfg.data.get('min_seq_length', 1),
             add_bos=self.cfg.data.get('add_bos', False),
             add_eos=self.cfg.data.get('add_eos', True),
+            decoder_starts_with_pad=self.cfg.data.get('decoder_starts_with_pad', False),
+            add_eos_to_decoder_output=self.cfg.data.get('add_eos_to_decoder_output', False),
             for_train=for_train,
         )
 

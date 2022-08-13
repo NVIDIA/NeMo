@@ -35,8 +35,39 @@ class T5PromptLearningDataset(BasePromptLearningDataset):
     The dataset class for prompt-tuning or p-tuning pretrained T5 models.
     """
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(
+        self,
+        datasets,
+        tokenizer,
+        virtual_prompt_source: VirtualPromptSource,
+        task_templates: dict,
+        pseudo_tokens,
+        pad_token_id: str,
+        max_seq_length: int,
+        min_seq_length: int = 1,
+        add_bos: bool = False,
+        add_eos: bool = True,
+        for_train: bool = True,
+        decoder_starts_with_pad: bool = False,
+        add_eos_to_decoder_output: bool = False,
+    ):
+        # These two variables need to be set before calling super().__init__() because the parent class calls `load_data()` which requires these attributes.
+        self.decoder_starts_with_pad = decoder_starts_with_pad
+        self.add_eos_to_decoder_output = add_eos_to_decoder_output
+        super().__init__(
+            datasets=datasets,
+            tokenizer=tokenizer,
+            virtual_prompt_source=virtual_prompt_source,
+            task_templates=task_templates,
+            pseudo_tokens=pseudo_tokens,
+            pad_token_id=pad_token_id,
+            max_seq_length=max_seq_length,
+            min_seq_length=min_seq_length,
+            add_bos=add_bos,
+            add_eos=add_eos,
+            for_train=for_train,
+        )
+
 
     def load_data(self, dataset):
         """
@@ -99,13 +130,15 @@ class T5PromptLearningDataset(BasePromptLearningDataset):
             if answer_field in doc.keys():  # training and validation
                 answer_text = doc[answer_field]
 
+                if self.decoder_starts_with_pad:
+                    answer_text_ids = [self.tokenizer.pad_id]
+                else:
+                    answer_text_ids = [self.tokenizer.bos_id]
                 # a trick to align with the data format in t5 pretraining
-                answer_text_ids = (
-                    [self.tokenizer.bos_id]
-                    + self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
-                    + self.tokenizer.text_to_ids(answer_text)
-                    + [self.tokenizer.eos_id]
-                )
+                answer_text_ids += self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
+                answer_text_ids += self.tokenizer.text_to_ids(answer_text)
+                if self.add_eos_to_decoder_output:
+                    answer_text_ids += [self.tokenizer.eos_id]
 
             # Skip example if the final length doesn't fit length requirements even after truncation
             if self.min_seq_length <= len(input_ids) <= self.max_seq_length:

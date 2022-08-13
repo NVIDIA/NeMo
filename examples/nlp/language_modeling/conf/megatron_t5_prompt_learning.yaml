@@ -71,7 +71,10 @@ model:
   data:
     train_ds: ["/raid/Data/prompt-learning-data/squad1.1/squad_train_3k.jsonl"]
     validation_ds: ["/raid/Data/prompt-learning-data/squad1.1/squad_val.jsonl"]
-    add_eos: True
+    add_eos: False
+    add_bos: False
+    decoder_starts_with_pad: True
+    add_eos_to_decoder_output: False
     shuffle: True
     num_workers: 8
     pin_memory: True
