@@ -110,7 +110,8 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
 
         # bos, eos, pad and unk may be present in the provided spm .model file, if they are, use it.
         if not hasattr(tokenizer, 'pad_token'):
-            if hasattr(tokenizer.tokenizer, 'pad_id') and tokenizer.tokenizer.pad_id() > 0:
+            # TODO: Figure out how to do backward compat with pad_id > 0 and >= 0.
+            if hasattr(tokenizer.tokenizer, 'pad_id') and tokenizer.tokenizer.pad_id() >= 0:
                 tokenizer.pad_token = tokenizer.tokenizer.id_to_piece(tokenizer.tokenizer.pad_id())
             else:
                 tokenizer.add_special_tokens({'pad_token': '<pad>'})
@@ -154,7 +155,7 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
 
         if tokenizer_cfg.library == 'sentencepiece':
             # NOTE: This is an ugly way to support both NeMo-Megatron trained checkpoints and huggingface checkpoints.
-            # Huggingface and Google checkpoints will add sentinel tokens first (right after the base vocabulary), but in NeMo-Megatron, we add <cls>, <sep>, <mask>, <pad>, <bos> etc. beofore sentinel tokens <extra_id_0>.
+            # Huggingface and Google checkpoints will add sentinel tokens first (right after the base vocabulary), but in NeMo-Megatron, we add <cls>, <sep>, <mask>, <pad>, <bos> etc. beofore sentinel tokens <extra_id_xx>.
             if add_sentinel_tokens_first:
                 cls._add_sentinel_tokens(tokenizer, tokenizer_cfg.num_sentinel_tokens, add_sentinel_tokens_in_reverse_order)
                 cls._add_base_special_tokens(tokenizer)
