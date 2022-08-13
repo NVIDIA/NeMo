@@ -91,6 +91,8 @@ tokenizer:
   merge_file: null
   num_sentinel_tokens: 100
   sentencepiece_legacy: true
+  add_sentinel_tokens_in_reverse_order: true
+  add_sentinel_tokens_first: true
 embedding_init_method_std: 0.02
 embedding_dropout: 0.1
 share_token_embeddings: true
@@ -135,6 +137,7 @@ optim:
     min_lr: 1.0e-05
     last_epoch: -1
     warmup_ratio: 0.01
-precision: 16
+precision: bf16
 target: nemo.collections.nlp.models.language_modeling.megatron_t5_model.MegatronT5Model
 nemo_version: 1.11.0rc0
+library: huggingface
