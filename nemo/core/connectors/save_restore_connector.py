@@ -183,12 +183,6 @@ class SaveRestoreConnector:
                 new_key = key.replace('model.', 'model.module.', 1)
                 new_state_dict[new_key] = state_dict[key]
             state_dict = new_state_dict
-            
-        all_state_dict_keys = list(state_dict.keys())
-        for key in all_state_dict_keys:
-            if "slot_mlp" in key or "intent_mlp" in key:
-                del state_dict[key]
-
         return state_dict
 
     def load_instance_with_state_dict(self, instance, state_dict, strict):

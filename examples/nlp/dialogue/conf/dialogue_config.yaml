@@ -103,7 +103,7 @@ model:
     ## All tasks/models
     data_dir: ??? # location to load data from 
     dialogues_example_dir: ??? # store prediction files
-    task: sgd # [sgd, assistant, zero_shot, ms_marco, sgd_generation, design, mellon_qa, bio_type]
+    task: sgd # [sgd, assistant, zero_shot, ms_marco, sgd_generation, design, mellon_qa, zero_shot_slot_filling]
     debug_mode: false # small number of examples for debugging
     max_seq_length: 128 # the maximum number of tokens per sample
     

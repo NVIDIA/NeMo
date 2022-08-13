@@ -14,34 +14,35 @@
 
 import os
 from audioop import bias
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, ValuesView
 
 import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
-from transformers import BertModel, BertTokenizer
+from transformers import BertModel
 
 from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss
 from nemo.collections.common.parts import MultiLayerPerceptron
 from nemo.collections.nlp.data.dialogue.data_processor.assistant_data_processor import DialogueAssistantDataProcessor
-from nemo.collections.nlp.data.dialogue.dataset.dialogue_intent_bio_type_classification_dataset import (
-    DialogueIntentBIOTypeClassificationDataset,
+from nemo.collections.nlp.data.dialogue.dataset.dialogue_zero_shot_slot_filling_dataset import (
+    DialogueZeroShotSlotFillingDataset,
 )
-from nemo.collections.nlp.data.intent_slot_classification import IntentSlotDataDesc, IntentSlotInferenceDataset
+from nemo.collections.nlp.data.intent_slot_classification import IntentSlotDataDesc
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.metrics.dialogue_metrics import DialogueClassificationMetrics
 from nemo.collections.nlp.models.nlp_model import NLPModel
-from nemo.collections.nlp.modules.common import SequenceTokenClassifier
-from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes import typecheck
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 
 
-class IntentBIOTypeClassificationModel(NLPModel):
+class DialogueZeroShotSlotFillingModel(NLPModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        """ Initializes BERT Joint Intent and Slot model.
+        """ 
+        Zero Shot Slot Filling Model
+        based on part of the ReFinED paper
+        https://aclanthology.org/2022.naacl-industry.24.pdf
         """
         self.max_seq_length = cfg.dataset.max_seq_length
         self.cfg = cfg
@@ -56,35 +57,25 @@ class IntentBIOTypeClassificationModel(NLPModel):
         # init superclass
         super().__init__(cfg=cfg, trainer=trainer)
 
-        
-        
-        # Initialize MultiLayerPerceptron for predict slot's class
-        self.slot_mlp = MultiLayerPerceptron(
-            hidden_size=self.hidden_size,
-            num_classes=len(self.cfg.data_desc.slot_labels),
-            num_layers=2,
-            activation='relu',
-            log_softmax=True,
+        # Initialize MultiLayerPerceptron for predict bio's class
+        self.bio_mlp = MultiLayerPerceptron(
+            hidden_size=self.hidden_size, num_classes=3, num_layers=2, activation='relu', log_softmax=True,
         )
 
-        device = self.device
-        
-        self.mention_projection_mlp = torch.nn.Linear(self.hidden_size, 300, bias=False).to(device)
-        
-        self.description_projection_mlp = torch.nn.Linear(self.hidden_size, 300, bias=False).to(device)
+        self.mention_projection_mlp = torch.nn.Linear(self.hidden_size, 300, bias=False).to(self.device)
+        self.description_projection_mlp = torch.nn.Linear(self.hidden_size, 300, bias=False).to(self.device)
 
         # Initialize slot description and description embeddings
         self._get_slot_description(cfg.dataset.data_dir)
 
-        # Initialize Classifier.
-        self._reconfigure_classifier()
-        
+        self._setup_losses_and_classfication_report()
+
     def _get_slot_description(self, data_dir):
         """ Method read slot description file """
         description_file_name = data_dir + "/description.slots.csv"
         with open(description_file_name) as f:
             descriptions = f.read().strip().split('\n')
-        
+
         self.slot_descriptions = descriptions
         self.description_embeddings = self.get_description_embedding(self.slot_descriptions)
 
@@ -96,10 +87,6 @@ class IntentBIOTypeClassificationModel(NLPModel):
         if not hasattr(cfg, "data_desc"):
             OmegaConf.set_struct(cfg, False)
             cfg.data_desc = {}
-            # Intents.
-            cfg.data_desc.intent_labels = " "
-            cfg.data_desc.intent_label_ids = {" ": 0}
-            cfg.data_desc.intent_weights = [1]
             # Slots.
             cfg.data_desc.slot_labels = " "
             cfg.data_desc.slot_label_ids = {" ": 0}
@@ -115,10 +102,6 @@ class IntentBIOTypeClassificationModel(NLPModel):
         OmegaConf.set_struct(cfg, False)
         if not hasattr(cfg, "data_desc") or cfg.data_desc is None:
             cfg.data_desc = {}
-        # Intents.
-        cfg.data_desc.intent_labels = list(data_desc.intents_label_ids.keys())
-        cfg.data_desc.intent_label_ids = data_desc.intents_label_ids
-        cfg.data_desc.intent_weights = data_desc.intent_weights
         # Slots.
         cfg.data_desc.slot_labels = list(data_desc.slots_label_ids.keys())
         cfg.data_desc.slot_label_ids = data_desc.slots_label_ids
@@ -150,59 +133,30 @@ class IntentBIOTypeClassificationModel(NLPModel):
             logging.info(f'Labels: {label_ids}')
             logging.info(f'Labels mapping saved to : {out.name}')
 
-    def _reconfigure_classifier(self):
+    def _setup_losses_and_classfication_report(self):
         """ Method reconfigures the classifier depending on the settings of model cfg.data_desc """
 
-        self.classifier = SequenceTokenClassifier(
-            hidden_size=self.hidden_size,
-            num_intents=len(self.cfg.data_desc.intent_labels),
-            num_slots=3,
-            # num_slots=len(self.cfg.data_desc.slot_labels),
-            dropout=self.cfg.classifier_head.fc_dropout,
-            num_layers=self.cfg.classifier_head.num_output_layers,
-            log_softmax=False,
-        )
-
-        # define losses
-        if self.cfg.class_balancing == 'weighted_loss':
-            # You may need to increase the number of epochs for convergence when using weighted_loss
-            self.intent_loss = CrossEntropyLoss(logits_ndim=2, weight=self.cfg.data_desc.intent_weights)
-            self.slot_loss = CrossEntropyLoss(logits_ndim=3, weight=self.cfg.data_desc.slot_weights)
-        else:
-            self.intent_loss = CrossEntropyLoss(logits_ndim=2)
-            self.slot_loss = CrossEntropyLoss(logits_ndim=3)
-            self.bio_slot_loss = CrossEntropyLoss(logits_ndim=3)
-
-        slot_loss_mention_and_description_weight = 1 - self.cfg.intent_loss_weight - self.cfg.bio_slot_loss_weight - self.cfg.slot_loss_mention_only_weight
-
+        self.bio_slot_loss = CrossEntropyLoss(logits_ndim=3)
+        self.slot_loss = CrossEntropyLoss(logits_ndim=3)
         self.total_loss = AggregatorLoss(
-            num_inputs=4, weights=[self.cfg.intent_loss_weight, self.cfg.bio_slot_loss_weight, self.cfg.slot_loss_mention_only_weight, slot_loss_mention_and_description_weight]
+            num_inputs=2, weights=[self.cfg.bio_slot_loss_weight, 1 - self.cfg.bio_slot_loss_weight]
         )
 
         # setup to track metrics
-        self.intent_classification_report = ClassificationReport(
-            num_classes=len(self.cfg.data_desc.intent_labels),
-            label_ids=self.cfg.data_desc.intent_label_ids,
-            dist_sync_on_step=True,
-            mode='micro',
-        )
-        self.slot_classification_report = ClassificationReport(
-            num_classes=len(self.slot_descriptions),
-            label_ids= {slot_class.split("\t")[0]: idx for idx, slot_class in enumerate(self.slot_descriptions)},
-            dist_sync_on_step=True,
-            mode='micro',
+        self.bio_slot_classification_report = ClassificationReport(
+            num_classes=len([0, 1, 2]), label_ids={0: 0, 1: 1, 2: 2}, dist_sync_on_step=True, mode='micro',
         )
 
         self.slot_similarity_classification_report = ClassificationReport(
             num_classes=len(self.slot_descriptions),
-            label_ids= {slot_class.split("\t")[0]: idx for idx, slot_class in enumerate(self.slot_descriptions)},
+            label_ids={slot_class.split("\t")[0]: idx for idx, slot_class in enumerate(self.slot_descriptions)},
             dist_sync_on_step=True,
             mode='micro',
         )
 
-        self.bio_slot_classification_report = ClassificationReport(
-            num_classes=len([0, 1, 2]),
-            label_ids={0:0, 1:1, 2:2},
+        self.overall_slot_classification_report = ClassificationReport(
+            num_classes=len(self.slot_descriptions),
+            label_ids={slot_class.split("\t")[0]: idx for idx, slot_class in enumerate(self.slot_descriptions)},
             dist_sync_on_step=True,
             mode='micro',
         )
@@ -219,8 +173,7 @@ class IntentBIOTypeClassificationModel(NLPModel):
         self.data_dir = data_dir
         # Update configuration with new data.
         self._set_data_desc_to_cfg(self.cfg, data_dir, train_ds, validation_ds)
-        # Reconfigure the classifier for different settings (number of intents, slots etc.).
-        self._reconfigure_classifier()
+        self._setup_losses_and_classfication_report()
 
     def update_data_dir_for_testing(self, data_dir) -> None:
         """
@@ -231,7 +184,7 @@ class IntentBIOTypeClassificationModel(NLPModel):
         """
         logging.info(f'Setting data_dir to {data_dir}.')
         self.data_dir = data_dir
-    
+
     def get_description_embedding(self, descriptions):
         """
         Generate one description's embedding
@@ -247,29 +200,29 @@ class IntentBIOTypeClassificationModel(NLPModel):
         model = BertModel.from_pretrained("bert-base-uncased")
         description_embeddings = []
         for one_description in descriptions:
-            tokens_of_entity_label = one_description.split('\t')[0] # tokens of the entity label
-            entity_description = one_description.split('\t')[1] # entity description in DB
-
-            inputs = self.tokenizer.tokenizer(tokens_of_entity_label, 
-                            entity_description, 
-                            return_tensors="pt",
-                            max_length=128,
-                            truncation="only_second",
-                            padding="max_length",)
+            tokens_of_entity_label, entity_description = one_description.split('\t')
+            inputs = self.tokenizer.tokenizer(
+                tokens_of_entity_label,
+                entity_description,
+                return_tensors="pt",
+                max_length=128,
+                truncation="only_second",
+                padding="max_length",
+            )
             with torch.no_grad():
-                outputs = model(**inputs) 
+                outputs = model(**inputs)
             last_hidden_states = outputs.last_hidden_state
             description_embeddings.append(last_hidden_states[0, 0, :])
 
         device = self.device
         return torch.stack(description_embeddings).to(device)
-        
+
     @staticmethod
-    def get_entity_embedding_from_hidden_states(mention_mask, hidden_states):
+    def get_entity_embedding_from_hidden_states(bio_slot_labels, hidden_states):
         '''
         Generate mean pooling embedding per entity mention from hidden_states
         Args:
-            mention_mask: tensor of size (batch_size, num_tokens, num_entities), that maps tokens to entity matches using BIO slot class of each word token
+            bio_slot_labels: tensor of size (batch_size, num_tokens, num_entities), that maps tokens to entity matches using BIO slot class of each word token
             hidden_states: tensor of size (batch_size, num_tokens, hidden_state_dim)
 
             eg,
@@ -278,31 +231,32 @@ class IntentBIOTypeClassificationModel(NLPModel):
             0: 'O' other
             1: 'B' Begin
             2: 'I' Inside
-            mention_mask = [[1, 0, 0, 1, 2, 0, 1]]
+            bio_slot_labels = [[1, 0, 0, 1, 2, 0, 1]]
             hidden_states = torch.ones((1,7,3))
             [1, 1, 1], [1, 1, 1], [1, 1, 1], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]
-
-
         '''
         _, max_token_len, hidden_states_dim = hidden_states.size()
-        mention_hidden_states=[]
+        mention_hidden_states = []
 
-        for one_mention_mask, one_hidden_states in zip(mention_mask, hidden_states):
+        for one_bio_slot_labels, one_hidden_states in zip(bio_slot_labels, hidden_states):
             mention_states = []
-            for idx, one_mask_value in enumerate(one_mention_mask):
+            for idx, one_mask_value in enumerate(one_bio_slot_labels):
                 if one_mask_value == 1:
                     mention_states.append([])
-                if one_mask_value in [1, 2]:
+                if mention_states and one_mask_value in [1, 2]:
                     mention_states[-1].append(one_hidden_states[idx])
-            
-            mention_states = [torch.mean(torch.stack(mention_state),0) for mention_state in mention_states]
-            mention_states += [torch.zeros((hidden_states_dim)).to(hidden_states.device) for i in range(max_token_len-len(mention_states))]
+
+            mention_states = [torch.mean(torch.stack(mention_state), 0) for mention_state in mention_states]
+            mention_states += [
+                torch.zeros((hidden_states_dim)).to(hidden_states.device)
+                for i in range(max_token_len - len(mention_states))
+            ]
             mention_hidden_states.append(torch.stack(mention_states))
-        
+
         return torch.stack(mention_hidden_states)
 
     @typecheck()
-    def forward(self, input_ids, attention_mask, token_type_ids, mention_mask):
+    def forward(self, input_ids, attention_mask, token_type_ids, bio_slot_labels):
         """
         No special modification required for Lightning, define it as you normally would
         in the `nn.Module` in vanilla PyTorch.
@@ -314,32 +268,45 @@ class IntentBIOTypeClassificationModel(NLPModel):
                 input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
             )
 
-        intent_logits, bio_slot_logits = self.classifier(hidden_states=hidden_states)        
-        
+        bio_slot_logits = self.bio_mlp(hidden_states)
+
         # mention_hidden_states_pad: batch_size * max_token_len * hiddenstate_dim
-        mention_hidden_states_pad = IntentBIOTypeClassificationModel.get_entity_embedding_from_hidden_states(mention_mask, hidden_states)
-        
+        mention_hidden_states_pad = DialogueZeroShotSlotFillingModel.get_entity_embedding_from_hidden_states(
+            bio_slot_labels, hidden_states
+        )
         dot_product_score = self.get_entity_description_score(mention_hidden_states_pad)
         dot_product_score_log_softmax = torch.log_softmax(dot_product_score, dim=-1)
-        
-        slot_logits = self.slot_mlp(mention_hidden_states_pad)
-      
-        return intent_logits, slot_logits, bio_slot_logits, dot_product_score_log_softmax
 
-    def calculate_loss(self, intent_logits, slot_logits, bio_slot_logits, dot_product_score_log_softmax, loss_mask, intent_labels, bio_slot_labels, bio_mention_labels, mention_loss_mask):
-        # calculate combined loss for intents and slots
-        intent_loss = self.intent_loss(logits=intent_logits, labels=intent_labels)
+        predicted_bio_slot = torch.argmax(bio_slot_logits, axis=-1)
+        predicted_mention_hidden_states_pad = DialogueZeroShotSlotFillingModel.get_entity_embedding_from_hidden_states(
+            predicted_bio_slot, hidden_states
+        )
+        predicted_dot_product_score = self.get_entity_description_score(predicted_mention_hidden_states_pad)
+        predicted_dot_product_score_log_softmax = torch.log_softmax(predicted_dot_product_score, dim=-1)
+
+        return bio_slot_logits, dot_product_score_log_softmax, predicted_dot_product_score_log_softmax
+
+    def calculate_loss(
+        self,
+        bio_slot_logits,
+        dot_product_score_log_softmax,
+        loss_mask,
+        bio_slot_labels,
+        mention_labels,
+        mention_loss_mask,
+    ):
+        # calculate combined loss for bio and slots
         bio_slot_loss = self.bio_slot_loss(logits=bio_slot_logits, labels=bio_slot_labels, loss_mask=loss_mask)
-        
+
         # otherwise cross-entropy function returns error if all sentences in the batch have no entity
         if torch.sum(mention_loss_mask).item() == 0.0:
-            slot_loss_mention_only = 0.0
             slot_loss_mention_and_description = 0.0
         else:
-            slot_loss_mention_only = self.slot_loss(logits=slot_logits, labels=bio_mention_labels, loss_mask=mention_loss_mask)
-            slot_loss_mention_and_description = self.slot_loss(logits=dot_product_score_log_softmax, labels=bio_mention_labels, loss_mask=mention_loss_mask)
+            slot_loss_mention_and_description = self.slot_loss(
+                logits=dot_product_score_log_softmax, labels=mention_labels, loss_mask=mention_loss_mask
+            )
 
-        loss = self.total_loss(loss_1=intent_loss, loss_2=bio_slot_loss, loss_3=slot_loss_mention_only, loss_4=slot_loss_mention_and_description)
+        loss = self.total_loss(loss_1=bio_slot_loss, loss_2=slot_loss_mention_and_description)
         return loss
 
     def training_step(self, batch, batch_idx):
@@ -348,13 +315,33 @@ class IntentBIOTypeClassificationModel(NLPModel):
         passed in as `batch`.
         """
         # forward pass
-        input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, intent_labels, slot_labels, bio_slot_labels, bio_mention_labels, mention_loss_mask = batch
-        intent_logits, slot_logits, bio_slot_logits, dot_product_score_log_softmax = self(
-            input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask, mention_mask=bio_slot_labels
+        (
+            input_ids,
+            token_type_ids,
+            attention_mask,
+            loss_mask,
+            subtokens_mask,
+            slot_labels,
+            bio_slot_labels,
+            mention_labels,
+            mention_loss_mask,
+        ) = batch
+        bio_slot_logits, dot_product_score_log_softmax, _ = self(
+            input_ids=input_ids,
+            token_type_ids=token_type_ids,
+            attention_mask=attention_mask,
+            bio_slot_labels=bio_slot_labels,
         )
 
-        train_loss = self.calculate_loss(intent_logits, slot_logits, bio_slot_logits, dot_product_score_log_softmax, loss_mask, intent_labels, bio_slot_labels, bio_mention_labels, mention_loss_mask)
-                        
+        train_loss = self.calculate_loss(
+            bio_slot_logits,
+            dot_product_score_log_softmax,
+            loss_mask,
+            bio_slot_labels,
+            mention_labels,
+            mention_loss_mask,
+        )
+
         lr = self._optimizer.param_groups[0]['lr']
 
         self.log('train_loss', train_loss)
@@ -370,58 +357,135 @@ class IntentBIOTypeClassificationModel(NLPModel):
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
         """
-        input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, intent_labels, slot_labels, bio_slot_labels, bio_mention_labels, mention_loss_mask = batch
-        intent_logits, slot_logits, bio_slot_logits, dot_product_score_log_softmax = self(
-            input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask, mention_mask=bio_slot_labels
+        (
+            input_ids,
+            token_type_ids,
+            attention_mask,
+            loss_mask,
+            subtokens_mask,
+            slot_labels,
+            bio_slot_labels,
+            mention_labels,
+            mention_loss_mask,
+        ) = batch
+        bio_slot_logits, dot_product_score_log_softmax, predicted_dot_product_score_log_softmax = self(
+            input_ids=input_ids,
+            token_type_ids=token_type_ids,
+            attention_mask=attention_mask,
+            bio_slot_labels=bio_slot_labels,
+        )
+        val_loss = self.calculate_loss(
+            bio_slot_logits,
+            dot_product_score_log_softmax,
+            loss_mask,
+            bio_slot_labels,
+            mention_labels,
+            mention_loss_mask,
         )
 
-        val_loss = self.calculate_loss(intent_logits, slot_logits, bio_slot_logits, dot_product_score_log_softmax, loss_mask, intent_labels, bio_slot_labels, bio_mention_labels, mention_loss_mask)
-        
-        # calculate accuracy metrics for intents and slot reporting
-        # intents
-        intent_preds = torch.argmax(intent_logits, axis=-1)
-        self.intent_classification_report.update(intent_preds, intent_labels)
-        
-        # slots
+        # bio slots prediction
         loss_mask = loss_mask > 0.5
         bio_slot_preds = torch.argmax(bio_slot_logits, axis=-1)
         self.bio_slot_classification_report.update(bio_slot_preds[loss_mask], bio_slot_labels[loss_mask])
 
+        # mention class prediction based on ground truth slots, at mention level
         mention_loss_mask = mention_loss_mask > 0.5
-        slot_preds = torch.argmax(slot_logits, axis=-1)
-        self.slot_classification_report.update(slot_preds[mention_loss_mask], bio_mention_labels[mention_loss_mask])
-
         slot_similarity_preds = torch.argmax(dot_product_score_log_softmax, axis=-1)
-        self.slot_similarity_classification_report.update(slot_similarity_preds[mention_loss_mask], bio_mention_labels[mention_loss_mask])
+        self.slot_similarity_classification_report.update(
+            slot_similarity_preds[mention_loss_mask], mention_labels[mention_loss_mask]
+        )
+
+        # mention class prediction based on predicted bio slots, at token level
+        subtokens_mask = subtokens_mask > 0.5
+        predicted_slot_similarity_preds = torch.argmax(predicted_dot_product_score_log_softmax, axis=-1)
+        predicted_slot_class_batch = DialogueZeroShotSlotFillingModel.align_mention_to_tokens(
+            bio_slot_preds, predicted_slot_similarity_preds
+        )
+        self.overall_slot_classification_report.update(
+            predicted_slot_class_batch[subtokens_mask], slot_labels[subtokens_mask]
+        )
 
         return {
             'val_loss': val_loss,
-            'intent_tp': self.intent_classification_report.tp,
-            'intent_fn': self.intent_classification_report.fn,
-            'intent_fp': self.intent_classification_report.fp,
             'bio_slot_tp': self.bio_slot_classification_report.tp,
             'bio_slot_fn': self.bio_slot_classification_report.fn,
             'bio_slot_fp': self.bio_slot_classification_report.fp,
-            'slot_tp': self.slot_classification_report.tp,
-            'slot_fn': self.slot_classification_report.fn,
-            'slot_fp': self.slot_classification_report.fp,
             'slot_similarity_tp': self.slot_similarity_classification_report.tp,
             'slot_similarity_fn': self.slot_similarity_classification_report.fn,
             'slot_similarity_fp': self.slot_similarity_classification_report.fp,
-            'intent_preds': intent_preds,
-            'intent_labels': intent_labels,
+            'overall_slot_tp': self.overall_slot_classification_report.tp,
+            'overall_slot_fn': self.overall_slot_classification_report.fn,
+            'overall_slot_fp': self.overall_slot_classification_report.fp,
             'bio_slot_preds': bio_slot_preds,
             'bio_slot_labels': bio_slot_labels,
-            'slot_preds': slot_preds,
-            'slot_labels': slot_labels,
             'slot_similarity_preds': slot_similarity_preds,
+            'overall_slot_preds': predicted_slot_class_batch,
+            'slot_labels': slot_labels,
             'input': input_ids,
             'subtokens_mask': subtokens_mask,
         }
 
+    @staticmethod
+    def align_mention_to_tokens(bio_labels, mention_labels):
+        """
+        Align the mentions label to token level based on bio labels.
+        
+        Args:
+            bio_labels: (batch_size*max_token_length) [[1, 0, 0, 1, 2], [1, 2, 2, 0, 0]]
+            mention_labels: [[2, 4, 0, 0, 0], [52, 0, 0, 0, 0]]
+        
+        Returns:
+            predicted_slot_class: [[2, 0, 0, 4, 4], [52, 52, 52, 0, 0]]
+        """
+        predicted_slot_class = []
+        for one_bio_labels, one_mention_labels in zip(bio_labels, mention_labels):
+            start_and_end = DialogueZeroShotSlotFillingModel.get_start_and_end_for_bio(one_bio_labels)
+            one_predicted_slot_class = torch.zeros(len(one_mention_labels))
+
+            for idx, one_start_and_end in enumerate(start_and_end):
+                start, inclusive_end = one_start_and_end
+                for idy in range(start, inclusive_end + 1):
+                    one_predicted_slot_class[idy] = one_mention_labels[idx]
+            predicted_slot_class.append(one_predicted_slot_class)
+
+        predicted_slot_class = torch.stack(predicted_slot_class).to(bio_labels.device)
+        return predicted_slot_class
+
+    @staticmethod
+    def get_start_and_end_for_bio(one_bio_labels):
+        """
+        Getting the start and end of the mention from BIO(0, 1, 2) sequence.
+        Mention is start with B(with label 1) and follow by I(with label 2).
+        Args:
+            one_bio_labels: tensor with size (max_token_length, )
+            eg. [1, 0, 0, 1, 2]
+        
+        Returns:
+            start_and_end: list of mention's start and end. 
+            List length is the number of mentions in one_bio_labels.
+            eg. [[0, 0], [3, 4]]
+        """
+        start_and_end = []
+        last_seen = None
+        for i in range(len(one_bio_labels)):
+            if one_bio_labels[i] == 1:
+                if last_seen is not None:
+                    start_and_end[-1].append(last_seen)
+                start_and_end.append([i])
+                last_seen = i
+            elif one_bio_labels[i] == 2 and last_seen is not None:
+                last_seen = i
+            elif one_bio_labels[i] == 0:
+                if last_seen is not None:
+                    start_and_end[-1].append(last_seen)
+                last_seen = None
+        if last_seen is not None:
+            start_and_end[-1].append(last_seen)
+        return start_and_end
+
     def get_entity_description_score(self, mention_hidden_states_pad):
         """
-        Implement 3.7 entity description score from ReFinED paper
+        Score entity description based on the dot product similarity between mention and description
         Args: 
             mention_hidden_states_pad: mention embedding of size (batch_size * max_num_mention * hidden_state_dim)
             self.description_embeddings: description embeddings of size (num_slot_class * shared_embedding_dim)
@@ -430,14 +494,16 @@ class IntentBIOTypeClassificationModel(NLPModel):
             dot product score matrix of given mention embedding and description embedding (batch_size * max_num_mention * num_slot_class)
         
         """
+        # Make sure that self.description_projection_mlp and self.description_embeddings are on the main trainer device
         if next(self.description_projection_mlp.parameters()).device != self.device:
             self.description_projection_mlp.to(self.device)
         if self.description_embeddings.device != self.device:
             self.description_embeddings = self.description_embeddings.to(self.device)
+
         share_description_embedding = self.description_projection_mlp(self.description_embeddings)
         share_mention_embedding = self.mention_projection_mlp(mention_hidden_states_pad)
         dot_product_score = torch.matmul(share_mention_embedding, torch.t(share_description_embedding))
-        
+
         return dot_product_score
 
     @staticmethod
@@ -481,45 +547,12 @@ class IntentBIOTypeClassificationModel(NLPModel):
         slot_labels = []
         subtokens_mask = []
         inputs = []
-        intent_preds = []
-        intent_labels = []
 
         for output in outputs:
             subtokens_mask += output["subtokens_mask"]
             inputs += output["input"]
-            intent_preds += output["intent_preds"]
-            intent_labels += output["intent_labels"]
-            
-            one_batch_bio_slot_labels = output['bio_slot_labels']
-            one_batch_slot_preds = output['slot_preds']
-            one_batch_slot_similarity_preds = output['slot_similarity_preds']
-            one_batch_slot_preds = one_batch_slot_similarity_preds
-
-            one_batch_slot_preds_decode = []
-            for one_bio_slot_label, one_slot_preds in zip(one_batch_bio_slot_labels, one_batch_slot_preds):
-                one_slot_preds_decode = [0] * len(one_slot_preds)
-                mention_id = 0
-                label_id_for_empty_slot = one_bio_slot_label[-1] # drive_through is 0, assistant is 54.
-
-                for idx, one_token_bio_slot_label in enumerate(one_bio_slot_label):
-                    if one_token_bio_slot_label == 1:
-                        one_slot_preds_decode[idx] = one_slot_preds[mention_id]
-                        if idx < len(one_bio_slot_label)-1 and one_bio_slot_label[idx+1] in [0, 1]:
-                            mention_id += 1
-                    elif one_token_bio_slot_label == 2:
-                        one_slot_preds_decode[idx] = one_slot_preds[mention_id]
-                    else:
-                        one_slot_preds_decode[idx] = label_id_for_empty_slot
-
-                one_slot_preds_decode = torch.stack(one_slot_preds_decode)
-                one_batch_slot_preds_decode.append(one_slot_preds_decode)
-                
-            slot_preds_decode = torch.stack(one_batch_slot_preds_decode)
-            slot_preds += slot_preds_decode
-            slot_labels += output["slot_labels"]    
-
-        ground_truth_labels = self.convert_intent_ids_to_intent_names(intent_labels)
-        generated_labels = self.convert_intent_ids_to_intent_names(intent_preds)
+            slot_labels += output["slot_labels"]
+            slot_preds += output['overall_slot_preds']
 
         predicted_slots = self.mask_unused_subword_slots(slot_preds, subtokens_mask)
         ground_truth_slots = self.mask_unused_subword_slots(slot_labels, subtokens_mask)
@@ -533,10 +566,10 @@ class IntentBIOTypeClassificationModel(NLPModel):
             ground_truth_slot_names = ground_truth_slots[i].split()
             predicted_slot_names = predicted_slots[i].split()
 
-            processed_ground_truth_slots = IntentBIOTypeClassificationModel.get_continuous_slots(
+            processed_ground_truth_slots = DialogueZeroShotSlotFillingModel.get_continuous_slots(
                 ground_truth_slot_names, utterance_tokens
             )
-            processed_predicted_slots = IntentBIOTypeClassificationModel.get_continuous_slots(
+            processed_predicted_slots = DialogueZeroShotSlotFillingModel.get_continuous_slots(
                 predicted_slot_names, utterance_tokens
             )
 
@@ -547,15 +580,8 @@ class IntentBIOTypeClassificationModel(NLPModel):
         os.makedirs(self.cfg.dataset.dialogues_example_dir, exist_ok=True)
         filename = os.path.join(self.cfg.dataset.dialogues_example_dir, "predictions.jsonl")
 
-        DialogueClassificationMetrics.save_predictions(
-            filename,
-            generated_labels,
-            all_generated_slots,
-            ground_truth_labels,
-            all_ground_truth_slots,
-            ['' for i in range(len(generated_labels))],
-            ['' for i in range(len(generated_labels))],
-            all_utterances,
+        DialogueClassificationMetrics.save_slot_predictions(
+            filename, all_generated_slots, all_ground_truth_slots, all_utterances,
         )
 
         (
@@ -608,50 +634,58 @@ class IntentBIOTypeClassificationModel(NLPModel):
 
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
 
-        # calculate metrics and log classification report (separately for intents and slots)
-        intent_precision, intent_recall, intent_f1, intent_report = self.intent_classification_report.compute()
-        logging.info(f'Intent report: {intent_report}')
-
-        slot_precision, slot_recall, slot_f1, slot_report = self.slot_classification_report.compute()
-        logging.info(f'Slot report: {slot_report}')
-
-        slot_similarity_precision, slot_similarity_recall, slot_similarity_f1, slot_similarity_report = self.slot_similarity_classification_report.compute()
-        logging.info(f'Slot similarity report: {slot_similarity_report}')
-
-        bio_slot_precision, bio_slot_recall, bio_slot_f1, bio_slot_report = self.bio_slot_classification_report.compute()
+        # calculate metrics and log classification report
+        (
+            bio_slot_precision,
+            bio_slot_recall,
+            bio_slot_f1,
+            bio_slot_report,
+        ) = self.bio_slot_classification_report.compute()
         logging.info(f'BIO slot report: {bio_slot_report}')
 
+        (
+            slot_similarity_precision,
+            slot_similarity_recall,
+            slot_similarity_f1,
+            slot_similarity_report,
+        ) = self.slot_similarity_classification_report.compute()
+        logging.info(f'Slot similarity report: {slot_similarity_report}')
+
+        (
+            overall_slot_precision,
+            overall_slot_recall,
+            overall_slot_f1,
+            overall_slot_report,
+        ) = self.overall_slot_classification_report.compute()
+        logging.info(f'Overall slot report: {overall_slot_report}')
+
         self.log('val_loss', avg_loss)
-        self.log('intent_precision', intent_precision)
-        self.log('intent_recall', intent_recall)
-        self.log('intent_f1', intent_f1)
-        self.log('slot_precision', slot_precision)
-        self.log('slot_recall', slot_recall)
-        self.log('slot_f1', slot_f1)
-        self.log('slot_similarity_precision', slot_similarity_precision)
-        self.log('slot_similarity_recall', slot_similarity_recall)
-        self.log('slot_similarity_f1', slot_similarity_f1)
         self.log('bio_slot_precision', bio_slot_precision)
         self.log('bio_slot_recall', bio_slot_recall)
         self.log('bio_slot_f1', bio_slot_f1)
+        self.log('slot_similarity_precision', slot_similarity_precision)
+        self.log('slot_similarity_recall', slot_similarity_recall)
+        self.log('slot_similarity_f1', slot_similarity_f1)
+        self.log('overall_slot_precision', overall_slot_precision)
+        self.log('overall_slot_recall', overall_slot_recall)
+        self.log('overall_slot_f1', overall_slot_f1)
         self.log('unified_slot_precision', unified_slot_precision)
         self.log('unified_slot_recall', unified_slot_recall)
         self.log('unified_slot_f1', unified_slot_f1)
         self.log('unified_slot_joint_goal_accuracy', unified_slot_joint_goal_accuracy)
 
-        self.intent_classification_report.reset()
-        self.slot_classification_report.reset()
-        self.slot_similarity_classification_report.reset()
         self.bio_slot_classification_report.reset()
+        self.slot_similarity_classification_report.reset()
+        self.overall_slot_classification_report.reset()
 
         return {
             'val_loss': avg_loss,
-            'intent_precision': intent_precision,
-            'intent_recall': intent_recall,
-            'intent_f1': intent_f1,
-            'slot_precision': slot_precision,
-            'slot_recall': slot_recall,
-            'slot_f1': slot_f1,
+            'slot_similarity_precision': slot_similarity_precision,
+            'slot_similarity_recall': slot_similarity_recall,
+            'slot_similarity_f1': slot_similarity_f1,
+            'overall_slot_precision': overall_slot_precision,
+            'overall_slot_recall': overall_slot_recall,
+            'overall_slot_f1': overall_slot_f1,
             'unified_slot_precision': unified_slot_precision,
             'unified_slot_recall': unified_slot_recall,
             'unified_slot_f1': unified_slot_f1,
@@ -684,7 +718,7 @@ class IntentBIOTypeClassificationModel(NLPModel):
     def _setup_dataloader_from_config(self, cfg: DictConfig, dataset_split: str):
         data_processor = DialogueAssistantDataProcessor(self.data_dir, self.tokenizer, cfg=self.cfg.dataset)
 
-        dataset = DialogueIntentBIOTypeClassificationDataset(
+        dataset = DialogueZeroShotSlotFillingDataset(
             dataset_split,
             data_processor,
             self.tokenizer,
@@ -699,30 +733,6 @@ class IntentBIOTypeClassificationModel(NLPModel):
             pin_memory=cfg.pin_memory,
             drop_last=cfg.drop_last,
             collate_fn=dataset.collate_fn,
-        )
-
-    def _setup_infer_dataloader(self, queries: List[str], test_ds) -> 'torch.utils.data.DataLoader':
-        """
-        Setup function for a infer data loader.
-        Args:
-            queries: text
-            batch_size: batch size to use during inference
-        Returns:
-            A pytorch DataLoader.
-        """
-
-        dataset = IntentSlotInferenceDataset(
-            tokenizer=self.tokenizer, queries=queries, max_seq_length=-1, do_lower_case=False
-        )
-
-        return torch.utils.data.DataLoader(
-            dataset=dataset,
-            collate_fn=dataset.collate_fn,
-            batch_size=test_ds.batch_size,
-            shuffle=test_ds.shuffle,
-            num_workers=test_ds.num_workers,
-            pin_memory=test_ds.pin_memory,
-            drop_last=test_ds.drop_last,
         )
 
     def update_data_dirs(self, data_dir: str, dialogues_example_dir: str):
@@ -740,69 +750,7 @@ class IntentBIOTypeClassificationModel(NLPModel):
         logging.info(f'Setting model.dataset.data_dir to {data_dir}.')
         logging.info(f'Setting model.dataset.dialogues_example_dir to {dialogues_example_dir}.')
 
-    def predict_from_examples(self, queries: List[str], test_ds) -> List[List[str]]:
-        """
-        Get prediction for the queries (intent and slots)
-        Args:
-            queries: text sequences
-            test_ds: Dataset configuration section.
-        Returns:
-            predicted_intents, predicted_slots: model intent and slot predictions
-        """
-
-        predicted_intents = []
-        predicted_slots = []
-        mode = self.training
-
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
-
-        # Switch model to evaluation mode
-        self.eval()
-        self.to(device)
-
-        # Dataset.
-        infer_datalayer = self._setup_infer_dataloader(queries, test_ds)
-
-        for batch in infer_datalayer:
-            input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask = batch
-
-            intent_logits, slot_logits = self.forward(
-                input_ids=input_ids.to(device),
-                token_type_ids=input_type_ids.to(device),
-                attention_mask=input_mask.to(device),
-            )
-
-            # predict intents
-            intent_preds = tensor2list(torch.argmax(intent_logits, axis=-1))
-            predicted_intents += self.convert_intent_ids_to_intent_names(intent_preds)
-
-            # predict slots
-            slot_preds = torch.argmax(slot_logits, axis=-1)
-            predicted_slots += self.mask_unused_subword_slots(slot_preds, subtokens_mask)
-            # predicted_slots += self.mask_unused_subword_slots(slot_preds, subtokens_mask)
-
-        # set mode back to its original value
-        self.train(mode=mode)
-
-        return predicted_intents, predicted_slots
-
-    def convert_intent_ids_to_intent_names(self, intent_preds):
-        # Retrieve intent and slot vocabularies from configuration.
-        intent_labels = self.cfg.data_desc.intent_labels
-
-        predicted_intents = []
-
-        # convert numerical outputs to Intent and Slot labels from the dictionaries
-        for intent_num in intent_preds:
-            # if intent_num < len(intent_labels):
-            predicted_intents.append(intent_labels[int(intent_num)])
-            # else:
-            #     # should not happen
-            #     predicted_intents.append("Unknown Intent")
-        return predicted_intents
-
     def mask_unused_subword_slots(self, slot_preds, subtokens_mask):
-        # Retrieve intent and slot vocabularies from configuration.
         slot_labels = self.cfg.data_desc.slot_labels
 
         if 'B-' in slot_labels[1] or 'I-' in slot_labels[1]:
@@ -813,16 +761,13 @@ class IntentBIOTypeClassificationModel(NLPModel):
                     inference_slot_labels.append(inference_label_name)
         else:
             inference_slot_labels = slot_labels
-        
+
         predicted_slots = []
         for slot_preds_query, mask_query in zip(slot_preds, subtokens_mask):
             query_slots = ''
             for slot, mask in zip(slot_preds_query, mask_query):
                 if mask == 1:
-                    # if slot < len(inference_slot_labels):
                     query_slots += inference_slot_labels[int(slot)] + ' '
-                    # else:
-                    #     query_slots += 'Unknown_slot '
             predicted_slots.append(query_slots.strip())
         return predicted_slots
 
@@ -835,10 +780,4 @@ class IntentBIOTypeClassificationModel(NLPModel):
             List of available pre-trained models.
         """
         result = []
-        model = PretrainedModelInfo(
-            pretrained_model_name="Joint_Intent_Slot_Assistant",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemonlpmodels/versions/1.0.0a5/files/Joint_Intent_Slot_Assistant.nemo",
-            description="This models is trained on this https://github.com/xliuhw/NLU-Evaluation-Data dataset which includes 64 various intents and 55 slots. Final Intent accuracy is about 87%, Slot accuracy is about 89%.",
-        )
-        result.append(model)
         return result

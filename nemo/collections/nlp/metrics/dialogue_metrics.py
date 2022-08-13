@@ -119,6 +119,29 @@ class DialogueClassificationMetrics(object):
                 f.write(json.dumps(item) + "\n")
 
     @staticmethod
+    def save_slot_predictions(
+        filename, generated_slots, ground_truth_slots, inputs,
+    ):
+        """
+        Save predictions as a jsonl file
+
+        Args:
+            Each arg is a list of strings (all args have the same length)
+        """
+        docs = []
+        for i in range(len(inputs)):
+            docs.append(
+                {
+                    "input": inputs[i],
+                    "ground_truth_slots": ground_truth_slots[i],
+                    "generated_slots": generated_slots[i],
+                }
+            )
+        with open(filename, 'w', encoding="UTF-8") as f:
+            for item in docs:
+                f.write(json.dumps(item) + "\n")
+
+    @staticmethod
     def split_label_and_slots(fields, with_slots=False):
         """
         Split target into label and slots when doing joint label (i.e. intent) classificaiton and slot filling

@@ -13,27 +13,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
 from typing import Dict, Optional
 
 import numpy as np
+import torch
 
 from nemo.collections.nlp.data.data_utils import get_stats
 from nemo.collections.nlp.data.dialogue.dataset.dialogue_dataset import DialogueDataset
 from nemo.core.neural_types import ChannelType, LabelsType, MaskType, NeuralType
 from nemo.utils import logging
 
-__all__ = ['DialogueIntentBIOTypeClassificationDataset']
+__all__ = ['DialogueZeroShotSlotFillingDataset']
 
 
-class DialogueIntentBIOTypeClassificationDataset(DialogueDataset):
+class DialogueZeroShotSlotFillingDataset(DialogueDataset):
 
     """
-    Creates a dataset to use for the task of joint intent
-    and slot classification with pretrained model.
-
-    For a dataset to use during inference without labels, see
-    IntentSlotDataset.
+    Creates a dataset to use for the task of zero shot slot filling model
     """
 
     @property
@@ -46,7 +42,6 @@ class DialogueIntentBIOTypeClassificationDataset(DialogueDataset):
             'input_mask': NeuralType(('B', 'T'), MaskType()),
             'loss_mask': NeuralType(('B', 'T'), MaskType()),
             'subtokens_mask': NeuralType(('B', 'T'), MaskType()),
-            'intent_labels': NeuralType(('B'), LabelsType()),
             'slot_labels': NeuralType(('B', 'T'), LabelsType()),
             'bio_slot_labels': NeuralType(('B', 'T'), LabelsType()),
             'bio_mention_labels': NeuralType(('B', 'T'), LabelsType()),
@@ -62,8 +57,6 @@ class DialogueIntentBIOTypeClassificationDataset(DialogueDataset):
             cfg: config container for dataset
         """
         self.cfg = cfg
-        self.all_possible_labels = dialogues_processor.intents
-        self.label_to_label_id = {self.all_possible_labels[i]: i for i in range(len(self.all_possible_labels))}
         self.all_possible_slots = dialogues_processor.slots
         self.slot_name_to_slot_id = {self.all_possible_slots[i]: i for i in range(len(self.all_possible_slots))}
         self.empty_slot_name = 'O'
@@ -73,10 +66,8 @@ class DialogueIntentBIOTypeClassificationDataset(DialogueDataset):
         queries = [feature.data["utterance"] for feature in self.features]
         if self.cfg.do_lowercase:
             queries = [query.lower() for query in queries]
-        intents = [self.label_to_label_id[feature.data["labels"]["intent"]] for feature in self.features]
         word_level_slots = [self.convert_slot_position_to_slot_ids(feature.data) for feature in self.features]
-
-        features = DialogueIntentBIOTypeClassificationDataset.get_features(
+        features = DialogueZeroShotSlotFillingDataset.get_features(
             queries,
             self.cfg.max_seq_length,
             tokenizer,
@@ -85,7 +76,7 @@ class DialogueIntentBIOTypeClassificationDataset(DialogueDataset):
             ignore_extra_tokens=self.cfg.ignore_extra_tokens,
             ignore_start_end=self.cfg.ignore_start_end,
         )
-        
+
         self.all_input_ids = features[0]
         self.all_segment_ids = features[1]
         self.all_input_mask = features[2]
@@ -95,19 +86,23 @@ class DialogueIntentBIOTypeClassificationDataset(DialogueDataset):
 
         # drive through dataset: label_id_for_empty_slot = 0; assistant dataset: label_id_for_empty_slot = 54
         # use the train_slot_stats.tsv file majority class as the "Other" slot class
-        file_path_for_stats = cfg.data_dir+"/train_slot_stats.tsv"
-        
+        file_path_for_stats = cfg.data_dir + "/train_slot_stats.tsv"
+
         with open(file_path_for_stats) as f:
             label_id_for_empty_slot = int(f.read().strip().split('\n')[0].split()[0])
 
-        self.all_bio_slots = [DialogueIntentBIOTypeClassificationDataset.get_bio_slot_label_from_sequence(t, label_id_for_empty_slot) for t in self.all_slots]
+        self.all_bio_slots = [
+            DialogueZeroShotSlotFillingDataset.get_bio_slot_label_from_sequence(t, label_id_for_empty_slot)
+            for t in self.all_slots
+        ]
 
-        self.bio_mention_labels = [DialogueIntentBIOTypeClassificationDataset.get_bio_mention_labels(t, bio_list) for t, bio_list in zip(self.all_slots, self.all_bio_slots)]
+        self.bio_mention_labels = [
+            DialogueZeroShotSlotFillingDataset.get_bio_mention_labels(t, bio_list)
+            for t, bio_list in zip(self.all_slots, self.all_bio_slots)
+        ]
 
         bio_mention_loss_mask = torch.FloatTensor(self.bio_mention_labels)
-        self.mention_loss_mask = (bio_mention_loss_mask>0).type(torch.uint8).tolist()
-
-        self.all_intents = intents
+        self.mention_loss_mask = (bio_mention_loss_mask > 0).type(torch.uint8).tolist()
 
     def convert_slot_position_to_slot_ids(self, feature):
         slot_ids = [self.slot_name_to_slot_id[self.empty_slot_name] for i in range(len(feature["utterance"].split()))]
@@ -132,7 +127,6 @@ class DialogueIntentBIOTypeClassificationDataset(DialogueDataset):
             np.array(self.all_input_mask[idx], dtype=np.long),
             np.array(self.all_loss_mask[idx]),
             np.array(self.all_subtokens_mask[idx]),
-            self.all_intents[idx],
             np.array(self.all_slots[idx]),
             np.array(self.all_bio_slots[idx]),
             np.array(self.bio_mention_labels[idx]),
@@ -163,7 +157,7 @@ class DialogueIntentBIOTypeClassificationDataset(DialogueDataset):
         for idx, slot_label in enumerate(slot_label_list):
             if slot_label in [label_id_for_empty_slot, -1]:
                 bio_label_list.append(0)
-            elif idx > 0 and slot_label == slot_label_list[idx-1]:
+            elif idx > 0 and slot_label == slot_label_list[idx - 1]:
                 bio_label_list.append(2)
             else:
                 bio_label_list.append(1)
@@ -204,14 +198,14 @@ class DialogueIntentBIOTypeClassificationDataset(DialogueDataset):
             6     3          2           (-1, ..., -1)
         """
 
-        bio_train_slots=[]
+        bio_train_slots = []
         for idx in range(len(slot_list)):
-            if bio_list[idx]==1:
+            if bio_list[idx] == 1:
                 bio_train_slots.append(slot_list[idx])
-        add_zero=len(slot_list)-len(bio_train_slots)
-        
-        bio_train_slots = bio_train_slots+[-1]*(add_zero)
-        
+        add_zero = len(slot_list) - len(bio_train_slots)
+
+        bio_train_slots = bio_train_slots + [-1] * (add_zero)
+
         return bio_train_slots
 
     @staticmethod
@@ -279,7 +273,7 @@ class DialogueIntentBIOTypeClassificationDataset(DialogueDataset):
         ignore_start_end=False,
     ):
         """
-        Convert queries (utterance, intent label and slot labels) to BERT input format 
+        Convert queries (utterance, slot labels) to BERT input format 
         """
 
         all_subtokens = []
@@ -319,7 +313,6 @@ class DialogueIntentBIOTypeClassificationDataset(DialogueDataset):
 
                 if with_label:
                     slots.extend([word_level_slots[i][j]] * len(word_tokens))
-
             subtokens.append(tokenizer.sep_token)
             loss_mask.append(1 - ignore_start_end)
             subtokens_mask.append(0)
@@ -345,7 +338,7 @@ class DialogueIntentBIOTypeClassificationDataset(DialogueDataset):
             all_subtokens_mask,
             all_input_ids,
             all_segment_ids,
-        ) = DialogueIntentBIOTypeClassificationDataset.truncate_and_pad(
+        ) = DialogueZeroShotSlotFillingDataset.truncate_and_pad(
             max_seq_length,
             ignore_start_end,
             with_label,
