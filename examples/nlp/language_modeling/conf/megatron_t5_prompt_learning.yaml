@@ -69,7 +69,7 @@ model:
     new_prompt_init_text: ['Extractive question answering'] # some init text if init method is text, or None if init method is random
 
   data:
-    train_ds: ["/raid/Data/prompt-learning-data/squad1.1/squad_train.jsonl"]
+    train_ds: ["/raid/Data/prompt-learning-data/squad1.1/squad_train_3k.jsonl"]
     validation_ds: ["/raid/Data/prompt-learning-data/squad1.1/squad_val.jsonl"]
     add_eos: True
     shuffle: True
