@@ -80,7 +80,7 @@ class MegatronPerceiverEncoderModule(MegatronModule):
         hidden_steps=32,
         num_self_attention_per_cross_attention=1,
         normalize_attention_scores=True,
-        megatron_legacy=False
+        megatron_legacy=False,
     ):
         super(MegatronPerceiverEncoderModule, self).__init__()
 
