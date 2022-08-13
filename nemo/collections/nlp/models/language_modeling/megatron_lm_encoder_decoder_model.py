@@ -1019,7 +1019,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             micro_batch_size=global_batch_per_gpu,  # Make sure that there is no "grad acc" while decoding.
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
-        predicted_tokens_dec = torch.LongTensor([tokenizer.bos_id] * global_batch_per_gpu).unsqueeze(1).to(device)
+        predicted_tokens_dec = torch.LongTensor([tokenizer.pad_id] * global_batch_per_gpu).unsqueeze(1).to(device)
         tensor_shape = [encoder_seq_length, global_batch_per_gpu, self.cfg.encoder.hidden_size]
         assert predicted_tokens_dec.size(0) == global_batch_per_gpu
 
@@ -1036,6 +1036,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             # No microbatches in decoding. Just the global batch.
             decoder_seq_length = predicted_tokens_dec.size(1)
             dec_mask = predicted_tokens_dec != tokenizer.pad_id
+            dec_mask[:, 0] = True
 
             batch_for_pipeline = [enc_output, enc_output_attn_mask, predicted_tokens_dec, dec_mask]
             arg_names = ['enc_output', 'enc_output_attn_mask', 'dec_input_ids', 'dec_attn_mask']
