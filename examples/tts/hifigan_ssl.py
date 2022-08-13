@@ -24,6 +24,8 @@ def main(cfg):
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
     model = hifigan_ssl.HifiGanModel(cfg=cfg.model, trainer=trainer)
+    if cfg.finetune:
+        model.maybe_init_from_pretrained_checkpoint(cfg=cfg)
     trainer.fit(model)
 
 

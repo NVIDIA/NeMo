@@ -177,6 +177,7 @@ class HifiGanModel(Vocoder, Exportable):
 
             return [optim_g, optim_d], [sch1_dict, sch2_dict]
         else:
+            print("No scheduler specified")
             return [optim_g, optim_d]
 
     @typecheck()

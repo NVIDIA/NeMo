@@ -7,7 +7,7 @@ name: "HifiGan"
 train_dataset: "/home/pneekhara/NeMo2022/libri_train_formatted.json"
 validation_datasets: "/home/pneekhara/NeMo2022/libri_val_formatted.json"
 data_caching: true
-
+finetune: false
 # Default values for dataset with sample_rate=22050
 sample_rate: 25600 # 25664
 n_mel_channels: 80
@@ -33,12 +33,13 @@ ssl_content_emb_type: 'embedding'
 pitch_conditioning: true
 pitch_mean: 212.0 # ignored if use_speakerwise_stats=true
 pitch_std: 70.0 # ignored if use_speakerwise_stats=true
-normalize_pitch: true
+pitch_normalization: speaker_wise # options: speaker_wise, global, none
+speaker_stats_pitch_fp: null
 generator_input_size: 520 # content_emb_outdim + speaker_emb_outdim + pitch_emb_dim
 normalize_content: true # for newer checkpoints.
 
-use_speakerwise_stats: true
-stat_samples_per_speaker: 50
+# use_speakerwise_stats: true
+# stat_samples_per_speaker: 50
 
 sup_data_dir: null
 
