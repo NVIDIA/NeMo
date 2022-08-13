@@ -1,18 +1,17 @@
 name: p_tuning_squad_t5
 
 trainer:
-  devices: 2
+  devices: 1
   accelerator: gpu
   num_nodes: 1
-  precision: bf16
+  precision: 16
   logger: False 
   enable_checkpointing: False
   replace_sampler_ddp: False
-  max_epochs: 50
+  max_epochs: 10
   max_steps: -1 
   log_every_n_steps: 10
-  val_check_interval: 1000
-  limit_val_batches: 20
+  val_check_interval: 1
   accumulate_grad_batches: 1
   gradient_clip_val: 1.0
   resume_from_checkpoint: null 
@@ -42,7 +41,7 @@ model:
   virtual_prompt_save_path: ${name}.nemo # .nemo filename/absolute path to where the virtual prompt model parameters will be saved
   virtual_prompt_style: "p-tuning" # one of 'prompt-tuning', 'p-tuning', or 'inference'
   tensor_model_parallel_size: 1
-  pipeline_model_parallel_size: 1
+  pipeline_model_parallel_size: 1 
   encoder_seq_length: 2048
   global_batch_size: 8
   micro_batch_size: 8
@@ -63,7 +62,7 @@ model:
 
   p_tuning:
     dropout: 0.0
-    num_layers: 1
+    num_layers: 2
 
   prompt_tuning: # Prompt tunin specific params
     new_prompt_init_methods: ['text'] # List of 'text' or 'random', should correspond to tasks listed in new tasks
@@ -76,7 +75,7 @@ model:
     shuffle: True
     num_workers: 8
     pin_memory: True
-    max_seq_length: 512
+
 
   optim:
     name: fused_adam
