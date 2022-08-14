@@ -56,9 +56,8 @@ model:
     prompt_template: "<|VIRTUAL_PROMPT_0|> {context} {question} {answer}" 
     total_virtual_tokens: 100
     virtual_token_splits: [100] 
-    truncate_field: null
+    truncate_field: context
     answer_field: answer
-
 
   p_tuning:
     dropout: 0.0

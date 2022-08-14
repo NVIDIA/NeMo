@@ -49,7 +49,7 @@ class T5PromptLearningDataset(BasePromptLearningDataset):
         add_eos: bool = True,
         for_train: bool = True,
         decoder_starts_with_pad: bool = False,
-        add_eos_to_decoder_output: bool = False,
+        add_eos_to_decoder_output: bool = True,
     ):
         # These two variables need to be set before calling super().__init__() because the parent class calls `load_data()` which requires these attributes.
         self.decoder_starts_with_pad = decoder_starts_with_pad
@@ -114,7 +114,7 @@ class T5PromptLearningDataset(BasePromptLearningDataset):
             input_example = self._insert_virtual_token_placeholders(input_example, virtual_token_splits)
 
             # a trick to align with the data format in t5 pretraining
-            input_ids = self.tokenizer.text_to_ids(input_example) + self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
+            input_ids = self.tokenizer.text_to_ids(input_example) # + self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
 
             # Add BOS/EOS to the input of encoder if desired, adds EOS by default
             if self.add_bos:
@@ -135,7 +135,7 @@ class T5PromptLearningDataset(BasePromptLearningDataset):
                 else:
                     answer_text_ids = [self.tokenizer.bos_id]
                 # a trick to align with the data format in t5 pretraining
-                answer_text_ids += self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
+                # answer_text_ids += self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
                 answer_text_ids += self.tokenizer.text_to_ids(answer_text)
                 if self.add_eos_to_decoder_output:
                     answer_text_ids += [self.tokenizer.eos_id]
