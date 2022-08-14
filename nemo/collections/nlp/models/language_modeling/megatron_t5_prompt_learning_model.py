@@ -78,7 +78,6 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         Special forward method for p-tuning/prompt-tuning pretrained
         T5 style models.
         """
-        import ipdb; ipdb.set_trace()
         # Get embeddings for text tokens and insert virtual token embeddings
         if inference:
             input_embeds = self.embed_input_inference(input_ids, taskname_ids)

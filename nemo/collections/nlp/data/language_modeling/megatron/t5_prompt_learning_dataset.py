@@ -28,6 +28,7 @@ __all__ = ['T5PromptLearningDataset']
 
 class T5Sentinel(enum.Enum):
     FIRST = '<extra_id_0>'
+    END = '<extra_id_1>'
 
 
 class T5PromptLearningDataset(BasePromptLearningDataset):
@@ -114,7 +115,7 @@ class T5PromptLearningDataset(BasePromptLearningDataset):
             input_example = self._insert_virtual_token_placeholders(input_example, virtual_token_splits)
 
             # a trick to align with the data format in t5 pretraining
-            input_ids = self.tokenizer.text_to_ids(input_example) # + self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
+            input_ids = self.tokenizer.text_to_ids(input_example) + self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
 
             # Add BOS/EOS to the input of encoder if desired, adds EOS by default
             if self.add_bos:
@@ -135,10 +136,12 @@ class T5PromptLearningDataset(BasePromptLearningDataset):
                 else:
                     answer_text_ids = [self.tokenizer.bos_id]
                 # a trick to align with the data format in t5 pretraining
-                # answer_text_ids += self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
+                answer_text_ids += self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
                 answer_text_ids += self.tokenizer.text_to_ids(answer_text)
                 if self.add_eos_to_decoder_output:
                     answer_text_ids += [self.tokenizer.eos_id]
+                else:
+                    answer_text_ids += self.tokenizer.text_to_ids(T5Sentinel.END.value)
 
             # Skip example if the final length doesn't fit length requirements even after truncation
             if self.min_seq_length <= len(input_ids) <= self.max_seq_length:
