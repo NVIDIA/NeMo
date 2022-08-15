@@ -330,6 +330,10 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             if tokenizer.eos_id in ids:
                 idx = ids.index(tokenizer.eos_id)
                 ids = ids[:idx]
+            
+            if len(tokenizer.text_to_ids('<extra_id_1>')) == 1 and tokenizer.text_to_ids('<extra_id_1>')[0] in ids:
+                idx = ids.index(tokenizer.text_to_ids('<extra_id_1>')[0])
+                ids = ids[:idx]
 
             # Legacy sentencepiece detokenization still preserves special tokens which messes up exact string match.
             if hasattr(tokenizer, 'special_token_to_id'):
