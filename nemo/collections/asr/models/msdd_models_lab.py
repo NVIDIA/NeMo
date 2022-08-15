@@ -52,7 +52,6 @@ from nemo.collections.asr.models.msdd_models import (
     ClusterEmbedding,
     EncDecDiarLabelModel,
     OverlapAwareDiarizer,
-    compute_accuracies,
     generate_speaker_timestamps,
     get_id_tup_dict,
     get_overlap_stamps,
@@ -153,10 +152,10 @@ class ClusterEmbeddingTest(ClusterEmbedding):
     def __init__(self, cfg_base: DictConfig, cfg_msdd_model: DictConfig):
         super().__init__(cfg_base, cfg_msdd_model)
 
-    # def prepare_cluster_embs_infer(self):
-    # self.emb_sess_test_dict, self.emb_seq_test, self.clus_test_label_dict, metric= self.prepare_datasets(
-    # self._cfg_msdd.test_ds
-    # )
+    def prepare_cluster_embs_infer(self):
+        self.emb_sess_test_dict, self.emb_seq_test, self.clus_test_label_dict, metric= self.prepare_datasets(
+        self._cfg_msdd.test_ds
+        )
     def sw(self, r, K):
         return [r - kvar * (r - 1) / (K - 1) for kvar in range(K)]
 
@@ -223,13 +222,13 @@ class ClusterEmbeddingTest(ClusterEmbedding):
         # import ipdb; ipdb.set_trace()
         return DER
 
-    def prepare_cluster_embs_infer(self):
-        """
-        Launch clustering diarizer to prepare embedding vectors and clustering results.
-        """
-        self.emb_sess_test_dict, self.emb_seq_test, self.clus_test_label_dict, metrics = self.run_clustering_diarizer(
-            self._cfg_msdd.test_ds.manifest_filepath, self._cfg_msdd.test_ds.emb_dir
-        )
+    # def prepare_cluster_embs_infer(self):
+        # """
+        # Launch clustering diarizer to prepare embedding vectors and clustering results.
+        # """
+        # self.emb_sess_test_dict, self.emb_seq_test, self.clus_test_label_dict, metrics = self.run_clustering_diarizer(
+            # self._cfg_msdd.test_ds.manifest_filepath, self._cfg_msdd.test_ds.emb_dir
+        # )
 
     def get_longest_scale_clus_avg_emb(self, emb_vectors, longest_scale_index=0):
         """
@@ -390,7 +389,6 @@ class ClusterEmbeddingTest(ClusterEmbedding):
             )
             emb_scale_seq_dict['session_scale_mapping'] = session_scale_mapping_dict
         if metric is None:
-            # import ipdb; ipdb.set_trace()
             raise ValueError("metric is None")
         return emb_sess_avg_dict, emb_scale_seq_dict, base_clus_label_dict, metric
 
@@ -878,6 +876,21 @@ class ClusterEmbeddingTest(ClusterEmbedding):
             logging.info(f"Clustering label file {clus_label_path} does not exist.")
         return file_exists, clus_label_path
 
+    def compute_accuracies(self):
+        """
+        Calculate F1 score and accuracy of the predicted sigmoid values.
+
+        Returns:
+            f1_score (float):
+                F1 score of the estimated diarized speaker label sequences.
+            simple_acc (float):
+                Accuracy of predicted speaker labels: (total # of correct labels)/(total # of sigmoid values)
+        """
+        f1_score = self._accuracy_test.compute()
+        num_correct = torch.sum(self._accuracy_test.true.bool())
+        total_count = torch.prod(torch.tensor(self._accuracy_test.targets.shape))
+        simple_acc = num_correct / total_count
+        return f1_score, simple_acc
 
 class EncDecDiarLabelModelLab(ExportableEncDecModel, ClusterEmbeddingTest):
     """Encoder decoder class for multiscale speaker diarization decoder.
@@ -919,7 +932,7 @@ class NeuralDiarizerLab(OverlapAwareDiarizer):
         function that can generate overlapping timestamps. `self.run_overlap_aware_eval()` function performs DER evaluation.
         """
         torch.set_grad_enabled(False)
-        if False:
+        if False: # Segment length tuning
             # Optuna Segmentation Optimization
             logger = opt_logging.getLogger()
             logger.setLevel(opt_logging.INFO)  # Setup the root logger.
@@ -938,7 +951,6 @@ class NeuralDiarizerLab(OverlapAwareDiarizer):
             # Optuna Clustering Optimization
             logger = opt_logging.getLogger()
             logger.setLevel(opt_logging.INFO)  # Setup the root logger.
-            # logger.addHandler(opt_logging.FileHandler("Vox_optuna_multiscale_clusA1_ttnL.log", mode="w"))
             logger.addHandler(opt_logging.FileHandler("Vox_optuna_multiscale_clusB1_ttnM.log", mode="w"))
 
             optuna.logging.enable_propagation()  # Propagate logs to the root logger.
@@ -954,6 +966,7 @@ class NeuralDiarizerLab(OverlapAwareDiarizer):
         else:
             self.clustering_embedding.prepare_cluster_embs_infer()
             self.msdd_model.pairwise_infer = True
+
         self.msdd_model.get_emb_clus_infer(self.clustering_embedding)
         preds_list, targets_list, signal_lengths_list = self.run_pairwise_diarization()
         for threshold in list(self._cfg.diarizer.msdd_model.parameters.sigmoid_threshold):

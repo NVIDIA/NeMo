@@ -674,7 +674,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         """
         Initialize an MSDD model and the specified speaker embedding model. In this init function, training and validation datasets are prepared.
         """
-        self.trainer = trainer
+        self._trainer = trainer
         self.pairwise_infer = False
         self.cfg_msdd_model = cfg
         self.cfg_msdd_model.msdd_module.num_spks = self.cfg_msdd_model.max_num_of_spks
@@ -735,7 +735,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         self._diarizer_params = self.cfg_msdd_model.base.diarizer
         gpu_device = torch.device(torch.cuda.current_device())
         if model_path is not None and model_path.endswith('.nemo'):
-            rank_id = torch.device(self.trainer.global_rank)
+            rank_id = torch.device(self._trainer.global_rank)
             self.msdd._speaker_model = EncDecSpeakerLabelModel.restore_from(model_path, map_location=rank_id)
             logging.info("Speaker Model restored locally from {}".format(model_path))
         elif model_path.endswith('.ckpt'):
@@ -787,7 +787,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         """
         self._speaker_dir = os.path.join(_out_dir, 'speaker_outputs')
         # Only if this is for the first run of modelPT instance, remove temp folders.
-        if self.trainer.global_rank == 0:
+        if self._trainer.global_rank == 0:
             if os.path.exists(self._speaker_dir):
                 shutil.rmtree(self._speaker_dir)
             os.makedirs(self._speaker_dir)
@@ -975,7 +975,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
             os.makedirs(_speaker_dir)
         subsegments_manifest_path = os.path.join(
             _speaker_dir, f'subsegments{scale_tag}.json'
-            # _speaker_dir, f'subsegments{scale_tag}_rank{self.trainer.global_rank}.json'
+            # _speaker_dir, f'subsegments{scale_tag}_rank{self._trainer.global_rank}.json'
         )
         logging.info(
             f"Subsegmentation for timestamp extraction:{scale_tag.replace('_',' ')}, {subsegments_manifest_path}"
@@ -1141,10 +1141,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         for batch_idx in range(batch_size):
             oracle_clus_idx = clus_label_index[batch_idx]
             max_seq_len = sum(ms_seg_counts[batch_idx])
-            try:
-                clus_label_index_batch = torch.split(oracle_clus_idx[:max_seq_len], ms_seg_counts[batch_idx].tolist())
-            except:
-                import ipdb; ipdb.set_trace()
+            clus_label_index_batch = torch.split(oracle_clus_idx[:max_seq_len], ms_seg_counts[batch_idx].tolist())
             session_avg_emb_set_list = []
             for scale_index in range(scale_n):
                 spk_set_list = []
@@ -1224,7 +1221,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         ms_mel_feat_len = torch.tensor(ms_mel_feat_len_list).to(device)
         seq_len = torch.tensor(sequence_lengths_list).to(device)
 
-        torch.manual_seed(self.trainer.current_epoch)
+        torch.manual_seed(self._trainer.current_epoch)
         if _emb_batch_size < self.min_detached_embs:
             attached, _emb_batch_size = torch.tensor([]), 0
             detached = torch.randperm(total_seg_count)
