@@ -6,87 +6,55 @@ import hydra
 import omegaconf
 import subprocess
 
-from bignlp.bignlp_utils import convert_to_cli, fake_submit
-from bignlp.train_scripts import train
-from bignlp.conversion_scripts import convert
-from bignlp.finetune_scripts import finetune
-from bignlp.prompt_learn_scripts import prompt_learn
-from bignlp.eval_scripts import evaluate_gpt, evaluate_t5, evaluate_prompt_gpt
+from bignlp.core.stages import BigNLPStage
+from bignlp.core.stages import Training, FineTuning, PromptLearning
+from bignlp.core.stages import Conversion
+from bignlp.core.stages import EvalHarnessEvaluation, NeMoEvaluation
+from bignlp.core.data_stages import PileDataPreparation, MC4DataPreparation, CustomDataPreparation
+
 
 omegaconf.OmegaConf.register_new_resolver("multiply", lambda x, y: x * y, replace=True)
 omegaconf.OmegaConf.register_new_resolver("divide_ceil", lambda x, y: int(math.ceil(x / y)), replace=True)
 omegaconf.OmegaConf.register_new_resolver("divide_floor", lambda x, y: int(math.floor(x / y)), replace=True)
 
+STR2STAGECLASS = {
+    "training": Training,
+    "fine_tuning": FineTuning,
+    "prompt_learning": PromptLearning,
+    "conversion": Conversion,
+    "evaluation": {
+        EvalHarnessEvaluation: ["gpt3", "prompt_gpt3"],
+        NeMoEvaluation: ["t5", "mt5"]
+    },
+    "data_preparation": {
+        PileDataPreparation: ["gpt3", "t5"],
+        MC4DataPreparation: ["mt5"],
+        CustomDataPreparation: ["generic"],
+    }
+}
+
 
 @hydra.main(config_path="conf", config_name="config")
 def main(cfg):
-    hydra_args = " ".join(sys.argv[1:])
-    hydra_args = convert_to_cli(cfg)
+    requested_stages = cfg.get("stages")
 
-    if cfg.get("debug"):
-        subprocess.check_output = fake_submit
-
-    # Read config
-    run_data_preparation = cfg.get("run_data_preparation")
-    run_training = cfg.get("run_training")
-    run_conversion = cfg.get("run_conversion")
-    run_finetuning = cfg.get("run_finetuning")
-    run_prompt_learning = cfg.get("run_prompt_learning")
-    run_evaluation = cfg.get("run_evaluation")
-
-    # TODO: build a mapping from dataset name to modules
-    data_config = cfg.get("data_config")
-    if "pile" in data_config:
-        from bignlp.data_preparation import data_preparation_pile as data_preparation
-    elif "mc4" in data_config:
-        from bignlp.data_preparation import data_preparation_mc4 as data_preparation
-    elif "custom" in data_config:
-        from bignlp.data_preparation import data_preparation_custom as data_preparation
-    else:
-        raise ValueError(f"Unrecognized dataset in data config `{data_config}`.")
-
-    cfg_copy = copy.deepcopy(cfg)
     dependency = None
-    if run_data_preparation:
-        dependency = data_preparation.run_data_preparation(cfg, hydra_args=hydra_args, dependency=dependency)
-    else:
-        cfg_copy._content.pop("data_preparation", None)
+    for stage_name in requested_stages:
+        stage_class = STR2STAGECLASS[stage_name]
+        if isinstance(stage_class, dict):
+            stage_config_choice = cfg.get(f"{stage_name}_config")
+            choice_model_type = stage_config_choice.rsplit("/", 1)[0]
+            for cls, model_types in stage_class.items():
+                if choice_model_type in model_types:
+                    stage_class = cls
+                    break
 
-    if run_training:
-        dependency = train.run_training(cfg, hydra_args=hydra_args, dependency=dependency)
-    else:
-        cfg_copy._content.pop("training", None)
-
-    if run_conversion:
-        dependency = convert.convert_ckpt(cfg, hydra_args=hydra_args, dependency=dependency)
-    else:
-        cfg_copy._content.pop("conversion", None)
-
-    if run_finetuning:
-        dependency = finetune.run_finetuning(cfg, hydra_args=hydra_args, dependency=dependency)
-    else:
-        cfg_copy._content.pop("finetuning", None)
-
-    if run_prompt_learning:
-        dependency = prompt_learn.run_prompt_learning(cfg, hydra_args=hydra_args, dependency=dependency)
-    else:
-        cfg_copy._content.pop("prompt_learning", None)
-
-    # TODO: merge evaluation harness
-    if run_evaluation:
-        if "prompt_gpt3" in cfg.get("evaluation_config"):
-            dependency = evaluate_prompt_gpt.run_evaluation(cfg, dependency=dependency)
-        elif "gpt3" in cfg.get("evaluation_config"):
-            dependency = evaluate_gpt.run_evaluation(cfg, dependency=dependency)
-        elif "t5" in cfg.get("evaluation_config"):
-            dependency = evaluate_t5.run_evaluation(cfg, hydra_args=hydra_args, dependency=dependency)
-        else:
-            raise ValueError(f"Unrecognized model in evaluation config `{cfg.evaluation_config}`.")
-    else:
-        cfg_copy._content.pop("evaluation", None)
-
-    # print(omegaconf.OmegaConf.to_yaml(cfg_copy))
-
+        if dependency is not None:
+            cfg[stage_name]["run"]["dependency"] = dependency
+        stage = stage_class(cfg)
+        job_id = stage.run()
+        if job_id:
+            dependency = f"afterany:{job_id}"
 
 if __name__ == "__main__":
     main()
