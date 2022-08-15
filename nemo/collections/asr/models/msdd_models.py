@@ -24,7 +24,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 import torch
 from omegaconf import DictConfig, open_dict
-from pytorch_lightning import Trainer, callbacks
+from pytorch_lightning import Trainer
 from tqdm import tqdm
 
 from nemo.collections.asr.data.audio_to_diar_label import AudioToSpeechMSDDInferDataset, AudioToSpeechMSDDTrainDataset
@@ -54,7 +54,6 @@ from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import AudioSignal, LengthsType, NeuralType, ProbsType
 from nemo.core.neural_types.elements import ProbsType
 from nemo.utils import logging
-from nemo.utils.exp_manager import exp_manager
 
 try:
     from torch.cuda.amp import autocast
