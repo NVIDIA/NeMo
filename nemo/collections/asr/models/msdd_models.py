@@ -1154,6 +1154,12 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         Load acoustic feature from audio segments for each scale and save it into a torch.tensor matrix.
         In addition, create variables containing the information of the multiscale subsegmentation information.
 
+        Note: `self.emb_batch_size` determines the number of embedding tensors attached to the computational graph.
+        If `self.emb_batch_size` is greater than 0, speaker embedding models are simultaneosly trained. Due to the
+        constrant of GPU memory size, only a subset of embedding tensors can be attached to the computational graph.
+        By default, the graph-attached embeddings are selected randomly by `torch.randperm`. Default value of
+        `self.emb_batch_size` is 0.
+
         Args:
             processed_signal: (Tensor)
                 Zero-padded Feature input.
@@ -1205,11 +1211,11 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         ms_mel_feat_len = torch.tensor(ms_mel_feat_len_list).to(device)
         seq_len = torch.tensor(sequence_lengths_list).to(device)
 
-        torch.manual_seed(self._trainer.current_epoch)
         if _emb_batch_size == 0:
             attached, _emb_batch_size = torch.tensor([]), 0
-            detached = torch.randperm(total_seg_count)
+            detached = torch.arange(total_seg_count)
         else:
+            torch.manual_seed(self._trainer.current_epoch)
             attached = torch.randperm(total_seg_count)[:_emb_batch_size]
             detached = torch.randperm(total_seg_count)[_emb_batch_size:]
         detach_ids = (attached, detached)
@@ -1245,7 +1251,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
             embs = torch.zeros(audio_signal.shape[0], embs_d.shape[1]).to(embs_d.device)
             embs[detach_ids[1], :] = embs_d.detach()
 
-        # For attached  embeddings
+        # For attached embeddings
         self.msdd._speaker_model.train()
         if len(detach_ids[0]) > 1:
             logits, embs_a = self.msdd._speaker_model.forward_for_export(
