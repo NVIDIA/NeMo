@@ -1,7 +1,6 @@
 
 import enum
 import itertools
-import re
 from typing import Optional, Union, Dict, Tuple, List, Iterable
 
 from hydra.utils import instantiate
@@ -18,12 +17,8 @@ from nemo.collections.common.data import ConcatDataset
 from nemo.core import PretrainedModelInfo, typecheck
 from nemo.utils import logging
 from nemo.collections.common.metrics import GlobalAverageLossMetric
-from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
-from nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset import (
-    PunctCapSegDataset,
-    CharTokenizerOverlay
-)
+from nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset import PunctCapSegDataset
 
 
 class Mode(enum.Enum):
@@ -35,12 +30,6 @@ class Mode(enum.Enum):
 class PunctCapSegModel(NLPModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None) -> None:
         super().__init__(cfg=cfg, trainer=trainer)
-        # Maybe turn off HF's basic tokenization, which messes with punctuation and Chinese chars. This can produce
-        # unexpected (and undesirable) results due to non-invertible tokenization.
-        if isinstance(self.tokenizer, AutoTokenizer):
-            self.tokenizer.tokenizer.do_basic_tokenize = False
-        # Wrap the tokenizer with a tokenizer that always produces chars, for capitalization inputs.
-        self._char_tokenizer = CharTokenizerOverlay(self.tokenizer)
 
         # Retrieve labels
         self._punct_post_labels: List[str] = self._cfg.punct_post_labels
@@ -72,12 +61,13 @@ class PunctCapSegModel(NLPModel):
             ignore_index=self._ignore_idx,
             logits_ndim=3
         )
+        # For true-casing, we use multi-label classification to predict for each char in a subword
         self._cap_loss: CrossEntropyLoss = CrossEntropyLoss(
             weight=cfg.loss.cap.get("weight"),
             ignore_index=self._ignore_idx,
             logits_ndim=3
         )
-        # Weights can be specified in punct-cap-seg order.
+        # Weights can be specified in punct{-pre,-post}, cap, seg order.
         self._agg_loss = AggregatorLoss(num_inputs=4, weights=cfg.get("agg_loss_weights"))
 
         # Punctuation head takes as input encodings and predicts distributions over punct tokens
@@ -245,7 +235,7 @@ class PunctCapSegModel(NLPModel):
         )
         dataloader = torch.utils.data.DataLoader(
             dataset=dataset,
-            collate_fn=datasets[0].collate_fn,  # TODO assumption
+            collate_fn=datasets[0].collate_fn,  # TODO assumption; works for now
             batch_size=cfg.get("batch_size", 32),
             num_workers=cfg.get("num_workers", 8),
             pin_memory=cfg.get("pin_memory", False),
@@ -304,8 +294,8 @@ class PunctCapSegModel(NLPModel):
 
         punct_pre_loss = self._punct_pre_loss(logits=punct_pre_logits, labels=punct_pre_targets)
         punct_post_loss = self._punct_post_loss(logits=punct_post_logits, labels=punct_post_targets)
-        cap_loss = self._cap_loss(logits=cap_logits, labels=cap_targets)
         seg_loss = self._seg_loss(logits=seg_logits, labels=seg_targets)
+        cap_loss = self._cap_loss(logits=cap_logits, labels=cap_targets)
 
         loss = self._agg_loss.forward(loss_1=punct_pre_loss, loss_2=punct_post_loss, loss_3=cap_loss, loss_4=seg_loss)
 
@@ -447,13 +437,6 @@ class PunctCapSegModel(NLPModel):
         post_scores = post_scores.tolist()
         post_preds = post_preds.tolist()
 
-        # Need these for some post-processing
-        # Match space after a pre-token punctuation label, or space before a post-token punctuation label
-        pre_labels = "".join(re.escape(x) for x in self._punct_pre_labels if x != self._null_punct_token)
-        post_labels = "".join(re.escape(x) for x in self._punct_post_labels if x != self._null_punct_token)
-        pre_space_ptn = re.compile(rf"([{pre_labels}])\s+")
-        post_space_ptn = re.compile(rf"\s+([{post_labels}])")
-
         output_texts: List[str] = []
         for batch_idx in range(batch_size):
             # Strip BOS/EOS
@@ -465,7 +448,6 @@ class PunctCapSegModel(NLPModel):
             batch_post_scores = post_scores[batch_idx][1:seq_length+1]
             out_ids = []
             for i in range(len(ids)):
-                # Always index +1 to offset for BOS ID
                 if batch_pre_scores[i] > threshold:
                     pred_id = self.tokenizer.token_to_id(self._punct_pre_labels[batch_pre_preds[i]])
                     out_ids.append(pred_id)
@@ -475,10 +457,7 @@ class PunctCapSegModel(NLPModel):
                     out_ids.append(pred_id)
             # Convert to text and normalize space around punctuation labels
             out_text = self.tokenizer.ids_to_text(out_ids)
-            out_text = pre_space_ptn.sub(r"\g<1>", out_text)
-            out_text = post_space_ptn.sub(r"\g<1>", out_text)
             output_texts.append(out_text)
-            # output_texts.append(self.tokenizer.tokenizer.decode(out_ids))
 
         return output_texts
 
@@ -519,20 +498,15 @@ class PunctCapSegModel(NLPModel):
             stop = 0
             for stop, score in enumerate(scores):
                 if score > threshold:
-                    text = self.tokenizer.ids_to_text(ids[start:stop + 1])
+                    # text = self.tokenizer.ids_to_text(ids[start:stop + 1])
+                    text = self.tokenizer.tokenizer.decode(ids[start:stop + 1])  # todo assume HF
                     text = text.strip()
-                    # Quick fix: sentence may be split on subword (e.g., Chinese) TODO find better fix?
-                    if text.startswith("##"):
-                        text = text[2:]
                     if text:
                         segmented_texts.append(text)
                     start = stop + 1
             # Add any remaining text, in case segmentation was not predicted on the final token
             if stop >= start:
                 text = self.tokenizer.ids_to_text(ids[start:stop + 1])
-                # Quick fix: sentence may be split on subword (e.g., Chinese)
-                if text.startswith("##"):
-                    text = text[2:]
                 text = text.strip()
                 if text:
                     segmented_texts.append(text)
@@ -545,7 +519,7 @@ class PunctCapSegModel(NLPModel):
         # Flatten list of lists into one list
         flat_texts = list(itertools.chain(*texts))
         token_ids_list: List[List[int]] = [
-            [bos] + self._char_tokenizer.text_to_ids(text) + [eos] for text in flat_texts
+            [bos] + self.tokenizer.text_to_ids(text) + [eos] for text in flat_texts
         ]
 
         lengths = torch.tensor([len(ids) for ids in token_ids_list], dtype=torch.long)
@@ -564,25 +538,24 @@ class PunctCapSegModel(NLPModel):
             input_ids=input_ids,  attention_mask=mask, token_type_ids=torch.zeros_like(input_ids)
         )
         logits = self._cap_head(hidden_states=encoded)
+        #
         probs = logits.softmax(dim=-1)
-        # Keep p(upper)
-        batch_scores = probs[..., 1]
+        probs_upper = probs[..., 1]
 
         flat_out_texts: List[str] = []
         for batch_idx, ids in enumerate(token_ids_list):
             # Strip BOS/EOS
             ids = ids[1:-1]
-            tokens = self._char_tokenizer.ids_to_tokens(ids)
-            scores = batch_scores[batch_idx, 1:len(tokens) + 1].tolist()
-            processed_tokens: List[str] = []
-            for token, token_score in zip(tokens, scores):
-                # Don't mess with special tokens; they won't decode correctly
-                if token != self.tokenizer.sep_token:
-                    token = token.upper() if token_score > threshold else token.lower()
-                # TODO thresholding? it always does something. This implies a default action
-                processed_tokens.append(token)
-            processed_text = self._char_tokenizer.tokens_to_text(processed_tokens)
-            flat_out_texts.append(processed_text)
+            tokens = self.tokenizer.ids_to_tokens(token_ids_list[batch_idx][1:-1])
+            scores = probs_upper[batch_idx, 1:len(ids) + 1].tolist()
+            recased_tokens = []
+            for token, score in zip(tokens, scores):
+                if score > threshold:
+                    recased_tokens.append(token.upper())
+                else:
+                    recased_tokens.append(token.lower())
+            recased_text = self.tokenizer.tokens_to_text(recased_tokens)
+            flat_out_texts.append(recased_text)
         # Un-flatten the texts back into their original lists
         output_texts: List[List[str]] = []
         start = 0

@@ -1,44 +1,38 @@
 
-#init_from_nemo_model: nemo_exp/pcs/2022-07-17_18-02-57/checkpoints/pcs.nemo
+init_from_nemo_model: pcs_base_bs2x16x256.nemo
+name: "base_bs1x16x256"
 
 model:
-  # Note that when using a model, you will want a multi-lingual model with cased vocabulary.
-  # This config is for https://huggingface.co/bert-base-multilingual-cased
-  language_model:
-    pretrained_model_name: bert-base-multilingual-cased
-    lm_checkpoint: null
-    config_file: null
-    config: null
-
-  # This config is for https://huggingface.co/distilbert-base-multilingual-cased.
-  # About 2x faster than bert-base, but not as good
-#  language_model:
-#    pretrained_model_name: distilbert-base-multilingual-cased
-#    lm_checkpoint: null
-#    config_file: null
-#    config: null
-
   tokenizer:
-    tokenizer_name: ${model.language_model.pretrained_model_name}
+    tokenizer_name: sentencepiece
     vocab_file: null
-    tokenizer_model: null
-    special_tokens: null
+    tokenizer_model: /home/shane/data/pcs/tokenizers/enesruzh_char2/spe_char.model
+    special_tokens:
+      unk_token: "<unk>"
+      pad_token: "<pad>"
+      bos_token: "<s>"
+      eos_token: "</s>"
 
-  # Config for a 'megatron' model. But the current megatrons are all trained on English, and have insufficient character
-  # coverage in other languages.
-#  tokenizer:
-#    library: megatron
-#    type: BertWordPieceCase
-#    model: null
-#    vocab_file: null
-#    merge_file: null
-#  language_model:
-#    pretrained_model_name: megatron_bert_345m_cased
-#    nemo_file: null
-#    lm_checkpoint: /path/to/megatron_bert_345m_cased.nemo  # if downloaded already
-#    config: null
-#    config_file: null
-#    vocab_file: null
+  language_model:
+    config_file: null
+    pretrained_model_name: bert-base-multilingual-cased  # Will be ignored, but cannot be null.
+    nemo_file: null
+    lm_checkpoint: null
+    vocab_file: null
+    config:
+      model_type: BertModel
+      vocab_size: 5212
+      hidden_size: 768
+      num_hidden_layers: 12
+      num_attention_heads: 12
+      intermediate_size: 3072
+      hidden_act: gelu
+      hidden_dropout_prob: 0.1
+      attention_probs_dropout_prob: 0.1
+      max_position_embeddings: 512
+      type_vocab_size: 2
+      pad_token_id: 0
+      position_embedding_type: absolute
 
   # Optionally we can learn the exclamation marks ["!", "！", "¡"]. If not using them, specify them as 'unused' so that
   # the datasets will not filter out sentences that end in '!', and therefore the model will not barf when seeing these
@@ -58,7 +52,7 @@ model:
     # Loss weights for punct_post_labels
     punct_post:
       weight: [
-          0.5,
+          1.0,
           4, 4, 4,
           4, 4, 4,
       ]
@@ -67,7 +61,7 @@ model:
       weight: [0.5, 4.0]
     # Loss weights for [lower_case, upper_case]
     cap:
-      weight: [0.5, 8.0]
+      weight: [1.0, 8.0]
     # Loss weights for [no_stop, full_stop]
     seg:
       weight: [1.0, 2.0]
@@ -75,7 +69,7 @@ model:
   pad_value: -100
 
   train_ds:
-    batch_size: 32
+    batch_size: 16
     num_workers: 6
     # A list of datasets will be used to create a ConcatDataset.
     sampling_technique: "temperature"
@@ -88,9 +82,9 @@ model:
         # One or more unprocessed, plain-text files containing one sentence per line
         text_files:
           - "/home/shane/corpora/tatoeba/en/train.txt"
-#          - "/home/shane/corpora/opensub/en/train.txt"
+          - "/home/shane/corpora/wmt_nc/news.2021.en.shuffled.deduped"
         # Read in only the first N lines from each text file.
-        max_lines_per_input_file: 200000
+        max_lines_per_input_file: 300000
         # Will be used to select the punctuation targets generator, which is language-specific.
         language: "en"
         # Punctuation labels that can appear before tokens.
@@ -104,15 +98,15 @@ model:
         unused_punctuation: ${model.unused_punctuation}
         # Filter out input lines longer than this many words, as a cleaning method (a perfect data set has only one
         # sentence per line; we use heuristics to achieve this from arbitrary data).
-        max_input_length_words: 16
+        max_input_length_words: 32
         min_input_length_words: 1
+        # Generate examples by concatenating multiple lines together, determined by the following min/max counts.
         min_lines_per_eg: 1
         max_lines_per_eg: 4
-        # Don't generate examples with more than this many tokens. Take this into consideration when specifying batch
-        # size.
-        max_length: 64
+        # Limit examples to this many tokens. This is enforced by a simple truncation the examples after generation.
+        max_length: 256
         # Truncate up to this many tokens from the end of examples, so the model doesn't learn to always put punctuation
-        # at the end of each example.
+        # at the end of each example. With moderate max_length this probably isn't needed.
         truncate_max_tokens: 0
         # List of zero or more implementations of nlp.data.token_classification.punct_cap_seg_dataset.TextCleaner
         cleaners:
@@ -121,17 +115,17 @@ model:
       - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
         text_files:
           - "/home/shane/corpora/tatoeba/ru/train.txt"
-#          - "/home/shane/corpora/opensub/ru/train.txt"
-        max_lines_per_input_file: 200000
+          - "/home/shane/corpora/wmt_nc/news.2021.ru.shuffled.deduped"
+        max_lines_per_input_file: 300000
         language: "ru"
         punct_pre_labels: ${model.punct_pre_labels}
         punct_post_labels: ${model.punct_post_labels}
         unused_punctuation: ${model.unused_punctuation}
-        max_input_length_words: 16
+        max_input_length_words: 32
         min_input_length_words: 1
         min_lines_per_eg: 1
         max_lines_per_eg: 4
-        max_length: 64
+        max_length: 256
         truncate_max_tokens: 0
         cleaners:
           - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
@@ -139,17 +133,17 @@ model:
       - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
         text_files:
           - "/home/shane/corpora/tatoeba/es/train.txt"
-#          - "/home/shane/corpora/opensub/es/train.txt"
-        max_lines_per_input_file: 200000
+          - "/home/shane/corpora/wmt_nc/news.2021.es.shuffled.deduped"
+        max_lines_per_input_file: 300000
         language: "es"
         punct_pre_labels: ${model.punct_pre_labels}
         punct_post_labels: ${model.punct_post_labels}
         unused_punctuation: ${model.unused_punctuation}
-        max_input_length_words: 16
+        max_input_length_words: 32
         min_input_length_words: 1
         min_lines_per_eg: 1
         max_lines_per_eg: 4
-        max_length: 64
+        max_length: 256
         truncate_max_tokens: 0
         cleaners:
           - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.SpanishPunctNormalizer
@@ -158,19 +152,19 @@ model:
       - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
         text_files:
           - "/home/shane/corpora/tatoeba/zh/train.txt"
-#          - "/home/shane/corpora/opensub/zh/train.txt"
-        max_lines_per_input_file: 200000
+          - "/home/shane/corpora/wmt_nc/news.2021.zh.shuffled.deduped"
+        max_lines_per_input_file: 300000
         language: "zh"
         # Let dataset know this is a continuous-script language
         is_continuous: true
         punct_pre_labels: ${model.punct_pre_labels}
         punct_post_labels: ${model.punct_post_labels}
         unused_punctuation: ${model.unused_punctuation}
-        max_input_length_chars: 32
+        max_input_length_chars: 64
         min_input_length_chars: 2
         min_lines_per_eg: 1
         max_lines_per_eg: 4
-        max_length: 64
+        max_length: 256
         truncate_max_tokens: 0
         cleaners:
           - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.ChineseTextCleaner
@@ -186,16 +180,17 @@ model:
     datasets:
       - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
         text_files:
-          - "/home/shane/corpora/tatoeba/en/dev.txt"
+#          - "/home/shane/corpora/tatoeba/en/dev.txt"
+          - "/home/shane/corpora/wmt_nc/news.2021.en.shuffled.deduped.tail5k"
         language: "en"
         punct_pre_labels: ${model.punct_pre_labels}
         punct_post_labels: ${model.punct_post_labels}
         unused_punctuation: ${model.unused_punctuation}
-        max_input_length_words: 16
+        max_input_length_words: 32
         min_input_length_words: 1
         min_lines_per_eg: 1
         max_lines_per_eg: 4
-        max_length: 128
+        max_length: 256
         truncate_max_tokens: 0
         rng_seed: 12345
         cleaners:
@@ -208,11 +203,11 @@ model:
         punct_pre_labels: ${model.punct_pre_labels}
         punct_post_labels: ${model.punct_post_labels}
         unused_punctuation: ${model.unused_punctuation}
-        max_input_length_words: 16
+        max_input_length_words: 32
         min_input_length_words: 1
-        min_lines_per_eg: 2
+        min_lines_per_eg: 1
         max_lines_per_eg: 4
-        max_length: 128
+        max_length: 256
         truncate_max_tokens: 0
         rng_seed: 12345
         cleaners:
@@ -225,11 +220,11 @@ model:
         punct_pre_labels: ${model.punct_pre_labels}
         punct_post_labels: ${model.punct_post_labels}
         unused_punctuation: ${model.unused_punctuation}
-        max_input_length_words: 16
+        max_input_length_words: 32
         min_input_length_words: 1
-        min_lines_per_eg: 2
+        min_lines_per_eg: 1
         max_lines_per_eg: 4
-        max_length: 128
+        max_length: 256
         truncate_max_tokens: 0
         rng_seed: 12345
         cleaners:
@@ -243,11 +238,11 @@ model:
         punct_pre_labels: ${model.punct_pre_labels}
         punct_post_labels: ${model.punct_post_labels}
         unused_punctuation: ${model.unused_punctuation}
-        max_input_length_chars: 24
+        max_input_length_chars: 64
         min_input_length_chars: 2
-        min_lines_per_eg: 4
+        min_lines_per_eg: 1
         max_lines_per_eg: 4
-        max_length: 128
+        max_length: 256
         truncate_max_tokens: 0
         rng_seed: 12345
         cleaners:
@@ -285,36 +280,36 @@ model:
 
   optim:
     name: adam
-    lr: 2e-5
-    betas: [0.9, 0.98]
+    lr: 2e-5  # 1e-4  # 2e-5
+#    betas: [0.9, 0.98]
     weight_decay: 0  # 5e-4
     sched:
       name: WarmupAnnealing
       min_lr: 1e-6
       last_epoch: -1
       warmup_ratio: null
-      warmup_steps: 4000
+      warmup_steps: 6000
 
 trainer:
   devices: -1
   num_nodes: 1
   max_epochs: 1
-  # max_steps: null
-  accumulate_grad_batches: 2
+  max_steps: 48000
+  accumulate_grad_batches: 1
   gradient_clip_val: 0.0
   precision: 16 # Should be set to 16 for O1 and O2, default is 16 as PT ignores it when am_level is O0
   accelerator: auto
   log_every_n_steps: 250  # Interval of logging.
-  val_check_interval: 2500  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
+  val_check_interval: 4000  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
   resume_from_checkpoint: null
   logger: false
   enable_checkpointing: false
-  progress_bar_refresh_rate: 50
+  progress_bar_refresh_rate: 10
   benchmark: false
 
 exp_manager:
-  exp_dir: nemo_exp
-  name: pcs
+  exp_dir: nemo_exp/char/
+  name: ${name}
   create_tensorboard_logger: true
   create_checkpoint_callback: true
   # Available metrics are val_{language}_{punct_pre,punct_post,cap,seg}_{f1,precision,recall}
