@@ -15,8 +15,9 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Union, Iterable
 import bignlp.utils.job_utils as job_utils
 from bignlp.core.logger import logger
 
+BIGNLP_CI = os.getenv("BIGNLP_DEBUG", "False").lower() in ("true", "t", "1")
 BIGNLP_DEBUG = os.getenv("BIGNLP_DEBUG", "False").lower() in ("true", "t", "1")
-
+BIGNLP_MEMORY_MEASURE = os.getenv("BIGNLP_DEBUG", "False").lower() in ("true", "t", "1")
 
 class AutoLauncher:
     def __init__(
@@ -465,6 +466,7 @@ def _make_sbatch_string(
     # environment setup:
     if setup is not None:
         lines += ["", "# setup"] + setup
+
     # commandline (this will run the function and args specified in the file provided as argument)
     # We pass --output and --error here, because the SBATCH command doesn't work as expected with a filename pattern
     stderr_flags = [] if stderr_to_stdout else ["--error", stderr]
@@ -472,6 +474,19 @@ def _make_sbatch_string(
     container_flags += ["--container-mounts", container_mounts] if container_mounts else []
     if srun_args is None:
         srun_args = []
+    srun_args += ["--overlap"] if BIGNLP_MEMORY_MEASURE else []
+
+    if BIGNLP_MEMORY_MEASURE:
+        mem_stdout = stdout.replace("_%j", "_mem_%j")
+        mem_stdout = mem_stdout.replace("_%A_%a", "_mem_%A_%a")
+        mem_srun_cmd = shlex.join(["srun", "--output", mem_stdout, *container_flags, *srun_args])
+        lines += [
+            "",
+            "# run memory measure",
+            f"{mem_srun_cmd} \\",
+            "  nvidia-smi --query-gpu=timestamp,index,,memory.total,memory.free,memory.used --format=csv -l 1 & ",
+            "",
+        ]
 
     for group_ind, command_group in enumerate(command_groups):
         srun_cmd = shlex.join(["srun", "--output", stdout, *stderr_flags, *container_flags, *srun_args])
