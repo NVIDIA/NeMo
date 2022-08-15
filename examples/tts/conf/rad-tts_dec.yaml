@@ -43,16 +43,29 @@ model:
   pitch_std: ${pitch_std}
   
   text_normalizer:
-      _target_: nemo_text_processing.text_normalization.normalize.Normalizer
-      lang: en
-      input_case: cased
-      whitelist: ${whitelist_path}
+    _target_: nemo_text_processing.text_normalization.normalize.Normalizer
+    lang: en
+    input_case: cased
+    whitelist: ${whitelist_path}
 
   text_normalizer_call_kwargs:
-      verbose: false
-      punct_pre_process: true
-      punct_post_process: true
-      
+    verbose: false
+    punct_pre_process: true
+    punct_post_process: true
+
+  text_tokenizer:
+    _target_: nemo.collections.tts.torch.tts_tokenizers.EnglishPhonemesTokenizer
+    punct: true
+    stresses: true
+    chars: true
+    apostrophe: true
+    pad_with_space: true
+    g2p:
+      _target_: nemo.collections.tts.torch.g2ps.EnglishG2p
+      phoneme_dict: ${phoneme_dict_path}
+      heteronyms: ${heteronyms_path}
+      phoneme_probability: 0.5
+
   train_ds:
     dataset:
       _target_: "nemo.collections.tts.torch.data.TTSDataset"
