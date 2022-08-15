@@ -514,8 +514,8 @@ class MultiSpeakerSimulator(object):
         sentence_duration_sr = len(self._sentence)
         remaining_duration_sr = max_sentence_duration_sr - sentence_duration_sr
         remaining_duration = max_sentence_duration - sentence_duration
-        prev_dur_sr = dur_sr = 0
-        nw = i = 0
+        prev_dur_sr, dur_sr = 0, 0
+        nw, i = 0, 0
         while nw < remaining_duration and dur_sr < remaining_duration_sr and i < len(file['words']):
             dur_sr = int(file['alignments'][i] * self._params.data_simulator.sr) - start_cutoff
             if dur_sr > remaining_duration_sr:
@@ -954,9 +954,9 @@ class MultiSpeakerSimulator(object):
         speaker_lists = self._get_speaker_samples(speaker_ids)  # get list of samples per speaker
         self._set_speaker_volume()
 
-        running_length_sr = prev_length_sr = start = end = 0
+        running_length_sr, prev_length_sr, start, end = 0, 0, 0, 0
         prev_speaker = None
-        rttm_list = json_list = ctm_list = []
+        rttm_list, json_list, ctm_list = [], [], []
         self._furthest_sample = [0 for n in range(self._params.data_simulator.session_config.num_speakers)]
         self._missing_overlap = 0
 
@@ -1354,12 +1354,10 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
         speaker_lists = self._get_speaker_samples(speaker_ids)  # get list of samples per speaker
         self._set_speaker_volume()
 
-        running_length_sr = prev_length_sr = 0  # starting point for each sentence
-        start = end = 0
+        running_length_sr, prev_length_sr = 0, 0  # starting point for each sentence
+        start, end = 0, 0
         prev_speaker = None
-        rttm_list = []
-        json_list = []
-        ctm_list = []
+        rttm_list, json_list, ctm_list = [], [], []
         self._furthest_sample = [0 for n in range(self._params.data_simulator.session_config.num_speakers)]
         self._missing_overlap = 0
 
