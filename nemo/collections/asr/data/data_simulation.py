@@ -954,7 +954,7 @@ class MultiSpeakerSimulator(object):
         speaker_lists = self._get_speaker_samples(speaker_ids)  # get list of samples per speaker
         self._set_speaker_volume()
 
-        running_length_sr, prev_length_sr, start, end = 0, 0, 0, 0
+        running_length_sr, prev_length_sr = 0, 0
         prev_speaker = None
         rttm_list, json_list, ctm_list = [], [], []
         self._furthest_sample = [0 for n in range(self._params.data_simulator.session_config.num_speakers)]
@@ -1355,7 +1355,6 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
         self._set_speaker_volume()
 
         running_length_sr, prev_length_sr = 0, 0  # starting point for each sentence
-        start, end = 0, 0
         prev_speaker = None
         rttm_list, json_list, ctm_list = [], [], []
         self._furthest_sample = [0 for n in range(self._params.data_simulator.session_config.num_speakers)]
