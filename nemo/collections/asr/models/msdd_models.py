@@ -347,7 +347,7 @@ class ClusterEmbedding:
         """
         Launch clustering diarizer to prepare embedding vectors and clustering results.
         """
-        self.max_num_speakers = self.cfg_base.diarizer.clustering.parameters.get('max_num_speakers', 8)
+        self.max_num_speakers = self.cfg_base.diarizer.clustering.parameters.max_num_speakers
         self.emb_sess_test_dict, self.emb_seq_test, self.clus_test_label_dict, _ = self.run_clustering_diarizer(
             self._cfg_msdd.test_ds.manifest_filepath, self._cfg_msdd.test_ds.emb_dir
         )
@@ -1702,9 +1702,8 @@ class OverlapAwareDiarizer:
             signal_lengths_list: (list)
                 List containing the actual length of each sequence in session.
         """
-        test_cfg = self.msdd_model.cfg.test_ds
         self.out_rttm_dir = self.clustering_embedding.out_rttm_dir
-        self.msdd_model.setup_test_data(test_cfg)
+        self.msdd_model.setup_test_data(self.msdd_model.cfg.test_ds)
         self.msdd_model = self.msdd_model.to(self.device)
         self.msdd_model.eval()
         torch.set_grad_enabled(False)
