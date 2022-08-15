@@ -626,11 +626,7 @@ class RadTTSModule(NeuralModule, Exportable):
         sigma_energy=0.8,
         speaker_id_text=None,
         speaker_id_attributes=None,
-<<<<<<< HEAD
-        token_dur_scaling=1.0,
-=======
         pace=1.0,
->>>>>>> upstream/main
         token_duration_max=100,
         lens=None,
         dur=None,

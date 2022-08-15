@@ -41,7 +41,7 @@ from nemo.core.neural_types.elements import (
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
-from nemo.core.optim.radam import RAdam
+# from nemo.core.optim.radam import RAdam
 
 @experimental
 class RadTTSModel(SpectrogramGenerator, Exportable):
@@ -267,10 +267,10 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
             optimizer = torch.optim.Adam(
                 self.model.parameters(), lr=self.optim.lr, weight_decay=self.optim.weight_decay
             )
-        elif self.optim.name == 'RAdam':  # False for inference riva
-            optimizer = RAdam(
-                self.model.parameters(), lr=self.optim.lr, weight_decay=self.optim.weight_decay
-            )
+        # elif self.optim.name == 'RAdam':  # False for inference riva
+        #    optimizer = RAdam(
+        #        self.model.parameters(), lr=self.optim.lr, weight_decay=self.optim.weight_decay
+        #    )
         else:
             logging.info("Unrecognized optimizer %s! Please choose the right optimizer" % (self.optim.name))
             exit(1)
