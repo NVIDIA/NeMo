@@ -71,10 +71,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer=trainer)
-        if cfg.get('pipeline_model_parallel_size', 1) > 2 and self.cfg.get('position_embedding_type') == 'relative':
-            raise ValueError(
-                "pipeline_model_parallel_size cannot be > 2 with position_embedding_type == relative at the moment."
-            )
         if cfg.get('pipeline_model_parallel_size', 1) > 1:
             if cfg.get('pipeline_model_parallel_split_rank', 0) <= 0:
                 raise ValueError(
@@ -427,8 +423,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             if (
                 self.cfg.decoder.get('position_embedding_type') == 'relative'
                 and parallel_state.is_rank_in_decoder_relative_position_embedding_group()
-                and parallel_state.get_pipeline_model_parallel_split_rank()
-                < parallel_state.get_pipeline_model_parallel_world_size() - 1
             ):
                 position_embeddings_weight = self.enc_dec_model.decoder_relative_position_embeddings_weight()
                 if self.megatron_amp_o2:
