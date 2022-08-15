@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import json
 import os
 import pickle as pkl
@@ -22,8 +23,8 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
-from omegaconf import DictConfig
-from pytorch_lightning import Trainer
+from omegaconf import DictConfig, open_dict
+from pytorch_lightning import Trainer, callbacks
 from tqdm import tqdm
 
 from nemo.collections.asr.data.audio_to_diar_label import AudioToSpeechMSDDInferDataset, AudioToSpeechMSDDTrainDataset
@@ -53,6 +54,7 @@ from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import AudioSignal, LengthsType, NeuralType, ProbsType
 from nemo.core.neural_types.elements import ProbsType
 from nemo.utils import logging
+from nemo.utils.exp_manager import exp_manager
 
 try:
     from torch.cuda.amp import autocast
@@ -324,6 +326,11 @@ def make_rttm_with_overlap(
 
 
 class ClusterEmbedding:
+    """
+    This class is built for calculating cluster-average embeddings, segmentation and load/save of the estimated cluster labels.
+    The methods in this class is used for both training and inference of MSDD models.
+    """
+
     def __init__(self, cfg_base: DictConfig, cfg_msdd_model: DictConfig):
         self.cfg_base = cfg_base
         self._cfg_msdd = cfg_msdd_model
@@ -332,7 +339,7 @@ class ClusterEmbedding:
         self.spk_emb_state_dict = {}
 
         self.run_clus_from_loaded_emb = False
-        self.use_speaker_model_from_MSDD = False
+        self.use_speaker_model_from_ckpt = True
         self.scale_window_length_list = list(self.cfg_base.diarizer.speaker_embeddings.parameters.window_length_in_sec)
         self.scale_n = len(self.scale_window_length_list)
         self.base_scale_index = len(self.scale_window_length_list) - 1
@@ -497,7 +504,7 @@ class ClusterEmbedding:
         os.makedirs(self.out_rttm_dir, exist_ok=True)
 
         # Load speaker embedding model state_dict which is loaded from the MSDD checkpoint.
-        if self.use_speaker_model_from_MSDD:
+        if self.use_speaker_model_from_ckpt:
             self.clusdiar_model._speaker_model.load_state_dict(self.spk_emb_state_dict)
 
         self.clusdiar_model._cluster_params = self.cfg_base.diarizer.clustering.parameters
@@ -614,123 +621,6 @@ class ClusterEmbedding:
             emb_scale_seq_dict[scale_index] = emb_dict
         return emb_scale_seq_dict
 
-
-class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
-    """
-    Encoder decoder class for multiscale diarization decoder (MSDD). Model class creates training, validation methods for setting
-    up data performing model forward pass.
-
-    This model class expects config dict for:
-        * preprocessor
-        * msdd_model
-
-    Since MSDD requires initializing clustering result, this model class needs to inherit from `ClusterEmbedding` class to reuse some of
-    the embedding post processing functions.
-    """
-
-    @classmethod
-    def list_available_models(cls) -> List[PretrainedModelInfo]:
-        """
-        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
-
-        Returns:
-            List of available pre-trained models.
-        """
-        return None
-
-    def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        """
-        Initialize an MSDD model and the specified speaker embedding model. In this init function, training and validation datasets are prepared.
-        """
-        self.pairwise_infer = False
-        self.cfg_msdd_model = cfg
-        self.cfg_msdd_model.msdd_module.num_spks = self.cfg_msdd_model.max_num_of_spks
-        self._trainer = trainer if trainer else None
-        self.cfg_msdd_model.train_ds.num_spks = self.cfg_msdd_model.max_num_of_spks
-        self.cfg_msdd_model.validation_ds.num_spks = self.cfg_msdd_model.max_num_of_spks
-        ClusterEmbedding.__init__(self, cfg_base=self.cfg_msdd_model.base, cfg_msdd_model=self.cfg_msdd_model)
-        if self._trainer:
-            self._init_segmentation_info()
-            self.prepare_splits()
-            self.world_size = trainer.num_nodes * trainer.num_devices
-            self.emb_batch_size = self.cfg_msdd_model.emb_batch_size
-        else:
-            self.world_size = 1
-            self.pairwise_infer = True
-        super().__init__(cfg=self.cfg_msdd_model, trainer=trainer)
-
-        if type(self.cfg_msdd_model.base.diarizer.speaker_embeddings.parameters.window_length_in_sec) == int:
-            raise ValueError("window_length_in_sec should be a list containing multiple segment (window) lengths")
-        else:
-            self.cfg_msdd_model.scale_n = len(
-                self.cfg_msdd_model.base.diarizer.speaker_embeddings.parameters.window_length_in_sec
-            )
-            self.cfg_msdd_model.msdd_module.scale_n = self.cfg_msdd_model.scale_n
-            self.scale_n = self.cfg_msdd_model.scale_n
-
-        self.preprocessor = EncDecSpeakerLabelModel.from_config_dict(self.cfg_msdd_model.preprocessor)
-        self.frame_per_sec = int(1 / self.preprocessor._cfg.window_stride)
-        self.msdd = EncDecDiarLabelModel.from_config_dict(self.cfg_msdd_model.msdd_module)
-        if trainer is not None:
-            self._init_speaker_model()
-        torch.cuda.empty_cache()
-        self.loss = BCELoss(weight=None)
-        self.min_detached_embs = 2
-        self._accuracy_test = MultiBinaryAccuracy()
-        self._accuracy_train = MultiBinaryAccuracy()
-        self._accuracy_valid = MultiBinaryAccuracy()
-
-    def _init_segmentation_info(self):
-        """Initialize segmentation settings: window, shift and multiscale weights.
-        """
-        self._diarizer_params = self.cfg_msdd_model.base.diarizer
-        self.multiscale_args_dict = parse_scale_configs(
-            self._diarizer_params.speaker_embeddings.parameters.window_length_in_sec,
-            self._diarizer_params.speaker_embeddings.parameters.shift_length_in_sec,
-            self._diarizer_params.speaker_embeddings.parameters.multiscale_weights,
-        )
-
-    def _init_speaker_model(self):
-        """
-        Initialize speaker embedding model with model name or path passed through config. Note that speaker embedding model is loaded to
-        `self.msdd` to enable multi-gpu and multi-node training. In addition, speaker embedding model is also saved with msdd model when
-        `.ckpt` files are saved.
-        """
-        model_path = self.cfg_msdd_model.base.diarizer.speaker_embeddings.model_path
-        self._diarizer_params = self.cfg_msdd_model.base.diarizer
-        if model_path is not None and model_path.endswith('.nemo'):
-            rank_id = torch.device(self._trainer.global_rank)
-            self.msdd._speaker_model = EncDecSpeakerLabelModel.restore_from(model_path, map_location=rank_id)
-            logging.info("Speaker Model restored locally from {}".format(model_path))
-        elif model_path.endswith('.ckpt'):
-            self._speaker_model = EncDecSpeakerLabelModel.load_from_checkpoint(model_path)
-            logging.info("Speaker Model restored locally from {}".format(model_path))
-        else:
-            if model_path not in get_available_model_names(EncDecSpeakerLabelModel):
-                logging.warning(
-                    "requested {} model name not available in pretrained models, instead".format(model_path)
-                )
-            logging.info("Loading pretrained {} model from NGC".format(model_path))
-            self._speaker_model = EncDecSpeakerLabelModel.from_pretrained(model_name=model_path)
-        self._speaker_params = self.cfg_msdd_model.base.diarizer.speaker_embeddings.parameters
-
-    def get_emb_clus_infer(self, cluster_embeddings):
-        """Assign dictionaries containing the clustering results from the class instance `cluster_embeddings`.
-        """
-        self.emb_sess_test_dict = cluster_embeddings.emb_sess_test_dict
-        self.clus_test_label_dict = cluster_embeddings.clus_test_label_dict
-        self.emb_seq_test = cluster_embeddings.emb_seq_test
-
-    def prepare_splits(self):
-        """Prepare training and validation set and save the split timestamp dictionaries.
-        """
-        self.train_multiscale_timestamp_dict = self.prepare_split_data(
-            self.cfg_msdd_model.train_ds.manifest_filepath, self.cfg_msdd_model.train_ds.emb_dir,
-        )
-        self.validation_multiscale_timestamp_dict = self.prepare_split_data(
-            self.cfg_msdd_model.validation_ds.manifest_filepath, self.cfg_msdd_model.validation_ds.emb_dir,
-        )
-
     def prepare_split_data(self, manifest_filepath, _out_dir):
         """
         Prepare multiscale timestamp data for training. Oracle VAD timestamps from RTTM files are used as VAD timestamps.
@@ -757,7 +647,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
             if os.path.exists(self._speaker_dir):
                 shutil.rmtree(self._speaker_dir)
             os.makedirs(self._speaker_dir)
-        split_audio_rttm_map = audio_rttm_map(manifest_filepath, attatch_dur=True)
+        split_audio_rttm_map = audio_rttm_map(manifest_filepath, attach_dur=True)
 
         # Speech Activity Detection part
         _speaker_manifest_path = os.path.join(self._speaker_dir, f'oracle_vad_manifest.json')
@@ -833,6 +723,142 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
                 }
 
         return timestamps_dict
+
+
+class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
+    """
+    Encoder decoder class for multiscale diarization decoder (MSDD). Model class creates training, validation methods for setting
+    up data performing model forward pass.
+
+    This model class expects config dict for:
+        * preprocessor
+        * msdd_model
+        * speaker_model
+
+    Since MSDD requires initializing clustering result, this model class needs to inherit from `ClusterEmbedding` class to reuse some of
+    the embedding post processing functions.
+    """
+
+    @classmethod
+    def list_available_models(cls) -> List[PretrainedModelInfo]:
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+
+        Returns:
+            List of available pre-trained models.
+        """
+        return None
+
+    def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+        """
+        Initialize an MSDD model and the specified speaker embedding model. In this init function, training and validation datasets are prepared.
+        """
+        self._trainer = trainer if trainer else None
+        self.pairwise_infer = False
+        self.cfg_msdd_model = cfg
+        self.cfg_msdd_model.msdd_module.num_spks = self.cfg_msdd_model.max_num_of_spks
+        ClusterEmbedding.__init__(self, cfg_base=self.cfg_msdd_model, cfg_msdd_model=self.cfg_msdd_model)
+
+        if self._trainer:
+            self._init_segmentation_info()
+            self.world_size = trainer.num_nodes * trainer.num_devices
+            self.emb_batch_size = self.cfg_msdd_model.emb_batch_size
+        else:
+            self.world_size = 1
+            self.pairwise_infer = True
+        super().__init__(cfg=self.cfg_msdd_model, trainer=trainer)
+
+        if (
+            type(self.cfg_msdd_model.diarizer.speaker_embeddings.parameters.window_length_in_sec) == int
+            or len(self.cfg_msdd_model.diarizer.speaker_embeddings.parameters.window_length_in_sec) <= 1
+        ):
+            raise ValueError("window_length_in_sec should be a list containing multiple segment (window) lengths")
+        else:
+            self.cfg_msdd_model.scale_n = len(
+                self.cfg_msdd_model.diarizer.speaker_embeddings.parameters.window_length_in_sec
+            )
+            self.cfg_msdd_model.msdd_module.scale_n = self.cfg_msdd_model.scale_n
+            self.scale_n = self.cfg_msdd_model.scale_n
+
+        self.preprocessor = EncDecSpeakerLabelModel.from_config_dict(self.cfg_msdd_model.preprocessor)
+        self.frame_per_sec = int(1 / self.preprocessor._cfg.window_stride)
+        self.msdd = EncDecDiarLabelModel.from_config_dict(self.cfg_msdd_model.msdd_module)
+
+        if trainer is not None:
+            self._init_speaker_model()
+            self.add_speaker_model_config(cfg)
+        else:
+            self.msdd._speaker_model = EncDecSpeakerLabelModel.from_config_dict(cfg.speaker_model_cfg)
+
+        # Call `self.save_hyperparameters` in modelPT.py again since cfg file should contain speaker model's config.
+        self.save_hyperparameters("cfg")
+
+        self.loss = BCELoss(weight=self.cfg_msdd_model.loss.weight)
+        self._accuracy_test = MultiBinaryAccuracy()
+        self._accuracy_train = MultiBinaryAccuracy()
+        self._accuracy_valid = MultiBinaryAccuracy()
+
+    def add_speaker_model_config(self, cfg):
+        """
+        Add config dictionary of the speaker model to the model's config dictionary. This is required to
+        save and load speaker model with MSDD model.
+
+        Args:
+            cfg (DictConfig): DictConfig type variable that conatains hyperparameters of MSDD model.
+        """
+        with open_dict(cfg):
+            cfg_cp = copy.copy(self.msdd._speaker_model.cfg)
+            cfg.speaker_model_cfg = cfg_cp
+            del cfg.speaker_model_cfg.train_ds
+            del cfg.speaker_model_cfg.validation_ds
+
+    def _init_segmentation_info(self):
+        """Initialize segmentation settings: window, shift and multiscale weights.
+        """
+        self._diarizer_params = self.cfg_msdd_model.diarizer
+        self.multiscale_args_dict = parse_scale_configs(
+            self._diarizer_params.speaker_embeddings.parameters.window_length_in_sec,
+            self._diarizer_params.speaker_embeddings.parameters.shift_length_in_sec,
+            self._diarizer_params.speaker_embeddings.parameters.multiscale_weights,
+        )
+
+    def _init_speaker_model(self):
+        """
+        Initialize speaker embedding model with model name or path passed through config. Note that speaker embedding model is loaded to
+        `self.msdd` to enable multi-gpu and multi-node training. In addition, speaker embedding model is also saved with msdd model when
+        `.ckpt` files are saved.
+        """
+        model_path = self.cfg_msdd_model.diarizer.speaker_embeddings.model_path
+        self._diarizer_params = self.cfg_msdd_model.diarizer
+
+        if not torch.cuda.is_available():
+            rank_id = torch.device('cpu')
+        elif self._trainer:
+            rank_id = torch.device(self._trainer.global_rank)
+        else:
+            rank_id = None
+
+        if model_path is not None and model_path.endswith('.nemo'):
+            self.msdd._speaker_model = EncDecSpeakerLabelModel.restore_from(model_path, map_location=rank_id)
+            logging.info("Speaker Model restored locally from {}".format(model_path))
+        elif model_path.endswith('.ckpt'):
+            self._speaker_model = EncDecSpeakerLabelModel.load_from_checkpoint(model_path, map_location=rank_id)
+            logging.info("Speaker Model restored locally from {}".format(model_path))
+        else:
+            if model_path not in get_available_model_names(EncDecSpeakerLabelModel):
+                logging.warning(
+                    "requested {} model name not available in pretrained models, instead".format(model_path)
+                )
+            logging.info("Loading pretrained {} model from NGC".format(model_path))
+            self._speaker_model = EncDecSpeakerLabelModel.from_pretrained(model_name=model_path)
+        self._speaker_params = self.cfg_msdd_model.diarizer.speaker_embeddings.parameters
+
+    def get_emb_clus_infer(self, cluster_embeddings):
+        """Assign dictionaries containing the clustering results from the class instance `cluster_embeddings`.
+        """
+        self.emb_sess_test_dict = cluster_embeddings.emb_sess_test_dict
+        self.clus_test_label_dict = cluster_embeddings.clus_test_label_dict
+        self.emb_seq_test = cluster_embeddings.emb_seq_test
 
     def __setup_dataloader_from_config(self, config: DictConfig, multiscale_timestamp_dict):
         featurizer = WaveformFeaturizer(
@@ -937,11 +963,17 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         return subsegments_manifest_path
 
     def setup_training_data(self, train_data_config: Optional[Union[DictConfig, Dict]]):
+        self.train_multiscale_timestamp_dict = self.prepare_split_data(
+            self.cfg_msdd_model.train_ds.manifest_filepath, self.cfg_msdd_model.train_ds.emb_dir,
+        )
         self._train_dl = self.__setup_dataloader_from_config(
             config=train_data_config, multiscale_timestamp_dict=self.train_multiscale_timestamp_dict
         )
 
     def setup_validation_data(self, val_data_layer_config: Optional[Union[DictConfig, Dict]]):
+        self.validation_multiscale_timestamp_dict = self.prepare_split_data(
+            self.cfg_msdd_model.validation_ds.manifest_filepath, self.cfg_msdd_model.validation_ds.emb_dir,
+        )
         self._validation_dl = self.__setup_dataloader_from_config(
             config=val_data_layer_config, multiscale_timestamp_dict=self.validation_multiscale_timestamp_dict
         )
@@ -1014,7 +1046,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
 		longer segments. At the same time, each row contains N numbers of indices where N is number of
 		segments in the base-scale (i.e., the finest scale).
                 Shape: (batch_size, scale_n, self.diar_window_length)
-            ms_seg_counts (Tensor)
+            ms_seg_counts (Tensor):
                 Cumulative sum of the number of segments in each scale. This information is needed to reconstruct
                 the multi-scale input matrix during forward propagating.
 
@@ -1061,7 +1093,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
                 Merged ground-truth cluster labels from all scales with zero-padding. Each scale's index can be
                 retrieved by using segment index in `ms_seg_counts`.
                 Shape: (batch_size, maximum total segment count among the samples in the batch)
-            ms_seg_counts
+            ms_seg_counts (Tensor):
                 Cumulative sum of the number of segments in each scale. This information is needed to reconstruct
                 multi-scale input tensors during forward propagating.
 
@@ -1082,7 +1114,6 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
                 each speaker to predict the speaker label for the given multi-scale embedding sequences.
                 Shape: (batch_size, scale_n, emb_dim, self.num_spks_per_model)
         """
-        device = torch.cuda.current_device()
         scale_n, batch_size = scale_mapping[0].shape[0], scale_mapping.shape[0]
         split_emb_tup = torch.split(embs, ms_seg_counts.view(-1).tolist(), dim=0)
         batch_emb_list = [split_emb_tup[i : i + scale_n] for i in range(0, len(split_emb_tup), scale_n)]
@@ -1097,7 +1128,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
                 for idx in range(self.cfg_msdd_model.max_num_of_spks):
                     _where = (clus_label_index_batch[scale_index] == idx).clone().detach()
                     if torch.any(_where) == False:
-                        avg_emb = torch.zeros(self.msdd._speaker_model._cfg.decoder.emb_sizes).to(device)
+                        avg_emb = torch.zeros(self.msdd._speaker_model._cfg.decoder.emb_sizes).to(embs.device)
                     else:
                         avg_emb = torch.mean(batch_emb_list[batch_idx][scale_index][_where], dim=0)
                     spk_set_list.append(avg_emb)
@@ -1106,7 +1137,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
             ms_avg_embs_list.append(session_avg_emb_set)
 
         ms_avg_embs = torch.stack(ms_avg_embs_list).permute(0, 1, 3, 2)
-        ms_avg_embs = ms_avg_embs.float().detach().to(device)
+        ms_avg_embs = ms_avg_embs.float().detach().to(embs.device)
         assert (
             ms_avg_embs.requires_grad == False
         ), "ms_avg_embs.requires_grad = True. ms_avg_embs should be detached from the torch graph."
@@ -1152,8 +1183,8 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
             detach_ids: (tuple)
                 Tuple containing both detached embeding indices and attached embedding indices
         """
-        device = torch.cuda.current_device()
-        _emb_batch_size = min(self.emb_batch_size, ms_seg_counts.sum().item() - self.min_detached_embs)
+        device = processed_signal.device
+        _emb_batch_size = min(self.emb_batch_size, ms_seg_counts.sum().item())
         feat_dim = self.preprocessor._cfg.features
         max_sample_count = int(self.multiscale_args_dict["scale_dict"][0][0] * self.frame_per_sec)
         ms_mel_feat_len_list, sequence_lengths_list, ms_mel_feat_list = [], [], []
@@ -1176,7 +1207,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         seq_len = torch.tensor(sequence_lengths_list).to(device)
 
         torch.manual_seed(self._trainer.current_epoch)
-        if _emb_batch_size < self.min_detached_embs:
+        if _emb_batch_size == 0:
             attached, _emb_batch_size = torch.tensor([]), 0
             detached = torch.randperm(total_seg_count)
         else:
@@ -1212,7 +1243,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
             logits, embs_d = self.msdd._speaker_model.forward_for_export(
                 processed_signal=audio_signal[detach_ids[1]], processed_signal_len=audio_signal_len[detach_ids[1]]
             )
-            embs = torch.zeros(audio_signal.shape[0], embs_d.shape[1]).cuda()
+            embs = torch.zeros(audio_signal.shape[0], embs_d.shape[1]).to(embs_d.device)
             embs[detach_ids[1], :] = embs_d.detach()
 
         # For attached  embeddings
@@ -1246,9 +1277,9 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         self._accuracy_train(preds, targets, sequence_lengths)
         torch.cuda.empty_cache()
         f1_acc = self._accuracy_train.compute()
-        self.log('loss', loss)
-        self.log('learning_rate', self._optimizer.param_groups[0]['lr'])
-        self.log('train_f1_acc', f1_acc)
+        self.log('loss', loss, sync_dist=True)
+        self.log('learning_rate', self._optimizer.param_groups[0]['lr'], sync_dist=True)
+        self.log('train_f1_acc', f1_acc, sync_dist=True)
         self._accuracy_train.reset()
         return {'loss': loss}
 
@@ -1267,6 +1298,8 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         loss = self.loss(probs=preds, labels=targets, signal_lengths=sequence_lengths)
         self._accuracy_valid(preds, targets, sequence_lengths)
         f1_acc = self._accuracy_valid.compute()
+        self.log('val_loss', loss, sync_dist=True)
+        self.log('val_f1_acc', f1_acc, sync_dist=True)
         return {
             'val_loss': loss,
             'val_f1_acc': f1_acc,
@@ -1277,8 +1310,8 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         f1_acc = self._accuracy_valid.compute()
         self._accuracy_valid.reset()
 
-        self.log('val_loss', val_loss_mean)
-        self.log('val_f1_acc', f1_acc)
+        self.log('val_loss', val_loss_mean, sync_dist=True)
+        self.log('val_f1_acc', f1_acc, sync_dist=True)
         return {
             'val_loss': val_loss_mean,
             'val_f1_acc': f1_acc,
@@ -1288,7 +1321,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         test_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
         f1_acc = self._accuracy_test.compute()
         self._accuracy_test.reset()
-        self.log('val_f1_acc', f1_acc)
+        self.log('val_f1_acc', f1_acc, sync_dist=True)
         return {
             'test_loss': test_loss_mean,
             'test_f1_acc': f1_acc,
@@ -1333,7 +1366,8 @@ class OverlapAwareDiarizer:
         self.clustering_embedding.spk_emb_state_dict = self.spk_emb_state_dict
 
         # Parameters for creating diarization results from MSDD outputs.
-        self.clustering_max_spks = cfg.diarizer.clustering.parameters.max_num_speakers
+        self.clustering_max_spks = self.msdd_model._cfg.max_num_of_spks
+
         self.overlap_infer_spk_limit = cfg.diarizer.msdd_model.parameters.get(
             'overlap_infer_spk_limit', self.clustering_max_spks
         )
@@ -1350,21 +1384,18 @@ class OverlapAwareDiarizer:
         """
         Transfer the parameters that are needed for MSDD inference from the diarizer config files to `msdd_model.cfg`.
         """
-        msdd_model.cfg.base.diarizer.out_dir = cfg.diarizer.out_dir
+        msdd_model.cfg.diarizer.out_dir = cfg.diarizer.out_dir
         msdd_model.cfg.test_ds.manifest_filepath = cfg.diarizer.manifest_filepath
         msdd_model.cfg.test_ds.emb_dir = cfg.diarizer.out_dir
         msdd_model.cfg.test_ds.batch_size = cfg.diarizer.msdd_model.parameters.infer_batch_size
+        msdd_model._cfg.max_num_of_spks = cfg.diarizer.clustering.parameters.max_num_speakers
         msdd_model.cfg_base = cfg
-        msdd_model._cfg.base.diarizer.clustering.parameters.max_num_speakers = (
-            cfg.diarizer.clustering.parameters.max_num_speakers
-        )
         return msdd_model.cfg
 
-    def extract_standalone_model(self, ext: str = '.ckpt') -> str:
+    def extract_standalone_speaker_model(self, ext: str = '.ckpt') -> str:
         """
-        MSDD model file contains speaker embedding model and MSDD model. This function extracts standalone MSDD model and save it to
-        disc to separateley load standalone MSDD model. Speaker embedding model weights are saved to `self.spk_emb_state_dict` to be
-        loaded separately for clustering diarizer.
+        MSDD model file contains speaker embedding model and MSDD model. This function extracts standalone speaker model and save it to
+        `self.spk_emb_state_dict` to be loaded separately for clustering diarizer.
 
         Args:
             ext (str):
@@ -1374,7 +1405,7 @@ class OverlapAwareDiarizer:
                 Path to the extracted standalone model without speaker embedding extractor model.
         """
         loaded_model = torch.load(self._cfg.diarizer.msdd_model.model_path)
-        self.spk_emb_state_dict = {}
+        spk_emb_state_dict = {}
         spk_emb_module_names = []
         for name in loaded_model['state_dict'].keys():
             if 'msdd._speaker_model' in name:
@@ -1382,32 +1413,32 @@ class OverlapAwareDiarizer:
 
         for name in spk_emb_module_names:
             org_name = name.replace('msdd._speaker_model.', '')
-            self.spk_emb_state_dict[org_name] = loaded_model['state_dict'][name]
-            del loaded_model['state_dict'][name]
+            spk_emb_state_dict[org_name] = loaded_model['state_dict'][name]
 
-        standalone_model_path = self._cfg.diarizer.msdd_model.model_path.replace(ext, f'.{ext}')
-        torch.save(loaded_model, standalone_model_path)
-        return standalone_model_path
+        return spk_emb_state_dict
 
     def _init_msdd_model(self, cfg: DictConfig):
         """
         Initialized MSDD model with the provided config. Load either from `.nemo` file or `.ckpt` checkpoint files.
         """
-        self.device = 'cuda'
         if not torch.cuda.is_available():
             self.device = 'cpu'
             logging.warning(
                 "Running model on CPU, for faster performance it is adviced to use at least one NVIDIA GPUs"
             )
+        else:
+            self.device = 'cuda'
 
         if cfg.diarizer.msdd_model.model_path.endswith('.nemo'):
             logging.info(f"Using local nemo file from {cfg.diarizer.msdd_model.model_path}")
-            msdd_only_model_path = self.extract_standalone_model('.nemo')
-            self.msdd_model = EncDecDiarLabelModel.restore_from(restore_path=msdd_only_model_path)
+            self.msdd_model = EncDecDiarLabelModel.restore_from(restore_path=cfg.diarizer.msdd_model.model_path)
+            self.spk_emb_state_dict = self.extract_standalone_speaker_model('.nemo')
         elif cfg.diarizer.msdd_model.model_path.endswith('.ckpt'):
             logging.info(f"Using local checkpoint from {cfg.diarizer.msdd_model.model_path}")
-            msdd_only_model_path = self.extract_standalone_model('.ckpt')
-            self.msdd_model = EncDecDiarLabelModel.load_from_checkpoint(checkpoint_path=msdd_only_model_path)
+            self.msdd_model = EncDecDiarLabelModel.load_from_checkpoint(
+                checkpoint_path=cfg.diarizer.msdd_model.model_path
+            )
+            self.spk_emb_state_dict = self.extract_standalone_speaker_model('.ckpt')
 
     def get_pred_mat(self, data_list: List[Union[Tuple[int], List[torch.Tensor]]]) -> torch.Tensor:
         """

@@ -1,13 +1,9 @@
-name: &name "MultiscaleDiarDecoder"
-sample_rate: &sample_rate 16000
-repeat: &rep 2
-dropout: &drop 0.5
-separable: &separable True
-n_filters: &n_filters 256
-num_workers: &num_workers 20
-batch_size: &global_bs 512
+name: "MultiscaleDiarDecoder" 
+sample_rate: 16000
+num_workers: 20
+batch_size: 512
 
-diarizer: &diarizer
+diarizer: 
   manifest_filepath: null
   out_dir: null
   oracle_vad: True # If True, uses RTTM files provided in manifest file to get speech activity (VAD) timestamps
@@ -41,7 +37,7 @@ diarizer: &diarizer
   clustering:
     parameters:
       oracle_num_speakers: False # If True, use num of speakers value provided in manifest file.
-      max_num_speakers: &max_num_speakers 8 # Max number of speakers for each recording. If oracle num speakers is passed, this value is ignored.
+      max_num_speakers: 8 # Max number of speakers for each recording. If oracle num speakers is passed, this value is ignored.
       enhanced_count_thres: 80 # If the number of segments is lower than this number, enhanced speaker counting is activated.
       max_rp_threshold: 0.25 # Determines the range of p-value search: 0 < p <= max_rp_threshold. 
       sparse_search_volume: 30 # The higher the number, the more values will be examined with more time. 
@@ -50,8 +46,9 @@ diarizer: &diarizer
   msdd_model:
     model_path: ??? # .nemo local model path or pretrained model name for multiscale diarization decoder (MSDD)
     parameters:
+      use_speaker_model_from_ckpt: True # If True, use speaker embedding model in checkpoint. If False, the provided speaker embedding model in config will be used.
       run_clus_from_loaded_emb: False # Run clustering again after loading the saved speaker embedding.
-      infer_batch_size: &infer_batch_size 25 # Batch size for MSDD inference. 
+      infer_batch_size: 25 # Batch size for MSDD inference. 
       sigmoid_threshold: [0.7,0.85,1.0] # Sigmoid threshold for outputting 
       seq_eval_mode: False # If True, use oracle number of speaker and evaluate F1 score for the given speaker sequences. Default is False.
       split_infer: True # If True, break the input audio clip to short sequences and calculate cluster average embeddings for inference.

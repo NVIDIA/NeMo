@@ -19,6 +19,7 @@ from pytorch_lightning import seed_everything
 from nemo.collections.asr.models import EncDecDiarLabelModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
+from nemo.utils.exp_manager import exp_manager
 
 """
 Example training session (on 1 GPU for 10 epochs on telephonic datasets)
@@ -26,11 +27,11 @@ Example training session (on 1 GPU for 10 epochs on telephonic datasets)
 python ./multiscale_diar_decoder.py --config-path='conf' --config-name='msdd_5scl_15_05_50Povl_256x3x32x2.yaml' \
     trainer.gpus=1 \
     trainer.max_epochs=10  \
-    msdd_model.base.diarizer.speaker_embeddings.model_path="titanet_large" \
-    msdd_model.train_ds.manifest_filepath="<train_manifest_path>" \
-    msdd_model.validation_ds.manifest_filepath="<dev_manifest_path>" \
-    msdd_model.train_ds.emb_dir="<train_temp_dir>" \
-    msdd_model.validation_ds.emb_dir="<dev_temp_dir>" \
+    model.base.diarizer.speaker_embeddings.model_path="titanet_large" \
+    model.train_ds.manifest_filepath="<train_manifest_path>" \
+    model.validation_ds.manifest_filepath="<dev_manifest_path>" \
+    model.train_ds.emb_dir="<train_temp_dir>" \
+    model.validation_ds.emb_dir="<dev_temp_dir>" \
     exp_manager.name='sample_train' \
     exp_manager.exp_dir='./msdd_exp' \
     +exp_manager.use_datetime_version=False \
@@ -43,9 +44,9 @@ seed_everything(42)
 def main(cfg):
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
     trainer = pl.Trainer(**cfg.trainer)
-    msdd_model = EncDecDiarLabelModel(cfg=cfg.msdd_model, trainer=trainer)
+    exp_manager(trainer, cfg.get("exp_manager", None))
+    msdd_model = EncDecDiarLabelModel(cfg=cfg.model, trainer=trainer)
     trainer.fit(msdd_model)
-
 
 if __name__ == '__main__':
     main()

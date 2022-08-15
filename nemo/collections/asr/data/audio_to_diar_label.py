@@ -56,7 +56,7 @@ def get_scale_mapping_list(uniq_timestamps):
 
     session_scale_mapping_dict = get_argmin_mat(uniq_scale_dict)
     for scale_idx in sorted(uniq_scale_dict.keys()):
-        scale_mapping_argmat[scale_idx] = torch.tensor(session_scale_mapping_dict[scale_idx])
+        scale_mapping_argmat[scale_idx] = session_scale_mapping_dict[scale_idx]
     scale_mapping_argmat = torch.stack(scale_mapping_argmat)
     return scale_mapping_argmat
 
