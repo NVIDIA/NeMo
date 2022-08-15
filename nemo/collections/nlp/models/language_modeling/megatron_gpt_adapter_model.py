@@ -198,12 +198,12 @@ class MegatronGPTAdapterLearningModel(MegatronGPTPromptLearningModel):
         """
         # Freeze frozen model
         self.frozen_model.freeze()
-        param_groups = {'params': []}
+        param_groups = {'params': [ p for p in self.frozen_model.parameters()]}
         for _, module in self.frozen_model.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin):
-                for adapter_key in self.adapter_name_keys:
-                    adapter_module = module.adapter_layer[adapter_key]
-                    param_groups['params'].extend(adapter_module.parameters())
+        #        for adapter_key in self.adapter_name_keys:
+        #            adapter_module = module.adapter_layer[adapter_key]
+        #            param_groups['params'].extend(adapter_module.parameters())
                 module.set_enabled_adapters(enabled=True) 
                 module.unfreeze_enabled_adapters()
         self._optimizer_param_groups = [param_groups]
