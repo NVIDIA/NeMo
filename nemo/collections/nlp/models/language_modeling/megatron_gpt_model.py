@@ -188,6 +188,16 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             optim_kwargs['contiguous_grad_buffer'] = True
         return super().setup_optimization(optim_config=optim_config, optim_kwargs=optim_kwargs)
 
+    def setup_optimization(
+        self, optim_config: Optional[Union[DictConfig, Dict]] = None, optim_kwargs: Optional[Dict[str, Any]] = None,
+    ):
+        optim_kwargs = {} if optim_kwargs is None else optim_kwargs.copy()
+        if self.with_distributed_adam:
+            optim_kwargs['process_group'] = parallel_state.get_data_parallel_group()
+            optim_kwargs['param_sync_dtype'] = self.autocast_dtype
+            optim_kwargs['contiguous_grad_buffer'] = True
+        return super().setup_optimization(optim_config=optim_config, optim_kwargs=optim_kwargs)
+
     def forward(self, tokens, text_position_ids, attention_mask, labels):
         output_tensor = self.model(tokens, text_position_ids, attention_mask, labels=labels)
         return output_tensor
