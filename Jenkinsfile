@@ -3054,7 +3054,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
       failFast true
       steps{
         sh "python examples/nlp/language_modeling/megatron_gpt_eval.py \
-            gpt_model_file=/home/TestData/nlp/megatron_gpt/125M/megatron_gpt.nemo \
+            gpt_model_file=/home/TestData/nlp/megatron_gpt/tiny/megatron_gpt--val_loss-10.86-step-10-consumed_samples-80.0.nemo \
             prompts=['How to fix GPU memory? A:'] \
             tensor_model_parallel_size=1 \
             inference.tokens_to_generate=32 \
