@@ -17,7 +17,7 @@ trainer:
   resume_from_checkpoint: null 
 
 exp_manager:
-  explicit_log_dir: './prompt_learning_test'
+  explicit_log_dir: null
   exp_dir: null
   name: ${name}
   create_wandb_logger: False
@@ -47,7 +47,7 @@ model:
   micro_batch_size: 8
   
   restore_path: null # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
-  pretrained_language_model_path: /raid/Data/NMT/Models/hf_t5_small/nemo_t5v1_1_small_converted_weights.nemo # Path to the pretrained T5 language model .nemo file, always required
+  pretrained_language_model_path: ??? # Path to the pretrained T5 language model .nemo file, always required
   existing_tasks: []
   new_tasks: ["squad"] 
 
@@ -86,3 +86,10 @@ model:
     betas: 
     - 0.9
     - 0.98
+    sched:
+      name: CosineAnnealing
+      warmup_steps: 100
+      constant_steps: 0
+      min_lr: 0.0
+      monitor: val_loss
+      reduce_on_plateau: false
