@@ -55,7 +55,7 @@ def main(cfg):
         job_id = stage.run()
 
         job_path = stage.get_job_path()
-        command = "  \\\n".join(sys.argv)
+        command = " \\\n  ".join(sys.argv)
         with open(job_path.folder / "bignlp_cmd.log", "w") as f:
             f.write(command)
 
