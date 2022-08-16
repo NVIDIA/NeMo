@@ -369,7 +369,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         if parallel_state.get_pipeline_model_parallel_world_size() > 1 and (
             parallel_state.is_rank_in_embedding_group()
         ):
-            if self.enc_dec_model.share_token_embeddings and self.enc_dec_model.share_decoder_tokens_head_embeddings:
+            if self.cfg.get('share_token_embeddings', True) and self.cfg.get('share_decoder_tokens_head_embeddings', True):
                 word_embeddings_weight = self.enc_dec_model.word_embeddings_weight()
                 if self.megatron_amp_o2:
                     # O2 recipe stores a "main" copy of weights and grads
@@ -390,7 +390,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             and self.cfg.encoder.get('position_embedding_type') == 'learned_absolute'
             and self.cfg.decoder.get('position_embedding_type') == 'learned_absolute'
         ):
-            if self.enc_dec_model.share_token_embeddings:
+            if self.cfg.get('share_token_embeddings', True):
                 position_embeddings_weight = self.enc_dec_model.position_embeddings_weight()
                 if self.megatron_amp_o2:
                     grad = position_embeddings_weight.main_grad

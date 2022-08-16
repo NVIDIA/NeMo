@@ -60,6 +60,8 @@ class T5RelativePositionEmbedding(torch.nn.Module):
         self._relative_position_embedding_key = 'relative_position_embedding'
         init_method(self.relative_position_embedding.weight)
 
+    '''
+    # TODO: (sandeepsub) - Remove once we verify the other allreduce approach works.
     def _all_reduce_position_embedding(self):
         if parallel_state.get_pipeline_model_parallel_world_size() == 1:
             return
@@ -93,6 +95,7 @@ class T5RelativePositionEmbedding(torch.nn.Module):
                     )
         else:
             raise ValueError("Torch Distributed not initialized, cannot allreduce relative position embeddings.")
+    '''
 
     def _relative_position_bucket(self, relative_position, bidirectional=True, num_buckets=32, max_distance=128):
         """
