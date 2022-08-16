@@ -29,8 +29,9 @@ if HAVE_APEX:
     class LayerNorm1P(FastLayerNorm):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
-            assert isinstance(self, OrigFastLayerNorm), \
-                'LayerNorm1P implemented only as an apex.contrib.layer_norm.FastLayerNorm extension'
+            assert isinstance(
+                self, OrigFastLayerNorm
+            ), 'LayerNorm1P implemented only as an apex.contrib.layer_norm.FastLayerNorm extension'
 
         def reset_parameters(self):
             nn.init.zeros_(self.weight)
@@ -39,7 +40,9 @@ if HAVE_APEX:
         def forward(self, x):
             return _fast_layer_norm(x, self.weight + 1, self.bias, self.epsilon)
 
+
 else:
+
     class LayerNorm1P(nn.Module):
         def __init__(self, *args, **kwargs):
             raise NotImplementedError('LayerNorm1P available only with apex installed')

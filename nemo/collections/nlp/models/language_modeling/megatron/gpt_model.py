@@ -143,8 +143,11 @@ class GPTModel(MegatronModule):
             ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
             kv_channels = hidden_size // num_attention_heads
 
-        scaled_init_method = (scaled_init_method_normal(init_method_std, num_layers)
-                              if use_scaled_init_method else init_method_normal(init_method_std))
+        scaled_init_method = (
+            scaled_init_method_normal(init_method_std, num_layers)
+            if use_scaled_init_method
+            else init_method_normal(init_method_std)
+        )
         self.language_model, self._language_model_key = get_language_model(
             vocab_size=vocab_size,
             hidden_size=hidden_size,
