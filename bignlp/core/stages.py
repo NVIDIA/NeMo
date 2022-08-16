@@ -99,6 +99,19 @@ class BigNLPStage:
         numa_command = " \\\n  ".join(numa_command)
         return [numa_command]
 
+    def _make_api_log_command_prefix(self, results_dir) -> str:
+        choice_model_type, choice_name = self.get_stage_config_choice()
+        api_log = self.cfg.get("api_log", False)
+        api_log_prefix = ""
+        if api_log:
+            api_log_path = os.path.join(results_dir, "api_logs")
+            api_log_prefix = (
+                "[[ \${SLURM_LOCALID} -eq 0 ]] && "
+                f"API_LOG_CMD='apiLog.sh -p {choice_model_type}/{choice_name} -v nemo_megatron' || API_LOG_CMD=''; "
+                f"LOGPATH={api_log_path} ${API_LOG_CMD}"
+            )
+        return api_log_prefix
+
     def _make_nsys_command_prefix(self, results_dir) -> str:
         model_cfg = self.stage_cfg.get("model")
         nsys_cfg = model_cfg.get("nsys_profile", None)
@@ -256,12 +269,15 @@ class NeMoStage(BigNLPStage):
         core_command = [
             self._cuda_device_max_connections,
             self._cuda_visible_devices,
+            self._make_api_log_command_prefix(
+                results_dir=self.get_job_path().results_folder
+            ),
             self._make_nsys_command_prefix(
                 results_dir=self.get_job_path().results_folder
             ),
             self._make_nemo_call_string(stage_cfg_path)
         ]
-        core_command_string = " ".join(core_command)
+        core_command_string = " ".join([c for c in core_command if c])
         command_groups[0] += [core_command_string]
         command_groups = clean_command_groups(command_groups)
 
