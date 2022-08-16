@@ -308,7 +308,7 @@ class NeMoStage(BigNLPStage):
     def get_env_vars(self) -> Dict:
         env_vars = super().get_env_vars()
         if self.cluster != "bcm":
-            env_vars["SLURM_TASKS_PER_NODE"] = self.stage_cfg.trainer.get("devices", 1)
+            env_vars["SLURM_NTASKS_PER_NODE"] = self.stage_cfg.trainer.get("devices", 1)
         return env_vars
 
 
