@@ -108,7 +108,7 @@ class BigNLPStage:
             api_log_prefix = (
                 "[[ \${SLURM_LOCALID} -eq 0 ]] && "
                 f"API_LOG_CMD='apiLog.sh -p {choice_model_type}/{choice_name} -v nemo_megatron' || API_LOG_CMD=''; "
-                f"LOGPATH={api_log_path} ${API_LOG_CMD}"
+                f"LOGPATH={api_log_path} \${{API_LOG_CMD}}"
             )
         return api_log_prefix
 
