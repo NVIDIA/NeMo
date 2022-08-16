@@ -3,7 +3,7 @@ import os
 BASE_RESULTS_DIR = os.environ.get("RESULTS_DIR")
 
 class TestDataPrepPipeline:
-    job_name = CI_JOB_RESULTS_DIR.rsplit("/",1)[1]
+    job_name = BASE_RESULTS_DIR.rsplit("/",1)[1]
     model = job_name.split("_")[2] #data_prep_gpt3_pile
     if model == "t5":
         base_file="data/my-t5_00_text_document"
