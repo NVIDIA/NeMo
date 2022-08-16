@@ -8,10 +8,10 @@ CI_JOB_RESULTS = os.environ.get("RESULTS_DIR")
 class TestEvalBaseGpt3Pipeline:
 
     margin = 0.05
-    job_name = CI_JOB_RESULTS_DIR.rsplit("/",1)[1]
+    job_name = CI_JOB_RESULTS.rsplit("/",1)[1]
     file_name = job_name + ".json" #eg eval_gpt3_126m_tp1_pp1_lambada.json
-    run_model = file_name.split("_")[1] == "gpt3" ? "gpt3" : "prompt_gpt3"
-    test_key = run_model == "gpt3" ? "lambada" : "prompt"
+    run_model = "gpt3" if file_name.split("_")[1] == "gpt3" else "prompt_gpt3"
+    test_key = "lambada" if run_model == "gpt3" else "prompt"
     file_directory =  run_model + "_result_files" # Since the file name will be prompt_learn_gpt3_..
     expected_metrics_file = os.path.join("tests/ci_tests/selene/pytest/eval", file_directory, file_name)
     with open(expected_metrics_file) as f:
@@ -27,8 +27,9 @@ class TestEvalBaseGpt3Pipeline:
         assert os.path.exists(actual_metrics_file), f"metrics.json file does not exist: {actual_metrics_file}"
 
         with open(actual_metrics_file) as json_file:
-            metrics = json.load(json_file)[self.test_key]
-            print(metrics)
+            full_metrics = json.load(json_file)
+            print(full_metrics)
+            metrics = full_metrics[self.test_key]
             expected_lambada = self.expected[self.test_key]
             assert metrics["ppl"] == pytest.approx(expected=expected_lambada["ppl"], rel=self.margin), f"Lambada PPL should be {expected_lambada['ppl']} but it is {metrics['ppl']}"
             assert metrics["ppl_stderr"] == pytest.approx(expected=expected_lambada["ppl_stderr"], rel=self.margin), f"Lambada PPL StdErr should be {expected_lambada['ppl_stderr']} but it is {metrics['ppl_stderr']}"
