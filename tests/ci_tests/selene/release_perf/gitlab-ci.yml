@@ -670,7 +670,7 @@ train.gpt3.5b_tp8_pp4_4node_bf16_O1_100steps:
     NUM_NODES: 4
     PRECISION: bf16
     TP_SIZE: 8
-    PP_SIZE: 3
+    PP_SIZE: 4
     TIME_LIMIT: "4:00:00"
     AMP_STYLE: O1
 
