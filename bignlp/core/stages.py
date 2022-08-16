@@ -187,7 +187,7 @@ class BigNLPStage:
         }
         if cluster == "bcm":
             cluster_cfg = cfg.get("cluster")
-            slurm_cfg = copy.deepcopy(cluster_cfg)
+            slurm_cfg = {**copy.deepcopy(cluster_cfg)}
             job_name_prefix = slurm_cfg.pop("job_name_prefix")
             cluster_parameters = {
                 **slurm_cfg
