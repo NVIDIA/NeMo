@@ -69,7 +69,7 @@ class Launcher:
             job_id = self._submit_command(submission_file_path)
             if job_id:
                 logger.info(f"Job {self.job_name} submitted with Job ID {job_id}.")
-                with open(folder / "launcher.log", "w") as f:
+                with open(self.folder / "launcher.log", "w") as f:
                     f.write(f"Submitted batch job {job_id}")
 
         return job_id
