@@ -25,6 +25,7 @@ except (ImportError, ModuleNotFoundError):
 
 
 if HAVE_APEX:
+    # TODO: use Apex implementation
     class LayerNorm1P(FastLayerNorm):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
