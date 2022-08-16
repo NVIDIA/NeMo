@@ -151,7 +151,6 @@ class MultiHeadAttention(nn.Module):
             cache_next_length = cache_next.size(2)
             q_keep_size = q_length - self.cache_drop_size
 
-            # TODO: fix it for chunks smaller than default size
             q_keep_size = torch.tensor(q_keep_size, dtype=torch.int64).clip(min=1)
 
             # print(f"{q_length}, {self.cache_drop_size}, {q_keep_size}, {cache_next_length}, {cache_next.size()}")
