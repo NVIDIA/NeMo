@@ -480,7 +480,7 @@ def _make_sbatch_string(
     if BIGNLP_MEMORY_MEASURE:
         mem_stdout = stdout.replace("_%j", "_mem_%j")
         mem_stdout = mem_stdout.replace("_%A_%a", "_mem_%A_%a")
-        mem_csv_out = folder / "mem_measure.csv"
+        mem_csv_out = folder / "gpu_memory_measure.csv"
         mem_srun_cmd = shlex.join(["srun", "--output", mem_stdout, *container_flags, *srun_args])
         lines += [
             "",
