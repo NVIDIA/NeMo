@@ -19,7 +19,7 @@ HYDRA_FULL_ERROR=1 python3 main.py \
     evaluation.run.time_limit=${TIME_LIMIT} \
     evaluation.run.model_train_name=${RUN_NAME} \
     evaluation.run.results_dir=${BASE_RESULTS_DIR}/${RUN_NAME} \
-    evaluation.model.nemo_model=${BASE_RESULTS_DIR}/${PROMPT_LEARN_MODEL_DIR}/megatron_gpt_prompt.nemo \
+    evaluation.model.nemo_model=${BASE_RESULTS_DIR}/${PROMPT_LEARN_MODEL_DIR}/results/megatron_gpt_prompt.nemo \
     evaluation.model.tensor_model_parallel_size=${TP_SIZE} \
     evaluation.model.pipeline_model_parallel_size=${PP_SIZE} \
     "${params[@]}"
