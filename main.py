@@ -53,6 +53,12 @@ def main(cfg):
             cfg[stage_name]["run"]["dependency"] = dependency
         stage = stage_class(cfg)
         job_id = stage.run()
+
+        job_path = stage.get_job_path()
+        command = "  \\\n".join(sys.argv)
+        with open(job_path / "bignlp_cmd.log", "w") as f:
+            f.write(command)
+
         if job_id:
             dependency = f"afterany:{job_id}"
 

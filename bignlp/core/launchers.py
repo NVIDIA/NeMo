@@ -15,7 +15,6 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Union, Iterable
 import bignlp.utils.job_utils as job_utils
 from bignlp.core.logger import logger
 
-BIGNLP_CI = os.getenv("BIGNLP_DEBUG", "False").lower() in ("true", "t", "1")
 BIGNLP_DEBUG = os.getenv("BIGNLP_DEBUG", "False").lower() in ("true", "t", "1")
 BIGNLP_MEMORY_MEASURE = os.getenv("BIGNLP_DEBUG", "False").lower() in ("true", "t", "1")
 
@@ -70,6 +69,8 @@ class Launcher:
             job_id = self._submit_command(submission_file_path)
             if job_id:
                 logger.info(f"Job {self.job_name} submitted with Job ID {job_id}.")
+                with open(folder / "launcher.log", "w") as f:
+                    f.write(f"Submitted batch job {job_id}")
 
         return job_id
 
@@ -246,7 +247,7 @@ class SlurmLauncher(Launcher):
             Below are the parameters that differ from slurm documentation:
 
             setup: list
-                a list of command to run in sbatch befure running srun
+                a list of command to run in sbatch before running srun
     """
 
     def __init__(
@@ -295,7 +296,7 @@ class SlurmLauncher(Launcher):
         Below are the parameters that differ from slurm documentation:
 
         setup: list
-            a list of command to run in sbatch befure running srun
+            a list of command to run in sbatch before running srun
 
         Raises
         ------
