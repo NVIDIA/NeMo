@@ -62,13 +62,13 @@ class Launcher:
         submission_file_path = self._make_submission_file(
             command_groups
         )
-        logger.info(f"Job {self.job_name} submission file created at '{submission_file_path}'.")
+        logger.info(f"Job {self.job_name} submission file created at '{submission_file_path}'")
 
         job_id = ""
         if not BIGNLP_DEBUG:
             job_id = self._submit_command(submission_file_path)
             if job_id:
-                logger.info(f"Job {self.job_name} submitted with Job ID {job_id}.")
+                logger.info(f"Job {self.job_name} submitted with Job ID {job_id}")
                 with open(self.folder / "launcher.log", "w") as f:
                     f.write(f"Submitted batch job {job_id}")
 
@@ -486,7 +486,7 @@ def _make_sbatch_string(
             "",
             "# run memory measure",
             f"{mem_srun_cmd} \\",
-            f"  nvidia-smi --query-gpu=timestamp,index,,memory.total,memory.free,memory.used \\"
+            f"  nvidia-smi --query-gpu=timestamp,index,,memory.total,memory.free,memory.used \\",
             f"  --format=csv -l 1 | tee {mem_csv_out} & ",
             "",
         ]
