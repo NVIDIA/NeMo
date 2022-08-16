@@ -505,7 +505,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         logging.info('Building GPT datasets.')
         global_batch_size = self.cfg.global_batch_size
         max_train_steps = self.trainer.max_steps
-        self._validate_data_creation_args(self.trainer)
         eval_iters = (max_train_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
         test_iters = self.trainer.limit_test_batches
 
