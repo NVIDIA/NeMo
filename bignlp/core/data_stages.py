@@ -1,5 +1,6 @@
 import sys
 import os
+import copy
 import subprocess
 
 import hydra
@@ -98,8 +99,8 @@ class DataStage(BigNLPStage):
         )
         if cluster == "bcm":
             cluster_cfg = cfg.get("cluster")
-            slurm_cfg = cluster_cfg.get("slurm")
-            job_name_prefix = cluster_cfg.get("job_name_prefix")
+            slurm_cfg = copy.deepcopy(cluster_cfg)
+            job_name_prefix = slurm_cfg.pop("job_name_prefix")
             cluster_parameters = {
                 **slurm_cfg
             }
