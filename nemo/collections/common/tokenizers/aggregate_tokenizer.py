@@ -166,7 +166,7 @@ class AggregateTokenizer(TokenizerSpec):
         for id in ids:
             offset_id = self.offset_token_ids_by_token_id[id]
             tokenizer = self.tokenizers_by_token_id[id]
-            token = tokenizer.ids_to_tokens([id])[0]
+            token = tokenizer.ids_to_tokens([offset_id])[0]
             lang = self.langs_by_token_id[id]
             tokens_and_langs.append({'token': token, 'lang': lang})
 
@@ -178,7 +178,7 @@ class AggregateTokenizer(TokenizerSpec):
         for id in ids:
             offset_id = self.offset_token_ids_by_token_id[id]
             tokenizer = self.tokenizers_by_token_id[id]
-            token = tokenizer.ids_to_tokens([id])[0]
+            token = tokenizer.ids_to_tokens([offset_id])[0]
             text = token.replace('▁', ' ')
             lang = self.langs_by_token_id[id]
             text_and_langs.append({'char': text, 'lang': lang})
@@ -192,7 +192,7 @@ class AggregateTokenizer(TokenizerSpec):
         for id in ids:
             offset_id = self.offset_token_ids_by_token_id[id]
             tokenizer = self.tokenizers_by_token_id[id]
-            token = tokenizer.ids_to_tokens([id])[0]
+            token = tokenizer.ids_to_tokens([offset_id])[0]
             if token.startswith('▁'):
                 if len(word_ids) > 0:  # if this isn't the first word
                     word = self.ids_to_text(word_ids)
