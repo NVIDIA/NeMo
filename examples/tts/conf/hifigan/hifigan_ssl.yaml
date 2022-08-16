@@ -6,7 +6,7 @@ name: "HifiGan"
 
 train_dataset: "/home/pneekhara/NeMo2022/libri_train_formatted.json"
 validation_datasets: "/home/pneekhara/NeMo2022/libri_val_formatted.json"
-data_caching: true
+recache_data: false
 finetune: false
 # Default values for dataset with sample_rate=22050
 sample_rate: 25600 # 25664

@@ -39,7 +39,7 @@ class SSLVocoderDataset(Dataset):
         pitch_std: Optional[float] = None,
         pitch_normalization: Optional[str] = None,
         sup_data_dir: Optional[Union[str, Path]] = None,
-        data_caching: Optional[bool] = True,
+        recache_data: Optional[bool] = False,
         normalize_content: Optional[bool] = True,
         speaker_stats_pitch_fp: Optional[Union[str, Path]] = None,
     ):
@@ -148,10 +148,14 @@ class SSLVocoderDataset(Dataset):
         self.pitch_mean = pitch_mean
         self.pitch_std = pitch_std
         self.pitch_normalization = pitch_normalization
-        self.data_caching = data_caching
+        self.recache_data = recache_data
 
         if sup_data_dir is None:
             sup_data_dir = os.path.join(self.base_data_dir, "sup_data")
+
+        if self.recache_data:
+            if os.path.exists(sup_data_dir):
+                shutil.rmtree(sup_data_dir)
 
         self.sup_data_dir = sup_data_dir
         if not os.path.exists(self.sup_data_dir):
@@ -223,7 +227,7 @@ class SSLVocoderDataset(Dataset):
     def get_pitch_contour(self, wav, wav_text_id):
         pitch_contour_fn = f"pitch_contour_{wav_text_id}.pt"
         pitch_contour_fp = os.path.join(self.sup_data_dir, pitch_contour_fn)
-        if os.path.exists(pitch_contour_fp) and self.data_caching:
+        if os.path.exists(pitch_contour_fp):
             return torch.load(pitch_contour_fp)
         else:
             f0, _, _ = librosa.pyin(
@@ -245,7 +249,7 @@ class SSLVocoderDataset(Dataset):
         speaker_emb_fn = f"speaker_embedding_{wav_text_id}.pt"
         content_emb_fp = os.path.join(self.sup_data_dir, content_emb_fn)
         speaker_emb_fp = os.path.join(self.sup_data_dir, speaker_emb_fn)
-        if os.path.exists(content_emb_fp) and self.data_caching:
+        if os.path.exists(content_emb_fp):
             content_embedding = torch.load(content_emb_fp)
             if os.path.exists(speaker_emb_fp):
                 speaker_embedding = torch.load(speaker_emb_fp)
@@ -405,6 +409,7 @@ class SSLVocoderDataset(Dataset):
                     mean = self.pitch_mean
                     std = self.pitch_std
 
+                # print("normalizing pitch using mean {} and std {}".format(mean, std))
                 pitch_contour = pitch_contour - mean
                 pitch_contour[pitch_contour == -mean] = 0.0
                 pitch_contour = pitch_contour / std

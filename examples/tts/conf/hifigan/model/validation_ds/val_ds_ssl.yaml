@@ -13,7 +13,7 @@ dataset:
   pitch_std: ${pitch_std}
   pitch_normalization: ${pitch_normalization}
   sup_data_dir: ${sup_data_dir}
-  data_caching: ${data_caching}
+  recache_data: ${recache_data}
   normalize_content: ${normalize_content}
   speaker_stats_pitch_fp: ${speaker_stats_pitch_fp}
 dataloader_params:
