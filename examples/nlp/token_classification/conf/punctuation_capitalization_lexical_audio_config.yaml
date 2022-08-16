@@ -53,13 +53,9 @@ exp_manager:
 model:
   pretrained_audio_encoder: stt_en_conformer_ctc_large
 
-  freeze_audio_encoder: true
+  freeze_audio_encoder: false
 
   use_adapters: false
-
-  adapter_config:
-    dim: 32
-    in_features: -1
 
   class_labels:
     punct_labels_file: punct_label_ids.txt
@@ -75,34 +71,47 @@ model:
 
   train_ds:
     label_info_save_dir: ./label_info_train
+    #    use_cache: false
+    #    text_file: text_corpa_train.txt
+    #    labels_file: labels_corpa_train.txt
+    #    audio_file: audio_train.txt
     use_audio: true
+    use_bucketing: true
     # Tarred dataset is recommended if all dataset cannot be loaded in memory. Use script
     # `examples/nlp/token_classification/create_punctuation_capitalization_tarred_dataset.py` for tarred dataset
     # creation.
     use_tarred_dataset: true
     # A path to directory where `tar_metadata_file` or `text_file` and `labels_file` are stored.
-    ds_item: /mnt/sda/fl_train_tarred_20
-    shuffle: true
-    num_samples: -1
-    max_seq_length: 512
+    ds_item: /mnt/sda/fl_train_tarred_1024
+    #    shuffle: false
+    #    batch_size: 32
+    #    tokens_in_batch: 1024
+    #    num_samples: -1
+    #    max_seq_length: 512
+    #    tokens_in_batch: 5000
+    #    batch_size: 32
     # Path to tarred dataset metadata file. Required if tarred dataset is used. Metadata file is a JSON file which
     # contains total number of batches in the dataset, a list of paths to tar files and paths to label vocabularies.
     # Metadata file is create by script
     # `examples/nlp/token_classification/create_punctuation_capitalization_tarred_dataset.py`
-    tar_metadata_file: metadata.punctuation_capitalization.tokens2000.max_seq_length512.bert-base-uncased.json
+    tar_metadata_file: metadata.punctuation_capitalization.tokens1024.max_seq_length512.bert-base-uncased.json
     # Controls batch shuffling in tarred dataset. `tar_shuffle_n` is a size of shuffled batch buffer. Mind that this
     # shuffling only permutes batches and doesn't exchange samples between batches. Proper shuffling is turned on in
     # regular dataset.
-    tar_shuffle_n: 1
+    #    tar_shuffle_n: 1
     sample_rate: 16000
     num_workers: 8
+    n_jobs: null
 
   validation_ds:
+    #    use_cache: false
     n_jobs: null
     text_file: txts/text_corpa_valid.txt
     labels_file: txts/labels_corpa_valid.txt
     audio_file: txts/audio_valid.txt
     use_audio: true
+    use_bucketing: false
+    batch_size: 32
     # if evaluation data is not in the model.dataset.data_dir as the training data or multiple datasets are used for
     # evaluation is needed, specify ds_item, otherwise by default data_dir is used
     # See `train_ds` section for more details on tarred dataset
@@ -114,23 +123,19 @@ model:
     shuffle: false
     num_samples: -1
     max_seq_length: 512
-    tokens_in_batch: 3000
-    # Number of jobs for tokenization and labels encoding. If 0, then multiprocessing is not used. If null,
-    # number of jobs is equal to the number of CPU cores.
-    # WARNING: can cause deadlocks with tokenizers, which use multiprocessing (e.g. SentencePiece)
-
-    #    tar_metadata_file: metadata.punctuation_capitalization.tokens3000.max_seq_length512.bert-base-uncased.json
 
     sample_rate: 16000
     num_workers: 8
-  #    shard_strategy: replicate
 
   test_ds:
+    #    use_cache: false
     n_jobs: null
     text_file: txts/text_corpa_test.txt
     labels_file: txts/labels_corpa_test.txt
     audio_file: txts/audio_test.txt
     use_audio: true
+    use_bucketing: false
+    batch_size: 32
     # if evaluation data is not in the model.dataset.data_dir as the training data or multiple datasets are used for
     # evaluation is needed, specify ds_item, otherwise by default data_dir is used
     # See `train_ds` section for more details on tarred dataset
@@ -140,14 +145,11 @@ model:
     ds_item: [ ../libri,../fisher ]
 
     shuffle: false
-    #    num_samples: -1
-    #    max_seq_length: 512
-    tokens_in_batch: 3000
-    # For more details see `train_ds` section.
-    #    tar_metadata_file: metadata.punctuation_capitalization.tokens3000.max_seq_length512.bert-base-uncased.json
+    num_samples: -1
+    max_seq_length: 512
+
     sample_rate: 16000
     num_workers: 8
-  #    shard_strategy: replicate
 
   tokenizer:
     tokenizer_name: ${model.language_model.pretrained_model_name} # or sentencepiece

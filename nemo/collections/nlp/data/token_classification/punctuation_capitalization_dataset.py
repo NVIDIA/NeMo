@@ -43,6 +43,7 @@ import numpy as np
 import torch
 from numpy import ndarray
 from omegaconf import MISSING, DictConfig, OmegaConf
+from torch.nn.utils.rnn import pad_sequence
 from tqdm import tqdm
 
 from nemo.collections.asr.parts.preprocessing import AudioSegment
@@ -82,6 +83,16 @@ class PunctuationCapitalizationDataConfigBase:
     sample_rate: Optional[int] = 16000
     """
     Sample rate of audios to use.
+    """
+
+    use_bucketing: Optional[bool] = True
+    """
+    Whether to pack samples unto ``tokens_in_batch`` or not. Increases GPU utilization but may cause significant RAM consumption if used together with ``use_audio``. 
+    """
+
+    batch_size: Optional[int] = 32
+    """
+    Batch size used if ``use_bucketing`` set to False.
     """
 
     ###################################################
@@ -997,10 +1008,10 @@ class BertPunctuationCapitalizationDataset(Dataset):
             deciding which samples batches will contain. Useful for creation of tarred dataset
         batch_building_progress_queue (:obj:`multiprocessing.Queue`, `optional`): a queue for reporting progress in
             batch creation (stacking and padding). Useful for creation of tarred dataset
-        use_audio (:obj:`bool`, `optional`, defaults to :obj: `False`): If set to True dataset will omit audio as well as text.
+        use_audio (:obj:`bool`, `optional`, defaults to :obj: `False`): If set to True dataset will return audio as well as text.
         audio_file (:obj:`Union[str, os.PathLike]`, `optional`): a path to file with audio paths.
         sample_rate (:obj:`int`, `optional`, defaults to :obj:`None`): sample rate of audios. Can be used for upsampling or downsampling.
-        # batch_size (:obj:`int`, `optional`, defaults to :obj:`32`)
+        use_bucketing (:obj:`bool`, `optional`, defaults to :obj: `True`): If set to False dataset will return ``batch_size`` batches instead of ``number_of_tokens`` tokens.
     """
 
     @property
@@ -1058,12 +1069,14 @@ class BertPunctuationCapitalizationDataset(Dataset):
         use_audio: Optional[bool] = False,
         audio_file: Optional[Union[str, os.PathLike]] = None,
         sample_rate: Optional[int] = None,
+        use_bucketing: Optional[bool] = True,
     ) -> None:
         """ Initializes BertPunctuationCapitalizationDataset. """
         if isinstance(punct_label_ids, DictConfig):
             punct_label_ids = OmegaConf.to_container(punct_label_ids)
         if isinstance(capit_label_ids, DictConfig):
             capit_label_ids = OmegaConf.to_container(capit_label_ids)
+
         self._check_constructor_parameters(
             text_file,
             labels_file,
@@ -1078,6 +1091,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
             audio_file,
             sample_rate,
         )
+
         if punct_label_vocab_file is not None:
             punct_label_vocab_file = Path(punct_label_vocab_file).expanduser()
             punct_label_ids = load_label_ids(punct_label_vocab_file)
@@ -1102,6 +1116,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         self.use_audio = use_audio
         self.audio_file = audio_file
         self.sample_rate = sample_rate
+        self.use_bucketing = use_bucketing
 
         master_device = is_global_rank_zero()
         self.features_pkl = self._get_path_to_pkl_features(
@@ -1207,14 +1222,24 @@ class BertPunctuationCapitalizationDataset(Dataset):
         if get_label_frequencies:
             self.punct_label_frequencies = self._calculate_and_save_label_frequencies(self.punct_labels, 'punct')
             self.capit_label_frequencies = self._calculate_and_save_label_frequencies(self.capit_labels, 'capit')
-        self.batches = self._pack_into_batches(
-            input_ids=self.input_ids,
-            subtokens_mask=self.subtokens_mask,
-            punct_labels=self.punct_labels,
-            capit_labels=self.capit_labels,
-            waveforms=self.waveforms,
-            audio_lengths=self.waveforms_length,
-        )
+        if self.use_bucketing:
+            self.batches = self._pack_into_batches(
+                input_ids=self.input_ids,
+                subtokens_mask=self.subtokens_mask,
+                punct_labels=self.punct_labels,
+                capit_labels=self.capit_labels,
+                waveforms=self.waveforms,
+                audio_lengths=self.waveforms_length,
+            )
+        else:
+            self.batches = self._form_batches(
+                input_ids=self.input_ids,
+                subtokens_mask=self.subtokens_mask,
+                punct_labels=self.punct_labels,
+                capit_labels=self.capit_labels,
+                waveforms=self.waveforms,
+                audio_lengths=self.waveforms_length,
+            )
 
     def _get_path_to_pkl_features(
         self,
@@ -1274,7 +1299,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
             raise ValueError(f"Audio file {audio_file} was passed but use_audio was set to False")
         if use_audio and audio_file and not os.path.exists(audio_file):
             raise FileNotFoundError(
-                f'use_features was set to True but {audio_file} not found. Audio data should be listed in .txt file with one path per line'
+                f'use_audio was set to True but {audio_file} not found. Audio data should be listed in .txt file with one path per line'
             )
         if punct_label_ids is not None and punct_label_vocab_file is not None:
             punct_label_vocab_file = Path(punct_label_vocab_file).expanduser()
@@ -1601,6 +1626,34 @@ class BertPunctuationCapitalizationDataset(Dataset):
             )
         return batch_beginnings, batch_sizes, batch_seq_lengths
 
+    def _form_batches(
+        self,
+        input_ids: List[np.ndarray],
+        subtokens_mask: List[np.ndarray],
+        punct_labels: List[np.ndarray],
+        capit_labels: List[np.ndarray],
+        waveforms: Optional[List[np.ndarray]] = None,
+        audio_lengths: Optional[List[np.ndarray]] = None,
+    ):
+
+        batches = []
+        if self.use_audio:
+            zipped = list(zip(input_ids, subtokens_mask, punct_labels, capit_labels, waveforms, audio_lengths))
+        else:
+            zipped = list(zip(input_ids, subtokens_mask, punct_labels, capit_labels))
+        for item in zipped:
+            batch = {
+                "input_ids": item[0],
+                "subtokens_mask": item[1],
+                "punct_labels": item[2].astype(np.int64),
+                "capit_labels": item[3].astype(np.int64),
+            }
+            if self.use_audio:
+                batch['features'] = item[4].astype(np.float)
+                batch['features_length'] = item[5]
+            batches.append(batch)
+        return batches
+
     def _pack_into_batches(
         self,
         input_ids: List[np.ndarray],
@@ -1714,6 +1767,8 @@ class BertPunctuationCapitalizationDataset(Dataset):
 
     def repack_batches_with_shuffle(self) -> None:
         """A function for proper shuffling of a dataset. Pytorch data loader shuffing will only permute batches."""
+        if not self.use_bucketing:
+            return
         logging.info("Shuffling training dataset")
         if self.use_audio:
             self.batches = self._pack_into_batches(
@@ -1796,13 +1851,55 @@ class BertPunctuationCapitalizationDataset(Dataset):
               - ``'input_mask'`` (:obj:`torch.Tensor`): :obj:`torch.bool` tensor,
               - ``'loss_mask'`` (:obj:`torch.Tensor`): :obj:`torch.bool` tensor.
         """
-        batch = {k: torch.as_tensor(v) for k, v in batches[0].items()}
-        batch['segment_ids'] = batch['segment_ids'].int()
-        batch['punct_labels'] = batch['punct_labels'].long()
-        batch['capit_labels'] = batch['capit_labels'].long()
-        if self.use_audio:
-            batch['features'] = batch['features'].to(torch.float32)
-        return batch
+        if self.use_bucketing:
+            batch = {k: torch.as_tensor(v) for k, v in batches[0].items()}
+            batch['segment_ids'] = batch['segment_ids'].int()
+            batch['punct_labels'] = batch['punct_labels'].long()
+            batch['capit_labels'] = batch['capit_labels'].long()
+            if self.use_audio:
+                batch['features'] = batch['features'].to(torch.float32)
+            return batch
+        else:
+            for batch in batches:
+                batch_segment_ids, batch_input_mask, batch_loss_mask = create_masks_and_segment_ids(
+                    batch['input_ids'],
+                    batch['subtokens_mask'],
+                    self.tokenizer.pad_id,
+                    self.tokenizer.cls_id,
+                    self.tokenizer.sep_id,
+                    self.ignore_start_end,
+                    self.ignore_extra_tokens,
+                )
+                batch['segment_ids'] = torch.as_tensor(batch_segment_ids, dtype=torch.int)
+                batch['input_mask'] = torch.as_tensor(batch_input_mask)
+                batch['loss_mask'] = torch.as_tensor(batch_loss_mask)
+                batch['input_ids'] = torch.as_tensor(batch['input_ids'], dtype=torch.int)
+                batch['subtokens_mask'] = torch.as_tensor(batch['subtokens_mask'])
+                batch['punct_labels'] = torch.as_tensor(batch['punct_labels'], dtype=torch.long)
+                batch['capit_labels'] = torch.as_tensor(batch['capit_labels'], dtype=torch.long)
+                batch['features'] = torch.as_tensor(batch['features'], dtype=torch.float)
+                batch['features_length'] = torch.as_tensor(batch['features_length'], dtype=torch.long)
+
+            segment_ids = pad_sequence([batch['segment_ids'] for batch in batches])
+            input_mask = pad_sequence([batch['input_mask'] for batch in batches])
+            loss_mask = pad_sequence([batch['loss_mask'] for batch in batches])
+            input_ids = pad_sequence([batch['input_ids'] for batch in batches], padding_value=self.tokenizer.pad_id)
+            subtokens_mask = pad_sequence([batch['subtokens_mask'] for batch in batches], padding_value=False)
+            punct_labels = pad_sequence([batch['punct_labels'] for batch in batches], padding_value=0)
+            capit_labels = pad_sequence([batch['capit_labels'] for batch in batches], padding_value=0)
+            features = pad_sequence([batch['features'] for batch in batches], padding_value=0.0)
+            features_length = torch.tensor([batch['features_length'] for batch in batches])
+            return {
+                'input_ids': input_ids.T,
+                'subtokens_mask': subtokens_mask.T,
+                'punct_labels': punct_labels.T,
+                'capit_labels': capit_labels.T,
+                'features': features.T,
+                'features_length': features_length,
+                'segment_ids': segment_ids.T,
+                'input_mask': input_mask.T,
+                'loss_mask': loss_mask.T,
+            }
 
     def __getitem__(self, idx: int) -> Dict[str, np.ndarray]:
         """

@@ -794,7 +794,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                     f"dataset config must not be `None`. Whereas `text_file={cfg.text_file}` and "
                     f"`label_file={cfg.labels_file}`."
                 )
-            if cfg.tokens_in_batch is None:
+            if cfg.tokens_in_batch is None and cfg.use_bucketing:
                 raise ValueError(
                     f"If `use_tarred_dataset` is `False`, then you need to provide `tokens_in_batch` parameter."
                 )
@@ -873,6 +873,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 audio_file=audio_file if cfg.audio_file else None,
                 sample_rate=cfg.sample_rate,
                 use_audio=cfg.use_audio,
+                use_bucketing=cfg.use_bucketing,
             )
         if cfg.shuffle and cfg.use_tarred_dataset:
             logging.warning(f"Shuffling in dataloader is not supported for tarred dataset.")
@@ -882,7 +883,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         return torch.utils.data.DataLoader(
             dataset=dataset,
             collate_fn=dataset.collate_fn,
-            batch_size=1,
+            batch_size=1 if cfg.use_bucketing else cfg.batch_size,
             shuffle=shuffle,
             num_workers=cfg.num_workers,
             pin_memory=cfg.pin_memory,

@@ -229,6 +229,7 @@ def process_fragment(
             audio_file=tmp_audio,
             sample_rate=sample_rate,
             use_audio=use_audio,
+            use_bucketing=True,
         )
     finally:
         if tmp_text is not None and os.path.exists(tmp_text):
