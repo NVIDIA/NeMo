@@ -200,15 +200,18 @@ class MSDD_module(NeuralModule, Exportable):
         Core model that accepts multi-scale cosine similarity values and estimates per-speaker binary label.
 
         Args:
+            ms_emb_seq (Tensor):
+                Multiscale input embedding sequence
+                Shape: (batch_size, length, scale_n, emb_dim)
+            length (Tensor):
+                The actual length of embedding sequences without zero padding
+                Shape: (batch_size,)
+            ms_avg_embs (Tensor):
+                Cluster-average speaker embedding vectors.
+                Shape: (batch_size, scale_n, self.emb_dim, max_spks)
             targets (Tensor):
                 Ground-truth labels for the finest segment.
                 Shape: (batch_size, feats_len, max_spks)
-            avg_embs (Tensor):
-                Cluster-average speaker embedding vectors.
-                Shape: (batch_size, scale_n, self.emb_dim, max_spks)
-            ms_emb_seq (Tensor):
-                Multiscale input embedding sequence
-                Shape: (batch_size, feats_len, scale_n, emb_dim)
 
         Returns:
             preds (Tensor):
@@ -216,7 +219,7 @@ class MSDD_module(NeuralModule, Exportable):
                 Shape: (batch_size, feats_len, max_spks)
             scale_weights (Tensor):
                 Multiscale weights per each base-scale segment.
-                Shape: (batch_size, feats_len, scale_n, max_spks)
+                Shape: (batch_size, length, scale_n, max_spks)
 
         """
         self.batch_size = ms_emb_seq.shape[0]
@@ -254,7 +257,8 @@ class MSDD_module(NeuralModule, Exportable):
     def element_wise_product(self, scale_weights, ms_avg_embs, ms_emb_seq):
         """
         Calculate element wise product values among cluster-average embedding vectors and input embedding vector sequences.
-        `elem_prod` method usually takes more time to converge compared to `cos_sim` method.
+        This function is selected by assigning `self.context_vector_type = "elem_prod"`. `elem_prod` method usually takes more
+        time to converge compared to `cos_sim` method.
 
         Args:
             scale_weights (Tensor):
@@ -263,8 +267,8 @@ class MSDD_module(NeuralModule, Exportable):
             ms_avg_embs_perm (Tensor):
                 Tensor containing cluster-average speaker embeddings for each scale.
                 Shape: (batch_size, length, scale_n, emb_dim)
-            _ms_emb_seq (Tensor):
-                Tensor containing multi-scale speaker embedding sequences. ms_emb_seq_single is input from the
+            ms_emb_seq (Tensor):
+                Tensor containing multi-scale speaker embedding sequences. `ms_emb_seq` is a single channel input from the
                 given audio stream input.
                 Shape: (batch_size, length, num_spks, emb_dim)
 
@@ -290,6 +294,7 @@ class MSDD_module(NeuralModule, Exportable):
     def cosine_similarity(self, scale_weights, ms_avg_embs, _ms_emb_seq):
         """
         Calculate cosine similarity values among cluster-average embedding vectors and input embedding vector sequences.
+        This function is selected by assigning self.context_vector_type = "cos_sim".
 
         Args:
             scale_weights (Tensor):
@@ -299,7 +304,7 @@ class MSDD_module(NeuralModule, Exportable):
                 Tensor containing cluster-average speaker embeddings for each scale.
                 Shape: (batch_size, length, scale_n, emb_dim)
             _ms_emb_seq (Tensor):
-                Tensor containing multi-scale speaker embedding sequences. ms_emb_seq_single is input from the
+                Tensor containing multi-scale speaker embedding sequences. `ms_emb_seq` is a single channel input from the
                 given audio stream input.
                 Shape: (batch_size, length, num_spks, emb_dim)
 
@@ -323,8 +328,8 @@ class MSDD_module(NeuralModule, Exportable):
             ms_avg_embs_perm (Tensor):
                 Tensor containing cluster-average speaker embeddings for each scale.
                 Shape: (batch_size, length, scale_n, emb_dim)
-            ms_emb_seq_single (Tensor):
-                Tensor containing multi-scale speaker embedding sequences. ms_emb_seq_single is input from the
+            ms_emb_seq (Tensor):
+                Tensor containing multi-scale speaker embedding sequences. `ms_emb_seq` is input from the
                 given audio stream input.
                 Shape: (batch_size, length, num_spks, emb_dim)
 

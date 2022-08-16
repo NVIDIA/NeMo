@@ -88,13 +88,13 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
         Initialize an MSDD model and the specified speaker embedding model. In this init function, training and validation datasets are prepared.
         """
         self._trainer = trainer if trainer else None
-        self.pairwise_infer = False
         self.cfg_msdd_model = cfg
 
         if self._trainer:
             self._init_segmentation_info()
             self.world_size = trainer.num_nodes * trainer.num_devices
             self.emb_batch_size = self.cfg_msdd_model.emb_batch_size
+            self.pairwise_infer = False
         else:
             self.world_size = 1
             self.pairwise_infer = True

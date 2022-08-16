@@ -74,7 +74,7 @@ def extract_seg_info_from_rttm(uniq_id, rttm_lines, mapping_dict=None, target_sp
             List containing RTTM lines in str format.
         mapping_dict (dict):
             Mapping between the estimated speakers and the speakers in the ground-truth annotation.
-            ``mapping_dict`` variable is only provided when the inference mode is running in sequence-eval mode.
+            `mapping_dict` variable is only provided when the inference mode is running in sequence-eval mode.
             Sequence eval mode uses the mapping between the estimated speakers and the speakers in ground-truth annotation.
     Returns:
         rttm_tup (tuple):
@@ -102,7 +102,7 @@ def assign_frame_level_spk_vector(rttm_timestamps, round_digits, frame_per_sec, 
     """
     Create a multi-dimensional vector sequence containing speaker timestamp information in RTTM.
     The unit-length is the frame shift length of the acoustic feature. The feature-level annotations
-    fr_level_target will later be converted to base-segment level diarization label.
+    `fr_level_target` will later be converted to base-segment level diarization label.
 
     Args:
         rttm_timestamps (list):
@@ -269,7 +269,7 @@ class _AudioMSDDTrainDataset(Dataset):
     def get_diar_target_labels(self, uniq_id, sample, fr_level_target):
         """
         Convert frame-level diarization target variable into segment-level target variable. Since the granularity is reduced
-        from frame level (10ms) to segment level (100ms~500ms), we need a threshold value, soft_label_thres, which determines
+        from frame level (10ms) to segment level (100ms~500ms), we need a threshold value, `soft_label_thres`, which determines
         the label of each segment based on the overlap between a segment range (start and end time) and the frame-level target variable.
 
         Args:
@@ -350,7 +350,7 @@ class _AudioMSDDTrainDataset(Dataset):
         """
         Generate unique training sample ID from unique file ID, offset and duration. The start-end time added
         unique ID is required for identifying the sample since multiple short audio samples are generated from a single
-        audio file. The start time and end time of the audio stream uses millisecond units if deci=3.
+        audio file. The start time and end time of the audio stream uses millisecond units if `deci=3`.
 
         Args:
             sample:
@@ -424,7 +424,7 @@ class _AudioMSDDTrainDataset(Dataset):
 class _AudioMSDDInferDataset(Dataset):
     """
     Dataset class that loads a json file containing paths to audio files,
-    rttm files and number of speakers. This Dataset class is built for diarization inference and
+    RTTM files and number of speakers. This Dataset class is built for diarization inference and
     evaluation. Speaker embedding sequences, segment timestamps, cluster-average speaker embeddings
     are loaded from memory and fed into the dataloader.
 
@@ -540,7 +540,7 @@ class _AudioMSDDInferDataset(Dataset):
         """
         Generate base-scale level binary diarization label from frame-level target matrix. For the given frame-level
         speaker target matrix fr_level_target, we count the number of frames that belong to each speaker and calculate
-        ratios for each speaker into the soft_label_vec variable. Finally, soft_label_vec variable is compared with soft_label_thres
+        ratios for each speaker into the `soft_label_vec` variable. Finally, `soft_label_vec` variable is compared with `soft_label_thres`
         to determine whether a label vector should contain 0 or 1 for each speaker bin. Note that seg_target variable has
         dimension of (number of base-scale segments x 2) dimension.
 
