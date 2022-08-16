@@ -5,11 +5,7 @@ set -o xtrace
 HYDRA_FULL_ERROR=1 python3 main.py \
     +ci_test=True \
     conversion=convert_${RUN_MODEL} \
-    run_data_preparation=False \
-    run_training=False \
-    run_conversion=True \
-    run_finetuning=False \
-    run_evaluation=False \
+    stages=["conversion"] \
     bignlp_path=${GIT_CLONE_PATH} \
     data_dir=${DATA_DIR} \
     base_results_dir=${BASE_RESULTS_DIR} \

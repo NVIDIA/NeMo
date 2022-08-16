@@ -6,11 +6,7 @@ fi
 HYDRA_FULL_ERROR=1 python3 main.py \
     +ci_test=True \
     evaluation=${RUN_MODEL}/squad \
-    run_data_preparation=False \
-    run_training=False \
-    run_conversion=False \
-    run_finetuning=False \
-    run_evaluation=True \
+    stages=["evaluation"] \
     bignlp_path=${GIT_CLONE_PATH} \
     data_dir=${BASE_RESULTS_DIR}/data \
     base_results_dir=${BASE_RESULTS_DIR} \

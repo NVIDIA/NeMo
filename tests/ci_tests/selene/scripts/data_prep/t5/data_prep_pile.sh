@@ -1,11 +1,7 @@
 HYDRA_FULL_ERROR=1 python3 main.py \
     +ci_test=True \
     data_preparation=download_t5_pile \
-    run_data_preparation=True \
-    run_training=False \
-    run_conversion=False \
-    run_finetuning=False \
-    run_evaluation=False \
+    stages=["data_preparation"] \
     bignlp_path=${GIT_CLONE_PATH} \
     data_dir=${RESULTS_DIR}/data \
     base_results_dir=${BASE_RESULTS_DIR} \
