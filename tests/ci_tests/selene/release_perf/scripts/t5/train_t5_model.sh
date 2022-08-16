@@ -58,7 +58,6 @@ export RUN_NAME=${RUN_MODEL}_${RUN_MODEL_SIZE}_tp${TP_SIZE}_pp${PP_SIZE}_${NUM_N
 export RESULTS_DIR=${BASE_RESULTS_DIR}/${RUN_NAME}
 
 HYDRA_FULL_ERROR=1 python3 main.py \
-    +ci_test=True \
     training=${RUN_MODEL}/${RUN_MODEL_SIZE} \
     stages=["training"] \
     bignlp_path=${GIT_CLONE_PATH} \

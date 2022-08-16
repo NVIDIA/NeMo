@@ -11,7 +11,6 @@ set -o xtrace
 MICRO_BATH_SIZE=$((16 * TP_SIZE * PP_SIZE / NUM_NODES))
 
 HYDRA_FULL_ERROR=1 python3 main.py \
-    +ci_test=True \
     finetuning=${RUN_MODEL}/mnli \
     stages=["fine_tuning"] \
     bignlp_path=${GIT_CLONE_PATH} \

@@ -3,8 +3,7 @@ DATA_DIR=/lustre/fsw/joc/big_nlp/mt5/dataset/ci_data
 set -o xtrace
 
 HYDRA_FULL_ERROR=1 python3 main.py \
-    +ci_test=True \
-    conversion=convert_${RUN_MODEL} \
+    conversion=${RUN_MODEL}/convert_${RUN_MODEL} \
     stages=["conversion"] \
     bignlp_path=${GIT_CLONE_PATH} \
     data_dir=${DATA_DIR} \
@@ -21,6 +20,5 @@ HYDRA_FULL_ERROR=1 python3 main.py \
     conversion.run.model_train_name=${RUN_NAME} \
     conversion.run.train_dir=${BASE_RESULTS_DIR}/${UPSTREAM_RUN_NAME} \
     conversion.run.results_dir=${BASE_RESULTS_DIR}/${RUN_NAME} \
-    conversion.run.output_path=${BASE_RESULTS_DIR}/${RUN_NAME} \
     conversion.model.tensor_model_parallel_size=${TP_SIZE} \
     conversion.model.pipeline_model_parallel_size=${PP_SIZE}

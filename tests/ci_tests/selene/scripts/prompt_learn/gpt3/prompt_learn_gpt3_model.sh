@@ -19,7 +19,6 @@ fi
 set -o xtrace
 
 HYDRA_FULL_ERROR=1 python3 main.py \
-    +ci_test=True \
     prompt_learning=${RUN_MODEL}/squad \
     stages=["prompt_learning"] \
     bignlp_path=${GIT_CLONE_PATH} \

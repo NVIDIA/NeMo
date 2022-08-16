@@ -4,7 +4,6 @@ if [[ "$TEST_TASK" = "squad_real" ]]; then
 fi
 
 HYDRA_FULL_ERROR=1 python3 main.py \
-    +ci_test=True \
     evaluation=${RUN_MODEL}/squad \
     stages=["evaluation"] \
     bignlp_path=${GIT_CLONE_PATH} \

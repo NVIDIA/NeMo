@@ -24,5 +24,4 @@ preprocessed_dir: ${.mc4_dir}/preprocessed
 max_split_size: 200 # (GB) Each split will be preprocessed individually. Tune this down to accommodate short wall time on clusters
 download_worker_mapping: ${.mc4_dir}/download_mapping
 preprocess_worker_mapping: ${.mc4_dir}/preprocess_mapping
-log_dir: ${base_results_dir}/data_preparation/mc4_logs  # Where to save the logs
 rm_downloaded: False # Script will not remove downloaded after preprocessing

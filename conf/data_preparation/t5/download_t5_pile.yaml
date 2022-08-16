@@ -7,7 +7,6 @@ run:
   array: ${..file_numbers}
   bcp_preproc_npernode: 2 # 2 should be safe to use and x2 times faster.
 
-
 dataset: pile
 download_the_pile: True  # Whether to download the pile dataset from the internet.
 the_pile_url: "https://mystic.the-eye.eu/public/AI/pile/train/"  # Source URL to download The Pile dataset from.
