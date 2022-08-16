@@ -1,0 +1,106 @@
+/* Custom styles */
+/*
+DePaul IHS
+*/
+
+@font-face {
+    font-family: 'GibsonSemiBold';
+    src: url('/css/fonts/gibson-semibold-webfont.eot');
+    src: url('/css/fonts/gibson-semibold-webfont.eot?#iefix') format('embedded-opentype'),
+         url('/css/fonts/gibson-semibold-webfont.woff') format('woff'),
+         url('/css/fonts/gibson-semibold-webfont.ttf') format('truetype'),
+         url('/css/fonts/gibson-semibold-webfont.svg#GibsonSemiBold') format('svg');
+    font-weight: normal;
+    font-style: normal;
+}
+@font-face {
+    font-family: 'GibsonBold';
+    src: url('/css/fonts/gibson-bold-webfont.eot');
+    src: url('/css/fonts/gibson-bold-webfont.eot?#iefix') format('embedded-opentype'),
+         url('/css/fonts/gibson-bold-webfont.woff') format('woff'),
+         url('/css/fonts/gibson-bold-webfont.ttf') format('truetype'),
+         url('/css/fonts/gibson-bold-webfont.svg#GibsonBold') format('svg');
+    font-weight: normal;
+    font-style: normal;
+}
+@font-face {
+    font-family: 'ColaborateRegRegular';
+    src: url('http://www.housingstudies.org/static/css/fonts/ColabReg-webfont.eot');
+    src: url('http://www.housingstudies.org/static/css/fonts/ColabReg-webfont.eot?#iefix') format('embedded-opentype'),
+         url('http://www.housingstudies.org/static/css/fonts/ColabReg-webfont.woff') format('woff'),
+         url('http://www.housingstudies.org/static/css/fonts/ColabReg-webfont.ttf') format('truetype'),
+         url('http://www.housingstudies.org/static/css/fonts/ColabReg-webfont.svg#ColaborateRegRegular') format('svg');
+    font-weight: normal;
+    font-style: normal;
+
+}
+@font-face {
+    font-family: 'AlegreyaBold';
+    src: url('http://www.housingstudies.org/static/css/fonts/Alegreya-Bold-webfont.eot');
+    src: url('http://www.housingstudies.org/static/css/fonts/Alegreya-Bold-webfont.eot?#iefix') format('embedded-opentype'),
+         url('http://www.housingstudies.org/static/css/fonts/Alegreya-Bold-webfont.woff') format('woff'),
+         url('http://www.housingstudies.org/static/css/fonts/Alegreya-Bold-webfont.ttf') format('truetype'),
+         url('http://www.housingstudies.org/static/css/fonts/Alegreya-Bold-webfont.svg#AlegreyaBold') format('svg');
+    font-weight: normal;
+    font-style: normal;
+}
+
+
+body {
+  font: 18px/1.3em 'ColaborateThinRegular', sans-serif;
+  align-items: center;
+}
+
+h1 {
+  font: 32px/1em 'GibsonBold', serif;
+  text-transform: uppercase;
+  color: #827E7E;
+}
+
+h2 {
+  font: 20
+  text-transform: uppercase;
+  text-align: center
+}
+
+#logo {
+  margin-top: 20px;
+}
+
+#logo img { width: 170px; }
+
+.modelButton {
+  width: 30%;
+  height: 50px;
+  background-color: #008CBA;
+  border: none;
+  border-radius: 3px;
+  margin: 5px;
+  margin-bottom: 20px
+}
+
+.info {
+  padding: 6px 8px;
+  font: 14px/16px Arial, Helvetica, sans-serif;
+  background: white;
+  background: rgba(255,255,255,0.8);
+  box-shadow: 0 0 15px rgba(0,0,0,0.2);
+  border-radius: 5px;
+}
+.info h4 {
+  margin: 0 0 5px;
+  color: #777;
+}
+
+.legend {
+  text-align: left;
+  line-height: 18px;
+  color: #555;
+}
+.legend i {
+  width: 18px;
+  height: 18px;
+  float: left;
+  margin-right: 8px;
+  opacity: 0.7;
+}
