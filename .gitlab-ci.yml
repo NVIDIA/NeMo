@@ -1,11 +1,13 @@
+# Info on how to use the new CI system (https://docs.google.com/document/d/18uNblUvMvnN51Fda0itqsZzEXm9SJKQ-AcRMw6mGdCg/edit)
+
 variables: &VARS
   BIGNLP_REGISTRY: "gitlab-master.nvidia.com:5005/dl/joc/bignlp-scripts"
-  BIGNLP_BASE_IMAGE: "gitlab-master.nvidia.com:5005/dl/dgx/bignlp/train:infer_refactor-py3-base"
+  BIGNLP_BASE_IMAGE: "nvcr.io/nvidian/bignlp-training:22.06.10-py"
   SELENE_BIGNLP_CI_PATH: "/lustre/fsw/joc/big_nlp/bignlp_ci"
   NGC_BIGNLP_CI_PATH: "bignlp_ci" # mount at /mount/results
   CONTAINER_NVCR_BASE: nvcr.io/nvidian/bignlp-ci:training
   TESTS_TO_RUN_ON_MERGE_REQ: L0  # Can specify levels, ci job names etc as a space seperated list to run during merge request
-  TESTS_TO_RUN_ON_THIS_COMMIT: prompt_learn.gpt3.126m_tp1_pp1_1node_squad_real # Can specify levels, ci job names etc as a space seperated list to run during this commit
+  TESTS_TO_RUN_ON_THIS_COMMIT:  prompt_learn.gpt3.126m_tp1_pp1_1node_squad_real eval.gpt3.prompt_126m_tp1_pp1_squad_real # Can specify levels, ci job names etc as a space seperated list to run during this commit
   TEST_REGEX_ON_THIS_COMMIT: NONE #https://github.com/google/re2/wiki/Syntax (Can define regex as in this spec) e.g /.*gpt3.*/
 
 
@@ -54,7 +56,6 @@ before_script:
     - ls
     - env
     - export FROM_IMAGE_ARG="--build-arg FROM_IMAGE_NAME=${FROM_IMAGE_NAME}"
-    - docker pull ${FROM_IMAGE_NAME}
     - docker build -t ${BUILD_IMAGE_NAME} ${FROM_IMAGE_ARG} .
     - docker push ${BUILD_IMAGE_NAME}
     # Push to NGC
@@ -121,49 +122,6 @@ release_perf:
   trigger:
     include: tests/ci_tests/selene/release_perf/gitlab-ci.yml
 
-.bignlp-LUNA-test-LAUNCHER: &bignlp-LUNA-test-LAUNCHER
-  tags: *LUNA_TAGS
-  stage: test
-  script: &bignlp-LUNA-test-LAUNCHER-SCRIPT
-    - chmod 774 ./* -R
-    - umask 0007
-    - source /lustre/fsw/joc/big_nlp/nemo_gpt3/my_venv/bin/activate
-    - set -x
-    - export PIPELINE_DIR="${SELENE_BIGNLP_CI_PATH}/${CI_PIPELINE_ID}"
-    - export BASE_RESULTS_DIR="${PIPELINE_DIR}/results"
-    - export RUN_NAME=${RUN_TASK}_${RUN_MODEL}_${RUN_JOB_NAME}
-    - export RESULTS_DIR=${BASE_RESULTS_DIR}/${RUN_NAME}
-    - env
-    - bash tests/ci_tests/selene/scripts/${RUN_TASK}/${RUN_MODEL}/${RUN_JOB_NAME}.sh
-    # Wait for job to launch
-    - sleep 10s # Without this, "sacct" in jobstate.sh does not always find the SLURM job.
-    - export SLURM_JOBID=$(cat "${RESULTS_DIR}/launcher.log")
-    - echo $SLURM_JOBID
-    - export SLURM_OUTPUT=${RESULTS_DIR}/slurm_${SLURM_JOBID}.log
-    #export SLURM_OUTPUT=$(scontrol show job "${SLURM_JOBID}" | grep 'StdOut' | awk -F '=' '{ print $2 }')
-    - cd tests/ci_tests/utils
-    - chmod 777 ./* -R
-    - bash jobwait.sh "${SLURM_JOBID}" & PID=$!
-    - touch "${SLURM_OUTPUT}"
-    - \[ ! -z ${SLURM_JOBID} \] && echo -e " --------------------------------------------------\n"
-                "----------WAITING FOR SLURM JOB TO BEGIN-----------\n"
-                "---------------------------------------------------\n"
-                "$(scontrol show job=${SLURM_JOBID})\n"
-                "---------------------------------------------------\n"
-    # Gitlab logs collapsible section markers
-    - echo -e "\e[0Ksection_end:`date +%s`:slurm_setup\r\e[0K"
-    # Follow output of the job
-    - tail --pid="${PID}" -f "${SLURM_OUTPUT}" # Stream job output until it finishes.
-    - echo "Finished job with name ${RUN_NAME}"
-    - cd ${GIT_CLONE_PATH}
-    # Run metrics collection
-    - python3 tests/ci_tests/utils/convert_ci_metric_to_json.py tests/ci_tests/selene/pytest/${RUN_TASK}/${RUN_MODEL}/test_${RUN_JOB_NAME}.py
-    # Run Pytest
-    - pip3 install pytest
-    - pytest tests/ci_tests/selene/pytest/${RUN_TASK}/${RUN_MODEL}/test_${RUN_JOB_NAME}.py
-    - echo "Finished pytest job"
-  allow_failure: true
-
 .bignlp-LUNA-test-LAUNCHER-refactored: &bignlp-LUNA-test-LAUNCHER-refactored
   tags: *LUNA_TAGS
   stage: test
@@ -178,12 +136,19 @@ release_perf:
     - if [[ "$RUN_STAGE" = "train" ]]; then export RUN_NAME=${RUN_NAME}_${NUM_NODES}node_${MAX_STEPS}steps; fi
     - if [[ "$RUN_STAGE" = "prompt_learn" ]]; then export RUN_NAME=${RUN_NAME}_${NUM_NODES}node_${TEST_TASK}; fi
     - if [[ "$RUN_STAGE" = "finetune" ]]; then export RUN_NAME=${RUN_NAME}_${NUM_NODES}node_${MAX_STEPS}steps_${TEST_TASK}; fi
+    - if [[ "$RUN_STAGE" = "eval" ]]; then export RUN_NAME=${RUN_NAME}_${TEST_TASK}; fi
+    - if [[ "$RUN_STAGE" = "data_prep" ]]; then export RUN_NAME=${RUN_STAGE}_${RUN_MODEL}_${DATASET}; fi
     - export RESULTS_DIR=${BASE_RESULTS_DIR}/${RUN_NAME}
     - env
-    - bash tests/ci_tests/selene/scripts/${RUN_STAGE}/${RUN_MODEL}/${RUN_STAGE}_${RUN_MODEL}_model.sh
+    - |
+        if [[ "$RUN_STAGE" = "data_prep" ]]; then
+          bash tests/ci_tests/selene/scripts/${RUN_STAGE}/${RUN_MODEL}/${RUN_STAGE}_${DATASET}.sh
+        else
+          bash tests/ci_tests/selene/scripts/${RUN_STAGE}/${RUN_MODEL}/${RUN_STAGE}_${RUN_MODEL}_model.sh
+        fi
     # Wait for job to launch
     - sleep 10s # Without this, "sacct" in jobstate.sh does not always find the SLURM job.
-    - export SLURM_JOBID=$(cat "${RESULTS_DIR}/launcher.log")
+    - export SLURM_JOBID=$(grep 'Submitted batch job' "${RESULTS_DIR}/launcher.log" | awk '{ print $4 }')
     - echo $SLURM_JOBID
     - export SLURM_OUTPUT=${RESULTS_DIR}/slurm_${SLURM_JOBID}.log
     #export SLURM_OUTPUT=$(scontrol show job "${SLURM_JOBID}" | grep 'StdOut' | awk -F '=' '{ print $2 }')
@@ -203,10 +168,36 @@ release_perf:
     - echo "Finished job with name ${RUN_NAME}"
     - cd ${GIT_CLONE_PATH}
     # Run metrics collection
-    - python3 tests/ci_tests/utils/convert_ci_metric_to_json_new.py $RESULTS_DIR $RUN_STAGE $RUN_MODEL
+    - python3 tests/ci_tests/utils/convert_ci_metric_to_json.py $RESULTS_DIR $RUN_STAGE $RUN_MODEL
+    # If you wan to be able to automatically add test results file then set the CREATE_TEST_DATA flag to be true.
+    # It will run the test on selene copy the results file and paste it in the bignlp-scripts repo and raise a PR.
+    - |
+        if [[ "$CREATE_TEST_DATA" = "True" ]]; then
+          echo "Current working directory"
+          echo $pwd
+          cd ..
+          mkdir test
+          cd test
+          git clone ssh://git@gitlab-master.nvidia.com:12051/dl/JoC/bignlp-scripts.git
+          cd bignlp-scripts
+          git checkout -b $CI_PIPELINE_ID
+          GIT_BRANCHES=`git branch -r`
+          if [[ "$GIT_BRANCHES" =~ .*"$CI_PIPELINE_ID".* ]]; then git pull origin $CI_PIPELINE_ID; fi
+          cp $RESULTS_DIR/*.json tests/ci_tests/selene/pytest/$RUN_STAGE/${RUN_MODEL}_result_files/
+          git add tests/ci_tests/selene/pytest/$RUN_STAGE/${RUN_MODEL}_result_files/*
+          sed -i 's/TESTS_TO_RUN_ON_THIS_COMMIT: .*/TESTS_TO_RUN_ON_THIS_COMMIT: NONE/g' .gitlab-ci.yml
+          git add .gitlab-ci.yml
+          git commit -m "Adding the result file for $RUN_NAME"
+          git push origin $CI_PIPELINE_ID
+          echo "Created test file and pushed it"
+          exit 0
+        fi
     # Run Pytest
     - pip3 install pytest
-    - pytest tests/ci_tests/selene/pytest/${RUN_STAGE}/test_${RUN_STAGE}_pipeline.py
+    - TEST_FILE=test_${RUN_STAGE}_pipeline.py
+    # Will come in here from gpt3 and prompt_gpt3
+    - if [[ "$RUN_STAGE" = "eval" && "$RUN_MODEL" == *"gpt3"* ]]; then TEST_FILE="test_gpt3_eval_pipeline.py"; fi
+    - pytest tests/ci_tests/selene/pytest/${RUN_STAGE}/${TEST_FILE}
     - echo "Finished pytest job"
   rules:
     - if: $TEST_LEVEL =~ $TESTS_TO_RUN_ON_THIS_COMMIT || $CI_JOB_NAME =~ $TESTS_TO_RUN_ON_THIS_COMMIT || $CI_JOB_NAME =~ $TEST_REGEX_ON_THIS_COMMIT
@@ -214,7 +205,6 @@ release_perf:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $TEST_LEVEL =~ $TESTS_TO_RUN_ON_MERGE_REQ'
       when: always
   allow_failure: false
-
 
 train.gpt3.126m_tp1_pp1_1node_100steps:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
@@ -501,110 +491,76 @@ train.mt5.170m_tp2_pp2_2node_100steps:
     NUM_NODES: 2
     MAX_STEPS: 100
     TIME_LIMIT: "20:00"
-    TEST_LEVEL: L0
+    TEST_LEVEL: L1
   needs:
     - build-BigNLP
 
 eval.gpt3.126m_tp1_pp1_lambada:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
-    RUN_TASK: eval
+    RUN_STAGE: eval
+    TEST_TASK: lambada
     RUN_MODEL: gpt3
-    RUN_JOB_NAME: 126m_tp1_pp1_lambada
-  only:
-    - master
+    RUN_MODEL_SIZE: 126m
+    TIME_LIMIT: "30:00"
+    TP_SIZE: 1
+    PP_SIZE: 1
+    TRAIN_JOB_NAME: train_gpt3_126m_tp1_pp1_1node_100steps
+    TEST_LEVEL: L0
   needs:
     - train.gpt3.126m_tp1_pp1_1node_100steps
 
 
 eval.gpt3.126m_tp2_pp1_lambada:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
-    RUN_TASK: eval
+    RUN_STAGE: eval
+    TEST_TASK: lambada
     RUN_MODEL: gpt3
-    RUN_JOB_NAME: 126m_tp2_pp1_lambada
-  only:
-    - master
+    RUN_MODEL_SIZE: 126m
+    TIME_LIMIT: "30:00"
+    TP_SIZE: 2
+    PP_SIZE: 1
+    TRAIN_JOB_NAME: train_gpt3_126m_tp2_pp1_1node_100steps
+    TEST_LEVEL: L1
   needs:
     - train.gpt3.126m_tp2_pp1_1node_100steps
 
 
 eval.gpt3.126m_tp1_pp2_lambada:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
-    RUN_TASK: eval
+    RUN_STAGE: eval
+    TEST_TASK: lambada
     RUN_MODEL: gpt3
-    RUN_JOB_NAME: 126m_tp1_pp2_lambada
-  only:
-    - master
+    RUN_MODEL_SIZE: 126m
+    TIME_LIMIT: "30:00"
+    TP_SIZE: 1
+    PP_SIZE: 2
+    TRAIN_JOB_NAME: train_gpt3_126m_tp1_pp2_2node_100steps
+    TEST_LEVEL: L1
   needs:
     - train.gpt3.126m_tp1_pp2_2node_100steps
 
 
 eval.gpt3.126m_tp2_pp2_lambada:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
-    RUN_TASK: eval
+    RUN_STAGE: eval
+    TEST_TASK: lambada
     RUN_MODEL: gpt3
-    RUN_JOB_NAME: 126m_tp2_pp2_lambada
-  only:
-    - master
+    RUN_MODEL_SIZE: 126m
+    TIME_LIMIT: "30:00"
+    TP_SIZE: 2
+    PP_SIZE: 2
+    TRAIN_JOB_NAME: train_gpt3_126m_tp2_pp2_2node_100steps
+    TEST_LEVEL: L0
   needs:
     - train.gpt3.126m_tp2_pp2_2node_100steps
-
-export.gpt3.126m_tp1_pp1_split:
-  <<: *bignlp-LUNA-test-LAUNCHER
-  variables:
-    <<: [*VARS, *LUNA_VARS]
-    RUN_TASK: export
-    RUN_MODEL: gpt3
-    RUN_JOB_NAME: 126m_tp1_pp1-split_tp2_pp2_fp32_bf16
-  only:
-    - master
-  needs:
-    - eval.gpt3.126m_tp1_pp1_lambada
-
-export.gpt3.126m_tp1_pp2_split:
-  <<: *bignlp-LUNA-test-LAUNCHER
-  variables:
-    <<: [*VARS, *LUNA_VARS]
-    RUN_TASK: export
-    RUN_MODEL: gpt3
-    RUN_JOB_NAME: 126m_tp1_pp2-split_tp2_pp2_fp16_fp16
-  only:
-    - master
-  needs:
-    - eval.gpt3.126m_tp1_pp2_lambada
-
-export.gpt3.126m_tp2_pp1_merge:
-  <<: *bignlp-LUNA-test-LAUNCHER
-  variables:
-    <<: [*VARS, *LUNA_VARS]
-    RUN_TASK: export
-    RUN_MODEL: gpt3
-    RUN_JOB_NAME: 126m_tp2_pp1-merge_tp1_pp2_fp32_bf16
-  only:
-    - master
-  needs:
-    - eval.gpt3.126m_tp2_pp1_lambada
-
-
-export.gpt3.126m_tp2_pp2_merge:
-  <<: *bignlp-LUNA-test-LAUNCHER
-  variables:
-    <<: [*VARS, *LUNA_VARS]
-    RUN_TASK: export
-    RUN_MODEL: gpt3
-    RUN_JOB_NAME: 126m_tp2_pp2-merge_tp1_pp1_fp16_fp16
-  only:
-    - master
-  needs:
-    - eval.gpt3.126m_tp2_pp2_lambada
-
 
 
 convert.gpt3.126m_tp1_pp1:
@@ -735,52 +691,39 @@ finetune.t5.220m_tp2_pp2_2node_100steps_mnli:
     - convert.t5.220m_tp2_pp2
 
 eval.t5.220m_tp1_pp1:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
-    RUN_TASK: eval
+    RUN_STAGE: eval
+    TEST_TASK: mnli_matched
     RUN_MODEL: t5
-    RUN_JOB_NAME: 220m_tp1_pp1_mnli
-  only:
-    - master
+    RUN_MODEL_SIZE: 220m
+    TIME_LIMIT: "1:00:00"
+    TP_SIZE: 1
+    PP_SIZE: 1
+    NUM_NODES: 1
+    FINETUNE_JOB_DIR: finetune_t5_220m_tp1_pp1_1node_100steps_mnli
+    TEST_LEVEL: L0
   needs:
     - finetune.t5.220m_tp1_pp1_1node_100steps_mnli
 
 eval.t5.220m_tp2_pp2:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
-    RUN_TASK: eval
+    RUN_STAGE: eval
+    TEST_TASK: mnli_matched
     RUN_MODEL: t5
-    RUN_JOB_NAME: 220m_tp2_pp2_mnli
-  only:
-    - master
+    RUN_MODEL_SIZE: 220m
+    TIME_LIMIT: "1:00:00"
+    TP_SIZE: 2
+    PP_SIZE: 2
+    NUM_NODES: 2
+    FINETUNE_JOB_DIR: finetune_t5_220m_tp2_pp2_2node_100steps_mnli
+    MICRO_BATCH_SIZE: 8
+    TEST_LEVEL: L1
   needs:
     - finetune.t5.220m_tp2_pp2_2node_100steps_mnli
-
-export.t5.220m_tp1_pp1_split:
-  <<: *bignlp-LUNA-test-LAUNCHER
-  variables:
-    <<: [*VARS, *LUNA_VARS]
-    RUN_TASK: export
-    RUN_MODEL: t5
-    RUN_JOB_NAME: 220m_tp1_pp1-split_tp2_pp2_fp16_fp16
-  only:
-    - master
-  needs:
-    - eval.t5.220m_tp1_pp1
-
-export.t5.220m_tp2_pp2_merge:
-  <<: *bignlp-LUNA-test-LAUNCHER
-  variables:
-    <<: [*VARS, *LUNA_VARS]
-    RUN_TASK: export
-    RUN_MODEL: t5
-    RUN_JOB_NAME: 220m_tp2_pp2-merge_tp1_pp1_fp32_bf16
-  only:
-    - master
-  needs:
-    - eval.t5.220m_tp2_pp2
 
 convert.mt5.170m_tp1_pp1:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
@@ -808,7 +751,7 @@ convert.mt5.170m_tp2_pp2:
     TP_SIZE: 2
     PP_SIZE: 2
     TIME_LIMIT: "30:00"
-    TEST_LEVEL: L0
+    TEST_LEVEL: L1
   needs:
     - train.mt5.170m_tp2_pp2_2node_100steps
 
@@ -841,58 +784,45 @@ finetune.mt5.170m_tp2_pp2_2node_100steps_xnli:
     MAX_STEPS: 100
     NUM_NODES: 2
     TIME_LIMIT: "40:00"
-    TEST_LEVEL: L0
+    TEST_LEVEL: L1
     TEST_TASK: xnli
   needs:
     - convert.mt5.170m_tp2_pp2
 
 eval.mt5.170m_tp1_pp1:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
-    RUN_TASK: eval
+    RUN_STAGE: eval
+    TEST_TASK: xnli
     RUN_MODEL: mt5
-    RUN_JOB_NAME: 170m_tp1_pp1_xnli
-  only:
-    - master
+    RUN_MODEL_SIZE: 170m
+    TIME_LIMIT: "1:00:00"
+    TP_SIZE: 1
+    PP_SIZE: 1
+    NUM_NODES: 1
+    FINETUNE_JOB_DIR: finetune_mt5_170m_tp1_pp1_1node_100steps_xnli
+    TEST_LEVEL: L0
   needs:
     - finetune.mt5.170m_tp1_pp1_1node_100steps_xnli
 
 eval.mt5.170m_tp2_pp2:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
-    RUN_TASK: eval
+    RUN_STAGE: eval
+    TEST_TASK: xnli
     RUN_MODEL: mt5
-    RUN_JOB_NAME: 170m_tp2_pp2_xnli
-  only:
-    - master
+    RUN_MODEL_SIZE: 170m
+    TIME_LIMIT: "1:00:00"
+    TP_SIZE: 2
+    PP_SIZE: 2
+    NUM_NODES: 2
+    FINETUNE_JOB_DIR: finetune_mt5_170m_tp2_pp2_2node_100steps_xnli
+    MICRO_BATCH_SIZE: 8
+    TEST_LEVEL: L1
   needs:
     - finetune.mt5.170m_tp2_pp2_2node_100steps_xnli
-
-export.mt5.170m_tp1_pp1_split:
-  <<: *bignlp-LUNA-test-LAUNCHER
-  variables:
-    <<: [*VARS, *LUNA_VARS]
-    RUN_TASK: export
-    RUN_MODEL: mt5
-    RUN_JOB_NAME: 170m_tp1_pp1-split_tp2_pp2_fp32_bf16
-  only:
-    - master
-  needs:
-    - eval.mt5.170m_tp1_pp1
-
-export.mt5.170m_tp2_pp2_merge:
-  <<: *bignlp-LUNA-test-LAUNCHER
-  variables:
-    <<: [*VARS, *LUNA_VARS]
-    RUN_TASK: export
-    RUN_MODEL: mt5
-    RUN_JOB_NAME: 170m_tp2_pp2-merge_tp1_pp1_fp16_fp16
-  only:
-    - master
-  needs:
-    - eval.mt5.170m_tp2_pp2
 
 prompt_learn.gpt3.126m_tp1_pp1_1node_100steps_squad:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
@@ -924,79 +854,75 @@ prompt_learn.gpt3.126m_tp1_pp1_1node_squad_real:
     TP_SIZE: 1
     PP_SIZE: 1
     NUM_NODES: 1
-    TIME_LIMIT: "04:00:00"
+    TIME_LIMIT: "01:00:00"
     TEST_LEVEL: L1
   needs:
     - build-BigNLP
 
 eval.gpt3.prompt_126m_tp1_pp1_squad:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
-    RUN_TASK: eval
-    RUN_MODEL: gpt3
-    RUN_JOB_NAME: prompt_126m_tp1_pp1_squad
-  only:
-    - master
+    RUN_STAGE: eval
+    RUN_MODEL: prompt_gpt3
+    RUN_MODEL_SIZE: 126m
+    TEST_TASK: squad
+    PROMPT_LEARN_MODEL_DIR: prompt_learn_gpt3_126m_tp1_pp1_1node_squad
+    TIME_LIMIT: "30:00"
+    TP_SIZE: 1
+    PP_SIZE: 1
+    TEST_LEVEL: L0
   needs:
     - prompt_learn.gpt3.126m_tp1_pp1_1node_100steps_squad
 
 eval.gpt3.prompt_126m_tp1_pp1_squad_real:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
-    RUN_TASK: eval
-    RUN_MODEL: gpt3
-    RUN_JOB_NAME: prompt_126m_tp1_pp1_squad_real
-  only:
-    - master
+    RUN_STAGE: eval
+    RUN_MODEL: prompt_gpt3
+    RUN_MODEL_SIZE: 126m
+    TEST_TASK: squad_real
+    PROMPT_LEARN_MODEL_DIR: prompt_learn_gpt3_126m_tp1_pp1_1node_squad_real
+    TIME_LIMIT: "30:00"
+    TP_SIZE: 1
+    PP_SIZE: 1
+    TEST_LEVEL: L1
   needs:
     - prompt_learn.gpt3.126m_tp1_pp1_1node_squad_real
 
 data_prep.gpt3.the_pile_prepare_shard00:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
-    RUN_TASK: data_prep
+    RUN_STAGE: data_prep
     RUN_MODEL: gpt3
-    RUN_JOB_NAME: the_pile_prepare_shard00
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || $CI_COMMIT_REF_NAME == "master"'
-      when: manual
-      allow_failure: true
-    - when: never
+    DATASET: pile
+    TEST_LEVEL: L2
   needs:
     - build-BigNLP
 
 
 data_prep.t5.the_pile_prepare_shard00:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
-    RUN_TASK: data_prep
+    RUN_STAGE: data_prep
     RUN_MODEL: t5
-    RUN_JOB_NAME: the_pile_prepare_shard00
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || $CI_COMMIT_REF_NAME == "master"'
-      when: manual
-      allow_failure: true
-    - when: never
+    DATASET: pile
+    TEST_LEVEL: L2
   needs:
     - build-BigNLP
 
 
 data_prep.mt5.mc4_prepare_lang_mt:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
-    RUN_TASK: data_prep
+    RUN_STAGE: data_prep
     RUN_MODEL: mt5
-    RUN_JOB_NAME: mc4_prepare_lang_mt
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || $CI_COMMIT_REF_NAME == "master"'
-      when: manual
-      allow_failure: true
-    - when: never
+    DATASET: mc4
+    TEST_LEVEL: L2
   needs:
     - build-BigNLP
 

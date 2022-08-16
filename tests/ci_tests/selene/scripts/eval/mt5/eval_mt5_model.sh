@@ -1,12 +1,15 @@
+set -o xtrace
+
+MICRO_BATCH_SIZE=${MICRO_BATCH_SIZE:-4}
+
 HYDRA_FULL_ERROR=1 python3 main.py \
     +ci_test=True \
-    evaluation=mt5/xnli \
+    evaluation=${RUN_MODEL}/${TEST_TASK} \
     run_data_preparation=False \
     run_training=False \
     run_conversion=False \
     run_finetuning=False \
     run_evaluation=True \
-    run_export=False \
     bignlp_path=${GIT_CLONE_PATH} \
     data_dir=${BASE_RESULTS_DIR}/data \
     base_results_dir=${BASE_RESULTS_DIR} \
@@ -16,9 +19,8 @@ HYDRA_FULL_ERROR=1 python3 main.py \
     cluster.gpus_per_task=null \
     cluster.gpus_per_node=null \
     cluster.job_name_prefix="${SLURM_ACCOUNT}-bignlp_ci:" \
-    evaluation.run.time_limit="01:00:00" \
+    evaluation.run.time_limit=${TIME_LIMIT} \
     evaluation.run.results_dir=${BASE_RESULTS_DIR}/${RUN_NAME} \
-    evaluation.trainer.num_nodes=2 \
-    evaluation.model.restore_from_path=${BASE_RESULTS_DIR}/finetune_mt5_170m_tp2_pp2_2node_100steps_xnli/checkpoints/megatron_mt5_glue_xnli.nemo \
-    evaluation.model.data.validation_ds.global_batch_size=32 \
-    evaluation.model.data.validation_ds.micro_batch_size=8
+    evaluation.trainer.num_nodes=${NUM_NODES} \
+    evaluation.model.restore_from_path=${BASE_RESULTS_DIR}/${FINETUNE_JOB_DIR}/checkpoints/megatron_mt5_glue_xnli.nemo \
+    evaluation.model.data.validation_ds.micro_batch_size=${MICRO_BATCH_SIZE}
