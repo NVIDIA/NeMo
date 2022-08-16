@@ -336,16 +336,13 @@ def get_params_for_weight_decay_optimization(
 def get_all_params_for_weight_decay_optimization(
     model: Union[torch.nn.Module, List[torch.nn.Module]],
 ) -> Tuple[Dict[str, List[torch.nn.Parameter]]]:
-    """Divide params into with-weight-decay and without-weight-decay groups.
-
-    Layernorms and biases will have no weight decay but the rest will.
-    """
+    """Use all params for weight decay."""
     modules = listify_model(model)
 
     weight_decay_params = [
         p
         for module in modules
-        for module_ in module.modules()  # TODO: simplify to module.parameters()?
+        for module_ in module.modules()
         for p in module_._parameters.values()
         if p is not None
     ]
