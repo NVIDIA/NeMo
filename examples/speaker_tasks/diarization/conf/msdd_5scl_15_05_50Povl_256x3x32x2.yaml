@@ -1,4 +1,6 @@
 # Mutiscale diarization decoder (MSDD) is a speaker diarization model based on initializing clustering and multi-scale segmentation input.
+# Model name convention for MSDD: <scale_n>scl_<longest scale in decimal second (ds)>_<shortest scale in decimal second (ds)>_<overlap percentage of window shifting>Povl_<hidden layer size>x<number of LSTM layers>x<number of CNN output channels>x<repetition count of conv layer>
+# (Example) msdd_5scl_15_05_50Povl_256x3x32x2.yaml has 5 scales, the longest scale is 1.5 sec, the shortest scale is 0.5 sec, with 50 percent overlap, hidden layer size is 256, 3 LSTM layers, 32 CNN channels, 2 repeated Conv layers
 # MSDD model checkpoint (.ckpt) or NeMo file (.nemo) contain speaker embedding model (TitaNet) and the speaker model is loaded along with standalone MSDD moodule.
 # MSDD requires more than one scale. Thus, the parameters in diarizer.speaker_embeddings.parameters should have more than one scale to function as a MSDD model.
 name: "MultiscaleDiarDecoder" 
@@ -55,6 +57,7 @@ model:
     labels: null
     batch_size: 2
     shuffle: False
+    seq_eval_mode: False
 
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
@@ -82,6 +85,7 @@ model:
     context_vector_type: 'cos_sim' # Type of context vector: options. Options: ('cos_sim', 'elem_prod')
 
   loss: 
+    _target_: nemo.collections.asr.losses.bce_loss.BCELoss
     weight: null # Weight for binary cross-entropy loss. Either `null` or list type input. (e.g. [0.5,0.5])
 
   optim:

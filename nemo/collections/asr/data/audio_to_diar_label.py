@@ -20,7 +20,7 @@ from typing import Dict, Optional
 import torch
 
 from nemo.collections.asr.parts.utils.nmesc_clustering import get_argmin_mat
-from nemo.collections.asr.parts.utils.speaker_utils import convert_rttm_line
+from nemo.collections.asr.parts.utils.speaker_utils import convert_rttm_line, prepare_split_data
 from nemo.collections.common.parts.preprocessing.collections import DiarizationSpeechLabel
 from nemo.core.classes import Dataset
 from nemo.core.neural_types import AudioSignal, EncodedRepresentation, LengthsType, NeuralType
@@ -157,8 +157,8 @@ class _AudioMSDDTrainDataset(Dataset):
             Path to input manifest json files.
         multiscale_args_dict (dict):
             Dictionary containing the parameters for multiscale segmentation and clustering.
-        multiscale_timestamp_dict (dict):
-            Dictionary containing multiscale segment mapping and corresponding timestamps.
+        emb_dir (str):
+            Path to a temporary folder where segmentation information for embedding extraction is saved.
         soft_label_thres (float):
             Threshold that determines the label of each segment based on RTTM file information.
         featurizer:
@@ -193,13 +193,14 @@ class _AudioMSDDTrainDataset(Dataset):
         *,
         manifest_filepath: str,
         multiscale_args_dict: str,
-        multiscale_timestamp_dict: Dict,
+        emb_dir: str,
         soft_label_thres: float,
         featurizer,
         window_stride,
         emb_batch_size,
         pairwise_infer: bool,
         random_flip: bool = True,
+        global_rank: int = 0,
     ):
         super().__init__()
         self.collection = DiarizationSpeechLabel(
@@ -210,7 +211,7 @@ class _AudioMSDDTrainDataset(Dataset):
         )
         self.featurizer = featurizer
         self.multiscale_args_dict = multiscale_args_dict
-        self.multiscale_timestamp_dict = multiscale_timestamp_dict
+        self.emb_dir = emb_dir
         self.round_digits = 2
         self.decim = 10 ** self.round_digits
         self.soft_label_thres = soft_label_thres
@@ -219,9 +220,18 @@ class _AudioMSDDTrainDataset(Dataset):
         self.frame_per_sec = int(1 / window_stride)
         self.emb_batch_size = emb_batch_size
         self.random_flip = random_flip
+        self.global_rank = global_rank
+        self.manifest_filepath = manifest_filepath
+        self.multiscale_timestamp_dict = prepare_split_data(
+            self.manifest_filepath, 
+            self.emb_dir,
+            self.multiscale_args_dict,
+            self.global_rank,
+        )
 
     def __len__(self):
         return len(self.collection)
+    
 
     def assign_labels_to_longer_segs(self, uniq_id, base_scale_clus_label):
         """
@@ -738,8 +748,8 @@ class AudioToSpeechMSDDTrainDataset(_AudioMSDDTrainDataset):
             Path to input manifest json files.
         multiscale_args_dict (dict):
             Dictionary containing the parameters for multiscale segmentation and clustering.
-        multiscale_timestamp_dict (dict):
-            Dictionary containing timestamps and speaker embedding sequence for each scale.
+        emb_dir (str):
+            Path to a temporary folder where segmentation information for embedding extraction is saved.
         soft_label_thres (float):
             A threshold that determines the label of each segment based on RTTM file information.
         featurizer:
@@ -757,22 +767,24 @@ class AudioToSpeechMSDDTrainDataset(_AudioMSDDTrainDataset):
         *,
         manifest_filepath: str,
         multiscale_args_dict: Dict,
-        multiscale_timestamp_dict: Dict,
+        emb_dir: str,
         soft_label_thres: float,
         featurizer,
         window_stride,
         emb_batch_size,
         pairwise_infer: bool,
+        global_rank: int,
     ):
         super().__init__(
             manifest_filepath=manifest_filepath,
             multiscale_args_dict=multiscale_args_dict,
-            multiscale_timestamp_dict=multiscale_timestamp_dict,
+            emb_dir=emb_dir,
             soft_label_thres=soft_label_thres,
             featurizer=featurizer,
             window_stride=window_stride,
             emb_batch_size=emb_batch_size,
             pairwise_infer=pairwise_infer,
+            global_rank=global_rank,
         )
 
     def msdd_train_collate_fn(self, batch):

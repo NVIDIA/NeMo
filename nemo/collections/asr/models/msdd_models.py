@@ -24,6 +24,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 import torch
 from omegaconf import DictConfig, open_dict
+from hydra.utils import instantiate
 from pytorch_lightning import Trainer
 from tqdm import tqdm
 
@@ -34,20 +35,16 @@ from nemo.collections.asr.models import ClusteringDiarizer
 from nemo.collections.asr.models.asr_model import ExportableEncDecModel
 from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
-from nemo.collections.asr.parts.utils.nmesc_clustering import get_argmin_mat
 from nemo.collections.asr.parts.utils.speaker_utils import (
     audio_rttm_map,
-    get_contiguous_stamps,
     get_embs_and_timestamps,
-    get_uniqname_from_filepath,
-    labels_to_pyannote_object,
-    labels_to_rttmfile,
-    merge_stamps,
+    get_id_tup_dict,
+    get_scale_mapping_argmat,
+    get_uniq_id_list_from_manifest,
+    make_rttm_with_overlap,
     parse_scale_configs,
-    rttm_to_labels,
     score_labels,
     segments_manifest_to_subsegments_manifest,
-    write_rttm2manifest,
 )
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
@@ -67,279 +64,49 @@ except ImportError:
 
 __all__ = ['EncDecDiarLabelModel', 'ClusterEmbedding']
 
-
-def getScaleMappingArgmat(uniq_embs_and_timestamps: Dict[str, dict]) -> Dict[int, torch.Tensor]:
-    """
-    Calculate cosine similarity values among speaker embeddings for each scale then
-    apply multiscale weights to calculate the fused similarity matrix.
-
-    Args:
-        uniq_embs_and_timestamps: (dict)
-            The dictionary containing embeddings, timestamps and multiscale weights.
-            If uniq_embs_and_timestamps contains only one scale, single scale diarization
-            is performed.
-
-    Returns:
-        scale_mapping_argmat (dict)
-            Dictionary containing scale mapping information matrix for each scale.
-    """
-    scale_mapping_argmat = {}
-    uniq_scale_dict = uniq_embs_and_timestamps['scale_dict']
-    session_scale_mapping_dict = get_argmin_mat(uniq_scale_dict)
-    for scale_idx in sorted(uniq_scale_dict.keys()):
-        mapping_argmat = session_scale_mapping_dict[scale_idx]
-        scale_mapping_argmat[scale_idx] = mapping_argmat
-    return scale_mapping_argmat
-
-
-def get_overlap_stamps(cont_stamps: List[str], ovl_spk_idx: List[str]):
-    """
-    Generate timestamps that include overlap speech. Overlap-including timestamps are created based on the segments that are
-    created for clustering diarizer. Overlap speech is assigned to the existing speech segments in `cont_stamps`.
-
-    Args:
-        cont_stamps (list):
-            Non-overlapping (single speaker per segment) diarization output in string format.
-            Each line contains the start and end time of segments and corresponding speaker labels.
-        ovl_spk_idx (list):
-            List containing segment index of the estimated overlapped speech. The start and end of segments are based on the
-            single-speaker (i.e., non-overlap-aware) RTTM generation.
-    Returns:
-        total_ovl_cont_list (list):
-            Rendered diarization output in string format. Each line contains the start and end time of segments and
-            corresponding speaker labels. This format is identical to `cont_stamps`.
-    """
-    ovl_spk_cont_list = [[] for _ in range(len(ovl_spk_idx))]
-    for spk_idx in range(len(ovl_spk_idx)):
-        for idx, cont_a_line in enumerate(cont_stamps):
-            start, end, speaker = cont_a_line.split()
-            if idx in ovl_spk_idx[spk_idx]:
-                ovl_spk_cont_list[spk_idx].append(f"{start} {end} speaker_{spk_idx}")
-    total_ovl_cont_list = []
-    for ovl_cont_list in ovl_spk_cont_list:
-        if len(ovl_cont_list) > 0:
-            total_ovl_cont_list.extend(merge_stamps(ovl_cont_list))
-    return total_ovl_cont_list
-
-
-def get_adaptive_threshold(estimated_num_of_spks: int, min_threshold: float, overlap_infer_spk_limit: int):
-    """
-    This function controls the magnitude of the sigmoid threshold based on the estimated number of speakers. As the number of
-    speakers becomes larger, diarization error rate is very sensitive on overlap speech detection. This function linearly increases
-    the threshold in proportion to the estimated number of speakers so more confident overlap speech results are reflected when
-    the number of estimated speakers are relatively high.
-
-    Args:
-        estimated_num_of_spks (int):
-            Estimated number of speakers from the clustering result.
-        min_threshold (float):
-            Sigmoid threshold value from the config file. This threshold value is minimum threshold value when `estimated_num_of_spks=2`
-        overlap_infer_spk_limit (int):
-            If the `estimated_num_of_spks` is less then `overlap_infer_spk_limit`, overlap speech estimation is skipped.
-
-    Returns:
-        adaptive_threshold (float):
-            Threshold value that is scaled based on the `estimated_num_of_spks`.
-    """
-    adaptive_threshold = min_threshold - (estimated_num_of_spks - 2) * (min_threshold - 1) / (
-        overlap_infer_spk_limit - 2
-    )
-    return adaptive_threshold
-
-
-def generate_speaker_timestamps(
-    clus_labels: List[Union[float, int]], msdd_preds: List[torch.Tensor], **params
-) -> Tuple[List[str], List[str]]:
-    '''
-    Generate speaker timestamps from the segmentation information. If `use_clus_as_main=True`, use clustering result for main speaker
-    labels and use timestamps from the predicted sigmoid values. In this function, the main speaker labels in `maj_labels` exist for
-    every subsegment steps while overlap speaker labels in `ovl_labels` only exist for segments where overlap-speech is occuring.
-
-    Args:
-        clus_labels (list):
-            List containing integer-valued speaker clustering results.
-        msdd_preds (list):
-            List containing tensors of the predicted sigmoid values.
-            Each tensor has shape of: (Session length, estimated number of speakers).
-        params:
-            Parameters for generating RTTM output and evaluation. Parameters include:
-                infer_overlap (bool): If False, overlap-speech will not be detected.
-                use_clus_as_main (bool): Add overlap-speech detection from MSDD to clustering results. If False, only MSDD output
-                                         is used for constructing output RTTM files.
-                overlap_infer_spk_limit (int): Above this limit, overlap-speech detection is bypassed.
-                use_adaptive_thres (bool): Boolean that determines whehther to use adaptive_threshold depending on the estimated
-                                           number of speakers.
-                max_overlap_spks (int): Maximum number of overlap speakers detected. Default is 2.
-                threshold (float): Sigmoid threshold for MSDD output.
-
-    Returns:
-        maj_labels (list):
-            List containing string-formated single-speaker speech segment timestamps and corresponding speaker labels.
-            Example: [..., '551.685 552.77 speaker_1', '552.99 554.43 speaker_0', '554.97 558.19 speaker_0', ...]
-        ovl_labels (list):
-            List containing string-formated additional overlapping speech segment timestamps and corresponding speaker labels.
-            Note that `ovl_labels` includes only overlapping speech that is not included in `maj_labels`.
-            Example: [..., '152.495 152.745 speaker_1', '372.71 373.085 speaker_0', '554.97 555.885 speaker_1', ...]
-    '''
-    msdd_preds.squeeze(0)
-    estimated_num_of_spks = msdd_preds.shape[-1]
-    overlap_speaker_list = [[] for _ in range(estimated_num_of_spks)]
-    infer_overlap = estimated_num_of_spks < int(params['overlap_infer_spk_limit'])
-    main_speaker_lines = []
-    if params['use_adaptive_thres']:
-        threshold = get_adaptive_threshold(
-            estimated_num_of_spks, params['threshold'], params['overlap_infer_spk_limit']
-        )
-    else:
-        threshold = params['threshold']
-    for seg_idx, cluster_label in enumerate(clus_labels):
-        msdd_preds.squeeze(0)
-        spk_for_seg = (msdd_preds[0, seg_idx] > threshold).int().cpu().numpy().tolist()
-        sm_for_seg = msdd_preds[0, seg_idx].cpu().numpy()
-
-        if params['use_clus_as_main']:
-            main_spk_idx = int(cluster_label[2])
-        else:
-            main_spk_idx = np.argsort(msdd_preds[0, seg_idx].cpu().numpy())[::-1][0]
-
-        if sum(spk_for_seg) > 1 and infer_overlap:
-            idx_arr = np.argsort(sm_for_seg)[::-1]
-            for ovl_spk_idx in idx_arr[: params['max_overlap_spks']].tolist():
-                if ovl_spk_idx != int(main_spk_idx):
-                    overlap_speaker_list[ovl_spk_idx].append(seg_idx)
-        main_speaker_lines.append(f"{cluster_label[0]} {cluster_label[1]} speaker_{main_spk_idx}")
-    cont_stamps = get_contiguous_stamps(main_speaker_lines)
-    maj_labels = merge_stamps(cont_stamps)
-    ovl_labels = get_overlap_stamps(cont_stamps, overlap_speaker_list)
-    return maj_labels, ovl_labels
-
-
-def get_uniq_id_list_from_manifest(manifest_file: str):
-    """Retrieve `uniq_id` values from the given manifest_file and save the IDs to a list.
-    """
-    uniq_id_list = []
-    with open(manifest_file, 'r', encoding='utf-8') as manifest:
-        for i, line in enumerate(manifest.readlines()):
-            line = line.strip()
-            dic = json.loads(line)
-            uniq_id = get_uniqname_from_filepath(dic['audio_filepath'])
-            uniq_id_list.append(uniq_id)
-    return uniq_id_list
-
-
-def get_id_tup_dict(uniq_id_list: List[str], test_data_collection, preds_list: List[torch.Tensor]):
-    """
-    Create session-level dictionary containing data needed to construct RTTM diarization output.
-
-    Args:
-        uniq_id_list (list):
-            List containing the `uniq_id` values.
-        test_data_collection (collections.DiarizationLabelEntity):
-            Class instance that is containing session information such as targeted speaker indices, audio filepath and RTTM filepath.
-        preds_list (list):
-            List containing tensors of predicted sigmoid values.
-
-    Returns:
-        session_dict (dict):
-            Dictionary containing session-level target speakers data and predicted simoid values in tensor format.
-    """
-    session_dict = {x: [] for x in uniq_id_list}
-    for idx, line in enumerate(test_data_collection):
-        uniq_id = get_uniqname_from_filepath(line.audio_file)
-        session_dict[uniq_id].append([line.target_spks, preds_list[idx]])
-    return session_dict
-
-
-def get_uniq_id_from_manifest_line(line: str) -> str:
-    """
-    Retrieve `uniq_id` from the `audio_filepath` in manifest file.
-    """
-    line = line.strip()
-    dic = json.loads(line)
-    if len(dic['audio_filepath'].split('/')[-1].split('.')) > 2:
-        uniq_id = '.'.join(dic['audio_filepath'].split('/')[-1].split('.')[:-1])
-    else:
-        uniq_id = dic['audio_filepath'].split('/')[-1].split('.')[0]
-    return uniq_id
-
-
-def make_rttm_with_overlap(
-    manifest_file_path: str,
-    clus_label_dict: Dict[str, List[Union[float, int]]],
-    msdd_preds: List[torch.Tensor],
-    **params,
-):
-    """
-    Create RTTM files that include detected overlap speech. Note that the effect of overlap detection is only
-    notable when RTTM files are evaluated with `ignore_overlap=False` option.
-
-    Args:
-        manifest_file_path (str):
-            Path to the input manifest file.
-        clus_label_dict (dict):
-            Dictionary containing subsegment timestamps in float type and cluster labels in integer type.
-            Indexed by `uniq_id` string.
-        msdd_preds (list):
-            List containing tensors of the predicted sigmoid values.
-            Each tensor has shape of: (Session length, estimated number of speakers).
-        params:
-            Parameters for generating RTTM output and evaluation. Parameters include:
-                infer_overlap (bool): If False, overlap-speech will not be detected.
-            See docstrings of `generate_speaker_timestamps` function for other variables in `params`.
-
-    Returns:
-        all_hypothesis (list):
-            List containing Pyannote's `Annotation` objects that are created from hypothesis RTTM outputs.
-        all_reference
-            List containing Pyannote's `Annotation` objects that are created from ground-truth RTTM outputs
-    """
-    AUDIO_RTTM_MAP = audio_rttm_map(manifest_file_path)
-    manifest_file_lengths_list = []
-    all_hypothesis, all_reference = [], []
-    no_references = False
-    with open(manifest_file_path, 'r', encoding='utf-8') as manifest:
-        for i, line in enumerate(manifest.readlines()):
-            uniq_id = get_uniq_id_from_manifest_line(line)
-            manifest_dic = AUDIO_RTTM_MAP[uniq_id]
-            clus_labels = clus_label_dict[uniq_id]
-            manifest_file_lengths_list.append(len(clus_labels))
-            maj_labels, ovl_labels = generate_speaker_timestamps(clus_labels, msdd_preds[i], **params)
-            if params['infer_overlap']:
-                hyp_labels = maj_labels + ovl_labels
-            else:
-                hyp_labels = maj_labels
-            hypothesis = labels_to_pyannote_object(hyp_labels, uniq_name=uniq_id)
-            if params['out_rttm_dir']:
-                hyp_labels = sorted(hyp_labels, key=lambda x: float(x.split()[0]))
-                labels_to_rttmfile(hyp_labels, uniq_id, params['out_rttm_dir'])
-            all_hypothesis.append([uniq_id, hypothesis])
-            rttm_file = manifest_dic.get('rttm_filepath', None)
-            if rttm_file is not None and os.path.exists(rttm_file) and not no_references:
-                ref_labels = rttm_to_labels(rttm_file)
-                reference = labels_to_pyannote_object(ref_labels, uniq_name=uniq_id)
-                all_reference.append([uniq_id, reference])
-            else:
-                no_references = True
-                all_reference = []
-    return all_reference, all_hypothesis
-
-
 class ClusterEmbedding:
     """
     This class is built for calculating cluster-average embeddings, segmentation and load/save of the estimated cluster labels.
-    The methods in this class is used for both training and inference of MSDD models.
-    """
+    The methods in this class is used for the inference of MSDD models.
 
-    def __init__(self, cfg_base: DictConfig, cfg_msdd_model: DictConfig):
-        self.cfg_base = cfg_base
+    Args:
+        cfg_diar_infer (DictConfig):
+            Config dictionary from diarization inference YAML file
+        cfg_msdd_model (DictConfig):
+            Config dictionary from MSDD model checkpoint file
+
+    Class Variables:
+        self.cfg_diar_infer (DictConfig):
+            Config dictionary from diarization inference YAML file
+        cfg_msdd_model (DictConfig):
+            Config dictionary from MSDD model checkpoint file
+        self.clus_diar_model (class `ClusteringDiarizer`):
+            This is a placeholder for class instance of `ClusteringDiarizer`
+        self.msdd_model (class `EncDecDiarLabelModel`):
+            This is a placeholder for class instance of `EncDecDiarLabelModel`
+        self.spk_emb_state_dict (dict):
+            Dictionary containing `state_dict` of speaker embedding model
+        self.run_clus_from_loaded_emb (bool):
+            If True, clustering is performed again after clustering diarizer is excuted
+        self.use_speaker_model_from_ckpt (bool):
+            If True, speaker embedding model included in MSDD checkpoint is used.
+        self.scale_window_length_list (list):
+            List containing the window lengths (i.e., scale length) of each scale.
+        self.scale_n (int):
+            Number of scales for multi-scale clustering diarizer
+        self.base_scale_index (int):
+            The index of the base-scale which is the shortest scale among the given multiple scales
+    """
+    def __init__(self, cfg_diar_infer: DictConfig, cfg_msdd_model: DictConfig):
+        self.cfg_diar_infer = cfg_diar_infer
         self._cfg_msdd = cfg_msdd_model
-        self.clusdiar_model = None
+        self.clus_diar_model = None
         self.msdd_model = None
         self.spk_emb_state_dict = {}
 
         self.run_clus_from_loaded_emb = False
         self.use_speaker_model_from_ckpt = True
-        self.scale_window_length_list = list(self.cfg_base.diarizer.speaker_embeddings.parameters.window_length_in_sec)
+        self.scale_window_length_list = list(self.cfg_diar_infer.diarizer.speaker_embeddings.parameters.window_length_in_sec)
         self.scale_n = len(self.scale_window_length_list)
         self.base_scale_index = len(self.scale_window_length_list) - 1
 
@@ -347,7 +114,7 @@ class ClusterEmbedding:
         """
         Launch clustering diarizer to prepare embedding vectors and clustering results.
         """
-        self.max_num_speakers = self.cfg_base.diarizer.clustering.parameters.max_num_speakers
+        self.max_num_speakers = self.cfg_diar_infer.diarizer.clustering.parameters.max_num_speakers
         self.emb_sess_test_dict, self.emb_seq_test, self.clus_test_label_dict, _ = self.run_clustering_diarizer(
             self._cfg_msdd.test_ds.manifest_filepath, self._cfg_msdd.test_ds.emb_dir
         )
@@ -493,31 +260,31 @@ class ClusterEmbedding:
             base_clus_label_dict (dict):
                 Dictionary containing clustering results. Clustering results are cluster labels for the base scale segments.
         """
-        self.cfg_base.diarizer.manifest_filepath = manifest_filepath
-        self.cfg_base.diarizer.out_dir = emb_dir
+        self.cfg_diar_infer.diarizer.manifest_filepath = manifest_filepath
+        self.cfg_diar_infer.diarizer.out_dir = emb_dir
 
         # Run ClusteringDiarizer which includes system VAD or oracle VAD.
-        self.clusdiar_model = ClusteringDiarizer(cfg=self.cfg_base)
-        self._out_dir = self.clusdiar_model._diarizer_params.out_dir
+        self.clus_diar_model = ClusteringDiarizer(cfg=self.cfg_diar_infer)
+        self._out_dir = self.clus_diar_model._diarizer_params.out_dir
         self.out_rttm_dir = os.path.join(self._out_dir, 'pred_ovl_rttms')
         os.makedirs(self.out_rttm_dir, exist_ok=True)
 
         # Load speaker embedding model state_dict which is loaded from the MSDD checkpoint.
         if self.use_speaker_model_from_ckpt:
-            self.clusdiar_model._speaker_model.load_state_dict(self.spk_emb_state_dict)
+            self.clus_diar_model._speaker_model.load_state_dict(self.spk_emb_state_dict)
 
-        self.clusdiar_model._cluster_params = self.cfg_base.diarizer.clustering.parameters
-        self.clusdiar_model.multiscale_args_dict[
+        self.clus_diar_model._cluster_params = self.cfg_diar_infer.diarizer.clustering.parameters
+        self.clus_diar_model.multiscale_args_dict[
             "multiscale_weights"
-        ] = self.cfg_base.diarizer.speaker_embeddings.parameters.multiscale_weights
-        self.clusdiar_model._diarizer_params.speaker_embeddings.parameters = (
-            self.cfg_base.diarizer.speaker_embeddings.parameters
+        ] = self.cfg_diar_infer.diarizer.speaker_embeddings.parameters.multiscale_weights
+        self.clus_diar_model._diarizer_params.speaker_embeddings.parameters = (
+            self.cfg_diar_infer.diarizer.speaker_embeddings.parameters
         )
-        clustering_params_str = json.dumps(dict(self.clusdiar_model._cluster_params), indent=4)
+        clustering_params_str = json.dumps(dict(self.clus_diar_model._cluster_params), indent=4)
 
-        logging.info(f"Multiscale Weights: {self.clusdiar_model.multiscale_args_dict['multiscale_weights']}")
+        logging.info(f"Multiscale Weights: {self.clus_diar_model.multiscale_args_dict['multiscale_weights']}")
         logging.info(f"Clustering Parameters: {clustering_params_str}")
-        scores = self.clusdiar_model.diarize(batch_size=self.cfg_base.batch_size)
+        scores = self.clus_diar_model.diarize(batch_size=self.cfg_diar_infer.batch_size)
 
         # If RTTM (ground-truth diarization annotation) files do not exist, scores is None.
         if scores is not None:
@@ -527,7 +294,7 @@ class ClusterEmbedding:
 
         # Get the mapping between segments in different scales.
         self._embs_and_timestamps = get_embs_and_timestamps(
-            self.clusdiar_model.multiscale_embeddings_and_timestamps, self.clusdiar_model.multiscale_args_dict
+            self.clus_diar_model.multiscale_embeddings_and_timestamps, self.clus_diar_model.multiscale_args_dict
         )
         session_scale_mapping_dict = self.get_scale_map(self._embs_and_timestamps)
         emb_scale_seq_dict = self.load_emb_scale_seq_dict(emb_dir)
@@ -551,7 +318,7 @@ class ClusterEmbedding:
         """
         session_scale_mapping_dict = {}
         for uniq_id, uniq_embs_and_timestamps in embs_and_timestamps.items():
-            scale_mapping_dict = getScaleMappingArgmat(uniq_embs_and_timestamps)
+            scale_mapping_dict = get_scale_mapping_argmat(uniq_embs_and_timestamps)
             session_scale_mapping_dict[uniq_id] = scale_mapping_dict
         return session_scale_mapping_dict
 
@@ -606,7 +373,7 @@ class ClusterEmbedding:
             emb_scale_seq_dict (dict):
                 Dictionary containing embedding tensors which are indexed by scale numbers.
         """
-        window_len_list = list(self.cfg_base.diarizer.speaker_embeddings.parameters.window_length_in_sec)
+        window_len_list = list(self.cfg_diar_infer.diarizer.speaker_embeddings.parameters.window_length_in_sec)
         emb_scale_seq_dict = {scale_index: None for scale_index in range(len(window_len_list))}
         for scale_index in range(len(window_len_list)):
             pickle_path = os.path.join(
@@ -620,111 +387,7 @@ class ClusterEmbedding:
             emb_scale_seq_dict[scale_index] = emb_dict
         return emb_scale_seq_dict
 
-    def prepare_split_data(self, manifest_filepath, _out_dir):
-        """
-        Prepare multiscale timestamp data for training. Oracle VAD timestamps from RTTM files are used as VAD timestamps.
-        In this function, timestamps for embedding extraction are extracted without extracting the embedding vectors.
-
-        Args:
-            manifest_filepath (str):
-                Input manifest file for creating audio-to-RTTM mapping.
-            _out_dir (str):
-                Output directory where timestamp json files are saved.
-
-        Returns:
-            multiscale_args_dict (dict):
-                - Dictionary containing two types of arguments: multi-scale weights and subsegment timestamps for each data sample.
-                - Each data sample has two keys: `multiscale_weights` and `scale_dict`.
-                    - `multiscale_weights` key contains a list containing multiscale weights.
-                    - `scale_dict` is indexed by integer keys which are scale index.
-                - Each data sample is indexed by using the following naming convention: `<uniq_id>_<start time in ms>_<end time in ms>`
-                    Example: `fe_03_00106_mixed_626310_642300`
-        """
-        self._speaker_dir = os.path.join(_out_dir, 'speaker_outputs')
-        # Only if this is for the first run of modelPT instance, remove temp folders.
-        if self._trainer.global_rank == 0:
-            if os.path.exists(self._speaker_dir):
-                shutil.rmtree(self._speaker_dir)
-            os.makedirs(self._speaker_dir)
-        split_audio_rttm_map = audio_rttm_map(manifest_filepath, attach_dur=True)
-
-        # Speech Activity Detection part
-        _speaker_manifest_path = os.path.join(self._speaker_dir, f'oracle_vad_manifest.json')
-        logging.info(f"Extracting oracle VAD timestamps and saving at {self._speaker_dir}")
-        if not os.path.exists(_speaker_manifest_path):
-            write_rttm2manifest(split_audio_rttm_map, _speaker_manifest_path, include_uniq_id=True)
-
-        multiscale_and_timestamps = {}
-
-        # Segmentation
-        for scale_idx, (window, shift) in self.multiscale_args_dict['scale_dict'].items():
-            subsegments_manifest_path = os.path.join(self._speaker_dir, f'subsegments_scale{scale_idx}.json')
-            if not os.path.exists(subsegments_manifest_path):
-                # Segmentation for the current scale (scale_idx)
-                self.run_segmentation(
-                    window, shift, self._speaker_dir, _speaker_manifest_path, scale_tag=f'_scale{scale_idx}'
-                )
-            multiscale_timestamps = self._extract_timestamps(subsegments_manifest_path)
-            multiscale_and_timestamps[scale_idx] = multiscale_timestamps
-
-        multiscale_timestamps_dict = self.get_timestamps(multiscale_and_timestamps, self.multiscale_args_dict)
-        return multiscale_timestamps_dict
-
-    def _extract_timestamps(self, manifest_file: str):
-        """
-        This method extracts speaker embeddings from segments passed through manifest_file. Optionally you may save the
-        intermediate speaker embeddings for debugging or any use.
-
-        Args:
-            manifest_file (str):
-                Manifest file containing segmentation information.
-        Returns:
-            time_stamps (dict):
-                Dictionary containing lists of timestamps.
-        """
-        logging.info(f"Extracting timestamps from {manifest_file} for multiscale subsegmentation.")
-        time_stamps = {}
-        with open(manifest_file, 'r', encoding='utf-8') as manifest:
-            for i, line in enumerate(manifest.readlines()):
-                line = line.strip()
-                dic = json.loads(line)
-
-                uniq_name = dic['uniq_id']
-                if uniq_name not in time_stamps:
-                    time_stamps[uniq_name] = []
-                start = dic['offset']
-                end = start + dic['duration']
-                stamp = '{:.3f} {:.3f} '.format(start, end)
-                time_stamps[uniq_name].append(stamp)
-        return time_stamps
-
-    def get_timestamps(self, multiscale_and_timestamps, multiscale_args_dict):
-        """
-        The embeddings and timestamps in multiscale_embeddings_and_timestamps dictionary are indexed by scale index.
-        This function rearranges the extracted speaker embedding and timestamps by unique ID to make the further processing more convenient.
-
-        Args:
-            multiscale_embeddings_and_timestamps (dict):
-                Dictionary of timestamps for each scale.
-            multiscale_args_dict (dict):
-                Dictionary of scale information: window, shift and multiscale weights.
-
-        Returns:
-            timestamps_dict (dict)
-                A dictionary containing embeddings and timestamps of each scale, indexed by unique ID.
-        """
-        timestamps_dict = {uniq_id: {'scale_dict': {}} for uniq_id in multiscale_and_timestamps[0].keys()}
-        for scale_idx in sorted(multiscale_args_dict['scale_dict'].keys()):
-            time_stamps = multiscale_and_timestamps[scale_idx]
-            for uniq_id in time_stamps.keys():
-                timestamps_dict[uniq_id]['scale_dict'][scale_idx] = {
-                    'time_stamps': time_stamps[uniq_id],
-                }
-
-        return timestamps_dict
-
-
-class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
+class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
     """
     Encoder decoder class for multiscale diarization decoder (MSDD). Model class creates training, validation methods for setting
     up data performing model forward pass.
@@ -734,10 +397,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         * msdd_model
         * speaker_model
 
-    Since MSDD requires initializing clustering result, this model class needs to inherit from `ClusterEmbedding` class to reuse some of
-    the embedding post processing functions.
     """
-
     @classmethod
     def list_available_models(cls) -> List[PretrainedModelInfo]:
         """
@@ -756,7 +416,6 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         self.pairwise_infer = False
         self.cfg_msdd_model = cfg
         self.cfg_msdd_model.msdd_module.num_spks = self.cfg_msdd_model.max_num_of_spks
-        ClusterEmbedding.__init__(self, cfg_base=self.cfg_msdd_model, cfg_msdd_model=self.cfg_msdd_model)
 
         if self._trainer:
             self._init_segmentation_info()
@@ -789,10 +448,10 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         else:
             self.msdd._speaker_model = EncDecSpeakerLabelModel.from_config_dict(cfg.speaker_model_cfg)
 
-        # Call `self.save_hyperparameters` in modelPT.py again since cfg file should contain speaker model's config.
+        # Call `self.save_hyperparameters` in modelPT.py again since cfg should contain speaker model's config.
         self.save_hyperparameters("cfg")
 
-        self.loss = BCELoss(weight=self.cfg_msdd_model.loss.weight)
+        self.loss = instantiate(self.cfg_msdd_model.loss)
         self._accuracy_test = MultiBinaryAccuracy()
         self._accuracy_train = MultiBinaryAccuracy()
         self._accuracy_valid = MultiBinaryAccuracy()
@@ -819,7 +478,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
             self._diarizer_params.speaker_embeddings.parameters.window_length_in_sec,
             self._diarizer_params.speaker_embeddings.parameters.shift_length_in_sec,
             self._diarizer_params.speaker_embeddings.parameters.multiscale_weights,
-        )
+            )
 
     def _init_speaker_model(self):
         """
@@ -852,14 +511,8 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
             self._speaker_model = EncDecSpeakerLabelModel.from_pretrained(model_name=model_path)
         self._speaker_params = self.cfg_msdd_model.diarizer.speaker_embeddings.parameters
 
-    def get_emb_clus_infer(self, cluster_embeddings):
-        """Assign dictionaries containing the clustering results from the class instance `cluster_embeddings`.
-        """
-        self.emb_sess_test_dict = cluster_embeddings.emb_sess_test_dict
-        self.clus_test_label_dict = cluster_embeddings.clus_test_label_dict
-        self.emb_seq_test = cluster_embeddings.emb_seq_test
 
-    def __setup_dataloader_from_config(self, config: DictConfig, multiscale_timestamp_dict):
+    def __setup_dataloader_from_config(self, config): 
         featurizer = WaveformFeaturizer(
             sample_rate=config['sample_rate'], int_values=config.get('int_values', False), augmentor=None
         )
@@ -868,14 +521,15 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
             logging.warning(f"Could not load dataset as `manifest_filepath` was None. Provided config : {config}")
             return None
         dataset = AudioToSpeechMSDDTrainDataset(
-            manifest_filepath=config['manifest_filepath'],
+            manifest_filepath=config.manifest_filepath,
+            emb_dir=config.emb_dir,
             multiscale_args_dict=self.multiscale_args_dict,
-            multiscale_timestamp_dict=multiscale_timestamp_dict,
             soft_label_thres=config.soft_label_thres,
             featurizer=featurizer,
             window_stride=self.cfg_msdd_model.preprocessor.window_stride,
-            emb_batch_size=config['emb_batch_size'],
+            emb_batch_size=config.emb_batch_size,
             pairwise_infer=False,
+            global_rank=self._trainer.global_rank,
         )
 
         self.data_collection = dataset.collection
@@ -907,7 +561,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
             clus_label_dict=clus_label_dict,
             emb_seq=emb_seq,
             soft_label_thres=config.soft_label_thres,
-            seq_eval_mode=self.cfg_base.diarizer.msdd_model.parameters.seq_eval_mode,
+            seq_eval_mode=config.seq_eval_mode,
             window_stride=self._cfg.preprocessor.window_stride,
             use_single_scale_clus=False,
             pairwise_infer=pairwise_infer,
@@ -926,55 +580,14 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
             pin_memory=config.get('pin_memory', False),
         )
 
-    def run_segmentation(
-        self, window: float, shift: float, _speaker_dir: str, _speaker_manifest_path: str, scale_tag: str = ''
-    ):
-        """
-        Perform segmenation without extracting embedding vectors.
-
-        Args:
-            window (float):
-                Window length (scale length) for segmentation.
-            shift (float):
-                Shift (hop length) for segmentation.
-            _speaker_dir (str):
-                Path to the directory that contains segmentation and embedding extraction results.
-            _speaker_manifest_path (str):
-                Path to the input manifest file.
-            scale_tag (str):
-                String variable for indicating the scale index.
-
-        Returns:
-            subsegments_manifest_path (str):
-                Path to the output subsegment _manifest file.
-        """
-        subsegments_manifest_path = os.path.join(_speaker_dir, f'subsegments{scale_tag}.json')
-        logging.info(
-            f"Subsegmentation for timestamp extraction:{scale_tag.replace('_',' ')}, {subsegments_manifest_path}"
-        )
-        subsegments_manifest_path = segments_manifest_to_subsegments_manifest(
-            segments_manifest_file=_speaker_manifest_path,
-            subsegments_manifest_file=subsegments_manifest_path,
-            window=window,
-            shift=shift,
-            include_uniq_id=True,
-        )
-        return subsegments_manifest_path
-
     def setup_training_data(self, train_data_config: Optional[Union[DictConfig, Dict]]):
-        self.train_multiscale_timestamp_dict = self.prepare_split_data(
-            self.cfg_msdd_model.train_ds.manifest_filepath, self.cfg_msdd_model.train_ds.emb_dir,
-        )
         self._train_dl = self.__setup_dataloader_from_config(
-            config=train_data_config, multiscale_timestamp_dict=self.train_multiscale_timestamp_dict
+            config=train_data_config, 
         )
 
     def setup_validation_data(self, val_data_layer_config: Optional[Union[DictConfig, Dict]]):
-        self.validation_multiscale_timestamp_dict = self.prepare_split_data(
-            self.cfg_msdd_model.validation_ds.manifest_filepath, self.cfg_msdd_model.validation_ds.emb_dir,
-        )
         self._validation_dl = self.__setup_dataloader_from_config(
-            config=val_data_layer_config, multiscale_timestamp_dict=self.validation_multiscale_timestamp_dict
+            config=val_data_layer_config, 
         )
 
     def setup_test_data(self, test_data_config: Optional[Union[DictConfig, Dict]]):
@@ -1237,7 +850,6 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         processed_signal, processed_signal_len = self.msdd._speaker_model.preprocessor(
             input_signal=features, length=feature_length
         )
-        processed_signal = processed_signal.detach()
         audio_signal, audio_signal_len, sequence_lengths, detach_ids = self.get_ms_mel_feat(
             processed_signal, processed_signal_len, ms_seg_timestamps, ms_seg_counts
         )
@@ -1367,7 +979,7 @@ class OverlapAwareDiarizer:
         self.AUDIO_RTTM_MAP = audio_rttm_map(self.manifest_filepath)
 
         # Initialize clustering and embedding preparation instance (as a diarization encoder).
-        self.clustering_embedding = ClusterEmbedding(cfg_base=cfg, cfg_msdd_model=self.msdd_model.cfg)
+        self.clustering_embedding = ClusterEmbedding(cfg_diar_infer=cfg, cfg_msdd_model=self.msdd_model.cfg)
         self.clustering_embedding.spk_emb_state_dict = self.spk_emb_state_dict
 
         # Parameters for creating diarization results from MSDD outputs.
@@ -1393,8 +1005,8 @@ class OverlapAwareDiarizer:
         msdd_model.cfg.test_ds.manifest_filepath = cfg.diarizer.manifest_filepath
         msdd_model.cfg.test_ds.emb_dir = cfg.diarizer.out_dir
         msdd_model.cfg.test_ds.batch_size = cfg.diarizer.msdd_model.parameters.infer_batch_size
+        msdd_model.cfg.test_ds.seq_eval_mode = cfg.diarizer.msdd_model.parameters.seq_eval_mode
         msdd_model._cfg.max_num_of_spks = cfg.diarizer.clustering.parameters.max_num_speakers
-        msdd_model.cfg_base = cfg
         return msdd_model.cfg
 
     def extract_standalone_speaker_model(self, ext: str = '.ckpt') -> str:
@@ -1426,14 +1038,6 @@ class OverlapAwareDiarizer:
         """
         Initialized MSDD model with the provided config. Load either from `.nemo` file or `.ckpt` checkpoint files.
         """
-        if not torch.cuda.is_available():
-            self.device = 'cpu'
-            logging.warning(
-                "Running model on CPU, for faster performance it is adviced to use at least one NVIDIA GPUs"
-            )
-        else:
-            self.device = 'cuda'
-
         if cfg.diarizer.msdd_model.model_path.endswith('.nemo'):
             logging.info(f"Using local nemo file from {cfg.diarizer.msdd_model.model_path}")
             self.msdd_model = EncDecDiarLabelModel.restore_from(restore_path=cfg.diarizer.msdd_model.model_path)
@@ -1510,6 +1114,13 @@ class OverlapAwareDiarizer:
             output_dict[uniq_id] = sum_pred.unsqueeze(0)
         output_list = [output_dict[uniq_id] for uniq_id in uniq_id_list]
         return output_list
+    
+    def get_emb_clus_infer(self, cluster_embeddings):
+        """Assign dictionaries containing the clustering results from the class instance `cluster_embeddings`.
+        """
+        self.msdd_model.emb_sess_test_dict = cluster_embeddings.emb_sess_test_dict
+        self.msdd_model.clus_test_label_dict = cluster_embeddings.clus_test_label_dict
+        self.msdd_model.emb_seq_test = cluster_embeddings.emb_seq_test
 
     def diarize(self):
         """
@@ -1520,7 +1131,7 @@ class OverlapAwareDiarizer:
         torch.set_grad_enabled(False)
         self.clustering_embedding.prepare_cluster_embs_infer()
         self.msdd_model.pairwise_infer = True
-        self.msdd_model.get_emb_clus_infer(self.clustering_embedding)
+        self.get_emb_clus_infer(self.clustering_embedding)
         preds_list, targets_list, signal_lengths_list = self.run_pairwise_diarization()
         for threshold in list(self._cfg.diarizer.msdd_model.parameters.sigmoid_threshold):
             self.run_overlap_aware_eval(preds_list, threshold)
@@ -1584,14 +1195,14 @@ class OverlapAwareDiarizer:
                         [
                             emb_seq,
                             torch.zeros(self.diar_window_length - seq_len, emb_seq.shape[1], emb_seq.shape[2]).to(
-                                self.device
+                                signals.device
                             ),
                         ],
                         dim=0,
                     )
             else:
                 emb_seq = torch.zeros(self.diar_window_length, emb_vectors.shape[0], emb_vectors.shape[1]).to(
-                    self.device
+                    signals.device
                 )
                 seq_len = 0
         return emb_vectors_split, emb_seq, seq_len
@@ -1710,7 +1321,7 @@ class OverlapAwareDiarizer:
         """
         self.out_rttm_dir = self.clustering_embedding.out_rttm_dir
         self.msdd_model.setup_test_data(self.msdd_model.cfg.test_ds)
-        self.msdd_model = self.msdd_model.to(self.device)
+        self.msdd_model = self.msdd_model
         self.msdd_model.eval()
         torch.set_grad_enabled(False)
         cumul_sample_count = [0]
@@ -1718,7 +1329,6 @@ class OverlapAwareDiarizer:
         uniq_id_list = get_uniq_id_list_from_manifest(self.manifest_filepath)
         test_data_collection = [d for d in self.msdd_model.data_collection]
         for sidx, test_batch in enumerate(tqdm(self.msdd_model.test_dataloader())):
-            test_batch = [x.to(self.device) for x in test_batch]
             signals, signal_lengths, _targets, emb_vectors = test_batch
             cumul_sample_count.append(cumul_sample_count[-1] + signal_lengths.shape[0])
             preds, targets, signal_lengths = self.diar_infer(
