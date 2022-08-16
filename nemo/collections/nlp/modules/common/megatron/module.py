@@ -96,7 +96,7 @@ class MegatronModule(torch.nn.Module):
                 f"No encoder_relative_position_embedding found on this rank. Looking for encoder_relative_position_embedding.relative_position_embedding.weight"
             )
 
-    def decoder_relative_position_embeddings_weight(self):
+    def decoder_self_attention_relative_position_embeddings_weight(self):
         if hasattr(self, 'decoder_relative_position_embedding'):
             return self.decoder_relative_position_embedding.relative_position_embedding.weight
         else:
@@ -187,14 +187,20 @@ class MegatronModule(torch.nn.Module):
             position_embeddings = self.position_embeddings_weight()
             torch.distributed.all_reduce(position_embeddings.data, group=parallel_state.get_position_embedding_group())
 
-    def sync_initial_relative_position_embeddings(self):
+    def sync_initial_encoder_relative_position_embeddings(self):
         # Ensure that all encoder RPE stages have the same weights.
         if parallel_state.is_rank_in_encoder_relative_position_embedding_group():
             position_embeddings = self.encoder_relative_position_embeddings_weight()
             torch.distributed.all_reduce(position_embeddings.data, group=parallel_state.get_encoder_relative_position_embedding_group())
 
+    def sync_initial_decoder_self_attention_relative_position_embeddings(self):
         if parallel_state.is_rank_in_decoder_relative_position_embedding_group():
-            position_embeddings = self.decoder_relative_position_embeddings_weight()
+            position_embeddings = self.decoder_self_attention_relative_position_embeddings_weight()
+            torch.distributed.all_reduce(position_embeddings.data, group=parallel_state.get_decoder_relative_position_embedding_group())
+
+    def sync_initial_decoder_cross_attention_relative_position_embeddings(self):
+        if parallel_state.is_rank_in_decoder_relative_position_embedding_group():
+            position_embeddings = self.decoder_cross_attention_relative_position_embeddings_weight()
             torch.distributed.all_reduce(position_embeddings.data, group=parallel_state.get_decoder_relative_position_embedding_group())
 
 def conversion_helper(val, conversion):

@@ -865,13 +865,14 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 and self.cfg.decoder.get('position_embedding_type') != 'relative'
             ):
                 self.enc_dec_model.sync_initial_position_embeddings()
+            # Synchronize RPE embeddings across pipeline parallel ranks.
             else:
-                if self.cfg.encoder.get('position_embedding_type') == 'relative':
-                    if hasattr(self.enc_dec_model, 'encoder_relative_position_embedding'):
-                        self.enc_dec_model.encoder_relative_position_embedding._all_reduce_position_embedding()
-                if self.cfg.decoder.get('position_embedding_type') == 'relative':
-                    if hasattr(self.enc_dec_model, 'decoder_relative_position_embedding'):
-                        self.enc_dec_model.decoder_relative_position_embedding._all_reduce_position_embedding()
+                if self.cfg.encoder.get('position_embedding_type', 'learned_absolute') == 'relative':
+                    self.enc_dec_model.sync_initial_encoder_relative_position_embeddings()
+                if self.cfg.decoder.get('position_embedding_type', 'learned_absolute') == 'relative':
+                    self.enc_dec_model.sync_initial_decoder_relative_position_embeddings()
+                if self.cfg.decoder.get('position_embedding_type', 'learned_absolute') == 'relative' and self.cfg.decoder.get('relative_position_bias_self_attention_only', True):
+                    self.enc_dec_model.sync_initial_decoder_cross_attention_relative_position_embeddings()
 
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds'):
