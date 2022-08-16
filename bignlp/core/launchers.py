@@ -16,7 +16,7 @@ import bignlp.utils.job_utils as job_utils
 from bignlp.core.logger import logger
 
 BIGNLP_DEBUG = os.getenv("BIGNLP_DEBUG", "False").lower() in ("true", "t", "1")
-BIGNLP_MEMORY_MEASURE = os.getenv("BIGNLP_DEBUG", "False").lower() in ("true", "t", "1")
+BIGNLP_MEMORY_MEASURE = os.getenv("BIGNLP_MEMORY_MEASURE", "False").lower() in ("true", "t", "1")
 
 class AutoLauncher:
     def __init__(
