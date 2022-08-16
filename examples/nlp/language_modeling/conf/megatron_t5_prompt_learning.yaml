@@ -86,10 +86,3 @@ model:
     betas: 
     - 0.9
     - 0.98
-    sched:
-      name: CosineAnnealing
-      warmup_steps: 50
-      constant_steps: 0
-      min_lr: 0.0
-      monitor: val_loss
-      reduce_on_plateau: false
