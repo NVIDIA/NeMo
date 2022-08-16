@@ -610,7 +610,7 @@ pipeline {
             trainer.devices=[0] \
             trainer.accelerator="gpu" \
             trainer.max_epochs=1 \
-            +trainer.max_steps=1 \
+            trainer.max_steps=1 \
             +trainer.num_sanity_val_steps=1 \
             exp_manager.exp_dir=examples/asr/speech_to_text_results'
             sh 'rm -rf examples/asr/speech_to_text_results'
@@ -625,7 +625,7 @@ pipeline {
             trainer.devices=[1] \
             trainer.accelerator="gpu" \
             trainer.max_epochs=1 \
-            +trainer.max_steps=1 \
+            trainer.max_steps=1 \
             +trainer.num_sanity_val_steps=1 \
             model.preprocessor._target_=nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor \
             ~model.preprocessor.window_size \
