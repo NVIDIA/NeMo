@@ -401,7 +401,9 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             audio_signal, pos_emb = self.pos_enc(x=audio_signal)
 
         # pad_mask is the masking to be used to ignore paddings
-        pad_mask = torch.arange(0, max_audio_length, device=audio_signal.device).expand(padding_length.size(0), -1) < padding_length.unsqueeze(-1)
+        pad_mask = torch.arange(0, max_audio_length, device=audio_signal.device).expand(
+            padding_length.size(0), -1
+        ) < padding_length.unsqueeze(-1)
 
         # pad_mask_for_att_mask is the mask which helps to ignore paddings
         pad_mask_for_att_mask = pad_mask.unsqueeze(1).repeat([1, max_audio_length, 1])
@@ -446,7 +448,9 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         self.use_pad_mask = on
         return mask
 
-    def setup_streaming_params(self, chunk_size: int = None, shift_size: int =None, left_chunks: int =None, max_context: int = 10000):
+    def setup_streaming_params(
+        self, chunk_size: int = None, shift_size: int = None, left_chunks: int = None, max_context: int = 10000
+    ):
         """
             This function sets the needed values and parameters to perform streaming. The configuration would be stored in self.streaming_cfg.
             The streaming configuration is needed to simulate streaming inference.
