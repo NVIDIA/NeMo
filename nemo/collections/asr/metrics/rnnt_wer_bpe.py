@@ -157,6 +157,46 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
         token_list = self.tokenizer.ids_to_tokens(tokens)
         return token_list
 
+    def decode_tokens_to_lang(self, tokens: List[int]) -> str:
+        """
+        Compute the most likely language ID (LID) string given the tokens.
+
+        Args:
+            tokens: List of int representing the token ids.
+
+        Returns:
+            A decoded LID string.
+        """
+        lang = self.tokenizer.ids_to_lang(tokens)
+        return lang
+
+    def decode_ids_to_langs(self, tokens: List[int]) -> List[str]:
+        """
+        Decode a token id list into language ID (LID) list.
+
+        Args:
+            tokens: List of int representing the token ids.
+
+        Returns:
+            A list of decoded LIDS.
+        """
+        lang_list = self.tokenizer.ids_to_text_and_langs(tokens)
+        # lang_list = self.tokenizer.ids_to_tokens_and_langs(tokens)
+        return lang_list
+
+    def decode_ids_to_words_and_langs(self, tokens: List[int]) -> List[str]:
+        """
+        Decode a token id list into word / language ID (LID) list.
+
+        Args:
+            tokens: List of int representing the token ids.
+
+        Returns:
+            A list of decoded words / LIDS.
+        """
+        words_and_langs = self.tokenizer.ids_to_words_and_langs(tokens)
+        return words_and_langs
+
 
 class RNNTBPEWER(Metric):
     """
