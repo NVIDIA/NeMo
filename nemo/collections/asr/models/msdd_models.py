@@ -16,7 +16,6 @@ import copy
 import json
 import os
 import pickle as pkl
-import shutil
 from collections import OrderedDict
 from statistics import mode
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -29,7 +28,6 @@ from pytorch_lightning import Trainer
 from tqdm import tqdm
 
 from nemo.collections.asr.data.audio_to_diar_label import AudioToSpeechMSDDInferDataset, AudioToSpeechMSDDTrainDataset
-from nemo.collections.asr.losses.bce_loss import BCELoss
 from nemo.collections.asr.metrics.multi_binary_acc import MultiBinaryAccuracy
 from nemo.collections.asr.models import ClusteringDiarizer
 from nemo.collections.asr.models.asr_model import ExportableEncDecModel
@@ -44,7 +42,6 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
     make_rttm_with_overlap,
     parse_scale_configs,
     score_labels,
-    segments_manifest_to_subsegments_manifest,
 )
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
@@ -62,334 +59,7 @@ except ImportError:
         yield
 
 
-__all__ = ['EncDecDiarLabelModel', 'ClusterEmbedding']
-
-
-class ClusterEmbedding:
-    """
-    This class is built for calculating cluster-average embeddings, segmentation and load/save of the estimated cluster labels.
-    The methods in this class is used for the inference of MSDD models.
-
-    Args:
-        cfg_diar_infer (DictConfig):
-            Config dictionary from diarization inference YAML file
-        cfg_msdd_model (DictConfig):
-            Config dictionary from MSDD model checkpoint file
-
-    Class Variables:
-        self.cfg_diar_infer (DictConfig):
-            Config dictionary from diarization inference YAML file
-        cfg_msdd_model (DictConfig):
-            Config dictionary from MSDD model checkpoint file
-        self.clus_diar_model (class `ClusteringDiarizer`):
-            This is a placeholder for class instance of `ClusteringDiarizer`
-        self.msdd_model (class `EncDecDiarLabelModel`):
-            This is a placeholder for class instance of `EncDecDiarLabelModel`
-        self.spk_emb_state_dict (dict):
-            Dictionary containing `state_dict` of speaker embedding model
-        self.run_clus_from_loaded_emb (bool):
-            If True, clustering is performed again after clustering diarizer is excuted
-        self.use_speaker_model_from_ckpt (bool):
-            If True, speaker embedding model included in MSDD checkpoint is used.
-        self.scale_window_length_list (list):
-            List containing the window lengths (i.e., scale length) of each scale.
-        self.scale_n (int):
-            Number of scales for multi-scale clustering diarizer
-        self.base_scale_index (int):
-            The index of the base-scale which is the shortest scale among the given multiple scales
-    """
-
-    def __init__(self, cfg_diar_infer: DictConfig, cfg_msdd_model: DictConfig):
-        self.cfg_diar_infer = cfg_diar_infer
-        self._cfg_msdd = cfg_msdd_model
-        self.clus_diar_model = None
-        self.msdd_model = None
-        self.spk_emb_state_dict = {}
-
-        self.run_clus_from_loaded_emb = False
-        self.use_speaker_model_from_ckpt = True
-        self.scale_window_length_list = list(
-            self.cfg_diar_infer.diarizer.speaker_embeddings.parameters.window_length_in_sec
-        )
-        self.scale_n = len(self.scale_window_length_list)
-        self.base_scale_index = len(self.scale_window_length_list) - 1
-
-    def prepare_cluster_embs_infer(self):
-        """
-        Launch clustering diarizer to prepare embedding vectors and clustering results.
-        """
-        self.max_num_speakers = self.cfg_diar_infer.diarizer.clustering.parameters.max_num_speakers
-        self.emb_sess_test_dict, self.emb_seq_test, self.clus_test_label_dict, _ = self.run_clustering_diarizer(
-            self._cfg_msdd.test_ds.manifest_filepath, self._cfg_msdd.test_ds.emb_dir
-        )
-
-    def assign_labels_to_longer_segs(self, base_clus_label_dict: Dict, session_scale_mapping_dict: Dict):
-        """
-        In multi-scale speaker diarization system, clustering result is solely based on the base-scale (the shortest scale).
-        To calculate cluster-average speaker embeddings for each scale that are longer than the base-scale. This function assigns
-        clustering results for the base-scale to the longer scales by measuring the distance between subsegment timestamps in the
-        base-scale and non-base-scales.
-
-        Args:
-            base_clus_label_dict (dict):
-                Dictionary containing clustering results for base-scale segments. Indexed by `uniq_id` string.
-            session_scale_mapping_dict (dict):
-                Dictionary containing multiscale mapping information for each session. Indexed by `uniq_id` string.
-
-        Returns:
-            all_scale_clus_label_dict (dict):
-                Dictionary containing clustering labels of all scales. Indexed by scale_index in integer format.
-
-        """
-        all_scale_clus_label_dict = {scale_index: {} for scale_index in range(self.scale_n)}
-        for uniq_id, uniq_scale_mapping_dict in session_scale_mapping_dict.items():
-            base_scale_clus_label = np.array([x[-1] for x in base_clus_label_dict[uniq_id]])
-            all_scale_clus_label_dict[self.base_scale_index][uniq_id] = base_scale_clus_label
-            for scale_index in range(self.scale_n - 1):
-                new_clus_label = []
-                assert (
-                    uniq_scale_mapping_dict[scale_index].shape[0] == base_scale_clus_label.shape[0]
-                ), "The number of base scale labels does not match the segment numbers in uniq_scale_mapping_dict"
-                max_index = max(uniq_scale_mapping_dict[scale_index])
-                for seg_idx in range(max_index + 1):
-                    if seg_idx in uniq_scale_mapping_dict[scale_index]:
-                        seg_clus_label = mode(base_scale_clus_label[uniq_scale_mapping_dict[scale_index] == seg_idx])
-                    else:
-                        seg_clus_label = 0 if len(new_clus_label) == 0 else new_clus_label[-1]
-                    new_clus_label.append(seg_clus_label)
-                all_scale_clus_label_dict[scale_index][uniq_id] = new_clus_label
-        return all_scale_clus_label_dict
-
-    def get_base_clus_label_dict(self, clus_labels: List[str], emb_scale_seq_dict: Dict[int, dict]):
-        """
-        Retrieve base scale clustering labels from `emb_scale_seq_dict`.
-
-        Args:
-            clus_labels (list):
-                List containing cluster results generated by clustering diarizer.
-            emb_scale_seq_dict (dict):
-                Dictionary containing multiscale embedding input sequences.
-        Returns:
-            base_clus_label_dict (dict):
-                Dictionary containing start and end of base scale segments and its cluster label. Indexed by `uniq_id`.
-            emb_dim (int):
-                Embedding dimension in integer.
-        """
-        base_clus_label_dict = {key: [] for key in emb_scale_seq_dict[self.base_scale_index].keys()}
-        for line in clus_labels:
-            uniq_id = line.split()[0]
-            label = int(line.split()[-1].split('_')[-1])
-            stt, end = [round(float(x), 2) for x in line.split()[1:3]]
-            base_clus_label_dict[uniq_id].append([stt, end, label])
-        emb_dim = emb_scale_seq_dict[0][uniq_id][0].shape[0]
-        return base_clus_label_dict, emb_dim
-
-    def get_cluster_avg_embs(
-        self, emb_scale_seq_dict: Dict, clus_labels: List, speaker_mapping_dict: Dict, session_scale_mapping_dict: Dict
-    ):
-        """
-        MSDD requires cluster-average speaker embedding vectors for each scale. This function calculates an average embedding vector for each cluster (speaker)
-        and each scale.
-
-        Args:
-            emb_scale_seq_dict (dict):
-                Dictionary containing embedding sequence for each scale. Keys are scale index in integer.
-            clus_labels (list):
-                Clustering results from clustering diarizer including all the sessions provided in input manifest files.
-            speaker_mapping_dict (dict):
-                Speaker mapping dictionary in case RTTM files are provided. This is mapping between integer based speaker index and
-                speaker ID tokens in RTTM files.
-                Example:
-                    {'en_0638': {'speaker_0': 'en_0638_A', 'speaker_1': 'en_0638_B'},
-                     'en_4065': {'speaker_0': 'en_4065_B', 'speaker_1': 'en_4065_A'}, ...,}
-            session_scale_mapping_dict (dict):
-                Dictionary containing multiscale mapping information for each session. Indexed by `uniq_id` string.
-
-        Returns:
-            emb_sess_avg_dict (dict):
-                Dictionary containing speaker mapping information and cluster-average speaker embedding vector.
-                Each session-level dictionary is indexed by scale index in integer.
-            output_clus_label_dict (dict):
-                Subegmentation timestamps in float type and Clustering result in integer type. Indexed by `uniq_id` keys.
-        """
-        self.scale_n = len(emb_scale_seq_dict.keys())
-        emb_sess_avg_dict = {
-            scale_index: {key: [] for key in emb_scale_seq_dict[self.scale_n - 1].keys()}
-            for scale_index in emb_scale_seq_dict.keys()
-        }
-        output_clus_label_dict, emb_dim = self.get_base_clus_label_dict(clus_labels, emb_scale_seq_dict)
-        all_scale_clus_label_dict = self.assign_labels_to_longer_segs(
-            output_clus_label_dict, session_scale_mapping_dict
-        )
-        for scale_index in emb_scale_seq_dict.keys():
-            for uniq_id, _emb_tensor in emb_scale_seq_dict[scale_index].items():
-                if type(_emb_tensor) == list:
-                    emb_tensor = torch.tensor(np.array(_emb_tensor))
-                else:
-                    emb_tensor = _emb_tensor
-                clus_label_list = all_scale_clus_label_dict[scale_index][uniq_id]
-                spk_set = set(clus_label_list)
-                # Create a label array which identifies clustering result for each segment.
-                label_array = torch.Tensor(clus_label_list)
-                avg_embs = torch.zeros(emb_dim, self.max_num_speakers)
-                for spk_idx in spk_set:
-                    selected_embs = emb_tensor[label_array == spk_idx]
-                    avg_embs[:, spk_idx] = torch.mean(selected_embs, dim=0)
-
-                if speaker_mapping_dict is not None:
-                    inv_map = {clus_key: rttm_key for rttm_key, clus_key in speaker_mapping_dict[uniq_id].items()}
-                else:
-                    inv_map = None
-
-                emb_sess_avg_dict[scale_index][uniq_id] = {'mapping': inv_map, 'avg_embs': avg_embs}
-        return emb_sess_avg_dict, output_clus_label_dict
-
-    def run_clustering_diarizer(self, manifest_filepath: str, emb_dir: str):
-        """
-        If no pre-existing data is provided, run clustering diarizer from scratch. This will create scale-wise speaker embedding
-        sequence, cluster-average embeddings, scale mapping and base scale clustering labels. Note that speaker embedding `state_dict`
-        is loaded from the `state_dict` in the provided MSDD checkpoint.
-
-        Args:
-            manifest_filepath (str):
-                Input manifest file for creating audio-to-RTTM mapping.
-            emb_dir (str):
-                Output directory where embedding files and timestamp files are saved.
-
-        Returns:
-            emb_sess_avg_dict (dict):
-                Dictionary containing cluster-average embeddings for each session.
-            emb_scale_seq_dict (dict):
-                Dictionary containing embedding tensors which are indexed by scale numbers.
-            base_clus_label_dict (dict):
-                Dictionary containing clustering results. Clustering results are cluster labels for the base scale segments.
-        """
-        self.cfg_diar_infer.diarizer.manifest_filepath = manifest_filepath
-        self.cfg_diar_infer.diarizer.out_dir = emb_dir
-
-        # Run ClusteringDiarizer which includes system VAD or oracle VAD.
-        self.clus_diar_model = ClusteringDiarizer(cfg=self.cfg_diar_infer)
-        self._out_dir = self.clus_diar_model._diarizer_params.out_dir
-        self.out_rttm_dir = os.path.join(self._out_dir, 'pred_ovl_rttms')
-        os.makedirs(self.out_rttm_dir, exist_ok=True)
-
-        # Load speaker embedding model state_dict which is loaded from the MSDD checkpoint.
-        if self.use_speaker_model_from_ckpt:
-            self.clus_diar_model._speaker_model.load_state_dict(self.spk_emb_state_dict)
-
-        self.clus_diar_model._cluster_params = self.cfg_diar_infer.diarizer.clustering.parameters
-        self.clus_diar_model.multiscale_args_dict[
-            "multiscale_weights"
-        ] = self.cfg_diar_infer.diarizer.speaker_embeddings.parameters.multiscale_weights
-        self.clus_diar_model._diarizer_params.speaker_embeddings.parameters = (
-            self.cfg_diar_infer.diarizer.speaker_embeddings.parameters
-        )
-        clustering_params_str = json.dumps(dict(self.clus_diar_model._cluster_params), indent=4)
-
-        logging.info(f"Multiscale Weights: {self.clus_diar_model.multiscale_args_dict['multiscale_weights']}")
-        logging.info(f"Clustering Parameters: {clustering_params_str}")
-        scores = self.clus_diar_model.diarize(batch_size=self.cfg_diar_infer.batch_size)
-
-        # If RTTM (ground-truth diarization annotation) files do not exist, scores is None.
-        if scores is not None:
-            metric, speaker_mapping_dict = scores
-        else:
-            metric, speaker_mapping_dict = None, None
-
-        # Get the mapping between segments in different scales.
-        self._embs_and_timestamps = get_embs_and_timestamps(
-            self.clus_diar_model.multiscale_embeddings_and_timestamps, self.clus_diar_model.multiscale_args_dict
-        )
-        session_scale_mapping_dict = self.get_scale_map(self._embs_and_timestamps)
-        emb_scale_seq_dict = self.load_emb_scale_seq_dict(emb_dir)
-        clus_labels = self.load_clustering_labels(emb_dir)
-        emb_sess_avg_dict, base_clus_label_dict = self.get_cluster_avg_embs(
-            emb_scale_seq_dict, clus_labels, speaker_mapping_dict, session_scale_mapping_dict
-        )
-        emb_scale_seq_dict['session_scale_mapping'] = session_scale_mapping_dict
-        return emb_sess_avg_dict, emb_scale_seq_dict, base_clus_label_dict, metric
-
-    def get_scale_map(self, embs_and_timestamps):
-        """
-        Save multiscale mapping data into dictionary format.
-
-        Args:
-            embs_and_timestamps (dict):
-                Dictionary containing embedding tensors and timestamp tensors. Indexed by `uniq_id` string.
-        Returns:
-            session_scale_mapping_dict (dict):
-                Dictionary containing multiscale mapping information for each session. Indexed by `uniq_id` string.
-        """
-        session_scale_mapping_dict = {}
-        for uniq_id, uniq_embs_and_timestamps in embs_and_timestamps.items():
-            scale_mapping_dict = get_scale_mapping_argmat(uniq_embs_and_timestamps)
-            session_scale_mapping_dict[uniq_id] = scale_mapping_dict
-        return session_scale_mapping_dict
-
-    def check_clustering_labels(self, out_dir):
-        """
-        Check whether the laoded clustering label file is including clustering results for all sessions.
-        This function is used for inference mode of MSDD.
-
-        Args:
-            out_dir (str):
-                Path to the directory where clustering result files are saved.
-
-        Returns:
-            file_exists (bool):
-                Boolean that indicates whether clustering result file exists.
-            clus_label_path (str):
-                Path to the clustering label output file.
-        """
-        clus_label_path = os.path.join(
-            out_dir, 'speaker_outputs', f'subsegments_scale{self.base_scale_index}_cluster.label'
-        )
-        file_exists = os.path.exists(clus_label_path)
-        if not file_exists:
-            logging.info(f"Clustering label file {clus_label_path} does not exist.")
-        return file_exists, clus_label_path
-
-    def load_clustering_labels(self, out_dir):
-        """
-        Load clustering labels generated by clustering diarizer. This function is used for inference mode of MSDD.
-
-        Args:
-            out_dir (str):
-                Path to the directory where clustering result files are saved.
-        Returns:
-            emb_scale_seq_dict (dict):
-                List containing clustering results in string format.
-        """
-        file_exists, clus_label_path = self.check_clustering_labels(out_dir)
-        logging.info(f"Loading cluster label file from {clus_label_path}")
-        with open(clus_label_path) as f:
-            clus_labels = f.readlines()
-        return clus_labels
-
-    def load_emb_scale_seq_dict(self, out_dir):
-        """
-        Load saved embeddings generated by clustering diarizer. This function is used for inference mode of MSDD.
-
-        Args:
-            out_dir (str):
-                Path to the directory where embedding pickle files are saved.
-        Returns:
-            emb_scale_seq_dict (dict):
-                Dictionary containing embedding tensors which are indexed by scale numbers.
-        """
-        window_len_list = list(self.cfg_diar_infer.diarizer.speaker_embeddings.parameters.window_length_in_sec)
-        emb_scale_seq_dict = {scale_index: None for scale_index in range(len(window_len_list))}
-        for scale_index in range(len(window_len_list)):
-            pickle_path = os.path.join(
-                out_dir, 'speaker_outputs', 'embeddings', f'subsegments_scale{scale_index}_embeddings.pkl'
-            )
-            logging.info(f"Loading embedding pickle file of scale:{scale_index} at {pickle_path}")
-            with open(pickle_path, "rb") as input_file:
-                emb_dict = pkl.load(input_file)
-            for key, val in emb_dict.items():
-                emb_dict[key] = val
-            emb_scale_seq_dict[scale_index] = emb_dict
-        return emb_scale_seq_dict
+__all__ = ['EncDecDiarLabelModel', 'ClusterEmbedding', 'OverlapAwareDiarizer']
 
 
 class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
@@ -401,7 +71,6 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
         * preprocessor
         * msdd_model
         * speaker_model
-
     """
 
     @classmethod
@@ -421,7 +90,6 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
         self._trainer = trainer if trainer else None
         self.pairwise_infer = False
         self.cfg_msdd_model = cfg
-        self.cfg_msdd_model.msdd_module.num_spks = self.cfg_msdd_model.max_num_of_spks
 
         if self._trainer:
             self._init_segmentation_info()
@@ -962,6 +630,333 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
         return f1_score, simple_acc
 
 
+class ClusterEmbedding:
+    """
+    This class is built for calculating cluster-average embeddings, segmentation and load/save of the estimated cluster labels.
+    The methods in this class is used for the inference of MSDD models.
+
+    Args:
+        cfg_diar_infer (DictConfig):
+            Config dictionary from diarization inference YAML file
+        cfg_msdd_model (DictConfig):
+            Config dictionary from MSDD model checkpoint file
+
+    Class Variables:
+        self.cfg_diar_infer (DictConfig):
+            Config dictionary from diarization inference YAML file
+        cfg_msdd_model (DictConfig):
+            Config dictionary from MSDD model checkpoint file
+        self.clus_diar_model (class `ClusteringDiarizer`):
+            This is a placeholder for class instance of `ClusteringDiarizer`
+        self.msdd_model (class `EncDecDiarLabelModel`):
+            This is a placeholder for class instance of `EncDecDiarLabelModel`
+        self.spk_emb_state_dict (dict):
+            Dictionary containing `state_dict` of speaker embedding model
+        self.run_clus_from_loaded_emb (bool):
+            If True, clustering is performed again after clustering diarizer is excuted
+        self.use_speaker_model_from_ckpt (bool):
+            If True, speaker embedding model included in MSDD checkpoint is used.
+        self.scale_window_length_list (list):
+            List containing the window lengths (i.e., scale length) of each scale.
+        self.scale_n (int):
+            Number of scales for multi-scale clustering diarizer
+        self.base_scale_index (int):
+            The index of the base-scale which is the shortest scale among the given multiple scales
+    """
+
+    def __init__(self, cfg_diar_infer: DictConfig, cfg_msdd_model: DictConfig):
+        self.cfg_diar_infer = cfg_diar_infer
+        self._cfg_msdd = cfg_msdd_model
+        self.clus_diar_model = None
+        self.msdd_model = None
+        self.spk_emb_state_dict = {}
+
+        self.run_clus_from_loaded_emb = False
+        self.use_speaker_model_from_ckpt = True
+        self.scale_window_length_list = list(
+            self.cfg_diar_infer.diarizer.speaker_embeddings.parameters.window_length_in_sec
+        )
+        self.scale_n = len(self.scale_window_length_list)
+        self.base_scale_index = len(self.scale_window_length_list) - 1
+
+    def prepare_cluster_embs_infer(self):
+        """
+        Launch clustering diarizer to prepare embedding vectors and clustering results.
+        """
+        self.max_num_speakers = self.cfg_diar_infer.diarizer.clustering.parameters.max_num_speakers
+        self.emb_sess_test_dict, self.emb_seq_test, self.clus_test_label_dict, _ = self.run_clustering_diarizer(
+            self._cfg_msdd.test_ds.manifest_filepath, self._cfg_msdd.test_ds.emb_dir
+        )
+
+    def assign_labels_to_longer_segs(self, base_clus_label_dict: Dict, session_scale_mapping_dict: Dict):
+        """
+        In multi-scale speaker diarization system, clustering result is solely based on the base-scale (the shortest scale).
+        To calculate cluster-average speaker embeddings for each scale that are longer than the base-scale, this function assigns
+        clustering results for the base-scale to the longer scales by measuring the distance between subsegment timestamps in the
+        base-scale and non-base-scales.
+
+        Args:
+            base_clus_label_dict (dict):
+                Dictionary containing clustering results for base-scale segments. Indexed by `uniq_id` string.
+            session_scale_mapping_dict (dict):
+                Dictionary containing multiscale mapping information for each session. Indexed by `uniq_id` string.
+
+        Returns:
+            all_scale_clus_label_dict (dict):
+                Dictionary containing clustering labels of all scales. Indexed by scale_index in integer format.
+
+        """
+        all_scale_clus_label_dict = {scale_index: {} for scale_index in range(self.scale_n)}
+        for uniq_id, uniq_scale_mapping_dict in session_scale_mapping_dict.items():
+            base_scale_clus_label = np.array([x[-1] for x in base_clus_label_dict[uniq_id]])
+            all_scale_clus_label_dict[self.base_scale_index][uniq_id] = base_scale_clus_label
+            for scale_index in range(self.scale_n - 1):
+                new_clus_label = []
+                assert (
+                    uniq_scale_mapping_dict[scale_index].shape[0] == base_scale_clus_label.shape[0]
+                ), "The number of base scale labels does not match the segment numbers in uniq_scale_mapping_dict"
+                max_index = max(uniq_scale_mapping_dict[scale_index])
+                for seg_idx in range(max_index + 1):
+                    if seg_idx in uniq_scale_mapping_dict[scale_index]:
+                        seg_clus_label = mode(base_scale_clus_label[uniq_scale_mapping_dict[scale_index] == seg_idx])
+                    else:
+                        seg_clus_label = 0 if len(new_clus_label) == 0 else new_clus_label[-1]
+                    new_clus_label.append(seg_clus_label)
+                all_scale_clus_label_dict[scale_index][uniq_id] = new_clus_label
+        return all_scale_clus_label_dict
+
+    def get_base_clus_label_dict(self, clus_labels: List[str], emb_scale_seq_dict: Dict[int, dict]):
+        """
+        Retrieve base scale clustering labels from `emb_scale_seq_dict`.
+
+        Args:
+            clus_labels (list):
+                List containing cluster results generated by clustering diarizer.
+            emb_scale_seq_dict (dict):
+                Dictionary containing multiscale embedding input sequences.
+        Returns:
+            base_clus_label_dict (dict):
+                Dictionary containing start and end of base scale segments and its cluster label. Indexed by `uniq_id`.
+            emb_dim (int):
+                Embedding dimension in integer.
+        """
+        base_clus_label_dict = {key: [] for key in emb_scale_seq_dict[self.base_scale_index].keys()}
+        for line in clus_labels:
+            uniq_id = line.split()[0]
+            label = int(line.split()[-1].split('_')[-1])
+            stt, end = [round(float(x), 2) for x in line.split()[1:3]]
+            base_clus_label_dict[uniq_id].append([stt, end, label])
+        emb_dim = emb_scale_seq_dict[0][uniq_id][0].shape[0]
+        return base_clus_label_dict, emb_dim
+
+    def get_cluster_avg_embs(
+        self, emb_scale_seq_dict: Dict, clus_labels: List, speaker_mapping_dict: Dict, session_scale_mapping_dict: Dict
+    ):
+        """
+        MSDD requires cluster-average speaker embedding vectors for each scale. This function calculates an average embedding vector for each cluster (speaker)
+        and each scale.
+
+        Args:
+            emb_scale_seq_dict (dict):
+                Dictionary containing embedding sequence for each scale. Keys are scale index in integer.
+            clus_labels (list):
+                Clustering results from clustering diarizer including all the sessions provided in input manifest files.
+            speaker_mapping_dict (dict):
+                Speaker mapping dictionary in case RTTM files are provided. This is mapping between integer based speaker index and
+                speaker ID tokens in RTTM files.
+                Example:
+                    {'en_0638': {'speaker_0': 'en_0638_A', 'speaker_1': 'en_0638_B'},
+                     'en_4065': {'speaker_0': 'en_4065_B', 'speaker_1': 'en_4065_A'}, ...,}
+            session_scale_mapping_dict (dict):
+                Dictionary containing multiscale mapping information for each session. Indexed by `uniq_id` string.
+
+        Returns:
+            emb_sess_avg_dict (dict):
+                Dictionary containing speaker mapping information and cluster-average speaker embedding vector.
+                Each session-level dictionary is indexed by scale index in integer.
+            output_clus_label_dict (dict):
+                Subegmentation timestamps in float type and Clustering result in integer type. Indexed by `uniq_id` keys.
+        """
+        self.scale_n = len(emb_scale_seq_dict.keys())
+        emb_sess_avg_dict = {
+            scale_index: {key: [] for key in emb_scale_seq_dict[self.scale_n - 1].keys()}
+            for scale_index in emb_scale_seq_dict.keys()
+        }
+        output_clus_label_dict, emb_dim = self.get_base_clus_label_dict(clus_labels, emb_scale_seq_dict)
+        all_scale_clus_label_dict = self.assign_labels_to_longer_segs(
+            output_clus_label_dict, session_scale_mapping_dict
+        )
+        for scale_index in emb_scale_seq_dict.keys():
+            for uniq_id, _emb_tensor in emb_scale_seq_dict[scale_index].items():
+                if type(_emb_tensor) == list:
+                    emb_tensor = torch.tensor(np.array(_emb_tensor))
+                else:
+                    emb_tensor = _emb_tensor
+                clus_label_list = all_scale_clus_label_dict[scale_index][uniq_id]
+                spk_set = set(clus_label_list)
+
+                # Create a label array which identifies clustering result for each segment.
+                label_array = torch.Tensor(clus_label_list)
+                avg_embs = torch.zeros(emb_dim, self.max_num_speakers)
+                for spk_idx in spk_set:
+                    selected_embs = emb_tensor[label_array == spk_idx]
+                    avg_embs[:, spk_idx] = torch.mean(selected_embs, dim=0)
+
+                if speaker_mapping_dict is not None:
+                    inv_map = {clus_key: rttm_key for rttm_key, clus_key in speaker_mapping_dict[uniq_id].items()}
+                else:
+                    inv_map = None
+
+                emb_sess_avg_dict[scale_index][uniq_id] = {'mapping': inv_map, 'avg_embs': avg_embs}
+        return emb_sess_avg_dict, output_clus_label_dict
+
+    def run_clustering_diarizer(self, manifest_filepath: str, emb_dir: str):
+        """
+        If no pre-existing data is provided, run clustering diarizer from scratch. This will create scale-wise speaker embedding
+        sequence, cluster-average embeddings, scale mapping and base scale clustering labels. Note that speaker embedding `state_dict`
+        is loaded from the `state_dict` in the provided MSDD checkpoint.
+
+        Args:
+            manifest_filepath (str):
+                Input manifest file for creating audio-to-RTTM mapping.
+            emb_dir (str):
+                Output directory where embedding files and timestamp files are saved.
+
+        Returns:
+            emb_sess_avg_dict (dict):
+                Dictionary containing cluster-average embeddings for each session.
+            emb_scale_seq_dict (dict):
+                Dictionary containing embedding tensors which are indexed by scale numbers.
+            base_clus_label_dict (dict):
+                Dictionary containing clustering results. Clustering results are cluster labels for the base scale segments.
+        """
+        self.cfg_diar_infer.diarizer.manifest_filepath = manifest_filepath
+        self.cfg_diar_infer.diarizer.out_dir = emb_dir
+
+        # Run ClusteringDiarizer which includes system VAD or oracle VAD.
+        self.clus_diar_model = ClusteringDiarizer(cfg=self.cfg_diar_infer)
+        self._out_dir = self.clus_diar_model._diarizer_params.out_dir
+        self.out_rttm_dir = os.path.join(self._out_dir, 'pred_ovl_rttms')
+        os.makedirs(self.out_rttm_dir, exist_ok=True)
+
+        # Load speaker embedding model state_dict which is loaded from the MSDD checkpoint.
+        if self.use_speaker_model_from_ckpt:
+            self.clus_diar_model._speaker_model.load_state_dict(self.spk_emb_state_dict)
+
+        self.clus_diar_model._cluster_params = self.cfg_diar_infer.diarizer.clustering.parameters
+        self.clus_diar_model.multiscale_args_dict[
+            "multiscale_weights"
+        ] = self.cfg_diar_infer.diarizer.speaker_embeddings.parameters.multiscale_weights
+        self.clus_diar_model._diarizer_params.speaker_embeddings.parameters = (
+            self.cfg_diar_infer.diarizer.speaker_embeddings.parameters
+        )
+        clustering_params_str = json.dumps(dict(self.clus_diar_model._cluster_params), indent=4)
+
+        logging.info(f"Multiscale Weights: {self.clus_diar_model.multiscale_args_dict['multiscale_weights']}")
+        logging.info(f"Clustering Parameters: {clustering_params_str}")
+        scores = self.clus_diar_model.diarize(batch_size=self.cfg_diar_infer.batch_size)
+
+        # If RTTM (ground-truth diarization annotation) files do not exist, scores is None.
+        if scores is not None:
+            metric, speaker_mapping_dict = scores
+        else:
+            metric, speaker_mapping_dict = None, None
+
+        # Get the mapping between segments in different scales.
+        self._embs_and_timestamps = get_embs_and_timestamps(
+            self.clus_diar_model.multiscale_embeddings_and_timestamps, self.clus_diar_model.multiscale_args_dict
+        )
+        session_scale_mapping_dict = self.get_scale_map(self._embs_and_timestamps)
+        emb_scale_seq_dict = self.load_emb_scale_seq_dict(emb_dir)
+        clus_labels = self.load_clustering_labels(emb_dir)
+        emb_sess_avg_dict, base_clus_label_dict = self.get_cluster_avg_embs(
+            emb_scale_seq_dict, clus_labels, speaker_mapping_dict, session_scale_mapping_dict
+        )
+        emb_scale_seq_dict['session_scale_mapping'] = session_scale_mapping_dict
+        return emb_sess_avg_dict, emb_scale_seq_dict, base_clus_label_dict, metric
+
+    def get_scale_map(self, embs_and_timestamps):
+        """
+        Save multiscale mapping data into dictionary format.
+
+        Args:
+            embs_and_timestamps (dict):
+                Dictionary containing embedding tensors and timestamp tensors. Indexed by `uniq_id` string.
+        Returns:
+            session_scale_mapping_dict (dict):
+                Dictionary containing multiscale mapping information for each session. Indexed by `uniq_id` string.
+        """
+        session_scale_mapping_dict = {}
+        for uniq_id, uniq_embs_and_timestamps in embs_and_timestamps.items():
+            scale_mapping_dict = get_scale_mapping_argmat(uniq_embs_and_timestamps)
+            session_scale_mapping_dict[uniq_id] = scale_mapping_dict
+        return session_scale_mapping_dict
+
+    def check_clustering_labels(self, out_dir):
+        """
+        Check whether the laoded clustering label file is including clustering results for all sessions.
+        This function is used for inference mode of MSDD.
+
+        Args:
+            out_dir (str):
+                Path to the directory where clustering result files are saved.
+        Returns:
+            file_exists (bool):
+                Boolean that indicates whether clustering result file exists.
+            clus_label_path (str):
+                Path to the clustering label output file.
+        """
+        clus_label_path = os.path.join(
+            out_dir, 'speaker_outputs', f'subsegments_scale{self.base_scale_index}_cluster.label'
+        )
+        file_exists = os.path.exists(clus_label_path)
+        if not file_exists:
+            logging.info(f"Clustering label file {clus_label_path} does not exist.")
+        return file_exists, clus_label_path
+
+    def load_clustering_labels(self, out_dir):
+        """
+        Load clustering labels generated by clustering diarizer. This function is used for inference mode of MSDD.
+
+        Args:
+            out_dir (str):
+                Path to the directory where clustering result files are saved.
+        Returns:
+            emb_scale_seq_dict (dict):
+                List containing clustering results in string format.
+        """
+        file_exists, clus_label_path = self.check_clustering_labels(out_dir)
+        logging.info(f"Loading cluster label file from {clus_label_path}")
+        with open(clus_label_path) as f:
+            clus_labels = f.readlines()
+        return clus_labels
+
+    def load_emb_scale_seq_dict(self, out_dir):
+        """
+        Load saved embeddings generated by clustering diarizer. This function is used for inference mode of MSDD.
+
+        Args:
+            out_dir (str):
+                Path to the directory where embedding pickle files are saved.
+        Returns:
+            emb_scale_seq_dict (dict):
+                Dictionary containing embedding tensors which are indexed by scale numbers.
+        """
+        window_len_list = list(self.cfg_diar_infer.diarizer.speaker_embeddings.parameters.window_length_in_sec)
+        emb_scale_seq_dict = {scale_index: None for scale_index in range(len(window_len_list))}
+        for scale_index in range(len(window_len_list)):
+            pickle_path = os.path.join(
+                out_dir, 'speaker_outputs', 'embeddings', f'subsegments_scale{scale_index}_embeddings.pkl'
+            )
+            logging.info(f"Loading embedding pickle file of scale:{scale_index} at {pickle_path}")
+            with open(pickle_path, "rb") as input_file:
+                emb_dict = pkl.load(input_file)
+            for key, val in emb_dict.items():
+                emb_dict[key] = val
+            emb_scale_seq_dict[scale_index] = emb_dict
+        return emb_scale_seq_dict
+
+
 class OverlapAwareDiarizer:
     """
     Class for inference based on multiscale diarization decoder (MSDD). MSDD requires initializing clustering results from
@@ -1000,7 +995,8 @@ class OverlapAwareDiarizer:
 
     def transfer_diar_params_to_model_params(self, msdd_model, cfg):
         """
-        Transfer the parameters that are needed for MSDD inference from the diarizer config files to `msdd_model.cfg`.
+        Transfer the parameters that are needed for MSDD inference from the diarization inference config files
+        to MSDD model config `msdd_model.cfg`.
         """
         msdd_model.cfg.diarizer.out_dir = cfg.diarizer.out_dir
         msdd_model.cfg.test_ds.manifest_filepath = cfg.diarizer.manifest_filepath
@@ -1299,18 +1295,10 @@ class OverlapAwareDiarizer:
         preds[:, : _preds.shape[1], :] = _preds
         return preds, targets, signal_lengths
 
-    def run_pairwise_diarization(
-        self, embedding_dir: str = './', device: str = 'cuda'
-    ) -> Tuple[List[torch.Tensor], List[torch.Tensor], List[torch.Tensor]]:
+    def run_pairwise_diarization(self) -> Tuple[List[torch.Tensor], List[torch.Tensor], List[torch.Tensor]]:
         """
         Setup the parameters needed for batch inference and run batch inference. Note that each sample is pairwise speaker input.
         The pairwise inference results are reconstructed to make session-wise prediction results.
-
-        Args:
-            embedding_dir: (str)
-                Path to the embedding directory in string format.
-            device: (torch.device)
-                Torch device variable.
 
         Returns:
             integrated_preds_list: (list)
@@ -1322,7 +1310,6 @@ class OverlapAwareDiarizer:
         """
         self.out_rttm_dir = self.clustering_embedding.out_rttm_dir
         self.msdd_model.setup_test_data(self.msdd_model.cfg.test_ds)
-        self.msdd_model = self.msdd_model
         self.msdd_model.eval()
         torch.set_grad_enabled(False)
         cumul_sample_count = [0]

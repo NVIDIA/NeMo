@@ -68,9 +68,9 @@ class MSDD_module(NeuralModule, Exportable):
             Number of CNN layers after the first CNN layer.
         weighting_scheme (str):
             Name of the methods for estimating the scale weights.
-        context_vector_type (bool):
-            If True, cosine similarity values are used for the input of the sequence models.
-            If False, element-wise product values are used for the input of the sequence models.
+        context_vector_type (str):
+            If 'cos_sim', cosine similarity values are used for the input of the sequence models.
+            If 'elem_prod', element-wise product values are used for the input of the sequence models.
     """
 
     @property
@@ -124,7 +124,7 @@ class MSDD_module(NeuralModule, Exportable):
         clamp_max: float = 1.0,
         conv_repeat: int = 1,
         weighting_scheme: str = 'conv_scale_weight',
-        context_vector_type: bool = True,
+        context_vector_type: str = 'cos_sim',
     ):
         super().__init__()
         self._speaker_model = None
@@ -254,7 +254,7 @@ class MSDD_module(NeuralModule, Exportable):
     def element_wise_product(self, scale_weights, ms_avg_embs, ms_emb_seq):
         """
         Calculate element wise product values among cluster-average embedding vectors and input embedding vector sequences.
-        `element_wise_product` method usually takes more time to converge compared to `cosine_similarity` method.
+        `elem_prod` method usually takes more time to converge compared to `cos_sim` method.
 
         Args:
             scale_weights (Tensor):
@@ -316,7 +316,7 @@ class MSDD_module(NeuralModule, Exportable):
     def attention_scale_weights(self, ms_avg_embs_perm, ms_emb_seq):
         """
         Use weighted inner product for calculating each scale weight. W_a matrix has (emb_dim * emb_dim) learnable parameters
-        and W_a matrix is initialized with an identity matrix. Compared to "conv" method, this method shows more evenly
+        and W_a matrix is initialized with an identity matrix. Compared to "conv_scale_weight" method, this method shows more evenly
         distributed scale weights.
 
         Args:
