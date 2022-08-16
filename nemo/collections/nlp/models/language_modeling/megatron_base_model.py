@@ -358,3 +358,13 @@ class MegatronBaseModel(NLPModel):
             logging.info("Gradient accumulation fusion can only be used with megatron amp O2 mixed precision.")
             with open_dict(self.cfg):
                 self.cfg.gradient_accumulation_fusion = False
+
+    def _validate_data_creation_args(self):
+        if not isinstance(self.trainer.val_check_interval, int):
+            raise ValueError(f"trainer.val_check_interval must be an integer. Float values are not supported for NeMo-Megatron models. Found {self.trainer.val_check_interval}")
+        
+        if self.trainer.limit_val_batches <= 0:
+            raise ValueError(f"trainer.limit_val_batches must be a positive integer. Found {self.trainer.limit_val_batches}")
+        
+        if self.trainer.limit_test_batches <= 0:
+            raise ValueError(f"trainer.limit_test_batches must be a positive integer. Found {self.trainer.limit_test_batches}")

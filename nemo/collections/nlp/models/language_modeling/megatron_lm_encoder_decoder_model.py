@@ -1180,6 +1180,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             raise ValueError(
                 f'Gradient accumulation is done within training_step. trainer.accumulate_grad_batches must equal 1'
             )
+        self._validate_data_creation_args()
 
     def list_available_models(self):
         pass
