@@ -23,8 +23,8 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
-from omegaconf import DictConfig, open_dict
 from hydra.utils import instantiate
+from omegaconf import DictConfig, open_dict
 from pytorch_lightning import Trainer
 from tqdm import tqdm
 
@@ -64,6 +64,7 @@ except ImportError:
 
 __all__ = ['EncDecDiarLabelModel', 'ClusterEmbedding']
 
+
 class ClusterEmbedding:
     """
     This class is built for calculating cluster-average embeddings, segmentation and load/save of the estimated cluster labels.
@@ -97,6 +98,7 @@ class ClusterEmbedding:
         self.base_scale_index (int):
             The index of the base-scale which is the shortest scale among the given multiple scales
     """
+
     def __init__(self, cfg_diar_infer: DictConfig, cfg_msdd_model: DictConfig):
         self.cfg_diar_infer = cfg_diar_infer
         self._cfg_msdd = cfg_msdd_model
@@ -106,7 +108,9 @@ class ClusterEmbedding:
 
         self.run_clus_from_loaded_emb = False
         self.use_speaker_model_from_ckpt = True
-        self.scale_window_length_list = list(self.cfg_diar_infer.diarizer.speaker_embeddings.parameters.window_length_in_sec)
+        self.scale_window_length_list = list(
+            self.cfg_diar_infer.diarizer.speaker_embeddings.parameters.window_length_in_sec
+        )
         self.scale_n = len(self.scale_window_length_list)
         self.base_scale_index = len(self.scale_window_length_list) - 1
 
@@ -387,6 +391,7 @@ class ClusterEmbedding:
             emb_scale_seq_dict[scale_index] = emb_dict
         return emb_scale_seq_dict
 
+
 class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
     """
     Encoder decoder class for multiscale diarization decoder (MSDD). Model class creates training, validation methods for setting
@@ -398,6 +403,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
         * speaker_model
 
     """
+
     @classmethod
     def list_available_models(cls) -> List[PretrainedModelInfo]:
         """
@@ -478,7 +484,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
             self._diarizer_params.speaker_embeddings.parameters.window_length_in_sec,
             self._diarizer_params.speaker_embeddings.parameters.shift_length_in_sec,
             self._diarizer_params.speaker_embeddings.parameters.multiscale_weights,
-            )
+        )
 
     def _init_speaker_model(self):
         """
@@ -511,8 +517,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
             self._speaker_model = EncDecSpeakerLabelModel.from_pretrained(model_name=model_path)
         self._speaker_params = self.cfg_msdd_model.diarizer.speaker_embeddings.parameters
 
-
-    def __setup_dataloader_from_config(self, config): 
+    def __setup_dataloader_from_config(self, config):
         featurizer = WaveformFeaturizer(
             sample_rate=config['sample_rate'], int_values=config.get('int_values', False), augmentor=None
         )
@@ -581,14 +586,10 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
         )
 
     def setup_training_data(self, train_data_config: Optional[Union[DictConfig, Dict]]):
-        self._train_dl = self.__setup_dataloader_from_config(
-            config=train_data_config, 
-        )
+        self._train_dl = self.__setup_dataloader_from_config(config=train_data_config,)
 
     def setup_validation_data(self, val_data_layer_config: Optional[Union[DictConfig, Dict]]):
-        self._validation_dl = self.__setup_dataloader_from_config(
-            config=val_data_layer_config, 
-        )
+        self._validation_dl = self.__setup_dataloader_from_config(config=val_data_layer_config,)
 
     def setup_test_data(self, test_data_config: Optional[Union[DictConfig, Dict]]):
         if self.pairwise_infer:
@@ -1114,7 +1115,7 @@ class OverlapAwareDiarizer:
             output_dict[uniq_id] = sum_pred.unsqueeze(0)
         output_list = [output_dict[uniq_id] for uniq_id in uniq_id_list]
         return output_list
-    
+
     def get_emb_clus_infer(self, cluster_embeddings):
         """Assign dictionaries containing the clustering results from the class instance `cluster_embeddings`.
         """

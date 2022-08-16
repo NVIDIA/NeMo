@@ -223,15 +223,11 @@ class _AudioMSDDTrainDataset(Dataset):
         self.global_rank = global_rank
         self.manifest_filepath = manifest_filepath
         self.multiscale_timestamp_dict = prepare_split_data(
-            self.manifest_filepath, 
-            self.emb_dir,
-            self.multiscale_args_dict,
-            self.global_rank,
+            self.manifest_filepath, self.emb_dir, self.multiscale_args_dict, self.global_rank,
         )
 
     def __len__(self):
         return len(self.collection)
-    
 
     def assign_labels_to_longer_segs(self, uniq_id, base_scale_clus_label):
         """

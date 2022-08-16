@@ -18,7 +18,7 @@ import os
 import shutil
 from copy import deepcopy
 from functools import reduce
-from typing import Tuple, Dict, Union, List
+from typing import Dict, List, Tuple, Union
 
 import numpy as np
 import omegaconf
@@ -46,6 +46,7 @@ def get_uniqname_from_filepath(filepath):
         return uniq_id
     else:
         raise TypeError("input must be filepath string")
+
 
 def get_uniq_id_from_manifest_line(line: str) -> str:
     """
@@ -238,6 +239,7 @@ def get_embs_and_timestamps(multiscale_embeddings_and_timestamps, multiscale_arg
 
     return embs_and_timestamps
 
+
 def get_timestamps(multiscale_timestamps, multiscale_args_dict):
     """
     The timestamps in `multiscale_timestamps` dictionary are indexed by scale index.
@@ -262,6 +264,7 @@ def get_timestamps(multiscale_timestamps, multiscale_args_dict):
             }
 
     return timestamps_dict
+
 
 def get_contiguous_stamps(stamps):
     """
@@ -978,6 +981,7 @@ def get_subsegments(offset: float, window: float, shift: float, duration: float)
 
     return subsegments
 
+
 def get_scale_mapping_argmat(uniq_embs_and_timestamps: Dict[str, dict]) -> Dict[int, torch.Tensor]:
     """
     Calculate cosine similarity values among speaker embeddings for each scale then
@@ -1000,6 +1004,7 @@ def get_scale_mapping_argmat(uniq_embs_and_timestamps: Dict[str, dict]) -> Dict[
         mapping_argmat = session_scale_mapping_dict[scale_idx]
         scale_mapping_argmat[scale_idx] = mapping_argmat
     return scale_mapping_argmat
+
 
 def get_overlap_stamps(cont_stamps: List[str], ovl_spk_idx: List[str]):
     """
@@ -1158,6 +1163,7 @@ def get_id_tup_dict(uniq_id_list: List[str], test_data_collection, preds_list: L
         session_dict[uniq_id].append([line.target_spks, preds_list[idx]])
     return session_dict
 
+
 def prepare_split_data(manifest_filepath, _out_dir, multiscale_args_dict, global_rank):
     """
     This function is needed for preparing diarization training data for multiscale diarization decoder (MSDD).
@@ -1180,7 +1186,7 @@ def prepare_split_data(manifest_filepath, _out_dir, multiscale_args_dict, global
                 Example: `fe_03_00106_mixed_626310_642300`
     """
     speaker_dir = os.path.join(_out_dir, 'speaker_outputs')
-    
+
     # Only if this is for the first run of modelPT instance, remove temp folders.
     if global_rank == 0:
         if os.path.exists(speaker_dir):
@@ -1217,6 +1223,7 @@ def prepare_split_data(manifest_filepath, _out_dir, multiscale_args_dict, global
     multiscale_timestamps_dict = get_timestamps(multiscale_timestamps_by_scale, multiscale_args_dict)
     return multiscale_timestamps_dict
 
+
 def extract_timestamps(manifest_file: str):
     """
     This method extracts timestamps from segments passed through manifest_file. 
@@ -1243,6 +1250,7 @@ def extract_timestamps(manifest_file: str):
             stamp = '{:.3f} {:.3f} '.format(start, end)
             time_stamps[uniq_name].append(stamp)
     return time_stamps
+
 
 def make_rttm_with_overlap(
     manifest_file_path: str,
@@ -1303,6 +1311,7 @@ def make_rttm_with_overlap(
                 no_references = True
                 all_reference = []
     return all_reference, all_hypothesis
+
 
 def embedding_normalize(embs, use_std=False, eps=1e-10):
     """
