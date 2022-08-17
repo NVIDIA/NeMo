@@ -15,6 +15,9 @@ class CITestHelper:
         summary_list: list, the values in the read summary list, formatted as a list.
         """
         files = os.listdir(path)
+        results_dir = os.path.join(path, "results")
+        if os.path.exists(results_dir):
+            files += os.path.join("results", os.listdir(results_dir))
         files.sort(key=lambda x: os.path.getmtime(os.path.join(path, x)))
         for f in files:
             if f[:6] == "events":

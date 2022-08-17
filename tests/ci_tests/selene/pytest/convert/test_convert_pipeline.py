@@ -1,6 +1,6 @@
 import os
 
-CI_JOB_RESULTS_DIR = os.path.join(os.environ.get("RESULTS_DIR"), "results")  #eg '/home/shanmugamr/bignlp-scripts/results/train_gpt3_126m_tp1_pp1_1node_100steps'
+CI_JOB_RESULTS_DIR = os.environ.get("RESULTS_DIR")  #eg '/home/shanmugamr/bignlp-scripts/results/train_gpt3_126m_tp1_pp1_1node_100steps'
 
 class TestConvertPipeline:
 

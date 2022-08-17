@@ -150,7 +150,7 @@ release_perf:
     - sleep 10s # Without this, "sacct" in jobstate.sh does not always find the SLURM job.
     - export SLURM_JOBID=$(grep 'Submitted batch job' "${RESULTS_DIR}/launcher.log" | awk '{ print $4 }')
     - echo $SLURM_JOBID
-    - export SLURM_OUTPUT=${RESULTS_DIR}/slurm_${SLURM_JOBID}.log
+    - export SLURM_OUTPUT=${RESULTS_DIR}/slurm_${SLURM_JOBID}.out
     #export SLURM_OUTPUT=$(scontrol show job "${SLURM_JOBID}" | grep 'StdOut' | awk -F '=' '{ print $2 }')
     - cd tests/ci_tests/utils
     - chmod 777 ./* -R
@@ -168,7 +168,7 @@ release_perf:
     - echo "Finished job with name ${RUN_NAME}"
     - cd ${GIT_CLONE_PATH}
     # Run metrics collection
-    - python3 tests/ci_tests/utils/convert_ci_metric_to_json.py $RESULTS_DIR/results $RUN_STAGE $RUN_MODEL
+    - python3 tests/ci_tests/utils/convert_ci_metric_to_json.py $RESULTS_DIR $RUN_STAGE $RUN_MODEL
     # If you wan to be able to automatically add test results file then set the CREATE_TEST_DATA flag to be true.
     # It will run the test on selene copy the results file and paste it in the bignlp-scripts repo and raise a PR.
     - |

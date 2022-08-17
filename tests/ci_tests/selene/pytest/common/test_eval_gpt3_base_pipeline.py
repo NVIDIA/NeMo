@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 import pytest
 
-CI_JOB_RESULTS = os.path.join(os.environ.get("RESULTS_DIR"), "results")
+CI_JOB_RESULTS = os.environ.get("RESULTS_DIR")
 
 class TestEvalBaseGpt3Pipeline:
 
