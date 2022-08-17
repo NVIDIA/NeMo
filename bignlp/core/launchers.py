@@ -481,19 +481,22 @@ def _make_sbatch_string(
     container_flags += ["--container-mounts", container_mounts] if container_mounts else []
     if srun_args is None:
         srun_args = []
-    srun_args += ["--overlap"] if BIGNLP_MEMORY_MEASURE else []
 
     if BIGNLP_MEMORY_MEASURE:
+        srun_args += ["--overlap"]
+
         mem_stdout = stdout.replace("_%j", "_mem_%j")
         mem_stdout = mem_stdout.replace("_%A_%a", "_mem_%A_%a")
         mem_csv_out = folder / "gpu_memory_measure.csv"
-        mem_srun_cmd = shlex.join(["srun", "--output", mem_stdout, *container_flags, *srun_args])
+        mem_srun_cmd = shlex.join([
+            "srun", "--ntasks=1", "--ntasks-per-node=1", "--output", mem_stdout, *container_flags, *srun_args
+        ])
         lines += [
             "",
             "# run memory measure",
             f"{mem_srun_cmd} \\",
             f"  nvidia-smi --query-gpu=timestamp,index,,memory.total,memory.free,memory.used \\",
-            f"  --format=csv -l 1 | tee {mem_csv_out} & ",
+            f"  --format=csv -l 1 > {mem_csv_out} & ",
             "",
         ]
 
