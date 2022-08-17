@@ -333,7 +333,7 @@ class Float16Module(MegatronModule):
                 f"No encoder_relative_position_embedding found on this rank. Looking for encoder_relative_position_embedding.relative_position_embedding.weight"
             )
 
-    def decoder_relative_position_embeddings_weight(self):
+    def decoder_self_attention_relative_position_embeddings_weight(self):
         if hasattr(self.module, 'decoder_relative_position_embedding'):
             return self.module.decoder_relative_position_embedding.relative_position_embedding.weight
         else:
