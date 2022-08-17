@@ -151,7 +151,6 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
         # Freeze all T5 model weights for prompt-tuning/p-tuning
         self.frozen_model.freeze()
-        self.frozen_model.training = False
 
     def fwd_bwd_step(self, batch, batch_idx, forward_only):
         """

@@ -115,7 +115,12 @@ class T5PromptLearningDataset(BasePromptLearningDataset):
             input_example = self._insert_virtual_token_placeholders(input_example, virtual_token_splits)
 
             # a trick to align with the data format in t5 pretraining
-            input_ids = self.tokenizer.text_to_ids(input_example) + self.tokenizer.text_to_ids(T5Sentinel.FIRST.value) + self.tokenizer.text_to_ids(T5Sentinel.END.value)
+            input_ids = self.tokenizer.text_to_ids(input_example) + self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
+
+            # If the model wasn't trained with an <eos> token, then we need to have some other way of stopping model generation.
+            # So, we add an END sentinel token to the encoder input hoping that the decoder copies it and we can stop.
+            if not self.add_eos_to_decoder_output:
+                input_ids += self.tokenizer.text_to_ids(T5Sentinel.END.value)
 
             # Add BOS/EOS to the input of encoder if desired, adds EOS by default
             if self.add_bos:
