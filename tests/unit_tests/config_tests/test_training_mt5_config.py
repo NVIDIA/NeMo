@@ -5,7 +5,7 @@ class TestTrainingmT5Config:
     def test_training_mt5_config_170m(self):
         conf = OmegaConf.load('conf/training/mt5/170m.yaml')
         s = """
- run:
+run:
   name: mt5_170m
   results_dir: ${base_results_dir}/${.name}
   time_limit: "7-00:00:00"
@@ -36,7 +36,7 @@ trainer:
 
 
 exp_manager:
-  explicit_log_dir: ${training.run.results_dir}
+  explicit_log_dir: ${training.run.results_dir}/results
   exp_dir: null
   name: megatron_mt5
   create_wandb_logger: False
@@ -252,7 +252,7 @@ trainer:
 
 
 exp_manager:
-  explicit_log_dir: ${training.run.results_dir}
+  explicit_log_dir: ${training.run.results_dir}/results
   exp_dir: null
   name: megatron_mt5
   create_wandb_logger: False
@@ -468,7 +468,7 @@ trainer:
 
 
 exp_manager:
-  explicit_log_dir: ${training.run.results_dir}
+  explicit_log_dir: ${training.run.results_dir}/results
   exp_dir: null
   name: megatron_mt5
   create_wandb_logger: False
