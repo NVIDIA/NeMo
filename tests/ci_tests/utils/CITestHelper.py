@@ -1,4 +1,5 @@
 import os
+import glob
 from tensorboard.backend.event_processing import event_accumulator
 
 class CITestHelper:
@@ -14,18 +15,15 @@ class CITestHelper:
         Output:
         summary_list: list, the values in the read summary list, formatted as a list.
         """
-        files = os.listdir(path)
-        results_dir = os.path.join(path, "results")
-        if os.path.exists(results_dir):
-            files += os.path.join("results", os.listdir(results_dir))
+        files = glob.glob(f"{path}/events*tfevents*")
+        files += glob.glob(f"{path}/results/events*tfevents*")
         files.sort(key=lambda x: os.path.getmtime(os.path.join(path, x)))
-        for f in files:
-            if f[:6] == "events":
-                event_file = os.path.join(path, f)
-                ea = event_accumulator.EventAccumulator(event_file)
-                ea.Reload()
-                summary = ea.Scalars(summary_name)
-                summary_list = [round(x.value, 5) for x in summary]
-                print(summary_list)
-                return summary_list
+        if files:
+            event_file = files[0]
+            ea = event_accumulator.EventAccumulator(event_file)
+            ea.Reload()
+            summary = ea.Scalars(summary_name)
+            summary_list = [round(x.value, 5) for x in summary]
+            print(summary_list)
+            return summary_list
         raise FileNotFoundError(f"File not found matching: {path}/events*")
