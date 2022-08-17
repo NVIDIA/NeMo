@@ -1022,7 +1022,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         )
         # TODO: Figure out how to handle bos being either <bos> for NeMo-Megatron and <pad> for Huggingface/Google.
         bos_id = tokenizer.bos_id if bos_id is None else bos_id
-        predicted_tokens_dec = torch.LongTensor([tokenizer.pad_id] * global_batch_per_gpu).unsqueeze(1).to(device)
+        predicted_tokens_dec = torch.LongTensor([bos_id] * global_batch_per_gpu).unsqueeze(1).to(device)
         tensor_shape = [encoder_seq_length, global_batch_per_gpu, self.cfg.encoder.hidden_size]
         assert predicted_tokens_dec.size(0) == global_batch_per_gpu
 
