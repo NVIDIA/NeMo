@@ -9,6 +9,7 @@ import sys
 import uuid
 import warnings
 import datetime
+import random
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, Union, Iterable
 
@@ -72,6 +73,9 @@ class Launcher:
                 logger.info(f"Job {self.job_name} submitted with Job ID {job_id}")
                 with open(self.folder / "launcher.log", "w") as f:
                     f.write(f"Submitted batch job {job_id}")
+        else:
+            job_id = str(random.randint(10000, 99999))
+            logger.info(f"[DEBUG] Job {self.job_name} submitted with FAKE Job ID {job_id}")
 
         return job_id
 
