@@ -457,9 +457,12 @@ def _make_sbatch_string(
         stderr = stderr.replace("%j", "%A_%a")
     parameters["output"] = stdout.replace("%t", "0")
 
-    stderr_to_stdout = BIGNLP_CI or stderr_to_stdout # Output error to log file in CI
     if not stderr_to_stdout:
         parameters["error"] = stderr.replace("%t", "0")
+
+    if BIGNLP_CI: # Override output file for slurm
+        parameters["output"] = paths.folder / "slurm_%j.out"
+        parameters["error"] = paths.folder / "slurm_%j.out"
 
     if additional_parameters is not None:
         parameters.update(additional_parameters)

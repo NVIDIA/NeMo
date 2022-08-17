@@ -326,12 +326,13 @@ class Training(NeMoStage):
         if self.stage_cfg.model.data.get("data_prefix", None) is None:
             preprocessed_dir = self.stage_cfg.run.get("preprocessed_dir")
             blending_alpha = self.stage_cfg.run.get("blending_alpha")
-            auto_blend_command = \
-                f"python3 {self._bignlp_path / 'bignlp/collections/auto_blend.py'} " \
-                f"model_type={choice_model_type} " \
-                f"preprocessed_dir={preprocessed_dir} " \
-                f"blending_alpha={blending_alpha} "
-            hydra_override += [f"model.data.data_prefix=\${{{auto_blend_command}}}"]
+            auto_blend_command = (
+                f"python3 {self._bignlp_path / 'bignlp/collections/auto_blend.py'} "
+                f"model_type={choice_model_type} "
+                f"preprocessed_dir={preprocessed_dir} "
+                f"blending_alpha={blending_alpha}"
+            )
+            hydra_override += [f"model.data.data_prefix=\$({auto_blend_command})"]
         return hydra_override
 
     def _get_nemo_code_path(self, model_type):

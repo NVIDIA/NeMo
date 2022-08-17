@@ -2156,7 +2156,7 @@ in `conf/conversion/convert_gpt3.yaml`:
 ```yaml
 model:
     model_type: gpt # gpt or t5
-    checkpoint_folder: ${conversion.run.train_dir}/checkpoints
+    checkpoint_folder: ${conversion.run.train_dir}/results/checkpoints
     checkpoint_name: latest # latest OR name pattern of a checkpoint (e.g. megatron_gpt-*last.ckpt)
     hparams_file: ${conversion.run.train_dir}/results/hparams.yaml
     tensor_model_parallel_size: 2 # 1 for 126m, 2 for 5b, and 8 for 20b or larger models
@@ -2254,7 +2254,7 @@ in `conf/conversion/convert_t5.yaml`:
 ```yaml
 model:
     model_type: t5 # gpt or t5
-    checkpoint_folder: ${conversion.run.train_dir}/checkpoints
+    checkpoint_folder: ${conversion.run.train_dir}/results/checkpoints
     checkpoint_name: latest # latest OR name pattern of a checkpoint (e.g. megatron_gpt-*last.ckpt)
     hparams_file: ${conversion.run.train_dir}/results/hparams.yaml
     tensor_model_parallel_size: 1 # 1 for 220m, 2 for 3b
@@ -2354,7 +2354,7 @@ in `conf/conversion/convert_mt5.yaml`:
 ```yaml
 model:
   model_type: t5 # gpt or t5, use t5 for mt5 as well
-  checkpoint_folder: ${conversion.run.train_dir}/checkpoints
+  checkpoint_folder: ${conversion.run.train_dir}/results/checkpoints
   checkpoint_name: latest # latest OR name pattern of a checkpoint (e.g. megatron_gpt-*last.ckpt)
   hparams_file: ${conversion.run.train_dir}/results/hparams.yaml
   tensor_model_parallel_size: 1 
@@ -2823,7 +2823,7 @@ To specify which model checkpoint to load and its definition, use the `model` pa
 ```yaml
 model:
     model_type: nemo-gpt3
-    checkpoint_folder: ${evaluation.run.train_dir}/checkpoints
+    checkpoint_folder: ${evaluation.run.train_dir}/results/checkpoints
     checkpoint_name: latest # latest OR name pattern of a checkpoint (e.g. megatron_gpt-*last.ckpt)
     hparams_file: ${evaluation.run.train_dir}/results/hparams.yaml
     tensor_model_parallel_size: 2 #1 for 126m, 2 for 5b, 8 for 20b
