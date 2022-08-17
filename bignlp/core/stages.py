@@ -320,6 +320,7 @@ class Training(NeMoStage):
 
     def _make_hydra_override(self):
         hydra_override = []
+        choice_model_type, choice_name = self.get_stage_config_choice()
         if self.cluster == "bcp":
             hydra_override += ["+cluster_type=BCP"]
         if self.stage_cfg.model.data.get("data_prefix", None) is None:
