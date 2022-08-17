@@ -21,7 +21,7 @@ class TestConversionT5Config:
           model_type: t5 # gpt or t5, use t5 for mt5 as well
           checkpoint_folder: ${conversion.run.train_dir}/checkpoints
           checkpoint_name: latest # latest OR name pattern of a checkpoint (e.g. megatron_gpt-*last.ckpt)
-          hparams_file: ${conversion.run.train_dir}/hparams.yaml
+          hparams_file: ${conversion.run.train_dir}/results/hparams.yaml
           tensor_model_parallel_size: 1 # 1 for 220m, 2 for 3b
           pipeline_model_parallel_size: 1
           model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
@@ -54,7 +54,7 @@ class TestConversionGPT3Config:
           model_type: gpt
           checkpoint_folder: ${conversion.run.train_dir}/checkpoints
           checkpoint_name: latest
-          hparams_file: ${conversion.run.train_dir}/hparams.yaml
+          hparams_file: ${conversion.run.train_dir}/results/hparams.yaml
           tensor_model_parallel_size: 2
           pipeline_model_parallel_size: 1
           model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}

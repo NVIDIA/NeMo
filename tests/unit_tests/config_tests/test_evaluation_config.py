@@ -81,7 +81,7 @@ class TestEvaluationGPT3Config:
           model_type: nemo-gpt3
           checkpoint_folder: ${evaluation.run.train_dir}/checkpoints
           checkpoint_name: latest # latest OR name pattern of a checkpoint (e.g. megatron_gpt-*last.ckpt)
-          hparams_file: ${evaluation.run.train_dir}/hparams.yaml
+          hparams_file: ${evaluation.run.train_dir}/results/hparams.yaml
           tensor_model_parallel_size: 2 #1 for 126m, 2 for 5b, 8 for 20b
           pipeline_model_parallel_size: 1
           model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
@@ -113,7 +113,7 @@ class TestEvaluationGPT3Config:
           model_type: nemo-gpt3
           checkpoint_folder: ${evaluation.run.train_dir}/checkpoints
           checkpoint_name: latest # latest OR name pattern of a checkpoint (e.g. megatron_gpt-*last.ckpt)
-          hparams_file: ${evaluation.run.train_dir}/hparams.yaml
+          hparams_file: ${evaluation.run.train_dir}/results/hparams.yaml
           tensor_model_parallel_size: 2 #1 for 126m, 2 for 5b, 8 for 20b
           pipeline_model_parallel_size: 1
           model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
