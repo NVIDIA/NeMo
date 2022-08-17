@@ -75,7 +75,7 @@ model:
     num_layers: 24
     hidden_size: 4096
     ffn_hidden_size: 10240  # Transformer FFN hidden size. 4 * hidden_size.
-    num_attention_heads: 32
+    num_attention_heads: 64
     kv_channels: 64  # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
     init_method_std: 0.015  # Standard deviation of the zero mean normal distribution used for weight initialization.')
     hidden_dropout: 0.1  # Dropout probability for hidden state transformer.
@@ -109,7 +109,7 @@ model:
     num_layers: 24
     hidden_size: 4096
     ffn_hidden_size: 10240  # Transformer FFN hidden size. 4 * hidden_size.
-    num_attention_heads: 32
+    num_attention_heads: 64
     kv_channels: 64  # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
     init_method_std: 0.015 # Standard deviation of the zero mean normal distribution used for weight initialization.')
     hidden_dropout: 0.1 # Dropout probability for hidden state transformer.
