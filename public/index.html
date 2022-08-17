@@ -52,12 +52,12 @@
         "gpt3_5b_tp8_pp4_4nodes_bf16_precision_O2_100steps.json"];
       CreateHTMLTable.create("data/gpt3",fileNames);
     };
-    let btn1 = document.querySelector('#t5Button');
+    let btn1 = document.querySelector('#mt5Button');
     btn1.onclick = function () {
       let fileNames=["mt5_220m_tp1_pp1.txt", "mt5_220m_tp2_pp2.txt"]
       CreateHTMLTable.create("data/mt5",fileNames);
     };
-    let btn2 = document.querySelector('#mt5Button');
+    let btn2 = document.querySelector('#t5Button');
     btn2.onclick = function () {
       let fileNames=[
         "t5_11b_tp4_pp1_5nodes_bf16_precision_O2_100steps.json",
