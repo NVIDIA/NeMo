@@ -16,7 +16,7 @@
 
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer
+from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer, AdapterParallelTransformer
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     attn_mask_postprocess,
@@ -97,7 +97,7 @@ class MegatronTransformerDecoderModule(MegatronModule):
             kv_channels = hidden_size // num_attention_heads
 
         # Transformer.
-        self.model = ParallelTransformer(
+        self.model = AdapterParallelTransformer(
             layer_type=LayerType.decoder,
             init_method=self.init_method,
             output_layer_init_method=self.output_layer_init_method,
