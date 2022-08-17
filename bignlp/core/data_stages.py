@@ -80,6 +80,7 @@ class DataStage(BigNLPStage):
         run_cfg = stage_cfg.get("run")
         job_name = run_cfg.get("name")
         time_limit = run_cfg.get("time_limit")
+        dependency = run_cfg.get("dependency")
 
         env_vars = self.get_env_vars()
         env_vars["PYTHONPATH"] = f"{self._bignlp_path}:${{PYTHONPATH}}" # Required by pile download
@@ -102,7 +103,8 @@ class DataStage(BigNLPStage):
             slurm_cfg = {**copy.deepcopy(cluster_cfg)}
             job_name_prefix = slurm_cfg.pop("job_name_prefix")
             cluster_parameters = {
-                **slurm_cfg
+                **slurm_cfg,
+                "dependency": dependency,
             }
             cluster_parameters.update({
                 **shared_parameters,

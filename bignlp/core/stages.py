@@ -161,6 +161,7 @@ class BigNLPStage:
         job_name = run_cfg.get("name")
         time_limit = run_cfg.get("time_limit")
         nodes = run_cfg.get("nodes")
+        dependency = run_cfg.get("dependency")
         if nodes is None:
             nodes = stage_cfg.get("trainer").get("num_nodes")
         ntasks_per_node = run_cfg.get("ntasks_per_node")
@@ -194,6 +195,7 @@ class BigNLPStage:
             }
             cluster_parameters.update({
                 **shared_parameters,
+                "dependency": dependency,
                 "container_image": container_image,
                 "container_mounts": container_mounts,
             })
