@@ -415,12 +415,12 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 enc_input = None
 
         if self.encoder_cfg.get("position_embedding_type", "learned_absolute") == 'relative':
-            if enc_input is not None:
+            if enc_output is not None:
+                enc_seq_length = enc_output.size(1)
+            elif enc_input is not None:
                 enc_seq_length = enc_input.size(0)
             elif enc_input_ids is not None:
                 enc_seq_length = enc_input_ids.size(1)
-            elif enc_output is not None:
-                enc_seq_length = enc_output.size(1)
             else:
                 raise ValueError(f"Neither enc_input nor enc_input_ids is provided")
             encoder_self_attention_relative_position_bias = self.encoder_relative_position_embedding(
