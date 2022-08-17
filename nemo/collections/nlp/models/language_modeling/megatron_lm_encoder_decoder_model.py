@@ -422,7 +422,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         return fwd_output_and_loss_func
 
-    @functools.cached_property
+    @functools.property
+    @functools.cache
     def _kwargs_to_arg_idx(self):
         """
         Returns a dict {kwarg name: arg index} to be used when mapping
