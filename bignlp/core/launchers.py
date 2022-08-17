@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Union, Iterable
 import bignlp.utils.job_utils as job_utils
 from bignlp.core.logger import logger
 
+BIGNLP_CI = os.getenv("BIGNLP_CI", "False").lower() in ("true", "t", "1")
 BIGNLP_DEBUG = os.getenv("BIGNLP_DEBUG", "False").lower() in ("true", "t", "1")
 BIGNLP_MEMORY_MEASURE = os.getenv("BIGNLP_MEMORY_MEASURE", "False").lower() in ("true", "t", "1")
 
@@ -455,6 +456,8 @@ def _make_sbatch_string(
         stdout = stdout.replace("%j", "%A_%a")
         stderr = stderr.replace("%j", "%A_%a")
     parameters["output"] = stdout.replace("%t", "0")
+
+    stderr_to_stdout = BIGNLP_CI or stderr_to_stdout # Output error to log file in CI
     if not stderr_to_stdout:
         parameters["error"] = stderr.replace("%t", "0")
 
