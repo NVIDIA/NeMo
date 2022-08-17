@@ -24,6 +24,7 @@ from pytorch_lightning.core.saving import load_hparams_from_tags_csv, load_hpara
 from pytorch_lightning.utilities import rank_zero_only
 from pytorch_lightning.utilities.cloud_io import load as pl_load
 from pytorch_lightning.utilities.migration import pl_legacy_patch
+from pytorch_lightning.core.saving import _load_state as ptl_load_state
 from transformers import TRANSFORMERS_CACHE
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
@@ -349,9 +350,9 @@ class NLPModel(ModelPT, Exportable):
                 checkpoint['state_dict'] = new_state_dict
 
             if 'cfg' in kwargs:
-                model = cls._load_model_state(checkpoint, strict=strict, **kwargs)
+                model = ptl_load_state(checkpoint, strict=strict, **kwargs)
             else:
-                model = cls._load_model_state(checkpoint, strict=strict, cfg=cfg, **kwargs)
+                model = ptl_load_state(checkpoint, strict=strict, cfg=cfg, **kwargs)
                 # cfg = checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY].cfg
 
             # NMT models do not have a `tokenizer` attribute, they instead have an encoder_tokenizer and decoder_tokenizer attribute.
