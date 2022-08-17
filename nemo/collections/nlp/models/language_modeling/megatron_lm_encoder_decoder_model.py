@@ -422,7 +422,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         return fwd_output_and_loss_func
 
-    @functools.cached_property
+    @functools.lru_cache(maxsize=None)
     def _kwargs_to_arg_idx(self):
         """
         Returns a dict {kwarg name: arg index} to be used when mapping
@@ -451,7 +451,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             raise ValueError(f"args_name = {args_name} cannot overlap kwargs = {list(kwargs.keys())}")
 
         # get mapping of kwarg names to arg index
-        kwargs_to_arg_idx = self._kwargs_to_arg_idx
+        kwargs_to_arg_idx = self._kwargs_to_arg_idx()
 
         # collect all arguments
         all_args_name = args_name[:]
