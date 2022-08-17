@@ -422,7 +422,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         return fwd_output_and_loss_func
 
-    @functools.property
+    property
     @functools.cache
     def _kwargs_to_arg_idx(self):
         """
