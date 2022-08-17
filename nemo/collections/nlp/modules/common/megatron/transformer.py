@@ -1635,8 +1635,6 @@ class AutocastTransformerLayer(TransformerLayer):
         get_rng_state_tracker: Optional[Callable] = None,
         checkpoint_core_attention: bool = False,
         fuse_wgrad_accumulation: bool = False,
-        bias_dropout_fusion: bool = False,
-        masked_softmax_fusion: bool = True,
         apply_query_key_layer_scaling: bool = True,
         attention_softmax_in_fp32: bool = False,
         seq_length: Optional[int] = None,
@@ -1646,7 +1644,6 @@ class AutocastTransformerLayer(TransformerLayer):
         output_layernorm: bool = False,
         layer_type: str = "encoder",
         drop_path_rate: float = 0,
-        bias_gelu_nvfusion: bool = False,
         autocast_dtype: Any = 16,
     ) -> None:
         super().__init__(
@@ -1667,8 +1664,6 @@ class AutocastTransformerLayer(TransformerLayer):
             get_rng_state_tracker=get_rng_state_tracker,
             checkpoint_core_attention=checkpoint_core_attention,
             fuse_wgrad_accumulation=fuse_wgrad_accumulation,
-            bias_dropout_fusion=bias_dropout_fusion,
-            masked_softmax_fusion=masked_softmax_fusion,
             apply_query_key_layer_scaling=apply_query_key_layer_scaling,
             attention_softmax_in_fp32=attention_softmax_in_fp32,
             seq_length=seq_length,
@@ -1678,7 +1673,6 @@ class AutocastTransformerLayer(TransformerLayer):
             output_layernorm=output_layernorm,
             layer_type=layer_type,
             drop_path_rate=drop_path_rate,
-            bias_gelu_nvfusion=bias_gelu_nvfusion,
         )
 
         if autocast_dtype == 32:
@@ -1845,11 +1839,10 @@ class ParallelTransformer(MegatronModule):
                 amax_history_len=self.fp8_amax_history_len,
                 amax_compute_algo=self.fp8_amax_compute_algo,
                 wgrad_in_fp8=self.fp8_wgrad,
-
             )
-        
+
         self.is_first_microbatch = True
-        self.microbatch_count = 0 # transformer engine forward needs to know if it is working on the first microbatch
+        self.microbatch_count = 0  # transformer engine forward needs to know if it is working on the first microbatch
 
         if self.model_type == ModelType.encoder_or_decoder:
             assert (
@@ -1885,9 +1878,6 @@ class ParallelTransformer(MegatronModule):
                     params_dtype=torch.float32,  # dtype params are initialized in
                     get_rng_state_tracker=tensor_parallel.random.get_cuda_rng_tracker,
                     checkpoint_core_attention=checkpoint_core_attention,
-                    bias_gelu_nvfusion=bias_activation_fusion,
-                    bias_dropout_fusion=bias_dropout_add_fusion,
-                    masked_softmax_fusion=masked_softmax_fusion,
                     fuse_wgrad_accumulation=gradient_accumulation_fusion,
                     apply_query_key_layer_scaling=apply_query_key_layer_scaling,
                     seq_length=None,  # used for jit warmup
@@ -2039,7 +2029,14 @@ class ParallelTransformer(MegatronModule):
                     cross_attention_relative_position_bias = inputs[6]
                     for index in range(start, end):
                         layer = self._get_layer(index)
-                        hidden_states = layer(hidden_states, attention_mask, encoder_output, enc_dec_attn_mask, None, self.is_first_microbatch)
+                        hidden_states = layer(
+                            hidden_states,
+                            attention_mask,
+                            encoder_output,
+                            enc_dec_attn_mask,
+                            None,
+                            self.is_first_microbatch,
+                        )
 
                     return hidden_states
 
@@ -2212,7 +2209,6 @@ class ParallelTransformer(MegatronModule):
                         # }
                         inference_params = None
 
-
                         # fp8_autocast will not do anything if fp8 isn't used
                         with fp8_autocast(
                             enabled=self.fp8,
@@ -2242,7 +2238,7 @@ class ParallelTransformer(MegatronModule):
                             self_attention_relative_position_bias=self_attention_relative_position_bias,
                             cross_attention_relative_position_bias=cross_attention_relative_position_bias,
                         )
-                    
+
         # Skip counter update for eval and activation checkpointing
         if torch.is_grad_enabled() and self.training:
             self.microbatch_count += 1
@@ -2251,7 +2247,6 @@ class ParallelTransformer(MegatronModule):
                 self.is_first_microbatch = True
             else:
                 self.is_first_microbatch = False
-
 
         output = hidden_states
 
