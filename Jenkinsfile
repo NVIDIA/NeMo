@@ -469,7 +469,7 @@ pipeline {
         stage('Multispeaker ASR Data Simulation') {
           steps {
             sh 'python tools/speech_data_simulator/multispeaker_simulator.py \
-            --config-path=tools/speech_data_simulator/conf --config-name=data_simulator.yaml \
+            --config-path=conf --config-name=data_simulator.yaml \
             data_simulator.random_seed=42 \
             data_simulator.manifest_path=/home/TestData/LibriSpeechShort/dev-clean-align-short.json \
             data_simulator.outputs.output_dir=./test_simulator \
