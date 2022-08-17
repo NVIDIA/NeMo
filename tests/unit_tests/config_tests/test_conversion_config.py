@@ -9,6 +9,7 @@ class TestConversionT5Config:
           name: convert_${conversion.run.model_train_name}
           nodes: ${divide_ceil:${conversion.model.model_parallel_size}, 8} # 8 gpus per node
           time_limit: "2:00:00"
+          dependency: "singleton"
           ntasks_per_node: ${divide_ceil:${conversion.model.model_parallel_size}, ${.nodes}}
           convert_name: convert_nemo
           model_train_name: t5_220m
@@ -40,6 +41,7 @@ class TestConversionGPT3Config:
         run:
           name: convert_${conversion.run.model_train_name}
           nodes: ${divide_ceil:${conversion.model.model_parallel_size}, 8} # 8 gpus per node
+          dependency: "singleton"
           time_limit: "2:00:00"
           ntasks_per_node: ${divide_ceil:${conversion.model.model_parallel_size}, ${.nodes}}
           convert_name: convert_nemo

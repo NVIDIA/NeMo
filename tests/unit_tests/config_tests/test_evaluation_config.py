@@ -69,6 +69,7 @@ class TestEvaluationGPT3Config:
         run:
           name: ${.eval_name}_${.model_train_name}
           time_limit: "4:00:00"
+          dependency: "singleton"
           nodes: ${divide_ceil:${evaluation.model.model_parallel_size}, 8} # 8 gpus per node
           ntasks_per_node: ${divide_ceil:${evaluation.model.model_parallel_size}, ${.nodes}}
           eval_name: eval_all
@@ -101,6 +102,7 @@ class TestEvaluationGPT3Config:
         run:
           name: ${.eval_name}_${.model_train_name}
           time_limit: "4:00:00"
+          dependency: "singleton"
           nodes: ${divide_ceil:${evaluation.model.model_parallel_size}, 8} # 8 gpus per node
           ntasks_per_node: ${divide_ceil:${evaluation.model.model_parallel_size}, ${.nodes}}
           eval_name: eval_lambada
