@@ -148,9 +148,18 @@ release_perf:
         fi
     # Wait for job to launch
     - sleep 10s # Without this, "sacct" in jobstate.sh does not always find the SLURM job.
-    - export SLURM_JOBID=$(grep 'Submitted batch job' "${RESULTS_DIR}/launcher.log" | awk '{ print $4 }')
+    - if [[ "$RUN_STAGE" = "data_prep" ]]; then 
+          export SLURM_JOBID=$(grep 'Submitted batch job' "${RESULTS_DIR}/preprocess/launcher.log" | awk '{ print $4 }');
+      else
+          export SLURM_JOBID=$(grep 'Submitted batch job' "${RESULTS_DIR}/launcher.log" | awk '{ print $4 }');
+      fi
     - echo $SLURM_JOBID
     - export SLURM_OUTPUT=${RESULTS_DIR}/slurm_${SLURM_JOBID}.out
+    - if [[ "$RUN_STAGE" = "data_prep" ]]; then
+        export SLURM_OUTPUT=${RESULTS_DIR}/preprocess/slurm_${SLURM_JOBID}.out
+      else
+        export SLURM_OUTPUT=${RESULTS_DIR}/slurm_${SLURM_JOBID}.out
+      fi
     #export SLURM_OUTPUT=$(scontrol show job "${SLURM_JOBID}" | grep 'StdOut' | awk -F '=' '{ print $2 }')
     - cd tests/ci_tests/utils
     - chmod 777 ./* -R
