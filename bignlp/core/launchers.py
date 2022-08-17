@@ -461,8 +461,8 @@ def _make_sbatch_string(
         parameters["error"] = stderr.replace("%t", "0")
 
     if BIGNLP_CI: # Override output file for slurm
-        parameters["output"] = parameters["error"] = paths.folder / "slurm_%j.out"
-        stdout = stderr = paths.folder / "slurm_%j.out"
+        parameters["output"] = parameters["error"] = str(paths.folder / "slurm_%j.out")
+        stdout = stderr = parameters["output"]
 
     if additional_parameters is not None:
         parameters.update(additional_parameters)
