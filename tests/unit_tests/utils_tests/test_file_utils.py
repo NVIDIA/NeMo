@@ -3,7 +3,7 @@ import json
 import zstandard as zstd
 import requests_mock
 
-from bignlp.data_preparation.pile_dataprep_scripts import utils
+import bignlp.utils.file_utils as utils
 
 
 FILE_NAME = "test_data.jsonl.zst"
