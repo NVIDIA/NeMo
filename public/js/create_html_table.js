@@ -78,5 +78,6 @@ CreateHTMLTable = {
             })
           }
         $table.append($tableBody);
+        $table.DataTable({paging: false});
     }
 };
