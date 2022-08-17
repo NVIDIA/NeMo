@@ -41,14 +41,13 @@ from nemo.core.neural_types.elements import (
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
-from nemo.core.optim.radam import RAdam
+# from nemo.core.optim.radam import RAdam
 
 @experimental
 class RadTTSModel(SpectrogramGenerator, Exportable):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         if isinstance(cfg, dict):
             cfg = OmegaConf.create(cfg)
-        
         self.normalizer = None
         self.text_normalizer_call = None
         self.text_normalizer_call_kwargs = {}
@@ -86,8 +85,6 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         self._tb_logger = None
         self.cfg = cfg
         self.log_train_images = False
-        
-        #print("intial self normalizer", self.normalizer)
 
     def batch_dict(self, batch_data):
         if len(batch_data) < 14:
@@ -270,10 +267,10 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
             optimizer = torch.optim.Adam(
                 self.model.parameters(), lr=self.optim.lr, weight_decay=self.optim.weight_decay
             )
-        elif self.optim.name == 'RAdam':  # False for inference riva
-            optimizer = RAdam(
-                self.model.parameters(), lr=self.optim.lr, weight_decay=self.optim.weight_decay
-            )
+        # elif self.optim.name == 'RAdam':  # False for inference riva
+        #    optimizer = RAdam(
+        #        self.model.parameters(), lr=self.optim.lr, weight_decay=self.optim.weight_decay
+        #    )
         else:
             logging.info("Unrecognized optimizer %s! Please choose the right optimizer" % (self.optim.name))
             exit(1)
@@ -381,7 +378,6 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
             logging.warning("parse() is meant to be called in eval mode.")
         if normalize and self.text_normalizer_call is not None:
             text = self.text_normalizer_call(text, **self.text_normalizer_call_kwargs)
-         
         eval_phon_mode = contextlib.nullcontext()
         if hasattr(self.tokenizer, "set_phone_prob"):
             eval_phon_mode = self.tokenizer.set_phone_prob(prob=1)
