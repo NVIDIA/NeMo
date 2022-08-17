@@ -976,6 +976,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         enc_output=None,
         enc_output_attn_mask=None,
         ignore_ids=[],
+        bos_id=None, # If bos=None, will use tokenizer.bos_id unless explicitly set to something else.
     ):
         # Check whether the DDP is initialized. This is needed when running inference outside of training loop.
         if parallel_state.is_unitialized():
@@ -1020,6 +1021,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
         # TODO: Figure out how to handle bos being either <bos> for NeMo-Megatron and <pad> for Huggingface/Google.
+        bos_id = tokenizer.bos_id if bos_id is None else bos_id
         predicted_tokens_dec = torch.LongTensor([tokenizer.pad_id] * global_batch_per_gpu).unsqueeze(1).to(device)
         tensor_shape = [encoder_seq_length, global_batch_per_gpu, self.cfg.encoder.hidden_size]
         assert predicted_tokens_dec.size(0) == global_batch_per_gpu

@@ -387,6 +387,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             enc_mask=enc_mask,
             num_tokens_to_generate=self.decoder_seq_length,
             encoder_input=encoder_input,
+            bos_id=self.tokenizer.pad_id,
         )
 
         processed_preds = []
