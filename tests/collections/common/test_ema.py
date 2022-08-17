@@ -3,43 +3,39 @@ from typing import Any
 
 import pytest
 import pytorch_lightning as pl
+import torch
 from pytorch_lightning import Callback
+from pytorch_lightning import Trainer
 from pytorch_lightning.utilities.types import STEP_OUTPUT
 
-import os
-
-import torch
-from torch.utils.data import DataLoader, Dataset
-
-from pytorch_lightning import LightningModule, Trainer
-
 from nemo.collections.common.callbacks import EMA
+from nemo.collections.common.callbacks.ema import apex_available
+from nemo.collections.cv.models import MNISTLeNet5, MNISTLeNet5Config
 
 
-@pytest.mark.parametrize("devices", [1, 2])
 @pytest.mark.parametrize("precision", [32, 16, "bf16"])
 @pytest.mark.parametrize("accumulate_grad_batches", [1, 2])
+@pytest.mark.run_only_on('GPU')
+@pytest.mark.skipif(not apex_available, reason="apex is not installed")
 class TestEMACallback:
     @pytest.mark.unit
-    def test_apex_ema_callback(self, test_data_dir, devices, precision, accumulate_grad_batches):
-        train_data = DataLoader(RandomDataset(32, 64), batch_size=2)
-        val_data = DataLoader(RandomDataset(32, 64), batch_size=2)
-        test_data = DataLoader(RandomDataset(32, 64), batch_size=2)
+    def test_apex_ema_callback(self, test_data_dir, precision, accumulate_grad_batches):
+        lenet5 = MNISTLeNet5(MNISTLeNet5Config())
+        lenet5.setup_training_data()
+        lenet5.setup_optimization()
 
-        # replace boring model with a ModelPT class from NeMo
-        model = BoringModel()
         trainer = Trainer(
-            default_root_dir=os.getcwd(),
-            max_epochs=5,
+            max_epochs=1,
             precision=precision,
+            limit_train_batches=10,
+            logger=False,
             accumulate_grad_batches=accumulate_grad_batches,
             enable_model_summary=False,
             accelerator='gpu',
-            devices=devices,
+            devices=1,
             callbacks=[EMA(ema=0.999), TestCallback()],
         )
-        trainer.fit(model, train_dataloaders=train_data, val_dataloaders=val_data)
-        trainer.test(model, dataloaders=test_data)
+        trainer.fit(model=lenet5)
 
 
 class TestCallback(Callback):
@@ -91,40 +87,3 @@ class TestCallback(Callback):
             for orig_weights, module_weights in zip(orig_model_weights, model_weights):
                 # original weights are stored on cpu to reduce mem overhead
                 torch.allclose(orig_weights, module_weights.cpu())
-
-
-class RandomDataset(Dataset):
-    def __init__(self, size, length):
-        self.len = length
-        self.data = torch.randn(length, size)
-
-    def __getitem__(self, index):
-        return self.data[index]
-
-    def __len__(self):
-        return self.len
-
-
-class BoringModel(LightningModule):
-    def __init__(self):
-        super().__init__()
-        self.layer = torch.nn.Linear(32, 2)
-
-    def forward(self, x):
-        return self.layer(x)
-
-    def training_step(self, batch, batch_idx):
-        loss = self(batch).sum()
-        self.log("train_loss", loss)
-        return {"loss": loss}
-
-    def validation_step(self, batch, batch_idx):
-        loss = self(batch).sum()
-        self.log("valid_loss", loss)
-
-    def test_step(self, batch, batch_idx):
-        loss = self(batch).sum()
-        self.log("test_loss", loss)
-
-    def configure_optimizers(self):
-        return torch.optim.SGD(self.layer.parameters(), lr=0.1)

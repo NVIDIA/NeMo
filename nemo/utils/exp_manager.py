@@ -119,6 +119,9 @@ class ExpManagerConfig:
     # Configures creation of log files for different ranks
     log_local_rank_0_only: Optional[bool] = False
     log_global_rank_0_only: Optional[bool] = False
+    # todo (sean): might not be the best place to add this, but allows us to enable it fast
+    enable_ema: Optional[bool] = False
+    ema: Optional[float] = 0.999
 
 
 class TimingCallback(Callback):
@@ -326,6 +329,11 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     if cfg.log_step_timing:
         timing_callback = TimingCallback(timer_kwargs=cfg.step_timing_kwargs or {})
         trainer.callbacks.insert(0, timing_callback)
+
+    if cfg.enable_ema:
+        from nemo.collections.common.callbacks import EMA
+        ema_callback = EMA(ema=cfg.ema)
+        trainer.callbacks.append(ema_callback)
 
     if cfg.create_checkpoint_callback:
         configure_checkpointing(

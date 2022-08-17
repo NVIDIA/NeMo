@@ -11,10 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import List, Dict, Any, Optional
+
 import torch
 
-from copy import deepcopy
-from typing import List, Dict, Any, Optional
+from nemo.utils import logging
 
 try:
     import amp_C
@@ -49,7 +50,6 @@ class EMA(Callback):
             )
         if not (0 <= ema <= 1):
             raise MisconfigurationException("EMA decay value must be between 0 and 1")
-        self._ema_model: Optional["pl.LightningModule"] = None
         self._ema_model_weights: Optional[List[torch.Tensor]] = None
         self._overflow_buf: Optional[torch.Tensor] = None
         self._cur_step: Optional[int] = None
@@ -61,13 +61,9 @@ class EMA(Callback):
     def on_train_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
         if pl_module.device.type != "cuda":
             raise MisconfigurationException("Apex EMA Callback only works with CUDA. Ensure to set accelerator='gpu'.")
-        with pl_module._prevent_trainer_and_dataloaders_deepcopy():
-            self._ema_model = deepcopy(pl_module)
-        self.init_multi_tensor_ema(pl_module, self._ema_model)
-
-    def init_multi_tensor_ema(self, model: "pl.LightningModule", ema_model: "pl.LightningModule") -> None:
-        self._ema_model_weights = list(ema_model.state_dict().values())
-        self._overflow_buf = torch.IntTensor([0]).to(model.device)
+        logging.info('Creating EMA weights copy.')
+        self._ema_model_weights = [p.clone() for p in pl_module.state_dict().values()]
+        self._overflow_buf = torch.IntTensor([0]).to(pl_module.device)
 
     def apply_multi_tensor_ema(self, pl_module: "pl.LightningModule") -> None:
         model_weights = list(pl_module.state_dict().values())
