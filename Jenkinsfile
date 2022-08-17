@@ -1310,6 +1310,28 @@ pipeline {
             rm -rf sgd_gen_bert_intent_classification_outputs && TRANSFORMERS_OFFLINE=1'
           }
         }
+        stage('Zero Shot Slot Filling using DialogueZeroShotSlotFillingModel') {
+          steps {
+            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/dialogue && \
+            python dialogue.py \
+            model.dataset.data_dir=/home/TestData/nlp/drive_through_with_entity \
+            model.dataset.dialogues_example_dir=drive_through_with_entity_prediction \
+            model.dataset.task= zero_shot_slot_filling\
+            trainer.max_steps=1 \
+            trainer.max_epochs=1 \
+            model.train_ds.batch_size=2 \
+            model.validation_ds.batch_size=2 \
+            model.test_ds.batch_size=2 \
+            model.nemo_path=null \
+            trainer.val_check_interval=0.0 \
+            trainer.devices=[0] \
+            model.dataset.use_cache=false \
+            model.language_model.pretrained_model_name=bert-base-uncased \
+            trainer.accelerator=gpu \
+            exp_manager=null  && \
+            rm -rf drive_through_with_entity_prediction && TRANSFORMERS_OFFLINE=1'
+          }
+        }
         stage('Intent classification using ZeroShotIntentModel') {
           steps {
             sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/dialogue && \
