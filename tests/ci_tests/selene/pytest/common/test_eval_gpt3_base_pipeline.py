@@ -19,8 +19,8 @@ class TestEvalBaseGpt3Pipeline:
 
     def test_ci_eval_gpt3(self):
         # Results are stored in /lustre/fsw/joc/big_nlp/bignlp_ci/5667649/results/eval_gpt3_126m_tp1_pp1_lambada/results/eval_gpt3_126m_tp1_pp1_lambada_2022-08-17_10-22-49_7Ba/predictions/metrics.json
-        result_files = glob.glob(os.path.join(CI_JOB_RESULTS + '*/metrics.json'))
-        result_files += glob.glob(os.path.join(CI_JOB_RESULTS + 'results/*/metrics.json'))
+        result_files = glob.glob(os.path.join(CI_JOB_RESULTS, '*/metrics.json'))
+        result_files += glob.glob(os.path.join(CI_JOB_RESULTS, 'results/*/metrics.json'))
         assert len(result_files) == 1, f"Only one metrics.json file should be present inside {CI_JOB_RESULTS}"
 
         actual_metrics_file = result_files[0]
