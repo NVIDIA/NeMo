@@ -49,7 +49,7 @@ class GreedyCTCDecoder(torch.nn.Module):
 class SSLDisentangler(ModelPT):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         super().__init__(cfg=cfg, trainer=trainer)
-        self.preprocessor = SSLDisentangler.from_config_dict(self._cfg.preprocessor)
+        self.preprocessor_disentangler = SSLDisentangler.from_config_dict(self._cfg.preprocessor)
         self.encoder = SSLDisentangler.from_config_dict(self._cfg.encoder)
         self._text_tokenizer = EnglishCharsTokenizer(add_blank_at="last")
         self._tb_logger = None
@@ -233,7 +233,7 @@ class SSLDisentangler(ModelPT):
 
     def _forward(self, input_signal=None, input_signal_length=None, for_export=False, normalize_content=True):
 
-        processed_signal, processed_signal_length = self.preprocessor(
+        processed_signal, processed_signal_length = self.preprocessor_disentangler(
             input_signal=input_signal, length=input_signal_length,
         )
 

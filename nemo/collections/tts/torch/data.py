@@ -515,7 +515,7 @@ class TTSDataset(Dataset):
                 audio_shifted = self.pitch_shift(
                     features.cpu().detach().numpy(), self.sample_rate, rel_audio_path_as_text_id
                 )
-                assert audio_shifted.size() == features.size()
+                assert audio_shifted.size() == features.size(), "{} != {}".format(audio_shifted.size(), features.size())
 
             audio, audio_length = features, torch.tensor(features.shape[0]).long()
 
