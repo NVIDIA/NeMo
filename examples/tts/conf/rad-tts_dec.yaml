@@ -88,7 +88,7 @@ model:
         add_blank_at: null
         pad_with_space: True
         g2p:
-          _target_: "nemo.nemo_text_processing.g2p.modules.EnglishG2p"
+          _target_: "nemo_text_processing.g2p.modules.EnglishG2p"
           phoneme_dict: ${phoneme_dict_path}
           heteronyms: ${heteronyms_path}
           phoneme_probability: 0.5
@@ -132,7 +132,7 @@ model:
         add_blank_at: null
         pad_with_space: True
         g2p:
-          _target_: "nemo.nemo_text_processing.g2p.modules.EnglishG2p"
+          _target_: "nemo_text_processing.g2p.modules.EnglishG2p"
           phoneme_dict: ${phoneme_dict_path}
           heteronyms: ${heteronyms_path}
           phoneme_probability: 0.5
