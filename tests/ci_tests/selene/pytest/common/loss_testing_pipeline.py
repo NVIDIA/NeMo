@@ -6,7 +6,7 @@ from tensorboard.backend.event_processing import event_accumulator
 from tests.ci_tests.utils.CITestHelper import CITestHelper
 from .type_of_test import TypeOfTest
 
-CI_JOB_RESULTS_DIR = os.environ.get("RESULTS_DIR") #eg '/home/shanmugamr/bignlp-scripts/results/train_gpt3_126m_tp1_pp1_1node_100steps'
+CI_JOB_RESULTS_DIR = os.path.join(os.environ.get("RESULTS_DIR"), "results") #eg '/home/shanmugamr/bignlp-scripts/results/train_gpt3_126m_tp1_pp1_1node_100steps'
 
 # If we require a variation of tests for any of the other pipelines we can just inherit this class.
 class LossTestingPipeline:

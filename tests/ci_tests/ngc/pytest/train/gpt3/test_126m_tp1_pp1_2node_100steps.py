@@ -6,7 +6,7 @@ import pytest
 from tensorboard.backend.event_processing import event_accumulator
 
 
-CI_JOB_RESULTS = os.environ.get("RESULTS_DIR")
+CI_JOB_RESULTS = os.path.join(os.environ.get("RESULTS_DIR"), "results")
 
 def _read_tb_logs_as_list(path, summary_name):
     """Reads a TensorBoard Events file from the input path, and returns the 
