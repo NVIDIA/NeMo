@@ -623,8 +623,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         # when using pipeline model parallel the final stage need to initialize word embeddings
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
-            for module in self.model:
+            for i, module in enumerate(self.model):
+                parallel_state.set_virtual_pipeline_model_parallel_rank(i)
                 module.sync_initial_word_embeddings()
+            # for module in self.model:
+            #     module.sync_initial_word_embeddings()
 
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds'):

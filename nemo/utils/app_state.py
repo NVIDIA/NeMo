@@ -160,7 +160,7 @@ class AppState(metaclass=Singleton):
             Returns:
                 Number of GPUs in each model parallel group.
         """
-        return self._pipeline_model_parallel_size
+        return self._virtual_pipeline_model_parallel_size
 
     @virtual_pipeline_model_parallel_size.setter
     def virtual_pipeline_model_parallel_size(self, size):
