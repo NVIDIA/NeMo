@@ -17,6 +17,7 @@ trainer:
   accelerator: gpu
   logger: False # logger provided by exp_manager
   precision: 16 # 16, 32, or bf16
+  val_check_interval: 1
 
 tensor_model_parallel_size: 1
 pipeline_model_parallel_size: 1
