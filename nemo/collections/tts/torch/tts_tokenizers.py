@@ -249,7 +249,7 @@ class GermanPhonemesTokenizer(BaseCharsTokenizer):
         non_default_punct_list=None,
         text_preprocessing_func=german_text_preprocessing,
     ):
-        """Deutsch char-based tokenizer.
+        """Deutsch phoneme-based tokenizer.
         Args:
             punct: Whether to reserve grapheme for basic punctuation or not.
             apostrophe: Whether to use apostrophe or not.
