@@ -263,6 +263,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             enc_mask=enc_mask,
             num_tokens_to_generate=self.decoder_seq_length,
             encoder_input=encoder_input,
+            bos_id=self.tokenizer.pad_id if self.cfg.data.get('decoder_starts_with_pad', False) else self.tokenizer.bos_id
         )
 
         # Special ids to text function to handle stripping <eos> and special tokens with sentencepiece tokenizers.
@@ -387,7 +388,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             enc_mask=enc_mask,
             num_tokens_to_generate=self.decoder_seq_length,
             encoder_input=encoder_input,
-            bos_id=self.tokenizer.pad_id,
+            bos_id=self.tokenizer.pad_id if self.cfg.data.get('decoder_starts_with_pad', False) else self.tokenizer.bos_id
         )
 
         processed_preds = []
