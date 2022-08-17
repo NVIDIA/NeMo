@@ -20,11 +20,12 @@ from argparse import ArgumentParser
 from collections import Counter
 from os import listdir
 
-from nemo.collections.nlp.data.text_normalization_as_tagging.utils import spoken_preprocessing
+from nemo.collections.nlp.data.text_normalization_as_tagging.utils import spoken_preprocessing, written_preprocessing
 
 parser = ArgumentParser(description="Get reference vocabulary from corpus (it will be used in testing)")
 parser.add_argument("--data_dir", type=str, required=True, help="Path to folder with data")
 parser.add_argument("--out_filename", type=str, required=True, help="Path to output file")
+parser.add_argument("--lang", required=True, type=str, help="Language, e.g. en")
 parser.add_argument(
     "--tn_direction",
     action='store_true',
@@ -49,8 +50,9 @@ if __name__ == "__main__":
                     continue
                 if len(parts) != 3:
                     raise ValueError("Expect 3 parts, got " + str(len(parts)))
-                semiotic_class, written, spoken = parts[0], parts[1].strip().casefold(), parts[2].strip().casefold()
-                spoken = spoken_preprocessing(spoken)
+                semiotic_class, written, spoken = parts[0], parts[1].strip(), parts[2].strip()
+                spoken = spoken_preprocessing(spoken, args.lang)
+                written = written_preprocessing(written, args.lang)
                 if spoken == "<self>":
                     continue
                 if spoken == "" or written == "":

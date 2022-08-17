@@ -23,7 +23,7 @@ from argparse import ArgumentParser
 from collections import Counter
 from typing import Dict, TextIO, Tuple
 
-from nemo.collections.nlp.data.text_normalization_as_tagging.utils import alpha_tokenize, spoken_preprocessing
+from nemo.collections.nlp.data.text_normalization_as_tagging.utils import alpha_tokenize, spoken_preprocessing, written_preprocessing
 
 
 parser = ArgumentParser(description="Text Normalization Data Preprocessing for English")
@@ -32,6 +32,7 @@ parser.add_argument(
 )
 parser.add_argument("--reference_vocab", required=True, type=str, help="Multi Reference vocabulary")
 parser.add_argument("--output_file", required=True, type=str, help="Output file")
+parser.add_argument("--lang", required=True, type=str, help="Language, e.g. en")
 parser.add_argument(
     "--sampling_count", required=True, type=int, help="Number of examples per class, you want, use -1 for all examples"
 )
@@ -49,6 +50,7 @@ def process_file(
     out_raw: TextIO,
     reference_vcb: Dict[Tuple[str, str], Dict[str, int]],
     sampling_vcb: Dict[str, int],
+    lang: str,
 ) -> None:
     """Read one file from Google TN Dataset and extract test sentences
 
@@ -58,7 +60,7 @@ def process_file(
         out_raw: test file in Google TN Format (to be able to run duplex model on the same test set)
         reference_vcb: a vocabulary of multiple references (it is prepared beforehand)
         sampling_vcb: a Counter for different classes, used for sampling
-
+        lang: language, e.g. "en" or "ru"
 
     Output line for ITN direction contains 3 columns:
     1. Spoken-domain input. Example:
@@ -98,8 +100,8 @@ def process_file(
             else:
                 raw_lines.append(line.strip())
                 cls, written, spoken = line.strip().split("\t")
-                spoken = spoken_preprocessing(spoken)
-                written = written.casefold()
+                spoken = spoken_preprocessing(spoken, lang)
+                written = written_preprocessing(written, lang)
                 references = set()
                 if spoken == "sil":
                     continue
@@ -206,7 +208,7 @@ def main() -> None:
     print("out_raw=" + out_raw.name)
     input_paths = sorted([os.path.join(args.data_dir, f) for f in os.listdir(args.data_dir)])
     for inputname in input_paths:
-        process_file(inputname, out, out_raw, reference_vcb, sampling_vcb)
+        process_file(inputname, out, out_raw, reference_vcb, sampling_vcb, args.lang)
     out.close()
     out_raw.close()
 

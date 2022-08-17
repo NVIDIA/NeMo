@@ -121,7 +121,7 @@ def process_file(inputname: str, out: TextIO, keys2replacements: Dict[str, str],
                                 tags.append("<SELF>")
                             else:
                                 tags.append(r)
-                        if tn and cls == "TELEPHONE":  # correct google corpus issue
+                        elif tn and cls == "TELEPHONE":  # correct google corpus issue
                             if r == "sil":
                                 tags.append("<DELETE>")
                         elif w == r.replace("_", ""):
@@ -137,7 +137,16 @@ def process_file(inputname: str, out: TextIO, keys2replacements: Dict[str, str],
                     )
                     if len(words) != len(tags):
                         print(
-                            "WARNING: len(words)=" + str(len(words)) + "; len(tags)=" + str(len(tags)) + "; line=" + line
+                            "WARNING: len(words)="
+                            + str(len(words))
+                            + "; len(tags)="
+                            + str(len(tags))
+                            + "; words="
+                            + str(words)
+                            + "; tags="
+                            + str(tags)
+                            + "; line="
+                            + line
                         )
                         sent_is_ok = False
                 else:

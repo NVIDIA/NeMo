@@ -19,6 +19,28 @@ from typing import Dict, List, Tuple
 
 """Utility functions for Thutmose Tagger."""
 
+UNICODE_VULGAR_FRACTIONS = {
+    "¼": "1/4",
+    "½": "1/2",
+    "¾": "3/4",
+    "⅐": "1/7",
+    "⅑": "1/9",
+    "⅒": "1/10",
+    "⅓": "1/3",
+    "⅔": "2/3",
+    "⅕": "1/5",
+    "⅖": "2/5",
+    "⅗": "3/5",
+    "⅘": "4/5",
+    "⅙": "1/6",
+    "⅚": "5/6",
+    "⅛": "1/8",
+    "⅜": "3/8",
+    "⅝": "5/8",
+    "⅞": "7/8"
+}
+
+UNICODE_VULGAR_FRACTIONS_SET = set(UNICODE_VULGAR_FRACTIONS.keys())
 
 def get_token_list(text: str) -> List[str]:
     """Returns a list of tokens.
@@ -66,22 +88,6 @@ def read_label_map(path: str) -> Dict[str, int]:
         return label_map
 
 
-def read_semiotic_classes(path: str) -> Dict[str, int]:
-    """Return semiotic classes map read from the given path."""
-    with open(path, 'r') as f:
-        semiotic_classes = {}
-        empty_line_encountered = False
-        for tag in f:
-            tag = tag.strip()
-            if tag:
-                semiotic_classes[tag] = len(semiotic_classes)
-            else:
-                if empty_line_encountered:
-                    raise ValueError('There should be no empty lines in the middle of the label map ' 'file.')
-                empty_line_encountered = True
-        return semiotic_classes
-
-
 def split_text_by_isalpha(s: str):
     """Split string into alphabetic and non-alphabetic segments"""
     for k, g in groupby(s, str.isalpha):
@@ -122,36 +128,71 @@ def detokenize_by_underscore(s: str) -> List[str]:
     return output_tokens
 
 
-def spoken_preprocessing(spoken: str) -> str:
+def spoken_preprocessing(spoken: str, lang: str) -> str:
     """Preprocess spoken input for Thuthmose tagger model.
     Attention!
     This function is used both during data preparation and during inference.
     If you change it, you should rerun data preparation and retrain the model.
     """
     spoken = spoken.casefold()
-    spoken = spoken.replace('_trans', '').replace('_letter_latin', '').replace('_letter', '')
+    if lang == "en":
+        spoken = spoken.replace("_letter", "")
 
-    #  "долларов сэ ш а"  => "долларов-сэ-ш-а"    #join into one token to simplify alignment
-    spoken = re.sub(r" долларов сэ ш а", r" долларов-сэ-ш-а", spoken)
-    spoken = re.sub(r" доллара сэ ш а", r" доллара-сэ-ш-а", spoken)
-    spoken = re.sub(r" доллар сэ ш а", r" доллар-сэ-ш-а", spoken)
-    spoken = re.sub(r" фунтов стерлингов", r" фунтов-стерлингов", spoken)
-    spoken = re.sub(r" фунта стерлингов", r" фунта-стерлингов", spoken)
-    spoken = re.sub(r" фунт стерлингов", r" фунт-стерлингов", spoken)
-    spoken = re.sub(r" долларами сэ ш а", r" долларами-сэ-ш-а", spoken)
-    spoken = re.sub(r" долларам сэ ш а", r" долларам-сэ-ш-а", spoken)
-    spoken = re.sub(r" долларах сэ ш а", r" долларах-сэ-ш-а", spoken)
-    spoken = re.sub(r" долларе сэ ш а", r" долларе-сэ-ш-а", spoken)
-    spoken = re.sub(r" доллару сэ ш а", r" доллару-сэ-ш-а", spoken)
-    spoken = re.sub(r" долларом сэ ш а", r" долларом-сэ-ш-а", spoken)
-    spoken = re.sub(r" фунтами стерлингов", r" фунтами-стерлингов", spoken)
-    spoken = re.sub(r" фунтам стерлингов", r" фунтам-стерлингов", spoken)
-    spoken = re.sub(r" фунтах стерлингов", r" фунтах-стерлингов", spoken)
-    spoken = re.sub(r" фунте стерлингов", r" фунте-стерлингов", spoken)
-    spoken = re.sub(r" фунту стерлингов", r" фунту-стерлингов", spoken)
-    spoken = re.sub(r" фунтом стерлингов", r" фунтом-стерлингов", spoken)
+    if lang == "ru":
+        spoken = spoken.replace("_trans", "").replace("_letter_latin", "").replace("_letter", "")
+
+        #  "долларов сэ ш а"  => "долларов-сэ-ш-а"    #join into one token to simplify alignment
+        spoken = re.sub(r" долларов сэ ш а", r" долларов-сэ-ш-а", spoken)
+        spoken = re.sub(r" доллара сэ ш а", r" доллара-сэ-ш-а", spoken)
+        spoken = re.sub(r" доллар сэ ш а", r" доллар-сэ-ш-а", spoken)
+        spoken = re.sub(r" фунтов стерлингов", r" фунтов-стерлингов", spoken)
+        spoken = re.sub(r" фунта стерлингов", r" фунта-стерлингов", spoken)
+        spoken = re.sub(r" фунт стерлингов", r" фунт-стерлингов", spoken)
+        spoken = re.sub(r" долларами сэ ш а", r" долларами-сэ-ш-а", spoken)
+        spoken = re.sub(r" долларам сэ ш а", r" долларам-сэ-ш-а", spoken)
+        spoken = re.sub(r" долларах сэ ш а", r" долларах-сэ-ш-а", spoken)
+        spoken = re.sub(r" долларе сэ ш а", r" долларе-сэ-ш-а", spoken)
+        spoken = re.sub(r" доллару сэ ш а", r" доллару-сэ-ш-а", spoken)
+        spoken = re.sub(r" долларом сэ ш а", r" долларом-сэ-ш-а", spoken)
+        spoken = re.sub(r" фунтами стерлингов", r" фунтами-стерлингов", spoken)
+        spoken = re.sub(r" фунтам стерлингов", r" фунтам-стерлингов", spoken)
+        spoken = re.sub(r" фунтах стерлингов", r" фунтах-стерлингов", spoken)
+        spoken = re.sub(r" фунте стерлингов", r" фунте-стерлингов", spoken)
+        spoken = re.sub(r" фунту стерлингов", r" фунту-стерлингов", spoken)
+        spoken = re.sub(r" фунтом стерлингов", r" фунтом-стерлингов", spoken)
 
     return spoken
+
+
+def written_preprocessing(written: str, lang: str) -> str:
+    """Preprocess written input for Thuthmose tagger model.
+    Attention!
+    This function is used both during data preparation and during inference.
+    If you change it, you should rerun data preparation and retrain the model.
+    """
+    written = written.casefold()
+
+    ## language independent
+    # "⅝" => "5/8"
+    vulgar_fractions = UNICODE_VULGAR_FRACTIONS_SET & set(written)
+    for frac in vulgar_fractions:
+        written = written.replace(frac, " " + UNICODE_VULGAR_FRACTIONS[frac]).replace("  ", " ")
+
+    if lang == "en":
+        # 5 km2 => 5 km²
+        written = re.sub(r"([\d /])([kcmn]?m)2 ", r"\g<1>\g<2>² ", written)
+        written = re.sub(r"([\d /])([kcmn]?m)2$", r"\g<1>\g<2>²", written)
+        written = re.sub(r"([\d /])([kcmn]?m)3 ", r"\g<1>\g<2>³ ", written)
+        written = re.sub(r"([\d /])([kcmn]?m)3$", r"\g<1>\g<2>³", written)
+
+    if lang == "ru":
+        # 5 км2 => 5 км²
+        written = re.sub(r"([\d ])([ксмн]?м)2 ", r"\g<1>\g<2>² ", written)
+        written = re.sub(r"([\d ])([ксмн]?м)2$", r"\g<1>\g<2>²", written)
+        written = re.sub(r"([\d ])([ксмн]?м)3 ", r"\g<1>\g<2>³ ", written)
+        written = re.sub(r"([\d ])([ксмн]?м)3$", r"\g<1>\g<2>³", written)
+
+    return written
 
 
 ## This function is used only in data preparation (examples/nlp/normalisation_as_tagging/dataset_preparation)
@@ -170,9 +211,9 @@ def get_src_and_dst_for_alignment(
             same_begin: str
             same_end: str
     """
-    written = written.casefold()
+    written = written_preprocessing(written, lang)
     # ATTENTION!!! This is INPUT transformation! Need to do the same at inference time!
-    spoken = spoken_preprocessing(spoken)
+    spoken = spoken_preprocessing(spoken, lang)
 
     # remove same fragments at the beginning or at the end of spoken and written form
     written_parts = written.split()
@@ -211,11 +252,13 @@ def get_src_and_dst_for_alignment(
             else:
                 written_tokens.append("_" + frag + "_")
         else:
-            chars = list(frag.strip().replace(" ", ""))
-            if len(chars) > 0:
-                chars[0] = "_" + chars[0]  # prepend first symbol of a non-alpha fragment with underscore
-                chars[-1] = chars[-1] + "_"  # append underscore to the last symbol of a non-alpha fragment
-                written_tokens += chars
+            subfrags = frag.split(" ")
+            for subfrag in subfrags:
+                chars = list(subfrag)
+                if len(chars) > 0:
+                    chars[0] = "_" + chars[0]  # prepend first symbol of a non-alpha fragment with underscore
+                    chars[-1] = chars[-1] + "_"  # append underscore to the last symbol of a non-alpha fragment
+                    written_tokens += chars
     written_str = " ".join(written_tokens)
 
     # _н_ _._ _г_ _._ => _н._ _г._
@@ -303,7 +346,7 @@ def get_src_and_dst_for_alignment(
         # if a span start with currency, move it to the end
         #  "_$ 2 5_"  => "_2 5_ _$<<"    #<< means "at post-processing move to the beginning of th semiotic span"
         written_str = re.sub(
-            r"^(_[^0123456789abcdefghijklmnopqrstuvwxyzабвгдеёжзийклмнопрстуфхцчшщъыьэюя]) ([\d].*)$",
+            r"^(_[^0123456789abcdefghijklmnopqrstuvwxyzабвгдеёжзийклмнопрстуфхцчшщъыьэюя])_? _?([\d].*)$",
             r"_\g<2> \g<1><<",
             written_str,
         )

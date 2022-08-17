@@ -26,9 +26,10 @@ USAGE Example:
     export TOKENIZERS_PARALLELISM=false
     python ${NEMO_PATH}/examples/nlp/text_normalization_as_tagging/normalization_as_tagging_infer.py \
       pretrained_model=./training.nemo \
+      lang=en \
       inference.from_file=./input.txt \
       inference.out_file=./output.txt \
-      model.max_sequence_len=1024 #\
+      model.max_sequence_len=1024 \
       inference.batch_size=128
 
 This script uses the `/examples/nlp/text_normalization_as_tagging/conf/thutmose_tagger_itn_config.yaml`
@@ -42,7 +43,7 @@ import os
 from helpers import ITN_MODEL, instantiate_model_and_trainer
 from omegaconf import DictConfig, OmegaConf
 
-from nemo.collections.nlp.data.text_normalization_as_tagging.utils import spoken_preprocessing
+from nemo.collections.nlp.data.text_normalization_as_tagging.utils import spoken_preprocessing, written_preprocessing
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
@@ -67,7 +68,12 @@ def main(cfg: DictConfig) -> None:
 
     batch, all_preds = [], []
     for i, line in enumerate(lines):
-        s = spoken_preprocessing(line)  # this is the same input transformation as in corpus preparation
+        s = line
+        if cfg.name == "itn":
+            s = spoken_preprocessing(s, cfg.lang)  # this is the same input transformation as in corpus preparation
+        else:  # cfg.name == "tn"
+            s = written_preprocessing(s, cfg.lang)  # this is the same input transformation as in corpus preparation
+
         batch.append(s.strip())
         if len(batch) == batch_size or i == len(lines) - 1:
             outputs = model._infer(batch)
