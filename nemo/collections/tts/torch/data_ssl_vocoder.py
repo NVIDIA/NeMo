@@ -121,7 +121,7 @@ class SSLVocoderDataset(Dataset):
             ).cpu()
 
         elif ssl_model_type == "conformer_multitask":
-            self.ssl_model = ssl_tts.SSLDisentangler.load_from_checkpoint(ssl_model_ckpt_path).cpu()
+            self.ssl_model = ssl_tts.SSLDisentangler.load_from_checkpoint(ssl_model_ckpt_path,strict=False).cpu()
 
         with open_dict(self.ssl_model.cfg):
             self.ssl_model.cfg.preprocessor.exact_pad = True
