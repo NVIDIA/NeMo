@@ -2,7 +2,7 @@ set -o xtrace
 
 MICRO_BATCH_SIZE=${MICRO_BATCH_SIZE:-4}
 
-HYDRA_FULL_ERROR=1 python3 main.py \
+HYDRA_FULL_ERROR=1 BIGNLP_CI=1 python3 main.py \
     evaluation=${RUN_MODEL}/${TEST_TASK} \
     stages=["evaluation"] \
     bignlp_path=${GIT_CLONE_PATH} \

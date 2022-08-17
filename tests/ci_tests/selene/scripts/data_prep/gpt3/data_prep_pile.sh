@@ -1,4 +1,4 @@
-HYDRA_FULL_ERROR=1 python3 main.py \
+HYDRA_FULL_ERROR=1 BIGNLP_CI=1 python3 main.py \
     data_preparation=download_gpt3_pile \
     stages=["data_preparation"] \
     bignlp_path=${GIT_CLONE_PATH} \

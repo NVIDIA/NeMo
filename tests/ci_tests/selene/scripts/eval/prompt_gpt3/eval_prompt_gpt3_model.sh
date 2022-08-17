@@ -3,7 +3,7 @@ if [[ "$TEST_TASK" = "squad_real" ]]; then
   params+=(container_mounts=[/lustre/fsw/joc/big_nlp/bignlp_ci_resources:/lustre/fsw/joc/big_nlp/bignlp_ci_resources,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data])
 fi
 
-HYDRA_FULL_ERROR=1 python3 main.py \
+HYDRA_FULL_ERROR=1 BIGNLP_CI=1 python3 main.py \
     evaluation=${RUN_MODEL}/squad \
     stages=["evaluation"] \
     bignlp_path=${GIT_CLONE_PATH} \

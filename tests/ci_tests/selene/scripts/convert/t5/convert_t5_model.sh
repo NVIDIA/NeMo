@@ -2,7 +2,7 @@ DATA_DIR=/lustre/fsw/joc/big_nlp/t5/dataset/Pile
 
 set -o xtrace
 
-HYDRA_FULL_ERROR=1 python3 main.py \
+HYDRA_FULL_ERROR=1 BIGNLP_CI=1 python3 main.py \
     conversion=${RUN_MODEL}/convert_${RUN_MODEL} \
     stages=["conversion"] \
     bignlp_path=${GIT_CLONE_PATH} \
