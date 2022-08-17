@@ -11,6 +11,7 @@ class TestFinetuningT5Config:
           dependency: "singleton"
           convert_name: convert_nemo
           model_train_name: t5_220m
+          convert_dir: ${base_results_dir}/${fine_tuning.run.model_train_name}/${fine_tuning.run.convert_name}
           task_name: "mnli" # Supported task names: "cola", "sst-2", "mrpc", "sts-b", "qqp", "mnli", "qnli", "rte"
           results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
         
@@ -51,7 +52,7 @@ class TestFinetuningT5Config:
             save_best_model: True
         
         model: # For different fine_tuning tasks, tuning the hyper parameters accordingly; below is only for MNLI
-          restore_from_path: ${base_results_dir}/${fine_tuning.run.model_train_name}/${fine_tuning.run.convert_name}/results/megatron_t5.nemo # Path to a trained T5 .nemo file
+          restore_from_path: ${fine_tuning.run.convert_dir}/results/megatron_t5.nemo # Path to a trained T5 .nemo file
           tensor_model_parallel_size: 1
           pipeline_model_parallel_size: 1
           pipeline_model_parallel_split_rank: ${divide_floor:${.pipeline_model_parallel_size}, 2}

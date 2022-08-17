@@ -11,7 +11,7 @@ class TestEvaluationT5Config:
           dependency: "singleton"
           model_train_name: t5_220m
           task_name: "mnli" # Supported task names: "cola", "sst-2", "mrpc", "sts-b", "qqp", "mnli", "qnli", "rte"
-          finetuning_results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
+          fine_tuning_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
           results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}_eval
         
         trainer:
@@ -32,7 +32,7 @@ class TestEvaluationT5Config:
           create_checkpoint_callback: False
         
         model:
-          restore_from_path: ${evaluation.run.finetuning_results_dir}/checkpoints/megatron_t5_glue.nemo # Path to a finetuned T5 .nemo file
+          restore_from_path: ${evaluation.run.fine_tuning_dir}/results/checkpoints/megatron_t5_glue.nemo # Path to a finetuned T5 .nemo file
           gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
           megatron_amp_O2: False # Enable O2 optimization for megatron amp
         

@@ -3,7 +3,7 @@ from omegaconf import OmegaConf
 
 class TestConversionT5Config:
     def test_conversion_t5_config(self):
-        conf = OmegaConf.load("conf/conversion/convert_t5.yaml")
+        conf = OmegaConf.load("conf/conversion/t5/convert_t5.yaml")
         s = """
         run:
           name: convert_${conversion.run.model_train_name}
@@ -35,7 +35,7 @@ class TestConversionT5Config:
 
 class TestConversionGPT3Config:
     def test_conversion_gpt3_config(self):
-        conf = OmegaConf.load("conf/conversion/convert_gpt3.yaml")
+        conf = OmegaConf.load("conf/conversion/gpt3/convert_gpt3.yaml")
         s = """
         run:
           name: convert_${conversion.run.model_train_name}

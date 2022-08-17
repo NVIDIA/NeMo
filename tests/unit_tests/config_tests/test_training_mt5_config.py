@@ -438,9 +438,9 @@ model:
         conf = OmegaConf.load('conf/training/mt5/3b.yaml')
         s = """
 run:
-  name: mt5_390m
+  name: mt5_3b
   results_dir: ${base_results_dir}/${.name}
-  time_limit: "7-00:00:00"
+  time_limit: "18-00:00:00"
   dependency: "singleton"
   preprocessed_dir: ${data_dir}/mc4/preprocessed # used for auto data blending
   blending_alpha: 0.7 # blending ratio across different languages; language sampling ratio ~L^alpha
@@ -449,7 +449,7 @@ name: megatron_mt5
 restore_from_path: null # used when starting from a .nemo file
 
 trainer:
-  num_nodes: 8
+  num_nodes: 20
   devices: 8
   accelerator: gpu
   precision: bf16
@@ -457,8 +457,8 @@ trainer:
   enable_checkpointing: False
   replace_sampler_ddp: False
   max_epochs: null
-  max_steps: 1000000 # consumed_samples = global_step * global_batch_size
-  max_time: "06:23:30:00"
+  max_steps: 1066667 # consumed_samples = global_step * global_batch_size
+  max_time: "17:23:30:00"
   log_every_n_steps: 10
   val_check_interval: 2000
   limit_val_batches: 50
@@ -493,9 +493,9 @@ exp_manager:
 
 model:
   # model parallelism
-  micro_batch_size: 32
-  global_batch_size: 2048 # will use more micro batches to reach global batch size
-  tensor_model_parallel_size: 1
+  micro_batch_size: 24
+  global_batch_size: 1920 # will use more micro batches to reach global batch size
+  tensor_model_parallel_size: 2
   pipeline_model_parallel_size: 1
   resume_from_checkpoint: null # manually set the checkpoint file to load from
   pipeline_model_parallel_split_rank: ${divide_floor:${.pipeline_model_parallel_size}, 2}
@@ -513,10 +513,10 @@ model:
   max_position_embeddings: ${.seq_length}
 
   encoder:
-    num_layers: 12
-    hidden_size: 768
-    ffn_hidden_size: 2048  # Transformer FFN hidden size. 4 * hidden_size.
-    num_attention_heads: 12
+    num_layers: 24
+    hidden_size: 2048
+    ffn_hidden_size: 5120  # Transformer FFN hidden size. 4 * hidden_size.
+    num_attention_heads: 32
     kv_channels: 64  # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
     init_method_std: 0.015  # Standard deviation of the zero mean normal distribution used for weight initialization.')
     hidden_dropout: 0.1  # Dropout probability for hidden state transformer.
@@ -547,10 +547,10 @@ model:
     activations_checkpoint_num_layers: 0
 
   decoder:
-    num_layers: 12
-    hidden_size: 768
-    ffn_hidden_size: 2048  # Transformer FFN hidden size. 4 * hidden_size.
-    num_attention_heads: 12
+    num_layers: 24
+    hidden_size: 2048
+    ffn_hidden_size: 5120  # Transformer FFN hidden size. 4 * hidden_size.
+    num_attention_heads: 32
     kv_channels: 64  # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
     init_method_std: 0.015 # Standard deviation of the zero mean normal distribution used for weight initialization.')
     hidden_dropout: 0.1 # Dropout probability for hidden state transformer.
@@ -602,7 +602,7 @@ model:
   # embedding sharing
   share_token_embeddings: True # If True share encoder/decoder embeddings
   share_decoder_tokens_head_embeddings: True # If True share decoder embeddings and decoder projection to logits
-
+  
   nsys_profile:
     enabled: False
     trace: [nvtx,cuda]
@@ -624,6 +624,7 @@ model:
       min_lr: 0.00001
       last_epoch: -1
       warmup_ratio: 0.01
+
 
   data:
     data_impl: mmap
