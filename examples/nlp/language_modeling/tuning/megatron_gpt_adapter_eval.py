@@ -14,15 +14,15 @@
 
 
 import torch
+from apex.transformer import parallel_state
 from omegaconf import OmegaConf
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
-from apex.transformer import parallel_state
+
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_adapter_model import MegatronGPTAdapterLearningModel
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 from nemo.core.config import hydra_runner
-
 
 """
 This is the script to run GPT text generation.
@@ -201,7 +201,9 @@ def main(cfg) -> None:
 
     # Or load regular GPT model
     else:
-        raise NotImplementedError("Only inference from prefix tuned model is supported, for general inerference from a Megatron GPT model, refer to ../megatron_gpt_eval.py")
+        raise NotImplementedError(
+            "Only inference from prefix tuned model is supported, for general inerference from a Megatron GPT model, refer to ../megatron_gpt_eval.py"
+        )
 
     model.freeze()
 
@@ -215,7 +217,7 @@ def main(cfg) -> None:
         model.frozen_model.model.language_model.encoder.activations_checkpoint_method = None
     except AttributeError:
         pass
-    
+
     length_params: LengthParam = {
         "max_length": cfg.inference.tokens_to_generate,
         "min_length": cfg.inference.min_tokens_to_generate,
@@ -236,13 +238,13 @@ def main(cfg) -> None:
     # check whether the DDP is initialized
     if parallel_state.is_unitialized():
 
-            def dummy():
-                return
+        def dummy():
+            return
 
-            if trainer.strategy.launcher is not None:
-                trainer.strategy.launcher.launch(dummy, trainer=trainer)
-            trainer.strategy.setup_environment()
-    
+        if trainer.strategy.launcher is not None:
+            trainer.strategy.launcher.launch(dummy, trainer=trainer)
+        trainer.strategy.setup_environment()
+
     _, dataloader = model.build_virtual_prompt_dataset(
         dataset_paths=cfg.data_paths,
         batch_size=16,
@@ -268,7 +270,7 @@ def main(cfg) -> None:
                     f.write(s + "\n")
         print("predictions saved to {}".format(cfg.output_file))
     print("***************************")
-  
+
 
 if __name__ == '__main__':
     main()  # noqa pylint: disable=no-value-for-parameter

@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import List, Optional
+
+from omegaconf import DictConfig
+
+from nemo.core import adapter_mixins
 from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
 from nemo.utils import logging, logging_mode
-from nemo.core import adapter_mixins
-from typing import List, Optional
-from omegaconf import DictConfig
 
 __all__ = ["MegatronTokenLevelAdapterEncoderDecoderModule"]
 
@@ -39,7 +41,7 @@ class MegatronTokenLevelAdapterEncoderDecoderModule(adapter_mixins.AdapterModelP
         # If any class supports it, try to restore adapters
         if supports_adapters:
             super().setup_adapters()
-    
+
     def add_adapter(self, name: str, cfg: DictConfig):
         # Setup the config first
         super().add_adapter(name, cfg)
@@ -57,7 +59,7 @@ class MegatronTokenLevelAdapterEncoderDecoderModule(adapter_mixins.AdapterModelP
 
         if (module_name == '' and global_config.get('decoder_adapter', False)) or (module_name == 'decoder'):
             self.decoder.add_adapter(name, cfg)
-    
+
     def resolve_adapter_module_name_(self, name: str):
         # resolve name and module
         module_name, adapter_name = super().resolve_adapter_module_name_(name)
@@ -96,7 +98,7 @@ class MegatronTokenLevelAdapterEncoderDecoderModule(adapter_mixins.AdapterModelP
             enabled_adapters.extend(decoder_adapters)
 
         return enabled_adapters
-    
+
     def set_enabled_adapters(self, name: Optional[str] = None, enabled: bool = True):
         # check if valid model with some adapter support
         super().set_enabled_adapters(name, enabled)

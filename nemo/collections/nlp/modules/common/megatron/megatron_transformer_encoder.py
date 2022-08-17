@@ -16,7 +16,7 @@
 
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer, AdapterParallelTransformer
+from nemo.collections.nlp.modules.common.megatron.transformer import AdapterParallelTransformer, ParallelTransformer
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     attn_mask_postprocess,

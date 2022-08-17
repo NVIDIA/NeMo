@@ -14,11 +14,12 @@
 
 """Transformer based language model with Adapter support."""
 
-from nemo.collections.nlp.modules.common.megatron.megatron_transformer_encoder import MegatronTransformerEncoderModule
-from nemo.core import adapter_mixins
 from typing import List, Optional
+
 from omegaconf import DictConfig
 
+from nemo.collections.nlp.modules.common.megatron.megatron_transformer_encoder import MegatronTransformerEncoderModule
+from nemo.core import adapter_mixins
 
 __all__ = ["MegatronTransformerAdapterEncoderModule"]
 
@@ -26,14 +27,15 @@ __all__ = ["MegatronTransformerAdapterEncoderModule"]
 class MegatronTransformerAdapterEncoderModule(MegatronTransformerEncoderModule, adapter_mixins.AdapterModuleMixin):
     """Transformer decoder model.
     """
+
     def add_adapter(self, name: str, cfg: DictConfig):
-      self.model.add_adapter(name, cfg)
-      
+        self.model.add_adapter(name, cfg)
+
     def get_enabled_adapters(self) -> List[str]:
         return list(self.model.get_enabled_adapters())
-    
+
     def set_enabled_adapters(self, name: Optional[str], enabled: bool):
         self.model.set_enabled_adapters(name, enabled)
-    
+
     def is_adapter_available(self) -> bool:
         return self.model.is_adapter_available()

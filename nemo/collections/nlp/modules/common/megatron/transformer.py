@@ -34,8 +34,8 @@ from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.rotary_pos_embedding import apply_rotary_pos_emb
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, attention_mask_func, erf_gelu
-from nemo.utils import logging
 from nemo.core import adapter_mixins
+from nemo.utils import logging
 
 try:
     from apex.transformer import parallel_state, tensor_parallel
@@ -1359,10 +1359,12 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
 
             layernorm_input = bias_dropout_add_func(attention_output, attention_bias, residual, self.hidden_dropout)
 
-            if self.is_adapter_available(): # TODO: (@adithyre) need to find the correct place for this adapter
+            if self.is_adapter_available():  # TODO: (@adithyre) need to find the correct place for this adapter
                 adapter_1 = self.adapter_layer['adapter_1']
                 strategy = adapter_1.adapter_strategy
-                layernorm_input = self.forward_single_enabled_adapter_(layernorm_input, adapter_1, adapter_name='adapter_1', adapter_strategy=strategy)
+                layernorm_input = self.forward_single_enabled_adapter_(
+                    layernorm_input, adapter_1, adapter_name='adapter_1', adapter_strategy=strategy
+                )
 
             # Post-LN normalization after residual
             if self.transformer_block_type == 'post_ln':
@@ -1441,10 +1443,12 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         if get_key_value:
             output = [output, presents]
 
-        if self.is_adapter_available(): # TODO: (@adithyre) need to find the correct place for this adapter
+        if self.is_adapter_available():  # TODO: (@adithyre) need to find the correct place for this adapter
             adapter_2 = self.adapter_layer['adapter_2']
             strategy = adapter_2.adapter_strategy
-            output = self.forward_single_enabled_adapter_(output, adapter_2, adapter_name='adapter_2', adapter_strategy=strategy)
+            output = self.forward_single_enabled_adapter_(
+                output, adapter_2, adapter_name='adapter_2', adapter_strategy=strategy
+            )
         return output
 
 
@@ -1912,23 +1916,24 @@ class ParallelTransformer(MegatronModule):
 
         return output
 
+
 class AdapterParallelTransformer(ParallelTransformer, adapter_mixins.AdapterModuleMixin):
     def add_adapter(self, name: str, cfg):
-      # call the same method on each layer, collecting results
-      for layer in self.layers:
-        layer.add_adapter(name, cfg)
-      
+        # call the same method on each layer, collecting results
+        for layer in self.layers:
+            layer.add_adapter(name, cfg)
+
     def get_enabled_adapters(self):
         enabled_adapters = set([])
         for layer in self.layers:
             names = layer.get_enabled_adapters()
             enabled_adapters.update(names)
         return list(enabled_adapters)
-    
+
     def set_enabled_adapters(self, name, enabled: bool):
         for layer in self.layers:
             layer.set_enabled_adapters(name, enabled)
-    
+
     def is_adapter_available(self) -> bool:
         is_available = any([layer.is_adapter_available() for layer in self.layers])
         return is_available

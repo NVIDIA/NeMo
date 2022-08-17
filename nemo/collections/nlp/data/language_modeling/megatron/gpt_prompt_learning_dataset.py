@@ -153,7 +153,7 @@ class GPTPromptLearningDataset(Dataset):
 
                 elif self.virtual_prompt_source == VirtualPromptSource.PROMPT_TABLE:
                     taskname_id = self.task_templates[taskname]["task_id_num"]
-                
+
                 elif self.virtual_prompt_source == VirtualPromptSource.NO_PROMPT:
                     taskname_id = -1
                 else:

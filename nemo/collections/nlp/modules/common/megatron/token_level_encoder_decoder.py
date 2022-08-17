@@ -23,6 +23,9 @@ from nemo.collections.nlp.modules.common.megatron.megatron_encoder_decoder impor
 from nemo.collections.nlp.modules.common.megatron.megatron_encoders import get_encoder_model
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.t5_relative_position_embedding import T5RelativePositionEmbedding
+from nemo.collections.nlp.modules.common.megatron.token_level_adapter_encoder_decoder import (
+    MegatronTokenLevelAdapterEncoderDecoderModule,
+)
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     build_position_ids,
@@ -31,7 +34,6 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     scaled_init_method_normal,
 )
 from nemo.collections.nlp.modules.common.megatron.vocab_parallel_cross_entropy import vocab_parallel_cross_entropy
-from nemo.collections.nlp.modules.common.megatron.token_level_adapter_encoder_decoder import MegatronTokenLevelAdapterEncoderDecoderModule
 
 try:
     from apex.transformer import tensor_parallel, parallel_state
@@ -531,7 +533,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, MegatronTokenLevelA
         self.tokens_head.load_state_dict(state_dict[self._tokens_head_key], strict=strict)
 
     # needed for adapters
-    def freeze(self): # not sure why it's not available by default
+    def freeze(self):  # not sure why it's not available by default
         for param in self.parameters():
             param.requires_grad = False
 
