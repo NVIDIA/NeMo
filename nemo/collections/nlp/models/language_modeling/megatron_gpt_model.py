@@ -626,6 +626,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             for i, module in enumerate(self.model):
                 parallel_state.set_virtual_pipeline_model_parallel_rank(i)
                 module.sync_initial_word_embeddings()
+            parallel_state.set_virtual_pipeline_model_parallel_rank(0)
             # for module in self.model:
             #     module.sync_initial_word_embeddings()
 
