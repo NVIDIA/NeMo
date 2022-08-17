@@ -870,7 +870,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 if self.cfg.encoder.get('position_embedding_type', 'learned_absolute') == 'relative':
                     self.enc_dec_model.sync_initial_encoder_relative_position_embeddings()
                 if self.cfg.decoder.get('position_embedding_type', 'learned_absolute') == 'relative':
-                    self.enc_dec_model.sync_initial_decoder_relative_position_embeddings()
+                    self.enc_dec_model.sync_initial_decoder_self_attention_relative_position_embeddings()
                 if self.cfg.decoder.get('position_embedding_type', 'learned_absolute') == 'relative' and self.cfg.decoder.get('relative_position_bias_self_attention_only', True):
                     self.enc_dec_model.sync_initial_decoder_cross_attention_relative_position_embeddings()
 
