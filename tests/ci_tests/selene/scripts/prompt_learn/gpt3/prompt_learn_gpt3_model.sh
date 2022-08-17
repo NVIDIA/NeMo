@@ -13,7 +13,7 @@ else
   params+=(prompt_learning.trainer.val_check_interval=$VAL_CHECK_INTERVAL)
   params+=(prompt_learning.trainer.max_steps=${MAX_STEPS})
   UPSTREAM_RUN_NAME=convert_${RUN_MODEL}_${RUN_MODEL_SIZE}_tp${TP_SIZE}_pp${PP_SIZE}
-  LANGUAGE_MODEL_PATH=${BASE_RESULTS_DIR}/${UPSTREAM_RUN_NAME}/megatron_gpt.nemo
+  LANGUAGE_MODEL_PATH=${BASE_RESULTS_DIR}/${UPSTREAM_RUN_NAME}/results/megatron_gpt.nemo
 fi
 
 set -o xtrace

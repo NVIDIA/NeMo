@@ -51,7 +51,7 @@ class TestFinetuningT5Config:
             save_best_model: True
         
         model: # For different fine_tuning tasks, tuning the hyper parameters accordingly; below is only for MNLI
-          restore_from_path: ${base_results_dir}/${fine_tuning.run.model_train_name}/${fine_tuning.run.convert_name}/megatron_t5.nemo # Path to a trained T5 .nemo file
+          restore_from_path: ${base_results_dir}/${fine_tuning.run.model_train_name}/${fine_tuning.run.convert_name}/results/megatron_t5.nemo # Path to a trained T5 .nemo file
           tensor_model_parallel_size: 1
           pipeline_model_parallel_size: 1
           pipeline_model_parallel_split_rank: ${divide_floor:${.pipeline_model_parallel_size}, 2}
