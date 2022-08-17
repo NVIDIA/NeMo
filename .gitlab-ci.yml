@@ -1,5 +1,6 @@
 # Info on how to use the new CI system (https://docs.google.com/document/d/18uNblUvMvnN51Fda0itqsZzEXm9SJKQ-AcRMw6mGdCg/edit)
-
+# Relase perf website : https://dl.gitlab-master-pages.nvidia.com/JoC/bignlp-scripts/
+# CI Test info : https://docs.google.com/spreadsheets/d/1XAr-5UEM0q9n5gLm9eh76NfxHrfh0z0mmjlpP4FZSCY/edit#gid=0
 variables: &VARS
   BIGNLP_REGISTRY: "gitlab-master.nvidia.com:5005/dl/joc/bignlp-scripts"
   BIGNLP_BASE_IMAGE: "nvcr.io/nvidian/bignlp-training:22.06.10-py"
@@ -10,14 +11,12 @@ variables: &VARS
   TESTS_TO_RUN_ON_THIS_COMMIT:  NONE # Can specify levels, ci job names etc as a space seperated list to run during this commit
   TEST_REGEX_ON_THIS_COMMIT: NONE #https://github.com/google/re2/wiki/Syntax (Can define regex as in this spec) e.g /.*gpt3.*/
 
-
 stages:
   - build
   - deploy # To deploy github pages for release perf (can only be done from root folder)
   - release_perf
   - test
   - cleanup
-
 
 ################
 # JOB Templates
