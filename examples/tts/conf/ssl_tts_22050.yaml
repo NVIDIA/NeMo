@@ -30,8 +30,8 @@ model:
   combined_loss: true
   pitch_augment: true
   augment_sim_alpha: 1.0
-  stop_gradient: true
-  augment_ctc: false
+  stop_gradient: false
+  augment_ctc: true
   aug_loss_type: "cosine"
 
   train_ds:
