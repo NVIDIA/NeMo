@@ -19,10 +19,7 @@ import string
 from contextlib import contextmanager
 from typing import List
 
-from nemo.collections.common.tokenizers.text_to_speech.lang_utils import (
-    english_text_preprocessing,
-    german_text_preprocessing,
-)
+from nemo.nemo_text_processing.g2p.data.data_utils import english_text_preprocessing, german_text_preprocessing
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
 

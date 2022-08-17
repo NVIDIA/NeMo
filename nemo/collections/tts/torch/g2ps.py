@@ -11,4 +11,4 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from nemo.collections.common.tokenizers.text_to_speech.g2ps import IPAG2P, BaseG2p, EnglishG2p
+from nemo.nemo_text_processing.g2p.modules import IPAG2P, BaseG2p, EnglishG2p

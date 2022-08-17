@@ -20,10 +20,10 @@ import numpy as np
 import pytest
 import torch
 
-from nemo.collections.common.tokenizers.text_to_speech.g2ps import EnglishG2p
 from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import EnglishPhonemesTokenizer
 from nemo.collections.tts.torch.data import TTSDataset
 from nemo.collections.tts.torch.helpers import get_base_dir
+from nemo.nemo_text_processing.g2p.modules import EnglishG2p
 
 
 class TestTTSDataset:

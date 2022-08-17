@@ -56,7 +56,7 @@ model:
     apostrophe: true
     pad_with_space: true
     g2p:
-      _target_: nemo.collections.common.tokenizers.text_to_speech.g2ps.EnglishG2p
+      _target_: nemo.nemo_text_processing.g2p.modules.EnglishG2p
       phoneme_dict: ${phoneme_dict_path}
       heteronyms: ${heteronyms_path}
 

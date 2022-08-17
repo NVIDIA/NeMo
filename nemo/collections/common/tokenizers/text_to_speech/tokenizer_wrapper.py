@@ -13,8 +13,8 @@
 # limitations under the License.
 
 from nemo.collections.common.tokenizers import TokenizerSpec
-from nemo.collections.common.tokenizers.text_to_speech.g2ps import EnglishG2p
 from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import EnglishPhonemesTokenizer
+from nemo.nemo_text_processing.g2p.modules import EnglishG2p
 
 __all__ = ['TextToSpeechTokenizer']
 
