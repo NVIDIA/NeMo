@@ -105,22 +105,23 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
                     name: The method name (str).
                         Supported values:
                             - 'max_prob' for using the maximum token probability as a confidence.
-                            - 'norm_ent' for using normalized entropy of a log-likelihood vector.
+                            - 'entropy' for using a normalized entropy of a log-likelihood vector.
 
                     entropy_type: Which type of entropy to use (str).
-                        Used if confidence_method_cfg.name is set to `norm_ent`.
+                        Used if confidence_method_cfg.name is set to `entropy`.
                         Supported values:
+                            - 'gibbs' for the (standard) Gibbs entropy.
                             - 'tsallis' for the Tsallis entropy with the Boltzmann constant one.
                                 Tsallis entropy formula is the following: H_α = 1/(α-1)*(1-sum_i(p^α_i)),
-                                where α is a parameter. If α == 1, then the entropy behaves like ordinary entropy.
+                                where α is a parameter. When α == 1, it works like the Gibbs entropy.
                                 More: https://en.wikipedia.org/wiki/Tsallis_entropy
                             - 'renui' for the Rényi entropy.
                                 Rényi entropy formula is the following: H_α = 1/(1-α)*log_2(sum_i(p^α_i)),
-                                where α is a parameter. If α == 1, then the entropy behaves like an ordinary entropy.
+                                where α is a parameter. When α == 1, it works like the Gibbs entropy.
                                 More: https://en.wikipedia.org/wiki/R%C3%A9nyi_entropy
 
                     entropy_alpha: An entropy method's parameter. Here we restrict it to be > 0.
-                        When α == 1, any entropy type behaves like the Shannon entropy: H = -sum_i(p_i*log(p_i))
+                        When α == 1, any entropy type behaves like the Gibbs entropy: H = -sum_i(p_i*log(p_i))
 
                     entropy_norm: A mapping of the entropy value to the interval [0,1].
                         Supported values:
@@ -195,7 +196,7 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
             decoding_cfg=decoding_cfg, decoder=decoder, joint=joint, blank_id=blank_id
         )
 
-    def _reduce_token_confidence(self, hypothesis: Hypothesis) -> List[float]:
+    def _aggregate_token_confidence(self, hypothesis: Hypothesis) -> List[float]:
         """
         Implemented by subclass in order to reduce token confidence to a word-level confidence.
 
@@ -207,30 +208,7 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
         Returns:
             A list of word-level confidence scores.
         """
-        assert len(hypothesis.y_sequence) == len(hypothesis.token_confidence)
-        word_confidence = []
-        # run only if there are final words
-        if len(hypothesis.words) > 0:
-            j = 0
-            prev_unk = False
-            prev_underline = False
-            for i, token_id in enumerate(hypothesis.y_sequence):
-                token = self.decode_ids_to_tokens([int(token_id)])[0]
-                token_text = self.decode_tokens_to_str([int(token_id)])
-                # treat `<unk>` as a separate word regardless of the next token
-                # to match the result of `tokenizer.ids_to_text`
-                if (token != token_text or prev_unk) and i > j:
-                    # do not add confidence for `▁` if the current token starts with `▁`
-                    # to match the result of `tokenizer.ids_to_text`
-                    if not prev_underline:
-                        word_confidence.append(self.reduction_function(hypothesis.token_confidence[j: i]))
-                    j = i
-                prev_unk = token == '<unk>'
-                prev_underline = token == '▁'
-            if not prev_underline:
-                word_confidence.append(self.reduction_function(hypothesis.token_confidence[j: len(hypothesis.y_sequence)]))
-        assert len(hypothesis.words) == len(word_confidence), (len(hypothesis.words), len(word_confidence), ' '.join(hypothesis.words))
-        return word_confidence
+        return self._aggregate_token_confidence_subwords_sentencepiece(hypothesis.words, hypothesis.token_confidence, hypothesis.y_sequence)
 
     def decode_tokens_to_str(self, tokens: List[int]) -> str:
         """

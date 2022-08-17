@@ -21,6 +21,7 @@ from typing import List, Optional
 import torch
 
 from nemo.collections.asr.parts.utils import rnnt_utils
+from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMeasureMixin, ConfidenceMethodConfig
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import HypothesisType, LengthsType, LogprobsType, NeuralType
 
@@ -55,7 +56,7 @@ def _states_to_device(dec_state, device='cpu'):
     return dec_state
 
 
-class GreedyCTCInfer(Typing):
+class GreedyCTCInfer(Typing, ConfidenceMeasureMixin):
     """A greedy CTC decoder.
 
     Provides a common abstraction for sample level and batch level greedy decoding.
@@ -77,21 +78,22 @@ class GreedyCTCInfer(Typing):
             name: The method name (str).
                 Supported values:
                     - 'max_prob' for using the maximum token probability as a confidence.
-                    - 'norm_ent' for using normalized entropy of a log-likelihood vector.
+                    - 'entropy' for using a normalized entropy of a log-likelihood vector.
 
-            entropy_type: Which type of entropy to use (str). Used if confidence_method_cfg.name is set to `norm_ent`.
+            entropy_type: Which type of entropy to use (str). Used if confidence_method_cfg.name is set to `entropy`.
                 Supported values:
+                    - 'gibbs' for the (standard) Gibbs entropy.
                     - 'tsallis' for the Tsallis entropy with the Boltzmann constant one.
                         Tsallis entropy formula is the following: H_α = 1/(α-1)*(1-sum_i(p^α_i)),
-                        where α is a parameter. If α == 1, then the entropy behaves like ordinary entropy.
+                        where α is a parameter. When α == 1, it works like the Gibbs entropy.
                         More: https://en.wikipedia.org/wiki/Tsallis_entropy
                     - 'renui' for the Rényi entropy.
                         Rényi entropy formula is the following: H_α = 1/(1-α)*log_2(sum_i(p^α_i)),
-                        where α is a parameter. If α == 1, then the entropy behaves like an ordinary entropy.
+                        where α is a parameter. When α == 1, it works like the Gibbs entropy.
                         More: https://en.wikipedia.org/wiki/R%C3%A9nyi_entropy
 
             entropy_alpha: An entropy method's parameter. Here we restrict it to be > 0.
-                When α == 1, any entropy type behaves like the Shannon entropy: H = -sum_i(p_i*log(p_i))
+                When α == 1, any entropy type behaves like the Gibbs entropy: H = -sum_i(p_i*log(p_i))
 
             entropy_norm: A mapping of the entropy value to the interval [0,1].
                 Supported values:
@@ -129,53 +131,8 @@ class GreedyCTCInfer(Typing):
         self.compute_timestamps = compute_timestamps | preserve_frame_confidence
         self.preserve_frame_confidence = preserve_frame_confidence
 
-        if confidence_method_cfg is None:
-            confidence_method_cfg = rnnt_utils.ConfidenceMethodConfig()
         # set confidence calculation method
-        if confidence_method_cfg.name == "max_prob":
-            max_prob = lambda x: (x.max(dim=-1)[0].exp() * x.size(-1) - 1) / (x.size(-1) - 1)
-            # max_prob = lambda x: x.max(dim=-1)[0].exp()
-            method = max_prob
-        elif confidence_method_cfg.name == "norm_ent":
-            self.entropy_alpha = confidence_method_cfg.entropy_alpha
-            if confidence_method_cfg.entropy_alpha == 1.:
-                ent_alpha_1 = lambda x: (x.exp() * x).sum(-1)
-                if confidence_method_cfg.entropy_norm == "lin":
-                    lin_ent_alpha_1 = lambda x: 1 + ent_alpha_1(x) / math.log(x.size(-1))
-                    method = lin_ent_alpha_1
-                elif confidence_method_cfg.entropy_norm == "exp":
-                    exp_ent_alpha_1 = lambda x: (ent_alpha_1(x).exp() * x.size(-1) - 1) / (x.size(-1) - 1)
-                    # exp_ent_alpha_1 = lambda x: ent_alpha_1(x).exp()
-                    method = exp_ent_alpha_1
-                else:
-                    raise ValueError(f"Unsupported `confidence_method_cfg.entropy_norm`: `{confidence_method_cfg.entropy_norm}`")
-            else:
-                ent = lambda x: x.exp().pow(self.entropy_alpha).sum(-1)
-                if confidence_method_cfg.entropy_norm == "lin":
-                    if confidence_method_cfg.entropy_type == "tsallis":
-                        tsallis_lin_ent = lambda x: 1 + (1 - ent(x)) / (math.pow(x.size(-1), 1 - self.entropy_alpha) - 1)
-                        method = tsallis_lin_ent
-                    elif confidence_method_cfg.entropy_type == "renui":
-                        renui_lin_ent = lambda x: 1 + (1 / (self.entropy_alpha - 1)) * ent(x).log2() / math.log(x.size(-1), 2)
-                        method = renui_lin_ent
-                    else:
-                        raise ValueError(f"Unsupported `confidence_method_cfg.entropy_type`: `{confidence_method_cfg.entropy_type}`")
-                elif confidence_method_cfg.entropy_norm == "exp":
-                    if confidence_method_cfg.entropy_type == "tsallis":
-                        tsallis_exp_ent = lambda x: (((1 / (1 - self.entropy_alpha)) * (1 - ent(x))).exp() - math.exp((1 / (1 - self.entropy_alpha)) * (1 - math.pow(x.size(-1), 1 - self.entropy_alpha)))) / (1 - math.exp((1 / (1 - self.entropy_alpha)) * (1 - math.pow(x.size(-1), 1 - self.entropy_alpha))))
-                        # tsallis_exp_ent = lambda x: ((1 / (1 - self.entropy_alpha)) * (1 - ent(x))).exp()
-                        method = tsallis_exp_ent
-                    elif confidence_method_cfg.entropy_type == "renui":
-                        renui_exp_ent = lambda x: (ent(x).pow(1 / (self.entropy_alpha - 1)) * x.size(-1) - 1) / (x.size(-1) - 1)
-                        # renui_exp_ent = lambda x: ent(x).pow(1 / (self.entropy_alpha - 1))
-                        method = renui_exp_ent
-                    else:
-                        raise ValueError(f"Unsupported `confidence_method_cfg.entropy_type`: `{confidence_method_cfg.entropy_type}`")
-                else:
-                    raise ValueError(f"Unsupported `confidence_method_cfg.entropy_norm`: `{confidence_method_cfg.entropy_norm}`")
-        else:
-            raise ValueError(f"Unsupported `confidence_method_cfg.name`: `{confidence_method_cfg.name}`")
-        self._get_confidence = method
+        self._init_confidence_measure(confidence_method_cfg)
 
     @typecheck()
     def forward(
@@ -245,7 +202,7 @@ class GreedyCTCInfer(Typing):
             hypothesis.timestep = torch.nonzero(non_blank_ids, as_tuple=False)[:, 0].numpy().tolist()
 
         if self.preserve_frame_confidence:
-            hypothesis.frame_confidence = self._get_confidence(prediction).tolist()
+            hypothesis.frame_confidence = self._get_confidence(prediction)
 
         return hypothesis
 
@@ -285,4 +242,4 @@ class GreedyCTCInferConfig:
     preserve_alignments: bool = False
     compute_timestamps: bool = False
     preserve_frame_confidence: bool = False
-    confidence_method_cfg: Optional[rnnt_utils.ConfidenceMethodConfig] = None
+    confidence_method_cfg: Optional[ConfidenceMethodConfig] = None

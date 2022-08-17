@@ -37,6 +37,7 @@ import torch
 
 from nemo.collections.asr.modules import rnnt_abstract
 from nemo.collections.asr.parts.utils import rnnt_utils
+from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMeasureMixin, ConfidenceMethodConfig
 from nemo.collections.common.parts.rnn import label_collate
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, ElementType, HypothesisType, LengthsType, NeuralType
@@ -70,7 +71,7 @@ def _states_to_device(dec_state, device='cpu'):
     return dec_state
 
 
-class _GreedyRNNTInfer(Typing):
+class _GreedyRNNTInfer(Typing, ConfidenceMeasureMixin):
     """A greedy transducer decoder.
 
     Provides a common abstraction for sample level and batch level greedy decoding.
@@ -103,17 +104,18 @@ class _GreedyRNNTInfer(Typing):
             name: The method name (str).
                 Supported values:
                     - 'max_prob' for using the maximum token probability as a confidence.
-                    - 'norm_ent' for using normalized entropy of a log-likelihood vector.
+                    - 'entropy' for using normalized entropy of a log-likelihood vector.
 
-            entropy_type: Which type of entropy to use (str). Used if confidence_method_cfg.name is set to `norm_ent`.
+            entropy_type: Which type of entropy to use (str). Used if confidence_method_cfg.name is set to `entropy`.
                 Supported values:
+                    - 'gibbs' for the (standard) Gibbs entropy.
                     - 'tsallis' for the Tsallis entropy with the Boltzmann constant one.
                         Tsallis entropy formula is the following: H_α = 1/(α-1)*(1-sum_i(p^α_i)),
-                        where α is a parameter. If α == 1, then the entropy behaves like ordinary entropy.
+                        where α is a parameter. When α == 1, it works like the Gibbs entropy.
                         More: https://en.wikipedia.org/wiki/Tsallis_entropy
                     - 'renui' for the Rényi entropy.
                         Rényi entropy formula is the following: H_α = 1/(1-α)*log_2(sum_i(p^α_i)),
-                        where α is a parameter. If α == 1, then the entropy behaves like an ordinary entropy.
+                        where α is a parameter. When α == 1, it works like the Gibbs entropy.
                         More: https://en.wikipedia.org/wiki/R%C3%A9nyi_entropy
 
             entropy_alpha: An entropy method's parameter. Here we restrict it to be > 0.
@@ -161,56 +163,8 @@ class _GreedyRNNTInfer(Typing):
         self.preserve_alignments = preserve_alignments
         self.preserve_frame_confidence = preserve_frame_confidence
 
-        if confidence_method_cfg is None:
-            confidence_method_cfg = rnnt_utils.ConfidenceMethodConfig()
         # set confidence calculation method
-        if confidence_method_cfg.name == "max_prob":
-            max_prob = lambda x: (x.max(dim=-1)[0].exp() * x.size(-1) - 1) / (x.size(-1) - 1)
-            # max_prob = lambda x: x.max(dim=-1)[0].exp()
-            method = max_prob
-        elif confidence_method_cfg.name == "norm_ent":
-            self.entropy_alpha = confidence_method_cfg.entropy_alpha
-            if confidence_method_cfg.entropy_alpha == 1.:
-                ent_alpha_1 = lambda x: (x.exp() * x).sum(-1)
-                if confidence_method_cfg.entropy_norm == "lin":
-                    lin_ent_alpha_1 = lambda x: 1 + ent_alpha_1(x) / math.log(x.size(-1))
-                    method = lin_ent_alpha_1
-                elif confidence_method_cfg.entropy_norm == "exp":
-                    exp_ent_alpha_1 = lambda x: (ent_alpha_1(x).exp() * x.size(-1) - 1) / (x.size(-1) - 1)
-                    # exp_ent_alpha_1 = lambda x: ent_alpha_1(x).exp()
-                    method = exp_ent_alpha_1
-                else:
-                    raise ValueError(f"Unsupported `confidence_method_cfg.entropy_norm`: `{confidence_method_cfg.entropy_norm}`")
-            else:
-                ent = lambda x: x.exp().pow(self.entropy_alpha).sum(-1)
-                if confidence_method_cfg.entropy_norm == "lin":
-                    if confidence_method_cfg.entropy_type == "tsallis":
-                        tsallis_lin_ent = lambda x: 1 + (1 - ent(x)) / (math.pow(x.size(-1), 1 - self.entropy_alpha) - 1)
-                        method = tsallis_lin_ent
-                    elif confidence_method_cfg.entropy_type == "renui":
-                        renui_lin_ent = lambda x: 1 + (1 / (self.entropy_alpha - 1)) * ent(x).log2() / math.log(x.size(-1), 2)
-                        method = renui_lin_ent
-                    else:
-                        raise ValueError(f"Unsupported `confidence_method_cfg.entropy_type`: `{confidence_method_cfg.entropy_type}`")
-                elif confidence_method_cfg.entropy_norm == "exp":
-                    if confidence_method_cfg.entropy_type == "tsallis":
-                        tsallis_exp_ent = lambda x: (((1 / (1 - self.entropy_alpha)) * (1 - ent(x))).exp() - math.exp((1 / (1 - self.entropy_alpha)) * (1 - math.pow(x.size(-1), 1 - self.entropy_alpha)))) / (1 - math.exp((1 / (1 - self.entropy_alpha)) * (1 - math.pow(x.size(-1), 1 - self.entropy_alpha))))
-                        # tsallis_exp_ent = lambda x: ((1 / (1 - self.entropy_alpha)) * (1 - ent(x))).exp()
-                        method = tsallis_exp_ent
-                    elif confidence_method_cfg.entropy_type == "renui":
-                        renui_exp_ent = lambda x: (ent(x).pow(1 / (self.entropy_alpha - 1)) * x.size(-1) - 1) / (x.size(-1) - 1)
-                        # renui_exp_ent = lambda x: ent(x).pow(1 / (self.entropy_alpha - 1))
-                        method = renui_exp_ent
-                    else:
-                        raise ValueError(f"Unsupported `confidence_method_cfg.entropy_type`: `{confidence_method_cfg.entropy_type}`")
-                else:
-                    raise ValueError(f"Unsupported `confidence_method_cfg.entropy_norm`: `{confidence_method_cfg.entropy_norm}`")
-        else:
-            raise ValueError(f"Unsupported `confidence_method_cfg.name`: `{confidence_method_cfg.name}`")
-        # self.entropy_alpha = confidence_method_cfg.entropy_alpha
-        # ent = lambda x: x.exp().pow(self.entropy_alpha).sum(-1)
-        # method = lambda x: (1 + (1 - ent(x)) / (math.pow(x.size(-1), 1 - self.entropy_alpha) - 1) + (((1 / (1 - self.entropy_alpha)) * (1 - ent(x))).exp() - math.exp((1 / (1 - self.entropy_alpha)) * (1 - math.pow(x.size(-1), 1 - self.entropy_alpha)))) / (1 - math.exp((1 / (1 - self.entropy_alpha)) * (1 - math.pow(x.size(-1), 1 - self.entropy_alpha))))) / 2
-        self._get_confidence = method
+        self._init_confidence_measure(confidence_method_cfg)
 
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
@@ -312,17 +266,18 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
             name: The method name (str).
                 Supported values:
                     - 'max_prob' for using the maximum token probability as a confidence.
-                    - 'norm_ent' for using normalized entropy of a log-likelihood vector.
+                    - 'entropy' for using normalized entropy of a log-likelihood vector.
 
-            entropy_type: Which type of entropy to use (str). Used if confidence_method_cfg.name is set to `norm_ent`.
+            entropy_type: Which type of entropy to use (str). Used if confidence_method_cfg.name is set to `entropy`.
                 Supported values:
+                    - 'gibbs' for the (standard) Gibbs entropy.
                     - 'tsallis' for the Tsallis entropy with the Boltzmann constant one.
                         Tsallis entropy formula is the following: H_α = 1/(α-1)*(1-sum_i(p^α_i)),
-                        where α is a parameter. If α == 1, then the entropy behaves like ordinary entropy.
+                        where α is a parameter. When α == 1, it works like the Gibbs entropy.
                         More: https://en.wikipedia.org/wiki/Tsallis_entropy
                     - 'renui' for the Rényi entropy.
                         Rényi entropy formula is the following: H_α = 1/(1-α)*log_2(sum_i(p^α_i)),
-                        where α is a parameter. If α == 1, then the entropy behaves like an ordinary entropy.
+                        where α is a parameter. When α == 1, it works like the Gibbs entropy.
                         More: https://en.wikipedia.org/wiki/R%C3%A9nyi_entropy
 
             entropy_alpha: An entropy method's parameter. Here we restrict it to be > 0.
@@ -470,7 +425,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
 
                 if self.preserve_frame_confidence:
                     # insert confidence into last timestep
-                    hypothesis.frame_confidence[-1].append(float(self._get_confidence(logp)))
+                    hypothesis.frame_confidence[-1].append(self._get_confidence(logp))
 
                 del logp
 
@@ -544,17 +499,18 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             name: The method name (str).
                 Supported values:
                     - 'max_prob' for using the maximum token probability as a confidence.
-                    - 'norm_ent' for using normalized entropy of a log-likelihood vector.
+                    - 'entropy' for using normalized entropy of a log-likelihood vector.
 
-            entropy_type: Which type of entropy to use (str). Used if confidence_method_cfg.name is set to `norm_ent`.
+            entropy_type: Which type of entropy to use (str). Used if confidence_method_cfg.name is set to `entropy`.
                 Supported values:
+                    - 'gibbs' for the (standard) Gibbs entropy.
                     - 'tsallis' for the Tsallis entropy with the Boltzmann constant one.
                         Tsallis entropy formula is the following: H_α = 1/(α-1)*(1-sum_i(p^α_i)),
-                        where α is a parameter. If α == 1, then the entropy behaves like ordinary entropy.
+                        where α is a parameter. When α == 1, it works like the Gibbs entropy.
                         More: https://en.wikipedia.org/wiki/Tsallis_entropy
                     - 'renui' for the Rényi entropy.
                         Rényi entropy formula is the following: H_α = 1/(1-α)*log_2(sum_i(p^α_i)),
-                        where α is a parameter. If α == 1, then the entropy behaves like an ordinary entropy.
+                        where α is a parameter. When α == 1, it works like the Gibbs entropy.
                         More: https://en.wikipedia.org/wiki/R%C3%A9nyi_entropy
 
             entropy_alpha: An entropy method's parameter. Here we restrict it to be > 0.
@@ -746,11 +702,10 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     # before adding confidence scores
                     if self.preserve_frame_confidence:
                         # Insert probabilities into last timestep per sample
-                        v_exp = self._get_confidence(logp).tolist()
+                        confidence = self._get_confidence(logp)
                         for batch_idx in range(batchsize):
                             if time_idx < out_len[batch_idx]:
-                                hypotheses[batch_idx].frame_confidence[-1].append(v_exp[batch_idx])
-                        del v_exp
+                                hypotheses[batch_idx].frame_confidence[-1].append(confidence[batch_idx])
                     del logp
 
                     # If all samples predict / have predicted prior blanks, exit loop early
@@ -955,12 +910,11 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     # If preserving per-frame confidence, check if sequence length of sample has been reached
                     # before adding confidence scores
                     if self.preserve_frame_confidence:
-                        # Insert ids into last timestep per sample
-                        v_exp = self._get_confidence(logp).tolist()
+                        # Insert probabilities into last timestep per sample
+                        confidence = self._get_confidence(logp)
                         for batch_idx in range(batchsize):
                             if time_idx < out_len[batch_idx]:
-                                hypotheses[batch_idx].frame_confidence[-1].append(float(v_exp[batch_idx]))
-                        del v_exp
+                                hypotheses[batch_idx].frame_confidence[-1].append(confidence[batch_idx])
                     del logp
 
                     # If all samples predict / have predicted prior blanks, exit loop early
@@ -1329,7 +1283,7 @@ class GreedyRNNTInferConfig:
     max_symbols_per_step: Optional[int] = 10
     preserve_alignments: bool = False
     preserve_frame_confidence: bool = False
-    confidence_method_cfg: Optional[rnnt_utils.ConfidenceMethodConfig] = None
+    confidence_method_cfg: Optional[ConfidenceMethodConfig] = None
 
 
 @dataclass
@@ -1337,4 +1291,4 @@ class GreedyBatchedRNNTInferConfig:
     max_symbols_per_step: Optional[int] = 10
     preserve_alignments: bool = False
     preserve_frame_confidence: bool = False
-    confidence_method_cfg: Optional[rnnt_utils.ConfidenceMethodConfig] = None
+    confidence_method_cfg: Optional[ConfidenceMethodConfig] = None

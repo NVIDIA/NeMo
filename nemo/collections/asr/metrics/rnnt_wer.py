@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import copy
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -26,13 +27,14 @@ from torchmetrics import Metric
 from nemo.collections.asr.metrics.wer import move_dimension_to_the_front
 from nemo.collections.asr.parts.submodules import rnnt_beam_decoding as beam_decode
 from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode
-from nemo.collections.asr.parts.utils.rnnt_utils import ConfidenceConfig, Hypothesis, NBestHypotheses
+from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMixin, ConfidenceConfig
+from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
 from nemo.utils import logging
 
 __all__ = ['RNNTDecoding', 'RNNTWER']
 
 
-class AbstractRNNTDecoding(ABC):
+class AbstractRNNTDecoding(ConfidenceMixin):
     """
     Used for performing RNN-T auto-regressive decoding of the Decoder+Joint network given the encoder state.
 
@@ -104,22 +106,23 @@ class AbstractRNNTDecoding(ABC):
                     name: The method name (str).
                         Supported values:
                             - 'max_prob' for using the maximum token probability as a confidence.
-                            - 'norm_ent' for using normalized entropy of a log-likelihood vector.
+                            - 'entropy' for using a normalized entropy of a log-likelihood vector.
 
                     entropy_type: Which type of entropy to use (str).
-                        Used if confidence_method_cfg.name is set to `norm_ent`.
+                        Used if confidence_method_cfg.name is set to `entropy`.
                         Supported values:
+                            - 'gibbs' for the (standard) Gibbs entropy.
                             - 'tsallis' for the Tsallis entropy with the Boltzmann constant one.
                                 Tsallis entropy formula is the following: H_α = 1/(α-1)*(1-sum_i(p^α_i)),
-                                where α is a parameter. If α == 1, then the entropy behaves like ordinary entropy.
+                                where α is a parameter. When α == 1, it works like the Gibbs entropy.
                                 More: https://en.wikipedia.org/wiki/Tsallis_entropy
                             - 'renui' for the Rényi entropy.
                                 Rényi entropy formula is the following: H_α = 1/(1-α)*log_2(sum_i(p^α_i)),
-                                where α is a parameter. If α == 1, then the entropy behaves like an ordinary entropy.
+                                where α is a parameter. When α == 1, it works like the Gibbs entropy.
                                 More: https://en.wikipedia.org/wiki/R%C3%A9nyi_entropy
 
                     entropy_alpha: An entropy method's parameter. Here we restrict it to be > 0.
-                        When α == 1, any entropy type behaves like the Shannon entropy: H = -sum_i(p_i*log(p_i))
+                        When α == 1, any entropy type behaves like the Gibbs entropy: H = -sum_i(p_i*log(p_i))
 
                     entropy_norm: A mapping of the entropy value to the interval [0,1].
                         Supported values:
@@ -252,6 +255,9 @@ class AbstractRNNTDecoding(ABC):
             elif self.cfg.strategy in ['beam', 'tsd', 'alsd', 'maes']:
                 # Not implemented
                 pass
+
+        # initialize confidence-related fields
+        self._init_confidence(self.cfg.get('confidence_cfg', None))
 
         if self.cfg.strategy == 'greedy':
 
@@ -473,7 +479,7 @@ class AbstractRNNTDecoding(ABC):
 
     def compute_confidence(self, hypotheses_list: List[Hypothesis]) -> List[Hypothesis]:
         """
-        Compute high-level (per-token and/or per-word) confidence scores for a list of hypotheses.
+        Computes high-level (per-token and/or per-word) confidence scores for a list of hypotheses.
         Assumes that `frame_confidence` is present in the hypotheses.
 
         Args:
@@ -482,27 +488,27 @@ class AbstractRNNTDecoding(ABC):
         Returns:
             A list of hypotheses with high-level confidence scores.
         """
-        if not self.exclude_blank_from_confidence:
-            raise NotImplementedError("TBD")
-        for hyp in hypotheses_list:
-            hyp.token_confidence = hyp.non_blank_frame_confidence
+        if self.exclude_blank_from_confidence:
+            for hyp in hypotheses_list:
+                hyp.token_confidence = hyp.non_blank_frame_confidence
+        else:
+            for hyp in hypotheses_list:
+                offset = 0
+                token_confidence = []
+                if len(hyp.timestep) > 0:
+                    for ts, te in zip(hyp.timestep, hyp.timestep[1:] + [len(hyp.frame_confidence)]):
+                        if ts != te:
+                            # <blank> tokens are considered to belong to the last non-blank token, if any.
+                            token_confidence.append(self._aggregate_confidence([hyp.frame_confidence[ts][offset]] + [fc[0] for fc in hyp.frame_confidence[ts+1:te]]))
+                            offset = 0
+                        else:
+                            token_confidence.append(hyp.frame_confidence[ts][offset])
+                            offset += 1
+                hyp.token_confidence = token_confidence
         if self.preserve_word_confidence:
             for hyp in hypotheses_list:
-                hyp.word_confidence = self._reduce_token_confidence(hyp)
+                hyp.word_confidence = self._aggregate_token_confidence(hyp)
         return hypotheses_list
-
-    @abstractmethod
-    def _reduce_token_confidence(self, hypothesis: Hypothesis) -> List[float]:
-        """
-        Implemented by subclass in order to reduce token confidence to a word-level confidence.
-
-        Args:
-            hypothesis: Hypothesis
-
-        Returns:
-            A list of word-level confidence scores.
-        """
-        raise NotImplementedError()
 
     @abstractmethod
     def decode_tokens_to_str(self, tokens: List[int]) -> str:
@@ -920,22 +926,23 @@ class RNNTDecoding(AbstractRNNTDecoding):
                     name: The method name (str).
                         Supported values:
                             - 'max_prob' for using the maximum token probability as a confidence.
-                            - 'norm_ent' for using normalized entropy of a log-likelihood vector.
+                            - 'entropy' for using a normalized entropy of a log-likelihood vector.
 
                     entropy_type: Which type of entropy to use (str).
-                        Used if confidence_method_cfg.name is set to `norm_ent`.
+                        Used if confidence_method_cfg.name is set to `entropy`.
                         Supported values:
+                            - 'gibbs' for the (standard) Gibbs entropy.
                             - 'tsallis' for the Tsallis entropy with the Boltzmann constant one.
                                 Tsallis entropy formula is the following: H_α = 1/(α-1)*(1-sum_i(p^α_i)),
-                                where α is a parameter. If α == 1, then the entropy behaves like ordinary entropy.
+                                where α is a parameter. When α == 1, it works like the Gibbs entropy.
                                 More: https://en.wikipedia.org/wiki/Tsallis_entropy
                             - 'renui' for the Rényi entropy.
                                 Rényi entropy formula is the following: H_α = 1/(1-α)*log_2(sum_i(p^α_i)),
-                                where α is a parameter. If α == 1, then the entropy behaves like an ordinary entropy.
+                                where α is a parameter. When α == 1, it works like the Gibbs entropy.
                                 More: https://en.wikipedia.org/wiki/R%C3%A9nyi_entropy
 
                     entropy_alpha: An entropy method's parameter. Here we restrict it to be > 0.
-                        When α == 1, any entropy type behaves like the Shannon entropy: H = -sum_i(p_i*log(p_i))
+                        When α == 1, any entropy type behaves like the Gibbs entropy: H = -sum_i(p_i*log(p_i))
 
                     entropy_norm: A mapping of the entropy value to the interval [0,1].
                         Supported values:
@@ -1010,9 +1017,9 @@ class RNNTDecoding(AbstractRNNTDecoding):
 
         super(RNNTDecoding, self).__init__(decoding_cfg=decoding_cfg, decoder=decoder, joint=joint, blank_id=blank_id)
 
-    def _reduce_token_confidence(self, hypothesis: Hypothesis) -> List[float]:
+    def _aggregate_token_confidence(self, hypothesis: Hypothesis) -> List[float]:
         """
-        Implemented by subclass in order to reduce token confidence to a word-level confidence.
+        Implemented by subclass in order to aggregate token confidence to a word-level confidence.
 
         Args:
             hypothesis: Hypothesis
@@ -1020,14 +1027,7 @@ class RNNTDecoding(AbstractRNNTDecoding):
         Returns:
             A list of word-level confidence scores.
         """
-        word_confidence = []
-        i = 0
-        for word in hypothesis.words:
-            word_len = len(word)
-            word_confidence.append(self.reduction_function(hypothesis.token_confidence[i: i+word_len]))
-            # we assume that there is exactly one space token between words and exclude it from word confidence
-            i += word_len + 1
-        return word_confidence
+        return self._aggregate_token_confidence_chars(hypothesis.words, hypothesis.token_confidence)
 
     def decode_tokens_to_str(self, tokens: List[int]) -> str:
         """

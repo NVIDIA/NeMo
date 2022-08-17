@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from dataclasses import dataclass, is_dataclass
 from types import BuiltinFunctionType, FunctionType
 from typing import Callable, Dict, List, Optional, Union
@@ -25,7 +25,8 @@ from omegaconf import DictConfig, OmegaConf
 from torchmetrics import Metric
 
 from nemo.collections.asr.parts.submodules import ctc_greedy_decoding
-from nemo.collections.asr.parts.utils.rnnt_utils import ConfidenceConfig, Hypothesis, NBestHypotheses
+from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMixin, ConfidenceConfig
+from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
 from nemo.utils import logging
 
 __all__ = ['word_error_rate', 'WER', 'move_dimension_to_the_front']
@@ -72,7 +73,7 @@ def move_dimension_to_the_front(tensor, dim_index):
     return tensor.permute(*([dim_index] + all_dims[:dim_index] + all_dims[dim_index + 1 :]))
 
 
-class AbstractCTCDecoding(ABC):
+class AbstractCTCDecoding(ConfidenceMixin):
     """
     Used for performing CTC auto-regressive / non-auto-regressive decoding of the logprobs.
 
@@ -115,7 +116,7 @@ class AbstractCTCDecoding(ABC):
                     The length of the list corresponds to the number of recognized words.
                 exclude_blank: Bool flag indicating that blank token confidence scores are to be excluded
                     from the `token_confidence`.
-                reduction: Which reduction type to use for collapsing per-token confidence into per-word confidence.
+                aggregation: Which aggregation type to use for collapsing per-token confidence into per-word confidence.
                     Valid options are `mean`, `min`, `max`, `prod`.
                 method_cfg: A dict-like object which contains the method name and settings to compute per-frame
                     confidence scores.
@@ -123,22 +124,23 @@ class AbstractCTCDecoding(ABC):
                     name: The method name (str).
                         Supported values:
                             - 'max_prob' for using the maximum token probability as a confidence.
-                            - 'norm_ent' for using normalized entropy of a log-likelihood vector.
+                            - 'entropy' for using a normalized entropy of a log-likelihood vector.
 
                     entropy_type: Which type of entropy to use (str).
-                        Used if confidence_method_cfg.name is set to `norm_ent`.
+                        Used if confidence_method_cfg.name is set to `entropy`.
                         Supported values:
+                            - 'gibbs' for the (standard) Gibbs entropy.
                             - 'tsallis' for the Tsallis entropy with the Boltzmann constant one.
                                 Tsallis entropy formula is the following: H_α = 1/(α-1)*(1-sum_i(p^α_i)),
-                                where α is a parameter. If α == 1, then the entropy behaves like ordinary entropy.
+                                where α is a parameter. When α == 1, it works like the Gibbs entropy.
                                 More: https://en.wikipedia.org/wiki/Tsallis_entropy
                             - 'renui' for the Rényi entropy.
                                 Rényi entropy formula is the following: H_α = 1/(1-α)*log_2(sum_i(p^α_i)),
-                                where α is a parameter. If α == 1, then the entropy behaves like an ordinary entropy.
+                                where α is a parameter. When α == 1, it works like the Gibbs entropy.
                                 More: https://en.wikipedia.org/wiki/R%C3%A9nyi_entropy
 
                     entropy_alpha: An entropy method's parameter. Here we restrict it to be > 0.
-                        When α == 1, any entropy type behaves like the Shannon entropy: H = -sum_i(p_i*log(p_i))
+                        When α == 1, any entropy type behaves like the Gibbs entropy: H = -sum_i(p_i*log(p_i))
 
                     entropy_norm: A mapping of the entropy value to the interval [0,1].
                         Supported values:
@@ -181,28 +183,6 @@ class AbstractCTCDecoding(ABC):
         self.compute_timestamps = self.cfg.get('compute_timestamps', None)
         self.batch_dim_index = self.cfg.get('batch_dim_index', 0)
         self.word_seperator = self.cfg.get('word_seperator', ' ')
-        self.confidence_cfg = self.cfg.get('confidence_cfg', None)
-        if self.confidence_cfg is not None:
-            self.preserve_word_confidence = self.confidence_cfg.get('preserve_word_confidence', False)
-            # set preserve_frame_confidence and preserve_token_confidence to True
-            # if preserve_word_confidence is True
-            self.preserve_token_confidence = self.confidence_cfg.get('preserve_token_confidence', False) | self.preserve_word_confidence
-            # set preserve_frame_confidence to True if preserve_token_confidence is True
-            self.preserve_frame_confidence = self.confidence_cfg.get('preserve_frame_confidence', False) | self.preserve_token_confidence
-            self.exclude_blank_from_confidence = self.confidence_cfg.get('exclude_blank', True)
-            self.word_confidence_reduction = self.confidence_cfg.get('reduction', "min")
-            self.confidence_method_cfg = self.confidence_cfg.get('method_cfg', None)
-        else:
-            self.preserve_frame_confidence = False
-            self.preserve_token_confidence = False
-            self.preserve_word_confidence = False
-            self.exclude_blank_from_confidence = True
-            self.word_confidence_reduction = "min"
-            self.confidence_method_cfg = None
-
-        # define reduction functions
-        self.reduction_function_bank = {"mean": (lambda x: sum(x) / len(x)), "min": min, "max": max, "prod": math.prod}
-        self.reduction_function = self.reduction_function_bank[self.word_confidence_reduction]
 
         possible_strategies = ['greedy']
         if self.cfg.strategy not in possible_strategies:
@@ -218,11 +198,8 @@ class AbstractCTCDecoding(ABC):
             if self.cfg.strategy in ['greedy']:
                 self.compute_timestamps = self.cfg.greedy.get('compute_timestamps', False)
 
-        # Update preserve per-frame confidence
-        if self.preserve_frame_confidence is None:
-            if self.cfg.strategy in ['greedy']:
-                self.preserve_frame_confidence = self.cfg.greedy.get('preserve_frame_confidence', False)
-                self.confidence_method_cfg = self.cfg.greedy.get('confidence_method_cfg', None)
+        # initialize confidence-related fields
+        self._init_confidence(self.cfg.get('confidence_cfg', None))
 
         # we need timestamps to extract non-blank per-frame confidence
         self.compute_timestamps |= self.preserve_frame_confidence
@@ -405,7 +382,7 @@ class AbstractCTCDecoding(ABC):
 
     def compute_confidence(self, hypotheses_list: List[Hypothesis]) -> List[Hypothesis]:
         """
-        Compute high-level (per-token and/or per-word) confidence scores for a list of hypotheses.
+        Computes high-level (per-token and/or per-word) confidence scores for a list of hypotheses.
         Assumes that `frame_confidence` is present in the hypotheses.
 
         Args:
@@ -414,42 +391,37 @@ class AbstractCTCDecoding(ABC):
         Returns:
             A list of hypotheses with high-level confidence scores.
         """
-        if not self.exclude_blank_from_confidence:
-            raise NotImplementedError("TBD")
         for hyp in hypotheses_list:
             if not isinstance(hyp.text, tuple) or len(hyp.text) != 3:
                 # the method must have been called in the wrong place
-                raise ValueError("Wrong format of the `text` attribute of a hypothesis.\n"
-                    "Expected: (decoded_prediction, token_repetitions)\n"
-                    "The method invocation is expected between .decode_hypothesis() and .compute_ctc_timestamps()")
+                raise ValueError("""Wrong format of the `text` attribute of a hypothesis.\n
+                    Expected: (decoded_prediction, token_repetitions)\n
+                    The method invocation is expected between .decode_hypothesis() and .compute_ctc_timestamps()"""
+                )
             token_repetitions = hyp.text[2]
             hyp.text = hyp.text[:2]
-            non_blank_frame_confidence = hyp.non_blank_frame_confidence
             token_confidence = []
-            i = 0
-            for tr in token_repetitions:
-                # token repetition can be zero
-                j = i + tr
-                token_confidence.append(self.reduction_function(non_blank_frame_confidence[i: j]))
-                i = j
+            if self.exclude_blank_from_confidence:
+                non_blank_frame_confidence = hyp.non_blank_frame_confidence
+                i = 0
+                for tr in token_repetitions:
+                    # token repetition can be zero
+                    j = i + tr
+                    token_confidence.append(self._aggregate_confidence(non_blank_frame_confidence[i: j]))
+                    i = j
+            else:
+                # <blank> tokens are considered to belong to the last non-blank token, if any.
+                token_lengths = hyp.text[1]
+                if len(token_lengths) > 0:
+                    ts = token_lengths[0]
+                    for tl in token_lengths[1:] + [len(hyp.frame_confidence)]:
+                        token_confidence.append(self._aggregate_confidence(hyp.frame_confidence[ts:ts+tl]))
+                        ts += tl
             hyp.token_confidence = token_confidence
         if self.preserve_word_confidence:
             for hyp in hypotheses_list:
-                hyp.word_confidence = self._reduce_token_confidence(hyp)
+                hyp.word_confidence = self._aggregate_token_confidence(hyp)
         return hypotheses_list
-
-    @abstractmethod
-    def _reduce_token_confidence(self, hypothesis: Hypothesis) -> List[float]:
-        """
-        Implemented by subclass in order to reduce token confidence to a word-level confidence.
-
-        Args:
-            hypothesis: Hypothesis
-
-        Returns:
-            A list of word-level confidence scores.
-        """
-        raise NotImplementedError()
 
     @abstractmethod
     def decode_tokens_to_str(self, tokens: List[int]) -> str:
@@ -812,7 +784,7 @@ class CTCDecoding(AbstractCTCDecoding):
                     The length of the list corresponds to the number of recognized words.
                 exclude_blank: Bool flag indicating that blank token confidence scores are to be excluded
                     from the `token_confidence`.
-                reduction: Which reduction type to use for collapsing per-token confidence into per-word confidence.
+                aggregation: Which aggregation type to use for collapsing per-token confidence into per-word confidence.
                     Valid options are `mean`, `min`, `max`, `prod`.
                 method_cfg: A dict-like object which contains the method name and settings to compute per-frame
                     confidence scores.
@@ -820,22 +792,23 @@ class CTCDecoding(AbstractCTCDecoding):
                     name: The method name (str).
                         Supported values:
                             - 'max_prob' for using the maximum token probability as a confidence.
-                            - 'norm_ent' for using normalized entropy of a log-likelihood vector.
+                            - 'entropy' for using a normalized entropy of a log-likelihood vector.
 
                     entropy_type: Which type of entropy to use (str).
-                        Used if confidence_method_cfg.name is set to `norm_ent`.
+                        Used if confidence_method_cfg.name is set to `entropy`.
                         Supported values:
+                            - 'gibbs' for the (standard) Gibbs entropy.
                             - 'tsallis' for the Tsallis entropy with the Boltzmann constant one.
                                 Tsallis entropy formula is the following: H_α = 1/(α-1)*(1-sum_i(p^α_i)),
-                                where α is a parameter. If α == 1, then the entropy behaves like ordinary entropy.
+                                where α is a parameter. When α == 1, it works like the Gibbs entropy.
                                 More: https://en.wikipedia.org/wiki/Tsallis_entropy
                             - 'renui' for the Rényi entropy.
                                 Rényi entropy formula is the following: H_α = 1/(1-α)*log_2(sum_i(p^α_i)),
-                                where α is a parameter. If α == 1, then the entropy behaves like an ordinary entropy.
+                                where α is a parameter. When α == 1, it works like the Gibbs entropy.
                                 More: https://en.wikipedia.org/wiki/R%C3%A9nyi_entropy
 
                     entropy_alpha: An entropy method's parameter. Here we restrict it to be > 0.
-                        When α == 1, any entropy type behaves like the Shannon entropy: H = -sum_i(p_i*log(p_i))
+                        When α == 1, any entropy type behaves like the Gibbs entropy: H = -sum_i(p_i*log(p_i))
 
                     entropy_norm: A mapping of the entropy value to the interval [0,1].
                         Supported values:
@@ -864,9 +837,9 @@ class CTCDecoding(AbstractCTCDecoding):
 
         super().__init__(decoding_cfg=decoding_cfg, blank_id=blank_id)
 
-    def _reduce_token_confidence(self, hypothesis: Hypothesis) -> List[float]:
+    def _aggregate_token_confidence(self, hypothesis: Hypothesis) -> List[float]:
         """
-        Implemented by subclass in order to reduce token confidence to a word-level confidence.
+        Implemented by subclass in order to aggregate token confidence to a word-level confidence.
 
         Args:
             hypothesis: Hypothesis
@@ -874,14 +847,7 @@ class CTCDecoding(AbstractCTCDecoding):
         Returns:
             A list of word-level confidence scores.
         """
-        word_confidence = []
-        i = 0
-        for word in self.decode_tokens_to_str(hyp.text[0]).split():
-            word_len = len(word)
-            word_confidence.append(self.reduction_function(hypothesis.token_confidence[i: i+word_len]))
-            # we assume that there is exactly one space token between words and exclude it from word confidence
-            i += word_len + 1
-        return word_confidence
+        return self._aggregate_token_confidence_chars(self.decode_tokens_to_str(hypothesis.text[0]).split(), hypothesis.token_confidence)
 
     def decode_tokens_to_str(self, tokens: List[int]) -> str:
         """

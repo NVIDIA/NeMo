@@ -69,7 +69,7 @@ class CTCBPEDecoding(AbstractCTCDecoding):
                     The length of the list corresponds to the number of recognized words.
                 exclude_blank: Bool flag indicating that blank token confidence scores are to be excluded
                     from the `token_confidence`.
-                reduction: Which reduction type to use for collapsing per-token confidence into per-word confidence.
+                aggregation: Which aggregation type to use for collapsing per-token confidence into per-word confidence.
                     Valid options are `mean`, `min`, `max`, `prod`.
                 method_cfg: A dict-like object which contains the method name and settings to compute per-frame
                     confidence scores.
@@ -77,22 +77,23 @@ class CTCBPEDecoding(AbstractCTCDecoding):
                     name: The method name (str).
                         Supported values:
                             - 'max_prob' for using the maximum token probability as a confidence.
-                            - 'norm_ent' for using normalized entropy of a log-likelihood vector.
+                            - 'entropy' for using a normalized entropy of a log-likelihood vector.
 
                     entropy_type: Which type of entropy to use (str).
-                        Used if confidence_method_cfg.name is set to `norm_ent`.
+                        Used if confidence_method_cfg.name is set to `entropy`.
                         Supported values:
+                            - 'gibbs' for the (standard) Gibbs entropy.
                             - 'tsallis' for the Tsallis entropy with the Boltzmann constant one.
                                 Tsallis entropy formula is the following: H_α = 1/(α-1)*(1-sum_i(p^α_i)),
-                                where α is a parameter. If α == 1, then the entropy behaves like ordinary entropy.
+                                where α is a parameter. When α == 1, it works like the Gibbs entropy.
                                 More: https://en.wikipedia.org/wiki/Tsallis_entropy
                             - 'renui' for the Rényi entropy.
                                 Rényi entropy formula is the following: H_α = 1/(1-α)*log_2(sum_i(p^α_i)),
-                                where α is a parameter. If α == 1, then the entropy behaves like an ordinary entropy.
+                                where α is a parameter. When α == 1, it works like the Gibbs entropy.
                                 More: https://en.wikipedia.org/wiki/R%C3%A9nyi_entropy
 
                     entropy_alpha: An entropy method's parameter. Here we restrict it to be > 0.
-                        When α == 1, any entropy type behaves like the Shannon entropy: H = -sum_i(p_i*log(p_i))
+                        When α == 1, any entropy type behaves like the Gibbs entropy: H = -sum_i(p_i*log(p_i))
 
                     entropy_norm: A mapping of the entropy value to the interval [0,1].
                         Supported values:
@@ -118,9 +119,9 @@ class CTCBPEDecoding(AbstractCTCDecoding):
 
         super().__init__(decoding_cfg=decoding_cfg, blank_id=blank_id)
 
-    def _reduce_token_confidence(self, hypothesis: Hypothesis) -> List[float]:
+    def _aggregate_token_confidence(self, hypothesis: Hypothesis) -> List[float]:
         """
-        Implemented by subclass in order to reduce token confidence to a word-level confidence.
+        Implemented by subclass in order to aggregate token confidence to a word-level confidence.
 
         **Note**: Only supports Sentencepiece based tokenizers!
 
@@ -130,30 +131,7 @@ class CTCBPEDecoding(AbstractCTCDecoding):
         Returns:
             A list of word-level confidence scores.
         """
-        assert len(hypothesis.text[0]) == len(hypothesis.token_confidence)
-        word_confidence = []
-        # run only if there are final words
-        if len(self.decode_tokens_to_str(hypothesis.text[0]).split()) > 0:
-            j = 0
-            prev_unk = False
-            prev_underline = False
-            for i, token_id in enumerate(hypothesis.text[0]):
-                token = self.decode_ids_to_tokens([int(token_id)])[0]
-                token_text = self.decode_tokens_to_str([int(token_id)])
-                # treat `<unk>` as a separate word regardless of the next token
-                # to match the result of `tokenizer.ids_to_text`
-                if (token != token_text or prev_unk) and i > j:
-                    # do not add confidence for `▁` if the current token starts with `▁`
-                    # to match the result of `tokenizer.ids_to_text`
-                    if not prev_underline:
-                        word_confidence.append(self.reduction_function(hypothesis.token_confidence[j: i]))
-                    j = i
-                prev_unk = token == '<unk>'
-                prev_underline = token == '▁'
-            if not prev_underline:
-                word_confidence.append(self.reduction_function(hypothesis.token_confidence[j: len(hypothesis.text[0])]))
-        assert len(self.decode_tokens_to_str(hypothesis.text[0]).split()) == len(word_confidence), (len(self.decode_tokens_to_str(hypothesis.text[0]).split()), len(word_confidence), ' '.join(self.decode_tokens_to_str(hypothesis.text[0]).split()), ' '.join(self.decode_ids_to_tokens(hypothesis.text[0])))
-        return word_confidence
+        return self._aggregate_token_confidence_subwords_sentencepiece(self.decode_tokens_to_str(hypothesis.text[0]).split(), hypothesis.token_confidence, hypothesis.text[0])
 
     def decode_tokens_to_str(self, tokens: List[int]) -> str:
         """
