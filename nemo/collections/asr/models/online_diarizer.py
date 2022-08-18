@@ -314,7 +314,7 @@ class OnlineDiarizer(ClusteringDiarizer, ASR_DIAR_OFFLINE):
         history_n, current_n = self.history_n, self.current_n
         update_speaker_register = True
         
-        # Case-1
+        # Case-1: The very first step
         if len(self.history_embedding_buffer_emb) == 0:
             hist_curr_boundary = self.total_segments_processed_count - self.current_n
             new_emb_n = self.total_segments_processed_count - (self.current_n + self.history_n)
@@ -386,28 +386,28 @@ class OnlineDiarizer(ClusteringDiarizer, ASR_DIAR_OFFLINE):
             self.current_n = 20
 
         Step (1)
-        |-----------|XXYYZZ--------------|
+        |-----------|ABCDEF--------------|
 
         If we get two more segments, "NN" as in the description:
         history buffer = 10
         current buffer = 22
 
         Step (2)
-        |-----------|XXYYZZ--------------NN|
+        |-----------|ABCDEF--------------XY|
 
         The newly accepted embeddings go through a queue (first embedding, first merged)
         history buffer = 12
         current buffer = 20
 
         Step (3)
-        |-----------XX|YYZZ--------------NN|
+        |-----------AB|CDEF--------------XY|
 
         After merging (reducing) the embedding set:
         history buffer = 10
         current buffer = 20
 
         Step(3)
-        |-----------|------------------NN|
+        |-----------|------------------XY|
 
         After clustering:
 
@@ -525,7 +525,7 @@ class OnlineDiarizer(ClusteringDiarizer, ASR_DIAR_OFFLINE):
                     self.uniq_id, self.frame_index
                 )
             )
-            DER, CER, FA, MISS = 100.0, 0.0, 100.0, 0.0
+            DER, CER, FA, MISS = 100.0, 0.0, 0.0, 100.0
             der_dict, der_stat_dict = self.get_online_DER_stats(DER, CER, FA, MISS)
             return der_dict, der_stat_dict, None, None
         else:
@@ -703,7 +703,6 @@ class OnlineDiarizer(ClusteringDiarizer, ASR_DIAR_OFFLINE):
             p_hat_value =  max(self.p_value_hist, key = self.p_value_hist.count)
             est_num_of_spk, g_p = nmesc.getEigRatio(p_hat_value)
             p_value_stat = torch.bincount(torch.tensor(self.p_value_hist))
-            # print(f"p_value_stat: ", p_value_stat)
         else:
             est_num_of_spk, p_hat_value = nmesc.NMEanalysis()
         return est_num_of_spk, p_hat_value
@@ -713,6 +712,10 @@ class OnlineDiarizer(ClusteringDiarizer, ASR_DIAR_OFFLINE):
         self.history_buffer_seg_end is a timestamp that tells to which point is history embedding contains from self.Y_fullhist.
         If embedding reducing is done correctly, we should discard  (0, self.history_n) amount and take
         (self.history_n, len(Y) ) from the new clustering output Y.
+
+        Args:
+
+
 
         """
         if self.isOnline:

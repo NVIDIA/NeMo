@@ -184,7 +184,10 @@ class ASR_DIAR_ONLINE_DEMO(ASR_DIAR_ONLINE):
     def callback_sim(self, sample_audio):
         loop_start_time = time.time()
         assert len(sample_audio) == int(self.sample_rate * self.frame_len)
-        words, timestamps, diar_hyp = self.transcribe(sample_audio)
+        try:
+            words, timestamps, diar_hyp = self.run_step(sample_audio)
+        except:
+            import ipdb; ipdb.set_trace()
         if diar_hyp != []:
             assert len(words) == len(timestamps)
             self.update_word_and_word_ts(words, timestamps)
