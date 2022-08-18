@@ -122,9 +122,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
         # TODO: Fix this once apex patches FusedScaledMaskedSoftmax.
         # This is a workaround for the fact that `masked_softmax_fusion` has issues with certain input sizes that may be present while finetuning.
-        t5_cfg = MegatronT5Model.restore_from(
-            cfg.get('language_model_path'), trainer=trainer, return_config=True
-        )
+        t5_cfg = MegatronT5Model.restore_from(cfg.get('language_model_path'), trainer=trainer, return_config=True)
         OmegaConf.set_struct(t5_cfg, True)
         with open_dict(t5_cfg):
             if hasattr(t5_cfg, 'encoder') and hasattr(t5_cfg, 'decoder'):
@@ -280,7 +278,9 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             else:
                 pred = [id for id in pred if id not in self.tokenizer.tokenizer.additional_special_tokens_ids]
                 label = [id for id in label if id not in self.tokenizer.tokenizer.additional_special_tokens_ids]
-                enc_input = [id for id in enc_input if id not in self.tokenizer.tokenizer.additional_special_tokens_ids]
+                enc_input = [
+                    id for id in enc_input if id not in self.tokenizer.tokenizer.additional_special_tokens_ids
+                ]
 
             pred = self.tokenizer.ids_to_text(pred)
             label = self.tokenizer.ids_to_text(label)

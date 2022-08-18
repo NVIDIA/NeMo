@@ -66,7 +66,9 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         self.tokenizer = self.frozen_model.tokenizer
 
         if hasattr(self.frozen_model.cfg, "encoder") and hasattr(self.frozen_model.cfg, "decoder"):
-            self.hidden_size = self.frozen_model.cfg.encoder.hidden_size # Encoder and decoder need to have the same hidden size and we check for this in the frozen enc-dec model.
+            self.hidden_size = (
+                self.frozen_model.cfg.encoder.hidden_size
+            )  # Encoder and decoder need to have the same hidden size and we check for this in the frozen enc-dec model.
         else:
             self.hidden_size = self.frozen_model.cfg.hidden_size
 
