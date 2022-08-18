@@ -1316,7 +1316,7 @@ pipeline {
             python dialogue.py \
             model.dataset.data_dir=/home/TestData/nlp/drive_through_with_entity \
             model.dataset.dialogues_example_dir=drive_through_with_entity_prediction \
-            model.dataset.task= zero_shot_slot_filling\
+            model.dataset.task=zero_shot_slot_filling \
             trainer.max_steps=1 \
             trainer.max_epochs=1 \
             model.train_ds.batch_size=2 \
