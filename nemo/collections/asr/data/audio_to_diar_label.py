@@ -27,50 +27,6 @@ from nemo.core.classes import Dataset
 from nemo.core.neural_types import AudioSignal, EncodedRepresentation, LengthsType, NeuralType
 
 from nemo.collections.asr.data.data_simulation import MultiSpeakerSimulator, RIRMultiSpeakerSimulator
-from nemo.collections.asr.parts.utils.speaker_utils import get_uniq_id_with_dur
-from nemo.collections.asr.parts.utils.manifest_utils import write_rttm2manifest, segments_manifest_to_subsegments_manifest
-from nemo.utils import logging
-
-from pytorch_lightning.callbacks import Callback
-
-def get_audio_rttm_map(manifest):
-    """
-    This function creates AUDIO_RTTM_MAP which is used by all diarization components to extract embeddings,
-    cluster and unify time stamps
-    input: manifest file that contains keys audio_filepath, rttm_filepath if exists, text, num_speakers if known and uem_filepath if exists
-    returns:
-        AUDIO_RTTM_MAP (dict) : A dictionary with keys of uniq id, which is being used to map audio files and corresponding rttm files
-    """
-
-    AUDIO_RTTM_MAP = {}
-    with open(manifest, 'r') as inp_file:
-        lines = inp_file.readlines()
-        logging.info("Number of files to diarize: {}".format(len(lines)))
-        for line in lines:
-            line = line.strip()
-            dic = json.loads(line)
-
-            meta = {
-                'audio_filepath': dic['audio_filepath'],
-                'rttm_filepath': dic.get('rttm_filepath', None),
-                'offset': dic.get('offset', None),
-                'duration': dic.get('duration', None),
-                'text': dic.get('text', None),
-                'num_speakers': dic.get('num_speakers', None),
-                'uem_filepath': dic.get('uem_filepath', None),
-                'ctm_filepath': dic.get('ctm_filepath', None),
-            }
-
-            # uniqname = get_uniqname_from_filepath(filepath=meta['audio_filepath'])
-            uniqname = get_uniq_id_with_dur(meta)
-            if uniqname not in AUDIO_RTTM_MAP:
-                AUDIO_RTTM_MAP[uniqname] = meta
-            else:
-                raise KeyError(
-                    f"Unique name:{uniqname} already exists in the AUDIO_RTTM_MAP dictionary."
-                )
-
-    return AUDIO_RTTM_MAP
 
 def get_scale_mapping_list(uniq_timestamps):
     """
