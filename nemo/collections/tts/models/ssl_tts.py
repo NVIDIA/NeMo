@@ -434,7 +434,6 @@ class SSLDisentangler(ModelPT):
                     content_loss += ctc_loss
                 else:
                     logging.warning(f"ctc_loss is not finite. Add min duration to avoid getting here.")
-                
 
                 if self.pitch_augment:
                     augmented_signal = batch[key]['audio_shifted']
@@ -471,7 +470,6 @@ class SSLDisentangler(ModelPT):
                 # pred_char = decode(self._text_tokenizer, pred_char_batch[0].tolist())
                 # target_char = decode(self._text_tokenizer, target[0].tolist())
 
-        
         return {
             'val_loss': loss_total.cpu(),
             'sv_loss': sv_loss.cpu(),
@@ -482,7 +480,7 @@ class SSLDisentangler(ModelPT):
         }
 
     def validation_epoch_end(self, outputs):
-        collect = lambda key: torch.stack([x[key] for x in outputs if torch.isfinite(x[key]) ]).mean()
+        collect = lambda key: torch.stack([x[key] for x in outputs if torch.isfinite(x[key])]).mean()
         val_loss = collect("val_loss")
         val_sv_loss = collect("sv_loss")
         val_ctc_loss = collect("ctc_loss")
