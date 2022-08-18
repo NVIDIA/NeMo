@@ -18,7 +18,7 @@ import torch
 from omegaconf import DictConfig, ListConfig
 
 from nemo.collections.asr.models import EncDecRNNTModel
-from nemo.collections.asr.modules import RNNTDecoder, RNNTJoint, RNNTStatelessDecoder
+from nemo.collections.asr.modules import RNNTDecoder, RNNTJoint, StatelessTransducerDecoder
 from nemo.collections.asr.parts.submodules import rnnt_beam_decoding as beam_decode
 from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode
 from nemo.collections.asr.parts.utils import rnnt_utils
@@ -377,7 +377,7 @@ class TestEncDecRNNTModel:
             'activation': 'relu',
         }
 
-        decoder = RNNTStatelessDecoder(prednet_cfg, vocab_size)
+        decoder = StatelessTransducerDecoder(prednet_cfg, vocab_size)
         joint_net = RNNTJoint(jointnet_cfg, vocab_size, vocabulary=token_list)
 
         greedy = greedy_class(decoder, joint_net, blank_index=len(token_list) - 1, max_symbols_per_step=5)
@@ -412,7 +412,7 @@ class TestEncDecRNNTModel:
             'activation': 'relu',
         }
 
-        decoder = RNNTStatelessDecoder(prednet_cfg, vocab_size)
+        decoder = StatelessTransducerDecoder(prednet_cfg, vocab_size)
         joint_net = RNNTJoint(jointnet_cfg, vocab_size, vocabulary=token_list)
 
         greedy = greedy_class(decoder, joint_net, blank_index=len(token_list) - 1, max_symbols_per_step=5)
