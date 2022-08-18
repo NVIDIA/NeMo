@@ -83,7 +83,6 @@ def get_language_model(
     fp8_interval=1,
     fp8_amax_history_len=1,
     fp8_amax_compute_algo='most_recent',
-    fp8_wgrad=True,
 ):
     """Build language model and return along with the key to save."""
 
@@ -144,7 +143,6 @@ def get_language_model(
         fp8_interval=fp8_interval,
         fp8_amax_history_len=fp8_amax_history_len,
         fp8_amax_compute_algo=fp8_amax_compute_algo,
-        fp8_wgrad=fp8_wgrad,
     )
     # key used for checkpoints.
     language_model_key = 'language_model'
@@ -429,7 +427,6 @@ class TransformerLanguageModel(MegatronModule):
         fp8_interval=1,
         fp8_amax_history_len=1,
         fp8_amax_compute_algo='most_recent',
-        fp8_wgrad=True,
     ):
         super(TransformerLanguageModel, self).__init__()
 
@@ -509,7 +506,6 @@ class TransformerLanguageModel(MegatronModule):
             fp8_interval=fp8_interval,
             fp8_amax_history_len=fp8_amax_history_len,
             fp8_amax_compute_algo=fp8_amax_compute_algo,
-            fp8_wgrad=fp8_wgrad,
         )
         self._encoder_key = 'encoder'
 
