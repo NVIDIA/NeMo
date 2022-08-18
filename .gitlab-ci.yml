@@ -350,7 +350,7 @@ export.gpt3.126m_tp2_pp2_merge:
     FT_DEPLOYMENT_DATA: fp16
     FT_EVAL_MARGIN: "0.005"
     FT_EVAL_TASK: lambada
-  dependencies:
+  needs:
     - eval.gpt3.126m_tp2_pp2_lambada
 
 train.gpt3.126m_tp4_pp4_4node_100steps:
