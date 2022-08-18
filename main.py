@@ -24,7 +24,7 @@ STR2STAGECLASS = {
     "conversion": Conversion,
     "evaluation": {
         EvalHarnessEvaluation: ["gpt3", "prompt_gpt3"],
-        NeMoEvaluation: ["t5", "mt5"]
+        NeMoEvaluation: ["t5", "mt5", "prompt_t5", "prompt_mt5"]
     },
     "data_preparation": {
         PileDataPreparation: ["gpt3", "t5"],
