@@ -39,11 +39,13 @@ from nemo.utils import logging
 try:
     import pyroomacoustics as pra
     from pyroomacoustics.directivities import CardioidFamily, DirectionVector, DirectivityPattern
+    
     PRA = True
 except ImportError:
     PRA = False
 try:
     from gpuRIR import att2t_SabineEstimator, beta_SabineEstimation, simulateRIR, t2n
+
     GPURIR = True
 except ImportError:
     GPURIR = False
