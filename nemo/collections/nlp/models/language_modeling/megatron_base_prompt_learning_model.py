@@ -64,7 +64,12 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
 
         self.tokenizer = self.frozen_model.tokenizer
 
-        self.hidden_size = self.frozen_model.cfg.hidden_size
+        if hasattr(self.frozen_model.cfg, "encoder") and hasattr(self.frozen_model.cfg, "decoder"):
+            self.hidden_size = self.frozen_model.cfg.encoder.hidden_size # Encoder and decoder need to have the same hidden size and we check for this in the frozen enc-dec model.
+        else:
+            self.hidden_size = self.frozen_model.cfg.hidden_size
+
+        # TODO: Handle this when moving GPT prompt learning to the base class.
         self.word_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.word_embeddings
         self.existing_tasks = list(self.cfg.get('existing_tasks', []))
         self.new_tasks = list(self.cfg.get('new_tasks', []))
