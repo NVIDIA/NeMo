@@ -528,6 +528,15 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         )
         list_of_models.append(model)
 
+        # de-DE, single speaker, 22050 Hz, OpenSLR Neutral German Dataset.
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_de_fastpitch_singlespeaker",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_de_fastpitchhifigan/versions/1.10.0/files/tts_de_fastpitch_align.nemo",
+            description="This model is trained on a single male speaker data in OpenSLR Neutral German Dataset sampled at 22050Hz and can be used to generate male German voices.",
+            class_=cls,
+        )
+        list_of_models.append(model)
+
         # de-DE, multi-speaker, 5 speakers, 44100 Hz, HUI-Audio-Corpus-German Clean.
         model = PretrainedModelInfo(
             pretrained_model_name="tts_de_fastpitch_multispeaker_5",
