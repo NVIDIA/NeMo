@@ -126,6 +126,7 @@ class SSLVocoderDataset(Dataset):
         with open_dict(self.ssl_model.cfg):
             self.ssl_model.cfg.preprocessor.exact_pad = True
         self.ssl_model.preprocessor = hydra.utils.instantiate(self.ssl_model.cfg.preprocessor)
+        self.ssl_model.preprocessor_disentangler = self.ssl_model.preprocessor
 
         self.ssl_model.eval()
 
