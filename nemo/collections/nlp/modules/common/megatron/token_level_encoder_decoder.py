@@ -147,8 +147,8 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 self._encoder_relative_position_embedding_key = "encoder_relative_position_embedding"
                 # Pipeline model parallel rank 0 will have the actual RPE weights. We zero it out on all other ranks and then sync them on setup.
                 if parallel_state.get_pipeline_model_parallel_rank() != 0:
-                    self.encoder_relative_position_embedding.weight.data.fill_(0)
-                    self.encoder_relative_position_embedding.weight.shared = True
+                    self.encoder_relative_position_embeddings_weight().fill_(0)
+                    self.encoder_relative_position_embeddings_weight().shared = True
 
             encoder = get_encoder_model(
                 arch=encoder_cfg.arch,
@@ -227,8 +227,8 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 self._decoder_relative_position_embedding_key = "decoder_relative_position_embedding"
                 # Pipeline model parallel rank == split_rank will have the actual RPE weights. We zero it out on all other ranks and then sync them on setup.
                 if parallel_state.get_pipeline_model_parallel_rank() != parallel_state.get_pipeline_model_parallel_split_rank():
-                    self.decoder_relative_position_embedding.weight.data.fill_(0)
-                    self.decoder_relative_position_embedding.weight.shared = True
+                    self.decoder_relative_position_embeddings_weight().fill_(0)
+                    self.decoder_relative_position_embeddings_weight().shared = True
 
                 if not self.decoder_cfg.relative_position_bias_self_attention_only:
                     self.decoder_cross_attention_relative_position_embedding = T5RelativePositionEmbedding(
@@ -243,8 +243,8 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                         "decoder_cross_attention_relative_position_embedding"
                     )
                     if parallel_state.get_pipeline_model_parallel_rank() != parallel_state.get_pipeline_model_parallel_split_rank():
-                        self.decoder_cross_attention_relative_position_embedding.weight.data.fill_(0)
-                        self.decoder_cross_attention_relative_position_embedding.weight.shared = True
+                        self.decoder_cross_attention_relative_position_embeddings_weight().fill_(0)
+                        self.decoder_cross_attention_relative_position_embeddings_weight().shared = True
 
             decoder = get_decoder_model(
                 arch=decoder_cfg.arch,
