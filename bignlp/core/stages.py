@@ -413,10 +413,10 @@ class PromptLearning(NeMoStage):
                 )
 
     def _get_nemo_code_path(self, model_type):
-        if model_type != "gpt3":
-            raise NotImplementedError("Prompt Learning is only supported in NeMo Megatron GPT-3 models.")
         model_type_to_code_path = {
             "gpt3": self._nemo_code_path / "examples/nlp/language_modeling/megatron_gpt_prompt_learning.py",
+            "t5": self._nemo_code_path / "examples/nlp/language_modeling/megatron_t5_prompt_learning.py",
+            "mt5": self._nemo_code_path / "examples/nlp/language_modeling/megatron_t5_prompt_learning.py",
         }
         return model_type_to_code_path[model_type]
 
