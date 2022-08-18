@@ -23,6 +23,9 @@ from nemo.collections.nlp.modules.common.megatron.megatron_encoder_decoder impor
 from nemo.collections.nlp.modules.common.megatron.megatron_encoders import get_encoder_model
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.t5_relative_position_embedding import T5RelativePositionEmbedding
+from nemo.collections.nlp.modules.common.megatron.token_level_adapter_encoder_decoder import (
+    MegatronTokenLevelAdapterEncoderDecoderModule,
+)
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     build_position_ids,
@@ -79,7 +82,7 @@ class MegatronTokenLevelHead(MegatronModule):
 # TODO: add soft prompts as an Embedding sub-class
 
 
-class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
+class MegatronTokenLevelEncoderDecoderModule(MegatronModule, MegatronTokenLevelAdapterEncoderDecoderModule):
     """Token-based (input/output is tokens) encoder-decoder model (e.g. T5 Language model.)"""
 
     def __init__(
@@ -296,6 +299,11 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 )
 
             self._tokens_head_key = 'tokens_head'
+
+        # setup adapters here and create the cfg for the class -> needed by adapters superclass
+        self.cfg = self.encoder_cfg
+        self.cfg.update(self.decoder_cfg)
+        self.setup_adapters()
 
     def _validate_kv_channels(self, cfg):
         kv_channels = cfg.kv_channels
@@ -523,3 +531,16 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         self.decoder_embedding.load_state_dict(state_dict[self._decoder_embedding_key], strict=strict)
         self.enc_dec_model.load_state_dict(state_dict[self._enc_dec_model_key], strict=strict)
         self.tokens_head.load_state_dict(state_dict[self._tokens_head_key], strict=strict)
+
+    # needed for adapters
+    def freeze(self):  # not sure why it's not available by default
+        for param in self.parameters():
+            param.requires_grad = False
+
+    @property
+    def encoder(self):
+        return self.enc_dec_model.encoder
+
+    @property
+    def decoder(self):
+        return self.enc_dec_model.decoder

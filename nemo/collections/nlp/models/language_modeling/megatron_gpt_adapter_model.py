@@ -18,26 +18,27 @@
 
 
 import torch
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.utils import logging
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 
+from nemo.collections.common.parts import adapter_modules
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
     MegatronGPTPromptLearningModel,
 )
 from nemo.collections.nlp.modules.common import VirtualPromptStyle
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
-from nemo.collections.common.parts import adapter_modules
 from nemo.core.classes.mixins import adapter_mixins
+from nemo.utils import logging
 
 try:
-    
+
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
+
 
 class MegatronGPTAdapterLearningModel(MegatronGPTPromptLearningModel):
     """
@@ -46,27 +47,37 @@ class MegatronGPTAdapterLearningModel(MegatronGPTPromptLearningModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
-        
+
         self.adapter_name_keys = ['adapter_1', 'adapter_2']
         frozen_model_cfg = MegatronGPTModel.restore_from(
             cfg.get('language_model_path'), trainer=trainer, return_config=True
-        ) 
+        )
         for _, layer in self.frozen_model.named_modules():
             if hasattr(layer, 'activations_checkpoint_method'):
-                layer.activations_checkpoint_method = None  # (@adithyare) adapter learning does not support activations checkpointing atm.
+                layer.activations_checkpoint_method = (
+                    None  # (@adithyare) adapter learning does not support activations checkpointing atm.
+                )
             if hasattr(layer, 'scale_mask_softmax'):
                 layer.scale_mask_softmax.scaled_masked_softmax_fusion = False
 
         with open_dict(cfg):
-            cfg.adapter_tuning.adapter_dropout = 0.0 
+            cfg.adapter_tuning.adapter_dropout = 0.0
 
         logging.info(f'Before adding adapters:\n{self.frozen_model.summarize()}')
         self.frozen_model.freeze()
         for _, module in self.frozen_model.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin):
                 for adapter_key in self.adapter_name_keys:
-                    module.add_adapter(name=adapter_key, cfg=adapter_modules.LinearAdapterConfig(in_features=frozen_model_cfg.hidden_size, dim=cfg.adapter_tuning.adapter_dim, norm_position='pre', dropout=cfg.adapter_tuning.adapter_dropout))
-        
+                    module.add_adapter(
+                        name=adapter_key,
+                        cfg=adapter_modules.LinearAdapterConfig(
+                            in_features=frozen_model_cfg.hidden_size,
+                            dim=cfg.adapter_tuning.adapter_dim,
+                            norm_position='pre',
+                            dropout=cfg.adapter_tuning.adapter_dropout,
+                        ),
+                    )
+
         logging.info(f'After adding adapters:\n{self.frozen_model.summarize()}')
 
     @classmethod
@@ -109,11 +120,8 @@ class MegatronGPTAdapterLearningModel(MegatronGPTPromptLearningModel):
 
         return output
 
-
     def setup(self, stage=None):
-        if (
-            stage == 'predict' or self.virtual_prompt_style == VirtualPromptStyle.INFERENCE
-        ):
+        if stage == 'predict' or self.virtual_prompt_style == VirtualPromptStyle.INFERENCE:
             self.frozen_model.freeze()
             return
 
@@ -123,16 +131,15 @@ class MegatronGPTAdapterLearningModel(MegatronGPTPromptLearningModel):
 
         self.setup_training_data()
         self.setup_validation_data()
-        logging.info(f'setup completed:\n{self.frozen_model.summarize()}') 
+        logging.info(f'setup completed:\n{self.frozen_model.summarize()}')
 
     def on_train_end(self):
         # Save the best nemo model
         self.save_to(save_path=self.cfg.nemo_path)
-    
+
     def on_validation_end(self):
         # Save the best nemo model
         self.save_to(save_path=self.cfg.nemo_path)
-
 
     def get_forward_output_only_func(self):
         """
@@ -175,9 +182,9 @@ class MegatronGPTAdapterLearningModel(MegatronGPTPromptLearningModel):
                     state_adapter_key = ':'.join([name, adapter_key])
                     state_dict_[state_adapter_key] = adapter_module.state_dict()
 
-                module.set_enabled_adapters(enabled=True) 
+                module.set_enabled_adapters(enabled=True)
         return state_dict_
-    
+
     def load_state_dict(self, state_dict, strict: bool = True):
         for name, module in self.frozen_model.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin):
@@ -186,7 +193,7 @@ class MegatronGPTAdapterLearningModel(MegatronGPTPromptLearningModel):
                     state_adapter_key = ':'.join([name, adapter_key])
                     adapter_module.load_state_dict(state_dict[state_adapter_key], strict)
                 module.set_enabled_adapters(enabled=True)
-        
+
     def setup_optimizer_param_groups(self):
         """
         ModelPT override. Optimizer will get self._optimizer_param_groups. 
@@ -202,7 +209,7 @@ class MegatronGPTAdapterLearningModel(MegatronGPTPromptLearningModel):
 
         
         self.frozen_model.freeze()
-        param_groups = {'params': [ p for p in self.frozen_model.parameters()]}
+        param_groups = {'params': [p for p in self.frozen_model.parameters()]}
         for _, module in self.frozen_model.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin):
                 module.set_enabled_adapters(enabled=True) 
@@ -226,6 +233,7 @@ class MegatronGPTAdapterLearningModel(MegatronGPTPromptLearningModel):
 
         return fwd_output_and_loss_func
     
+
     def training_step(self, batch, batch_idx):
         # we zero grads here because we also call backward in the apex fwd/bwd functions
         self._optimizer.zero_grad()
