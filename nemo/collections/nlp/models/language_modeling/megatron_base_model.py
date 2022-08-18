@@ -104,6 +104,7 @@ class MegatronBaseModel(NLPModel):
             # manipulate vocabulary (e.g., pad vocabulary for better efficiency)
             self._build_vocab()
 
+        # TODO: remove this when PTL 1.7.3 is released
         _FxValidator.functions["configure_gradient_clipping"] = {
             "allowed_on_step": (False, True),
             "allowed_on_epoch": (False, True),
