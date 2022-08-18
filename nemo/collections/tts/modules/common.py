@@ -138,7 +138,7 @@ class ConvLSTMLinear(nn.Module):
 
     def run_unsorted_inputs(self, fn, context, lens):
         lens_sorted, ids_sorted = torch.sort(lens, descending=True)
-        unsort_ids = [0] * lens.size(0)
+        unsort_ids = torch.zeros_like(ids_sorted)
         for i in range(ids_sorted.shape[0]):
             unsort_ids[ids_sorted[i]] = i
         lens_sorted = lens_sorted.long().cpu()

@@ -355,7 +355,7 @@ class RadTTSModule(NeuralModule, Exportable):
         # text_embeddings: b x len_text x n_text_dim
         text_embeddings = self.embedding(text).transpose(1, 2)
         # text_enc: b x n_text_dim x encoder_dim (512)
-        if in_lens is None:
+        if in_lens is None or in_lens.shape[0]==1:
             text_enc = self.encoder.infer(text_embeddings).transpose(1, 2)
         else:
             text_enc = self.encoder(text_embeddings, in_lens).transpose(1, 2)
@@ -653,8 +653,8 @@ class RadTTSModule(NeuralModule, Exportable):
 
         if dur is None:
             # get token durations
-            z_dur = txt_enc.new_empty((1, 1, text.shape[1]), dtype=torch.float)
-            z_dur = z_dur.normal_() * sigma_txt
+            z_dur = txt_enc.new_zeros((1, 1, text.shape[1]), dtype=torch.float)
+            z_dur = torch.normal(z_dur) * sigma_txt
             dur = self.dur_pred_layer.infer(z_dur, txt_enc, spk_vec_text)
             dur = pad_dur(dur, txt_enc)
 
@@ -663,7 +663,7 @@ class RadTTSModule(NeuralModule, Exportable):
 
         # get attributes f0, energy, vpred, etc)
         txt_enc_time_expanded, out_lens = regulate_len(dur, txt_enc.transpose(1, 2), pace)
-        n_groups = torch.div(out_lens, self.n_group_size, rounding_mode='trunc')
+        n_groups = torch.div(out_lens, self.n_group_size, rounding_mode='floor')
 
         txt_enc_time_expanded.transpose_(1, 2)
         if voiced_mask is None:
@@ -687,14 +687,14 @@ class RadTTSModule(NeuralModule, Exportable):
 
         if f0 is None:
             n_f0_feature_channels = 2 if self.use_first_order_features else 1
-            z_f0 = txt_enc.new_empty(1, n_f0_feature_channels, out_lens).normal_() * sigma_f0
+            z_f0 = torch.normal(txt_enc.new_zeros(1, n_f0_feature_channels, out_lens)) * sigma_f0
             f0 = self.infer_f0(z_f0, ap_txt_enc_time_expanded, spk_vec_attributes, voiced_mask, out_lens)[:, 0]
 
         f0 = adjust_f0(f0, f0_mean, f0_std, voiced_mask.to(dtype=bool))
 
         if energy_avg is None:
             n_energy_feature_channels = 2 if self.use_first_order_features else 1
-            z_energy_avg = txt_enc.new_empty(1, n_energy_feature_channels, out_lens).normal_() * sigma_energy
+            z_energy_avg = torch.normal(txt_enc.new_zeros(1, n_energy_feature_channels, out_lens)) * sigma_energy
             energy_avg = self.infer_energy(z_energy_avg, ap_txt_enc_time_expanded, spk_vec, out_lens)[:, 0]
 
         # replication pad, because ungrouping with different group sizes
@@ -712,22 +712,22 @@ class RadTTSModule(NeuralModule, Exportable):
                 txt_enc_time_expanded, spk_vec, out_lens, f0 * voiced_mask, energy_avg
             )
 
-        residual = txt_enc.new_empty(1, 80 * self.n_group_size, out_lens // self.n_group_size)
-        residual = residual.normal_() * sigma
+        residual = torch.normal(txt_enc.new_zeros(1, 80 * self.n_group_size, n_groups)) * sigma
 
         # map from z sample to data
         exit_steps_stack = self.exit_steps.copy()
-        mel = residual[:, len(exit_steps_stack) * self.n_early_size :]
-        remaining_residual = residual[:, : len(exit_steps_stack) * self.n_early_size]
-        unfolded_seq_lens = out_lens // self.n_group_size
+        num_steps_to_exit = len(self.exit_steps)
+        mel = residual[:, num_steps_to_exit * self.n_early_size :]
+        remaining_residual = residual[:, : num_steps_to_exit * self.n_early_size]
+
         for i, flow_step in enumerate(reversed(self.flows)):
             curr_step = len(self.flows) - i - 1
-            mel = flow_step(mel, context_w_spkvec, inverse=True, seq_lens=unfolded_seq_lens)
-            if len(exit_steps_stack) > 0 and curr_step == exit_steps_stack[-1]:
+            mel = flow_step(mel, context_w_spkvec, inverse=True, seq_lens=n_groups)
+            if len(exit_steps_stack) > 0 and curr_step == self.exit_steps[num_steps_to_exit-1]:
                 # concatenate the next chunk of z
-                exit_steps_stack.pop()
-                residual_to_add = remaining_residual[:, len(exit_steps_stack) * self.n_early_size :]
-                remaining_residual = remaining_residual[:, : len(exit_steps_stack) * self.n_early_size]
+                num_steps_to_exit=num_steps_to_exit-1
+                residual_to_add = remaining_residual[:, num_steps_to_exit * self.n_early_size :]
+                remaining_residual = remaining_residual[:, : num_steps_to_exit * self.n_early_size]
                 mel = torch.cat((residual_to_add, mel), 1)
 
         if self.n_group_size > 1:
