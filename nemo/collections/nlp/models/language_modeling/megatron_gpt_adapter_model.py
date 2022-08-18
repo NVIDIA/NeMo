@@ -23,6 +23,7 @@ from nemo.utils import logging
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
+from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
     MegatronGPTPromptLearningModel,
@@ -64,7 +65,7 @@ class MegatronGPTAdapterLearningModel(MegatronGPTPromptLearningModel):
         for _, module in self.frozen_model.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin):
                 for adapter_key in self.adapter_name_keys:
-                    module.add_adapter(name=adapter_key, cfg=adapter_modules.LinearAdapterConfig(in_features=frozen_model_cfg.hidden_size, dim=cfg.adapter_tuning.adapter_dim, dropout=cfg.adapter_tuning.adapter_dropout))
+                    module.add_adapter(name=adapter_key, cfg=adapter_modules.LinearAdapterConfig(in_features=frozen_model_cfg.hidden_size, dim=cfg.adapter_tuning.adapter_dim, norm_position='pre', dropout=cfg.adapter_tuning.adapter_dropout))
         
         logging.info(f'After adding adapters:\n{self.frozen_model.summarize()}')
 
@@ -197,21 +198,18 @@ class MegatronGPTAdapterLearningModel(MegatronGPTPromptLearningModel):
         and/or prompt table will use the learning rate set by the user. 
         """
         # Freeze frozen model
+        
+
+        
         self.frozen_model.freeze()
         param_groups = {'params': [ p for p in self.frozen_model.parameters()]}
         for _, module in self.frozen_model.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin):
-        #        for adapter_key in self.adapter_name_keys:
-        #            adapter_module = module.adapter_layer[adapter_key]
-        #            param_groups['params'].extend(adapter_module.parameters())
                 module.set_enabled_adapters(enabled=True) 
                 module.unfreeze_enabled_adapters()
         self._optimizer_param_groups = [param_groups]
         logging.info(f'Optimizer groups set:\n{self.frozen_model.summarize()}')
 
-        # Need to handle frozen model freezing differently when pp > 1
-        if self.pipeline_parallel:
-            raise NotImplementedError('Pipeline parallel not implemented yet')
 
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(batch, model):
@@ -227,3 +225,28 @@ class MegatronGPTAdapterLearningModel(MegatronGPTPromptLearningModel):
             return output_tensor, loss_func
 
         return fwd_output_and_loss_func
+    
+    def training_step(self, batch, batch_idx):
+        # we zero grads here because we also call backward in the apex fwd/bwd functions
+        self._optimizer.zero_grad()
+        loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=False)
+        self.allreduce_gradients()
+
+        ## logging
+        # we can only log on one rank if it is rank zero so we broadcast from last rank
+        # we can avoid this broadcast by updating the PTL log function to accept specific ranks
+        torch.distributed.broadcast(loss_mean, get_last_rank())
+
+        if self.cfg.precision == 16:
+            loss_scale = self.trainer.precision_plugin.scaler._scale
+            if loss_scale is not None:
+                self.log('loss_scale', loss_scale)
+
+        self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True)
+        lr = self._optimizer.param_groups[0]['lr']
+        self.log('lr', lr, rank_zero_only=True)
+        self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True)
+
+        # Need to make sure the frozen model param learning rate stays 0.0
+        # so forceing lr to be 0.0 for gpt layers before param update
+        return loss_mean
