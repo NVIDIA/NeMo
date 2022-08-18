@@ -271,9 +271,16 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
                 idx = pred.index(self.tokenizer.eos_id)
                 pred = pred[:idx]
 
-            pred = [id for id in pred if id not in self.tokenizer.tokenizer.additional_special_tokens_ids]
-            label = [id for id in label if id not in self.tokenizer.tokenizer.additional_special_tokens_ids]
-            enc_input = [id for id in enc_input if id not in self.tokenizer.tokenizer.additional_special_tokens_ids]
+            # Sentencepiece case
+            if hasattr(self.tokenizer, 'special_token_to_id'):
+                pred = [id for id in pred if id not in self.tokenizer.special_token_to_id.values()]
+                label = [id for id in label if id not in self.tokenizer.special_token_to_id.values()]
+                enc_input = [id for id in enc_input if id not in self.tokenizer.special_token_to_id.values()]
+            # HF Autotokenizer case.
+            else:
+                pred = [id for id in pred if id not in self.tokenizer.tokenizer.additional_special_tokens_ids]
+                label = [id for id in label if id not in self.tokenizer.tokenizer.additional_special_tokens_ids]
+                enc_input = [id for id in enc_input if id not in self.tokenizer.tokenizer.additional_special_tokens_ids]
 
             pred = self.tokenizer.ids_to_text(pred)
             label = self.tokenizer.ids_to_text(label)
