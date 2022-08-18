@@ -27,7 +27,12 @@ from omegaconf import DictConfig, open_dict
 from pytorch_lightning import Trainer
 from tqdm import tqdm
 
-from nemo.collections.asr.data.audio_to_diar_label import AudioToSpeechMSDDInferDataset, AudioToSpeechMSDDTrainDataset
+from nemo.collections.asr.data.audio_to_diar_label import (
+    AudioToSpeechMSDDInferDataset,
+    AudioToSpeechMSDDTrainDataset,
+    AudioToSpeechMSDDSyntheticTrainDataset,
+    SyntheticDataLoader,
+)
 from nemo.collections.asr.metrics.multi_binary_acc import MultiBinaryAccuracy
 from nemo.collections.asr.models import ClusteringDiarizer
 from nemo.collections.asr.models.asr_model import ExportableEncDecModel
@@ -92,6 +97,22 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
 
         if self._trainer:
             self._init_segmentation_info()
+            if self.cfg_msdd_model.train_ds.synthetic:
+                featurizer = WaveformFeaturizer(
+                    sample_rate=cfg.train_ds.sample_rate, int_values=cfg.get('int_values', False), augmentor=None
+                )
+                self.dataset = AudioToSpeechMSDDSyntheticTrainDataset(
+                    manifest_filepath=cfg.train_ds.manifest_filepath,
+                    emb_dir=cfg.train_ds.emb_dir,
+                    multiscale_args_dict=self.multiscale_args_dict,
+                    soft_label_thres=cfg.train_ds.soft_label_thres,
+                    featurizer=featurizer,
+                    window_stride=cfg.preprocessor.window_stride,
+                    emb_batch_size=cfg.train_ds.emb_batch_size,
+                    pairwise_infer=False,
+                    ds_config=cfg,
+                    global_rank=self._trainer.global_rank,
+                )
             self.world_size = trainer.num_nodes * trainer.num_devices
             self.emb_batch_size = self.cfg_msdd_model.emb_batch_size
             self.pairwise_infer = False
@@ -190,34 +211,48 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
             sample_rate=config['sample_rate'], int_values=config.get('int_values', False), augmentor=None
         )
 
-        if 'manifest_filepath' in config and config['manifest_filepath'] is None:
+        if 'manifest_filepath' in config and config['manifest_filepath'] is None and ('synthetic' not in config or config['synthetic'] == False or self.cfg_msdd_model.train_ds.include_base_ds):
             logging.warning(f"Could not load dataset as `manifest_filepath` was None. Provided config : {config}")
             return None
-        dataset = AudioToSpeechMSDDTrainDataset(
-            manifest_filepath=config.manifest_filepath,
-            emb_dir=config.emb_dir,
-            multiscale_args_dict=self.multiscale_args_dict,
-            soft_label_thres=config.soft_label_thres,
-            featurizer=featurizer,
-            window_stride=self.cfg_msdd_model.preprocessor.window_stride,
-            emb_batch_size=config.emb_batch_size,
-            pairwise_infer=False,
-            global_rank=self._trainer.global_rank,
-        )
+        if 'synthetic' in config and config['synthetic'] == True:
+            dataset = self.dataset 
+        else:
+            dataset = AudioToSpeechMSDDTrainDataset(
+                manifest_filepath=config.manifest_filepath,
+                emb_dir=config.emb_dir,
+                multiscale_args_dict=self.multiscale_args_dict,
+                soft_label_thres=config.soft_label_thres,
+                featurizer=featurizer,
+                window_stride=self.cfg_msdd_model.preprocessor.window_stride,
+                emb_batch_size=config.emb_batch_size,
+                pairwise_infer=False,
+                global_rank=self._trainer.global_rank,
+            )
 
         self.data_collection = dataset.collection
         collate_ds = dataset
         collate_fn = collate_ds.msdd_train_collate_fn
         batch_size = config['batch_size']
-        return torch.utils.data.DataLoader(
-            dataset=dataset,
-            batch_size=batch_size,
-            collate_fn=collate_fn,
-            drop_last=config.get('drop_last', False),
-            shuffle=False,
-            num_workers=config.get('num_workers', 0),
-            pin_memory=config.get('pin_memory', False),
-        )
+        if 'synthetic' in config and config['synthetic'] == True:
+            return SyntheticDataLoader(
+                dataset=dataset,
+                batch_size=batch_size,
+                collate_fn=collate_fn,
+                drop_last=config.get('drop_last', False),
+                shuffle=False,
+                num_workers=config.get('num_workers', 0),
+                pin_memory=config.get('pin_memory', False),
+            )
+        else:
+            return torch.utils.data.DataLoader(
+                dataset=dataset,
+                batch_size=batch_size,
+                collate_fn=collate_fn,
+                drop_last=config.get('drop_last', False),
+                shuffle=False,
+                num_workers=config.get('num_workers', 0),
+                pin_memory=config.get('pin_memory', False),
+            )
 
     def __setup_dataloader_from_config_infer(
         self, config: DictConfig, emb_dict: dict, emb_seq: dict, clus_label_dict: dict, pairwise_infer=False
@@ -967,7 +1002,6 @@ class OverlapAwareDiarizer:
     def __init__(self, cfg: DictConfig):
         """ """
         self._cfg = cfg
-
         self._init_msdd_model(cfg)
         self.diar_window_length = cfg.diarizer.msdd_model.parameters.diar_window_length
         self.msdd_model.cfg = self.transfer_diar_params_to_model_params(self.msdd_model, cfg)
