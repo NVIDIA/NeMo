@@ -77809,7 +77809,8 @@ MERCEDESES  ˌmɝˈseɪˌdiz
 MERCENARIES  ˈmɝsəˌnɛɹiz
 MERCENARY  ˈmɝsəˌnɛɹi
 MERCER  ˈmɝsɝ
-MERCHANDISE  ˈmɝtʃənˌdaɪz
+MERCHANDISE  ˈmɝtʃənˌdaɪs
+MERCHANDISE(1)  ˈmɝtʃənˌdaɪz
 MERCHANDISER  ˈmɝtʃənˌdaɪzɝ
 MERCHANDISERS  ˈmɝtʃənˌdaɪzɝz
 MERCHANDISING  ˈmɝtʃənˌdaɪzɪŋ
