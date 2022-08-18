@@ -26,10 +26,9 @@ from nemo.collections.tts.helpers.helpers import plot_alignment_to_numpy, plot_s
 from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
 from nemo.collections.tts.losses.fastpitchloss import DurationLoss, MelLoss, PitchLoss
 from nemo.collections.tts.models.base import SpectrogramGenerator
-from nemo.core.classes import ModelPT
 from nemo.collections.tts.modules.fastpitch import FastPitchModule
 from nemo.collections.tts.torch.tts_data_types import SpeakerID
-from nemo.core.classes import Exportable
+from nemo.core.classes import Exportable, ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import (
     Index,
@@ -44,12 +43,14 @@ from nemo.core.neural_types.elements import (
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging, model_utils
 
+
 def mask_from_lens(lens, max_len: Optional[int] = None):
     if max_len is None:
         max_len = lens.max()
     ids = torch.arange(0, max_len, device=lens.device, dtype=lens.dtype)
     mask = torch.lt(ids, lens.unsqueeze(1))
     return mask
+
 
 class FastPitchModel_SSL(ModelPT):
     """FastPitch model (https://arxiv.org/abs/2006.06873) that is used to generate mel spectrogram from text."""
@@ -63,7 +64,6 @@ class FastPitchModel_SSL(ModelPT):
 
         # Setup vocabulary (=tokenizer) and input_fft_kwargs (supported only with self.learn_alignment=True)
         input_fft_kwargs = {}
-        
 
         self._parser = None
         self._tb_logger = None
@@ -85,7 +85,7 @@ class FastPitchModel_SSL(ModelPT):
         self.duration_loss = DurationLoss(loss_scale=dur_loss_scale)
 
         self.aligner = None
-        
+
         self.preprocessor = instantiate(self._cfg.preprocessor)
         input_fft = None
         output_fft = instantiate(self._cfg.output_fft)
@@ -121,7 +121,6 @@ class FastPitchModel_SSL(ModelPT):
             self._tb_logger = tb_logger
         return self._tb_logger
 
-    
     def forward(
         self,
         *,
@@ -162,7 +161,6 @@ class FastPitchModel_SSL(ModelPT):
         spect, *_ = self(text=tokens, durs=None, pitch=None, speaker=speaker, pace=pace)
         return spect
 
-    
     def compute_encoding(self, content_embedding, speaker_embedding):
         # content embedding is (B, C, T)
         # speaker embedding is (B, C)
@@ -180,7 +178,6 @@ class FastPitchModel_SSL(ModelPT):
         encoded = encoded.permute(0, 2, 1)  # (B, C, T) -> (B, T, C)
 
         return encoded
-
 
     def training_step(self, batch, batch_idx):
         audio = batch["audio"]
@@ -201,7 +198,7 @@ class FastPitchModel_SSL(ModelPT):
         enc_out = self.compute_encoding(content_embedding, speaker_embedding)
         enc_mask = mask_from_lens(encoded_len)
         durs = torch.ones_like(enc_mask) * 4.0
-        enc_mask = enc_mask[:,:,None]
+        enc_mask = enc_mask[:, :, None]
         print("enc_out.shape: ", enc_out.shape)
         print("enc_mask.shape: ", enc_mask.shape)
         print("durs.shape: ", durs.shape)
@@ -226,7 +223,7 @@ class FastPitchModel_SSL(ModelPT):
         mel_loss = self.mel_loss(spect_predicted=mels_pred, spect_tgt=mels)
         dur_loss = self.duration_loss(log_durs_predicted=log_durs_pred, durs_tgt=durs, len=encoded_len)
         loss = mel_loss + dur_loss
-        
+
         pitch_loss = self.pitch_loss(pitch_predicted=pitch_pred, pitch_tgt=pitch, len=encoded_len)
         loss += pitch_loss
 
@@ -234,7 +231,6 @@ class FastPitchModel_SSL(ModelPT):
         self.log("t_mel_loss", mel_loss)
         self.log("t_dur_loss", dur_loss)
         self.log("t_pitch_loss", pitch_loss)
-        
 
         # Log images to tensorboard
         if self.log_train_images and isinstance(self.logger, TensorBoardLogger):
@@ -266,7 +262,7 @@ class FastPitchModel_SSL(ModelPT):
         enc_out = self.compute_encoding(content_embedding, speaker_embedding)
         enc_mask = mask_from_lens(encoded_len)
         durs = torch.ones_like(enc_mask) * 4.0
-        enc_mask = enc_mask[:,:,None]
+        enc_mask = enc_mask[:, :, None]
         print("enc_out.shape: ", enc_out.shape)
         print("enc_mask.shape: ", enc_mask.shape)
         print("durs.shape: ", durs.shape)
