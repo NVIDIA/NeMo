@@ -50,7 +50,6 @@ try:
 except ModuleNotFoundError:
     HAVE_PYDUB = False
 
-
 available_formats = sf.available_formats()
 sf_supported_formats = ["." + i.lower() for i in available_formats.keys()]
 
@@ -93,6 +92,9 @@ class AudioSegment(object):
             self._samples = np.mean(self._samples, 1)
 
         self._orig_sr = orig_sr if orig_sr is not None else sample_rate
+
+    def __hash__(self):
+        return hash(tuple(self._samples))
 
     def __eq__(self, other):
         """Return whether two objects are equal."""
