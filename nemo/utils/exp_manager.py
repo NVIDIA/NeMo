@@ -34,6 +34,7 @@ from pytorch_lightning.loggers import LoggerCollection as _LoggerCollection
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from pytorch_lightning.strategies.ddp import DDPStrategy
 
+from nemo.collections.common.callbacks import EMA
 from nemo.constants import NEMO_ENV_VARNAME_TESTING, NEMO_ENV_VARNAME_VERSION
 from nemo.utils import logging, timers
 from nemo.utils.app_state import AppState
@@ -41,7 +42,8 @@ from nemo.utils.env_var_parsing import get_envbool
 from nemo.utils.exceptions import NeMoBaseException
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.lightning_logger_patch import add_filehandlers_to_pl_logger
-from nemo.utils.model_utils import inject_model_parallel_rank, uninject_model_parallel_rank
+from nemo.utils.model_utils import (inject_model_parallel_rank,
+                                    uninject_model_parallel_rank)
 
 
 class NotFoundError(NeMoBaseException):
@@ -331,7 +333,6 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         trainer.callbacks.insert(0, timing_callback)
 
     if cfg.enable_ema:
-        from nemo.collections.common.callbacks import EMA
         ema_callback = EMA(ema=cfg.ema)
         trainer.callbacks.append(ema_callback)
 

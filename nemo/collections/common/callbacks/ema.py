@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
 import torch
 
@@ -68,7 +68,7 @@ class EMA(Callback):
     def apply_multi_tensor_ema(self, pl_module: "pl.LightningModule") -> None:
         model_weights = list(pl_module.state_dict().values())
         amp_C.multi_tensor_axpby(
-            65536, # todo (sean): chunk size, should we expose?
+            65536,  # todo (sean): chunk size, should we expose?
             self._overflow_buf,
             [self._ema_model_weights, model_weights, self._ema_model_weights],
             self.ema,

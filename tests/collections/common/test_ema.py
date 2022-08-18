@@ -1,11 +1,13 @@
 from copy import deepcopy
 from typing import Any
+from unittest import mock
 
 import pytest
 import pytorch_lightning as pl
 import torch
 from pytorch_lightning import Callback
 from pytorch_lightning import Trainer
+from pytorch_lightning.utilities.exceptions import MisconfigurationException
 from pytorch_lightning.utilities.types import STEP_OUTPUT
 
 from nemo.collections.common.callbacks import EMA
@@ -13,13 +15,45 @@ from nemo.collections.common.callbacks.ema import apex_available
 from nemo.collections.cv.models import MNISTLeNet5, MNISTLeNet5Config
 
 
+class TestEMAConfig:
+    @pytest.mark.unit
+    def test_ema_value(self):
+        with pytest.raises(MisconfigurationException, match="between 0 and 1"):
+            EMA(ema=2)
+
+    @pytest.mark.unit
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.skipif(not apex_available, reason="apex is not installed")
+    def test_ema_cuda(self):
+        lenet5 = MNISTLeNet5(MNISTLeNet5Config())
+        lenet5.setup_training_data()
+        lenet5.setup_optimization()
+
+        trainer = Trainer(
+            max_epochs=1,
+            fast_dev_run=True,
+            logger=False,
+            enable_model_summary=False,
+            accelerator='cpu',
+            devices=1,
+            callbacks=EMA(ema=0.999),
+        )
+        with pytest.raises(MisconfigurationException, match="Apex EMA Callback only works with CUDA"):
+            trainer.fit(model=lenet5)
+
+    @mock.patch('nemo.collections.common.callbacks.ema.apex_available', False)
+    def test_ema_apex_unavailable(self):
+        with pytest.raises(MisconfigurationException, match="EMA requires Apex to be installed"):
+            EMA(ema=0.999)
+
+
 @pytest.mark.parametrize("precision", [32, 16, "bf16"])
 @pytest.mark.parametrize("accumulate_grad_batches", [1, 2])
 @pytest.mark.run_only_on('GPU')
 @pytest.mark.skipif(not apex_available, reason="apex is not installed")
-class TestEMACallback:
+class TestEMATrain:
     @pytest.mark.unit
-    def test_apex_ema_callback(self, test_data_dir, precision, accumulate_grad_batches):
+    def test_mnist_run(self, test_data_dir, precision, accumulate_grad_batches):
         lenet5 = MNISTLeNet5(MNISTLeNet5Config())
         lenet5.setup_training_data()
         lenet5.setup_optimization()
@@ -33,12 +67,12 @@ class TestEMACallback:
             enable_model_summary=False,
             accelerator='gpu',
             devices=1,
-            callbacks=[EMA(ema=0.999), TestCallback()],
+            callbacks=[EMA(ema=0.999), EMAAssertCallback()],
         )
         trainer.fit(model=lenet5)
 
 
-class TestCallback(Callback):
+class EMAAssertCallback(Callback):
     def __init__(self):
         self.before_calc_ema_weights = None
 
