@@ -48,7 +48,7 @@ from nemo.utils import logging, model_utils
 class G2PConfig:
     _target_: str = "nemo.collections.tts.torch.g2ps.EnglishG2p"
     phoneme_dict: str = "scripts/tts_dataset_files/cmudict-0.7b_nv22.08"
-    heteronyms: str = "scripts/tts_dataset_files/heteronyms-030921"
+    heteronyms: str = "scripts/tts_dataset_files/heteronyms-052722"
     phoneme_probability: float = 0.5
 
 
@@ -509,6 +509,8 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             List of available pre-trained models.
         """
         list_of_models = []
+
+        # en-US, single speaker, 22050Hz, LJSpeech.
         model = PretrainedModelInfo(
             pretrained_model_name="tts_en_fastpitch",
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_fastpitch/versions/1.8.1/files/tts_en_fastpitch_align.nemo",
@@ -517,10 +519,20 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         )
         list_of_models.append(model)
 
+        # en-US, multi-speaker, 44100Hz, HiFiTTS.
         model = PretrainedModelInfo(
             pretrained_model_name="tts_en_fastpitch_multispeaker",
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_multispeaker_fastpitchhifigan/versions/1.10.0/files/tts_en_fastpitch_multispeaker.nemo",
             description="This model is trained on HiFITTS sampled at 44100Hz with and can be used to generate male and female English voices with an American accent.",
+            class_=cls,
+        )
+        list_of_models.append(model)
+
+        # de-DE, multi-speaker, 5 speakers, 44100 Hz, HUI-Audio-Corpus-German Clean.
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_de_fastpitch_multispeaker_5",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_de_fastpitch_multispeaker_5/versions/1.11.0/files/tts_de_fastpitch_multispeaker_5.nemo",
+            description="This model is trained on 5 speakers in HUI-Audio-Corpus-German clean subset sampled at 44100Hz with and can be used to generate male and female German voices.",
             class_=cls,
         )
         list_of_models.append(model)
