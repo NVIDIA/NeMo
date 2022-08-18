@@ -46,7 +46,7 @@ exp_manager:
 
 model:
   seed: 1234
-  virtual_prompt_save_path: ${prompt_learning.run.results_dir}/results/megatron_t5_prompt.nemo
+  nemo_path: ${prompt_learning.run.results_dir}/results/megatron_t5_prompt.nemo
   virtual_prompt_style: "p-tuning" # one of 'prompt-tuning', 'p-tuning', or 'inference'
   tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1
@@ -55,7 +55,7 @@ model:
   micro_batch_size: 8
 
   restore_path: null # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
-  pretrained_language_model_path:  ${prompt_learning.run.convert_dir}/results/megatron_t5.nemo # Path to the GPT language model .nemo file, always required
+  language_model_path:  ${prompt_learning.run.convert_dir}/results/megatron_t5.nemo # Path to the GPT language model .nemo file, always required
   existing_tasks: []
   new_tasks: ["squad"]
 
