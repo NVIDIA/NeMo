@@ -12,21 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import os
 from collections import OrderedDict
 from statistics import mode
 from typing import Dict, Optional
-import json
-from omegaconf import OmegaConf
-import torch
 
+import torch
+from omegaconf import OmegaConf
+
+from nemo.collections.asr.data.data_simulation import MultiSpeakerSimulator, RIRMultiSpeakerSimulator
 from nemo.collections.asr.parts.utils.nmesc_clustering import get_argmin_mat
 from nemo.collections.asr.parts.utils.speaker_utils import convert_rttm_line, prepare_split_data
 from nemo.collections.common.parts.preprocessing.collections import DiarizationSpeechLabel
 from nemo.core.classes import Dataset
 from nemo.core.neural_types import AudioSignal, EncodedRepresentation, LengthsType, NeuralType
 
-from nemo.collections.asr.data.data_simulation import MultiSpeakerSimulator, RIRMultiSpeakerSimulator
 
 def get_scale_mapping_list(uniq_timestamps):
     """
@@ -826,18 +827,21 @@ class AudioToSpeechMSDDInferDataset(_AudioMSDDInferDataset):
     def msdd_infer_collate_fn(self, batch):
         return _msdd_infer_collate_fn(self, batch)
 
+
 class SyntheticDataLoader(torch.utils.data.dataloader.DataLoader):
     """
     Modified dataloader for refreshing synthetic dataset
     after a specified number of epochs.
     """
+
     def __init__(self, *args, **kwargs):
         logging.info("Reloading dataset in synthetic dataloader")
-        if 'sampler' in kwargs: #only once sampler has been replaced with DistributedSampler
+        if 'sampler' in kwargs:  # only once sampler has been replaced with DistributedSampler
             logging.info(f"Rank is {kwargs['sampler'].rank}")
             if kwargs['sampler'].rank == 0:
                 kwargs['dataset'].regenerate_dataset()
         super().__init__(*args, **kwargs)
+
 
 class AudioToSpeechMSDDSyntheticTrainDataset(AudioToSpeechMSDDTrainDataset):
     """
@@ -884,7 +888,7 @@ class AudioToSpeechMSDDSyntheticTrainDataset(AudioToSpeechMSDDTrainDataset):
         random_flip: bool = True,
         emb_dir: str,
         ds_config,
-        global_rank: int=0,
+        global_rank: int = 0,
     ):
 
         self.featurizer = featurizer
@@ -901,9 +905,9 @@ class AudioToSpeechMSDDSyntheticTrainDataset(AudioToSpeechMSDDTrainDataset):
 
         cfg = OmegaConf.create(ds_config)
         if cfg.data_simulator.rir_generation.use_rir:
-            self.data_simulator = RIRMultiSpeakerSimulator(cfg) #includes tmp dir
+            self.data_simulator = RIRMultiSpeakerSimulator(cfg)  # includes tmp dir
         else:
-            self.data_simulator = MultiSpeakerSimulator(cfg) #includes tmp dir
+            self.data_simulator = MultiSpeakerSimulator(cfg)  # includes tmp dir
         self.emb_dir = emb_dir
 
         self.include_base_ds = cfg.train_ds.include_base_ds
@@ -918,22 +922,22 @@ class AudioToSpeechMSDDSyntheticTrainDataset(AudioToSpeechMSDDTrainDataset):
         """
         Regenerate dataset and create subsegment manifest files
         """
-        #Regenerate synthetic diarization sessions
+        # Regenerate synthetic diarization sessions
         self.data_simulator.generate_sessions()
 
-        #update manifest_files
+        # update manifest_files
         self.data_simulator.create_base_manifest_ds()
         segment_manifest_path = self.data_simulator.create_segment_manifest_ds()
 
-        #regenerate segments
-        if self.include_base_ds: #add base manifest
+        # regenerate segments
+        if self.include_base_ds:  # add base manifest
             with open(self.manifest_filepath, 'r') as fp:
                 manifest_lines = fp.readlines()
                 with open(segment_manifest_path, 'a') as segment_manifest:
                     for line in manifest_lines:
                         segment_manifest.write(line)
 
-        #reresh diarization session collection
+        # reresh diarization session collection
         self.collection = DiarizationSpeechLabel(
             manifests_files=segment_manifest_path,
             emb_dict=None,

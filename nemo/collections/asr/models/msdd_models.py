@@ -29,8 +29,8 @@ from tqdm import tqdm
 
 from nemo.collections.asr.data.audio_to_diar_label import (
     AudioToSpeechMSDDInferDataset,
-    AudioToSpeechMSDDTrainDataset,
     AudioToSpeechMSDDSyntheticTrainDataset,
+    AudioToSpeechMSDDTrainDataset,
     SyntheticDataLoader,
 )
 from nemo.collections.asr.metrics.multi_binary_acc import MultiBinaryAccuracy
@@ -211,11 +211,19 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
             sample_rate=config['sample_rate'], int_values=config.get('int_values', False), augmentor=None
         )
 
-        if 'manifest_filepath' in config and config['manifest_filepath'] is None and ('synthetic' not in config or config['synthetic'] == False or self.cfg_msdd_model.train_ds.include_base_ds):
+        if (
+            'manifest_filepath' in config
+            and config['manifest_filepath'] is None
+            and (
+                'synthetic' not in config
+                or config['synthetic'] == False
+                or self.cfg_msdd_model.train_ds.include_base_ds
+            )
+        ):
             logging.warning(f"Could not load dataset as `manifest_filepath` was None. Provided config : {config}")
             return None
         if 'synthetic' in config and config['synthetic'] == True:
-            dataset = self.dataset 
+            dataset = self.dataset
         else:
             dataset = AudioToSpeechMSDDTrainDataset(
                 manifest_filepath=config.manifest_filepath,

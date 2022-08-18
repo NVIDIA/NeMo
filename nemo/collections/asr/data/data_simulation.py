@@ -39,7 +39,7 @@ from nemo.utils import logging
 try:
     import pyroomacoustics as pra
     from pyroomacoustics.directivities import CardioidFamily, DirectionVector, DirectivityPattern
-    
+
     PRA = True
 except ImportError:
     PRA = False
