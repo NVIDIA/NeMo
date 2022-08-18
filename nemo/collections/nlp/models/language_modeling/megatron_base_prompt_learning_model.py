@@ -398,8 +398,8 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
             self.cfg.virtual_prompt_style = VirtualPromptStyle.INFERENCE.value
 
         # Save the best nemo model
-        self.save_to(save_path=self.cfg.virtual_prompt_save_path)
-        logging.info(f"The final model was saved to {self.cfg.virtual_prompt_save_path}")
+        self.save_to(save_path=self.cfg.nemo_path)
+        logging.info(f"The final model was saved to {self.cfg.nemo_path}")
 
     def setup(self, stage=None):
         if stage == 'predict' or self.virtual_prompt_style == VirtualPromptStyle.INFERENCE:

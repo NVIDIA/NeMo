@@ -123,7 +123,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         # TODO: Fix this once apex patches FusedScaledMaskedSoftmax.
         # This is a workaround for the fact that `masked_softmax_fusion` has issues with certain input sizes that may be present while finetuning.
         t5_cfg = MegatronT5Model.restore_from(
-            cfg.get('pretrained_language_model_path'), trainer=trainer, return_config=True
+            cfg.get('language_model_path'), trainer=trainer, return_config=True
         )
         OmegaConf.set_struct(t5_cfg, True)
         with open_dict(t5_cfg):
@@ -139,7 +139,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             t5_cfg.precision = trainer.precision
 
         self.frozen_model = MegatronT5Model.restore_from(
-            cfg.get('pretrained_language_model_path'),
+            cfg.get('language_model_path'),
             trainer=trainer,
             override_config_path=t5_cfg,
             save_restore_connector=NLPSaveRestoreConnector(),
