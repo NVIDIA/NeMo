@@ -133,18 +133,35 @@ class SSLVocoderDataset(Dataset):
         ssl_cfg = self.ssl_model.cfg
         ssl_sample_rate = ssl_cfg.preprocessor.sample_rate
         self.ssl_sample_rate = ssl_sample_rate
-        ssl_window_stride_seconds = ssl_cfg.preprocessor.window_stride
-        downsampling_rate_wav_to_mel = int(ssl_window_stride_seconds * ssl_sample_rate)  # 160
-        downsampling_rate_mel_to_ssl = int(ssl_cfg.encoder.subsampling_factor)  # 4
-        self.pad_multiple = downsampling_rate_wav_to_mel * downsampling_rate_mel_to_ssl
-        assert self.n_segments % self.pad_multiple == 0, "suggested n_segments: {}".format(
-            self.pad_multiple * (self.n_segments // self.pad_multiple)
-        )
-        self.n_segments_at_target_sr = n_segments * self.sample_rate / self.ssl_sample_rate
-        assert self.n_segments_at_target_sr.is_integer()
-        self.n_segments_at_target_sr = int(self.n_segments_at_target_sr)
-        self.ssl_frame_length = int(0.025 * ssl_sample_rate)
-        self.ssl_hop_length = int(0.01 * ssl_sample_rate)
+        if ssl_sample_rate == 16000:
+            ssl_window_stride_seconds = ssl_cfg.preprocessor.window_stride
+            downsampling_rate_wav_to_mel = int(ssl_window_stride_seconds * ssl_sample_rate)  # 160
+            downsampling_rate_mel_to_ssl = int(ssl_cfg.encoder.subsampling_factor)  # 4
+            self.pad_multiple = downsampling_rate_wav_to_mel * downsampling_rate_mel_to_ssl
+            assert self.n_segments % self.pad_multiple == 0, "suggested n_segments: {}".format(
+                self.pad_multiple * (self.n_segments // self.pad_multiple)
+            )
+            self.n_segments_at_target_sr = n_segments * self.sample_rate / self.ssl_sample_rate
+            assert self.n_segments_at_target_sr.is_integer()
+            self.n_segments_at_target_sr = int(self.n_segments_at_target_sr)
+            self.ssl_frame_length = int(0.025 * ssl_sample_rate)
+            self.ssl_hop_length = int(0.01 * ssl_sample_rate)
+        elif ssl_sample_rate == 22050:
+            self.load_mel_spectrogram = True
+            assert sample_rate == ssl_sample_rate
+            downsampling_rate_wav_to_mel = ssl_cfg.preprocessor.n_window_stride # 256
+            downsampling_rate_mel_to_ssl = ssl_cfg.encoder.subsampling_factor # 4
+            self.pad_multiple = downsampling_rate_wav_to_mel * downsampling_rate_mel_to_ssl
+            assert self.n_segments % self.pad_multiple == 0, "suggested n_segments: {}".format(
+                self.pad_multiple * (self.n_segments // self.pad_multiple)
+            )
+            self.n_segments_at_target_sr = n_segments
+            self.ssl_frame_length = ssl_cfg.preprocessor.n_window_size
+            self.ssl_hop_length = ssl_cfg.preprocessor.n_window_stride
+
+            self.n_fft = ssl_cfg.preprocessor.n_fft
+            self.n_mels = 80
+
         self.pitch_conditioning = pitch_conditioning
         self.pitch_mean = pitch_mean
         self.pitch_std = pitch_std
@@ -171,6 +188,58 @@ class SSLVocoderDataset(Dataset):
                 for key in speaker_stats_raw:
                     self.speaker_stats[int(key)] = speaker_stats_raw[key]
 
+    def pad_collate_fn(self, batch):
+        final_batch = {}
+        for row in batch:
+            for key in row:
+                if key not in final_batch:
+                    final_batch[key] = []
+                final_batch[key].append(row[key])
+        
+        max_audio_len = max([ _audio_len.item()  for _audio_len in final_batch["audio_len"]])
+        max_mel_len = max([ _mel_len.item()  for _mel_len in final_batch["mel_len"]])
+        max_encoded_len = max([ _encoded_len.item()  for _encoded_len in final_batch["encoded_len"]])
+        
+        audios_padded = []
+        for audio in final_batch["audio"]:
+            audio_padded = torch.nn.functional.pad(audio, (0, max_audio_len - audio.size(0)), value=0)
+            audios_padded.append(audio_padded)
+        
+        mels_padded = []
+        for mel in final_batch["mel_spectrogram"]:
+            # mel shape (n_mels, mel_len)
+            # pad to (n_mels, mel_len + max_mel_len - mel_len)
+            # print("mel original shape: ", mel.shape)
+            mel_padded = torch.nn.functional.pad(mel, (0, max_mel_len - mel.size(1)), value=0)
+            # print("mel padded shape: ", mel_padded.shape)
+            mels_padded.append(mel_padded)
+        
+        pitch_contours_padded = []
+        for pitch_contour in final_batch["pitch_contour"]:
+            # print("pitch_contour original shape: ", pitch_contour.shape)
+            pitch_contour_padded = torch.nn.functional.pad(pitch_contour, (0, max_mel_len - pitch_contour.size(0)), value=0)
+            # print("pitch_contour padded shape: ", pitch_contour_padded.shape)
+            pitch_contours_padded.append(pitch_contour_padded)
+        
+        content_embeddings_padded = []
+        for encoded in final_batch["content_embedding"]:
+            # print("encoded original shape: ", encoded.shape)
+            encoded_padded = torch.nn.functional.pad(encoded, (0, max_encoded_len - encoded.size(1)), value=0)
+            # print("encoded padded shape: ", encoded_padded.shape)
+            content_embeddings_padded.append(encoded_padded)
+        
+        final_batch["audio"] = audios_padded
+        final_batch["mel_spectrogram"] = mels_padded
+        final_batch["pitch_contour"] = pitch_contours_padded
+        final_batch["content_embedding"] = content_embeddings_padded
+
+        for key in final_batch:
+            final_batch[key] = torch.stack(final_batch[key])
+        
+        return final_batch
+
+
+
     def _collate_fn(self, batch):
         final_batch = {}
         for row in batch:
@@ -186,7 +255,7 @@ class SSLVocoderDataset(Dataset):
                 final_batch[key] = torch.stack(final_batch[key])
 
         return final_batch
-
+    
     def filter_files(data, ignore_file, min_duration, max_duration, total_duration):
         if ignore_file:
             logging.info(f"Using {ignore_file} to prune dataset.")
@@ -231,12 +300,18 @@ class SSLVocoderDataset(Dataset):
         if os.path.exists(pitch_contour_fp):
             return torch.load(pitch_contour_fp)
         else:
+            if self.ssl_sample_rate == 16000:
+                frame_length = self.ssl_hop_length * 16
+                hop_length = self.ssl_hop_length * 4
+            elif self.ssl_sample_rate == 22050:
+                frame_length = self.ssl_frame_length
+                hop_length = self.ssl_hop_length
             f0, _, _ = librosa.pyin(
                 wav.numpy(),
                 fmin=librosa.note_to_hz('C2'),
                 fmax=librosa.note_to_hz('C7'),
-                frame_length=self.ssl_hop_length * 16,
-                hop_length=self.ssl_hop_length * 4,
+                frame_length=frame_length,
+                hop_length=hop_length,
                 sr=self.ssl_sample_rate,
                 center=True,
                 fill_na=0.0,
@@ -244,6 +319,43 @@ class SSLVocoderDataset(Dataset):
             pitch_contour = torch.tensor(f0, dtype=torch.float32)
             torch.save(pitch_contour, pitch_contour_fp)
             return pitch_contour
+    
+    def get_mel_spectrogram(self, wav, wav_text_id):
+        mel_spec_fn = f"mel_spec_{wav_text_id}.pt"
+        mel_spec_fp = os.path.join(self.sup_data_dir, mel_spec_fn)
+        if os.path.exists(mel_spec_fp):
+            return torch.load(mel_spec_fp)
+        else:
+            lowfreq = 0
+            highfreq = 8000
+            EPSILON = 1e-9
+            window_fn = torch.hann_window
+            fb = torch.tensor(
+                librosa.filters.mel(
+                    sr=self.sample_rate, n_fft=self.n_fft, n_mels=self.n_mels, fmin=lowfreq, fmax=highfreq
+                ),
+                dtype=torch.float,
+            ).unsqueeze(0)
+            spec = torch.stft(
+                input=wav,
+                n_fft=self.n_fft,
+                hop_length=self.ssl_hop_length,
+                win_length=self.ssl_frame_length,
+                window=window_fn(self.ssl_frame_length, periodic=False).to(torch.float) if window_fn else None,
+                return_complex=True,
+                center=True
+            )
+            
+            if spec.dtype in [torch.cfloat, torch.cdouble]:
+                spec = torch.view_as_real(spec)
+            spec = torch.sqrt(spec.pow(2).sum(-1) + EPSILON)
+            
+            mel = torch.matmul(fb.to(spec.dtype), spec)
+            log_mel = torch.log(torch.clamp(mel, min=torch.finfo(mel.dtype).tiny))[0]
+            
+            torch.save(log_mel, mel_spec_fp)
+            
+            return log_mel
 
     def get_ssl_features(self, audio_ssl, audio_ssl_length, wav_text_id):
         content_emb_fn = f"{self.ssl_content_emb_type}_content_embedding_{wav_text_id}.pt"
@@ -332,6 +444,11 @@ class SSLVocoderDataset(Dataset):
             segment_pitch = item['pitch_contour'][encoded_sidx:encoded_eidx]
         else:
             segment_pitch = None
+        
+        if item['mel_spectrogram'] is not None:
+            segment_mel = item['mel_spectrogram'][encoded_sidx:encoded_eidx]
+        else:
+            segment_mel = None
 
         new_item = {
             'audio': audio_segment,
@@ -339,6 +456,7 @@ class SSLVocoderDataset(Dataset):
             'audio_len': torch.tensor(self.n_segments_at_target_sr).long(),
             'encoded_len': torch.tensor(encoded_segment_len).long(),
             'pitch_contour': segment_pitch,
+            'mel_spectrogram': segment_mel,
         }
 
         # add remaining fields
@@ -385,19 +503,37 @@ class SSLVocoderDataset(Dataset):
         rel_audio_path_as_text_id = str(rel_audio_path).replace("/", "_")
         speaker = torch.tensor(sample["speaker"]).long()
         audio_ssl, audio_ssl_length, audio, audio_length = self._get_wav_from_filepath(sample["audio_filepath"])
-
+        # print("audio ssl", audio_ssl.shape)
+        # print("audio", audio.shape)
+        # print("audio ssl length", audio_ssl_length)
+        # print("audio length", audio_length)
         pitch_contour = None
         if self.pitch_conditioning:
-            pitch_contour = self.get_pitch_contour(audio_ssl, rel_audio_path_as_text_id)
+            pitch_contour = self.get_pitch_contour(audio_ssl[:-1], rel_audio_path_as_text_id)
             # print(rel_audio_path_as_text_id, pitch_contour)
         content_embedding, speaker_embedding, encoded_len = self.get_ssl_features(
             audio_ssl, audio_ssl_length, rel_audio_path_as_text_id
         )
 
+        mel_spectrogram = None
+        mel_len = None
+        if self.load_mel_spectrogram:
+            mel_spectrogram = self.get_mel_spectrogram(audio_ssl[:-1], rel_audio_path_as_text_id)
+            mel_len = torch.tensor(mel_spectrogram.shape[1]).long()
+            # print("mel spec", mel_spectrogram.shape)
+            # print("mel len", mel_len)
+            
         if pitch_contour is not None:
-            pitch_contour = pitch_contour[: encoded_len.item()]
-            assert pitch_contour.shape[0] == content_embedding.shape[1] == encoded_len.item()
-
+            # print("pitch contour", pitch_contour.shape)
+            if not self.load_mel_spectrogram:
+                # for vocoder, same as content message
+                pitch_contour = pitch_contour[: encoded_len.item()]
+                assert pitch_contour.shape[0] == content_embedding.shape[1] == encoded_len.item()
+            else:
+                # print("encoded len", encoded_len)
+                assert pitch_contour.shape[0] == mel_spectrogram.shape[1] == encoded_len.item() * 4
+            # print("pitch contour", pitch_contour.shape)
+            
             if self.pitch_normalization in ["speaker_wise", "global"]:
                 if self.pitch_normalization == "speaker_wise":
                     mean = self.speaker_stats[sample["speaker"]]["pitch_mean"]
@@ -420,17 +556,21 @@ class SSLVocoderDataset(Dataset):
                 print("Setting pitch contour to 0")
                 pitch_contour = torch.zeros(encoded_len.item())
 
-        return self._segment_item(
-            {
-                'audio': audio,
-                'audio_len': audio_length,
-                'content_embedding': content_embedding,
-                'speaker_embedding': speaker_embedding,
-                'encoded_len': encoded_len,
-                'pitch_contour': pitch_contour,
-                'speaker': speaker,
-            }
-        )
+        item = {
+            'audio': audio,
+            'audio_len': audio_length,
+            'content_embedding': content_embedding,
+            'speaker_embedding': speaker_embedding,
+            'encoded_len': encoded_len,
+            'pitch_contour': pitch_contour,
+            'speaker': speaker,
+            'mel_spectrogram': mel_spectrogram,
+            'mel_len': mel_len,
+        }
+        if not self.load_mel_spectrogram:
+            return self._segment_item(item)
+        else:
+            return item
 
     def __len__(self):
         return len(self.data)

@@ -177,15 +177,18 @@ class FastPitchModule(NeuralModule):
     @property
     def input_types(self):
         return {
-            "text": NeuralType(('B', 'T_text'), TokenIndex()),
-            "durs": NeuralType(('B', 'T_text'), TokenDurationType()),
-            "pitch": NeuralType(('B', 'T_audio'), RegressionValuesType()),
+            "text": NeuralType(('B', 'T_text'), TokenIndex(), optional=True),
+            "durs": NeuralType(('B', 'T_text'), TokenDurationType(), optional=True),
+            "pitch": NeuralType(('B', 'T_audio'), RegressionValuesType(), optional=True),
             "speaker": NeuralType(('B'), Index(), optional=True),
             "pace": NeuralType(optional=True),
             "spec": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType(), optional=True),
             "attn_prior": NeuralType(('B', 'T_spec', 'T_text'), ProbsType(), optional=True),
             "mel_lens": NeuralType(('B'), LengthsType(), optional=True),
             "input_lens": NeuralType(('B'), LengthsType(), optional=True),
+            "enc_mask": NeuralType(('B', 'T_text'), TokenDurationType(), optional=True),
+            "enc_out": NeuralType(('B', 'T', 'D'), EncodedRepresentation(), optional=True),
+            "enc_mask": NeuralType(('B', 'T', 'D'), EncodedRepresentation(), optional=True),
         }
 
     @property
@@ -216,6 +219,8 @@ class FastPitchModule(NeuralModule):
         attn_prior=None,
         mel_lens=None,
         input_lens=None,
+        enc_out=None,
+        enc_mask=None,
     ):
 
         if not self.learn_alignment and self.training:
@@ -229,7 +234,8 @@ class FastPitchModule(NeuralModule):
             spk_emb = self.speaker_emb(speaker).unsqueeze(1)
 
         # Input FFT
-        enc_out, enc_mask = self.encoder(input=text, conditioning=spk_emb)
+        if enc_out is None or enc_mask is None:
+            enc_out, enc_mask = self.encoder(input=text, conditioning=spk_emb)
 
         log_durs_predicted = self.duration_predictor(enc_out, enc_mask)
         durs_predicted = torch.clamp(torch.exp(log_durs_predicted) - 1, 0, self.max_token_duration)
@@ -247,6 +253,9 @@ class FastPitchModule(NeuralModule):
             if self.learn_alignment and pitch.shape[-1] != pitch_predicted.shape[-1]:
                 # Pitch during training is per spectrogram frame, but during inference, it should be per character
                 pitch = average_pitch(pitch.unsqueeze(1), attn_hard_dur).squeeze(1)
+            if pitch.shape[-1] != enc_out.shape[1]:
+                pitch = average_pitch(pitch.unsqueeze(1), durs).squeeze(1)
+                print("new pitch", pitch.shape)
             pitch_emb = self.pitch_emb(pitch.unsqueeze(1))
         else:
             pitch_emb = self.pitch_emb(pitch_predicted.unsqueeze(1))
@@ -277,7 +286,7 @@ class FastPitchModule(NeuralModule):
             pitch,
         )
 
-    def infer(self, *, text, pitch=None, speaker=None, pace=1.0, volume=None):
+    def infer(self, *, text, pitch=None, speaker=None, pace=1.0, volume=None, enc_out=None, enc_mask=None):
         # Calculate speaker embedding
         if self.speaker_emb is None or speaker is None:
             spk_emb = 0
@@ -285,7 +294,8 @@ class FastPitchModule(NeuralModule):
             spk_emb = self.speaker_emb(speaker).unsqueeze(1)
 
         # Input FFT
-        enc_out, enc_mask = self.encoder(input=text, conditioning=spk_emb)
+        if enc_out is None or enc_mask is None:
+            enc_out, enc_mask = self.encoder(input=text, conditioning=spk_emb)
 
         # Predict duration and pitch
         log_durs_predicted = self.duration_predictor(enc_out, enc_mask)
