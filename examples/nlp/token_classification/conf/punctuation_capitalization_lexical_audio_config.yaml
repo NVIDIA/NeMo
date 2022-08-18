@@ -32,7 +32,7 @@ trainer:
   # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step,
   # LR schedulers, apex, etc.
   resume_from_checkpoint: null
-  log_every_n_steps: 50
+  log_every_n_steps: 50 
 
 exp_manager:
   exp_dir: /results  # exp_dir for your experiment, if None, defaults to "./nemo_experiments"
