@@ -628,7 +628,7 @@ class RadTTSModule(NeuralModule, Exportable):
         speaker_id_attributes=None,
         pace=1.0,
         token_duration_max=100,
-        lens=None,
+        in_lens=None,
         dur=None,
         f0=None,
         f0_mean=0.0,
@@ -637,9 +637,7 @@ class RadTTSModule(NeuralModule, Exportable):
         voiced_mask=None,
     ):
 
-        if lens is not None:
-            text = text[:, : lens[0]]
-
+        batch_size = text.shape[0]
         n_tokens = text.shape[1]
         spk_vec = self.encode_speaker(speaker_id)
         if speaker_id_text is None:
@@ -649,13 +647,13 @@ class RadTTSModule(NeuralModule, Exportable):
         spk_vec_text = self.encode_speaker(speaker_id_text)
         spk_vec_attributes = self.encode_speaker(speaker_id_attributes)
 
-        txt_enc, txt_emb = self.encode_text(text, None)
+        txt_enc, txt_emb = self.encode_text(text, in_lens)
 
         if dur is None:
             # get token durations
             z_dur = txt_enc.new_zeros((1, 1, text.shape[1]), dtype=torch.float)
             z_dur = torch.normal(z_dur) * sigma_txt
-            dur = self.dur_pred_layer.infer(z_dur, txt_enc, spk_vec_text)
+            dur = self.dur_pred_layer.infer(z_dur, txt_enc, spk_vec_text, lens=in_lens)
             dur = pad_dur(dur, txt_enc)
 
             dur = dur[:, 0]
@@ -669,10 +667,11 @@ class RadTTSModule(NeuralModule, Exportable):
         if voiced_mask is None:
             if self.use_vpred_module:
                 # get logits
-                voiced_mask = self.v_pred_module.infer(None, txt_enc_time_expanded, spk_vec_attributes)
+                voiced_mask = self.v_pred_module.infer(None, txt_enc_time_expanded, spk_vec_attributes, lens=out_lens)
                 voiced_mask = torch.sigmoid(voiced_mask[:, 0]) > 0.5
                 voiced_mask = voiced_mask.float()
-
+                print ("V mask, enc: ", voiced_mask.shape, txt_enc_time_expanded.shape)
+                
         ap_txt_enc_time_expanded = txt_enc_time_expanded
         # voice mask augmentation only used for attribute prediction
         if self.ap_use_voiced_embeddings:
@@ -715,7 +714,6 @@ class RadTTSModule(NeuralModule, Exportable):
         residual = torch.normal(txt_enc.new_zeros(1, 80 * self.n_group_size, n_groups)) * sigma
 
         # map from z sample to data
-        exit_steps_stack = self.exit_steps.copy()
         num_steps_to_exit = len(self.exit_steps)
         mel = residual[:, num_steps_to_exit * self.n_early_size :]
         remaining_residual = residual[:, : num_steps_to_exit * self.n_early_size]
@@ -723,7 +721,7 @@ class RadTTSModule(NeuralModule, Exportable):
         for i, flow_step in enumerate(reversed(self.flows)):
             curr_step = len(self.flows) - i - 1
             mel = flow_step(mel, context_w_spkvec, inverse=True, seq_lens=n_groups)
-            if len(exit_steps_stack) > 0 and curr_step == self.exit_steps[num_steps_to_exit-1]:
+            if num_steps_to_exit > 0 and curr_step == self.exit_steps[num_steps_to_exit-1]:
                 # concatenate the next chunk of z
                 num_steps_to_exit=num_steps_to_exit-1
                 residual_to_add = remaining_residual[:, num_steps_to_exit * self.n_early_size :]
@@ -732,6 +730,8 @@ class RadTTSModule(NeuralModule, Exportable):
 
         if self.n_group_size > 1:
             mel = self.fold(mel)
+
+        print ("mel=", mel.shape, "out_lens=", out_lens, "dur=", dur.shape)    
 
         return {'mel': mel, 'out_lens': out_lens, 'dur': dur, 'f0': f0, 'energy_avg': energy_avg}
 
@@ -857,6 +857,6 @@ class RadTTSModule(NeuralModule, Exportable):
             sigma_energy=1.0,
             f0_mean=145.0,
             f0_std=30.0,
-            lens=lens,
+            in_lens=lens,
         ).values()
         return mel.float(), n_frames, dur.float()
