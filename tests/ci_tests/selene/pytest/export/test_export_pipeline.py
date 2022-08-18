@@ -30,7 +30,7 @@ RUN_MODEL_SIZE = os.environ.get("RUN_MODEL_SIZE")
 TP_SIZE = os.environ.get("TP_SIZE")
 PP_SIZE = os.environ.get("PP_SIZE")
 FT_EVAL_MARGIN = float(os.environ.get("FT_EVAL_MARGIN"))
-FT_EVAL_TASK = float(os.environ.get("FT_EVAL_TASK"))
+FT_EVAL_TASK = os.environ.get("FT_EVAL_TASK")
 
 
 class TestExportBigNLPCI:
