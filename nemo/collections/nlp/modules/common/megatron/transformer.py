@@ -1440,15 +1440,16 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         if self.transformer_block_type == 'post_ln':
             output = self.post_attention_layernorm(output)
 
-        if get_key_value:
-            output = [output, presents]
-
         if self.is_adapter_available():  # TODO: (@adithyre) need to find the correct place for this adapter
             adapter_2 = self.adapter_layer['adapter_2']
             strategy = adapter_2.adapter_strategy
             output = self.forward_single_enabled_adapter_(
                 output, adapter_2, adapter_name='adapter_2', adapter_strategy=strategy
             )
+
+        if get_key_value:
+            output = [output, presents]
+
         return output
 
 
