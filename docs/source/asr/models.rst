@@ -142,6 +142,7 @@ The model trained with such limitations can be used in streaming mode and give t
 These model can use caching mechanism to store and reuse the activations during streaming inference to avoid any duplications in the computations as much as possible.
 
 We support the following three right context modeling:
+
 *  fully causal model with zero look-ahead: tokens would not see any future tokens. convolution layers are all causal and right tokens are masked for self-attention.
 It gives zero latency but with limited accuracy.
 To train such a model, you need to set `encoder.att_context_size=[left_context, 0]` and `encoder.conv_context_size=causal` in the config.

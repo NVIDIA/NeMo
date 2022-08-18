@@ -454,10 +454,18 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         """
             This function sets the needed values and parameters to perform streaming. The configuration would be stored in self.streaming_cfg.
             The streaming configuration is needed to simulate streaming inference.
+            Args:
+                chunk_size (int): overrides the chunk size
+                shift_size (int): overrides the shift size for chunks
+                left_chunks (int): overrides the number of left chunks visible to each chunk
+                max_context (int): the value used for the cache size of last_channel layers if left context is set to infinity (-1)
+                    Defaults to -1 (means feat_out is d_model)
         """
         streaming_cfg = FramewiseStreamingConfig()
-
+        assert
         if chunk_size is not None:
+            if chunk_size <= 1:
+                raise ValueError("chunk_size needs to be a number larger or equal to one.")
             lookahead_steps = chunk_size - 1
             streaming_cfg.cache_drop_size = chunk_size - shift_size
         elif self.att_context_style == "chunked_limited":
