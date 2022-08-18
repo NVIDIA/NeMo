@@ -13,14 +13,12 @@
 # limitations under the License.
 
 import copy
-from dataclasses import dataclass
 
 import torch
 import torch.nn as nn
-from omegaconf.omegaconf import MISSING
 
 from nemo.collections.common.parts import form_attention_mask
-from nemo.collections.nlp.modules.common.transformer.transformer_modules import MultiHeadAttention, PositionWiseFF
+from nemo.collections.common.parts.transformer.transformer_modules import MultiHeadAttention, PositionWiseFF
 
 __all__ = ["TransformerDecoder"]
 

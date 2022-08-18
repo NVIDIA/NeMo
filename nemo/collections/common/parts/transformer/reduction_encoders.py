@@ -12,15 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
+
 import torch
 
-from nemo.collections.nlp.modules.common.transformer.transformer_encoders import TransformerEncoder
-from nemo.collections.nlp.modules.common.transformer.transformer_modules import AttentionBridge
+from nemo.collections.common.parts.transformer.transformer_encoders import TransformerEncoder
 
-__all__ = ["BridgeEncoder"]
+__all__ = ["PoolingEncoder"]
 
 
-class BridgeEncoder(torch.nn.Module):
+class PoolingEncoder(torch.nn.Module):
+
+    _SUPPORTED_ARCH = ["max", "avg"]
+
     def __init__(
         self,
         num_layers: int,
@@ -34,18 +38,21 @@ class BridgeEncoder(torch.nn.Module):
         hidden_act: str = "relu",
         pre_ln: bool = False,
         pre_ln_final_layer_norm: bool = True,
-        hidden_steps: int = 32,
+        hidden_steps: int = 4,
         hidden_init_method: str = "default",
-        hidden_blocks: int = 0,
+        hidden_blocks: int = 2,
+        pooling_type: str = "max",
     ):
         super().__init__()
 
+        # minimal steps to allow reduction
         self._hidden_steps = hidden_steps
         self._hidden_init_method = hidden_init_method
         self._hidden_blocks = hidden_blocks
+        self._pooling_type = pooling_type
 
-        if self._hidden_init_method == "default":
-            self._hidden_init_method = "enc_shared"
+        if self._hidden_steps < 2:
+            raise ValueError("Expected hidden_steps >= 2 but received hidden_steps = {self._hidden_steps}")
 
         if self.hidden_init_method not in self.supported_init_methods:
             raise ValueError(
@@ -54,26 +61,11 @@ class BridgeEncoder(torch.nn.Module):
                 )
             )
 
-        # attention bridge
-        self.att_bridge = AttentionBridge(hidden_size=hidden_size, k=hidden_steps, bridge_size=inner_size,)
+        if self._pooling_type not in self.supported_arch:
+            raise ValueError(f"Unknown pooling_type = {pooling_type}. Available values = {self.supported_arch}")
 
-        if self.hidden_init_method == "enc":
-            self.init_hidden_enc = TransformerEncoder(
-                num_layers=num_layers,
-                hidden_size=hidden_size,
-                inner_size=inner_size,
-                mask_future=mask_future,
-                num_attention_heads=num_attention_heads,
-                attn_score_dropout=attn_score_dropout,
-                attn_layer_dropout=attn_layer_dropout,
-                ffn_dropout=ffn_dropout,
-                hidden_act=hidden_act,
-                pre_ln=pre_ln,
-                pre_ln_final_layer_norm=pre_ln_final_layer_norm,
-            )
-
-        # self attention
-        self.hidden_enc = TransformerEncoder(
+        # self-attention encoder
+        layer = TransformerEncoder(
             num_layers=num_layers,
             hidden_size=hidden_size,
             inner_size=inner_size,
@@ -86,10 +78,29 @@ class BridgeEncoder(torch.nn.Module):
             pre_ln=pre_ln,
             pre_ln_final_layer_norm=pre_ln_final_layer_norm,
         )
+        self.self_att_layers = torch.nn.ModuleList([copy.deepcopy(layer) for _ in range(hidden_blocks)])
+
+        self.pooling = self._build_pooling_module()
+
+    def _build_pooling_module(self):
+        """
+        Returns pooling module.
+        Allows to override for child classes.
+        """
+        if self._pooling_type == "max":
+            pooling = torch.nn.MaxPool1d(kernel_size=2, stride=2)
+        elif self._pooling_type == "avg":
+            pooling = torch.nn.AvgPool1d(kernel_size=2, stride=2)
+
+        return pooling
+
+    @property
+    def supported_arch(self):
+        return self._SUPPORTED_ARCH
 
     @property
     def supported_init_methods(self):
-        return ["enc_shared", "identity", "enc"]
+        return ["default"]
 
     @property
     def hidden_steps(self):
@@ -109,33 +120,29 @@ class BridgeEncoder(torch.nn.Module):
             encoder_states: output of the encoder (B x L_enc x H)
             encoder_mask: encoder inputs mask (B x L_enc)
         """
-        # self-attention over input
-        if self.hidden_init_method == "enc_shared":
-            residual = encoder_states
-            hidden_states = self.hidden_enc(encoder_states=encoder_states, encoder_mask=encoder_mask)
-            # residual connection
-            hidden_states += residual
-        elif self.hidden_init_method == "identity":
-            hidden_states = encoder_states
-        elif self.hidden_init_method == "enc":
-            residual = encoder_states
-            hidden_states = self.init_hidden_enc(encoder_states=encoder_states, encoder_mask=encoder_mask)
-            # residual connection
-            hidden_states += residual
+        # initialize hidden state
+        hidden_mask = encoder_mask
+        hidden_states = encoder_states
 
-        # project encoder states to a fixed steps hidden using k attention heads
-        hidden_states = self.att_bridge(hidden=hidden_states, hidden_mask=encoder_mask)
-
-        # all hidden values are active
-        hidden_mask = torch.ones(
-            encoder_states.shape[0], self._hidden_steps, dtype=encoder_mask.dtype, device=encoder_mask.device
-        )
-
-        # apply self-attention over fixed-size hidden_states
-        for block in range(self._hidden_blocks):
+        # apply block (self-attention, max-pool) multiple times
+        for self_att in self.self_att_layers:
             residual = hidden_states
-            hidden_states = self.hidden_enc(encoder_states=hidden_states, encoder_mask=hidden_mask)
-            # residual connection
+
+            # self-attention over hidden
+            hidden_states = self_att(encoder_states=hidden_states, encoder_mask=hidden_mask)
+
             hidden_states += residual
+
+            # max pool reduction if possible
+            if hidden_states.shape[1] >= self.hidden_steps:
+                # max pool hidden states
+                hidden_states = hidden_states.permute(0, 2, 1)
+                hidden_states = self.pooling(hidden_states)
+                hidden_states = hidden_states.permute(0, 2, 1)
+
+                # max pool mask
+                hidden_mask = (
+                    self.pooling(hidden_mask.unsqueeze(0).type_as(hidden_states)).squeeze(0).type_as(hidden_mask)
+                )
 
         return hidden_states, hidden_mask

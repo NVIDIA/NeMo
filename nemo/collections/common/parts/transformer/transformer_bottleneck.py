@@ -15,10 +15,10 @@
 from dataclasses import dataclass
 from typing import Dict, Optional
 
-from nemo.collections.nlp.modules.common.transformer.bridge_encoders import BridgeEncoder
-from nemo.collections.nlp.modules.common.transformer.perceiver_encoders import PerceiverEncoder
-from nemo.collections.nlp.modules.common.transformer.reduction_encoders import PoolingEncoder
-from nemo.collections.nlp.modules.common.transformer.transformer import (
+from nemo.collections.common.parts.transformer.bridge_encoders import BridgeEncoder
+from nemo.collections.common.parts.transformer.perceiver_encoders import PerceiverEncoder
+from nemo.collections.common.parts.transformer.reduction_encoders import PoolingEncoder
+from nemo.collections.common.parts.transformer.transformer import (
     NeMoTransformerConfig,
     TransformerDecoderNM,
     TransformerEncoderNM,

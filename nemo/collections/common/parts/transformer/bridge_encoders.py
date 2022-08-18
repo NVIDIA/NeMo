@@ -12,18 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
-
 import torch
 
-from nemo.collections.nlp.modules.common.transformer.transformer_decoders import TransformerDecoder
-from nemo.collections.nlp.modules.common.transformer.transformer_encoders import TransformerEncoder
-from nemo.collections.nlp.modules.common.transformer.transformer_modules import AttentionBridge
+from nemo.collections.common.parts.transformer.transformer_encoders import TransformerEncoder
+from nemo.collections.common.parts.transformer.transformer_modules import AttentionBridge
 
-__all__ = ["PerceiverEncoder"]
+__all__ = ["BridgeEncoder"]
 
 
-class PerceiverEncoder(torch.nn.Module):
+class BridgeEncoder(torch.nn.Module):
     def __init__(
         self,
         num_layers: int,
@@ -39,7 +36,7 @@ class PerceiverEncoder(torch.nn.Module):
         pre_ln_final_layer_norm: bool = True,
         hidden_steps: int = 32,
         hidden_init_method: str = "default",
-        hidden_blocks: int = 2,
+        hidden_blocks: int = 0,
     ):
         super().__init__()
 
@@ -48,7 +45,7 @@ class PerceiverEncoder(torch.nn.Module):
         self._hidden_blocks = hidden_blocks
 
         if self._hidden_init_method == "default":
-            self._hidden_init_method = "params"
+            self._hidden_init_method = "enc_shared"
 
         if self.hidden_init_method not in self.supported_init_methods:
             raise ValueError(
@@ -57,15 +54,15 @@ class PerceiverEncoder(torch.nn.Module):
                 )
             )
 
-        diagonal = 0 if mask_future else None
+        # attention bridge
+        self.att_bridge = AttentionBridge(hidden_size=hidden_size, k=hidden_steps, bridge_size=inner_size,)
 
-        if self.hidden_init_method == "params":
-            # learnable initial hidden values
-            self.init_hidden = torch.nn.Parameter(torch.nn.init.xavier_normal_(torch.empty(hidden_steps, hidden_size)))
-            self.init_cross_att = TransformerDecoder(
-                num_layers=1,
+        if self.hidden_init_method == "enc":
+            self.init_hidden_enc = TransformerEncoder(
+                num_layers=num_layers,
                 hidden_size=hidden_size,
                 inner_size=inner_size,
+                mask_future=mask_future,
                 num_attention_heads=num_attention_heads,
                 attn_score_dropout=attn_score_dropout,
                 attn_layer_dropout=attn_layer_dropout,
@@ -74,29 +71,9 @@ class PerceiverEncoder(torch.nn.Module):
                 pre_ln=pre_ln,
                 pre_ln_final_layer_norm=pre_ln_final_layer_norm,
             )
-            self.init_cross_att.diagonal = diagonal
-        elif self.hidden_init_method == "bridge":
-            # initialize latent with attention bridge
-            self.att_bridge = AttentionBridge(hidden_size=hidden_size, k=hidden_steps, bridge_size=inner_size,)
 
-        # cross-attention encoder
-        layer = TransformerDecoder(
-            num_layers=1,
-            hidden_size=hidden_size,
-            inner_size=inner_size,
-            num_attention_heads=num_attention_heads,
-            attn_score_dropout=attn_score_dropout,
-            attn_layer_dropout=attn_layer_dropout,
-            ffn_dropout=ffn_dropout,
-            hidden_act=hidden_act,
-            pre_ln=pre_ln,
-            pre_ln_final_layer_norm=pre_ln_final_layer_norm,
-        )
-        layer.diagonal = diagonal
-        self.cross_att_layers = torch.nn.ModuleList([copy.deepcopy(layer) for _ in range(hidden_blocks)])
-
-        # self-attention encoder
-        layer = TransformerEncoder(
+        # self attention
+        self.hidden_enc = TransformerEncoder(
             num_layers=num_layers,
             hidden_size=hidden_size,
             inner_size=inner_size,
@@ -109,11 +86,10 @@ class PerceiverEncoder(torch.nn.Module):
             pre_ln=pre_ln,
             pre_ln_final_layer_norm=pre_ln_final_layer_norm,
         )
-        self.self_att_layers = torch.nn.ModuleList([copy.deepcopy(layer) for _ in range(hidden_blocks)])
 
     @property
     def supported_init_methods(self):
-        return ["params", "bridge"]
+        return ["enc_shared", "identity", "enc"]
 
     @property
     def hidden_steps(self):
@@ -133,41 +109,32 @@ class PerceiverEncoder(torch.nn.Module):
             encoder_states: output of the encoder (B x L_enc x H)
             encoder_mask: encoder inputs mask (B x L_enc)
         """
+        # self-attention over input
+        if self.hidden_init_method == "enc_shared":
+            residual = encoder_states
+            hidden_states = self.hidden_enc(encoder_states=encoder_states, encoder_mask=encoder_mask)
+            # residual connection
+            hidden_states += residual
+        elif self.hidden_init_method == "identity":
+            hidden_states = encoder_states
+        elif self.hidden_init_method == "enc":
+            residual = encoder_states
+            hidden_states = self.init_hidden_enc(encoder_states=encoder_states, encoder_mask=encoder_mask)
+            # residual connection
+            hidden_states += residual
+
+        # project encoder states to a fixed steps hidden using k attention heads
+        hidden_states = self.att_bridge(hidden=hidden_states, hidden_mask=encoder_mask)
+
         # all hidden values are active
         hidden_mask = torch.ones(
             encoder_states.shape[0], self._hidden_steps, dtype=encoder_mask.dtype, device=encoder_mask.device
         )
 
-        # initialize hidden state
-        if self._hidden_init_method == "params":
-            # initialize latent with learned parameters
-            hidden_states = self.init_hidden.unsqueeze(0).expand(encoder_states.shape[0], -1, -1)
-            hidden_states = self.init_cross_att(
-                decoder_states=hidden_states,
-                decoder_mask=hidden_mask,
-                encoder_states=encoder_states,
-                encoder_mask=encoder_mask,
-            )
-        elif self._hidden_init_method == "bridge":
-            # initialize latent with attention bridge
-            hidden_states = self.att_bridge(hidden=encoder_states, hidden_mask=encoder_mask,)
-
-        # apply block (cross-attention, self-attention) multiple times
-        # for block in range(self._hidden_blocks):
-        for self_att, cross_att in zip(self.self_att_layers, self.cross_att_layers):
+        # apply self-attention over fixed-size hidden_states
+        for block in range(self._hidden_blocks):
             residual = hidden_states
-
-            # cross attention of hidden over encoder states
-            hidden_states = cross_att(
-                decoder_states=hidden_states,
-                decoder_mask=hidden_mask,
-                encoder_states=encoder_states,
-                encoder_mask=encoder_mask,
-            )
-
-            # self-attention over hidden
-            hidden_states = self_att(encoder_states=hidden_states, encoder_mask=hidden_mask,)
-
+            hidden_states = self.hidden_enc(encoder_states=hidden_states, encoder_mask=hidden_mask)
             # residual connection
             hidden_states += residual
 
