@@ -50,87 +50,8 @@ from nemo.core.neural_types import (
 from nemo.utils import logging
 
 
-class StatelessNet(torch.nn.Module):
-    def __init__(self, context_size, vocab_size, emb_dim, blank_idx, blank_as_pad, normalization_mode, dropout):
-        super().__init__()
-        self.context_size = context_size
-        self.vocab_size = vocab_size
-        self.emb_dim = emb_dim
-        self.dropout = torch.nn.Dropout(dropout)
-        self.norm = torch.nn.Identity()
-        if normalization_mode == 'layer':
-            self.norm = torch.nn.LayerNorm(emb_dim, elementwise_affine=False)
-
-        assert(blank_as_pad)  # So far it only supports when it is set True
-        embeds = []
-        for i in range(self.context_size):
-            # We use different embedding matrices for different context positions.
-            # In this list, a smaller index means more recent history word.
-            # We assign more dimensions for the most recent word in the history.
-            if i != 0:
-                embed_size = emb_dim // 2 // self.context_size
-            else:
-                embed_size = emb_dim - (emb_dim // 2 // self.context_size) * (self.context_size - 1)
-
-            if blank_as_pad:
-                embed = torch.nn.Embedding(vocab_size + 1, embed_size, padding_idx=blank_idx)
-            else:
-                embed = torch.nn.Embedding(vocab_size, embed_size)
-
-            embeds.append(embed)
-
-        self.embeds = torch.nn.ModuleList(embeds)
-        self.blank_idx = blank_idx
-
-    def forward(self,
-                y: Optional[torch.Tensor] = None,
-                state: Optional[List[torch.Tensor]] = None,
-                ):
-        # Although this is a *stateless* net, we use the "state" parameter to
-        # pass in the previous labels, unlike LSTMs where state would represent
-        # hidden activations of the network.
-        # "state" is a list of 1 tensor in order to be consistent with the stateful
-        # decoder interface, and the element is a tensor of shape [batch, context-length].
-        # The out dimension of this function is B x U x D, with D being the total embedding dim.
-        outs = []
-
-        [B, U] = y.shape
-        appended_y = y
-        if state != None:
-            appended_y = torch.concat([state[0], y], axis=1)
-            context_size = appended_y.shape[1]
-
-            if context_size < self.context_size:
-                padded_state = torch.ones([B, self.context_size], dtype=torch.long, device=y.device) * self.blank_idx
-                padded_state[:,self.context_size - context_size:] = appended_y
-            elif context_size == self.context_size + 1:
-                padded_state = appended_y[:,1:]
-            else:
-                padded_state = appended_y
-
-            for i in range(self.context_size):
-                out = self.embeds[i](padded_state[:,self.context_size - 1 - i:self.context_size - i])
-                outs.append(out)
-        else:
-            for i in range(self.context_size):
-                out = self.embeds[i](y)
-
-                if i != 0:
-                    out[:,i:,:] = out[:,:-i,:].clone()  # needs clone() here or it might complain about src and dst mem location have overlaps.
-                    out[:,:i,:] *= 0.0
-                outs.append(out)
-
-        out = self.dropout(torch.concat(outs, axis=-1))
-        out = self.norm(out)
-
-        state = None
-        if y is not None:
-            state = [appended_y[:,appended_y.shape[1] - self.context_size + 1:]]
-        return out, state
-
-
-class RNNTStatelessDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
-    """A Stateless Neural Network Transducer Decoder / Prediction Network (RNN-T Prediction Network).
+class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
+    """A Stateless Neural Network Transducer Decoder / Prediction Network.
     An RNN-T Decoder/Prediction stateless network that simply takes concatenation of embeddings of the history tokens as the output.
 
     Args:
@@ -147,12 +68,6 @@ class RNNTStatelessDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         normalization_mode: Can be either None, 'layer'. By default, is set to None.
             Defines the type of normalization applied to the RNN layer.
 
-        blank_as_pad: bool, set to True by default. When set, will add a token to the Embedding layer of this
-            prediction network, and will treat this token as a pad token. In essence, the RNNT pad token will
-            be treated as a pad token, and the embedding layer will return a zero tensor for this token.
-
-            It is set by default as it enables various batch optimizations required for batched beam search.
-            Therefore, it is not recommended to disable this flag.
     """
 
     @property
@@ -201,7 +116,6 @@ class RNNTStatelessDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         vocab_size: int,
         context_size: int = 1,
         normalization_mode: Optional[str] = None,
-        blank_as_pad: bool = True,
     ):
         # Required arguments
         self.pred_hidden = prednet['pred_hidden']
@@ -209,16 +123,20 @@ class RNNTStatelessDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         self.context_size = context_size
 
         # Initialize the model (blank token increases vocab size by 1)
-        super().__init__(vocab_size=vocab_size, blank_idx=self.blank_idx, blank_as_pad=blank_as_pad)
+        super().__init__(vocab_size=vocab_size, blank_idx=self.blank_idx, blank_as_pad=True)
 
         # Optional arguments
         dropout = prednet.get('dropout', 0.0)
 
         self.prediction = self._predict_modules(
-            vocab_size=vocab_size,
-            pred_n_hidden=self.pred_hidden,
-            norm=normalization_mode,
-            dropout=dropout,
+            **{
+                "context_size": context_size,
+                "vocab_size": vocab_size,
+                "emb_dim": self.pred_hidden,
+                "blank_idx": self.blank_idx,
+                "normalization_mode": normalization_mode,
+                "dropout": dropout,
+            }
         )
         self._rnnt_export = False
 
@@ -313,13 +231,7 @@ class RNNTStatelessDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         del start
         return y, state
 
-    def _predict_modules(
-        self,
-        vocab_size,
-        pred_n_hidden,
-        norm,
-        dropout,
-    ):
+    def _predict_modules(self, **kwargs):
         """
         Prepare the trainable parameters of the Prediction Network.
 
@@ -330,10 +242,8 @@ class RNNTStatelessDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
             dropout: Whether to apply dropout to RNN.
         """
 
-        net = StatelessNet(self.context_size, vocab_size, pred_n_hidden, self.blank_idx, self.blank_as_pad, norm, dropout)
-
+        net = rnnt_utils.StatelessNet(**kwargs)
         return net
-
 
     def score_hypothesis(
         self, hypothesis: rnnt_utils.Hypothesis, cache: Dict[Tuple[int], Any]
@@ -427,11 +337,12 @@ class RNNTStatelessDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         """
         if batch_states is not None:
             states = batch_states[0][idx]
-            states = states.long()  # beam search code assumes the batch_states tensor is always of float type, so need conversion
+            states = (
+                states.long()
+            )  # beam search code assumes the batch_states tensor is always of float type, so need conversion
             return [states]
         else:
             return None
-
 
     def batch_concat_states(self, batch_states: List[List[torch.Tensor]]) -> List[torch.Tensor]:
         """Concatenate a batch of decoder state to a packed state.
@@ -484,7 +395,6 @@ class RNNTStatelessDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
             old_states[0][ids, :] = new_states[0][ids, :]
 
         return old_states
-
 
     def batch_score_hypothesis(
         self, hypotheses: List[rnnt_utils.Hypothesis], cache: Dict[Tuple[int], Any], batch_states: List[torch.Tensor]

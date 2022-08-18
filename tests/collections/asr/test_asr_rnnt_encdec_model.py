@@ -18,7 +18,7 @@ import torch
 from omegaconf import DictConfig, ListConfig
 
 from nemo.collections.asr.models import EncDecRNNTModel
-from nemo.collections.asr.modules import RNNTDecoder, RNNTStatelessDecoder, RNNTJoint
+from nemo.collections.asr.modules import RNNTDecoder, RNNTJoint, RNNTStatelessDecoder
 from nemo.collections.asr.parts.submodules import rnnt_beam_decoding as beam_decode
 from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode
 from nemo.collections.asr.parts.utils import rnnt_utils
