@@ -17,6 +17,8 @@ def convert_to_cli(cfg, root=True):
         result.append(f"evaluation={cfg['evaluation_config']}")
     if cfg.get("conversion_config") is not None:
         result.append(f"conversion={cfg['conversion_config']}")
+    if cfg.get("export_config") is not None:
+        result.append(f"export={cfg['export_config']}")
 
     expected_env_vars = [
         "NCCL_TOPO_FILE",
@@ -26,7 +28,7 @@ def convert_to_cli(cfg, root=True):
         "NCCL_DEBUG",
     ]
     for k, v in cfg.items():
-        if k in ["dgxa100_gpu2core", "dgxa100_gpu2mem", "container", "ci_test"]:
+        if k in ["dgxa100_gpu2core", "dgxa100_gpu2mem", "container", "ci_test", "inference_container"]:
             continue
         if k == "task_templates":
 

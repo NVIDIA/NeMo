@@ -135,7 +135,7 @@ def run_evaluation(cfg, dependency=None):
         account = cluster_cfg.get("account")
         exclusive = cluster_cfg.get("exclusive")
         job_name_prefix = cluster_cfg.get("job_name_prefix")
-        job_name = os.path.join(job_name_prefix, name)
+        job_name = f"{job_name_prefix}{name}"
 
         # Process container-mounts.
         mounts_str = f"{bignlp_path}:{bignlp_path},{data_dir}:{data_dir},{base_results_dir}:{base_results_dir}"
@@ -169,7 +169,7 @@ def run_evaluation(cfg, dependency=None):
             account=account,
         )
         if cfg.get("ci_test"):
-            job_id = subprocess.check_output([f'sbatch {new_script_path} | tee "{results_dir}/launcher.log" '], shell=True)
+            job_id = subprocess.check_output([f'sbatch --parsable {new_script_path} | tee "{results_dir}/launcher.log" '], shell=True)
         else:
             job_id = subprocess.check_output([f"sbatch --parsable {new_script_path}"], shell=True)
         dependency = job_id.decode("utf-8")

@@ -1,17 +1,18 @@
-import sys
-
 import copy
 import math
+import subprocess
+import sys
+
 import hydra
 import omegaconf
-import subprocess
 
 from bignlp.bignlp_utils import convert_to_cli, fake_submit
-from bignlp.train_scripts import train
 from bignlp.conversion_scripts import convert
+from bignlp.eval_scripts import evaluate_gpt, evaluate_prompt_gpt, evaluate_t5
+from bignlp.export_scripts import export
 from bignlp.finetune_scripts import finetune
 from bignlp.prompt_learn_scripts import prompt_learn
-from bignlp.eval_scripts import evaluate_gpt, evaluate_t5, evaluate_prompt_gpt
+from bignlp.train_scripts import train
 
 omegaconf.OmegaConf.register_new_resolver("multiply", lambda x, y: x * y, replace=True)
 omegaconf.OmegaConf.register_new_resolver("divide_ceil", lambda x, y: int(math.ceil(x / y)), replace=True)
@@ -20,7 +21,6 @@ omegaconf.OmegaConf.register_new_resolver("divide_floor", lambda x, y: int(math.
 
 @hydra.main(config_path="conf", config_name="config")
 def main(cfg):
-    hydra_args = " ".join(sys.argv[1:])
     hydra_args = convert_to_cli(cfg)
 
     if cfg.get("debug"):
@@ -33,6 +33,7 @@ def main(cfg):
     run_finetuning = cfg.get("run_finetuning")
     run_prompt_learning = cfg.get("run_prompt_learning")
     run_evaluation = cfg.get("run_evaluation")
+    run_export = cfg.get("run_export")
 
     # TODO: build a mapping from dataset name to modules
     data_config = cfg.get("data_config")
@@ -84,6 +85,9 @@ def main(cfg):
             raise ValueError(f"Unrecognized model in evaluation config `{cfg.evaluation_config}`.")
     else:
         cfg_copy._content.pop("evaluation", None)
+
+    if run_export:
+        export.run_export(cfg, dependency=dependency)
 
     # print(omegaconf.OmegaConf.to_yaml(cfg_copy))
 

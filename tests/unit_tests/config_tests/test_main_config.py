@@ -14,22 +14,24 @@ class TestConfig:
           - finetuning: null
           - prompt_learning: null
           - evaluation: gpt3/evaluate_all
+          - export: gpt3
           - override hydra/job_logging: stdout
-        
+
         hydra:
           run:
             dir: .
           output_subdir: null
-        
+
         debug: False
-        
+
         run_data_preparation: True
         run_training: True
         run_conversion: True
         run_finetuning: False # Finetuning only supports T5/mT5
         run_prompt_learning: False # Prompt learning only support GPT3 PP=1 models
         run_evaluation: True
-        
+        run_export: True
+
         cluster_type: bcm  # bcm or bcp. If bcm, it must match - cluster above.
         bignlp_path: ???  # Path should end with bignlp-scripts
         data_dir: ${bignlp_path}/data  # Location to store and read the data.
@@ -37,7 +39,8 @@ class TestConfig:
         container_mounts: # List of additional paths to mount to container. They will be mounted to same path.
           - null
         container: nvcr.io/ea-bignlp/bignlp-training:22.06-hotfix.01-py3
-                
+        inference_container: gitlab-master.nvidia.com#dl/dgx/bignlp/infer:infer_update-py3-base
+
         wandb_api_key_file: null  # File where the w&B api key is stored. Key must be on the first line.
 
         env_vars:
@@ -56,7 +59,7 @@ class TestConfig:
           balanced: True  # Whether to assing an equal number of physical cores to each process.
           min_cores: 1  # Minimum number of physical cores per process.
           max_cores: 8  # Maximum number of physical cores per process. Can be null to use all available cores.
-        
+
         # Do not modify below, use the values above instead.
         data_config: ${hydra:runtime.choices.data_preparation}
         training_config: ${hydra:runtime.choices.training}
@@ -64,6 +67,7 @@ class TestConfig:
         prompt_learning_config: ${hydra:runtime.choices.prompt_learning}
         evaluation_config: ${hydra:runtime.choices.evaluation}
         conversion_config: ${hydra:runtime.choices.conversion}
+        export_config: ${hydra:runtime.choices.export}
         """
         expected = OmegaConf.create(s)
         assert (

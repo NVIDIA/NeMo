@@ -1,6 +1,66 @@
 from omegaconf import OmegaConf
 
 
+class TestEvaluationmT5Config:
+    def test_evaluation_mt5_xnli_config(self):
+        conf = OmegaConf.load("conf/evaluation/mt5/xnli.yaml")
+        s = """
+        run:
+          name: eval_${.task_name}_${.model_train_name}
+          time_limit: "04:00:00"
+          dependency: "singleton"
+          model_train_name: mt5_390m
+          task_name: "xnli"
+          finetuning_results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
+          results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}_eval
+
+        trainer:
+          devices: 8
+          num_nodes: 1
+          accelerator: gpu
+          precision: bf16
+          logger: False # logger provided by exp_manager
+          enable_checkpointing: False
+          replace_sampler_ddp: False
+          log_every_n_steps: 10
+
+
+        exp_manager:
+          explicit_log_dir: ${evaluation.run.results_dir}
+          exp_dir: null
+          name: megatron_mt5_glue_xnli_eval
+          create_checkpoint_callback: False
+
+        model:
+          restore_from_path: ${evaluation.run.finetuning_results_dir}/checkpoints/megatron_mt5_glue_xnli.nemo # Path to a finetuned mT5 .nemo file
+          gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
+          megatron_amp_O2: False # Enable O2 optimization for megatron amp
+          eval_languages: ['fr', 'de', 'en', 'es'] # List of languages to evaluate zero-shot XNLI performance. Full language list: ar,bg,de,el,en,es,fr,hi,ru,sw,th,tr,ur,vi,zh
+
+          data:
+            validation_ds:
+              task_name: 'xnli'
+              file_path: ${data_dir}/glue_data/xnli/xnli.test.tsv # Path to the TSV file for XNLI test
+              global_batch_size: 32
+              micro_batch_size: 4
+              shuffle: False
+              num_workers: 4
+              pin_memory: True
+              max_seq_length: 512
+              drop_last: False
+              write_predictions_to_file: False
+              output_file_path_prefix: null # Prefix of the file to write predictions to.
+              metric:
+                name: "exact_string_match" # Name of the evaluation metric to use.
+                average: null # Average the metric over the dataset. Options: ['macro', 'micro']. Works only for 'F1', 'accuracy' etc. Refer to torchmetrics for metrics where this is supported.
+                num_classes: null
+        """
+        expected = OmegaConf.create(s)
+        assert (
+                expected == conf
+        ), f"conf/evaluation/mt5/xnli.yaml must be set to {expected} but it currently is {conf}."
+
+
 class TestEvaluationT5Config:
     def test_evaluation_t5_mnli_matched_config(self):
         conf = OmegaConf.load("conf/evaluation/t5/mnli_matched.yaml")

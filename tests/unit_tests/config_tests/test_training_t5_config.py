@@ -23,7 +23,7 @@ class TestTrainingT5Config:
           enable_checkpointing: False
           replace_sampler_ddp: False
           max_epochs: null
-          max_steps: 1000000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+          max_steps: 1000000 # consumed_samples = global_step * global_batch_size
           max_time: "06:23:30:00"
           log_every_n_steps: 10
           val_check_interval: 2000
@@ -134,6 +134,7 @@ class TestTrainingT5Config:
             end_step: 10 # Global batch to end profiling
             ranks: [0] # Global rank IDs to profile
             gen_shape: False
+
 
           optim:
             name: fused_adam
@@ -256,7 +257,7 @@ class TestTrainingT5Config:
           enable_checkpointing: False
           replace_sampler_ddp: False
           max_epochs: null
-          max_steps: 1066667 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+          max_steps: 1066667 # consumed_samples = global_step * global_batch_size
           max_time: "14:23:30:00"
           log_every_n_steps: 10
           val_check_interval: 2000
@@ -367,6 +368,7 @@ class TestTrainingT5Config:
             end_step: 10 # Global batch to end profiling
             ranks: [0] # Global rank IDs to profile
             gen_shape: False
+
 
           optim:
             name: fused_adam
@@ -489,7 +491,7 @@ class TestTrainingT5Config:
           enable_checkpointing: False
           replace_sampler_ddp: False
           max_epochs: null
-          max_steps: 1066667 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+          max_steps: 1066667 # consumed_samples = global_step * global_batch_size
           max_time: "44:23:30:00"
           log_every_n_steps: 10
           val_check_interval: 2000
@@ -600,6 +602,7 @@ class TestTrainingT5Config:
             end_step: 10 # Global batch to end profiling
             ranks: [0] # Global rank IDs to profile
             gen_shape: False
+
 
           optim:
             name: fused_adam
@@ -722,7 +725,7 @@ class TestTrainingT5Config:
           enable_checkpointing: False
           replace_sampler_ddp: False
           max_epochs: null
-          max_steps: 1066667 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+          max_steps: 1066667 # consumed_samples = global_step * global_batch_size
           max_time: "54:23:30:00"
           log_every_n_steps: 10
           val_check_interval: 2000
@@ -833,6 +836,7 @@ class TestTrainingT5Config:
             end_step: 10 # Global batch to end profiling
             ranks: [0] # Global rank IDs to profile
             gen_shape: False
+
 
           optim:
             name: fused_adam
@@ -955,7 +959,7 @@ class TestTrainingT5Config:
           enable_checkpointing: False
           replace_sampler_ddp: False
           max_epochs: null
-          max_steps: 1066667 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+          max_steps: 1066667 # consumed_samples = global_step * global_batch_size
           max_time: "99:23:30:00"
           log_every_n_steps: 10
           val_check_interval: 2000
@@ -1066,6 +1070,7 @@ class TestTrainingT5Config:
             end_step: 10 # Global batch to end profiling
             ranks: [0] # Global rank IDs to profile
             gen_shape: False
+
 
           optim:
             name: fused_adam

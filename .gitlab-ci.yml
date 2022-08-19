@@ -8,7 +8,7 @@ variables: &VARS
   NGC_BIGNLP_CI_PATH: "bignlp_ci" # mount at /mount/results
   CONTAINER_NVCR_BASE: nvcr.io/nvidian/bignlp-ci:training
   TESTS_TO_RUN_ON_MERGE_REQ: L0  # Can specify levels, ci job names etc as a space seperated list to run during merge request
-  TESTS_TO_RUN_ON_THIS_COMMIT:  NONE # Can specify levels, ci job names etc as a space seperated list to run during this commit
+  TESTS_TO_RUN_ON_THIS_COMMIT: NONE # Can specify levels, ci job names etc as a space seperated list to run during this commit
   TEST_REGEX_ON_THIS_COMMIT: NONE #https://github.com/google/re2/wiki/Syntax (Can define regex as in this spec) e.g /.*gpt3.*/
 
 stages:
@@ -148,7 +148,8 @@ release_perf:
         fi
     # Wait for job to launch
     - sleep 10s # Without this, "sacct" in jobstate.sh does not always find the SLURM job.
-    - export SLURM_JOBID=$(grep 'Submitted batch job' "${RESULTS_DIR}/launcher.log" | awk '{ print $4 }')
+    #- export SLURM_JOBID=$(grep 'Submitted batch job' "${RESULTS_DIR}/launcher.log" | awk '{ print $4 }')
+    - export SLURM_JOBID=$(cat "${RESULTS_DIR}/launcher.log")
     - echo $SLURM_JOBID
     - export SLURM_OUTPUT=${RESULTS_DIR}/slurm_${SLURM_JOBID}.log
     #export SLURM_OUTPUT=$(scontrol show job "${SLURM_JOBID}" | grep 'StdOut' | awk -F '=' '{ print $2 }')
@@ -280,6 +281,88 @@ train.gpt3.126m_tp2_pp2_2node_100steps:
     TEST_LEVEL: L0
   needs:
     - build-BigNLP
+
+export.gpt3.126m_tp1_pp1_split:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: export
+    RUN_MODEL: gpt3
+    RUN_MODEL_SIZE: 126m
+    TP_SIZE: 1
+    PP_SIZE: 1
+    TIME_LIMIT: "20:00"
+    TEST_LEVEL: L0
+    FT_WEIGHT_DATA: fp16
+    FT_TP_SIZE: 2
+    FT_PP_SIZE: 2
+    FT_DEPLOYMENT_DATA: fp16
+    FT_EVAL_MARGIN: "0.005"
+    FT_EVAL_TASK: lambada
+
+  needs:
+    - eval.gpt3.126m_tp1_pp1_lambada
+
+export.gpt3.126m_tp1_pp2_split:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: export
+    RUN_MODEL: gpt3
+    RUN_MODEL_SIZE: 126m
+    TP_SIZE: 1
+    PP_SIZE: 2
+    TIME_LIMIT: "20:00"
+    TEST_LEVEL: L1
+    FT_WEIGHT_DATA: fp16
+    FT_TP_SIZE: 2
+    FT_PP_SIZE: 2
+    FT_DEPLOYMENT_DATA: fp16
+    FT_EVAL_MARGIN: "0.005"
+    FT_EVAL_TASK: lambada
+  needs:
+    - eval.gpt3.126m_tp1_pp2_lambada
+
+export.gpt3.126m_tp2_pp1_merge:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: export
+    RUN_MODEL: gpt3
+    RUN_MODEL_SIZE: 126m
+    TP_SIZE: 2
+    PP_SIZE: 1
+    TIME_LIMIT: "20:00"
+    TEST_LEVEL: L1
+    FT_WEIGHT_DATA: fp32
+    FT_TP_SIZE: 1
+    FT_PP_SIZE: 2
+    FT_DEPLOYMENT_DATA: bf16
+    FT_EVAL_MARGIN: "0.005"
+    FT_EVAL_TASK: lambada
+  needs:
+    - eval.gpt3.126m_tp2_pp1_lambada
+
+
+export.gpt3.126m_tp2_pp2_merge:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: export
+    RUN_MODEL: gpt3
+    RUN_MODEL_SIZE: 126m
+    TP_SIZE: 2
+    PP_SIZE: 2
+    TIME_LIMIT: "20:00"
+    TEST_LEVEL: L0
+    FT_WEIGHT_DATA: fp16
+    FT_TP_SIZE: 1
+    FT_PP_SIZE: 1
+    FT_DEPLOYMENT_DATA: fp16
+    FT_EVAL_MARGIN: "0.005"
+    FT_EVAL_TASK: lambada
+  needs:
+    - eval.gpt3.126m_tp2_pp2_lambada
 
 train.gpt3.126m_tp4_pp4_4node_100steps:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
@@ -736,6 +819,45 @@ eval.t5.220m_tp2_pp2:
   needs:
     - finetune.t5.220m_tp2_pp2_2node_100steps_mnli
 
+export.t5.220m_tp1_pp1_split:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: export
+    RUN_MODEL: t5
+    RUN_MODEL_SIZE: 220m
+    TP_SIZE: 1
+    PP_SIZE: 1
+    TIME_LIMIT: "20:00"
+    TEST_LEVEL: L0
+    FT_WEIGHT_DATA: fp16
+    FT_TP_SIZE: 2
+    FT_PP_SIZE: 2
+    FT_DEPLOYMENT_DATA: fp16
+    FT_EVAL_MARGIN: "0.005"
+    FT_EVAL_TASK: mnli
+  needs:
+    - eval.t5.220m_tp1_pp1
+
+export.t5.220m_tp2_pp2_merge:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: export
+    RUN_MODEL: t5
+    TP_SIZE: 2
+    PP_SIZE: 2
+    TIME_LIMIT: "20:00"
+    TEST_LEVEL: L1
+    FT_WEIGHT_DATA: fp32
+    FT_TP_SIZE: 1
+    FT_PP_SIZE: 1
+    FT_DEPLOYMENT_DATA: bf16
+    FT_EVAL_MARGIN: "0.005"
+    FT_EVAL_TASK: mnli
+  needs:
+    - eval.t5.220m_tp2_pp2
+
 convert.mt5.170m_tp1_pp1:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
@@ -834,6 +956,46 @@ eval.mt5.170m_tp2_pp2:
     TEST_LEVEL: L1
   needs:
     - finetune.mt5.170m_tp2_pp2_2node_100steps_xnli
+
+export.mt5.170m_tp1_pp1_split:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: export
+    RUN_MODEL: mt5
+    RUN_MODEL_SIZE: 170m
+    TP_SIZE: 1
+    PP_SIZE: 1
+    TIME_LIMIT: "20:00"
+    TEST_LEVEL: L0
+    FT_WEIGHT_DATA: fp32
+    FT_TP_SIZE: 2
+    FT_PP_SIZE: 2
+    FT_DEPLOYMENT_DATA: bf16
+    FT_EVAL_MARGIN: "0.005"
+    FT_EVAL_TASK: xnli
+  needs:
+    - eval.mt5.170m_tp1_pp1
+
+export.mt5.170m_tp2_pp2_merge:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: export
+    RUN_MODEL: mt5
+    RUN_MODEL_SIZE: 170m
+    TP_SIZE: 2
+    PP_SIZE: 2
+    TIME_LIMIT: "20:00"
+    TEST_LEVEL: L1
+    FT_WEIGHT_DATA: fp16
+    FT_TP_SIZE: 1
+    FT_PP_SIZE: 1
+    FT_DEPLOYMENT_DATA: fp16
+    FT_EVAL_MARGIN: "0.005"
+    FT_EVAL_TASK: xnli
+  needs:
+    - eval.mt5.170m_tp2_pp2
 
 prompt_learn.gpt3.126m_tp1_pp1_1node_100steps_squad:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
