@@ -3144,7 +3144,45 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         }
       }
     }
-
+  stage('L2: Megatron GPT Adapter Learning') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel{
+        stage('GPT Adapter tuning & inference TP=2 PP=1') {
+          steps {
+            sh "python examples/nlp/language_modeling/tuning/megatron_gpt_adapter_tuning.py \
+                --config-name=megatron_gpt_adapter_tuning_config \
+                name='/home/TestData/nlp/adapter_tuning_test_tp2' \
+                trainer.devices=2 \
+                trainer.max_steps=6 \
+                trainer.max_epochs=null \
+                model.tensor_model_parallel_size=2 \
+                model.language_model_path='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp2_pp1.nemo' \
+                model.existing_tasks=[] \
+                model.new_tasks=['rte'] \
+                model.data.train_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+                model.data.validation_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+                model.global_batch_size=4"
+            sh "rm -rf /home/TestData/nlp/adapter_tuning_test_tp2"
+            sh "python examples/nlp/language_modeling/tuning/megatron_gpt_prompt_learning_eval.py \
+                --config-name=megatron_gpt_adapter_inference \
+                adapter_model_file='/home/TestData/nlp/adapter_tuning_test_tp2.nemo' \
+                gpt_model_file='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp2_pp1.nemo' \
+                inference.greedy=True \
+                inference.add_BOS=False \
+                trainer.devices=2 \
+                tensor_model_parallel_size=2 \
+                data_paths=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl']"
+            sh "rm -rf /home/TestData/nlp/adapter_tuning_test_tp2.nemo"
+          }
+        }
+      }
+    
 
     // TODO: Add this test back. Test was failing on CI machines due to HW error
     // stage('L2: Megatron GPT Convert from Megatron-LM checkpoing and Eval') {
