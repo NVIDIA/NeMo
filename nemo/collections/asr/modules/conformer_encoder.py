@@ -401,9 +401,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             audio_signal, pos_emb = self.pos_enc(x=audio_signal)
 
         # pad_mask is the masking to be used to ignore paddings
-        pad_mask = torch.arange(0, max_audio_length, device=audio_signal.device).expand(
-            padding_length.size(0), -1
-        ) < padding_length.unsqueeze(-1)
+        pad_mask = self.make_pad_mask(max_audio_length=max_audio_length, seq_lens=padding_length)
 
         # pad_mask_for_att_mask is the mask which helps to ignore paddings
         pad_mask_for_att_mask = pad_mask.unsqueeze(1).repeat([1, max_audio_length, 1])
@@ -446,6 +444,11 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         # On inference, user may choose to disable pad mask
         mask = self.use_pad_mask
         self.use_pad_mask = on
+        return mask
+
+    def make_pad_mask(self, max_audio_length, seq_lens):
+        """Make masking for padding."""
+        mask = self.seq_range[:max_audio_length].expand(seq_lens.size(0), -1) < seq_lens.unsqueeze(-1)
         return mask
 
     def setup_streaming_params(
