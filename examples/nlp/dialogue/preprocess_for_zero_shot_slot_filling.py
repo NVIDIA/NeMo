@@ -53,6 +53,7 @@ def creat_folder_and_copy_files(args, output_path):
     # only 'assistant' and 'drive_through' dataset need to copy "dict.intents.csv"
     if args.dataset in ['assistant', 'drive_through']:
         copy_file(args.preprocess_file_path, output_path, "dict.intents.csv")
+        copy_file(args.preprocess_file_path, output_path, "dict.slots.csv")
 
 
 def copy_file(source_path, target_path, filename):
@@ -180,6 +181,10 @@ if __name__ == '__main__':
             test, test_slots = from_slot_name_to_slot_id(test, test_slots)
             # generate a "dict.intents.csv" file with "same"
             write_file(['same'], output_path, 'dict.intents.csv')
+
+            # generate a "dict.slots.csv" file with manual build slots class list
+            dict_slots = ['O', 'B-LOC', 'I-LOC', 'B-MISC', 'I-MISC', 'B-ORG', 'I-ORG', 'B-PER', 'I-PER']
+            write_file(dict_slots, output_path, 'dict.slots.csv')
 
         if args.dataset in ['conll_2003', 'drive_through']:
             train, train_slots = fix_input_data_by_combine_punctuation_with_word(train, train_slots)
