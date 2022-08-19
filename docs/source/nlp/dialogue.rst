@@ -31,6 +31,8 @@ Currently, the supported task categories are:
 |                                                          | Assistant                        | SGDQA (BERT-Based Schema Guided Dialogue Question Answering model)               | bert-base-cased                                                      | Megatron                                 |
 +                                                          +----------------------------------+----------------------------------------------------------------------------------+----------------------------------------------------------------------+------------------------------------------+
 |                                                          |                                  | Intent Slot Classification Model                                                 | bert-base-uncased                                                    | Megatron                                 |
++                                                          +----------------------------------+----------------------------------------------------------------------------------+----------------------------------------------------------------------+------------------------------------------+
+|                                                          |                                  | Zero Shot Slot Filling Model                                                     | bert-base-uncased                                                    | Megatron                                 |
 +----------------------------------------------------------+----------------------------------+----------------------------------------------------------------------------------+----------------------------------------------------------------------+------------------------------------------+
 | Intent Classification                                    | Zero Shot Food Ordering          | Dialogue GPT Classification Model                                                | gpt2, gpt2-{medium, large, xl}, microsoft/DialoGPT-{small, medium}   | Huggingface, Megatron                    |
 +                                                          +----------------------------------+----------------------------------------------------------------------------------+----------------------------------------------------------------------+------------------------------------------+
@@ -66,7 +68,7 @@ Arguments that very commonly need to be edited for all models and tasks
 
 - :code:`do_training`: perform training or only testing
 - :code:`trainer.devices`: number of GPUs (int) or list of GPUs e.g. [0, 1, 3]
-- :code:`model.dataset.task`: Task to work on [sgd, assistant, zero_shot, ms_marco, sgd_generation, design, mellon_qa]
+- :code:`model.dataset.task`: Task to work on [sgd, assistant, zero_shot, ms_marco, sgd_generation, design, mellon_qa, zero_shot_slot_filling]
 - :code:`model.dataset.data_dir`: the dataset directory
 - :code:`model.dataset.dialogues_example_dir`: the directory to store prediction files
 - :code:`model.dataset.debug_mode`: whether to run in debug mode with a very small number of samples [True, False]
