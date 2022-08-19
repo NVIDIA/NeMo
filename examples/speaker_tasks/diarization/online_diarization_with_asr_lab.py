@@ -181,22 +181,53 @@ class ASR_DIAR_ONLINE_DEMO(ASR_DIAR_ONLINE):
     def check_t(self, x):
         return any([ _str in x for _str in ['.', ',', '?'] ] )
     
-    def callback_sim(self, sample_audio):
+    def update_word_and_word_ts(self, words, word_timetamps):
+        """
+        Stitch the existing word sequence in the buffer with the new word sequence.
+        """
+        update_margin =  -1* float(self.frame_len * self.word_update_margin)
+        if len(self.word_seq) == 0:
+            if self.punctuation_model:
+                words = self.punctuate_words(words)
+            self.word_seq.extend(words)
+            self.word_ts_seq.extend(word_timetamps)
+
+        elif len(words) > 0:
+            # Find the first word that starts after frame_start point in state buffer self.word_seq
+            before_frame_start_old = torch.tensor(self.word_ts_seq)[:,0] < self.frame_start + update_margin
+            if all(before_frame_start_old):
+                old_end = len(self.word_seq)
+            else:
+                old_end = torch.where(before_frame_start_old == False)[0][0].item()
+            
+            # Find the first word that starts after frame_start point in incoming words
+            before_frame_start_new = torch.tensor(word_timetamps)[:,0] < self.frame_start + update_margin
+            if all(before_frame_start_new):
+                new_stt = len(word_timetamps)
+            else:
+                new_stt = torch.where(before_frame_start_new == False)[0][0].item()
+            
+            del self.word_seq[old_end:]
+            del self.word_ts_seq[old_end:]
+            if self.punctuation_model_path:
+                punc_margin = len(words[:new_stt])
+                punc_stt = max(new_stt-punc_margin, 0)
+                punctuated_words = self.punctuate_words(words[punc_stt:])[punc_margin:]
+                self.word_seq.extend(punctuated_words)
+            else:
+                self.word_seq.extend(words[new_stt:])
+            self.word_ts_seq.extend(word_timetamps[new_stt:])
+    
+    def streaming_step(self, sample_audio):
         loop_start_time = time.time()
         assert len(sample_audio) == int(self.sample_rate * self.frame_len)
-        try:
-            words, timestamps, diar_hyp = self.run_step(sample_audio)
-        except:
-            import ipdb; ipdb.set_trace()
+        words, timestamps, diar_hyp = self.run_step(sample_audio)
         if diar_hyp != []:
             assert len(words) == len(timestamps)
             self.update_word_and_word_ts(words, timestamps)
             if self.punctuation_model_path:
-                # import ipdb; ipdb.set_trace()
                 self._fix_speaker_label_per_word(self.word_seq, self.word_ts_seq, diar_hyp)
                 self.string_out = self._get_speaker_label_per_word(self.word_seq, self.word_ts_seq, diar_hyp)
-                # if self.string_out == None:
-                    # self.string_out = ''
                 write_txt(f"{self.diar._out_dir}/print_script.sh", self.string_out)
             else:
                 total_riva_dict = {}
@@ -305,8 +336,8 @@ class ASR_DIAR_ONLINE_DEMO(ASR_DIAR_ONLINE):
 @hydra_runner(config_path="conf", config_name="online_diarization_with_asr.yaml")
 def main(cfg):
     diar = OnlineDiarizer(cfg)
-    # asr_diar = ASR_DIAR_ONLINE(diar, cfg=cfg.diarizer)
-    asr_diar = ASR_DIAR_ONLINE_DEMO(diar, cfg=cfg.diarizer)
+    asr_diar = ASR_DIAR_ONLINE(diar, cfg=cfg.diarizer)
+    # asr_diar = ASR_DIAR_ONLINE_DEMO(diar, cfg=cfg.diarizer)
 
     if cfg.diarizer.asr.parameters.streaming_simulation:
         diar.uniq_id = cfg.diarizer.simulation_uniq_id
@@ -329,7 +360,7 @@ def main(cfg):
         for index in range(int(np.floor(sdata.shape[0]/asr_diar.n_frame_len))):
             asr_diar.buffer_counter = index
             sample_audio = sdata[asr_diar.CHUNK_SIZE*(asr_diar.buffer_counter):asr_diar.CHUNK_SIZE*(asr_diar.buffer_counter+1)]
-            asr_diar.callback_sim(sample_audio)
+            asr_diar.streaming_step(sample_audio)
     else:
         isTorch = torch.cuda.is_available()
         iface = gr.Interface(
