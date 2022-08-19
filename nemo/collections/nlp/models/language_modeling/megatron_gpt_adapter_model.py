@@ -21,7 +21,6 @@ import torch
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
-from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 
 from nemo.collections.common.parts import adapter_modules
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
@@ -30,6 +29,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_
 )
 from nemo.collections.nlp.modules.common import VirtualPromptStyle
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
+from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes.mixins import adapter_mixins
 from nemo.utils import logging
 
@@ -205,18 +205,15 @@ class MegatronGPTAdapterLearningModel(MegatronGPTPromptLearningModel):
         and/or prompt table will use the learning rate set by the user. 
         """
         # Freeze frozen model
-        
 
-        
         self.frozen_model.freeze()
         param_groups = {'params': [p for p in self.frozen_model.parameters()]}
         for _, module in self.frozen_model.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin):
-                module.set_enabled_adapters(enabled=True) 
+                module.set_enabled_adapters(enabled=True)
                 module.unfreeze_enabled_adapters()
         self._optimizer_param_groups = [param_groups]
         logging.info(f'Optimizer groups set:\n{self.frozen_model.summarize()}')
-
 
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(batch, model):
@@ -232,7 +229,6 @@ class MegatronGPTAdapterLearningModel(MegatronGPTPromptLearningModel):
             return output_tensor, loss_func
 
         return fwd_output_and_loss_func
-    
 
     def training_step(self, batch, batch_idx):
         # we zero grads here because we also call backward in the apex fwd/bwd functions
