@@ -462,7 +462,6 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
                     Defaults to -1 (means feat_out is d_model)
         """
         streaming_cfg = FramewiseStreamingConfig()
-        assert
         if chunk_size is not None:
             if chunk_size <= 1:
                 raise ValueError("chunk_size needs to be a number larger or equal to one.")
