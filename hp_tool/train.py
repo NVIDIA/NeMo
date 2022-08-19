@@ -21,6 +21,7 @@ def create_slurm_file(
     nodes=1,
     ntasks_per_node=8,
     gpus_per_task=1,
+    gpus_per_node=None,
     partition="batch",
     account=None,
 ):
@@ -33,6 +34,8 @@ def create_slurm_file(
         f.writelines(f"#SBATCH --ntasks-per-node={ntasks_per_node}\n")
         if gpus_per_task is not None:
             f.writelines(f"#SBATCH --gpus-per-task={gpus_per_task}\n")
+        if gpus_per_node is not None:
+            f.writelines(f"#SBATCH --gpus-per-node={gpus_per_node}\n")
         if dependency is not None:
             if dependency != "singleton":
                 dependency = f"afterany:{dependency}"
@@ -102,6 +105,7 @@ def run_training(cfg, bignlp_hp_tool_path, model_name):
     account = cluster_cfg.account
     exclusive = cluster_cfg.exclusive
     gpus_per_task = cluster_cfg.gpus_per_task
+    gpus_per_node = cluster_cfg.gpus_per_node
     job_name_prefix = cluster_cfg.job_name_prefix
     dependency = run_cfg.dependency
     job_name = job_name_prefix + name
@@ -113,6 +117,7 @@ def run_training(cfg, bignlp_hp_tool_path, model_name):
     flags = (
         f"--container-image {container} "
         f"--container-mounts {mounts_str} "
+        f"--no-container-mount-home "
         f"-o {results_dir}/{name}-%j.log "
         f"-e {results_dir}/{name}-%j.error "
     )
@@ -128,6 +133,7 @@ def run_training(cfg, bignlp_hp_tool_path, model_name):
         nodes=nodes,
         ntasks_per_node=ntasks_per_node,
         gpus_per_task=gpus_per_task,
+        gpus_per_node=gpus_per_node,
         partition=partition,
         account=account,
     )

@@ -447,6 +447,7 @@ def launch_throughput_measure(dependency_list, model_name, model_size_in_b, num_
     flags = (
         f"--container-image {container} "
         f"--container-mounts {mounts_str} "
+        f"--no-container-mount-home "
     )
     if cfg.get("ci_test"):  # Whether this job is running in CI or not.
         flags += f"-o {log_dir}/slurm_%j.log "
