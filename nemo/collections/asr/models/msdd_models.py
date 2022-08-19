@@ -97,22 +97,6 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
 
         if self._trainer:
             self._init_segmentation_info()
-            if self.cfg_msdd_model.train_ds.synthetic:
-                featurizer = WaveformFeaturizer(
-                    sample_rate=cfg.train_ds.sample_rate, int_values=cfg.get('int_values', False), augmentor=None
-                )
-                self.dataset = AudioToSpeechMSDDSyntheticTrainDataset(
-                    manifest_filepath=cfg.train_ds.manifest_filepath,
-                    emb_dir=cfg.train_ds.emb_dir,
-                    multiscale_args_dict=self.multiscale_args_dict,
-                    soft_label_thres=cfg.train_ds.soft_label_thres,
-                    featurizer=featurizer,
-                    window_stride=cfg.preprocessor.window_stride,
-                    emb_batch_size=cfg.train_ds.emb_batch_size,
-                    pairwise_infer=False,
-                    ds_config=cfg,
-                    global_rank=self._trainer.global_rank,
-                )
             self.world_size = trainer.num_nodes * trainer.num_devices
             self.emb_batch_size = self.cfg_msdd_model.emb_batch_size
             self.pairwise_infer = False
@@ -222,8 +206,19 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
         ):
             logging.warning(f"Could not load dataset as `manifest_filepath` was None. Provided config : {config}")
             return None
-        if 'synthetic' in config and config['synthetic'] == True:
-            dataset = self.dataset
+        if config.get('synthetic', None):
+            dataset = AudioToSpeechMSDDSyntheticTrainDataset(
+                manifest_filepath=config.manifest_filepath,
+                emb_dir=config.emb_dir,
+                multiscale_args_dict=self.multiscale_args_dict,
+                soft_label_thres=config.soft_label_thres,
+                featurizer=featurizer,
+                window_stride=self.cfg_msdd_model.preprocessor.window_stride,
+                emb_batch_size=config.emb_batch_size,
+                pairwise_infer=False,
+                ds_config=self.cfg_msdd_model,
+                global_rank=self._trainer.global_rank,
+            )
         else:
             dataset = AudioToSpeechMSDDTrainDataset(
                 manifest_filepath=config.manifest_filepath,

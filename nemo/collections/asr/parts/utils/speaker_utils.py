@@ -1185,13 +1185,12 @@ def prepare_split_data(manifest_filepath, _out_dir, multiscale_args_dict, global
             - Each data sample is indexed by using the following naming convention: `<uniq_id>_<start time in ms>_<end time in ms>`
                 Example: `fe_03_00106_mixed_626310_642300`
     """
-    speaker_dir = os.path.join(_out_dir, 'speaker_outputs')
+    speaker_dir = os.path.join(_out_dir, f'speaker_outputs_rank{global_rank}')
 
     # Only if this is for the first run of modelPT instance, remove temp folders.
-    if global_rank == 0:
-        if os.path.exists(speaker_dir):
-            shutil.rmtree(speaker_dir)
-        os.makedirs(speaker_dir)
+    if os.path.exists(speaker_dir):
+        shutil.rmtree(speaker_dir)
+    os.makedirs(speaker_dir)
     split_audio_rttm_map = audio_rttm_map(manifest_filepath, attach_dur=True)
 
     # Speech Activity Detection part

@@ -12,14 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import os
+import sys
 from collections import OrderedDict
 from statistics import mode
 from typing import Dict, Optional
 
+import numpy as np
 import torch
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, OmegaConf
+from torch.utils.data import SequentialSampler
+from torch.utils.data.distributed import DistributedSampler
 
 from nemo.collections.asr.data.data_simulation import MultiSpeakerSimulator, RIRMultiSpeakerSimulator
 from nemo.collections.asr.parts.utils.nmesc_clustering import get_argmin_mat
@@ -27,6 +30,7 @@ from nemo.collections.asr.parts.utils.speaker_utils import convert_rttm_line, pr
 from nemo.collections.common.parts.preprocessing.collections import DiarizationSpeechLabel
 from nemo.core.classes import Dataset
 from nemo.core.neural_types import AudioSignal, EncodedRepresentation, LengthsType, NeuralType
+from nemo.utils import logging
 
 
 def get_scale_mapping_list(uniq_timestamps):
@@ -282,7 +286,6 @@ class _AudioMSDDTrainDataset(Dataset):
         for line in subseg_time_stamp_list:
             line_split = line.split()
             seg_stt, seg_end = float(line_split[0]), float(line_split[1])
-            # seg_stt, seg_end = line
             seg_stt_fr, seg_end_fr = int(seg_stt * self.frame_per_sec), int(seg_end * self.frame_per_sec)
             soft_label_vec_sess = torch.sum(fr_level_target[seg_stt_fr:seg_end_fr, :], axis=0) / (
                 seg_end_fr - seg_stt_fr
@@ -375,7 +378,6 @@ class _AudioMSDDTrainDataset(Dataset):
             for k, line in enumerate(self.multiscale_timestamp_dict[uniq_id]["scale_dict"][scale_idx]["time_stamps"]):
                 line_split = line.split()
                 seg_stt, seg_end = float(line_split[0]), float(line_split[1])
-                # seg_stt, seg_end = line
                 stt, end = (
                     int((seg_stt - sample.offset) * self.frame_per_sec),
                     int((seg_end - sample.offset) * self.frame_per_sec),
@@ -625,7 +627,6 @@ def _msdd_train_collate_fn(self, batch):
 
     max_raw_feat_len = max([x.shape[0] for x in features])
     max_target_len = max([x.shape[0] for x in targets])
-    # max_total_seg_len = max([x.shape[0] for x in clus_label_index])
     max_total_seg_len = max(torch.sum(torch.stack(ms_seg_counts), dim=1)).item()
 
     for feat, feat_len, ms_seg_ts, ms_seg_ct, scale_clus, scl_map, tgt in batch:
@@ -634,7 +635,6 @@ def _msdd_train_collate_fn(self, batch):
         pad_tgt = (0, 0, 0, max_target_len - seq_len)
         pad_sm = (0, max_target_len - seq_len)
         pad_ts = (0, 0, 0, max_target_len - seq_len)
-        # pad_sc = (0, max_total_seg_len - scale_clus.shape[0])
         pad_sc = (0, max_total_seg_len - torch.sum(ms_seg_ct).item())
         padded_feat = torch.nn.functional.pad(feat, pad_feat)
         padded_tgt = torch.nn.functional.pad(tgt, pad_tgt)
@@ -836,10 +836,12 @@ class SyntheticDataLoader(torch.utils.data.dataloader.DataLoader):
 
     def __init__(self, *args, **kwargs):
         logging.info("Reloading dataset in synthetic dataloader")
-        if 'sampler' in kwargs:  # only once sampler has been replaced with DistributedSampler
+        if (
+            'sampler' in kwargs
+        ):  # only once sampler has been replaced with DistributedSampler (skipped for the first epoch)
             logging.info(f"Rank is {kwargs['sampler'].rank}")
-            if kwargs['sampler'].rank == 0:
-                kwargs['dataset'].regenerate_dataset()
+            kwargs['dataset'].regenerate_dataset()
+            kwargs['sampler'] = DistributedSampler(kwargs['dataset'], rank=kwargs['dataset'].global_rank)
         super().__init__(*args, **kwargs)
 
 
@@ -869,7 +871,7 @@ class AudioToSpeechMSDDSyntheticTrainDataset(AudioToSpeechMSDDTrainDataset):
             If True, the two labels and input signals are randomly flipped per every epoch while training.
         emb_dir (str):
             Directory for generating speaker embeddings
-        ds_config (dict):
+        ds_config (DictConfig):
             Model config used to access data simulator parameters
         global_rank:
             Pytorch trainer global rank
@@ -887,7 +889,7 @@ class AudioToSpeechMSDDSyntheticTrainDataset(AudioToSpeechMSDDTrainDataset):
         pairwise_infer: bool,
         random_flip: bool = True,
         emb_dir: str,
-        ds_config,
+        ds_config: DictConfig,
         global_rank: int = 0,
     ):
 
@@ -905,16 +907,17 @@ class AudioToSpeechMSDDSyntheticTrainDataset(AudioToSpeechMSDDTrainDataset):
 
         cfg = OmegaConf.create(ds_config)
         if cfg.data_simulator.rir_generation.use_rir:
-            self.data_simulator = RIRMultiSpeakerSimulator(cfg)  # includes tmp dir
+            self.data_simulator = RIRMultiSpeakerSimulator(cfg)
         else:
-            self.data_simulator = MultiSpeakerSimulator(cfg)  # includes tmp dir
-        self.emb_dir = emb_dir
+            self.data_simulator = MultiSpeakerSimulator(cfg)
 
         self.include_base_ds = cfg.train_ds.include_base_ds
         self.manifest_filepath = manifest_filepath
         self.global_rank = global_rank
+        self.emb_dir = emb_dir
+        self.data_simulator._params.data_simulator.outputs.output_dir += f"_rank{self.global_rank}"
 
-        logging.info(f"Initializing simulated dataset")
+        logging.info(f"Initializing simulated dataset in dataloader with rank {self.global_rank}")
         self.collection = None
         self.regenerate_dataset()
 
@@ -923,6 +926,7 @@ class AudioToSpeechMSDDSyntheticTrainDataset(AudioToSpeechMSDDTrainDataset):
         Regenerate dataset and create subsegment manifest files
         """
         # Regenerate synthetic diarization sessions
+        self.data_simulator._params.data_simulator.random_seed = np.random.randint(2 ** 32 - 1)
         self.data_simulator.generate_sessions()
 
         # update manifest_files
@@ -933,9 +937,13 @@ class AudioToSpeechMSDDSyntheticTrainDataset(AudioToSpeechMSDDTrainDataset):
         if self.include_base_ds:  # add base manifest
             with open(self.manifest_filepath, 'r') as fp:
                 manifest_lines = fp.readlines()
-                with open(segment_manifest_path, 'a') as segment_manifest:
-                    for line in manifest_lines:
-                        segment_manifest.write(line)
+            with open(segment_manifest_path, 'r') as fp2:
+                simulated_manifest_lines = fp2.readlines()
+            with open(segment_manifest_path, 'w') as segment_manifest:
+                for line in manifest_lines:
+                    segment_manifest.write(line)
+                for line in simulated_manifest_lines:
+                    segment_manifest.write(line)
 
         # reresh diarization session collection
         self.collection = DiarizationSpeechLabel(

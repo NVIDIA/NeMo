@@ -20,6 +20,7 @@ from typing import Dict, List, Tuple
 import numpy as np
 import soundfile as sf
 import torch
+from omegaconf import OmegaConf
 from scipy.signal import convolve
 from scipy.signal.windows import cosine, hamming, hann
 from scipy.stats import halfnorm
@@ -1061,6 +1062,10 @@ class MultiSpeakerSimulator(object):
                 raise Exception("Output directory is nonempty and overwrite_output = false")
         elif not os.path.isdir(output_dir):
             os.mkdir(output_dir)
+
+        # write out parameters
+        fn = os.path.join(output_dir, "config.yaml")
+        OmegaConf.save(config=self._params, f=fn)
 
         # only add root if paths are relative
         if not os.path.isabs(output_dir):
