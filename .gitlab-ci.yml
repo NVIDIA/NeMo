@@ -3,7 +3,7 @@
 # CI Test info : https://docs.google.com/spreadsheets/d/1XAr-5UEM0q9n5gLm9eh76NfxHrfh0z0mmjlpP4FZSCY/edit#gid=0
 variables: &VARS
   BIGNLP_REGISTRY: "gitlab-master.nvidia.com:5005/dl/joc/bignlp-scripts"
-  BIGNLP_BASE_IMAGE: "gitlab-master.nvidia.com:5005/dl/dgx/bignlp/train:infer_refactor-py3-base"
+  BIGNLP_BASE_IMAGE: "nvcr.io/nvidian/bignlp-training:22.06.10-py"
   SELENE_BIGNLP_CI_PATH: "/lustre/fsw/joc/big_nlp/bignlp_ci"
   NGC_BIGNLP_CI_PATH: "bignlp_ci" # mount at /mount/results
   CONTAINER_NVCR_BASE: nvcr.io/nvidian/bignlp-ci:training
