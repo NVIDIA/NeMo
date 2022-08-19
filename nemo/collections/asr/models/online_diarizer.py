@@ -919,7 +919,6 @@ class OnlineDiarizer(ClusteringDiarizer, ASR_DIAR_OFFLINE):
 
         """
         if asr_diar.buffer_start >= 0:
-        # if True:
             if segment_raw_audio == [] and vad_timestamps != []:
                 vad_timestamps[0][0] = max(vad_timestamps[0][0], 0.0)
                 speech_labels_for_update = copy.deepcopy(vad_timestamps)
