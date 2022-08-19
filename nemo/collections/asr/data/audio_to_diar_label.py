@@ -21,7 +21,6 @@ from typing import Dict, Optional
 import numpy as np
 import torch
 from omegaconf import DictConfig, OmegaConf
-from torch.utils.data import SequentialSampler
 from torch.utils.data.distributed import DistributedSampler
 
 from nemo.collections.asr.data.data_simulation import MultiSpeakerSimulator, RIRMultiSpeakerSimulator
