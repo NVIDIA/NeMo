@@ -2,13 +2,13 @@
 
 variables: &VARS
   BIGNLP_REGISTRY: "gitlab-master.nvidia.com:5005/dl/joc/bignlp-scripts"
-  BIGNLP_BASE_IMAGE: "nvcr.io/nvidian/bignlp-training:22.08.01-py"
+  BIGNLP_BASE_IMAGE: "nvcr.io/nvidian/bignlp-training:22.08.02-py"
   SELENE_BIGNLP_CI_PATH: "/lustre/fsw/joc/big_nlp/bignlp_ci"
   NGC_BIGNLP_CI_PATH: "bignlp_ci" # mount at /mount/results
   CONTAINER_NVCR_BASE: nvcr.io/nvidian/bignlp-ci:training
   TESTS_TO_RUN_ON_MERGE_REQ: L0  # Can specify levels, ci job names etc as a space seperated list to run during merge request
-  TESTS_TO_RUN_ON_THIS_COMMIT: NONE # Can specify levels, ci job names etc as a space seperated list to run during this commit
-  TEST_REGEX_ON_THIS_COMMIT: /.*data_prep.*/ #https://github.com/google/re2/wiki/Syntax (Can define regex as in this spec) e.g /.*gpt3.*/
+  TESTS_TO_RUN_ON_THIS_COMMIT: L0 # Can specify levels, ci job names etc as a space seperated list to run during this commit
+  TEST_REGEX_ON_THIS_COMMIT: NONE #https://github.com/google/re2/wiki/Syntax (Can define regex as in this spec) e.g /.*gpt3.*/
 
 
 stages:
