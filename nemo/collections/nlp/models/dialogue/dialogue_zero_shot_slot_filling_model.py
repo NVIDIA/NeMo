@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -68,6 +68,12 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         self._get_slot_description(cfg.dataset.data_dir)
 
         self._setup_losses_and_classfication_report()
+
+        # drive through dataset: label_id_for_empty_slot = 0; assistant dataset: label_id_for_empty_slot = 54
+        # use the train_slot_stats.tsv file majority class as the "Other" slot class
+        file_path_for_stats = cfg.data_dir + "/train_slot_stats.tsv"
+        with open(file_path_for_stats) as f:
+            self.label_id_for_empty_slot = int(f.read().strip().split('\n')[0].split()[0])
 
     def _get_slot_description(self, data_dir):
         """ Method read slot description file """
@@ -398,7 +404,7 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         subtokens_mask = subtokens_mask > 0.5
         predicted_slot_similarity_preds = torch.argmax(predicted_dot_product_score_log_softmax, axis=-1)
         predicted_slot_class_batch = DialogueZeroShotSlotFillingModel.align_mention_to_tokens(
-            bio_slot_preds, predicted_slot_similarity_preds
+            bio_slot_preds, predicted_slot_similarity_preds, self.label_id_for_empty_slot
         )
         self.overall_slot_classification_report.update(
             predicted_slot_class_batch[subtokens_mask], slot_labels[subtokens_mask]
@@ -425,7 +431,7 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         }
 
     @staticmethod
-    def align_mention_to_tokens(bio_labels, mention_labels):
+    def align_mention_to_tokens(bio_labels, mention_labels, label_id_for_empty_slot):
         """
         Align the mentions label to token level based on bio labels.
         
@@ -439,7 +445,7 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         predicted_slot_class = []
         for one_bio_labels, one_mention_labels in zip(bio_labels, mention_labels):
             start_and_end = DialogueZeroShotSlotFillingModel.get_start_and_end_for_bio(one_bio_labels)
-            one_predicted_slot_class = torch.zeros(len(one_mention_labels))
+            one_predicted_slot_class = torch.ones(len(one_mention_labels)) * label_id_for_empty_slot
 
             for idx, one_start_and_end in enumerate(start_and_end):
                 start, inclusive_end = one_start_and_end
