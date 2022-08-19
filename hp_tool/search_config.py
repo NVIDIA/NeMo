@@ -1,4 +1,5 @@
 import os
+import shutil
 
 from hp_tool import utils
 from hp_tool.base_config import calculate_model_size, generate_base_config
@@ -15,6 +16,12 @@ def search_config(cfg):
     model config and launch the grid searches for both training and inference
     constraints.
     """
+    hp_tool_path = cfg.get("bignlp_hp_tool_path")
+    src_file = os.path.join(hp_tool_path, "conf/cluster/bcm.yaml")
+    os.makedirs(os.path.join(hp_tool_path, "bignlp_conf/cluster"), exist_ok=True)
+    dst_file = os.path.join(hp_tool_path, "bignlp_conf/cluster/bcm.yaml")
+    shutil.copyfile(src_file, dst_file)
+
     model_type = cfg.get("search_config_value")
     model_name, model_size = model_type.split("/")
     assert (

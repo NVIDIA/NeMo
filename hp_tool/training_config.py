@@ -16,7 +16,7 @@ def search_training_config(base_cfg, model_size, model_name, cfg):
     # Launch candidate configs.
     job_ids = launch_grid_search_configs(base_dir, results_cfgs, model_name, cfg)
     # Measure and compare throughputs for each config.
-    #launch_throughput_measure(job_ids, model_name, model_size, num_nodes, cfg)
+    launch_throughput_measure(job_ids, model_name, model_size, num_nodes, cfg)
 
 
 def generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg):
@@ -73,7 +73,8 @@ def generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg):
                     valid_tp_pp_list.append((tp, pp))
 
     # Calculate necessary nodes for HP search.
-    override_nodes = train_cfg.get("override_search_num_nodes")
+    num_nodes = train_cfg.get("num_nodes")
+    """
     if override_nodes is None or override_nodes == "auto":
         num_nodes = 1
         for tp, pp in valid_tp_pp_list:
@@ -81,6 +82,7 @@ def generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg):
                 num_nodes = math.ceil(tp * pp / gpus_per_node)
     else:
         num_nodes = override_nodes
+    """
 
     # Generate grid search configs.
     for tp in tp_list:
@@ -133,21 +135,20 @@ def _tp_pp_mbs_grid_gpt3_80gb(model_size_in_b, valid_pp):
     """
     tp = [1, 2, 4, 8]
     pp = [1]
-    mbs = [1, 2, 4, 6, 8, 10, 12, 16]
     if model_size_in_b <= 1.0:
         tp = [1, 2]
-        mbs = [1, 2, 4, 6, 8]
+        mbs = [1, 2, 3, 4, 6, 8]
     elif 1.0 < model_size_in_b <= 4.0:
         tp = [1, 2, 4]
-        mbs = [1, 2, 4, 8]
+        mbs = [1, 2, 3, 4, 8]
     elif 4.0 < model_size_in_b <= 8.0:
-        tp = [2, 4, 8]
-        mbs = [1, 2, 4, 8]
+        tp = [1, 2, 4]
+        mbs = [1, 2, 3, 4, 8]
     elif 8.0 < model_size_in_b <= 13.0:
-        tp = [4, 8]
+        tp = [1, 2, 4, 8]
         mbs = [1, 2, 4, 8]
     elif 13.0 < model_size_in_b <= 23.0:
-        tp = [2, 4, 8]
+        tp = [1, 2, 4, 8]
         pp = [x for x in valid_pp if x <= 4]
     elif 23.0 < model_size_in_b <= 45.0:
         tp = [2, 4, 8]
@@ -371,7 +372,6 @@ def launch_throughput_measure(dependency_list, model_name, model_size_in_b, num_
     """
     # Read config
     bignlp_hp_tool_path = cfg.get("bignlp_hp_tool_path")
-    data_dir = cfg.get("data_dir")
     container_mounts = cfg.get("container_mounts")
     container = cfg.get("training_container")
     hp_cfg = cfg.get("search_config")
@@ -381,7 +381,7 @@ def launch_throughput_measure(dependency_list, model_name, model_size_in_b, num_
     cluster_cfg = cfg.get("cluster")
     partition = cluster_cfg.get("partition")
     account = cluster_cfg.get("account")
-    time_limit = "30:00"
+    time_limit = "10:00"
     exclusive = cluster_cfg.get("exclusive")
     mem = cluster_cfg.get("mem")
     overcommit = cluster_cfg.get("overcommit")
@@ -399,7 +399,7 @@ def launch_throughput_measure(dependency_list, model_name, model_size_in_b, num_
     os.makedirs(final_log_dir, exist_ok=True)
 
     # Process container-mounts.
-    mounts_str = f"{bignlp_hp_tool_path}:{bignlp_hp_tool_path},{data_dir}:{data_dir},{base_results_dir}:{base_results_dir}"
+    mounts_str = f"{bignlp_hp_tool_path}:{bignlp_hp_tool_path},{base_results_dir}:{base_results_dir}"
     mounts_str += utils.add_container_mounts(container_mounts)
 
     flags = (

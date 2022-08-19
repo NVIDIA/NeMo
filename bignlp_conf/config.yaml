@@ -18,7 +18,7 @@ data_dir: /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train  # Locatio
 base_results_dir: ${bignlp_path}/../bignlp-hp-tool/results  # Location to store the results, checkpoints and logs.
 container_mounts: # List of additional paths to mount to container. They will be mounted to same path.
   - null
-container: nvcr.io/ea-bignlp/bignlp-training:22.06-hotfix.01-py3
+container: nvcr.io/nvidian/bignlp-training:22.08.03-py
 
 wandb_api_key_file: null  # File where the w&B api key is stored. Key must be on the first line.
 

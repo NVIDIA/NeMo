@@ -1,0 +1,7 @@
+partition: luna
+account: joc
+exclusive: True
+gpus_per_task: null
+gpus_per_node: null
+mem: 0
+job_name_prefix: "joc-bignlp-hp-tool:"
