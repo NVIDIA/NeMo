@@ -31,13 +31,8 @@ from nemo.collections.nlp.modules.common import VirtualPromptStyle
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes.mixins import adapter_mixins
+from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import logging
-
-try:
-
-    HAVE_APEX = True
-except (ImportError, ModuleNotFoundError):
-    HAVE_APEX = False
 
 
 class MegatronGPTAdapterLearningModel(MegatronGPTPromptLearningModel):
@@ -73,7 +68,7 @@ class MegatronGPTAdapterLearningModel(MegatronGPTPromptLearningModel):
                         cfg=adapter_modules.LinearAdapterConfig(
                             in_features=frozen_model_cfg.hidden_size,
                             dim=cfg.adapter_tuning.adapter_dim,
-                            norm_position='pre',
+                            norm_position='post',
                             dropout=cfg.adapter_tuning.adapter_dropout,
                         ),
                     )
