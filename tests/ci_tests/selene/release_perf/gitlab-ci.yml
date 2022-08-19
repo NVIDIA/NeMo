@@ -76,7 +76,7 @@ build-BigNLP:
     - export SLURM_JOBID=$(grep 'Submitted batch job' "${RESULTS_DIR}/launcher.log" | awk '{ print $4 }')
     - echo $SLURM_JOBID
     - export SLURM_OUTPUT=${RESULTS_DIR}/slurm_${SLURM_JOBID}.log
-    #export SLURM_OUTPUT=$(scontrol show job "${SLURM_JOBID}" | grep 'StdOut' | awk -F '=' '{ print $2 }')
+    # export SLURM_OUTPUT=$(scontrol show job "${SLURM_JOBID}" | grep 'StdOut' | awk -F '=' '{ print $2 }')
     - cd tests/ci_tests/utils
     - chmod 777 ./* -R
     - bash jobwait.sh "${SLURM_JOBID}" & PID=$!
@@ -93,16 +93,18 @@ build-BigNLP:
     - echo "Finished job with name ${RUN_NAME}"
     - cd ${GIT_CLONE_PATH}
     # Run metrics collection
-    - python3 tests/ci_tests/utils/get_train_time.py $RESULTS_DIR
     - git clone ssh://git@gitlab-master.nvidia.com:12051/dl/JoC/CITest.git
+    - pushd CITest/public/data/${RUN_MODEL}
+    - git checkout -b $CI_PIPELINE_ID
+    - GIT_BRANCHES=`git branch -r`
+    - if [[ "$GIT_BRANCHES" =~ .*"$CI_PIPELINE_ID".* ]]; then git pull origin $CI_PIPELINE_ID; fi
+    - GIT_RESULTS_DIR_PATH=`pwd`
+    - popd
+    - python3 tests/ci_tests/utils/get_train_time.py $RESULTS_DIR $GIT_RESULTS_DIR_PATH $BIGNLP_BASE_IMAGE
     - cd CITest
-    - git checkout -b dummyBranch
-    - cp ../tests/ci_tests/utils/get_train_time.py ./
     - git add -A
-    - git commit -m "test file"
-    - git push origin dummyBranch
-
-
+    - git commit -m "Adding results file"
+    - git push origin $CI_PIPELINE_ID
   allow_failure: false
   rules:
     - when: manual
@@ -668,7 +670,7 @@ train.gpt3.5b_tp8_pp4_4node_bf16_O1_100steps:
     NUM_NODES: 4
     PRECISION: bf16
     TP_SIZE: 8
-    PP_SIZE: 3
+    PP_SIZE: 4
     TIME_LIMIT: "4:00:00"
     AMP_STYLE: O1
 
