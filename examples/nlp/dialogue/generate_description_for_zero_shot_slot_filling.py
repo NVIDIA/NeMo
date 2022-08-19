@@ -82,13 +82,18 @@ def get_key_words(train, train_slots, all_slots_keywords, dataset_name):
     return all_slots_keywords
 
 
-def get_class_description(all_slots_keywords):
+def get_class_description(all_slots_keywords, dataset_name):
+    if dataset_name == 'assistant':
+        label_for_empty_entity = '54'
+    else:
+        label_for_empty_entity = '0'
+
     description_list = []
     punc = '''!()-[]{};:'"\,<>./?@#$%^&*_~'''
 
     for k, slots_keywords in all_slots_keywords.items():
         #     print(merge_dict_slots[k])
-        if k == 0:
+        if k == int(label_for_empty_entity):
             description_list.append("other\tother")
         else:
             sorted_keywords = sorted(slots_keywords.items(), key=lambda item: item[1], reverse=True)
@@ -126,7 +131,7 @@ if __name__ == '__main__':
         print(all_slots_keywords)
 
         all_slots_keywords = get_key_words(train, train_slots, all_slots_keywords, args.dataset)
-        description_list = get_class_description(all_slots_keywords)
+        description_list = get_class_description(all_slots_keywords, args.dataset)
         print(len(description_list))
         print(description_list)
 
