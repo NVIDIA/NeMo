@@ -491,7 +491,6 @@ def _make_sbatch_string(
 
         mem_stdout = stdout.replace("_%j", "_mem_%j")
         mem_stdout = mem_stdout.replace("_%A_%a", "_mem_%A_%a")
-        mem_csv_out = folder / "gpu_memory_measure.csv"
         mem_srun_cmd = shlex.join([
             "srun", "--ntasks=1", "--ntasks-per-node=1", "--output", mem_stdout, *container_flags, *srun_args
         ])
@@ -499,8 +498,7 @@ def _make_sbatch_string(
             "",
             "# run memory measure",
             f"{mem_srun_cmd} \\",
-            f"  nvidia-smi --query-gpu=timestamp,index,,memory.total,memory.free,memory.used \\",
-            f"  --format=csv -l 1 > {mem_csv_out} & ",
+            f"  nvidia-smi --query-gpu=timestamp,index,,memory.total,memory.free,memory.used --format=csv -l 1 & ",
             "",
         ]
 
