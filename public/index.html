@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta content="width=device-width, initial-scale=1, shrink-to-fit=no" name="viewport">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Release Perf</title>
+    <meta name="author" content="Derek Eder">
+    <meta content="Display any CSV file as a searchable, filterable, pretty HTML table">
+
+    <!-- Bootstrap core CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.2.1/css/bootstrap.min.css" integrity="sha384-GJzZqFGwb1QTTN6wy59ffF1BuGJpLSa9DkKMp0DgiMDm4iYMj70gZWKYbI706tWS"
+        crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.10.19/css/dataTables.bootstrap4.min.css">
+    <link rel="stylesheet" href="css/custom.css">
+</head>
+
+<body>
+    <div name = "main" class="container-fluid">
+        <main class="row">
+            <div class="col">
+                <h2><u>Release Performance analysis</u></h2>
+                <div>
+                  <button id="gpt3Button" class="modelButton">gpt3</button>
+                  <button id="t5Button" class="modelButton">t5</button>
+                  <button id="mt5Button" class="modelButton">mt5</button>
+                </div>
+                <div id="table-container"></div>
+            </div>
+        </main>
+    </div>
+    <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.2.1/js/bootstrap.bundle.min.js"></script>
+    <script src="js/jquery.csv.min.js"></script>
+    <script src="https://cdn.datatables.net/1.10.19/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.10.19/js/dataTables.bootstrap4.min.js"></script>
+    <script src="js/create_html_table.js"></script>
+    <script>
+    let btn = document.querySelector("#gpt3Button");
+        //TODO Automatically fetch the files in a directory using https://stackoverflow.com/questions/39048654/how-to-enable-directory-indexing-on-github-pages
+    // The other way to do it is to create an action in gitlab that will do a ls on these files and store it in another file.
+    // We will then read that file and then get the list of files that are present
+    btn.onclick = function () {
+      let fileNames=[
+        "gpt3_126m_tp1_pp1_2nodes_bf16_precision_O2_100steps.json",
+        "gpt3_126m_tp1_pp1_8nodes_bf16_precision_O2_100steps.json",
+        "gpt3_126m_tp2_pp2_3nodes_bf16_precision_O2_100steps.json",
+        "gpt3_5b_tp2_pp1_5nodes_bf16_precision_O2_100steps.json",
+        "gpt3_5b_tp8_pp1_1nodes_16_precision_O1_100steps.json",
+        "gpt3_5b_tp8_pp1_4nodes_bf16_precision_O2_100steps.json",
+        "gpt3_5b_tp8_pp4_4nodes_bf16_precision_O2_100steps.json"];
+      CreateHTMLTable.create("data/gpt3",fileNames);
+    };
+    let btn1 = document.querySelector('#mt5Button');
+    btn1.onclick = function () {
+      let fileNames=["mt5_220m_tp1_pp1.txt", "mt5_220m_tp2_pp2.txt"]
+      CreateHTMLTable.create("data/mt5",fileNames);
+    };
+    let btn2 = document.querySelector('#t5Button');
+    btn2.onclick = function () {
+      let fileNames=[
+        "t5_11b_tp4_pp1_5nodes_bf16_precision_O2_100steps.json",
+        "t5_220m_tp1_pp1_1nodes_bf16_precision_O2_100steps.json",
+        "t5_220m_tp1_pp1_4nodes_bf16_precision_O2_100steps.json",
+        "t5_3b_tp2_pp1_1nodes_bf16_precision_O2_100steps.json",
+        "t5_3b_tp2_pp4_4nodes_bf16_precision_O1_100steps.json"
+      ]
+      file_base_path="data/t5"
+      CreateHTMLTable.create("data/t5",fileNames);
+    };
+
+
+    </script>
+</body>
+
+</html>

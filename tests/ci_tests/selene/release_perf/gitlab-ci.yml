@@ -93,17 +93,19 @@ build-BigNLP:
     - echo "Finished job with name ${RUN_NAME}"
     - cd ${GIT_CLONE_PATH}
     # Run metrics collection
-    - git clone ssh://git@gitlab-master.nvidia.com:12051/dl/JoC/CITest.git
-    - pushd CITest/public/data/${RUN_MODEL}
+    - git clone ssh://git@gitlab-master.nvidia.com:12051/dl/JoC/bignlp-scripts.git
+    - pushd bignlp-scripts/public/data/${RUN_MODEL}
     - git checkout -b $CI_PIPELINE_ID
     - GIT_BRANCHES=`git branch -r`
     - if [[ "$GIT_BRANCHES" =~ .*"$CI_PIPELINE_ID".* ]]; then git pull origin $CI_PIPELINE_ID; fi
     - GIT_RESULTS_DIR_PATH=`pwd`
     - popd
     - python3 tests/ci_tests/utils/get_train_time.py $RESULTS_DIR $GIT_RESULTS_DIR_PATH $BIGNLP_BASE_IMAGE
-    - cd CITest
+    - cd bignlp-scripts
+    - | 
+      sed -i 's/TESTS_TO_RUN_ON_THIS_COMMIT: .*/TESTS_TO_RUN_ON_THIS_COMMIT: NONE/g' .gitlab-ci.yml
     - git add -A
-    - git commit -m "Adding results file"
+    - git commit -m "Adding results file for $RUN_MODEL"
     - git push origin $CI_PIPELINE_ID
   allow_failure: false
   rules:
