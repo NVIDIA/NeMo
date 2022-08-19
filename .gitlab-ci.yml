@@ -302,7 +302,7 @@ export.gpt3.126m_tp1_pp2_split:
     TP_SIZE: 1
     PP_SIZE: 2
     TIME_LIMIT: "20:00"
-    TEST_LEVEL: L0
+    TEST_LEVEL: L1
     FT_WEIGHT_DATA: fp16
     FT_TP_SIZE: 2
     FT_PP_SIZE: 2
@@ -322,7 +322,7 @@ export.gpt3.126m_tp2_pp1_merge:
     TP_SIZE: 2
     PP_SIZE: 1
     TIME_LIMIT: "20:00"
-    TEST_LEVEL: L0
+    TEST_LEVEL: L1
     FT_WEIGHT_DATA: fp32
     FT_TP_SIZE: 1
     FT_PP_SIZE: 2
@@ -837,7 +837,7 @@ export.t5.220m_tp2_pp2_merge:
     TP_SIZE: 2
     PP_SIZE: 2
     TIME_LIMIT: "20:00"
-    TEST_LEVEL: L0
+    TEST_LEVEL: L1
     FT_WEIGHT_DATA: fp32
     FT_TP_SIZE: 1
     FT_PP_SIZE: 1
@@ -976,7 +976,7 @@ export.mt5.170m_tp2_pp2_merge:
     TP_SIZE: 2
     PP_SIZE: 2
     TIME_LIMIT: "20:00"
-    TEST_LEVEL: L0
+    TEST_LEVEL: L1
     FT_WEIGHT_DATA: fp16
     FT_TP_SIZE: 1
     FT_PP_SIZE: 1
