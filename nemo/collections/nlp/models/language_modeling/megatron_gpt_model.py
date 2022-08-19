@@ -742,4 +742,17 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         """LightningModule hook:
         https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-save-checkpoint
         """
-        return super().on_save_checkpoint(checkpoint)
+        if len(self.model) is not None:
+            for i in range(len(self.model)):
+                parallel_state.set_virtual_pipeline_model_parallel_rank(i)
+                checkpoint[f'model{i}'] = self.model[i].module.state_dict_for_save_checkpoint()
+
+    def on_load_checkpoint(self, checkpoint) -> None:
+        """LightningModule hook:
+        https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-load-checkpoint
+        """
+        if len(self.model) is not None:
+            for i in range(len(self.model)):
+                parallel_state.set_virtual_pipeline_model_parallel_rank(i)
+                self.model[i].module.load_state_dict(checkpoint[f'model{i}'], strict=True)
+

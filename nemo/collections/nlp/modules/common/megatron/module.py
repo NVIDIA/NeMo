@@ -163,6 +163,11 @@ class MegatronModule(torch.nn.Module):
             position_embeddings = self.position_embeddings_weight()
             torch.distributed.all_reduce(position_embeddings.data, group=parallel_state.get_position_embedding_group())
 
+    def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
+        """Use this function to override the state dict for
+        saving checkpoints."""
+        return self.state_dict(destination, prefix, keep_vars)
+
 
 def conversion_helper(val, conversion):
     """Apply conversion to val. Recursively apply conversion if `val`
