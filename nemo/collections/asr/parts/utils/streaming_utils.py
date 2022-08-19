@@ -1172,9 +1172,9 @@ class LongestCommonSubsequenceBatchedFrameASRRNNT(BatchedFrameASRRNNT):
         return output
 
 
-class FramewiseStreamingAudioBuffer:
+class CacheAwareStreamingAudioBuffer:
     """
-    A buffer to be used for frame-wise streaming. It can load a single or multiple audio files/processed signals, split them in chunks and return one on one.
+    A buffer to be used for cache-aware streaming. It can load a single or multiple audio files/processed signals, split them in chunks and return one on one.
     It can be used to simulate streaming audio or audios.
     """
 
