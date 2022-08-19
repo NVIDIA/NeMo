@@ -115,6 +115,9 @@ class BigNLPStage:
 
     def _make_nsys_command_prefix(self, results_dir) -> str:
         model_cfg = self.stage_cfg.get("model")
+        if not model_cfg:
+            return ""
+
         nsys_cfg = model_cfg.get("nsys_profile", None)
         nsys_prefix = ""
         if nsys_cfg is not None and nsys_cfg.get("enabled", False):
@@ -246,6 +249,8 @@ class BigNLPStage:
     @property
     def _cuda_device_max_connections(self) -> str:
         model_cfg = self.stage_cfg.get("model")
+        if not model_cfg:
+            return ""
         tensor_model_parallel_size = model_cfg.get("tensor_model_parallel_size", 1)
         return "CUDA_DEVICE_MAX_CONNECTIONS=1" \
             if tensor_model_parallel_size > 1 else ""
@@ -413,10 +418,10 @@ class PromptLearning(NeMoStage):
                 )
 
     def _get_nemo_code_path(self, model_type):
-        if model_type != "gpt3":
-            raise NotImplementedError("Prompt Learning is only supported in NeMo Megatron GPT-3 models.")
         model_type_to_code_path = {
             "gpt3": self._nemo_code_path / "examples/nlp/language_modeling/megatron_gpt_prompt_learning.py",
+            "t5": self._nemo_code_path / "examples/nlp/language_modeling/megatron_t5_prompt_learning.py",
+            "mt5": self._nemo_code_path / "examples/nlp/language_modeling/megatron_t5_prompt_learning.py",
         }
         return model_type_to_code_path[model_type]
 
@@ -501,11 +506,13 @@ class NeMoEvaluation(NeMoStage):
         self.stage_cfg = cfg.get("evaluation")
 
     def _get_nemo_code_path(self, model_type):
-        if model_type == "gpt3":
+        if "gpt3" in model_type:
             raise ValueError("Evaluating GPT-3 models needs `EvalHarnessEvaluation` class.")
         model_type_to_code_path = {
             "t5": self._nemo_code_path / "examples/nlp/language_modeling/megatron_t5_seq2seq_eval.py",
             "mt5": self._nemo_code_path / "examples/nlp/language_modeling/megatron_t5_seq2seq_eval.py",
+            "prompt_t5": self._nemo_code_path / "examples/nlp/language_modeling/megatron_t5_prompt_learning_eval.py",
+            "prompt_mt5": self._nemo_code_path / "examples/nlp/language_modeling/megatron_t5_prompt_learning_eval.py",
         }
         return model_type_to_code_path[model_type]
 
