@@ -13,8 +13,8 @@
 # limitations under the License.
 import os
 from abc import ABC
+from typing import Dict, List, Optional, Type, Union
 
-import onnx
 import torch
 from torch.onnx import ExportTypes, TrainingMode
 
@@ -56,9 +56,10 @@ class Exportable(ABC):
         do_constant_folding=True,
         onnx_opset_version=None,
         training=TrainingMode.EVAL,
-        check_trace: bool = False,
+        check_trace: Union[bool, List[torch.Tensor]] = False,
         dynamic_axes=None,
         check_tolerance=0.01,
+        export_modules_as_functions=False,
     ):
         all_out = []
         all_descr = []
@@ -75,6 +76,7 @@ class Exportable(ABC):
                 check_trace=check_trace,
                 dynamic_axes=dynamic_axes,
                 check_tolerance=check_tolerance,
+                export_modules_as_functions=export_modules_as_functions,
             )
             # Propagate input example (default scenario, may need to be overriden)
             if input_example is not None:
@@ -95,6 +97,7 @@ class Exportable(ABC):
         check_trace: bool = False,
         dynamic_axes=None,
         check_tolerance=0.01,
+        export_modules_as_functions=False,
     ):
         my_args = locals().copy()
         my_args.pop('self')
@@ -171,11 +174,15 @@ class Exportable(ABC):
                         do_constant_folding=do_constant_folding,
                         dynamic_axes=dynamic_axes,
                         opset_version=onnx_opset_version,
+                        export_modules_as_functions=export_modules_as_functions,
                     )
 
                     if check_trace:
-                        verify_runtime(output, input_list, input_dict, input_names, output_names, output_example)
-
+                        if isinstance(check_trace, bool):
+                            check_trace_input = [input_example]
+                        else:
+                            check_trace_input = check_trace
+                        verify_runtime(self, output, check_trace_input, input_names)
                 else:
                     raise ValueError(f'Encountered unknown export format {format}.')
         finally:

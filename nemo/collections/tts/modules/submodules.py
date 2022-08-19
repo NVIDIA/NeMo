@@ -41,11 +41,14 @@ class PartialConv1d(torch.nn.Conv1d):
 
     def forward(self, input: torch.Tensor, mask_in: Tuple[int, int, int] = None):
         assert len(input.shape) == 3
-        # if a mask is input, or tensor shape changed, update mask ratio
-        if mask_in is not None or self.last_size != tuple(input.shape):
-            # borisf: disabled update for inference
-            if self.training:
-                self.last_size = tuple(input.shape)
+        # borisf: disabled cache for export
+        use_cache = not (torch.jit.is_tracing() or torch.onnx.is_in_onnx_export())
+        cache_hit = use_cache and mask_in is None and self.last_size == tuple(input.shape)
+        if cache_hit:
+            mask_ratio = self.mask_ratio
+            update_mask = self.update_mask
+            # if a mask is input, or tensor shape changed, update mask ratio
+        else:
             with torch.no_grad():
                 if self.weight_maskUpdater.type() != input.type():
                     self.weight_maskUpdater = self.weight_maskUpdater.to(input)
@@ -66,11 +69,10 @@ class PartialConv1d(torch.nn.Conv1d):
                 mask_ratio = self.slide_winsize / (update_mask + 1e-6)
                 update_mask = torch.clamp(update_mask, 0, 1)
                 mask_ratio = torch.mul(mask_ratio, update_mask)
-            self.update_mask = update_mask
-            self.mask_ratio = mask_ratio
-        else:
-            mask_ratio = self.mask_ratio
-            update_mask = self.update_mask
+            if use_cache:
+                self.last_size = tuple(input.shape)
+                self.update_mask = update_mask
+                self.mask_ratio = mask_ratio
 
         raw_out = super(PartialConv1d, self).forward(torch.mul(input, mask) if mask_in is not None else input)
         if self.bias is not None:
@@ -133,7 +135,7 @@ class ConvNorm(torch.nn.Module):
         )
         torch.nn.init.xavier_uniform_(self.conv.weight, gain=torch.nn.init.calculate_gain(w_init_gain))
         if self.use_weight_norm:
-            self.conv = nn.utils.weight_norm(self.conv)
+            self.conv = torch.nn.utils.weight_norm(self.conv)
 
     def forward(self, signal, mask=None):
         if self.use_partial_padding:

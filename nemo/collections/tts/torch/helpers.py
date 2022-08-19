@@ -23,7 +23,7 @@ from scipy.stats import betabinom
 class BetaBinomialInterpolator:
     """
         This module calculates alignment prior matrices (based on beta-binomial distribution) using cached popular sizes and image interpolation.
-        The implementation is taken from https://github.com/NVIDIA/DeepLearningExamples.
+        The implementation is taken from https://github.com/NVIDIA/DeepLearningExamples/blob/master/PyTorch/SpeechSynthesis/FastPitch/fastpitch/data_function.py
     """
 
     def __init__(self, round_mel_len_to=50, round_text_len_to=10, cache_size=500):
@@ -55,7 +55,7 @@ def beta_binomial_prior_distribution(phoneme_count, mel_count, scaling_factor=1.
     mel_text_probs = []
     for i in range(1, mel_count + 1):
         a, b = scaling_factor * i, scaling_factor * (mel_count + 1 - i)
-        mel_i_prob = betabinom(phoneme_count, a, b).pmf(x)
+        mel_i_prob = betabinom(phoneme_count - 1, a, b).pmf(x)
         mel_text_probs.append(mel_i_prob)
     return np.array(mel_text_probs)
 
