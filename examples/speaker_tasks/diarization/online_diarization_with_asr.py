@@ -52,7 +52,8 @@ from nemo.collections.asr.parts.utils.nmesc_clustering import (
     getTempInterpolMultiScaleCosAffinityMatrix
 )
 from nemo.collections.asr.parts.utils.nmesc_clustering import COSclustering
-from nemo.collections.asr.parts.utils.streaming_utils import get_samples, AudioFeatureIterator, FrameBatchVAD
+from nemo.collections.asr.parts.utils.streaming_utils import get_samples, AudioFeatureIterator
+# , FrameBatchVAD
 
 from nemo.core.config import hydra_runner
 from nemo.utils import logging

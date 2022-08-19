@@ -53,7 +53,8 @@ from nemo.collections.asr.models import ClusteringDiarizer
 from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
 from sklearn.preprocessing import OneHotEncoder
-from nemo.collections.asr.parts.utils.streaming_utils import AudioFeatureIterator, FrameBatchASR, FrameBatchVAD
+from nemo.collections.asr.parts.utils.streaming_utils import AudioFeatureIterator, FrameBatchASR
+# , FrameBatchVAD
 from omegaconf import OmegaConf
 
 try:
@@ -1242,24 +1243,24 @@ class FrameBatchASR_Logits_Sample(FrameBatchASR_Logits):
         self.set_frame_reader(frame_reader)
         return frame_reader._features.shape
 
-class FrameBatchVAD_sample(FrameBatchVAD):
-    """
-    A class for streaming frame-based ASR.
-    Inherits from FrameBatchASR and adds new capability of returning the logit output.
-    Please refer to FrameBatchASR for more detailed information.
-    """
+# class FrameBatchVAD_sample(FrameBatchVAD):
+    # """
+    # A class for streaming frame-based ASR.
+    # Inherits from FrameBatchASR and adds new capability of returning the logit output.
+    # Please refer to FrameBatchASR for more detailed information.
+    # """
 
-    def __init__(self, vad_model, frame_len, total_buffer, batch_size, patience):
-        super().__init__(vad_model, frame_len, total_buffer, batch_size, patience) 
+    # def __init__(self, vad_model, frame_len, total_buffer, batch_size, patience):
+        # super().__init__(vad_model, frame_len, total_buffer, batch_size, patience) 
     
-    @timeit
-    def read_audio_file_and_return_samples(self, samples, delay: float, model_stride_in_secs: float):
-        self.device = self.vad_model.device
-        self.pad_end_len = int(delay * model_stride_in_secs * self.vad_model._cfg.sample_rate)
-        samples = np.pad(samples, (0, self.pad_end_len))
-        frame_reader = AudioFeatureIterator(samples, self.frame_len, self.raw_preprocessor, self.vad_model.device)
-        self.set_frame_reader(frame_reader)
-        return frame_reader._features.shape
+    # @timeit
+    # def read_audio_file_and_return_samples(self, samples, delay: float, model_stride_in_secs: float):
+        # self.device = self.vad_model.device
+        # self.pad_end_len = int(delay * model_stride_in_secs * self.vad_model._cfg.sample_rate)
+        # samples = np.pad(samples, (0, self.pad_end_len))
+        # frame_reader = AudioFeatureIterator(samples, self.frame_len, self.raw_preprocessor, self.vad_model.device)
+        # self.set_frame_reader(frame_reader)
+        # return frame_reader._features.shape
 
 class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
     def __init__(self, diar, cfg):
@@ -1305,7 +1306,7 @@ class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
         self.load_online_VAD_model(self.params)
         self.asr_model = self.set_asr_model()
         self.init_FrameBatchASR()
-        self.init_FrameBatchVAD()
+        # self.init_FrameBatchVAD()
         self.load_punctuation_model()
 
         # For diarization
@@ -1518,23 +1519,23 @@ class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
         word_ts = self.fix_word_ts(word_ts)
         return word_ts 
     
-    def init_FrameBatchVAD(self):
-        torch.manual_seed(0)
-        torch.set_grad_enabled(False)
+    # def init_FrameBatchVAD(self):
+        # torch.manual_seed(0)
+        # torch.set_grad_enabled(False)
 
-        self.chunk_len_in_sec = self.frame_len
-        context_len_in_secs = self.frame_overlap
-        self.total_buffer_in_secs = 2*context_len_in_secs + self.chunk_len_in_sec
-        self.model_stride_in_secs = 0.04
+        # self.chunk_len_in_sec = self.frame_len
+        # context_len_in_secs = self.frame_overlap
+        # self.total_buffer_in_secs = 2*context_len_in_secs + self.chunk_len_in_sec
+        # self.model_stride_in_secs = 0.04
 
-        self.frame_vad = FrameBatchVAD_sample(
-                    vad_model=self.vad_model, 
-                    frame_len=self.chunk_len_in_sec, 
-                    total_buffer=self.total_buffer_in_secs,
-                    batch_size=self.asr_batch_size, 
-                    patience=1,
-                    )
-        self.frame_vad.reset()
+        # self.frame_vad = FrameBatchVAD_sample(
+                    # vad_model=self.vad_model, 
+                    # frame_len=self.chunk_len_in_sec, 
+                    # total_buffer=self.total_buffer_in_secs,
+                    # batch_size=self.asr_batch_size, 
+                    # patience=1,
+                    # )
+        # self.frame_vad.reset()
 
     def init_FrameBatchASR(self):
         torch.manual_seed(0)

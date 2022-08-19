@@ -644,8 +644,8 @@ class OnlineDiarizer(ClusteringDiarizer, ASR_DIAR_OFFLINE):
             sparse_search_volume=25,
             fixed_thres=fixed_thres,
             NME_mat_size=256,
-            min_samples_for_NMESC=min_samples_for_NMESC,
-            use_mode_est_num_spk=True,
+            # min_samples_for_NMESC=min_samples_for_NMESC,
+            # use_mode_est_num_spk=True,
             device=device,
         )
         

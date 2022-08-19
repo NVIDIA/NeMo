@@ -958,6 +958,8 @@ class NMESC:
         self.p_value_list: torch.Tensor = self.min_p_value.unsqueeze(0)
         self.device = device
         self.maj_vote_spk_count = maj_vote_spk_count
+        self.cuda = True
+        self.eigen_gap_dict = {}
 
     def NMEanalysis(self):
         """

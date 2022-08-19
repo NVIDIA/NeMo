@@ -7,7 +7,6 @@ import numpy as np
 import argparse
 import os
 import nemo
-import nemo.collections.asr as nemo_asr
 import soundfile as sf
 from scipy.io import wavfile
 import scipy.signal as sps
@@ -52,7 +51,8 @@ from nemo.collections.asr.parts.utils.nmesc_clustering import (
     getTempInterpolMultiScaleCosAffinityMatrix
 )
 from nemo.collections.asr.parts.utils.nmesc_clustering import COSclustering
-from nemo.collections.asr.parts.utils.streaming_utils import get_samples, AudioFeatureIterator, FrameBatchVAD
+from nemo.collections.asr.parts.utils.streaming_utils import get_samples, AudioFeatureIterator
+# , FrameBatchVAD
 
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
@@ -91,7 +91,6 @@ import editdistance
 from sklearn.model_selection import ParameterGrid
 
 import nemo
-import nemo.collections.asr as nemo_asr
 
 from nemo.utils import logging
 
@@ -102,7 +101,6 @@ import gradio as gr
 import time
 import librosa
 import soundfile
-import nemo.collections.asr as nemo_asr
 import tempfile
 import os
 import uuid
