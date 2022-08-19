@@ -404,7 +404,7 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         subtokens_mask = subtokens_mask > 0.5
         predicted_slot_similarity_preds = torch.argmax(predicted_dot_product_score_log_softmax, axis=-1)
         predicted_slot_class_batch = DialogueZeroShotSlotFillingModel.align_mention_to_tokens(
-            bio_slot_preds, predicted_slot_similarity_preds, self.label_id_for_empty_slot
+            bio_slot_preds, predicted_slot_similarity_preds, label_id_for_empty_slot = self.label_id_for_empty_slot
         )
         self.overall_slot_classification_report.update(
             predicted_slot_class_batch[subtokens_mask], slot_labels[subtokens_mask]
@@ -431,7 +431,7 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         }
 
     @staticmethod
-    def align_mention_to_tokens(bio_labels, mention_labels, label_id_for_empty_slot):
+    def align_mention_to_tokens(bio_labels, mention_labels, label_id_for_empty_slot=0):
         """
         Align the mentions label to token level based on bio labels.
         
