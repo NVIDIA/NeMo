@@ -528,7 +528,7 @@ def regulate_len(durations, enc_out, pace=1.0, mel_max_len=None):
 
     dtype = enc_out.dtype
     reps = durations.float() / pace
-    reps = (reps + 0.5).long()
+    reps = (reps + 0.5).floor().long()
     dec_lens = reps.sum(dim=1)
 
     max_len = dec_lens.max()
@@ -546,8 +546,7 @@ def regulate_len(durations, enc_out, pace=1.0, mel_max_len=None):
 
     return enc_rep, dec_lens
 
-
-def split_view(tensor, split_size, dim=0):
+def split_view(tensor, split_size:int, dim:int=0):
     if dim < 0:  # Support negative indexing
         dim = len(tensor.shape) + dim
     # If not divisible by split_size, we need to pad with 0

@@ -365,7 +365,10 @@ class RadTTSModule(NeuralModule, Exportable):
     def preprocess_context(self, context, speaker_vecs, out_lens=None, f0=None, energy_avg=None):
 
         if self.n_group_size > 1:
-            context = self.unfold(context.unsqueeze(-1))
+            context = context.unsqueeze(-1)
+            print("context before unfold:", context.shape)
+            context = self.unfold(context)
+            print("context after unfold:", context.shape)
 
             if f0 is not None:
                 f0 = self.unfold(f0[:, None, :, None])
@@ -409,10 +412,13 @@ class RadTTSModule(NeuralModule, Exportable):
         Args:
             mel: B x C x T tensor of temporal data
         """
-        mel = nn.functional.fold(mel, output_size=(mel.shape[2] * self.n_group_size, 1), **self.unfold_params).squeeze(
-            -1
-        )
-        return mel
+        print("mel before fold:", mel.shape)
+        output_size=(mel.shape[0],
+                     mel.shape[1] // self.n_group_size,
+                     mel.shape[2] * self.n_group_size )
+        
+        print("mel after fold:", mel.shape)
+        return mel.reshape(output_size)
 
     def binarize_attention(self, attn, in_lens, out_lens):
         """For training purposes only. Binarizes attention with MAS. These will
