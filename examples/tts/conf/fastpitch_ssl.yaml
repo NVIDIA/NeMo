@@ -101,7 +101,7 @@ model:
       pitch_mean: 212
       pitch_std: 70
       recache_data: true
-      hifi_ckpt_path: ${hifi_ckpt_path}
+      hifi_ckpt_path: null
       speaker_stats_pitch_fp: ${speaker_stats_pitch_fp}
 
     dataloader_params:
