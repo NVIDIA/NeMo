@@ -188,7 +188,7 @@ model:
     lr: 0.1
     betas: [0.9, 0.98]
     weight_decay: 1e-6
-    eps: 1r-6
+    eps: 1e-6
 
     sched:
       name: NoamAnnealing
