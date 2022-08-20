@@ -70,7 +70,7 @@ class SSLVocoderDataset(Dataset):
         assert ssl_model_type in ["conformer", "conformer_multitask"]
         self.ssl_model_type = ssl_model_type
 
-        assert ssl_content_emb_type in ["probs", "embedding", "log_probs"]
+        assert ssl_content_emb_type in ["probs", "embedding", "log_probs", "embedding_and_probs"]
         self.ssl_content_emb_type = ssl_content_emb_type
         # Initialize and read manifest file(s), filter out data by duration and ignore_file
         if isinstance(manifest_filepath, str):
@@ -414,6 +414,8 @@ class SSLVocoderDataset(Dataset):
                         final_content_embedding = content_embedding
                     elif self.ssl_content_emb_type == "log_probs":
                         final_content_embedding = content_log_probs
+                    elif self.ssl_content_emb_type == "embedding_and_probs":
+                        final_content_embedding = torch.cat([content_embedding, content_probs], dim=-1)
 
                     torch.save(final_content_embedding, content_emb_fp)
                     torch.save(speaker_embedding_normalized, speaker_emb_fp)

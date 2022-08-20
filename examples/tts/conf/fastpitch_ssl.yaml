@@ -7,7 +7,7 @@ name: FastPitch
 train_dataset: "/home/pneekhara/NeMo2022/libri_val_formatted.json"
 validation_datasets: "/home/pneekhara/NeMo2022/libri_val_formatted.json"
 
-hifi_ckpt_path: "/home/pneekhara/NeMo2022/HiFiCKPTS/hifigan_libritts/Epoch334.ckpt"
+hifi_ckpt_path: "/home/pneekhara/NeMo2022/HiFiCKPTS/hifigan_libritts/HiFiLibriEpoch334.ckpt"
 
 # Default values from librosa.pyin
 pitch_fmin: 65.40639132514966
@@ -193,7 +193,7 @@ model:
 
 trainer:
   num_nodes: 1
-  devices: 1
+  devices: -1
   accelerator: gpu
   strategy: ddp
   precision: 16
