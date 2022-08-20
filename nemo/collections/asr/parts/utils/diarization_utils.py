@@ -46,6 +46,7 @@ from nemo.collections.asr.parts.utils.vad_utils import (
     get_vad_stream_status,
     prepare_manifest,
 )
+from nemo.collections.asr.models import OnlineDiarizer
 from nemo.collections import nlp as nemo_nlp
 import nemo.collections.asr as nemo_asr
 from typing import Dict, List, Tuple, Type, Union
@@ -1192,6 +1193,21 @@ def process_audio_file(input_data, orig_sr=48000, target_sr=16000, MAX_INT32=214
         raise ValueError(f"The streaming input has unknown input_data type {type(input_data)}")
     return data
 
+def get_online_DER_stats(DER, CER, FA, MISS, diar_eval_count, der_stat_dict, deci=3):
+    der_dict = {
+        "DER": round(100 * DER, deci),
+        "CER": round(100 * CER, deci),
+        "FA": round(100 * FA, deci),
+        "MISS": round(100 * MISS, deci),
+    }
+    der_stat_dict['cum_DER'] += DER
+    der_stat_dict['cum_CER'] += CER
+    der_stat_dict['avg_DER'] = round(100 * der_stat_dict['cum_DER'] / diar_eval_count, deci)
+    der_stat_dict['avg_CER'] = round(100 * der_stat_dict['cum_CER'] / diar_eval_count, deci)
+    der_stat_dict['max_DER'] = round(max(der_dict['DER'], der_stat_dict['max_DER']), deci)
+    der_stat_dict['max_CER'] = round(max(der_dict['CER'], der_stat_dict['max_CER']), deci)
+    return der_dict, der_stat_dict
+
 def get_wer_feat_logit_single(samples, frame_asr, frame_len, tokens_per_chunk, delay, model_stride_in_secs, frame_mask):
     """
     Create a preprocessor to convert audio samples into raw features,
@@ -1207,17 +1223,6 @@ def get_wer_feat_logit_single(samples, frame_asr, frame_len, tokens_per_chunk, d
     hyps.append(hyp)
     tokens_list.append(tokens)
     return hyps, tokens_list, feature_frame_shape, log_prob
-
-def get_vad_feat_logit_single(samples, frame_vad, frame_len, tokens_per_chunk, vad_delay, model_stride_in_secs, threshold):
-    """
-    Create a preprocessor to convert audio samples into raw features,
-    Normalization will be done per buffer in frame_bufferer.
-    """
-    hyps, tokens_list = [], []
-    frame_vad.reset()
-    feature_frame_shape = frame_vad.read_audio_file_and_return_samples(samples, delay=vad_delay, model_stride_in_secs=model_stride_in_secs)
-    streaming_vad_logits, speech_segments = frame_vad.decode(threshold=threshold)
-    return streaming_vad_logits, speech_segments, feature_frame_shape
 
 class MaskedFeatureIterator(AudioFeatureIterator):
     def __init__(self, samples, frame_len, preprocessor, device, frame_mask=None):
@@ -1243,28 +1248,9 @@ class FrameBatchASR_Logits_Sample(FrameBatchASR_Logits):
         self.set_frame_reader(frame_reader)
         return frame_reader._features.shape
 
-# class FrameBatchVAD_sample(FrameBatchVAD):
-    # """
-    # A class for streaming frame-based ASR.
-    # Inherits from FrameBatchASR and adds new capability of returning the logit output.
-    # Please refer to FrameBatchASR for more detailed information.
-    # """
-
-    # def __init__(self, vad_model, frame_len, total_buffer, batch_size, patience):
-        # super().__init__(vad_model, frame_len, total_buffer, batch_size, patience) 
-    
-    # @timeit
-    # def read_audio_file_and_return_samples(self, samples, delay: float, model_stride_in_secs: float):
-        # self.device = self.vad_model.device
-        # self.pad_end_len = int(delay * model_stride_in_secs * self.vad_model._cfg.sample_rate)
-        # samples = np.pad(samples, (0, self.pad_end_len))
-        # frame_reader = AudioFeatureIterator(samples, self.frame_len, self.raw_preprocessor, self.vad_model.device)
-        # self.set_frame_reader(frame_reader)
-        # return frame_reader._features.shape
-
 class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
-    def __init__(self, diar, cfg):
-        super().__init__(**cfg)
+    def __init__(self, cfg):
+        super().__init__(**cfg.diarizer)
         '''
         Args:
             frame_len (int):
@@ -1272,8 +1258,9 @@ class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
             frame_overlap (int)
                 duration of overlaps before and after current frame, seconds
         '''
+        self.diar = OnlineDiarizer(cfg)
         self.offline_mode = False
-        self._cfg_diarizer = cfg
+        self._cfg_diarizer = cfg.diarizer
         self.audio_queue_buffer = np.array([])
         self.ASR_model_name = self._cfg_diarizer['asr']['model_path']
         self.params = dict(self._cfg_diarizer['asr']['parameters'])
@@ -1283,7 +1270,7 @@ class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
         # self.params['offset'] = 0.0
         self.use_cuda = self.params['use_cuda']
         self.rttm_file_path = None
-        self.sample_rate = diar.sample_rate
+        self.sample_rate = self.diar.sample_rate
         if self.use_cuda:
             self.device = torch.device("cuda:0")
             self.cuda = True
@@ -1306,11 +1293,9 @@ class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
         self.load_online_VAD_model(self.params)
         self.asr_model = self.set_asr_model()
         self.init_FrameBatchASR()
-        # self.init_FrameBatchVAD()
         self.load_punctuation_model()
 
         # For diarization
-        self.diar = diar
         self.word_ts_anchor_offset = float(self._cfg_diarizer.asr.parameters.word_ts_anchor_offset)
         self.fine_embs_array = None
         self.Y_fullhist = []
@@ -1418,6 +1403,44 @@ class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
         word_ts_hyp = {uniq_id: self.word_ts_seq}
         metric_results = [(uniq_id, self.metric.results_[0][1])]
         return diar_hyp, word_hyp, word_ts_hyp, metric_results
+    
+    def online_eval_diarization(self, pred_labels, rttm_file):
+        pred_diar_labels, ref_labels_list = [], []
+        all_hypotheses, all_references = [], []
+
+        if os.path.exists(rttm_file):
+            ref_labels_total = rttm_to_labels(rttm_file)
+            ref_labels = get_partial_ref_labels(pred_labels, ref_labels_total)
+            reference = labels_to_pyannote_object(ref_labels)
+            all_references.append([self.uniq_id, reference])
+        else:
+            raise ValueError("No reference RTTM file provided.")
+
+        pred_diar_labels.append(pred_labels)
+
+        self.der_stat_dict['ref_n_spk'] = self.get_num_of_spk_from_labels(ref_labels)
+        self.der_stat_dict['est_n_spk'] = self.get_num_of_spk_from_labels(pred_labels)
+        hypothesis = labels_to_pyannote_object(pred_labels)
+        self.diar_eval_count += 1
+        if ref_labels == [] and pred_labels != []:
+            logging.info("Streaming Diar [{}][frame-  {}th  ]:".format(self.uniq_id, self.frame_index))
+            DER, CER, FA, MISS = 100.0, 0.0, 0.0, 100.0
+            der_dict, der_stat_dict = get_online_DER_stats(DER, CER, FA, MISS, der_stat_dict)
+            metric, mapping_dict = None, None
+        else:
+            all_hypotheses.append([self.uniq_id, hypothesis])
+            metric, mapping_dict, itemized_errors = score_labels(
+                self.AUDIO_RTTM_MAP, all_references, all_hypotheses, collar=0.25, ignore_overlap=True
+            )
+            DER, CER, FA, MISS = itemized_errors
+            logging.info(
+                "Streaming Diar [{}][frame-    {}th    ]: DER:{:.4f} MISS:{:.4f} FA:{:.4f}, CER:{:.4f}".format(
+                    self.uniq_id, self.frame_index, DER, MISS, FA, CER
+                )
+            )
+
+            der_dict, der_stat_dict = self.get_online_DER_stats(DER, CER, FA, MISS, der_stat_dict)
+        return der_dict, der_stat_dict, metric, mapping_dict
 
     @timeit  
     def print_online_DER_info(self, uniq_id, string_out, diar_hyp_list, params):
@@ -1438,7 +1461,7 @@ class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
                 if RTTM file is provided in simulation mode.
 
         """
-        der_dict, der_stat_dict, self.metric, self.mapping_dict = self.diar.online_eval_diarization(diar_hyp_list, self.rttm_file_path)
+        der_dict, der_stat_dict, self.metric, self.mapping_dict = self.online_eval_diarization(diar_hyp_list, self.rttm_file_path)
 
         if len(self.metric.results_) > 0:
             diar_hyp, word_hyp, word_ts_hyp, self.metric.results_ = self.create_single_session(uniq_id, diar_hyp_list)
@@ -1478,8 +1501,6 @@ class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
         buffer[:-self.n_frame_len] = copy.deepcopy(buffer[self.n_frame_len:])
         buffer[-self.n_frame_len:] = copy.deepcopy(frame)
         return buffer
-        
-
 
     def fix_word_ts(self, word_ts_seq_list):
         """
@@ -1519,24 +1540,6 @@ class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
         word_ts = self.fix_word_ts(word_ts)
         return word_ts 
     
-    # def init_FrameBatchVAD(self):
-        # torch.manual_seed(0)
-        # torch.set_grad_enabled(False)
-
-        # self.chunk_len_in_sec = self.frame_len
-        # context_len_in_secs = self.frame_overlap
-        # self.total_buffer_in_secs = 2*context_len_in_secs + self.chunk_len_in_sec
-        # self.model_stride_in_secs = 0.04
-
-        # self.frame_vad = FrameBatchVAD_sample(
-                    # vad_model=self.vad_model, 
-                    # frame_len=self.chunk_len_in_sec, 
-                    # total_buffer=self.total_buffer_in_secs,
-                    # batch_size=self.asr_batch_size, 
-                    # patience=1,
-                    # )
-        # self.frame_vad.reset()
-
     def init_FrameBatchASR(self):
         torch.manual_seed(0)
         torch.set_grad_enabled(False)
@@ -1679,6 +1682,16 @@ class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
         self.end_time = time.time()
         return f"Audio Queue Length {len(self.audio_queue_buffer)/self.sample_rate:.2f}s", ""
     
+    def transfer_frame_info_to_diarizer(self):
+        """
+        Transfer timestamps and buffer data to diarizer instance
+        """
+        self.diar.frame_index = self.frame_index
+        self.diar.frame_start = self.frame_start
+        self.diar.buffer_start = self.buffer_start
+        self.diar.buffer_end = self.buffer_end
+        self.diar.total_buffer_in_secs = self.total_buffer_in_secs
+
     def reset(self):
         '''
         Reset frame_history and decoder's state
@@ -1695,26 +1708,26 @@ class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
         Args:
             frame (Tensor):
 
-        Return:
+        Returns:
 
         """
         # Save the input frame into audio buffer.
-        self.buffer = self.update_audio_frame_input(frame=frame, buffer=self.buffer)
+        buffer = self.update_audio_frame_input(frame=frame, buffer=self.buffer)
         
         # Run VAD decoder to get VAD-mask and VAD-timestamps
-        vad_mask, vad_ts = self.run_VAD_decoder_step(buffer=self.buffer) 
+        vad_mask, vad_ts = self.run_VAD_decoder_step(buffer=buffer) 
        
         # Run ASR decoder step to obatain word sequence (`words`) and word timestamps (`word_timestamps`)
-        words, word_timestamps = self.run_ASR_decoder_step(buffer=self.buffer, frame_mask=vad_mask)
+        words, word_timestamps = self.run_ASR_decoder_step(buffer=buffer, frame_mask=vad_mask)
         
         if vad_ts is None:
             vad_ts = self.get_VAD_from_ASR(word_ts=word_timestamps)
         
         # Sync diarization frame index with ASR frame index
-        self.diar.frame_index = self.frame_index
         self.update_launcher_timestamps()
         
-        diar_hyp = self.diar.online_diarization(self, vad_ts)
+        self.transfer_frame_info_to_diarizer()
+        diar_hyp = self.diar.diarize_step(buffer, vad_ts)
 
         self.frame_index += 1
         return words, word_timestamps, diar_hyp

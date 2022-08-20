@@ -37,7 +37,6 @@ from nemo.collections.asr.parts.utils.vad_utils import (
 from nemo.collections import nlp as nemo_nlp
 from typing import Dict, List, Tuple, Type, Union
 from nemo.collections.asr.models import ClusteringDiarizer, EncDecCTCModel, EncDecCTCModelBPE
-from nemo.collections.asr.models import OnlineDiarizer
 from sklearn.preprocessing import OneHotEncoder
 from nemo.collections.asr.parts.utils.streaming_utils import AudioFeatureIterator, FrameBatchASR
 from nemo.collections.asr.parts.utils.nmesc_clustering import (
@@ -115,8 +114,8 @@ except ImportError:
     PYCTCDECODE = False
 
 class ASR_DIAR_ONLINE_DEMO(ASR_DIAR_ONLINE):
-    def __init__(self, diar, cfg):
-        super().__init__(diar, cfg)
+    def __init__(self, cfg):
+        super().__init__(cfg)
 
     def realign_speaker_labels(self, words, memory_cluster_labels):
         """
@@ -333,9 +332,9 @@ class ASR_DIAR_ONLINE_DEMO(ASR_DIAR_ONLINE):
 
 @hydra_runner(config_path="conf", config_name="online_diarization_with_asr.yaml")
 def main(cfg):
-    diar = OnlineDiarizer(cfg)
-    asr_diar = ASR_DIAR_ONLINE(diar, cfg=cfg.diarizer)
-    # asr_diar = ASR_DIAR_ONLINE_DEMO(diar, cfg=cfg.diarizer)
+    # asr_diar = ASR_DIAR_ONLINE(cfg=cfg)
+    asr_diar = ASR_DIAR_ONLINE_DEMO(cfg=cfg)
+    diar = asr_diar.diar
 
     if cfg.diarizer.asr.parameters.streaming_simulation:
         diar.uniq_id = cfg.diarizer.simulation_uniq_id
