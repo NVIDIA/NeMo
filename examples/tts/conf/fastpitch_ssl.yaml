@@ -4,7 +4,7 @@
 
 name: FastPitch
 
-train_dataset: "/home/pneekhara/NeMo2022/libri_val_formatted.json"
+train_dataset: "/home/pneekhara/NeMo2022/libri_train_formatted.json"
 validation_datasets: "/home/pneekhara/NeMo2022/libri_val_formatted.json"
 
 hifi_ckpt_path: "/home/pneekhara/NeMo2022/HiFiCKPTS/hifigan_libritts/HiFiLibriEpoch334.ckpt"
@@ -28,10 +28,10 @@ highfreq: 8000
 window: hann
 
 ssl_model_type: "conformer_multitask"
-ssl_model_ckpt_path: "/home/pneekhara/NeMo2022/TempCkpts/SSLTTS22050.ckpt"
+ssl_model_ckpt_path: "/home/pneekhara/NeMo2022/SSLCheckPoints/SSLConformer22050_Epoch23.ckpt"
 ssl_content_emb_type: "embedding"
 n_segments: 18432 #ignored for now
-speaker_stats_pitch_fp: null
+speaker_stats_pitch_fp: "/home/pneekhara/NeMo2022/libri_speaker_stats.json"
 pitch_normalization: global
 
 model:
@@ -76,15 +76,15 @@ model:
       pitch_normalization: ${pitch_normalization}
       pitch_mean: 212
       pitch_std: 70
-      recache_data: false
+      recache_data: true
       hifi_ckpt_path: ${hifi_ckpt_path}
       speaker_stats_pitch_fp: ${speaker_stats_pitch_fp}
 
     dataloader_params:
       drop_last: false
       shuffle: true
-      batch_size: 2
-      num_workers: 4
+      batch_size: 24
+      num_workers: 12
       pin_memory: true
 
   validation_ds:
@@ -100,14 +100,14 @@ model:
       pitch_normalization: ${pitch_normalization}
       pitch_mean: 212
       pitch_std: 70
-      recache_data: false
+      recache_data: true
       hifi_ckpt_path: ${hifi_ckpt_path}
       speaker_stats_pitch_fp: ${speaker_stats_pitch_fp}
 
     dataloader_params:
       drop_last: false
       shuffle: false
-      batch_size: 2
+      batch_size: 16
       num_workers: 0
       pin_memory: true
 

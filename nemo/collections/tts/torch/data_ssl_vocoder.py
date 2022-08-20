@@ -165,8 +165,9 @@ class SSLVocoderDataset(Dataset):
             self.n_mels = 80
 
             print("hifi_ckpt_path", hifi_ckpt_path)
-            self.vocoder = hifigan.HifiGanModel.load_from_checkpoint(hifi_ckpt_path).cpu()
-            self.vocoder.eval()
+            if hifi_ckpt_path is not None:
+                self.vocoder = hifigan.HifiGanModel.load_from_checkpoint(hifi_ckpt_path).cpu()
+                self.vocoder.eval()
 
         self.pitch_conditioning = pitch_conditioning
         self.pitch_mean = pitch_mean
@@ -415,7 +416,7 @@ class SSLVocoderDataset(Dataset):
                     elif self.ssl_content_emb_type == "log_probs":
                         final_content_embedding = content_log_probs
                     elif self.ssl_content_emb_type == "embedding_and_probs":
-                        final_content_embedding = torch.cat([content_embedding, content_probs], dim=-1)
+                        final_content_embedding = torch.cat([content_embedding, content_probs], dim=0)
 
                     torch.save(final_content_embedding, content_emb_fp)
                     torch.save(speaker_embedding_normalized, speaker_emb_fp)
