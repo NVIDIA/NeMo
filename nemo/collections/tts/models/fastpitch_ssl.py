@@ -199,9 +199,9 @@ class FastPitchModel_SSL(ModelPT):
         enc_mask = mask_from_lens(encoded_len)
         durs = torch.ones_like(enc_mask) * 4.0
         enc_mask = enc_mask[:, :, None]
-        print("enc_out.shape: ", enc_out.shape)
-        print("enc_mask.shape: ", enc_mask.shape)
-        print("durs.shape: ", durs.shape)
+        # print("enc_out.shape: ", enc_out.shape)
+        # print("enc_mask.shape: ", enc_mask.shape)
+        # print("durs.shape: ", durs.shape)
 
         mels_pred, _, _, log_durs_pred, pitch_pred, attn_soft, attn_logprob, attn_hard, attn_hard_dur, pitch = self(
             text=None,
@@ -263,9 +263,9 @@ class FastPitchModel_SSL(ModelPT):
         enc_mask = mask_from_lens(encoded_len)
         durs = torch.ones_like(enc_mask) * 4.0
         enc_mask = enc_mask[:, :, None]
-        print("enc_out.shape: ", enc_out.shape)
-        print("enc_mask.shape: ", enc_mask.shape)
-        print("durs.shape: ", durs.shape)
+        # print("enc_out.shape: ", enc_out.shape)
+        # print("enc_mask.shape: ", enc_mask.shape)
+        # print("durs.shape: ", durs.shape)
 
         # # Calculate val loss on ground truth durations to better align L2 loss in time
         mels_pred, _, _, log_durs_pred, pitch_pred, _, _, _, attn_hard_dur, pitch = self(
@@ -296,6 +296,7 @@ class FastPitchModel_SSL(ModelPT):
             "pitch_loss": pitch_loss,
             "mel_target": mels if batch_idx == 0 else None,
             "mel_pred": mels_pred if batch_idx == 0 else None,
+            "spec_len": spec_len if batch_idx == 0 else None,
         }
 
     def validation_epoch_end(self, outputs):
@@ -309,7 +310,7 @@ class FastPitchModel_SSL(ModelPT):
         self.log("v_dur_loss", dur_loss)
         self.log("v_pitch_loss", pitch_loss)
 
-        _, _, _, _, spec_target, spec_predict = outputs[0].values()
+        _, _, _, _, spec_target, spec_predict, spec_len = outputs[0].values()
 
         if isinstance(self.logger, TensorBoardLogger):
             self.tb_logger.add_image(
@@ -321,6 +322,18 @@ class FastPitchModel_SSL(ModelPT):
             spec_predict = spec_predict[0].data.cpu().float().numpy()
             self.tb_logger.add_image(
                 "val_mel_predicted", plot_spectrogram_to_numpy(spec_predict), self.global_step, dataformats="HWC",
+            )
+
+            _dataset = self._train_dl.dataset
+            _spec_len = spec_len[0].data.cpu().item()
+            wav_vocoded = _dataset.vocode_spectrogram(spec_target[0].data.cpu().float().numpy()[:,:_spec_len] )
+            self.tb_logger.add_audio(
+                "Real audio", wav_vocoded, self.global_step, 22050
+            )
+
+            wav_vocoded = _dataset.vocode_spectrogram(spec_predict[:,:_spec_len])
+            self.tb_logger.add_audio(
+                "Generated Audio", wav_vocoded, self.global_step, 22050
             )
             self.log_train_images = True
 

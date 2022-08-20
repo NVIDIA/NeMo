@@ -19,7 +19,7 @@ from nemo.collections.tts.models import ssl_tts
 from nemo.collections.tts.torch.helpers import get_base_dir
 from nemo.core.classes import Dataset
 from nemo.utils import logging
-
+from nemo.collections.tts.models import hifigan
 
 class SSLVocoderDataset(Dataset):
     def __init__(
@@ -42,6 +42,7 @@ class SSLVocoderDataset(Dataset):
         recache_data: Optional[bool] = False,
         normalize_content: Optional[bool] = True,
         speaker_stats_pitch_fp: Optional[Union[str, Path]] = None,
+        hifi_ckpt_path: Optional[Union[str, Path]] = None,
     ):
         """Dataset which can be used for training and fine-tuning vocoder with pre-computed mel-spectrograms.
         Args:
@@ -163,6 +164,10 @@ class SSLVocoderDataset(Dataset):
             self.n_fft = ssl_cfg.preprocessor.n_fft
             self.n_mels = 80
 
+            print("hifi_ckpt_path", hifi_ckpt_path)
+            self.vocoder = hifigan.HifiGanModel.load_from_checkpoint(hifi_ckpt_path).cpu()
+            self.vocoder.eval()
+
         self.pitch_conditioning = pitch_conditioning
         self.pitch_mean = pitch_mean
         self.pitch_std = pitch_std
@@ -188,6 +193,13 @@ class SSLVocoderDataset(Dataset):
                 speaker_stats_raw = json.load(f)
                 for key in speaker_stats_raw:
                     self.speaker_stats[int(key)] = speaker_stats_raw[key]
+
+    def vocode_spectrogram(self, spectrogram):
+        # spec [C, T] numpy
+        with torch.no_grad():
+            _spec = torch.from_numpy(spectrogram).unsqueeze(0).to(torch.float32)
+            wav_generated = self.vocoder.generator(x=_spec)[0]
+            return wav_generated.numpy()
 
     def pad_collate_fn(self, batch):
         final_batch = {}
@@ -519,7 +531,7 @@ class SSLVocoderDataset(Dataset):
         mel_spectrogram = None
         mel_len = None
         if self.load_mel_spectrogram:
-            mel_spectrogram = self.get_mel_spectrogram(audio_ssl[:-1], rel_audio_path_as_text_id)
+            mel_spectrogram = self.get_mel_spectrogram(audio[:-1], rel_audio_path_as_text_id)
             mel_len = torch.tensor(mel_spectrogram.shape[1]).long()
             # print("mel spec", mel_spectrogram.shape)
             # print("mel len", mel_len)
