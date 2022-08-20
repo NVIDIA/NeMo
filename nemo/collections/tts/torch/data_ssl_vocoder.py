@@ -168,6 +168,13 @@ class SSLVocoderDataset(Dataset):
             if hifi_ckpt_path is not None:
                 self.vocoder = hifigan.HifiGanModel.load_from_checkpoint(hifi_ckpt_path).cpu()
                 self.vocoder.eval()
+            
+            self.fb = torch.tensor(
+                librosa.filters.mel(
+                    sr=self.sample_rate, n_fft=self.n_fft, n_mels=self.n_mels, fmin=0, fmax=8000
+                ),
+                dtype=torch.float,
+            ).unsqueeze(0)
 
         self.pitch_conditioning = pitch_conditioning
         self.pitch_mean = pitch_mean
@@ -340,16 +347,9 @@ class SSLVocoderDataset(Dataset):
         if os.path.exists(mel_spec_fp):
             return torch.load(mel_spec_fp)
         else:
-            lowfreq = 0
-            highfreq = 8000
             EPSILON = 1e-9
             window_fn = torch.hann_window
-            fb = torch.tensor(
-                librosa.filters.mel(
-                    sr=self.sample_rate, n_fft=self.n_fft, n_mels=self.n_mels, fmin=lowfreq, fmax=highfreq
-                ),
-                dtype=torch.float,
-            ).unsqueeze(0)
+            
             spec = torch.stft(
                 input=wav,
                 n_fft=self.n_fft,
@@ -364,7 +364,7 @@ class SSLVocoderDataset(Dataset):
                 spec = torch.view_as_real(spec)
             spec = torch.sqrt(spec.pow(2).sum(-1) + EPSILON)
 
-            mel = torch.matmul(fb.to(spec.dtype), spec)
+            mel = torch.matmul(self.fb.to(spec.dtype), spec)
             log_mel = torch.log(torch.clamp(mel, min=torch.finfo(mel.dtype).tiny))[0]
 
             torch.save(log_mel, mel_spec_fp)

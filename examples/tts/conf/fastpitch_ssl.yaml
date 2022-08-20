@@ -76,7 +76,7 @@ model:
       pitch_normalization: ${pitch_normalization}
       pitch_mean: 212
       pitch_std: 70
-      recache_data: true
+      recache_data: false
       hifi_ckpt_path: ${hifi_ckpt_path}
       speaker_stats_pitch_fp: ${speaker_stats_pitch_fp}
 
@@ -100,7 +100,7 @@ model:
       pitch_normalization: ${pitch_normalization}
       pitch_mean: 212
       pitch_std: 70
-      recache_data: true
+      recache_data: false
       hifi_ckpt_path: null
       speaker_stats_pitch_fp: ${speaker_stats_pitch_fp}
 
@@ -181,9 +181,10 @@ model:
 
   optim:
     name: adamw
-    lr: 1e-3
-    betas: [0.9, 0.999]
+    lr: 0.1
+    betas: [0.9, 0.98]
     weight_decay: 1e-6
+    eps: 1r-6
 
     sched:
       name: NoamAnnealing
