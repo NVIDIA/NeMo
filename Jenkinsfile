@@ -3144,7 +3144,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         }
       }
     }
-  stage('L2: Megatron GPT Adapter Learning') {
+    stage('L2: Megatron GPT Adapter Learning') {
       when {
         anyOf {
           branch 'main'
@@ -3181,8 +3181,37 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             sh "rm -rf /home/TestData/nlp/adapter_tuning/test_tp2_pp1"
           }
         }
+        stage('GPT Adapter tuning & inference TP=1 PP=2') {
+          steps {
+            sh "python examples/nlp/language_modeling/tuning/megatron_gpt_adapter_tuning.py \
+                --config-name=megatron_gpt_adapter_tuning_config \
+                name='/home/TestData/nlp/adapter_tuning/test_tp1_pp2' \
+                trainer.devices=2 \
+                trainer.max_steps=6 \
+                trainer.max_epochs=null \
+                model.tensor_model_parallel_size=1 \
+                model.pipeline_model_parallel_size=2 \
+                model.language_model_path='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp1_pp2.nemo' \
+                model.existing_tasks=[] \
+                model.new_tasks=['rte'] \
+                model.data.train_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+                model.data.validation_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+                model.global_batch_size=4"
+            sh "python examples/nlp/language_modeling/tuning/megatron_gpt_prompt_learning_eval.py \
+                --config-name=megatron_gpt_adapter_inference \
+                adapter_model_file='/home/TestData/nlp/adapter_tuning/test_tp1_pp2.nemo' \
+                gpt_model_file='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp1_pp2.nemo' \
+                inference.greedy=True \
+                inference.add_BOS=False \
+                trainer.devices=2 \
+                tensor_model_parallel_size=2 \
+                data_paths=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl']"
+            sh "rm -rf /home/TestData/nlp/adapter_tuning/test_tp1_pp2.nemo"
+            sh "rm -rf /home/TestData/nlp/adapter_tuning/test_tp1_pp2"
+          }
+        }
       }
-  }
+    }
     
 
     // TODO: Add this test back. Test was failing on CI machines due to HW error
