@@ -219,8 +219,7 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
             last_hidden_states = outputs.last_hidden_state
             description_embeddings.append(last_hidden_states[0, 0, :])
 
-        device = self.device
-        return torch.stack(description_embeddings).to(device)
+        return torch.stack(description_embeddings).to(self.device)
 
     @staticmethod
     def get_entity_embedding_from_hidden_states(bio_slot_labels, hidden_states):
@@ -442,19 +441,19 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         Returns:
             predicted_slot_class: [[2, 0, 0, 4, 4], [52, 52, 52, 0, 0]]
         """
-        predicted_slot_class = []
+        slot_class = []
         for one_bio_labels, one_mention_labels in zip(bio_labels, mention_labels):
             start_and_end = DialogueZeroShotSlotFillingModel.get_start_and_end_for_bio(one_bio_labels)
-            one_predicted_slot_class = torch.ones(len(one_mention_labels)) * label_id_for_empty_slot
+            one_slot_class = torch.ones(len(one_mention_labels)) * label_id_for_empty_slot
 
             for idx, one_start_and_end in enumerate(start_and_end):
-                start, inclusive_end = one_start_and_end
-                for idy in range(start, inclusive_end + 1):
-                    one_predicted_slot_class[idy] = one_mention_labels[idx]
-            predicted_slot_class.append(one_predicted_slot_class)
+                start, exclusive_end = one_start_and_end
+                for idy in range(start, exclusive_end):
+                    one_slot_class[idy] = one_mention_labels[idx]
+            slot_class.append(one_slot_class)
 
-        predicted_slot_class = torch.stack(predicted_slot_class).to(bio_labels.device)
-        return predicted_slot_class
+        slot_class = torch.stack(slot_class).to(bio_labels.device)
+        return slot_class
 
     @staticmethod
     def get_start_and_end_for_bio(one_bio_labels):
@@ -471,21 +470,21 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
             eg. [[0, 0], [3, 4]]
         """
         start_and_end = []
-        last_seen = None
-        for i in range(len(one_bio_labels)):
+        i = 0
+        while i < len(one_bio_labels):
+            # if encounter the first B (with label 1),
+            # increment counter while encountering I (with label 2)
             if one_bio_labels[i] == 1:
-                if last_seen is not None:
-                    start_and_end[-1].append(last_seen)
-                start_and_end.append([i])
-                last_seen = i
-            elif one_bio_labels[i] == 2 and last_seen is not None:
-                last_seen = i
-            elif one_bio_labels[i] == 0:
-                if last_seen is not None:
-                    start_and_end[-1].append(last_seen)
-                last_seen = None
-        if last_seen is not None:
-            start_and_end[-1].append(last_seen)
+                start = i
+                i += 1
+                while i < len(one_bio_labels) and one_bio_labels[i] == 2:
+                    i += 1
+                exclusive_end = i
+                start_and_end.append([start, exclusive_end])
+            # if encounter O (with label 0) or I (with label 2) without a preceding B (with label 1)
+            # increment counter
+            elif one_bio_labels[i] in [0, 2]:
+                i += 1
         return start_and_end
 
     def get_entity_description_score(self, mention_hidden_states_pad):
@@ -505,9 +504,9 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         if self.description_embeddings.device != self.device:
             self.description_embeddings = self.description_embeddings.to(self.device)
 
-        share_description_embedding = self.description_projection_mlp(self.description_embeddings)
-        share_mention_embedding = self.mention_projection_mlp(mention_hidden_states_pad)
-        dot_product_score = torch.matmul(share_mention_embedding, torch.t(share_description_embedding))
+        projected_description_embedding = self.description_projection_mlp(self.description_embeddings)
+        projected_mention_embedding = self.mention_projection_mlp(mention_hidden_states_pad)
+        dot_product_score = torch.matmul(projected_mention_embedding, torch.t(projected_description_embedding))
 
         return dot_product_score
 
@@ -551,11 +550,11 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         slot_preds = []
         slot_labels = []
         subtokens_mask = []
-        inputs = []
+        input_ids = []
 
         for output in outputs:
             subtokens_mask += output["subtokens_mask"]
-            inputs += output["input"]
+            input_ids += output["input"]
             slot_labels += output["slot_labels"]
             slot_preds += output['overall_slot_preds']
 
@@ -567,7 +566,7 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         all_utterances = []
 
         for i in range(len(predicted_slots)):
-            utterance_tokens = self.get_utterance_tokens(inputs[i], subtokens_mask[i])
+            utterance_tokens = self.get_utterance_tokens(input_ids[i], subtokens_mask[i])
             ground_truth_slot_names = ground_truth_slots[i].split()
             predicted_slot_names = predicted_slots[i].split()
 
@@ -755,7 +754,7 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         logging.info(f'Setting model.dataset.data_dir to {data_dir}.')
         logging.info(f'Setting model.dataset.dialogues_example_dir to {dialogues_example_dir}.')
 
-    def mask_unused_subword_slots(self, slot_preds, subtokens_mask):
+    def mask_unused_subword_slots(self, slots, subtokens_mask):
         slot_labels = self.cfg.data_desc.slot_labels
 
         if 'B-' in slot_labels[1] or 'I-' in slot_labels[1]:
@@ -768,9 +767,9 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
             inference_slot_labels = slot_labels
 
         predicted_slots = []
-        for slot_preds_query, mask_query in zip(slot_preds, subtokens_mask):
+        for slots_query, mask_query in zip(slots, subtokens_mask):
             query_slots = ''
-            for slot, mask in zip(slot_preds_query, mask_query):
+            for slot, mask in zip(slots_query, mask_query):
                 if mask == 1:
                     query_slots += inference_slot_labels[int(slot)] + ' '
             predicted_slots.append(query_slots.strip())
