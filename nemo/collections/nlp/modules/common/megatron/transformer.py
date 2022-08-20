@@ -1922,7 +1922,7 @@ class AdapterParallelTransformer(ParallelTransformer, adapter_mixins.AdapterModu
         # call the same method on each layer, collecting results
         for layer in self.layers:
             layer.add_adapter(name, cfg)
-            
+
     def get_enabled_adapters(self):
         enabled_adapters = set([])
         for layer in self.layers:
