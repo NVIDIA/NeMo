@@ -16,8 +16,6 @@
 from nemo.collections.nlp.modules.common.megatron.megatron_transformer_adapter_decoder import (
     MegatronTransformerAdapterDecoderModule,
 )
-
-# from nemo.collections.nlp.modules.common.megatron.megatron_transformer_decoder import MegatronTransformerDecoderModule
 from nemo.collections.nlp.modules.common.megatron.retrieval_transformer import (
     MegatronRetrievalTransformerDecoderModule,
 )

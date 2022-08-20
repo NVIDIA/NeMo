@@ -29,6 +29,8 @@ class MegatronTransformerAdapterEncoderModule(MegatronTransformerEncoderModule, 
     """
 
     def add_adapter(self, name: str, cfg: DictConfig):
+        print('ENC DEB:', name)
+        print(cfg)
         self.model.add_adapter(name, cfg)
 
     def get_enabled_adapters(self) -> List[str]:

@@ -23,9 +23,6 @@ from nemo.collections.nlp.modules.common.megatron.megatron_encoder_decoder impor
 from nemo.collections.nlp.modules.common.megatron.megatron_encoders import get_encoder_model
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.t5_relative_position_embedding import T5RelativePositionEmbedding
-from nemo.collections.nlp.modules.common.megatron.token_level_adapter_encoder_decoder import (
-    MegatronTokenLevelAdapterEncoderDecoderModule,
-)
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     build_position_ids,
@@ -82,7 +79,7 @@ class MegatronTokenLevelHead(MegatronModule):
 # TODO: add soft prompts as an Embedding sub-class
 
 
-class MegatronTokenLevelEncoderDecoderModule(MegatronModule, MegatronTokenLevelAdapterEncoderDecoderModule):
+class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
     """Token-based (input/output is tokens) encoder-decoder model (e.g. T5 Language model.)"""
 
     def __init__(
@@ -301,9 +298,9 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, MegatronTokenLevelA
             self._tokens_head_key = 'tokens_head'
 
         # setup adapters here and create the cfg for the class -> needed by adapters superclass
-        self.cfg = self.encoder_cfg
-        self.cfg.update(self.decoder_cfg)
-        self.setup_adapters()
+        # self.cfg = self.encoder_cfg
+        # self.cfg.update(self.decoder_cfg)
+        # self.setup_adapters()
 
     def _validate_kv_channels(self, cfg):
         kv_channels = cfg.kv_channels

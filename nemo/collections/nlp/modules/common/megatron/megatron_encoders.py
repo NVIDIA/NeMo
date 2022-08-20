@@ -14,8 +14,6 @@
 
 """Transformer based language model."""
 from nemo.collections.nlp.modules.common.megatron.megatron_perceiver_encoders import MegatronPerceiverEncoderModule
-
-# from nemo.collections.nlp.modules.common.megatron.megatron_transformer_encoder import MegatronTransformerEncoderModule
 from nemo.collections.nlp.modules.common.megatron.megatron_transformer_adapter_encoder import (
     MegatronTransformerAdapterEncoderModule,
 )
