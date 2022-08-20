@@ -79,6 +79,8 @@ model:
       recache_data: false
       hifi_ckpt_path: ${hifi_ckpt_path}
       speaker_stats_pitch_fp: ${speaker_stats_pitch_fp}
+      min_duration: 0.5
+      max_duration: 16.0
 
     dataloader_params:
       drop_last: false
@@ -103,6 +105,8 @@ model:
       recache_data: false
       hifi_ckpt_path: null
       speaker_stats_pitch_fp: ${speaker_stats_pitch_fp}
+      min_duration: 0.5
+      max_duration: 16.0
 
     dataloader_params:
       drop_last: false
