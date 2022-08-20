@@ -3157,7 +3157,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
           steps {
             sh "python examples/nlp/language_modeling/tuning/megatron_gpt_adapter_tuning.py \
                 --config-name=megatron_gpt_adapter_tuning_config \
-                name='/home/TestData/nlp/adapter_tuning_test_tp2' \
+                name='/home/TestData/nlp/adapter_tuning/test_tp2_pp1' \
                 trainer.devices=2 \
                 trainer.max_steps=6 \
                 trainer.max_epochs=null \
@@ -3168,17 +3168,17 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
                 model.data.train_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
                 model.data.validation_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
                 model.global_batch_size=4"
-            sh "rm -rf /home/TestData/nlp/adapter_tuning_test_tp2"
             sh "python examples/nlp/language_modeling/tuning/megatron_gpt_prompt_learning_eval.py \
                 --config-name=megatron_gpt_adapter_inference \
-                adapter_model_file='/home/TestData/nlp/adapter_tuning_test_tp2.nemo' \
+                adapter_model_file='/home/TestData/nlp/adapter_tuning/test_tp2_pp1.nemo' \
                 gpt_model_file='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp2_pp1.nemo' \
                 inference.greedy=True \
                 inference.add_BOS=False \
                 trainer.devices=2 \
                 tensor_model_parallel_size=2 \
                 data_paths=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl']"
-            sh "rm -rf /home/TestData/nlp/adapter_tuning_test_tp2.nemo"
+            sh "rm -rf /home/TestData/nlp/adapter_tuning/test_tp2_pp1.nemo"
+            sh "rm -rf /home/TestData/nlp/adapter_tuning/test_tp2_pp1"
           }
         }
       }
