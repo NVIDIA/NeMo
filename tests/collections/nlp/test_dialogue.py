@@ -473,31 +473,31 @@ def test_align_mention_to_tokens():
 @pytest.mark.unit
 def test_get_start_and_end_for_bio():
     bio_labels = torch.FloatTensor([1, 0, 0, 1, 2])
-    expected_output = [[0, 0], [3, 4]]
+    expected_output = [[0, 1], [3, 5]]
     actual_output = DialogueZeroShotSlotFillingModel.get_start_and_end_for_bio(bio_labels)
     assert expected_output == actual_output
 
     bio_labels = torch.FloatTensor([1, 2, 2, 0, 0])
-    expected_output = [[0, 2]]
+    expected_output = [[0, 3]]
     actual_output = DialogueZeroShotSlotFillingModel.get_start_and_end_for_bio(bio_labels)
     assert expected_output == actual_output
 
     bio_labels = torch.FloatTensor([2, 2, 1])
-    expected_output = [[2, 2]]
+    expected_output = [[2, 3]]
     actual_output = DialogueZeroShotSlotFillingModel.get_start_and_end_for_bio(bio_labels)
     assert expected_output == actual_output
 
     bio_labels = torch.FloatTensor([1, 0, 2, 2, 1])
-    expected_output = [[0, 0], [4, 4]]
+    expected_output = [[0, 1], [4, 5]]
     actual_output = DialogueZeroShotSlotFillingModel.get_start_and_end_for_bio(bio_labels)
     assert expected_output == actual_output
 
     bio_labels = torch.FloatTensor([0, 0, 2, 2, 1])
-    expected_output = [[4, 4]]
+    expected_output = [[4, 5]]
     actual_output = DialogueZeroShotSlotFillingModel.get_start_and_end_for_bio(bio_labels)
     assert expected_output == actual_output
 
     bio_labels = torch.FloatTensor([1, 1, 2, 2, 0])
-    expected_output = [[0, 0], [1, 3]]
+    expected_output = [[0, 1], [1, 4]]
     actual_output = DialogueZeroShotSlotFillingModel.get_start_and_end_for_bio(bio_labels)
     assert expected_output == actual_output
