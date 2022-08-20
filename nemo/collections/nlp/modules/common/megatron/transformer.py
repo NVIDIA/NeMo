@@ -1920,11 +1920,9 @@ class ParallelTransformer(MegatronModule):
 class AdapterParallelTransformer(ParallelTransformer, adapter_mixins.AdapterModuleMixin):
     def add_adapter(self, name: str, cfg):
         # call the same method on each layer, collecting results
-        print('PT DEB:')
         for layer in self.layers:
             layer.add_adapter(name, cfg)
-            print(name, cfg)
-
+            
     def get_enabled_adapters(self):
         enabled_adapters = set([])
         for layer in self.layers:

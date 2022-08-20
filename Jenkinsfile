@@ -3182,6 +3182,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
           }
         }
       }
+  }
     
 
     // TODO: Add this test back. Test was failing on CI machines due to HW error
