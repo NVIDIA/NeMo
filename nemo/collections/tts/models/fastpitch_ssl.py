@@ -30,7 +30,7 @@ from nemo.collections.tts.helpers.helpers import (
 from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
 from nemo.collections.tts.losses.fastpitchloss import DurationLoss, MelLoss, PitchLoss
 from nemo.collections.tts.models.base import SpectrogramGenerator
-from nemo.collections.tts.modules.fastpitch import FastPitchModule
+from nemo.collections.tts.modules.fastpitch import FastPitchModule, average_pitch
 from nemo.collections.tts.torch.tts_data_types import SpeakerID
 from nemo.core.classes import Exportable, ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
@@ -355,6 +355,53 @@ class FastPitchModel_SSL(ModelPT):
             wav_vocoded = self.vocode_spectrogram(spec_predict[:, :_spec_len])
             self.tb_logger.add_audio("Generated Audio", wav_vocoded, self.global_step, 22050)
             self.log_train_images = True
+
+    def synthesize_wav(
+        self, content_embedding, speaker_embedding, encoded_len=None, pitch_contour=None, compute_pitch=False
+    ):
+        """
+        content_embedding : (B, C, T)
+        speaker_embedding : (B, C)
+        pitch_contour : (B, T*4) (mel pitch) or None
+        compute_pitch: if true, predict pitch contour from content and speaker embedding.
+        """
+        _bs, _, _n_time = content_embedding.size()
+        if encoded_len is None:
+            encoded_len = (torch.ones(_bs) * _n_time).long()
+
+        enc_out = self.compute_encoding(content_embedding, speaker_embedding)
+        enc_mask = mask_from_lens(encoded_len)
+        durs = torch.ones_like(enc_mask) * 4.0
+        enc_mask = enc_mask[:, :, None]
+
+        if pitch_contour is not None and compute_pitch == False:
+            pitch = average_pitch(pitch_contour.unsqueeze(1), durs).squeeze(1)
+        else:
+            pitch = None
+
+        mels_pred, _, _, log_durs_pred, pitch_pred, _, _, _, attn_hard_dur, pitch = self(
+            text=None,
+            durs=durs,
+            pitch=pitch,
+            speaker=None,
+            pace=1.0,
+            spec=None,
+            attn_prior=None,
+            mel_lens=None,
+            input_lens=None,
+            enc_out=enc_out,
+            enc_mask=enc_mask,
+        )
+
+        wavs = []
+        for idx in range(_bs):
+            mel_pred = mels_pred[idx].data.cpu().float().numpy()
+            _mel_len = int(encoded_len[idx].item() * 4)
+            mel_pred = mel_pred[:, :_mel_len]
+            wav = self.vocode_spectrogram(mel_pred)
+            wavs.append(wav)
+
+        return wavs
 
     def __setup_dataloader_from_config(self, cfg):
         dataset = instantiate(cfg.dataset)
