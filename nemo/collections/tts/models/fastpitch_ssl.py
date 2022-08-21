@@ -22,7 +22,11 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
 
 from nemo.collections.common.parts.preprocessing import parsers
-from nemo.collections.tts.helpers.helpers import plot_alignment_to_numpy, plot_spectrogram_to_numpy
+from nemo.collections.tts.helpers.helpers import (
+    plot_multipitch_to_numpy,
+    plot_pitch_to_numpy,
+    plot_spectrogram_to_numpy,
+)
 from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
 from nemo.collections.tts.losses.fastpitchloss import DurationLoss, MelLoss, PitchLoss
 from nemo.collections.tts.models.base import SpectrogramGenerator
@@ -42,6 +46,7 @@ from nemo.core.neural_types.elements import (
 )
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging, model_utils
+
 
 def mask_from_lens(lens, max_len: Optional[int] = None):
     if max_len is None:
@@ -105,11 +110,11 @@ class FastPitchModel_SSL(ModelPT):
             cfg.pitch_embedding_kernel_size,
             cfg.n_mel_channels,
         )
-        
+
         self.vocoder = {
-            'vocoder' : vocoder,
+            'vocoder': vocoder,
         }
-    
+
     def vocode_spectrogram(self, spectrogram):
         # spec [C, T] numpy
         with torch.no_grad():
@@ -307,6 +312,8 @@ class FastPitchModel_SSL(ModelPT):
             "mel_target": mels if batch_idx == 0 else None,
             "mel_pred": mels_pred if batch_idx == 0 else None,
             "spec_len": spec_len if batch_idx == 0 else None,
+            "pitch_target": pitch if batch_idx == 0 else None,
+            "pitch_pred": pitch_pred if batch_idx == 0 else None,
         }
 
     def validation_epoch_end(self, outputs):
@@ -320,7 +327,7 @@ class FastPitchModel_SSL(ModelPT):
         self.log("v_dur_loss", dur_loss)
         self.log("v_pitch_loss", pitch_loss)
 
-        _, _, _, _, spec_target, spec_predict, spec_len = outputs[0].values()
+        _, _, _, _, spec_target, spec_predict, spec_len, pitch_target, pitch_pred = outputs[0].values()
 
         if isinstance(self.logger, TensorBoardLogger):
             self.tb_logger.add_image(
@@ -334,16 +341,19 @@ class FastPitchModel_SSL(ModelPT):
                 "val_mel_predicted", plot_spectrogram_to_numpy(spec_predict), self.global_step, dataformats="HWC",
             )
 
-            _spec_len = spec_len[0].data.cpu().item()
-            wav_vocoded = self.vocode_spectrogram(spec_target[0].data.cpu().float().numpy()[:,:_spec_len] )
-            self.tb_logger.add_audio(
-                "Real audio", wav_vocoded, self.global_step, 22050
+            _pitch_pred = pitch_pred[0].data.cpu().numpy()
+            _pitch_target = pitch_target[0].data.cpu().numpy()
+
+            self.tb_logger.add_image(
+                "val_pitch", plot_multipitch_to_numpy(_pitch_target, _pitch_pred), self.global_step, dataformats="HWC",
             )
 
-            wav_vocoded = self.vocode_spectrogram(spec_predict[:,:_spec_len])
-            self.tb_logger.add_audio(
-                "Generated Audio", wav_vocoded, self.global_step, 22050
-            )
+            _spec_len = spec_len[0].data.cpu().item()
+            wav_vocoded = self.vocode_spectrogram(spec_target[0].data.cpu().float().numpy()[:, :_spec_len])
+            self.tb_logger.add_audio("Real audio", wav_vocoded, self.global_step, 22050)
+
+            wav_vocoded = self.vocode_spectrogram(spec_predict[:, :_spec_len])
+            self.tb_logger.add_audio("Generated Audio", wav_vocoded, self.global_step, 22050)
             self.log_train_images = True
 
     def __setup_dataloader_from_config(self, cfg):

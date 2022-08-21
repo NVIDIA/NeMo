@@ -20,6 +20,7 @@ from nemo.collections.tts.torch.helpers import get_base_dir
 from nemo.core.classes import Dataset
 from nemo.utils import logging
 
+
 class SSLVocoderDataset(Dataset):
     def __init__(
         self,
@@ -164,9 +165,7 @@ class SSLVocoderDataset(Dataset):
             self.n_mels = 80
 
             self.fb = torch.tensor(
-                librosa.filters.mel(
-                    sr=self.sample_rate, n_fft=self.n_fft, n_mels=self.n_mels, fmin=0, fmax=8000
-                ),
+                librosa.filters.mel(sr=self.sample_rate, n_fft=self.n_fft, n_mels=self.n_mels, fmin=0, fmax=8000),
                 dtype=torch.float,
             ).unsqueeze(0)
 
@@ -336,7 +335,7 @@ class SSLVocoderDataset(Dataset):
         else:
             EPSILON = 1e-9
             window_fn = torch.hann_window
-            
+
             spec = torch.stft(
                 input=wav,
                 n_fft=self.n_fft,

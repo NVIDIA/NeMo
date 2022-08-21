@@ -239,7 +239,7 @@ class FastPitchModule(NeuralModule):
 
         log_durs_predicted = self.duration_predictor(enc_out, enc_mask)
         durs_predicted = torch.clamp(torch.exp(log_durs_predicted) - 1, 0, self.max_token_duration)
-        
+
         attn_soft, attn_hard, attn_hard_dur, attn_logprob = None, None, None, None
         if self.learn_alignment and spec is not None:
             text_emb = self.encoder.word_emb(text)
@@ -255,7 +255,7 @@ class FastPitchModule(NeuralModule):
                 pitch = average_pitch(pitch.unsqueeze(1), attn_hard_dur).squeeze(1)
             if pitch.shape[-1] != enc_out.shape[1]:
                 pitch = average_pitch(pitch.unsqueeze(1), durs).squeeze(1)
-                
+
             pitch_emb = self.pitch_emb(pitch.unsqueeze(1))
         else:
             pitch_emb = self.pitch_emb(pitch_predicted.unsqueeze(1))

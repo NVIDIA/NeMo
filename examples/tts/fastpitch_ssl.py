@@ -15,10 +15,10 @@
 import pytorch_lightning as pl
 
 from nemo.collections.common.callbacks import LogEpochTimeCallback
-from nemo.collections.tts.models import fastpitch_ssl
+from nemo.collections.tts.models import fastpitch_ssl, hifigan
 from nemo.core.config import hydra_runner
 from nemo.utils.exp_manager import exp_manager
-from nemo.collections.tts.models import hifigan
+
 
 @hydra_runner(config_path="conf", config_name="fastpitch_ssl")
 def main(cfg):
