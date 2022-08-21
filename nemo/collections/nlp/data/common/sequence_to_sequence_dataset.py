@@ -88,9 +88,9 @@ class SequenceToSequenceDataset(Dataset):
                 )
                 # Truncate to max sequence length.
                 if len(src) > self.max_src_seq_length:
-                    src = src[-self.max_src_seq_length + 1:]
+                    src = src[-self.max_src_seq_length + 1 :]
                 if len(tgt) > self.max_tgt_seq_length:
-                    tgt = tgt[-self.max_tgt_seq_length + 1:]
+                    tgt = tgt[-self.max_tgt_seq_length + 1 :]
                 self.examples.append({'src': src, 'tgt': tgt})
 
         logging.info(f'Dataset Length : {len(self.examples)}')

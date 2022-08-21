@@ -63,7 +63,7 @@ def main(cfg) -> None:
     for idx, callback in enumerate(trainer.callbacks):
         if isinstance(callback, Timer):
             trainer.callbacks[idx] = StatelessTimer(cfg.trainer.max_time,)
-    
+
     t5_cfg = MegatronT5GLUEModel.restore_from(
         restore_path=cfg.model.restore_from_path, trainer=trainer, return_config=True
     )
@@ -76,10 +76,14 @@ def main(cfg) -> None:
         t5_cfg.precision = cfg.trainer.precision
         # Overwrite data configs
         if cfg.model.data.validation_ds.src_file_name is not None:
-            logging.info('Found validation_ds.src_file_name in the config file. Overriding the finetuned model config file with the values from the new config file.')
+            logging.info(
+                'Found validation_ds.src_file_name in the config file. Overriding the finetuned model config file with the values from the new config file.'
+            )
             t5_cfg.data.validation_ds.src_file_name = cfg.model.data.validation_ds.src_file_name
         if cfg.model.data.validation_ds.tgt_file_name is not None:
-            logging.info('Found validation_ds.tgt_file_name in the config file. Overriding the finetuned model config file with the values from the new config file.')
+            logging.info(
+                'Found validation_ds.tgt_file_name in the config file. Overriding the finetuned model config file with the values from the new config file.'
+            )
             t5_cfg.data.validation_ds.src_file_name = cfg.model.data.validation_ds.src_file_name
 
         t5_cfg.data.validation_ds.micro_batch_size = cfg.model.data.validation_ds.micro_batch_size
