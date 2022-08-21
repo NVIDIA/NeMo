@@ -37,11 +37,13 @@ class PunctCapSegDataset(Dataset):
     ) -> None:
         super().__init__()
         self._language = language
-        self._tokenizer = tokenizer
         self._target_pad_value = target_pad_value
         # If not explicitly set, make the inference.
         self._is_continuous = is_continuous if (is_continuous is not None) else (language in {"zh", "ja", "my"})
         self._rng_seed = rng_seed
+
+        self._max_token_len = 0
+        self._tokenizer = tokenizer
 
     @property
     def tokenizer(self) -> TokenizerSpec:
@@ -50,6 +52,8 @@ class PunctCapSegDataset(Dataset):
     @tokenizer.setter
     def tokenizer(self, tokenizer: TokenizerSpec):
         self._tokenizer = tokenizer
+        if tokenizer is not None:
+            self._max_token_len = max(len(x) for x in self.tokenizer.vocab)
         self._on_tokenizer_set()
 
     @abc.abstractmethod
@@ -71,9 +75,9 @@ class PunctCapSegDataset(Dataset):
             "punc_input_ids": NeuralType(("B", "T"), TokenIndex()),
             "cap_input_ids": NeuralType(("B", "T"), TokenIndex()),
             "seg_input_ids": NeuralType(("B", "T"), TokenIndex()),
-            "punc_pre_target_ids": NeuralType(("B", "T"), TokenIndex()),
-            "punc_post_target_ids": NeuralType(("B", "T"), TokenIndex()),
-            "cap_target_ids": NeuralType(("B", "T"), TokenIndex()),
+            "punc_pre_target_ids": NeuralType(("B", "T", "D"), TokenIndex()),  # D == max_subtoken_len
+            "punc_post_target_ids": NeuralType(("B", "T", "D"), TokenIndex()),  # D == max_subtoken_len
+            "cap_target_ids": NeuralType(("B", "T", "D"), TokenIndex()),  # D == max_subtoken_len
             "seg_target_ids": NeuralType(("B", "T"), TokenIndex()),
             "punct_lengths": NeuralType(("B",), LengthsType()),
             "cap_lengths": NeuralType(("B",), LengthsType()),
@@ -114,14 +118,23 @@ class PunctCapSegDataset(Dataset):
             seg_input_ids[i, :seg_lengths[i]] = seg_inputs[i]
 
         # Create empty target tensors and fill non-padded regions
-        punct_pre_targets = torch.full(size=[batch_size, punct_lengths.max()], fill_value=self._target_pad_value)
-        punct_post_targets = torch.full(size=[batch_size, punct_lengths.max()], fill_value=self._target_pad_value)
-        cap_targets = torch.full(size=[batch_size, cap_lengths.max()], fill_value=self._target_pad_value)
+        punct_pre_targets = torch.full(
+            size=[batch_size, punct_lengths.max(), self._max_token_len],
+            fill_value=self._target_pad_value
+        )
+        punct_post_targets = torch.full(
+            size=[batch_size, punct_lengths.max(), self._max_token_len],
+            fill_value=self._target_pad_value
+        )
+        cap_targets = torch.full(
+            size=[batch_size, cap_lengths.max(), self._max_token_len],
+            fill_value=self._target_pad_value
+        )
         seg_targets = torch.full(size=[batch_size, seg_lengths.max()], fill_value=self._target_pad_value)
         for i in range(batch_size):
-            punct_pre_targets[i, :punct_lengths[i]] = punct_pre_targets_list[i]
-            punct_post_targets[i, :punct_lengths[i]] = punct_post_targets_list[i]
-            cap_targets[i, :cap_lengths[i]] = cap_targets_list[i]
+            punct_pre_targets[i, :punct_lengths[i], :] = punct_pre_targets_list[i]
+            punct_post_targets[i, :punct_lengths[i], :] = punct_post_targets_list[i]
+            cap_targets[i, :cap_lengths[i], :] = cap_targets_list[i]
             seg_targets[i, :seg_lengths[i]] = seg_targets_list[i]
 
         return (
@@ -264,13 +277,85 @@ class ChineseTextCleaner(TextCleaner):
         if self._replace_latin:
             # Replace latin punctuation with Chinese.
             text = re.sub(r"\?", "？", text)
-            text = re.sub(r",", "，", text)
-            text = re.sub(r"[\\.．]", "。", text)
+            # Allow latin comma in numbers
+            text = re.sub(r"(?<=\D),(?=\D)", "，", text)
+            # Only swap periods if they are at the end of a sentence; else assume they are not full stops.
+            text = re.sub(r"[\\.．]$", "。", text)
             text = re.sub(r"!", "！", text)
         if self._no_enum_comma:
             # Replace the enumeration comma with regular comma. The former and latter are often used interchangeably in
             # raw data, so it is difficult or impossible to learn the enumeration comma.
             text = re.sub(r"、", "，", text)
+        return text
+
+
+class JapaneseTextCleaner(TextCleaner):
+    """Text cleaner for Japanese.
+
+    Args:
+        remove_spaces: If True, remove all spaces from the text.
+        replace_latin: If true, replace all instances of latin punctuation with the analogous Chinese token. E.g.,
+            replace all instances of '.' with '。'
+
+    """
+    def __init__(
+            self,
+            remove_spaces: bool = True,
+            replace_latin: bool = True,
+    ) -> None:
+        self._remove_spaces = remove_spaces
+        self._replace_latin = replace_latin
+
+    def clean(self, text: str) -> str:
+        if self._remove_spaces:
+            text = re.sub(r"\s+", "", text)
+        if self._replace_latin:
+            # Replace latin punctuation with Chinese.
+            text = re.sub(r"\?", "？", text)
+            text = re.sub(r"!", "！", text)
+            # Allow latin comma within numbers
+            text = re.sub(r"(?<=\D),(?=\D)", "，", text)
+            text = re.sub(r"[\\.．]$", "。", text)
+        return text
+
+
+class ArabicTextCleaner(TextCleaner):
+    """Text cleaner for Arabic.
+
+    Args:
+        replace_latin: If true, replace all instances of latin punctuation with the analogous Arabic token. E.g.,
+            replace all instances of '?' with '؟'
+
+    """
+    def __init__(
+            self,
+            replace_latin: bool = True,
+    ) -> None:
+        self._replace_latin = replace_latin
+
+    def clean(self, text: str) -> str:
+        if self._replace_latin:
+            # Replace latin punctuation with Arabic equivalent (reversed '?' and ',').
+            text = re.sub(r"\?", "؟", text)
+            text = re.sub(r",", "،", text)
+        return text
+
+
+class HindiTextCleaner(TextCleaner):
+    def __init__(
+            self,
+            no_double_danda: bool = True,
+            replace_latin: bool = True,
+    ) -> None:
+        self._no_double_danda = no_double_danda
+        self._replace_latin = replace_latin
+
+    def clean(self, text: str) -> str:
+        if self._no_double_danda:
+            text = re.sub(r"॥", "।", text)
+        if self._replace_latin:
+            # If a sentence ends with a period, replace it. Assume other periods are not full stops.
+            text = re.sub(r"\.$", "।", text)
         return text
 
 
@@ -296,12 +381,14 @@ class PuncTargetsGenerator(abc.ABC):
             post_labels: List[str],
             pre_labels: List[str],
             null_label: str = "<NULL>",
+            ignore_index: int = -100,
             p_drop: float = 0.9,
             rng_seed: Optional[int] = None
     ) -> None:
         self._p_drop = p_drop
         self._null_label = null_label
         self._rng_seed = rng_seed
+        self._ignore_index = ignore_index
 
         self._pre_label_to_index = {label: i for i, label in enumerate(pre_labels)}
         self._post_label_to_index = {label: i for i, label in enumerate(post_labels)}
@@ -313,6 +400,9 @@ class PuncTargetsGenerator(abc.ABC):
         self._joint_labels = self._pre_labels | self._post_labels
         self._rng = np.random.default_rng(seed=rng_seed)
         self._tokenizer = tokenizer
+        self._max_token_len = None
+        if tokenizer is not None:
+            self._max_token_len = max(len(x) for x in self.tokenizer.vocab)
 
     @property
     def tokenizer(self) -> TokenizerSpec:
@@ -321,6 +411,8 @@ class PuncTargetsGenerator(abc.ABC):
     @tokenizer.setter
     def tokenizer(self, tokenizer: TokenizerSpec):
         self._tokenizer = tokenizer
+        if tokenizer is not None:
+            self._max_token_len = max(len(x) for x in self.tokenizer.vocab)
 
     def reseed_rng(self) -> None:
         self._rng = np.random.default_rng(seed=self._rng_seed)
@@ -393,55 +485,109 @@ class BasicPuncTargetsGenerator(PuncTargetsGenerator):
 
     """
 
-    def generate_targets(self, input_text: str) -> Tuple[List[str], List[int], List[int]]:
-        tokens: List[str] = self._tokenizer.text_to_tokens(input_text)
-        # Find all punctuation indices. The [-1] index is for subwords that may be preceeded by _ or ##
-        # Don't care about pre-tokens because not expecting them with this language.
-        punc_indices = [i for i in range(len(tokens)) if tokens[i] in self._post_labels]
-        # Don't allow 2 consecutive tokens to be dropped, since we predict whether the current subword is punctuated
-        # and this situation would cause errors (although this is probably avoided by proper cleaning)
-        ignore_indices = []
-        for idx in punc_indices:
-            if idx + 1 in punc_indices:
-                ignore_indices.append(idx)
-        # todo squash the above nested loop into a one liner here
-        punc_indices = [x for x in punc_indices if x not in ignore_indices]
-        # Randomly select which ones to drop
-        indices_to_drop = [i for i in punc_indices if self._rng.random() <= self._p_drop]
-        output_length = len(tokens) - len(indices_to_drop)
-        pre_targets = [self._pre_null_index] * output_length
-        post_targets = [self._post_null_index] * output_length
-        num_dropped_so_far = 0
-        for i, drop_idx in enumerate(indices_to_drop):
-            post_targets[drop_idx - num_dropped_so_far - 1] = self._post_label_to_index[tokens[drop_idx]]
-            num_dropped_so_far += 1
-        out_tokens = [x for i, x in enumerate(tokens) if i not in indices_to_drop]
-        return out_tokens, pre_targets, post_targets
+    def generate_targets(self, input_text: str) -> Tuple[List[str], List[List[int]], List[List[int]]]:
+        # First, remove all punctuation tokens and track the char index
+        # Normalize whitespaces
+        input_text = re.sub(r"\s+", " ", input_text)
+        new_chars = []
+        index_to_char: Dict[int, str] = {}
+        non_whitespace_index = 0
+        for char in input_text:
+            if char in self._post_labels:
+                index_to_char[non_whitespace_index - 1] = char
+            else:
+                new_chars.append(char)
+                if char != " ":
+                    non_whitespace_index += 1
+        unpunct_str = "".join(new_chars)
+
+        # Tokenize the unpunctuated string
+        tokens: List[str] = self._tokenizer.text_to_tokens(unpunct_str)
+
+        # For each subtoken, generate a target with shape [num_tokens, max_token_length]
+        pre_targets = []
+        post_targets = []
+        global_char_index = 0
+        for token_num, token in enumerate(tokens):
+            token_post_targets = [self._ignore_index] * self._max_token_len
+            skip = 0
+            if token.startswith("_"):
+                skip = 1
+            elif token.startswith("##"):
+                skip = 2
+            for i in range(skip, len(token)):
+                if global_char_index in index_to_char:
+                    target_token = index_to_char[global_char_index]
+                    token_post_targets[i] = self._post_label_to_index[target_token]
+                else:
+                    token_post_targets[i] = self._post_null_index
+                global_char_index += 1
+
+            post_targets.append(token_post_targets)
+
+            # Pre targets are ignore everywhere except valid chars, which are null punctuation.
+            token_pre_targets = [self._ignore_index] * self._max_token_len
+            for i in range(skip, len(token)):
+                token_pre_targets[i] = self._pre_null_index
+            pre_targets.append(token_pre_targets)
+
+        return tokens, pre_targets, post_targets
 
 
 class SpanishPuncTargetsGenerator(PuncTargetsGenerator):
     """Punctuation example generator for Spanish and Asturian.
 
     """
-    def generate_targets(self, input_text: str) -> Tuple[List[str], List[int], List[int]]:
-        tokens: List[str] = self._tokenizer.text_to_tokens(input_text)
-        # Find all punctuation indices. Indexing -1 allows for HF-style tokenization, e.g., '##.'.
-        punc_indices = [i for i in range(len(tokens)) if tokens[i] in self._joint_labels]
-        # Randomly select which ones to drop
-        indices_to_drop = [i for i in punc_indices if self._rng.random() <= self._p_drop]
-        output_length = len(tokens) - len(indices_to_drop)
-        pre_targets = [self._pre_null_index] * output_length
-        post_targets = [self._post_null_index] * output_length
-        num_dropped_so_far = 0
-        for i, drop_idx in enumerate(indices_to_drop):
-            token = tokens[drop_idx]
-            if token in self._pre_labels:
-                pre_targets[drop_idx - num_dropped_so_far] = self._pre_label_to_index[token]
+    def generate_targets(self, input_text: str) -> Tuple[List[str], List[List[int]], List[List[int]]]:
+        # First, remove all punctuation tokens and track the char index
+        # Normalize whitespaces
+        input_text = re.sub(r"\s+", " ", input_text)
+        new_chars = []
+        index_to_post_token: Dict[int, str] = {}
+        index_to_pre_token: Dict[int, str] = {}
+        non_whitespace_index = 0
+        for char in input_text:
+            if char in self._post_labels:
+                index_to_post_token[non_whitespace_index - 1] = char
+            elif char in self._pre_labels:
+                index_to_pre_token[non_whitespace_index - 1] = char
             else:
-                post_targets[drop_idx - num_dropped_so_far - 1] = self._post_label_to_index[token[-1]]
-            num_dropped_so_far += 1
-        out_tokens = [x for i, x in enumerate(tokens) if i not in indices_to_drop]
-        return out_tokens, pre_targets, post_targets
+                new_chars.append(char)
+                if char != " ":
+                    non_whitespace_index += 1
+        unpunct_str = "".join(new_chars)
+
+        # Tokenize the unpunctuated string
+        tokens: List[str] = self._tokenizer.text_to_tokens(unpunct_str)
+
+        # For each subtoken, generate a target with shape [num_tokens, max_token_length]
+        pre_targets = []
+        post_targets = []
+        global_char_index = 0
+        for token_num, token in enumerate(tokens):
+            token_post_targets = [self._ignore_index] * self._max_token_len
+            token_pre_targets = [self._ignore_index] * self._max_token_len
+            skip = 0
+            if token.startswith("_"):
+                skip = 1
+            elif token.startswith("##"):
+                skip = 2
+            for i in range(skip, len(token)):
+                if global_char_index in index_to_post_token:
+                    target_token = index_to_post_token[global_char_index]
+                    token_post_targets[i] = self._post_label_to_index[target_token]
+                elif global_char_index - 1 in index_to_pre_token:
+                    target_token = index_to_pre_token[global_char_index - 1]
+                    token_pre_targets[i] = self._pre_label_to_index[target_token]
+                else:
+                    token_post_targets[i] = self._post_null_index
+                    token_pre_targets[i] = self._post_null_index
+                global_char_index += 1
+
+            post_targets.append(token_post_targets)
+            pre_targets.append(token_pre_targets)
+
+        return tokens, pre_targets, post_targets
 
 
 class CapTargetsGenerator:
@@ -449,34 +595,17 @@ class CapTargetsGenerator:
 
     Args:
         tokenizer: TokenizerSpec. Can be null during init, but must be set before processing text.
-        prob_all_lower: With this probability, lower-case the entire input example. For practical purposes, we want most
-            examples all lower-cased.
-        prob_all_upper: With this probability, upper-case the entire input example.
-        prob_char_lower: Lower-case characters on a char-by-char basis with this probability, if the entire input
-            example was not upper- or lower-cased already.
-        prob_char_upper: Upper-case characters on a char-by-char basis with this probability, if the entire input
-            example was not upper- or lower-cased already.
-        rng_seed: Seed for the PRNG, used when choosing whether to upper- or lower-case the inputs.
     """
     def __init__(
             self,
             tokenizer: Optional[TokenizerSpec],
-            prob_all_lower: float = 1.0,
-            prob_all_upper: float = 0.05,
-            prob_char_lower: float = 0.9,
-            prob_char_upper: float = 0.05,
-            ignore_idx: int = -100,
-            rng_seed: Optional[int] = None
+            ignore_idx: int = -100
     ) -> None:
-        self._prob_all_lower = prob_all_lower
-        self._prob_all_upper = prob_all_upper
-        self._prob_char_lower = prob_char_lower
-        self._prob_char_upper = prob_char_upper
         self._ignore_idx = ignore_idx
-        self._whitespace_regex = re.compile(r"\s+")
-        self._rng_seed = rng_seed
-        self._rng = np.random.default_rng(seed=rng_seed) if rng_seed is not None else None
         self._tokenizer = tokenizer
+        self._max_token_len = 0
+        if self._tokenizer is not None:
+            self._max_token_len = max(len(x) for x in self.tokenizer.vocab)
 
     @property
     def tokenizer(self) -> TokenizerSpec:
@@ -485,42 +614,12 @@ class CapTargetsGenerator:
     @tokenizer.setter
     def tokenizer(self, tokenizer: TokenizerSpec):
         self._tokenizer = tokenizer
-
-    def reseed_rng(self):
-        self._rng = np.random.default_rng(seed=self._rng_seed)
+        self._max_token_len = max(len(x) for x in self.tokenizer.vocab)
 
     def _char_is_uncased(self, char: str):
         return char.lower() == char.upper()
 
-    def _recase_str(self, input_text: str):
-        """Randomly re-cases the case of the input text"""
-        rng = self._rng if self._rng is not None else np.random.default_rng()
-        val = rng.random()
-        lower_all = val <= self._prob_all_lower
-        upper_all = self._prob_all_lower <= val <= self._prob_all_lower + self._prob_all_upper
-        recased_chars = []
-        for char in list(input_text):
-            # Some chars convert to 2 when re-cased. Ignore these, for now, to maintain alignment.
-            if len(char.lower()) != len(char.upper()):
-                new_char = char
-            elif lower_all:
-                new_char = char.lower()
-            elif upper_all:
-                new_char = char.upper()
-            else:
-                # In this branch, re-case each char randomly
-                val = rng.random()
-                if val < self._prob_char_lower:
-                    new_char = char.lower()
-                elif val < self._prob_char_lower + self._prob_char_upper:
-                    new_char = char.upper()
-                else:
-                    new_char = char
-            recased_chars.append(new_char)
-        recased_text = "".join(recased_chars)
-        return recased_text
-
-    def generate_targets(self, input_text: str) -> Tuple[List[int], List[int]]:
+    def generate_targets(self, input_text: str) -> Tuple[List[int], List[List[int]]]:
         """Randomly re-cased the input text for inputs, and generates targets which matches the input.
 
         Args:
@@ -531,54 +630,33 @@ class CapTargetsGenerator:
             each input id. ``targets[i][j]`` contains the target in {0, 1} for letter j of subtoken i
 
         """
-        uncased_tokens = self._tokenizer.text_to_tokens(input_text)
-
-        # Decide if entire input will be upper- or lower-cased, or neither
-        rng = self._rng if self._rng is not None else np.random.default_rng()
-        val = rng.random()
-        lower_all = val < self._prob_all_lower
-        upper_all = self._prob_all_lower <= val <= self._prob_all_lower + self._prob_all_upper
-
-        # Generate targets for each char in input str
-        input_ids: List[int] = []
-        targets = [self._ignore_idx] * len(uncased_tokens)
-        for i, uncased_token in enumerate(uncased_tokens):
-            # Get the ID
-            uncased_id = self._tokenizer.tokens_to_ids([uncased_token])[0]
-            # If OOV or uncased, target is ignore_index, input is raw token
-            if uncased_id == self._tokenizer.unk_id or self._char_is_uncased(uncased_token):
-                input_ids.append(uncased_id)
+        input_chars: List[str] = list(re.sub(r"\s+", "", input_text))
+        lower_tokens = self._tokenizer.text_to_tokens(input_text.lower())
+        lower_ids = self._tokenizer.tokens_to_ids(lower_tokens)
+        targets: List[List[int]] = []
+        char_index = 0
+        for token, token_id in zip(lower_tokens, lower_ids):
+            token_targets = [self._ignore_idx] * self._max_token_len
+            if token_id == self._tokenizer.unk_id:
+                char_index += 1
+                targets.append(token_targets)
                 continue
+            skip = 0
+            if token.startswith("_"):
+                skip = 1
+            elif token.startswith("##"):
+                skip = 2
+            for i in range(skip, len(token)):
+                char = input_chars[char_index]
+                if not self._char_is_uncased(char):
+                    if char.isupper():
+                        token_targets[i] = 1
+                    else:
+                        token_targets[i] = 0
+                char_index += 1
+            targets.append(token_targets)
 
-            # Some chars convert to 2 chars when upper- or lower-cased, e.g., "ß".upper() == 'SS'. Skip these for now.
-            if len(uncased_token.lower()) != len(uncased_token.upper()):
-                # Don't mess with input
-                input_ids.append(uncased_id)
-                # If this char does have a case, put it in the targets
-                if uncased_token.islower():
-                    targets[i] = 0
-                elif uncased_token.isupper():
-                    targets[i] = 1
-                continue
-
-            # Maybe upper- or lower-case this char and mark the input
-            if lower_all:
-                recased_token = uncased_token.lower()
-            elif upper_all:
-                recased_token = uncased_token.upper()
-            else:
-                # In this branch, re-case each char randomly
-                val = rng.random()
-                if val < self._prob_char_lower:
-                    recased_token = uncased_token.lower()
-                elif val < self._prob_char_lower + self._prob_char_upper:
-                    recased_token = uncased_token.upper()
-                else:
-                    recased_token = uncased_token
-            input_ids.append(self._tokenizer.tokens_to_ids([recased_token])[0])
-            target_val = 1 if uncased_token.isupper() else 0
-            targets[i] = target_val
-        return input_ids, targets
+        return lower_ids, targets
 
 
 class SegTargetsGenerator:
@@ -633,12 +711,13 @@ class SegTargetsGenerator:
             if rng.random() < self._prob_lower_case:
                 text = text.lower()
             input_tokens = self._tokenizer.text_to_tokens(text)
-            if self._is_continuous and i > 0:
-                # For continuous languages, if we're concatenating this sentence, hide the information that implies
-                # beginning-of-word. Assume SP for now
-                if input_tokens[0] != "▁":
-                    raise ValueError(f"Trying to hide BOW marker; expected '▁' but got '{input_tokens[0]}'")
-                input_tokens = input_tokens[1:]
+            # TODO for now it doesn't matter because BertTokenizer tokenizes Chinese
+            # if self._is_continuous and i > 0:
+            #     # For continuous languages, if we're concatenating this sentence, hide the information that implies
+            #     # beginning-of-word. Assume SP for now
+            #     if input_tokens[0] != "▁":
+            #         raise ValueError(f"Trying to hide BOW marker; expected '▁' but got '{input_tokens[0]}'")
+            #     input_tokens = input_tokens[1:]
             next_seg_input_ids = self._tokenizer.tokens_to_ids(input_tokens)
             input_ids.extend(next_seg_input_ids)
             # Final token is a sentence boundary, all else are not.
@@ -811,6 +890,8 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
             prob_lower_case=self._prob_lower_case,
             ignore_idx=target_pad_value
         )
+        if self._tokenizer is not None:
+            self._on_tokenizer_set()
 
     def create_tarred_dataset(self, output_dir: str):
         raise NotImplementedError(
@@ -822,6 +903,7 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
         self._cap_targets_gen.tokenizer = self._tokenizer
         self._seg_targets_gen.tokenizer = self._tokenizer
         self._punct_targets_gen.tokenizer = self._tokenizer
+        self._max_token_len = max(len(x) for x in self.tokenizer.vocab)
 
     def reseed_rng(self):
         """Used by validation DS to get same evaluation examples each epoch"""
@@ -830,8 +912,6 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
         if worker_info is not None:
             seed = worker_info.id + (seed if seed is not None else 0)
         self._rng = np.random.default_rng(seed=seed) if seed is not None else None
-        self._punct_targets_gen.reseed_rng()
-        self._cap_targets_gen.reseed_rng()
 
     def _load_data(self, text_files) -> List[str]:
         # Create a set of all legitimate punctuation labels, to filter sentences that do not end with punctuation.
@@ -845,7 +925,7 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
         for text_file in text_files:
             with open(text_file) as f:
                 num_lines_from_file = 0
-                for i, line in enumerate(f):
+                for line in f:
                     if (
                             self._max_line_per_input_file is not None and
                             num_lines_from_file >= self._max_line_per_input_file
@@ -902,6 +982,7 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
         bos = self._tokenizer.bos_id
         eos = self._tokenizer.eos_id
         pad = self._target_pad_value
+        pad_list = [[pad] * self._max_token_len]
 
         # Randomly choose how many additional lines to use
         num_lines_to_concat = rng.integers(self._min_lines_per_eg - 1, self._max_lines_per_eg)
@@ -918,7 +999,7 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
             cap_targets = cap_targets[:self._max_length - 2]
         # Add BOS/EOS and target padding for those tokens.
         cap_input_ids = [bos] + cap_input_ids + [eos]
-        cap_targets = [pad] + cap_targets + [pad]
+        cap_targets = pad_list + cap_targets + pad_list
 
         # For segmentation and punctuation, we use lower-case text for most examples
         if rng.random() < self._prob_lower_case:
@@ -938,8 +1019,8 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
             punct_pre_targets = punct_pre_targets[:self._max_length - 2]
             punct_post_targets = punct_post_targets[:self._max_length - 2]
         punct_input_ids = [bos] + punct_input_ids + [eos]
-        punct_pre_targets = [pad] + punct_pre_targets + [pad]
-        punct_post_targets = [pad] + punct_post_targets + [pad]
+        punct_pre_targets = pad_list + punct_pre_targets + pad_list
+        punct_post_targets = pad_list + punct_post_targets + pad_list
 
         # Make segmentation targets.
         seg_input_ids, seg_targets = self._seg_targets_gen.generate_targets(input_texts=texts_to_use)
@@ -959,8 +1040,8 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
             if max_truncate > 1:
                 truncate_num_tokens = rng.integers(low=2, high=max_truncate)
                 punct_input_ids = punct_input_ids[:-(truncate_num_tokens + 1)] + [eos]
-                punct_pre_targets = punct_pre_targets[:-(truncate_num_tokens + 1)] + [pad]
-                punct_post_targets = punct_post_targets[:-(truncate_num_tokens + 1)] + [pad]
+                punct_pre_targets = punct_pre_targets[:-(truncate_num_tokens + 1)] + pad_list
+                punct_post_targets = punct_post_targets[:-(truncate_num_tokens + 1)] + pad_list
 
         # Convert to Tensors
         punct_input_tensor = torch.tensor(punct_input_ids, dtype=torch.long)

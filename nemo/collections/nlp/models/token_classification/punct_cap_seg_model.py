@@ -45,27 +45,28 @@ class PunctCapSegModel(NLPModel):
         # Used for loss masking. Should by synchronized with data sets.
         self._ignore_idx: int = self._cfg.get("ignore_idx", -100)
 
+        self._max_token_len = max(len(x) for x in self.tokenizer.vocab)
+
         # All logits are shape [B, T, D]
         self._punct_pre_loss: CrossEntropyLoss = CrossEntropyLoss(
             weight=cfg.loss.punct_pre.get("weight"),
             ignore_index=self._ignore_idx,
-            logits_ndim=3
+            logits_ndim=4
         )
         self._punct_post_loss: CrossEntropyLoss = CrossEntropyLoss(
             weight=cfg.loss.punct_post.get("weight"),
             ignore_index=self._ignore_idx,
-            logits_ndim=3
+            logits_ndim=4
         )
+        # TODO why not BCE for a 2-class problem?
         self._seg_loss: CrossEntropyLoss = CrossEntropyLoss(
             weight=cfg.loss.seg.get("weight"),
             ignore_index=self._ignore_idx,
             logits_ndim=3
         )
         # For true-casing, we use multi-label classification to predict for each char in a subword
-        self._cap_loss: CrossEntropyLoss = CrossEntropyLoss(
-            weight=cfg.loss.cap.get("weight"),
-            ignore_index=self._ignore_idx,
-            logits_ndim=3
+        self._cap_loss: nn.BCEWithLogitsLoss = nn.BCEWithLogitsLoss(
+            pos_weight=None  # torch.tensor(cfg.loss.cap["weight"]) if "weight" in cfg.loss.cap else None
         )
         # Weights can be specified in punct{-pre,-post}, cap, seg order.
         self._agg_loss = AggregatorLoss(num_inputs=4, weights=cfg.get("agg_loss_weights"))
@@ -78,7 +79,7 @@ class PunctCapSegModel(NLPModel):
             dropout=cfg.punct_head_pre.get("dropout", 0.1),
             activation="relu",
             log_softmax=False,
-            num_classes=len(self._punct_pre_labels)
+            num_classes=len(self._punct_pre_labels) * self._max_token_len
         )
         self._punct_head_post: TokenClassifier = TokenClassifier(
             hidden_size=self.hidden_size,
@@ -87,7 +88,7 @@ class PunctCapSegModel(NLPModel):
             dropout=cfg.punct_head_post.get("dropout", 0.1),
             activation="relu",
             log_softmax=False,
-            num_classes=len(self._punct_post_labels)
+            num_classes=len(self._punct_post_labels) * self._max_token_len
         )
         self._seg_head: TokenClassifier = TokenClassifier(
             hidden_size=self.hidden_size,
@@ -105,7 +106,7 @@ class PunctCapSegModel(NLPModel):
             dropout=cfg.cap_head.get("dropout", 0.1),
             activation="relu",
             log_softmax=False,
-            num_classes=2
+            num_classes=self._max_token_len
         )
 
         # Set each dataset's tokenizer. Model's tokenizer doesn't exist until we initialize BertModule, but datasets are
@@ -286,16 +287,28 @@ class PunctCapSegModel(NLPModel):
             punct_encoded = punct_encoded[0]
             cap_encoded = cap_encoded[0]
             seg_encoded = seg_encoded[0]
-        # All logits are shape [B, T, D]
+        # [B, T, D * max_token_len]
         punct_pre_logits = self._punct_head_pre(hidden_states=punct_encoded)
         punct_post_logits = self._punct_head_post(hidden_states=punct_encoded)
         cap_logits = self._cap_head(hidden_states=cap_encoded)
+        # [B, T, max_token_len]
         seg_logits = self._seg_head(hidden_states=seg_encoded)
 
+        # Unfold the logits to match the targets: [B, T, max_chars_per_token, C]
+        punct_pre_logits = punct_pre_logits.view([*punct_pre_logits.shape[:-1], -1, len(self._punct_pre_labels)])
+        punct_post_logits = punct_post_logits.view([*punct_post_logits.shape[:-1], -1, len(self._punct_post_labels)])
+
+        # Compute losses
         punct_pre_loss = self._punct_pre_loss(logits=punct_pre_logits, labels=punct_pre_targets)
         punct_post_loss = self._punct_post_loss(logits=punct_post_logits, labels=punct_post_targets)
         seg_loss = self._seg_loss(logits=seg_logits, labels=seg_targets)
-        cap_loss = self._cap_loss(logits=cap_logits, labels=cap_targets)
+        # If all elements are uncased, BCE returns nan. So set to zero if no targets (ja, zh, hi, etc.).
+        cap_mask = cap_targets.ne(self._ignore_idx)
+        if cap_mask.any():
+            cap_loss = self._cap_loss(input=cap_logits[cap_mask], target=cap_targets[cap_mask].float())
+        else:
+            # Dimensionless 0.0 like cap_logits
+            cap_loss = cap_logits.new_zeros(1).squeeze()
 
         loss = self._agg_loss.forward(loss_1=punct_pre_loss, loss_2=punct_post_loss, loss_3=cap_loss, loss_4=seg_loss)
 
@@ -321,7 +334,7 @@ class PunctCapSegModel(NLPModel):
         punct_post_mask = punct_post_targets.ne(self._ignore_idx)
         punct_post_preds = punct_post_logits.argmax(dim=-1)
         cap_mask = cap_targets.ne(self._ignore_idx)
-        cap_preds = cap_logits.argmax(dim=-1)
+        cap_preds = cap_logits[cap_mask].sigmoid().gt(0.5)
         seg_mask = seg_targets.ne(self._ignore_idx)
         seg_preds = seg_logits.argmax(dim=-1)
 
@@ -331,7 +344,7 @@ class PunctCapSegModel(NLPModel):
         metrics["loss"](loss=loss, num_measurements=num_targets)
         metrics["punct_pre_report"](punct_pre_preds[punct_pre_mask], punct_pre_targets[punct_pre_mask])
         metrics["punct_post_report"](punct_post_preds[punct_post_mask], punct_post_targets[punct_post_mask])
-        metrics["cap_report"](cap_preds[cap_mask], cap_targets[cap_mask])
+        metrics["cap_report"](cap_preds, cap_targets[cap_mask])
         metrics["seg_report"](seg_preds[seg_mask], seg_targets[seg_mask])
 
     def _get_language_for_dl_idx(self, idx: int, mode: Mode) -> str:
@@ -400,12 +413,14 @@ class PunctCapSegModel(NLPModel):
     def predict_dataloader(self):
         pass
 
-    def infer_punctuation(self, texts: List[str], threshold: float = 0.5) -> List[str]:
+    @torch.inference_mode()
+    def infer_punctuation(self, texts: List[str], threshold: float = 0.0) -> List[str]:
         bos = self.tokenizer.bos_id
         eos = self.tokenizer.eos_id
         token_ids_list: List[List[int]] = [
-            [bos] + self.tokenizer.text_to_ids(text) + [eos] for text in texts
+            [bos] + [x for x in self.tokenizer.text_to_ids(text)] + [eos] for text in texts
         ]
+        # TODO wrap inputs for length > max_length
         lengths = torch.tensor([len(ids) for ids in token_ids_list], dtype=torch.long)
         batch_size = len(texts)
         max_len = lengths.max().item()
@@ -421,13 +436,18 @@ class PunctCapSegModel(NLPModel):
         encoded: torch.Tensor = self.bert_model(
             input_ids=input_ids,  attention_mask=mask, token_type_ids=torch.zeros_like(input_ids)
         )
+        # [B, T, D * max_token_len]
         pre_logits = self._punct_head_pre(hidden_states=encoded)
         post_logits = self._punct_head_post(hidden_states=encoded)
+        # [B, T, D * max_token_len] -> [B, T, max_token_len, D]
+        pre_logits = pre_logits.view([*pre_logits.shape[:-1], -1, len(self._punct_pre_labels)])
+        post_logits = post_logits.view([*post_logits.shape[:-1], -1, len(self._punct_post_labels)])
+
         pre_probs = pre_logits.softmax(dim=-1)
         post_probs = post_logits.softmax(dim=-1)
         # Zero-out the null index, we don't care.
-        pre_probs[..., self._null_punct_pre_index] = -1.
-        post_probs[..., self._null_punct_post_index] = -1.
+        # pre_probs[..., self._null_punct_pre_index] = -1.
+        # post_probs[..., self._null_punct_post_index] = -1.
         # Select the highest-scoring value
         pre_scores, pre_preds = pre_probs.max(dim=-1)
         post_scores, post_preds = post_probs.max(dim=-1)
@@ -439,28 +459,48 @@ class PunctCapSegModel(NLPModel):
 
         output_texts: List[str] = []
         for batch_idx in range(batch_size):
+            # Add punctuation to the input because the HF tokenizer produces non-invertible transformations
+            output_chars = list(texts[batch_idx])
             # Strip BOS/EOS
             seq_length = lengths[batch_idx] - 2
-            ids = token_ids_list[batch_idx][1:-1]
             batch_pre_preds = pre_preds[batch_idx][1:seq_length+1]
             batch_post_preds = post_preds[batch_idx][1:seq_length+1]
             batch_pre_scores = pre_scores[batch_idx][1:seq_length+1]
             batch_post_scores = post_scores[batch_idx][1:seq_length+1]
-            out_ids = []
-            for i in range(len(ids)):
-                if batch_pre_scores[i] > threshold:
-                    pred_id = self.tokenizer.token_to_id(self._punct_pre_labels[batch_pre_preds[i]])
-                    out_ids.append(pred_id)
-                out_ids.append(ids[i])
-                if batch_post_scores[i] > threshold:
-                    pred_id = self.tokenizer.token_to_id(self._punct_post_labels[batch_post_preds[i]])
-                    out_ids.append(pred_id)
-            # Convert to text and normalize space around punctuation labels
-            out_text = self.tokenizer.ids_to_text(out_ids)
-            output_texts.append(out_text)
-
+            output_char_index = 0
+            # For each token, for each char, we have one prediction
+            ids = token_ids_list[batch_idx][1:-1]
+            tokens = self.tokenizer.ids_to_tokens(ids)
+            for token_num, token in enumerate(tokens):
+                token_post_scores = batch_post_scores[token_num]
+                token_pre_scores = batch_pre_scores[token_num]
+                valid_start = 0
+                valid_stop = len(token)
+                if token.startswith("##"):
+                    valid_start = 2
+                if token == self.tokenizer.unk_token:
+                    # Utilize only the first prediction array for OOVs TODO assuming OOV is single char
+                    valid_stop = 1
+                for index in range(valid_start, valid_stop):
+                    if output_chars[output_char_index] == " ":
+                        output_char_index += 1
+                    output_char_index += 1
+                    char_pre_score = token_pre_scores[index]
+                    char_pre_pred = batch_pre_preds[token_num][index]
+                    if char_pre_pred != self._null_punct_pre_index and char_pre_score > threshold:
+                        pre_punct = self._punct_pre_labels[char_pre_pred]
+                        output_chars.insert(output_char_index - 1, pre_punct)
+                        output_char_index += 1
+                    char_post_score = token_post_scores[index]
+                    char_post_pred = batch_post_preds[token_num][index]
+                    if char_post_pred != self._null_punct_post_index and char_post_score > threshold:
+                        post_punct = self._punct_post_labels[char_post_pred]
+                        output_chars.insert(output_char_index, post_punct)
+                        output_char_index += 1
+            output_texts.append("".join(output_chars))
         return output_texts
 
+    @torch.inference_mode()
     def infer_segmentation(self, texts: List[str], threshold: float = 0.5) -> List[List[str]]:
         bos = self.tokenizer.bos_id
         eos = self.tokenizer.eos_id
@@ -491,28 +531,33 @@ class PunctCapSegModel(NLPModel):
         for batch_idx, input_ids in enumerate(input_ids):
             # Strip BOS/EOS
             ids = token_ids_list[batch_idx][1:-1]
+            tokens = self.tokenizer.ids_to_tokens(ids)
             # Extract the scores for this sequence, and strip BOS/EOS
             scores = batch_scores[batch_idx][1:lengths[batch_idx]+1]
             segmented_texts = []
             start = 0
             stop = 0
-            for stop, score in enumerate(scores):
-                if score > threshold:
-                    # text = self.tokenizer.ids_to_text(ids[start:stop + 1])
-                    text = self.tokenizer.tokenizer.decode(ids[start:stop + 1])  # todo assume HF
-                    text = text.strip()
-                    if text:
-                        segmented_texts.append(text)
-                    start = stop + 1
-            # Add any remaining text, in case segmentation was not predicted on the final token
-            if stop >= start:
-                text = self.tokenizer.ids_to_text(ids[start:stop + 1])
-                text = text.strip()
-                if text:
-                    segmented_texts.append(text)
+            input_text = texts[batch_idx]
+            for token, token_score in zip(tokens, scores):
+                if input_text[stop] == " ":
+                    stop += 1
+                # Determine the input character number at the end of this subtoken
+                valid_num_chars = len(token)
+                if token.startswith("##"):
+                    valid_num_chars -= 2
+                if token == self.tokenizer.unk_token:
+                    valid_num_chars = 1  # TODO assuming OOV is single char
+                stop += valid_num_chars
+                if token_score > threshold:
+                    extracted_text = input_text[start:stop].strip()
+                    segmented_texts.append(extracted_text)
+                    start = stop
+            if stop > start:
+                segmented_texts.append(input_text[start:stop])
             output_texts.append(segmented_texts)
         return output_texts
 
+    @torch.inference_mode()
     def infer_capitalization(self, texts: List[List[str]], threshold: float = 0.5) -> List[List[str]]:
         bos = self.tokenizer.bos_id
         eos = self.tokenizer.eos_id
@@ -538,24 +583,39 @@ class PunctCapSegModel(NLPModel):
             input_ids=input_ids,  attention_mask=mask, token_type_ids=torch.zeros_like(input_ids)
         )
         logits = self._cap_head(hidden_states=encoded)
-        #
-        probs = logits.softmax(dim=-1)
-        probs_upper = probs[..., 1]
+        # [B, T, max_token_len]
+        probs_upper = logits.sigmoid()
 
         flat_out_texts: List[str] = []
         for batch_idx, ids in enumerate(token_ids_list):
             # Strip BOS/EOS
             ids = ids[1:-1]
-            tokens = self.tokenizer.ids_to_tokens(token_ids_list[batch_idx][1:-1])
+            # Iterate over tokens, tracking which char we are on
+            output_chars: List[str] = list(flat_texts[batch_idx])
             scores = probs_upper[batch_idx, 1:len(ids) + 1].tolist()
-            recased_tokens = []
-            for token, score in zip(tokens, scores):
-                if score > threshold:
-                    recased_tokens.append(token.upper())
-                else:
-                    recased_tokens.append(token.lower())
-            recased_text = self.tokenizer.tokens_to_text(recased_tokens)
-            flat_out_texts.append(recased_text)
+            # Current position in the outputs as we modify them
+            output_char_index = 0
+            tokens = self.tokenizer.ids_to_tokens(token_ids_list[batch_idx][1:-1])
+            for token_num, token in enumerate(tokens):
+                if output_chars[output_char_index] == " ":
+                    output_char_index += 1
+                # Leave OOV unmodified. TODO Assume OOV was a single char
+                if token == self.tokenizer.unk_token:
+                    output_char_index += 1
+                    continue
+                valid_start = 0
+                valid_stop = len(token)
+                if token.startswith("##"):
+                    valid_start = 2
+                for valid_char_num in range(valid_start, valid_stop):
+                    score = scores[token_num][valid_char_num]
+                    if score > threshold:
+                        output_chars[output_char_index] = output_chars[output_char_index].upper()
+                    else:
+                        output_chars[output_char_index] = output_chars[output_char_index].lower()
+                    output_char_index += 1
+            output_text = "".join(output_chars)
+            flat_out_texts.append(output_text)
         # Un-flatten the texts back into their original lists
         output_texts: List[List[str]] = []
         start = 0
@@ -565,6 +625,7 @@ class PunctCapSegModel(NLPModel):
             start = stop
         return output_texts
 
+    @torch.inference_mode()
     def infer(
             self,
             texts: List[str],
