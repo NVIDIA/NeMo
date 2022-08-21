@@ -255,7 +255,7 @@ class FastPitchModule(NeuralModule):
                 pitch = average_pitch(pitch.unsqueeze(1), attn_hard_dur).squeeze(1)
             if pitch.shape[-1] != enc_out.shape[1]:
                 pitch = average_pitch(pitch.unsqueeze(1), durs).squeeze(1)
-                print("new pitch", pitch.shape)
+
             pitch_emb = self.pitch_emb(pitch.unsqueeze(1))
         else:
             pitch_emb = self.pitch_emb(pitch_predicted.unsqueeze(1))

@@ -15,7 +15,7 @@
 import pytorch_lightning as pl
 
 from nemo.collections.common.callbacks import LogEpochTimeCallback
-from nemo.collections.tts.models import fastpitch_ssl
+from nemo.collections.tts.models import fastpitch_ssl, hifigan
 from nemo.core.config import hydra_runner
 from nemo.utils.exp_manager import exp_manager
 
@@ -24,7 +24,9 @@ from nemo.utils.exp_manager import exp_manager
 def main(cfg):
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
-    model = fastpitch_ssl.FastPitchModel_SSL(cfg=cfg.model, trainer=trainer)
+    vocoder = hifigan.HifiGanModel.load_from_checkpoint(cfg.hifi_ckpt_path).cpu()
+    vocoder.eval()
+    model = fastpitch_ssl.FastPitchModel_SSL(cfg=cfg.model, trainer=trainer, vocoder=vocoder)
     lr_logger = pl.callbacks.LearningRateMonitor()
     epoch_time_logger = LogEpochTimeCallback()
     trainer.callbacks.extend([lr_logger, epoch_time_logger])

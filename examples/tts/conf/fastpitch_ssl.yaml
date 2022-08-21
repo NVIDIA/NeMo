@@ -7,6 +7,8 @@ name: FastPitch
 train_dataset: "/home/pneekhara/NeMo2022/libri_val_formatted.json"
 validation_datasets: "/home/pneekhara/NeMo2022/libri_val_formatted.json"
 
+hifi_ckpt_path: "/home/pneekhara/NeMo2022/HiFiCKPTS/hifigan_libritts/HiFiLibriEpoch334.ckpt"
+
 # Default values from librosa.pyin
 pitch_fmin: 65.40639132514966
 pitch_fmax: 2093.004522404789
@@ -26,10 +28,11 @@ highfreq: 8000
 window: hann
 
 ssl_model_type: "conformer_multitask"
-ssl_model_ckpt_path: "/home/pneekhara/NeMo2022/TempCkpts/SSLTTS22050.ckpt"
-ssl_content_emb_type: "embedding"
-n_segments: 18432
-
+ssl_model_ckpt_path: "/home/pneekhara/NeMo2022/SSLCheckPoints/SSLConformer22050_Epoch23.ckpt"
+ssl_content_emb_type: "embedding_and_probs"
+n_segments: 18432 #ignored for now
+speaker_stats_pitch_fp: "/home/pneekhara/NeMo2022/libri_speaker_stats.json"
+pitch_normalization: speaker_wise
 
 model:
   learn_alignment: true
@@ -55,7 +58,7 @@ model:
   highfreq: ${highfreq}
   window: ${window}
   
-  content_emb_indim: 128
+  content_emb_indim: 174
   speaker_emb_indim: 256
   content_emb_outdim: 192
   speaker_emb_outdim: 192
@@ -68,18 +71,21 @@ model:
       ssl_model_type: ${ssl_model_type}
       ssl_model_ckpt_path: ${ssl_model_ckpt_path}
       ssl_content_emb_type: ${ssl_content_emb_type}
-      n_segments: 18432
+      n_segments: ${n_segments}
       pitch_conditioning: true
-      pitch_normalization: global
+      pitch_normalization: ${pitch_normalization}
       pitch_mean: 212
       pitch_std: 70
-      recache_data: true
+      recache_data: false
+      speaker_stats_pitch_fp: ${speaker_stats_pitch_fp}
+      min_duration: 0.5
+      max_duration: 16.0
 
     dataloader_params:
       drop_last: false
       shuffle: true
       batch_size: 2
-      num_workers: 4
+      num_workers: 12
       pin_memory: true
 
   validation_ds:
@@ -90,12 +96,15 @@ model:
       ssl_model_type: ${ssl_model_type}
       ssl_model_ckpt_path: ${ssl_model_ckpt_path}
       ssl_content_emb_type: ${ssl_content_emb_type}
-      n_segments: 18432
+      n_segments: ${n_segments}
       pitch_conditioning: true
-      pitch_normalization: global
+      pitch_normalization: ${pitch_normalization}
       pitch_mean: 212
       pitch_std: 70
-      recache_data: true
+      recache_data: false
+      speaker_stats_pitch_fp: ${speaker_stats_pitch_fp}
+      min_duration: 0.5
+      max_duration: 16.0
 
     dataloader_params:
       drop_last: false
@@ -174,9 +183,10 @@ model:
 
   optim:
     name: adamw
-    lr: 1e-3
-    betas: [0.9, 0.999]
+    lr: 0.1
+    betas: [0.9, 0.98]
     weight_decay: 1e-6
+    eps: 1e-6
 
     sched:
       name: NoamAnnealing
@@ -186,7 +196,7 @@ model:
 
 trainer:
   num_nodes: 1
-  devices: 1
+  devices: -1
   accelerator: gpu
   strategy: ddp
   precision: 16

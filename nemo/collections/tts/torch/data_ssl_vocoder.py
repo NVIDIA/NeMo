@@ -42,6 +42,7 @@ class SSLVocoderDataset(Dataset):
         recache_data: Optional[bool] = False,
         normalize_content: Optional[bool] = True,
         speaker_stats_pitch_fp: Optional[Union[str, Path]] = None,
+        hifi_ckpt_path: Optional[Union[str, Path]] = None,
     ):
         """Dataset which can be used for training and fine-tuning vocoder with pre-computed mel-spectrograms.
         Args:
@@ -69,7 +70,7 @@ class SSLVocoderDataset(Dataset):
         assert ssl_model_type in ["conformer", "conformer_multitask"]
         self.ssl_model_type = ssl_model_type
 
-        assert ssl_content_emb_type in ["probs", "embedding", "log_probs"]
+        assert ssl_content_emb_type in ["probs", "embedding", "log_probs", "embedding_and_probs"]
         self.ssl_content_emb_type = ssl_content_emb_type
         # Initialize and read manifest file(s), filter out data by duration and ignore_file
         if isinstance(manifest_filepath, str):
@@ -162,6 +163,11 @@ class SSLVocoderDataset(Dataset):
 
             self.n_fft = ssl_cfg.preprocessor.n_fft
             self.n_mels = 80
+
+            self.fb = torch.tensor(
+                librosa.filters.mel(sr=self.sample_rate, n_fft=self.n_fft, n_mels=self.n_mels, fmin=0, fmax=8000),
+                dtype=torch.float,
+            ).unsqueeze(0)
 
         self.pitch_conditioning = pitch_conditioning
         self.pitch_mean = pitch_mean
@@ -327,16 +333,9 @@ class SSLVocoderDataset(Dataset):
         if os.path.exists(mel_spec_fp):
             return torch.load(mel_spec_fp)
         else:
-            lowfreq = 0
-            highfreq = 8000
             EPSILON = 1e-9
             window_fn = torch.hann_window
-            fb = torch.tensor(
-                librosa.filters.mel(
-                    sr=self.sample_rate, n_fft=self.n_fft, n_mels=self.n_mels, fmin=lowfreq, fmax=highfreq
-                ),
-                dtype=torch.float,
-            ).unsqueeze(0)
+
             spec = torch.stft(
                 input=wav,
                 n_fft=self.n_fft,
@@ -351,7 +350,7 @@ class SSLVocoderDataset(Dataset):
                 spec = torch.view_as_real(spec)
             spec = torch.sqrt(spec.pow(2).sum(-1) + EPSILON)
 
-            mel = torch.matmul(fb.to(spec.dtype), spec)
+            mel = torch.matmul(self.fb.to(spec.dtype), spec)
             log_mel = torch.log(torch.clamp(mel, min=torch.finfo(mel.dtype).tiny))[0]
 
             torch.save(log_mel, mel_spec_fp)
@@ -402,6 +401,8 @@ class SSLVocoderDataset(Dataset):
                         final_content_embedding = content_embedding
                     elif self.ssl_content_emb_type == "log_probs":
                         final_content_embedding = content_log_probs
+                    elif self.ssl_content_emb_type == "embedding_and_probs":
+                        final_content_embedding = torch.cat([content_embedding, content_probs], dim=0)
 
                     torch.save(final_content_embedding, content_emb_fp)
                     torch.save(speaker_embedding_normalized, speaker_emb_fp)
@@ -519,7 +520,7 @@ class SSLVocoderDataset(Dataset):
         mel_spectrogram = None
         mel_len = None
         if self.load_mel_spectrogram:
-            mel_spectrogram = self.get_mel_spectrogram(audio_ssl[:-1], rel_audio_path_as_text_id)
+            mel_spectrogram = self.get_mel_spectrogram(audio[:-1], rel_audio_path_as_text_id)
             mel_len = torch.tensor(mel_spectrogram.shape[1]).long()
             # print("mel spec", mel_spectrogram.shape)
             # print("mel len", mel_len)
