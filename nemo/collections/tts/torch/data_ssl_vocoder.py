@@ -90,6 +90,7 @@ class SSLVocoderDataset(Dataset):
                         "audio_filepath": item["audio_filepath"],
                         "duration": item["duration"] if "duration" in item else None,
                         "speaker": item["speaker"],
+                        "dataset_id": item["dataset_id"] if "dataset_id" in item else None,
                     }
 
                     data.append(file_info)
@@ -505,6 +506,11 @@ class SSLVocoderDataset(Dataset):
         rel_audio_path_as_text_id = str(rel_audio_path).replace("/", "_")
         speaker = torch.tensor(sample["speaker"]).long()
         audio_ssl, audio_ssl_length, audio, audio_length = self._get_wav_from_filepath(sample["audio_filepath"])
+
+        dataset_id = None
+        if sample["dataset_id"] is not None:
+            dataset_id = torch.tensor(sample["dataset_id"]).long()
+
         # print("audio ssl", audio_ssl.shape)
         # print("audio", audio.shape)
         # print("audio ssl length", audio_ssl_length)
@@ -568,6 +574,7 @@ class SSLVocoderDataset(Dataset):
             'speaker': speaker,
             'mel_spectrogram': mel_spectrogram,
             'mel_len': mel_len,
+            'dataset_id': dataset_id,
         }
         if not self.load_mel_spectrogram:
             return self._segment_item(item)

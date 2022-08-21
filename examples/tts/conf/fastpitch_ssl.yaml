@@ -39,6 +39,7 @@ model:
   bin_loss_warmup_epochs: 100
 
   n_speakers: 1
+  n_datasets: 1
   max_token_duration: 75
   symbols_embedding_dim: 384
   pitch_embedding_kernel_size: 3

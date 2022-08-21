@@ -99,6 +99,10 @@ class FastPitchModel_SSL(ModelPT):
         self.content_projection_layer = torch.nn.Linear(self._cfg.content_emb_indim, self._cfg.content_emb_outdim)
         self.speaker_projection_layer = torch.nn.Linear(self._cfg.speaker_emb_indim, self._cfg.speaker_emb_outdim)
 
+        self.num_datasets = cfg.get("n_datasets", 1)
+        if self.num_datasets > 1:
+            self.dataset_embedding_layer = torch.nn.Embedding(self.num_datasets, self._cfg.symbols_embedding_dim)
+
         self.fastpitch = FastPitchModule(
             input_fft,
             output_fft,
@@ -176,7 +180,7 @@ class FastPitchModel_SSL(ModelPT):
         spect, *_ = self(text=tokens, durs=None, pitch=None, speaker=speaker, pace=pace)
         return spect
 
-    def compute_encoding(self, content_embedding, speaker_embedding):
+    def compute_encoding(self, content_embedding, speaker_embedding, dataset_id=None):
         # content embedding is (B, C, T)
         # speaker embedding is (B, C)
         # pitch_contour is (B, T)
@@ -192,6 +196,11 @@ class FastPitchModel_SSL(ModelPT):
 
         encoded = encoded.permute(0, 2, 1)  # (B, C, T) -> (B, T, C)
 
+        if self.num_datasets > 1:
+            dataset_embedding = self.dataset_embedding_layer(dataset_id) # (B, C)
+            dataset_embedding_repeated = dataset_embedding[:, None, :].repeat(1, encoded.shape[1], 1)
+            encoded = encoded + dataset_embedding_repeated
+
         return encoded
 
     def training_step(self, batch, batch_idx):
@@ -203,21 +212,13 @@ class FastPitchModel_SSL(ModelPT):
         mels = batch["mel_spectrogram"]
         spec_len = batch["mel_len"]
         pitch = batch["pitch_contour"]
+        dataset_id = batch["dataset_id"]
 
-        # mels, spec_len = self.preprocessor(input_signal=audio, length=audio_lens)
-
-        # print("mels.shape: ", mels.shape)
-        # print("mels_dl.shape: ", mels_dl.shape)
-        # print("mels_lens_dl: ", mels_lens_dl)
-        # print("spec_len: ", spec_len)
-        enc_out = self.compute_encoding(content_embedding, speaker_embedding)
+        enc_out = self.compute_encoding(content_embedding, speaker_embedding, dataset_id)
         enc_mask = mask_from_lens(encoded_len)
         durs = torch.ones_like(enc_mask) * 4.0
         enc_mask = enc_mask[:, :, None]
-        # print("enc_out.shape: ", enc_out.shape)
-        # print("enc_mask.shape: ", enc_mask.shape)
-        # print("durs.shape: ", durs.shape)
-
+        
         mels_pred, _, _, log_durs_pred, pitch_pred, attn_soft, attn_logprob, attn_hard, attn_hard_dur, pitch = self(
             text=None,
             durs=durs,
@@ -273,16 +274,14 @@ class FastPitchModel_SSL(ModelPT):
         mels = batch["mel_spectrogram"]
         spec_len = batch["mel_len"]
         pitch = batch["pitch_contour"]
+        dataset_id = batch["dataset_id"]
 
-        enc_out = self.compute_encoding(content_embedding, speaker_embedding)
+        enc_out = self.compute_encoding(content_embedding, speaker_embedding, dataset_id)
         enc_mask = mask_from_lens(encoded_len)
         durs = torch.ones_like(enc_mask) * 4.0
         enc_mask = enc_mask[:, :, None]
-        # print("enc_out.shape: ", enc_out.shape)
-        # print("enc_mask.shape: ", enc_mask.shape)
-        # print("durs.shape: ", durs.shape)
+        
 
-        # # Calculate val loss on ground truth durations to better align L2 loss in time
         mels_pred, _, _, log_durs_pred, pitch_pred, _, _, _, attn_hard_dur, pitch = self(
             text=None,
             durs=durs,
