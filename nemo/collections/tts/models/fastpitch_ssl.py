@@ -43,7 +43,6 @@ from nemo.core.neural_types.elements import (
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging, model_utils
 
-
 def mask_from_lens(lens, max_len: Optional[int] = None):
     if max_len is None:
         max_len = lens.max()
@@ -55,7 +54,7 @@ def mask_from_lens(lens, max_len: Optional[int] = None):
 class FastPitchModel_SSL(ModelPT):
     """FastPitch model (https://arxiv.org/abs/2006.06873) that is used to generate mel spectrogram from text."""
 
-    def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+    def __init__(self, cfg: DictConfig, trainer: Trainer = None, vocoder=None):
         # Convert to Hydra 1.0 compatible DictConfig
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
         cfg = model_utils.maybe_update_config_version(cfg)
@@ -106,6 +105,17 @@ class FastPitchModel_SSL(ModelPT):
             cfg.pitch_embedding_kernel_size,
             cfg.n_mel_channels,
         )
+        
+        self.vocoder = {
+            'vocoder' : vocoder,
+        }
+    
+    def vocode_spectrogram(self, spectrogram):
+        # spec [C, T] numpy
+        with torch.no_grad():
+            _spec = torch.from_numpy(spectrogram).unsqueeze(0).to(torch.float32)
+            wav_generated = self.vocoder['vocoder'].generator(x=_spec)[0]
+            return wav_generated.numpy()
 
     @property
     def tb_logger(self):
@@ -324,14 +334,13 @@ class FastPitchModel_SSL(ModelPT):
                 "val_mel_predicted", plot_spectrogram_to_numpy(spec_predict), self.global_step, dataformats="HWC",
             )
 
-            _dataset = self._train_dl.dataset
             _spec_len = spec_len[0].data.cpu().item()
-            wav_vocoded = _dataset.vocode_spectrogram(spec_target[0].data.cpu().float().numpy()[:,:_spec_len] )
+            wav_vocoded = self.vocode_spectrogram(spec_target[0].data.cpu().float().numpy()[:,:_spec_len] )
             self.tb_logger.add_audio(
                 "Real audio", wav_vocoded, self.global_step, 22050
             )
 
-            wav_vocoded = _dataset.vocode_spectrogram(spec_predict[:,:_spec_len])
+            wav_vocoded = self.vocode_spectrogram(spec_predict[:,:_spec_len])
             self.tb_logger.add_audio(
                 "Generated Audio", wav_vocoded, self.global_step, 22050
             )

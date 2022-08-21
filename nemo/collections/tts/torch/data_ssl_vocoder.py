@@ -19,7 +19,6 @@ from nemo.collections.tts.models import ssl_tts
 from nemo.collections.tts.torch.helpers import get_base_dir
 from nemo.core.classes import Dataset
 from nemo.utils import logging
-from nemo.collections.tts.models import hifigan
 
 class SSLVocoderDataset(Dataset):
     def __init__(
@@ -164,11 +163,6 @@ class SSLVocoderDataset(Dataset):
             self.n_fft = ssl_cfg.preprocessor.n_fft
             self.n_mels = 80
 
-            print("hifi_ckpt_path", hifi_ckpt_path)
-            if hifi_ckpt_path is not None:
-                self.vocoder = hifigan.HifiGanModel.load_from_checkpoint(hifi_ckpt_path).cpu()
-                self.vocoder.eval()
-            
             self.fb = torch.tensor(
                 librosa.filters.mel(
                     sr=self.sample_rate, n_fft=self.n_fft, n_mels=self.n_mels, fmin=0, fmax=8000
@@ -201,13 +195,6 @@ class SSLVocoderDataset(Dataset):
                 speaker_stats_raw = json.load(f)
                 for key in speaker_stats_raw:
                     self.speaker_stats[int(key)] = speaker_stats_raw[key]
-
-    def vocode_spectrogram(self, spectrogram):
-        # spec [C, T] numpy
-        with torch.no_grad():
-            _spec = torch.from_numpy(spectrogram).unsqueeze(0).to(torch.float32)
-            wav_generated = self.vocoder.generator(x=_spec)[0]
-            return wav_generated.numpy()
 
     def pad_collate_fn(self, batch):
         final_batch = {}
