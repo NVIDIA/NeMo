@@ -62,6 +62,11 @@ def filter_file(inp_filename: str, out_filename: str, error_vcb: Set) -> None:
                 if k in error_vcb:
                     sent_is_ok = False
                     out_bad.write(">>>ERROR: " + line)
+                    continue
+                if cls == "CARDINAL" and len(sent_lines) >= 3:
+                    if sent_lines[-2].startswith("CARDINAL") and sent_lines[-3].startswith("DATE"):
+                        sent_is_ok = False
+                        out_bad.write(">>>ERROR: " + line)
     out.close()
 
 

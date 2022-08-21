@@ -104,6 +104,8 @@ def process_file(
                 written = written_preprocessing(written, lang)
                 references = set()
                 if spoken == "sil":
+                    if args.tn_direction:
+                        input_tokens.append(written)
                     continue
                 if spoken == "<self>":
                     input_tokens.append(written)
@@ -135,7 +137,7 @@ def process_file(
                         for tr_variant in reference_vcb[k]:
                             references.add(tr_variant)
                     references.add(spoken)
-                    if cls == "PLAIN" or cls == "LETTERS":
+                    if cls == "PLAIN" or (cls == "LETTERS" and " " in spoken):
                         references.add(written)  # there are cases in English corpus like colours/colors
                         reference_fragments.append(written)
                     else:

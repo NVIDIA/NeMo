@@ -119,12 +119,15 @@ def detokenize_by_underscore(s: str) -> List[str]:
        ["showbuzzdaily's", "top", "100", "thursday", "cable", "originals"]
     """
     output_tokens = []
+    s = s.replace("__", "_ _")
     frags = re.split(r"(_[^ ][^_]+[^ ]_)", s)
     for frag in frags:
         if frag.startswith("_") and frag.endswith("_"):
-            output_tokens.append(frag.replace(" ", "").replace("_", ""))
+            tok = frag.replace(" ", "").replace("_", "")
         else:
-            output_tokens.append(frag.strip().replace("_", ""))
+            tok = frag.strip().replace("_", "")
+        if tok != "":
+            output_tokens.append(tok)
     return output_tokens
 
 

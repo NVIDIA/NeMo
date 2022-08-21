@@ -179,7 +179,13 @@ def process_file_tn_tokenizer(inputname: str, out: TextIO, keys2replacements: Di
             else:
                 cls, written, spoken = line.strip().split("\t")
                 if spoken == "sil":
+                    if " " in written:  # this means there is an error in corpus, will lead to token number mismatch
+                        sent_is_ok = False
+                    else:
+                        words.append(written.casefold())
+                        labels.append("SPACE")
                     continue
+
                 if spoken == "<self>":
                     words.append(written.casefold())
                     labels.append("SPACE")
