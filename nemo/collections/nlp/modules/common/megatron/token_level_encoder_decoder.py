@@ -403,7 +403,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         if enc_input is not None:
             # If enc_input is provided, we need to transpose it from [B x S x H] -> [S x B x H].
             enc_input = enc_input.transpose(0, 1)
-        elif (enc_input is None) and (enc_input_ids is not None):
+        elif (enc_input is None) and (enc_input_ids is not None) and (enc_output is not None):
             if self.pre_process and self.add_encoder:
                 # We don't need position ids for RPE, because the embedding layer does not have position embeddings.
                 if self.encoder_cfg.get("position_embedding_type", "learned_absolute") != 'relative':
@@ -445,7 +445,11 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 enc_output_attn_mask = enc_attn_mask
 
             if self.pre_process and self.add_decoder:
-                dec_position_ids = build_position_ids(dec_input_ids)
+                # We don't need position ids for RPE, because the embedding layer does not have position embeddings.
+                if self.decoder_cfg.get("position_embedding_type", "learned_absolute") != 'relative':
+                    dec_position_ids = build_position_ids(dec_input_ids)
+                else:
+                    dec_position_ids = None
                 dec_input = self.decoder_embedding(dec_input_ids, dec_position_ids, token_type_ids=token_type_ids)
             else:
                 # Note: This is when the decoder itself is split across PP ranks.

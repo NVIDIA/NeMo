@@ -51,10 +51,12 @@ class T5PromptLearningDataset(BasePromptLearningDataset):
         for_train: bool = True,
         decoder_starts_with_pad: bool = False,
         add_eos_to_decoder_output: bool = True,
+        add_sentinel_to_input: bool = True
     ):
         # These two variables need to be set before calling super().__init__() because the parent class calls `load_data()` which requires these attributes.
         self.decoder_starts_with_pad = decoder_starts_with_pad
         self.add_eos_to_decoder_output = add_eos_to_decoder_output
+        self.add_sentinel_to_input = add_sentinel_to_input
         super().__init__(
             datasets=datasets,
             tokenizer=tokenizer,
@@ -115,12 +117,16 @@ class T5PromptLearningDataset(BasePromptLearningDataset):
             input_example = self._insert_virtual_token_placeholders(input_example, virtual_token_splits)
 
             # a trick to align with the data format in t5 pretraining
-            input_ids = self.tokenizer.text_to_ids(input_example) + self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
+            input_ids = self.tokenizer.text_to_ids(input_example)
+            if self.add_sentinel_to_input:
+                self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
 
+            '''
             # If the model wasn't trained with an <eos> token, then we need to have some other way of stopping model generation.
             # So, we add an END sentinel token to the encoder input hoping that the decoder copies it and we can stop.
             if not self.add_eos_to_decoder_output:
                 input_ids += self.tokenizer.text_to_ids(T5Sentinel.END.value)
+            '''
 
             # Add BOS/EOS to the input of encoder if desired, adds EOS by default
             if self.add_bos:
@@ -141,7 +147,8 @@ class T5PromptLearningDataset(BasePromptLearningDataset):
                 else:
                     answer_text_ids = [self.tokenizer.bos_id]
                 # a trick to align with the data format in t5 pretraining
-                answer_text_ids += self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
+                if self.add_sentinel_to_input:
+                    answer_text_ids += self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
                 answer_text_ids += self.tokenizer.text_to_ids(answer_text)
                 if self.add_eos_to_decoder_output:
                     answer_text_ids += [self.tokenizer.eos_id]

@@ -264,7 +264,6 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             encoder_input=encoder_input,
             bos_id=self.tokenizer.pad_id if self.cfg.data.get('decoder_starts_with_pad', False) else self.tokenizer.bos_id
         )
-
         # Special ids to text function to handle stripping <eos> and special tokens with sentencepiece tokenizers.
         preds_text = MegatronT5FinetuneModel.ids_to_text(predicted_token_ids, self.tokenizer)
         labels_text = MegatronT5FinetuneModel.ids_to_text(labels, self.tokenizer)
@@ -349,6 +348,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             add_eos=self.cfg.data.get('add_eos', True),
             decoder_starts_with_pad=self.cfg.data.get('decoder_starts_with_pad', False),
             add_eos_to_decoder_output=self.cfg.data.get('add_eos_to_decoder_output', True),
+            add_sentinel_to_input=self.cfg.data.get('add_sentinel_to_input', True),
             for_train=for_train,
         )
 
