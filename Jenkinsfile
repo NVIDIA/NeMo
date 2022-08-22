@@ -2003,6 +2003,104 @@ pipeline {
         }
       }
     }
+
+    stage('L2: Megatron NMT Adapter Learning') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps {
+        sh "python examples/nlp/machine_translation/megatron_nmt_training.py \
+        name=megatron_adapter_nmt \
+        trainer.devices=2 \
+        trainer.accelerator=gpu \
+        trainer.log_every_n_steps=1 \
+        trainer.val_check_interval=10 \
+        +trainer.limit_val_batches=2 \
+        trainer.accumulate_grad_batches=1 \
+        trainer.max_steps=10 \
+        trainer.precision=16 \
+        trainer.gradient_clip_val=1.0 \
+        exp_manager.exp_dir=examples/nlp/machine_translation/megatron_nmt_results \
+        model.tensor_model_parallel_size=2 \
+        model.seq_length=128 \
+        model.encoder.num_layers=4 \
+        model.encoder.hidden_size=64 \
+        model.encoder.num_attention_heads=8 \
+        model.encoder.activation='swiglu' \
+        model.encoder.masked_softmax_fusion=False \
+        model.encoder.bias_activation_fusion=False \
+        model.encoder.activations_checkpoint_method='block' \
+        model.encoder.activations_checkpoint_num_layers=1 \
+        model.decoder.num_layers=2 \
+        model.decoder.hidden_size=64 \
+        model.decoder.num_attention_heads=8 \
+        model.decoder.activation='swiglu' \
+        model.decoder.masked_softmax_fusion=False \
+        model.decoder.bias_activation_fusion=False \
+        model.decoder.activations_checkpoint_method='block' \
+        model.decoder.activations_checkpoint_num_layers=1 \
+        model.micro_batch_size=2 \
+        model.global_batch_size=4 \
+        model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+        model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
+        model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+        model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
+        ~model.test_ds \
+        model.train_ds.dataset_type=text_memmap \
+        model.encoder_tokenizer.library=sentencepiece \
+        model.encoder_tokenizer.model=/home/TestData/nlp/nmt/toy_data/spm_64k_all_langs_plus_en.model \
+        model.decoder_tokenizer.library=sentencepiece \
+        model.decoder_tokenizer.model=/home/TestData/nlp/nmt/toy_data/spm_64k_all_langs_plus_en.model"
+        sh "python examples/nlp/machine_translation/tuning/megatron_nmt_adapter_training.py \
+        trainer.devices=2 \
+        trainer.accelerator=gpu \
+        trainer.log_every_n_steps=1 \
+        trainer.val_check_interval=10 \
+        +trainer.limit_val_batches=2 \
+        trainer.accumulate_grad_batches=1 \
+        trainer.max_steps=10 \
+        trainer.precision=16 \
+        trainer.gradient_clip_val=1.0 \
+        exp_manager.exp_dir=examples/nlp/machine_translation/megatron_nmt_results \
+        model.tensor_model_parallel_size=2 \
+        model.seq_length=128 \
+        model.encoder.num_layers=4 \
+        model.encoder.hidden_size=64 \
+        model.encoder.num_attention_heads=8 \
+        model.encoder.activation='swiglu' \
+        model.encoder.masked_softmax_fusion=False \
+        model.encoder.bias_activation_fusion=False \
+        model.encoder.activations_checkpoint_method='block' \
+        model.encoder.activations_checkpoint_num_layers=1 \
+        model.decoder.num_layers=2 \
+        model.decoder.hidden_size=64 \
+        model.decoder.num_attention_heads=8 \
+        model.decoder.activation='swiglu' \
+        model.decoder.masked_softmax_fusion=False \
+        model.decoder.bias_activation_fusion=False \
+        model.decoder.activations_checkpoint_method='block' \
+        model.decoder.activations_checkpoint_num_layers=1 \
+        model.pretrained_model_path=examples/nlp/machine_translation/megatron_nmt_results/megatron_adapter_nmt/checkpoints/megatron_adapter_nmt.nemo
+        model.micro_batch_size=2 \
+        model.global_batch_size=4 \
+        model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+        model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
+        model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+        model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
+        ~model.test_ds \
+        model.train_ds.dataset_type=text_memmap \
+        model.encoder_tokenizer.library=sentencepiece \
+        model.encoder_tokenizer.model=/home/TestData/nlp/nmt/toy_data/spm_64k_all_langs_plus_en.model \
+        model.decoder_tokenizer.library=sentencepiece \
+        model.decoder_tokenizer.model=/home/TestData/nlp/nmt/toy_data/spm_64k_all_langs_plus_en.model"
+        sh "rm -rf examples/nlp/machine_translation/megatron_nmt_results"
+      }
+    }
+
     stage('L2: Parallel Pretraining BERT pretraining from Text/Preprocessed') {
       when {
         anyOf {
@@ -3214,102 +3312,6 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
     }
     
     
-    stage('L2: Megatron NMT Adapter Learning') {
-      when {
-        anyOf {
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      failFast true
-      steps {
-        sh "python examples/nlp/machine_translation/megatron_nmt_training.py \
-        name=megatron_adapter_nmt \
-        trainer.devices=2 \
-        trainer.accelerator=gpu \
-        trainer.log_every_n_steps=1 \
-        trainer.val_check_interval=10 \
-        +trainer.limit_val_batches=2 \
-        trainer.accumulate_grad_batches=1 \
-        trainer.max_steps=10 \
-        trainer.precision=16 \
-        trainer.gradient_clip_val=1.0 \
-        exp_manager.exp_dir=examples/nlp/machine_translation/megatron_nmt_results \
-        model.tensor_model_parallel_size=2 \
-        model.seq_length=128 \
-        model.encoder.num_layers=4 \
-        model.encoder.hidden_size=64 \
-        model.encoder.num_attention_heads=8 \
-        model.encoder.activation='swiglu' \
-        model.encoder.masked_softmax_fusion=False \
-        model.encoder.bias_activation_fusion=False \
-        model.encoder.activations_checkpoint_method='block' \
-        model.encoder.activations_checkpoint_num_layers=1 \
-        model.decoder.num_layers=2 \
-        model.decoder.hidden_size=64 \
-        model.decoder.num_attention_heads=8 \
-        model.decoder.activation='swiglu' \
-        model.decoder.masked_softmax_fusion=False \
-        model.decoder.bias_activation_fusion=False \
-        model.decoder.activations_checkpoint_method='block' \
-        model.decoder.activations_checkpoint_num_layers=1 \
-        model.micro_batch_size=2 \
-        model.global_batch_size=4 \
-        model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-        model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
-        model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-        model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
-        ~model.test_ds \
-        model.train_ds.dataset_type=text_memmap \
-        model.encoder_tokenizer.library=sentencepiece \
-        model.encoder_tokenizer.model=/home/TestData/nlp/nmt/toy_data/spm_64k_all_langs_plus_en.model \
-        model.decoder_tokenizer.library=sentencepiece \
-        model.decoder_tokenizer.model=/home/TestData/nlp/nmt/toy_data/spm_64k_all_langs_plus_en.model"
-        sh "python examples/nlp/machine_translation/tuning/megatron_nmt_adapter_training.py \
-        trainer.devices=2 \
-        trainer.accelerator=gpu \
-        trainer.log_every_n_steps=1 \
-        trainer.val_check_interval=10 \
-        +trainer.limit_val_batches=2 \
-        trainer.accumulate_grad_batches=1 \
-        trainer.max_steps=10 \
-        trainer.precision=16 \
-        trainer.gradient_clip_val=1.0 \
-        exp_manager.exp_dir=examples/nlp/machine_translation/megatron_nmt_results \
-        model.tensor_model_parallel_size=2 \
-        model.seq_length=128 \
-        model.encoder.num_layers=4 \
-        model.encoder.hidden_size=64 \
-        model.encoder.num_attention_heads=8 \
-        model.encoder.activation='swiglu' \
-        model.encoder.masked_softmax_fusion=False \
-        model.encoder.bias_activation_fusion=False \
-        model.encoder.activations_checkpoint_method='block' \
-        model.encoder.activations_checkpoint_num_layers=1 \
-        model.decoder.num_layers=2 \
-        model.decoder.hidden_size=64 \
-        model.decoder.num_attention_heads=8 \
-        model.decoder.activation='swiglu' \
-        model.decoder.masked_softmax_fusion=False \
-        model.decoder.bias_activation_fusion=False \
-        model.decoder.activations_checkpoint_method='block' \
-        model.decoder.activations_checkpoint_num_layers=1 \
-        model.pretrained_model_path=examples/nlp/machine_translation/megatron_nmt_results/megatron_adapter_nmt/checkpoints/megatron_adapter_nmt.nemo
-        model.micro_batch_size=2 \
-        model.global_batch_size=4 \
-        model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-        model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
-        model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-        model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
-        ~model.test_ds \
-        model.train_ds.dataset_type=text_memmap \
-        model.encoder_tokenizer.library=sentencepiece \
-        model.encoder_tokenizer.model=/home/TestData/nlp/nmt/toy_data/spm_64k_all_langs_plus_en.model \
-        model.decoder_tokenizer.library=sentencepiece \
-        model.decoder_tokenizer.model=/home/TestData/nlp/nmt/toy_data/spm_64k_all_langs_plus_en.model"
-        sh "rm -rf examples/nlp/machine_translation/megatron_nmt_results"
-      }
-    }
 
     // TODO: Add this test back. Test was failing on CI machines due to HW error
     // stage('L2: Megatron GPT Convert from Megatron-LM checkpoing and Eval') {
