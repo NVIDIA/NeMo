@@ -2054,7 +2054,7 @@ pipeline {
         model.encoder_tokenizer.model=/home/TestData/nlp/nmt/toy_data/spm_64k_all_langs_plus_en.model \
         model.decoder_tokenizer.library=sentencepiece \
         model.decoder_tokenizer.model=/home/TestData/nlp/nmt/toy_data/spm_64k_all_langs_plus_en.model"
-        sh "python examples/nlp/machine_translation/tuning/megatron_nmt_adapter_training.py \
+        sh "python examples/nlp/machine_translation/tuning/megatron_nmt_adapter_tuning.py \
         trainer.devices=2 \
         trainer.accelerator=gpu \
         trainer.log_every_n_steps=1 \
@@ -2063,7 +2063,7 @@ pipeline {
         trainer.accumulate_grad_batches=1 \
         trainer.max_steps=10 \
         trainer.precision=16 \
-        trainer.gradient_clip_val=1.0 \
+        trainer.gradient_clip_val=0.0 \
         exp_manager.exp_dir=examples/nlp/machine_translation/megatron_nmt_results \
         model.tensor_model_parallel_size=2 \
         model.seq_length=128 \
