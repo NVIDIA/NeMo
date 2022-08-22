@@ -131,10 +131,6 @@ class MegatronGPTAdapterLearningModel(MegatronGPTPromptLearningModel):
         # Save the best nemo model
         self.save_to(save_path=self.cfg.nemo_path)
 
-    def on_validation_end(self):
-        # Save the best nemo model
-        self.save_to(save_path=self.cfg.nemo_path)
-
     def get_forward_output_only_func(self):
         """
         Used for generate method only for now.
