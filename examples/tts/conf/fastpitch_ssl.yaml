@@ -35,6 +35,9 @@ speaker_stats_pitch_fp: "/home/pneekhara/NeMo2022/libri_speaker_stats.json"
 pitch_normalization: speaker_wise
 
 model:
+  use_encoder: false
+  pitch_conditioning: true
+  pitch_loss_scale: 0.1
   learn_alignment: true
   bin_loss_warmup_epochs: 100
 
@@ -136,8 +139,8 @@ model:
     log_zero_guard_value: 1e-05
     mag_power: 1.0
 
-  input_fft: #n_embed and padding_idx are added by the model
-    _target_: nemo.collections.tts.modules.transformer.FFTransformerEncoder
+  encoder: #n_embed and padding_idx are added by the model
+    _target_: nemo.collections.tts.modules.transformer.FFTransformerDecoder
     n_layer: 6
     n_head: 1
     d_model: ${model.symbols_embedding_dim}
@@ -147,7 +150,6 @@ model:
     dropout: 0.1
     dropatt: 0.1
     dropemb: 0.0
-    d_embed: ${model.symbols_embedding_dim}
 
   output_fft:
     _target_: nemo.collections.tts.modules.transformer.FFTransformerDecoder
