@@ -82,19 +82,18 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         self._validate_trainer()
 
-        # TODO: Not sure how to use lists of modules with PTL.
-        # This means we can only use pipeline parallelism without the interleaved schedule.
+        self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
+
+        if not self.megatron_amp_o2 and self.cfg.get('virtual_pipeline_model_parallel_size', None):
+            raise ValueError('Virtual pipeline model parallel is only supported when using megatron_amp_O2')
+
+        # TODO: add unwrap model functionality
         # self.model = build_model(model_provider_func=self.model_provider_func, wrap_with_ddp=False)[0]
         self.model = build_model(
             model_provider_func=self.model_provider_func,
             wrap_with_ddp=False,
             virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
         )
-
-        # We don't need to call it explicitly? Since it is a pytorch lightning hook function
-        # self.setup_optimizer_param_groups()
-
-        self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
 
         if self.megatron_amp_o2:
 
@@ -462,9 +461,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         return loss_mean
 
     def validation_epoch_end(self, outputs):
-        if not outputs:
-            return
-        if parallel_state.is_pipeline_last_stage():
+        # if not outputs[0]:
+        #     return
+        if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
             # only the last pipeline parallel stages return loss
             averaged_loss = torch.stack(outputs).mean()
         else:
@@ -479,6 +478,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.compute_consumed_samples(self.trainer.global_step - self.init_global_step),
             rank_zero_only=True,
         )
+        self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True)
 
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
