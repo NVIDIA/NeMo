@@ -32,7 +32,7 @@ trainer:
   # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step,
   # LR schedulers, apex, etc.
   resume_from_checkpoint: null
-  log_every_n_steps: 50 
+  log_every_n_steps: 50
 
 exp_manager:
   exp_dir: /results  # exp_dir for your experiment, if None, defaults to "./nemo_experiments"
@@ -50,7 +50,7 @@ exp_manager:
     project: proj
 
 model:
-  pretrained_audio_encoder: stt_en_conformer_ctc_large
+  pretrained_audio_encoder: stt_en_conformer_ctc_small
 
   freeze_audio_encoder: false
 
@@ -103,13 +103,14 @@ model:
     n_jobs: null
 
   validation_ds:
-    #    use_cache: false
+    use_cache: false
     n_jobs: null
     text_file: txts/text_corpa_valid.txt
     labels_file: txts/labels_corpa_valid.txt
     audio_file: txts/audio_valid.txt
     use_audio: true
     use_bucketing: false
+    preload_audios: false
     batch_size: 32
     # if evaluation data is not in the model.dataset.data_dir as the training data or multiple datasets are used for
     # evaluation is needed, specify ds_item, otherwise by default data_dir is used
@@ -127,13 +128,14 @@ model:
     num_workers: 8
 
   test_ds:
-    #    use_cache: false
+    use_cache: false
     n_jobs: null
     text_file: txts/text_corpa_test.txt
     labels_file: txts/labels_corpa_test.txt
     audio_file: txts/audio_test.txt
     use_audio: true
     use_bucketing: false
+    preload_audios: false
     batch_size: 32
     # if evaluation data is not in the model.dataset.data_dir as the training data or multiple datasets are used for
     # evaluation is needed, specify ds_item, otherwise by default data_dir is used

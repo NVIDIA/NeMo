@@ -1,7 +1,7 @@
 from typing import Dict, List, Optional, Tuple
 
 import torch
-from omegaconf import DictConfig, OmegaConf, open_dict
+from omegaconf import DictConfig, open_dict
 from pytorch_lightning import Trainer
 from torch.nn import Linear
 

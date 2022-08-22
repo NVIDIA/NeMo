@@ -874,6 +874,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 sample_rate=cfg.sample_rate,
                 use_audio=cfg.use_audio,
                 use_bucketing=cfg.use_bucketing,
+                preload_audios=cfg.preload_audios,
             )
         if cfg.shuffle and cfg.use_tarred_dataset:
             logging.warning(f"Shuffling in dataloader is not supported for tarred dataset.")

@@ -95,6 +95,11 @@ class PunctuationCapitalizationDataConfigBase:
     Batch size used if ``use_bucketing`` set to False.
     """
 
+    preload_audios: Optional[bool] = True
+    """
+    If set to True audios will be loaded during ``__init__`` call of dataset. Otherwise it will be loaded during ``collate_fn ``call
+    """
+
     ###################################################
     # PARAMETERS COMMON FOR REGULAR AND TARRED DATASETS
     ###################################################
@@ -490,11 +495,17 @@ class TokenizeCreateMasksClipWorker:
         split_i: int,
         audio_queries: Optional[List[str]] = None,
         sample_rate: Optional[int] = None,
-    ) -> Union[
-        Tuple[List[ndarray], List[ndarray], List[ndarray], List[ndarray], Optional[List[Any]], ndarray],
-        Tuple[List[ndarray], List[ndarray], List[ndarray], List[ndarray]],
+        load_audios: Optional[bool] = True,
+    ) -> Tuple[
+        List[ndarray],
+        List[ndarray],
+        List[ndarray],
+        List[ndarray],
+        Union[List[Any], List[None]],
+        Union[List[Any], List[None]],
+        Union[List[Any], List[None]],
     ]:
-        # TODO: add docstring for `audio_queries` and `sample_rate`
+        # TODO: add docstring for `audio_queries` and `sample_rate` and others
         """
         Tokenize, clip, encode labels, and create masks of first tokens in words.
 
@@ -514,104 +525,69 @@ class TokenizeCreateMasksClipWorker:
                 in one word have identical labels
         """
         all_input_ids, all_subtokens_mask, punct_all_labels, capit_all_labels = [], [], [], []
-        all_audio_waveforms = [] if audio_queries else None
-        audio_lengths = [] if audio_queries else None
+        dummy = [None for _ in range(len(queries))]
+        all_audio_waveforms = [] if load_audios else dummy
+        audio_lengths = [] if load_audios else dummy
+        audio_filepaths = [] if not load_audios else dummy
         progress_made = 0
-        if audio_queries:
-            queries = zip(queries, audio_queries)
-            for i, (query, audio_query) in enumerate(queries):
-                words = query.split()
-                input_ids, subtokens_mask = [self.tokenizer.cls_id], [0]
-                _check_number_of_labels(words, query, i, split_i, punct_label_lines[i], capit_label_lines[i])
-                pad_id = self.punct_label_ids[self.pad_label]
-                punct_labels = [pad_id]
-                punct_query_labels = [self.punct_label_ids[lab] for lab in punct_label_lines[i]]
-                capit_labels = [pad_id]
-                capit_query_labels = [self.capit_label_ids[lab] for lab in capit_label_lines[i]]
-                for j, word in enumerate(words):
-                    word_ids = self.tokenizer.text_to_ids(word)
-                    if not word_ids and len(word):
-                        word_ids = [self.tokenizer.unk_id]
-                    input_ids.extend(word_ids)
+        queries = zip(queries, audio_queries) if audio_queries else zip(queries, [None for _ in range(len(queries))])
+        for i, (query, audio_query) in enumerate(queries):
+            words = query.split()
+            input_ids, subtokens_mask = [self.tokenizer.cls_id], [0]
+            _check_number_of_labels(words, query, i, split_i, punct_label_lines[i], capit_label_lines[i])
+            pad_id = self.punct_label_ids[self.pad_label]
+            punct_labels = [pad_id]
+            punct_query_labels = [self.punct_label_ids[lab] for lab in punct_label_lines[i]]
+            capit_labels = [pad_id]
+            capit_query_labels = [self.capit_label_ids[lab] for lab in capit_label_lines[i]]
+            for j, word in enumerate(words):
+                word_ids = self.tokenizer.text_to_ids(word)
+                if not word_ids and len(word):
+                    word_ids = [self.tokenizer.unk_id]
+                input_ids.extend(word_ids)
 
-                    subtokens_mask.append(1)
-                    subtokens_mask.extend([0] * (len(word_ids) - 1))
+                subtokens_mask.append(1)
+                subtokens_mask.extend([0] * (len(word_ids) - 1))
 
-                    punct_labels.extend([punct_query_labels[j]] * len(word_ids))
-                    capit_labels.extend([capit_query_labels[j]] * len(word_ids))
+                punct_labels.extend([punct_query_labels[j]] * len(word_ids))
+                capit_labels.extend([capit_query_labels[j]] * len(word_ids))
 
-                # add eos token
-                input_ids.append(self.tokenizer.sep_id)
-                subtokens_mask.append(0)
+            # add eos token
+            input_ids.append(self.tokenizer.sep_id)
+            subtokens_mask.append(0)
 
-                all_input_ids.append(np.array(self._maybe_clip(input_ids, self.tokenizer.sep_id), dtype=np.int32))
-                all_subtokens_mask.append(np.array(self._maybe_clip(subtokens_mask, 0), dtype=bool))
+            all_input_ids.append(np.array(self._maybe_clip(input_ids, self.tokenizer.sep_id), dtype=np.int32))
+            all_subtokens_mask.append(np.array(self._maybe_clip(subtokens_mask, 0), dtype=bool))
 
-                punct_labels.append(pad_id)
-                punct_all_labels.append(np.array(self._maybe_clip(punct_labels, pad_id), dtype=np.int32))
-                capit_labels.append(pad_id)
-                capit_all_labels.append(np.array(self._maybe_clip(capit_labels, pad_id), dtype=np.int32))
-                # print(audio_query.strip())
+            punct_labels.append(pad_id)
+            punct_all_labels.append(np.array(self._maybe_clip(punct_labels, pad_id), dtype=np.int32))
+            capit_labels.append(pad_id)
+            capit_all_labels.append(np.array(self._maybe_clip(capit_labels, pad_id), dtype=np.int32))
+            if load_audios and audio_query:
                 segment = AudioSegment.from_file(audio_query.strip(), target_sr=sample_rate)
                 all_audio_waveforms.append(segment.samples)
                 audio_lengths.append(segment.num_samples)
+            elif audio_query:
+                audio_filepaths.append(audio_query.strip())
 
-                progress_made += 1
-                if progress_made >= TOKENIZATION_PROGRESS_REPORT_PERIOD:
-                    self.progress_queue.put(progress_made)
-                    progress_made = 0
-        else:
-            for i, query in enumerate(queries):
-                words = query.split()
-                input_ids, subtokens_mask = [self.tokenizer.cls_id], [0]
-                _check_number_of_labels(words, query, i, split_i, punct_label_lines[i], capit_label_lines[i])
-                pad_id = self.punct_label_ids[self.pad_label]
-                punct_labels = [pad_id]
-                punct_query_labels = [self.punct_label_ids[lab] for lab in punct_label_lines[i]]
-                capit_labels = [pad_id]
-                capit_query_labels = [self.capit_label_ids[lab] for lab in capit_label_lines[i]]
-                for j, word in enumerate(words):
-                    word_ids = self.tokenizer.text_to_ids(word)
-                    if not word_ids and len(word):
-                        word_ids = [self.tokenizer.unk_id]
-                    input_ids.extend(word_ids)
+            progress_made += 1
+            if progress_made >= TOKENIZATION_PROGRESS_REPORT_PERIOD:
+                self.progress_queue.put(progress_made)
+                progress_made = 0
 
-                    subtokens_mask.append(1)
-                    subtokens_mask.extend([0] * (len(word_ids) - 1))
-
-                    punct_labels.extend([punct_query_labels[j]] * len(word_ids))
-                    capit_labels.extend([capit_query_labels[j]] * len(word_ids))
-
-                # add eos token
-                input_ids.append(self.tokenizer.sep_id)
-                subtokens_mask.append(0)
-
-                all_input_ids.append(np.array(self._maybe_clip(input_ids, self.tokenizer.sep_id), dtype=np.int32))
-                all_subtokens_mask.append(np.array(self._maybe_clip(subtokens_mask, 0), dtype=bool))
-
-                punct_labels.append(pad_id)
-                punct_all_labels.append(np.array(self._maybe_clip(punct_labels, pad_id), dtype=np.int32))
-                capit_labels.append(pad_id)
-                capit_all_labels.append(np.array(self._maybe_clip(capit_labels, pad_id), dtype=np.int32))
-
-                progress_made += 1
-                if progress_made >= TOKENIZATION_PROGRESS_REPORT_PERIOD:
-                    self.progress_queue.put(progress_made)
-                    progress_made = 0
         self.progress_queue.put(progress_made)
         if self.verbose:
             logging.info(f"Finished processing data split number {split_i}")
-        if audio_queries:
-            return (
-                all_input_ids,
-                all_subtokens_mask,
-                punct_all_labels,
-                capit_all_labels,
-                all_audio_waveforms,
-                np.array(audio_lengths).astype(np.int),
-            )
 
-        return all_input_ids, all_subtokens_mask, punct_all_labels, capit_all_labels
+        return (
+            all_input_ids,
+            all_subtokens_mask,
+            punct_all_labels,
+            capit_all_labels,
+            all_audio_waveforms,
+            audio_lengths,
+            audio_filepaths,
+        )
 
 
 def _get_features(
@@ -628,10 +604,8 @@ def _get_features(
     progress_queue: Optional[mp.Queue] = None,
     audio_queries: Optional[List[str]] = None,
     sample_rate: Optional[int] = None,
-) -> Union[
-    Tuple[List[Any], List[Any], List[Any], List[Any], List[Any], List[Any]],
-    Tuple[List[Any], List[Any], List[Any], List[Any]],
-]:
+    load_audios: Optional[bool] = True,
+) -> Tuple[List[Any], List[Any], List[Any], List[Any], List[Any], List[Any], List[Any]]:
     # TODO: add docstring
     """
     Tokenizes data, encodes labels, creates masks of first tokens in words, clips sequences by number of tokens.
@@ -702,6 +676,7 @@ def _get_features(
                 range(n_split),
                 split_audio_queries,
                 [sample_rate for _ in range(n_split)],
+                [load_audios for _ in range(n_split)],
             )
         )
     if create_progress_process:
@@ -726,12 +701,9 @@ def _get_features(
     if create_progress_process:
         progress.finish()
 
-    if audio_queries:
-        input_ids, subtokens_mask, punct_labels, capit_labels, waveforms, audio_lengths = tuple(
-            list(itertools.chain(*e)) for e in zip(*result)
-        )
-    else:
-        input_ids, subtokens_mask, punct_labels, capit_labels = tuple(list(itertools.chain(*e)) for e in zip(*result))
+    input_ids, subtokens_mask, punct_labels, capit_labels, waveforms, audio_lengths, audio_filepaths = tuple(
+        list(itertools.chain(*e)) for e in zip(*result)
+    )
     if verbose:
         logging.info("Finished initial tokenization.")
         get_stats([len(inp) for inp in input_ids])
@@ -743,17 +715,16 @@ def _get_features(
             logging.info("subtokens_mask: %s" % " ".join(list(map(str, subtokens_mask[i]))))
             logging.info("punct_labels: %s" % " ".join(list(map(str, punct_labels[i]))))
             logging.info("capit_labels: %s" % " ".join(list(map(str, capit_labels[i]))))
-    if audio_queries:
-        return (
-            input_ids,
-            subtokens_mask,
-            waveforms,
-            audio_lengths,
-            punct_labels,
-            capit_labels,
-        )
 
-    return input_ids, subtokens_mask, punct_labels, capit_labels
+    return (
+        input_ids,
+        subtokens_mask,
+        waveforms,
+        audio_lengths,
+        audio_filepaths,
+        punct_labels,
+        capit_labels,
+    )
 
 
 def create_masks_and_segment_ids(
@@ -1070,6 +1041,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         audio_file: Optional[Union[str, os.PathLike]] = None,
         sample_rate: Optional[int] = None,
         use_bucketing: Optional[bool] = True,
+        preload_audios: Optional[bool] = True,
     ) -> None:
         """ Initializes BertPunctuationCapitalizationDataset. """
         if isinstance(punct_label_ids, DictConfig):
@@ -1117,6 +1089,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         self.audio_file = audio_file
         self.sample_rate = sample_rate
         self.use_bucketing = use_bucketing
+        self.preload_audios = preload_audios
 
         master_device = is_global_rank_zero()
         self.features_pkl = self._get_path_to_pkl_features(
@@ -1128,23 +1101,16 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 logging.info(
                     f'Processing {self.text_file}' + f' {self.audio_file if self.audio_file else ""} '.rstrip()
                 )
-            if self.use_audio:
-                (
-                    text_lines,
-                    punct_label_lines,
-                    capit_label_lines,
-                    punct_unique_labels,
-                    capit_unique_labels,
-                    audio_lines,
-                ) = self._read_dataset(self.text_file, self.labels_file, num_samples, self.audio_file)
-            else:
-                (
-                    text_lines,
-                    punct_label_lines,
-                    capit_label_lines,
-                    punct_unique_labels,
-                    capit_unique_labels,
-                ) = self._read_dataset(self.text_file, self.labels_file, num_samples)
+
+            (
+                text_lines,
+                punct_label_lines,
+                capit_label_lines,
+                punct_unique_labels,
+                capit_unique_labels,
+                audio_lines,
+            ) = self._read_dataset(self.text_file, self.labels_file, num_samples, self.audio_file)
+
             if punct_label_ids:
                 self._check_label_ids_vs_unique_labels(
                     punct_label_ids, punct_unique_labels, 'punct', 'punctuation', self.labels_file
@@ -1171,6 +1137,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 n_jobs=n_jobs,
                 audio_queries=audio_lines if self.use_audio else None,
                 sample_rate=self.sample_rate,
+                load_audios=self.preload_audios,
             )
             self.features_pkl.parent.mkdir(parents=True, exist_ok=True)
 
@@ -1204,18 +1171,16 @@ class BertPunctuationCapitalizationDataset(Dataset):
             if self.verbose:
                 logging.info(f'Features restored from {self.features_pkl}')
             features = features[:-2]
-        if self.use_audio:
-            (
-                self.input_ids,
-                self.subtokens_mask,
-                self.waveforms,
-                self.waveforms_length,
-                self.punct_labels,
-                self.capit_labels,
-            ) = features
-        else:
-            self.input_ids, self.subtokens_mask, self.punct_labels, self.capit_labels = features
-            self.waveforms, self.waveforms_length = None, None
+
+        (
+            self.input_ids,
+            self.subtokens_mask,
+            self.waveforms,
+            self.waveforms_length,
+            self.audio_filepaths,
+            self.punct_labels,
+            self.capit_labels,
+        ) = features
         self.punct_label_ids, self.capit_label_ids = punct_label_ids, capit_label_ids
         self.number_of_batches_is_multiple_of = number_of_batches_is_multiple_of
         self.batch_shuffling_random_state = np.random.RandomState(batch_shuffling_random_seed)
@@ -1230,6 +1195,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 capit_labels=self.capit_labels,
                 waveforms=self.waveforms,
                 audio_lengths=self.waveforms_length,
+                audio_filepaths=self.audio_filepaths,
             )
         else:
             self.batches = self._form_batches(
@@ -1239,6 +1205,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 capit_labels=self.capit_labels,
                 waveforms=self.waveforms,
                 audio_lengths=self.waveforms_length,
+                audio_filepaths=self.audio_filepaths,
             )
 
     def _get_path_to_pkl_features(
@@ -1277,6 +1244,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         use_audio: bool = False,
         audio_file: Optional[Union[str, os.PathLike]] = None,
         sample_rate: Optional[int] = None,
+        load_audios: Optional[bool] = None,
     ) -> None:
         if torch.distributed.is_initialized() and torch.distributed.get_world_size() > 1 and not use_cache:
             raise ValueError(
@@ -1425,7 +1393,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 f"Number of text lines {len(text_lines)} in text file {text_file} is not equal to the number of lines "
                 f"{len(punct_labels_lines)} in labels file {labels_file}."
             )
-        dataset = list(zip(text_lines, punct_labels_lines, capit_labels_lines))
+
         if audio_file:
             with open(audio_file, 'r') as f:
                 audio_lines = f.readlines()
@@ -1435,7 +1403,8 @@ class BertPunctuationCapitalizationDataset(Dataset):
                     f'number of lines in {text_file} which is {len(text_lines)}'
                 )
             dataset = list(zip(text_lines, punct_labels_lines, capit_labels_lines, audio_lines))
-
+        else:
+            dataset = list(zip(text_lines, punct_labels_lines, capit_labels_lines))
         if len(dataset) == 0:
             raise ValueError(f"Dataset loaded from files {text_file} and {labels_file} is empty.")
         if num_samples > 0:
@@ -1634,13 +1603,23 @@ class BertPunctuationCapitalizationDataset(Dataset):
         capit_labels: List[np.ndarray],
         waveforms: Optional[List[np.ndarray]] = None,
         audio_lengths: Optional[List[np.ndarray]] = None,
+        audio_filepaths: Optional[List[str]] = None,
     ):
-
         batches = []
-        if self.use_audio:
-            zipped = list(zip(input_ids, subtokens_mask, punct_labels, capit_labels, waveforms, audio_lengths))
-        else:
-            zipped = list(zip(input_ids, subtokens_mask, punct_labels, capit_labels))
+        dummy = [None for _ in range(len(input_ids))]
+
+        zipped = list(
+            zip(
+                input_ids,
+                subtokens_mask,
+                punct_labels,
+                capit_labels,
+                waveforms if waveforms else dummy,
+                audio_lengths if audio_lengths else dummy,
+                audio_filepaths if audio_filepaths else dummy,
+            )
+        )
+
         for item in zipped:
             batch = {
                 "input_ids": item[0],
@@ -1648,9 +1627,11 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 "punct_labels": item[2].astype(np.int64),
                 "capit_labels": item[3].astype(np.int64),
             }
-            if self.use_audio:
+            if self.use_audio and self.preload_audios:
                 batch['features'] = item[4].astype(np.float)
                 batch['features_length'] = item[5]
+            elif self.use_audio and not self.preload_audios:
+                batch['audio_filepaths'] = item[6]
             batches.append(batch)
         return batches
 
@@ -1662,6 +1643,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         capit_labels: List[np.ndarray],
         waveforms: Optional[List[np.ndarray]] = None,
         audio_lengths: Optional[List[np.ndarray]] = None,
+        audio_filepaths: Optional[List[str]] = None,
     ) -> List[Dict[str, np.ndarray]]:
         # TODO: add docstring
         """
@@ -1699,17 +1681,25 @@ class BertPunctuationCapitalizationDataset(Dataset):
 
             The values of a batch dictionary are numpy arrays of identical shape.
         """
-        if self.use_audio:
-            zipped = list(zip(input_ids, subtokens_mask, punct_labels, capit_labels, waveforms, audio_lengths))
-        else:
-            zipped = list(zip(input_ids, subtokens_mask, punct_labels, capit_labels))
-        self.batch_shuffling_random_state.shuffle(zipped)
-        if self.use_audio:
-            input_ids, subtokens_mask, punct_labels, capit_labels, waveforms, audio_lengths = zip(
-                *sorted(zipped, key=lambda x: x[0].shape[0])
+        dummy = [None for _ in range(len(input_ids))]
+        zipped = list(
+            zip(
+                input_ids,
+                subtokens_mask,
+                punct_labels,
+                capit_labels,
+                waveforms if waveforms else dummy,
+                audio_lengths if audio_lengths else dummy,
+                audio_filepaths if audio_filepaths else dummy,
             )
-        else:
-            input_ids, subtokens_mask, punct_labels, capit_labels = zip(*sorted(zipped, key=lambda x: x[0].shape[0]))
+        )
+        self.batch_shuffling_random_state.shuffle(zipped)
+
+        dim_sort = 4 if self.use_audio and self.preload_audios else 0
+
+        input_ids, subtokens_mask, punct_labels, capit_labels, waveforms, audio_lengths, audio_filepaths = zip(
+            *sorted(zipped, key=lambda x: x[dim_sort].shape[0])
+        )
         batch_beginnings, batch_sizes, batch_seq_lengths = self._mark_up_batches(input_ids)
         batches = []
         if self.batch_building_progress_queue is None:
@@ -1736,11 +1726,14 @@ class BertPunctuationCapitalizationDataset(Dataset):
                     capit_labels[start : start + size], length, self.capit_label_ids[self.pad_label]
                 ).astype(np.int64),
             }
-            if self.use_audio:
+            if self.use_audio and self.preload_audios:
                 batch['features'] = pad(
                     waveforms[start : start + size], max(audio_lengths[start : start + size]), 0.0
                 ).astype(np.float)
                 batch['features_length'] = audio_lengths[start : start + size]
+            elif self.use_audio and not self.preload_audios:
+                batch['audio_filepaths'] = audio_filepaths[start : start + size]
+
             if self.add_masks_and_segment_ids_to_batch:
                 batch_segment_ids, batch_input_mask, batch_loss_mask = create_masks_and_segment_ids(
                     batch_input_ids,
@@ -1770,19 +1763,15 @@ class BertPunctuationCapitalizationDataset(Dataset):
         if not self.use_bucketing:
             return
         logging.info("Shuffling training dataset")
-        if self.use_audio:
-            self.batches = self._pack_into_batches(
-                self.input_ids,
-                self.subtokens_mask,
-                self.punct_labels,
-                self.capit_labels,
-                self.waveforms,
-                self.waveforms_length,
-            )
-        else:
-            self.batches = self._pack_into_batches(
-                self.input_ids, self.subtokens_mask, self.punct_labels, self.capit_labels
-            )
+        self.batches = self._pack_into_batches(
+            self.input_ids,
+            self.subtokens_mask,
+            self.punct_labels,
+            self.capit_labels,
+            self.waveforms,
+            self.waveforms_length,
+            self.audio_filepaths,
+        )
 
     def _calculate_and_save_label_frequencies(self, all_labels: List[np.ndarray], name: str) -> Dict[str, float]:
         """Calculates and saves labels frequencies in :attr:`label_info_save_dir`."""
@@ -1852,11 +1841,11 @@ class BertPunctuationCapitalizationDataset(Dataset):
               - ``'loss_mask'`` (:obj:`torch.Tensor`): :obj:`torch.bool` tensor.
         """
         if self.use_bucketing:
-            batch = {k: torch.as_tensor(v) for k, v in batches[0].items()}
+            batch = {k: torch.as_tensor(v) for k, v in batches[0].items() if k != 'audio_filepaths'}
             batch['segment_ids'] = batch['segment_ids'].int()
             batch['punct_labels'] = batch['punct_labels'].long()
             batch['capit_labels'] = batch['capit_labels'].long()
-            if self.use_audio:
+            if self.use_audio and self.preload_audios:
                 batch['features'] = batch['features'].to(torch.float32)
             return batch
         else:
@@ -1877,8 +1866,13 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 batch['subtokens_mask'] = torch.as_tensor(batch['subtokens_mask'])
                 batch['punct_labels'] = torch.as_tensor(batch['punct_labels'], dtype=torch.long)
                 batch['capit_labels'] = torch.as_tensor(batch['capit_labels'], dtype=torch.long)
-                batch['features'] = torch.as_tensor(batch['features'], dtype=torch.float)
-                batch['features_length'] = torch.as_tensor(batch['features_length'], dtype=torch.long)
+                if 'features' in batch:
+                    batch['features'] = torch.as_tensor(batch['features'], dtype=torch.float)
+                    batch['features_length'] = torch.as_tensor(batch['features_length'], dtype=torch.long)
+                elif self.use_audio:
+                    waveform = AudioSegment.from_file(batch['audio_filepaths'], target_sr=self.sample_rate)
+                    batch['features'] = torch.as_tensor(waveform.samples, dtype=torch.float)
+                    batch['features_length'] = torch.as_tensor(waveform.num_samples, dtype=torch.long)
 
             segment_ids = pad_sequence([batch['segment_ids'] for batch in batches])
             input_mask = pad_sequence([batch['input_mask'] for batch in batches])
