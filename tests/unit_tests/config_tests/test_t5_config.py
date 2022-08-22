@@ -26,16 +26,22 @@ class TestT5Config:
           act_ckpt_layers: auto
          
         inference_settings:
-          vocab_size: 29000
-          start_id: 50256
-          end_id: 50256
-          input_seq_len: 60
-          output_seq_len: 20
-          top_n: 10
-          logs: ${base_results_dir}/${search_config_value}
-          tensor_parallel_sizes: [1, 2, 4, 8]
-          pipeline_parallel_sizes: [1, 2, 3, 4]
-          max_batch_sizes: [1, 2, 8, 16, 32, 64, 256]
+          run:
+            model_type: t5
+            model_train_name: t5_11b
+            data_type: fp16
+            time_limit: 0:30:00
+            results_dir: ${base_results_dir}/${search_config_value}/inference
+            top_n: 10
+            max_latency_ms: 500
+            tensor_parallel_sizes: [2]
+            pipeline_parallel_sizes: [1]
+          benchmark:
+            input_len: 60
+            output_len: 20
+            batch_sizes: [1, 2, 4, 8, 16, 32, 64, 128, 256]
+            triton_wait_time_s: 300
+            vocab_size: 29184
         """
         expected = OmegaConf.create(s)
         assert (
