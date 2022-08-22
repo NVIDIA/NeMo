@@ -31,7 +31,7 @@ from nemo.collections.nlp.modules.common.megatron.megatron_init import initializ
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
-from nemo.utils import logging
+from nemo.utils import app_state, logging
 
 try:
     from apex.transformer import parallel_state
@@ -68,7 +68,6 @@ class MegatronBaseModel(NLPModel):
 
         super().__init__(cfg, trainer=trainer, no_lm_init=no_lm_init)
 
-        self._validate_config()
 
         # used in NVIDIA NGC PyTorch containers
         self._enable_nvidia_optimizations()
@@ -91,6 +90,9 @@ class MegatronBaseModel(NLPModel):
             seed=self.cfg.get('seed', 1234),
             apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
         )
+
+        # This must be called after initialize model parallel since it needs to know the data parallel size
+        self._validate_config()
 
         self.grad_clip_pl_default = False  # use pytorch default for gradient clipping. Default False
 
@@ -350,13 +352,19 @@ class MegatronBaseModel(NLPModel):
             with open_dict(self.cfg):
                 self.cfg.sequence_parallel = False
 
-        if (
-            self.cfg.get('gradient_accumulation_fusion', False)
-            and self.cfg.get('pipeline_model_parallel_size', 1) == 1
-        ):
-            logging.info("Gradient accumulation fusion can only be used with pipeline parallel size > 1.")
-            with open_dict(self.cfg):
-                self.cfg.gradient_accumulation_fusion = False
+        # Gradient accumulation fusion does not work with our baseline implementaiton of 
+        # async grad allreduce. This should be fixed! 
+        # For now we must disable it whenever using the baseline implementaion.
+        # The distributed adam from apex does work with gradient accumulation fusion.
+        distributed_fused_adam = self.cfg.optim.get('name', 'fused_adam') == 'distributed_fused_adam'
+        pipeline_model_parallel_size = self.cfg.get('pipeline_model_parallel_size', 1)
+        data_parallel_size = app_state.data_parallel_size
+
+        if self.cfg.get('gradient_accumulation_fusion', False):
+            if data_parallel_size > 1 and pipeline_model_parallel_size == 1 and not distributed_fused_adam:
+                logging.info("When not using pipeline model parallel, gradient accumulation fusion can only be used with distributed_fused_adam.")
+                with open_dict(self.cfg):
+                    self.cfg.gradient_accumulation_fusion = False
 
         if self.cfg.get('gradient_accumulation_fusion', False) and not self.cfg.get('megatron_amp_O2', False):
             logging.info("Gradient accumulation fusion can only be used with megatron amp O2 mixed precision.")
