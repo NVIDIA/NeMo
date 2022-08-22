@@ -22,8 +22,8 @@ from omegaconf.dictconfig import DictConfig
 from omegaconf.listconfig import ListConfig
 from pytorch_lightning.trainer.trainer import Trainer
 from sacrebleu import corpus_bleu
-from nemo.collections.common.parts import adapter_modules
 
+from nemo.collections.common.parts import adapter_modules
 from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import (
     BinarizedMemmapSequenceToSequenceDataset,
     TextMemmapSequenceToSequenceDataset,
@@ -847,10 +847,18 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
 
     # adapter related functions
     def _setup_adapters(self, in_features, dim):
-        self.add_adapter('decoder:adapter_1', cfg=adapter_modules.LinearAdapterConfig(in_features=in_features, dim=dim))
-        self.add_adapter('decoder:adapter_2', cfg=adapter_modules.LinearAdapterConfig(in_features=in_features, dim=dim))
-        self.add_adapter('encoder:adapter_1', cfg=adapter_modules.LinearAdapterConfig(in_features=in_features, dim=dim))
-        self.add_adapter('encoder:adapter_2', cfg=adapter_modules.LinearAdapterConfig(in_features=in_features, dim=dim))
+        self.add_adapter(
+            'decoder:adapter_1', cfg=adapter_modules.LinearAdapterConfig(in_features=in_features, dim=dim)
+        )
+        self.add_adapter(
+            'decoder:adapter_2', cfg=adapter_modules.LinearAdapterConfig(in_features=in_features, dim=dim)
+        )
+        self.add_adapter(
+            'encoder:adapter_1', cfg=adapter_modules.LinearAdapterConfig(in_features=in_features, dim=dim)
+        )
+        self.add_adapter(
+            'encoder:adapter_2', cfg=adapter_modules.LinearAdapterConfig(in_features=in_features, dim=dim)
+        )
 
         self.freeze()
         self.unfreeze_enabled_adapters()

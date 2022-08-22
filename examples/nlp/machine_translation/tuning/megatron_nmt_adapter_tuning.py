@@ -13,14 +13,16 @@
 # limitations under the License.
 
 from multiprocessing.sharedctypes import Value
-from nemo.collections.common.parts import adapter_modules
+
 from omegaconf.omegaconf import OmegaConf, open_dict
+from prettytable import PrettyTable
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelSummary
 from pytorch_lightning.callbacks.timer import Timer
 from pytorch_lightning.plugins.environments.torchelastic_environment import TorchElasticEnvironment
 from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
 
+from nemo.collections.common.parts import adapter_modules
 from nemo.collections.nlp.data.machine_translation.preproc_mt_data import MTDataPreproc
 from nemo.collections.nlp.models.language_modeling.megatron_bart_model import MegatronBARTModel
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
@@ -35,18 +37,19 @@ from nemo.collections.nlp.parts.nlp_overrides import (
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import StatelessTimer, exp_manager
-from prettytable import PrettyTable
+
 
 def count_parameters(model, draw_table=False):
     if draw_table:
         table = PrettyTable(["Parameters"])
     total_params = 0
     for parameter in model.parameters():
-        if not parameter.requires_grad: continue
+        if not parameter.requires_grad:
+            continue
         params = parameter.numel()
         if draw_table:
             table.add_row([params])
-        total_params+=params
+        total_params += params
     if draw_table:
         print(table)
     return total_params
@@ -217,12 +220,12 @@ def main(cfg) -> None:
     model.unfreeze_enabled_adapters()
 
     # confirm adapters trainable params
-    print(model.summarize()) 
+    print(model.summarize())
 
     # train the adapters and save the adapters only
     trainer.fit(model)
     model.save_adapters('adapters_validation.pt', name=None)
 
+
 if __name__ == '__main__':
     main()
-

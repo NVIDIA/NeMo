@@ -1925,9 +1925,7 @@ class AdapterParallelTransformer(ParallelTransformer, adapter_mixins.AdapterModu
                 layer.add_adapter(name, cfg)
             else:
                 # invalid adapter to use/add
-                logging.warning(
-                    'Invalid adapter to use. Currently, only adapter_1 and adapter_2 are valid.'
-                )
+                logging.warning('Invalid adapter to use. Currently, only adapter_1 and adapter_2 are valid.')
 
     def get_enabled_adapters(self):
         enabled_adapters = set([])
