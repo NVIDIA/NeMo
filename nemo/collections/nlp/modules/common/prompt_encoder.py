@@ -40,7 +40,7 @@ class PromptEncoder(NeuralModule, Exportable):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return {"output_embeds": NeuralType(('B', 'T', 'C'), ChannelType())}
 
-    def __init__(self, total_virtual_tokens: int, hidden_size: int, lstm_dropout: float, num_layers: int):
+    def __init__(self, total_virtual_tokens: int, hidden_size: int, lstm_dropout: float, num_layers: int, embedding_dropout: float = 0.0):
         """
         Initializes the PromptEncoder module.
         Args:
@@ -52,6 +52,7 @@ class PromptEncoder(NeuralModule, Exportable):
         super().__init__()
         self.hidden_size = hidden_size
         self.total_virtual_tokens = total_virtual_tokens
+        self.embedding_dropout = embedding_dropout
 
         # Set fixed indicies for forward pass
         self.register_buffer('indices', torch.LongTensor(list(range(self.total_virtual_tokens))))
@@ -75,6 +76,7 @@ class PromptEncoder(NeuralModule, Exportable):
     @typecheck()
     def forward(self, taskname_embeddings) -> torch.Tensor:
         input_embeds = self.embedding(self.indices).unsqueeze(0)
+        input_embeds = torch.nn.functional.dropout(input_embeds, p=self.embedding_dropout, training=self.training)
         batch_size, task_seq_length, _ = taskname_embeddings.shape
         input_embeds = input_embeds.expand(batch_size, self.total_virtual_tokens, self.hidden_size).clone()
         length = min(task_seq_length, self.total_virtual_tokens)

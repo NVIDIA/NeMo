@@ -200,6 +200,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
             hidden_size=self.hidden_size,
             lstm_dropout=self.cfg.p_tuning.dropout,
             num_layers=self.cfg.p_tuning.num_layers,
+            embedding_dropout=self.cfg.p_tuning.get('embedding_dropout', 0.0),
         )
 
     def add_ptuned_prompts_to_prompt_table(self):
