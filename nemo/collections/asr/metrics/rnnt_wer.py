@@ -652,7 +652,7 @@ class AbstractRNNTDecoding(ABC):
                 if token != token_text:
                     # If there are any partially or fully built sub-word token ids, construct to text.
                     # Note: This is "old" subword, that occurs *after* current sub-word has started.
-                    if len(built_token) > 0:
+                    if built_token:
                         word_offsets.append(
                             {
                                 "word": decode_tokens_to_str(built_token),
@@ -674,16 +674,24 @@ class AbstractRNNTDecoding(ABC):
         # This is because we always skip the delay the injection of the first sub-word due to the loop
         # condition and check whether built token is ready or not.
         # Therefore without this forced injection, the start_offset appears as off by 1.
-        word_offsets[0]["start_offset"] = offsets[0]["start_offset"]
+        # This should only be done when these arrays contain more than one element.
+        if offsets and word_offsets:
+            word_offsets[0]["start_offset"] = offsets[0]["start_offset"]
 
         # If there are any remaining tokens left, inject them all into the final word offset.
-        # Note: The start offset of this token is the start time of the first token inside build_token.
-        # Note: The end offset of this token is the end time of the last token inside build_token
-        if len(built_token) > 0:
+        # The start offset of this token is the start time of the next token to process.
+        # The end offset of this token is the end time of the last token from offsets.
+        # Note that built_token is a flat list; but offsets contains a nested list which
+        # may have different dimensionality.
+        # As such, we can't rely on the length of the list of built_token to index offsets.
+        if built_token:
+            # start from the previous token index as this hasn't been committed to word_offsets yet
+            # if we still have content in built_token
+            start_offset = offsets[previous_token_index]["start_offset"]
             word_offsets.append(
                 {
                     "word": decode_tokens_to_str(built_token),
-                    "start_offset": offsets[-(len(built_token))]["start_offset"],
+                    "start_offset": start_offset,
                     "end_offset": offsets[-1]["end_offset"],
                 }
             )
