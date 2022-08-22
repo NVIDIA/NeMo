@@ -1,4 +1,4 @@
-name: megatron_t5_glue_eval
+name: megatron_t5_finetune_eval
 
 trainer:
   devices: 1
@@ -13,7 +13,7 @@ trainer:
 exp_manager:
   explicit_log_dir: null
   exp_dir: null
-  name: megatron_t5_glue_eval
+  name: megatron_t5_finetune_eval
   create_checkpoint_callback: False
 
 model:
