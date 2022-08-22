@@ -51,12 +51,14 @@ class T5PromptLearningDataset(BasePromptLearningDataset):
         for_train: bool = True,
         decoder_starts_with_pad: bool = False,
         add_eos_to_decoder_output: bool = True,
-        add_sentinel_to_input: bool = True
+        add_sentinel_to_input: bool = True,
+        ul2_prompt_token: str = None,
     ):
         # These two variables need to be set before calling super().__init__() because the parent class calls `load_data()` which requires these attributes.
         self.decoder_starts_with_pad = decoder_starts_with_pad
         self.add_eos_to_decoder_output = add_eos_to_decoder_output
         self.add_sentinel_to_input = add_sentinel_to_input
+        self.ul2_prompt_token = ul2_prompt_token
         super().__init__(
             datasets=datasets,
             tokenizer=tokenizer,
@@ -119,16 +121,13 @@ class T5PromptLearningDataset(BasePromptLearningDataset):
             # a trick to align with the data format in t5 pretraining
             input_ids = self.tokenizer.text_to_ids(input_example)
             if self.add_sentinel_to_input:
-                self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
-
-            '''
-            # If the model wasn't trained with an <eos> token, then we need to have some other way of stopping model generation.
-            # So, we add an END sentinel token to the encoder input hoping that the decoder copies it and we can stop.
-            if not self.add_eos_to_decoder_output:
-                input_ids += self.tokenizer.text_to_ids(T5Sentinel.END.value)
-            '''
+                input_ids = input_ids + self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
 
             # Add BOS/EOS to the input of encoder if desired, adds EOS by default
+            if self.ul2_prompt_token is not None:
+                ul2_prompt_token_id = self.tokenizer.text_to_ids(self.ul2_prompt_token)
+                assert len(ul2_prompt_token_id) == 1
+                input_ids = ul2_prompt_token_id + input_ids
             if self.add_bos:
                 input_ids = [self.tokenizer.bos_id] + input_ids
             if self.add_eos:

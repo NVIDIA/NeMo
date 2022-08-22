@@ -75,6 +75,7 @@ model:
     decoder_starts_with_pad: True
     add_eos_to_decoder_output: False
     add_sentinel_to_input: True
+    ul2_prompt_token: <extra_id_x> # <extra_id_s>, <extra_id_r>, <extra_id_x>
     shuffle: True
     num_workers: 0
     pin_memory: True

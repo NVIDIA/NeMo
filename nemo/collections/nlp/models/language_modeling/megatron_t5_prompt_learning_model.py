@@ -349,6 +349,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             decoder_starts_with_pad=self.cfg.data.get('decoder_starts_with_pad', False),
             add_eos_to_decoder_output=self.cfg.data.get('add_eos_to_decoder_output', True),
             add_sentinel_to_input=self.cfg.data.get('add_sentinel_to_input', True),
+            ul2_prompt_token=self.cfg.data.get('ul2_prompt_token', None),
             for_train=for_train,
         )
 
