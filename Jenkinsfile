@@ -3168,7 +3168,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
                 model.data.train_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
                 model.data.validation_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
                 model.global_batch_size=4"
-            sh "python examples/nlp/language_modeling/tuning/megatron_gpt_prompt_learning_eval.py \
+            sh "python examples/nlp/language_modeling/tuning/megatron_gpt_adapter_eval.py \
                 --config-name=megatron_gpt_adapter_inference \
                 adapter_model_file='/home/TestData/nlp/adapter_tuning/test_tp2_pp1.nemo' \
                 gpt_model_file='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp2_pp1.nemo' \
@@ -3197,7 +3197,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
                 model.data.train_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
                 model.data.validation_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
                 model.global_batch_size=4"
-            sh "python examples/nlp/language_modeling/tuning/megatron_gpt_prompt_learning_eval.py \
+            sh "python examples/nlp/language_modeling/tuning/megatron_gpt_adapter_eval.py \
                 --config-name=megatron_gpt_adapter_inference \
                 adapter_model_file='/home/TestData/nlp/adapter_tuning/test_tp1_pp2.nemo' \
                 gpt_model_file='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp1_pp2.nemo' \
