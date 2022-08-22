@@ -1,6 +1,7 @@
 defaults:
   - _self_
-  - search_config: gpt3/0.126b
+  - cluster: bcm
+  - search_config: gpt3/5b
   - override hydra/job_logging: stdout
 
 hydra:
@@ -9,11 +10,13 @@ hydra:
   output_subdir: null
 
 run_training_hp_search: True
-run_inference_hp_search: False
+run_inference_hp_search: True
 
-bignlp_hp_tool_path: /lustre/fsw/joc/big_nlp/nemo_gpt3/hp_tool/dev_2208/bignlp-hp-tool  # Path to the location of bignlp-hp-tool codebase.
+bignlp_hp_tool_path: ???  # Path to the location of bignlp-hp-tool codebase.
 bignlp_scripts_path: ${bignlp_hp_tool_path}/../bignlp-scripts
 base_results_dir: ${bignlp_hp_tool_path}/results
+
+training_container: nvcr.io/ea-bignlp/bignlp-training:22.08-py3
 
 wandb:  # Weights and Biases (W&B) logging.
   enable: False  # Whether to save logs to W&B.
