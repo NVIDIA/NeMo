@@ -161,12 +161,13 @@ class FastPitchModule(NeuralModule):
         self.max_token_duration = max_token_duration
         self.min_token_duration = 0
 
-        self.pitch_emb = torch.nn.Conv1d(
-            1,
-            symbols_embedding_dim,
-            kernel_size=pitch_embedding_kernel_size,
-            padding=int((pitch_embedding_kernel_size - 1) / 2),
-        )
+        if self.pitch_predictor is not None:
+            self.pitch_emb = torch.nn.Conv1d(
+                1,
+                symbols_embedding_dim,
+                kernel_size=pitch_embedding_kernel_size,
+                padding=int((pitch_embedding_kernel_size - 1) / 2),
+            )
 
         # Store values precomputed from training data for convenience
         self.register_buffer('pitch_mean', torch.zeros(1))
@@ -225,7 +226,7 @@ class FastPitchModule(NeuralModule):
 
         if not self.learn_alignment and self.training:
             assert durs is not None
-            assert pitch is not None
+            # assert pitch is not None
 
         # Calculate speaker embedding
         if self.speaker_emb is None or speaker is None:
@@ -237,8 +238,10 @@ class FastPitchModule(NeuralModule):
         if enc_out is None or enc_mask is None:
             enc_out, enc_mask = self.encoder(input=text, conditioning=spk_emb)
 
-        log_durs_predicted = self.duration_predictor(enc_out, enc_mask)
-        durs_predicted = torch.clamp(torch.exp(log_durs_predicted) - 1, 0, self.max_token_duration)
+        log_durs_predicted, durs_predicted = None, None
+        if self.duration_predictor is not None:
+            log_durs_predicted = self.duration_predictor(enc_out, enc_mask)
+            durs_predicted = torch.clamp(torch.exp(log_durs_predicted) - 1, 0, self.max_token_duration)
 
         attn_soft, attn_hard, attn_hard_dur, attn_logprob = None, None, None, None
         if self.learn_alignment and spec is not None:
@@ -248,19 +251,21 @@ class FastPitchModule(NeuralModule):
             attn_hard_dur = attn_hard.sum(2)[:, 0, :]
 
         # Predict pitch
-        pitch_predicted = self.pitch_predictor(enc_out, enc_mask)
-        if pitch is not None:
-            if self.learn_alignment and pitch.shape[-1] != pitch_predicted.shape[-1]:
-                # Pitch during training is per spectrogram frame, but during inference, it should be per character
-                pitch = average_pitch(pitch.unsqueeze(1), attn_hard_dur).squeeze(1)
-            if pitch.shape[-1] != enc_out.shape[1]:
-                pitch = average_pitch(pitch.unsqueeze(1), durs).squeeze(1)
+        pitch_predicted = None
+        if self.pitch_predictor is not None:
+            pitch_predicted = self.pitch_predictor(enc_out, enc_mask)
+            if pitch is not None:
+                if self.learn_alignment and pitch.shape[-1] != pitch_predicted.shape[-1]:
+                    # Pitch during training is per spectrogram frame, but during inference, it should be per character
+                    pitch = average_pitch(pitch.unsqueeze(1), attn_hard_dur).squeeze(1)
+                if pitch.shape[-1] != enc_out.shape[1]:
+                    pitch = average_pitch(pitch.unsqueeze(1), durs).squeeze(1)
 
-            pitch_emb = self.pitch_emb(pitch.unsqueeze(1))
-        else:
-            pitch_emb = self.pitch_emb(pitch_predicted.unsqueeze(1))
+                pitch_emb = self.pitch_emb(pitch.unsqueeze(1))
+            else:
+                pitch_emb = self.pitch_emb(pitch_predicted.unsqueeze(1))
 
-        enc_out = enc_out + pitch_emb.transpose(1, 2)
+            enc_out = enc_out + pitch_emb.transpose(1, 2)
 
         if self.learn_alignment and spec is not None:
             len_regulated, dec_lens = regulate_len(attn_hard_dur, enc_out, pace)
