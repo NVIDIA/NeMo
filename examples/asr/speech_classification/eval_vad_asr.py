@@ -48,7 +48,7 @@ def main():
     ]
 
     vad_exps = ["novad"] 
-    models = ['riva_citrinet_new'] 
+    models = ['riva_conformer_ctc'] 
 
     shift_length_in_sec = 0.08
     clean_text = True
@@ -131,6 +131,9 @@ def main():
                                         left, right = 0, 0
                                     if use_model_path:
                                         if 'conformer_ctc' in asr_model:
+                                            # RIVA: buffered, with a chunk size of 4.8s, buffer size of 8s
+                                            # NeMo mimic offline chunk_len_in_ms 22
+
                                             os.system(f'python ../asr_chunked_inference/ctc/speech_to_text_buffered_infer_ctc.py \
                                                 --asr_model {asr_model} \
                                                 --test_manifest {input_manifest} \
