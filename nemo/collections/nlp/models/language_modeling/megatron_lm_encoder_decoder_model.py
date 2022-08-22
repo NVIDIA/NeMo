@@ -777,7 +777,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         # Torch dataloader.
         return torch.utils.data.DataLoader(
-            dataset, batch_sampler=batch_sampler, num_workers=num_workers, pin_memory=False,
+            dataset, batch_sampler=batch_sampler, num_workers=num_workers, pin_memory=True,
         )
 
     def setup(self, stage=None):
