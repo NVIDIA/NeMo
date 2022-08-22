@@ -135,39 +135,38 @@ def _tp_pp_mbs_grid_gpt3_80gb(model_size_in_b, valid_pp):
     """
     tp = [1, 2, 4, 8]
     pp = [1]
+    mbs = [1, 2, 3, 4, 6, 8]
     if model_size_in_b <= 1.0:
         tp = [1, 2]
-        mbs = [1, 2, 3, 4, 6, 8]
     elif 1.0 < model_size_in_b <= 4.0:
         tp = [1, 2, 4]
-        mbs = [1, 2, 3, 4, 8]
     elif 4.0 < model_size_in_b <= 8.0:
         tp = [1, 2, 4]
-        mbs = [1, 2, 3, 4, 8]
     elif 8.0 < model_size_in_b <= 13.0:
         tp = [1, 2, 4, 8]
-        mbs = [1, 2, 4, 8]
     elif 13.0 < model_size_in_b <= 23.0:
         tp = [1, 2, 4, 8]
         pp = [x for x in valid_pp if x <= 4]
     elif 23.0 < model_size_in_b <= 45.0:
-        tp = [2, 4, 8]
+        tp = [1, 2, 4, 8]
         pp = [x for x in valid_pp if 1 <= x <= 4]
+        mbs = [1, 2, 4, 8]
     elif 45.0 < model_size_in_b <= 95:
         tp = [2, 4, 8]
         pp = [x for x in valid_pp if 1 <= x <= 8]
+        mbs = [1, 2, 4, 8]
     elif 95.0 < model_size_in_b <= 130.0:
-        tp = [4, 8]
+        tp = [2, 4, 8]
         pp = [x for x in valid_pp if 1 <= x <= 16]
-        mbs = [1, 2, 4, 6, 8, 10, 12]
+        mbs = [1, 2, 4, 8]
     elif 130.0 < model_size_in_b <= 195.0:
-        tp = [4, 8]
+        tp = [2, 4, 8]
         pp = [x for x in valid_pp if 1 <= x <= 16]
-        mbs = [1, 2, 4, 6, 8]
+        mbs = [1, 2, 4, 8]
     elif 195.0 < model_size_in_b <= 395.0:
         tp = [4, 8]
         pp = [x for x in valid_pp if 1 <= x <= 32]
-        mbs = [1, 2, 4, 6, 8]
+        mbs = [1, 2, 4, 8]
     elif 395.0 < model_size_in_b <= 790.0:
         tp = [4, 8]
         pp = [x for x in valid_pp if 2 <= x <= 100]
@@ -346,9 +345,10 @@ def launch_grid_search_configs(base_dir, results_cfgs, model_name, cfg):
     for cfg_list in results_cfgs:
         for file_name in cfg_list:
             src_file = os.path.join(base_dir, file_name)
-            dst_dir = os.path.join(bignlp_hp_tool_path, "bignlp_conf/training", model_name, file_name)
+            dst_dir = os.path.join(bignlp_scripts_path, "conf/training", model_name, file_name)
             shutil.copyfile(src_file, dst_dir)
-            job_id = train.run_training(file_name, bignlp_hp_tool_path, bignlp_scripts_path, model_name, results_dir)
+            job_id = train.run_training(file_name, bignlp_hp_tool_path, bignlp_scripts_path, model_name, results_dir, cfg)
+            os.remove(dst_dir)
             
             if job_id is not None:
                 job_ids.append(job_id[:-1])
