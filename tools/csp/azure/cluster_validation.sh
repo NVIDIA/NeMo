@@ -108,7 +108,7 @@ if [ -z $RUN_DCGMI ] && [ -z $RUN_NCCL ]; then
 fi
 
 # Define where test logs should be written to and read from
-RESULTS_DIR=../../results/cluster_validation
+RESULTS_DIR=../../../results/cluster_validation
 mkdir -p $RESULTS_DIR
 
 if [[ $RUN_DCGMI == 1 ]]; then
