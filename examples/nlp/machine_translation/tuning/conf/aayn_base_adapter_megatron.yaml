@@ -40,6 +40,12 @@ exp_manager:
     model_parallel_size: ${multiply:${model.tensor_model_parallel_size}, ${model.pipeline_model_parallel_size}}
 
 model:
+  # Adapter Params
+  encoder_adapter:
+    dim: null
+  decoder_adapter:
+    dim: null
+
   # NMT Params
   multilingual: False
   label_smoothing: 0.1 # TODO: Implement this.

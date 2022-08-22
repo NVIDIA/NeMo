@@ -205,10 +205,30 @@ def main(cfg) -> None:
         raise ValueError('pretrained_model_path is not specified in the config file!')
 
     # add encoder/decoder adapters
-    model.add_adapter('decoder:adapter_1', cfg=adapter_modules.LinearAdapterConfig(in_features=cfg.model.decoder.hidden_size, dim=5))
-    model.add_adapter('decoder:adapter_2', cfg=adapter_modules.LinearAdapterConfig(in_features=cfg.model.decoder.hidden_size, dim=5))
-    model.add_adapter('encoder:adapter_1', cfg=adapter_modules.LinearAdapterConfig(in_features=cfg.model.encoder.hidden_size, dim=5))
-    model.add_adapter('encoder:adapter_2', cfg=adapter_modules.LinearAdapterConfig(in_features=cfg.model.encoder.hidden_size, dim=5))
+    model.add_adapter(
+        'decoder:adapter_1',
+        cfg=adapter_modules.LinearAdapterConfig(
+            in_features=cfg.model.decoder.hidden_size, dim=cfg.model.decoder_adapter.dim
+        ),
+    )
+    model.add_adapter(
+        'decoder:adapter_2',
+        cfg=adapter_modules.LinearAdapterConfig(
+            in_features=cfg.model.decoder.hidden_size, dim=cfg.model.decoder_adapter.dim
+        ),
+    )
+    model.add_adapter(
+        'encoder:adapter_1',
+        cfg=adapter_modules.LinearAdapterConfig(
+            in_features=cfg.model.encoder.hidden_size, dim=cfg.model.encoder_adapter.dim
+        ),
+    )
+    model.add_adapter(
+        'encoder:adapter_2',
+        cfg=adapter_modules.LinearAdapterConfig(
+            in_features=cfg.model.encoder.hidden_size, dim=cfg.model.encoder_adapter.dim
+        ),
+    )
 
     print("Encoder adapter available :", model.enc_dec_model.encoder.is_adapter_available())
     print("Decoder adapter available :", model.enc_dec_model.decoder.is_adapter_available())
@@ -224,7 +244,7 @@ def main(cfg) -> None:
 
     # train the adapters and save the adapters only
     trainer.fit(model)
-    
+
     # you can save adapters only by:
     # model.save_adapters('adapters_validation.pt', name=None)
 
