@@ -216,11 +216,11 @@ class VitsModel(TextToWaveform):
         # train discriminator
         if optimizer_idx == 0:
         # with autocast(enabled=True):
-            # with torch.no_grad():
-            y_hat, l_length, attn, ids_slice, x_mask, z_mask, (z, z_p, m_p, logs_p, m_q, logs_q) = self.net_g(
-                x, x_lengths, spec, spec_lengths
-            )
-            print(y_hat.requires_grad)
+            with torch.no_grad():
+                y_hat, l_length, attn, ids_slice, x_mask, z_mask, (z, z_p, m_p, logs_p, m_q, logs_q) = self.net_g(
+                    x, x_lengths, spec, spec_lengths
+                )
+
             self.stash = y_hat, l_length, attn, ids_slice, x_mask, z_mask, (z, z_p, m_p, logs_p, m_q, logs_q)
             y = torch.unsqueeze(y, 1)
             y = slice_segments(y, ids_slice * self.cfg.n_window_stride, self._cfg.segment_size)
@@ -267,8 +267,10 @@ class VitsModel(TextToWaveform):
                 self._cfg.mel_fmax,
             )
             
-            y_hat, l_length, attn, ids_slice, x_mask, z_mask, (z, z_p, m_p, logs_p, m_q, logs_q) = self.stash
-            print(y_hat.requires_grad)
+            y_hat, l_length, attn, ids_slice, x_mask, z_mask, (z, z_p, m_p, logs_p, m_q, logs_q) = self.net_g(
+                    x, x_lengths, spec, spec_lengths
+                )
+
             y = torch.unsqueeze(y, 1)
             y = slice_segments(y, ids_slice * self.cfg.n_window_stride, self._cfg.segment_size)
             y_mel = slice_segments(mel, ids_slice, self._cfg.segment_size // self.cfg.n_window_stride)
