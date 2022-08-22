@@ -32,8 +32,8 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.modules import rnnt_abstract
-from nemo.collections.asr.parts.utils import adapter_utils, rnnt_utils
 from nemo.collections.asr.parts.submodules import stateless_net
+from nemo.collections.asr.parts.utils import adapter_utils, rnnt_utils
 from nemo.collections.common.parts import rnn
 from nemo.core.classes import adapter_mixins, typecheck
 from nemo.core.classes.exportable import Exportable
