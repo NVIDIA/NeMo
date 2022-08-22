@@ -3,7 +3,7 @@ import os
 from hp_tool import utils
 from hp_tool.base_config import calculate_model_size, generate_base_config
 from hp_tool.training_config import search_training_config
-from hp_tool.inference_config import search_inference_config
+from hp_tool.inference_sweep import search_inference_config
 
 
 SUPPORTED_MODELS = ["gpt3", "t5", "mt5"]
@@ -83,8 +83,6 @@ def search_config(cfg, hydra_args=None):
     # Launch grid search for inference constraints
     if cfg.get("run_inference_hp_search"):
         search_inference_config(
-            model_size_in_b=model_size_in_b,
-            model_name=model_name,
             base_cfg=base_cfg,
             cfg=cfg,
         )

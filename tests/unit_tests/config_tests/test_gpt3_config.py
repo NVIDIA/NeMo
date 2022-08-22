@@ -26,17 +26,21 @@ class TestGPT3Config:
           act_ckpt_layers: auto
          
         inference_settings:
-          vocab_size: 51200
-          start_id: 50256
-          end_id: 50256
-          max_latency_ms: 500
-          input_seq_len: 60
-          output_seq_len: 20
-          top_n: 10
-          logs: ${base_results_dir}/${search_config_value}
-          tensor_parallel_sizes: [1, 2]
-          pipeline_parallel_sizes: [1]
-          max_batch_sizes: [8, 16, 32, 64, 128, 256]
+          run:
+            model_type: gpt3
+            model_train_name: gpt3_126m
+            data_type: fp16 # fp32|fp16|bf16
+            timelimit: 0:30:00
+            results_dir: ${base_results_dir}/${search_config_value}
+            top_n: 10
+            max_latency_ms: 500
+            tensor_parallel_sizes: [1, 2]
+            pipeline_parallel_sizes: [1]
+          benchmark:
+            input_len: 60
+            output_len: 20
+            batch_sizes: [8, 16, 32, 64, 128, 256]
+            triton_wait_time_s: 300
         """
         expected = OmegaConf.create(s)
         assert (
@@ -67,17 +71,21 @@ class TestGPT3Config:
           act_ckpt_layers: auto
          
         inference_settings:
-          vocab_size: 51200
-          start_id: 50256
-          end_id: 50256
-          input_seq_len: 60
-          output_seq_len: 20
-          max_latency_ms: 1200
-          top_n: 10
-          logs: ${base_results_dir}/${search_config_value}
-          tensor_parallel_sizes: [1, 2, 4, 8]
-          pipeline_parallel_sizes: [1]
-          max_batch_sizes: [8, 16, 32, 64, 128, 256]
+          run:
+            model_type: gpt3
+            model_train_name: gpt3_5b
+            data_type: fp16 # fp32|fp16|bf16
+            time_limit: 0:30:00
+            results_dir: ${base_results_dir}/${search_config_value}/inference
+            top_n: 10
+            max_latency_ms: 500
+            tensor_parallel_sizes: [8]
+            pipeline_parallel_sizes: [1]
+          benchmark:
+            input_len: 60
+            output_len: 20
+            batch_sizes: [1, 2, 4, 8, 16, 32, 64, 128, 256]
+            triton_wait_time_s: 300
         """
         expected = OmegaConf.create(s)
         assert (
@@ -107,17 +115,21 @@ class TestGPT3Config:
           micro_batch_sizes: auto
          
         inference_settings:
-          vocab_size: 51200
-          start_id: 50256
-          end_id: 50256
-          input_seq_len: 60
-          output_seq_len: 20
-          max_latency_ms: 5000
-          top_n: 10
-          logs: ${base_results_dir}/${search_config_value}
-          tensor_parallel_sizes: [4, 8]
-          pipeline_parallel_sizes: [1]
-          max_batch_sizes: [4, 8, 16, 32, 64, 128, 256]
+          run:
+            model_type: gpt3
+            model_train_name: gpt3_20b
+            data_type: fp16 # fp32|fp16|bf16
+            time_limit: 0:30:00
+            results_dir: ${base_results_dir}/${search_config_value}/inference
+            top_n: 10
+            max_latency_ms: 500
+            tensor_parallel_sizes: [8]
+            pipeline_parallel_sizes: [1]
+          benchmark:
+            input_len: 60
+            output_len: 20
+            batch_sizes: [1, 2, 4, 8, 16, 32, 64, 128, 256]
+            triton_wait_time_s: 300
         """
         expected = OmegaConf.create(s)
         assert (
@@ -147,17 +159,21 @@ class TestGPT3Config:
           micro_batch_sizes: auto
          
         inference_settings:
-          vocab_size: 51200
-          start_id: 50256
-          end_id: 50256
-          input_seq_len: 60
-          output_seq_len: 20
-          max_latency_ms: 5000
-          top_n: 10
-          logs: ${base_results_dir}/${search_config_value}
-          tensor_parallel_sizes: [8]
-          pipeline_parallel_sizes: [1, 2, 4]
-          max_batch_sizes: [8, 16, 32, 64, 128, 256]
+          run:
+            model_type: gpt3
+            model_train_name: gpt3_40b
+            data_type: fp16 # fp32|fp16|bf16
+            time_limit: 0:30:00
+            results_dir: ${base_results_dir}/${search_config_value}/inference
+            top_n: 10
+            max_latency_ms: 500
+            tensor_parallel_sizes: [1, 2, 4, 8]
+            pipeline_parallel_sizes: [1]
+          benchmark:
+            input_len: 60
+            output_len: 20
+            batch_sizes: [1, 8, 16, 32, 64, 128, 256]
+            triton_wait_time_s: 300
         """
         expected = OmegaConf.create(s)
         assert (
@@ -187,17 +203,21 @@ class TestGPT3Config:
           micro_batch_sizes: auto
          
         inference_settings:
-          vocab_size: 51200
-          start_id: 50256
-          end_id: 50256
-          input_seq_len: 60
-          output_seq_len: 20
-          max_latency_ms: 10000
-          top_n: 10
-          logs: ${base_results_dir}/${search_config_value}
-          tensor_parallel_sizes: [8]
-          pipeline_parallel_sizes: [1, 2, 4, 8]
-          max_batch_sizes: [8, 16, 32, 64, 128]
+          run:
+            model_type: gpt3
+            model_train_name: gpt3_175b
+            data_type: fp16 # fp32|fp16|bf16
+            time_limit: 0:30:00
+            results_dir: ${base_results_dir}/${search_config_value}/inference
+            top_n: 10
+            max_latency_ms: 500
+            tensor_parallel_sizes: [8]
+            pipeline_parallel_sizes: [1]
+          benchmark:
+            input_len: 60
+            output_len: 20
+            batch_sizes: [1, 2, 4, 8, 16, 32, 64, 128, 256]
+            triton_wait_time_s: 300
         """
         expected = OmegaConf.create(s)
         assert (
