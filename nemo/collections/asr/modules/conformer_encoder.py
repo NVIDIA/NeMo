@@ -21,7 +21,7 @@ import torch.distributed
 import torch.nn as nn
 from omegaconf import DictConfig, ListConfig
 
-from nemo.collections.asr.models.configs import FramewiseStreamingConfig
+from nemo.collections.asr.models.configs import CacheAwareStreamingConfig
 from nemo.collections.asr.parts.mixins.streaming import StreamingEncoder
 from nemo.collections.asr.parts.submodules.causal_convs import CausalConv1D
 from nemo.collections.asr.parts.submodules.conformer_modules import ConformerLayer
@@ -461,7 +461,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
                 max_context (int): the value used for the cache size of last_channel layers if left context is set to infinity (-1)
                     Defaults to -1 (means feat_out is d_model)
         """
-        streaming_cfg = FramewiseStreamingConfig()
+        streaming_cfg = CacheAwareStreamingConfig()
         if chunk_size is not None:
             if chunk_size <= 1:
                 raise ValueError("chunk_size needs to be a number larger or equal to one.")

@@ -23,7 +23,7 @@ class StreamingEncoder(ABC):
         self, max_look_ahead: int = 10000,
     ):
         """
-        This function sets the needed values and parameters to perform streaming. The configuration (FramewiseStreamingConfig) need to be stored in self.streaming_cfg.
+        This function sets the needed values and parameters to perform streaming. The configuration (CacheAwareStreamingConfig) need to be stored in self.streaming_cfg.
         The streaming configuration is needed to simulate streaming inference. It would set the following
         """
         pass
