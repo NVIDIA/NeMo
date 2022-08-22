@@ -1921,7 +1921,13 @@ class AdapterParallelTransformer(ParallelTransformer, adapter_mixins.AdapterModu
     def add_adapter(self, name: str, cfg):
         # call the same method on each layer, collecting results
         for layer in self.layers:
-            layer.add_adapter(name, cfg)
+            if 'adapter_1' in name or 'adapter_2' in name:
+                layer.add_adapter(name, cfg)
+            else:
+                # invalid adapter to use/add
+                logging.warning(
+                    'Invalid adapter to use. Currently, only adapter_1 and adapter_2 are valid.'
+                )
 
     def get_enabled_adapters(self):
         enabled_adapters = set([])
