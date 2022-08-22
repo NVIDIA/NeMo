@@ -19,12 +19,11 @@ class TestGPT3Config:
           num_tokens_in_b: 300
           vocab_size: 51200
           logs: ${base_results_dir}/${search_config_value}_${.gpu_memory_gb}gb
-          override_search_num_nodes: auto
           tensor_parallel_sizes: auto
           pipeline_parallel_sizes: auto
           micro_batch_sizes: auto
           act_ckpt_layers: auto
-         
+
         inference_settings:
           run:
             model_type: gpt3
@@ -52,7 +51,7 @@ class TestGPT3Config:
         s = """
         train_settings:
           model_size_in_b: 5
-          num_nodes: 20
+          num_nodes: 16
           gpus_per_node: 8
           gpu_memory_gb: 80
           max_training_days: 5
@@ -64,12 +63,11 @@ class TestGPT3Config:
           num_tokens_in_b: 300
           vocab_size: 51200
           logs: ${base_results_dir}/${search_config_value}_${.gpu_memory_gb}gb
-          override_search_num_nodes: auto
           tensor_parallel_sizes: auto
           pipeline_parallel_sizes: auto
           micro_batch_sizes: auto
           act_ckpt_layers: auto
-         
+
         inference_settings:
           run:
             model_type: gpt3
@@ -97,7 +95,7 @@ class TestGPT3Config:
         s = """
         train_settings:
           model_size_in_b: 20.0
-          num_nodes: 80
+          num_nodes: 64
           gpus_per_node: 8
           gpu_memory_gb: 80
           max_training_days: 7
@@ -109,7 +107,6 @@ class TestGPT3Config:
           num_tokens_in_b: 300
           vocab_size: 51200
           logs: ${base_results_dir}/${search_config_value}_${.gpu_memory_gb}gb
-          override_search_num_nodes: auto
           tensor_parallel_sizes: auto
           pipeline_parallel_sizes: auto
           micro_batch_sizes: auto
@@ -141,7 +138,7 @@ class TestGPT3Config:
         s = """
         train_settings:
           model_size_in_b: 40
-          num_nodes: 80
+          num_nodes: 128
           gpus_per_node: 8
           gpu_memory_gb: 80
           max_training_days: 13
@@ -153,7 +150,6 @@ class TestGPT3Config:
           num_tokens_in_b: 300
           vocab_size: 51200
           logs: ${base_results_dir}/${search_config_value}_${.gpu_memory_gb}gb
-          override_search_num_nodes: auto
           tensor_parallel_sizes: auto
           pipeline_parallel_sizes: auto
           micro_batch_sizes: auto
@@ -197,7 +193,6 @@ class TestGPT3Config:
           num_tokens_in_b: 300
           vocab_size: 51200
           logs: ${base_results_dir}/${search_config_value}_${.gpu_memory_gb}gb
-          override_search_num_nodes: auto
           tensor_parallel_sizes: auto
           pipeline_parallel_sizes: auto
           micro_batch_sizes: auto

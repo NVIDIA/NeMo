@@ -123,15 +123,15 @@ class TestCalculateGbsTpPp:
         [
             # GPT-3 tests
             (0.126, "gpt3", (256, 1, 1)),
-            (3.0, "gpt3", (720, 1, 1)),
-            (5.0, "gpt3", (1440, 2, 1)),
-            (10.0, "gpt3", (1440, 4, 1)),
-            (20.0, "gpt3", (1440, 8, 1)),
-            (40.0, "gpt3", (1440, 8, 2)),
-            (80.0, "gpt3", (1440, 8, 4)),
-            (175.0, "gpt3", (1536, 8, 8)),
-            (300.0, "gpt3", (1792, 8, 16)),
-            (600.0, "gpt3", (1920, 8, 32)),
+            (3.0, "gpt3", (1024, 1, 1)),
+            (5.0, "gpt3", (2048, 2, 1)),
+            (10.0, "gpt3", (2048, 4, 1)),
+            (20.0, "gpt3", (2048, 8, 1)),
+            (40.0, "gpt3", (2048, 8, 2)),
+            (80.0, "gpt3", (2048, 8, 4)),
+            (175.0, "gpt3", (2048, 8, 8)),
+            (300.0, "gpt3", (2048, 8, 16)),
+            (600.0, "gpt3", (2048, 8, 32)),
             (1000.0, "gpt3", (2048, 8, 64)),
             # T5 tests
             (0.5, "t5", (2048, 1, 1)),
@@ -166,10 +166,10 @@ class TestGenerateBaseconfig:
         [
             # GPT-3 tests
             (0.126, 8, 8, 80, 2, 300, 51200, "gpt3", {"search_config": {"train_settings": {"logs": "."}}, "bignlp_hp_tool_path": ".", "wandb": {"enable": True, "project": "test_project"}}, {"name": "gpt3_0.126b", "time_limit": "2-00:00:00", "max_steps": 572204, "max_time": "1:23:30:00", "num_layers": 12, "gbs": 256, "hs": 768, "att_heads": 12, "ffn": "${multiply:4, ${.hidden_size}}", "kv": "null", "init_std": 0.023, "lr": 6e-4, "min_lr": 6e-5, "warmup_steps": 858, "constant_steps": 95e3, "warmup_ratio": None}),
-            (5.0, 20, 8, 80, 6, 300, 51200, "gpt3", {"search_config": {"train_settings": {"logs": "."}}, "bignlp_hp_tool_path": ".", "wandb": {"enable": False}}, {"name": "gpt3_5.0b", "time_limit": "6-00:00:00", "max_steps": 101700, "max_time": "5:23:30:00", "num_layers": 24, "gbs": 1440, "hs": 4096, "att_heads": 32, "ffn": "${multiply:4, ${.hidden_size}}", "kv": "null", "init_std": 0.01, "lr": 1.2e-4, "min_lr": 1.2e-5, "warmup_steps": 152, "constant_steps": 16800, "warmup_ratio": None}),
-            (20.0, 80, 8, 80, 6.5, 300, 51200, "gpt3", {"search_config": {"train_settings": {"logs": "."}}, "bignlp_hp_tool_path": ".", "wandb": {"enable": True, "project": "test_project"}}, {"name": "gpt3_20.0b", "time_limit": "6-12:00:00", "max_steps": 101000, "max_time": "6:11:30:00", "num_layers": 44, "gbs": 1440, "hs": 6144, "att_heads": 48, "ffn": "${multiply:4, ${.hidden_size}}", "kv": "null", "init_std": 0.008165, "lr": 1e-4, "min_lr": 1e-5, "warmup_steps": 152, "constant_steps": 16886, "warmup_ratio": None}),
-            (40.0, 80, 8, 80, 25.75, 300, 51200, "gpt3", {"search_config": {"train_settings": {"logs": "."}}, "bignlp_hp_tool_path": ".", "wandb": {"enable": False}}, {"name": "gpt3_40.0b", "time_limit": "25-18:00:00", "max_steps": 101000, "max_time": "25:17:30:00", "num_layers": 48, "gbs": 1440, "hs": 8192, "att_heads": 64, "ffn": "${multiply:4, ${.hidden_size}}", "kv": "null", "init_std": 0.007, "lr": 0.8e-4, "min_lr": 0.8e-5, "warmup_steps": 152, "constant_steps": 16886, "warmup_ratio": None}),
-            (175.0, 128, 8, 80, 35, 300, 51200, "gpt3", {"search_config": {"train_settings": {"logs": "."}}, "bignlp_hp_tool_path": ".", "wandb": {"enable": False}}, {"name": "gpt3_175.0b", "time_limit": "35-00:00:00", "max_steps": 95367, "max_time": "34:23:30:00", "num_layers": 96, "gbs": 1536, "hs": 12288, "att_heads": 96, "ffn": "${multiply:4, ${.hidden_size}}", "kv": "null", "init_std": 0.006, "lr": 0.6e-4, "min_lr": 0.6e-5, "warmup_steps": 143, "constant_steps": 15830, "warmup_ratio": None}),
+            (5.0, 20, 8, 80, 6, 300, 51200, "gpt3", {"search_config": {"train_settings": {"logs": "."}}, "bignlp_hp_tool_path": ".", "wandb": {"enable": False}}, {"name": "gpt3_5.0b", "time_limit": "6-00:00:00", "max_steps": 71525, "max_time": "5:23:30:00", "num_layers": 24, "gbs": 2048, "hs": 4096, "att_heads": 32, "ffn": "${multiply:4, ${.hidden_size}}", "kv": "null", "init_std": 0.01, "lr": 1.2e-4, "min_lr": 1.2e-5, "warmup_steps": 107, "constant_steps": 11873, "warmup_ratio": None}),
+            (20.0, 80, 8, 80, 6.5, 300, 51200, "gpt3", {"search_config": {"train_settings": {"logs": "."}}, "bignlp_hp_tool_path": ".", "wandb": {"enable": True, "project": "test_project"}}, {"name": "gpt3_20.0b", "time_limit": "6-12:00:00", "max_steps": 71525, "max_time": "6:11:30:00", "num_layers": 44, "gbs": 2048, "hs": 6144, "att_heads": 48, "ffn": "${multiply:4, ${.hidden_size}}", "kv": "null", "init_std": 0.008165, "lr": 1e-4, "min_lr": 1e-5, "warmup_steps": 107, "constant_steps": 11873, "warmup_ratio": None}),
+            (40.0, 80, 8, 80, 25.75, 300, 51200, "gpt3", {"search_config": {"train_settings": {"logs": "."}}, "bignlp_hp_tool_path": ".", "wandb": {"enable": False}}, {"name": "gpt3_40.0b", "time_limit": "25-18:00:00", "max_steps": 71525, "max_time": "25:17:30:00", "num_layers": 48, "gbs": 2048, "hs": 8192, "att_heads": 64, "ffn": "${multiply:4, ${.hidden_size}}", "kv": "null", "init_std": 0.007, "lr": 0.8e-4, "min_lr": 0.8e-5, "warmup_steps": 107, "constant_steps": 11873, "warmup_ratio": None}),
+            (175.0, 128, 8, 80, 35, 300, 51200, "gpt3", {"search_config": {"train_settings": {"logs": "."}}, "bignlp_hp_tool_path": ".", "wandb": {"enable": False}}, {"name": "gpt3_175.0b", "time_limit": "35-00:00:00", "max_steps": 71525, "max_time": "34:23:30:00", "num_layers": 96, "gbs": 2048, "hs": 12288, "att_heads": 96, "ffn": "${multiply:4, ${.hidden_size}}", "kv": "null", "init_std": 0.006, "lr": 0.6e-4, "min_lr": 0.6e-5, "warmup_steps": 107, "constant_steps": 11873, "warmup_ratio": None}),
             # T5 tests
             (0.22, 4, 8, 80, 2, 1000, 29000, "t5", {"search_config": {"train_settings": {"logs": "."}}, "bignlp_hp_tool_path": ".", "wandb": {"enable": True, "project": "test_project"}}, {"name": "t5_0.22b", "time_limit": "2-00:00:00", "max_steps": 953675, "max_time": "1:23:30:00", "num_layers": 12, "gbs": 2048, "hs": 768, "att_heads": 12, "ffn": 2048, "kv": 64, "init_std": 0.015, "lr": 1e-4, "min_lr": 1e-5, "warmup_steps": None, "constant_steps": None, "warmup_ratio": 0.01}),
             (2.8, 20, 8, 80, 15, 1000, 29000, "t5", {"search_config": {"train_settings": {"logs": "."}}, "bignlp_hp_tool_path": ".", "wandb": {"enable": False}}, {"name": "t5_2.8b", "time_limit": "15-00:00:00", "max_steps": 1017250, "max_time": "14:23:30:00", "num_layers": 24, "gbs": 1920, "hs": 2048, "att_heads": 32, "ffn": 5120, "kv": 64, "init_std": 0.015, "lr": 1e-4, "min_lr": 1e-5, "warmup_steps": None, "constant_steps": None, "warmup_ratio": 0.01}),

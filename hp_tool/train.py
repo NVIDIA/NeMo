@@ -11,7 +11,7 @@ def run_training(file_name, bignlp_hp_tool_path, bignlp_scripts_path, model_name
 
     main_path = os.path.join(bignlp_scripts_path, "main.py")
     file_name = file_name.replace('.yaml', '')
-    cmd = f"python3 {main_path} training={model_name}/{file_name} base_results_dir={results_dir} container={training_container} stages=[training] bignlp_path={bignlp_path} "
+    cmd = f"python3 {main_path} training={model_name}/{file_name} base_results_dir={results_dir} container={training_container} stages=[training] bignlp_path={bignlp_path} training.exp_manager.create_checkpoint_callback=False "
     job_output = subprocess.check_output([cmd], shell=True).decode("utf-8")
     job_id = job_output.split(" ")[-1]
     print(f"Submitted Training script with job id: {job_id}")

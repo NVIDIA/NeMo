@@ -23,9 +23,9 @@ class TestBaseConfigs:
           max_steps: 600000
           max_time: "01:11:30:00"
           log_every_n_steps: 1
-          val_check_interval: 2000
-          limit_val_batches: 50
-          limit_test_batches: 50
+          val_check_interval: 50
+          limit_val_batches: 1
+          limit_test_batches: 1
           accumulate_grad_batches: 1
           gradient_clip_val: 1.0
 
@@ -113,7 +113,7 @@ class TestBaseConfigs:
           apex_transformer_log_level: 30
 
           optim:
-            name: fused_adam
+            name: distributed_fused_adam
             lr: 6e-4
             weight_decay: 0.1
             betas:
@@ -169,9 +169,9 @@ class TestBaseConfigs:
           max_steps: 1000000
           max_time: "06:23:30:00"
           log_every_n_steps: 1
-          val_check_interval: 2000
-          limit_val_batches: 50
-          limit_test_batches: 500
+          val_check_interval: 50
+          limit_val_batches: 1
+          limit_test_batches: 1
           accumulate_grad_batches: 1
           gradient_clip_val: 1.0
 
@@ -332,9 +332,9 @@ class TestBaseConfigs:
           max_steps: 1000000
           max_time: "06:23:30:00"
           log_every_n_steps: 1
-          val_check_interval: 1000
-          limit_val_batches: 50
-          limit_test_batches: 500
+          val_check_interval: 50
+          limit_val_batches: 1
+          limit_test_batches: 1
           accumulate_grad_batches: 1
           gradient_clip_val: 1.0
 
