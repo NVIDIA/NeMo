@@ -9,7 +9,7 @@ from hp_tool.inference_sweep import search_inference_config
 SUPPORTED_MODELS = ["gpt3", "t5", "mt5"]
 
 
-def search_config(cfg, hydra_args=None):
+def search_config(cfg):
     """
     Main function that implements the entire pipeline to search the optimal
     model config and launch the grid searches for both training and inference
@@ -23,7 +23,6 @@ def search_config(cfg, hydra_args=None):
 
     # Read config
     hp_cfg = cfg.get("search_config")
-    cluster_cfg = cfg.get("cluster")
     train_cfg = hp_cfg.get("train_settings")
     nodes = train_cfg.get("num_nodes")
     gpus_per_node = train_cfg.get("gpus_per_node")
@@ -78,7 +77,7 @@ def search_config(cfg, hydra_args=None):
 
     # Launch grid search for training constraints
     if cfg.get("run_training_hp_search"):
-        search_training_config(base_cfg, model_size_in_b, model_name, hydra_args, cfg)
+        search_training_config(base_cfg, model_size_in_b, model_name, cfg)
 
     # Launch grid search for inference constraints
     if cfg.get("run_inference_hp_search"):

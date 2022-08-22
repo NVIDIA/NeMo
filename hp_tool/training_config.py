@@ -1,4 +1,5 @@
 import os
+import shutil
 import math
 import yaml
 import subprocess
@@ -9,13 +10,13 @@ from omegaconf import OmegaConf
 from hp_tool import utils, train
 
 
-def search_training_config(base_cfg, model_size, model_name, hydra_args, cfg):
+def search_training_config(base_cfg, model_size, model_name, cfg):
     # Generate candidate configs.
     base_dir, results_cfgs, num_nodes = generate_grid_search_configs(base_cfg, model_size, model_name, cfg)
     # Launch candidate configs.
     job_ids = launch_grid_search_configs(base_dir, results_cfgs, model_name, cfg)
     # Measure and compare throughputs for each config.
-    launch_throughput_measure(job_ids, model_name, model_size, num_nodes, hydra_args, cfg)
+    launch_throughput_measure(job_ids, model_name, model_size, num_nodes, cfg)
 
 
 def generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg):
@@ -72,7 +73,8 @@ def generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg):
                     valid_tp_pp_list.append((tp, pp))
 
     # Calculate necessary nodes for HP search.
-    override_nodes = train_cfg.get("override_search_num_nodes")
+    num_nodes = train_cfg.get("num_nodes")
+    """
     if override_nodes is None or override_nodes == "auto":
         num_nodes = 1
         for tp, pp in valid_tp_pp_list:
@@ -80,6 +82,7 @@ def generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg):
                 num_nodes = math.ceil(tp * pp / gpus_per_node)
     else:
         num_nodes = override_nodes
+    """
 
     # Generate grid search configs.
     for tp in tp_list:
@@ -132,40 +135,38 @@ def _tp_pp_mbs_grid_gpt3_80gb(model_size_in_b, valid_pp):
     """
     tp = [1, 2, 4, 8]
     pp = [1]
-    mbs = [1, 2, 4, 6, 8, 10, 12, 16]
+    mbs = [1, 2, 3, 4, 6, 8]
     if model_size_in_b <= 1.0:
         tp = [1, 2]
-        mbs = [1, 2, 4, 6, 8]
     elif 1.0 < model_size_in_b <= 4.0:
         tp = [1, 2, 4]
-        mbs = [1, 2, 4, 8]
     elif 4.0 < model_size_in_b <= 8.0:
-        tp = [2, 4, 8]
-        mbs = [1, 2, 4, 8]
+        tp = [1, 2, 4]
     elif 8.0 < model_size_in_b <= 13.0:
-        tp = [4, 8]
-        mbs = [1, 2, 4, 8]
+        tp = [1, 2, 4, 8]
     elif 13.0 < model_size_in_b <= 23.0:
-        tp = [2, 4, 8]
+        tp = [1, 2, 4, 8]
         pp = [x for x in valid_pp if x <= 4]
     elif 23.0 < model_size_in_b <= 45.0:
-        tp = [2, 4, 8]
+        tp = [1, 2, 4, 8]
         pp = [x for x in valid_pp if 1 <= x <= 4]
+        mbs = [1, 2, 4, 8]
     elif 45.0 < model_size_in_b <= 95:
         tp = [2, 4, 8]
         pp = [x for x in valid_pp if 1 <= x <= 8]
+        mbs = [1, 2, 4, 8]
     elif 95.0 < model_size_in_b <= 130.0:
-        tp = [4, 8]
+        tp = [2, 4, 8]
         pp = [x for x in valid_pp if 1 <= x <= 16]
-        mbs = [1, 2, 4, 6, 8, 10, 12]
+        mbs = [1, 2, 4, 8]
     elif 130.0 < model_size_in_b <= 195.0:
-        tp = [4, 8]
+        tp = [2, 4, 8]
         pp = [x for x in valid_pp if 1 <= x <= 16]
-        mbs = [1, 2, 4, 6, 8]
+        mbs = [1, 2, 4, 8]
     elif 195.0 < model_size_in_b <= 395.0:
         tp = [4, 8]
         pp = [x for x in valid_pp if 1 <= x <= 32]
-        mbs = [1, 2, 4, 6, 8]
+        mbs = [1, 2, 4, 8]
     elif 395.0 < model_size_in_b <= 790.0:
         tp = [4, 8]
         pp = [x for x in valid_pp if 2 <= x <= 100]
@@ -332,17 +333,23 @@ def launch_grid_search_configs(base_dir, results_cfgs, model_name, cfg):
     Output
         job_ids: list, list of job ids for all the training jobs.
     """
-    limit = cfg.search_config.train_settings.limit_search_runs
+    bignlp_hp_tool_path = cfg.get("bignlp_hp_tool_path")
+    bignlp_scripts_path = cfg.get("bignlp_scripts_path")
+    
+    search_cfg = cfg.get("search_config")
+    train_cfg = search_cfg.get("train_settings")
+    limit = train_cfg.get("limit_search_runs")
+    results_dir = os.path.join(train_cfg.get("logs"), "training_logs")
+
     job_ids = []
     for cfg_list in results_cfgs:
-        for config in cfg_list:
-            conf = OmegaConf.load(f"{base_dir}/{config}")
-            new_cfg = create_bignlp_config(model_name, cfg)
-            # Add the training config (conf) to the new_cfg.training, which is the bignlp-scripts format.
-            new_cfg.training = conf
-            # Add cluster config to new_cfg.
-            new_cfg.cluster = cfg.cluster
-            job_id = train.run_training(new_cfg, cfg.bignlp_hp_tool_path, model_name)
+        for file_name in cfg_list:
+            src_file = os.path.join(base_dir, file_name)
+            dst_dir = os.path.join(bignlp_scripts_path, "conf/training", model_name, file_name)
+            shutil.copyfile(src_file, dst_dir)
+            job_id = train.run_training(file_name, bignlp_hp_tool_path, bignlp_scripts_path, model_name, results_dir, cfg)
+            os.remove(dst_dir)
+            
             if job_id is not None:
                 job_ids.append(job_id[:-1])
             if len(job_ids) == limit:
@@ -350,55 +357,7 @@ def launch_grid_search_configs(base_dir, results_cfgs, model_name, cfg):
     return job_ids
 
 
-def create_bignlp_config(model_name, cfg):
-    """Creates a basic config for bignlp-scripts to train the model correctly.
-
-    Arguments:
-        cfg: OmegaConf, base configuration object.
-    Output:
-        new_cfg: OmegaConf, new config object ready for bignlp-scripts.
-    """
-    results_dir = os.path.join(cfg.search_config.train_settings.logs, "training_logs")
-    training_container = cfg.get("training_container")
-    data_dir = cfg.get("data_dir")
-    container_mounts = cfg.get("container_mounts")
-    wandb_cfg = cfg.get("wandb")
-    api_key_file = wandb_cfg.get("api_key_file")
-
-    api_key_f = "null" if api_key_file is None else api_key_file
-
-    if model_name == "gpt3":
-        train_config = "gpt3/5b"
-    else:
-        train_config = "t5/220m"
-
-    s = f"""
-    training: {train_config}
-    cluster: null
-
-    run_data_preparation: False
-    run_training: True
-    run_conversion: False
-    run_finetuning: False
-    run_evaluation: False
-
-    cluster_type: bcm
-    training_config: {train_config}
-    bignlp_path: /opt/bignlp/bignlp-scripts
-    data_dir: {data_dir}
-    base_results_dir: {results_dir}
-    container_mounts:
-      - {results_dir}:/opt/bignlp/bignlp-scripts/results
-    container: {training_container}
-
-    wandb_api_key_file: {api_key_f}
-    """
-    new_cfg = OmegaConf.create(s)
-    new_cfg.container_mounts.extend(container_mounts)
-    return new_cfg
-
-
-def launch_throughput_measure(dependency_list, model_name, model_size_in_b, num_nodes, hydra_args, cfg):
+def launch_throughput_measure(dependency_list, model_name, model_size_in_b, num_nodes, cfg):
     """Launch job that measures the throughput of each run in the grid search. This
     job will get scheduled with dependencies on all the job ids in dependency_list,
     so it will only start running once all the jobs are finished.
@@ -413,7 +372,6 @@ def launch_throughput_measure(dependency_list, model_name, model_size_in_b, num_
     """
     # Read config
     bignlp_hp_tool_path = cfg.get("bignlp_hp_tool_path")
-    data_dir = cfg.get("data_dir")
     container_mounts = cfg.get("container_mounts")
     container = cfg.get("training_container")
     hp_cfg = cfg.get("search_config")
@@ -423,7 +381,7 @@ def launch_throughput_measure(dependency_list, model_name, model_size_in_b, num_
     cluster_cfg = cfg.get("cluster")
     partition = cluster_cfg.get("partition")
     account = cluster_cfg.get("account")
-    time_limit = "30:00"
+    time_limit = "10:00"
     exclusive = cluster_cfg.get("exclusive")
     mem = cluster_cfg.get("mem")
     overcommit = cluster_cfg.get("overcommit")
@@ -441,7 +399,7 @@ def launch_throughput_measure(dependency_list, model_name, model_size_in_b, num_
     os.makedirs(final_log_dir, exist_ok=True)
 
     # Process container-mounts.
-    mounts_str = f"{bignlp_hp_tool_path}:{bignlp_hp_tool_path},{data_dir}:{data_dir},{base_results_dir}:{base_results_dir}"
+    mounts_str = f"{bignlp_hp_tool_path}:{bignlp_hp_tool_path},{base_results_dir}:{base_results_dir}"
     mounts_str += utils.add_container_mounts(container_mounts)
 
     flags = (
@@ -459,7 +417,7 @@ def launch_throughput_measure(dependency_list, model_name, model_size_in_b, num_
 
     new_script_path = os.path.join(bignlp_hp_tool_path, "hp_tool/scripts/compare_throughput.sh")
     code_path = os.path.join(bignlp_hp_tool_path, "hp_tool/scripts/compare_throughput_results.py")
-    train_cmd = f"HYDRA_FULL_ERROR=1 python3 -u {code_path} search_config.train_settings.model_size_in_b={model_size_in_b} search_config={model_name}/{model_size_in_b}b search_config_value={model_name}/{model_size_in_b}b +nodes={num_nodes} {hydra_args} "
+    train_cmd = f"HYDRA_FULL_ERROR=1 python3 -u {code_path} search_config.train_settings.model_size_in_b={model_size_in_b} search_config={model_name}/{model_size_in_b}b search_config_value={model_name}/{model_size_in_b}b +nodes={num_nodes} "
     utils.create_slurm_file(
         new_script_path=new_script_path,
         train_cmd=train_cmd,

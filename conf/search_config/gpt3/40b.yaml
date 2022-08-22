@@ -1,6 +1,6 @@
 train_settings:
   model_size_in_b: 40 # unit in billion parameters
-  num_nodes: 80
+  num_nodes: 128
   gpus_per_node: 8
   gpu_memory_gb: 80  # Memory per GPU, in GB. Currently 40GB and 80GB A100s supported.
   max_training_days: 13 # unit in days
@@ -12,7 +12,6 @@ train_settings:
   num_tokens_in_b: 300  # Unit in billions, typically 300B for GPT3 models.
   vocab_size: 51200
   logs: ${base_results_dir}/${search_config_value}_${.gpu_memory_gb}gb  # Example base_results_dir/gpt3/126m
-  override_search_num_nodes: auto  # auto to use the minimum required number of nodes
   tensor_parallel_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8]
   pipeline_parallel_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8, 10]
   micro_batch_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8, 16]
