@@ -21,15 +21,10 @@ class TestConfig:
 
         bignlp_hp_tool_path: ???
         bignlp_scripts_path: ${bignlp_hp_tool_path}/../bignlp-scripts
-        data_dir: ${bignlp_scripts_path}/data
         base_results_dir: ${bignlp_hp_tool_path}/results
 
-        training_container: nvcr.io/ea-bignlp/bignlp-training:22.06-hotfix.01-py3
-        inference_container: nvcr.io/ea-bignlp/bignlp-inference:22.05-py3
+        training_container: nvcr.io/ea-bignlp/bignlp-training:22.08-py3
         
-        container_mounts:
-          - null
-
         wandb:
           enable: False
           api_key_file: null
