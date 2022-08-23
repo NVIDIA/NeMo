@@ -635,12 +635,24 @@ class ParallelAttention(MegatronModule):
         """Forward method with activation checkpointing."""
 
         def custom_forward(*inputs):
-            query_layer = inputs[0]
-            key_layer = inputs[1]
-            value_layer = inputs[2]
-            attention_mask = inputs[3]
-            rotary_pos_emb = inputs[4]
-            relative_position_bias = inputs[5]
+            if len(inputs) == 7:
+                query_layer = inputs[0]
+                key_layer = inputs[1]
+                value_layer = inputs[2]
+                attention_mask = inputs[3]
+                rotary_pos_emb = inputs[4]
+                relative_position_bias = inputs[5]
+                headscale_tensor = inputs[6]
+            elif len(inputs) == 8:
+                query_layer = inputs[0]
+                key_layer = inputs[1]
+                value_layer = inputs[2]
+                attention_mask = inputs[3]
+                rotary_pos_emb = (inputs[4], inputs[5])
+                relative_position_bias = inputs[6]
+                headscale_tensor = inputs[7]
+            else:
+                raise ValueError('unexpected number of inputs')
             output_ = self.core_attention(
                 query_layer,
                 key_layer,
@@ -651,6 +663,11 @@ class ParallelAttention(MegatronModule):
                 headscale_tensor=headscale_tensor,
             )
             return output_
+        if rotary_pos_emb is None:
+            rot_tuple = (rotary_pos_emb,)
+        else:
+            rot_tuple = (rotary_pos_emb[0],
+                         rotary_pos_emb[1])
 
         hidden_states = tensor_parallel.checkpoint(
             custom_forward,
@@ -659,7 +676,7 @@ class ParallelAttention(MegatronModule):
             key_layer,
             value_layer,
             attention_mask,
-            rotary_pos_emb,
+            *rot_tuple,
             relative_position_bias,
             headscale_tensor,
         )
