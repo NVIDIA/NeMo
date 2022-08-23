@@ -37,7 +37,7 @@ pitch_normalization: speaker_wise
 model:
   use_encoder: false
   pitch_conditioning: true
-  pitch_loss_scale: 0.1
+  pitch_loss_scale: 0.5
   learn_alignment: true
   bin_loss_warmup_epochs: 100
 
