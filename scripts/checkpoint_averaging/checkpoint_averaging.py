@@ -35,10 +35,10 @@ import os
 import sys
 
 import torch
+from tqdm.auto import tqdm
 
 from nemo.core import ModelPT
 from nemo.utils import logging, model_utils
-from tqdm.auto import tqdm
 
 
 def main():
