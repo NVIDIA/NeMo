@@ -184,17 +184,21 @@ model:
     n_layers: 2
 
   optim:
-    name: adamw
-    lr: 0.1
-    betas: [0.9, 0.98]
-    weight_decay: 1e-6
-    eps: 1e-6
+    _target_: torch.optim.AdamW
+    lr: 0.0002
+    betas: [0.8, 0.99]
+  # optim:
+  #   name: adamw
+  #   lr: 0.1
+  #   betas: [0.9, 0.98]
+  #   weight_decay: 1e-6
+  #   eps: 1e-6
 
-    sched:
-      name: NoamAnnealing
-      warmup_steps: 1000
-      last_epoch: -1
-      d_model: 1  # Disable scaling based on model dim
+  #   sched:
+  #     name: NoamAnnealing
+  #     warmup_steps: 1000
+  #     last_epoch: -1
+  #     d_model: 1  # Disable scaling based on model dim
 
 trainer:
   num_nodes: 1
