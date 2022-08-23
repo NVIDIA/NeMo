@@ -32,7 +32,7 @@ from nemo.collections.nlp.modules.common.megatron.megatron_init import initializ
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
-from nemo.utils import app_state, logging
+from nemo.utils import AppState, logging
 
 try:
     from apex.transformer import parallel_state
@@ -353,6 +353,7 @@ class MegatronBaseModel(NLPModel):
 
     def _validate_config(self):
         """ Certain configurations might be incompatible or discouraged. We can check for them here."""
+        app_state = AppState()
 
         if self.cfg.get('sequence_parallel', False) and self.cfg.get('tensor_model_parallel_size', 1) == 1:
             logging.info(
