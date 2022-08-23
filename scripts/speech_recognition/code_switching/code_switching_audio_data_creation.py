@@ -16,29 +16,48 @@ import argparse
 import json
 import logging
 import os
-from tqdm import tqdm
-import librosa
-from scipy.io import wavfile
-import numpy as np
 
-# Checks - 
+import librosa
+import numpy as np
+from scipy.io import wavfile
+from tqdm import tqdm
+
+# Checks -
 # Audio data is 16 KHz, if not please use ffmpeg to convert them to 16 KHz
 
 
 parser = argparse.ArgumentParser(description='Create synthetic code-switching data audio data from monolingual data')
 parser.add_argument("--manifest_path", default=None, type=str, help='Path to CS indermediate manifest')
-parser.add_argument("--audio_save_folder_path", default=None, type=str, help='Path to directory where created synthetic set would be saved')
+parser.add_argument(
+    "--audio_save_folder_path",
+    default=None,
+    type=str,
+    help='Path to directory where created synthetic set would be saved',
+)
 parser.add_argument("--manifest_save_path", default=None, type=str, help='Path to save the created manifest')
-parser.add_argument("--audio_normalized_amplitude", default=15000, type=int, help='Normalized amplitdue of audio samples')
-parser.add_argument("--sample_beginning_pause_msec", default=20, type=int, help='Pause to be added at the beginning of the sample (msec)')
-parser.add_argument("--sample_joining_pause_msec", default=100, type=int, help='Pause to be added between different phrases of the sample (msec)')
-parser.add_argument("--sample_end_pause_msec", default=20, type=int, help='Pause to be added at the end of the sample (msec)')
+parser.add_argument(
+    "--audio_normalized_amplitude", default=15000, type=int, help='Normalized amplitdue of audio samples'
+)
+parser.add_argument(
+    "--sample_beginning_pause_msec",
+    default=20,
+    type=int,
+    help='Pause to be added at the beginning of the sample (msec)',
+)
+parser.add_argument(
+    "--sample_joining_pause_msec",
+    default=100,
+    type=int,
+    help='Pause to be added between different phrases of the sample (msec)',
+)
+parser.add_argument(
+    "--sample_end_pause_msec", default=20, type=int, help='Pause to be added at the end of the sample (msec)'
+)
 
 args = parser.parse_args()
 
-def __read_manifest(
-    manifest_path: str
-):
+
+def __read_manifest(manifest_path: str):
     """
     Args:
         manifest_path: absolute path of the manifest file
@@ -54,6 +73,7 @@ def __read_manifest(
 
     return data
 
+
 def __create_cs_data(
     intermediate_cs_manifest_list: list,
     audio_save_folder: str,
@@ -61,8 +81,7 @@ def __create_cs_data(
     audio_amplitude_normalization: int,
     pause_beg_msec: int,
     pause_join_msec: int,
-    pause_end_msec: int
-
+    pause_end_msec: int,
 ):
 
     """
@@ -88,52 +107,56 @@ def __create_cs_data(
 
             combined_audio = []
 
-            staring_pause = np.zeros(int(pause_beg_msec*fs/1000))
+            staring_pause = np.zeros(int(pause_beg_msec * fs / 1000))
             combined_audio += list(staring_pause)
 
             for index in range(len(data['lang_ids'])):
 
                 data_sample, fs_sample = librosa.load(data['paths'][index], sr=fs)
-                #Alternative-  fs_sample, data_sample = wavfile.read(data['paths'][index])
+                # Alternative-  fs_sample, data_sample = wavfile.read(data['paths'][index])
 
-                if(fs_sample != 16000):
+                if fs_sample != 16000:
                     print('!!ERROR!!!')
 
-                #Remove leading and trailing zeros
+                # Remove leading and trailing zeros
                 data_sample = np.trim_zeros(data_sample)
 
-                #take care of empty arrays: rare
-                if (data_sample.size == 0):
+                # take care of empty arrays: rare
+                if data_sample.size == 0:
                     incorrect_sample_flag = 1
                     continue
 
-                #normalizing data
-                data_sample_norm = data_sample / np.maximum(np.abs(data_sample.max()), np.abs(data_sample.min())) * audio_amplitude_normalization
+                # normalizing data
+                data_sample_norm = (
+                    data_sample
+                    / np.maximum(np.abs(data_sample.max()), np.abs(data_sample.min()))
+                    * audio_amplitude_normalization
+                )
 
                 combined_audio += list(data_sample_norm)
 
-                #adding small pause between gemgments
-                if(index != (len(data['lang_ids']) - 1)):
-                    pause = np.zeros(int(pause_join_msec*fs/1000))
+                # adding small pause between gemgments
+                if index != (len(data['lang_ids']) - 1):
+                    pause = np.zeros(int(pause_join_msec * fs / 1000))
                     combined_audio += list(pause)
 
-            if (incorrect_sample_flag == 1):
+            if incorrect_sample_flag == 1:
                 incorrect_sample_flag = 0
                 continue
 
-            ending_pause = np.zeros(int(pause_end_msec*fs/1000))
+            ending_pause = np.zeros(int(pause_end_msec * fs / 1000))
             combined_audio += list(ending_pause)
 
             audio_file_path = audio_save_folder + '/' + str(sample_id) + ".wav"
 
             # saving audio
             wavfile.write(audio_file_path, fs, np.array(combined_audio).astype(np.int16))
-            #Alternative-  librosa.output.write_wav(audio_file_path, combined_audio, fs)
+            # Alternative-  librosa.output.write_wav(audio_file_path, combined_audio, fs)
             sample_id += 1
 
             metadata_json = {}
             metadata_json['audio_filepath'] = audio_file_path
-            metadata_json['duration'] = float(len(combined_audio)/fs)
+            metadata_json['duration'] = float(len(combined_audio) / fs)
             metadata_json['text'] = ' '.join(data['texts'])
 
             metadata_json['language_ids'] = data['lang_ids']
@@ -143,6 +166,7 @@ def __create_cs_data(
 
             s = json.dumps(metadata_json)
             outfile.write(s + '\n')
+
 
 def main():
 
@@ -160,7 +184,15 @@ def main():
 
     # Creating Audio data
     logging.info('Creating synthetic audio data')
-    __create_cs_data(intermediate_cs_manifest, audio_save_folder, manifest_save_path, audio_amplitude_normalization, pause_beg_msec, pause_join_msec, pause_end_msec)
+    __create_cs_data(
+        intermediate_cs_manifest,
+        audio_save_folder,
+        manifest_save_path,
+        audio_amplitude_normalization,
+        pause_beg_msec,
+        pause_join_msec,
+        pause_end_msec,
+    )
 
     print("Synthetic CS audio data saved at :", audio_save_folder)
     print("Synthetic CS manifest saved at :", manifest_save_path)
@@ -170,5 +202,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
