@@ -1769,13 +1769,30 @@ class ParallelTransformer(MegatronModule):
 
         def custom(start, end):
             def custom_forward(*inputs):
-                x_ = inputs[0]
-                attention_mask = inputs[1]
-                encoder_output = inputs[2]
-                enc_dec_attn_mask = inputs[3]
-                rotary_pos_emb = inputs[4]
-                self_attention_relative_position_bias = inputs[5]
-                cross_attention_relative_position_bias = inputs[6]
+                if len(inputs) == 9:
+                    x_ = inputs[0]
+                    attention_mask = inputs[1]
+                    encoder_output = inputs[2]
+                    enc_dec_attn_mask = inputs[3]
+                    rotary_pos_emb = (inputs[4], inputs[5], inputs[6])
+                    self_attention_relative_position_bias = inputs[7]
+                    cross_attention_relative_position_bias = inputs[8]
+                elif len(inputs) == 10:
+                    x_ = (inputs[0], inputs[1])
+                    attention_mask = inputs[2]
+                    encoder_output = inputs[3]
+                    enc_dec_attn_mask = inputs[4]
+                    rotary_pos_emb = (inputs[5], inputs[6], inputs[7])
+                    self_attention_relative_position_bias = inputs[8]
+                    cross_attention_relative_position_bias = inputs[9]
+                else:
+                    x_ = inputs[0]
+                    attention_mask = inputs[1]
+                    encoder_output = inputs[2]
+                    enc_dec_attn_mask = inputs[3]
+                    rotary_pos_emb = inputs[4]
+                    self_attention_relative_position_bias = inputs[5]
+                    cross_attention_relative_position_bias = inputs[6]
                 for index in range(start, end):
                     layer = self._get_layer(index)
                     x_ = layer(
@@ -1787,6 +1804,10 @@ class ParallelTransformer(MegatronModule):
                         self_attention_relative_position_bias,
                         cross_attention_relative_position_bias,
                     )
+                    if isinstance(x_, tuple):
+                        pass
+                    else:
+                        x_ = x_.contiguous()
                 return x_
 
             return custom_forward
@@ -1800,17 +1821,35 @@ class ParallelTransformer(MegatronModule):
             # A method to further reduce memory usage reducing checkpoints.
             l = 0
             while l < self.num_layers:
-                hidden_states = tensor_parallel.checkpoint(
-                    custom(l, l + self.activations_checkpoint_num_layers),
-                    False,
-                    hidden_states,
-                    attention_mask,
-                    encoder_output,
-                    enc_dec_attn_mask,
-                    rotary_pos_emb,
-                    self_attention_relative_position_bias,
-                    cross_attention_relative_position_bias,
-                )
+                if isinstance(hidden_states, tuple):
+                    hidden_states = tensor_parallel.checkpoint(
+                        custom(l, l + self.activations_checkpoint_num_layers),
+                        False,
+                        hidden_states[0],
+                        hidden_states[1],
+                        attention_mask,
+                        encoder_output,
+                        enc_dec_attn_mask,
+                        rotary_pos_emb[0],
+                        rotary_pos_emb[1],
+                        rotary_pos_emb[2],
+                        self_attention_relative_position_bias,
+                        cross_attention_relative_position_bias,
+                    )
+                else:
+                    hidden_states = tensor_parallel.checkpoint(
+                        custom(l, l + self.activations_checkpoint_num_layers),
+                        False,
+                        hidden_states,
+                        attention_mask,
+                        encoder_output,
+                        enc_dec_attn_mask,
+                        rotary_pos_emb[0],
+                        rotary_pos_emb[1],
+                        rotary_pos_emb[2],
+                        self_attention_relative_position_bias,
+                        cross_attention_relative_position_bias,
+                    )
                 l += self.activations_checkpoint_num_layers
         elif self.activations_checkpoint_method == 'block':
             # Checkpoint the input activation of only a set number of individual
@@ -1818,24 +1857,41 @@ class ParallelTransformer(MegatronModule):
             # A method fully use the device memory removing redundant re-computation.
             for l in range(self.num_layers):
                 if l < self.activations_checkpoint_num_layers:
-                    hidden_states = tensor_parallel.checkpoint(
-                        custom(l, l + 1),
-                        False,
-                        hidden_states,
-                        attention_mask,
-                        encoder_output,
-                        enc_dec_attn_mask,
-                        rotary_pos_emb,
-                        self_attention_relative_position_bias,
-                        cross_attention_relative_position_bias,
-                    )
+                    if rotary_pos_emb is not None:
+                        hidden_states = tensor_parallel.checkpoint(
+                            custom(l, l + 1),
+                            False,
+                            hidden_states,
+                            attention_mask,
+                            encoder_output,
+                            enc_dec_attn_mask,
+                            rotary_pos_emb[0],
+                            rotary_pos_emb[1],
+                            rotary_pos_emb[2],
+                            self_attention_relative_position_bias,
+                            cross_attention_relative_position_bias,
+                        )
+                    else:
+                        hidden_states = tensor_parallel.checkpoint(
+                            custom(l, l + 1),
+                            False,
+                            hidden_states,
+                            attention_mask,
+                            encoder_output,
+                            enc_dec_attn_mask,
+                            rotary_pos_emb,
+                            self_attention_relative_position_bias,
+                            cross_attention_relative_position_bias,
+                        )
                 else:
                     hidden_states = custom(l, l + 1)(
                         hidden_states,
                         attention_mask,
                         encoder_output,
                         enc_dec_attn_mask,
-                        rotary_pos_emb,
+                        rotary_pos_emb[0],
+                        rotary_pos_emb[1],
+                        rotary_pos_emb[2],
                         self_attention_relative_position_bias,
                         cross_attention_relative_position_bias,
                     )

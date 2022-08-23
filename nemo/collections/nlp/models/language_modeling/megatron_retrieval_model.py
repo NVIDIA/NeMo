@@ -192,6 +192,7 @@ class MegatronRetrievalModel(MegatronBaseModel):
                 'add_position_embedding', False
             ),  # whether use the absolute postion encoding
             tokenizer=self.tokenizer,
+            activations_checkpoint_granularity=self.cfg.get('activations_checkpoint_granularity', None),
         )
         return model
 
