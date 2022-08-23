@@ -34,10 +34,10 @@ RUN apt-get update && \
 
 # FIXME a workaround to update apex. Remove when base image is updated
 WORKDIR /tmp/
-RUN git clone https://github.com/ericharper/apex.git && \
+RUN git clone https://github.com/timmoon10/apex.git && \
     cd apex && \
-    git checkout 19e4f55eb402452f74dead19f68b65d6291cfdb2 && \
-    pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" ./
+    git checkout 2d5ebb793ca212773bc0af4b15afaee2cea5e82f && \
+    pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" --global-option="--distributed_adam" --global-option="--deprecated_fused_adam" ./
 
 # uninstall stuff from base container
 RUN pip uninstall -y sacrebleu torchtext

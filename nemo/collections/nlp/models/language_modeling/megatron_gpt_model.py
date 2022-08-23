@@ -187,6 +187,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             optim_kwargs['process_group'] = parallel_state.get_data_parallel_group()
             optim_kwargs['param_sync_dtype'] = self.autocast_dtype
             optim_kwargs['contiguous_grad_buffer'] = True
+            if self.autocast_dtype == torch.float:
+                optim_kwargs['store_params'] = False
+            elif self.autocast_dtype == torch.float16:
+                optim_kwargs['store_params'] = True
+            elif self.autocast_dtype == torch.bfloat16:
+                optim_kwargs['store_params'] = False
+                optim_kwargs['store_param_remainders'] = True
         return super().setup_optimization(optim_config=optim_config, optim_kwargs=optim_kwargs)
 
     def forward(self, tokens, text_position_ids, attention_mask, labels):
