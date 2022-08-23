@@ -14,9 +14,7 @@
 
 """Transformer based language model."""
 from nemo.collections.nlp.modules.common.megatron.megatron_perceiver_encoders import MegatronPerceiverEncoderModule
-from nemo.collections.nlp.modules.common.megatron.megatron_transformer_adapter_encoder import (
-    MegatronTransformerAdapterEncoderModule,
-)
+from nemo.collections.nlp.modules.common.megatron.megatron_transformer_encoder import MegatronTransformerEncoderModule
 from nemo.collections.nlp.modules.common.megatron.retrieval_transformer import (
     MegatronRetrievalTransformerEncoderModule,
 )
@@ -97,7 +95,7 @@ def get_encoder_model(
 
     if arch == "transformer":
         # Language encoder.
-        encoder = MegatronTransformerAdapterEncoderModule(
+        encoder = MegatronTransformerEncoderModule(
             init_method=init_method,
             output_layer_init_method=scaled_init_method,
             hidden_size=hidden_size,

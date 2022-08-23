@@ -23,7 +23,6 @@ from omegaconf.listconfig import ListConfig
 from pytorch_lightning.trainer.trainer import Trainer
 from sacrebleu import corpus_bleu
 
-from nemo.collections.common.parts import adapter_modules
 from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import (
     BinarizedMemmapSequenceToSequenceDataset,
     TextMemmapSequenceToSequenceDataset,
@@ -604,10 +603,6 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                 data_prefix.append(weight)
                 data_prefix.append(prefix)
 
-            if self.trainer.max_steps is None:
-                raise ValueError(
-                    f"trainer.max_steps must be set to use blendable memmap datasets. Found {self.trainer.max_steps}."
-                )
             num_train_samples = [self.trainer.max_steps * self._cfg.global_batch_size]
             _, _, num_train_samples_per_dataset = get_datasets_weights_and_num_samples(data_prefix, num_train_samples)
             num_train_samples_after_blend = sum([x[0] for x in num_train_samples_per_dataset])
@@ -844,29 +839,3 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
 
     def on_test_start(self) -> None:
         self.trainer.test_loop._data_fetcher = GlobalBatchDataFetcher()
-
-    # adapter related functions
-    def _setup_adapters(self, in_features, dim):
-        self.add_adapter(
-            'decoder:adapter_1', cfg=adapter_modules.LinearAdapterConfig(in_features=in_features, dim=dim)
-        )
-        self.add_adapter(
-            'decoder:adapter_2', cfg=adapter_modules.LinearAdapterConfig(in_features=in_features, dim=dim)
-        )
-        self.add_adapter(
-            'encoder:adapter_1', cfg=adapter_modules.LinearAdapterConfig(in_features=in_features, dim=dim)
-        )
-        self.add_adapter(
-            'encoder:adapter_2', cfg=adapter_modules.LinearAdapterConfig(in_features=in_features, dim=dim)
-        )
-
-        self.freeze()
-        self.unfreeze_enabled_adapters()
-
-    @property
-    def encoder(self):
-        return self.enc_dec_model.encoder
-
-    @property
-    def decoder(self):
-        return self.enc_dec_model.decoder

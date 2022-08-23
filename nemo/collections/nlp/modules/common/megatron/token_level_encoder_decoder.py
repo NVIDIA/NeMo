@@ -297,11 +297,6 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
 
             self._tokens_head_key = 'tokens_head'
 
-        # setup adapters here and create the cfg for the class -> needed by adapters superclass
-        # self.cfg = self.encoder_cfg
-        # self.cfg.update(self.decoder_cfg)
-        # self.setup_adapters()
-
     def _validate_kv_channels(self, cfg):
         kv_channels = cfg.kv_channels
         if cfg.kv_channels is None:
@@ -528,16 +523,3 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         self.decoder_embedding.load_state_dict(state_dict[self._decoder_embedding_key], strict=strict)
         self.enc_dec_model.load_state_dict(state_dict[self._enc_dec_model_key], strict=strict)
         self.tokens_head.load_state_dict(state_dict[self._tokens_head_key], strict=strict)
-
-    # needed for adapters
-    def freeze(self):  # not sure why it's not available by default
-        for param in self.parameters():
-            param.requires_grad = False
-
-    @property
-    def encoder(self):
-        return self.enc_dec_model.encoder
-
-    @property
-    def decoder(self):
-        return self.enc_dec_model.decoder

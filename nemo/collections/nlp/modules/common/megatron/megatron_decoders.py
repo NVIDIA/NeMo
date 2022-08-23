@@ -13,9 +13,7 @@
 # limitations under the License.
 
 """Transformer based language model."""
-from nemo.collections.nlp.modules.common.megatron.megatron_transformer_adapter_decoder import (
-    MegatronTransformerAdapterDecoderModule,
-)
+from nemo.collections.nlp.modules.common.megatron.megatron_transformer_decoder import MegatronTransformerDecoderModule
 from nemo.collections.nlp.modules.common.megatron.retrieval_transformer import (
     MegatronRetrievalTransformerDecoderModule,
 )
@@ -78,7 +76,6 @@ def get_decoder_model(
     layer_type=None,
     chunk_size=64,
     layer_number_offset=0,  # this is use only for attention norm_factor scaling
-    support_adapters=False,
 ):
     """Build language model and return along with the key to save."""
 
@@ -96,7 +93,7 @@ def get_decoder_model(
 
     if arch == "transformer":
         # Language model.
-        decoder = MegatronTransformerAdapterDecoderModule(
+        decoder = MegatronTransformerDecoderModule(
             init_method=init_method,
             output_layer_init_method=scaled_init_method,
             hidden_size=hidden_size,

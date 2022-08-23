@@ -28,13 +28,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_sampler
     MegatronPretrainingRandomBatchSampler,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
-from nemo.collections.nlp.models.language_modeling.megatron_lm_adapter_encoder_decoder_model import (
-    MegatronLMAdapterEncoderDecoderModel,
-)
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
-from nemo.collections.nlp.modules.common.megatron.token_level_adapter_encoder_decoder import (
-    MegatronTokenLevelAdapterEncoderDecoderModule,
-)
 from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder import (
     MegatronTokenLevelEncoderDecoderModule,
 )
@@ -70,7 +64,7 @@ except (ImportError, ModuleNotFoundError):
 __all__ = ["MegatronLMEncoderDecoderModel"]
 
 
-class MegatronLMEncoderDecoderModel(MegatronBaseModel, MegatronLMAdapterEncoderDecoderModel):
+class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     """
     Megatron encoder-decoder base class
     """
@@ -128,9 +122,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel, MegatronLMAdapterEncoderD
             raise ValueError('precision must be in [32, 16, "bf16"]')
 
         self.enc_dec_model.model_type = ModelType.encoder_and_decoder
-
-        # setup adapters
-        self.setup_adapters()
 
     def setup_optimizer_param_groups(self):
         """ModelPT override. Optimizer will get self._optimizer_param_groups"""
@@ -193,7 +184,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel, MegatronLMAdapterEncoderD
         else:
             embedding_dropout = self.cfg.embedding_dropout
 
-        model = MegatronTokenLevelAdapterEncoderDecoderModule(
+        model = MegatronTokenLevelEncoderDecoderModule(
             encoder_cfg=self.cfg.encoder,
             decoder_cfg=self.cfg.decoder,
             vocab_size=self.padded_vocab_size,
