@@ -15,6 +15,7 @@ trainer:
   devices: 1
   num_nodes: 1
   accelerator: gpu
+  strategy: null
   logger: False # logger provided by exp_manager
   precision: 16 # 16, 32, or bf16
 
@@ -30,4 +31,4 @@ hparams_file: null # model configuration file, only used for PTL checkpoint load
 data_paths: ??? # prompts for GPT inference
 server: False  # whether launch the inference server
 port: 5555 # the port number for the inference server
- 
+batch_size: 8 
