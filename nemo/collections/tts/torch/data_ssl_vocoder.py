@@ -19,7 +19,10 @@ from nemo.collections.tts.models import ssl_tts
 from nemo.collections.tts.torch.helpers import get_base_dir
 from nemo.core.classes import Dataset
 from nemo.utils import logging
+from nemo.collections.tts.torch.tts_tokenizers import EnglishCharsTokenizer
 
+def decode(tokenizer, token_list):
+    return tokenizer.sep.join(tokenizer._id2token[t] for t in token_list)
 
 class SSLVocoderDataset(Dataset):
     def __init__(
@@ -42,7 +45,7 @@ class SSLVocoderDataset(Dataset):
         recache_data: Optional[bool] = False,
         normalize_content: Optional[bool] = True,
         speaker_stats_pitch_fp: Optional[Union[str, Path]] = None,
-        hifi_ckpt_path: Optional[Union[str, Path]] = None,
+        use_unique_tokens: Optional[bool] = False,
     ):
         """Dataset which can be used for training and fine-tuning vocoder with pre-computed mel-spectrograms.
         Args:
@@ -69,6 +72,7 @@ class SSLVocoderDataset(Dataset):
 
         assert ssl_model_type in ["conformer", "conformer_multitask"]
         self.ssl_model_type = ssl_model_type
+        self._text_tokenizer = EnglishCharsTokenizer(add_blank_at="last")
 
         assert ssl_content_emb_type in ["probs", "embedding", "log_probs", "embedding_and_probs"]
         self.ssl_content_emb_type = ssl_content_emb_type
@@ -187,6 +191,7 @@ class SSLVocoderDataset(Dataset):
             os.makedirs(self.sup_data_dir)
 
         self.normalize_content = normalize_content
+        self.use_unique_tokens = use_unique_tokens
 
         if self.pitch_normalization == "speaker_wise":
             self.speaker_stats = {}
@@ -237,10 +242,16 @@ class SSLVocoderDataset(Dataset):
             # print("encoded padded shape: ", encoded_padded.shape)
             content_embeddings_padded.append(encoded_padded)
 
+        durations_padded = []
+        for duration in final_batch["duration"]:
+            duration_padded = torch.nn.functional.pad(duration, (0, max_encoded_len - duration.size(0)), value=0.0)
+            durations_padded.append(duration_padded)
+
         final_batch["audio"] = audios_padded
         final_batch["mel_spectrogram"] = mels_padded
         final_batch["pitch_contour"] = pitch_contours_padded
         final_batch["content_embedding"] = content_embeddings_padded
+        final_batch["duration"] = durations_padded
 
         for key in final_batch:
             final_batch[key] = torch.stack(final_batch[key])
@@ -360,8 +371,10 @@ class SSLVocoderDataset(Dataset):
     def get_ssl_features(self, audio_ssl, audio_ssl_length, wav_text_id):
         content_emb_fn = f"{self.ssl_content_emb_type}_content_embedding_{wav_text_id}.pt"
         speaker_emb_fn = f"speaker_embedding_{wav_text_id}.pt"
+        duration_fn = f"duration_embedding_{wav_text_id}.pt" # embedding just for namesake
         content_emb_fp = os.path.join(self.sup_data_dir, content_emb_fn)
         speaker_emb_fp = os.path.join(self.sup_data_dir, speaker_emb_fn)
+        duration_fp = os.path.join(self.sup_data_dir, duration_fn)
         if os.path.exists(content_emb_fp):
             content_embedding = torch.load(content_emb_fp)
             if os.path.exists(speaker_emb_fp):
@@ -370,7 +383,11 @@ class SSLVocoderDataset(Dataset):
                 speaker_embedding = None
                 assert self.ssl_model_type == "conformer"
             encoded_len = torch.tensor(content_embedding.shape[1]).long()
-            return content_embedding, speaker_embedding, encoded_len
+            if os.path.exists(duration_fp):
+                duration = torch.load(duration_fp)
+            else:
+                duration = torch.ones(content_embedding.shape[1]) * 4.0
+            return content_embedding, speaker_embedding, encoded_len, duration
         else:
             if self.ssl_model_type == "conformer_multitask":
                 with torch.no_grad():
@@ -395,6 +412,8 @@ class SSLVocoderDataset(Dataset):
                     content_log_probs = content_log_probs.t()
                     content_probs = torch.exp(content_log_probs)
 
+                    duration = torch.ones(content_embedding.shape[1]) * 4.0
+
                     if self.ssl_content_emb_type == "probs":
                         final_content_embedding = content_probs
                     elif self.ssl_content_emb_type == "embedding":
@@ -404,10 +423,39 @@ class SSLVocoderDataset(Dataset):
                     elif self.ssl_content_emb_type == "embedding_and_probs":
                         final_content_embedding = torch.cat([content_embedding, content_probs], dim=0)
 
+                    if self.use_unique_tokens:
+                        token_predictions = torch.argmax(content_probs, dim=0)
+                        # print("token predictions:", token_predictions)
+                        content_buffer = [ final_content_embedding[:, 0] ]
+                        unique_content_embeddings = []
+                        unique_tokens = []
+                        durations = []
+                        for _t in range(1, final_content_embedding.shape[1]):
+                            if token_predictions[_t] == token_predictions[_t - 1]:
+                                content_buffer.append(final_content_embedding[:, _t])
+                            else:
+                                durations.append(len(content_buffer)*4)
+                                unique_content_embeddings.append( torch.mean(torch.stack(content_buffer), dim=0) )
+                                content_buffer = [ final_content_embedding[:, _t] ]
+                                unique_tokens.append(token_predictions[_t].item())
+                        
+                        if len(content_buffer) > 0:
+                            durations.append(len(content_buffer)*4)
+                            unique_content_embeddings.append( torch.mean(torch.stack(content_buffer), dim=0) )
+                            unique_tokens.append(token_predictions[_t].item())
+                        
+                        unique_content_embedding = torch.stack(unique_content_embeddings)
+                        final_content_embedding = unique_content_embedding.t()
+                        duration = torch.tensor(durations).float()
+                        # print("duration ds", duration)
+                        encoded_len = torch.tensor(unique_content_embedding.shape[1]).long()
+                        
+
                     torch.save(final_content_embedding, content_emb_fp)
                     torch.save(speaker_embedding_normalized, speaker_emb_fp)
+                    torch.save(duration, duration_fp)
 
-                    return final_content_embedding, speaker_embedding_normalized, encoded_len
+                    return final_content_embedding, speaker_embedding_normalized, encoded_len, duration
 
             elif self.ssl_model_type == "conformer":
                 with torch.no_grad():
@@ -513,7 +561,7 @@ class SSLVocoderDataset(Dataset):
         if self.pitch_conditioning:
             pitch_contour = self.get_pitch_contour(audio_ssl[:-1], rel_audio_path_as_text_id)
             # print(rel_audio_path_as_text_id, pitch_contour)
-        content_embedding, speaker_embedding, encoded_len = self.get_ssl_features(
+        content_embedding, speaker_embedding, encoded_len, duration = self.get_ssl_features(
             audio_ssl, audio_ssl_length, rel_audio_path_as_text_id
         )
 
@@ -533,7 +581,8 @@ class SSLVocoderDataset(Dataset):
                 assert pitch_contour.shape[0] == content_embedding.shape[1] == encoded_len.item()
             else:
                 # print("encoded len", encoded_len)
-                assert pitch_contour.shape[0] == mel_spectrogram.shape[1] == encoded_len.item() * 4
+                # assert pitch_contour.shape[0] == mel_spectrogram.shape[1] == encoded_len.item() * 4
+                pass
             # print("pitch contour", pitch_contour.shape)
 
             if self.pitch_normalization in ["speaker_wise", "global"]:
@@ -556,7 +605,10 @@ class SSLVocoderDataset(Dataset):
             if not self._is_valid_pitch_contour(pitch_contour):
                 print("invalid pitch contour for", sample["audio_filepath"])
                 print("Setting pitch contour to 0")
-                pitch_contour = torch.zeros(encoded_len.item())
+                if not self.load_mel_spectrogram:
+                    pitch_contour = torch.zeros(encoded_len.item())
+                else:
+                    pitch_contour = torch.zeros(mel_spectrogram.shape[1])
 
         item = {
             'audio': audio,
@@ -568,6 +620,7 @@ class SSLVocoderDataset(Dataset):
             'speaker': speaker,
             'mel_spectrogram': mel_spectrogram,
             'mel_len': mel_len,
+            'duration': duration,
         }
         if not self.load_mel_spectrogram:
             return self._segment_item(item)

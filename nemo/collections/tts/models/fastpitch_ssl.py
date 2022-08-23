@@ -98,7 +98,17 @@ class FastPitchModel_SSL(ModelPT):
             self.encoder = instantiate(self._cfg.encoder)
 
         output_fft = instantiate(self._cfg.output_fft)
+
         duration_predictor = None
+        self.use_duration_predictor = cfg.get("use_duration_predictor")
+        if cfg.get("use_encoder") == None:
+            # old config
+            duration_predictor = instantiate(self._cfg.duration_predictor)
+        elif self.use_duration_predictor:
+            assert self.encoder is not None, "use_encoder must be True if use_duration_predictor is True"
+            # this means we are using unique tokens
+            duration_predictor = instantiate(self._cfg.duration_predictor)
+        
 
         self.pitch_conditioning = pitch_conditioning = cfg.get("pitch_conditioning", True)
         if pitch_conditioning:
@@ -213,6 +223,8 @@ class FastPitchModel_SSL(ModelPT):
         mels = batch["mel_spectrogram"]
         spec_len = batch["mel_len"]
         pitch = batch["pitch_contour"]
+        durs = batch["duration"]
+        # print("durs train step", durs)
 
         # mels, spec_len = self.preprocessor(input_signal=audio, length=audio_lens)
 
@@ -225,11 +237,16 @@ class FastPitchModel_SSL(ModelPT):
             enc_out, _ = self.encoder(input=enc_out, seq_lens=encoded_len)
 
         enc_mask = mask_from_lens(encoded_len)
-        durs = torch.ones_like(enc_mask) * 4.0
+        # durs = torch.ones_like(enc_mask) * 4.0
         enc_mask = enc_mask[:, :, None]
         # print("enc_out.shape: ", enc_out.shape)
         # print("enc_mask.shape: ", enc_mask.shape)
         # print("durs.shape: ", durs.shape)
+
+        print("mel shape", mels.shape)
+        print("pitch shape", pitch.shape)
+        if mels.shape[2] != pitch.shape[1]:
+            raise ValueError("mels and pitch have different lengths")
 
         mels_pred, _, _, log_durs_pred, pitch_pred, attn_soft, attn_logprob, attn_hard, attn_hard_dur, pitch = self(
             text=None,
@@ -245,14 +262,18 @@ class FastPitchModel_SSL(ModelPT):
             enc_mask=enc_mask,
         )
 
+        loss = 0
         mel_loss = self.mel_loss(spect_predicted=mels_pred, spect_tgt=mels)
-
+        loss += mel_loss
+        if self.use_duration_predictor:
+            dur_loss = self.duration_loss(log_durs_predicted=log_durs_pred, durs_tgt=durs, len=encoded_len)
+            self.log("t_dur_loss", dur_loss)
+            loss += dur_loss
+        
         if self.pitch_conditioning:
             pitch_loss = self.pitch_loss(pitch_predicted=pitch_pred, pitch_tgt=pitch, len=encoded_len)
-            loss = mel_loss + pitch_loss
+            loss += pitch_loss
             self.log("t_pitch_loss", pitch_loss)
-        else:
-            loss = mel_loss
 
         self.log("t_loss", loss)
         self.log("t_mel_loss", mel_loss)
@@ -283,13 +304,14 @@ class FastPitchModel_SSL(ModelPT):
         mels = batch["mel_spectrogram"]
         spec_len = batch["mel_len"]
         pitch = batch["pitch_contour"]
-
+        durs = batch["duration"]
+        # print("durs val step", durs)
         enc_out = self.compute_encoding(content_embedding, speaker_embedding)
         if self.use_encoder:
             enc_out, _ = self.encoder(input=enc_out, seq_lens=encoded_len)
 
         enc_mask = mask_from_lens(encoded_len)
-        durs = torch.ones_like(enc_mask) * 4.0
+        # durs = torch.ones_like(enc_mask) * 4.0
         enc_mask = enc_mask[:, :, None]
         # print("enc_out.shape: ", enc_out.shape)
         # print("enc_mask.shape: ", enc_mask.shape)
@@ -321,6 +343,11 @@ class FastPitchModel_SSL(ModelPT):
             "pitch_target": pitch if batch_idx == 0 else None,
             "pitch_pred": pitch_pred if batch_idx == 0 else None,
         }
+
+        if self.use_duration_predictor:
+            dur_loss = self.duration_loss(log_durs_predicted=log_durs_pred, durs_tgt=durs, len=encoded_len)
+            val_out["dur_loss"] = dur_loss
+
         if self.pitch_conditioning:
             pitch_loss = self.pitch_loss(pitch_predicted=pitch_pred, pitch_tgt=pitch, len=encoded_len)
             val_out["pitch_loss"] = pitch_loss
@@ -401,7 +428,7 @@ class FastPitchModel_SSL(ModelPT):
         enc_mask = enc_mask[:, :, None]
 
         if pitch_contour is not None and compute_pitch == False:
-            pitch = average_pitch(pitch_contour.unsqueeze(1), durs).squeeze(1)
+            pitch = average_pitch(pitch_contour.unsqueeze(1), durs ).squeeze(1)
         else:
             pitch = None
 
