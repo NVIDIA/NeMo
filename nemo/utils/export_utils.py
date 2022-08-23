@@ -87,6 +87,21 @@ class LinearWithBiasSkip(nn.Module):
             return F.linear(x, self.weight), self.bias
         return F.linear(x, self.weight, self.bias), None
 
+# ScaledMaskedSoftmax replacement
+def mask_func(attention_scores, attention_mask):
+    attention_scores.masked_fill_(attention_mask, -10000.0)
+    return attention_scores
+
+def exportable_ScaledMaskedSoftmax(input, mask, scale):
+    if scale is not None:
+        input = input * scale
+
+    mask_output = mask_func(input, mask) if mask is not None else input
+    probs = torch.nn.Softmax(dim=-1)(mask_output)
+
+    probs = probs.half()
+    return probs
+
 
 def get_export_format(filename: str):
     _, ext = os.path.splitext(filename)
@@ -187,13 +202,13 @@ def run_ort_and_compare(sess, ort_input, output_example, check_tolerance=0.01):
                 logging.info(f"onnxruntime results mismatch! PyTorch(expected):\n{expected}\nONNXruntime:\n{tout}")
     return all_good
 
-
 apex_available = True
 
 try:
     from apex.normalization.fused_layer_norm import FusedLayerNorm, MixedFusedLayerNorm
     from apex.contrib.layer_norm.layer_norm import FastLayerNorm
     from apex.transformer.tensor_parallel.layers import RowParallelLinear
+    from apex.transformer.functional.fused_softmax import ScaledMaskedSoftmax, FusedScaleMaskSoftmax
 
     def replace_FusedLayerNorm(n: nn.Module) -> Optional[nn.BatchNorm2d]:
         """
@@ -229,7 +244,7 @@ try:
            Equivalent LayerNorm module
         """
         if not isinstance(n, RowParallelLinear):
-            return None
+            raise ValueError("This function can only change the RowParallelLinear module.")
 
         dev = next(n.parameters()).device
         mod = LinearWithBiasSkip(n.weight, n.bias, n.skip_bias_add).to(dev)
@@ -238,17 +253,41 @@ try:
         mod.load_state_dict(n_state)
         return mod
 
+    def replace_FusedScaleMaskSoftmax(n: nn.Module) -> Optional[nn.Linear]:
+        """
+        Replaces Apex's FusedScaleMaskSoftmax with nn.LayerNorm. This is required for ONNX export.
+        Args:
+           n: the FusedScaleMaskSoftmax module to replace
+        Returns:
+           Equivalent LayerNorm module
+        """
+        if not isinstance(n, FusedScaleMaskSoftmax):
+            raise ValueError("This function can only change the FusedScaleMaskSoftmax module.")
+
+        # disable the fusion only
+        mod = FusedScaleMaskSoftmax(
+            n.input_in_fp16,
+            n.input_in_bf16,
+            n.attn_mask_type,
+            False,
+            n.mask_func,
+            n.softmax_in_fp32,
+            n.scale
+        )
+
+        return mod
+
     default_Apex_replacements = {
         "FusedLayerNorm": replace_FusedLayerNorm,
         "MixedFusedLayerNorm": replace_FusedLayerNorm,
         "FastLayerNorm": replace_FusedLayerNorm,
         "RowParallelLinear": replace_RowParallelLinear,
+        "FusedScaleMaskSoftmax": replace_FusedScaleMaskSoftmax,
     }
 
 except Exception as e:
     default_Apex_replacements = {}
     apex_available = False
-
 
 def simple_replace(BaseT: Type[nn.Module], DestT: Type[nn.Module]) -> Callable[[nn.Module], Optional[nn.Module]]:
     """
@@ -268,7 +307,6 @@ def simple_replace(BaseT: Type[nn.Module], DestT: Type[nn.Module]) -> Callable[[
         return out
 
     return expansion_fn
-
 
 def wrap_module(BaseT: Type[nn.Module], DestT: Type[nn.Module]) -> Callable[[nn.Module], Optional[nn.Module]]:
     """
