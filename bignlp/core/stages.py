@@ -244,7 +244,7 @@ class BigNLPStage:
         if ntasks_per_node is None:
             ntasks_per_node = self.stage_cfg.trainer.get("devices", 1)
         return "CUDA_VISIBLE_DEVICES=0,4,2,6,1,5,3,7" \
-            if ntasks_per_node == 8 and self.cluster != "bcp" else ""
+            if ntasks_per_node == 8 else ""
 
     @property
     def _cuda_device_max_connections(self) -> str:
@@ -274,9 +274,13 @@ class NeMoStage(BigNLPStage):
         command_groups[0] += self._make_nemo_path_command()
         command_groups[0] += self._make_numa_mapping_command()
 
-        core_command = [
-            self._cuda_device_max_connections,
-            self._cuda_visible_devices,
+        # _cuda_device_max_connections and _cuda_visible_devices cannot be used as command prefix on BCP
+        if self.cluster == "bcp":
+            core_command = []
+        else:
+            core_command = [self._cuda_device_max_connections, self._cuda_visible_devices]
+
+        core_command += [
             self._make_api_log_command_prefix(
                 results_dir=self.get_job_path().results_folder
             ),
@@ -309,7 +313,7 @@ class NeMoStage(BigNLPStage):
     def _make_hydra_override(self):
         hydra_override = []
         if self.cluster == "bcp":
-            hydra_override += ["+cluster_type=bcp", "+rank=\${RANK}"]
+            hydra_override += ["+rank=\${RANK}"]
         return hydra_override
 
     def get_env_vars(self) -> Dict:
@@ -317,8 +321,10 @@ class NeMoStage(BigNLPStage):
         devices = self.stage_cfg.trainer.get("devices", 1)
         if self.cluster != "bcm":
             env_vars["SLURM_NTASKS_PER_NODE"] = devices
-        if self.cluster == "bcp" and devices == 8:  # Work around for BCP
-            env_vars["CUDA_VISIBLE_DEVICES"] = "0,4,2,6,1,5,3,7"
+        if self.cluster == "bcp":  # Set env prefix as env var on BCP
+            for env_var_str in [self._cuda_device_max_connections, self._cuda_visible_devices]:
+                var_name, var_val = env_var_str.split("=")
+                env_vars[var_name] = var_val
         return env_vars
 
 
@@ -332,7 +338,7 @@ class Training(NeMoStage):
         hydra_override = []
         choice_model_type, choice_name = self.get_stage_config_choice()
         if self.cluster == "bcp":
-            hydra_override += ["+cluster_type=bcp", "+rank=\${RANK}"]
+            hydra_override += ["+rank=\${RANK}"]
         if self.stage_cfg.model.data.get("data_prefix", None) is None:
             preprocessed_dir = self.stage_cfg.run.get("preprocessed_dir")
             blending_alpha = self.stage_cfg.run.get("blending_alpha")
