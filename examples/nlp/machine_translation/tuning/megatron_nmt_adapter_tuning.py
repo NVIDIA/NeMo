@@ -208,25 +208,25 @@ def main(cfg) -> None:
     model.add_adapter(
         'decoder:adapter_1',
         cfg=adapter_modules.LinearAdapterConfig(
-            in_features=cfg.model.decoder.hidden_size, dim=cfg.model.decoder_adapter.dim
+            in_features=cfg.model.hidden_size, dim=cfg.model.decoder_adapter.dim
         ),
     )
     model.add_adapter(
         'decoder:adapter_2',
         cfg=adapter_modules.LinearAdapterConfig(
-            in_features=cfg.model.decoder.hidden_size, dim=cfg.model.decoder_adapter.dim
+            in_features=cfg.model.hidden_size, dim=cfg.model.decoder_adapter.dim
         ),
     )
     model.add_adapter(
         'encoder:adapter_1',
         cfg=adapter_modules.LinearAdapterConfig(
-            in_features=cfg.model.encoder.hidden_size, dim=cfg.model.encoder_adapter.dim
+            in_features=cfg.model.hidden_size, dim=cfg.model.encoder_adapter.dim
         ),
     )
     model.add_adapter(
         'encoder:adapter_2',
         cfg=adapter_modules.LinearAdapterConfig(
-            in_features=cfg.model.encoder.hidden_size, dim=cfg.model.encoder_adapter.dim
+            in_features=cfg.model.hidden_size, dim=cfg.model.encoder_adapter.dim
         ),
     )
 
@@ -246,7 +246,8 @@ def main(cfg) -> None:
     trainer.fit(model)
 
     # you can save adapters only by:
-    # model.save_adapters('adapters_validation.pt', name=None)
+    if hasattr(cfg.model, 'adapter_path') and cfg.model.adapter_path is not None:
+        model.save_adapters(cfg.model.adapter_path, name=None)
 
 
 if __name__ == '__main__':
