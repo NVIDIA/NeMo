@@ -224,10 +224,14 @@ class BCPLauncher(Launcher):
 
         for group_ind, command_group in enumerate(command_groups):
             command = ";\n  ".join(command_group)
+            if group_ind + 1 == len(command_groups):
+                bcprun_cmd = f"bcprun --nnodes {nnodes} --npernode {npernode}"
+            else:
+                bcprun_cmd = f"bcprun --nnodes 1 --npernode 1"
             lines += [
                 "",
                 f"# command {group_ind + 1}",
-                f"bcprun --nnodes {nnodes} --npernode {npernode} "
+                f"{bcprun_cmd} "
                 f"{launcher_flags} {env_flags} --cmd \"",
                 f"  {command} \" 2>&1 | tee -a {stdout}",
                 "",
