@@ -4,7 +4,7 @@ Follow the 2 steps listed below in order -
 
 1. Create the (intermediate) manifest file using `code_switching_manifest_creation.py`.  It's usage is as follows:
 
-    `python code_switching_manifest_creation.py --manifest_language1 <absolute path of Language 1's manifest file> --manifest_language2 <absolute path of Language 2's manifest file> --manifest_save_path <absolute path to save the created manifest> --id_language1 <language code for language 1 (e.g. en)> --id_language2 <language code for language 2 (e.g. es)> --max_sample_duration_sec <maximum duration of genertaed sample in seconds> --min_sample_duration_sec <maximum duration of genertaed sample in seconds> --dataset_size_required_hrs <size of generated synthetic dataset required in hrs>`
+    `python code_switching_manifest_creation.py --manifest_language1 <absolute path of Language 1's manifest file> --manifest_language2 <absolute path of Language 2's manifest file> --manifest_save_path <absolute path to save the created manifest> --id_language1 <language code for language 1 (e.g. en)> --id_language2 <language code for language 2 (e.g. es)> --max_sample_duration_sec <maximum duration of generated sample in seconds> --min_sample_duration_sec <maximum duration of generated sample in seconds> --dataset_size_required_hrs <size of generated synthetic dataset required in hrs>`
 
 2. Create the syntheic audio data and the corresponding manifest file using `code_switching_audio_data_creation.py` It's usage is as follows: 
 
