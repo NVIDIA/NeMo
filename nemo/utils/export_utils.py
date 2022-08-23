@@ -87,10 +87,12 @@ class LinearWithBiasSkip(nn.Module):
             return F.linear(x, self.weight), self.bias
         return F.linear(x, self.weight, self.bias), None
 
+
 # ScaledMaskedSoftmax replacement
 def mask_func(attention_scores, attention_mask):
     attention_scores.masked_fill_(attention_mask, -10000.0)
     return attention_scores
+
 
 def exportable_ScaledMaskedSoftmax(input, mask, scale):
     if scale is not None:
@@ -202,6 +204,7 @@ def run_ort_and_compare(sess, ort_input, output_example, check_tolerance=0.01):
                 logging.info(f"onnxruntime results mismatch! PyTorch(expected):\n{expected}\nONNXruntime:\n{tout}")
     return all_good
 
+
 apex_available = True
 
 try:
@@ -266,13 +269,7 @@ try:
 
         # disable the fusion only
         mod = FusedScaleMaskSoftmax(
-            n.input_in_fp16,
-            n.input_in_bf16,
-            n.attn_mask_type,
-            False,
-            n.mask_func,
-            n.softmax_in_fp32,
-            n.scale
+            n.input_in_fp16, n.input_in_bf16, n.attn_mask_type, False, n.mask_func, n.softmax_in_fp32, n.scale
         )
 
         return mod
@@ -288,6 +285,7 @@ try:
 except Exception as e:
     default_Apex_replacements = {}
     apex_available = False
+
 
 def simple_replace(BaseT: Type[nn.Module], DestT: Type[nn.Module]) -> Callable[[nn.Module], Optional[nn.Module]]:
     """
@@ -307,6 +305,7 @@ def simple_replace(BaseT: Type[nn.Module], DestT: Type[nn.Module]) -> Callable[[
         return out
 
     return expansion_fn
+
 
 def wrap_module(BaseT: Type[nn.Module], DestT: Type[nn.Module]) -> Callable[[nn.Module], Optional[nn.Module]]:
     """
