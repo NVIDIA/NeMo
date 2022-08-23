@@ -13,13 +13,8 @@ We present the main results of our models, as well as that of some baselines, in
 | NeMo-Conformer-Transformer-Large                 | 127            | NeMo SSL-LL60kh          |                        89.04 |         73.19 |       71.8 |  72.49 |         77.9 |             76.65 |               77.22 |
 | NeMo-Conformer-Transformer-Large                 | 127            | None                     |                        72.56 |         43.19 |       43.5 |  43.34 |        53.59 |             53.92 |               53.76 |
 | NeMo-Conformer-Transformer-XLarge                | 617            | NeMo SSL-LL60kh          |                        91.04 |         76.67 |      74.36 |  75.49 |        82.44 |             80.14 |               81.28 |
-| SpeechBrain-HuBert-base-AttnLSTM [6]            | ~96            | HuBERT-LL60kh            |          89.37 [paper 89.38] |         73.89 |      70.76 |  72.29 |        80.54 |             77.44 | 78.96 [paper 78.43] |
-| SpeechBrain-HuBert-large-AttnLSTM  [6]            | ~317           | HuBERT-LS960h            |                         87.7 |         70.47 |      67.58 |     69 |        77.65 |             74.78 | 76.19 [paper 75.06] |
-| ICASSP'22 [5]                                    | ~200           | wav2vec2-LS960h finetuned on SLURP ASR, RoBERTa | 86.92 |           N/A |        N/A |    N/A |          N/A |               N/A |               74.66 |
-| SLURP paper (NLU on gold text) [2]               |                |                          |                        84.84 |           N/A |        N/A |  78.19 |          N/A |               N/A |                 N/A |
-| SLURP paper (ASR+NLU) [2]                        |                |                          |                        76.68 |           N/A |        N/A |  62.69 |          N/A |               N/A |               69.53 |
 
-Note: LL60kh refers to the Libri-Light dataset [7], while LS960h refers to the Librispeech dataset [8].  
+Note: LL60kh refers to the Libri-Light dataset [7].  
 
 ## Usage
 Please install [NeMo](https://github.com/NVIDIA/NeMo) [1] before proceeding. 
@@ -155,8 +150,6 @@ The pretrained models and directions on how to use them are available [here](htt
 [6] [SpeechBrain SLURP Recipe](https://github.com/speechbrain/speechbrain/tree/develop/recipes/SLURP)
 
 [7] [Libri-Light: A Benchmark for ASR with Limited or No Supervision](https://arxiv.org/abs/1912.07875)
-
-[8] [Librispeech: An ASR corpus based on public domain audio books](https://ieeexplore.ieee.org/document/7178964)
 
 ## Acknowledgments
 
