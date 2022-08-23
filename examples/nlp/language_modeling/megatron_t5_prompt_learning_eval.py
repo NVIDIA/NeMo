@@ -65,10 +65,7 @@ def main(cfg) -> None:
         )
 
     # Load prompt tuned model, virtual_prompt_model_file and language_model_path must be provided in config
-    if (
-        cfg.get('virtual_prompt_model_file', None) is not None
-        and cfg.get('language_model_path', None) is not None
-    ):
+    if cfg.get('virtual_prompt_model_file', None) is not None and cfg.get('language_model_path', None) is not None:
 
         # Update frozen T5 model path in case it has changed
         prompt_learning_cfg = MegatronT5PromptLearningModel.restore_from(
