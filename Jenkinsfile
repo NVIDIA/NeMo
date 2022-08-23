@@ -2086,6 +2086,7 @@ pipeline {
         model.pretrained_model_path=examples/nlp/machine_translation/megatron_nmt_results/megatron_adapter_nmt/checkpoints/megatron_adapter_nmt.nemo \
         model.encoder_adapter.dim=5 \
         model.decoder_adapter.dim=5 \
+        +model.hidden_size=64 \
         model.micro_batch_size=2 \
         model.global_batch_size=4 \
         model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \

@@ -207,27 +207,19 @@ def main(cfg) -> None:
     # add encoder/decoder adapters
     model.add_adapter(
         'decoder:adapter_1',
-        cfg=adapter_modules.LinearAdapterConfig(
-            in_features=cfg.model.hidden_size, dim=cfg.model.decoder_adapter.dim
-        ),
+        cfg=adapter_modules.LinearAdapterConfig(in_features=cfg.model.hidden_size, dim=cfg.model.decoder_adapter.dim),
     )
     model.add_adapter(
         'decoder:adapter_2',
-        cfg=adapter_modules.LinearAdapterConfig(
-            in_features=cfg.model.hidden_size, dim=cfg.model.decoder_adapter.dim
-        ),
+        cfg=adapter_modules.LinearAdapterConfig(in_features=cfg.model.hidden_size, dim=cfg.model.decoder_adapter.dim),
     )
     model.add_adapter(
         'encoder:adapter_1',
-        cfg=adapter_modules.LinearAdapterConfig(
-            in_features=cfg.model.hidden_size, dim=cfg.model.encoder_adapter.dim
-        ),
+        cfg=adapter_modules.LinearAdapterConfig(in_features=cfg.model.hidden_size, dim=cfg.model.encoder_adapter.dim),
     )
     model.add_adapter(
         'encoder:adapter_2',
-        cfg=adapter_modules.LinearAdapterConfig(
-            in_features=cfg.model.hidden_size, dim=cfg.model.encoder_adapter.dim
-        ),
+        cfg=adapter_modules.LinearAdapterConfig(in_features=cfg.model.hidden_size, dim=cfg.model.encoder_adapter.dim),
     )
 
     print("Encoder adapter available :", model.enc_dec_model.encoder.is_adapter_available())
