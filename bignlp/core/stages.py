@@ -244,7 +244,7 @@ class BigNLPStage:
         if ntasks_per_node is None:
             ntasks_per_node = self.stage_cfg.trainer.get("devices", 1)
         return "CUDA_VISIBLE_DEVICES=0,4,2,6,1,5,3,7" \
-            if ntasks_per_node == 8 else ""
+            if ntasks_per_node == 8 and self.cluster != "bcp" else ""
 
     @property
     def _cuda_device_max_connections(self) -> str:
@@ -314,8 +314,11 @@ class NeMoStage(BigNLPStage):
 
     def get_env_vars(self) -> Dict:
         env_vars = super().get_env_vars()
+        devices = self.stage_cfg.trainer.get("devices", 1)
         if self.cluster != "bcm":
-            env_vars["SLURM_NTASKS_PER_NODE"] = self.stage_cfg.trainer.get("devices", 1)
+            env_vars["SLURM_NTASKS_PER_NODE"] = devices
+        if self.cluster == "bcp" and devices == 8:  # Work around for BCP
+            env_vars["CUDA_VISIBLE_DEVICES"] = "0,4,2,6,1,5,3,7"
         return env_vars
 
 

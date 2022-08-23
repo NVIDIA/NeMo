@@ -45,7 +45,7 @@ def main(cfg):
         f"cd {megatron_dir}; "
         f'export PYTHONPATH="/opt/bignlp/NeMo/.:$PYTHONPATH"; '
         f'export TRANSFORMERS_CACHE="/temp_root/.cache/"; '
-        f"CUDA_VISIBLE_DEVICES=0,4,2,6,1,5,3,7 python3 {code_path} "
+        f"python3 {code_path} "
     )
 
     if cfg.get("cluster_type") == "bcm":
