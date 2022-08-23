@@ -45,6 +45,7 @@ AVAILABLE_OPTIMIZERS = {
 try:
     from apex.optimizers import FusedLAMB
     from apex.optimizers import FusedAdam
+    from apex.transformer import parallel_state
 
     HAVE_APEX = True
 
@@ -66,9 +67,15 @@ if HAVE_APEX:
         # Wrapper class that supports main_grad buffer
         # Note: main_grad buffer is used for O2-style optimizations
         class MegatronDistributedFusedAdam(DistributedFusedAdam):
+            def __init__(self, *args, **kwargs):
+                if ('process_group' not in kwargs
+                    and not parallel_state.is_unitialized()):
+                    kwargs['process_group'] = parallel_state.get_data_parallel_group()
+                super().__init__(*args, **kwargs)
             def _init_param_state(self, param, param_group_id, param_id):
                 super()._init_param_state(param, param_group_id, param_id)
-                param.main_grad = self.grad_buffer_view(param)
+                if self.contiguous_grad_buffer:
+                    param.main_grad = self.grad_buffer_view(param)
 
         AVAILABLE_OPTIMIZERS['distributed_fused_adam'] = MegatronDistributedFusedAdam
 

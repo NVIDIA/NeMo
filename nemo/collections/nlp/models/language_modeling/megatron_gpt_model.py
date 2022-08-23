@@ -90,11 +90,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
         self.with_distributed_adam = cfg.optim.get('name') == 'distributed_fused_adam'
 
-        if self.with_distributed_adam and not self.megatron_amp_o2:
-            raise ValueError(
-                "Distributed optimizers require O2. Please set megatron_amp_O2 to True in the model config."
-            )
-
         if self.megatron_amp_o2:
 
             if not self.with_distributed_adam:
@@ -183,10 +178,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self, optim_config: Optional[Union[DictConfig, Dict]] = None, optim_kwargs: Optional[Dict[str, Any]] = None,
     ):
         optim_kwargs = {} if optim_kwargs is None else optim_kwargs.copy()
-        if self.with_distributed_adam:
-            optim_kwargs['process_group'] = parallel_state.get_data_parallel_group()
+        if self.with_distributed_adam and self.megatron_amp_o2:
             optim_kwargs['param_sync_dtype'] = self.autocast_dtype
-            optim_kwargs['contiguous_grad_buffer'] = True
+            optim_kwargs['contiguous_grad_buffer'] = True  # Needed to allocate main grads
             if self.autocast_dtype == torch.float:
                 optim_kwargs['store_params'] = False
             elif self.autocast_dtype == torch.float16:
@@ -234,15 +228,23 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 sequence_parallel_enabled=self.cfg.get('sequence_parallel', False),
             )
         else:
-            # no pipeline parallelism so we reduce grads asynchronously if not using sequence parallelism
-            if self.megatron_amp_o2 and not self.cfg.get('sequence_parallel', False):
-                if self.with_distributed_adam:
+            # no pipeline parallelism so we reduce grads
+            # asynchronously
+            if self.with_distributed_adam:
+                if self.megatron_amp_o2:
+                    # copy grads to main grad
                     custom_sync_context_handler = lambda: self._optimizer.no_sync(greedy_grad_copy=True)
                 else:
-                    custom_sync_context_handler = self._optimizer.no_sync
+                    # keep grad tensors around
+                    custom_sync_context_handler = lambda: self._optimizer.no_sync(greedy_grad_copy=False)
             else:
-                # TODO: enable async grad all reduce for O1/autocast mixed precision training
-                custom_sync_context_handler = None
+                if self.megatron_amp_o2 and not self.cfg.get('sequence_parallel', False):
+                    custom_sync_context_handler = self._optimizer.no_sync
+                else:
+                    # TODO: enable async grad all reduce for
+                    # O1/autocast mixed precision training and
+                    # sequence parallelism
+                    custom_sync_context_handler = None
             losses_reduced_per_micro_batch = forward_backward_no_pipelining(
                 forward_step_func=self.get_forward_output_and_loss_func(),
                 batch=batch_for_pipeline,
@@ -649,15 +651,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         if self.with_distributed_adam:
 
-            # Initialize params in reverse order
-            # Note: Estimate order in which grads are generated in
-            # backward pass
-            self._optimizer.init_params(reversed(list(self.parameters())))
-
             # Overlapped communication interferes with grad reductions
             # for pipeline parallelism and sequence parallelism
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1 or self.cfg.get('sequence_parallel', False):
                 self._optimizer.overlap_grad_sync = False
+
+            if self.megatron_amp_o2:
+                # Initialize params so that main grads are available
+                self._optimizer.init_params(reversed(list(self.parameters())))
 
         return retval
 
