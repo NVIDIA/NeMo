@@ -15,6 +15,7 @@ trainer:
   val_check_interval: 100
   limit_val_batches: 50
   limit_test_batches: 500
+  num_sanity_val_steps: 0 # 0 means skip sanity val steps
   accumulate_grad_batches: 1 # do not modify, grad acc is automatic for training megatron models
   gradient_clip_val: 1.0
   benchmark: False
