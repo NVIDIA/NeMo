@@ -2,7 +2,6 @@ import os
 import re
 import time
 import socket
-import torch
 
 
 def pause_and_prime_dns_connections() -> None:

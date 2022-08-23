@@ -220,7 +220,7 @@ class BCPLauncher(Launcher):
         pause_and_prime_dns_connection_command = (
             f"python3 -u {bignlp_path / 'bignlp/collections/pause_and_prime_dns_connections.py'}"
         )
-        command_groups = [[pause_and_prime_dns_connection_command]] + command_groups
+        command_groups[-1] = [pause_and_prime_dns_connection_command] + command_groups[-1]
 
         for group_ind, command_group in enumerate(command_groups):
             command = ";\n  ".join(command_group)
