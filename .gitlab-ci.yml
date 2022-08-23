@@ -502,6 +502,26 @@ train.mt5.170m_tp2_pp2_2node_100steps:
   needs:
     - build-BigNLP
 
+export.gpt3.126m_tp1_pp1_split:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: export
+    RUN_MODEL: gpt3
+    RUN_MODEL_SIZE: 126m
+    TP_SIZE: 1
+    PP_SIZE: 1
+    TIME_LIMIT: "20:00"
+    TEST_LEVEL: L0
+    FT_WEIGHT_DATA: fp16
+    FT_TP_SIZE: 2
+    FT_PP_SIZE: 2
+    FT_DEPLOYMENT_DATA: fp16
+    FT_EVAL_MARGIN: "0.005"
+    FT_EVAL_TASK: lambada
+  needs:
+    - eval.gpt3.126m_tp1_pp1_lambada
+
 eval.gpt3.126m_tp1_pp1_lambada:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
