@@ -240,7 +240,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
             preserve_alignments=preserve_alignments,
         )
 
-    @typecheck()
+#    @typecheck()
     def forward(
         self,
         encoder_output: torch.Tensor,
@@ -447,11 +447,12 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         else:
             self._greedy_decode = self._greedy_decode_masked
 
-    @typecheck()
+#    @typecheck()
     def forward(
         self,
         encoder_output: torch.Tensor,
         encoded_lengths: torch.Tensor,
+        duration: int,
         partial_hypotheses: Optional[List[rnnt_utils.Hypothesis]] = None,
     ):
         """Returns a list of hypotheses given an input batch of the encoder hidden embedding.
