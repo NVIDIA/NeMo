@@ -72,7 +72,10 @@ def main(cfg) -> None:
             cfg.virtual_prompt_model_file, trainer=trainer, return_config=True
         )
         with open_dict(prompt_learning_cfg):
-            prompt_learning_cfg.language_model_path = cfg.language_model_path
+            if hasattr(prompt_learning_cfg, 'pretrained_language_model_path'):
+                prompt_learning_cfg.pretrained_language_model_path = cfg.language_model_path
+            else:
+                prompt_learning_cfg.language_model_path = cfg.language_model_path
             prompt_learning_cfg.micro_batch_size = cfg.data.get('micro_batch_size', 4)
             prompt_learning_cfg.global_batch_size = cfg.data.get('global_batch_size', 4)
 
