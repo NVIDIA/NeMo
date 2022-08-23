@@ -17,12 +17,14 @@ from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 from nemo.collections.tts.models import ssl_tts
 from nemo.collections.tts.torch.helpers import get_base_dir
+from nemo.collections.tts.torch.tts_tokenizers import EnglishCharsTokenizer
 from nemo.core.classes import Dataset
 from nemo.utils import logging
-from nemo.collections.tts.torch.tts_tokenizers import EnglishCharsTokenizer
+
 
 def decode(tokenizer, token_list):
     return tokenizer.sep.join(tokenizer._id2token[t] for t in token_list)
+
 
 class SSLVocoderDataset(Dataset):
     def __init__(
@@ -371,7 +373,7 @@ class SSLVocoderDataset(Dataset):
     def get_ssl_features(self, audio_ssl, audio_ssl_length, wav_text_id):
         content_emb_fn = f"{self.ssl_content_emb_type}_content_embedding_{wav_text_id}.pt"
         speaker_emb_fn = f"speaker_embedding_{wav_text_id}.pt"
-        duration_fn = f"duration_embedding_{wav_text_id}.pt" # embedding just for namesake
+        duration_fn = f"duration_embedding_{wav_text_id}.pt"  # embedding just for namesake
         content_emb_fp = os.path.join(self.sup_data_dir, content_emb_fn)
         speaker_emb_fp = os.path.join(self.sup_data_dir, speaker_emb_fn)
         duration_fp = os.path.join(self.sup_data_dir, duration_fn)
@@ -426,7 +428,7 @@ class SSLVocoderDataset(Dataset):
                     if self.use_unique_tokens:
                         token_predictions = torch.argmax(content_probs, dim=0)
                         # print("token predictions:", token_predictions)
-                        content_buffer = [ final_content_embedding[:, 0] ]
+                        content_buffer = [final_content_embedding[:, 0]]
                         unique_content_embeddings = []
                         unique_tokens = []
                         durations = []
@@ -434,22 +436,21 @@ class SSLVocoderDataset(Dataset):
                             if token_predictions[_t] == token_predictions[_t - 1]:
                                 content_buffer.append(final_content_embedding[:, _t])
                             else:
-                                durations.append(len(content_buffer)*4)
-                                unique_content_embeddings.append( torch.mean(torch.stack(content_buffer), dim=0) )
-                                content_buffer = [ final_content_embedding[:, _t] ]
+                                durations.append(len(content_buffer) * 4)
+                                unique_content_embeddings.append(torch.mean(torch.stack(content_buffer), dim=0))
+                                content_buffer = [final_content_embedding[:, _t]]
                                 unique_tokens.append(token_predictions[_t].item())
-                        
+
                         if len(content_buffer) > 0:
-                            durations.append(len(content_buffer)*4)
-                            unique_content_embeddings.append( torch.mean(torch.stack(content_buffer), dim=0) )
+                            durations.append(len(content_buffer) * 4)
+                            unique_content_embeddings.append(torch.mean(torch.stack(content_buffer), dim=0))
                             unique_tokens.append(token_predictions[_t].item())
-                        
+
                         unique_content_embedding = torch.stack(unique_content_embeddings)
                         final_content_embedding = unique_content_embedding.t()
                         duration = torch.tensor(durations).float()
                         # print("duration ds", duration)
-                        encoded_len = torch.tensor(unique_content_embedding.shape[1]).long()
-                        
+                        encoded_len = torch.tensor(final_content_embedding.shape[1]).long()
 
                     torch.save(final_content_embedding, content_emb_fp)
                     torch.save(speaker_embedding_normalized, speaker_emb_fp)

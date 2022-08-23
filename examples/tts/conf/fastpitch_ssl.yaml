@@ -39,7 +39,7 @@ model:
   use_encoder: false
   use_duration_predictor: ${use_unique_tokens}
   pitch_conditioning: true
-  pitch_loss_scale: 0.5
+  pitch_loss_scale: 1.0
   learn_alignment: true
   bin_loss_warmup_epochs: 100
 
@@ -91,7 +91,7 @@ model:
       drop_last: false
       shuffle: true
       batch_size: 2
-      num_workers: 0
+      num_workers: 8
       pin_memory: true
 
   validation_ds:

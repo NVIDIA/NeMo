@@ -224,7 +224,6 @@ class FastPitchModule(NeuralModule):
         enc_mask=None,
     ):
 
-        # print("durs forw start", durs.shape, durs )
         if not self.learn_alignment and self.training:
             assert durs is not None
             # assert pitch is not None
@@ -260,13 +259,7 @@ class FastPitchModule(NeuralModule):
                     # Pitch during training is per spectrogram frame, but during inference, it should be per character
                     pitch = average_pitch(pitch.unsqueeze(1), attn_hard_dur).squeeze(1)
                 if pitch.shape[-1] != enc_out.shape[1]:
-                    print("Pitch shape:", pitch.shape)
-                    # print("durs before avg", durs.shape, durs )
                     pitch = average_pitch(pitch.unsqueeze(1), durs).squeeze(1)
-                    # pitch = pitch[:,:enc_out.shape[1]]
-                    print("Pitch shape:", pitch.shape)
-                    print("durs shape:", durs.shape)
-                    # print("durs", durs.shape, durs)
 
                 pitch_emb = self.pitch_emb(pitch.unsqueeze(1))
             else:
@@ -277,8 +270,6 @@ class FastPitchModule(NeuralModule):
         if self.learn_alignment and spec is not None:
             len_regulated, dec_lens = regulate_len(attn_hard_dur, enc_out, pace)
         elif spec is None and durs is not None:
-            # print("durs", durs.shape, durs)
-            print("enc out", enc_out.shape)
             len_regulated, dec_lens = regulate_len(durs, enc_out, pace)
         # Use predictions during inference
         elif spec is None:
