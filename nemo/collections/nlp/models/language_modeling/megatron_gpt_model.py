@@ -519,18 +519,58 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             eval_iters * global_batch_size,
             test_iters * global_batch_size,
         ]
-        self._train_ds, self._validation_ds, self._test_ds = build_train_valid_test_datasets(
-            cfg=self.cfg,
-            trainer=self.trainer,
-            data_prefix=self.cfg.data.data_prefix,
-            data_impl=self.cfg.data.data_impl,
-            splits_string=self.cfg.data.splits_string,
-            train_valid_test_num_samples=train_valid_test_num_samples,
-            seq_length=self.cfg.data.seq_length,
-            seed=self.cfg.seed,
-            skip_warmup=self.cfg.data.get('skip_warmup', True),
-            tokenizer=self.tokenizer,
-        )
+        if isinstance(self.cfg.data.data_prefix, DictConfig):
+            assert self.cfg.data.data_prefix.get('train') is not None and self.cfg.data.data_prefix.get('test') is not None and self.cfg.data.data_prefix.get('validation') is not None, f"Data prefix dictionary should have train, test and validation keys.  data_prefix currently has only {self.cfg.data.data_prefix.keys()}"
+            logging.warning(self.cfg.data.splits_string  + "ignored since data prefix is of type dictionary.")
+            self._train_ds,_,_ = build_train_valid_test_datasets(
+                cfg=self.cfg,
+                trainer=self.trainer,
+                data_prefix=self.cfg.data.data_prefix["train"],
+                data_impl=self.cfg.data.data_impl,
+                splits_string="100,0,0",
+                train_valid_test_num_samples=train_valid_test_num_samples,
+                seq_length=self.cfg.data.seq_length,
+                seed=self.cfg.seed,
+                skip_warmup=self.cfg.data.get('skip_warmup', True),
+                tokenizer=self.tokenizer,
+            )
+            _,self._validation_ds,_ = build_train_valid_test_datasets(
+                cfg=self.cfg,
+                trainer=self.trainer,
+                data_prefix=self.cfg.data.data_prefix["validation"],
+                data_impl=self.cfg.data.data_impl,
+                splits_string="0,100,0",
+                train_valid_test_num_samples=train_valid_test_num_samples,
+                seq_length=self.cfg.data.seq_length,
+                seed=self.cfg.seed,
+                skip_warmup=self.cfg.data.get('skip_warmup', True),
+                tokenizer=self.tokenizer,
+            )
+            _,_,self._test_ds = build_train_valid_test_datasets(
+                cfg=self.cfg,
+                trainer=self.trainer,
+                data_prefix=self.cfg.data.data_prefix["test"],
+                data_impl=self.cfg.data.data_impl,
+                splits_string="0,0,100",
+                train_valid_test_num_samples=train_valid_test_num_samples,
+                seq_length=self.cfg.data.seq_length,
+                seed=self.cfg.seed,
+                skip_warmup=self.cfg.data.get('skip_warmup', True),
+                tokenizer=self.tokenizer,
+            )
+        else:           
+            self._train_ds, self._validation_ds, self._test_ds = build_train_valid_test_datasets(
+                cfg=self.cfg,
+                trainer=self.trainer,
+                data_prefix=self.cfg.data.data_prefix,
+                data_impl=self.cfg.data.data_impl,
+                splits_string=self.cfg.data.splits_string,
+                train_valid_test_num_samples=train_valid_test_num_samples,
+                seq_length=self.cfg.data.seq_length,
+                seed=self.cfg.seed,
+                skip_warmup=self.cfg.data.get('skip_warmup', True),
+                tokenizer=self.tokenizer,
+            )
         if self._train_ds is not None:
             logging.info(f'Length of train dataset: {len(self._train_ds)}')
         if self._validation_ds is not None:
