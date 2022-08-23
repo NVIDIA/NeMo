@@ -48,6 +48,7 @@ class SSLVocoderDataset(Dataset):
         normalize_content: Optional[bool] = True,
         speaker_stats_pitch_fp: Optional[Union[str, Path]] = None,
         use_unique_tokens: Optional[bool] = False,
+        speaker_conditioning_type: Optional[str] = "per_sample",  # per_sample, mean, interpolate
     ):
         """Dataset which can be used for training and fine-tuning vocoder with pre-computed mel-spectrograms.
         Args:
@@ -195,6 +196,9 @@ class SSLVocoderDataset(Dataset):
         self.normalize_content = normalize_content
         self.use_unique_tokens = use_unique_tokens
 
+        self.speaker_conditioning_type = speaker_conditioning_type
+        self.compute_mean_speaker_embeddings()
+
         if self.pitch_normalization == "speaker_wise":
             self.speaker_stats = {}
             with open(speaker_stats_pitch_fp, "r") as f:
@@ -259,6 +263,37 @@ class SSLVocoderDataset(Dataset):
             final_batch[key] = torch.stack(final_batch[key])
 
         return final_batch
+
+    def compute_mean_speaker_embeddings(self, n_embeddings_per_speaker=100):
+        mean_speaker_embeddings = {}
+        speaker_counts = {}
+        for idx in range(len(self.data)):
+            sample = self.data[idx]
+            speaker = sample["speaker"]
+            if speaker in speaker_counts and speaker_counts[speaker] >= n_embeddings_per_speaker:
+                continue
+
+            rel_audio_path = Path(sample["audio_filepath"]).relative_to(self.base_data_dir).with_suffix("")
+            rel_audio_path_as_text_id = str(rel_audio_path).replace("/", "_")
+            speaker_emb_fn = f"speaker_embedding_{rel_audio_path_as_text_id}.pt"
+            speaker_emb_fp = os.path.join(self.sup_data_dir, speaker_emb_fn)
+            if os.path.exists(speaker_emb_fp):
+                embedding = torch.load(speaker_emb_fp)
+                if speaker not in mean_speaker_embeddings:
+                    mean_speaker_embeddings[speaker] = embedding
+                    speaker_counts[speaker] = 1
+                else:
+                    mean_speaker_embeddings[speaker] += embedding
+                    speaker_counts[speaker] += 1
+
+        for speaker in mean_speaker_embeddings:
+            mean_speaker_embeddings[speaker] /= speaker_counts[speaker]
+            l2_norm = torch.norm(mean_speaker_embeddings[speaker], p=2)
+            mean_speaker_embeddings[speaker] /= l2_norm
+
+        # print("mean_speaker_embeddings: ", mean_speaker_embeddings.keys())
+
+        self.mean_speaker_embeddings = mean_speaker_embeddings
 
     def _collate_fn(self, batch):
         final_batch = {}
@@ -565,6 +600,19 @@ class SSLVocoderDataset(Dataset):
         content_embedding, speaker_embedding, encoded_len, duration = self.get_ssl_features(
             audio_ssl, audio_ssl_length, rel_audio_path_as_text_id
         )
+
+        if self.speaker_conditioning_type == "mean":
+            assert sample["speaker"] in self.mean_speaker_embeddings, "{} not in speaker emb".format(sample['speaker'])
+            speaker_embedding = self.mean_speaker_embeddings[sample["speaker"]]
+
+        elif self.speaker_conditioning_type == "interpolate":
+            assert sample["speaker"] in self.mean_speaker_embeddings, "{} not in speaker emb".format(sample['speaker'])
+            e1 = self.mean_speaker_embeddings[sample["speaker"]]
+            e2 = speaker_embedding
+            interpolate_factor = np.random.uniform(0, 1)
+            speaker_embedding = e1 * (1 - interpolate_factor) + e2 * interpolate_factor
+            l2_norm = torch.norm(speaker_embedding, p=2)
+            speaker_embedding = speaker_embedding / l2_norm
 
         mel_spectrogram = None
         mel_len = None

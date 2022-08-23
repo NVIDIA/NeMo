@@ -398,6 +398,7 @@ class FastPitchModel_SSL(ModelPT):
         pitch_contour=None,
         compute_pitch=False,
         compute_duration=False,
+        durs_gt=None,
     ):
         """
         content_embedding : (B, C, T)
@@ -414,6 +415,7 @@ class FastPitchModel_SSL(ModelPT):
             enc_out, _ = self.encoder(input=enc_out, seq_lens=encoded_len)
 
         enc_mask = mask_from_lens(encoded_len)
+
         if compute_duration:
             durs = None
         else:
@@ -421,7 +423,13 @@ class FastPitchModel_SSL(ModelPT):
 
         enc_mask = enc_mask[:, :, None]
         if pitch_contour is not None and compute_pitch == False:
-            pitch = average_pitch(pitch_contour.unsqueeze(1), durs).squeeze(1)
+            if durs_gt is not None:
+                pitch = average_pitch(pitch_contour.unsqueeze(1), durs_gt).squeeze(1)
+            elif durs is not None:
+                pitch = average_pitch(pitch_contour.unsqueeze(1), durs).squeeze(1)
+            else:
+                raise ValueError("durs or durs_gt must be provided")
+
         else:
             pitch = None
 
@@ -442,8 +450,8 @@ class FastPitchModel_SSL(ModelPT):
         wavs = []
         for idx in range(_bs):
             mel_pred = mels_pred[idx].data.cpu().float().numpy()
-            _mel_len = int(encoded_len[idx].item() * 4)
-            mel_pred = mel_pred[:, :_mel_len]
+            # _mel_len = int(encoded_len[idx].item() * 4)
+            # mel_pred = mel_pred[:, :_mel_len]
             wav = self.vocode_spectrogram(mel_pred)
             wavs.append(wav)
 
