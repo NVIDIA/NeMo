@@ -29,8 +29,11 @@ List of Huggingface models that this script can covert:
 10. google/mt5-xxl
 11. google/ul2
 13. bigscience/T0pp
-14. google/t5-xl-lm-adapt
-15. google/t5-xxl-lm-adapt
+14. google/t5-small-lm-adapt
+15. google/t5-base-lm-adapt
+16. google/t5-large-lm-adapt
+17. google/t5-xl-lm-adapt
+18. google/t5-xxl-lm-adapt
 
 Use instructions:
 
