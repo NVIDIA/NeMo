@@ -26,7 +26,7 @@ data:
 
 tensor_model_parallel_size: 1
 pipeline_model_parallel_size: 1
-pipeline_model_parallel_split_rank: 0 # used for encoder and decoder model
+pipeline_model_parallel_split_rank: ${divide_floor:${.pipeline_model_parallel_size}, 2} # used for encoder and decoder model
 model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
 pretrained_language_model_file: ${base_results_dir}/${evaluation.run.model_train_name}/convert_nemo/results/megatron_mt5.nemo  # path to a pretrained mt5 nemo file
 virtual_prompt_model_file: ${evaluation.run.prompt_learning_dir}/results/megatron_mt5_prompt.nemo # path to a Megatronmt5PromptLearningModel nemo file
