@@ -99,8 +99,57 @@ class Export(BigNLPStage):
             job_id = launcher.launch(command_groups=command_groups)
 
         return job_id
+    
+    def _make_cluster_parameters(
+            self, cluster: str, sub_stage=None,
+    ) -> Dict:
+        cfg = self.cfg
+        stage_cfg = self.stage_cfg
 
-    def _get_gpt_conversion_cmds(cfg):
+        run_cfg = stage_cfg.get("run")
+        job_name = run_cfg.get("name")
+        time_limit = run_cfg.get("time_limit")
+        dependency = run_cfg.get("dependency")
+
+        env_vars = self.get_env_vars()
+        env_vars["PYTHONPATH"] = f"{self._bignlp_path}:${{PYTHONPATH}}" # Required by pile download
+        env_vars["NGC_ARRAY_TYPE"] = "MPIJob" # Required by BCP
+        setup = [
+            f"export {k}={v}" for k, v in env_vars.items()
+        ]
+
+        cluster_parameters = {}
+        shared_parameters = {
+            "job_name": job_name,
+            "time": time_limit,
+            "setup": setup,
+        }
+        private_parameters = self._make_private_cluster_parameters(
+            cluster, sub_stage,
+        )
+        if cluster == "bcm":
+            cluster_cfg = cfg.get("cluster")
+            slurm_cfg = {**copy.deepcopy(cluster_cfg)}
+            job_name_prefix = slurm_cfg.pop("job_name_prefix")
+            cluster_parameters = {
+                **slurm_cfg,
+                "dependency": dependency,
+            }
+            cluster_parameters.update({
+                **shared_parameters,
+                **private_parameters,
+            })
+            cluster_parameters["job_name"] = job_name_prefix + cluster_parameters["job_name"]
+        elif cluster == "bcp":
+            cluster_parameters.update({
+                **shared_parameters,
+                **private_parameters,
+            })
+        elif cluster == "interactive":
+            raise ValueError("Data preparation is not supported in interactive mode.")
+        return cluster_parameters
+
+    def _get_gpt_conversion_cmds(self, cfg):
         run_cfg = cfg.export.run
         ft_model_cfg = cfg.export.model
         triton_cfg = cfg.export.triton_deployment
@@ -151,7 +200,7 @@ class Export(BigNLPStage):
             )
         ]
 
-    def _get_t5_conversion_cmds(cfg):
+    def _get_t5_conversion_cmds(self, cfg):
         run_cfg = cfg.export.run
         ft_model_cfg = cfg.export.model
         triton_cfg = cfg.export.triton_deployment
@@ -199,7 +248,7 @@ class Export(BigNLPStage):
             )
         ]
 
-    def _get_gpt_accuracy_cmds(cfg):
+    def _get_gpt_accuracy_cmds(self, cfg):
         run_cfg = cfg.export.run
         ft_model_cfg = cfg.export.model
         triton_cfg = cfg.export.triton_deployment
@@ -252,7 +301,7 @@ class Export(BigNLPStage):
             f"export PYTHONPATH={FT_PATH}:${{PYTHONPATH}} && \\\n" + lambada_cmd,
         ]
 
-    def _get_t5_accuracy_cmds(cfg):
+    def _get_t5_accuracy_cmds(self, cfg):
         run_cfg = cfg.export.run
         ft_model_cfg = cfg.export.model
         triton_cfg = cfg.export.triton_deployment
@@ -284,7 +333,7 @@ class Export(BigNLPStage):
             f"export PYTHONPATH={FT_PATH}:${{PYTHONPATH}} && \\\n" + mnli_cmd,
         ]
 
-    def _get_mt5_accuracy_cmds(cfg):
+    def _get_mt5_accuracy_cmds(self, cfg):
         run_cfg = cfg.export.run
         ft_model_cfg = cfg.export.model
         triton_cfg = cfg.export.triton_deployment
