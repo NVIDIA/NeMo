@@ -16,12 +16,12 @@ from bignlp.core.stages import clean_command_groups, create_args_list
 from bignlp.utils.job_utils import JobPaths
 
 
-FT_PATH = pathlib.Path("/opt/bignlp/FasterTransformer")
-FT_BACKEND_PATH = pathlib.Path("/opt/bignlp/fastertransformer_backend")
+FT_PATH = Path("/opt/bignlp/FasterTransformer")
+FT_BACKEND_PATH = Path("/opt/bignlp/fastertransformer_backend")
 
 # for debugging
 FT_PATH_WITH_BUILD = FT_PATH
-FT_PATH = pathlib.Path(os.environ.get("FT_PATH", FT_PATH))
+FT_PATH = Path(os.environ.get("FT_PATH", FT_PATH))
 
 class Export(BigNLPStage):
 
