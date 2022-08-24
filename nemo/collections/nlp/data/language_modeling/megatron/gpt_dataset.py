@@ -38,6 +38,50 @@ except (ImportError, ModuleNotFoundError):
 
     HAVE_APEX = False
 
+def build_dataset(
+    cfg,
+    trainer,
+    data_prefix,
+    data_impl,
+    num_samples,
+    seq_length,
+    seed,
+    skip_warmup,
+    tokenizer,
+    name
+):
+
+    def _build_dataset(current_data_prefix, current_num_samples):
+        indexed_dataset = get_indexed_dataset_(current_data_prefix, data_impl, skip_warmup)
+        total_num_of_documents = indexed_dataset.sizes.shape[0]
+        # Print stats about the splits.
+        logging.info(' > dataset split:')
+        logging.info('     Total {} documents is : {} '.format(name, total_num_of_documents))
+        dataset = GPTDataset(
+                    cfg,
+                    trainer,
+                    tokenizer,
+                    name,
+                    current_data_prefix,
+                    np.arange(start=0, stop=total_num_of_documents, step=1, dtype=np.int32),
+                    indexed_dataset,
+                    current_num_samples, 
+                    seq_length,
+                    seed,
+        )
+        return dataset
+
+    if len(data_prefix) == 1:
+        return _build_dataset(data_prefix, num_samples)
+
+    else:
+        output = get_datasets_weights_and_num_samples(data_prefix, num_samples)
+        prefixes, weights, datasets_num_samples = output
+        datasets = []
+        for i in range(len(prefixes)):
+            dataset = _build_dataset(prefixes[i], datasets_num_samples[i])
+            datasets.append(dataset)
+        return BlendableDataset(datasets, weights, num_samples)
 
 def build_train_valid_test_datasets(
     cfg,
@@ -72,7 +116,7 @@ def build_train_valid_test_datasets(
     # Parse the values.
     output = get_datasets_weights_and_num_samples(data_prefix, train_valid_test_num_samples)
     prefixes, weights, datasets_train_valid_test_num_samples = output
-
+ 
     # Build individual datasets.
     train_datasets = []
     valid_datasets = []
@@ -116,10 +160,10 @@ def build_train_valid_test_datasets(
 def _build_train_valid_test_datasets(
     cfg,
     trainer,
-    data_prefix,
-    data_impl,
+    data_prefix, 
+    data_impl, 
     splits_string,
-    train_valid_test_num_samples,
+    train_valid_test_num_samples, 
     seq_length,
     seed,
     skip_warmup,
@@ -156,10 +200,10 @@ def _build_train_valid_test_datasets(
                 trainer,
                 tokenizer,
                 name,
-                data_prefix,
-                documents,
+                data_prefix, 
+                documents, 
                 indexed_dataset,
-                train_valid_test_num_samples[index],
+                train_valid_test_num_samples[index], 
                 seq_length,
                 seed,
             )
