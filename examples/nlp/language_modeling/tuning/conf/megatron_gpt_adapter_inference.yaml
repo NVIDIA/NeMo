@@ -15,7 +15,6 @@ trainer:
   devices: 1
   num_nodes: 1
   accelerator: gpu
-  strategy: null
   logger: False # logger provided by exp_manager
   precision: 16 # 16, 32, or bf16
 

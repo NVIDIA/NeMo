@@ -21,7 +21,7 @@ from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_adapter_model import MegatronGPTAdapterLearningModel
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.core.config import hydra_runner
 
 """
@@ -183,7 +183,7 @@ if not torch.cuda.is_available():
 def main(cfg) -> None:
 
     # trainer required for restoring model parallel models
-    trainer = Trainer(plugins=NLPDDPPlugin(), **cfg.trainer)
+    trainer = Trainer(strategy=NLPDDPStrategy(), **cfg.trainer)
 
     # Load prompt tuned model, virtual_prompt_model_file must be provided in config
     if cfg.get("adapter_model_file", None) is not None:
@@ -269,6 +269,8 @@ def main(cfg) -> None:
                     s = ' '.join(sentence.split('\n'))
                     f.write(s + "\n")
         print("predictions saved to {}".format(cfg.output_file))
+    else:
+        print(response)
     print("***************************")
 
 
