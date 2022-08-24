@@ -61,8 +61,6 @@ class MegatronGPTAdapterLearningModel(MegatronGPTPromptLearningModel):
             if hasattr(layer, 'scale_mask_softmax'):
                 layer.scale_mask_softmax.scaled_masked_softmax_fusion = False
 
-        with open_dict(cfg):
-            cfg.adapter_tuning.adapter_dropout = 0.0
 
         logging.info(f'Before adding adapters:\n{self.frozen_model.summarize()}')
         self.frozen_model.freeze()
