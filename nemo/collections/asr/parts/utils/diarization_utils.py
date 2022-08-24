@@ -26,6 +26,7 @@ from typing import Dict, List, Tuple
 import numpy as np
 import librosa
 import soundfile as sf
+from pyannote.metrics.diarization import DiarizationErrorRate
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.asr.models import ClusteringDiarizer
 from nemo.collections.asr.parts.utils.speaker_utils import (
@@ -1193,6 +1194,58 @@ def process_audio_file(input_data, orig_sr=48000, target_sr=16000, MAX_INT32=214
         raise ValueError(f"The streaming input has unknown input_data type {type(input_data)}")
     return data
 
+def score_labels(AUDIO_RTTM_MAP, all_reference, all_hypothesis, collar=0.25, ignore_overlap=True):
+    """
+    >>> [This function should be merged into speaker_utils.py]
+    """
+    metric = None
+    if len(all_reference) == len(all_hypothesis):
+        metric = DiarizationErrorRate(collar=2 * collar, skip_overlap=ignore_overlap)
+
+        mapping_dict = {}
+        for (reference, hypothesis) in zip(all_reference, all_hypothesis):
+            ref_key, ref_labels = reference
+            _, hyp_labels = hypothesis
+            uem = AUDIO_RTTM_MAP[ref_key].get('uem_filepath', None)
+            if uem is not None:
+                uem = uem_timeline_from_file(uem_file=uem, uniq_name=ref_key)
+            metric(ref_labels, hyp_labels, uem=uem, detailed=True)
+            mapping_dict[ref_key] = metric.optimal_mapping(ref_labels, hyp_labels)
+
+        DER = abs(metric)
+        CER = metric['confusion'] / metric['total']
+        FA = metric['false alarm'] / metric['total']
+        MISS = metric['missed detection'] / metric['total']
+        itemized_errors = (DER, CER, FA, MISS)
+
+        logging.info(
+            "Cumulative Results for collar {} sec and ignore_overlap {}: \n FA: {:.4f}\t MISS {:.4f}\t \
+                Diarization ER: {:.4f}\t, Confusion ER:{:.4f}".format(
+                collar, ignore_overlap, FA, MISS, DER, CER
+            )
+        )
+
+        return metric, mapping_dict, itemized_errors
+    else:
+        logging.warning(
+            "check if each ground truth RTTMs were present in provided manifest file. Skipping calculation of Diariazation Error Rate"
+        )
+        return None
+def get_partial_ref_labels(pred_labels, ref_labels):
+    last_pred_time = float(pred_labels[-1].split()[1])
+    ref_labels_out = []
+    for label in ref_labels:
+        start, end, speaker = label.split()
+        start, end = float(start), float(end)
+        if last_pred_time <= start:
+            pass
+        elif start < last_pred_time <= end:
+            label = f"{start} {last_pred_time} {speaker}"
+            ref_labels_out.append(label)
+        elif end < last_pred_time:
+            ref_labels_out.append(label)
+    return ref_labels_out
+
 def get_online_DER_stats(DER, CER, FA, MISS, diar_eval_count, der_stat_dict, deci=3):
     der_dict = {
         "DER": round(100 * DER, deci),
@@ -1294,6 +1347,7 @@ class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
         self.asr_model = self.set_asr_model()
         self.init_FrameBatchASR()
         self.load_punctuation_model()
+        self._init_diar_eval_variables()
 
         # For diarization
         self.word_ts_anchor_offset = float(self._cfg_diarizer.asr.parameters.word_ts_anchor_offset)
@@ -1306,9 +1360,9 @@ class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
         self.CHUNK_SIZE = int(self.frame_len*self.sample_rate)
         self.n_frame_len = int(self.frame_len * self.sample_rate)
         self.n_frame_overlap = int(self.frame_overlap * self.sample_rate)
-        self.buffer = np.zeros(shape=2*self.n_frame_overlap + self.n_frame_len,
+        self.audio_buffer = np.zeros(shape=2*self.n_frame_overlap + self.n_frame_len,
                                dtype=np.float32)
-        self.buffer_length = self.buffer.shape[0]
+        self.audio_buffer_length = self.audio_buffer.shape[0]
         self.overlap_frames_count = int(self.n_frame_overlap/self.sample_rate)
         self.cumulative_speech_labels = []
 
@@ -1339,6 +1393,13 @@ class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
             self.vad_model = nemo_asr.models.EncDecClassificationModel.restore_from(self._cfg_diarizer.vad.model_path)
             self.vad_model = self.vad_model.to(self.device)
             self.vad_model.eval()
+    
+    def _init_diar_eval_variables(self):
+        self.diar_eval_count = 0
+        self.der_dict = {}
+        self.DER_csv_list = []
+        self.der_stat_dict = {"avg_DER": 0, "avg_CER": 0, "max_DER": 0, "max_CER": 0, "cum_DER": 0, "cum_CER": 0}
+
     
     def update_word_and_word_ts(self, words, word_timetamps):
         """
@@ -1425,7 +1486,7 @@ class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
         if ref_labels == [] and pred_labels != []:
             logging.info("Streaming Diar [{}][frame-  {}th  ]:".format(self.uniq_id, self.frame_index))
             DER, CER, FA, MISS = 100.0, 0.0, 0.0, 100.0
-            der_dict, der_stat_dict = get_online_DER_stats(DER, CER, FA, MISS, der_stat_dict)
+            der_dict, self.der_stat_dict = get_online_DER_stats(DER, CER, FA, MISS, self.diar_eval_count, self.der_stat_dict)
             metric, mapping_dict = None, None
         else:
             all_hypotheses.append([self.uniq_id, hypothesis])
@@ -1439,8 +1500,8 @@ class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
                 )
             )
 
-            der_dict, der_stat_dict = self.get_online_DER_stats(DER, CER, FA, MISS, der_stat_dict)
-        return der_dict, der_stat_dict, metric, mapping_dict
+            der_dict, self.der_stat_dict = get_online_DER_stats(DER, CER, FA, MISS, self.diar_eval_count, self.der_stat_dict)
+        return der_dict, self.der_stat_dict, metric, mapping_dict
 
     @timeit  
     def print_online_DER_info(self, uniq_id, string_out, diar_hyp_list, params):
@@ -1475,7 +1536,7 @@ class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
             self.diar.uniq_id, self.frame_index
             )
         )
-        write_txt(f"{self.diar._out_dir}/{uniq_id}.csv", ''.join(self.diar.DER_csv_list))
+        write_txt(f"{self.diar._out_dir}/{uniq_id}.csv", ''.join(self.DER_csv_list))
         return string_out
 
     def DER_to_str(self, der_dict, der_stat_dict, wder):
@@ -1488,7 +1549,7 @@ class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
                             f'\n{color}[Session: {self.uniq_id}, DER:{DER:.2f}%, FA:{FA:.2f}% MISS:{MISS:.2f}% CER:{CER:.2f}%]',
                             f'\n{color}[Num of Speakers (Est/Ref): {der_stat_dict["est_n_spk"]}/{der_stat_dict["ref_n_spk"]}]',
                             f'\n{color}[WDER : {wder}]']
-        self.diar.DER_csv_list.append(f"{self.frame_index}, {DER}, {FA}, {MISS}, {CER}\n")
+        self.DER_csv_list.append(f"{self.frame_index}, {DER}, {FA}, {MISS}, {CER}\n")
         return ''.join(der_strings_list)
     
     def update_audio_frame_input(self, frame, buffer): 
@@ -1629,8 +1690,8 @@ class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
         Update buffer length, start and end timestamps for frame and buffer.
         """
         new_bufflen_sec = self.n_frame_len / self.sample_rate
-        n_buffer_samples = int(len(self.buffer)/self.sample_rate)
-        total_buffer_len_sec = len(self.buffer)/self.sample_rate
+        n_buffer_samples = int(len(self.audio_buffer)/self.sample_rate)
+        total_buffer_len_sec = len(self.audio_buffer)/self.sample_rate
         self.buffer_end = round(self.buffer_start + total_buffer_len_sec, self.ROUND)
         self.frame_start = round(self.buffer_start + int(self.n_frame_overlap/self.sample_rate), self.ROUND)
 
@@ -1696,7 +1757,7 @@ class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
         '''
         Reset frame_history and decoder's state
         '''
-        self.buffer=np.zeros(shape=self.buffer.shape, dtype=np.float32)
+        self.audio_buffer=np.zeros(shape=self.audio_buffer.shape, dtype=np.float32)
         self.prev_char = ''
 
     
@@ -1712,22 +1773,23 @@ class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
 
         """
         # Save the input frame into audio buffer.
-        buffer = self.update_audio_frame_input(frame=frame, buffer=self.buffer)
+        self.audio_buffer = self.update_audio_frame_input(frame=frame, buffer=self.audio_buffer)
         
         # Run VAD decoder to get VAD-mask and VAD-timestamps
-        vad_mask, vad_ts = self.run_VAD_decoder_step(buffer=buffer) 
+        vad_mask, vad_ts = self.run_VAD_decoder_step(buffer=self.audio_buffer) 
        
         # Run ASR decoder step to obatain word sequence (`words`) and word timestamps (`word_timestamps`)
-        words, word_timestamps = self.run_ASR_decoder_step(buffer=buffer, frame_mask=vad_mask)
+        words, word_timestamps = self.run_ASR_decoder_step(buffer=self.audio_buffer, frame_mask=vad_mask)
         
         if vad_ts is None:
             vad_ts = self.get_VAD_from_ASR(word_ts=word_timestamps)
         
         # Sync diarization frame index with ASR frame index
         self.update_launcher_timestamps()
-        
+       
+        # Update the frame-timing info for diarizer then run diarization step
         self.transfer_frame_info_to_diarizer()
-        diar_hyp = self.diar.diarize_step(buffer, vad_ts)
+        diar_hyp = self.diar.diarize_step(self.audio_buffer, vad_ts)
 
         self.frame_index += 1
         return words, word_timestamps, diar_hyp

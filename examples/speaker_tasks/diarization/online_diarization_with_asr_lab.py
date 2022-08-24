@@ -332,8 +332,8 @@ class ASR_DIAR_ONLINE_DEMO(ASR_DIAR_ONLINE):
 
 @hydra_runner(config_path="conf", config_name="online_diarization_with_asr.yaml")
 def main(cfg):
-    # asr_diar = ASR_DIAR_ONLINE(cfg=cfg)
-    asr_diar = ASR_DIAR_ONLINE_DEMO(cfg=cfg)
+    asr_diar = ASR_DIAR_ONLINE(cfg=cfg)
+    # asr_diar = ASR_DIAR_ONLINE_DEMO(cfg=cfg)
     diar = asr_diar.diar
 
     if cfg.diarizer.asr.parameters.streaming_simulation:
