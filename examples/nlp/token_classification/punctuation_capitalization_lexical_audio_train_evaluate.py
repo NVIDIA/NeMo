@@ -20,7 +20,6 @@ from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.nlp.models import PunctuationCapitalizationModel
 from nemo.collections.nlp.models.token_classification.punctuation_capitalization_config import (
-    PunctuationCapitalizationConfig,
     PunctuationCapitalizationLexicalAudioConfig,
 )
 from nemo.collections.nlp.models.token_classification.punctuation_capitalization_lexical_audio_model import (
@@ -43,7 +42,7 @@ The most important ones are:
             schedulers, and datasets/data loaders.
     trainer: Any argument to be passed to PyTorch Lightning including number of epochs, number of GPUs,
             precision level, etc.
-This script uses the `/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml` config file
+This script uses the `/examples/nlp/token_classification/conf/punctuation_capitalization_lexical_audio_config.yaml` config file
 by default. You may update the config file from the file directly. 
 The other option is to set another config file via command line arguments by `--config-name=CONFIG_FILE_PATH'.
 
@@ -52,7 +51,7 @@ For more details about the config files and different ways of model restoration,
 *** Model training ***
 
 To run this script and train the model from scratch, use:
-    python punctuation_capitalization_train_evaluate.py \
+    python punctuation_capitalization_lexical_audio_train_evaluate.py \
         model.train_ds.ds_item=<PATH/TO/TRAIN/DATA> \
         model.train_ds.text_file=<NAME_OF_TRAIN_INPUT_TEXT_FILE> \
         model.train_ds.labels_file=<NAME_OF_TRAIN_LABELS_FILE> \
@@ -61,7 +60,7 @@ To run this script and train the model from scratch, use:
         model.validation_ds.labels_file=<NAME_OF_DEV_LABELS_FILE>
 
 To use one of the pretrained versions of the model and finetune it, run:
-    python punctuation_capitalization_train_evaluate.py \
+    python punctuation_capitalization_lexical_audio_train_evaluate.py \
         pretrained_model=punctuation_en_bert \
         model.train_ds.ds_item=<PATH/TO/TRAIN/DATA> \
         model.train_ds.text_file=<NAME_OF_TRAIN_INPUT_TEXT_FILE> \
@@ -74,7 +73,7 @@ To use one of the pretrained versions of the model and finetune it, run:
         path to a .nemo file, for example: punctuation_en_bert or model.nemo
 
 If you wish to perform testing after training set `do_testing` to `true:
-    python punctuation_capitalization_train_evaluate.py \
+    python punctuation_capitalization_lexical_audio_train_evaluate.py \
         +do_testing=true \
         pretrained_model=punctuation_en_bert \
         model.train_ds.ds_item=<PATH/TO/TRAIN/DATA> \
@@ -88,7 +87,7 @@ If you wish to perform testing after training set `do_testing` to `true:
         model.test_ds.labels_file=<NAME_OF_TEST_LABELS_FILE>
 
 Set `do_training` to `false` and `do_testing` to `true` to perform evaluation without training:
-    python punctuation_capitalization_train_evaluate.py \
+    python punctuation_capitalization_lexical_audio_train_evaluate.py \
         +do_testing=true \
         +do_training=false \
         pretrained_model=punctuation_en_bert \
