@@ -346,7 +346,7 @@ class RadTTSModule(NeuralModule, Exportable):
         # text_embeddings: b x len_text x n_text_dim
         text_embeddings = self.embedding(text).transpose(1, 2)
         # text_enc: b x n_text_dim x encoder_dim (512)
-        if in_lens is None or in_lens.shape[0]==1:
+        if in_lens is None:
             text_enc = self.encoder.infer(text_embeddings).transpose(1, 2)
         else:
             text_enc = self.encoder(text_embeddings, in_lens).transpose(1, 2)
@@ -657,10 +657,13 @@ class RadTTSModule(NeuralModule, Exportable):
             z_dur = txt_enc.new_zeros((1, 1, text.shape[1]), dtype=torch.float)
             z_dur = torch.normal(z_dur) * sigma_txt
             dur = self.dur_pred_layer.infer(z_dur, txt_enc, spk_vec_text, lens=in_lens)
+            print ("Dur: ", dur)
             dur = pad_dur(dur, txt_enc)
+            print ("Padded dur: ", dur)
 
             dur = dur[:, 0]
             dur = dur.clamp(0, token_duration_max)
+            print ("Clamped dur: ", dur)
 
         # get attributes f0, energy, vpred, etc)
         txt_enc_time_expanded, out_lens = regulate_len(dur, txt_enc.transpose(1, 2), pace, group_size= self.n_group_size)
