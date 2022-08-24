@@ -78,7 +78,7 @@ class LanguageModelConfig:
 class HeadConfig:
     """
     A structure and default values of configuration of capitalization or punctuation model head. This config defines a
-    multilayer perceptron which is applied to outputs of a language model. Number of units in the hidden layer is equal
+    multilayer perceptron which is applied to output of a language model. Number of units in the hidden layer is equal
     to the dimension of the language model.
 
     This config is a part of :class:`PunctuationCapitalizationModelConfig` config.

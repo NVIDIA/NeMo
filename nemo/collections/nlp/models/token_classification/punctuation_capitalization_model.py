@@ -299,7 +299,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
 
         Args:
             outputs (:obj:`pytorch_lightning.utilities.types.EPOCH_OUTPUT`): an output of all training steps. It is a
-                mandatory PyTorch Lightning parameter and it is not used in this method
+                mandatory PyTorch Lightning parameter, and it is not used in this method
         """
         shuffle = self._cfg.train_ds.get('shuffle')
         if shuffle is None:  # Encountered legacy config
@@ -348,7 +348,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
 
     def update_config_after_restoring_from_checkpoint(self, **kwargs) -> None:
         """
-        Set new values for some sections of config. Useful after restoring from checkpoint for fine tuning
+        Set new values for some sections of config. Useful after restoring from checkpoint for fine-tuning
         and testing if config parameters of a restored checkpoint are not suitable.
 
         For ``class_labels``, ``common_dataset_parameters``, ``train_ds``, ``validation_ds``, ``test_ds``, there is
@@ -380,7 +380,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
 
         Keyword Args:
             class_labels (:obj:`Union[DictConfig, Dict[str, str]]`): names of label id files used as label
-                id dictionaries. See more in :ref:`class labels config<class-labels-config-label>`.
+                id dictionaries. See more in :ref:`class labels' config<class-labels-config-label>`.
             common_dataset_parameters (:obj:`Union[DictConfig, Dict[str, Any]]`, `optional`): see more in
                 :ref:`common dataset parameters config<common-dataset-parameters-config-label>`.
             train_ds (:obj:`Union[DictConfig, Dict[str, Any]]`, `optional`): configuration of training dataset. See
@@ -694,7 +694,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
 
         This method also registers artifacts ``class_labels.punct_labels_file`` and ``class_labels.capit_labels_file``.
 
-        This method is called if do not plan to infer label ids from training file with labels. If training file
+        This method is called if you do not plan to infer label ids from training file with labels. If training file
         with labels is going to be used, then calling :meth:`~setup_training_data` is enough to set
         ``punct_label_ids`` and ``capit_label_ids`` and register label artifacts.
         """
@@ -849,7 +849,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             else:
                 # If pickled features are saved `cache_dir` not in the same directory with original data files, then
                 # a full path to data directory have to be appended to `cache_dir`. This is done to avoid collisions
-                # cache for different datasets is save to same `cache_dir`.
+                # cache for different datasets is saved to same `cache_dir`.
                 cache_dir = Path(cfg.cache_dir).joinpath('fsroot', *text_file.expanduser().resolve().parts[1:-1])
             dataset = BertPunctuationCapitalizationDataset(
                 tokenizer=self.tokenizer,
@@ -902,7 +902,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         dataloader_kwargs: Optional[Dict[str, Any]],
     ) -> torch.utils.data.DataLoader:
         """
-        Setup function for a infer data loader.
+        Setup function for an infer data loader.
 
         Args:
             queries (:obj:`List[str]`): lower cased text without punctuation
@@ -1222,7 +1222,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 pretrained_model_name="punctuation_en_distilbert",
                 location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/punctuation_en_distilbert/versions/"
                 "1.0.0rc1/files/punctuation_en_distilbert.nemo",
-                description="The model was trained with DiltilBERT base uncased checkpoint from HuggingFace on a "
+                description="The model was trained with DistilBERT base uncased checkpoint from HuggingFace on a "
                 "subset of data from the following sources: Tatoeba sentences, books from Project Gutenberg, "
                 "Fisher transcripts.",
             ),

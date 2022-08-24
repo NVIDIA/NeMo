@@ -74,7 +74,7 @@ def count_lines_and_get_fragment_starting_positions(
 
     Args:
         file_name: a path to a text or label file
-        lines_per_dataset_fragment: number of lines in a dataset fragment. The last fragment can contain less lines
+        lines_per_dataset_fragment: number of lines in a dataset fragment. The last fragment can contain fewer lines
 
     Returns:
         num_lines: number of lines in a file
@@ -103,6 +103,7 @@ def get_fragment_start_bytes(
         text_file: a path to a dataset source file
         labels_file: a path to a dataset label file
         lines_per_dataset_fragment: a number of lines in one fragment
+        audio_file: a path to a dataset audio file if one needed
 
     Returns:
         num_lines: total number of elements in the dataset (number of lines in ``text_file``` and ``labels_file``)
@@ -392,7 +393,7 @@ def create_label_dictionaries(
         labels_file: a path to file with labels
         text_start_bytes: indices of first bytes of fragments in ``labels_file``
         num_lines: total number of lines in ``labels_file``
-        lines_per_dataset_fragment: number of lines in dataset fragments. The last fragment can have less lines
+        lines_per_dataset_fragment: number of lines in dataset fragments. The last fragment can have fewer lines
         pad_label: a label used for padding and for absence of punctuation and capitalization
         n_jobs: a number of fragments processed in parallel
 
@@ -747,7 +748,7 @@ def create_tarred_dataset(
     instance of the class will handle iteration and constructing masks and token types for BERT model.
 
     Args:
-        text_file (:obj:`Union[os.PathLike, str]`): a path to a file with dataset source. Dataset source is lowercased
+        text_file (:obj:`Union[os.PathLike, str]`): a path to a file with dataset source. Dataset source is lowercase
             text without punctuation. Number of lines in ``text_file`` has to be equal to the number of lines in
             ``labels_file``.
         labels_file (:obj:`Union[os.PathLike, str]`): a path to a file with labels. Labels are given in the format
@@ -766,7 +767,7 @@ def create_tarred_dataset(
             before packing them into batches. Reducing ``lines_per_dataset_fragment`` leads to reducing of the amount
             of memory used by this function.
         num_batches_per_tarfile (:obj:`int`): a number of batches saved in a tar file. If you increase
-            ``num_batches_per_tarfile``, then there will be less tar files in the dataset. There cannot be less then
+            ``num_batches_per_tarfile``, then there will be less tar files in the dataset. There cannot be less than
             ``num_batches_per_tarfile`` batches in a tar file, and all excess batches are removed. Maximum number of
             discarded batches is ``num_batches_per_tarfile - 1``.
         tokenizer_name (:obj:`str`): a name of the tokenizer used for tokenization of source sequences. Possible
@@ -803,6 +804,9 @@ def create_tarred_dataset(
             file names start. The string can contain only characters ``A-Z``, ``a-z``, ``0-9``, ``_``, ``-``, ``.``.
         n_jobs (:obj:`int`, `optional`): a number of workers for creating tarred dataset. If ``None``, then ``n_jobs``
             is equal to number of CPUs.
+        audio_file (:obj:`Optional[Union[os.PathLike, str]]`, defaults to :obj:`None`): a path to a file with audio dataset file paths if dataset is lexical and audio. Must contain one path per line.
+        use_audio (:obj:`bool`, `optional`, defaults to :obj:`False`): If set to ``True`` dataset becomes lexical and audio rather than only lexical.
+        sample_rate (:obj:`int`, `optional`, defaults to :obj:`16000`) Targeted sample rate of audios If ``use_audio`` set to ``True``.
     """
     check_tar_file_prefix(tar_file_prefix, ValueError, 'tar_file_prefix')
     if n_jobs is None:
@@ -904,7 +908,7 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
             ``'punct_label_vocab_file'``, ``'capit_label_vocab_file'`` items. The first item is total number of batches
             in a dataset, the second is a list of paths to tar files relative to directory containing
             ``metadata_file``. Items ``'punct_label_vocab_file'`` and ``'capit_label_vocab_file'`` are paths to
-            ``.csv`` files which contain unique punctuation an capitalization label vocabularies. Vocabulary file paths
+            ``.csv`` files which contain unique punctuation a capitalization label vocabularies. Vocabulary file paths
             are relative to directory containing the ``metadata_file``. Each line in ``'punct_label_vocab_file'`` and
             ``'capit_label_vocab_file'`` contains 1 label. The first lines in ``'punct_label_vocab_file'`` and
             ``'capit_label_vocab_file'`` files are neutral labels which also serve as pad labels. Neutral labels for
@@ -934,13 +938,13 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
             a str value during ddp.
             -   ``'scatter'``: The default shard strategy applied by WebDataset, where each node gets
                 a unique set of shards, which are permanently pre-allocated and never changed at runtime.
-            -   ``'replicate'``: Optional shard strategy, where each node gets all of the set of shards
+            -   ``'replicate'``: Optional shard strategy, where each node gets all the set of shards
                 available in the tarred dataset, which are permanently pre-allocated and never changed at runtime.
                 The benefit of replication is that it allows each node to sample data points from the entire
                 dataset independently of other nodes, and reduces dependence on value of :param:`shuffle_n`.
 
                 .. warning::
-                    Replicated strategy allows every node to sample the entire set of available tarfiles,
+                    Replicated strategy allows every node to sample the entire set of available tar files,
                     and therefore more than one node may sample the same tarfile, and even sample the same
                     data points! As such, there is no assured guarantee that all samples in the dataset will be
                     sampled at least once during 1 epoch. Scattered strategy, on the other hand, on specific
@@ -1095,7 +1099,7 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
                 :class:`~nemo.collections.nlp.models.token_classification.punctuation_capitalization_model.PunctuationCapitalizationModel`
                 in which this tarred dataset is used.
             class_labels: a config item ``model.class_labels``. See more in description of
-                :ref:`class labels config<class-labels-config-label>`.
+                :ref:`class labels' config<class-labels-config-label>`.
             common_dataset_parameters_config: a config item ``model.common_dataset_parameters``. See more in
                 of :ref:`common dataset parameters config<common-dataset-parameters-config-label>`.
         """
@@ -1188,8 +1192,6 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
         self.for_nemo_ckpt.mkdir(parents=True, exist_ok=True)
         punct_label_ids_file = self.for_nemo_ckpt / punct_labels_file_name
         capit_label_ids_file = self.for_nemo_ckpt / capit_labels_file_name
-        print(f'str(self.punct_label_vocab_file) = {str(self.punct_label_vocab_file)}')
-        print(f'str(punct_label_ids_file) = {str(punct_label_ids_file)}')
         shutil.copy(str(self.punct_label_vocab_file), str(punct_label_ids_file))
         shutil.copy(str(self.capit_label_vocab_file), str(capit_label_ids_file))
         return punct_label_ids_file, capit_label_ids_file

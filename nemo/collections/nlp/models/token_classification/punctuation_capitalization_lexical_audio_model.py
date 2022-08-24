@@ -28,6 +28,29 @@ def update_model_config_to_support_adapter(model_cfg):
 
 
 class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel):
+    """
+        A model for restoring punctuation and capitalization in text using lexical and audio features.
+
+        The model consists of a language model and two multilayer perceptrons (MLP) on top the fusion of LM and AM. The first
+        MLP serves for punctuation prediction and the second is for capitalization prediction. You can use only BERT-like
+        HuggingFace language models (model ``forward`` method accepts ``input_ids``, ``token_types_ids``,
+        ``attention_mask`` arguments). See more about model config options :ref:`here<model-config-label>`.
+        And any :class:`~nemo.collections.asr.models.EncDecCTCModel` which has encoder module which is used as an AM.
+
+        For training and testing use dataset
+        :class:`~nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset.BertPunctuationCapitalizationDataset` with parameter ``use_audio`` set to ``True``,
+        for training on huge amounts of data which cannot be loaded into memory simultaneously use
+        :class:`~nemo.collections.nlp.data.token_classification.punctuation_capitalization_tarred_dataset.BertPunctuationCapitalizationTarredDataset` with parameter ``use_audio`` set to ``True``.
+
+        Args:
+            cfg (:obj:`DictConfig`): a model configuration. It should follow dataclass
+                :class:`~nemo.collections.nlp.models.token_classification.punctuation_capitalization_config.PunctuationCapitalizationLexicalAudioModelConfig`
+                See an example of full config in
+                `nemo/examples/nlp/token_classification/conf/punctuation_capitalization_lexical_audio_config.yaml
+                <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/conf/punctuation_capitalization_lexical_audio_config.yaml>`_
+            trainer (:obj:`pytorch_lightning.Trainer`): an instance of a PyTorch Lightning trainer
+        """
+
     def __init__(self, cfg: DictConfig, trainer: Trainer = None) -> None:
         super().__init__(cfg, trainer)
         audio_cfg = nemo_asr.models.ASRModel.from_pretrained(cfg.pretrained_audio_encoder, return_config=True)
@@ -113,6 +136,32 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
         features: torch.Tensor = None,
         features_length: torch.Tensor = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+                Executes a forward pass through the model. For more details see ``forward`` method of :class:`~nemo.collections.nlp.models.token_classification.punctuation_capitalization_config.PunctuationCapitalizationLexicalAudioModelConfig`
+                and ``forward`` method of :class:'~nemo.collections.asr.models.EncDecCTCModel'
+
+                Args:
+                    input_ids (:obj:`torch.Tensor`): an integer torch tensor of shape ``[Batch, Time]``. Contains encoded
+                        source tokens.
+                    attention_mask (:obj:`torch.Tensor`): a boolean torch tensor of shape ``[Batch, Time]``. Contains an
+                        attention mask for excluding paddings.
+                    token_type_ids (:obj:`torch.Tensor`): an integer torch Tensor of shape ``[Batch, Time]``. Contains an index
+                        of segment to which a token belongs. If ``token_type_ids`` is not ``None``, then it should be a zeros
+                        tensor.
+                    features (:obj:`torch.Tensor`): tensor that represents a batch of raw audio signals,
+                        of shape [B, T]. T here represents timesteps, with 1 second of audio represented as
+                        sample_rate number of floating point values.
+                    features_length (:obj:`torch.Tensor`): Vector of length B, that contains the individual lengths of the audio
+                        sequences.
+
+                Returns:
+                    :obj:`Tuple[torch.Tensor, torch.Tensor]`: a tuple containing
+
+                        - ``punct_logits`` (:obj:`torch.Tensor`): a float torch tensor of shape
+                          ``[Batch, Time, NumPunctuationLabels]`` containing punctuation logits
+                        - ``capit_logits`` (:obj:`torch.Tensor`): a float torch tensor of shape
+                          ``[Batch, Time, NumCapitalizationLabels]`` containing capitalization logits
+                """
         lexical_hidden_states = self.bert_model(
             input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
         )

@@ -187,7 +187,7 @@ class PunctuationCapitalizationDataConfigBase:
     ``tar_shuffle_n``.
 
     .. warning::
-        Replicated strategy allows every node to sample the entire set of available tarfiles, and therefore more than one node may sample
+        Replicated strategy allows every node to sample the entire set of available tar files, and therefore more than one node may sample
         the same tarfile, and even sample the same data points! As such, there is no assured guarantee that all samples in the dataset
         will be sampled at least once during 1 epoch. Scattered strategy, on the other hand, on specific occasions (when the number of
         shards is not divisible with ``world_size``), will not sample the entire dataset. For these reasons it is not advisable to use
@@ -358,7 +358,7 @@ def _show_prog(queues: Tuple[mp.Queue, ...], totals: List[int], descriptions: Li
 
 class Progress:
     """
-    Manages several ``tqdm`` progress bars for multi process tasks. This class can be used as context manager.
+    Manages several ``tqdm`` progress bars for multiprocess tasks. This class can be used as context manager.
 
     The class starts separate process which creates and updates progress bars. Information to progress process is
     passed via multiprocessing queues. There is a separate queue for every progress bar.
@@ -495,7 +495,7 @@ class TokenizeCreateMasksClipWorker:
         split_i: int,
         audio_queries: Optional[List[str]] = None,
         sample_rate: Optional[int] = None,
-        load_audios: Optional[bool] = True,
+        preload_audios: Optional[bool] = True,
     ) -> Tuple[
         List[ndarray],
         List[ndarray],
@@ -505,7 +505,6 @@ class TokenizeCreateMasksClipWorker:
         Union[List[Any], List[None]],
         Union[List[Any], List[None]],
     ]:
-        # TODO: add docstring for `audio_queries` and `sample_rate` and others
         """
         Tokenize, clip, encode labels, and create masks of first tokens in words.
 
@@ -514,6 +513,9 @@ class TokenizeCreateMasksClipWorker:
             punct_label_lines: a list or a tuple of labels for every word in a sequence (str)
             capit_label_lines: a list of a tuple labels for every word in a sequence (str)
             split_i: number of a split which is processed. Used for logging
+            audio_queries: a list of audio filepaths
+            sample_rate: target sample rate of audios
+            preload_audios: whether to preload audios or not
 
         Returns:
             input_ids: a list of 1D int32 arrays. Each array contains token ids of the corresponding query
@@ -525,10 +527,12 @@ class TokenizeCreateMasksClipWorker:
                 in one word have identical labels
         """
         all_input_ids, all_subtokens_mask, punct_all_labels, capit_all_labels = [], [], [], []
-        dummy = [None for _ in range(len(queries))]
-        all_audio_waveforms = [] if load_audios else dummy
-        audio_lengths = [] if load_audios else dummy
-        audio_filepaths = [] if not load_audios else dummy
+        dummy = [
+            None for _ in range(len(queries))
+        ]  # Needed to avoid code duplication with different values of `self.use_audio`
+        all_audio_waveforms = [] if preload_audios else dummy
+        audio_lengths = [] if preload_audios else dummy
+        audio_filepaths = [] if not preload_audios else dummy
         progress_made = 0
         queries = zip(queries, audio_queries) if audio_queries else zip(queries, [None for _ in range(len(queries))])
         for i, (query, audio_query) in enumerate(queries):
@@ -563,7 +567,7 @@ class TokenizeCreateMasksClipWorker:
             punct_all_labels.append(np.array(self._maybe_clip(punct_labels, pad_id), dtype=np.int32))
             capit_labels.append(pad_id)
             capit_all_labels.append(np.array(self._maybe_clip(capit_labels, pad_id), dtype=np.int32))
-            if load_audios and audio_query:
+            if preload_audios and audio_query:
                 segment = AudioSegment.from_file(audio_query.strip(), target_sr=sample_rate)
                 all_audio_waveforms.append(segment.samples)
                 audio_lengths.append(segment.num_samples)
@@ -604,9 +608,8 @@ def _get_features(
     progress_queue: Optional[mp.Queue] = None,
     audio_queries: Optional[List[str]] = None,
     sample_rate: Optional[int] = None,
-    load_audios: Optional[bool] = True,
+    preload_audios: Optional[bool] = True,
 ) -> Tuple[List[Any], List[Any], List[Any], List[Any], List[Any], List[Any], List[Any]]:
-    # TODO: add docstring
     """
     Tokenizes data, encodes labels, creates masks of first tokens in words, clips sequences by number of tokens.
 
@@ -631,6 +634,9 @@ def _get_features(
             if ``n_jobs > 0``.
 
         progress_queue: a multiprocessing queue used for reporting progress. Useful for creating tarred dataset
+        audio_queries: a list of audio filepaths
+        sample_rate: target sample rate of audios
+        preload_audios: whether to preload audios or not
 
     Returns:
         input_ids: a list of 1D int32 arrays. Each array contains token ids of corresponding query
@@ -676,7 +682,7 @@ def _get_features(
                 range(n_split),
                 split_audio_queries,
                 [sample_rate for _ in range(n_split)],
-                [load_audios for _ in range(n_split)],
+                [preload_audios for _ in range(n_split)],
             )
         )
     if create_progress_process:
@@ -710,7 +716,7 @@ def _get_features(
         logging.info(f"Finished clipping and padding.")
         for i in range(min(len(input_ids), 5)):
             logging.info("*** Example ***")
-            logging.info("i: %s" % (i))
+            logging.info("i: %s" % i)
             logging.info("subtokens: %s" % " ".join(list(map(str, input_ids[i]))))
             logging.info("subtokens_mask: %s" % " ".join(list(map(str, subtokens_mask[i]))))
             logging.info("punct_labels: %s" % " ".join(list(map(str, punct_labels[i]))))
@@ -783,7 +789,7 @@ def create_label_ids(unique_labels: Set[str], pad_label: str) -> Dict[str, int]:
     """
     Returns label ids dictionary. ``pad_label`` always has id ``0``. Other labels are sorted in alphabetical order.
     Args:
-        unique_labels: a set of labels from which label ids dictionary is created. May or may no contain ``pad_label``
+        unique_labels: a set of labels from which label ids dictionary is created. May or may not contain ``pad_label``
         pad_label: label used for padding. It is also a neutral label
 
     Returns:
@@ -938,13 +944,13 @@ class BertPunctuationCapitalizationDataset(Dataset):
             used for sharing features between processes if data parallel training is used.
         cache_dir (:obj:`Union[str, os.PathLike]`, `optional`): a path to a directory where cache (pickled features)
             is stored. By default, ``text_file`` parent directory is used. This parameter is useful if dataset
-            directory is read-only and you wish to pickle features. In such a case specify a path to directory which
+            directory is read-only, and you wish to pickle features. In such a case specify a path to directory which
             allows writing in ``cache_dir`` parameter.
         get_label_frequencies (:obj:`bool`, `optional`, defaults to :obj:`False`): whether to print and save label
             frequencies. Frequencies are showed if ``verbose`` parameter is ``True``. If
             ``get_label_frequencies=True``, then frequencies are saved into ``label_info_save_dir`` directory.
         label_info_save_dir (:obj:`Union[str, os.PathLike]`, `optional`): a path to a directory where label frequencies
-            are saved. Be default a ``text_file`` parent directory is used. When method
+            are saved. By default, a ``text_file`` parent directory is used. When method
             :meth:`save_labels_and_get_file_paths` is called label ids are saved into ``label_info_save_dir``
             directory. This parameter is useful if directory containing ``text_file`` is read-only.
         punct_label_vocab_file (:obj:`Union[str, os.PathLike]`, `optional`): a path to a .csv file containing
@@ -959,7 +965,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
             other useful information.
         n_jobs (:obj:`int`, `optional`, defaults to :obj:`0`): number of workers used for tokenization, encoding
             labels, creating "first token in word" mask, and clipping. If ``n_jobs <= 0`` data preparation is performed
-            without multiprocessing. By default ``n_jobs`` is ``0``.
+            without multiprocessing. By default, ``n_jobs`` is ``0``.
 
             .. warning::
                 There can be deadlocking problems with some tokenizers (e.g. SentencePiece, HuggingFace AlBERT)
@@ -981,8 +987,9 @@ class BertPunctuationCapitalizationDataset(Dataset):
             batch creation (stacking and padding). Useful for creation of tarred dataset
         use_audio (:obj:`bool`, `optional`, defaults to :obj: `False`): If set to True dataset will return audio as well as text.
         audio_file (:obj:`Union[str, os.PathLike]`, `optional`): a path to file with audio paths.
-        sample_rate (:obj:`int`, `optional`, defaults to :obj:`None`): sample rate of audios. Can be used for upsampling or downsampling.
+        sample_rate (:obj:`int`, `optional`, defaults to :obj:`None`): sample rate of audios. Can be used for up sampling or down sampling of audio.
         use_bucketing (:obj:`bool`, `optional`, defaults to :obj: `True`): If set to False dataset will return ``batch_size`` batches instead of ``number_of_tokens`` tokens.
+        preload_audios (:obj:`bool`, `optional`, defaults to :obj: `True`): If set to True batches will include waveforms, if set to False will store audio_filepaths instead and load audios during ``collate_fn`` call
     """
 
     @property
@@ -1119,7 +1126,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 punct_label_ids = create_label_ids(punct_unique_labels, self.pad_label)
             if capit_label_ids:
                 self._check_label_ids_vs_unique_labels(
-                    capit_label_ids, capit_unique_labels, 'capit', 'capitalzation', self.labels_file
+                    capit_label_ids, capit_unique_labels, 'capit', 'capitalization', self.labels_file
                 )
             else:
                 capit_label_ids = create_label_ids(capit_unique_labels, self.pad_label)
@@ -1137,7 +1144,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 n_jobs=n_jobs,
                 audio_queries=audio_lines if self.use_audio else None,
                 sample_rate=self.sample_rate,
-                load_audios=self.preload_audios,
+                preload_audios=self.preload_audios,
             )
             self.features_pkl.parent.mkdir(parents=True, exist_ok=True)
 
@@ -1244,7 +1251,6 @@ class BertPunctuationCapitalizationDataset(Dataset):
         use_audio: bool = False,
         audio_file: Optional[Union[str, os.PathLike]] = None,
         sample_rate: Optional[int] = None,
-        load_audios: Optional[bool] = None,
     ) -> None:
         if torch.distributed.is_initialized() and torch.distributed.get_world_size() > 1 and not use_cache:
             raise ValueError(
@@ -1421,7 +1427,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
             )
         else:
             text_lines, punct_labels_lines, capit_labels_lines = zip(*dataset)
-            return text_lines, punct_labels_lines, capit_labels_lines, punct_unique_labels, capit_unique_labels
+            return text_lines, punct_labels_lines, capit_labels_lines, punct_unique_labels, capit_unique_labels, None
 
     @staticmethod
     def calc_batch_seq_length(queries: List[np.ndarray], length_is_multiple_of: int) -> int:
@@ -1759,7 +1765,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         return batches
 
     def repack_batches_with_shuffle(self) -> None:
-        """A function for proper shuffling of a dataset. Pytorch data loader shuffing will only permute batches."""
+        """A function for proper shuffling of a dataset. Pytorch data loader shuffling will only permute batches."""
         if not self.use_bucketing:
             return
         logging.info("Shuffling training dataset")
@@ -1817,13 +1823,14 @@ class BertPunctuationCapitalizationDataset(Dataset):
 
     def collate_fn(self, batches: List[Dict[str, np.ndarray]]) -> Dict[str, torch.Tensor]:
         """
-        Return zeroth batch from ``batches`` list passed for collating and casts ``'segment_ids'``, ``'punct_labels'``,
+        If ``self.use_bucketing`` set to ``True`` returns zeroth batch from ``batches`` list passed for collating and casts ``'segment_ids'``, ``'punct_labels'``,
         ``'capit_labels'`` to types supported by
-        :class:`~nemo.collections.nlp.models.token_classification.punctuation_capitalization_model.PunctuationCapitalizationModel`.
+        :class:`~nemo.collections.nlp.models.token_classification.punctuation_capitalization_model.PunctuationCapitalizationModel`
+        or :class:`~nemo.collections.nlp.models.token_classification.punctuation_capitalization_model.PunctuationCapitalizationLexicalAudioModel` if ``self.use_audio`` set to ``True``
         All output tensors have shape ``[Batch, Time]``.
 
         .. warning::
-            A ``batch_size`` parameter of a PyTorch data loader and sampler has to be ``1``.
+            A ``batch_size`` parameter of a PyTorch data loader and sampler has to be ``1`` if ``self.use_bucketing`` set to ``True``
 
         Args:
             batches (:obj:`List[Dict[str, np.ndarray]]`): a list containing 1 batch passed for collating
@@ -1839,6 +1846,8 @@ class BertPunctuationCapitalizationDataset(Dataset):
               - ``'segment_ids'`` (:obj:`torch.Tensor`): :obj:`torch.int32` tensor,
               - ``'input_mask'`` (:obj:`torch.Tensor`): :obj:`torch.bool` tensor,
               - ``'loss_mask'`` (:obj:`torch.Tensor`): :obj:`torch.bool` tensor.
+              - ``'features'`` (:obj:`torch.Tensor`): :obj:`torch.float` tensor.
+              - ``'features_length'`` (:obj:`torch.Tensor`): :obj:`torch.long` tensor.
         """
         if self.use_bucketing:
             batch = {k: torch.as_tensor(v) for k, v in batches[0].items() if k != 'audio_filepaths'}
@@ -1920,14 +1929,17 @@ class BertPunctuationCapitalizationDataset(Dataset):
               - ``'capit_labels'`` (:obj:`numpy.ndarray`): :obj:`numpy.int32` array containing encoded capitalization
                 labels.
               - ``'segment_ids'`` (:obj:`numpy.ndarray`): :obj:`numpy.int8` array filled with zeros (BERT token types
-                in HuggingFace terminology) (if ``self.add_masks_and_segment_ids_to_batch`` is ``False``, then this
+                in HuggingFace terminology) (if ``self.add_masks_and_segment_ids_to_batch`` is ``False``, then these
                 items is missing),
               - ``'input_mask'`` (:obj:`numpy.ndarray`): :obj:`bool` array which elements are ``True`` if corresponding
-                token is not a padding token (if ``self.add_masks_and_segment_ids_to_batch`` is ``False``, then this
+                token is not a padding token (if ``self.add_masks_and_segment_ids_to_batch`` is ``False``, then these
                 items is missing),
               - ``'loss_mask'`` (:obj:`numpy.ndarray`): :obj:`bool` array which elements are ``True`` if loss is
                 computed for corresponding token. See more in description of constructor parameters
                 ``ignore_start_end``, ``ignore_extra_tokens`` (if ``self.add_masks_and_segment_ids_to_batch`` is
-                ``False``, then this items is missing).
+                ``False``, then these items is missing).
+                - ``'features'`` (:obj:`numpy.ndarray`) :obj:`np.float` array of waveforms of audio if ``self.preload_audio`` is set to ``True`` else empty.
+                - ``'features_length'`` (:obj:`numpy.ndarray`) :obj:`np.long` array of number of samples per audio.
+                - ``'audio_filepaths'`` (:obj:`List`) :obj:`str` contains paths of audio files if ``self.preload_audio`` set to ``False``
         """
         return self.batches[idx]
