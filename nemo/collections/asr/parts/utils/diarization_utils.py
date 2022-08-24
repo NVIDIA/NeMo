@@ -1183,15 +1183,16 @@ def process_audio_file(input_data, orig_sr=48000, target_sr=16000, MAX_INT32=214
         data (numpy.ndarray)
             Numpy array containing timeseries data of the input audio stream.
     """
-    if type(input_data) == str:
-        TARGET_SR = 16000
-        data, sr = librosa.load(input_data, sr=TARGET_SR)
-        os.remove(input_data)
-    elif type(input_data) == np.ndarray:
+    if type(input_data) == tuple:
         data = (input_data[1]/MAX_INT32).astype(np.float32)
         data = librosa.resample(data, orig_sr=orig_sr, target_sr=target_sr)
     else:
-        raise ValueError(f"The streaming input has unknown input_data type {type(input_data)}")
+        # import ipdb; ipdb.set_trace()
+        TARGET_SR = 16000
+        data, sr = librosa.load(input_data, sr=TARGET_SR)
+        os.remove(input_data)
+    # else:
+        # raise ValueError(f"The streaming input has unknown input_data type {type(input_data)}")
     return data
 
 def score_labels(AUDIO_RTTM_MAP, all_reference, all_hypothesis, collar=0.25, ignore_overlap=True):
@@ -1697,8 +1698,10 @@ class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
 
     def streaming_step(self, frame):
         loop_start_time = time.time()
+
         if len(frame) != int(self.sample_rate * self.frame_len):
-            raise ValueError(f"`frame` does not have the expected length.")
+            print("type frame:", type(frame))
+            raise ValueError(f"frame does not have the expected length.")
         words, timestamps, diar_hyp = self.run_step(frame=frame)
         if diar_hyp != []:
             total_riva_dict = {}
@@ -1730,15 +1733,15 @@ class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
         audio_read_stt = time.time()
         audio_queue = process_audio_file(Audio)
         self.audio_queue_buffer = np.append(self.audio_queue_buffer, audio_queue)
-        try:
-            count = 0
-            while len(self.audio_queue_buffer) > self.CHUNK_SIZE:
-                frame = self.audio_queue_buffer[:self.CHUNK_SIZE], 
-                self.audio_queue_buffer = self.audio_queue_buffer[self.CHUNK_SIZE:]
-                self.streaming_step(frame)
-                count += 1
-        except:
-            logging.info(f"Audio buffer did not save enough signal to be processed: audio buffer {len(self.audio_queue_buffer)/self.sample_rate:.2f}s")
+        # try:
+        count = 0
+        while len(self.audio_queue_buffer) > self.CHUNK_SIZE:
+            frame = self.audio_queue_buffer[:self.CHUNK_SIZE]
+            self.audio_queue_buffer = self.audio_queue_buffer[self.CHUNK_SIZE:]
+            self.streaming_step(frame)
+            count += 1
+        # except:
+            # logging.info(f"Audio buffer did not save enough signal to be processed: audio buffer {len(self.audio_queue_buffer)/self.sample_rate:.2f}s")
         eta = time.time() - stt
         self.end_time = time.time()
         return f"Audio Queue Length {len(self.audio_queue_buffer)/self.sample_rate:.2f}s", ""

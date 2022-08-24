@@ -1121,7 +1121,7 @@ class OnlineDiarizer(ClusteringDiarizer):
                                                      )
 
         Y_clus = Y_clus.cpu().numpy()
-        tota_cluster_labels = self.macth_labels(org_mat, Y_clus, add_new)
+        total_cluster_labels = self.macth_labels(org_mat, Y_clus, add_new)
         return total_cluster_labels
 
 

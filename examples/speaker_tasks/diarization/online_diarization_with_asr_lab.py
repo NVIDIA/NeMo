@@ -217,6 +217,7 @@ class ASR_DIAR_ONLINE_DEMO(ASR_DIAR_ONLINE):
     
     def streaming_step(self, sample_audio):
         loop_start_time = time.time()
+        print("len sample_audio:", len(sample_audio), int(self.sample_rate * self.frame_len))
         assert len(sample_audio) == int(self.sample_rate * self.frame_len)
         words, timestamps, diar_hyp = self.run_step(sample_audio)
         if diar_hyp != []:
@@ -364,6 +365,7 @@ def main(cfg):
             fn=asr_diar.audio_queue_launcher,
             inputs=[
                 gr.Audio(source="microphone", type="numpy", streaming=True), 
+                # gr.Audio(source="microphone", type="filepath", streaming=True), 
                 "state",
             ],
             outputs=[
