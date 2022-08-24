@@ -109,61 +109,19 @@ class Export(BigNLPStage):
         return job_id
     
     def _make_cluster_parameters(
-            self, cluster: str, sub_stage=None,
+        self, cluster: str, sub_stage=None,
     ) -> Dict:
         cfg = self.cfg
         stage_cfg = self.stage_cfg
 
-        run_cfg = stage_cfg.get("run")
-        job_name = run_cfg.get("name")
-        time_limit = run_cfg.get("time_limit")
-        dependency = run_cfg.get("dependency")
-
-        env_vars = self.get_env_vars()
-        env_vars["PYTHONPATH"] = f"{self._bignlp_path}:${{PYTHONPATH}}" # Required by pile download
-        env_vars["NGC_ARRAY_TYPE"] = "MPIJob" # Required by BCP
-        setup = [
-            f"export {k}={v}" for k, v in env_vars.items()
-        ]
-
-        cluster_parameters = {}
-        shared_parameters = {
-            "job_name": job_name,
-            "time": time_limit,
-            "setup": setup,
-        }
-        private_parameters = self._make_private_cluster_parameters(
-            cluster, sub_stage,
-        )
-        if cluster == "bcm":
-            cluster_cfg = cfg.get("cluster")
-            slurm_cfg = {**copy.deepcopy(cluster_cfg)}
-            job_name_prefix = slurm_cfg.pop("job_name_prefix")
-            cluster_parameters = {
-                **slurm_cfg,
-                "dependency": dependency,
-            }
-            cluster_parameters.update({
-                **shared_parameters,
-                **private_parameters,
-            })
-            cluster_parameters["job_name"] = job_name_prefix + cluster_parameters["job_name"]
-        elif cluster == "bcp":
-            cluster_parameters.update({
-                **shared_parameters,
-                **private_parameters,
-            })
-        elif cluster == "interactive":
-            cluster_parameters.update(shared_parameters)
-        return cluster_parameters
-
-    def _make_private_cluster_parameters(self, cluster, sub_stage):
-        cfg = self.cfg
-        stage_cfg = self.stage_cfg
-        run_cfg = stage_cfg.get("run")
         accuracy_cfg = stage_cfg.get("accuracy")
         ft_model_cfg = stage_cfg.get("model")
         triton_cfg = stage_cfg.get("triton_deployment")
+        run_cfg = stage_cfg.get("run")
+
+        job_name = run_cfg.get("name")
+        time_limit = run_cfg.get("time_limit")
+        dependency = run_cfg.get("dependency")
 
         container_image = cfg.get("container")
         container_mounts = self._make_container_mounts_string()
@@ -172,20 +130,44 @@ class Export(BigNLPStage):
         nodes = 1 if sub_stage == "export" else int(math.ceil(num_tasks / accuracy_cfg.ntasks_per_node))
         ntasks_per_node = 1 if sub_stage == "export" else accuracy_cfg.ntasks_per_node
 
+        setup = None
+        env_vars = self.get_env_vars()
+        if env_vars:
+            setup = [
+                f"export {k}={v}" for k, v in env_vars.items()
+            ]
+
+        cluster_parameters = {}
+        shared_parameters = {
+            "job_name": job_name,
+            "nodes": nodes,
+            "time": time_limit,
+            "ntasks_per_node": ntasks_per_node,
+            "setup": setup,
+        }
         if cluster == "bcm":
-            return {
-                "nodes": nodes,
-                "ntasks_per_node": ntasks_per_node,
+            cluster_cfg = cfg.get("cluster")
+            slurm_cfg = {**copy.deepcopy(cluster_cfg)}
+            job_name_prefix = slurm_cfg.pop("job_name_prefix")
+            cluster_parameters = {
+                **slurm_cfg
+            }
+            cluster_parameters.update({
+                **shared_parameters,
+                "dependency": dependency,
                 "container_image": container_image,
                 "container_mounts": container_mounts,
-            }
-        if cluster == "bcp":
-            return {
-                "nodes": nodes,
-                "ntasks_per_node": ntasks_per_node,
-                "bcp_launcher": "'mpirun --allow-run-as-root'",
-            }
-        return {}
+            })
+            cluster_parameters["job_name"] = job_name_prefix + cluster_parameters["job_name"]
+        elif cluster == "bcp":
+            cluster_parameters.update({
+                **shared_parameters,
+                "env_vars": env_vars,
+            })
+        elif cluster == "interactive":
+            cluster_parameters.update(shared_parameters)
+
+        return cluster_parameters
 
     def _get_gpt_conversion_cmds(self, cfg):
         run_cfg = cfg.export.run
