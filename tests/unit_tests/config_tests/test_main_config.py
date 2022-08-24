@@ -14,6 +14,7 @@ class TestConfig:
           - fine_tuning: null
           - prompt_learning: null
           - evaluation: gpt3/evaluate_all
+          - export: gpt3
           - override hydra/job_logging: stdout
         
         hydra:
@@ -27,6 +28,7 @@ class TestConfig:
           - training
           - conversion
           - evaluation
+          - export
         
         cluster_type: bcm  # bcm or bcp. If bcm, it must match - cluster above.
         bignlp_path: ???  # Path should end with bignlp-scripts
@@ -62,6 +64,7 @@ class TestConfig:
         prompt_learning_config: ${hydra:runtime.choices.prompt_learning}
         evaluation_config: ${hydra:runtime.choices.evaluation}
         conversion_config: ${hydra:runtime.choices.conversion}
+        export_config: ${hydra:runtime.choices.export}
         """
         expected = OmegaConf.create(s)
         assert (
