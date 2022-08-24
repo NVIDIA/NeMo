@@ -369,7 +369,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         if parallel_state.get_pipeline_model_parallel_world_size() > 1 and (
             parallel_state.is_rank_in_embedding_group()
         ):
-            if self.cfg.get('share_token_embeddings', True) and self.cfg.get('share_decoder_tokens_head_embeddings', True):
+            if self.cfg.get('share_token_embeddings', True) and self.cfg.get(
+                'share_decoder_tokens_head_embeddings', True
+            ):
                 word_embeddings_weight = self.enc_dec_model.word_embeddings_weight()
                 if self.megatron_amp_o2:
                     # O2 recipe stores a "main" copy of weights and grads
@@ -871,16 +873,17 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     self.enc_dec_model.sync_initial_encoder_relative_position_embeddings()
                 if self.cfg.decoder.get('position_embedding_type', 'learned_absolute') == 'relative':
                     self.enc_dec_model.sync_initial_decoder_relative_position_embeddings()
-                if (
-                    self.cfg.decoder.get('position_embedding_type', 'learned_absolute') == 'relative'
-                    and not self.cfg.decoder.get('relative_position_bias_self_attention_only', True)
-                ):
+                if self.cfg.decoder.get(
+                    'position_embedding_type', 'learned_absolute'
+                ) == 'relative' and not self.cfg.decoder.get('relative_position_bias_self_attention_only', True):
                     self.enc_dec_model.sync_initial_decoder_cross_attention_relative_position_embeddings()
 
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds'):
             consumed_samples = self.compute_consumed_samples(0)
-            self._train_dl = self.build_pretraining_data_loader(self._train_ds, consumed_samples, num_workers=self._cfg.data.num_workers)
+            self._train_dl = self.build_pretraining_data_loader(
+                self._train_ds, consumed_samples, num_workers=self._cfg.data.num_workers
+            )
 
     def on_pretrain_routine_start(self) -> None:
         # keep a copy of init_global_step
@@ -890,7 +893,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     def setup_validation_data(self, cfg):
         if hasattr(self, '_validation_ds'):
             consumed_samples = 0
-            self._validation_dl = self.build_pretraining_data_loader(self._validation_ds, consumed_samples, num_workers=0)
+            self._validation_dl = self.build_pretraining_data_loader(
+                self._validation_ds, consumed_samples, num_workers=0
+            )
 
     def setup_test_data(self, cfg):
         if hasattr(self, '_test_ds'):

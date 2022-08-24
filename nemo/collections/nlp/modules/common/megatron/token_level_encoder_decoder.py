@@ -226,7 +226,10 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 )
                 self._decoder_relative_position_embedding_key = "decoder_relative_position_embedding"
                 # Pipeline model parallel rank == split_rank will have the actual RPE weights. We zero it out on all other ranks and then sync them on setup.
-                if parallel_state.get_pipeline_model_parallel_rank() != parallel_state.get_pipeline_model_parallel_split_rank():
+                if (
+                    parallel_state.get_pipeline_model_parallel_rank()
+                    != parallel_state.get_pipeline_model_parallel_split_rank()
+                ):
                     self.decoder_relative_position_embeddings_weight().data.fill_(0)
                     self.decoder_relative_position_embeddings_weight().shared = True
 
@@ -242,7 +245,10 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     self._decoder_cross_attention_relative_position_embedding_key = (
                         "decoder_cross_attention_relative_position_embedding"
                     )
-                    if parallel_state.get_pipeline_model_parallel_rank() != parallel_state.get_pipeline_model_parallel_split_rank():
+                    if (
+                        parallel_state.get_pipeline_model_parallel_rank()
+                        != parallel_state.get_pipeline_model_parallel_split_rank()
+                    ):
                         self.decoder_cross_attention_relative_position_embeddings_weight().data.fill_(0)
                         self.decoder_cross_attention_relative_position_embeddings_weight().shared = True
 
