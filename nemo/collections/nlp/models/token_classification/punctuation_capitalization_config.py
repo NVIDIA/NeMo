@@ -17,6 +17,7 @@ from typing import Any, Dict, Optional
 
 from omegaconf.omegaconf import MISSING, DictConfig, OmegaConf, open_dict
 
+from nemo.collections.common.parts.adapter_modules import LinearAdapterConfig
 from nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset import (
     PunctuationCapitalizationEvalDataConfig,
     PunctuationCapitalizationTrainDataConfig,
@@ -77,7 +78,7 @@ class LanguageModelConfig:
 class HeadConfig:
     """
     A structure and default values of configuration of capitalization or punctuation model head. This config defines a
-    multilayer perceptron which is applied to outputs of a language model. Number of units in the hidden layer is equal
+    multilayer perceptron which is applied to output of a language model. Number of units in the hidden layer is equal
     to the dimension of the language model.
 
     This config is a part of :class:`PunctuationCapitalizationModelConfig` config.
@@ -213,6 +214,49 @@ class PunctuationCapitalizationModelConfig:
 
 
 @dataclass
+class PunctuationCapitalizationLexicalAudioModelConfig(PunctuationCapitalizationModelConfig):
+    train_ds: Optional[PunctuationCapitalizationTrainDataConfig] = None
+    """A configuration for creating training dataset and data loader."""
+
+    validation_ds: Optional[PunctuationCapitalizationEvalDataConfig] = None
+    """A configuration for creating validation datasets and data loaders."""
+
+    test_ds: Optional[PunctuationCapitalizationEvalDataConfig] = None
+    """A configuration for creating test datasets and data loaders."""
+
+    pretrained_audio_encoder: str = MISSING
+    """A configuration for restoring pretrained audio encoder"""
+
+    freeze_audio_encoder: bool = False
+    """Freeze audio encoder weight and add LSTM module on top of it"""
+
+    fusion_inner_size: int = 2048
+    """Fusion inner size"""
+
+    fusion_num_attention_heads: int = 4
+    """Number of attention heads to use in fusion"""
+
+    fusion_num_layers: int = 4
+    """"Number of layers to use in fusion"""
+
+    restore_lexical_encoder_from: Optional[str] = None
+    """"Path to .nemo checkpoint to load weights from"""
+
+    use_adapters: Optional[bool] = False
+    """use adapters for audio encoder"""
+
+    adapter_config: Optional[LinearAdapterConfig] = None
+
+    use_weighted_loss: Optional[bool] = False
+
+    frozen_conf_d_model: Optional[int] = 256
+
+    frozen_conf_d_ff: Optional[int] = 1024
+
+    frozen_conf_num_layers: Optional[int] = 8
+
+
+@dataclass
 class PunctuationCapitalizationConfig(NemoConfig):
     """
     A config for punctuation model training and testing.
@@ -248,6 +292,11 @@ class PunctuationCapitalizationConfig(NemoConfig):
     exp_manager: Optional[ExpManagerConfig] = ExpManagerConfig(name=name, files_to_copy=[])
     """A configuration with various NeMo training options such as output directories, resuming from checkpoint,
     tensorboard and W&B logging, and so on. For possible options see :ref:`exp-manager-label`."""
+
+
+@dataclass
+class PunctuationCapitalizationLexicalAudioConfig(PunctuationCapitalizationConfig):
+    model: PunctuationCapitalizationLexicalAudioModelConfig = PunctuationCapitalizationLexicalAudioModelConfig()
 
 
 def is_legacy_model_config(model_cfg: DictConfig) -> bool:
