@@ -146,8 +146,38 @@ class Export(BigNLPStage):
                 **private_parameters,
             })
         elif cluster == "interactive":
-            raise ValueError("Data preparation is not supported in interactive mode.")
+            cluster_parameters.update(shared_parameters)
         return cluster_parameters
+
+    def _make_private_cluster_parameters(self, cluster, sub_stage):
+        cfg = self.cfg
+        stage_cfg = self.stage_cfg
+        run_cfg = stage_cfg.get("run")
+        accuracy_cfg = stage_cfg.get("accuracy")
+        ft_model_cfg = stage_cfg.get("model")
+        triton_cfg = stage_cfg.get("triton_deployment")
+
+        container_image = cfg.get("container")
+        container_mounts = self._make_container_mounts_string()
+
+        num_tasks = ft_model_cfg.tensor_model_parallel_size * triton_cfg.pipeline_model_parallel_size
+        nodes = 1 if sub_stage == "export" else int(math.ceil(num_tasks / accuracy_cfg.ntasks_per_node))
+        ntasks_per_node = 1 if sub_stage == "export" else accuracy_cfg.ntasks_per_node
+
+        if cluster == "bcm":
+            return {
+                "nodes": nodes,
+                "ntasks_per_node": ntasks_per_node,
+                "container_image": container_image,
+                "container_mounts": container_mounts,
+            }
+        if cluster == "bcp":
+            return {
+                "nodes": nodes,
+                "ntasks_per_node": ntasks_per_node,
+                "bcp_launcher": "'mpirun --allow-run-as-root'",
+            }
+        return {}
 
     def _get_gpt_conversion_cmds(self, cfg):
         run_cfg = cfg.export.run
