@@ -14,7 +14,7 @@ class TestConfig:
           - fine_tuning: null
           - prompt_learning: null
           - evaluation: gpt3/evaluate_all
-          - export: gpt3
+          - export: gpt3/export_gpt3
           - override hydra/job_logging: stdout
         
         hydra:
