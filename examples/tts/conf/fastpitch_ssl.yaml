@@ -33,11 +33,14 @@ ssl_content_emb_type: "embedding_and_probs"
 n_segments: 18432 #ignored for now
 speaker_stats_pitch_fp: "/home/pneekhara/NeMo2022/libri_speaker_stats.json"
 pitch_normalization: speaker_wise
+use_unique_tokens: false
+speaker_conditioning_type: per_sample
 
 model:
   use_encoder: false
+  use_duration_predictor: ${use_unique_tokens}
   pitch_conditioning: true
-  pitch_loss_scale: 0.1
+  pitch_loss_scale: 1.0
   learn_alignment: true
   bin_loss_warmup_epochs: 100
 
@@ -84,12 +87,14 @@ model:
       speaker_stats_pitch_fp: ${speaker_stats_pitch_fp}
       min_duration: 0.5
       max_duration: 16.0
+      use_unique_tokens: ${use_unique_tokens}
+      speaker_conditioning_type: ${speaker_conditioning_type}
 
     dataloader_params:
       drop_last: false
       shuffle: true
       batch_size: 2
-      num_workers: 12
+      num_workers: 8
       pin_memory: true
 
   validation_ds:
@@ -109,6 +114,8 @@ model:
       speaker_stats_pitch_fp: ${speaker_stats_pitch_fp}
       min_duration: 0.5
       max_duration: 16.0
+      use_unique_tokens: ${use_unique_tokens}
+      speaker_conditioning_type: ${speaker_conditioning_type}
 
     dataloader_params:
       drop_last: false
@@ -185,17 +192,21 @@ model:
     n_layers: 2
 
   optim:
-    name: adamw
-    lr: 0.1
-    betas: [0.9, 0.98]
-    weight_decay: 1e-6
-    eps: 1e-6
+    _target_: torch.optim.AdamW
+    lr: 0.0002
+    betas: [0.8, 0.99]
+  # optim:
+  #   name: adamw
+  #   lr: 0.1
+  #   betas: [0.9, 0.98]
+  #   weight_decay: 1e-6
+  #   eps: 1e-6
 
-    sched:
-      name: NoamAnnealing
-      warmup_steps: 1000
-      last_epoch: -1
-      d_model: 1  # Disable scaling based on model dim
+  #   sched:
+  #     name: NoamAnnealing
+  #     warmup_steps: 1000
+  #     last_epoch: -1
+  #     d_model: 1  # Disable scaling based on model dim
 
 trainer:
   num_nodes: 1
