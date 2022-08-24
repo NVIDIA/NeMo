@@ -13,20 +13,7 @@
 # limitations under the License.
 
 import math
-
 import torch
-
-from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
-
-try:
-    from apex.transformer import parallel_state
-
-    HAVE_APEX = True
-
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_APEX = False
-
 
 class T5RelativePositionEmbedding(torch.nn.Module):
     """Relative Position Embedding implementation from the T5 paper : https://arxiv.org/abs/1910.10683"""
@@ -59,43 +46,6 @@ class T5RelativePositionEmbedding(torch.nn.Module):
         ).to(torch.cuda.current_device())
         self._relative_position_embedding_key = 'relative_position_embedding'
         init_method(self.relative_position_embedding.weight)
-
-    '''
-    # TODO: (sandeepsub) - Remove once we verify the other allreduce approach works.
-    def _all_reduce_position_embedding(self):
-        if parallel_state.get_pipeline_model_parallel_world_size() == 1:
-            return
-
-        if (
-            parallel_state.get_pipeline_model_parallel_rank() == 0
-            or parallel_state.get_pipeline_model_parallel_rank()
-            == parallel_state.get_pipeline_model_parallel_split_rank()
-        ):
-            self.relative_position_embedding.weight.data.fill_(0)
-            self.relative_position_embedding.weight.shared = True
-
-        if torch.distributed.is_initialized():
-            if parallel_state.get_pipeline_model_parallel_split_rank() is not None:
-                if (
-                    self.layer_type == LayerType.encoder
-                    and parallel_state.is_rank_in_encoder_relative_position_embedding_group()
-                ):
-                    torch.distributed.all_reduce(
-                        self.relative_position_embedding.weight.data,
-                        group=parallel_state.get_encoder_relative_position_embedding_group(),
-                    )
-
-                if (
-                    self.layer_type == LayerType.decoder
-                    and parallel_state.is_rank_in_decoder_relative_position_embedding_group()
-                ):
-                    torch.distributed.all_reduce(
-                        self.relative_position_embedding.weight.data,
-                        group=parallel_state.get_decoder_relative_position_embedding_group(),
-                    )
-        else:
-            raise ValueError("Torch Distributed not initialized, cannot allreduce relative position embeddings.")
-    '''
 
     def _relative_position_bucket(self, relative_position, bidirectional=True, num_buckets=32, max_distance=128):
         """
