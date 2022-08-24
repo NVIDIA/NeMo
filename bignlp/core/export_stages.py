@@ -20,6 +20,7 @@ class Export(BigNLPStage):
     def setup_stage_vars(self, cfg):
         self.stage_name = "export"
         self.stage_cfg = cfg.get("export")
+        self.accuracy_cfg = self.stage_cfg.get("accuracy")
 
     def _make_checkpoint_search_command(self, **kwargs):
         checkpoint_override = [f"{k}={v}" for k, v in kwargs.items()]
