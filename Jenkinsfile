@@ -1948,7 +1948,7 @@ pipeline {
         }
       }
     }
-    stage('L2: Megatron GPT Adapter Learning') {
+    stage('L2: Megatron GPT Adapter TP=2') {
       when {
         anyOf {
           branch 'main'
@@ -1985,6 +1985,17 @@ pipeline {
             sh "rm -rf /home/TestData/nlp/adapter_tuning/test_tp2_pp1"
           }
         }
+      }
+    }
+    stage('L2: Megatron GPT Adapter PP=2') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel{
         stage('GPT Adapter tuning & inference TP=1 PP=2') {
           steps {
             sh "python examples/nlp/language_modeling/tuning/megatron_gpt_adapter_tuning.py \
