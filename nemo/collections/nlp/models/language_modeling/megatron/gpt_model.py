@@ -225,6 +225,7 @@ class GPTModel(MegatronModule):
         encoder_input=None,
         set_inference_key_value_memory=False,
         inference_max_sequence_len=None,
+        checkpoint_activations_all_layers=None,
     ):
         # input_ids: [b, s]
         # position_ids: [b, s]
@@ -239,6 +240,7 @@ class GPTModel(MegatronModule):
             encoder_input=encoder_input,
             set_inference_key_value_memory=set_inference_key_value_memory,
             inference_max_sequence_len=inference_max_sequence_len,
+            checkpoint_activations_all_layers=checkpoint_activations_all_layers,
         )
 
         if self.post_process:
