@@ -1954,29 +1954,3 @@ class ParallelTransformer(MegatronModule):
             output = [output, presents]
 
         return output
-
-
-class AdapterParallelTransformer(ParallelTransformer, adapter_mixins.AdapterModuleMixin):
-    def add_adapter(self, name: str, cfg):
-        # call the same method on each layer, collecting results
-        for layer in self.layers:
-            if 'adapter_1' in name or 'adapter_2' in name:
-                layer.add_adapter(name, cfg)
-            else:
-                # invalid adapter to use/add
-                logging.warning('Invalid adapter to use. Currently, only adapter_1 and adapter_2 are valid.')
-
-    def get_enabled_adapters(self):
-        enabled_adapters = set([])
-        for layer in self.layers:
-            names = layer.get_enabled_adapters()
-            enabled_adapters.update(names)
-        return list(enabled_adapters)
-
-    def set_enabled_adapters(self, name, enabled: bool):
-        for layer in self.layers:
-            layer.set_enabled_adapters(name, enabled)
-
-    def is_adapter_available(self) -> bool:
-        is_available = any([layer.is_adapter_available() for layer in self.layers])
-        return is_available
