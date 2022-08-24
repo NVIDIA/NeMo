@@ -340,6 +340,8 @@ def main():
                 conf.cfg.tokenizer.vocab_file = vocab_file
             if merge_file is not None:
                 conf.cfg.tokenizer.merge_file = merge_file
+            if "sequence_parallel" in conf.cfg:
+                conf.cfg.sequence_parallel = False
 
             if is_global_rank_zero():
                 with open(hparams_override_file, "w") as f:
