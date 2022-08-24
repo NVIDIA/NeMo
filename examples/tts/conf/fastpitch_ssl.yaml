@@ -35,6 +35,7 @@ speaker_stats_pitch_fp: "/home/pneekhara/NeMo2022/libri_speaker_stats.json"
 pitch_normalization: speaker_wise
 use_unique_tokens: false
 speaker_conditioning_type: per_sample
+segment_speaker_embedding: false
 
 model:
   use_encoder: false
@@ -88,6 +89,7 @@ model:
       max_duration: 16.0
       use_unique_tokens: ${use_unique_tokens}
       speaker_conditioning_type: ${speaker_conditioning_type}
+      segment_speaker_embedding: ${segment_speaker_embedding}
 
     dataloader_params:
       drop_last: false
@@ -115,6 +117,7 @@ model:
       max_duration: 16.0
       use_unique_tokens: ${use_unique_tokens}
       speaker_conditioning_type: ${speaker_conditioning_type}
+      segment_speaker_embedding: ${segment_speaker_embedding}
 
     dataloader_params:
       drop_last: false
