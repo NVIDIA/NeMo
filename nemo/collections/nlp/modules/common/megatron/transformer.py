@@ -30,6 +30,7 @@ from nemo.collections.nlp.modules.common.megatron.fused_bias_dropout_add import 
 from nemo.collections.nlp.modules.common.megatron.fused_bias_geglu import fused_bias_geglu
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
 from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import get_layer_norm
+from nemo.collections.nlp.modules.common.megatron.layer_norm_1p import LayerNorm1P
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.rotary_pos_embedding import apply_rotary_pos_emb
@@ -228,6 +229,12 @@ class ParallelMLP(MegatronModule):
                 self.normalization = get_layer_norm(
                     ffn_hidden_size // get_tensor_model_parallel_world_size(), layernorm_epsilon, persist_layer_norm
                 )
+            elif normalization == 'layernorm1p':
+                self.normalization = LayerNorm1P(
+                    ffn_hidden_size // get_tensor_model_parallel_world_size(),
+                    layernorm_epsilon,
+                    sequence_parallel_enabled=sequence_parallel,
+                )
             else:
                 self.normalization = MixedFusedRMSNorm(
                     ffn_hidden_size // get_tensor_model_parallel_world_size(), layernorm_epsilon
@@ -276,7 +283,7 @@ class ParallelMLP(MegatronModule):
 
 class CoreAttention(MegatronModule):
     """ Region where selective activation recomputation is applied.
-        See Figure 3. in Reducing Activation Recomputation in Large Transformer Models 
+        See Figure 3. in Reducing Activation Recomputation in Large Transformer Models
         https://arxiv.org/pdf/2205.05198.pdf for more details.
 
     """
@@ -1086,8 +1093,8 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 'bias_dropout_fusion=True requires bias=True, found bias=False. Either set both to True or both to False.'
             )
 
-        if normalization not in ['layernorm', 'rmsnorm']:
-            raise ValueError(f'normalization must be either "layernorm" or "rmsnorm", found {normalization}')
+        if normalization not in ['layernorm', 'layernorm1p', 'rmsnorm']:
+            raise ValueError(f'normalization must be "layernorm", "layernorm1p" or "rmsnorm", found {normalization}')
 
         if transformer_block_type not in ['pre_ln', 'post_ln', 'normformer']:
             raise ValueError(
@@ -1107,6 +1114,10 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
             if normalization == 'layernorm':
                 self.input_layernorm = get_layer_norm(
                     hidden_size, layernorm_epsilon, persist_layer_norm, sequence_parallel
+                )
+            elif normalization == 'layernorm1p':
+                self.input_layernorm = LayerNorm1P(
+                    hidden_size, layernorm_epsilon, sequence_parallel_enabled=sequence_parallel
                 )
             else:
                 self.input_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
@@ -1149,6 +1160,10 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                     self.post_attention_layernorm = get_layer_norm(
                         hidden_size, layernorm_epsilon, persist_layer_norm, sequence_parallel
                     )
+                elif normalization == 'layernorm1p':
+                    self.post_attention_layernorm = LayerNorm1P(
+                        hidden_size, layernorm_epsilon, sequence_parallel_enabled=sequence_parallel
+                    )
                 else:
                     self.post_attention_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
 
@@ -1163,6 +1178,10 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
             if normalization == 'layernorm':
                 self.post_attention_layernorm = get_layer_norm(
                     hidden_size, layernorm_epsilon, persist_layer_norm, sequence_parallel
+                )
+            elif normalization == 'layernorm1p':
+                self.post_attention_layernorm = LayerNorm1P(
+                    hidden_size, layernorm_epsilon, sequence_parallel_enabled=sequence_parallel
                 )
             else:
                 self.post_attention_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
@@ -1195,6 +1214,10 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                     self.post_inter_attention_normformer_norm = get_layer_norm(
                         hidden_size, layernorm_epsilon, persist_layer_norm, sequence_parallel
                     )
+                elif normalization == 'layernorm1p':
+                    self.post_inter_attention_normformer_norm = LayerNorm1P(
+                        hidden_size, layernorm_epsilon, sequence_parallel_enabled=sequence_parallel
+                    )
                 else:
                     self.post_inter_attention_normformer_norm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
 
@@ -1202,6 +1225,10 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
             if normalization == 'layernorm':
                 self.post_inter_attention_layernorm = get_layer_norm(
                     hidden_size, layernorm_epsilon, persist_layer_norm, sequence_parallel
+                )
+            elif normalization == 'layernorm1p':
+                self.post_inter_attention_layernorm = LayerNorm1P(
+                    hidden_size, layernorm_epsilon, sequence_parallel_enabled=sequence_parallel
                 )
             else:
                 self.post_inter_attention_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
@@ -1233,6 +1260,10 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                     self.post_inter_attention_normformer_norm = get_layer_norm(
                         hidden_size, layernorm_epsilon, persist_layer_norm, sequence_parallel
                     )
+                elif normalization == 'layernorm1p':
+                    self.post_inter_attention_normformer_norm = LayerNorm1P(
+                        hidden_size, layernorm_epsilon, sequence_parallel_enabled=sequence_parallel
+                    )
                 else:
                     self.post_inter_attention_normformer_norm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
 
@@ -1240,6 +1271,10 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
             if normalization == 'layernorm':
                 self.post_inter_attention_layernorm = get_layer_norm(
                     hidden_size, layernorm_epsilon, persist_layer_norm, sequence_parallel
+                )
+            elif normalization == 'layernorm1p':
+                self.post_inter_attention_layernorm = LayerNorm1P(
+                    hidden_size, layernorm_epsilon, sequence_parallel_enabled=sequence_parallel
                 )
             else:
                 self.post_inter_attention_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
@@ -1693,6 +1728,10 @@ class ParallelTransformer(MegatronModule):
             if normalization == 'layernorm':
                 self.final_layernorm = get_layer_norm(
                     hidden_size, layernorm_epsilon, persist_layer_norm, sequence_parallel=sequence_parallel
+                )
+            elif normalization == 'layernorm1p':
+                self.final_layernorm = LayerNorm1P(
+                    hidden_size, layernorm_epsilon, sequence_parallel_enabled=sequence_parallel
                 )
             else:
                 self.final_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
