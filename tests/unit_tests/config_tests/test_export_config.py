@@ -3,7 +3,7 @@ from omegaconf import OmegaConf
 
 class TestExportmT5Config:
     def test_export_mt5_config(self):
-        conf = OmegaConf.load("conf/export/mt5.yaml")
+        conf = OmegaConf.load("conf/export/mt5/export_mt5.yaml")
         s = """
         run:
           name: export_${.model_train_name}
@@ -59,7 +59,7 @@ class TestExportmT5Config:
 
 class TestExportT5Config:
     def test_export_t5_config(self):
-        conf = OmegaConf.load("conf/export/t5.yaml")
+        conf = OmegaConf.load("conf/export/t5/export_t5.yaml")
         s = """
         run:
           name: export_${.model_train_name}
@@ -115,7 +115,7 @@ class TestExportT5Config:
 
 class TestExportGPT3Config:
     def test_export_gpt3_config(self):
-        conf = OmegaConf.load("conf/export/gpt3.yaml")
+        conf = OmegaConf.load("conf/export/gpt3/export_gpt3.yaml")
         s = """
         run:
           name: export_${.model_train_name}
