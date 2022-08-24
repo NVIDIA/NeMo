@@ -428,6 +428,8 @@ class FastPitchModel_SSL(ModelPT):
 
         if compute_duration:
             durs = None
+        elif durs_gt is not None:
+            durs = durs_gt
         else:
             durs = torch.ones_like(enc_mask) * 4.0
 
