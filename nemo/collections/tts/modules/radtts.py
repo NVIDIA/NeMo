@@ -250,15 +250,6 @@ class RadTTSModule(NeuralModule, Exportable):
                     self.context_lstm = lstm_norm_fn_pntr(self.context_lstm, 'weight_hh_l0')
                     self.context_lstm = lstm_norm_fn_pntr(self.context_lstm, 'weight_hh_l0_reverse')
 
-            if self.n_group_size > 1:
-                self.unfold_params = {
-                    'kernel_size': (n_group_size, 1),
-                    'stride': n_group_size,
-                    'padding': 0,
-                    'dilation': 1,
-                }
-                self.unfold = nn.Unfold(**self.unfold_params)
-
             self.exit_steps = []
             self.n_early_size = n_early_size
             n_mel_channels = n_mel_channels * n_group_size
@@ -365,15 +356,12 @@ class RadTTSModule(NeuralModule, Exportable):
     def preprocess_context(self, context, speaker_vecs, out_lens=None, f0=None, energy_avg=None):
 
         if self.n_group_size > 1:
-            context = context.unsqueeze(-1)
-            print("context before unfold:", context.shape)
             context = self.unfold(context)
-            print("context after unfold:", context.shape)
-
+            
             if f0 is not None:
-                f0 = self.unfold(f0[:, None, :, None])
+                f0 = self.unfold(f0[:, None, :])
             if energy_avg is not None:
-                energy_avg = self.unfold(energy_avg[:, None, :, None])
+                energy_avg = self.unfold(energy_avg[:, None, :])
         speaker_vecs = speaker_vecs[..., None].expand(-1, -1, context.shape[2])
         context_w_spkvec = torch.cat((context, speaker_vecs), 1)
 
@@ -406,19 +394,26 @@ class RadTTSModule(NeuralModule, Exportable):
         return context_w_spkvec
 
     def fold(self, mel):
-        """Inverse of the self.unfold(mel.unsqueeze(-1)) operation used for the
+        """Inverse of the self.unfold() operation used for the
         grouping or "squeeze" operation on input
 
         Args:
             mel: B x C x T tensor of temporal data
         """
-        print("mel before fold:", mel.shape)
-        output_size=(mel.shape[0],
-                     mel.shape[1] // self.n_group_size,
-                     mel.shape[2] * self.n_group_size )
-        
-        print("mel after fold:", mel.shape)
-        return mel.reshape(output_size)
+        b, d, t = mel.shape
+        mel = mel.reshape(b, -1, self.n_group_size, t).transpose(2,3)
+        return mel.reshape(b, -1, t*self.n_group_size)
+
+    def unfold(self, mel):
+        """operation used for the
+        grouping or "squeeze" operation on input
+
+        Args:
+            mel: B x C x T tensor of temporal data
+        """
+        b, d, t = mel.shape
+        mel = mel.reshape(b, d, -1, self.n_group_size).transpose(2,3)
+        return mel.reshape(b, d*self.n_group_size, -1)
 
     def binarize_attention(self, attn, in_lens, out_lens):
         """For training purposes only. Binarizes attention with MAS. These will
@@ -512,7 +507,7 @@ class RadTTSModule(NeuralModule, Exportable):
                 # might truncate some frames at the end, but that's ok
                 # sometimes referred to as the "squeeze" operation
                 # invert this by calling self.fold(mel_or_z)
-                mel = self.unfold(mel.unsqueeze(-1))
+                mel = self.unfold(mel)
             z_out = []
             # where context is folded
             # mask f0 in case values are interpolated
@@ -642,7 +637,9 @@ class RadTTSModule(NeuralModule, Exportable):
         energy_avg=None,
         voiced_mask=None,
     ):
-
+        # if in_lens is not None:
+        #     text=text[:, :in_lens[0]]
+        
         batch_size = text.shape[0]
         n_tokens = text.shape[1]
         spk_vec = self.encode_speaker(speaker_id)
@@ -666,7 +663,7 @@ class RadTTSModule(NeuralModule, Exportable):
             dur = dur.clamp(0, token_duration_max)
 
         # get attributes f0, energy, vpred, etc)
-        txt_enc_time_expanded, out_lens = regulate_len(dur, txt_enc.transpose(1, 2), pace)
+        txt_enc_time_expanded, out_lens = regulate_len(dur, txt_enc.transpose(1, 2), pace, group_size= self.n_group_size)
         n_groups = torch.div(out_lens, self.n_group_size, rounding_mode='floor')
 
         txt_enc_time_expanded.transpose_(1, 2)
@@ -676,7 +673,7 @@ class RadTTSModule(NeuralModule, Exportable):
                 voiced_mask = self.v_pred_module.infer(None, txt_enc_time_expanded, spk_vec_attributes, lens=out_lens)
                 voiced_mask = torch.sigmoid(voiced_mask[:, 0]) > 0.5
                 voiced_mask = voiced_mask.float()
-                print ("V mask, enc: ", voiced_mask.shape, txt_enc_time_expanded.shape)
+                # print ("V mask, enc: ", voiced_mask.shape, txt_enc_time_expanded.shape)
                 
         ap_txt_enc_time_expanded = txt_enc_time_expanded
         # voice mask augmentation only used for attribute prediction
@@ -737,7 +734,7 @@ class RadTTSModule(NeuralModule, Exportable):
         if self.n_group_size > 1:
             mel = self.fold(mel)
 
-        print ("mel=", mel.shape, "out_lens=", out_lens, "dur=", dur.shape)    
+        # print ("mel=", mel.shape, "out_lens=", out_lens, "dur=", dur.shape)    
 
         return {'mel': mel, 'out_lens': out_lens, 'dur': dur, 'f0': f0, 'energy_avg': energy_avg}
 

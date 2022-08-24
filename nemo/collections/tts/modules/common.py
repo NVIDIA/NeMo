@@ -15,7 +15,7 @@
 ###############################################################################
 
 import ast
-from typing import Tuple
+from typing import Tuple, List
 
 import numpy as np
 import torch
@@ -75,27 +75,6 @@ def fused_add_tanh_sigmoid_multiply(input_a, input_b):
     acts = t_act * s_act
     return acts
 
-# @torch.jit.script
-def pack_inputs(context: torch.nn.utils.rnn.PackedSequence, lens):
-    lens_sorted, ids_sorted = torch.sort(lens, descending=True)
-    if lens.size(0) > 1:
-        unsort_ids = torch.zeros_like(ids_sorted)
-        for i in range(ids_sorted.shape[0]):
-            unsort_ids[ids_sorted[i]] = i
-        lens_sorted = lens_sorted
-        context = context[ids_sorted]
-    else:
-        unsort_ids = ids_sorted
-    context = nn.utils.rnn.pack_padded_sequence(context, lens_sorted.to(dtype=torch.int64, device="cpu"), batch_first=True)
-    return context, unsort_ids
-        
-# @torch.jit.script
-def unpack_inputs(context, unsort_ids):
-    context = nn.utils.rnn.pad_packed_sequence(context, batch_first=True)[0]
-    # map back to original indices
-    context = context[unsort_ids]
-    return context
-
 
 class ExponentialClass(torch.nn.Module):
     def __init__(self):
@@ -118,6 +97,39 @@ class DenseLayer(nn.Module):
             x = torch.tanh(linear(x))
         return x
 
+
+@torch.jit.script
+def tensor_to_list(self, context, lens) -> List[torch.Tensor]:
+    context_embedded = []
+    for b_ind in range(context.size()[0]):  # TODO: speed up
+        curr_context = context[b_ind : b_ind + 1, :, : lens[b_ind]].clone()
+        context_embedded.append(curr_context[0].transpose(0, 1))
+    return context_embedded
+
+def sort_packed(context: torch.nn.utils.rnn.PackedSequence, lens) -> torch.nn.utils.rnn.PackedSequence: 
+    lens_sorted, ids_sorted = torch.sort(lens, descending=True)
+    context_sorted = context[ids_sorted]
+    print("Sorted type: ", context_sorted)
+    context = nn.utils.rnn.pack_padded_sequence(context_sorted, lens_sorted.to(dtype=torch.int64, device="cpu"), batch_first=True)
+    return context, unsort_ids
+
+@torch.jit.script
+def list_to_tensor(self, context: List[torch.Tensor]) -> torch.Tensor:
+    ret = torch.nn.utils.rnn.pad_sequence(context, batch_first=True)
+    return ret
+
+@torch.jit.script
+def packed_to_tensor(context: torch.nn.utils.rnn.PackedSequence):
+    context = nn.utils.rnn.pad_packed_sequence(context, batch_first=True)[0]
+
+@torch.jit.script
+def unsort_tensor(context: torch.Tensor, ids_sorted):
+    unsort_ids = torch.zeros_like(ids_sorted)
+    for i in range(ids_sorted.shape[0]):
+        unsort_ids[ids_sorted[i]] = i
+    # map back to original indices
+    context = context[unsort_ids]
+    return context
 
 class ConvLSTMLinear(nn.Module):
     def __init__(self, in_dim, out_dim, n_layers=2, n_channels=256, kernel_size=3, p_dropout=0.1):
@@ -157,15 +169,37 @@ class ConvLSTMLinear(nn.Module):
         context = torch.nn.utils.rnn.pad_sequence(context_embedded, batch_first=True)
         return context
 
+    def run_unsorted_inputs(self, fn, context, lens):
+        lens_sorted, ids_sorted = torch.sort(lens, descending=True)
+        unsort_ids = torch.zeros_like(ids_sorted)
+        for i in range(ids_sorted.shape[0]):
+            unsort_ids[ids_sorted[i]] = i
+        lens_sorted = lens_sorted.long().cpu()
+
+        context = context[ids_sorted]
+        context = nn.utils.rnn.pack_padded_sequence(context, lens_sorted, batch_first=True)
+        context = fn(context)[0]
+        context = nn.utils.rnn.pad_packed_sequence(context, batch_first=True)[0]
+
+        # map back to original indices
+        # context = context.gather(0, ids_sorted.argsort(0))
+        context = context[unsort_ids]
+        return context
+
     def forward(self, context, lens):
-        context = self.run_padded_sequence(context, lens)
+        if context.shape[0] > 1:
+            context = self.run_padded_sequence(context, lens)
+        else:
+            for conv in self.convolutions:
+                context = self.dropout(F.relu(conv(context)))
+            context = context.transpose(1, 2)
 
         self.bilstm.flatten_parameters()
+        if lens is not None:
+            context = self.run_unsorted_inputs(self.bilstm, context, lens)
+        else:
+            context = self.bilstm(context)[0]
 
-        context, unsort_ids = pack_inputs(context, lens)
-        context = self.bilstm(context)[0]
-        context = unpack_inputs(context, unsort_ids)
-        
         x_hat = self.dense(context).permute(0, 2, 1)
 
         return x_hat
