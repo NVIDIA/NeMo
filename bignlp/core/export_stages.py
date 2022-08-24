@@ -47,7 +47,7 @@ class Export(BigNLPStage):
         return command_groups
     
     def _make_sub_stage_command(self, sub_stage):
-        choice_model_type = self.cfg.get(f"{self.stage_name}_config")
+        choice_model_type, choice_name = self.get_stage_config_choice()
         cmds_fn = {
             "convert": {
                 "gpt3": self._get_gpt_conversion_cmds,
