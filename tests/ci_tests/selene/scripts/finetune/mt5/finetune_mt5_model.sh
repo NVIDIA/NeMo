@@ -32,4 +32,4 @@ HYDRA_FULL_ERROR=1 BIGNLP_CI=1 python3 main.py \
     fine_tuning.model.data.train_ds.micro_batch_size=${MICRO_BATH_SIZE} \
     fine_tuning.model.data.validation_ds.micro_batch_size=${MICRO_BATH_SIZE} \
     fine_tuning.model.data.test_ds.micro_batch_size=${MICRO_BATH_SIZE} \
-    "${params[@]}"
+    "${params[@]}" ${ADDITIONAL_PARAMS}

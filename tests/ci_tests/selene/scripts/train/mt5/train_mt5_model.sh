@@ -29,4 +29,4 @@ HYDRA_FULL_ERROR=1 BIGNLP_CI=1 python3 main.py \
     training.trainer.max_steps=${MAX_STEPS} \
     training.model.tensor_model_parallel_size=${TP_SIZE} \
     training.model.pipeline_model_parallel_size=${PP_SIZE} \
-    "${params[@]}"
+    "${params[@]}" ${ADDITIONAL_PARAMS}

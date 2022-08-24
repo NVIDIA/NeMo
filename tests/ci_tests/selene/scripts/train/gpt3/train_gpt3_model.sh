@@ -34,4 +34,4 @@ HYDRA_FULL_ERROR=1 BIGNLP_CI=1 python3 main.py \
     training.model.tensor_model_parallel_size=${TP_SIZE} \
     training.model.pipeline_model_parallel_size=${PP_SIZE} \
     training.model.data.data_prefix=${DATA_PREFIX} \
-    "${params[@]}"
+    "${params[@]}" ${ADDITIONAL_PARAMS}

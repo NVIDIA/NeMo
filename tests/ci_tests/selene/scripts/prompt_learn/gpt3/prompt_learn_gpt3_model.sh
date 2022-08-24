@@ -38,4 +38,4 @@ HYDRA_FULL_ERROR=1 BIGNLP_CI=1 python3 main.py \
     prompt_learning.model.language_model_path=${LANGUAGE_MODEL_PATH}\
     prompt_learning.model.tensor_model_parallel_size=${TP_SIZE} \
     prompt_learning.model.pipeline_model_parallel_size=${PP_SIZE} \
-     "${params[@]}"
+     "${params[@]}" ${ADDITIONAL_PARAMS}

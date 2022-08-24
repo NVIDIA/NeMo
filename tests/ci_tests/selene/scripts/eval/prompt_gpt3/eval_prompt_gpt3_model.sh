@@ -22,4 +22,4 @@ HYDRA_FULL_ERROR=1 BIGNLP_CI=1 python3 main.py \
     evaluation.model.nemo_model=${BASE_RESULTS_DIR}/${PROMPT_LEARN_MODEL_DIR}/results/megatron_gpt_prompt.nemo \
     evaluation.model.tensor_model_parallel_size=${TP_SIZE} \
     evaluation.model.pipeline_model_parallel_size=${PP_SIZE} \
-    "${params[@]}"
+    "${params[@]}" ${ADDITIONAL_PARAMS}
