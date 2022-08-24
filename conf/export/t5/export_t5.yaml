@@ -2,6 +2,7 @@ run:
   name: export_${.model_train_name}
   time_limit: "2:00:00"
   model_train_name: "t5_220m"
+  dependency: "singleton"
   task_name: "mnli"
   fine_tuning_results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
   config_summary: tp${export.model.tensor_model_parallel_size}_pp${export.triton_deployment.pipeline_model_parallel_size}_${export.model.weight_data_type}_${export.triton_deployment.data_type}
