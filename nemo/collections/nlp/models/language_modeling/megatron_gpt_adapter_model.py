@@ -36,7 +36,14 @@ from nemo.utils import logging
 
 class MegatronGPTAdapterLearningModel(MegatronGPTPromptLearningModel):
     """
-    MegatronGPTAdapterLearningModel is a model that combines a backbone model (GPTModel) with a adapters.
+    MegatronGPTAdapterLearningModel is a model that combines a base model (GPTModel) with a adapters.
+    This class only supports the canonical Adapter training described in Houlsby et al. (https://arxiv.org/pdf/1902.00751.pdf)
+
+    Two adapter's are inserted into each Transformer layer in the base GPT Model.
+
+    It is assumed that these set of adapters will then be trained for a specific task.
+    Once trained, the adapter weights will be saved and can be re-loaded 
+    and infused into the same GPT Model for inference. 
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
@@ -89,7 +96,6 @@ class MegatronGPTAdapterLearningModel(MegatronGPTPromptLearningModel):
         set_inference_key_value_memory=False,
         inference_max_sequence_len=None,
     ):
-        # Call forward on GPT model with preprocessed embeddings
         if self.autocast_dtype == torch.float32:
             output = self.frozen_model.model(
                 input_ids=input_ids,
@@ -164,6 +170,11 @@ class MegatronGPTAdapterLearningModel(MegatronGPTPromptLearningModel):
         return fwd_output_only_func
 
     def state_dict(self, destination=None, prefix=None, keep_vars=False):
+        """
+        Creates a state_dict using only the adapter parameters.
+        This ensures that this wrapper class will only checkpoint the adapter
+        weights and not the rest of the base GPT Model.
+        """
         state_dict_ = {}
         for name, module in self.frozen_model.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin):
@@ -176,6 +187,10 @@ class MegatronGPTAdapterLearningModel(MegatronGPTPromptLearningModel):
         return state_dict_
 
     def load_state_dict(self, state_dict, strict: bool = True):
+        """
+        Loads a state_dict expecting the state_dict to contain key,values 
+        only for the adapter parameters.
+        """
         for name, module in self.frozen_model.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin):
                 for adapter_key in self.adapter_name_keys:
@@ -194,14 +209,12 @@ class MegatronGPTAdapterLearningModel(MegatronGPTPromptLearningModel):
         to be passed around in pipeline parallel models. The prompt-encoder 
         and/or prompt table will use the learning rate set by the user. 
         """
-        # Freeze frozen model
-
-        self.frozen_model.freeze()
+        self.frozen_model.freeze()  # Freeze the entire model
         param_groups = {'params': [p for p in self.frozen_model.parameters()]}
         for _, module in self.frozen_model.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin):
                 module.set_enabled_adapters(enabled=True)
-                module.unfreeze_enabled_adapters()
+                module.unfreeze_enabled_adapters()  # selectively unfreeze the adapter modules.
         self._optimizer_param_groups = [param_groups]
         logging.info(f'Optimizer groups set:\n{self.frozen_model.summarize()}')
 

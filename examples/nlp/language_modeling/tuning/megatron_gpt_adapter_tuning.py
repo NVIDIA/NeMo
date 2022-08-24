@@ -31,6 +31,29 @@ from nemo.utils import logging
 from nemo.utils.exp_manager import StatelessTimer, exp_manager
 
 
+"""
+This is the script to train an Adapter infused GPT Model for text generation.
+A base GPT Model is required as a starting point. This script will then insert
+Adapters into each Transformer layer and will train/update only these adapters
+during training. The base GPT Model weights will remain frozen.
+
+During training this script will only save the newly trained Adapter weights
+in checkpoints. At the end of training a .nemo file of Adapter weights will 
+be saved.
+
+Usage:
+    Assuming the base model is a 125m GPT Model, with TP=1, PP=1:
+    a. run a training run for a base gpt nemo file:
+        python megatron_gpt_adapter_tuning.py \
+            "model.data.train_ds=[PATH TO TRAINING JSONL FILE]",
+            "model.data.validation_ds=[PATH TO VALIDATION JSONL FILE]",
+            model.language_model_path="PATH TO BASE GPT MODEL .nemo FILE"
+            name="NAME OF TRAINING RUN"
+            exp_manager.exp_dir="DIR TO SAVE CHECKPOINTS and .nemo FILE",
+            trainer.max_epochs=2
+"""
+
+
 @hydra_runner(config_path="conf", config_name="megatron_gpt_adapter_tuning_config")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")

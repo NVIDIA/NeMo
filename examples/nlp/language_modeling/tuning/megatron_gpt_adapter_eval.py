@@ -25,154 +25,16 @@ from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.core.config import hydra_runner
 
 """
-This is the script to run GPT text generation.
+This is the script to run an Adapter Tuned GPT Model for text generation.
 
 Usage:
     Assume the model has TP=1, PP=1 in the following use cases.
-    a. run greedy inference from a nemo file:
-        python megatron_gpt_eval.py \
-            gpt_model_file=PATH_TO_MODEL \
-            inference.greedy=True \
-            inference.add_BOS=True \
-            trainer.devices=1 \
-            trainer.num_nodes=1 \
-            tensor_model_parallel_size=1 \
-            pipeline_model_parallel_size=1 \
-            prompts=[prompt1,prompt2]
-
-    b. run greedy inference from a PTL checkpoint file:
-        python megatron_gpt_eval.py \
-            checkpoint_dir=PATH_TO_CHECKPOINT_FILE \
-            checkpoint_name=CHECKPOINT_FILE_NAME \
-            hparams_file=HPARAMS_FILE \
-            inference.greedy=True \
-            inference.add_BOS=True \
-            trainer.devices=1 \
-            trainer.num_nodes=1 \
-            tensor_model_parallel_size=1 \
-            pipeline_model_parallel_size=1 \
-            prompts=[prompt1,prompt2]
-
-    c. run top_p inference from a nemo file:
-        python megatron_gpt_eval.py \
-            gpt_model_file=PATH_TO_MODEL \
-            inference.greedy=False \
-            inference.top_k=0 \
-            inference.top_p=0.9 \
-            inference.repetition_penalty=1.2 \
-            inference.add_BOS=True \
-            trainer.devices=1 \
-            trainer.num_nodes=1 \
-            tensor_model_parallel_size=1 \
-            pipeline_model_parallel_size=1 \
-            prompts=[prompt1,prompt2]
-
-    d. If you don't need to generate tokens and need model to compute logprobs:
-         python megatron_gpt_eval.py \
-            gpt_model_file=PATH_TO_MODEL \
-            inference.compute_logprob=True \
-            trainer.devices=1 \
-            trainer.num_nodes=1 \
-            tensor_model_parallel_size=1 \
-            pipeline_model_parallel_size=1 \
-            prompts=[text to get logprob]
-
-    e. Launch the inference server
-         python megatron_gpt_eval.py \
-            gpt_model_file=PATH_TO_MODEL \
-            trainer.devices=1 \
-            trainer.num_nodes=1 \
-            tensor_model_parallel_size=1 \
-            pipeline_model_parallel_size=1 \
-            server=True
-        
-        To send a request to the server, here is one example code:
-        ```python
-        import json
-        import requests
-
-        batch_size = 8
-        port_num = 5555
-        headers = {"Content-Type": "application/json"}
-
-
-        def request_data(data):
-            resp = requests.put('http://localhost:{}/generate'.format(port_num),
-                                data=json.dumps(data),
-                                headers=headers)
-            sentences = resp.json()['sentences']
-            return sentences
-
-
-        data = {
-            "sentences": [""] * batch_size,
-            "tokens_to_generate": 300,
-            "temperature": 1.0,
-            "add_BOS": True,
-            "top_k": 0,
-            "top_p": 0.9,
-            "greedy": False,
-            "all_probs": False,
-            "repetition_penalty": 1.2,
-            "min_tokens_to_generate": 2,
-        }
-
-        sentences = request_data(data)
-        ```
-
-    f. run greedy inference from a p-tuned/prompt-tuned model's nemo file:
-        python megatron_gpt_eval.py \
-            virtual_prompt_model_file=PATH_TO_NEMO_PROMPT_LEARNING_MODEL_FILE \
-            gpt_model_file=PATH_TO_FROZEN_GPT_MODEL_FILE \
-            inference.greedy=True \
-            inference.add_BOS=False \
-            trainer.devices=1 \
-            trainer.num_nodes=1 \
-            tensor_model_parallel_size=1 \
-            pipeline_model_parallel_size=1 \
-            prompts=[prompt1,prompt2]
-
-        virtual_prompt_model_file should be a path to a .nemo file saved after p-tuning/prompt tuning and model file
-        is still the path to the gpt model's .nemo file.         
-
-        prompts in this case should be a list of .json or .jsonl files containing json objects similar to the ones 
-        used during prompt learning. They should have keys that match the fields specified in the prompt template.
-        Fields can be dropped from the prompt dict and their corresponding section of the prompt template will 
-        be automatically removed. 
-
-        For example, say the prompt template during p-tuning/prompt-tuning looked like:
-
-        '<|VIRTUAL_PROMPT_0|> Context: {context} Question: {question} Answer: {answer}'
-
-        but you don't want to include the answer field during inference. Just don't 
-        include the answer field in the prompt dict like below:
-
-        {"taskname": "squad", "context": "some paragraph", "question": "question related to paragraph"}
-        {"taskname": "squad", "context": "another paragraph", "question": "a different question related to paragraph"}
-
-        And the dataset class will automatically format your input to have the form:
-
-        [
-            '<|VIRTUAL_PROMPT_0|> Context: some paragraph Question: question related to paragraph Answer:',
-            '<|VIRTUAL_PROMPT_0|> Context: another paragraph Question: a different question related to paragraph Answer:'
-        ]
-
-        Similarly for other senarios, just add virtual_prompt_model_file=PATH_TO_NEMO_PROMPT_LEARNING_MODEL_FILE if you're using a 
-        p-tuned/prompt-tuned model. 
-
-        g. Run Greedy Inference from an adapter tuned nemo model:
-        Note: before you can run inference from an adapter tuned model you must first train it. The training script is `examples/nlp/language_modeling/tuning/megatron_gpt_adapter_tuning.py`:
-
+    a. run greedy inference using a base gpt nemo file, and an adapter nemo file:
         python megatron_gpt_adapter_eval.py \
-            adapter_model_file=<PATH_.nemo_FILE_GENERATED_AT_END_OF_TRAINING> \
-            gpt_model_file=<PATH_TO_.nemo_FILE_WITH_PRETRAINED_GPT_MODEL> \
-            inference.greedy=True \
-            inference.add_BOS=False \
-            trainer.devices=1 \
-            trainer.num_nodes=1 \
-            tensor_model_parallel_size=1 \
-            pipeline_model_parallel_size=1 \
-            prompts=["<PATH_TO_.jsonl_FILE_TO_EVALUATE>"]
+            gpt_model_file=PATH TO GPT MODEL NEMO FILE \
+            adapter_model_file=PATH TO ADAPTER MODEL NEMO FILE (generated by training script: ./megatron_gpt_adapter_tuning.py) \
+            data_paths=[PATH TO A JSONL FILE CONTAINING PROMPTS], \
+            output_file=PATH TO OUTPUT FILE TO DUMP PREDICTIONS
 """
 
 if not torch.cuda.is_available():
@@ -185,7 +47,7 @@ def main(cfg) -> None:
     # trainer required for restoring model parallel models
     trainer = Trainer(strategy=NLPDDPStrategy(), **cfg.trainer)
 
-    # Load prompt tuned model, virtual_prompt_model_file must be provided in config
+    # Load an adapter model,  must be provided in config
     if cfg.get("adapter_model_file", None) is not None:
         # Update frozen GPT model path in case it has changed
         adapter_tuning_cfg = MegatronGPTAdapterLearningModel.restore_from(
@@ -202,7 +64,7 @@ def main(cfg) -> None:
     # Or load regular GPT model
     else:
         raise NotImplementedError(
-            "Only inference from prefix tuned model is supported, for general inerference from a Megatron GPT model, refer to ../megatron_gpt_eval.py"
+            "This script is meant for inference from an Adapter Tuned GPT Model, for inference from a Megatron GPT model, refer to ../megatron_gpt_eval.py"
         )
 
     model.freeze()
