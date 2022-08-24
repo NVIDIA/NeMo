@@ -640,7 +640,6 @@ class ParallelAttention(MegatronModule):
             attention_dropout=attention_dropout,
             sequence_parallel=sequence_parallel,
         )
-        self.checkpoint_core_attention = activations_checkpoint_granularity == 'selective'
 
         # Output.
         self.dense = tensor_parallel.RowParallelLinear(
@@ -768,6 +767,7 @@ class ParallelAttention(MegatronModule):
         inference_max_sequence_len=None,
         rotary_pos_emb=None,  # rotary positional embedding
         relative_position_bias=None,
+        checkpoint_core_attention=False,
     ):
         # hidden_states: [sq, b, h]
 
@@ -875,7 +875,7 @@ class ParallelAttention(MegatronModule):
         if get_key_value:
             present = (key_layer, value_layer)
 
-        if self.checkpoint_core_attention:
+        if checkpoint_core_attention:
             context_layer = self._checkpointed_attention_forward(
                 query_layer,
                 key_layer,
@@ -1249,7 +1249,6 @@ class ParallelTransformerLayer_(MegatronModule):
                 megatron_legacy=megatron_legacy,
                 bias=bias,
                 headscale=headscale,
-                activations_checkpoint_granularity=activations_checkpoint_granularity,
                 sequence_parallel=sequence_parallel,
                 gradient_accumulation_fusion=gradient_accumulation_fusion,
             )
@@ -1381,6 +1380,7 @@ class ParallelTransformerLayer_(MegatronModule):
         rotary_pos_emb=None,  # list of positional embedding tensors, first one self attention, second one and third one are for cross attention (q, k)
         self_attention_relative_position_bias=None,
         cross_attention_relative_position_bias=None,
+        checkpoint_core_attention=False
     ):
         # Self attention.
         if rotary_pos_emb is not None:
@@ -1412,6 +1412,7 @@ class ParallelTransformerLayer_(MegatronModule):
                 inference_max_sequence_len=inference_max_sequence_len,
                 rotary_pos_emb=self_attention_pos_emb,
                 relative_position_bias=self_attention_relative_position_bias,
+                checkpoint_core_attention=checkpoint_core_attention,
             )
 
             if get_key_value:
@@ -1469,6 +1470,7 @@ class ParallelTransformerLayer_(MegatronModule):
                     rotary_pos_emb=cross_attention_pos_emb,
                     set_inference_key_value_memory=set_inference_key_value_memory,
                     inference_max_sequence_len=inference_max_sequence_len,
+                    checkpoint_core_attention=checkpoint_core_attention,
                 )
             else:
                 attention_output, attention_bias = self.inter_attention(
@@ -1477,6 +1479,7 @@ class ParallelTransformerLayer_(MegatronModule):
                     encoder_output=encoder_output,
                     rotary_pos_emb=cross_attention_pos_emb,
                     relative_position_bias=cross_attention_relative_position_bias,
+                    checkpoint_core_attention=checkpoint_core_attention,
                 )
 
             # If normformer, apply norm on the output of the self attention.
@@ -1612,6 +1615,7 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
         inference_max_sequence_len=None,
         self_attention_relative_position_bias=None,
         cross_attention_relative_position_bias=None,
+        checkpoint_core_attention=False,
     ):
         if self.dtype == torch.float32:
             return super().forward(
@@ -1626,6 +1630,7 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
                 rotary_pos_emb,
                 self_attention_relative_position_bias,
                 cross_attention_relative_position_bias,
+                checkpoint_core_attention,
             )
         with torch.autocast(device_type="cuda", dtype=self.dtype):
             return super().forward(
@@ -1640,6 +1645,7 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
                 rotary_pos_emb,
                 self_attention_relative_position_bias,
                 cross_attention_relative_position_bias,
+                checkpoint_core_attention,
             )
 
 
@@ -1821,13 +1827,22 @@ class ParallelTransformer(MegatronModule):
 
         if self.activations_checkpoint_granularity:
             if self.activations_checkpoint_granularity == 'selective':
-                if self.activations_checkpoint_num_layers:
-                    raise ValueError(
-                        f'When using selective activation checkpointing, activations_checkpoint_num_layers should be None, got: {activations_checkpoint_num_layers}.'
+                if self.activations_checkpoint_method == 'uniform':
+                    logging.info(
+                        (
+                            f'Using uniform activation checkpointing with granularity selective forces all layers to use checkpointing.'
+                        )
                     )
-                if self.activations_checkpoint_method:
+                elif self.activations_checkpoint_method == 'block':
+                    logging.info(
+                        (
+                            f'Using block activation checkpointing requires activations_checkpoint_num_layers to be set.'
+                            f'Got: {self.activations_checkpoint_num_layers}. Setting to 1 by default.'
+                        )
+                    )
+                else:
                     raise ValueError(
-                        f'When using selective activation checkpointing, activations_checkpoint_method should be None, got: {activations_checkpoint_method}.'
+                        f'activations_checkpoint_method should be "uniform" or "block" when using granularity selective.'
                     )
             elif self.activations_checkpoint_granularity == 'full':
                 if self.activations_checkpoint_method in ['uniform', 'block']:
@@ -2041,6 +2056,7 @@ class ParallelTransformer(MegatronModule):
         rotary_pos_emb,
         self_attention_relative_position_bias,
         cross_attention_relative_position_bias,
+        checkpoint_activations_all_layers,
     ):
         """Forward method with activation checkpointing."""
 
@@ -2096,14 +2112,10 @@ class ParallelTransformer(MegatronModule):
         # Make sure memory is freed.
         tensor_parallel.reset_checkpointed_activations_memory_buffer()
 
-        if self.activations_checkpoint_method == 'uniform':
-            # Uniformly divide the total number of Transformer layers and checkpoint
-            # the input activation of each divided chunk.
-            # A method to further reduce memory usage reducing checkpoints.
-            l = 0
-            while l < self.num_layers:
+        if checkpoint_activations_all_layers:
+            for l in range(self.num_layers):
                 hidden_states = tensor_parallel.checkpoint(
-                    custom(l, l + self.activations_checkpoint_num_layers),
+                    custom(l, l + 1),
                     False,
                     hidden_states,
                     attention_mask,
@@ -2113,15 +2125,15 @@ class ParallelTransformer(MegatronModule):
                     self_attention_relative_position_bias,
                     cross_attention_relative_position_bias,
                 )
-                l += self.activations_checkpoint_num_layers
-        elif self.activations_checkpoint_method == 'block':
-            # Checkpoint the input activation of only a set number of individual
-            # Transformer layers and skip the rest.
-            # A method fully use the device memory removing redundant re-computation.
-            for l in range(self.num_layers):
-                if l < self.activations_checkpoint_num_layers:
+        else:
+            if self.activations_checkpoint_method == 'uniform':
+                # Uniformly divide the total number of Transformer layers and checkpoint
+                # the input activation of each divided chunk.
+                # A method to further reduce memory usage reducing checkpoints.
+                l = 0
+                while l < self.num_layers:
                     hidden_states = tensor_parallel.checkpoint(
-                        custom(l, l + 1),
+                        custom(l, l + self.activations_checkpoint_num_layers),
                         False,
                         hidden_states,
                         attention_mask,
@@ -2131,18 +2143,42 @@ class ParallelTransformer(MegatronModule):
                         self_attention_relative_position_bias,
                         cross_attention_relative_position_bias,
                     )
-                else:
-                    hidden_states = custom(l, l + 1)(
-                        hidden_states,
-                        attention_mask,
-                        encoder_output,
-                        enc_dec_attn_mask,
-                        rotary_pos_emb,
-                        self_attention_relative_position_bias,
-                        cross_attention_relative_position_bias,
+                    l += self.activations_checkpoint_num_layers
+            elif self.activations_checkpoint_method == 'block':
+                # Decrease the number of layers to checkpoint at later pipeline stages
+                activations_checkpoint_num_layers = self.activations_checkpoint_num_layers
+                if activations_checkpoint_layers_per_pipeline is not None:
+                    activations_checkpoint_num_layers -= (
+                        int(parallel_state.get_pipeline_model_parallel_rank() * activations_checkpoint_layers_per_pipeline)
                     )
-        else:
-            raise ValueError("Invalid activation checkpoint method.")
+                # Checkpoint the input activation of only a set number of individual
+                # Transformer layers and skip the rest.
+                # A method fully use the device memory removing redundant re-computation.
+                for l in range(self.num_layers):
+                    if l < activations_checkpoint_num_layers:
+                        hidden_states = tensor_parallel.checkpoint(
+                            custom(l, l + 1),
+                            False,
+                            hidden_states,
+                            attention_mask,
+                            encoder_output,
+                            enc_dec_attn_mask,
+                            rotary_pos_emb,
+                            self_attention_relative_position_bias,
+                            cross_attention_relative_position_bias,
+                        )
+                    else:
+                        hidden_states = custom(l, l + 1)(
+                            hidden_states,
+                            attention_mask,
+                            encoder_output,
+                            enc_dec_attn_mask,
+                            rotary_pos_emb,
+                            self_attention_relative_position_bias,
+                            cross_attention_relative_position_bias,
+                        )
+            else:
+                raise ValueError("Invalid activation checkpoint method.")
 
         return hidden_states
 
@@ -2170,6 +2206,7 @@ class ParallelTransformer(MegatronModule):
         retrieved_emb=None,  # tensor of retrieved embedding of shape [b, k, r, n, d]
         self_attention_relative_position_bias=None,
         cross_attention_relative_position_bias=None,
+        checkpoint_activations_all_layers=None,
     ):
         # Checks.
         if inference_max_sequence_len:
@@ -2216,8 +2253,8 @@ class ParallelTransformer(MegatronModule):
                     rotary_pos_emb,
                     self_attention_relative_position_bias,
                     cross_attention_relative_position_bias,
+                    checkpoint_activations_all_layers,
                 )
-
             else:
                 if get_key_value:
                     presents = []
@@ -2233,6 +2270,23 @@ class ParallelTransformer(MegatronModule):
                         if layer_past is not None:
                             past = layer_past[index]
 
+                        # Checkpoint activation based on pipeline micro-batch scheduling:
+                        # Checkpointing decision is made in the scheduler to checkpoint a partial
+                        # number of Transformer layers in a micro-batches.
+                        if self.activations_checkpoint_granularity == 'selective':
+                            if checkpoint_activations_all_layers == True or self.activations_checkpoint_method == 'uniform':
+                                checkpoint_core_attention = True
+                            elif self.activations_checkpoint_method == 'block':
+                                activations_checkpoint_num_layers = self.activations_checkpoint_num_layers
+                                # Decrease the number of layers to checkpoint at later pipeline stages
+                                if activations_checkpoint_layers_per_pipeline is not None:
+                                    activations_checkpoint_num_layers -= (
+                                        int(parallel_state.get_pipeline_model_parallel_rank() * activations_checkpoint_layers_per_pipeline)
+                                    )
+                                checkpoint_core_attention = index < activations_checkpoint_num_layers
+                        else:
+                            checkpoint_core_attention = False
+
                         if self.transformer_engine:
                             # TODO: inference with TE
                             # how to do max_batch_size?
@@ -2245,7 +2299,7 @@ class ParallelTransformer(MegatronModule):
                                 enc_dec_attn_mask=enc_dec_attn_mask,
                                 inference_params=inference_params,
                                 is_first_microbatch=self.is_first_microbatch,
-                                checkpoint_core_attention=self.checkpoint_core_attention,
+                                checkpoint_core_attention=checkpoint_core_attention,
                             )
 
                         else:
@@ -2261,6 +2315,7 @@ class ParallelTransformer(MegatronModule):
                                 rotary_pos_emb=rotary_pos_emb,
                                 self_attention_relative_position_bias=self_attention_relative_position_bias,
                                 cross_attention_relative_position_bias=cross_attention_relative_position_bias,
+                                checkpoint_core_attention=checkpoint_core_attention,
                             )
 
         # Skip counter update for eval and activation checkpointing
