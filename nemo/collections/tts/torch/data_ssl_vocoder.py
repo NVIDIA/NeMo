@@ -97,8 +97,8 @@ class SSLVocoderDataset(Dataset):
                     file_info = {
                         "audio_filepath": item["audio_filepath"],
                         "duration": item["duration"] if "duration" in item else None,
-                        "speaker": item["speaker"],
-                        "dataset_id": item["dataset_id"] if "dataset_id" in item else None,
+                        "speaker": item["speaker"] if "speaker" in item else 0,
+                        "dataset_id": item["dataset_id"] if "dataset_id" in item else 0,
                     }
 
                     data.append(file_info)
@@ -622,16 +622,10 @@ class SSLVocoderDataset(Dataset):
         rel_audio_path = Path(sample["audio_filepath"]).relative_to(self.base_data_dir).with_suffix("")
         rel_audio_path_as_text_id = str(rel_audio_path).replace("/", "_")
         speaker = torch.tensor(sample["speaker"]).long()
+        dataset_id = torch.tensor(sample["dataset_id"]).long()
+        
         audio_ssl, audio_ssl_length, audio, audio_length = self._get_wav_from_filepath(sample["audio_filepath"])
-
-        dataset_id = None
-        if sample["dataset_id"] is not None:
-            dataset_id = torch.tensor(sample["dataset_id"]).long()
-
-        # print("audio ssl", audio_ssl.shape)
-        # print("audio", audio.shape)
-        # print("audio ssl length", audio_ssl_length)
-        # print("audio length", audio_length)
+        
         pitch_contour = None
         if self.pitch_conditioning:
             pitch_contour = self.get_pitch_contour(audio_ssl[:-1], rel_audio_path_as_text_id)
