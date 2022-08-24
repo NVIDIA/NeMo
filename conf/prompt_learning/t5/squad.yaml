@@ -50,6 +50,7 @@ model:
   virtual_prompt_style: "p-tuning" # one of 'prompt-tuning', 'p-tuning', or 'inference'
   tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1
+  pipeline_model_parallel_split_rank: ${divide_floor:${.pipeline_model_parallel_size}, 2}
   model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
   global_batch_size: 128
   micro_batch_size: 16
