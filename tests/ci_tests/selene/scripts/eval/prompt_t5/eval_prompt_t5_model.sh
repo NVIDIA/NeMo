@@ -20,7 +20,7 @@ HYDRA_FULL_ERROR=1 BIGNLP_CI=1 python3 main.py \
     evaluation.run.model_train_name=${RUN_NAME} \
     evaluation.run.results_dir=${BASE_RESULTS_DIR}/${RUN_NAME} \
     evaluation.virtual_prompt_model_file=${BASE_RESULTS_DIR}/${PROMPT_LEARN_MODEL_DIR}/results/megatron_t5_prompt.nemo \
-    evaluation.pretrained_language_model_file=${BASE_RESULTS_DIR}/${CONVERSION_MODEL_DIR}/results/megatron_t5.nemo \
+    evaluation.pretrained_language_model_file=${BASE_RESULTS_DIR}/${CONVERT_MODEL_DIR}/results/megatron_t5.nemo \
     evaluation.tensor_model_parallel_size=${TP_SIZE} \
     evaluation.pipeline_model_parallel_size=${PP_SIZE} \
     "${params[@]}" ${ADDITIONAL_PARAMS}
