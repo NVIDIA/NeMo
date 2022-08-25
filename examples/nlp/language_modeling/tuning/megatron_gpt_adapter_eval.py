@@ -108,7 +108,7 @@ def main(cfg) -> None:
         trainer.strategy.setup_environment()
 
     _, dataloader = model.build_virtual_prompt_dataset(
-        dataset_paths=cfg.data_paths,
+        data=cfg.data_paths,
         batch_size=cfg.get("batch_size", 1),
         max_seq_length=max_input_length,
         min_seq_length=model.cfg.data.get('min_seq_length', 1),
