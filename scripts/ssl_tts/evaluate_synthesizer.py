@@ -234,6 +234,38 @@ def visualize_embeddings(embedding_dict_np, title="TSNE", out_dir=".", out_file=
     
     plt.savefig(os.path.join(out_dir, out_file))
 
+
+def swap_speakers(fastpitch_model, ssl_model, wav_featurizer, speaker_stats, speaker_wise_paths, out_dir, spk1, spk2, pitch_conditioning=True, compute_pitch=False, compute_duration=False, use_unique_tokens=False, n_audio=1, n_speakers=10):
+    """
+    source speaker is spk1
+    target speaker is spk2
+    """
+    swapped_wav_paths = []
+    print("swapping speakers:", spk1, "and", spk2)
+    for _idx in range(len(speaker_wise_paths[spk1])):
+        wav_name = "{}_{}_{}.wav".format(spk1, spk2, _idx)
+        wav_name_swapped = "swapped_" + wav_name
+        wav_path_swapped = os.path.join(out_dir, wav_name_swapped)
+
+        if os.path.exists(wav_path_swapped):
+            swapped_wav_paths.append(wav_path_swapped)
+            continue
+
+        wav_path1 = speaker_wise_paths[spk1][_idx]
+        speaker_embedding2 =speaker_stats[spk2]["speaker_embedding"]
+    
+        content_embedding1, _, duration1 = get_ssl_features_disentsngled(ssl_model, wav_featurizer, wav_path1, emb_type="embedding_and_probs", use_unique_tokens=use_unique_tokens)
+    
+        pitch_contour1 = get_pitch_contour( load_wav(wav_path1, wav_featurizer), pitch_mean=speaker_stats[spk1]["pitch_mean"], pitch_std=speaker_stats[spk1]["pitch_std"] )[None]
+    
+        wav_generated = fastpitch_model.synthesize_wav(content_embedding1, speaker_embedding2, pitch_contour=pitch_contour1, compute_pitch=compute_pitch,compute_duration=compute_duration, durs_gt=duration1)
+        wav_generated = wav_generated[0][0]
+        
+        soundfile.write(wav_path_swapped, wav_generated , 22050)
+        swapped_wav_paths.append(wav_path_swapped)
+    
+    return swapped_wav_paths
+
 def reconstruct_audio(fastpitch_model, ssl_model, wav_featurizer, speaker_stats, speaker_wise_paths, out_dir, pitch_conditioning=True, compute_pitch=False, compute_duration=False, use_unique_tokens=False):
     spk_count = 0
     reconstructed_file_paths = {}
@@ -276,14 +308,16 @@ def reconstruct_audio(fastpitch_model, ssl_model, wav_featurizer, speaker_stats,
 
 def main():
     parser = argparse.ArgumentParser(description='Evaluate the model')
-    parser.add_argument('--ssl_model_ckpt_path', type=str, default="/home/shehzeenh/Conformer-SSL/3253979_/Conformer-SSL/checkpoints/Conformer22050_Epoch37.ckpt")
-    parser.add_argument('--hifi_ckpt_path', type=str, default="/home/shehzeenh/HiFiModel/hifigan_libritts/HiFiLibriEpoch334.ckpt")
-    parser.add_argument('--fastpitch_ckpt_path', type=str, default="/home/shehzeenh/FastPitchSSL/FastPitchSSL_epoch104_3267161.ckpt")
-    parser.add_argument('--manifest_path', type=str, default="/home/shehzeenh/librits_local_dev_formatted.json")
-    parser.add_argument('--train_manifest_path', type=str, default="/home/shehzeenh/libritts_train_formatted_local.json")
-    parser.add_argument('--pitch_stats_json', type=str, default="/home/shehzeenh/SpeakerStats/libri_speaker_stats.json")
-    parser.add_argument('--out_dir', type=str, default="/home/shehzeenh/SSL_Evaluations/")
+    parser.add_argument('--ssl_model_ckpt_path', type=str, default="/home/pneekhara/NeMo2022/SSLCheckPoints/SSLConformer22050_Epoch37.ckpt")
+    parser.add_argument('--hifi_ckpt_path', type=str, default="/home/pneekhara/NeMo2022/HiFiCKPTS/hifigan_libritts/HiFiLibriEpoch334.ckpt")
+    parser.add_argument('--fastpitch_ckpt_path', type=str, default="/home/pneekhara/NeMo2022/tensorboards/FastPitch/ConstLR_PitchConditioningWithEncEpoch37/Epoch264.ckpt")
+    parser.add_argument('--manifest_path', type=str, default="/home/pneekhara/NeMo2022/libri_train_formatted.json")
+    parser.add_argument('--train_manifest_path', type=str, default="/home/pneekhara/NeMo2022/libri_train_formatted.json")
+    parser.add_argument('--pitch_stats_json', type=str, default="/home/pneekhara/NeMo2022/libri_speaker_stats.json")
+    parser.add_argument('--out_dir', type=str, default="/home/pneekhara/NeMo2022/Evaluations/testing")
+    parser.add_argument('--evaluation_type', type=str, default="swapping")
     parser.add_argument('--device', type=str, default='cpu')
+    parser.add_argument('--n_speakers', type=int, default=10)
     parser.add_argument('--min_samples_per_spk', type=int, default=2)
     parser.add_argument('--max_samples_per_spk', type=int, default=10)
     parser.add_argument('--pitch_conditioning', type=int, default=1)
@@ -325,9 +359,13 @@ def main():
             speaker_wise_audio_paths[record['speaker']].append(record['audio_filepath'])
         
     filtered_paths = {}
+    spk_count = 0
     for key in speaker_wise_audio_paths:
         if len(speaker_wise_audio_paths[key]) >= args.min_samples_per_spk:
             filtered_paths[key] = speaker_wise_audio_paths[key][:args.max_samples_per_spk]
+            spk_count += 1
+            if spk_count >= args.n_speakers:
+                break
     
 
     # Loading training samples for TSNE plots
@@ -352,18 +390,27 @@ def main():
     pitch_conditioning = args.pitch_conditioning == 1
     use_unique_tokens = args.use_unique_tokens == 1
 
-    reconstructed_file_paths = reconstruct_audio(fastpitch_model, ssl_model, wav_featurizer, speaker_stats, filtered_paths, out_dir, pitch_conditioning=pitch_conditioning, compute_pitch=compute_pitch, compute_duration=compute_duration, use_unique_tokens=use_unique_tokens)
+    if args.evaluation_type == "reconstructed":
+        generated_file_paths = reconstruct_audio(fastpitch_model, ssl_model, wav_featurizer, speaker_stats, filtered_paths, out_dir, pitch_conditioning=pitch_conditioning, compute_pitch=compute_pitch, compute_duration=compute_duration, use_unique_tokens=use_unique_tokens)
+    elif args.evaluation_type == "swapping":
+        generated_file_paths = {}
+        speakers = list(filtered_paths.keys())
+        for tidx, target_speaker in enumerate(speakers):
+            source_speaker_idx = tidx + 1 if tidx + 1 < len(speakers) else 0
+            source_speaker = speakers[source_speaker_idx]
+            generated_file_paths[target_speaker] = swap_speakers(fastpitch_model, ssl_model, wav_featurizer, speaker_stats, filtered_paths, out_dir, source_speaker, target_speaker , pitch_conditioning=pitch_conditioning, compute_pitch=compute_pitch, compute_duration=compute_duration, use_unique_tokens=use_unique_tokens)
+
 
     speaker_embeddings = {}
-    for key in reconstructed_file_paths:
-        speaker_embeddings["reconstructed_{}".format(key)] = []
+    for key in generated_file_paths:
+        speaker_embeddings["generated_{}".format(key)] = []
         speaker_embeddings["original_{}".format(key)] = []
 
-        for fp in reconstructed_file_paths[key]:
+        for fp in generated_file_paths[key]:
             print("getting embedding for {}".format(fp))
             embedding = nemo_sv_model.get_embedding(fp)
             embedding = embedding.cpu().detach().numpy().flatten()
-            speaker_embeddings["reconstructed_{}".format(key)].append(embedding)
+            speaker_embeddings["generated_{}".format(key)].append(embedding)
         
         for fp in filtered_paths_train[key]:
             print("getting embedding for {}".format(fp))
