@@ -174,7 +174,12 @@ release_perf:
     # Follow output of the job
     - tail --pid="${PID}" -f "${SLURM_OUTPUT}" # Stream job output until it finishes.
     - echo "Finished job with name ${RUN_NAME}"
+    - export SLURM_NODELIST=$(./jobnodes.sh "${SLURM_JOBID}");    echo "SLURM_NODELIST='${SLURM_NODELIST}'"
+    - export SLURM_STATE=$(./jobstate.sh "${SLURM_JOBID}");       echo "SLURM_JOBID=${SLURM_JOBID} SLURM_STATE='${SLURM_STATE}'"
+    - export SLURM_WALLTIME=$(./jobtime.sh "${SLURM_JOBID}");     echo "SLURM_WALLTIME=${SLURM_WALLTIME} secs"
+    - export SLURM_EXITCODE=$(./jobexitcode.sh "${SLURM_JOBID}" || echo $?); echo "SLURM_EXITCODE='${SLURM_EXITCODE}'"
     - cd ${GIT_CLONE_PATH}
+
     # Run metrics collection
     - python3 tests/ci_tests/utils/convert_ci_metric_to_json.py $RESULTS_DIR $RUN_STAGE $RUN_MODEL
     # If you wan to be able to automatically add test results file then set the CREATE_TEST_DATA flag to be true.
@@ -198,7 +203,7 @@ release_perf:
           git commit -m "Adding the result file for $RUN_NAME"
           git push origin $CI_PIPELINE_ID
           echo "Created test file and pushed it"
-          exit 0
+          exit ${SLURM_EXITCODE}
         fi
     # Run Pytest
     - pip3 install pytest
@@ -207,6 +212,7 @@ release_perf:
     - if [[ "$RUN_STAGE" = "eval" && "$RUN_MODEL" == *"gpt3"* ]]; then TEST_FILE="test_gpt3_eval_pipeline.py"; fi
     - pytest tests/ci_tests/selene/pytest/${RUN_STAGE}/${TEST_FILE}
     - echo "Finished pytest job"
+    - exit ${SLURM_EXITCODE}
   rules:
     - if: $TEST_LEVEL =~ $TESTS_TO_RUN_ON_THIS_COMMIT || $CI_JOB_NAME =~ $TESTS_TO_RUN_ON_THIS_COMMIT || $CI_JOB_NAME =~ $TEST_REGEX_ON_THIS_COMMIT
       when: always

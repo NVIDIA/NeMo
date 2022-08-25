@@ -8,6 +8,6 @@ fi
 
 JOBID="$1"
 
-sacct -j "${JOBID}" --format State --parsable2 --noheader |& head -n 1
+sacct -j "${JOBID}" -n --format=exitcode | sort -r -u | head -1 | cut -f 1 -d":" | sed 's/ //g'
 
 exit ${PIPESTATUS[0]}
