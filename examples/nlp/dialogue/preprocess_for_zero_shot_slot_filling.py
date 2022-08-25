@@ -166,8 +166,7 @@ if __name__ == '__main__':
         help="the type of dataset",
     )
     args = parser.parse_args()
-
-    print(args)
+    
     if os.path.exists(args.preprocess_file_path):
         print('folder exist')
         train, train_slots, test, test_slots = read_data(args)
