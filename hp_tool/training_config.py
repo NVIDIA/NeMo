@@ -148,7 +148,7 @@ def _tp_pp_mbs_grid_gpt3_80gb(model_size_in_b, valid_pp):
         tp = [1, 2, 4, 8]
         pp = [x for x in valid_pp if x <= 4]
     elif 23.0 < model_size_in_b <= 45.0:
-        tp = [1, 2, 4, 8]
+        tp = [2, 4, 8]
         pp = [x for x in valid_pp if 1 <= x <= 4]
         mbs = [1, 2, 4, 8]
     elif 45.0 < model_size_in_b <= 95:
@@ -160,13 +160,13 @@ def _tp_pp_mbs_grid_gpt3_80gb(model_size_in_b, valid_pp):
         pp = [x for x in valid_pp if 1 <= x <= 16]
         mbs = [1, 2, 4, 8]
     elif 130.0 < model_size_in_b <= 195.0:
-        tp = [2, 4, 8]
+        tp = [4, 8]
         pp = [x for x in valid_pp if 1 <= x <= 16]
-        mbs = [1, 2, 4, 8]
+        mbs = [1, 2, 4]
     elif 195.0 < model_size_in_b <= 395.0:
         tp = [4, 8]
         pp = [x for x in valid_pp if 1 <= x <= 32]
-        mbs = [1, 2, 4, 8]
+        mbs = [1, 2, 4]
     elif 395.0 < model_size_in_b <= 790.0:
         tp = [4, 8]
         pp = [x for x in valid_pp if 2 <= x <= 100]
