@@ -62,7 +62,7 @@ class EMA(Callback):
         if pl_module.device.type != "cuda":
             raise MisconfigurationException("Apex EMA Callback only works with CUDA. Ensure to set accelerator='gpu'.")
         logging.info('Creating EMA weights copy.')
-        self._ema_model_weights = [p.clone() for p in pl_module.state_dict().values()]
+        self._ema_model_weights = [p.detach().clone() for p in pl_module.state_dict().values()]
         self._overflow_buf = torch.IntTensor([0]).to(pl_module.device)
 
     def apply_multi_tensor_ema(self, pl_module: "pl.LightningModule") -> None:
@@ -94,7 +94,7 @@ class EMA(Callback):
         self._cur_step = state_dict['cur_step']
 
     def replace_model_weights(self, pl_module: "pl.LightningModule") -> None:
-        self._weights_buffer = [p.detach().to('cpu').clone() for p in pl_module.state_dict().values()]
+        self._weights_buffer = [p.detach().clone().to('cpu') for p in pl_module.state_dict().values()]
         new_state_dict = {k: v for k, v in zip(pl_module.state_dict().keys(), self._ema_model_weights)}
         pl_module.load_state_dict(new_state_dict)
 
@@ -102,6 +102,7 @@ class EMA(Callback):
         state_dict = pl_module.state_dict()
         new_state_dict = {k: v for k, v in zip(state_dict.keys(), self._weights_buffer)}
         pl_module.load_state_dict(new_state_dict)
+        del self._weights_buffer
 
     @property
     def ema_initialized(self) -> bool:

@@ -54,7 +54,14 @@ class TestEMAConfig:
 class TestEMATrain:
     @pytest.mark.unit
     def test_mnist_run(self, test_data_dir, precision, accumulate_grad_batches):
-        lenet5 = MNISTLeNet5(MNISTLeNet5Config())
+        class MnistValidationLeNet5(MNISTLeNet5):
+            def validation_step(self, batch, what_is_this_input):
+                _, images, targets, _ = batch
+                predictions = self(images=images)
+                loss = self.loss(predictions=predictions, targets=targets)
+                return {"val_loss": loss}
+
+        lenet5 = MnistValidationLeNet5(MNISTLeNet5Config())
         lenet5.setup_training_data()
         lenet5.setup_optimization()
 
@@ -62,14 +69,16 @@ class TestEMATrain:
             max_epochs=1,
             precision=precision,
             limit_train_batches=10,
+            limit_val_batches=10,
             logger=False,
             accumulate_grad_batches=accumulate_grad_batches,
+            num_sanity_val_steps=0,
             enable_model_summary=False,
             accelerator='gpu',
             devices=1,
             callbacks=[EMA(ema=0.999), EMAAssertCallback()],
         )
-        trainer.fit(model=lenet5)
+        trainer.fit(model=lenet5, val_dataloaders=lenet5.train_dataloader())
 
 
 class EMAAssertCallback(Callback):
@@ -108,6 +117,8 @@ class EMAAssertCallback(Callback):
 
     def on_validation_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
         ema_callback = [x for x in trainer.callbacks if isinstance(x, EMA)][0]
+        # todo (sean): shouldn't use the weights buffer to check original weights
+        self.original_weights = list(x.detach().clone() for x in ema_callback._weights_buffer)
         if ema_callback.ema_initialized:
             for ema_weights, module_weights in zip(ema_callback._ema_model_weights, pl_module.state_dict().values()):
                 torch.allclose(ema_weights, module_weights)
@@ -116,8 +127,6 @@ class EMAAssertCallback(Callback):
         ema_callback = [x for x in trainer.callbacks if isinstance(x, EMA)][0]
         model_weights = list(pl_module.state_dict().values())
         if ema_callback.ema_initialized:
-            # todo (sean): shouldn't use the weights buffer to check original weights
-            orig_model_weights = ema_callback._weights_buffer
-            for orig_weights, module_weights in zip(orig_model_weights, model_weights):
+            for orig_weights, module_weights in zip(self.original_weights, model_weights):
                 # original weights are stored on cpu to reduce mem overhead
                 torch.allclose(orig_weights, module_weights.cpu())
