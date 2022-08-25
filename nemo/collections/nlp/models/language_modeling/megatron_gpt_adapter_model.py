@@ -47,7 +47,9 @@ class MegatronGPTAdapterLearningModel(MegatronGPTPromptLearningModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
-
+        assert (
+            cfg.adapter_tuning.adapter_dim % cfg.tensor_model_parallel_size == 0
+        ), "The adapter dim should be divisible by tensor_model_parallel_size."
         self.adapter_name_keys = ['adapter_1', 'adapter_2']
         frozen_model_cfg = MegatronGPTModel.restore_from(
             cfg.get('language_model_path'), trainer=trainer, return_config=True
@@ -57,8 +59,6 @@ class MegatronGPTAdapterLearningModel(MegatronGPTPromptLearningModel):
                 layer.activations_checkpoint_method = (
                     None  # (@adithyare) adapter learning does not support activations checkpointing atm.
                 )
-            if hasattr(layer, 'scale_mask_softmax'):
-                layer.scale_mask_softmax.scaled_masked_softmax_fusion = False
 
         logging.info(f'Before adding adapters:\n{self.frozen_model.summarize()}')
         self.frozen_model.freeze()
