@@ -14,7 +14,7 @@
 
 
 import os
-from typing import Optional
+from typing import Any, Dict, Optional, Union
 
 import torch
 from omegaconf import open_dict
@@ -51,9 +51,13 @@ class MegatronBaseModel(NLPModel):
     1. Initialize the model parallel for nemo given the model parallel parameters.
     2. Turn on all the nvidia optimizations.
     3. If `cfg.tokenizer` is available, it loads the tokenizer and pad the vocab to the correct size for tensor model parallelism.
-    4. It help to run `configure_gradient_clipping`, if `grad_clip_pl_default` is set True,  it uses the pytorch lightning default
-       gradient clipping. Or if `megatron_amp_o2` is set True, it uses the parameters from optimizer to clip the gradients.
-       Otherwise, it uses the parameters calculated in the `setup_optimizer_param_groups` method.
+    4. If using distributed optimizer, configure to be compatible with
+       O2-level optimizations and/or model parallelism.
+    5. Perform gradient clipping: `grad_clip_pl_default` triggers the
+       PyTorch Lightning default implementation, `with_distributed_adam`
+       triggers the distributed optimizer's implementation,
+       `megatron_amp_o2` triggers gradient clipping on the main grads,
+       and otherwise gradient clipping is performed on the model grads.
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer, no_lm_init=True):
@@ -70,6 +74,8 @@ class MegatronBaseModel(NLPModel):
         super().__init__(cfg, trainer=trainer, no_lm_init=no_lm_init)
 
         self._validate_config()
+
+        self.with_distributed_adam = cfg.optim.get('name') == 'distributed_fused_adam'
 
         # used in NVIDIA NGC PyTorch containers
         self._enable_nvidia_optimizations()
@@ -213,7 +219,7 @@ class MegatronBaseModel(NLPModel):
             # use the default behavior
             return super().configure_gradient_clipping(*args, **kwargs)
 
-        if hasattr(self, 'with_distributed_adam') and self.with_distributed_adam:
+        if self.with_distributed_adam:
             grad_norm = clip_grad_norm_distributed_optimizer(self._optimizer, clip_val)
         else:
             if self.megatron_amp_o2:
@@ -287,15 +293,28 @@ class MegatronBaseModel(NLPModel):
                     # accumulated gradient updates.
                     grad_scaler.optimizer_update_skipped = None
 
+    def setup_optimization(
+        self, optim_config: Optional[Union[DictConfig, Dict]] = None, optim_kwargs: Optional[Dict[str, Any]] = None,
+    ):
+        optim_kwargs = {} if optim_kwargs is None else optim_kwargs.copy()
+        if self.with_distributed_adam and self.megatron_amp_o2:
+            optim_kwargs['contiguous_grad_buffer'] = True  # Needed to allocate main grads
+            if hasattr(self, 'autocast_dtype'):
+                optim_kwargs['param_sync_dtype'] = self.autocast_dtype
+                if self.autocast_dtype == torch.float:
+                    optim_kwargs['store_params'] = False
+                elif self.autocast_dtype == torch.float16:
+                    optim_kwargs['store_params'] = True
+                elif self.autocast_dtype == torch.bfloat16:
+                    optim_kwargs['store_params'] = False
+                    optim_kwargs['store_param_remainders'] = True
+        return super().setup_optimization(optim_config=optim_config, optim_kwargs=optim_kwargs)
+
     def configure_optimizers(self):
         self.setup_optimization()
 
         # Wrap the baseline optimizer with the optimizer class with master parameters
-        if (
-            self.megatron_amp_o2
-            and not (hasattr(self, 'with_distributed_adam') and self.with_distributed_adam)
-            and self._optimizer is not None
-        ):
+        if self.megatron_amp_o2 and not self.with_distributed_adam and self._optimizer is not None:
             if self.cfg.precision == 'bf16':
                 fp32_grad_accum = True
                 contiguous_grad_bucket = True
@@ -339,6 +358,17 @@ class MegatronBaseModel(NLPModel):
                 self._scheduler = prepare_lr_scheduler(
                     optimizer=self._optimizer, scheduler_config=sched_config, train_dataloader=self._train_dl
                 )
+
+        # Configure distributed optimizer
+        if self.with_distributed_adam:
+            # Overlapped communication interferes with grad reductions
+            # for pipeline parallelism and sequence parallelism
+            if self.cfg.get('pipeline_model_parallel_size', 1) > 1 or self.cfg.get('sequence_parallel', False):
+                self._optimizer.overlap_grad_sync = False
+
+            if self.megatron_amp_o2:
+                # Initialize params so that main grads are available
+                self._optimizer.init_params(reversed(list(self.parameters())))
 
         if self._scheduler is None:
             return self._optimizer

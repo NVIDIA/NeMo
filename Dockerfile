@@ -32,11 +32,10 @@ RUN apt-get update && \
     python-dev ffmpeg && \
     rm -rf /var/lib/apt/lists/*
 
-# FIXME a workaround to update apex. Remove when base image is updated
 WORKDIR /tmp/
-RUN git clone https://github.com/timmoon10/apex.git && \
+RUN git clone https://github.com/NVIDIA/apex.git && \
     cd apex && \
-    git checkout 2d5ebb793ca212773bc0af4b15afaee2cea5e82f && \
+    git checkout 6f7d8ac3dfb279b314ac4ea23b9c2175b066f7ff && \
     pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" --global-option="--distributed_adam" --global-option="--deprecated_fused_adam" ./
 
 # uninstall stuff from base container

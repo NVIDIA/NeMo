@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import re
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, List, Optional, Union
 
 import torch
 from omegaconf.dictconfig import DictConfig
@@ -88,7 +88,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # self.setup_optimizer_param_groups()
 
         self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
-        self.with_distributed_adam = cfg.optim.get('name') == 'distributed_fused_adam'
 
         if self.megatron_amp_o2:
 
@@ -173,22 +172,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self._optimizer_param_groups = get_all_params_for_weight_decay_optimization([self.model])
         else:
             self._optimizer_param_groups = get_params_for_weight_decay_optimization([self.model])
-
-    def setup_optimization(
-        self, optim_config: Optional[Union[DictConfig, Dict]] = None, optim_kwargs: Optional[Dict[str, Any]] = None,
-    ):
-        optim_kwargs = {} if optim_kwargs is None else optim_kwargs.copy()
-        if self.with_distributed_adam and self.megatron_amp_o2:
-            optim_kwargs['param_sync_dtype'] = self.autocast_dtype
-            optim_kwargs['contiguous_grad_buffer'] = True  # Needed to allocate main grads
-            if self.autocast_dtype == torch.float:
-                optim_kwargs['store_params'] = False
-            elif self.autocast_dtype == torch.float16:
-                optim_kwargs['store_params'] = True
-            elif self.autocast_dtype == torch.bfloat16:
-                optim_kwargs['store_params'] = False
-                optim_kwargs['store_param_remainders'] = True
-        return super().setup_optimization(optim_config=optim_config, optim_kwargs=optim_kwargs)
 
     def forward(self, tokens, text_position_ids, attention_mask, labels):
         output_tensor = self.model(tokens, text_position_ids, attention_mask, labels=labels)
@@ -645,22 +628,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 f'Setting up test dataloader with len(len(self._test_ds)): {len(self._test_ds)} and consumed samples: {consumed_samples}'
             )
             self._test_dl = self.build_pretraining_data_loader(self._test_ds, consumed_samples)
-
-    def configure_optimizers(self):
-        retval = super().configure_optimizers()
-
-        if self.with_distributed_adam:
-
-            # Overlapped communication interferes with grad reductions
-            # for pipeline parallelism and sequence parallelism
-            if self.cfg.get('pipeline_model_parallel_size', 1) > 1 or self.cfg.get('sequence_parallel', False):
-                self._optimizer.overlap_grad_sync = False
-
-            if self.megatron_amp_o2:
-                # Initialize params so that main grads are available
-                self._optimizer.init_params(reversed(list(self.parameters())))
-
-        return retval
 
     def compute_consumed_samples(self, steps_since_resume=0):
         app_state = AppState()

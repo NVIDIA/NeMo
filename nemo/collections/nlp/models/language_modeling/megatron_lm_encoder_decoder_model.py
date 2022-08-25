@@ -106,8 +106,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         if self.megatron_amp_o2:
 
-            # Pre-allocate the model on GPU to have master parameters allocated on the same device with matching data type
-            self.enc_dec_model.cuda(torch.cuda.current_device())
+            if not self.with_distributed_adam:
+                # Pre-allocate the model on GPU to have master parameters allocated on the same device with matching data type
+                self.enc_dec_model.cuda(torch.cuda.current_device())
 
             # Model wrapper to convert both model and inputs to half precision
             self.enc_dec_model = Float16Module(module=self.enc_dec_model, precision=cfg.precision)
@@ -263,12 +264,23 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
             )
         else:
-            # no pipeline parallelism so we reduce grads asynchronously
-            if self.megatron_amp_o2:
-                custom_sync_context_handler = self._optimizer.no_sync
+            # no pipeline parallelism so we reduce grads
+            # asynchronously
+            if self.with_distributed_adam:
+                if self.megatron_amp_o2:
+                    # copy grads to main grad
+                    custom_sync_context_handler = lambda: self._optimizer.no_sync(greedy_grad_copy=True)
+                else:
+                    # keep grad tensors around
+                    custom_sync_context_handler = lambda: self._optimizer.no_sync(greedy_grad_copy=False)
             else:
-                # TODO: enable async grad all reduce for O1/autocast mixed precision training
-                custom_sync_context_handler = None
+                if self.megatron_amp_o2:
+                    custom_sync_context_handler = self._optimizer.no_sync
+                else:
+                    # TODO: enable async grad all reduce for
+                    # O1/autocast mixed precision training and
+                    # sequence parallelism
+                    custom_sync_context_handler = None
             losses_reduced_per_micro_batch = forward_backward_no_pipelining(
                 forward_step_func=self.get_forward_output_and_loss_func(),
                 batch=batch_for_pipeline,
@@ -290,7 +302,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         else:
             loss_mean = torch.tensor(0.0).cuda()
 
-        if self.megatron_amp_o2:
+        if self.with_distributed_adam:
+            # gradients are reduced internally in distributed optimizer
+            pass
+        elif self.megatron_amp_o2:
             # when using pipeline parallelism grads must be reduced after the pipeline (not asynchronously)
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
                 # main grads are stored in the MainParamsOptimizer wrapper
@@ -427,7 +442,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         """
         Returns a dict {kwarg name: arg index} to be used when mapping
         kwargs into a list of args.
-        
+
         Computed on first call, and then cached.
         """
         # build mapping of kwargs to arg index at first run
@@ -439,7 +454,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     def _build_forward_args_from_kwargs(self, args_name, args, **kwargs):
         """
         A helper method that converts arguments into positional arguments (by name)
-        
+
         args - a list of arguments to pass to self.enc_dec_model (tensors from batch)
         args_name - a list of argument name (to be matched against allowed kwargs)
         kwargs - a dict {arg name: arg value} (used for non-tensor values)
@@ -846,7 +861,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     def encode(self, tokens_enc, enc_mask, encoder_input=None, reconfigure_microbatch=True):
         """
-        tokens_enc - encoder input tokens 
+        tokens_enc - encoder input tokens
         enc_mask - corresponding mask
         encoder_input - encoder input (bypass tokens), if given tokens_enc can be None.
         """
@@ -1168,7 +1183,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         """ PTL hook: https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#transfer-batch-to-device
             When using pipeline parallelism, we need the global batch to remain on the CPU,
             since the memory overhead will be too high when using a large number of microbatches.
-            Microbatches are transferred from CPU to GPU inside the pipeline. 
+            Microbatches are transferred from CPU to GPU inside the pipeline.
         """
         return batch
 

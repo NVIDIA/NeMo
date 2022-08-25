@@ -68,10 +68,10 @@ if HAVE_APEX:
         # Note: main_grad buffer is used for O2-style optimizations
         class MegatronDistributedFusedAdam(DistributedFusedAdam):
             def __init__(self, *args, **kwargs):
-                if ('process_group' not in kwargs
-                    and not parallel_state.is_unitialized()):
+                if 'process_group' not in kwargs and not parallel_state.is_unitialized():
                     kwargs['process_group'] = parallel_state.get_data_parallel_group()
                 super().__init__(*args, **kwargs)
+
             def _init_param_state(self, param, param_group_id, param_id):
                 super()._init_param_state(param, param_group_id, param_id)
                 if self.contiguous_grad_buffer:
