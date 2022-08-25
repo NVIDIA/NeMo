@@ -38,7 +38,7 @@ parser.add_argument(
 )
 parser.add_argument("--max_sample_duration_sec", default=19, type=int, help='Maximum duration of sample (sec)')
 parser.add_argument("--min_sample_duration_sec", default=16, type=int, help='Minimum duration of sample (sec)')
-parser.add_argument("--dataset_size_required_hrs", default=10, type=int, help='Duration of dataset required (hrs)')
+parser.add_argument("--dataset_size_required_hrs", default=1, type=int, help='Duration of dataset required (hrs)')
 
 args = parser.parse_args()
 
@@ -154,6 +154,31 @@ def main():
     max_sample_duration = args.max_sample_duration_sec
     dataset_requirement = args.dataset_size_required_hrs
     manifest_save_path = args.manifest_save_path
+
+    # Sanity Checks
+    if (manifest0 is None) or (not os.path.exists(manifest0)):
+        logging.error('Manifest for language 1 is incorrect')
+        exit
+
+    if (manifest1 is None) or (not os.path.exists(manifest1)):
+        logging.error('Manifest for language 2 is incorrect')
+        exit
+
+    if lid0 is None:
+        logging.error('Please provide correct language code for language 1')
+        exit
+
+    if lid1 is None:
+        logging.error('Please provide correct language code for language 2')
+        exit
+
+    if manifest_save_path is None:
+        logging.error('Please provide correct manifest save path')
+        exit
+
+    if min_sample_duration >= max_sample_duration:
+        logging.error('Please ensure max_sample_duration > min_sample_duration')
+        exit
 
     # Reading data
     logging.info('Reading manifests')

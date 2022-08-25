@@ -123,7 +123,7 @@ def __create_cs_data(
                 # Alternative-  fs_sample, data_sample = wavfile.read(data['paths'][index])
 
                 if fs_sample != fs:
-                    logging.info('Sampling rate error inside create_cs_data function')
+                    logging.error('Sampling rate error inside create_cs_data function')
                     exit
 
                 # Remove leading and trailing zeros
@@ -186,6 +186,19 @@ def main():
     pause_join_msec = args.sample_joining_pause_msec
     pause_end_msec = args.sample_end_pause_msec
     cs_data_sampling_rate = args.cs_data_sampling_rate
+
+    # Sanity Checks
+    if (cs_intermediate_manifest_path is None) or (not os.path.exists(cs_intermediate_manifest_path)):
+        logging.error('Please provide correct CS manifest (obtained from code_switching_manifest_creation.py)')
+        exit
+
+    if (audio_save_folder_path is None) or (not os.path.exists(audio_save_folder_path)):
+        logging.error('audio_save_folder_path is incorrect or does not exist')
+        exit
+
+    if audio_save_folder_path is None:
+        logging.error('Please provide valid manifest_save_path')
+        exit
 
     # Reading data
     logging.info('Reading manifests')
