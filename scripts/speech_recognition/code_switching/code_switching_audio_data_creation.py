@@ -23,14 +23,17 @@ from scipy.io import wavfile
 from tqdm import tqdm
 
 parser = argparse.ArgumentParser(description='Create synthetic code-switching data audio data from monolingual data')
-parser.add_argument("--manifest_path", default=None, type=str, help='Path to CS indermediate manifest')
+parser.add_argument("--manifest_path", default=None, type=str, help='Path to CS indermediate manifest', required=True)
 parser.add_argument(
     "--audio_save_folder_path",
     default=None,
     type=str,
     help='Path to directory where created synthetic set would be saved',
+    required=True,
 )
-parser.add_argument("--manifest_save_path", default=None, type=str, help='Path to save the created manifest')
+parser.add_argument(
+    "--manifest_save_path", default=None, type=str, help='Path to save the created manifest', required=True
+)
 parser.add_argument(
     "--audio_normalized_amplitude", default=15000, type=int, help='Normalized amplitdue of audio samples'
 )

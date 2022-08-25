@@ -25,13 +25,17 @@ import random
 
 parser = argparse.ArgumentParser(description='Create synthetic code-switching data manifest from monolingual data')
 
-parser.add_argument("--manifest_language1", default=None, type=str, help='Manifest file for language 1')
-parser.add_argument("--manifest_language2", default=None, type=str, help='Manifest file for language 2')
+parser.add_argument("--manifest_language1", default=None, type=str, help='Manifest file for language 1', required=True)
+parser.add_argument("--manifest_language2", default=None, type=str, help='Manifest file for language 2', required=True)
 parser.add_argument(
-    "--manifest_save_path", default=None, type=str, help='Path to save created CS indermediate manifest'
+    "--manifest_save_path", default=None, type=str, help='Path to save created CS indermediate manifest', required=True
 )
-parser.add_argument("--id_language1", default=None, type=str, help='Identifier for language 1, eg: en, es, hi')
-parser.add_argument("--id_language2", default=None, type=str, help='Identifier for language 2, eg: en, es, hi')
+parser.add_argument(
+    "--id_language1", default=None, type=str, help='Identifier for language 1, eg: en, es, hi', required=True
+)
+parser.add_argument(
+    "--id_language2", default=None, type=str, help='Identifier for language 2, eg: en, es, hi', required=True
+)
 parser.add_argument("--max_sample_duration_sec", default=19, type=int, help='Maximum duration of sample (sec)')
 parser.add_argument("--min_sample_duration_sec", default=16, type=int, help='Minimum duration of sample (sec)')
 parser.add_argument("--dataset_size_required_hrs", default=10, type=int, help='Duration of dataset required (hrs)')
