@@ -39,7 +39,7 @@ if __name__ == "__main__":
                 UPSTREAM_RUN_NAME: {vars['TRAIN_NAME']}
                 TP_SIZE: {vars['TP_SIZE']}
                 PP_SIZE: {vars['PP_SIZE']}
-                TIME_LIMIT: {vars['TIME_LIMIT']}
+                TIME_LIMIT: "{vars['TIME_LIMIT']}"
                 TEST_LEVEL: {vars['TEST_LEVEL']}
               needs:
                 - train.{vars['RUN_MODEL']}.{vars['RUN_MODEL_SIZE']}_tp{vars['TP_SIZE']}_pp{vars['PP_SIZE']}_{vars['NUM_NODES']}node_{vars['MAX_STEPS']}steps{suffix}
@@ -67,7 +67,7 @@ if __name__ == "__main__":
                 PP_SIZE: {vars['PP_SIZE']}
                 NUM_NODES: {vars['NUM_NODES']}
                 MAX_STEPS: {vars['MAX_STEPS']}
-                TIME_LIMIT: {vars['TIME_LIMIT']}
+                TIME_LIMIT: "{vars['TIME_LIMIT']}"
                 TEST_LEVEL: {vars['TEST_LEVEL']}
                 ADDITIONAL_PARAMS: "{vars['ADDITIONAL_PARAMS']}"
               needs:
@@ -97,7 +97,7 @@ if __name__ == "__main__":
                 PP_SIZE: {vars['PP_SIZE']}
                 NUM_NODES: {vars['NUM_NODES']}
                 MAX_STEPS: {vars['MAX_STEPS']}
-                TIME_LIMIT: {vars['TIME_LIMIT']}
+                TIME_LIMIT: "{vars['TIME_LIMIT']}"
                 TEST_LEVEL: {vars['TEST_LEVEL']}
               needs:
                 - convert.{vars['RUN_MODEL']}.{vars['RUN_MODEL_SIZE']}_tp{vars['TP_SIZE']}_pp{vars['PP_SIZE']}{suffix}
@@ -121,7 +121,7 @@ if __name__ == "__main__":
                 NUM_NODES: {vars['NUM_NODES']}
                 PROMPT_LEARN_MODEL_DIR: {vars['PROMPT_NAME']}
                 CONVERT_MODEL_DIR: {vars['CONVERT_NAME']}
-                TIME_LIMIT: {vars['TIME_LIMIT']}
+                TIME_LIMIT: "{vars['TIME_LIMIT']}"
                 TEST_LEVEL: {vars['TEST_LEVEL']}
               needs:
                 - prompt_learn.{vars['RUN_MODEL']}.{vars['RUN_MODEL_SIZE']}_tp{vars['TP_SIZE']}_pp{vars['PP_SIZE']}_{vars['NUM_NODES']}node_{vars['MAX_STEPS']}steps_{vars['TEST_TASK']}{suffix}
@@ -155,7 +155,7 @@ if __name__ == "__main__":
                 PP_SIZE: {vars['PP_SIZE']}
                 NUM_NODES: {vars['NUM_NODES']}
                 MAX_STEPS: {vars['MAX_STEPS']}
-                TIME_LIMIT: {vars['TIME_LIMIT']}
+                TIME_LIMIT: "{vars['TIME_LIMIT']}"
                 TEST_LEVEL: {vars['TEST_LEVEL']}
               needs:
                 - convert.{vars['RUN_MODEL']}.{vars['RUN_MODEL_SIZE']}_tp{vars['TP_SIZE']}_pp{vars['PP_SIZE']}{suffix}
@@ -178,7 +178,7 @@ if __name__ == "__main__":
                 PP_SIZE: {vars['PP_SIZE']}
                 NUM_NODES: {vars['NUM_NODES']}
                 FINETUNE_JOB_DIR: {vars['FINETUNE_NAME']}
-                TIME_LIMIT: {vars['TIME_LIMIT']}
+                TIME_LIMIT: "{vars['TIME_LIMIT']}"
                 TEST_LEVEL: {vars['TEST_LEVEL']}
               needs:
                 - finetune.{vars['RUN_MODEL']}.{vars['RUN_MODEL_SIZE']}_tp{vars['TP_SIZE']}_pp{vars['PP_SIZE']}_{vars['NUM_NODES']}node_{vars['MAX_STEPS']}steps_{vars['TEST_TASK']}{suffix}
@@ -214,7 +214,7 @@ if __name__ == "__main__":
                 TRAIN_JOB_NAME: {vars['TRAIN_NAME']}
                 TP_SIZE: {vars['TP_SIZE']}
                 PP_SIZE: {vars['PP_SIZE']}
-                TIME_LIMIT: {vars['TIME_LIMIT']}
+                TIME_LIMIT: "{vars['TIME_LIMIT']}"
                 TEST_LEVEL: {vars['TEST_LEVEL']}
               needs:
                 - train.{vars['RUN_MODEL']}.{vars['RUN_MODEL_SIZE']}_tp{vars['TP_SIZE']}_pp{vars['PP_SIZE']}_{vars['NUM_NODES']}node_{vars['MAX_STEPS']}steps{suffix}
