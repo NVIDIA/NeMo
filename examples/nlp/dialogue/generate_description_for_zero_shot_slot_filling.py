@@ -14,6 +14,7 @@
 
 import argparse
 import os
+from collections import defaultdict
 
 
 def read_data(preprocess_file_path):
@@ -23,89 +24,118 @@ def read_data(preprocess_file_path):
     with open(preprocess_file_path + '/train_slots.tsv') as f:
         train_slots = f.read().strip().split('\n')
 
-    with open(preprocess_file_path + '/test.tsv') as f:
-        test = f.read().strip().split('\n')
-
-    with open(preprocess_file_path + '/test_slots.tsv') as f:
-        test_slots = f.read().strip().split('\n')
-
     with open(preprocess_file_path + '/dict.slots.csv') as f:
-        dict_slots = {idx: [slot_name] for idx, slot_name in enumerate(f.read().strip().split('\n'))}
-    return train, train_slots, test, test_slots, dict_slots
+        dict_lines = f.read().strip().split('\n')
+        dict_slots = {idx: [slot_name] for idx, slot_name in enumerate(dict_lines)}
+
+    return train, train_slots, dict_slots
 
 
 def merge_b_and_i_slots_class(dict_slots, dataset_name):
-    merge_dict_slots = {}
-    all_slots_keywords = {}
-    merge_dict_slots = {}
-    full_name = {'LOC': 'location', 'MISC': 'miscellaneous', 'ORG': 'organization', 'PER': 'person'}
+    """
+    Some datasets (drive_through and conll_2003) contains slots with separate B-xxx and I-xxx
+    such as B-LOC and I-LOC.
+    This function seeks to map them into a common slot name (e.g. LOC)
 
-    if dataset_name in ['drive_through', 'conll_2003']:
-        for k, v in dict_slots.items():
-            if k == 0:
-                merge_dict_slots[k] = v
-                all_slots_keywords[k] = {}
-            else:
-                new_id = int((k - 1) / 2) + 1
-                merge_dict_slots[new_id] = full_name[v[0].split('-')[1]]
-                if dataset_name == 'conll_2003':
-                    merge_dict_slots[new_id] = [full_name[v[0].split('-')[1]]]
-                else:
-                    merge_dict_slots[new_id] = v
-                all_slots_keywords[new_id] = {}
-    else:
-        for k, v in dict_slots.items():
-            all_slots_keywords[k] = {}
+    Args: 
+        dict_slots: dict with slot_id as key and slot_name as values
+        dataset_name: str specifying dataset used
+    Returns:
+        merge_dict_slots: dict with merged B- and I- slot_ids as keys and slot_name as values
+    """
+    merge_dict_slots = {}
+
+    if dataset_name == 'drive_through':
+        for slot_id, slot_name in dict_slots.items():
+            # slot_names follow the pattern O, xxx, xxx, yyy, yyy ...
+            # slot_ids follow the pattern  0, 1,     2,     3,     4, ...
+            # merged_slot_ids follow this: 0  1,     1,     2,     2, ...
+            merged_slot_id = (slot_id + 1) // 2
+            merge_dict_slots[merged_slot_id] = slot_name
+
+    elif dataset_name == 'conll_2003':
+        acronym_to_full_name = {'LOC': 'location', 'MISC': 'miscellaneous', 'ORG': 'organization', 'PER': 'person'}
+        for slot_id, slot_name in dict_slots.items():
+            # slot_names follow the pattern O, B-xxx, I-xxx, B-yyy, I-yyy ...
+            # slot_ids follow the pattern  0, 1,     2,     3,     4, ...
+            # merged_slot_ids follow this: 0  1,     1,     2,     2, ...
+            merged_slot_id = (slot_id + 1) // 2
+            slot_name_without_b_or_i = slot_name[0].split('-')[-1]
+            merge_dict_slots[merged_slot_id] = [acronym_to_full_name[slot_name_without_b_or_i]]
+
+    # assistant preprocessed data doesn't distinguish between b and i slots
+    elif dataset_name == "assistant":
         merge_dict_slots = dict_slots
-    return merge_dict_slots, all_slots_keywords
+    return merge_dict_slots
 
 
-def get_key_words(train, train_slots, all_slots_keywords, dataset_name):
-    if dataset_name == 'assistant':
-        label_for_empty_entity = '54'
-    else:
-        label_for_empty_entity = '0'
-    # all_slots_keywords #key: slot_it, value: words
-    for idx, sentence in enumerate(train):
-        if idx > 0:
-            for word, label in zip(sentence.split()[:-1], train_slots[idx - 1].split()):
-                if label != label_for_empty_entity:
-                    if dataset_name == 'assistant':
-                        new_label = int(label)
-                    else:
-                        new_label = int((int(label) - 1) / 2) + 1
-                    new_word = word.lower()
-                    if new_word not in all_slots_keywords[new_label]:
-                        all_slots_keywords[new_label][new_word] = 1
-                    else:
-                        all_slots_keywords[new_label][new_word] += 1
-    return all_slots_keywords
+def get_key_words(train, train_slots, dataset_name):
+    """
+    Identifies key words for each class by counting the 
+    number of times each word occurs for samples in each class
+
+    Args:
+        train: list of str, each of which represents an utterance
+        train_slots: list of slot_ids for each utterance
+        dataset_name: str
+    
+    Returns:
+        slot_id_to_keywords: slot_id to dict of keywords with 
+        key being each key word (lowercased) and value being their count frequency
+    """
+
+    slot_id_to_keywords = {slot_id: defaultdict(int) for slot_id in merge_dict_slots}
+
+    label_for_empty_entity = '54' if dataset_name == 'assistant' else '0'
+
+    # first line of train is not an utterance but header info
+    for idx, sentence in enumerate(train[1:]):
+        for word, slot_id in zip(sentence.split()[:-1], train_slots[idx].split()):
+            if slot_id == label_for_empty_entity:
+                continue
+            if dataset_name == 'assistant':
+                merged_slot_id = int(slot_id)
+            else:
+                # see reason for this in merge_b_and_i_slots_class
+                merged_slot_id = (int(slot_id) + 1) // 2
+            slot_id_to_keywords[merged_slot_id][word.lower()] += 1
+    return slot_id_to_keywords
 
 
-def get_class_description(all_slots_keywords, dataset_name):
-    if dataset_name == 'assistant':
-        label_for_empty_entity = '54'
-    else:
-        label_for_empty_entity = '0'
+def get_class_description(slot_id_to_keywords, dataset_name):
+    """
+    Combine keywords for each class into a list of descriptions
+    Args:
+        slot_id_to_keywords: slot_id to dict of keywords with 
+            key being each key word (lowercased) and value being their count frequency
+        dataset_name: str
+    Returns:
+        description_list: list of str 
+
+    """
+    label_for_empty_entity = '54' if dataset_name == 'assistant' else '0'
 
     description_list = []
     punc = '''!()-[]{};:'"\,<>./?@#$%^&*_~'''
+    punc_set = set(punc)
 
-    for k, slots_keywords in all_slots_keywords.items():
-        #     print(merge_dict_slots[k])
-        if k == int(label_for_empty_entity):
+    for slot_id, slots_keywords in slot_id_to_keywords.items():
+        if slot_id == int(label_for_empty_entity):
             description_list.append("other\tother")
         else:
             sorted_keywords = sorted(slots_keywords.items(), key=lambda item: item[1], reverse=True)
             one_slot_description = ' '.join(
-                list(set([k for k, v in sorted_keywords if v > 3] + [k for k, v in sorted_keywords[:5]]))
+                list(
+                    set(
+                        [keyword for keyword, freq in sorted_keywords if freq > 3]
+                        + [keyword for keyword, freq in sorted_keywords[:5]]
+                    )
+                )
             )
-            entity_label = merge_dict_slots[k][0].split("-")[-1]
-            for c in entity_label:
-                if c in punc:
-                    entity_label = entity_label.replace(c, " ")
-
+            entity_label = merge_dict_slots[slot_id][0].split("-")[-1]
+            entity_label = "".join([ch if ch not in punc_set else ' ' for ch in entity_label])
             description_list.append(entity_label + '\t' + one_slot_description)
+
     return description_list
 
 
@@ -120,25 +150,15 @@ if __name__ == '__main__':
     )
     args = parser.parse_args()
 
-    print(args)
     if os.path.exists(args.preprocess_file_path):
-        print('folder exist')
-        train, train_slots, test, test_slots, dict_slots = read_data(args.preprocess_file_path)
-        print(dict_slots)
+        train, train_slots, dict_slots = read_data(args.preprocess_file_path)
 
-        merge_dict_slots, all_slots_keywords = merge_b_and_i_slots_class(dict_slots, args.dataset)
-        print(merge_dict_slots)
-        print(all_slots_keywords)
-
-        all_slots_keywords = get_key_words(train, train_slots, all_slots_keywords, args.dataset)
-        description_list = get_class_description(all_slots_keywords, args.dataset)
-        print(len(description_list))
-        print(description_list)
+        merge_dict_slots = merge_b_and_i_slots_class(dict_slots, args.dataset)
+        slot_id_to_keywords = get_key_words(train, train_slots, args.dataset)
+        description_list = get_class_description(slot_id_to_keywords, args.dataset)
 
         output_file_name = os.path.join(args.preprocess_file_path, 'description.slots.csv')
-
-        print(output_file_name)
         with open(output_file_name, "w") as fw:
             fw.write('\n'.join(description_list))
     else:
-        raise ValueError("invalid path")
+        raise ValueError('preprocess_file_path folder {} does not exist'.format(args.preprocess_file_path))

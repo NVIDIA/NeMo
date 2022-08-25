@@ -17,9 +17,10 @@ import glob
 import os
 import shutil
 
+from nemo.utils import logging
 
-def read_data(args):
-    preprocess_file_path = args.preprocess_file_path
+
+def read_data(preprocess_file_path):
     if args.dataset == 'conll_2003':
         with open(preprocess_file_path + '/text_train.txt') as f:
             train = f.read().strip().split('\n')
@@ -45,7 +46,7 @@ def read_data(args):
 
 def creat_folder_and_copy_files(args, output_path):
     os.makedirs(output_path)
-    print("The new directory " + output_path + " is created!")
+    logging.info("The new directory " + output_path + " is created!")
 
     # all dataset need to copy "dict.slots.csv"
     copy_file(args.preprocess_file_path, output_path, "dict.slots.csv")
@@ -63,20 +64,16 @@ def copy_file(source_path, target_path, filename):
     if filename_with_path in glob.glob(os.path.join(source_path, global_parameters)):
         if filename_with_path not in glob.glob(os.path.join(target_path, global_parameters)):
             shutil.copy(filename_with_path, target_path)
-            print("The file " + filename_with_path + " is copied!")
+            logging.info("The file " + filename_with_path + " is copied!")
         else:
-            print("{} exists in {}".format(filename_with_path, os.path.join(os.path.split(target_path)[-2:])))
+            logging.info("{} exists in {}".format(filename_with_path, os.path.join(os.path.split(target_path)[-2:])))
 
 
-def from_slot_name_to_slot_id(train, train_slots):
+def map_conll2003_slot_name_to_slot_id(train, train_slots):
 
-    # manual build dic
-    dict_slots = []
     dict_slots = ['O', 'B-LOC', 'I-LOC', 'B-MISC', 'I-MISC', 'B-ORG', 'I-ORG', 'B-PER', 'I-PER']
 
-    dict_slots_id = {}
-    for idx, d in enumerate(dict_slots):
-        dict_slots_id[d] = str(idx)
+    slot_name_to_slot_id = {slot_name: str(idx) for idx, slot_name in enumerate(dict_slots)}
 
     train_new = []
     train_slots_new = []
@@ -87,9 +84,10 @@ def from_slot_name_to_slot_id(train, train_slots):
         else:
             new_label = []
             for label in train_slots[idx - 1].strip().split():
-                new_label.append(dict_slots_id[label])
+                new_label.append(slot_name_to_slot_id[label])
 
-            train_new.append(sentence + '\t' + '0')  # every intent label set to 0 at this moment
+            # set every intent label set to dummy value of 0
+            train_new.append(sentence + '\t' + '0')
             train_slots_new.append(' '.join(new_label))
 
     return train_new, train_slots_new
@@ -106,7 +104,7 @@ def fix_input_data_by_combine_punctuation_with_word(train, train_slots):
             new_sentence = []
             new_label = []
             for word, label in zip(sentence.strip().split(), train_slots[idx - 1].strip().split()):
-                if word == '.' or word == ',' or word == '?' or word == '\'s':
+                if word in ['.', ',', '?', '\'s']:
                     if new_sentence:
                         new_sentence[-1] = new_sentence[-1] + word
                 else:
@@ -123,29 +121,19 @@ def fix_input_data_by_combine_punctuation_with_word(train, train_slots):
 
 
 def remove_sentence_slot_label_pair_in_data_if_without_entity(train, train_slots, dataset_name):
-    train_new = []
+
+    # train[0] is the header and not an utterance
+    train_new = [train[0]]
     train_slots_new = []
 
-    if dataset_name == 'assistant':
-        label_for_empty_entity = '54'
-    else:
-        label_for_empty_entity = '0'
+    label_for_empty_entity = '54' if dataset_name == 'assistant' else '0'
 
-    for idx, sentence in enumerate(train):
-        if idx == 0:
-            train_new.append(sentence)
-        else:
-            FLAG_with_entity = False
-            for _, label in zip(sentence.split()[:-1], train_slots[idx - 1].strip().split()):
-                if label != label_for_empty_entity:
-                    FLAG_with_entity = True
-                    train_new.append(sentence)
-                    train_slots_new.append(train_slots[idx - 1])
-                    break
-                else:
-                    continue
-                if FLAG_with_entity == True:
-                    break
+    for idx, sentence in enumerate(train[1:]):
+        for label in train_slots[idx].strip().split():
+            if label != label_for_empty_entity:
+                train_new.append(sentence)
+                train_slots_new.append(train_slots[idx])
+                break
 
     return train_new, train_slots_new
 
@@ -166,19 +154,18 @@ if __name__ == '__main__':
         help="the type of dataset",
     )
     args = parser.parse_args()
-    
+
     if os.path.exists(args.preprocess_file_path):
-        print('folder exist')
-        train, train_slots, test, test_slots = read_data(args)
+        train, train_slots, test, test_slots = read_data(args.preprocess_file_path)
 
         output_path = args.preprocess_file_path + '/with_entity'
         if not os.path.exists(output_path):
             creat_folder_and_copy_files(args, output_path)
 
         if args.dataset == 'conll_2003':
-            train, train_slots = from_slot_name_to_slot_id(train, train_slots)
-            test, test_slots = from_slot_name_to_slot_id(test, test_slots)
-            # generate a "dict.intents.csv" file with "same"
+            train, train_slots = map_conll2003_slot_name_to_slot_id(train, train_slots)
+            test, test_slots = map_conll2003_slot_name_to_slot_id(test, test_slots)
+            # generate a "dict.intents.csv" file with "same" as CoNLL2003 does not come with intents
             write_file(['same'], output_path, 'dict.intents.csv')
 
             # generate a "dict.slots.csv" file with manual build slots class list
@@ -200,4 +187,4 @@ if __name__ == '__main__':
         write_file(test_slots, output_path, 'test_slots.tsv')
 
     else:
-        print('invalid path')
+        raise ValueError('preprocess_file_path folder {} does not exist'.format(args.preprocess_file_path))
