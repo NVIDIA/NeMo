@@ -1,6 +1,7 @@
 run:
   name: ${.eval_name}_${.model_train_name}
   time_limit: "4:00:00"
+  dependency: "singleton"
   nodes: ${divide_ceil:${evaluation.model.model_parallel_size}, 8} # 8 gpus per node
   ntasks_per_node: ${divide_ceil:${evaluation.model.model_parallel_size}, ${.nodes}}
   eval_name: eval_all
@@ -11,9 +12,9 @@ run:
 
 model:
   model_type: nemo-gpt3
-  checkpoint_folder: ${evaluation.run.train_dir}/checkpoints
+  checkpoint_folder: ${evaluation.run.train_dir}/results/checkpoints
   checkpoint_name: latest # latest OR name pattern of a checkpoint (e.g. megatron_gpt-*last.ckpt)
-  hparams_file: ${evaluation.run.train_dir}/hparams.yaml
+  hparams_file: ${evaluation.run.train_dir}/results/hparams.yaml
   tensor_model_parallel_size: 2 #1 for 126m, 2 for 5b, 8 for 20b
   pipeline_model_parallel_size: 1
   model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}

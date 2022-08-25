@@ -11,15 +11,9 @@ fi
 DATA_DIR=/lustre/fsw/joc/big_nlp/mt5/dataset/ci_data
 
 #TODO : Can add additional parameters (key value pairs from gitlab-ci.yaml file)
-HYDRA_FULL_ERROR=1 python3 main.py \
-    +ci_test=True \
+HYDRA_FULL_ERROR=1 BIGNLP_CI=1 python3 main.py \
     training=${RUN_MODEL}/${RUN_MODEL_SIZE} \
-    run_data_preparation=False \
-    run_training=True \
-    run_conversion=False \
-    run_finetuning=False \
-    run_evaluation=False \
-    run_export=False \
+    stages=["training"] \
     bignlp_path=${GIT_CLONE_PATH} \
     data_dir=${DATA_DIR} \
     base_results_dir=${BASE_RESULTS_DIR} \
@@ -35,4 +29,4 @@ HYDRA_FULL_ERROR=1 python3 main.py \
     training.trainer.max_steps=${MAX_STEPS} \
     training.model.tensor_model_parallel_size=${TP_SIZE} \
     training.model.pipeline_model_parallel_size=${PP_SIZE} \
-    "${params[@]}"
+    "${params[@]}" ${ADDITIONAL_PARAMS}

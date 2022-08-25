@@ -1,12 +1,8 @@
-HYDRA_FULL_ERROR=1 python3 main.py \
-    +ci_test=True \
-    export=t5 \
-    run_data_preparation=False \
-    run_training=False \
-    run_conversion=False \
-    run_finetuning=False \
-    run_evaluation=False \
-    run_export=True \
+DATA_DIR=/lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train
+
+HYDRA_FULL_ERROR=1 BIGNLP_CI=1 python3 main.py \
+    export=t5/export_t5 \
+    stages=["export"] \
     bignlp_path=${GIT_CLONE_PATH} \
     data_dir=${BASE_RESULTS_DIR}/data \
     base_results_dir=${BASE_RESULTS_DIR} \

@@ -8,9 +8,7 @@ def load_export_metrics(export_results_dir):
     assert export_metrics_path.exists(), f"Could not found {export_metrics_path} file containing export metrics"
     with export_metrics_path.open("r") as metrics_file:
         export_metrics = json.load(metrics_file)["results"]["lambada"]
-
     return export_metrics
-
 
 def load_eval_metrics(eval_results_dir):
     eval_results_dir = pathlib.Path(eval_results_dir)

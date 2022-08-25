@@ -3,20 +3,21 @@ from omegaconf import OmegaConf
 
 class TestExportmT5Config:
     def test_export_mt5_config(self):
-        conf = OmegaConf.load("conf/export/mt5.yaml")
+        conf = OmegaConf.load("conf/export/mt5/export_mt5.yaml")
         s = """
         run:
           name: export_${.model_train_name}
           time_limit: "2:00:00"
           model_train_name: "mt5_390m"
+          dependency: "singleton"
           task_name: "xnli"
-          finetuning_results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
+          fine_tuning_results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
           config_summary: tp${export.model.tensor_model_parallel_size}_pp${export.triton_deployment.pipeline_model_parallel_size}_${export.model.weight_data_type}_${export.triton_deployment.data_type}
           results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}_export_${.config_summary}
           model_type: "mt5"
         
         model:
-          checkpoint_path: ${export.run.finetuning_results_dir}/checkpoints/megatron_mt5_glue_xnli.nemo
+          checkpoint_path: ${export.run.fine_tuning_results_dir}/checkpoints/megatron_mt5_glue_xnli.nemo
           # FT checkpoint will be saved in ${.triton_model_dir}/1/${.tensor_model_parallel_size}-gpu
           tensor_model_parallel_size: 8
           weight_data_type: fp16   # fp32|fp16
@@ -58,20 +59,21 @@ class TestExportmT5Config:
 
 class TestExportT5Config:
     def test_export_t5_config(self):
-        conf = OmegaConf.load("conf/export/t5.yaml")
+        conf = OmegaConf.load("conf/export/t5/export_t5.yaml")
         s = """
         run:
           name: export_${.model_train_name}
           time_limit: "2:00:00"
           model_train_name: "t5_220m"
+          dependency: "singleton"
           task_name: "mnli"
-          finetuning_results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
+          fine_tuning_results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
           config_summary: tp${export.model.tensor_model_parallel_size}_pp${export.triton_deployment.pipeline_model_parallel_size}_${export.model.weight_data_type}_${export.triton_deployment.data_type}
           results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}_export_${.config_summary}
           model_type: "t5"
 
         model:
-          checkpoint_path: ${export.run.finetuning_results_dir}/checkpoints/megatron_t5_glue.nemo
+          checkpoint_path: ${export.run.fine_tuning_results_dir}/checkpoints/megatron_t5_glue.nemo
           # FT checkpoint will be saved in ${.triton_model_dir}/1/${.tensor_model_parallel_size}-gpu
           tensor_model_parallel_size: 8
           weight_data_type: fp16   # fp32|fp16
@@ -113,12 +115,13 @@ class TestExportT5Config:
 
 class TestExportGPT3Config:
     def test_export_gpt3_config(self):
-        conf = OmegaConf.load("conf/export/gpt3.yaml")
+        conf = OmegaConf.load("conf/export/gpt3/export_gpt3.yaml")
         s = """
         run:
           name: export_${.model_train_name}
           time_limit: "2:00:00"
           model_train_name: "gpt3_5b"
+          dependency: "singleton"
           training_dir: ${base_results_dir}/${.model_train_name}
           config_summary: tp${export.model.tensor_model_parallel_size}_pp${export.triton_deployment.pipeline_model_parallel_size}_${export.model.weight_data_type}_${export.triton_deployment.data_type}
           results_dir: ${base_results_dir}/${.model_train_name}/export_${.config_summary}
@@ -164,3 +167,4 @@ class TestExportGPT3Config:
         assert (
             expected == conf
         ), f"conf/export/gpt3.yaml must be set to {expected} but it currently is {conf}."
+

@@ -4,7 +4,7 @@ run:
   dependency: "singleton"
   model_train_name: t5_220m
   task_name: "mnli" # Supported task names: "cola", "sst-2", "mrpc", "sts-b", "qqp", "mnli", "qnli", "rte"
-  finetuning_results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
+  fine_tuning_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
   results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}_eval
 
 trainer:
@@ -19,13 +19,13 @@ trainer:
 
 
 exp_manager:
-  explicit_log_dir: ${evaluation.run.results_dir}
+  explicit_log_dir: ${evaluation.run.results_dir}/results
   exp_dir: null
   name: megatron_t5_glue_eval
   create_checkpoint_callback: False
 
 model:
-  restore_from_path: ${evaluation.run.finetuning_results_dir}/checkpoints/megatron_t5_glue.nemo # Path to a finetuned T5 .nemo file
+  restore_from_path: ${evaluation.run.fine_tuning_dir}/results/checkpoints/megatron_t5_glue.nemo # Path to a finetuned T5 .nemo file
   gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
   megatron_amp_O2: False # Enable O2 optimization for megatron amp
 
@@ -46,3 +46,5 @@ model:
         name: "exact_string_match" # Name of the evaluation metric to use.
         average: null # Average the metric over the dataset. Options: ['macro', 'micro']. Works only for 'F1', 'accuracy' etc. Refer to torchmetrics for metrics where this is supported.
         num_classes: null
+        class_labels: null
+        labels_are_strings: False

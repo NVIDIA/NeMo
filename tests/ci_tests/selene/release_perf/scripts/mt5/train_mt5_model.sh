@@ -59,14 +59,9 @@ fi
 export RUN_NAME=${RUN_MODEL}_${RUN_MODEL_SIZE}_tp${TP_SIZE}_pp${PP_SIZE}_${NUM_NODES}nodes_${PRECISION}_precision_${AMP_STYLE}_${MAX_STEPS}steps
 export RESULTS_DIR=${BASE_RESULTS_DIR}/${RUN_NAME}
 
-HYDRA_FULL_ERROR=1 python3 main.py \
-    +ci_test=True \
+HYDRA_FULL_ERROR=1 BIGNLP_CI=1 python3 main.py \
     training=${RUN_MODEL}/${RUN_MODEL_SIZE} \
-    run_data_preparation=False \
-    run_training=True \
-    run_conversion=False \
-    run_finetuning=False \
-    run_evaluation=False \
+    stages=["training"] \
     bignlp_path=${GIT_CLONE_PATH} \
     data_dir=${DATA_DIR} \
     base_results_dir=${BASE_RESULTS_DIR} \

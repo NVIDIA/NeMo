@@ -2167,9 +2167,9 @@ in `conf/conversion/convert_gpt3.yaml`:
 ```yaml
 model:
     model_type: gpt # gpt or t5
-    checkpoint_folder: ${conversion.run.train_dir}/checkpoints
+    checkpoint_folder: ${conversion.run.train_dir}/results/checkpoints
     checkpoint_name: latest # latest OR name pattern of a checkpoint (e.g. megatron_gpt-*last.ckpt)
-    hparams_file: ${conversion.run.train_dir}/hparams.yaml
+    hparams_file: ${conversion.run.train_dir}/results/hparams.yaml
     tensor_model_parallel_size: 2 # 1 for 126m, 2 for 5b, and 8 for 20b or larger models
     pipeline_model_parallel_size: 1 
     model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
@@ -2181,7 +2181,7 @@ To specify the output location and file name of the converted `.nemo` file for G
 in `conf/conversion/convert_gpt3.yaml`:
 ```yaml
 run:
-    job_name: convert_${conversion.run.model_train_name}
+    name: convert_${conversion.run.model_train_name}
     nodes: ${divide_ceil:${conversion.model.model_parallel_size}, 8} # 8 gpus per node
     time_limit: "2:00:00"
     ntasks_per_node: ${divide_ceil:${conversion.model.model_parallel_size}, ${.nodes}}
@@ -2266,9 +2266,9 @@ in `conf/conversion/convert_t5.yaml`:
 ```yaml
 model:
     model_type: t5 # gpt or t5
-    checkpoint_folder: ${conversion.run.train_dir}/checkpoints
+    checkpoint_folder: ${conversion.run.train_dir}/results/checkpoints
     checkpoint_name: latest # latest OR name pattern of a checkpoint (e.g. megatron_gpt-*last.ckpt)
-    hparams_file: ${conversion.run.train_dir}/hparams.yaml
+    hparams_file: ${conversion.run.train_dir}/results/hparams.yaml
     tensor_model_parallel_size: 1 # 1 for 220m, 2 for 3b
     pipeline_model_parallel_size: 1 
     model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
@@ -2280,7 +2280,7 @@ To specify the output location and file name of the converted `.nemo` file for T
 in `conf/conversion/convert_t5.yaml`:
 ```yaml
 run:
-    job_name: convert_${conversion.run.model_train_name}
+    name: convert_${conversion.run.model_train_name}
     nodes: ${divide_ceil:${conversion.model.model_parallel_size}, 8} # 8 gpus per node
     time_limit: "2:00:00"
     ntasks_per_node: ${divide_ceil:${conversion.model.model_parallel_size}, ${.nodes}}
@@ -2367,9 +2367,9 @@ in `conf/conversion/convert_mt5.yaml`:
 ```yaml
 model:
   model_type: t5 # gpt or t5, use t5 for mt5 as well
-  checkpoint_folder: ${conversion.run.train_dir}/checkpoints
+  checkpoint_folder: ${conversion.run.train_dir}/results/checkpoints
   checkpoint_name: latest # latest OR name pattern of a checkpoint (e.g. megatron_gpt-*last.ckpt)
-  hparams_file: ${conversion.run.train_dir}/hparams.yaml
+  hparams_file: ${conversion.run.train_dir}/results/hparams.yaml
   tensor_model_parallel_size: 1 
   pipeline_model_parallel_size: 1
   model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
@@ -2382,7 +2382,7 @@ To specify the output location and file name of the converted `.nemo` file for m
 in `conf/conversion/convert_mt5.yaml`:
 ```yaml
 run:
-  job_name: convert_${conversion.run.model_train_name}
+  name: convert_${conversion.run.model_train_name}
   nodes: ${divide_ceil:${conversion.model.model_parallel_size}, 8} # 8 gpus per node
   time_limit: "2:00:00"
   ntasks_per_node: ${divide_ceil:${conversion.model.model_parallel_size}, ${.nodes}}
@@ -2840,9 +2840,9 @@ To specify which model checkpoint to load and its definition, use the `model` pa
 ```yaml
 model:
     model_type: nemo-gpt3
-    checkpoint_folder: ${evaluation.run.train_dir}/checkpoints
+    checkpoint_folder: ${evaluation.run.train_dir}/results/checkpoints
     checkpoint_name: latest # latest OR name pattern of a checkpoint (e.g. megatron_gpt-*last.ckpt)
-    hparams_file: ${evaluation.run.train_dir}/hparams.yaml
+    hparams_file: ${evaluation.run.train_dir}/results/hparams.yaml
     tensor_model_parallel_size: 2 #1 for 126m, 2 for 5b, 8 for 20b
     pipeline_model_parallel_size: 1
     model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}

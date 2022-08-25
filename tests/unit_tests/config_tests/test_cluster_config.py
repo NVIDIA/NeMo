@@ -11,7 +11,6 @@ class TestClusterConfig:
         gpus_per_task: null
         gpus_per_node: 8
         mem: 0
-        overcommit: False
         job_name_prefix: "bignlp-"
         """
         expected = OmegaConf.create(s)

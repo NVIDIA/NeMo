@@ -1,0 +1,21 @@
+run:
+  name: download_gpt3_pile
+  results_dir: ${base_results_dir}/${.name}
+  time_limit: "4:00:00"
+  dependency: "singleton"
+  node_array_size: 30
+  array: ${..file_numbers}
+  bcp_preproc_npernode: 2 # 2 should be safe to use and x2 times faster.
+
+dataset: pile
+download_the_pile: True  # Whether to download the pile dataset from the internet.
+the_pile_url: "https://mystic.the-eye.eu/public/AI/pile/train/"  # Source URL to download The Pile dataset from.
+file_numbers: "0-29"  # The pile dataset consists of 30 files (0-29), choose which ones to download.
+preprocess_data: True  # True to preprocess the data from a jsonl file, False otherwise.
+download_vocab_url: "https://huggingface.co/gpt2/resolve/main/vocab.json"  # URL to download the vocab from.
+download_merges_url: "https://huggingface.co/gpt2/resolve/main/merges.txt"  # URL to download the merges from.
+vocab_save_dir: ${data_dir}/bpe
+merges_save_dir: ${data_dir}/bpe
+tokenizer_type: GPT2BPETokenizer
+rm_downloaded: True # Extract script will remove downloaded zst after extraction
+rm_extracted: True # Preprocess script will remove extracted files after preproc.

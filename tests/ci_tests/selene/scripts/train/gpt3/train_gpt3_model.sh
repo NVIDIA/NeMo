@@ -15,15 +15,9 @@ DATA_PREFIX=[1.0,/lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-
 set -o xtrace
 
 #TODO : Can add additional parameters (key value pairs from gitlab-ci.yaml file)
-HYDRA_FULL_ERROR=1 python3 main.py \
-    +ci_test=True \
+HYDRA_FULL_ERROR=1 BIGNLP_CI=1 python3 main.py \
     training=${RUN_MODEL}/${RUN_MODEL_SIZE} \
-    run_data_preparation=False \
-    run_training=True \
-    run_conversion=False \
-    run_finetuning=False \
-    run_evaluation=False \
-    run_export=False \
+    stages=["training"] \
     bignlp_path=${GIT_CLONE_PATH} \
     data_dir=${DATA_DIR} \
     base_results_dir=${BASE_RESULTS_DIR} \
@@ -40,4 +34,4 @@ HYDRA_FULL_ERROR=1 python3 main.py \
     training.model.tensor_model_parallel_size=${TP_SIZE} \
     training.model.pipeline_model_parallel_size=${PP_SIZE} \
     training.model.data.data_prefix=${DATA_PREFIX} \
-    "${params[@]}"
+    "${params[@]}" ${ADDITIONAL_PARAMS}

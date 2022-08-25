@@ -121,8 +121,8 @@ class TestFinetuningmT5Config:
 
 
 class TestFinetuningT5Config:
-    def test_finetuning_t5_config(self):
-        conf = OmegaConf.load("conf/finetuning/t5/mnli.yaml")
+    def test_fine_tuning_t5_config(self):
+        conf = OmegaConf.load("conf/fine_tuning/t5/mnli.yaml")
         s = """
         run:
           name: ${.task_name}_${.model_train_name}
@@ -130,6 +130,7 @@ class TestFinetuningT5Config:
           dependency: "singleton"
           convert_name: convert_nemo
           model_train_name: t5_220m
+          convert_dir: ${base_results_dir}/${fine_tuning.run.model_train_name}/${fine_tuning.run.convert_name}
           task_name: "mnli" # Supported task names: "cola", "sst-2", "mrpc", "sts-b", "qqp", "mnli", "qnli", "rte"
           results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
         
@@ -149,28 +150,28 @@ class TestFinetuningT5Config:
           gradient_clip_val: 1.0
         
         exp_manager:
-          explicit_log_dir: ${finetuning.run.results_dir}
+          explicit_log_dir: ${fine_tuning.run.results_dir}/results
           exp_dir: null
           name: megatron_t5_glue
           create_wandb_logger: False
           wandb_logger_kwargs:
             project: nemo_t5_glue
-            name: ${finetuning.run.name}
+            name: ${fine_tuning.run.name}
           resume_if_exists: True
           resume_ignore_no_checkpoint: True
           create_checkpoint_callback: True
           checkpoint_callback_params:
-            monitor: validation_${finetuning.model.data.validation_ds.metric.name}
+            monitor: validation_${fine_tuning.model.data.validation_ds.metric.name}
             save_top_k: 5
             mode: max
             always_save_nemo: False
             save_nemo_on_train_end: True # Set to true for subsequent validation runs.
             filename: 'megatron_t5--{${.monitor}:.3f}-{step}'
-            model_parallel_size: ${finetuning.model.model_parallel_size}
+            model_parallel_size: ${fine_tuning.model.model_parallel_size}
             save_best_model: True
         
-        model: # For different finetuning tasks, tuning the hyper parameters accordingly; below is only for MNLI
-          restore_from_path: ${base_results_dir}/${finetuning.run.model_train_name}/${finetuning.run.convert_name}/megatron_t5.nemo # Path to a trained T5 .nemo file
+        model: # For different fine_tuning tasks, tuning the hyper parameters accordingly; below is only for MNLI
+          restore_from_path: ${fine_tuning.run.convert_dir}/results/megatron_t5.nemo # Path to a trained T5 .nemo file
           tensor_model_parallel_size: 1
           pipeline_model_parallel_size: 1
           pipeline_model_parallel_split_rank: ${divide_floor:${.pipeline_model_parallel_size}, 2}
@@ -183,8 +184,8 @@ class TestFinetuningT5Config:
         
           data:
             train_ds:
-              task_name: ${finetuning.run.task_name}
-              file_path: ${data_dir}/glue_data/${finetuning.run.task_name}/train.tsv # Path to the TSV file for MNLI train
+              task_name: ${fine_tuning.run.task_name}
+              file_path: ${data_dir}/glue_data/${fine_tuning.run.task_name}/train.tsv # Path to the TSV file for MNLI train
               global_batch_size: 128
               micro_batch_size: 16
               shuffle: True
@@ -194,8 +195,8 @@ class TestFinetuningT5Config:
               drop_last: True
         
             validation_ds:
-              task_name: ${finetuning.run.task_name}
-              file_path: ${data_dir}/glue_data/${finetuning.run.task_name}/dev_matched.tsv # Path to the TSV file for MNLI dev. Replace `dev_matched.tsv` with `dev.tsv` if not finetuning MNLI
+              task_name: ${fine_tuning.run.task_name}
+              file_path: ${data_dir}/glue_data/${fine_tuning.run.task_name}/dev_matched.tsv # Path to the TSV file for MNLI dev. Replace `dev_matched.tsv` with `dev.tsv` if not fine_tuning MNLI
               global_batch_size: 128
               micro_batch_size: 16
               shuffle: False
@@ -209,6 +210,8 @@ class TestFinetuningT5Config:
                 name: "exact_string_match" # Name of the evaluation metric to use.
                 average: null # Average the metric over the dataset. Options: ['macro', 'micro']. Works only for 'F1', 'accuracy' etc. Refer to torchmetrics for metrics where this is supported.
                 num_classes: null
+                class_labels: null
+                labels_are_strings: False
         
           optim:
             name: fused_adam
@@ -218,4 +221,4 @@ class TestFinetuningT5Config:
         expected = OmegaConf.create(s)
         assert (
             expected == conf
-        ), f"conf/finetuning/t5/mnli.yaml must be set to {expected} but it currently is {conf}."
+        ), f"conf/fine_tuning/t5/mnli.yaml must be set to {expected} but it currently is {conf}."

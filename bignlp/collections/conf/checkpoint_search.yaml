@@ -1,0 +1,4 @@
+checkpoint_folder: null
+checkpoint_name: latest
+tensor_model_parallel_size: 1
+pipeline_model_parallel_size: 1

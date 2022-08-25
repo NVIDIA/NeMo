@@ -11,5 +11,5 @@ class TestConvertPipeline:
     output_file="megatron_" + model + ".nemo"
 
     def test_ci_convert(self):
-        ckpt_path = os.path.join(CI_JOB_RESULTS_DIR, self.output_file)
+        ckpt_path = os.path.join(CI_JOB_RESULTS_DIR, "results", self.output_file)
         assert os.path.exists(ckpt_path), f"File not found: {ckpt_path}"

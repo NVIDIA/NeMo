@@ -4,6 +4,7 @@ run:
   dependency: "singleton"
   convert_name: convert_nemo
   model_train_name: gpt3_5b
+  convert_dir: ${base_results_dir}/${prompt_learning.run.model_train_name}/${prompt_learning.run.convert_name}
   task_name: "squad"
   results_dir: ${base_results_dir}/${.model_train_name}/prompt_learning_${.task_name}
 
@@ -24,7 +25,7 @@ trainer:
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
 
 exp_manager:
-  explicit_log_dir: ${prompt_learning.run.results_dir}
+  explicit_log_dir: ${prompt_learning.run.results_dir}/results
   exp_dir: null
   name: megatron_gpt_prompt
   create_wandb_logger: False
@@ -45,9 +46,8 @@ exp_manager:
 
 model:
   seed: 1234
-  nemo_path: ${prompt_learning.run.results_dir}/megatron_gpt_prompt.nemo # the place to save prompt learning nemo checkpoint
+  nemo_path: ${prompt_learning.run.results_dir}/results/megatron_gpt_prompt.nemo # the place to save prompt learning nemo checkpoint
   virtual_prompt_style: 'p-tuning' # One of 'p-tuning', 'prompt-tuning', or 'inference'. We recommend 'p-tuning' over 'prompt-tuning'.
-  encoder_seq_length: 2048
   tensor_model_parallel_size: 2
   pipeline_model_parallel_size: 1
   model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
@@ -55,7 +55,7 @@ model:
   micro_batch_size: 8
 
   restore_path: null # used to restore from a prompt tuned checkpoint and add new tasks
-  language_model_path: ${base_results_dir}/${prompt_learning.run.model_train_name}/${prompt_learning.run.convert_name}/megatron_gpt.nemo # Restore lanugage model from pre-trained .nemo checkpoint
+  language_model_path: ${prompt_learning.run.convert_dir}/results/megatron_gpt.nemo # Restore lanugage model from pre-trained .nemo checkpoint
   existing_tasks: [] # if restore from a prompt tuned checkpoint and add new tasks, existing task names should be included here.
   new_tasks: ["squad"] # multiple tasks can be tuned at the same time
 
