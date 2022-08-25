@@ -1231,7 +1231,7 @@ train.gpt3.126m_tp2_pp2_2node_100steps_SP:
     PP_SIZE: 2
     NUM_NODES: 2
     MAX_STEPS: 100
-    TIME_LIMIT: 00:40:00
+    TIME_LIMIT: 40:00
     TEST_LEVEL: L3
     ADDITIONAL_PARAMS: "training.model.sequence_parallel=True"
   needs:
@@ -1250,7 +1250,7 @@ eval.gpt3.126m_tp2_pp2_lambada_SP:
     TRAIN_JOB_NAME: train_gpt3_126m_tp2_pp2_2node_100steps_SP
     TP_SIZE: 2
     PP_SIZE: 2
-    TIME_LIMIT: 00:40:00
+    TIME_LIMIT: 40:00
     TEST_LEVEL: L3
   needs:
     - train.gpt3.126m_tp2_pp2_2node_100steps_SP
@@ -1267,7 +1267,7 @@ convert.gpt3.126m_tp2_pp2_SP:
     UPSTREAM_RUN_NAME: train_gpt3_126m_tp2_pp2_2node_100steps_SP
     TP_SIZE: 2
     PP_SIZE: 2
-    TIME_LIMIT: 00:40:00
+    TIME_LIMIT: 40:00
     TEST_LEVEL: L3
   needs:
     - train.gpt3.126m_tp2_pp2_2node_100steps_SP
@@ -1286,7 +1286,7 @@ prompt_learn.gpt3.126m_tp2_pp2_2node_100steps_squad_SP:
     PP_SIZE: 2
     NUM_NODES: 2
     MAX_STEPS: 100
-    TIME_LIMIT: 00:40:00
+    TIME_LIMIT: 40:00
     TEST_LEVEL: L3
   needs:
     - convert.gpt3.126m_tp2_pp2_SP
@@ -1306,7 +1306,7 @@ eval.gpt3.prompt_126m_tp2_pp2_squad_SP:
     NUM_NODES: 2
     PROMPT_LEARN_MODEL_DIR: prompt_learn_gpt3_126m_tp2_pp2_2node_squad_SP
     CONVERT_MODEL_DIR: convert_gpt3_126m_tp2_pp2_SP
-    TIME_LIMIT: 00:40:00
+    TIME_LIMIT: 40:00
     TEST_LEVEL: L3
   needs:
     - prompt_learn.gpt3.126m_tp2_pp2_2node_100steps_squad_SP
@@ -1323,7 +1323,7 @@ train.gpt3.126m_tp2_pp2_2node_100steps_SP_SAR:
     PP_SIZE: 2
     NUM_NODES: 2
     MAX_STEPS: 100
-    TIME_LIMIT: 00:40:00
+    TIME_LIMIT: 40:00
     TEST_LEVEL: L3
     ADDITIONAL_PARAMS: "training.model.activations_checkpoint_granularity=selective training.model.activations_checkpoint_method=null training.model.activations_checkpoint_num_layers=null training.model.sequence_parallel=True "
   needs:
@@ -1342,7 +1342,7 @@ eval.gpt3.126m_tp2_pp2_lambada_SP_SAR:
     TRAIN_JOB_NAME: train_gpt3_126m_tp2_pp2_2node_100steps_SP_SAR
     TP_SIZE: 2
     PP_SIZE: 2
-    TIME_LIMIT: 00:40:00
+    TIME_LIMIT: 40:00
     TEST_LEVEL: L3
   needs:
     - train.gpt3.126m_tp2_pp2_2node_100steps_SP_SAR
@@ -1359,7 +1359,7 @@ convert.gpt3.126m_tp2_pp2_SP_SAR:
     UPSTREAM_RUN_NAME: train_gpt3_126m_tp2_pp2_2node_100steps_SP_SAR
     TP_SIZE: 2
     PP_SIZE: 2
-    TIME_LIMIT: 00:40:00
+    TIME_LIMIT: 40:00
     TEST_LEVEL: L3
   needs:
     - train.gpt3.126m_tp2_pp2_2node_100steps_SP_SAR
@@ -1378,7 +1378,7 @@ prompt_learn.gpt3.126m_tp2_pp2_2node_100steps_squad_SP_SAR:
     PP_SIZE: 2
     NUM_NODES: 2
     MAX_STEPS: 100
-    TIME_LIMIT: 00:40:00
+    TIME_LIMIT: 40:00
     TEST_LEVEL: L3
   needs:
     - convert.gpt3.126m_tp2_pp2_SP_SAR
@@ -1398,7 +1398,7 @@ eval.gpt3.prompt_126m_tp2_pp2_squad_SP_SAR:
     NUM_NODES: 2
     PROMPT_LEARN_MODEL_DIR: prompt_learn_gpt3_126m_tp2_pp2_2node_squad_SP_SAR
     CONVERT_MODEL_DIR: convert_gpt3_126m_tp2_pp2_SP_SAR
-    TIME_LIMIT: 00:40:00
+    TIME_LIMIT: 40:00
     TEST_LEVEL: L3
   needs:
     - prompt_learn.gpt3.126m_tp2_pp2_2node_100steps_squad_SP_SAR
