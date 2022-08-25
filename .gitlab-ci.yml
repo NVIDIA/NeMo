@@ -8,8 +8,8 @@ variables: &VARS
   CONTAINER_NVCR_BASE: nvcr.io/nvidian/bignlp-ci:training
   TESTS_TO_RUN_ON_MERGE_REQ: L0  # Can specify levels, ci job names etc as a space seperated list to run during merge request
   TESTS_TO_RUN_ON_THIS_COMMIT: NONE # Can specify levels, ci job names etc as a space seperated list to run during this commit
-  TEST_REGEX_ON_THIS_COMMIT: /.*_SP_SAR.*/ #https://github.com/google/re2/wiki/Syntax (Can define regex as in this spec) e.g /.*gpt3.*/
-  CREATE_TEST_DATA: "False"
+  TEST_REGEX_ON_THIS_COMMIT: /.*_SP.*/ #https://github.com/google/re2/wiki/Syntax (Can define regex as in this spec) e.g /.*gpt3.*/
+  CREATE_TEST_DATA: "True"
 
 
 stages:
@@ -186,7 +186,8 @@ release_perf:
     # If you wan to be able to automatically add test results file then set the CREATE_TEST_DATA flag to be true.
     # It will run the test on selene copy the results file and paste it in the bignlp-scripts repo and raise a PR.
     - |
-        if [[ "$CREATE_TEST_DATA" = "True" ]]; then
+        ALLOWED_STAGES=("train" "eval" "finetune" "prompt_learn");
+        if [[ "$CREATE_TEST_DATA" = "True" && ${ALLOWED_STAGES[*]} =~ "$RUN_STAGE" ]]; then
           echo "Current working directory"
           echo $pwd
           cd ..
