@@ -48,7 +48,8 @@ class SSLVocoderDataset(Dataset):
         normalize_content: Optional[bool] = True,
         speaker_stats_pitch_fp: Optional[Union[str, Path]] = None,
         use_unique_tokens: Optional[bool] = False,
-        speaker_conditioning_type: Optional[str] = "per_sample",  # per_sample, mean, interpolate
+        speaker_conditioning_type: Optional[str] = "per_sample",  # per_sample, mean, interpolate,
+        segment_speaker_embedding: Optional[bool] = False,
     ):
         """Dataset which can be used for training and fine-tuning vocoder with pre-computed mel-spectrograms.
         Args:
@@ -96,8 +97,8 @@ class SSLVocoderDataset(Dataset):
                     file_info = {
                         "audio_filepath": item["audio_filepath"],
                         "duration": item["duration"] if "duration" in item else None,
-                        "speaker": item["speaker"],
-                        "dataset_id": item["dataset_id"] if "dataset_id" in item else None,
+                        "speaker": item["speaker"] if "speaker" in item else 0,
+                        "dataset_id": item["dataset_id"] if "dataset_id" in item else 0,
                     }
 
                     data.append(file_info)
@@ -198,6 +199,7 @@ class SSLVocoderDataset(Dataset):
         self.use_unique_tokens = use_unique_tokens
 
         self.speaker_conditioning_type = speaker_conditioning_type
+        self.segment_speaker_embedding = segment_speaker_embedding
         self.compute_mean_speaker_embeddings()
 
         if self.pitch_normalization == "speaker_wise":
@@ -406,6 +408,23 @@ class SSLVocoderDataset(Dataset):
 
             return log_mel
 
+    def segment_wav(self, wav, segment_length=44100, hop_size=22050, min_segment_size=22050):
+        if len(wav) < segment_length:
+            pad = torch.zeros(segment_length - len(wav))
+            segment = torch.cat([wav, pad])
+            return [segment]
+        else:
+            si = 0
+            segments = []
+            while si < len(wav) - min_segment_size:
+                segment = wav[si:si+segment_length]
+                if len(segment) < segment_length:
+                    pad = torch.zeros(segment_length - len(segment))
+                    segment = torch.cat([segment, pad])
+                segments.append(segment)
+                si += hop_size
+            return segments
+
     def get_ssl_features(self, audio_ssl, audio_ssl_length, wav_text_id):
         content_emb_fn = f"{self.ssl_content_emb_type}_content_embedding_{wav_text_id}.pt"
         speaker_emb_fn = f"speaker_embedding_{wav_text_id}.pt"
@@ -440,6 +459,20 @@ class SSLVocoderDataset(Dataset):
                         input_signal_length=audio_ssl_length[None],
                         normalize_content=self.normalize_content,
                     )
+
+                    if self.segment_speaker_embedding:
+                        with torch.no_grad():
+                            segments = self.segment_wav(audio_ssl)
+                            signal_batch = torch.stack(segments)
+                            signal_length_batch = torch.stack( [ torch.tensor(signal_batch.shape[1]) for _i in range(len(segments)) ] )
+                            _, speaker_embeddings, _, _, _ = self.ssl_model.forward_for_export(
+                                    input_signal=signal_batch, input_signal_length=signal_length_batch, normalize_content=self.normalize_content
+                                )
+                            speaker_embedding = torch.mean(speaker_embeddings, dim=0)
+                            l2_norm = torch.norm(speaker_embedding, p=2)
+                            speaker_embedding_normalized = speaker_embedding/l2_norm
+                            speaker_embedding_normalized = speaker_embedding_normalized[None]
+
                     speaker_embedding_normalized = speaker_embedding_normalized[0].detach()
                     content_embedding = content_embedding[0].detach()
                     content_log_probs = content_log_probs[:, 0, :].detach()  # (content lob prob is (t, b, c))
@@ -589,16 +622,10 @@ class SSLVocoderDataset(Dataset):
         rel_audio_path = Path(sample["audio_filepath"]).relative_to(self.base_data_dir).with_suffix("")
         rel_audio_path_as_text_id = str(rel_audio_path).replace("/", "_")
         speaker = torch.tensor(sample["speaker"]).long()
+        dataset_id = torch.tensor(sample["dataset_id"]).long()
+        
         audio_ssl, audio_ssl_length, audio, audio_length = self._get_wav_from_filepath(sample["audio_filepath"])
-
-        dataset_id = None
-        if sample["dataset_id"] is not None:
-            dataset_id = torch.tensor(sample["dataset_id"]).long()
-
-        # print("audio ssl", audio_ssl.shape)
-        # print("audio", audio.shape)
-        # print("audio ssl length", audio_ssl_length)
-        # print("audio length", audio_length)
+        
         pitch_contour = None
         if self.pitch_conditioning:
             pitch_contour = self.get_pitch_contour(audio_ssl[:-1], rel_audio_path_as_text_id)
