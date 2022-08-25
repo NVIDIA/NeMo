@@ -97,9 +97,9 @@ class DialogueCustomDataProcessor(DialogueDataProcessor):
 
         # mapping for slot -> corresponding unit
         slot_to_unit_mapping = {}
-        
+
         for slot in dialogue["Fulfillment"][0]["FulfillmentSlots"]:
-            
+
             # add new slot to unit mapping if not already present
             if slot["Name"] not in slot_to_unit_mapping:
                 for slot_metadata in dialogue["DialogState"]["GlobalSlot"]:
