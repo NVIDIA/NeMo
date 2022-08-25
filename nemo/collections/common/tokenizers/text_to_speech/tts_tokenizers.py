@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import abc
+import ctypes.util
 import itertools
 import string
 from contextlib import contextmanager
@@ -156,8 +157,9 @@ class BaseCharsTokenizer(BaseTokenizer):
                 logging.warning(f"Text: [{text}] contains unknown char: [{c}]. Symbol will be skipped.")
 
         # Remove trailing spaces
-        while cs[-1] == space:
-            cs.pop()
+        if cs:
+            while cs[-1] == space:
+                cs.pop()
 
         if self.pad_with_space:
             cs = [space] + cs + [space]
@@ -370,8 +372,9 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
                 )
 
         # Remove trailing spaces
-        while ps[-1] == space:
-            ps.pop()
+        if ps:
+            while ps[-1] == space:
+                ps.pop()
 
         if self.pad_with_space:
             ps = [space] + ps + [space]
@@ -511,8 +514,9 @@ class IPATokenizer(BaseTokenizer):
                 )
 
         # Remove trailing spaces
-        while ps[-1] == space:
-            ps.pop()
+        if ps:
+            while ps[-1] == space:
+                ps.pop()
 
         if self.pad_with_space:
             ps = [space] + ps + [space]
@@ -555,17 +559,17 @@ class PhonemizerTokenizer(IPATokenizer):
         https://github.com/bootphon/phonemizer
         http://espeak.sourceforge.net/
 
-        To use this class you will need to install eSpeak separately from NeMo:
+        To use this class you will need to install eSpeak separately from NeMo.
 
-        apt-get update && apt-get install espeak-ng
+        For Linux: apt-get update && apt-get install espeak-ng
+        Other OS: https://github.com/espeak-ng/espeak-ng/blob/master/docs/guide.md#installation
 
         eSpeak provides out-of-the-box text normalization & g2p for a large number of languages.
         This tokenizer incorporates that functionality with a phoneme dictionary that allows overriding
         pronunciation for specific words that eSpeak may get wrong.
 
-        This class currently supports: English, Spanish, and German. For other languages, check whether the chars
-        and punctuation covers everything in the language. If not, override them using "non_default_chars" and
-        "non_default_punct_list".
+        This class currently supports: English, Spanish, and German. For other languages you will have to provide
+        the character set for the language using "non_default_chars" and "non_default_punct_list".
 
         Args:
             language: Language string http://espeak.sourceforge.net/languages.html
@@ -581,6 +585,13 @@ class PhonemizerTokenizer(IPATokenizer):
             espeak_logging_level: Logging level for eSpeak.
                 Defaults to 'logging.ERROR' (to avoid a lot of unhelpful warning logs).
         """
+
+        if not (ctypes.util.find_library('espeak-ng') or ctypes.util.find_library('espeak')):
+            raise ImportError(
+                "PhonemizerTokenizer requires eSpeak to be installed. "
+                "Please follow the instructions at: "
+                "https://github.com/espeak-ng/espeak-ng/blob/master/docs/guide.md#installation"
+            )
 
         if non_default_chars:
             char_list = non_default_chars

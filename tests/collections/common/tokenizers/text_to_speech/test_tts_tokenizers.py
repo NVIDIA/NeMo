@@ -14,6 +14,7 @@
 
 import ctypes.util
 import os
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -29,6 +30,13 @@ class TestTTSTokenizers:
         phoneme_dict_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "phoneme_dict", "test_dict.txt")
         tokenizer = PhonemizerTokenizer(language=language, phoneme_dict=phoneme_dict_path)
         return tokenizer
+
+    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.unit
+    def test_phonemizer_espeak_not_installed(self):
+        with patch('ctypes.util.find_library', Mock(return_value=False)):
+            with pytest.raises(ImportError, match="requires eSpeak to be installed"):
+                self._create_tokenizer("en-us")
 
     @pytest.mark.skipif(
         not ESPEAK_AVAILABLE, reason="eSpeak not installed",
@@ -69,6 +77,16 @@ class TestTTSTokenizers:
         output = tokenizer.text_to_phonemes(input_text)
         assert output == expected_output
 
+    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.unit
+    def test_phonemizer_tokenizer_with_unknown_character(self):
+        input_text = "NVIDIA🙂 NeMo 🧐"
+        expected_output = "ɛnˈvidiə ˈnimoʊ"
+        tokenizer = self._create_tokenizer("en-us")
+
+        output = tokenizer.text_to_phonemes(input_text)
+        assert output == expected_output
+
     @pytest.mark.skipif(
         not ESPEAK_AVAILABLE, reason="eSpeak not installed",
     )
@@ -89,8 +107,21 @@ class TestTTSTokenizers:
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     def test_phonemizer_tokenizer_unsupported_language(self):
-        with pytest.raises(ValueError, match='Character set not found'):
+        with pytest.raises(ValueError, match="Character set not found"):
             self._create_tokenizer("pt-BR")
+
+    @pytest.mark.skipif(
+        not ESPEAK_AVAILABLE, reason="eSpeak not installed",
+    )
+    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.unit
+    def test_phonemizer_tokenizer_wrong_language(self):
+        input_text = "こんにちは世界"
+        expected_output = ""
+        tokenizer = self._create_tokenizer("en-us")
+
+        output = tokenizer.text_to_phonemes(input_text)
+        assert output == expected_output
 
     @pytest.mark.skipif(
         not ESPEAK_AVAILABLE, reason="eSpeak not installed",
