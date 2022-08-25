@@ -11,6 +11,7 @@ from bignlp.core.stages import Training, FineTuning, PromptLearning
 from bignlp.core.stages import Conversion
 from bignlp.core.stages import EvalHarnessEvaluation, NeMoEvaluation
 from bignlp.core.data_stages import PileDataPreparation, MC4DataPreparation, CustomDataPreparation
+from bignlp.core.export_stages import Export
 
 
 omegaconf.OmegaConf.register_new_resolver("multiply", lambda x, y: x * y, replace=True)
@@ -22,6 +23,7 @@ STR2STAGECLASS = {
     "fine_tuning": FineTuning,
     "prompt_learning": PromptLearning,
     "conversion": Conversion,
+    "export": Export,
     "evaluation": {
         EvalHarnessEvaluation: ["gpt3", "prompt_gpt3"],
         NeMoEvaluation: ["t5", "mt5", "prompt_t5", "prompt_mt5"]
