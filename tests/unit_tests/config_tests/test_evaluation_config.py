@@ -2,18 +2,18 @@ from omegaconf import OmegaConf
 
 
 class TestEvaluationmT5Config:
-    def test_evaluation_mt5_xnli_config(self):
-        conf = OmegaConf.load("conf/evaluation/mt5/xnli.yaml")
+    def test_evaluation_mt5_config(self):
+        conf = OmegaConf.load("conf/evaluation/mt5/xquad.yaml")
         s = """
         run:
           name: eval_${.task_name}_${.model_train_name}
           time_limit: "04:00:00"
           dependency: "singleton"
           model_train_name: mt5_390m
-          task_name: "xnli"
-          finetuning_results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
+          task_name: "xquad"
+          fine_tuning_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
           results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}_eval
-
+        
         trainer:
           devices: 8
           num_nodes: 1
@@ -23,30 +23,45 @@ class TestEvaluationmT5Config:
           enable_checkpointing: False
           replace_sampler_ddp: False
           log_every_n_steps: 10
-
-
+        
         exp_manager:
-          explicit_log_dir: ${evaluation.run.results_dir}
+          explicit_log_dir: ${evaluation.run.results_dir}/results
           exp_dir: null
-          name: megatron_mt5_glue_xnli_eval
+          name: megatron_mt5_${evaluation.run.task_name}_eval
           create_checkpoint_callback: False
-
+        
         model:
-          restore_from_path: ${evaluation.run.finetuning_results_dir}/checkpoints/megatron_mt5_glue_xnli.nemo # Path to a finetuned mT5 .nemo file
+          restore_from_path: ${evaluation.run.fine_tuning_dir}/results/checkpoints/megatron_mt5_xquad.nemo # Path to a finetuned mT5 .nemo file
           gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
           megatron_amp_O2: False # Enable O2 optimization for megatron amp
-          eval_languages: ['fr', 'de', 'en', 'es'] # List of languages to evaluate zero-shot XNLI performance. Full language list: ar,bg,de,el,en,es,fr,hi,ru,sw,th,tr,ur,vi,zh
-
+        
           data:
             validation_ds:
-              task_name: 'xnli'
-              file_path: ${data_dir}/glue_data/xnli/xnli.test.tsv # Path to the TSV file for XNLI test
-              global_batch_size: 32
-              micro_batch_size: 4
+              src_file_name:
+                - ${data_dir}/squad_data/xquad/xquad.en_src.txt
+                - ${data_dir}/squad_data/xquad/xquad.es_src.txt
+                - ${data_dir}/squad_data/xquad/xquad.de_src.txt
+                - ${data_dir}/squad_data/xquad/xquad.hi_src.txt
+                - ${data_dir}/squad_data/xquad/xquad.zh_src.txt
+              tgt_file_name:
+                - ${data_dir}/squad_data/xquad/xquad.en_tgt.txt
+                - ${data_dir}/squad_data/xquad/xquad.es_tgt.txt
+                - ${data_dir}/squad_data/xquad/xquad.de_tgt.txt
+                - ${data_dir}/squad_data/xquad/xquad.hi_tgt.txt
+                - ${data_dir}/squad_data/xquad/xquad.zh_tgt.txt
+              names:
+                - xquad_en
+                - xquad_es
+                - xquad_de
+                - xquad_hi
+                - xquad_zh
+              global_batch_size: 128
+              micro_batch_size: 16
               shuffle: False
               num_workers: 4
               pin_memory: True
-              max_seq_length: 512
+              max_src_seq_length: 512
+              max_tgt_seq_length: 128
               drop_last: False
               write_predictions_to_file: False
               output_file_path_prefix: null # Prefix of the file to write predictions to.
@@ -54,6 +69,8 @@ class TestEvaluationmT5Config:
                 name: "exact_string_match" # Name of the evaluation metric to use.
                 average: null # Average the metric over the dataset. Options: ['macro', 'micro']. Works only for 'F1', 'accuracy' etc. Refer to torchmetrics for metrics where this is supported.
                 num_classes: null
+                class_labels: null
+                labels_are_strings: False
         """
         expected = OmegaConf.create(s)
         assert (
@@ -62,15 +79,15 @@ class TestEvaluationmT5Config:
 
 
 class TestEvaluationT5Config:
-    def test_evaluation_t5_mnli_matched_config(self):
-        conf = OmegaConf.load("conf/evaluation/t5/mnli_matched.yaml")
+    def test_evaluation_t5_config(self):
+        conf = OmegaConf.load("conf/evaluation/t5/squad.yaml")
         s = """
         run:
           name: eval_${.task_name}_${.model_train_name}
           time_limit: "04:00:00"
           dependency: "singleton"
           model_train_name: t5_220m
-          task_name: "mnli" # Supported task names: "cola", "sst-2", "mrpc", "sts-b", "qqp", "mnli", "qnli", "rte"
+          task_name: "squad"  # SQuAD v1.1
           fine_tuning_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
           results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}_eval
         
@@ -88,24 +105,25 @@ class TestEvaluationT5Config:
         exp_manager:
           explicit_log_dir: ${evaluation.run.results_dir}/results
           exp_dir: null
-          name: megatron_t5_glue_eval
+          name: megatron_t5_${fine_tuning.run.task_name}_eval
           create_checkpoint_callback: False
         
         model:
-          restore_from_path: ${evaluation.run.fine_tuning_dir}/results/checkpoints/megatron_t5_glue.nemo # Path to a finetuned T5 .nemo file
+          restore_from_path: ${evaluation.run.fine_tuning_dir}/results/checkpoints/megatron_t5_squad.nemo # Path to a finetuned T5 .nemo file
           gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
           megatron_amp_O2: False # Enable O2 optimization for megatron amp
         
           data:
             validation_ds:
-              task_name: ${evaluation.run.task_name}
-              file_path: ${data_dir}/glue_data/${evaluation.run.task_name}/dev_matched.tsv # Path to the TSV file for MNLI dev. Replace `dev_matched.tsv` with `dev.tsv` if '/raid/Data/GLUE/MNLI/dev_matched.tsv'
-              global_batch_size: 32
-              micro_batch_size: 4
+              src_file_name: ${data_dir}/squad_data/v1.1/train-v1.1_src.txt
+              tgt_file_name: ${data_dir}/squad_data/v1.1/train-v1.1_tgt.txt
+              global_batch_size: 128
+              micro_batch_size: 16
               shuffle: False
               num_workers: 4
               pin_memory: True
-              max_seq_length: 512
+              max_src_seq_length: 512
+              max_tgt_seq_length: 128
               drop_last: False
               write_predictions_to_file: False
               output_file_path_prefix: null # Prefix of the file to write predictions to.
