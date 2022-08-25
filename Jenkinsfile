@@ -1026,6 +1026,31 @@ pipeline {
             rm -rf sgd_answer_extender_s2s'
           }
         }
+        stage('Dialogue: Custom Data Response Generation using DialogueS2SGenerationModel') {
+          steps {
+            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/dialogue && \
+            python dialogue.py \
+            do_training=False \
+            trainer.devices=[0] \
+            trainer.accelerator=gpu \
+            trainer.max_steps=1 \
+            trainer.max_epochs=1 \
+            model.nemo_path=null \
+            model.library=huggingface \
+            model.language_model.pretrained_model_name=facebook/bart-base \
+            model.dataset.data_dir=/home/TestData/nlp/sgd_custom_data \
+            model.dataset.dialogues_example_dir=custom_sgd_generation_results \
+            model.dataset.use_cache=false \
+            model.dataset.eval_mode=generation \
+            model.dataset.task=custom_response_generation \
+            model.dataset.prompt_template=slots_values \
+            model.dataset.input_field=utterance+system_actions \
+            model.dataset.output_field=system_utterance \
+            model.test_ds.batch_size=1
+            exp_manager=null  && \
+            rm -rf custom_sgd_generation_results'
+          }
+        }
       }
     }
 //     stage('L2: Dialogue Generation Part 2') {
