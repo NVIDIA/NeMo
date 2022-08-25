@@ -22,10 +22,6 @@ import numpy as np
 from scipy.io import wavfile
 from tqdm import tqdm
 
-# Checks -
-# Audio data is 16 KHz, if not please use ffmpeg to convert them to 16 KHz
-
-
 parser = argparse.ArgumentParser(description='Create synthetic code-switching data audio data from monolingual data')
 parser.add_argument("--manifest_path", default=None, type=str, help='Path to CS indermediate manifest')
 parser.add_argument(
@@ -37,6 +33,12 @@ parser.add_argument(
 parser.add_argument("--manifest_save_path", default=None, type=str, help='Path to save the created manifest')
 parser.add_argument(
     "--audio_normalized_amplitude", default=15000, type=int, help='Normalized amplitdue of audio samples'
+)
+parser.add_argument(
+    "--cs_data_sampling_rate",
+    default=16000,
+    type=int,
+    help='Desired sampling rate for the audios in the generated dataset',
 )
 parser.add_argument(
     "--sample_beginning_pause_msec",
@@ -82,6 +84,7 @@ def __create_cs_data(
     pause_beg_msec: int,
     pause_join_msec: int,
     pause_end_msec: int,
+    cs_data_sampling_rate: int,
 ):
 
     """
@@ -93,13 +96,14 @@ def __create_cs_data(
         pause_beg_msec: Pause to be added at the beginning of the sample (msec)
         pause_join_msec: Pause to be added between different phrases of the sample (msec)
         pause_end_msec: Pause to be added at the end of the sample (msec)
+        cs_data_sampling_rate: Desired sampling rate of the generated samples
 
     Returns:
 
     """
 
     sample_id = 0
-    fs = 16000
+    fs = cs_data_sampling_rate
     incorrect_sample_flag = 0
 
     with open(manfest_save_path, 'w') as outfile:
@@ -115,8 +119,9 @@ def __create_cs_data(
                 data_sample, fs_sample = librosa.load(data['paths'][index], sr=fs)
                 # Alternative-  fs_sample, data_sample = wavfile.read(data['paths'][index])
 
-                if fs_sample != 16000:
-                    print('!!ERROR!!!')
+                if fs_sample != fs:
+                    logging.info('Sampling rate error inside create_cs_data function')
+                    exit
 
                 # Remove leading and trailing zeros
                 data_sample = np.trim_zeros(data_sample)
@@ -177,6 +182,7 @@ def main():
     pause_beg_msec = args.sample_beginning_pause_msec
     pause_join_msec = args.sample_joining_pause_msec
     pause_end_msec = args.sample_end_pause_msec
+    cs_data_sampling_rate = args.cs_data_sampling_rate
 
     # Reading data
     logging.info('Reading manifests')
@@ -192,6 +198,7 @@ def main():
         pause_beg_msec,
         pause_join_msec,
         pause_end_msec,
+        cs_data_sampling_rate,
     )
 
     print("Synthetic CS audio data saved at :", audio_save_folder)
