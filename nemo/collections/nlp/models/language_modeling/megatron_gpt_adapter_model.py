@@ -70,7 +70,7 @@ class MegatronGPTAdapterLearningModel(MegatronGPTPromptLearningModel):
                         cfg=ParallelLinearAdapterConfig(
                             in_features=frozen_model_cfg.hidden_size,
                             dim=cfg.adapter_tuning.adapter_dim,
-                            norm_position='post',
+                            norm_position=cfg.adapter_tuning.norm_position,
                             dropout=cfg.adapter_tuning.adapter_dropout,
                         ),
                     )

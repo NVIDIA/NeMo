@@ -105,6 +105,7 @@ model:
   adapter_tuning:
     adapter_dim: 50
     adapter_dropout: 0.1
+    norm_position: 'post' # This can be set to 'pre' or 'post', 'pre' is normally what is used.
 
   data:
     train_ds: ??? # expects a list of paths to training data files
