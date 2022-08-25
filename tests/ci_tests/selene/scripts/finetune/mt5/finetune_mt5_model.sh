@@ -5,7 +5,7 @@ if [[ $MAX_STEPS -le 100 ]]; then # If greater than hundred we use defaults set 
   params+=(fine_tuning.trainer.log_every_n_steps=$LOG_EVERY_N_STEPS)
   params+=(fine_tuning.trainer.val_check_interval=$VAL_CHECK_INTERVAL)
   UPSTREAM_RUN_NAME=convert_${RUN_MODEL}_${RUN_MODEL_SIZE}_tp${TP_SIZE}_pp${PP_SIZE}
-  - if [[ ! -z "$RUN_NAME_SUFFIX" ]]; then export UPSTREAM_RUN_NAME=${UPSTREAM_RUN_NAME}_${RUN_NAME_SUFFIX}; fi
+  if [[ ! -z "$RUN_NAME_SUFFIX" ]]; then export UPSTREAM_RUN_NAME=${UPSTREAM_RUN_NAME}_${RUN_NAME_SUFFIX}; fi
   LANGUAGE_MODEL_PATH=${BASE_RESULTS_DIR}/${UPSTREAM_RUN_NAME}/results/megatron_mt5.nemo
 fi
 
