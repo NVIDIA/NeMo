@@ -13,7 +13,11 @@
 # limitations under the License.
 from typing import Any, Dict, List, Optional
 
+import pytorch_lightning as pl
 import torch
+from pytorch_lightning import Callback
+from pytorch_lightning.utilities.exceptions import MisconfigurationException
+from pytorch_lightning.utilities.types import STEP_OUTPUT
 
 from nemo.utils import logging
 
@@ -23,11 +27,6 @@ try:
     apex_available = True
 except Exception:
     apex_available = False
-
-import pytorch_lightning as pl
-from pytorch_lightning import Callback
-from pytorch_lightning.utilities.exceptions import MisconfigurationException
-from pytorch_lightning.utilities.types import STEP_OUTPUT
 
 
 class EMA(Callback):

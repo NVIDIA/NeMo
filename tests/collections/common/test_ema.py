@@ -5,8 +5,7 @@ from unittest import mock
 import pytest
 import pytorch_lightning as pl
 import torch
-from pytorch_lightning import Callback
-from pytorch_lightning import Trainer
+from pytorch_lightning import Callback, Trainer
 from pytorch_lightning.utilities.exceptions import MisconfigurationException
 from pytorch_lightning.utilities.types import STEP_OUTPUT
 
