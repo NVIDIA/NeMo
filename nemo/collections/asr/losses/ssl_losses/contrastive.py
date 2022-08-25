@@ -206,7 +206,11 @@ class ContrastiveLoss(Loss):
                     # only sample from masked steps in utterance
                     negatives, _ = self.sample_negatives(targets_masked_only, targets_masked_only.size(0))  # T'xBxC  # T'
             except RuntimeError:
-                raise LossMisconfigurationException(self)
+                raise LossMisconfigurationException(
+                    self, 
+                    "Make sure your loss parameters are configured properly to match your dataset setup "
+                    "(ex. making sure `train_ds.min_duration` is long enough for `ContrastiveLoss.num_negatives`.)"
+                )
 
             # NxT'xBxC
 

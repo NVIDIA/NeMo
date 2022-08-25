@@ -38,10 +38,6 @@ class CheckInstall:
 
 
 class LossMisconfigurationException(NeMoBaseException):
-    def __init__(self, obj):
-        message = (
-            f"Error while computing the loss in {obj}. Make sure your loss parameters are configured "
-            "properly to match your dataset setup (ex. making sure `train_ds.min_duration` is long "
-            "enough for `ContrastiveLoss.num_negatives`.)"
-        )
+    def __init__(self, obj, msg):
+        message = f"Error while computing the loss in {obj}.\n{msg}"
         super().__init__(message)
