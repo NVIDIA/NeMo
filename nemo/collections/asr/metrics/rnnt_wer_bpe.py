@@ -21,8 +21,6 @@ from torchmetrics import Metric
 
 from nemo.collections.asr.metrics.rnnt_wer import AbstractRNNTDecoding, RNNTDecodingConfig
 from nemo.collections.asr.metrics.wer import move_dimension_to_the_front
-from nemo.collections.asr.parts.submodules import rnnt_beam_decoding as beam_decode
-from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging
 
@@ -55,6 +53,16 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
                 The length of the list corresponds to the Acoustic Length (T).
                 Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more targets from a vocabulary.
                 U is the number of target tokens for the current timestep Ti.
+
+            compute_timestamps: A bool flag, which determines whether to compute the character/subword, or
+                word based timestamp mapping the output log-probabilities to discrete intervals of timestamps.
+                The timestamps will be available in the returned Hypothesis.timestep as a dictionary.
+
+            rnnt_timestamp_type: A str value, which represents the types of timestamps that should be calculated.
+                Can take the following values - "char" for character/subword time stamps, "word" for word level
+                time stamps and "all" (default), for both character level and word level time stamps.
+
+            word_seperator: Str token representing the seperator between words.
 
             The config may further contain the following sub-dictionaries:
             "greedy":
@@ -183,6 +191,8 @@ class RNNTBPEWER(Metric):
         res: a tuple of 3 zero dimensional float32 ``torch.Tensor` objects: a WER score, a sum of Levenstein's
             distances for all prediction - reference pairs, total number of words in all references.
     """
+
+    full_state_update = True
 
     def __init__(
         self,

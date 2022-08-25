@@ -9,7 +9,7 @@ trainer:
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
   replace_sampler_ddp: False
-  max_epochs: 1000 # PTL default. In practice, max_steps will be reached first. 
+  max_epochs: -1 # PTL default. In practice, max_steps will be reached first. 
   max_steps: 100000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10
   val_check_interval: 100
@@ -57,16 +57,17 @@ model:
   ffn_hidden_size: 3072 # Transformer FFN hidden size. Usually 4 * hidden_size.
   num_attention_heads: 12
   init_method_std: 0.02 # Standard deviation of the zero mean normal distribution used for weight initialization.')
+  use_scaled_init_method: True # use scaled residuals initialization
   hidden_dropout: 0.1 # Dropout probability for hidden state transformer.
   kv_channels: null # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
   apply_query_key_layer_scaling: True # scale Q * K^T by 1 / layer-number.
+  normalization: layernorm # Type of normalization layers
   layernorm_epsilon: 1e-5
+  do_layer_norm_weight_decay: False # True means weight decay on all params
   make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
   pre_process: True # add embedding
   post_process: True # add pooler
   persist_layer_norm: True # Use of persistent fused layer norm kernel.
-
-  grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce
 
   tokenizer:
     library: 'megatron'
@@ -75,6 +76,7 @@ model:
     vocab_file: null
     merge_file: null 
     delimiter: null # only used for tabular tokenizer
+    sentencepiece_legacy: false # Legacy=True allows you to add special tokens to sentencepiece tokenizers.
 
   # precision
   native_amp_init_scale: 4294967296 # 2 ** 32
@@ -86,6 +88,7 @@ model:
   # Megatron O2-style half-precision
   megatron_amp_O2: False # Enable O2-level automatic mixed precision using main parameters
   grad_allreduce_chunk_size_mb: 125
+  grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce
 
   # miscellaneous
   seed: 1234
@@ -93,9 +96,26 @@ model:
   onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
   apex_transformer_log_level: 30 # Python logging level displays logs with severity greater than or equal to this
   gradient_as_bucket_view: True # PyTorch DDP argument. Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
+  gradient_accumulation_fusion: False # Fuse weight gradient accumulation to GEMMs. Only used with pipeline parallelism.
 
-  activations_checkpoint_method: null # 'uniform', 'block'
-  activations_checkpoint_num_layers: 1 
+  ## Activation Checkpointing
+  # NeMo Megatron supports 'selective' activation checkpointing where only the memory intensive part of attention is checkpointed.
+  # These memory intensive activations are also less compute intensive which makes activation checkpointing more efficient for LLMs (20B+).
+  # See Reducing Activation Recomputation in Large Transformer Models: https://arxiv.org/abs/2205.05198 for more details.
+  # 'full' will checkpoint the entire transformer layer.
+  activations_checkpoint_granularity: null # 'selective' or 'full' 
+  activations_checkpoint_method: null # 'uniform', 'block', not used with 'selective'
+  # 'uniform' divides the total number of transformer layers and checkpoints the input activation
+  # of each chunk at the specified granularity
+  # 'block' checkpoints the specified number of layers per pipeline stage at the specified granularity
+  activations_checkpoint_num_layers: null # not used with 'selective'
+  # when using 'uniform' this creates groups of transformer layers to checkpoint. Usually set to 1. Increase to save more memory.
+  # when using 'block' this this will checkpoint the first activations_checkpoint_num_layers per pipeline stage.
+
+  ## Sequence Parallelism
+  # Makes tensor parallelism more memory efficient for LLMs (20B+) by parallelizing layer norms and dropout sequentially
+  # See Reducing Activation Recomputation in Large Transformer Models: https://arxiv.org/abs/2205.05198 for more details.
+  sequence_parallel: False
 
   data:
     # Path to data must be specified by the user.

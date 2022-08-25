@@ -23,11 +23,15 @@ from typing import Callable, Dict, List, Optional, Union
 import librosa
 import numpy as np
 import torch
-from nemo_text_processing.text_normalization.normalize import Normalizer
 from tqdm import tqdm
 
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
+from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import (
+    BaseTokenizer,
+    EnglishCharsTokenizer,
+    EnglishPhonemesTokenizer,
+)
 from nemo.collections.tts.torch.helpers import (
     BetaBinomialInterpolator,
     beta_binomial_prior_distribution,
@@ -49,9 +53,17 @@ from nemo.collections.tts.torch.tts_data_types import (
     Voiced_mask,
     WithLens,
 )
-from nemo.collections.tts.torch.tts_tokenizers import BaseTokenizer, EnglishCharsTokenizer, EnglishPhonemesTokenizer
 from nemo.core.classes import Dataset
 from nemo.utils import logging
+
+try:
+    from nemo_text_processing.text_normalization.normalize import Normalizer
+
+    PYNINI_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    Normalizer = None
+    PYNINI_AVAILABLE = False
+
 
 EPSILON = 1e-9
 WINDOW_FN_SUPPORTED = {
@@ -79,6 +91,10 @@ class TTSDataset(Dataset):
         min_duration: Optional[float] = None,
         ignore_file: Optional[Union[str, Path]] = None,
         trim: bool = False,
+        trim_ref: Optional[float] = None,
+        trim_top_db: Optional[int] = None,
+        trim_frame_length: Optional[int] = None,
+        trim_hop_length: Optional[int] = None,
         n_fft: int = 1024,
         win_length: Optional[int] = None,
         hop_length: Optional[int] = None,
@@ -119,7 +135,14 @@ class TTSDataset(Dataset):
                 audio to compute duration. Defaults to None which does not prune.
             ignore_file (Optional[Union[str, Path]]): The location of a pickle-saved list of audio paths
                 that will be pruned prior to training. Defaults to None which does not prune.
-            trim (Optional[bool]): Whether to apply librosa.effects.trim to the audio file. Defaults to False.
+            trim (bool): Whether to apply `librosa.effects.trim` to trim leading and trailing silence from an audio
+                signal. Defaults to False.
+            trim_ref (Optional[float]): the reference amplitude. By default, it uses `np.max` and compares to the peak
+                amplitude in the signal.
+            trim_top_db (Optional[int]): the threshold (in decibels) below reference to consider as silence.
+                Defaults to 60.
+            trim_frame_length (Optional[int]): the number of samples per analysis frame. Defaults to 2048.
+            trim_hop_length (Optional[int]): the number of samples between analysis frames. Defaults to 512.
             n_fft (int): The number of fft samples. Defaults to 1024
             win_length (Optional[int]): The length of the stft windows. Defaults to None which uses n_fft.
             hop_length (Optional[int]): The hope length between fft computations. Defaults to None which uses n_fft//4.
@@ -165,11 +188,18 @@ class TTSDataset(Dataset):
             self.tokens = tokens
         self.cache_text = True if self.phoneme_probability is None else False
 
-        # Initialize text normalizer is specified
+        # Initialize text normalizer if specified
         self.text_normalizer = text_normalizer
-        self.text_normalizer_call = (
-            self.text_normalizer.normalize if isinstance(self.text_normalizer, Normalizer) else self.text_normalizer
-        )
+        if self.text_normalizer is None:
+            self.text_normalizer_call = None
+        elif not PYNINI_AVAILABLE:
+            raise ImportError("pynini is not installed, please install via nemo_text_processing/install_pynini.sh")
+        else:
+            self.text_normalizer_call = (
+                self.text_normalizer.normalize
+                if isinstance(self.text_normalizer, Normalizer)
+                else self.text_normalizer
+            )
         self.text_normalizer_call_kwargs = (
             text_normalizer_call_kwargs if text_normalizer_call_kwargs is not None else {}
         )
@@ -196,13 +226,15 @@ class TTSDataset(Dataset):
                         "is_phoneme": item["is_phoneme"] if "is_phoneme" in item else None,
                     }
 
-                    if "normalized_text" not in item:
+                    if "normalized_text" in item:
+                        file_info["normalized_text"] = item["normalized_text"]
+                    elif "text_normalized" in item:
+                        file_info["normalized_text"] = item["text_normalized"]
+                    else:
                         text = item["text"]
                         if self.text_normalizer is not None:
                             text = self.text_normalizer_call(text, **self.text_normalizer_call_kwargs)
                         file_info["normalized_text"] = text
-                    else:
-                        file_info["normalized_text"] = item["normalized_text"]
 
                     if self.cache_text:
                         file_info["text_tokens"] = self.text_tokenizer(file_info["normalized_text"])
@@ -229,6 +261,10 @@ class TTSDataset(Dataset):
         self.sample_rate = sample_rate
         self.featurizer = WaveformFeaturizer(sample_rate=self.sample_rate)
         self.trim = trim
+        self.trim_ref = trim_ref if trim_ref is not None else np.max
+        self.trim_top_db = trim_top_db if trim_top_db is not None else 60
+        self.trim_frame_length = trim_frame_length if trim_frame_length is not None else 2048
+        self.trim_hop_length = trim_hop_length if trim_hop_length is not None else 512
 
         self.n_fft = n_fft
         self.n_mels = n_mels
@@ -332,6 +368,8 @@ class TTSDataset(Dataset):
 
         if self.log_mel_folder is None:
             self.log_mel_folder = Path(self.sup_data_path) / LogMel.name
+        elif isinstance(self.log_mel_folder, str):
+            self.log_mel_folder = Path(self.log_mel_folder)
 
         self.log_mel_folder.mkdir(exist_ok=True, parents=True)
 
@@ -356,6 +394,8 @@ class TTSDataset(Dataset):
 
         if self.align_prior_matrix_folder is None:
             self.align_prior_matrix_folder = Path(self.sup_data_path) / AlignPriorMatrix.name
+        elif isinstance(self.align_prior_matrix_folder, str):
+            self.align_prior_matrix_folder = Path(self.align_prior_matrix_folder)
 
         self.align_prior_matrix_folder.mkdir(exist_ok=True, parents=True)
 
@@ -376,6 +416,8 @@ class TTSDataset(Dataset):
 
         if self.pitch_folder is None:
             self.pitch_folder = Path(self.sup_data_path) / Pitch.name
+        elif isinstance(self.pitch_folder, str):
+            self.pitch_folder = Path(self.pitch_folder)
 
         self.pitch_folder.mkdir(exist_ok=True, parents=True)
 
@@ -407,6 +449,8 @@ class TTSDataset(Dataset):
 
         if self.energy_folder is None:
             self.energy_folder = Path(self.sup_data_path) / Energy.name
+        elif isinstance(self.energy_folder, str):
+            self.energy_folder = Path(self.energy_folder)
 
         self.energy_folder.mkdir(exist_ok=True, parents=True)
 
@@ -438,7 +482,14 @@ class TTSDataset(Dataset):
             rel_audio_path_as_text_id += "_phoneme"
 
         # Load audio
-        features = self.featurizer.process(sample["audio_filepath"], trim=self.trim)
+        features = self.featurizer.process(
+            sample["audio_filepath"],
+            trim=self.trim,
+            trim_ref=self.trim_ref,
+            trim_top_db=self.trim_top_db,
+            trim_frame_length=self.trim_frame_length,
+            trim_hop_length=self.trim_hop_length,
+        )
         audio, audio_length = features, torch.tensor(features.shape[0]).long()
 
         if "text_tokens" in sample:
@@ -605,7 +656,7 @@ class TTSDataset(Dataset):
         max_energies_len = max(energies_lengths).item() if Energy in self.sup_data_types_set else None
 
         if LogMel in self.sup_data_types_set:
-            log_mel_pad = torch.finfo(batch[0][2].dtype).tiny
+            log_mel_pad = torch.finfo(batch[0][4].dtype).tiny
 
         align_prior_matrices = (
             torch.zeros(
