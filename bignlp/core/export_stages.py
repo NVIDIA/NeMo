@@ -180,7 +180,7 @@ class Export(BigNLPStage):
 
         bignlp_scripts_path = Path(cfg.bignlp_path)
         converter_path = FT_PATH / "examples/pytorch/gpt/utils/nemo_ckpt_convert.py"
-        prepare_model_config_script_path = bignlp_scripts_path / "bignlp/export_scripts/prepare_triton_model_config.py"
+        prepare_model_config_script_path = bignlp_scripts_path / "bignlp/collections/export_scripts/prepare_triton_model_config.py"
         template_path = FT_BACKEND_PATH / "all_models/gpt/fastertransformer/config.pbtxt"
 
         triton_model_version_dir = f"{triton_model_dir}/1"
@@ -230,7 +230,7 @@ class Export(BigNLPStage):
 
         bignlp_scripts_path = Path(cfg.bignlp_path)
         converter_path = FT_PATH / "examples/pytorch/t5/utils/nemo_t5_ckpt_convert.py"
-        prepare_model_config_script_path = bignlp_scripts_path / "bignlp/export_scripts/prepare_triton_model_config.py"
+        prepare_model_config_script_path = bignlp_scripts_path / "bignlp/collections/export_scripts/prepare_triton_model_config.py"
         template_path = FT_BACKEND_PATH / "all_models/t5/fastertransformer/config.pbtxt"
 
         triton_model_version_dir = f"{triton_model_dir}/1"
