@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,12 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# This code has been adapted from the following private repo: https://gitlab-master.nvidia.com/ADLR/megatron-lm/-/tree/prompt-learning/prefix_tuning_v2
+# Adapted by: @adithyare
+
 
 import torch
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.common.parts import adapter_modules
+from nemo.collections.common.parts.adapter_modules import ParallelLinearAdapterConfig
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
     MegatronGPTPromptLearningModel,
@@ -64,7 +67,7 @@ class MegatronGPTAdapterLearningModel(MegatronGPTPromptLearningModel):
                 for adapter_key in self.adapter_name_keys:
                     module.add_adapter(
                         name=adapter_key,
-                        cfg=adapter_modules.LinearAdapterConfig(
+                        cfg=ParallelLinearAdapterConfig(
                             in_features=frozen_model_cfg.hidden_size,
                             dim=cfg.adapter_tuning.adapter_dim,
                             norm_position='post',
