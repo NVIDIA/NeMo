@@ -24,10 +24,10 @@ from nemo.utils import logging
 
 
 class DialogueCustomDataProcessor(DialogueDataProcessor):
-    """ Data processor for a custom dialog bot dataset """
+    """ Data processor for a custom dialogue bot dataset """
 
     def __init__(self, data_dir: str, tokenizer: object = None, cfg=None):
-        """ Constructs the dialog data processor """
+        """ Constructs the dialogue data processor """
 
         self.data_dir = data_dir
         self.cfg = cfg
@@ -37,7 +37,9 @@ class DialogueCustomDataProcessor(DialogueDataProcessor):
     def get_dialog_examples(self, dataset_split) -> List[object]:
         """
         Reads dialogue examples from self.data_dir/dataset_split/examples.json
-        and formats into SGD structure
+            and formats into SGD structure
+        Refer NeMo/nemo/collections/nlp/data/dialogue/input_example/sgd_input_example.py
+            for input example structure
         """
 
         dialogues_filepath = os.path.join(self.data_dir, dataset_split, "examples.json")
@@ -56,16 +58,17 @@ class DialogueCustomDataProcessor(DialogueDataProcessor):
             if not dialogue["Fulfillment"]:
                 continue
 
-            DialogueCustomDataProcessor.add_metadata_to_fulfillment_slots(dialogue)
+            DialogueCustomDataProcessor.add_units_to_slot_values(dialogue)
             dialogue_dict = DialogueCustomDataProcessor.create_dialogue_sgd_format_dict(dialogue, dialogue_idx)
-            if dialogue_dict:
-                curr_examples = DialogueCustomDataProcessor.create_examples_from_dialogue_dict(dialogue_dict)
-                examples.extend(curr_examples)
+            curr_examples = DialogueCustomDataProcessor.create_examples_from_dialogue_dict(dialogue_dict)
+            examples.extend(curr_examples)
+
+        self.dump_examples_for_sanity_check(dataset_split, examples)
 
         return examples
 
     @staticmethod
-    def get_user_entity_to_slot_mapping(dialogue):
+    def map_user_entity_to_slot_within_dialogue(dialogue):
         """
         Formats entities detected in user utterance into slots structure to match SGD format
         """
@@ -87,16 +90,25 @@ class DialogueCustomDataProcessor(DialogueDataProcessor):
         return entity_to_slot_mapping
 
     @staticmethod
-    def add_metadata_to_fulfillment_slots(dialogue):
+    def add_units_to_slot_values(dialogue):
         """
-        Appends metadata from dialog state to current slots in the dialogue
+        Appends metadata from dialogue state to current slots in the dialogue
         """
 
+        # mapping for slot -> corresponding unit
+        slot_to_unit_mapping = {}
+        
         for slot in dialogue["Fulfillment"][0]["FulfillmentSlots"]:
-            for slot_metadata in dialogue["DialogState"]["GlobalSlot"]:
-                if slot["Name"] in slot_metadata["Name"]:
-                    slot.update({"Values": [f"{slot['Values'][0]} {slot_metadata['Values'][0]}"]})
-                    break
+            
+            # add new slot to unit mapping if not already present
+            if slot["Name"] not in slot_to_unit_mapping:
+                for slot_metadata in dialogue["DialogState"]["GlobalSlot"]:
+                    if slot["Name"] in slot_metadata["Name"]:
+                        slot_to_unit_mapping[slot["Name"]] = f" {slot_metadata['Values'][0]}"
+                        break
+
+            # append unit to slot if corresponding unit present
+            slot["Values"] = [f"{slot['Values'][0]}{slot_to_unit_mapping.get(slot['Name'], '')}"]
 
     @staticmethod
     def create_dialogue_sgd_format_dict(dialogue, dialogue_idx):
@@ -106,7 +118,7 @@ class DialogueCustomDataProcessor(DialogueDataProcessor):
 
         service = dialogue["Domain"]
 
-        entity2slot = DialogueCustomDataProcessor.get_user_entity_to_slot_mapping(dialogue)
+        entity2slot = DialogueCustomDataProcessor.map_user_entity_to_slot_within_dialogue(dialogue)
         user_slots = []
         for entity_slot in entity2slot:
             user_slots.append(
@@ -208,3 +220,13 @@ class DialogueCustomDataProcessor(DialogueDataProcessor):
             examples.append(DialogueInputExample(one_example))
 
         return examples
+
+    def dump_examples_for_sanity_check(self, dataset_split: str, examples: List[DialogueInputExample]):
+        """
+        Dumps a jsonl file of processed examples at self.data_dir/dataset_split/sanity_check_examples.json
+        """
+
+        filepath = os.path.join(self.data_dir, dataset_split, "sanity_check_examples.json")
+        with open(filepath, "w") as f:
+            for example in examples:
+                f.write(f"{json.dumps(example.data)}\n")
