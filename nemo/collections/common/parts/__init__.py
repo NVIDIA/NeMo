@@ -12,12 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.common.parts.adapter_modules import (
-    LinearAdapter,
-    LinearAdapterConfig,
-    ParallelLinearAdapter,
-    ParallelLinearAdapterConfig,
-)
+from nemo.collections.common.parts.adapter_modules import LinearAdapter, LinearAdapterConfig
 from nemo.collections.common.parts.mlm_scorer import MLMScorer
 from nemo.collections.common.parts.multi_layer_perceptron import MultiLayerPerceptron
 from nemo.collections.common.parts.transformer_utils import *
