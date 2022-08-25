@@ -1,3 +1,7 @@
+params=()
+if [[ ! -z $LOCAL_NEMO_PATH ]]; then
+  params+=("container_mounts=[${LOCAL_NEMO_PATH}:/opt/bignlp/NeMo]")
+fi
 DATA_DIR=/lustre/fsw/joc/big_nlp/mt5/dataset/ci_data
 
 set -o xtrace
@@ -21,4 +25,5 @@ HYDRA_FULL_ERROR=1 BIGNLP_CI=1 python3 main.py \
     conversion.run.train_dir=${BASE_RESULTS_DIR}/${UPSTREAM_RUN_NAME} \
     conversion.run.results_dir=${BASE_RESULTS_DIR}/${RUN_NAME} \
     conversion.model.tensor_model_parallel_size=${TP_SIZE} \
-    conversion.model.pipeline_model_parallel_size=${PP_SIZE}
+    conversion.model.pipeline_model_parallel_size=${PP_SIZE} \
+    "${params[@]}"

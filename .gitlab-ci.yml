@@ -4,6 +4,7 @@ variables: &VARS
   BIGNLP_REGISTRY: "gitlab-master.nvidia.com:5005/dl/joc/bignlp-scripts"
   BIGNLP_BASE_IMAGE: "nvcr.io/nvidian/bignlp-training:22.08.05-py"
   SELENE_BIGNLP_CI_PATH: "/lustre/fsw/joc/big_nlp/bignlp_ci"
+  LOCAL_NEMO_PATH: ""
   NGC_BIGNLP_CI_PATH: "bignlp_ci" # mount at /mount/results
   CONTAINER_NVCR_BASE: nvcr.io/nvidian/bignlp-ci:training
   TESTS_TO_RUN_ON_MERGE_REQ: L0  # Can specify levels, ci job names etc as a space seperated list to run during merge request
@@ -1025,7 +1026,7 @@ prompt_learn.gpt3.126m_tp1_pp1_1node_squad_real:
     RUN_MODEL_SIZE: 126m
     TEST_TASK: squad_real
     LANGUAGE_MODEL_PATH: /lustre/fsw/joc/big_nlp/bignlp_ci_resources/checkpoints/gpt3_126m_bf16_O2_tp1_pp1.nemo
-    CONTAINER_MOUNTS: "container_mounts=[/lustre/fsw/joc/big_nlp/bignlp_ci_resources:/lustre/fsw/joc/big_nlp/bignlp_ci_resources,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data]"
+    CONTAINER_MOUNTS: "/lustre/fsw/joc/big_nlp/bignlp_ci_resources:/lustre/fsw/joc/big_nlp/bignlp_ci_resources,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data"
     TP_SIZE: 1
     PP_SIZE: 1
     NUM_NODES: 1

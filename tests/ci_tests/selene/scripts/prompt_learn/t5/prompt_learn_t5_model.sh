@@ -4,7 +4,7 @@ params=()
 if [[ "$TEST_TASK" = "squad_real" ]]; then
   # Should come in here for the test prompt_learn.gpt3.126m_tp1_pp1_1node_squad_real
   # We need container mounts and LANGUAGE MODEL PATH from the config at gitlab ci yaml file
-  params+=($CONTAINER_MOUNTS)
+  params+=("container_mounts=[${CONTAINER_MOUNTS}]")
 else
   # Should come in here for the test prompt_learn.gpt3.126m_tp1_pp1_1node_100steps_squad
   LOG_EVERY_N_STEPS=`expr $MAX_STEPS / 100`
@@ -15,6 +15,9 @@ else
   UPSTREAM_RUN_NAME=convert_${RUN_MODEL}_${RUN_MODEL_SIZE}_tp${TP_SIZE}_pp${PP_SIZE}
   if [[ ! -z "$RUN_NAME_SUFFIX" ]]; then export UPSTREAM_RUN_NAME=${UPSTREAM_RUN_NAME}_${RUN_NAME_SUFFIX}; fi
   LANGUAGE_MODEL_PATH=${BASE_RESULTS_DIR}/${UPSTREAM_RUN_NAME}/results/megatron_t5.nemo
+  if [[ ! -z $LOCAL_NEMO_PATH ]]; then
+    params+=("container_mounts=[${LOCAL_NEMO_PATH}:/opt/bignlp/NeMo]")
+  fi
 fi
 
 set -o xtrace

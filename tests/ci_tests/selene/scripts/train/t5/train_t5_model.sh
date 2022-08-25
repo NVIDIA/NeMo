@@ -7,6 +7,9 @@ if [[ $MAX_STEPS -le 100 ]]; then # If greater than hundred we use defaults set 
   params+=(training.trainer.limit_val_batches=$LIMIT_VAL_BATCHES)
   params+=(training.trainer.val_check_interval=$VAL_CHECK_INTERVAL)
 fi
+if [[ ! -z $LOCAL_NEMO_PATH ]]; then
+  params+=("container_mounts=[${LOCAL_NEMO_PATH}:/opt/bignlp/NeMo]")
+fi
 
 DATA_DIR=/lustre/fsw/joc/big_nlp/t5/dataset/Pile
 DATA_PREFIX=[1.0,/lustre/fsw/joc/big_nlp/t5/dataset/Pile/my-t5_00_text_document]

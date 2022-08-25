@@ -1,3 +1,7 @@
+params=()
+if [[ ! -z $LOCAL_NEMO_PATH ]]; then
+  params+=("container_mounts=[${LOCAL_NEMO_PATH}:/opt/bignlp/NeMo]")
+fi
 set -o xtrace
 
 DATA_DIR=/lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train
@@ -24,4 +28,5 @@ HYDRA_FULL_ERROR=1 BIGNLP_CI=1 python3 main.py \
     evaluation.run.results_dir=${BASE_RESULTS_DIR}/${RUN_NAME} \
     evaluation.model.eval_batch_size=16 \
     evaluation.model.tensor_model_parallel_size=${TP_SIZE} \
-    evaluation.model.pipeline_model_parallel_size=${PP_SIZE}
+    evaluation.model.pipeline_model_parallel_size=${PP_SIZE} \
+    "${params[@]}"

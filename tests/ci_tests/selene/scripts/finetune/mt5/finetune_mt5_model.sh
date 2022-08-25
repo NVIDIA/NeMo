@@ -8,7 +8,9 @@ if [[ $MAX_STEPS -le 100 ]]; then # If greater than hundred we use defaults set 
   if [[ ! -z "$RUN_NAME_SUFFIX" ]]; then export UPSTREAM_RUN_NAME=${UPSTREAM_RUN_NAME}_${RUN_NAME_SUFFIX}; fi
   LANGUAGE_MODEL_PATH=${BASE_RESULTS_DIR}/${UPSTREAM_RUN_NAME}/results/megatron_mt5.nemo
 fi
-
+if [[ ! -z $LOCAL_NEMO_PATH ]]; then
+  params+=("container_mounts=[${LOCAL_NEMO_PATH}:/opt/bignlp/NeMo]")
+fi
 set -o xtrace
 
 MICRO_BATH_SIZE=$((16 * TP_SIZE * PP_SIZE / NUM_NODES))
