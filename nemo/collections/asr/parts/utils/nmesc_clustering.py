@@ -368,10 +368,7 @@ def getRepeatedList(mapping_argmat: torch.Tensor, score_mat_size: torch.Tensor, 
     This repeated matrix is then used for fusing multiple affinity values.
     """
     repeat_list = torch.zeros(score_mat_size, dtype=torch.int32).to(device)
-    try:
-        idxs, counts = torch.unique(mapping_argmat, return_counts=True)
-    except:
-        import ipdb; ipdb.set_trace()
+    idxs, counts = torch.unique(mapping_argmat, return_counts=True)
     idxs, counts = idxs.to(device), counts.to(device) 
     repeat_list[idxs] = counts.int()
     return repeat_list
@@ -515,13 +512,9 @@ def getTempInterpolMultiScaleCosAffinityMatrix(uniq_embs_and_timestamps: dict, d
     for scale_idx in sorted(uniq_scale_dict.keys()):
         mapping_argmat = session_scale_mapping_dict[scale_idx]
         emb_t = uniq_scale_dict[scale_idx]['embeddings'].half().to(device)
-        # try:
-            # repeat_list = getRepeatedList(mapping_argmat, torch.tensor(emb_t.shape[0])).to(device)
         mapping_argmat = mapping_argmat.to(device)
     
         repeat_list = getRepeatedList(mapping_argmat, emb_t.shape[0], device=device).to(device)
-        # except:
-            # import ipdb; ipdb.set_trace()
         rep_emb_t = torch.repeat_interleave(emb_t, repeats=repeat_list, dim=0)
         rep_mat_list.append(rep_emb_t)
     stacked_scale_embs = torch.stack(rep_mat_list)
@@ -531,7 +524,7 @@ def getTempInterpolMultiScaleCosAffinityMatrix(uniq_embs_and_timestamps: dict, d
     fused_sim_d = getCosAffinityMatrix(context_emb)
     return fused_sim_d, context_emb, session_scale_mapping_dict
 
-@torch.jit.script
+# @torch.jit.script
 def getCosAffinityMatrix(emb: torch.Tensor):
     """
     Calculate cosine similarity values among speaker embeddings then min-max normalize
@@ -623,10 +616,7 @@ def addAnchorEmb(emb: torch.Tensor, anchor_sample_n: int, anchor_spk_n: int, sig
         emb_noise = torch.matmul(
             torch.diag(std_org), emb_noise / torch.max(torch.abs(emb_noise), dim=0)[0].unsqueeze(0)
         ).T
-        try:
-            emb_gen = emb_m + sigma * emb_noise
-        except:
-            import ipdb; ipdb.set_trace()
+        emb_gen = emb_m + sigma * emb_noise
         new_emb_list.append(emb_gen)
 
     new_emb_list.append(emb)
@@ -1082,7 +1072,8 @@ class NMESC:
             if self.sparse_search:
                 search_volume = torch.min(self.max_N, torch.tensor(self.sparse_search_volume).type(torch.int))
                 N = torch.max(search_volume, torch.tensor(2))
-                p_value_list = torch.unique(torch.linspace(start=1, end=self.max_N, steps=N).type(torch.int))
+                steps = min(self.max_N, N)
+                p_value_list = torch.linspace(start=1, end=self.max_N, steps=steps).type(torch.int)
             else:
                 p_value_list = torch.arange(1, self.max_N + 1)
         if p_value_list.shape[0] == 0:

@@ -494,7 +494,7 @@ class OnlineClustering:
         self.p_value_skip_frame_thres = 50
         self.p_update_freq = 5
         self.min_spk_counting_buffer_size = 7
-        self.min_frame_per_spk = 7
+        self.min_frame_per_spk = 20
         self.p_value_queue_size = 3
         self.num_spk_stat = []
         self.p_value_hist = []
@@ -922,18 +922,20 @@ class OnlineDiarizer(ClusteringDiarizer):
             self.Y_fullhist = Y_out
         return Y_out
 
-    def get_keep_ranges(self, scale_idx):
+    def remove_old_data(self, scale_idx):
         """
         Calculate how many segments should be removed from memory.
         """
-        total_buffer_size = self.history_n + self.current_n
         scale_buffer_size = int(
             len(set(self.scale_mapping_dict[scale_idx].tolist()))
             / len(set(self.scale_mapping_dict[self.base_scale_index].tolist()))
-            * total_buffer_size
+            * (self.history_n + self.current_n)
         )
         keep_range = scale_buffer_size + self.memory_margin
-        return keep_range
+        self.embs_array[self.uniq_id][scale_idx] = self.embs_array[self.uniq_id][scale_idx][-keep_range:]
+        self.segment_raw_audio[self.uniq_id][scale_idx] = self.segment_raw_audio[self.uniq_id][scale_idx][-keep_range:]
+        self.segment_range_ts[self.uniq_id][scale_idx] = self.segment_range_ts[self.uniq_id][scale_idx][-keep_range:]
+        self.segment_indexes[self.uniq_id][scale_idx] = self.segment_indexes[self.uniq_id][scale_idx][-keep_range:]
     
     @timeit    
     def temporal_label_major_vote(self):
@@ -954,7 +956,7 @@ class OnlineDiarizer(ClusteringDiarizer):
         return self.maj_vote_labels
 
     def save_history_data(
-        self, scale_idx, audio_signal_list, embs_array, new_segment_ranges, segment_indexes, total_cluster_labels
+        self, scale_idx, total_cluster_labels
     ):
         """
         Clustering is done for (hist_N + curr_N) number of embeddings. Thus, we need to remove the clustering results on
@@ -962,41 +964,37 @@ class OnlineDiarizer(ClusteringDiarizer):
         is starting to save embeddings to its memory. Thus, the new incoming clustering label should be separated.
         If `isOnline = True`, old embeddings outside the window are removed to save GPU memory.
         """
-        keep_range = self.get_keep_ranges(scale_idx)
         total_cluster_labels = total_cluster_labels.tolist()
         
         if not self.isOnline:
-            self.memory_segment_ranges[scale_idx] = copy.deepcopy(new_segment_ranges)
-            self.memory_segment_indexes[scale_idx] = copy.deepcopy(segment_indexes)
+            self.memory_segment_ranges[scale_idx] = copy.deepcopy(self.segment_range_ts[self.uniq_id][scale_idx])
+            self.memory_segment_indexes[scale_idx] = copy.deepcopy(self.segment_indexes[self.uniq_id][scale_idx])
             if scale_idx == self.base_scale_index:
                 self.memory_cluster_labels = copy.deepcopy(total_cluster_labels)
         
         # Only if there are newly obtained embeddings, update ranges and embeddings.
-        elif segment_indexes[-1] > self.memory_segment_indexes[scale_idx][-1]:
-            segment_indexes_mat = np.array(segment_indexes).astype(int)
-            existing_max = max(self.memory_segment_indexes[scale_idx])
-            global_idx = existing_max - self.memory_margin
+        elif self.segment_indexes[self.uniq_id][scale_idx][-1] > self.memory_segment_indexes[scale_idx][-1]:
+            global_idx = max(self.memory_segment_indexes[scale_idx]) - self.memory_margin
 
             # convert global index global_idx to buffer index buffer_idx
+            segment_indexes_mat = np.array(self.segment_indexes[self.uniq_id][scale_idx]).astype(int)
             buffer_idx = get_mapped_index(segment_indexes_mat, global_idx)
 
-            self.memory_segment_ranges[scale_idx][global_idx:] = copy.deepcopy(new_segment_ranges[buffer_idx:])
-            self.memory_segment_indexes[scale_idx][global_idx:] = copy.deepcopy(segment_indexes[buffer_idx:])
+            self.memory_segment_ranges[scale_idx][global_idx:] = \
+                    copy.deepcopy(self.segment_range_ts[self.uniq_id][scale_idx][buffer_idx:])
+            self.memory_segment_indexes[scale_idx][global_idx:] = \
+                    copy.deepcopy(self.segment_indexes[self.uniq_id][scale_idx][buffer_idx:])
             if scale_idx == self.base_scale_index:
                 self.memory_cluster_labels[global_idx:] = copy.deepcopy(total_cluster_labels[global_idx:])
                 assert len(self.memory_cluster_labels) == len(self.memory_segment_ranges[scale_idx])
 
             # Remove unnecessary old values
-            embs_array = embs_array[-keep_range:]
-            audio_signal_list = audio_signal_list[-keep_range:]
-            new_segment_ranges = new_segment_ranges[-keep_range:]
-            segment_indexes = segment_indexes[-keep_range:]
+            self.remove_old_data(scale_idx)
         
-        assert len(embs_array) == len(audio_signal_list) == len(segment_indexes) == len(new_segment_ranges)
-        self.embs_array[self.uniq_id][scale_idx] = embs_array
-        self.segment_raw_audio[self.uniq_id][scale_idx] = audio_signal_list
-        self.segment_range_ts[self.uniq_id][scale_idx] = new_segment_ranges
-        self.segment_indexes[self.uniq_id][scale_idx] = segment_indexes
+        assert len(self.embs_array[self.uniq_id][scale_idx]) == \
+               len(self.segment_raw_audio[self.uniq_id][scale_idx]) == \
+               len(self.segment_indexes[self.uniq_id][scale_idx]) == \
+               len(self.segment_range_ts[self.uniq_id][scale_idx])
         
         if self.use_temporal_label_major_vote:
             cluster_label_hyp = self.temporal_label_major_vote()
@@ -1124,6 +1122,17 @@ class OnlineDiarizer(ClusteringDiarizer):
         total_cluster_labels = self.macth_labels(org_mat, Y_clus, add_new)
         return total_cluster_labels
 
+    def get_interim_output(self, vad_ts):
+        """
+        In case buffer is not filled or there is no speech activity in the input, generate temporary output. 
+        Args:
+            vad_ts (list):
+
+        """
+        if len(self.memory_cluster_labels) == 0 or self.buffer_start < 0:
+            return generate_cluster_labels([[0.0, self.total_buffer_in_secs]], [0])
+        else:
+            return generate_cluster_labels(self.memory_segment_ranges[self.base_scale_index], self.memory_cluster_labels)
 
     @timeit
     def diarize_step(self, audio_buffer, vad_ts):
@@ -1141,9 +1150,10 @@ class OnlineDiarizer(ClusteringDiarizer):
 
 
         """
+        # In case buffer is not filled or there is no speech activity in the input
         if self.buffer_start < 0 or len(vad_ts) == 0:
-            return [f'0.0 {self.total_buffer_in_secs} speaker_0']
-
+            return self.get_interim_output(vad_ts)
+        
         # Segmentation: (c.f. see `diarize` function in ClusteringDiarizer class)
         for scale_idx, (window, shift) in self.multiscale_args_dict['scale_dict'].items():
             
@@ -1177,22 +1187,14 @@ class OnlineDiarizer(ClusteringDiarizer):
             self.multiscale_embeddings_and_timestamps, self.multiscale_args_dict
         )
         
-
         # Clustering: Perform an online version of clustering algorithm
         total_cluster_labels = self.perform_online_clustering(
             embs_and_timestamps[self.uniq_id],
             cuda=True,
         )
-
         
         for scale_idx, (window, shift) in self.multiscale_args_dict['scale_dict'].items():
-            cluster_label_hyp = self.save_history_data(scale_idx,
-                        self.segment_raw_audio[self.uniq_id][scale_idx],
-                        self.embs_array[self.uniq_id][scale_idx],
-                        self.segment_range_ts[self.uniq_id][scale_idx],
-                        self.segment_indexes[self.uniq_id][scale_idx],
-                        total_cluster_labels,
-                        )
+            cluster_label_hyp = self.save_history_data(scale_idx, total_cluster_labels)
         
         # Generate RTTM style diarization labels from segment ranges and cluster labels
         diar_hyp = generate_cluster_labels(self.memory_segment_ranges[self.base_scale_index], cluster_label_hyp)

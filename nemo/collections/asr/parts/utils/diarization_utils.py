@@ -1187,12 +1187,7 @@ def process_audio_file(input_data, orig_sr=48000, target_sr=16000, MAX_INT32=214
         data = (input_data[1]/MAX_INT32).astype(np.float32)
         data = librosa.resample(data, orig_sr=orig_sr, target_sr=target_sr)
     else:
-        # import ipdb; ipdb.set_trace()
-        TARGET_SR = 16000
-        data, sr = librosa.load(input_data, sr=TARGET_SR)
-        os.remove(input_data)
-    # else:
-        # raise ValueError(f"The streaming input has unknown input_data type {type(input_data)}")
+        raise ValueError(f"The streaming input has unknown input_data type {type(input_data)}")
     return data
 
 def score_labels(AUDIO_RTTM_MAP, all_reference, all_hypothesis, collar=0.25, ignore_overlap=True):
@@ -1267,7 +1262,8 @@ def get_wer_feat_logit_single(samples, frame_asr, frame_len, tokens_per_chunk, d
     Create a preprocessor to convert audio samples into raw features,
     Normalization will be done per buffer in frame_bufferer.
     """
-    hyps, tokens_list = [], []
+    hyps = []
+    tokens_list = []
     frame_asr.reset()
     feature_frame_shape = frame_asr.read_audio_file_and_return_samples(samples, delay, model_stride_in_secs, frame_mask)
     if frame_mask is not None:
@@ -1293,6 +1289,9 @@ class FrameBatchASR_Logits_Sample(FrameBatchASR_Logits):
 
     def __init__(self, asr_model, frame_len=1.0, total_buffer=4.0, batch_size=4):
         super().__init__(asr_model, frame_len, total_buffer, batch_size)
+        self.frame_len = frame_len
+        self.total_buffer = total_buffer
+        self.batch_size = batch_size
     
     @timeit
     def read_audio_file_and_return_samples(self, _samples, delay: float, model_stride_in_secs: float, frame_mask):
@@ -1301,6 +1300,12 @@ class FrameBatchASR_Logits_Sample(FrameBatchASR_Logits):
         frame_reader = MaskedFeatureIterator(samples, self.frame_len, self.raw_preprocessor, self.device, frame_mask)
         self.set_frame_reader(frame_reader)
         return frame_reader._features.shape
+
+    def _reset(self):
+        super().__init__(asr_model=self.asr_model,
+                      frame_len=self.frame_len,
+                      total_buffer=self.total_buffer,
+                      batch_size=self.batch_size)
 
 class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
     def __init__(self, cfg):
@@ -1408,8 +1413,6 @@ class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
         """
         update_margin =  -1* float(self.frame_len * self.word_update_margin)
         if len(self.word_seq) == 0:
-            if self.punctuation_model:
-                words = self.punctuate_words(words)
             self.word_seq.extend(words)
             self.word_ts_seq.extend(word_timetamps)
 
@@ -1430,13 +1433,7 @@ class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
             
             del self.word_seq[old_end:]
             del self.word_ts_seq[old_end:]
-            if self.punctuation_model_path:
-                punc_margin = len(words[:new_stt])
-                punc_stt = max(new_stt-punc_margin, 0)
-                punctuated_words = self.punctuate_words(words[punc_stt:])[punc_margin:]
-                self.word_seq.extend(punctuated_words)
-            else:
-                self.word_seq.extend(words[new_stt:])
+            self.word_seq.extend(words[new_stt:])
             self.word_ts_seq.extend(word_timetamps[new_stt:])
     
     def create_single_session(self, uniq_id, diar_hyp_list):
@@ -1626,7 +1623,6 @@ class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
             total_buffer=self.total_buffer_in_secs,
             batch_size=self.asr_batch_size,
         )
-        self.frame_asr.reset()
 
         self.set_buffered_infer_params(self.asr_model)
         self.onset_delay_in_sec = round(self.onset_delay * self.model_stride_in_secs, 2)
@@ -1636,15 +1632,15 @@ class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
         """
         Place holder for VAD integration. This function returns vad_mask that is identical for ASR feature matrix for
         the current buffer.
-	Streaming VAD infer Example:
-	vad_logits, speech_segments, feats_shape = get_vad_feat_logit_single(buffer,
-						    self.frame_vad,
-						    self.chunk_len_in_sec,
-						    self.tokens_per_chunk,
-						    self.mid_delay,
-						    self.model_stride_in_secs,
-						    threshold=0.05,
-						)
+        Streaming VAD infer Example:
+        vad_logits, speech_segments, feats_shape = get_vad_feat_logit_single(buffer,
+                                self.frame_vad,
+                                self.chunk_len_in_sec,
+                                self.tokens_per_chunk,
+                                self.mid_delay,
+                                self.model_stride_in_secs,
+                                threshold=0.05,
+                            )
         """
         hyps, tokens_list, feats_shape, log_prob = get_wer_feat_logit_single(buffer,
                                                     self.frame_asr,
@@ -1654,13 +1650,13 @@ class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
                                                     self.model_stride_in_secs,
                                                     frame_mask=None,
                                                 )
+        self.frame_asr._reset()
         vad_mask = torch.ones(feats_shape)
         vad_timestamps = None
         return vad_mask, vad_timestamps
     
     @timeit
     def run_ASR_decoder_step(self, buffer, frame_mask):
-        self.frame_asr.reset()
         hyps, tokens_list, feats_shape, log_prob = get_wer_feat_logit_single(buffer,
                                                     self.frame_asr,
                                                     self.chunk_len_in_sec,
@@ -1669,6 +1665,7 @@ class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
                                                     self.model_stride_in_secs,
                                                     frame_mask,
                                                 )
+        self.frame_asr._reset()
         logits_len = torch.from_numpy(np.array([len(tokens_list[0])]))
         greedy_predictions = torch.from_numpy(np.array(tokens_list[0])).unsqueeze(0)
         text, char_ts, _word_ts = self.werbpe_ts.ctc_decoder_predictions_tensor_with_ts(
@@ -1683,7 +1680,8 @@ class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
             if word_range[1] >  0.0:
                 word_ts_adj.append(word_range)
                 words_adj.append(w)
-
+        del tokens_list, feats_shape, log_prob
+        torch.cuda.empty_cache()
         return words_adj, word_ts_adj
 
     def update_launcher_timestamps(self):
@@ -1698,9 +1696,7 @@ class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
 
     def streaming_step(self, frame):
         loop_start_time = time.time()
-
         if len(frame) != int(self.sample_rate * self.frame_len):
-            print("type frame:", type(frame))
             raise ValueError(f"frame does not have the expected length.")
         words, timestamps, diar_hyp = self.run_step(frame=frame)
         if diar_hyp != []:
@@ -1733,15 +1729,10 @@ class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
         audio_read_stt = time.time()
         audio_queue = process_audio_file(Audio)
         self.audio_queue_buffer = np.append(self.audio_queue_buffer, audio_queue)
-        # try:
-        count = 0
         while len(self.audio_queue_buffer) > self.CHUNK_SIZE:
             frame = self.audio_queue_buffer[:self.CHUNK_SIZE]
             self.audio_queue_buffer = self.audio_queue_buffer[self.CHUNK_SIZE:]
             self.streaming_step(frame)
-            count += 1
-        # except:
-            # logging.info(f"Audio buffer did not save enough signal to be processed: audio buffer {len(self.audio_queue_buffer)/self.sample_rate:.2f}s")
         eta = time.time() - stt
         self.end_time = time.time()
         return f"Audio Queue Length {len(self.audio_queue_buffer)/self.sample_rate:.2f}s", ""

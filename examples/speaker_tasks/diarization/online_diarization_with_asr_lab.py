@@ -14,7 +14,6 @@ from pyannote.metrics.diarization import DiarizationErrorRate
 import sklearn.metrics.pairwise as pw
 from scipy.optimize import linear_sum_assignment
 import librosa
-import ipdb
 from datetime import datetime
 import warnings
 warnings.filterwarnings("ignore")
@@ -113,9 +112,24 @@ try:
 except ImportError:
     PYCTCDECODE = False
 
+def timeit(method):
+    def timed(*args, **kw):
+        ts = time.time()
+        result = method(*args, **kw)
+        te = time.time()
+        if 'log_time' in kw:
+            name = kw.get('log_name', method.__name__.upper())
+            kw['log_time'][name] = int((te - ts) * 1000)
+        else:
+            logging.info('%2.2fms %r'%((te - ts) * 1000, method.__name__))
+            # pass
+        return result
+    return timed
+
 class ASR_DIAR_ONLINE_DEMO(ASR_DIAR_ONLINE):
     def __init__(self, cfg):
         super().__init__(cfg)
+        # self.load_punctuation_model()
 
     def realign_speaker_labels(self, words, memory_cluster_labels):
         """
@@ -130,15 +144,18 @@ class ASR_DIAR_ONLINE_DEMO(ASR_DIAR_ONLINE):
         for idx in range(stt_idx.shape[0]-1):
             range_spk_labels = cluster_labels[stt_idx[idx]:end_idx[idx+1]+1].tolist()
             range_words = words[stt_idx[idx]:end_idx[idx+1]+1]
+            
             # Ignore one-word speaker turns.
             if stt_idx[idx] == end_idx[idx+1] or len(set(range_spk_labels)) <= 1:
                 continue
             range_spk_labels = torch.tensor(range_spk_labels)
             fixed_range_labels = torch.mode(range_spk_labels)[0] * torch.ones_like(range_spk_labels)
             spk_label_count = torch.bincount(range_spk_labels)
+            
             # Limit the change of speakers to prevent excessive change from realigning.
             if torch.min(spk_label_count) < self.max_lm_realigning_words:
                 memory_cluster_labels[stt_idx[idx]: end_idx[idx+1]+1] = fixed_range_labels.tolist()
+        
         self.fixed_speaker_labels  = copy.deepcopy([ f"speaker_{x}" for x in memory_cluster_labels])
     
     def _fix_speaker_label_per_word(self, words, word_ts_list, pred_diar_labels):
@@ -161,6 +178,20 @@ class ASR_DIAR_ONLINE_DEMO(ASR_DIAR_ONLINE):
         assert len(word_speaker_labels) == len(words)
         self.realign_speaker_labels(words, word_speaker_labels)
     
+    def load_punctuation_model(self):
+        """
+        Load punctuation model in .nemo format or model name on NGC.
+        """
+        self.punctuation_model_path = self.cfg_diarizer['asr']['parameters']['punctuation_model_path']
+        if self.punctuation_model_path is not None:
+            if '.nemo' in self.punctuation_model_path.lower():
+                self.punctuation_model = nemo_nlp.models.PunctuationCapitalizationModel.restore_from(self.punctuation_model_path)
+            else:
+                self.punctuation_model = nemo_nlp.models.PunctuationCapitalizationModel.from_pretrained(self.punctuation_model_path)
+        else:
+            self.punctuation_model = None
+
+    
     def punctuate_words(self, words):
         """
         Punctuate the transcribe word based on the loaded punctuation model.
@@ -172,7 +203,6 @@ class ASR_DIAR_ONLINE_DEMO(ASR_DIAR_ONLINE):
             for idx in range(1, len(words)):
                 if any([ x in words[idx-1] for x in [".", "?"] ]):
                     words[idx] = words[idx].capitalize()
-            # words = [w.replace(",", "") for w in words]
             return words
     
     def check_t(self, x):
@@ -217,7 +247,6 @@ class ASR_DIAR_ONLINE_DEMO(ASR_DIAR_ONLINE):
     
     def streaming_step(self, sample_audio):
         loop_start_time = time.time()
-        print("len sample_audio:", len(sample_audio), int(self.sample_rate * self.frame_len))
         assert len(sample_audio) == int(self.sample_rate * self.frame_len)
         words, timestamps, diar_hyp = self.run_step(sample_audio)
         if diar_hyp != []:
@@ -274,7 +303,8 @@ class ASR_DIAR_ONLINE_DEMO(ASR_DIAR_ONLINE):
             space = " "
         word = word.replace(",", "").replace(".","").replace("?","").lower()
         return string_out + space +  word
-
+    
+    @timeit
     def punctuate_words(self, words):
         """
         Punctuate the transcribe word based on the loaded punctuation model.
@@ -333,8 +363,8 @@ class ASR_DIAR_ONLINE_DEMO(ASR_DIAR_ONLINE):
 
 @hydra_runner(config_path="conf", config_name="online_diarization_with_asr.yaml")
 def main(cfg):
-    asr_diar = ASR_DIAR_ONLINE(cfg=cfg)
-    # asr_diar = ASR_DIAR_ONLINE_DEMO(cfg=cfg)
+    # asr_diar = ASR_DIAR_ONLINE(cfg=cfg)
+    asr_diar = ASR_DIAR_ONLINE_DEMO(cfg=cfg)
     diar = asr_diar.diar
 
     if cfg.diarizer.asr.parameters.streaming_simulation:
@@ -358,6 +388,8 @@ def main(cfg):
         for index in range(int(np.floor(sdata.shape[0]/asr_diar.n_frame_len))):
             asr_diar.buffer_counter = index
             sample_audio = sdata[asr_diar.CHUNK_SIZE*(asr_diar.buffer_counter):asr_diar.CHUNK_SIZE*(asr_diar.buffer_counter+1)]
+            if index > 10:
+                sample_audio = 0.0 * sample_audio
             asr_diar.streaming_step(sample_audio)
     else:
         isTorch = torch.cuda.is_available()
@@ -365,7 +397,6 @@ def main(cfg):
             fn=asr_diar.audio_queue_launcher,
             inputs=[
                 gr.Audio(source="microphone", type="numpy", streaming=True), 
-                # gr.Audio(source="microphone", type="filepath", streaming=True), 
                 "state",
             ],
             outputs=[
