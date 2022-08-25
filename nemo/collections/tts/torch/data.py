@@ -521,7 +521,7 @@ class TTSDataset(Dataset):
             if self.use_beta_binomial_interpolator:
                 align_prior_matrix = torch.from_numpy(self.beta_binomial_interpolator(mel_len, text_length.item()))
             else:
-                align_prior_matrix = beta_binomial_prior_distribution(text_length, mel_len)
+                align_prior_matrix = torch.from_numpy(beta_binomial_prior_distribution(text_length, mel_len))
 
         non_exist_voiced_index = []
         my_var = locals()

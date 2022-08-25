@@ -39,7 +39,7 @@ class BetaBinomialInterpolator:
     def __call__(self, w, h):
         bw = BetaBinomialInterpolator.round(w, to=self.round_mel_len_to)
         bh = BetaBinomialInterpolator.round(h, to=self.round_text_len_to)
-        ret = ndimage.zoom(self.bank(bw, bh).numpy().T, zoom=(w / bw, h / bh), order=1)
+        ret = ndimage.zoom(self.bank(bw, bh).T, zoom=(w / bw, h / bh), order=1)
         assert ret.shape[0] == w, ret.shape
         assert ret.shape[1] == h, ret.shape
         return ret
@@ -63,17 +63,16 @@ def logbetabinom(n, a, b, x):
     return logcombinations(n, x) + logbeta(x + a, n - x + b) - logbeta(a, b)
 
 
-@torch.no_grad()
 def beta_binomial_prior_distribution(
     phoneme_count: int, mel_count: int, scaling_factor: float = 1.0
-) -> torch.FloatTensor:
+) -> np.array:
     x = rearrange(torch.arange(0, phoneme_count), "b -> 1 b")
     y = rearrange(torch.arange(1, mel_count + 1), "b -> b 1")
     a = scaling_factor * y
     b = scaling_factor * (mel_count + 1 - y)
     n = torch.FloatTensor([phoneme_count - 1])
 
-    return logbetabinom(n, a, b, x).exp()
+    return logbetabinom(n, a, b, x).exp().numpy()
 
 
 def get_base_dir(paths):
