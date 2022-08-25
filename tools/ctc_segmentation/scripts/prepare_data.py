@@ -215,12 +215,15 @@ def split_text(
         for sent in sentences:
             split_sent = [sent]
             for delimiter in split_on_symbols:
-                split_sent = _split(split_sent, delimiter + " ")
+                if len(delimiter) == 0:
+                    continue
+                split_sent = _split(split_sent, delimiter + " " if delimiter != " " else delimiter)
             another_sent_split.extend(split_sent)
 
         sentences = [s.strip() for s in another_sent_split if s.strip()]
         return sentences
 
+    additional_split_symbols = additional_split_symbols.replace("/s", " ")
     sentences = additional_split(sentences, additional_split_symbols)
 
     vocabulary_symbols = []
