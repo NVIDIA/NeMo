@@ -461,17 +461,22 @@ class SSLVocoderDataset(Dataset):
                     )
 
                     if self.segment_speaker_embedding:
-                        with torch.no_grad():
-                            segments = self.segment_wav(audio_ssl)
-                            signal_batch = torch.stack(segments)
-                            signal_length_batch = torch.stack( [ torch.tensor(signal_batch.shape[1]) for _i in range(len(segments)) ] )
-                            _, speaker_embeddings, _, _, _ = self.ssl_model.forward_for_export(
-                                    input_signal=signal_batch, input_signal_length=signal_length_batch, normalize_content=self.normalize_content
-                                )
-                            speaker_embedding = torch.mean(speaker_embeddings, dim=0)
-                            l2_norm = torch.norm(speaker_embedding, p=2)
-                            speaker_embedding_normalized = speaker_embedding/l2_norm
+                        if os.path.exists(speaker_emb_fp):
+                            # saving some time.
+                            speaker_embedding_normalized = torch.load(speaker_emb_fp)
                             speaker_embedding_normalized = speaker_embedding_normalized[None]
+                        else:
+                            with torch.no_grad():
+                                segments = self.segment_wav(audio_ssl)
+                                signal_batch = torch.stack(segments)
+                                signal_length_batch = torch.stack( [ torch.tensor(signal_batch.shape[1]) for _i in range(len(segments)) ] )
+                                _, speaker_embeddings, _, _, _ = self.ssl_model.forward_for_export(
+                                        input_signal=signal_batch, input_signal_length=signal_length_batch, normalize_content=self.normalize_content
+                                    )
+                                speaker_embedding = torch.mean(speaker_embeddings, dim=0)
+                                l2_norm = torch.norm(speaker_embedding, p=2)
+                                speaker_embedding_normalized = speaker_embedding/l2_norm
+                                speaker_embedding_normalized = speaker_embedding_normalized[None]
 
                     speaker_embedding_normalized = speaker_embedding_normalized[0].detach()
                     content_embedding = content_embedding[0].detach()
