@@ -1,4 +1,5 @@
 # Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,7 +20,7 @@ from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.megatron_decoders import get_decoder_model
 from nemo.collections.nlp.modules.common.megatron.megatron_encoders import get_encoder_model
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder import MegatronTokenLevelHead
+from nemo.collections.nlp.modules.common.megatron.mup.layer import MuReadout
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     build_position_ids,
@@ -120,7 +121,8 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 num_tokentypes=num_tokentypes,
                 use_cpu_initialization=use_cpu_initialization,
                 embedding_dropout_prob=hidden_dropout,
-                add_position_embedding=add_position_embedding,
+                position_embedding_type='learned_absolute' if add_position_embedding else '',
+                transpose_batch_sequence=False,
             )
             self._embedding_key = "embedding"
 
@@ -285,7 +287,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
         )
 
         if add_decoder and post_process:
-            self.tokens_head = MegatronTokenLevelHead(self.word_embeddings_weight().size(0), parallel_output)
+            self.tokens_head = MuReadout(self.word_embeddings_weight().size(0), parallel_output)
             self._tokens_head_key = 'tokens_head'
 
     def forward(
@@ -339,9 +341,6 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
             )
             # hidden is a tuple, (layernorm_input, layernorm_output)
             self.post_decoder.set_input_tensor(hidden)
-            # scale down the pre-decoder output by half
-            hidden = (hidden[0] * 0.5, hidden[1] * 0.5)
-            # stop passing through the gradients
             encoder_output = hidden[1].transpose(0, 1).contiguous()
 
         if self.add_encoder:
@@ -356,9 +355,6 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 inference_max_sequence_len=inference_max_sequence_len,
                 neighbors=neighbors,
             )
-            #  scale down the retrieved emb output
-            if retrieved_emb is not None:
-                retrieved_emb = retrieved_emb * (1 / max(1, self.num_chunked_cross_attention))
 
         if self.add_decoder:
             dec_output = self.post_decoder(
@@ -374,14 +370,21 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
             token_logits = self.tokens_head(dec_output, self.word_embeddings_weight())
 
             if labels is not None:
+                # [b, s] -> [s, b]
+                labels = labels.transpose(0, 1).contiguous()
+
                 # tensor_parallel.vocab_parallel_cross_entropy performs log_softmax and return log p(x_i|z) per token i
                 if self.fp16_cross_entropy:
                     assert token_logits.dtype == torch.half
                     tokens_loss = tensor_parallel.vocab_parallel_cross_entropy(token_logits, labels)
                 else:
                     tokens_loss = tensor_parallel.vocab_parallel_cross_entropy(token_logits.float(), labels)
+                # [s, b] -> [b, s]
+                tokens_loss = tokens_loss.transpose(0, 1).contiguous()
                 return tokens_loss
             else:
+                # [s, b, h] -> [b, s, h]
+                token_logits = token_logits.transpose(0, 1).contiguous()
                 return token_logits
 
     def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
