@@ -83,8 +83,8 @@ class DialogueCustomDataProcessor(DialogueDataProcessor):
 
             for entity in dialogue["Entities"]:
                 if entity["Token"] == slot_value:
-                    entity_to_slot_mapping.update({slot_name: entity})
-                    entity_to_slot_mapping[slot_name].update({"value": slot_value})
+                    entity_to_slot_mapping[slot_name] = entity
+                    entity_to_slot_mapping[slot_name]["value"] = slot_value
                     break
 
         return entity_to_slot_mapping
@@ -226,7 +226,7 @@ class DialogueCustomDataProcessor(DialogueDataProcessor):
         Dumps a jsonl file of processed examples at self.data_dir/dataset_split/sanity_check_examples.json
         """
 
-        filepath = os.path.join(self.data_dir, dataset_split, "sanity_check_examples.json")
+        filepath = os.path.join(self.data_dir, dataset_split, "sanity_check_examples.jsonl")
         with open(filepath, "w") as f:
             for example in examples:
                 f.write(f"{json.dumps(example.data)}\n")
