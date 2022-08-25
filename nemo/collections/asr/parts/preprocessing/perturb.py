@@ -332,6 +332,7 @@ class ImpulsePerturbation(Perturbation):
         if not self._shift_impulse:
             impulse_norm = (impulse.samples - min(impulse.samples)) / (max(impulse.samples) - min(impulse.samples))
             data._samples = signal.fftconvolve(data._samples, impulse_norm, "same")
+            data._samples = data._samples / max(abs(data._samples))
         else:
             # Find peak and shift peak to left
             impulse_norm = (impulse.samples - min(impulse.samples)) / (max(impulse.samples) - min(impulse.samples))
@@ -340,6 +341,7 @@ class ImpulsePerturbation(Perturbation):
             impulse_resp = impulse_norm[max_ind:]
             delay_after = len(impulse_resp)
             data._samples = signal.fftconvolve(data._samples, impulse_resp, "full")[:-delay_after]
+            data._samples = data._samples / max(abs(data._samples))
 
 
 class ShiftPerturbation(Perturbation):
