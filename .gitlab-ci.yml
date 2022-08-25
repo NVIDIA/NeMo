@@ -925,8 +925,8 @@ eval.gpt3.prompt_170m_tp2_pp2_squad:
     PROMPT_LEARN_MODEL_DIR: prompt_learn_mt5_170m_tp2_pp2_2node_squad
     CONVERT_MODEL_DIR: convert_mt5_170m_tp2_pp2
     TIME_LIMIT: "30:00"
-    TP_SIZE: 1
-    PP_SIZE: 1
+    TP_SIZE: 2
+    PP_SIZE: 2
     TEST_LEVEL: L1
   needs:
     - prompt_learn.mt5.170m_tp2_pp2_2node_100steps_squad
@@ -958,8 +958,8 @@ eval.gpt3.prompt_220m_tp2_pp2_squad:
     PROMPT_LEARN_MODEL_DIR: prompt_learn_t5_220m_tp2_pp2_2node_squad
     CONVERT_MODEL_DIR: convert_t5_220m_tp2_pp2
     TIME_LIMIT: "30:00"
-    TP_SIZE: 1
-    PP_SIZE: 1
+    TP_SIZE: 2
+    PP_SIZE: 2
     TEST_LEVEL: L1
   needs:
     - prompt_learn.t5.220m_tp2_pp2_2node_100steps_squad
