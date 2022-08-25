@@ -19,7 +19,7 @@ import os
 import random
 
 # Checks -
-# Please normalize the text for each language so that we have only the alphabets (no numbers, special characters, punctuation)
+# (Recommendation) Please normalize the text for each language (avoid numbers, special characters, punctuation)
 # Please ensure that the audio_fielpaths are absolute locations
 
 
@@ -43,7 +43,7 @@ parser.add_argument("--dataset_size_required_hrs", default=1, type=int, help='Du
 args = parser.parse_args()
 
 
-def __read_manifest(manifest_path: str):
+def read_manifest(manifest_path: str):
     """
     Args:
         manifest_path: absolute path of the manifest file
@@ -60,7 +60,7 @@ def __read_manifest(manifest_path: str):
     return data
 
 
-def __write_manifest(manifest_path: str, data: list):
+def write_manifest(manifest_path: str, data: list):
     """
     Args:
         manifest_path: absolute path for where to save the manifest file
@@ -76,7 +76,7 @@ def __write_manifest(manifest_path: str, data: list):
             outfile.write(s + '\n')
 
 
-def __create_cs_manifest(
+def create_cs_manifest(
     data_lang_0: list,
     data_lang_1: list,
     lid_lang_0: str,
@@ -182,18 +182,18 @@ def main():
 
     # Reading data
     logging.info('Reading manifests')
-    data_language0 = __read_manifest(manifest0)
-    data_language1 = __read_manifest(manifest1)
+    data_language0 = read_manifest(manifest0)
+    data_language1 = read_manifest(manifest1)
 
     # Creating the CS data Manifest
     logging.info('Creating CS manifest')
-    constructed_data = __create_cs_manifest(
+    constructed_data = create_cs_manifest(
         data_language0, data_language1, lid0, lid1, max_sample_duration, min_sample_duration, dataset_requirement
     )
 
     # Saving Manifest
     logging.info('saving manifest')
-    __write_manifest(manifest_save_path, constructed_data)
+    write_manifest(manifest_save_path, constructed_data)
 
     print("Synthetic CS manifest saved at :", manifest_save_path)
 

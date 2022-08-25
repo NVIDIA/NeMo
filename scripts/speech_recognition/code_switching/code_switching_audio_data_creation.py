@@ -62,7 +62,7 @@ parser.add_argument(
 args = parser.parse_args()
 
 
-def __read_manifest(manifest_path: str):
+def read_manifest(manifest_path: str):
     """
     Args:
         manifest_path: absolute path of the manifest file
@@ -79,7 +79,7 @@ def __read_manifest(manifest_path: str):
     return data
 
 
-def __create_cs_data(
+def create_cs_data(
     intermediate_cs_manifest_list: list,
     audio_save_folder: str,
     manfest_save_path: str,
@@ -202,11 +202,11 @@ def main():
 
     # Reading data
     logging.info('Reading manifests')
-    intermediate_cs_manifest = __read_manifest(cs_intermediate_manifest_path)
+    intermediate_cs_manifest = read_manifest(cs_intermediate_manifest_path)
 
     # Creating Audio data
     logging.info('Creating synthetic audio data')
-    __create_cs_data(
+    create_cs_data(
         intermediate_cs_manifest,
         audio_save_folder,
         manifest_save_path,
