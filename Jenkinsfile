@@ -1046,7 +1046,7 @@ pipeline {
             model.dataset.prompt_template=slots_values \
             model.dataset.input_field=utterance+system_actions \
             model.dataset.output_field=system_utterance \
-            model.test_ds.batch_size=1
+            model.test_ds.batch_size=1 \
             exp_manager=null  && \
             rm -rf custom_sgd_generation_results'
           }
