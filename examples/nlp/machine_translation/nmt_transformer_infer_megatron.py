@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import os
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.machine_translation.megatron_nmt_model import MegatronNMTModel
+from nemo.collections.nlp.models.machine_translation.megatron_adapter_nmt_model import MegatronAdapterNMTModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
@@ -34,6 +35,8 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
 from nemo.utils.model_utils import inject_model_parallel_rank
+from omegaconf.omegaconf import OmegaConf, open_dict
+
 
 try:
     from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
@@ -70,19 +73,44 @@ def main(cfg) -> None:
         pipeline_model_parallel_split_rank_=cfg.pipeline_model_parallel_split_rank,
     )
 
-    if cfg.model_file is not None:
-        if not os.path.exists(cfg.model_file):
-            raise ValueError(f"Model file {cfg.model_file} does not exist")
-        model = MegatronNMTModel.restore_from(
-            restore_path=cfg.model_file, trainer=trainer, save_restore_connector=NLPSaveRestoreConnector(),
-        )
-    elif cfg.checkpoint_dir is not None:
-        checkpoint_path = inject_model_parallel_rank(os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name))
-        model = MegatronNMTModel.load_from_checkpoint(checkpoint_path, hparams_file=cfg.hparams_file, trainer=trainer)
-    else:
-        raise ValueError("need at least a nemo file or checkpoint dir")
+    # load adapters if present in the config
+    # adapter path check
+    using_adapters = False
+    if hasattr(cfg, 'adapters_file'):
+        # check if the provided adapter's path is valid
+        if cfg.adapters_file is None or not os.path.exists(cfg.adapters_file):
+            raise ValueError("need adapter weights when using adapter_file")
 
+        # get base config file
+        pretrained_cfg = MegatronAdapterNMTModel.restore_from(
+            cfg.model_file, trainer=trainer, return_config=True
+        )
+
+        # edit config file
+        with open_dict(pretrained_cfg):
+            pretrained_cfg.pretrained_model_path = cfg.model_file
+            pretrained_cfg.adapter_tuning = cfg.adapter_tuning
+
+        model = MegatronAdapterNMTModel.restore_from(
+            restore_path=cfg.adapters_file, trainer=trainer, override_config_path=pretrained_cfg, save_restore_connector=NLPSaveRestoreConnector(),
+        )
+    else:
+        # load NMT model without adapters
+        if cfg.model_file is not None:
+            if not os.path.exists(cfg.model_file):
+                raise ValueError(f"Model file {cfg.model_file} does not exist")
+            model = MegatronNMTModel.restore_from(
+                restore_path=cfg.model_file, trainer=trainer, save_restore_connector=NLPSaveRestoreConnector(),
+            )
+        elif cfg.checkpoint_dir is not None:
+            checkpoint_path = inject_model_parallel_rank(os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name))
+            model = MegatronNMTModel.load_from_checkpoint(checkpoint_path, hparams_file=cfg.hparams_file, trainer=trainer)    
+        else:
+            raise ValueError("need at least a nemo file or checkpoint dir")
+
+    # freeze the model and do inference
     model.freeze()
+    print(model.summarize())
 
     logging.info(f"Translating: {cfg.srctext}")
     src_text = []

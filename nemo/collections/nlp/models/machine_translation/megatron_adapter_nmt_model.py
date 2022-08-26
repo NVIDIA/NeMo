@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+import torch
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.common.parts import adapter_modules
+from nemo.collections.nlp.modules.common.megatron.parallel_adapters import ParallelLinearAdapterConfig
 from nemo.collections.nlp.models.machine_translation.megatron_nmt_model import MegatronNMTModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.core.classes.mixins import adapter_mixins
@@ -57,7 +57,7 @@ class MegatronAdapterNMTModel(MegatronNMTModel):
                 for adapter_key in self.adapter_name_keys:
                     module.add_adapter(
                         name=adapter_key,
-                        cfg=adapter_modules.LinearAdapterConfig(
+                        cfg=ParallelLinearAdapterConfig(
                             in_features=cfg.hidden_size,
                             dim=cfg.adapter_tuning.adapter_dim,
                             norm_position='post',
@@ -93,6 +93,12 @@ class MegatronAdapterNMTModel(MegatronNMTModel):
                     if state_adapter_key in state_dict:
                         adapter_module.load_state_dict(state_dict[state_adapter_key], strict)
                 module.set_enabled_adapters(enabled=True)
+
+    def load_adapters(self, adapters_file: str):
+        # load adapters
+        adapters_file = torch.load(adapters_file)
+        self.load_state_dict(adapters_file['state_dict'])
+        logging.info('Adapter weights loaded.')
 
     def setup_optimizer_param_groups(self):
         """

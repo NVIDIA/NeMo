@@ -5,6 +5,7 @@ trainer:
   accelerator: gpu
 
 model_file: ???
+adapter_file: ???
 checkpoint_dir: null
 srctext: ???
 tgtout: ???
@@ -14,9 +15,3 @@ target_lang: null
 tensor_model_parallel_size: 1
 pipeline_model_parallel_size: 1
 pipeline_model_parallel_split_rank: 0
-
-# adapter information
-model:
-  adapter_tuning:
-    adapter_dim: 50
-    adapter_dropout: 0.1
