@@ -19,12 +19,12 @@ ${PIP} uninstall -y nemo_cv
 
 ${PIP} install -U setuptools
 
-if [ ! -z "${NVIDIA_PYTORCH_VERSION}" ]
+if [ -n "${NVIDIA_PYTORCH_VERSION}" ]
 
 then
   echo 'Installing NeMo in NVIDIA PyTorch container:' ${NVIDIA_PYTORCH_VERSION} 'so will not install numba'
 else
-  if [ -x "$(command -v conda)" ]
+  if [ -n "${CONDA_PREFIX}" ]
   then
     NUMBA_VERSION=0.55
     echo 'Installing numba=='${NUMBA_VERSION}
