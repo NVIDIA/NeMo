@@ -8,7 +8,7 @@ class TestTrainingGPT3Config:
         run:
           name: gpt3_126m
           results_dir: ${base_results_dir}/${.name}
-          time_limit: "1-12:00:00"
+          time_limit: "1-00:00:00"
           dependency: "singleton"
 
         trainer:
@@ -21,7 +21,7 @@ class TestTrainingGPT3Config:
           replace_sampler_ddp: False
           max_epochs: null
           max_steps: 600000
-          max_time: "01:11:30:00"
+          max_time: "00:23:30:00"
           log_every_n_steps: 10
           val_check_interval: 2000
           limit_val_batches: 50
@@ -111,7 +111,7 @@ class TestTrainingGPT3Config:
           apex_transformer_log_level: 30
 
           optim:
-            name: fused_adam
+            name: distributed_fused_adam
             lr: 6e-4
             weight_decay: 0.1 
             betas: 
@@ -215,11 +215,11 @@ class TestTrainingGPT3Config:
         run:
           name: gpt3_5b
           results_dir: ${base_results_dir}/${.name}
-          time_limit: "7-00:00:00"
+          time_limit: "6-00:00:00"
           dependency: "singleton"
 
         trainer:
-          num_nodes: 20
+          num_nodes: 16
           devices: 8
           accelerator: gpu
           precision: bf16
@@ -227,8 +227,8 @@ class TestTrainingGPT3Config:
           enable_checkpointing: False
           replace_sampler_ddp: False
           max_epochs: null
-          max_steps: 105000
-          max_time: "06:23:30:00"
+          max_steps: 75000
+          max_time: "05:23:30:00"
           log_every_n_steps: 10
           val_check_interval: 2000
           limit_val_batches: 50
@@ -262,8 +262,8 @@ class TestTrainingGPT3Config:
 
         model:
           micro_batch_size: 2
-          global_batch_size: 1440
-          tensor_model_parallel_size: 2
+          global_batch_size: 2048
+          tensor_model_parallel_size: 1
           pipeline_model_parallel_size: 1
           resume_from_checkpoint: null
 
@@ -317,17 +317,17 @@ class TestTrainingGPT3Config:
           apex_transformer_log_level: 30
 
           optim:
-            name: fused_adam
-            lr: 1.2e-4
+            name: distributed_fused_adam
+            lr: 1.5e-4
             weight_decay: 0.1
             betas:
             - 0.9
             - 0.95
             sched:
               name: CosineAnnealing
-              warmup_steps: 190
-              constant_steps: 20000
-              min_lr: 1.2e-5
+              warmup_steps: 115
+              constant_steps: 12500
+              min_lr: 1.5e-5
 
           nsys_profile:
             enabled: False
@@ -421,20 +421,20 @@ class TestTrainingGPT3Config:
         run:
           name: gpt3_20b
           results_dir: ${base_results_dir}/${.name}
-          time_limit: "8-00:00:00"
+          time_limit: "7-00:00:00"
           dependency: "singleton"
 
         trainer:
           devices: 8
-          num_nodes: 80
+          num_nodes: 64
           accelerator: gpu
           precision: bf16
           logger: False
           enable_checkpointing: False
           replace_sampler_ddp: False
           max_epochs: null
-          max_steps: 105000
-          max_time: "07:23:30:00"
+          max_steps: 75000
+          max_time: "06:23:30:00"
           log_every_n_steps: 10
           val_check_interval: 2000
           limit_val_batches: 50
@@ -470,10 +470,10 @@ class TestTrainingGPT3Config:
 
         model:
           # model parallelism
-          micro_batch_size: 1
-          global_batch_size: 1440
-          tensor_model_parallel_size: 2
-          pipeline_model_parallel_size: 4
+          micro_batch_size: 4
+          global_batch_size: 2048
+          tensor_model_parallel_size: 4
+          pipeline_model_parallel_size: 1
           resume_from_checkpoint: null
 
           # model architecture
@@ -526,17 +526,17 @@ class TestTrainingGPT3Config:
           apex_transformer_log_level: 30
 
           optim:
-            name: fused_adam
-            lr: 1e-4
+            name: distributed_fused_adam
+            lr: 1.3e-4
             weight_decay: 0.1
             betas:
             - 0.9
             - 0.95
             sched:
               name: CosineAnnealing
-              warmup_steps: 190
-              constant_steps: 20000
-              min_lr: 1e-5
+              warmup_steps: 115
+              constant_steps: 12500
+              min_lr: 1.3e-5
 
           nsys_profile:
             enabled: False
@@ -630,11 +630,11 @@ class TestTrainingGPT3Config:
         run:
           name: gpt3_40b
           results_dir: ${base_results_dir}/${.name}
-          time_limit: "12-12:00:00"
+          time_limit: "6-12:00:00"
           dependency: "singleton"
 
         trainer:
-          num_nodes: 80
+          num_nodes: 128
           devices: 8
           accelerator: gpu
           precision: bf16
@@ -642,8 +642,8 @@ class TestTrainingGPT3Config:
           enable_checkpointing: False
           replace_sampler_ddp: False
           max_epochs: null
-          max_steps: 105000
-          max_time: "12:11:00:00"
+          max_steps: 75000
+          max_time: "6:11:00:00"
           log_every_n_steps: 10
           val_check_interval: 2000
           limit_val_batches: 20
@@ -676,10 +676,10 @@ class TestTrainingGPT3Config:
             buffer_size: 5
 
         model:
-          micro_batch_size: 1
-          global_batch_size: 1440
+          micro_batch_size: 2
+          global_batch_size: 2048
           tensor_model_parallel_size: 4
-          pipeline_model_parallel_size: 4
+          pipeline_model_parallel_size: 2
           resume_from_checkpoint: null
 
           # model architecture
@@ -732,17 +732,17 @@ class TestTrainingGPT3Config:
           apex_transformer_log_level: 30
 
           optim:
-            name: fused_adam
-            lr: 0.8e-4
+            name: distributed_fused_adam
+            lr: 1.0e-4
             weight_decay: 0.1 
             betas: 
             - 0.9
             - 0.95
             sched:
               name: CosineAnnealing
-              warmup_steps: 190
-              constant_steps: 20000
-              min_lr: 0.8e-5
+              warmup_steps: 115
+              constant_steps: 12500
+              min_lr: 1.0e-5
 
           nsys_profile:
             enabled: False
@@ -883,7 +883,7 @@ class TestTrainingGPT3Config:
 
         model:
           micro_batch_size: 2
-          global_batch_size: 1536
+          global_batch_size: 2048
           tensor_model_parallel_size: 8
           pipeline_model_parallel_size: 8
           resume_from_checkpoint: null
@@ -938,7 +938,7 @@ class TestTrainingGPT3Config:
           apex_transformer_log_level: 30
 
           optim:
-            name: fused_adam
+            name: distributed_fused_adam
             lr: 0.6e-4
             weight_decay: 0.1 
             betas: 
@@ -946,8 +946,8 @@ class TestTrainingGPT3Config:
             - 0.95
             sched:
               name: CosineAnnealing
-              warmup_steps: 265
-              constant_steps: 20000
+              warmup_steps: 115
+              constant_steps: 12500
               min_lr: 0.6e-5
 
           nsys_profile:
