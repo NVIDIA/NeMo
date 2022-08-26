@@ -19,6 +19,7 @@ import os
 
 import librosa
 import numpy as np
+from joblib import Parallel, delayed
 from scipy.io import wavfile
 from tqdm import tqdm
 
@@ -58,6 +59,7 @@ parser.add_argument(
 parser.add_argument(
     "--sample_end_pause_msec", default=20, type=int, help='Pause to be added at the end of the sample (msec)'
 )
+parser.add_argument("--num_process", default=1, type=int, help='Number of parallel processes')
 
 args = parser.parse_args()
 
@@ -77,6 +79,48 @@ def read_manifest(manifest_path: str):
         data.append(json.loads(line))
 
     return data
+
+
+def split_list(input_list: list, num_splits: int):
+    """
+    Args:
+        input_list: the input list to split
+        num_splits: number of splits required
+
+    Returns:
+        iterator of split lists
+
+    """
+    k, m = divmod(len(input_list), num_splits)
+    return (input_list[i * k + min(i, m) : (i + 1) * k + min(i + 1, m)] for i in range(num_splits))
+
+
+def combine_manifests(manifest_save_path: str, num_split: int):
+    """
+    Args:
+        manifest_save_path: absolute path to save the combined manifest
+        num_splits: number of splits of manifest
+
+    Returns:
+        num_samples_combined: the total number of samples in the generated dataset
+    """
+    num_samples_combined = 0
+    base_directory = os.path.dirname(manifest_save_path)
+
+    with open(manifest_save_path, 'w') as outfile:
+        for i in range(num_split):
+            split_manifest_path = base_directory + '/temp_' + str(i) + '.json'
+            data_split = read_manifest(split_manifest_path)
+
+            for elem in data_split:
+                s = json.dumps(elem)
+                outfile.write(s + '\n')
+                num_samples_combined += 1
+
+            # removing the intermediate file
+            os.remove(split_manifest_path)
+
+    return num_samples_combined
 
 
 def create_cs_data(
@@ -105,7 +149,6 @@ def create_cs_data(
 
     """
 
-    sample_id = 0
     fs = cs_data_sampling_rate
     incorrect_sample_flag = 0
 
@@ -155,12 +198,12 @@ def create_cs_data(
             ending_pause = np.zeros(int(pause_end_msec * fs / 1000))
             combined_audio += list(ending_pause)
 
+            sample_id = data['uid']
             audio_file_path = audio_save_folder + '/' + str(sample_id) + ".wav"
 
             # saving audio
             wavfile.write(audio_file_path, fs, np.array(combined_audio).astype(np.int16))
             # Alternative-  librosa.output.write_wav(audio_file_path, combined_audio, fs)
-            sample_id += 1
 
             metadata_json = {}
             metadata_json['audio_filepath'] = audio_file_path
@@ -186,17 +229,18 @@ def main():
     pause_join_msec = args.sample_joining_pause_msec
     pause_end_msec = args.sample_end_pause_msec
     cs_data_sampling_rate = args.cs_data_sampling_rate
+    num_process = args.num_process
 
     # Sanity Checks
     if (cs_intermediate_manifest_path is None) or (not os.path.exists(cs_intermediate_manifest_path)):
         logging.error('Please provide correct CS manifest (obtained from code_switching_manifest_creation.py)')
         exit
 
-    if (audio_save_folder_path is None) or (not os.path.exists(audio_save_folder_path)):
+    if (audio_save_folder is None) or (not os.path.exists(audio_save_folder)):
         logging.error('audio_save_folder_path is incorrect or does not exist')
         exit
 
-    if audio_save_folder_path is None:
+    if manifest_save_path is None:
         logging.error('Please provide valid manifest_save_path')
         exit
 
@@ -204,21 +248,33 @@ def main():
     logging.info('Reading manifests')
     intermediate_cs_manifest = read_manifest(cs_intermediate_manifest_path)
 
+    # Spliting the data
+    data_split = split_list(intermediate_cs_manifest, num_process)
+
     # Creating Audio data
     logging.info('Creating synthetic audio data')
-    create_cs_data(
-        intermediate_cs_manifest,
-        audio_save_folder,
-        manifest_save_path,
-        audio_amplitude_normalization,
-        pause_beg_msec,
-        pause_join_msec,
-        pause_end_msec,
-        cs_data_sampling_rate,
+    base_directory = os.path.dirname(manifest_save_path)
+
+    Parallel(n_jobs=num_process)(
+        delayed(create_cs_data)(
+            split_manifest,
+            audio_save_folder,
+            base_directory + '/temp_' + str(idx) + '.json',
+            audio_amplitude_normalization,
+            pause_beg_msec,
+            pause_join_msec,
+            pause_end_msec,
+            cs_data_sampling_rate,
+        )
+        for idx, split_manifest in enumerate(data_split)
     )
+
+    # Combining manifests
+    num_samples_combined = combine_manifests(manifest_save_path, num_process)
 
     print("Synthetic CS audio data saved at :", audio_save_folder)
     print("Synthetic CS manifest saved at :", manifest_save_path)
+    print("Total number of samples in the generated dataset :", str(num_samples_combined))
 
     logging.info('Done!')
 

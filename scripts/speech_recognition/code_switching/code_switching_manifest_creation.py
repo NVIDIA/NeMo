@@ -102,6 +102,7 @@ def create_cs_manifest(
 
     total_duration = 0
     constructed_data = []
+    sample_id = 0
 
     num_samples_lang0 = len(data_lang_0)
     num_samples_lang1 = len(data_lang_1)
@@ -138,6 +139,11 @@ def create_cs_manifest(
                 created_sample_dict['durations'].append(sample['duration'])
 
         created_sample_dict['total_duration'] = created_sample_duration_sec
+
+        # adding a uid which will be used to save the generated audio file later
+        created_sample_dict['uid'] = sample_id
+        sample_id += 1
+
         constructed_data.append(created_sample_dict)
         total_duration += created_sample_duration_sec
 
