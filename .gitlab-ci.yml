@@ -13,6 +13,7 @@ variables: &VARS
 
 stages:
   - build
+  - deploy
   - release_perf
   - test
   - cleanup
@@ -35,6 +36,16 @@ test:unit_tests:
   rules:
     - when: always
 
+pages:
+  stage: deploy
+  script:
+    - echo "The site will be deployed to $CI_PAGES_URL"
+  artifacts:
+    paths:
+      - public
+  rules:
+    - when: always
+    
 before_script:
   - umask 0007
   - export DOCKERFILE=./Dockerfile
