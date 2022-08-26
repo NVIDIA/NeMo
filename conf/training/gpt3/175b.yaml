@@ -116,7 +116,7 @@ model:
     gen_shape: False # Generate model and kernel details including input shapes
 
   optim:
-    name: fused_adam
+    name: distributed_fused_adam
     lr: 0.6e-4
     weight_decay: 0.1 
     betas: 
