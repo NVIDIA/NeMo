@@ -36,8 +36,8 @@ RUN apt-get update && \
 WORKDIR /tmp/
 RUN git clone https://github.com/NVIDIA/apex.git && \
     cd apex && \
-    git checkout 3c19f1061879394f28272a99a7ea26d58f72dace && \
-    pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" ./
+    git checkout 6f7d8ac3dfb279b314ac4ea23b9c2175b066f7ff && \
+    pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" --global-option="--distributed_adam" --global-option="--deprecated_fused_adam" ./
 
 # uninstall stuff from base container
 RUN pip uninstall -y sacrebleu torchtext

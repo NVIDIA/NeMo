@@ -2,7 +2,7 @@ pipeline {
   agent {
         docker {
       //image 'nvcr.io/nvidia/pytorch:22.05-py3'
-      image 'gitlab-master.nvidia.com:5005/eharper/nemo_containers:nemo_ci_pytorch_22.07_apex_3c19f1061879394f28272a99a7ea26d58f72dace'
+      image 'gitlab-master.nvidia.com:5005/eharper/nemo_containers:nemo_ci_pytorch_22.07_apex_6f7d8ac3dfb279b314ac4ea23b9c2175b066f7ff'
       args '--device=/dev/nvidia0 --gpus all -e TRANSFORMERS_OFFLINE=1 --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache:/root/.cache --shm-size=8g'
         }
   }
@@ -465,7 +465,7 @@ pipeline {
             sh 'rm -rf examples/speaker_tasks/diarization/speaker_diarization_results'
           }
         }
-	
+
         stage('Multispeaker ASR Data Simulation') {
           steps {
             sh 'python tools/speech_data_simulator/multispeaker_simulator.py \
