@@ -200,9 +200,9 @@ release_perf:
           GIT_BRANCHES=`git branch -r`
           if [[ "$GIT_BRANCHES" =~ .*"$CI_PIPELINE_ID".* ]]; then git pull origin $CI_PIPELINE_ID; fi
           if [[ "$RUN_STAGE" == "eval" &&  "$RUN_MODEL" =~ "gpt3" ]]; then
-            cp $RESULTS_DIR/results/$RUN_NAME*/metrics.json tests/ci_tests/selene/pytest/$RUN_STAGE/${RUN_MODEL}_result_files/
+            cp $RESULTS_DIR/results/$RUN_NAME*/metrics.json tests/ci_tests/selene/pytest/$RUN_STAGE/${RUN_MODEL}_result_files/${RUN_NAME}.json
           else
-            cp $RESULTS_DIR/*.json tests/ci_tests/selene/pytest/$RUN_STAGE/${RUN_MODEL}_result_files/
+            cp $RESULTS_DIR/*.json tests/ci_tests/selene/pytest/$RUN_STAGE/${RUN_MODEL}_result_files/${RUN_NAME}.json
           fi
           git add tests/ci_tests/selene/pytest/$RUN_STAGE/${RUN_MODEL}_result_files/*
           sed -i 's/TESTS_TO_RUN_ON_THIS_COMMIT: .*/TESTS_TO_RUN_ON_THIS_COMMIT: NONE/g' .gitlab-ci.yml
