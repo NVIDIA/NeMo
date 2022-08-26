@@ -29,8 +29,8 @@ CreateHTMLTable = {
             <th>AMP FLAG</th>
             <th>NUM STEPS</th>
             <th >LATEST</th>
-            <th>PREVIOUS</th>
-            <th> PREVIOUS / LATEST </th>
+            <th>PREV BEST</th>
+            <th> PREV BEST / LATEST </th>
           </tr>
         </thead>
         `
