@@ -1793,6 +1793,7 @@ class ParallelTransformer(MegatronModule):
         headscale=False,
         layer_number_offset=0,  # this is use only for attention norm_factor scaling
         activations_checkpoint_granularity=None,
+        activations_checkpoint_layers_per_pipeline=None,
         sequence_parallel=False,
         transformer_engine=False,
         fp8=False,
@@ -1825,6 +1826,7 @@ class ParallelTransformer(MegatronModule):
         self.activations_checkpoint_method = activations_checkpoint_method
         self.activations_checkpoint_num_layers = activations_checkpoint_num_layers
         self.activations_checkpoint_granularity = activations_checkpoint_granularity
+        self.activations_checkpoint_layers_per_pipeline = activations_checkpoint_layers_per_pipeline
 
         if self.activations_checkpoint_granularity:
             if self.activations_checkpoint_granularity == 'selective':
@@ -2150,9 +2152,9 @@ class ParallelTransformer(MegatronModule):
             elif self.activations_checkpoint_method == 'block':
                 # Decrease the number of layers to checkpoint at later pipeline stages
                 activations_checkpoint_num_layers = self.activations_checkpoint_num_layers
-                if activations_checkpoint_layers_per_pipeline is not None:
+                if self.activations_checkpoint_layers_per_pipeline is not None:
                     activations_checkpoint_num_layers -= (
-                        int(parallel_state.get_pipeline_model_parallel_rank() * activations_checkpoint_layers_per_pipeline)
+                        int(parallel_state.get_pipeline_model_parallel_rank() * self.activations_checkpoint_layers_per_pipeline)
                     )
                 # Checkpoint the input activation of only a set number of individual
                 # Transformer layers and skip the rest.
