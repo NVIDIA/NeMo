@@ -2,84 +2,126 @@ import os
 import shutil
 import subprocess
 import sys
-import typing
 
 import omegaconf
+import pathlib
+
+from hp_tool import utils
 
 
-def create_slurm_file(
-    new_script_path,
-    steps_cmds,
-    job_name,
-    flags="",
-    dependency=None,
-    time="04:00:00",
-    exclusive=True,
-    mem: typing.Optional[int] = None,
-    overcommit=True,
-    nodes=None,
-    ntasks=None,
-    ntasks_per_node=None,
-    gpus_per_task=None,
-    gpus_per_node=None,
-    partition="batch",
-    account=None,
-    exclude=None,
+def search_inference_config(base_cfg, cfg):
+    """
+    Main function to launch a inference sweep job, with the config given in cfg.
+    """
+    # Read config
+    bignlp_hp_tool_path = cfg.get("bignlp_hp_tool_path")
+    bignlp_scripts_path = cfg.get("bignlp_scripts_path")
+    container_mounts = cfg.get("container_mounts")
+    container = cfg.get("inference_container")
+    hp_cfg = cfg.get("search_config")
+    base_results_dir = cfg.get("base_results_dir")
+
+    # Cluster parameters
+    cluster_cfg = cfg.get("cluster")
+
+    # Inference settings
+    inference_cfg = hp_cfg.get("inference_settings")
+
+    # Run configuration
+    run_cfg = inference_cfg.get("run")
+    model_type = run_cfg.model_type
+    model_train_name = run_cfg.get("model_train_name")
+    tensor_parallel_sizes = run_cfg.tensor_parallel_sizes
+    pipeline_parallel_sizes = run_cfg.pipeline_parallel_sizes
+    triton_dir = f"{run_cfg.results_dir}/model_repo"
+    model_config_path = f"{bignlp_hp_tool_path}/conf/ft_model_config/{model_type}/{model_train_name}.ini"
+    results_dir = run_cfg.get("results_dir")
+    results_dir = os.path.join(results_dir, "inference")
+    os.makedirs(results_dir, exist_ok=True)
+    workspace_dir = os.path.join(results_dir, "workspace")
+    os.makedirs(workspace_dir, exist_ok=True)
+
+    # Benchmark configuration
+    benchmark_cfg = inference_cfg.get("benchmark")
+    max_batch_size = max(benchmark_cfg.batch_sizes)
+
+
+    # Process container-mounts.
+    mounts_str = f"{bignlp_hp_tool_path}:{bignlp_hp_tool_path},{base_results_dir}:{base_results_dir}"
+    mounts_str += utils.add_container_mounts(container_mounts)
+
+    run = 0
+    for tensor_parallel_size in tensor_parallel_sizes:
+        for pipeline_parallel_size in pipeline_parallel_sizes:
+
+            benchmark_model_name = f"{model_train_name}_tp{tensor_parallel_size}_pp{pipeline_parallel_size}"
+            task_name = f"inference_sweep_{benchmark_model_name}"
+
+            # Prepare trition configuration
+            triton_model_dir = f"{results_dir}/model_repo_{tensor_parallel_size}_{pipeline_parallel_size}"
+            model_dir = f"{triton_model_dir}/{benchmark_model_name}/1/{tensor_parallel_size}-gpu"
+            os.makedirs(model_dir, exist_ok=True)
+
+            shutil.copyfile(model_config_path, f"{model_dir}/config.ini")
+
+            prepare_model_config_script_path = f"{bignlp_scripts_path}/bignlp/collections/export_scripts/prepare_triton_model_config.py"
+            template_path = f"{bignlp_hp_tool_path}/conf/triton_config/{model_type}/config.pbtxt"
+
+            triton_prepare_model_config_cmd = (
+                f"python3 -u {prepare_model_config_script_path}"
+                f" --model-train-name {benchmark_model_name}"
+                f" --template-path {template_path}"
+                f" --ft-checkpoint {model_dir}"
+                f" --config-path {triton_model_dir}/{benchmark_model_name}/config.pbtxt"
+                f" --max-batch-size {max_batch_size}"
+                f" --pipeline-model-parallel-size {pipeline_parallel_size}"
+                f" --tensor-model-parallel-size {tensor_parallel_size}"
+                f" --data-type {run_cfg.data_type}"
+            )
+            #subprocess.call(f"{triton_prepare_model_config_cmd}", shell=True)
+
+            # Run benchmark
+            benchmark_script = run_benchmark(
+                cfg=cfg,
+                run_cfg=run_cfg,
+                benchmark_cfg=benchmark_cfg,
+                cluster_cfg=cluster_cfg,
+                dependency=None,
+                bignlp_scripts_path=bignlp_scripts_path,
+                prepare_cmd=triton_prepare_model_config_cmd,
+                triton_model_dir=triton_model_dir,
+                model_name=benchmark_model_name,
+                container=container,
+                tensor_parallel_size=tensor_parallel_size,
+                pipeline_parallel_size=pipeline_parallel_size,
+                nodes=1, # TODO: update to correct number
+                workspace_path=workspace_dir,
+                verbose=True,
+            )
+
+            job_id = subprocess.check_output([f"sbatch --parsable {benchmark_script}"], shell=True)
+            job_id = job_id.decode("utf-8")
+            print(f"Submitted Training script with job id: {job_id}")
+            run += 1
+
+
+def run_benchmark(
+    cfg,
+    run_cfg,
+    benchmark_cfg,
+    cluster_cfg,
+    dependency,
+    bignlp_scripts_path,
+    prepare_cmd,
+    triton_model_dir,
+    model_name,
+    container,
+    tensor_parallel_size,
+    pipeline_parallel_size,
+    nodes,
+    workspace_path,
+    verbose = True,
 ):
-    """
-    Creates a slurm file to launch an export job.
-    """
-    with open(new_script_path, "w") as f:
-        f.writelines("#!/usr/bin/env bash\n")
-        if nodes is not None:
-            f.writelines(f"#SBATCH --nodes={nodes}\n")
-        if ntasks is not None:
-            f.writelines(f"#SBATCH --ntasks={ntasks}\n")
-        if ntasks_per_node is not None:
-            f.writelines(f"#SBATCH --ntasks-per-node={ntasks_per_node}\n")
-        if gpus_per_task is not None:
-            f.writelines(f"#SBATCH --gpus-per-task={gpus_per_task}\n")
-        if gpus_per_node is not None:
-            f.writelines(f"#SBATCH --gpus-per-node={gpus_per_node}\n")
-        if dependency is not None:
-            dependency = dependency.strip()
-            if dependency != "singleton":
-                dependency = f"afterany:{dependency}"
-            f.writelines(f"#SBATCH --dependency={dependency}\n")
-        f.writelines(f"#SBATCH -p {partition}\n")
-        if account is not None:
-            f.writelines(f"#SBATCH -A {account}\n")
-        f.writelines(f"#SBATCH --job-name={job_name}\n")
-        if mem is not None:
-            f.writelines(f"#SBATCH --mem={mem}\n")
-        if exclusive:
-            f.writelines("#SBATCH --exclusive\n")
-        if overcommit:
-            f.writelines("#SBATCH --overcommit\n")
-        if exclude:
-            f.writelines(f"#SBATCH --exclude={','.join(exclude)}\n")
-        f.writelines(f"#SBATCH --time={time}\n\n")
-        for cmd in steps_cmds:
-            assert "'" not in cmd
-            f.writelines(f"srun {flags} sh -c '{cmd}'\n\n")
-        f.writelines("set +x\n")
-
-
-
-def run_benchmark(run_cfg,
-                  benchmark_cfg,
-                  cluster_cfg,
-                  dependency,
-                  bignlp_scripts_path,
-                  triton_model_dir,
-                  model_name,
-                  container,
-                  tensor_parallel_size,
-                  pipeline_parallel_size,
-                  nodes_number,
-                  workspace_path,
-                  verbose = True,
-                  ):
 
     #dt = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     #parser = argparse.ArgumentParser(description="Test BigNLP models")
@@ -95,20 +137,23 @@ def run_benchmark(run_cfg,
     #args = parser.parse_args()
 
     workspace_path_absolute = pathlib.Path(workspace_path).resolve().absolute()
-    config_logger(workspace_path_absolute, verbose)
+    #config_logger(workspace_path_absolute, verbose)
 
-    LOGGER.info(f"Arguments:")
-    for name, value in vars(args).items():
-        LOGGER.info(f"    {name}: {value}")
+    #LOGGER.info(f"Arguments:")
+    #for name, value in vars(args).items():
+    #    LOGGER.info(f"    {name}: {value}")
 
+    """
     config_path = pathlib.Path(args.cluster_config_path).resolve().absolute()
     with config_path.open("r") as config_file:
         cluster_config = yaml.load(config_file, Loader=yaml.SafeLoader)
-
     cluster_dir_path = workspace_path_absolute / CLUSTER_DIR_NAME
+    """
 
-    job_name_prefix = cluster_config["env"]["job_name_prefix"]
-    training_container_image = cluster_config["env"]["training_container_image"]
+
+    #job_name_prefix = cluster_config["env"]["job_name_prefix"]
+    #training_container_image = cluster_cfg["env"]["training_container_image"]
+    container_image = cfg.get("training_Container")
 
     # variant = Variant.from_triton_model_repository(triton_model_repository_path)
     # LOGGER.info(f"Config variant {variant}")
@@ -117,48 +162,44 @@ def run_benchmark(run_cfg,
 
     start_id_path = "start_id.csv"
     output_path = "sweep.out"
+    cluster_config_path = os.path.join(cfg.bignlp_hp_tool_path, "conf/cluster/bcm.yaml")
+
+    cmd = (
+        f"export CUDA_VISIBLE_DEVICES={','.join(map(str, range(0, 8)))} "
+        f"/opt/bignlp/FasterTransformer/build/bin/multi_gpu_gpt_sweep "
+        f"{cluster_config_path} "
+        f"{start_id_path} "
+        f"{workspace_path}/{output_path} "
+        f"{tensor_parallel_size} "
+        f"{pipeline_parallel_size} "
+        )
+    flags = []
 
 
-    commands=[
-        f"export CUDA_VISIBLE_DEVICES={','.join(map(str, range(0, 8)))}",
-        f"/opt/bignlp/FasterTransformer/build/bin/multi_gpu_gpt_sweep ",
-        f"{config_path} ",
-        f"{start_id_path} ",
-        f"{workspace_path}/{output_path} ",
-        f"{tensor_parallel_size} ",
-        f"{pipeline_parallel_size}",
-    ]
-    flags=[
-    ]
-
-
-    cmds = "".join(commands)
-
-    submission_script_path = f"{workspace_path}/cluster_workspace/submission_%j.out"
-
-    cluster_cfg = cfg.cluster
+    submission_script_path = f"{workspace_path}/submission_script.sh"
 
     job_name = "ft_benchmark"
 
-    create_slurm_file(
+    utils.create_slurm_file(
         new_script_path=submission_script_path,
-        steps_cmds=cmds,
+        cmds=[prepare_cmd, cmd],
         job_name=f"{cluster_cfg.job_name_prefix}{job_name}",
         flags=flags,
-        dependency=None,
+        dependency=None, # TODO: add dependency when splitting commands into two.
         exclusive=cluster_cfg.exclusive,
         mem=None,
         overcommit=False,
         #time=time_limit,
         nodes=nodes,
-        ntasks=ntasks,
-        ntasks_per_node=ntasks_per_node,
-        gpus_per_task=gpus_per_task or cluster_cfg.gpus_per_task,
-        gpus_per_node=gpus_per_node or cluster_cfg.gpus_per_node,
+        ntasks=cluster_cfg.get("ntasks"),
+        ntasks_per_node=cluster_cfg.get("ntasks_per_node"),
+        gpus_per_task=cluster_cfg.get("gpus_per_task"),
+        gpus_per_node=cluster_cfg.get("gpus_per_node"),
         partition=cluster_cfg.partition,
         account=cluster_cfg.account,
         exclude=cluster_cfg.get("exclude"),
     )
+    return submission_script_path
 
 #f"""
 ##!/usr/bin/env bash
@@ -204,100 +245,8 @@ def run_benchmark(run_cfg,
 #        tasks_number_per_node=1,
 #        gpus_number_per_task=tensor_parallel_size,
 #    )
-    LOGGER.info(f"[-] Submitted job for {benchmark_set_job_def.description}")
+#    LOGGER.info(f"[-] Submitted job for {benchmark_set_job_def.description}")
     # benchmark_set_job = executor.submit(benchmark_set_job_def)
     # benchmark_set_job.wait()
 
 
-def search_inference_config(base_cfg, cfg):
-    """
-    Main function to launch a inference sweep job, with the config given in cfg.
-    """
-    # Read config
-    bignlp_hp_tool_path = cfg.get("bignlp_hp_tool_path")
-    bignlp_scripts_path = cfg.get("bignlp_scripts_path")
-    container_mounts = cfg.get("container_mounts")
-    container = cfg.get("inference_container")
-    hp_cfg = cfg.get("search_config")
-    base_results_dir = cfg.get("base_results_dir")
-
-    # Cluster parameters
-    cluster_cfg = cfg.get("cluster")
-
-    # Inference settings
-    inference_cfg = hp_cfg.get("inference_settings")
-
-    # Run configuration
-    run_cfg = inference_cfg.get("run")
-    model_type = run_cfg.model_type
-    model_train_name = run_cfg.get("model_train_name")
-    tensor_parallel_sizes = run_cfg.tensor_parallel_sizes
-    pipeline_parallel_sizes = run_cfg.pipeline_parallel_sizes
-    triton_dir = f"{run_cfg.results_dir}/model_repo"
-    model_config_path = f"{bignlp_hp_tool_path}/conf/ft_model_config/{model_type}/{model_train_name}.ini"
-    results_dir = run_cfg.get("results_dir")
-    os.makedirs(results_dir, exist_ok=True)
-
-    # Benchmark configuration
-    benchmark_cfg = inference_cfg.get("benchmark")
-    max_batch_size = max(benchmark_cfg.batch_sizes)
-
-
-    # Process container-mounts.
-    mounts_str = f"{bignlp_hp_tool_path}:{bignlp_hp_tool_path},{base_results_dir}:{base_results_dir}"
-    if container_mounts is not None:
-        assert isinstance(
-            container_mounts, omegaconf.listconfig.ListConfig
-        ), "container_mounts must be a list."
-        for mount in container_mounts:
-            if mount is not None and isinstance(mount, str):
-                mounts_str += f",{mount}:{mount}"
-
-    run = 0
-    for tensor_parallel_size in tensor_parallel_sizes:
-        for pipeline_parallel_size in pipeline_parallel_sizes:
-
-            benchmark_model_name = f"{model_train_name}_tp{tensor_parallel_size}_pp{pipeline_parallel_size}"
-            task_name = f"inference_sweep_{benchmark_model_name}"
-
-            # Prepare trition configuration
-            triton_model_dir = f"{results_dir}/model_repo_{tensor_parallel_size}_{pipeline_parallel_size}"
-            model_dir = f"{triton_model_dir}/{benchmark_model_name}/1/{tensor_parallel_size}-gpu"
-            os.makedirs(model_dir, exist_ok=True)
-
-            shutil.copyfile(model_config_path, f"{model_dir}/config.ini")
-
-            prepare_model_config_script_path = f"{bignlp_scripts_path}/bignlp/export_scripts/prepare_triton_model_config.py"
-            template_path = f"{bignlp_hp_tool_path}/conf/triton_config/{model_type}/config.pbtxt"
-
-            triton_prepare_model_config_cmd = (
-                f"python3 -u {prepare_model_config_script_path}"
-                f" --model-train-name {benchmark_model_name}"
-                f" --template-path {template_path}"
-                f" --ft-checkpoint {model_dir}"
-                f" --config-path {triton_model_dir}/{benchmark_model_name}/config.pbtxt"
-                f" --max-batch-size {max_batch_size}"
-                f" --pipeline-model-parallel-size {pipeline_parallel_size}"
-                f" --tensor-model-parallel-size {tensor_parallel_size}"
-                f" --data-type {run_cfg.data_type}"
-            )
-            subprocess.call(f"{triton_prepare_model_config_cmd}", shell=True)
-
-            # Run benchmark
-            benchmark_script = run_benchmark(
-                run_cfg=run_cfg,
-                benchmark_cfg=benchmark_cfg,
-                cluster_cfg=cluster_cfg,
-                dependency=None,
-                bignlp_scripts_path=bignlp_scripts_path,
-                triton_model_dir=triton_model_dir,
-                model_name=benchmark_model_name,
-                container=container,
-                tensor_parallel_size=tensor_parallel_size,
-                pipeline_parallel_size=pipeline_parallel_size
-            )
-
-            job_id = subprocess.check_output([f"sbatch --parsable {benchmark_script}"], shell=True)
-            job_id = job_id.decode("utf-8")
-            print(f"Submitted Training script with job id: {job_id}")
-            run += 1

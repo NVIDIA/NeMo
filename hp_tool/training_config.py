@@ -387,6 +387,7 @@ def launch_throughput_measure(dependency_list, model_name, model_size_in_b, num_
     overcommit = cluster_cfg.get("overcommit")
     ntasks_per_node = 1
     gpus_per_task = None
+    gpus_per_node = None
     dependency = None
     if dependency_list is not None and len(dependency_list) > 0:
         dependency = ":".join(dependency_list)
@@ -420,7 +421,7 @@ def launch_throughput_measure(dependency_list, model_name, model_size_in_b, num_
     train_cmd = f"HYDRA_FULL_ERROR=1 python3 -u {code_path} search_config.train_settings.model_size_in_b={model_size_in_b} search_config={model_name}/{model_size_in_b}b search_config_value={model_name}/{model_size_in_b}b +nodes={num_nodes} "
     utils.create_slurm_file(
         new_script_path=new_script_path,
-        train_cmd=train_cmd,
+        cmds=[train_cmd],
         job_name=job_name,
         flags=flags,
         dependency=dependency,
@@ -431,6 +432,7 @@ def launch_throughput_measure(dependency_list, model_name, model_size_in_b, num_
         nodes=1,
         ntasks_per_node=ntasks_per_node,
         gpus_per_task=gpus_per_task,
+        gpus_per_node=gpus_per_node,
         partition=partition,
         account=account,
     )

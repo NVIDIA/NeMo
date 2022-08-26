@@ -1,6 +1,7 @@
 import os
 import time
 import copy
+import typing
 
 import yaml
 import omegaconf
@@ -274,27 +275,40 @@ def modify_cfg(base_cfg, act, tp, pp, mbs, max_minutes, max_steps, num_nodes):
 
 def create_slurm_file(
     new_script_path,
-    train_cmd,
+    cmds,
     job_name,
     flags="",
     dependency=None,
     time="04:00:00",
     exclusive=True,
-    mem=0,
+    mem: typing.Optional[int] = None,
     overcommit=True,
-    nodes=1,
-    ntasks_per_node=8,
-    gpus_per_task=1,
+    nodes=None,
+    ntasks=None,
+    ntasks_per_node=None,
+    gpus_per_task=None,
+    gpus_per_node=None,
     partition="batch",
     account=None,
+    exclude=None,
 ):
+    """
+    Creates a slurm file to launch an export job.
+    """
     with open(new_script_path, "w") as f:
-        f.writelines("#!/bin/bash\n")
-        f.writelines(f"#SBATCH --nodes={nodes}\n")
-        f.writelines(f"#SBATCH --ntasks-per-node={ntasks_per_node}\n")
+        f.writelines("#!/usr/bin/env bash\n")
+        if nodes is not None:
+            f.writelines(f"#SBATCH --nodes={nodes}\n")
+        if ntasks is not None:
+            f.writelines(f"#SBATCH --ntasks={ntasks}\n")
+        if ntasks_per_node is not None:
+            f.writelines(f"#SBATCH --ntasks-per-node={ntasks_per_node}\n")
         if gpus_per_task is not None:
             f.writelines(f"#SBATCH --gpus-per-task={gpus_per_task}\n")
+        if gpus_per_node is not None:
+            f.writelines(f"#SBATCH --gpus-per-node={gpus_per_node}\n")
         if dependency is not None:
+            dependency = dependency.strip()
             if dependency != "singleton":
                 dependency = f"afterany:{dependency}"
             f.writelines(f"#SBATCH --dependency={dependency}\n")
@@ -302,13 +316,18 @@ def create_slurm_file(
         if account is not None:
             f.writelines(f"#SBATCH -A {account}\n")
         f.writelines(f"#SBATCH --job-name={job_name}\n")
-        f.writelines(f"#SBATCH --mem={mem}\n")
+        if mem is not None:
+            f.writelines(f"#SBATCH --mem={mem}\n")
         if exclusive:
             f.writelines("#SBATCH --exclusive\n")
         if overcommit:
             f.writelines("#SBATCH --overcommit\n")
+        if exclude:
+            f.writelines(f"#SBATCH --exclude={','.join(exclude)}\n")
         f.writelines(f"#SBATCH --time={time}\n\n")
-        f.writelines(f'srun {flags} sh -c "{train_cmd}"\n\n')
+        for cmd in cmds:
+            assert "'" not in cmd
+            f.writelines(f"srun {flags} sh -c '{cmd}'\n\n")
         f.writelines("set +x\n")
 
 
