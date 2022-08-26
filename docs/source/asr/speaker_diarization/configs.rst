@@ -6,7 +6,7 @@ Since speaker diarization model here is not a fully-trainable End-to-End model b
 The diarizer section will generally require information about the dataset(s) being used, models used in this pipeline, as well as inference related parameters such as post processing of each models.
 The sections on this page cover each of these in more detail.
 
-Example configuration files for speaker diarization can be found in ``<NeMo_git_root>/examples/speaker_tasks/diarization/conf/offline_diarization.yaml``
+Example configuration files for speaker diarization inference can be found in ``<NeMo_git_root>/examples/speaker_tasks/diarization/conf/inference/``. Choose a yaml file that fits to your interest. For example, if you want to diarize audio recordings of telephonic speech, choose ``diar_infer_telephonic.yaml``.
 
 .. note::
   For model details and deep understanding about configs, fine-tuning, tuning threshold, and evaluation, 
@@ -34,10 +34,15 @@ An example Speaker Diarization dataset Hydra configuration could look like:
   We expect audio and the corresponding RTTM to have the same base name and the name should be unique.
 
 
-Diarizer Model Configurations
------------------------------
+Diarization Inference Configurations
+------------------------------------
 
-Parameters for VAD model and speaker embedding model are provided in the following Hydra config example.
+The configurations for all types of diarization inference are included in a single file named ``diar_infer_<domain>.yaml``. Each ``.yaml`` file has a few different sections for the following modules: VAD, Speaker Embedding, Clustering and ASR.
+
+Configuration for Voice Activity Detector
+-------------------------------------------
+
+Parameters for VAD model are provided as in the following Hydra config example.
 
 .. code-block:: yaml
 
@@ -58,12 +63,19 @@ Parameters for VAD model and speaker embedding model are provided in the followi
       min_duration_off: 0.2 # Threshold for short speech segment deletion
       filter_speech_first: True 
 
+Configuration for Speaker Embedding in Diarization
+-------------------------------------------
+
+Parameters for speaker embedding model are provided in the following Hydra config example. Note that multiscale parameters either accept list or single floating point number.
+
+.. code-block:: yaml
+
   speaker_embeddings:
     model_path: ??? # .nemo local model path or pretrained model name (titanet_large, ecapa_tdnn or speakerverification_speakernet)
     parameters:
-      window_length_in_sec: 1.5 # Window length(s) in sec (floating-point number). Either a number or a list. Ex) 1.5 or [1.5,1.0,0.5]
-      shift_length_in_sec: 0.75 # Shift length(s) in sec (floating-point number). Either a number or a list. Ex) 0.75 or [0.75,0.5,0.25]
-      multiscale_weights: null # Weight for each scale. should be null (for single scale) or a list matched with window/shift scale count. Ex) [0.33,0.33,0.33]
+      window_length_in_sec: 1.5 # Window length(s) in sec (floating-point number). Either a number or a list. Ex) 1.5 or [1.5,1.25,1.0,0.75,0.5]
+      shift_length_in_sec: 0.75 # Shift length(s) in sec (floating-point number). Either a number or a list. Ex) 0.75 or [0.75,0.625,0.5,0.375,0.25]
+      multiscale_weights: null # Weight for each scale. should be null (for single scale) or a list matched with window/shift scale count. Ex) [1,1,1,1,1]
       save_embeddings: False # Save embeddings as pickle file for each audio input.
 
 Configuration for Clustering in Diarization

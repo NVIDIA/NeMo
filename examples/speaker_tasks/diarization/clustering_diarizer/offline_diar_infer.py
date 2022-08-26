@@ -35,7 +35,7 @@ For details, have a look at <NeMo_git_root>/tutorials/speaker_tasks/Speaker_Diar
 seed_everything(42)
 
 
-@hydra_runner(config_path="conf", config_name="offline_diarization.yaml")
+@hydra_runner(config_path="../conf/inference", config_name="diar_infer_telephonic.yaml")
 def main(cfg):
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
     sd_model = ClusteringDiarizer(cfg=cfg)
