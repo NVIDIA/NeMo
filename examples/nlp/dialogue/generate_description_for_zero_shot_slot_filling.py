@@ -54,7 +54,13 @@ def merge_b_and_i_slots_class(dict_slots, dataset_name):
             merge_dict_slots[merged_slot_id] = slot_name
 
     elif dataset_name == 'conll_2003':
-        acronym_to_full_name = {'LOC': 'location', 'MISC': 'miscellaneous', 'ORG': 'organization', 'PER': 'person'}
+        acronym_to_full_name = {
+            'O': 'O',
+            'LOC': 'location',
+            'MISC': 'miscellaneous',
+            'ORG': 'organization',
+            'PER': 'person',
+        }
         for slot_id, slot_name in dict_slots.items():
             # slot_names follow the pattern O, B-xxx, I-xxx, B-yyy, I-yyy ...
             # slot_ids follow the pattern  0, 1,     2,     3,     4, ...
