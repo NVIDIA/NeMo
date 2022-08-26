@@ -685,7 +685,6 @@ pipeline {
                 name='/home/TestData/nlp/adapter_tuning/test_tp2_pp1' \
                 trainer.devices=2 \
                 trainer.max_steps=6 \
-                trainer.val_check_interval=4 \
                 trainer.max_epochs=null \
                 model.tensor_model_parallel_size=2 \
                 model.language_model_path='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp2_pp1.nemo' \
@@ -725,7 +724,6 @@ pipeline {
                 name='/home/TestData/nlp/adapter_tuning/test_tp1_pp2' \
                 trainer.devices=2 \
                 trainer.max_steps=6 \
-                trainer.val_check_interval=4 \
                 trainer.max_epochs=null \
                 model.tensor_model_parallel_size=1 \
                 model.pipeline_model_parallel_size=2 \
