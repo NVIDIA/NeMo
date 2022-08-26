@@ -24,10 +24,11 @@ USAGE Example:
 
 import os
 
+from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.nlp.models.machine_translation.megatron_nmt_model import MegatronNMTModel
 from nemo.collections.nlp.models.machine_translation.megatron_adapter_nmt_model import MegatronAdapterNMTModel
+from nemo.collections.nlp.models.machine_translation.megatron_nmt_model import MegatronNMTModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
@@ -35,8 +36,6 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
 from nemo.utils.model_utils import inject_model_parallel_rank
-from omegaconf.omegaconf import OmegaConf, open_dict
-
 
 try:
     from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
@@ -82,9 +81,7 @@ def main(cfg) -> None:
             raise ValueError("need adapter weights when using adapter_file")
 
         # get base config file
-        pretrained_cfg = MegatronAdapterNMTModel.restore_from(
-            cfg.model_file, trainer=trainer, return_config=True
-        )
+        pretrained_cfg = MegatronAdapterNMTModel.restore_from(cfg.model_file, trainer=trainer, return_config=True)
 
         # edit config file
         with open_dict(pretrained_cfg):
@@ -92,7 +89,10 @@ def main(cfg) -> None:
             pretrained_cfg.adapter_tuning = cfg.adapter_tuning
 
         model = MegatronAdapterNMTModel.restore_from(
-            restore_path=cfg.adapters_file, trainer=trainer, override_config_path=pretrained_cfg, save_restore_connector=NLPSaveRestoreConnector(),
+            restore_path=cfg.adapters_file,
+            trainer=trainer,
+            override_config_path=pretrained_cfg,
+            save_restore_connector=NLPSaveRestoreConnector(),
         )
     else:
         # load NMT model without adapters
@@ -104,7 +104,9 @@ def main(cfg) -> None:
             )
         elif cfg.checkpoint_dir is not None:
             checkpoint_path = inject_model_parallel_rank(os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name))
-            model = MegatronNMTModel.load_from_checkpoint(checkpoint_path, hparams_file=cfg.hparams_file, trainer=trainer)    
+            model = MegatronNMTModel.load_from_checkpoint(
+                checkpoint_path, hparams_file=cfg.hparams_file, trainer=trainer
+            )
         else:
             raise ValueError("need at least a nemo file or checkpoint dir")
 
