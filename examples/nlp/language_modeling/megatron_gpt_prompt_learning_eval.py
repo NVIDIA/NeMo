@@ -23,6 +23,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 from nemo.core.config import hydra_runner
+from apex.transformer import parallel_state
 
 
 """
@@ -37,6 +38,7 @@ This is the script to run GPT text generation.
             trainer.num_nodes=1 \
             tensor_model_parallel_size=1 \
             pipeline_model_parallel_size=1 \
+            pred_file_path=PATH_WHERE_PRED_TEXT_FILE_WILL_BE_SAVED \
             data_paths=[path/to/dataset1.jsonl, path/to/dataset2.jsonl]
 
         virtual_prompt_model_file should be a path to a .nemo file saved after p-tuning/prompt tuning and model file
@@ -81,19 +83,19 @@ def main(cfg) -> None:
         == cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
     ), "devices * num_nodes should equal tensor_model_parallel_size * pipeline_model_parallel_size"
 
-    # Load prompt tuned model, virtual_prompt_model_file must be provided in config
-    # Update frozen GPT model path in case it has changed
+    # Update frozen GPT model path if it is given in case it has changed
     prompt_learning_cfg = MegatronGPTPromptLearningModel.restore_from(
         cfg.virtual_prompt_model_file, trainer=trainer, return_config=True
     )
-    with open_dict(prompt_learning_cfg):
-        prompt_learning_cfg.language_model_path = cfg.gpt_model_file
+    if cfg.get("gpt_model_file"):
+        with open_dict(prompt_learning_cfg):
+            prompt_learning_cfg.language_model_path = cfg.gpt_model_file
 
+    # Load prompt tuned model, virtual_prompt_model_file must be provided in config
     # Now load prompt learning model with frozen gpt model base
     model = MegatronGPTPromptLearningModel.restore_from(
         restore_path=cfg.virtual_prompt_model_file, trainer=trainer, override_config_path=prompt_learning_cfg
     )
-
     model.freeze()
 
     # Have to turn off activations_checkpoint_method for inference
@@ -101,6 +103,17 @@ def main(cfg) -> None:
         model.frozen_model.model.language_model.encoder.activations_checkpoint_method = None
     except AttributeError:
         pass
+
+    # Check whether the DDP is initialized
+    if parallel_state.is_unitialized():
+
+        def placeholder():
+            return
+
+        if model.trainer.strategy.launcher is not None:
+            model.trainer.strategy.launcher.launch(placeholder, trainer=model.trainer)
+        model.trainer.strategy.setup_environment()
+
 
     length_params: LengthParam = {
         "max_length": cfg.inference.tokens_to_generate,
@@ -138,14 +151,13 @@ def main(cfg) -> None:
     response = trainer.predict(model, dataloader)
 
     print("***************************")
-    pred_file_name = cfg.virtual_prompt_model_file.split(".nemo")[0] + "_pred.txt"
-    with open(pred_file_name, "w", encoding="utf-8") as pred_file:
+    with open(cfg.pred_file_path, "w", encoding="utf-8") as pred_file:
         for i in range(len(response)):
             for sent in response[i]["sentences"]:
                 sent = sent.strip()
                 sent = sent.replace("\n", " ")
                 pred_file.write(sent + "\n")
-
+    print(f"Inference Complete, prediction file saved at {cfg.pred_file_path}")
     print("***************************")
 
 
