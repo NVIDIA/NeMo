@@ -1,9 +1,9 @@
-import string
-import re
-import json
 import argparse
-
+import json
+import re
+import string
 from collections import Counter
+
 
 """
 Expects every line in the pred text file to have the format:
@@ -14,8 +14,10 @@ The prediction file will be split on "answer: " when looking for the LM's predic
 
 """
 
+
 def normalize_answer(s):
     """Lower text and remove punctuation, articles and extra whitespace."""
+
     def remove_articles(text):
         return re.sub(r'\b(a|an|the)\b', ' ', text)
 
@@ -46,7 +48,7 @@ def f1_score(prediction, ground_truth):
 
 
 def exact_match_score(prediction, ground_truth):
-    return (normalize_answer(prediction) == normalize_answer(ground_truth))
+    return normalize_answer(prediction) == normalize_answer(ground_truth)
 
 
 def metric_max_over_ground_truths(metric_fn, prediction, ground_truths):
@@ -59,9 +61,16 @@ def metric_max_over_ground_truths(metric_fn, prediction, ground_truths):
 
 def main():
     parser = argparse.ArgumentParser(description='Process some integers.')
-    parser.add_argument('--ground-truth', type=str, help="ground truth .jsonl file made from /NeMo/scripts/dataset_processing/nlp/squad/prompt_learning_squad_preprocessing.py")
-    parser.add_argument('--preds', type=str, help="Text file with test set prompts + model predictions. Prediction file can be made by running NeMo/examples/nlp/language_modeling/megatron_gpt_prompt_learning_eval.py")
-
+    parser.add_argument(
+        '--ground-truth',
+        type=str,
+        help="ground truth .jsonl file made from /NeMo/scripts/dataset_processing/nlp/squad/prompt_learning_squad_preprocessing.py",
+    )
+    parser.add_argument(
+        '--preds',
+        type=str,
+        help="Text file with test set prompts + model predictions. Prediction file can be made by running NeMo/examples/nlp/language_modeling/megatron_gpt_prompt_learning_eval.py",
+    )
 
     args = parser.parse_args()
 
@@ -77,7 +86,7 @@ def main():
         pred_sent = preds[i]
         pred_answer = pred_sent.split("answer:")[-1].strip()
         true_answers = truth["answer"]
-        
+
         exact_match += metric_max_over_ground_truths(exact_match_score, pred_answer, true_answers)
         f1 += metric_max_over_ground_truths(f1_score, pred_answer, true_answers)
         total += 1
@@ -86,8 +95,7 @@ def main():
     f1 = 100.0 * f1 / total
 
     print({'exact_match': exact_match, 'f1': f1, 'total': total})
-    
-    
+
+
 if __name__ == "__main__":
     main()
-

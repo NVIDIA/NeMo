@@ -65,9 +65,7 @@ def main():
 
     save_name_base = f"{args.data_dir}/{args.save_name_base}"
 
-    process_data(
-        train_data, val_data, save_name_base, args.include_topic_name
-    )
+    process_data(train_data, val_data, save_name_base, args.include_topic_name)
 
 
 def process_data(train_data, val_data, save_name_base, include_topic):
@@ -132,7 +130,7 @@ def gen_file(data, save_name_base, split_type, make_ground_truth=False):
 
     with open(save_path, 'w') as save_file:
         for example_json in tqdm(data):
-            
+
             # Dont want labels in the test set
             if split_type == "test" and not make_ground_truth:
                 del example_json["answer"]

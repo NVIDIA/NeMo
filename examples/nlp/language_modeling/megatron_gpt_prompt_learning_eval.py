@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import torch
+from apex.transformer import parallel_state
 from omegaconf import OmegaConf
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
@@ -23,7 +24,6 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 from nemo.core.config import hydra_runner
-from apex.transformer import parallel_state
 
 
 """
@@ -113,7 +113,6 @@ def main(cfg) -> None:
         if model.trainer.strategy.launcher is not None:
             model.trainer.strategy.launcher.launch(placeholder, trainer=model.trainer)
         model.trainer.strategy.setup_environment()
-
 
     length_params: LengthParam = {
         "max_length": cfg.inference.tokens_to_generate,
