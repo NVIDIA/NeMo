@@ -80,23 +80,7 @@ def main(cfg) -> None:
     except AttributeError:
         pass
 
-    length_params: LengthParam = {
-        "max_length": cfg.inference.tokens_to_generate,
-        "min_length": cfg.inference.min_tokens_to_generate,
-    }
-
-    sampling_params: SamplingParam = {
-        "use_greedy": cfg.inference.greedy,
-        "temperature": cfg.inference.temperature,
-        "top_k": cfg.inference.top_k,
-        "top_p": cfg.inference.top_p,
-        "repetition_penalty": cfg.inference.repetition_penalty,
-        "add_BOS": cfg.inference.add_BOS,
-        "all_probs": cfg.inference.all_probs,
-        "compute_logprob": cfg.inference.compute_logprob,
-    }
-
-    max_input_length = model.frozen_model.cfg.encoder_seq_length - length_params["max_length"]
+    max_input_length = model.frozen_model.cfg.encoder_seq_length - cfg.inference.tokens_to_generate
     # check whether the DDP is initialized
     if parallel_state.is_unitialized():
 
@@ -112,10 +96,10 @@ def main(cfg) -> None:
         batch_size=cfg.get("batch_size", 1),
         max_seq_length=max_input_length,
         min_seq_length=model.cfg.data.get('min_seq_length', 1),
-        add_bos=sampling_params["add_BOS"],
+        add_bos=cfg.inference.add_BOS,
         add_eos=False,
         for_train=False,
-        tokens_to_generate=length_params["max_length"],
+        tokens_to_generate=cfg.inference.tokens_to_generate,
         drop_last=False,
         shuffle=False,
     )
