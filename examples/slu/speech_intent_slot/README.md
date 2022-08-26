@@ -1,11 +1,11 @@
-# End-to-End Spoken Language Intent Classification and Slot Filling on SLURP Dataset
+# NeMo End-to-End Speech Intent Classification and Slot Filling on SLURP Dataset
 
 ## Introduction
-This example shows how to train an end-to-end model for spoken language understanding on the SLURP dataset [2]. The model is an encoder-decoder framework, where the encoder is a Conformer-large [3] model initialized from [here](https://ngc.nvidia.com/models/nvidia:nemo:stt_en_conformer_ctc_large), while the decoder is a Transformer decoder [4] randomly initialized. The model is trained by minimizing the negative log-likelihood loss with teacher forcing and label smoothing.
+This example shows how to train an end-to-end model for spoken language understanding on the SLURP dataset [2]. The model is an encoder-decoder framework, where the encoder is a Conformer-large [3] model initialized from [here](https://ngc.nvidia.com/models/nvidia:nemo:stt_en_conformer_ctc_large), while the decoder is a Transformer decoder [4] randomly initialized. The model is trained by minimizing the negative log-likelihood (NLL) loss with teacher forcing and label smoothing.
 
 ## Results
 
-We present the main results of our models, as well as that of some baselines, in the following table.
+We present the main results of our models in the following table.
 |                                                  |                |                          | **Intent (Scenario_Action)** |               | **Entity** |        |              | **SLURP Metrics** |                     |
 |--------------------------------------------------|----------------|--------------------------|------------------------------|---------------|------------|--------|--------------|-------------------|---------------------|
 |                     **Model**                    | **Params (M)** |      **Pretrained**      |         **Accuracy**         | **Precision** | **Recall** | **F1** | **Precsion** |     **Recall**    |        **F1**       |
@@ -46,7 +46,7 @@ wget https://github.com/pswietojanski/slurp/raw/master/dataset/slurp/devel.jsonl
 wget https://github.com/pswietojanski/slurp/raw/master/dataset/slurp/train_synthetic.jsonl -P $DATA_DIR/raw_annotations
 wget https://github.com/pswietojanski/slurp/raw/master/dataset/slurp/train.jsonl -P $DATA_DIR/raw_annotations
 
-echo "Downloading evaluation code..."
+echo "Downloading SLURP evaluation code..."
 wget https://github.com/pswietojanski/slurp/raw/master/scripts/evaluation/util.py -P eval_utils/evaluation
 wget https://github.com/pswietojanski/slurp/raw/master/scripts/evaluation/metrics/distance.py -P eval_utils/evaluation/metrics
 wget https://github.com/pswietojanski/slurp/raw/master/scripts/evaluation/metrics/metrics.py -P eval_utils/evaluation/metrics
@@ -152,5 +152,4 @@ The pretrained models and directions on how to use them are available [here](htt
 [7] [Libri-Light: A Benchmark for ASR with Limited or No Supervision](https://arxiv.org/abs/1912.07875)
 
 ## Acknowledgments
-
 The evaluation code is borrowed from the official [SLURP package](https://github.com/pswietojanski/slurp/tree/master/scripts/evaluation), and some data processing code is adapted from [SpeechBrain SLURP Recipe](https://github.com/speechbrain/speechbrain/tree/develop/recipes/SLURP).
