@@ -101,7 +101,7 @@ CUDA_VISIBLE_DEVICES=0 python run_speech_intent_slot_train.py \
     trainer.devices=1 \
     trainer.max_epochs=100 \
     model.optim.sched.warmup_steps=2000 \
-    exp_manager.create_wandb_logger=false
+    exp_manager.name="slurp_conformer_transformer_large"
 ```
 
 

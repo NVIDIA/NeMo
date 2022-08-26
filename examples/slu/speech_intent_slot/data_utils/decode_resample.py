@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# This file decode audio files into .wav format while resampling them to 16000 Hz.
 
 import argparse
 import json
