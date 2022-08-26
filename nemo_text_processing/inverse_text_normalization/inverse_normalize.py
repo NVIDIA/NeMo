@@ -40,6 +40,12 @@ class InverseNormalizer(Normalizer):
                 VerbalizeFinalFst,
             )
 
+        elif lang == 'en_in':
+            from nemo_text_processing.inverse_text_normalization.en_in.taggers.tokenize_and_classify import ClassifyFst
+            from nemo_text_processing.inverse_text_normalization.en_in.verbalizers.verbalize_final import (
+                VerbalizeFinalFst,
+            )
+
         elif lang == 'es':
             from nemo_text_processing.inverse_text_normalization.es.taggers.tokenize_and_classify import ClassifyFst
             from nemo_text_processing.inverse_text_normalization.es.verbalizers.verbalize_final import (
