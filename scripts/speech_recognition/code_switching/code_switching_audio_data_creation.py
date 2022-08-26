@@ -59,7 +59,7 @@ parser.add_argument(
 parser.add_argument(
     "--sample_end_pause_msec", default=20, type=int, help='Pause to be added at the end of the sample (msec)'
 )
-parser.add_argument("--num_process", default=1, type=int, help='Number of parallel processes')
+parser.add_argument("--workers", default=1, type=int, help='Number of worker processes')
 
 args = parser.parse_args()
 
@@ -229,7 +229,7 @@ def main():
     pause_join_msec = args.sample_joining_pause_msec
     pause_end_msec = args.sample_end_pause_msec
     cs_data_sampling_rate = args.cs_data_sampling_rate
-    num_process = args.num_process
+    num_process = args.workers
 
     # Sanity Checks
     if (cs_intermediate_manifest_path is None) or (not os.path.exists(cs_intermediate_manifest_path)):
