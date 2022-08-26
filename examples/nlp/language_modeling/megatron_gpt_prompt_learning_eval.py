@@ -118,19 +118,6 @@ def main(cfg) -> None:
         "compute_logprob": cfg.inference.compute_logprob,
     }
 
-    # First method of running text generation, call model.generate method
-    # Input into generate method should be either list of string prompts or list of dicts
-    datapaths_dict = [{"data_path": path} for path in cfg.data_paths]
-
-    # Use for inference on a few examples
-    response = model.generate(inputs=datapaths_dict, length_params=length_params, sampling_params=sampling_params)
-
-    print("***************************")
-    print(response)
-    print("***************************")
-
-    # Second method of running text generation, call trainer.predict
-    # Use for batched inference on larger test sets
     max_input_length = model.frozen_model.cfg.encoder_seq_length - length_params["max_length"]
 
     _, dataloader = model.build_virtual_prompt_dataset(
@@ -151,7 +138,14 @@ def main(cfg) -> None:
     response = trainer.predict(model, dataloader)
 
     print("***************************")
-    print(response)
+    pred_file_name = cfg.virtual_prompt_model_file.split(".nemo")[0] + "_pred.txt"
+    with open(pred_file_name, "w", encoding="utf-8") as pred_file:
+        for i in range(len(response)):
+            for sent in response[i]["sentences"]:
+                sent = sent.strip()
+                sent = sent.replace("\n", " ")
+                pred_file.write(sent + "\n")
+
     print("***************************")
 
 
