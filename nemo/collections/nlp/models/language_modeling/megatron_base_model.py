@@ -297,17 +297,26 @@ class MegatronBaseModel(NLPModel):
         self, optim_config: Optional[Union[DictConfig, Dict]] = None, optim_kwargs: Optional[Dict[str, Any]] = None,
     ):
         optim_kwargs = {} if optim_kwargs is None else optim_kwargs.copy()
-        if self.with_distributed_adam and self.megatron_amp_o2:
-            optim_kwargs['contiguous_grad_buffer'] = True  # Needed to allocate main grads
-            if hasattr(self, 'autocast_dtype'):
-                optim_kwargs['param_sync_dtype'] = self.autocast_dtype
-                if self.autocast_dtype == torch.float:
-                    optim_kwargs['store_params'] = False
-                elif self.autocast_dtype == torch.float16:
-                    optim_kwargs['store_params'] = True
-                elif self.autocast_dtype == torch.bfloat16:
-                    optim_kwargs['store_params'] = False
-                    optim_kwargs['store_param_remainders'] = True
+        if self.with_distributed_adam:
+
+            # Allocate grads since we are storing between microbatches
+            optim_kwargs['contiguous_grad_buffer'] = True
+
+            if self.megatron_amp_o2:
+                # Match param allgather with model dtype
+                if hasattr(self, 'autocast_dtype'):
+                    optim_kwargs['param_sync_dtype'] = self.autocast_dtype
+                    if self.autocast_dtype == torch.float:
+                        optim_kwargs['store_params'] = False
+                    elif self.autocast_dtype == torch.float16:
+                        optim_kwargs['store_params'] = True
+                    elif self.autocast_dtype == torch.bfloat16:
+                        optim_kwargs['store_params'] = False
+                        optim_kwargs['store_param_remainders'] = True
+            else:
+                # Assume FP32 params, so no need to store main params
+                optim_kwargs['store_params'] = False
+
         return super().setup_optimization(optim_config=optim_config, optim_kwargs=optim_kwargs)
 
     def configure_optimizers(self):
@@ -365,10 +374,10 @@ class MegatronBaseModel(NLPModel):
             # for pipeline parallelism and sequence parallelism
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1 or self.cfg.get('sequence_parallel', False):
                 self._optimizer.overlap_grad_sync = False
+                self._optimizer.greedy_grad_copy = self.megatron_amp_o2
 
-            if self.megatron_amp_o2:
-                # Initialize params so that main grads are available
-                self._optimizer.init_params(reversed(list(self.parameters())))
+            # Initialize params so that main grads are available
+            self._optimizer.init_params(reversed(list(self.parameters())))
 
         if self._scheduler is None:
             return self._optimizer

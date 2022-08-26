@@ -72,10 +72,13 @@ if HAVE_APEX:
                     kwargs['process_group'] = parallel_state.get_data_parallel_group()
                 super().__init__(*args, **kwargs)
 
-            def _init_param_state(self, param, param_group_id, param_id):
-                super()._init_param_state(param, param_group_id, param_id)
+            def zero_grad(self, *args, **kwargs):
+                super().zero_grad(*args, **kwargs)
                 if self.contiguous_grad_buffer:
-                    param.main_grad = self.grad_buffer_view(param)
+                    for param in self.parameters():
+                        param.main_grad = self.grad_buffer_view(param)
+                        if param.dtype == param.main_grad.dtype and param.is_cuda:
+                            param.grad = param.main_grad
 
         AVAILABLE_OPTIMIZERS['distributed_fused_adam'] = MegatronDistributedFusedAdam
 
