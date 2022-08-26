@@ -64,18 +64,19 @@ def main(cfg) -> None:
             pipeline_model_parallel_split_rank_=cfg.pipeline_model_parallel_split_rank,
         )
 
-    # Load prompt tuned model, virtual_prompt_model_file and pretrained_language_model_file must be provided in config
-    if (
-        cfg.get('virtual_prompt_model_file', None) is not None
-        and cfg.get('pretrained_language_model_file', None) is not None
-    ):
+    # Load prompt tuned model, virtual_prompt_model_file and language_model_path must be provided in config
+    if cfg.get('virtual_prompt_model_file', None) is not None and cfg.get('language_model_path', None) is not None:
 
         # Update frozen T5 model path in case it has changed
         prompt_learning_cfg = MegatronT5PromptLearningModel.restore_from(
             cfg.virtual_prompt_model_file, trainer=trainer, return_config=True
         )
         with open_dict(prompt_learning_cfg):
-            prompt_learning_cfg.pretrained_language_model_path = cfg.pretrained_language_model_file
+            # This is for backward compatibility with old checkpoints that used `pretrained_language_model_path` instead of `language_model_path`.
+            if hasattr(prompt_learning_cfg, 'pretrained_language_model_path'):
+                prompt_learning_cfg.pretrained_language_model_path = cfg.language_model_path
+            else:
+                prompt_learning_cfg.language_model_path = cfg.language_model_path
             prompt_learning_cfg.micro_batch_size = cfg.data.get('micro_batch_size', 4)
             prompt_learning_cfg.global_batch_size = cfg.data.get('global_batch_size', 4)
 
@@ -85,7 +86,7 @@ def main(cfg) -> None:
         )
 
     else:
-        raise ValueError("virtual_prompt_model_file and pretrained_language_model_file must be provided in config")
+        raise ValueError("virtual_prompt_model_file and language_model_path must be provided in config")
 
     # check whether the DDP is initialized
     if parallel_state.is_unitialized():

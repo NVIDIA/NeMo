@@ -3433,7 +3433,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
                 trainer.max_steps=6 \
                 trainer.max_epochs=null \
                 model.tensor_model_parallel_size=1 \
-                model.pretrained_language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m-refactor.nemo' \
+                model.language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m-refactor.nemo' \
                 model.existing_tasks=[] \
                 model.new_tasks=['squad'] \
                 model.data.train_ds=['/home/TestData/nlp/prompt_learning/squad_CI_test.jsonl'] \
@@ -3443,7 +3443,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             sh "rm -rf /home/TestData/nlp/prompt_learning/t5_p_tuning_test"
             sh "python examples/nlp/language_modeling/megatron_t5_prompt_learning_eval.py \
                 virtual_prompt_model_file='/home/TestData/nlp/prompt_learning/t5_p_tuning_test.nemo' \
-                pretrained_language_model_file='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m-refactor.nemo' \
+                language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m-refactor.nemo' \
                 data.test_ds=['/home/TestData/nlp/prompt_learning/squad_CI_test.jsonl'] \
                 data.global_batch_size=4 \
                 data.micro_batch_size=4"
@@ -3459,7 +3459,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
                 trainer.max_steps=6 \
                 trainer.max_epochs=null \
                 model.tensor_model_parallel_size=2 \
-                model.pretrained_language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp2.nemo' \
+                model.language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp2.nemo' \
                 model.existing_tasks=[] \
                 model.new_tasks=['squad'] \
                 model.data.train_ds=['/home/TestData/nlp/prompt_learning/squad_CI_test.jsonl'] \
@@ -3469,7 +3469,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             sh "rm -rf /home/TestData/nlp/prompt_learning/t5_p_tuning_test_tp2"
             sh "python examples/nlp/language_modeling/megatron_t5_prompt_learning_eval.py \
                 virtual_prompt_model_file='/home/TestData/nlp/prompt_learning/t5_p_tuning_test_tp2.nemo' \
-                pretrained_language_model_file='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp2.nemo' \
+                language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp2.nemo' \
                 data.test_ds=['/home/TestData/nlp/prompt_learning/squad_CI_test.jsonl'] \
                 tensor_model_parallel_size=2 \
                 trainer.devices=2 \
