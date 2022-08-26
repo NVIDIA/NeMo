@@ -323,8 +323,9 @@ class NeMoStage(BigNLPStage):
             env_vars["SLURM_NTASKS_PER_NODE"] = devices
         if self.cluster == "bcp":  # Set env prefix as env var on BCP
             for env_var_str in [self._cuda_device_max_connections, self._cuda_visible_devices]:
-                var_name, var_val = env_var_str.split("=")
-                env_vars[var_name] = var_val
+                if env_var_str:
+                    var_name, var_val = env_var_str.split("=")
+                    env_vars[var_name] = var_val
         return env_vars
 
 
