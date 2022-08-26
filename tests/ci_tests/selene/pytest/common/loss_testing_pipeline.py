@@ -42,8 +42,7 @@ class LossTestingPipeline:
             if test_type == TypeOfTest.APPROX:
                 assert actual_loss_list[step] == pytest.approx(expected=expected_loss_list[i], rel=self.margin_loss), f"{self.job_name} : The loss at step {step} should be approximately {expected_vals[i]} but it is {train_loss_list[step]}."
             else:
-                # assert actual_loss_list[step] == expected_loss_list[i], f"{self.job_name} : The loss at step {step} should be {expected_loss_list[i]} but it is {actual_loss_list[step]}."
-                pass
+                assert actual_loss_list[step] == expected_loss_list[i], f"{self.job_name} : The loss at step {step} should be {expected_loss_list[i]} but it is {actual_loss_list[step]}."
 
     def test_train_loss_deterministic(self):
         # Expected training loss curve at different global steps.
