@@ -102,8 +102,9 @@ build-BigNLP:
     - popd
     - python3 tests/ci_tests/utils/get_train_time.py $RESULTS_DIR $GIT_RESULTS_DIR_PATH $BIGNLP_BASE_IMAGE
     - cd bignlp-scripts
+    # Replace first occurance of tests_to_run_on_this_commit with none. 
     - | 
-      sed -i 's/TESTS_TO_RUN_ON_THIS_COMMIT: .*/TESTS_TO_RUN_ON_THIS_COMMIT: NONE/g' .gitlab-ci.yml
+      sed -i '0,/TESTS_TO_RUN_ON_THIS_COMMIT: .*/s/TESTS_TO_RUN_ON_THIS_COMMIT: .*/TESTS_TO_RUN_ON_THIS_COMMIT: NONE/' .gitlab-ci.yml
     - git add -A
     - git commit -m "Adding results file for $RUN_MODEL"
     - git push origin $CI_PIPELINE_ID
