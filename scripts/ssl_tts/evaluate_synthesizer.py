@@ -16,6 +16,9 @@ import matplotlib.pyplot as plt
 from sklearn.manifold import TSNE
 import matplotlib.patches as mpatches
 from nemo.collections.asr.models import label_models
+from numpy import dot
+from numpy.linalg import norm
+import random
 
 plt.rcParams["figure.figsize"] = (20,20)
 
@@ -303,19 +306,67 @@ def reconstruct_audio(fastpitch_model, ssl_model, wav_featurizer, speaker_stats,
                 reconstructed_file_paths[speaker].append(wav_path_reconstructed)
     
     return reconstructed_file_paths
-                
+
+def get_similarity(emb1, emb2):
+    similarity = dot(emb1, emb2)/(norm(emb1)*norm(emb2))
+    return similarity
+
+def calculate_eer(speaker_embeddings):
+    generated_embeddings = {}
+    real_embeddings = {}
+    for key in speaker_embeddings:
+        speaker = key.split("_")[1]
+        if speaker not in generated_embeddings:
+            generated_embeddings[speaker] = []
+        if speaker not in real_embeddings:
+            real_embeddings[speaker] = []
+        if "generated" in key:
+            generated_embeddings[speaker] += speaker_embeddings[key]
+        else:
+            real_embeddings[speaker] += speaker_embeddings[key]
+    
+    y_score = []
+    y_true = []
+    for key in generated_embeddings:
+        alternate_keys = [k for k in real_embeddings if k != key]
+        for generated_embedding in generated_embeddings[key]:
+            for real_same_embedding in real_embeddings[key]:
+                y_score.append(get_similarity( generated_embedding, real_same_embedding ))
+                y_true.append(1)
+
+                alternate_speaker = random.choice(alternate_keys)
+                alternate_audio_idx = random.randint(0, len(real_embeddings[alternate_speaker])-1)
+                alternate_embedding = real_embeddings[alternate_speaker][alternate_audio_idx]
+                y_score.append(get_similarity( generated_embedding, alternate_embedding ))
+                y_true.append(0)
+    
+    fpr, tpr, thresholds = roc_curve(y_true, y_score)
+    _auc = auc(fpr, tpr)
+    fnr = 1 - tpr
+    eer_threshold = thresholds[np.nanargmin(np.absolute((fnr - fpr)))]
+    eer = fpr[np.nanargmin(np.absolute((fnr - fpr)))]
+    eer_verify = fnr[np.nanargmin(np.absolute((fnr - fpr)))]
+
+    assert abs(eer - eer_verify) < 1.0
+    
+    return {
+        'eer': eer,
+        'auc': _auc,
+    }
+
             
+
 
 def main():
     parser = argparse.ArgumentParser(description='Evaluate the model')
-    parser.add_argument('--ssl_model_ckpt_path', type=str, default="/home/pneekhara/NeMo2022/SSLCheckPoints/SSLConformer22050_Epoch37.ckpt")
-    parser.add_argument('--hifi_ckpt_path', type=str, default="/home/pneekhara/NeMo2022/HiFiCKPTS/hifigan_libritts/HiFiLibriEpoch334.ckpt")
-    parser.add_argument('--fastpitch_ckpt_path', type=str, default="/home/pneekhara/NeMo2022/tensorboards/FastPitch/ConstLR_PitchConditioningWithEncEpoch37/Epoch264.ckpt")
-    parser.add_argument('--manifest_path', type=str, default="/home/pneekhara/NeMo2022/libri_train_formatted.json")
-    parser.add_argument('--train_manifest_path', type=str, default="/home/pneekhara/NeMo2022/libri_train_formatted.json")
-    parser.add_argument('--pitch_stats_json', type=str, default="/home/pneekhara/NeMo2022/libri_speaker_stats.json")
-    parser.add_argument('--out_dir', type=str, default="/home/pneekhara/NeMo2022/Evaluations/testing")
-    parser.add_argument('--evaluation_type', type=str, default="swapping")
+    parser.add_argument('--ssl_model_ckpt_path', type=str, default="/home/shehzeenh/Conformer-SSL/3253979_/Conformer-SSL/checkpoints/Conformer22050_Epoch37.ckpt")
+    parser.add_argument('--hifi_ckpt_path', type=str, default="/home/shehzeenh/HiFiModel/hifigan_libritts/HiFiLibriEpoch334.ckpt")
+    parser.add_argument('--fastpitch_ckpt_path', type=str, default="/home/shehzeenh/FastPitchSSL/Epoch264.ckpt")
+    parser.add_argument('--manifest_path', type=str, default="/home/shehzeenh/libritts_dev_clean_local.json")
+    parser.add_argument('--train_manifest_path', type=str, default="/home/shehzeenh/libritts_train_formatted_local.json")
+    parser.add_argument('--pitch_stats_json', type=str, default="/home/shehzeenh/SpeakerStats/libri_speaker_stats.json")
+    parser.add_argument('--out_dir', type=str, default="/home/shehzeenh/Evaluations/testing/")
+    parser.add_argument('--evaluation_type', type=str, default="reconstructed") # reconstructed, swapping
     parser.add_argument('--device', type=str, default='cpu')
     parser.add_argument('--n_speakers', type=int, default=10)
     parser.add_argument('--min_samples_per_spk', type=int, default=2)
@@ -324,12 +375,15 @@ def main():
     parser.add_argument('--compute_pitch', type=int, default=0)
     parser.add_argument('--compute_duration', type=int, default=0)
     parser.add_argument('--use_unique_tokens', type=int, default=0)
+    parser.add_argument('--dataset_type', type=str, default="unseen") # unseen or seen
     args = parser.parse_args()
     
     device = args.device
-    out_dir = args.out_dir
-    if not os.path.exists(args.out_dir):
-        os.makedirs(args.out_dir)
+    manifest_name = args.manifest_path.split("/")[-1].split(".")[0]
+
+    out_dir = os.path.join(args.out_dir, manifest_name)
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
 
     ssl_model = ssl_tts.SSLDisentangler.load_from_checkpoint(args.ssl_model_ckpt_path, strict=False)
     ssl_model = ssl_model.to(device)
@@ -369,21 +423,25 @@ def main():
     
 
     # Loading training samples for TSNE plots
-    speaker_wise_audio_paths_train = {}
-    with open(args.manifest_path) as f:
-        lines = f.readlines()
-        for line in lines:
-            record = json.loads(line)
-            if record['speaker'] not in speaker_wise_audio_paths_train:
-                speaker_wise_audio_paths_train[record['speaker']] = []
-            speaker_wise_audio_paths_train[record['speaker']].append(record['audio_filepath'])
-    
-    filtered_paths_train = {}
-    for key in speaker_wise_audio_paths:
-        filtered_paths_train[key] = speaker_wise_audio_paths_train[key][:20]
+    if args.dataset_type == "seen":
+        speaker_wise_audio_paths_train = {}
+        with open(args.train_manifest_path) as f:
+            lines = f.readlines()
+            for line in lines:
+                record = json.loads(line)
+                if record['speaker'] not in speaker_wise_audio_paths_train:
+                    speaker_wise_audio_paths_train[record['speaker']] = []
+                speaker_wise_audio_paths_train[record['speaker']].append(record['audio_filepath'])
+        
+        filtered_paths_train = {}
+        for key in speaker_wise_audio_paths:
+            filtered_paths_train[key] = speaker_wise_audio_paths_train[key][:20]
+        pitch_stats_json = args.pitch_stats_json
+    else:
+        pitch_stats_json = None
 
-    manifest_name = args.manifest_path.split("/")[-1].split(".")[0]
-    speaker_stats = load_speaker_stats(filtered_paths, ssl_model, wav_featurizer, manifest_name=manifest_name, out_dir=out_dir, pitch_stats_json=args.pitch_stats_json)
+    
+    speaker_stats = load_speaker_stats(filtered_paths, ssl_model, wav_featurizer, manifest_name=manifest_name, out_dir=out_dir, pitch_stats_json=pitch_stats_json)
 
     compute_pitch = args.compute_pitch == 1
     compute_duration = args.compute_duration == 1
@@ -402,6 +460,11 @@ def main():
 
 
     speaker_embeddings = {}
+    if args.dataset_type == "seen":
+        original_filepaths = filtered_paths_train
+    else:
+        original_filepaths = filtered_paths
+
     for key in generated_file_paths:
         speaker_embeddings["generated_{}".format(key)] = []
         speaker_embeddings["original_{}".format(key)] = []
@@ -412,13 +475,18 @@ def main():
             embedding = embedding.cpu().detach().numpy().flatten()
             speaker_embeddings["generated_{}".format(key)].append(embedding)
         
-        for fp in filtered_paths_train[key]:
+        for fp in original_filepaths[key]:
             print("getting embedding for {}".format(fp))
             embedding = nemo_sv_model.get_embedding(fp)
             embedding = embedding.cpu().detach().numpy().flatten()
             speaker_embeddings["original_{}".format(key)].append(embedding)
     
-    visualize_embeddings(speaker_embeddings, out_dir=out_dir)
+    sv_metrics = calculate_eer(speaker_embeddings)
+    with open(os.path.join(out_dir, "sv_metrics.json"), "w") as f:
+        json.dump(sv_metrics, f)
+    print("Metrics", sv_metrics)
+    eer_str = "EER: {:.2f}".format(sv_metrics['eer'])
+    visualize_embeddings(speaker_embeddings, out_dir=out_dir, title="TSNE {} {}".format(args.evaluation_type, eer_str), out_file="tsne_{}".format(args.evaluation_type) )
 
     
 
