@@ -390,65 +390,28 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             encoder_input=encoder_input,
             bos_id=self.tokenizer.pad_id if self.cfg.data.get('decoder_starts_with_pad', False) else self.tokenizer.bos_id
         )
-
-        processed_preds = []
-        processed_labels = []
-        processed_inputs = []
-
-        preds = predicted_token_ids.cpu().numpy().tolist()
-        enc_inputs = enc_input.cpu().numpy().tolist()
+        # Special ids to text function to handle stripping <eos> and special tokens with sentencepiece tokenizers.
+        preds_text = MegatronT5FinetuneModel.ids_to_text(predicted_token_ids, self.tokenizer)
+        input_text = MegatronT5FinetuneModel.ids_to_text(enc_input, self.tokenizer)
 
         if labels is not None:
-            labels = labels.cpu().numpy().tolist()
+            labels_text = MegatronT5FinetuneModel.ids_to_text(labels, self.tokenizer)
         else:
-            labels = [None] * len(preds)
+            labels_text = [None] * len(preds_text)
 
-        for i, (enc_input, pred, label) in enumerate(zip(enc_inputs, preds, labels)):
-            if self.tokenizer.eos_id in pred:
-                idx = pred.index(self.tokenizer.eos_id)
-                pred = pred[:idx]
-
-            pred = [
-                id
-                for id in pred
-                if id not in self.tokenizer.tokenizer.additional_special_tokens_ids
-                and id not in self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
-            ]  # delete the sentinel token at the beginning of prediction
-
-            pred = self.tokenizer.ids_to_text(pred)
-            processed_preds.append(pred)
-
-            enc_input = [
-                id for id in enc_input if id not in self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
-            ]  # delete the sentinel token added to the end of input
-
-            input = self.tokenizer.ids_to_text(enc_input)
-            processed_inputs.append(input)
-
-            if label:
-                label = [
-                    id
-                    for id in label
-                    if id not in self.tokenizer.tokenizer.additional_special_tokens_ids
-                    and id not in self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
-                ]  # delete the sentinel token at the beginning of label
-
-                label = self.tokenizer.ids_to_text(label)
-            processed_labels.append(label)
-
+        import ipdb; ipdb.set_trace()
         return {
-            'enc_input': processed_inputs,
-            'predicted_token_ids': processed_preds,
-            'log_probs': log_probs,
-            'labels': processed_labels,
+            'input_text': input_text,
+            'preds_text': preds_text,
+            'labels_text': labels_text,
         }
 
     def on_predict_epoch_end(self, outputs: List[Any]) -> None:
 
         gather_results = [None for _ in range(parallel_state.get_data_parallel_world_size())]
-        all_preds = list(itertools.chain(*[item['predicted_token_ids'] for item in outputs[0]]))
-        all_labels = list(itertools.chain(*[item['labels'] for item in outputs[0]]))
-        all_inputs = list(itertools.chain(*[item['enc_input'] for item in outputs[0]]))
+        all_preds = list(itertools.chain(*[item['preds_text'] for item in outputs[0]]))
+        all_labels = list(itertools.chain(*[item['labels_text'] for item in outputs[0]]))
+        all_inputs = list(itertools.chain(*[item['input_text'] for item in outputs[0]]))
 
         assert len(all_preds) == len(all_labels)
         assert len(all_preds) == len(all_inputs)
@@ -473,7 +436,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
                         correct += 1
 
             acc = correct / len(gather_results_dedup) if all_labels[0] else None
-
+            logging.info(f'Accuracy : {acc}')
             results = {'input_prediction_pair': input_prediction_pair, 'acc': acc}
-            logging.info(f'Prediction results: {results}')
-            logging.info(f'Test finish---------------------------------')
+            # logging.info(f'Prediction results: {results}')
+            # logging.info(f'Test finish---------------------------------')
