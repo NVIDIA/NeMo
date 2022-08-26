@@ -72,6 +72,7 @@ def main(cfg) -> None:
             cfg.virtual_prompt_model_file, trainer=trainer, return_config=True
         )
         with open_dict(prompt_learning_cfg):
+            # This is for backward compatibility with old checkpoints that used `pretrained_language_model_path` instead of `language_model_path`.
             if hasattr(prompt_learning_cfg, 'pretrained_language_model_path'):
                 prompt_learning_cfg.pretrained_language_model_path = cfg.language_model_path
             else:
