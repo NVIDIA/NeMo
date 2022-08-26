@@ -188,7 +188,7 @@ release_perf:
     # It will run the test on selene copy the results file and paste it in the bignlp-scripts repo and raise a PR.
     - |
         ALLOWED_STAGES=("train" "eval" "finetune" "prompt_learn");
-        if [[ "$CREATE_TEST_DATA" = "True" && ${ALLOWED_STAGES[*]} =~ "$RUN_STAGE" ]]; then
+        if [[ "$CREATE_TEST_DATA" == "True" && ${ALLOWED_STAGES[*]} =~ "$RUN_STAGE" ]]; then
           echo "Current working directory"
           echo $pwd
           cd ..
@@ -199,7 +199,11 @@ release_perf:
           git checkout -b $CI_PIPELINE_ID
           GIT_BRANCHES=`git branch -r`
           if [[ "$GIT_BRANCHES" =~ .*"$CI_PIPELINE_ID".* ]]; then git pull origin $CI_PIPELINE_ID; fi
-          cp $RESULTS_DIR/*.json tests/ci_tests/selene/pytest/$RUN_STAGE/${RUN_MODEL}_result_files/
+          if [[ "$RUN_STAGE" == "eval" &&  "$RUN_MODEL" =~ "gpt3" ]]; then
+            cp $RESULTS_DIR/results/$RUN_NAME*/metrics.json tests/ci_tests/selene/pytest/$RUN_STAGE/${RUN_MODEL}_result_files/
+          else
+            cp $RESULTS_DIR/*.json tests/ci_tests/selene/pytest/$RUN_STAGE/${RUN_MODEL}_result_files/
+          fi
           git add tests/ci_tests/selene/pytest/$RUN_STAGE/${RUN_MODEL}_result_files/*
           sed -i 's/TESTS_TO_RUN_ON_THIS_COMMIT: .*/TESTS_TO_RUN_ON_THIS_COMMIT: NONE/g' .gitlab-ci.yml
           git add .gitlab-ci.yml
