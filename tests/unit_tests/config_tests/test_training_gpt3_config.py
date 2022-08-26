@@ -883,7 +883,7 @@ class TestTrainingGPT3Config:
 
         model:
           micro_batch_size: 2
-          global_batch_size: 1536
+          global_batch_size: 2048
           tensor_model_parallel_size: 8
           pipeline_model_parallel_size: 8
           resume_from_checkpoint: null

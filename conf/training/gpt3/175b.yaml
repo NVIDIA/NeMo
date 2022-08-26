@@ -48,7 +48,7 @@ exp_manager:
 
 model:
   micro_batch_size: 2
-  global_batch_size: 1536
+  global_batch_size: 2048
   tensor_model_parallel_size: 8
   pipeline_model_parallel_size: 8
   resume_from_checkpoint: null # manually set the checkpoint file to load from
@@ -124,8 +124,8 @@ model:
     - 0.95
     sched:
       name: CosineAnnealing
-      warmup_steps: 265
-      constant_steps: 20000
+      warmup_steps: 115
+      constant_steps: 12500
       min_lr: 0.6e-5
 
   data:
