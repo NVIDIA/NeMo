@@ -43,7 +43,9 @@ pages:
   artifacts:
     paths:
       - public
-
+  rules:
+    - when: always
+    
 before_script:
   - umask 0007
   - export DOCKERFILE=./Dockerfile
