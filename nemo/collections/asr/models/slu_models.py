@@ -615,6 +615,6 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
         model = PretrainedModelInfo(
             pretrained_model_name="slu_conformer_transformer_large_slurp",
             description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:slu_conformer_transformer_large_slurp",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/slu_conformer_transformer_large_slurp/versions/1.12.0/files/slu_conformer_transformer_large_slurp.nemo",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/slu_conformer_transformer_large_slurp/versions/1.13.0/files/slu_conformer_transformer_large_slurp.nemo",
         )
         results.append(model)
