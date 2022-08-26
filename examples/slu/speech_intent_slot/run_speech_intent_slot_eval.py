@@ -19,7 +19,9 @@ from pathlib import Path
 from typing import Optional
 
 import torch
-from eval_utils import InferenceConfig, SLURPEvaluator, format_results, run_inference
+from eval_utils.evaluation.util import format_results
+from eval_utils.evaluator import SLURPEvaluator
+from eval_utils.inference import InferenceConfig, run_inference
 from omegaconf import MISSING, OmegaConf, open_dict
 
 from nemo.core.config import hydra_runner

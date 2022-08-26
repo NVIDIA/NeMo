@@ -26,46 +26,21 @@ pip install -r requirements.txt
 ```
 
 ### Data Preparation
-1. Under the current directory, run the following script to download the audio data, annotaion files and evaluation code.
+1. Under the current directory, run the following script to download and process data.
 ```bash
-DATA_DIR="./slurp_data"
-mkdir -p $DATA_DIR
+python ../../../scripts/dataset_processing/process_slurp_data.py \
+    --data_dir="./slurp_data" \
+    --text_key="semantics" \
+    --suffix="slu"
+```
 
-echo "Downloading slurp audio data..."
-wget https://zenodo.org/record/4274930/files/slurp_real.tar.gz -P $DATA_DIR
-wget https://zenodo.org/record/4274930/files/slurp_synth.tar.gz -P $DATA_DIR
-
-echo "Extracting audio files to ${DATA_DIR}/slurp*"
-tar -zxvf $DATA_DIR/slurp_real.tar.gz -C $DATA_DIR
-tar -zxvf $DATA_DIR/slurp_synth.tar.gz -C $DATA_DIR
-
-echo "Downloading annotations..."
-mkdir -p $DATA_DIR/raw_annotations
-wget https://github.com/pswietojanski/slurp/raw/master/dataset/slurp/test.jsonl -P $DATA_DIR/raw_annotations
-wget https://github.com/pswietojanski/slurp/raw/master/dataset/slurp/devel.jsonl -P $DATA_DIR/raw_annotations
-wget https://github.com/pswietojanski/slurp/raw/master/dataset/slurp/train_synthetic.jsonl -P $DATA_DIR/raw_annotations
-wget https://github.com/pswietojanski/slurp/raw/master/dataset/slurp/train.jsonl -P $DATA_DIR/raw_annotations
-
-echo "Downloading SLURP evaluation code..."
+2. Download evaluation code:
+```bash
 wget https://github.com/pswietojanski/slurp/raw/master/scripts/evaluation/util.py -P eval_utils/evaluation
 wget https://github.com/pswietojanski/slurp/raw/master/scripts/evaluation/metrics/distance.py -P eval_utils/evaluation/metrics
 wget https://github.com/pswietojanski/slurp/raw/master/scripts/evaluation/metrics/metrics.py -P eval_utils/evaluation/metrics
-
-echo "Done."
 ```
 
-2. Prepare the manifests by running: 
-```bash
-DATA_DIR="./slurp_data"
-RAW_ANNO_DIR="${DATA_DIR}/raw_annotations"
-MANIFESTS_DIR="${DATA_DIR}/raw_manifests"
-
-echo "Preparing manifests..."
-python data_utils/prepare_slurp.py --data_root $RAW_ANNO_DIR --output $MANIFESTS_DIR
-
-echo "Decoding audios and updating manifests..."
-python data_utils/decode_resample.py --data_root $DATA_DIR --manifest $MANIFESTS_DIR
-```
 
 ### Building Tokenizers
 1. Build the tokenizer for slu by running:

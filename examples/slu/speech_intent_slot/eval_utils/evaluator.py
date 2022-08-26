@@ -16,7 +16,7 @@
 import ast
 from typing import Dict, List, Union
 
-from .evaluation.metrics import ErrorMetric
+from .evaluation.metrics.metrics import ErrorMetric
 
 
 def parse_semantics_str2dict(semantics_str: Union[List[str], str, Dict]) -> Dict:
