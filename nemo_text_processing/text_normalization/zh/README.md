@@ -62,7 +62,7 @@ Sometime you may want to remove certain things like interjections/fillers "啊",
 8月16号12:00之前 -> 八月十六号十二点之前
 我是5:02开始的 -> 我是五点零二分开始的
 于5:35:36发射 -> 于五点三十五分三十六秒发射
-8:00 a.m. 准时开会 -> 八点 a m 准时开会
+8:00am准时开会 -> 上午八点准时开会
 ```
 
 #### Math
@@ -105,8 +105,8 @@ Sometime you may want to remove certain things like interjections/fillers "啊",
 #### Whitelist(Replacement)
 a set of user-defined hard mapping, i.e. exact-string matching & replacement
 ```
-CEO -> C E O
-GPU -> G P U
+C E O -> CEO
+G P U -> GPU
 O2O -> O to O
 B2B -> B to B
 ```
