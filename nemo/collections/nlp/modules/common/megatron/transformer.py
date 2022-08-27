@@ -2142,12 +2142,12 @@ class ParallelTransformer(MegatronModule):
                 activations_checkpoint_num_layers = self.num_layers
             else:
                 activations_checkpoint_num_layers = self.activations_checkpoint_num_layers
-            if (parallel_state.get_pipeline_model_parallel_world_size() > 0 and
-                self.activations_checkpoint_layers_per_pipeline is not None):
-                # Decrease the number of layers to checkpoint at later pipeline stages
-                activations_checkpoint_num_layers -= (
-                    int(parallel_state.get_pipeline_model_parallel_rank() * self.activations_checkpoint_layers_per_pipeline)
-                )
+                if (parallel_state.get_pipeline_model_parallel_world_size() > 0 and
+                    self.activations_checkpoint_layers_per_pipeline is not None):
+                    # Decrease the number of layers to checkpoint at later pipeline stages
+                    activations_checkpoint_num_layers -= (
+                        int(parallel_state.get_pipeline_model_parallel_rank() * self.activations_checkpoint_layers_per_pipeline)
+                    )
             # Checkpoint the input activation of only a set number of individual
             # Transformer layers and skip the rest.
             # A method fully use the device memory removing redundant re-computation.
