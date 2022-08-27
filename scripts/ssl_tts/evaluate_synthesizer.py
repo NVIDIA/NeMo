@@ -376,12 +376,13 @@ def main():
     parser.add_argument('--compute_duration', type=int, default=0)
     parser.add_argument('--use_unique_tokens', type=int, default=0)
     parser.add_argument('--dataset_type', type=str, default="unseen") # unseen or seen
+    parser.add_argument('--precomputed_stats_fp', type=str, default=None)
     args = parser.parse_args()
     
     device = args.device
     manifest_name = args.manifest_path.split("/")[-1].split(".")[0]
-
-    out_dir = os.path.join(args.out_dir, manifest_name)
+    fp_ckpt_name = "FastPitch" + args.fastpitch_ckpt_path.split("/")[-1].split(".")[0]
+    out_dir = os.path.join(args.out_dir, manifest_name + "_" + fp_ckpt_name)
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
 
@@ -414,7 +415,8 @@ def main():
         
     filtered_paths = {}
     spk_count = 0
-    for key in speaker_wise_audio_paths:
+    sorted_keys = sorted(speaker_wise_audio_paths.keys())
+    for key in sorted_keys:
         if len(speaker_wise_audio_paths[key]) >= args.min_samples_per_spk:
             filtered_paths[key] = speaker_wise_audio_paths[key][:args.max_samples_per_spk]
             spk_count += 1
@@ -441,7 +443,12 @@ def main():
         pitch_stats_json = None
 
     
-    speaker_stats = load_speaker_stats(filtered_paths, ssl_model, wav_featurizer, manifest_name=manifest_name, out_dir=out_dir, pitch_stats_json=pitch_stats_json)
+    if args.precomputed_stats_fp is not None:
+        # loaf from pickle
+        with open(args.precomputed_stats_fp, 'rb') as f:
+            speaker_stats = pickle.load(f)
+    else:
+        speaker_stats = load_speaker_stats(filtered_paths, ssl_model, wav_featurizer, manifest_name=manifest_name, out_dir=out_dir, pitch_stats_json=pitch_stats_json)
 
     compute_pitch = args.compute_pitch == 1
     compute_duration = args.compute_duration == 1
@@ -482,7 +489,7 @@ def main():
             speaker_embeddings["original_{}".format(key)].append(embedding)
     
     sv_metrics = calculate_eer(speaker_embeddings)
-    with open(os.path.join(out_dir, "sv_metrics.json"), "w") as f:
+    with open(os.path.join(out_dir, "sv_metrics_{}.json".format(args.evaluation_type) ), "w") as f:
         json.dump(sv_metrics, f)
     print("Metrics", sv_metrics)
     eer_str = "EER: {:.2f}".format(sv_metrics['eer'])
