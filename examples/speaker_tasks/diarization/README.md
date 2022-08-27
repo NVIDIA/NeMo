@@ -31,13 +31,11 @@ Recommended models on NGC:
 ## Performance
 Diarization Error Rate (DER) table of `titanet_large.nemo` model on well known evaluation datasets. 
 
-|         Evaluation<br>Condition        | AMI<br>(Lapel) | AMI<br>(MixHeadset) | CH109 | NIST SRE 2000 |
-|:--------------------------------------:|:--------------:|:-------------------:|:---------------------:|
-|       Domain Configuration             |              Meeting                 |      Telephonic       |
-|:--------------------------------------:|:--------------:|:-------------------:|:---------------------:|
-|  Oracle VAD <br> KNOWN # of Speakers   |     1.28       |         1.07        |  0.88 |     4.30      |
-|  Oracle VAD <br> UNKNOWN # of Speakers |      1.28      |         1.4         |  0.56 |     5.62      |
-
+|         Evaluation Condition           |   AMI(Lapel)   | AMI(MixHeadset)     |   CH109  | NIST SRE 2000 |  
+|:--------------------------------------:|:--------------:|:-------------------:|:--------:|:-------------:|
+|       Domain Configuration             |   Meeting      |        Meeting      |Telephonic| Telephonic    |
+|  Oracle VAD <br> KNOWN # of Speakers   |     1.28       |         1.07        |  0.56    |     5.62      |
+|  Oracle VAD <br> UNKNOWN # of Speakers |     1.28       |         1.4         |  0.88    |     4.33      | 
 
 * All models were tested using the domain specific `.yaml` files which can be found in `conf/inference/` folder.
 * The above result is based on the oracle Voice Activity Detection (VAD) result.
