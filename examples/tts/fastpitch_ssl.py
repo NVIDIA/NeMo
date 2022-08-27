@@ -27,6 +27,8 @@ def main(cfg):
     vocoder = hifigan.HifiGanModel.load_from_checkpoint(cfg.hifi_ckpt_path).cpu()
     vocoder.eval()
     model = fastpitch_ssl.FastPitchModel_SSL(cfg=cfg.model, trainer=trainer, vocoder=vocoder)
+    if cfg.get("finetune", False):
+        model.maybe_init_from_pretrained_checkpoint(cfg=cfg)
     lr_logger = pl.callbacks.LearningRateMonitor()
     epoch_time_logger = LogEpochTimeCallback()
     trainer.callbacks.extend([lr_logger, epoch_time_logger])
