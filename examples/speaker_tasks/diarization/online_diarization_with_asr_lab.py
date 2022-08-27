@@ -388,8 +388,6 @@ def main(cfg):
         for index in range(int(np.floor(sdata.shape[0]/asr_diar.n_frame_len))):
             asr_diar.buffer_counter = index
             sample_audio = sdata[asr_diar.CHUNK_SIZE*(asr_diar.buffer_counter):asr_diar.CHUNK_SIZE*(asr_diar.buffer_counter+1)]
-            if index > 10:
-                sample_audio = 0.0 * sample_audio
             asr_diar.streaming_step(sample_audio)
     else:
         isTorch = torch.cuda.is_available()
