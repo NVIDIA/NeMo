@@ -2117,10 +2117,14 @@ class ParallelTransformer(MegatronModule):
         # Make sure memory is freed.
         tensor_parallel.reset_checkpointed_activations_memory_buffer()
 
-        if checkpoint_activations_all_layers:
-            for l in range(self.num_layers):
+        if self.activations_checkpoint_method == 'uniform':
+            # Uniformly divide the total number of Transformer layers and checkpoint
+            # the input activation of each divided chunk.
+            # A method to further reduce memory usage reducing checkpoints.
+            l = 0
+            while l < self.num_layers:
                 hidden_states = tensor_parallel.checkpoint(
-                    custom(l, l + 1),
+                    custom(l, l + self.activations_checkpoint_num_layers),
                     False,
                     hidden_states,
                     attention_mask,
@@ -2130,15 +2134,27 @@ class ParallelTransformer(MegatronModule):
                     self_attention_relative_position_bias,
                     cross_attention_relative_position_bias,
                 )
-        else:
-            if self.activations_checkpoint_method == 'uniform':
-                # Uniformly divide the total number of Transformer layers and checkpoint
-                # the input activation of each divided chunk.
-                # A method to further reduce memory usage reducing checkpoints.
-                l = 0
-                while l < self.num_layers:
+                l += self.activations_checkpoint_num_layers
+        elif self.activations_checkpoint_method == 'block':
+            # When pipeline-parallel size > 1, weather to checkpoint all layers in a micro-batch is
+            # decided by pipeline scheduling.
+            if checkpoint_activations_all_layers:
+                activations_checkpoint_num_layers = self.num_layers
+            else:
+                activations_checkpoint_num_layers = self.activations_checkpoint_num_layers
+            if (parallel_state.get_pipeline_model_parallel_world_size() > 0 and
+                self.activations_checkpoint_layers_per_pipeline is not None):
+                # Decrease the number of layers to checkpoint at later pipeline stages
+                activations_checkpoint_num_layers -= (
+                    int(parallel_state.get_pipeline_model_parallel_rank() * self.activations_checkpoint_layers_per_pipeline)
+                )
+            # Checkpoint the input activation of only a set number of individual
+            # Transformer layers and skip the rest.
+            # A method fully use the device memory removing redundant re-computation.
+            for l in range(self.num_layers):
+                if l < activations_checkpoint_num_layers:
                     hidden_states = tensor_parallel.checkpoint(
-                        custom(l, l + self.activations_checkpoint_num_layers),
+                        custom(l, l + 1),
                         False,
                         hidden_states,
                         attention_mask,
@@ -2148,42 +2164,18 @@ class ParallelTransformer(MegatronModule):
                         self_attention_relative_position_bias,
                         cross_attention_relative_position_bias,
                     )
-                    l += self.activations_checkpoint_num_layers
-            elif self.activations_checkpoint_method == 'block':
-                # Decrease the number of layers to checkpoint at later pipeline stages
-                activations_checkpoint_num_layers = self.activations_checkpoint_num_layers
-                if self.activations_checkpoint_layers_per_pipeline is not None:
-                    activations_checkpoint_num_layers -= (
-                        int(parallel_state.get_pipeline_model_parallel_rank() * self.activations_checkpoint_layers_per_pipeline)
+                else:
+                    hidden_states = custom(l, l + 1)(
+                        hidden_states,
+                        attention_mask,
+                        encoder_output,
+                        enc_dec_attn_mask,
+                        rotary_pos_emb,
+                        self_attention_relative_position_bias,
+                        cross_attention_relative_position_bias,
                     )
-                # Checkpoint the input activation of only a set number of individual
-                # Transformer layers and skip the rest.
-                # A method fully use the device memory removing redundant re-computation.
-                for l in range(self.num_layers):
-                    if l < activations_checkpoint_num_layers:
-                        hidden_states = tensor_parallel.checkpoint(
-                            custom(l, l + 1),
-                            False,
-                            hidden_states,
-                            attention_mask,
-                            encoder_output,
-                            enc_dec_attn_mask,
-                            rotary_pos_emb,
-                            self_attention_relative_position_bias,
-                            cross_attention_relative_position_bias,
-                        )
-                    else:
-                        hidden_states = custom(l, l + 1)(
-                            hidden_states,
-                            attention_mask,
-                            encoder_output,
-                            enc_dec_attn_mask,
-                            rotary_pos_emb,
-                            self_attention_relative_position_bias,
-                            cross_attention_relative_position_bias,
-                        )
-            else:
-                raise ValueError("Invalid activation checkpoint method.")
+        else:
+            raise ValueError("Invalid activation checkpoint method.")
 
         return hidden_states
 
