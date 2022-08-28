@@ -1219,6 +1219,10 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
 
         # Optional arguments
         dropout = jointnet.get('dropout', 0.0)
+        self.reduction = jointnet.get('reduction', 'mean_batch')
+
+        if self.reduction != 'mean' and self.reduction != 'mean_volume' and self.reduction != 'mean_batch':
+            raise ValueError('unknown value of `reduction`')
 
         self.pred, self.enc, self.joint_net = self._joint_net_modules(
             num_classes=self._num_classes,  # add 1 for blank symbol
@@ -1275,6 +1279,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
                 )
 
             losses = []
+            target_lengths = []
             batch_size = int(encoder_outputs.size(0))  # actual batch size
 
             # Iterate over batch using fused_batch_size steps
@@ -1335,6 +1340,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
                         target_lengths=sub_transcript_lens,
                     )
                     losses.append(loss_batch)
+                    target_lengths.append(sub_transcript_lens)
 
                     # reset loss reduction type
                     self.loss.reduction = loss_reduction
@@ -1356,7 +1362,16 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
             # Collect sub batch loss results
             if losses is not None:
                 losses = torch.cat(losses, 0)
-                losses = losses.mean()  # global batch size average
+                target_lengths = torch.cat(target_lengths,0)
+
+                if self.reduction == 'mean_batch':
+                    losses = losses.mean()  # global batch size average
+                elif self.reduction == 'mean':
+                    losses = torch.div(losses, target_lengths).mean()
+                elif self.reduction == 'mean_volume':
+                    losses = losses.sum() / target_lengths.sum() # same as above but longer samples weigh more
+                else:
+                    raise ValueError("Unknown value of `self.reduction`") # should never get here!
             else:
                 losses = None
 
