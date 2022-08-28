@@ -84,4 +84,5 @@ HYDRA_FULL_ERROR=1 BIGNLP_CI=1 python3 main.py \
     training.model.pipeline_model_parallel_size=${PP_SIZE} \
     training.model.megatron_amp_O2=${AMP_O2_FLAG} \
     training.model.tokenizer.model=${TOKENIZER_MODEL} \
-    training.exp_manager.create_checkpoint_callback=${CREATE_CHECKPOINT_CALLBACK_FLAG}
+    training.exp_manager.create_checkpoint_callback=${CREATE_CHECKPOINT_CALLBACK_FLAG} \
+    training.model.data.index_mapping_dir=${DATA_DIR}/index_mapping
