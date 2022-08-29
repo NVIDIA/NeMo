@@ -330,20 +330,16 @@ def generate_base_config(
         seq_length=seq_length,
         model_name=model_name,
     )
-    base_cfg["model"]["num_layers"] = int(layers)
-    base_cfg["model"]["global_batch_size"] = int(gbs)
-    base_cfg["model"]["hidden_size"] = int(hs)
-    base_cfg["model"]["num_attention_heads"] = int(att_h)
-    if ffn is not None:
-        base_cfg["model"]["ffn_hidden_size"] = int(ffn)
-    if kv is not None:
-        base_cfg["model"]["kv_channels"] = int(kv)
-    base_cfg["model"]["init_method_std"] = (
-        round(0.64 / math.sqrt(hs), 6) if model_name == "gpt3" else 0.015
-    )
-    base_cfg["model"]["optim"]["lr"] = lr
-    base_cfg["model"]["optim"]["sched"]["min_lr"] = round(lr * 0.1, 8)
     if model_name == "gpt3":
+        base_cfg["model"]["num_layers"] = int(layers)
+        base_cfg["model"]["global_batch_size"] = int(gbs)
+        base_cfg["model"]["hidden_size"] = int(hs)
+        base_cfg["model"]["num_attention_heads"] = int(att_h)
+        if ffn is not None:
+            base_cfg["model"]["ffn_hidden_size"] = int(ffn)
+        if kv is not None:
+            base_cfg["model"]["kv_channels"] = int(kv)
+        base_cfg["model"]["init_method_std"] = round(0.64 / math.sqrt(hs), 6)
         base_cfg["model"]["optim"]["sched"]["warmup_steps"] = int(
             0.0015 * base_cfg["trainer"]["max_steps"]
         )
@@ -356,7 +352,24 @@ def generate_base_config(
             base_cfg["model"]["activations_checkpoint_method"] = "block"
             base_cfg["model"]["activations_checkpoint_num_layers"] = 0
     else:
+        base_cfg["model"]["global_batch_size"] = int(gbs)
+        base_cfg["model"]["encoder"]["num_layers"] = int(layers)
+        base_cfg["model"]["decoder"]["num_layers"] = int(layers)
+        base_cfg["model"]["encoder"]["hidden_size"] = int(hs)
+        base_cfg["model"]["decoder"]["hidden_size"] = int(hs)
+        base_cfg["model"]["encoder"]["num_attention_heads"] = int(att_h)
+        base_cfg["model"]["decoder"]["num_attention_heads"] = int(att_h)
+        if ffn is not None:
+            base_cfg["model"]["encoder"]["ffn_hidden_size"] = int(ffn)
+            base_cfg["model"]["decoder"]["ffn_hidden_size"] = int(ffn)
+        if kv is not None:
+            base_cfg["model"]["encoder"]["kv_channels"] = int(kv)
+            base_cfg["model"]["decoder"]["kv_channels"] = int(kv)
+        base_cfg["model"]["init_method_std"] = 0.015
         base_cfg["model"]["optim"]["sched"]["warmup_ratio"] = 0.01
+
+    base_cfg["model"]["optim"]["lr"] = lr
+    base_cfg["model"]["optim"]["sched"]["min_lr"] = round(lr * 0.1, 8)
 
     with open(
         f"{cfg.search_config.train_settings.logs}/base_cfg_{model_size_in_b}b.yaml", "w"

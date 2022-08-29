@@ -50,6 +50,16 @@ def search_inference_config(base_cfg, cfg):
     mounts_str = f"{bignlp_hp_tool_path}:{bignlp_hp_tool_path},{base_results_dir}:{base_results_dir}"
     mounts_str += utils.add_container_mounts(container_mounts)
 
+    container = cfg.get("training_container")
+    output_log = os.path.join(workspace_dir, "log-test.out")
+    error_log = os.path.join(workspace_dir, "log-test.err")
+    flags = (
+        f"--container-image {container} "
+        f"--container-mounts {mounts_str} "
+        f"--output {output_log} "
+        f"--error {error_log} "
+    )
+
     run = 0
     for tensor_parallel_size in tensor_parallel_sizes:
         for pipeline_parallel_size in pipeline_parallel_sizes:
@@ -91,7 +101,7 @@ def search_inference_config(base_cfg, cfg):
                 prepare_cmd=triton_prepare_model_config_cmd,
                 triton_model_dir=triton_model_dir,
                 model_name=benchmark_model_name,
-                container=container,
+                flags=flags,
                 tensor_parallel_size=tensor_parallel_size,
                 pipeline_parallel_size=pipeline_parallel_size,
                 nodes=1, # TODO: update to correct number
@@ -115,7 +125,7 @@ def run_benchmark(
     prepare_cmd,
     triton_model_dir,
     model_name,
-    container,
+    flags,
     tensor_parallel_size,
     pipeline_parallel_size,
     nodes,
@@ -153,7 +163,6 @@ def run_benchmark(
 
     #job_name_prefix = cluster_config["env"]["job_name_prefix"]
     #training_container_image = cluster_cfg["env"]["training_container_image"]
-    container_image = cfg.get("training_Container")
 
     # variant = Variant.from_triton_model_repository(triton_model_repository_path)
     # LOGGER.info(f"Config variant {variant}")
@@ -173,8 +182,6 @@ def run_benchmark(
         f"{tensor_parallel_size} "
         f"{pipeline_parallel_size} "
         )
-    flags = []
-
 
     submission_script_path = f"{workspace_path}/submission_script.sh"
 

@@ -236,7 +236,7 @@ def generic_base_config(cfg, model_name="gpt3"):
     return base_cfg
 
 
-def modify_cfg(base_cfg, act, tp, pp, mbs, max_minutes, max_steps, num_nodes):
+def modify_cfg(base_cfg, act, tp, pp, mbs, max_minutes, max_steps, num_nodes, model_name):
     new_cfg = copy.deepcopy(base_cfg)
     if act is not None:
         new_cfg["model"]["activations_checkpoint_num_layers"] = act
@@ -245,8 +245,12 @@ def modify_cfg(base_cfg, act, tp, pp, mbs, max_minutes, max_steps, num_nodes):
     new_cfg["model"]["tensor_model_parallel_size"] = tp
     new_cfg["model"]["pipeline_model_parallel_size"] = pp
     new_cfg["model"]["micro_batch_size"] = mbs
-    att_heads = new_cfg["model"]["num_attention_heads"]
-    num_layers = new_cfg["model"]["num_layers"]
+    if model_name == "gpt3":
+        att_heads = new_cfg["model"]["num_attention_heads"]
+        num_layers = new_cfg["model"]["num_layers"]
+    else:
+        att_heads = new_cfg["model"]["encoder"]["num_attention_heads"]
+        num_layers = new_cfg["model"]["encoder"]["num_layers"]
 
     # gbs = mbs * num_gpus * accumulate_grad_batches / (tp * pp)
     num_gpus = new_cfg["trainer"]["num_nodes"] * new_cfg["trainer"]["devices"]

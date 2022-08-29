@@ -23,13 +23,13 @@ def generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg):
     search_cfg = cfg.get("search_config")
     train_cfg = search_cfg.get("train_settings")
     gpus_per_node = train_cfg.get("gpus_per_node")
-
+    num_nodes = train_cfg.get("num_nodes")
     act_layers = train_cfg.get("act_ckpt_layers")
 
     # 2 * num_layers is needed because of encoder/decoder architecture.
     multiplier = 1 if model_name == "gpt3" else 2
 
-    num_layers = base_cfg["model"]["num_layers"]
+    num_layers = base_cfg["model"]["num_layers"] if model_name == "gpt3" else base_cfg["model"]["encoder"]["num_layers"]
     act_granularity = base_cfg["model"].get("activations_checkpoint_granularity", "full")
 
     tp_list, pp_list, mbs_list = _calculate_tp_pp_mbs_grid(
@@ -64,25 +64,17 @@ def generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg):
             for mbs in mbs_list:
                 num_gpus = base_cfg["trainer"]["num_nodes"] * base_cfg["trainer"]["devices"]
                 gbs = base_cfg["model"]["global_batch_size"]
-                att_heads = base_cfg["model"]["num_attention_heads"]
-                num_layers = base_cfg["model"]["num_layers"]
+                if model_name == "gpt3":
+                    att_heads = base_cfg["model"]["num_attention_heads"]
+                    num_layers = base_cfg["model"]["num_layers"]
+                else:
+                    att_heads = base_cfg["model"]["encoder"]["num_attention_heads"]
+                    num_layers = base_cfg["model"]["encoder"]["num_layers"]
                 mod_gbs = gbs % (mbs * num_gpus / (tp * pp))
                 mod_att_heads = att_heads % tp
                 mod_layers = (multiplier * num_layers) % pp
                 if mod_gbs == 0 and mod_att_heads == 0 and mod_layers == 0:
                     valid_tp_pp_list.append((tp, pp))
-
-    # Calculate necessary nodes for HP search.
-    num_nodes = train_cfg.get("num_nodes")
-    """
-    if override_nodes is None or override_nodes == "auto":
-        num_nodes = 1
-        for tp, pp in valid_tp_pp_list:
-            if math.ceil(tp * pp / gpus_per_node) > num_nodes:
-                num_nodes = math.ceil(tp * pp / gpus_per_node)
-    else:
-        num_nodes = override_nodes
-    """
 
     # Generate grid search configs.
     for tp in tp_list:
@@ -104,6 +96,7 @@ def generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg):
                             max_minutes=max_minutes,
                             max_steps=max_steps,
                             num_nodes=num_nodes,
+                            model_name=model_name,
                         )
                         if new_cfg:  # Save candidate cfg.
                             file_name = f"{model_name}_{model_size_in_b}b_{num_nodes}nodes_tp_{tp}_pp_{pp}_mbs_{mbs}_act_ckpt_{act}.yaml"
@@ -161,19 +154,19 @@ def _tp_pp_mbs_grid_gpt3_80gb(model_size_in_b, valid_pp):
         mbs = [1, 2, 4, 8]
     elif 130.0 < model_size_in_b <= 195.0:
         tp = [4, 8]
-        pp = [x for x in valid_pp if 1 <= x <= 16]
+        pp = [x for x in valid_pp if 2 <= x <= 16]
         mbs = [1, 2, 4]
     elif 195.0 < model_size_in_b <= 395.0:
         tp = [4, 8]
-        pp = [x for x in valid_pp if 1 <= x <= 32]
+        pp = [x for x in valid_pp if 2 <= x <= 32]
         mbs = [1, 2, 4]
     elif 395.0 < model_size_in_b <= 790.0:
         tp = [4, 8]
-        pp = [x for x in valid_pp if 2 <= x <= 100]
+        pp = [x for x in valid_pp if 4 <= x <= 100]
         mbs = [1, 2, 4]
     elif 790.0 < model_size_in_b <= 1100.0:
         tp = [4, 8]
-        pp = [x for x in valid_pp if 2 <= x <= 130]
+        pp = [x for x in valid_pp if 4 <= x <= 130]
         mbs = [1, 2, 4]
     return tp, pp, mbs
 
