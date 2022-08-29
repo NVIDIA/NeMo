@@ -1644,6 +1644,7 @@ class AutocastTransformerLayer(TransformerLayer):
         output_layernorm: bool = False,
         layer_type: str = "encoder",
         drop_path_rate: float = 0,
+        use_emha: bool = False,
         autocast_dtype: Any = 16,
     ) -> None:
         super().__init__(
@@ -1673,6 +1674,7 @@ class AutocastTransformerLayer(TransformerLayer):
             output_layernorm=output_layernorm,
             layer_type=layer_type,
             drop_path_rate=drop_path_rate,
+            use_emha=use_emha,
         )
 
         if autocast_dtype == 32:
@@ -1764,6 +1766,7 @@ class ParallelTransformer(MegatronModule):
         fp8_interval=1,
         fp8_amax_history_len=1,
         fp8_amax_compute_algo='most_recent',
+        use_emha=False,
     ):
         super(ParallelTransformer, self).__init__()
 
@@ -1882,6 +1885,7 @@ class ParallelTransformer(MegatronModule):
                     sequence_parallel=sequence_parallel,
                     apply_residual_connection_post_layernorm=False,
                     autocast_dtype=precision,
+                    use_emha=use_emha,
                 )
             else:
                 return ParallelTransformerLayer(
@@ -2190,27 +2194,27 @@ class ParallelTransformer(MegatronModule):
             else:
                 if get_key_value:
                     presents = []
-                for index in range(self.num_layers):
-                    layer = self._get_layer(index)
-                    past = None
 
-                    if layer_past is not None:
-                        past = layer_past[index]
+                # fp8_autocast will not do anything if TE or FP8 isn't used
+                with fp8_autocast(
+                    enabled=self.fp8, fp8_recipe=self.fp8_recipe, fp8_group=parallel_state.get_data_parallel_group(),
+                ):
+                    for index in range(self.num_layers):
+                        layer = self._get_layer(index)
+                        past = None
 
-                    if self.transformer_engine:
-                        # inference_params = {
-                        #     'get_key_value': get_key_value,
-                        #     'set_inference_key_value_memory': set_inference_key_value_memory,
-                        #     'inference_max_sequence_len': inference_max_sequence_len,
-                        # }
-                        inference_params = None
+                        if layer_past is not None:
+                            past = layer_past[index]
 
-                        # fp8_autocast will not do anything if fp8 isn't used
-                        with fp8_autocast(
-                            enabled=self.fp8,
-                            fp8_recipe=self.fp8_recipe,
-                            fp8_group=parallel_state.get_data_parallel_group(),
-                        ):
+                        if self.transformer_engine:
+                            # TODO: inference with TE
+                            # inference_params = {
+                            #     'get_key_value': get_key_value,
+                            #     'set_inference_key_value_memory': set_inference_key_value_memory,
+                            #     'inference_max_sequence_len': inference_max_sequence_len,
+                            # }
+                            inference_params = None
+
                             hidden_states = layer(
                                 hidden_states,
                                 attention_mask,
@@ -2220,20 +2224,20 @@ class ParallelTransformer(MegatronModule):
                                 is_first_microbatch=self.is_first_microbatch,
                             )
 
-                    else:
-                        hidden_states = layer(
-                            hidden_states,
-                            attention_mask,
-                            encoder_output=encoder_output,
-                            enc_dec_attn_mask=enc_dec_attn_mask,
-                            layer_past=past,
-                            get_key_value=get_key_value,
-                            set_inference_key_value_memory=set_inference_key_value_memory,
-                            inference_max_sequence_len=inference_max_sequence_len,
-                            rotary_pos_emb=rotary_pos_emb,
-                            self_attention_relative_position_bias=self_attention_relative_position_bias,
-                            cross_attention_relative_position_bias=cross_attention_relative_position_bias,
-                        )
+                        else:
+                            hidden_states = layer(
+                                hidden_states,
+                                attention_mask,
+                                encoder_output=encoder_output,
+                                enc_dec_attn_mask=enc_dec_attn_mask,
+                                layer_past=past,
+                                get_key_value=get_key_value,
+                                set_inference_key_value_memory=set_inference_key_value_memory,
+                                inference_max_sequence_len=inference_max_sequence_len,
+                                rotary_pos_emb=rotary_pos_emb,
+                                self_attention_relative_position_bias=self_attention_relative_position_bias,
+                                cross_attention_relative_position_bias=cross_attention_relative_position_bias,
+                            )
 
         # Skip counter update for eval and activation checkpointing
         if torch.is_grad_enabled() and self.training:
