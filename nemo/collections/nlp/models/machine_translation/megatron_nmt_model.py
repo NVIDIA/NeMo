@@ -121,7 +121,12 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         # when using pipeline model parallel the final stage need to initialize word embeddings
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
             self.enc_dec_model.sync_initial_word_embeddings()
-            self.enc_dec_model.sync_initial_position_embeddings()
+            # Only synchronize position embeddings if using absolute position embeddings in both the encoder and decoder.
+            if (
+                self.cfg.encoder.get("position_embedding_type", "learned_absolute") == "learned_absolute"
+                and self.cfg.decoder.get("position_embedding_type", "learned_absolute") == "learned_absolute"
+            ):
+                self.enc_dec_model.sync_initial_position_embeddings()
 
     def _build_tokenizer(self):
         # Instantiates tokenizers and register to be saved with NeMo Model archive
@@ -603,10 +608,6 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                 data_prefix.append(weight)
                 data_prefix.append(prefix)
 
-            if self.trainer.max_steps is None:
-                raise ValueError(
-                    f"trainer.max_steps must be set to use blendable memmap datasets. Found {self.trainer.max_steps}."
-                )
             num_train_samples = [self.trainer.max_steps * self._cfg.global_batch_size]
             _, _, num_train_samples_per_dataset = get_datasets_weights_and_num_samples(data_prefix, num_train_samples)
             num_train_samples_after_blend = sum([x[0] for x in num_train_samples_per_dataset])
