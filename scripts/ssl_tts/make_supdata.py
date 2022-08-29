@@ -205,10 +205,10 @@ def main():
     parser = argparse.ArgumentParser(description='Evaluate the model')
     parser.add_argument('--ssl_model_ckpt_path', type=str, default="/home/pneekhara/NeMo2022/SSLCheckPoints/SSLConformer22050_Epoch37.ckpt")
     parser.add_argument('--manifest_path', type=str, default="/home/pneekhara/NeMo2022/libri_val_formatted.json")
-    parser.add_argument('--batch_size', type=int, default=16)
+    parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--ssl_content_emb_type', type=str, default="embedding_and_probs")
     parser.add_argument('--use_unique_tokens', type=int, default=0)
-    parser.add_argument('--pool_workers', type=int, default=40)
+    parser.add_argument('--pool_workers', type=int, default=60)
 
     args = parser.parse_args()
 
@@ -217,7 +217,7 @@ def main():
     ssl_model_ckpt_path = args.ssl_model_ckpt_path
 
     dataset = AudioDataset(manifest_path)
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=False, collate_fn=dataset.pad_collate_fn)
+    dataloader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=False, collate_fn=dataset.pad_collate_fn, num_workers=8)
     
     ssl_model = ssl_tts.SSLDisentangler.load_from_checkpoint(ssl_model_ckpt_path, strict=False)
     with open_dict(ssl_model.cfg):
