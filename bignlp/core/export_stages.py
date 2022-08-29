@@ -316,7 +316,7 @@ class Export(BigNLPStage):
             (
                 f"export PYTHONPATH={FT_PATH}:${{PYTHONPATH}} && \\\n"
                 'export MY_LOCAL_RANK="${LOCAL_RANK:=${SLURM_LOCALID:=${OMPI_COMM_WORLD_LOCAL_RANK:-}}}" && \\\n'
-                'if [ ${MY_LOCAL_RANK} = "0" ]; then ' + create_config_ini_cmd + "; fi"
+                'if [ ${MY_LOCAL_RANK} == "0" ]; then ' + create_config_ini_cmd + "; fi"
             ),
             f"export PYTHONPATH={FT_PATH}:${{PYTHONPATH}} && \\\n" + lambada_cmd,
         ]
