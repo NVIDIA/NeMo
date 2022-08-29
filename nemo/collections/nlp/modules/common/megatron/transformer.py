@@ -2194,28 +2194,29 @@ class ParallelTransformer(MegatronModule):
             else:
                 if get_key_value:
                     presents = []
-                for index in range(self.num_layers):
-                    layer = self._get_layer(index)
-                    past = None
+                
+                # fp8_autocast will not do anything if TE or FP8 isn't used
+                with fp8_autocast(
+                    enabled=self.fp8,
+                    fp8_recipe=self.fp8_recipe,
+                    fp8_group=parallel_state.get_data_parallel_group(),
+                ):
+                    for index in range(self.num_layers):
+                        layer = self._get_layer(index)
+                        past = None
 
-                    if layer_past is not None:
-                        past = layer_past[index]
+                        if layer_past is not None:
+                            past = layer_past[index]
 
-                    if self.transformer_engine:
-                        # TODO: inference with TE
-                        # inference_params = {
-                        #     'get_key_value': get_key_value,
-                        #     'set_inference_key_value_memory': set_inference_key_value_memory,
-                        #     'inference_max_sequence_len': inference_max_sequence_len,
-                        # }
-                        inference_params = None
+                        if self.transformer_engine:
+                            # TODO: inference with TE
+                            # inference_params = {
+                            #     'get_key_value': get_key_value,
+                            #     'set_inference_key_value_memory': set_inference_key_value_memory,
+                            #     'inference_max_sequence_len': inference_max_sequence_len,
+                            # }
+                            inference_params = None
 
-                        # fp8_autocast will not do anything if fp8 isn't used
-                        with fp8_autocast(
-                            enabled=self.fp8,
-                            fp8_recipe=self.fp8_recipe,
-                            fp8_group=parallel_state.get_data_parallel_group(),
-                        ):
                             hidden_states = layer(
                                 hidden_states,
                                 attention_mask,
@@ -2225,20 +2226,20 @@ class ParallelTransformer(MegatronModule):
                                 is_first_microbatch=self.is_first_microbatch,
                             )
 
-                    else:
-                        hidden_states = layer(
-                            hidden_states,
-                            attention_mask,
-                            encoder_output=encoder_output,
-                            enc_dec_attn_mask=enc_dec_attn_mask,
-                            layer_past=past,
-                            get_key_value=get_key_value,
-                            set_inference_key_value_memory=set_inference_key_value_memory,
-                            inference_max_sequence_len=inference_max_sequence_len,
-                            rotary_pos_emb=rotary_pos_emb,
-                            self_attention_relative_position_bias=self_attention_relative_position_bias,
-                            cross_attention_relative_position_bias=cross_attention_relative_position_bias,
-                        )
+                        else:
+                            hidden_states = layer(
+                                hidden_states,
+                                attention_mask,
+                                encoder_output=encoder_output,
+                                enc_dec_attn_mask=enc_dec_attn_mask,
+                                layer_past=past,
+                                get_key_value=get_key_value,
+                                set_inference_key_value_memory=set_inference_key_value_memory,
+                                inference_max_sequence_len=inference_max_sequence_len,
+                                rotary_pos_emb=rotary_pos_emb,
+                                self_attention_relative_position_bias=self_attention_relative_position_bias,
+                                cross_attention_relative_position_bias=cross_attention_relative_position_bias,
+                            )
 
         # Skip counter update for eval and activation checkpointing
         if torch.is_grad_enabled() and self.training:
