@@ -41,7 +41,7 @@ class SequenceGeneratorConfig:
 
 class SequenceGenerator:
     """
-    Wrapper class for sequence generators in NeMo NLP package.
+    Wrapper class for sequence generators for NeMo transformers.
     """
 
     TYPE_GREEDY = "greedy"

@@ -1,7 +1,7 @@
 # NeMo End-to-End Speech Intent Classification and Slot Filling on SLURP Dataset
 
 ## Introduction
-This example shows how to train an end-to-end model for spoken language understanding on the SLURP dataset [2]. The model is an encoder-decoder framework, where the encoder is a Conformer-large [3] model initialized from [here](https://ngc.nvidia.com/models/nvidia:nemo:stt_en_conformer_ctc_large), while the decoder is a Transformer decoder [4] randomly initialized. The model is trained by minimizing the negative log-likelihood (NLL) loss with teacher forcing and label smoothing.
+This example shows how to train an end-to-end model for spoken language understanding on the SLURP dataset [2]. The model is an encoder-decoder framework, where the encoder is a Conformer-large [3] model initialized from [here](https://ngc.nvidia.com/models/nvidia:nemo:stt_en_conformer_ctc_large), while the decoder is a Transformer decoder [4] that is randomly initialized. The model is trained by minimizing the negative log-likelihood (NLL) loss with teacher forcing and label smoothing.
 
 ## Results
 
@@ -81,7 +81,7 @@ CUDA_VISIBLE_DEVICES=0 python run_speech_intent_slot_train.py \
 
 
 ### Evaluation
-After trainng, we can evaluate the model by running the following script, which will first perform checkpoint averaging and then run beam search with the averaged checkpoint on the test set.
+After training, we can evaluate the model by running the following script, which will first perform checkpoint averaging and then run beam search with the averaged checkpoint on the test set.
 ```bash
 DATA_DIR="./slurp_data"
 EXP_NAME="slurp_conformer_transformer_large"
@@ -95,9 +95,9 @@ CUDA_VISIBLE_DEVICES=0 python run_speech_intent_slot_eval.py \
     model_path=${NEMO_MODEL} \
     batch_size=32 \
     num_workers=8 \
-    searcher.type="beam" \
-    searcher.beam_size=32 \
-    searcher.temperature=1.25 \
+    sequence_generator.type="beam" \
+    sequence_generator.beam_size=32 \
+    sequence_generator.temperature=1.25 \
     only_score_manifest=false
 ```
 

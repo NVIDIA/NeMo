@@ -39,6 +39,8 @@ __all__ = ["SLUIntentSlotBPEModel"]
 
 
 class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASRBPEMixin):
+    """Model for end-to-end speech intent classification and slot filling, which is formulated as a speech-to-sequence task"""
+
     def __init__(self, cfg: DictConfig, trainer=None):
         # Convert to Hydra 1.0 compatible DictConfig
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
@@ -524,7 +526,8 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
         num_workers: int = 0,
     ) -> List[str]:
         """
-        Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
+        Uses greedy decoding to transcribe audio files into SLU semantics. 
+        Use this method for debugging and prototyping.
 
         Args:
             paths2audio_files: (a list) of paths to audio files. \
