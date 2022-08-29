@@ -8,7 +8,7 @@ for preparing datasets for training and validating VAD and speaker embedding mod
 Preparation of Input Data
 -------------------------
 
-Diarization inference is based on Hydra configurations which are fulfilled by ``.yaml`` files. See `NeMo Speaker Diarization Configuration Files <./configs>`_ for setting up the input Hydra configuration file for speaker diarization. Input data should be provided in line delimited JSON format as below:
+Diarization inference is based on Hydra configurations which are fulfilled by ``.yaml`` files. See :doc:`NeMo Speaker Diarization Configuration Files <./configs>` for setting up the input Hydra configuration file for speaker diarization. Input data should be provided in line delimited JSON format as below:
 	
 .. code-block:: bash
 

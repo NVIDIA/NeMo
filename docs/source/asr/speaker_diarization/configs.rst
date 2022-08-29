@@ -14,12 +14,17 @@ Example configuration files for speaker diarization inference can be found in ``
   for other applications such as possible integration with ASR, have a look at ``<NeMo_git_root>/tutorials/speaker_tasks/ASR_with_SpeakerDiarization.ipynb``.
 
 
-Dataset Configuration
----------------------
+Hydra Configurations for Diarization Inference
+----------------------------------------------
 
 In contrast to other ASR related tasks or models in NeMo, speaker diarization supported in NeMo is a modular inference pipeline and training is only required for speaker embedding extractor model. Therefore, the datasets provided in manifest format denote the data that you would like to perform speaker diarization on. 
 
-An example Speaker Diarization dataset Hydra configuration could look like:
+The configurations for all the components of diarization inference are included in a single file named ``diar_infer_<domain>.yaml``. Each ``.yaml`` file has a few different sections for the following modules: VAD, Speaker Embedding, Clustering and ASR.
+
+Diarizer Configurations
+-----------------------
+
+An example ``diarizer``  Hydra configuration could look like:
 
 .. code-block:: yaml
 
@@ -29,18 +34,11 @@ An example Speaker Diarization dataset Hydra configuration could look like:
     oracle_vad: False # If True, uses RTTM files provided in manifest file to get speech activity (VAD) timestamps
     collar: 0.25 # Collar value for scoring
     ignore_overlap: True # Consider or ignore overlap segments while scoring
-    
-.. note::
-  We expect audio and the corresponding RTTM to have the same base name and the name should be unique.
 
-
-Diarization Inference Configurations
-------------------------------------
-
-The configurations for all types of diarization inference are included in a single file named ``diar_infer_<domain>.yaml``. Each ``.yaml`` file has a few different sections for the following modules: VAD, Speaker Embedding, Clustering and ASR.
+Under ``diarizer`` key, there are ``vad``, ``speaker_embeddings``, ``clustering`` and ``asr`` keys containing configurations for the inference of the corresponding modules.
 
 Configuration for Voice Activity Detector
--------------------------------------------
+-----------------------------------------
 
 Parameters for VAD model are provided as in the following Hydra config example.
 
@@ -64,7 +62,7 @@ Parameters for VAD model are provided as in the following Hydra config example.
       filter_speech_first: True 
 
 Configuration for Speaker Embedding in Diarization
--------------------------------------------
+--------------------------------------------------
 
 Parameters for speaker embedding model are provided in the following Hydra config example. Note that multiscale parameters either accept list or single floating point number.
 
