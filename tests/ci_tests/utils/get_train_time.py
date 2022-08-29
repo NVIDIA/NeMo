@@ -30,6 +30,11 @@ if __name__ == '__main__':
         with open(train_time_file) as f:
             previous_results = json.load(f)
 
+        for key in previous_results.keys():
+            key_image = key.split("*")[0]
+            if key_image == base_image:
+                del previous_results[key] # We want to delete the previous images data and update with the new one       
+
         previous_results['best'] = previous_results[min(previous_results, key=previous_results.get)] # Will update the best value in the results
         previous_results[base_image + "*" + str(current_timestamp)] = train_time_avg # Will put in the latest result
         with open(train_time_file, 'w') as f:
