@@ -1249,10 +1249,10 @@ train.t5.3b_tp4_pp4_4node_bf16_O2_100steps:
     <<: [*VARS, *LUNA_VARS]
     RUN_MODEL: t5
     RUN_MODEL_SIZE: 3b
-    NUM_NODES: 3
+    NUM_NODES: 4
     PRECISION: bf16
-    TP_SIZE: 3
-    PP_SIZE: 3
+    TP_SIZE: 4
+    PP_SIZE: 4
     TIME_LIMIT: "3:00:00"
     AMP_STYLE: O2
 
