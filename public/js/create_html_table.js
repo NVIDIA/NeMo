@@ -62,7 +62,7 @@ CreateHTMLTable = {
                 console.log(latest)
                 var $tableBodyRow = $("<tr></tr>");
                 $tableBodyRow.append("<td>" + latestKey.split("*")[0] + "</td>");
-                $tableBodyRow.append("<td>" + new Date(parseInt(latest)) + "</td>");
+                $tableBodyRow.append("<td>" + new Date(parseFloat(latest)*1000) + "</td>");
                 $tableBodyRow.append("<td>" + fileName.split("_")[1] + "</td>");
                 $tableBodyRow.append("<td>" + fileName.split("_")[2] + "</td>");
                 $tableBodyRow.append("<td>" + fileName.split("_")[3] + "</td>");
