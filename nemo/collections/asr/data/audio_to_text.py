@@ -478,6 +478,7 @@ class AudioToBPEDataset(_AudioTextDataset):
                 else:
                     self.is_aggregate = False
                 self._tokenizer = tokenizer
+
             def __call__(self, *args):
                 if isinstance(args[0], Iterable) and self.is_aggregate:
                     t = []
@@ -1022,6 +1023,7 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
                 else:
                     self.is_aggregate = False
                 self._tokenizer = tokenizer
+
             def __call__(self, *args):
                 if isinstance(args[0], Iterable) and self.is_aggregate:
                     t = []
