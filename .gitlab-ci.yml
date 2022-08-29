@@ -6,7 +6,7 @@ variables: &VARS
   SELENE_BIGNLP_CI_PATH: "/lustre/fsw/joc/big_nlp/bignlp_ci"
   NGC_BIGNLP_CI_PATH: "bignlp_ci" # mount at /mount/results
   CONTAINER_NVCR_BASE: nvcr.io/nvidian/bignlp-ci:training
-  TESTS_TO_RUN_ON_MERGE_REQ: L0  # Can specify levels, ci job names etc as a space seperated list to run during merge request
+  TESTS_TO_RUN_AFTER_MERGE_REQ: L0  # Can specify levels, ci job names etc as a space seperated list to run during merge request
   TESTS_TO_RUN_ON_THIS_COMMIT: NONE
   TEST_REGEX_ON_THIS_COMMIT: NONE #https://github.com/google/re2/wiki/Syntax (Can define regex as in this spec) e.g /.*gpt3.*/
 
@@ -220,7 +220,7 @@ release_perf:
   rules:
     - if: $TEST_LEVEL =~ $TESTS_TO_RUN_ON_THIS_COMMIT || $CI_JOB_NAME =~ $TESTS_TO_RUN_ON_THIS_COMMIT || $CI_JOB_NAME =~ $TEST_REGEX_ON_THIS_COMMIT
       when: always
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $TEST_LEVEL =~ $TESTS_TO_RUN_ON_MERGE_REQ'
+    - if: '$CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH && $TEST_LEVEL =~ $TESTS_TO_RUN_AFTER_MERGE_REQ'
       when: always
   allow_failure: false
 
