@@ -20,7 +20,7 @@ from numpy import dot
 from numpy.linalg import norm
 import random
 
-plt.rcParams["figure.figsize"] = (20,20)
+plt.rcParams["figure.figsize"] = (10,10)
 
 
 def load_wav(wav_path, wav_featurizer, pad_multiple=1024):
@@ -311,7 +311,7 @@ def get_similarity(emb1, emb2):
     similarity = dot(emb1, emb2)/(norm(emb1)*norm(emb2))
     return similarity
 
-def calculate_eer(speaker_embeddings):
+def calculate_eer(speaker_embeddings, mode="generated"):
     generated_embeddings = {}
     real_embeddings = {}
     for key in speaker_embeddings:
@@ -327,17 +327,26 @@ def calculate_eer(speaker_embeddings):
     
     y_score = []
     y_true = []
-    for key in generated_embeddings:
+    if mode == "generated":
+        anchor_embeddings = generated_embeddings
+    else:
+        anchor_embeddings = real_embeddings
+
+    for key in anchor_embeddings:
         alternate_keys = [k for k in real_embeddings if k != key]
-        for generated_embedding in generated_embeddings[key]:
-            for real_same_embedding in real_embeddings[key]:
-                y_score.append(get_similarity( generated_embedding, real_same_embedding ))
+        for aidx, anchor_embedding in enumerate(anchor_embeddings[key]):
+            for ridx, real_same_embedding in enumerate(real_embeddings[key]):
+                if mode == "real" and ridx == aidx:
+                    # skip if same speaker and same utterance
+                    continue
+
+                y_score.append(get_similarity( anchor_embedding, real_same_embedding ))
                 y_true.append(1)
 
                 alternate_speaker = random.choice(alternate_keys)
                 alternate_audio_idx = random.randint(0, len(real_embeddings[alternate_speaker])-1)
                 alternate_embedding = real_embeddings[alternate_speaker][alternate_audio_idx]
-                y_score.append(get_similarity( generated_embedding, alternate_embedding ))
+                y_score.append(get_similarity( anchor_embedding, alternate_embedding ))
                 y_true.append(0)
     
     fpr, tpr, thresholds = roc_curve(y_true, y_score)
@@ -362,6 +371,7 @@ def main():
     parser.add_argument('--ssl_model_ckpt_path', type=str, default="/home/shehzeenh/Conformer-SSL/3253979_/Conformer-SSL/checkpoints/Conformer22050_Epoch37.ckpt")
     parser.add_argument('--hifi_ckpt_path', type=str, default="/home/shehzeenh/HiFiModel/hifigan_libritts/HiFiLibriEpoch334.ckpt")
     parser.add_argument('--fastpitch_ckpt_path', type=str, default="/home/shehzeenh/FastPitchSSL/Epoch264.ckpt")
+    parser.add_argument('--sv_model_name', type=str, default="ecapa_tdnn")
     parser.add_argument('--manifest_path', type=str, default="/home/shehzeenh/libritts_dev_clean_local.json")
     parser.add_argument('--train_manifest_path', type=str, default="/home/shehzeenh/libritts_train_formatted_local.json")
     parser.add_argument('--pitch_stats_json', type=str, default="/home/shehzeenh/SpeakerStats/libri_speaker_stats.json")
@@ -372,9 +382,9 @@ def main():
     parser.add_argument('--min_samples_per_spk', type=int, default=2)
     parser.add_argument('--max_samples_per_spk', type=int, default=10)
     parser.add_argument('--pitch_conditioning', type=int, default=1)
-    parser.add_argument('--compute_pitch', type=int, default=0)
-    parser.add_argument('--compute_duration', type=int, default=0)
-    parser.add_argument('--use_unique_tokens', type=int, default=0)
+    parser.add_argument('--compute_pitch', type=int, default=1)
+    parser.add_argument('--compute_duration', type=int, default=1)
+    parser.add_argument('--use_unique_tokens', type=int, default=1)
     parser.add_argument('--dataset_type', type=str, default="unseen") # unseen or seen
     parser.add_argument('--precomputed_stats_fp', type=str, default=None)
     args = parser.parse_args()
@@ -382,7 +392,7 @@ def main():
     device = args.device
     manifest_name = args.manifest_path.split("/")[-1].split(".")[0]
     fp_ckpt_name = "FastPitch" + args.fastpitch_ckpt_path.split("/")[-1].split(".")[0]
-    out_dir = os.path.join(args.out_dir, manifest_name + "_" + fp_ckpt_name)
+    out_dir = os.path.join(args.out_dir, manifest_name + "_" + fp_ckpt_name + "_" + "speakerverification_speakernet")
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
 
@@ -398,7 +408,7 @@ def main():
     fastpitch_model.eval()
     fastpitch_model.vocoder = {'vocoder' : vocoder}
     
-    nemo_sv_model = label_models.EncDecSpeakerLabelModel.from_pretrained("speakerverification_speakernet")
+    nemo_sv_model = label_models.EncDecSpeakerLabelModel.from_pretrained(args.sv_model_name)
     nemo_sv_model = nemo_sv_model.to(device)
     nemo_sv_model.eval()
 
@@ -489,11 +499,17 @@ def main():
             speaker_embeddings["original_{}".format(key)].append(embedding)
     
     sv_metrics = calculate_eer(speaker_embeddings)
-    with open(os.path.join(out_dir, "sv_metrics_{}.json".format(args.evaluation_type) ), "w") as f:
-        json.dump(sv_metrics, f)
-    print("Metrics", sv_metrics)
-    eer_str = "EER: {:.2f}".format(sv_metrics['eer'])
-    visualize_embeddings(speaker_embeddings, out_dir=out_dir, title="TSNE {} {}".format(args.evaluation_type, eer_str), out_file="tsne_{}".format(args.evaluation_type) )
+    sv_metrics_real = calculate_eer(speaker_embeddings, mode="real")
+    metrics = {
+        'generated' : sv_metrics,
+        'real' : sv_metrics_real,
+    }
+    with open(os.path.join(out_dir, "sv_metrics_{}_{}.json".format(args.evaluation_type, args.sv_model_name) ), "w") as f:
+        json.dump(metrics, f)
+    print("Generated Metrics", sv_metrics)
+    print("Real Metrics", sv_metrics_real)
+    eer_str = "EER: {:.3f}".format(sv_metrics['eer'])
+    visualize_embeddings(speaker_embeddings, out_dir=out_dir, title="TSNE {} {}".format(args.evaluation_type, eer_str), out_file="tsne_{}_{}".format(args.evaluation_type, args.sv_model_name ) )
 
     
 
