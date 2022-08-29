@@ -493,3 +493,5 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             results = {'input_prediction_pair': input_prediction_pair, 'acc': acc}
             logging.info(f'Prediction results: {results}')
             logging.info(f'Test finish---------------------------------')
+
+        return input_prediction_pair
