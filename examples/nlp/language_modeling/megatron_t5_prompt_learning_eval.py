@@ -21,7 +21,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_t5_prompt_learning_m
     MegatronT5PromptLearningModel,
 )
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 from nemo.core.config import hydra_runner
 from nemo.utils.app_state import AppState
 
@@ -41,7 +41,7 @@ if not torch.cuda.is_available():
 def main(cfg) -> None:
 
     # trainer required for restoring model parallel models
-    trainer = Trainer(strategy=NLPDDPStrategy(), **cfg.trainer)
+    trainer = Trainer(plugins=NLPDDPPlugin(), **cfg.trainer)
     assert (
         cfg.trainer.devices * cfg.trainer.num_nodes
         == cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
@@ -64,19 +64,20 @@ def main(cfg) -> None:
             pipeline_model_parallel_split_rank_=cfg.pipeline_model_parallel_split_rank,
         )
 
-    # Load prompt tuned model, virtual_prompt_model_file and pretrained_language_model_file must be provided in config
-    if (
-        cfg.get('virtual_prompt_model_file', None) is not None
-        and cfg.get('pretrained_language_model_file', None) is not None
-    ):
+    # Load prompt tuned model, virtual_prompt_model_file and language_model_path must be provided in config
+    if cfg.get('virtual_prompt_model_file', None) is not None and cfg.get('language_model_path', None) is not None:
 
         # Update frozen T5 model path in case it has changed
         prompt_learning_cfg = MegatronT5PromptLearningModel.restore_from(
             cfg.virtual_prompt_model_file, trainer=trainer, return_config=True
         )
         with open_dict(prompt_learning_cfg):
-            if cfg.get("pretrained_language_model_file"):
-                prompt_learning_cfg.pretrained_language_model_path = cfg.pretrained_language_model_file
+            if cfg.get("language_model_path"):
+                # This is for backward compatibility with old checkpoints that used `pretrained_language_model_path` instead of `language_model_path`.
+                if hasattr(prompt_learning_cfg, 'pretrained_language_model_path'):
+                    prompt_learning_cfg.pretrained_language_model_path = cfg.language_model_path
+                else:
+                    prompt_learning_cfg.language_model_path = cfg.language_model_path
             prompt_learning_cfg.micro_batch_size = cfg.data.get('micro_batch_size', 4)
             prompt_learning_cfg.global_batch_size = cfg.data.get('global_batch_size', 4)
 
