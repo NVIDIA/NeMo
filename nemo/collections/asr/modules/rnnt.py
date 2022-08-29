@@ -1179,6 +1179,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
         fuse_loss_wer: bool = False,
         fused_batch_size: Optional[int] = None,
         experimental_fuse_loss_wer: Any = None,
+        reduction: Optional[str] = 'mean_batch',
     ):
         super().__init__()
 
@@ -1200,6 +1201,12 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
         self._loss = None
         self._wer = None
 
+        self.reduction = reduction
+        if self.reduction != 'mean' and self.reduction != 'mean_volume' and self.reduction != 'mean_batch':
+            raise ValueError('unknown value of `reduction`')
+
+
+
         # Log softmax should be applied explicitly only for CPU
         self.log_softmax = log_softmax
         self.preserve_memory = preserve_memory
@@ -1219,10 +1226,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
 
         # Optional arguments
         dropout = jointnet.get('dropout', 0.0)
-        self.reduction = jointnet.get('reduction', 'mean_batch')
-
-        if self.reduction != 'mean' and self.reduction != 'mean_volume' and self.reduction != 'mean_batch':
-            raise ValueError('unknown value of `reduction`')
+        # self.reduction = jointnet.get('reduction', 'mean_batch')
 
         self.pred, self.enc, self.joint_net = self._joint_net_modules(
             num_classes=self._num_classes,  # add 1 for blank symbol
