@@ -58,8 +58,7 @@ class MegatronAdapterNMTModel(MegatronNMTModel):
                 for adapter_key in self.adapter_name_keys:
                     module.add_adapter(
                         name=adapter_key,
-                        # cfg=ParallelLinearAdapterConfig(
-                        cfg =adapter_modules.LinearAdapterConfig(
+                        cfg=ParallelLinearAdapterConfig(
                             in_features=cfg.hidden_size,
                             dim=cfg.adapter_tuning.adapter_dim,
                             norm_position='post',
