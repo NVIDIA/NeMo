@@ -281,7 +281,7 @@ class RNNTLoss(Loss):
             targets = targets.narrow(dim=1, start=0, length=max_targets_len)
 
         # Loss reduction can be dynamic, so set it prior to call
-        if self.reduction in ['mean', 'sum']: # underlying losses can do mean or sum
+        if self.reduction in ['mean', 'sum']:  # underlying losses can do mean or sum
             self._loss.reduction = self.reduction
 
         # Compute RNNT loss
