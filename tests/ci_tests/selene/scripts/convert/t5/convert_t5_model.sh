@@ -1,3 +1,7 @@
+params=()
+if [[ ! -z $LOCAL_NEMO_PATH ]]; then
+  params+=("container_mounts=[${LOCAL_NEMO_PATH}:/opt/bignlp/NeMo]")
+fi
 DATA_DIR=/lustre/fsw/joc/big_nlp/t5/dataset/Pile
 
 set -o xtrace
@@ -21,7 +25,8 @@ HYDRA_FULL_ERROR=1 BIGNLP_CI=1 python3 main.py \
     conversion.run.train_dir=${BASE_RESULTS_DIR}/${UPSTREAM_RUN_NAME} \
     conversion.run.results_dir=${BASE_RESULTS_DIR}/${RUN_NAME} \
     conversion.model.tensor_model_parallel_size=${TP_SIZE} \
-    conversion.model.pipeline_model_parallel_size=${PP_SIZE}
+    conversion.model.pipeline_model_parallel_size=${PP_SIZE} \
+    "${params[@]}"
 
 #RUN_NAME = convert_gpt3_126m_tp1_pp1
 # conversion.run.model_train_name=gpt3_126m_tp1_pp1 Should check if we can keep it the same as run name

@@ -2,6 +2,9 @@ params=()
 if [[ "$TEST_TASK" = "squad_real" ]]; then
   params+=(container_mounts=[/lustre/fsw/joc/big_nlp/bignlp_ci_resources:/lustre/fsw/joc/big_nlp/bignlp_ci_resources,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data])
 fi
+if [[ ! -z $LOCAL_NEMO_PATH ]]; then
+  params+=("container_mounts=[${LOCAL_NEMO_PATH}:/opt/bignlp/NeMo]")
+fi
 
 HYDRA_FULL_ERROR=1 BIGNLP_CI=1 python3 main.py \
     evaluation=${RUN_MODEL}/squad \

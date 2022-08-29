@@ -14,10 +14,14 @@ class TestEvalBaseGpt3Pipeline:
     test_key = "lambada" if run_model == "gpt3" else "prompt"
     file_directory =  run_model + "_result_files" # Since the file name will be prompt_learn_gpt3_..
     expected_metrics_file = os.path.join("tests/ci_tests/selene/pytest/eval", file_directory, file_name)
-    with open(expected_metrics_file) as f:
-        expected = json.load(f)
+    expected = None
+    if os.path.exists(expected_metrics_file):
+        with open(expected_metrics_file) as f:
+            expected = json.load(f)
 
     def test_ci_eval_gpt3(self):
+        if self.expected is None:
+            raise FileNotFoundError("Use `CREATE_TEST_DATA=True` to create baseline files.")
         # Results are stored in /lustre/fsw/joc/big_nlp/bignlp_ci/5667649/results/eval_gpt3_126m_tp1_pp1_lambada/results/eval_gpt3_126m_tp1_pp1_lambada_2022-08-17_10-22-49_7Ba/predictions/metrics.json
         result_files = glob.glob(os.path.join(CI_JOB_RESULTS, '*/metrics.json'))
         result_files += glob.glob(os.path.join(CI_JOB_RESULTS, 'results/*/metrics.json'))

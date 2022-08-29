@@ -21,10 +21,14 @@ class LossTestingPipeline:
     else:
         file_directory =  file_name.split("_")[1] + "_result_files" #eg gpt3_result_files
     expected_metrics_file = os.path.join("tests/ci_tests/selene/pytest/", run_stage, file_directory, file_name)
-    with open(expected_metrics_file) as f:
-        expected = json.load(f)
+    expected = None
+    if os.path.exists(expected_metrics_file):
+        with open(expected_metrics_file) as f:
+            expected = json.load(f)
 
     def _test_loss_helper(self, loss_type, test_type):
+        if self.expected is None:
+            raise FileNotFoundError("Use `CREATE_TEST_DATA=True` to create baseline files.")
         expected = self.expected[loss_type]
         expected_loss_list = expected["values"]
         actual_loss_list = CITestHelper.read_tb_logs_as_list(CI_JOB_RESULTS_DIR, loss_type)
@@ -57,6 +61,8 @@ class LossTestingPipeline:
         self._test_loss_helper("val_loss", TypeOfTest.APPROX)
 
     def test_train_step_timing_1node(self):
+        if self.expected is None:
+            raise FileNotFoundError("Use `CREATE_TEST_DATA=True` to create baseline files.")
         # Expected average training time per global step.
         expected_avg = self.expected["train_step_timing_avg"]
         train_time_list = CITestHelper.read_tb_logs_as_list(CI_JOB_RESULTS_DIR, "train_step_timing")
