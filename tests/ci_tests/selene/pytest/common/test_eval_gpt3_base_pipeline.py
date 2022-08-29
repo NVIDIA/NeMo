@@ -21,7 +21,7 @@ class TestEvalBaseGpt3Pipeline:
 
     def test_ci_eval_gpt3(self):
         if self.expected is None:
-            return
+            raise FileNotFoundError("Use `CREATE_TEST_DATA=True` to create baseline files.")
         # Results are stored in /lustre/fsw/joc/big_nlp/bignlp_ci/5667649/results/eval_gpt3_126m_tp1_pp1_lambada/results/eval_gpt3_126m_tp1_pp1_lambada_2022-08-17_10-22-49_7Ba/predictions/metrics.json
         result_files = glob.glob(os.path.join(CI_JOB_RESULTS, '*/metrics.json'))
         result_files += glob.glob(os.path.join(CI_JOB_RESULTS, 'results/*/metrics.json'))

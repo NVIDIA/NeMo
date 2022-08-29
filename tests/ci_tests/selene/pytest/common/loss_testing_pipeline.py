@@ -28,7 +28,7 @@ class LossTestingPipeline:
 
     def _test_loss_helper(self, loss_type, test_type):
         if self.expected is None:
-            return
+            raise FileNotFoundError("Use `CREATE_TEST_DATA=True` to create baseline files.")
         expected = self.expected[loss_type]
         expected_loss_list = expected["values"]
         actual_loss_list = CITestHelper.read_tb_logs_as_list(CI_JOB_RESULTS_DIR, loss_type)
@@ -62,7 +62,7 @@ class LossTestingPipeline:
 
     def test_train_step_timing_1node(self):
         if self.expected is None:
-            return
+            raise FileNotFoundError("Use `CREATE_TEST_DATA=True` to create baseline files.")
         # Expected average training time per global step.
         expected_avg = self.expected["train_step_timing_avg"]
         train_time_list = CITestHelper.read_tb_logs_as_list(CI_JOB_RESULTS_DIR, "train_step_timing")
