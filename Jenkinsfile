@@ -759,7 +759,7 @@ pipeline {
       }
       failFast true
       parallel{
-        stage('NMT Adapter Training & Inference') {
+        stage('NMT Adapter Training') {
           steps {
             sh "python examples/nlp/machine_translation/megatron_nmt_training.py \
             trainer.devices=2 \
@@ -832,13 +832,13 @@ pipeline {
             model.adapter_tuning.adapter_dropout=0.1 \
             model.pretrained_model_path=examples/nlp/machine_translation/megatron_nmt_results/megatron_nmt/checkpoints/megatron_nmt.nemo \
             +model.hidden_size=64"
-            sh "python examples/nlp/machine_translation/nmt_transformer_infer_megatron.py \
-            model_file=examples/nlp/machine_translation/megatron_nmt_results/megatron_nmt/checkpoints/megatron_nmt.nemo \
-            +adapters_file=examples/nlp/machine_translation/megatron_nmt_results_adapters/megatron_adapter_nmt/checkpoints/megatron_adapter_nmt.nemo \
-            srctext=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.small.src \
-            tgtout=examples/nlp/machine_translation/megatron_nmt_results/test_adapters_simple.ref \
-            +adapter_tuning.adapter_dim=4 \
-            +adapter_tuning.adapter_dropout=0.1"
+            // sh "python examples/nlp/machine_translation/nmt_transformer_infer_megatron.py \
+            // model_file=examples/nlp/machine_translation/megatron_nmt_results/megatron_nmt/checkpoints/megatron_nmt.nemo \
+            // +adapters_file=examples/nlp/machine_translation/megatron_nmt_results_adapters/megatron_adapter_nmt/checkpoints/megatron_adapter_nmt.nemo \
+            // srctext=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.small.src \
+            // tgtout=examples/nlp/machine_translation/megatron_nmt_results/test_adapters_simple.ref \
+            // +adapter_tuning.adapter_dim=4 \
+            // +adapter_tuning.adapter_dropout=0.1"
             sh "rm -rf examples/nlp/machine_translation/megatron_nmt_results"
             sh "rm -rf examples/nlp/machine_translation/megatron_nmt_results_adapters"
           }

@@ -19,6 +19,7 @@ from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.machine_translation.megatron_nmt_model import MegatronNMTModel
 from nemo.collections.nlp.modules.common.megatron.parallel_adapters import ParallelLinearAdapterConfig
+from nemo.collections.common.parts import adapter_modules
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.core.classes.mixins import adapter_mixins
 from nemo.utils import logging
@@ -57,7 +58,8 @@ class MegatronAdapterNMTModel(MegatronNMTModel):
                 for adapter_key in self.adapter_name_keys:
                     module.add_adapter(
                         name=adapter_key,
-                        cfg=ParallelLinearAdapterConfig(
+                        # cfg=ParallelLinearAdapterConfig(
+                        cfg =adapter_modules.LinearAdapterConfig(
                             in_features=cfg.hidden_size,
                             dim=cfg.adapter_tuning.adapter_dim,
                             norm_position='post',
@@ -79,8 +81,6 @@ class MegatronAdapterNMTModel(MegatronNMTModel):
                     adapter_module = module.adapter_layer[adapter_key]
                     state_adapter_key = ':'.join([name, adapter_key])
                     state_dict_[state_adapter_key] = adapter_module.state_dict()
-
-                module.set_enabled_adapters(enabled=True)
         return state_dict_
 
     def load_state_dict(self, state_dict, strict: bool = True):
@@ -92,13 +92,6 @@ class MegatronAdapterNMTModel(MegatronNMTModel):
                     # only load the adapters if they are in the state_dict
                     if state_adapter_key in state_dict:
                         adapter_module.load_state_dict(state_dict[state_adapter_key], strict)
-                module.set_enabled_adapters(enabled=True)
-
-    def load_adapters(self, adapters_file: str):
-        # load adapters
-        adapters_file = torch.load(adapters_file)
-        self.load_state_dict(adapters_file['state_dict'])
-        logging.info('Adapter weights loaded.')
 
     def setup_optimizer_param_groups(self):
         """
