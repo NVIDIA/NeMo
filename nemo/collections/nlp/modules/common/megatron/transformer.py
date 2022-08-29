@@ -2198,7 +2198,6 @@ class ParallelTransformer(MegatronModule):
                         past = layer_past[index]
 
                     if self.transformer_engine:
-                        # TODO: inference with TE
                         # inference_params = {
                         #     'get_key_value': get_key_value,
                         #     'set_inference_key_value_memory': set_inference_key_value_memory,
