@@ -16,7 +16,7 @@ HYDRA_FULL_ERROR=1 BIGNLP_CI=1 python3 main.py \
     export.run.time_limit="30:00" \
     export.run.model_train_name=gpt3_${RUN_MODEL_SIZE}_tp${TP_SIZE}_pp${PP_SIZE} \
     export.run.results_dir=${BASE_RESULTS_DIR}/${RUN_NAME} \
-    export.model.checkpoint_path=${BASE_RESULTS_DIR}/train_gpt3_${RUN_MODEL_SIZE}_tp${TP_SIZE}_pp${PP_SIZE}_${PP_SIZE}node_100steps/checkpoints \
+    export.model.checkpoint_path=${BASE_RESULTS_DIR}/train_gpt3_${RUN_MODEL_SIZE}_tp${TP_SIZE}_pp${PP_SIZE}_${PP_SIZE}node_100steps/results/checkpoints \
     export.model.weight_data_type=${FT_WEIGHT_DATA} \
     export.model.tensor_model_parallel_size=${FT_TP_SIZE} \
     export.triton_deployment.pipeline_model_parallel_size=${FT_PP_SIZE} \
