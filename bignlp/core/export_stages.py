@@ -127,8 +127,8 @@ class Export(BigNLPStage):
         container_mounts = self._make_container_mounts_string()
 
         num_tasks = ft_model_cfg.tensor_model_parallel_size * triton_cfg.pipeline_model_parallel_size
-        nodes = 1 if sub_stage == "export" else int(math.ceil(num_tasks / accuracy_cfg.ntasks_per_node))
-        ntasks_per_node = 1 if sub_stage == "export" else accuracy_cfg.ntasks_per_node
+        nodes = 1 if sub_stage == "convert" else int(math.ceil(num_tasks / accuracy_cfg.ntasks_per_node))
+        ntasks_per_node = 1 if sub_stage == "convert" else accuracy_cfg.ntasks_per_node
 
         setup = None
         env_vars = self.get_env_vars()
@@ -316,7 +316,7 @@ class Export(BigNLPStage):
             (
                 f"export PYTHONPATH={FT_PATH}:${{PYTHONPATH}} && \\\n"
                 'export MY_LOCAL_RANK="${LOCAL_RANK:=${SLURM_LOCALID:=${OMPI_COMM_WORLD_LOCAL_RANK:-}}}" && \\\n'
-                'if [ ${MY_LOCAL_RANK} = "0" ]; then ' + create_config_ini_cmd + "; fi"
+                'if [ ${MY_LOCAL_RANK} == "0" ]; then ' + create_config_ini_cmd + "; fi"
             ),
             f"export PYTHONPATH={FT_PATH}:${{PYTHONPATH}} && \\\n" + lambada_cmd,
         ]
