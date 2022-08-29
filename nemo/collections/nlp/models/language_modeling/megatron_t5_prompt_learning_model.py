@@ -399,7 +399,6 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         else:
             labels_text = [None] * len(preds_text)
 
-        import ipdb; ipdb.set_trace()
         return {
             'input_text': input_text,
             'preds_text': preds_text,
