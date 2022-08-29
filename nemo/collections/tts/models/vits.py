@@ -212,7 +212,8 @@ class VitsModel(TextToWaveform):
         optim_g, optim_d = self.optimizers()
 
         (y, y_lengths, x, x_lengths) = batch
-
+        # if batch_idx == 0:
+        #     print('tokens:', x[0][:10])
         spec = self.get_spec(y)
         spec_lengths = self.audio_to_melspec_precessor.get_seq_len(y_lengths)
 
@@ -357,6 +358,12 @@ class VitsModel(TextToWaveform):
                 ]
 
                 logger.log({"specs": specs, "audios": audios})
+    
+    
+    # def on_train_epoch_start(self):
+    #     print(self.current_epoch, self.val_dataloader)
+    #     self.trainer.train_dataloader.sampler.set_epoch(self.current_epoch)
+
 
     def _loader(self, cfg):
         try:

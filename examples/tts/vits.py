@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from pickle import FALSE
 import pytorch_lightning as pl
 
 from nemo.collections.common.callbacks import LogEpochTimeCallback
@@ -28,7 +29,7 @@ def main(cfg):
     #     plugins.append(NativeMixedPrecisionPlugin(precision=cfg.trainer.precision, device='cuda', scaler=scaler))
 
     trainer = pl.Trainer(replace_sampler_ddp=False, **cfg.trainer)
-    # trainer = pl.Trainer(plugins=plugins, **cfg.trainer) 
+    # trainer = pl.Trainer(**cfg.trainer) 
     exp_manager(trainer, cfg.get("exp_manager", None))
     model = VitsModel(cfg=cfg.model, trainer=trainer)
 

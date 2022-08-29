@@ -594,8 +594,9 @@ class DistributedBucketSampler(torch.utils.data.distributed.DistributedSampler):
     def __iter__(self):
       # deterministically shuffle based on epoch
       g = torch.Generator()
-      g.manual_seed(self.epoch)
-  
+      s = torch.randint(0, 30, (1,))
+      g.manual_seed(int(s) + self.epoch)
+      print('Epoch:', s + self.epoch)
       indices = []
       if self.shuffle:
           for bucket in self.buckets:
