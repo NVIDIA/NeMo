@@ -27,6 +27,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_
 )
 from nemo.collections.nlp.modules.common import VirtualPromptStyle
 from nemo.collections.nlp.modules.common.megatron.parallel_adapters import ParallelLinearAdapterConfig
+from nemo.collections.common.parts.adapter_modules import LinearAdapterConfig
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes.mixins import adapter_mixins
@@ -61,18 +62,29 @@ class MegatronGPTAdapterLearningModel(MegatronGPTPromptLearningModel):
                 )
 
         logging.info(f'Before adding adapters:\n{self.frozen_model.summarize()}')
+
+        if cfg.adapter_tuning.type == "parallel":
+            adapter_cfg = ParallelLinearAdapterConfig(
+                in_features=frozen_model_cfg.hidden_size,
+                dim=cfg.adapter_tuning.adapter_dim,
+                norm_position=cfg.adapter_tuning.norm_position,
+                dropout=cfg.adapter_tuning.adapter_dropout,
+            )
+        else:
+            adapter_cfg = LinearAdapterConfig(
+                in_features=frozen_model_cfg.hidden_size,
+                dim=cfg.adapter_tuning.adapter_dim,
+                norm_position=cfg.adapter_tuning.norm_position,
+                dropout=cfg.adapter_tuning.adapter_dropout,
+            )
+
         self.frozen_model.freeze()
         for _, module in self.frozen_model.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin):
                 for adapter_key in self.adapter_name_keys:
                     module.add_adapter(
                         name=adapter_key,
-                        cfg=ParallelLinearAdapterConfig(
-                            in_features=frozen_model_cfg.hidden_size,
-                            dim=cfg.adapter_tuning.adapter_dim,
-                            norm_position=cfg.adapter_tuning.norm_position,
-                            dropout=cfg.adapter_tuning.adapter_dropout,
-                        ),
+                        cfg=adapter_cfg, 
                     )
 
         logging.info(f'After adding adapters:\n{self.frozen_model.summarize()}')
