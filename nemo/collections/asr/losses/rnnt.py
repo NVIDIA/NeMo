@@ -243,8 +243,8 @@ class RNNTLoss(Loss):
         """
         super(RNNTLoss, self).__init__()
 
-        if reduction not in [None, 'mean', 'sum', 'mean_batch']:
-            raise ValueError('`reduction` must be one of [mean, sum, mean_batch]')
+        if reduction not in [None, 'mean', 'sum', 'mean_batch', 'mean_volume']:
+            raise ValueError('`reduction` must be one of [mean, sum, mean_batch, mean_volume]')
 
         self._blank = num_classes
         self.reduction = reduction
@@ -281,19 +281,21 @@ class RNNTLoss(Loss):
             targets = targets.narrow(dim=1, start=0, length=max_targets_len)
 
         # Loss reduction can be dynamic, so set it prior to call
-        if self.reduction != 'mean_batch':
+        if self.reduction in ['mean', 'sum']: # underlying losses can do mean or sum
             self._loss.reduction = self.reduction
 
         # Compute RNNT loss
         loss = self._loss(acts=log_probs, labels=targets, act_lens=input_lengths, label_lens=target_lengths)
 
         # Loss reduction can be dynamic, so reset it after call
-        if self.reduction != 'mean_batch':
+        if self.reduction in ['mean', 'sum']:
             self._loss.reduction = 'none'
 
-        # Loss reduction only for mean_batch mode
+        # Loss reduction only for mean_batch and mean_volume modes
         if self.reduction == 'mean_batch':
             loss = torch.mean(loss)
+        elif self.reduction == 'mean_volume':
+            loss = torch.sum(loss) / torch.sum(target_lengths)
 
         # del new variables that may have been created
         del (

@@ -1179,7 +1179,6 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
         fuse_loss_wer: bool = False,
         fused_batch_size: Optional[int] = None,
         experimental_fuse_loss_wer: Any = None,
-        reduction: Optional[str] = 'mean_batch',
     ):
         super().__init__()
 
@@ -1200,12 +1199,6 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
 
         self._loss = None
         self._wer = None
-
-        self.reduction = reduction
-        if self.reduction != 'mean' and self.reduction != 'mean_volume' and self.reduction != 'mean_batch':
-            raise ValueError('unknown value of `reduction`')
-
-
 
         # Log softmax should be applied explicitly only for CPU
         self.log_softmax = log_softmax
@@ -1368,14 +1361,13 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
                 losses = torch.cat(losses, 0)
                 target_lengths = torch.cat(target_lengths,0)
 
-                if self.reduction == 'mean_batch':
+                # now apply the loss reductions that we previously overrode
+                if loss_reduction == 'mean_batch':
                     losses = losses.mean()  # global batch size average
-                elif self.reduction == 'mean':
+                elif loss_reduction == 'mean':
                     losses = torch.div(losses, target_lengths).mean()
-                elif self.reduction == 'mean_volume':
+                elif loss_reduction == 'mean_volume':
                     losses = losses.sum() / target_lengths.sum() # same as above but longer samples weigh more
-                else:
-                    raise ValueError("Unknown value of `self.reduction`") # should never get here!
             else:
                 losses = None
 
