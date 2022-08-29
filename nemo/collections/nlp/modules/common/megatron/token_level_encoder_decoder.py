@@ -378,6 +378,8 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         set_inference_key_value_memory=False,
         inference_max_sequence_len=None,
         memory_index=None,
+        return_memory=False,
+        cached_states=None,
     ):
         """
         Return value is per token / per dimension (i.e., non collapsed loss value)
@@ -467,6 +469,8 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 dec_cross_attention_relative_position_bias=decoder_cross_attention_relative_position_bias,
                 set_inference_key_value_memory=set_inference_key_value_memory,
                 inference_max_sequence_len=inference_max_sequence_len,
+                return_memory=return_memory,
+                cached_states=cached_states,
             )
 
             if self.post_process and self.add_decoder:

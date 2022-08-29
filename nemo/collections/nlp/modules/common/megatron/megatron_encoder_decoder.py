@@ -117,6 +117,8 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         dec_cross_attention_relative_position_bias=None,
         set_inference_key_value_memory=False,
         inference_max_sequence_len=None,
+        return_memory=False,
+        cached_states=None,
     ):
         if self.decoder is None:
             raise ValueError(f"Cannot call .decode(...) when self.decoder is None.")
@@ -137,6 +139,8 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
             dec_cross_attention_relative_position_bias=dec_cross_attention_relative_position_bias,
             set_inference_key_value_memory=set_inference_key_value_memory,
             inference_max_sequence_len=inference_max_sequence_len,
+            return_memory=return_memory,
+            cached_states=cached_states,
         )
 
         return dec_output
@@ -159,6 +163,8 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         dec_cross_attention_relative_position_bias=None,
         set_inference_key_value_memory=False,
         inference_max_sequence_len=None,
+        return_memory=False,
+        cached_states=None,
     ):
         # encoder
         if enc_output is None:
@@ -196,6 +202,8 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
             dec_cross_attention_relative_position_bias=dec_cross_attention_relative_position_bias,
             set_inference_key_value_memory=set_inference_key_value_memory,
             inference_max_sequence_len=inference_max_sequence_len,
+            return_memory=return_memory,
+            cached_states=cached_states,
         )
 
         return dec_output, enc_output

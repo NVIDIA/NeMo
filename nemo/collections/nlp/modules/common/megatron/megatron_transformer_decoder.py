@@ -150,6 +150,8 @@ class MegatronTransformerDecoderModule(MegatronModule):
         dec_cross_attention_relative_position_bias=None,
         set_inference_key_value_memory=False,
         inference_max_sequence_len=None,
+        return_memory=False,
+        cached_states=None,
     ):
         # convert to Megatron mask
         dec_attn_mask_3d = build_attention_mask_3d(
@@ -171,6 +173,8 @@ class MegatronTransformerDecoderModule(MegatronModule):
             cross_attention_relative_position_bias=dec_cross_attention_relative_position_bias,
             set_inference_key_value_memory=set_inference_key_value_memory,
             inference_max_sequence_len=inference_max_sequence_len,
+            return_memory=return_memory,
+            cached_states=cached_states,
         )
 
         return dec_output

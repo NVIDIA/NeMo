@@ -714,6 +714,8 @@ class ParallelAttention(MegatronModule):
         inference_max_sequence_len=None,
         rotary_pos_emb=None,  # rotary positional embedding
         relative_position_bias=None,
+        return_memory=False,
+        cached_states=None,
     ):
         # hidden_states: [sq, b, h]
 
@@ -740,6 +742,11 @@ class ParallelAttention(MegatronModule):
         if not inference_max_sequence_len:
             self.inference_key_memory = None
             self.inference_value_memory = None
+
+        # consistency check
+        if return_memory:
+            assert get_key_value == False
+            assert set_inference_key_value_memory == False and inference_max_sequence_len is None
 
         # =====================
         # Query, Key, and Value
@@ -814,6 +821,14 @@ class ParallelAttention(MegatronModule):
                 k_pos_emb = k_pos_emb[:end, :, :, :]
                 rotary_pos_emb = (q_pos_emb, k_pos_emb)
 
+        # check if need to return (key_layer, value_layer) as memory
+        if return_memory:
+            present = (key_layer, value_layer)
+
+        # use memory if needed
+        if cached_states is not None:
+            key_layer, value_layer = cached_states
+
         if layer_past is not None:
             past_key, past_value = layer_past
             key_layer = torch.cat((past_key.type_as(key_layer), key_layer), dim=0)
@@ -851,7 +866,7 @@ class ParallelAttention(MegatronModule):
 
         output, bias = self.dense(context_layer)
 
-        if get_key_value:
+        if get_key_value or return_memory:
             output = [output, present]
 
         return output, bias
@@ -1830,6 +1845,8 @@ class ParallelTransformer(MegatronModule):
         retrieved_emb=None,  # tensor of retrieved embedding of shape [b, k, r, n, d]
         self_attention_relative_position_bias=None,
         cross_attention_relative_position_bias=None,
+        return_memory=False,
+        cached_states=None,
     ):
         # Checks.
         if inference_max_sequence_len is not None:
@@ -1870,13 +1887,15 @@ class ParallelTransformer(MegatronModule):
                 )
 
             else:
-                if get_key_value:
+                if get_key_value or return_memory:
                     presents = []
                 for index in range(self.num_layers):
                     layer = self._get_layer(index)
                     past = None
                     if layer_past is not None:
                         past = layer_past[index]
+                    if cached_states is not None:
+                        cache = cached_states[index]
                     hidden_states = layer(
                         hidden_states,
                         attention_mask,
@@ -1889,6 +1908,8 @@ class ParallelTransformer(MegatronModule):
                         rotary_pos_emb=rotary_pos_emb,
                         self_attention_relative_position_bias=self_attention_relative_position_bias,
                         cross_attention_relative_position_bias=cross_attention_relative_position_bias,
+                        return_memory=return_memory,
+                        cached_states=cache,
                     )
 
         output = hidden_states
@@ -1898,7 +1919,7 @@ class ParallelTransformer(MegatronModule):
             if self.transformer_block_type != 'post_ln':
                 output = self.final_layernorm(hidden_states)
 
-        if get_key_value:
+        if get_key_value or return_memory:
             output = [output, presents]
 
         return output
