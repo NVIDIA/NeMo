@@ -56,16 +56,14 @@ def logbeta(x, y):
 
 
 def logcombinations(n, k):
-    return gammaln(n + 1) - gammaln(k + 1) - gammaln(n - k + 1)   
+    return gammaln(n + 1) - gammaln(k + 1) - gammaln(n - k + 1)
 
 
 def logbetabinom(n, a, b, x):
     return logcombinations(n, x) + logbeta(x + a, n - x + b) - logbeta(a, b)
 
 
-def beta_binomial_prior_distribution(
-    phoneme_count: int, mel_count: int, scaling_factor: float = 1.0
-) -> np.array:
+def beta_binomial_prior_distribution(phoneme_count: int, mel_count: int, scaling_factor: float = 1.0) -> np.array:
     x = rearrange(torch.arange(0, phoneme_count), "b -> 1 b")
     y = rearrange(torch.arange(1, mel_count + 1), "b -> b 1")
     a = scaling_factor * y
