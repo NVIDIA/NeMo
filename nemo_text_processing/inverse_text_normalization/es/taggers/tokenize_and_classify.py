@@ -19,6 +19,7 @@ from nemo_text_processing.inverse_text_normalization.es.taggers.cardinal import 
 from nemo_text_processing.inverse_text_normalization.es.taggers.date import DateFst
 from nemo_text_processing.inverse_text_normalization.es.taggers.decimal import DecimalFst
 from nemo_text_processing.inverse_text_normalization.es.taggers.electronic import ElectronicFst
+from nemo_text_processing.inverse_text_normalization.es.taggers.fraction import FractionFst
 from nemo_text_processing.inverse_text_normalization.es.taggers.measure import MeasureFst
 from nemo_text_processing.inverse_text_normalization.es.taggers.money import MoneyFst
 from nemo_text_processing.inverse_text_normalization.es.taggers.ordinal import OrdinalFst
@@ -71,8 +72,11 @@ class ClassifyFst(GraphFst):
             decimal = DecimalFst(cardinal)
             decimal_graph = decimal.fst
 
-            measure_graph = MeasureFst(cardinal=cardinal, decimal=decimal).fst
-            date_graph = DateFst().fst
+            fraction = FractionFst(cardinal, ordinal)
+            fraction_graph = fraction.fst
+
+            measure_graph = MeasureFst(cardinal=cardinal, decimal=decimal, fraction=fraction).fst
+            date_graph = DateFst(cardinal).fst
             word_graph = WordFst().fst
             time_graph = TimeFst().fst
             money_graph = MoneyFst(cardinal=cardinal, decimal=decimal).fst
@@ -86,12 +90,13 @@ class ClassifyFst(GraphFst):
                 | pynutil.add_weight(time_graph, 1.1)
                 | pynutil.add_weight(date_graph, 1.09)
                 | pynutil.add_weight(decimal_graph, 1.09)
-                | pynutil.add_weight(measure_graph, 1.1)
-                | pynutil.add_weight(cardinal_graph, 1.1)
-                | pynutil.add_weight(ordinal_graph, 1.1)
-                | pynutil.add_weight(money_graph, 1.1)
-                | pynutil.add_weight(telephone_graph, 1.1)
-                | pynutil.add_weight(electronic_graph, 1.1)
+                | pynutil.add_weight(fraction_graph, 1.09)
+                | pynutil.add_weight(measure_graph, 1.6)
+                | pynutil.add_weight(cardinal_graph, 1.6)
+                | pynutil.add_weight(ordinal_graph, 1.6)
+                | pynutil.add_weight(money_graph, 1.6)
+                | pynutil.add_weight(telephone_graph, 1.6)
+                | pynutil.add_weight(electronic_graph, 1.6)
                 | pynutil.add_weight(word_graph, 100)
             )
 

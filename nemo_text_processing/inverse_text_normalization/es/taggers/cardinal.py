@@ -52,11 +52,14 @@ class CardinalFst(GraphFst):
         graph_twenties = pynini.string_file(get_abs_path("data/numbers/twenties.tsv"))
         graph_hundreds = pynini.string_file(get_abs_path("data/numbers/hundreds.tsv"))
 
+        full_graph_ties = (graph_ties | pynutil.insert("0")) + (
+            (delete_space + pynutil.delete("y") + delete_space + graph_digit) | pynutil.insert("0")
+        )
+
         graph_hundred_component = graph_hundreds | pynutil.insert("0")
         graph_hundred_component += delete_space
-        graph_hundred_component += pynini.union(
-            graph_twenties | graph_teen | pynutil.insert("00"),
-            (graph_ties | pynutil.insert("0")) + delete_space + (graph_digit | pynutil.insert("0")),
+        graph_hundred_component += (
+            graph_twenties | full_graph_ties | graph_teen | (pynutil.insert("0") + graph_digit) | pynutil.insert("00")
         )
 
         graph_hundred_component_at_least_one_none_zero_digit = graph_hundred_component @ (
@@ -147,13 +150,6 @@ class CardinalFst(GraphFst):
             pynutil.delete(pynini.closure("0")) + pynini.difference(NEMO_DIGIT, "0") + pynini.closure(NEMO_DIGIT), "0"
         )
 
-        # ignore "y" inside cardinal numbers
-        graph = (
-            pynini.cdrewrite(pynutil.delete("y"), NEMO_SPACE, NEMO_SPACE, NEMO_SIGMA)
-            @ (NEMO_ALPHA + NEMO_SIGMA)
-            @ graph
-        )
-
         self.graph_no_exception = graph
 
         # save self.numbers_up_to_thousand for use in DecimalFst
@@ -174,7 +170,7 @@ class CardinalFst(GraphFst):
         self.numbers_up_to_million = numbers_up_to_million
 
         # don't convert cardinals from zero to nine inclusive
-        graph_exception = pynini.project(pynini.union(graph_digit, graph_zero), 'input')
+        graph_exception = pynini.project(pynini.closure(NEMO_SPACE, 0, 1) + (graph_digit | graph_zero), 'input')
 
         self.graph = (pynini.project(graph, "input") - graph_exception.arcsort()) @ graph
 

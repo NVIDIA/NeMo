@@ -45,7 +45,9 @@ class OrdinalFst(GraphFst):
         graph_ties = pynini.string_file(get_abs_path("data/ordinals/ties.tsv"))
         graph_hundreds = pynini.string_file(get_abs_path("data/ordinals/hundreds.tsv"))
 
-        ordinal_graph_union = pynini.union(graph_digit, graph_teens, graph_twenties, graph_ties, graph_hundreds,)
+        full_graph_ties = graph_ties | (graph_ties + pynini.cross(" ", "y") + graph_digit)
+
+        ordinal_graph_union = pynini.union(graph_digit, graph_teens, graph_twenties, full_graph_ties, graph_hundreds,)
 
         accept_o_endings = NEMO_SIGMA + pynini.accep("o")
         accept_a_endings = NEMO_SIGMA + pynini.accep("a")
@@ -61,6 +63,8 @@ class OrdinalFst(GraphFst):
         graph_o_suffix = (optional_numbers_in_front + ordinal_graph_o) @ cardinal_graph
         graph_a_suffix = (optional_numbers_in_front + ordinal_graph_a) @ cardinal_graph
         graph_er_suffix = (optional_numbers_in_front + ordinal_graph_er) @ cardinal_graph
+
+        self.graph_masc_num_no_exception = graph_o_suffix
 
         # don't convert ordinals from one to nine inclusive
         graph_exception = pynini.project(pynini.union(graph_digit), 'input')

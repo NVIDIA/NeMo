@@ -47,6 +47,13 @@ class TimeFst(GraphFst):
     However, if a time on the hour is followed by a suffix (indicating 'a.m.' 
     or 'p.m.'), it will be converted.
         e.g. las dos pe eme -> time { hours: "las 2" minutes: "00" suffix: "p.m." }
+    
+    In the same way, times without a preceding article are not converted. This is 
+    to avoid converting ranges or complex fractions
+        e.g. dos y media -> tokens { name: "dos" } tokens { name: "y" } tokens { name: "media" }
+    However, if a time without an article is followed by a suffix (indicating 'a.m.' 
+    or 'p.m.'), it will be converted.
+        e.g. dos y media p m -> time { hours: "2" minutes: "30" suffix: "p.m." }
 
     Note that although the TimeFst verbalizer can accept 'zone' (timezone) fields, 
     so far the rules have not been added to the TimeFst tagger to process
@@ -59,6 +66,7 @@ class TimeFst(GraphFst):
 
         suffix_graph = pynini.string_file(get_abs_path("data/time/time_suffix.tsv"))
         time_to_graph = pynini.string_file(get_abs_path("data/time/time_to.tsv"))
+        minutes_to_graph = pynini.string_file(get_abs_path("data/time/minutes_to.tsv"))
 
         graph_digit = pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
         graph_ties = pynini.string_file(get_abs_path("data/numbers/ties.tsv"))
@@ -97,17 +105,34 @@ class TimeFst(GraphFst):
         final_suffix_optional = pynini.closure(delete_space + insert_space + final_suffix, 0, 1)
 
         # las nueve a eme (only convert on-the-hour times if they are followed by a suffix)
+        graph_1oclock_with_suffix = pynini.closure(pynini.accep("la "), 0, 1) + pynini.cross("una", "1")
+        graph_hour_with_suffix = pynini.closure(pynini.accep("las "), 0, 1) + graph_1_to_100 @ pynini.union(
+            *digits_2_to_23
+        )
+        final_graph_hour_with_suffix = (
+            pynutil.insert("hours: \"") + (graph_1oclock_with_suffix | graph_hour_with_suffix) + pynutil.insert("\"")
+        )
+
         graph_hsuffix = (
-            final_graph_hour + delete_extra_space + pynutil.insert("minutes: \"00\"") + insert_space + final_suffix
+            final_graph_hour_with_suffix
+            + delete_extra_space
+            + pynutil.insert("minutes: \"00\"")
+            + insert_space
+            + final_suffix
         )
 
         # las nueve y veinticinco
         graph_hm = final_graph_hour + delete_extra_space + final_graph_minute
 
+        # nueve y veinticinco a m
+        graph_hm_suffix = (
+            final_graph_hour_with_suffix + delete_extra_space + final_graph_minute + delete_extra_space + final_suffix
+        )
+
         # un cuarto para las cinco
         graph_mh = (
             pynutil.insert("minutes: \"")
-            + pynini.union(pynini.cross("un cuarto para", "45"), pynini.cross("cuarto para", "45"),)
+            + minutes_to_graph
             + pynutil.insert("\"")
             + delete_extra_space
             + pynutil.insert("hours: \"")
@@ -135,7 +160,7 @@ class TimeFst(GraphFst):
             + pynutil.insert("\"")
         )
         final_graph = pynini.union(
-            (graph_hm | graph_mh | graph_time_to) + final_suffix_optional, graph_hsuffix
+            (graph_hm | graph_mh | graph_time_to) + final_suffix_optional, graph_hsuffix, graph_hm_suffix
         ).optimize()
 
         final_graph = self.add_tokens(final_graph)

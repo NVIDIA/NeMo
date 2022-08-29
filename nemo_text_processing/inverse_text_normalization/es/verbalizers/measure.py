@@ -13,7 +13,12 @@
 # limitations under the License.
 
 import pynini
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_CHAR, GraphFst, delete_space
+from nemo_text_processing.text_normalization.en.graph_utils import (
+    NEMO_CHAR,
+    GraphFst,
+    delete_extra_space,
+    delete_space,
+)
 from pynini.lib import pynutil
 
 
@@ -27,7 +32,7 @@ class MeasureFst(GraphFst):
         cardinal: CardinalFst
     """
 
-    def __init__(self, decimal: GraphFst, cardinal: GraphFst):
+    def __init__(self, decimal: GraphFst, cardinal: GraphFst, fraction: GraphFst):
         super().__init__(name="measure", kind="verbalize")
         optional_sign = pynini.closure(pynini.cross("negative: \"true\"", "-"), 0, 1)
         unit = (
@@ -56,6 +61,13 @@ class MeasureFst(GraphFst):
             + delete_space
             + pynutil.delete("}")
         )
+        graph_fraction = fraction.fst + delete_space + pynutil.insert(" ") + unit
+        graph_fraction |= graph_cardinal + delete_extra_space + fraction.fst + delete_extra_space + unit
+
+        graph_math = pynutil.delete("units: \"math\"") + delete_space + cardinal.fst
         graph = (graph_cardinal | graph_decimal) + delete_space + pynutil.insert(" ") + unit
+        graph |= graph_fraction
+        graph |= graph_math
+
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()

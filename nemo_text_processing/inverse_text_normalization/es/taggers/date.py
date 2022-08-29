@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import pynini
+from nemo_text_processing.inverse_text_normalization.es.graph_utils import int_to_roman
 from nemo_text_processing.inverse_text_normalization.es.utils import get_abs_path
 from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, delete_extra_space, delete_space
 from pynini.lib import pynutil
@@ -25,7 +26,7 @@ class DateFst(GraphFst):
         e.g. uno de enero -> date { day: "1" month: "enero" }
     """
 
-    def __init__(self):
+    def __init__(self, cardinal: GraphFst):
         super().__init__(name="date", kind="classify")
 
         graph_digit = pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
@@ -53,7 +54,12 @@ class DateFst(GraphFst):
 
         graph_dm = day_graph + delete_space + pynutil.delete("de") + delete_extra_space + month_graph
 
-        final_graph = graph_dm
+        # transform "siglo diez" -> "siglo x" and "año mil novecientos noventa y ocho" -> "año mcmxcviii"
+        roman_numerals = int_to_roman(cardinal.graph)
+        roman_centuries = pynini.union("siglo ", "año ") + roman_numerals
+        roman_centuries_graph = pynutil.insert("year: \"") + roman_centuries + pynutil.insert("\"")
+
+        final_graph = graph_dm | roman_centuries_graph
         final_graph += pynutil.insert(" preserve_order: true")
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
