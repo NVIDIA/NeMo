@@ -128,7 +128,7 @@ class TestExportGPT3Config:
           model_type: "gpt3"
         
         model:
-          checkpoint_path: ${export.run.training_dir}/checkpoints
+          checkpoint_path: ${export.run.training_dir}/results/checkpoints
           # FT checkpoint will be saved in ${.triton_model_dir}/1/${.tensor_model_parallel_size}-gpu
           tensor_model_parallel_size: 8
           weight_data_type: fp16   # fp32|fp16
