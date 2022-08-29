@@ -17,7 +17,7 @@ class TestExportmT5Config:
           model_type: "mt5"
         
         model:
-          checkpoint_path: ${export.run.fine_tuning_results_dir}/checkpoints/megatron_mt5_glue_xnli.nemo
+          checkpoint_path: ${export.run.fine_tuning_results_dir}/results/checkpoints/megatron_mt5_glue_xnli.nemo
           # FT checkpoint will be saved in ${.triton_model_dir}/1/${.tensor_model_parallel_size}-gpu
           tensor_model_parallel_size: 8
           weight_data_type: fp16   # fp32|fp16
@@ -73,7 +73,7 @@ class TestExportT5Config:
           model_type: "t5"
 
         model:
-          checkpoint_path: ${export.run.fine_tuning_results_dir}/checkpoints/megatron_t5_glue.nemo
+          checkpoint_path: ${export.run.fine_tuning_results_dir}/results/checkpoints/megatron_t5_glue.nemo
           # FT checkpoint will be saved in ${.triton_model_dir}/1/${.tensor_model_parallel_size}-gpu
           tensor_model_parallel_size: 8
           weight_data_type: fp16   # fp32|fp16
