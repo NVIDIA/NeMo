@@ -836,7 +836,7 @@ class TestTrainingGPT3Config:
         run:
           name: gpt3_175b
           results_dir: ${base_results_dir}/${.name}
-          time_limit: "35-00:00:00"
+          time_limit: "26-00:00:00"
           dependency: "singleton"
 
         trainer:
@@ -848,8 +848,8 @@ class TestTrainingGPT3Config:
           enable_checkpointing: False
           replace_sampler_ddp: False
           max_epochs: null
-          max_steps: 100000
-          max_time: "34:23:00:00"
+          max_steps: 75000
+          max_time: "25:23:00:00"
           log_every_n_steps: 10
           val_check_interval: 2000
           limit_val_batches: 20
@@ -939,7 +939,7 @@ class TestTrainingGPT3Config:
 
           optim:
             name: distributed_fused_adam
-            lr: 0.6e-4
+            lr: 0.8e-4
             weight_decay: 0.1 
             betas: 
             - 0.9
@@ -948,7 +948,7 @@ class TestTrainingGPT3Config:
               name: CosineAnnealing
               warmup_steps: 115
               constant_steps: 12500
-              min_lr: 0.6e-5
+              min_lr: 0.8e-5
 
           nsys_profile:
             enabled: False
