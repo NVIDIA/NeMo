@@ -139,16 +139,15 @@ The following are the suggested parameters for reproducing the diarization perfo
 .. code-block:: bash
 
   diarizer.manifest_filepath="/path/to/ch109_input_manifest.json"
-  diarizer.oracle_num_speakers=2 # Since there are exactly 2 speakers per each CH109 session
   diarizer.oracle_vad=True # Use oracle VAD extracted from RTTM files.
   diarizer.collar=0.25
   diarizer.ignore_overlap=True 
   diarizer.speaker_embeddings.model_path="titanet_large"
   diarizer.speaker_embeddings.window_length_in_sec=[1.5,1.25,1.0,0.75,0.5] # Multiscale setting
   diarizer.speaker_embeddings.shift_length_in_sec=[0.75,0.625,0.5,0.375,0.25] # Multiscale setting 
-  diarizer.speaker_embeddings.parameters.multiscale_weights=[1,1,1,1,1] # More weights on the longer scales
+  diarizer.speaker_embeddings.parameters.multiscale_weights=[1,1,1,1,1] # Equal weights
 
-This setup is expected to reproduce a confusion error rate of 0.56% on CH109 set.
+This setup is expected to reproduce a confusion error rate of 0.88% on CH109 set.
 
 To evaluate the performance on AMI Meeting Corpus, the following instructions can help.
   - Download CHAES Meeting Corpus at LDC website `LDC97S42 <https://catalog.ldc.upenn.edu/LDC97S42>`_ (CHAES is not publicly available).

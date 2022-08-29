@@ -94,7 +94,7 @@ Parameters for clustering algorithm are provided in the following Hydra config e
 Configuration for Diarization with ASR
 --------------------------------------
 
-The following configuration needs to be appended under ``diarizer`` to run ASR with diarization to get a transcription with speaker labels. This configuration can be found in ``<NeMo_git_root>/examples/speaker_tasks/diarization/conf/offline_diarization_with_asr.yaml``
+The following configuration needs to be appended under ``diarizer`` to run ASR with diarization to get a transcription with speaker labels. 
 
 .. code-block:: yaml
 
