@@ -29,6 +29,45 @@ from nemo.utils.exp_manager import ExpManagerConfig
 
 
 @dataclass
+class FreezeConfig:
+    is_enabled: bool = False
+    """Freeze audio encoder weight and add Conformer Layers on top of it"""
+    d_model: Optional[int] = 256
+    """`d_model` parameter of ``ConformerLayer``"""
+    d_ff: Optional[int] = 1024
+    """``d_ff`` parameter of ``ConformerLayer``"""
+    num_layers: Optional[int] = 8
+    """``num_layers`` number of ``ConformerLayer`` modules to add on top of audio encoder"""
+
+
+@dataclass
+class AdapterConfig:
+    config: Optional[LinearAdapterConfig] = None
+    """Linear adapter config see ``collections.common.parts.LinearAdapterConfig``"""
+    enable: bool = False
+    """Use adapters for audio encoder"""
+
+
+@dataclass
+class FusionConfig:
+    num_layers: Optional[int] = 4
+    """"Number of layers to use in fusion"""
+    num_attention_heads: Optional[int] = 4
+    """Number of attention heads to use in fusion"""
+    inner_size: Optional[int] = 2048
+    """Fusion inner size"""
+
+
+@dataclass
+class AudioEncoderConfig:
+    pretrained_model: str = MISSING
+    """A configuration for restoring pretrained audio encoder"""
+    freeze: Optional[FreezeConfig] = None
+    adapter: Optional[AdapterConfig] = None
+    fusion: Optional[FusionConfig] = None
+
+
+@dataclass
 class TokenizerConfig:
     """A structure and default values of source text tokenizer."""
 
@@ -238,36 +277,13 @@ class PunctuationCapitalizationLexicalAudioModelConfig(PunctuationCapitalization
     test_ds: Optional[PunctuationCapitalizationEvalDataConfig] = None
     """A configuration for creating test datasets and data loaders."""
 
-    pretrained_audio_encoder: str = MISSING
-    """A configuration for restoring pretrained audio encoder"""
-
-    freeze_audio_encoder: bool = False
-    """Freeze audio encoder weight and add LSTM module on top of it"""
-
-    fusion_inner_size: int = 2048
-    """Fusion inner size"""
-    fusion_num_attention_heads: int = 4
-    """Number of attention heads to use in fusion"""
-    fusion_num_layers: int = 4
-    """"Number of layers to use in fusion"""
+    audio_encoder: Optional[AudioEncoderConfig] = None
 
     restore_lexical_encoder_from: Optional[str] = None
-    """"Path to .nemo checkpoint to load weights from"""
-
-    use_adapters: Optional[bool] = False
-    """Use adapters for audio encoder"""
-    adapter_config: Optional[LinearAdapterConfig] = None
-    """Adapter config"""
+    """"Path to .nemo checkpoint to load weights from"""  # add more comments
 
     use_weighted_loss: Optional[bool] = False
     """If set to ``True`` CrossEntropyLoss will be weighted"""
-
-    frozen_conf_d_model: Optional[int] = 256
-    """`d_model` parameter of ``ConformerLayer``"""
-    frozen_conf_d_ff: Optional[int] = 1024
-    """``d_ff`` parameter of ``ConformerLayer``"""
-    frozen_conf_num_layers: Optional[int] = 8
-    """``num_layers`` number of ``ConformerLayer`` modules to add on top of audio encoder"""
 
 
 @dataclass

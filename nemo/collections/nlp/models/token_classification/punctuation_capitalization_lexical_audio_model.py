@@ -67,45 +67,50 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None) -> None:
         super().__init__(cfg, trainer)
-        audio_cfg = nemo_asr.models.ASRModel.from_pretrained(cfg.pretrained_audio_encoder, return_config=True)
+        audio_cfg = nemo_asr.models.ASRModel.from_pretrained(cfg.audio_encoder.pretrained_model, return_config=True)
 
-        if cfg.get('use_adapters', False):
-            audio_cfg = update_model_config_to_support_adapter(audio_cfg)
+        if cfg.audio_encoder.get('adapter', None):
+            if cfg.audio_encoder.adapter.enable:
+                audio_cfg = update_model_config_to_support_adapter(audio_cfg)
 
         self.audio_encoder = nemo_asr.models.ASRModel.from_pretrained(
-            cfg.pretrained_audio_encoder, override_config_path=audio_cfg
+            cfg.audio_encoder.pretrained_model, override_config_path=audio_cfg
         )
-        if cfg.get('use_adapters', False):
+        if cfg.audio_encoder.adapter.get('enable', False):
             with open_dict(cfg):
-                cfg.adapter_config.in_features = self.audio_encoder.cfg.encoder.d_model
-            self.audio_encoder.add_adapter(name='audio_adapter', cfg=cfg.adapter_config)
+                cfg.audio_encoder.adapter.config.in_features = self.audio_encoder.cfg.encoder.d_model
+            self.audio_encoder.add_adapter(name='audio_adapter', cfg=cfg.audio_encoder.adapter.config)
             self.audio_encoder.set_enabled_adapters(enabled=True)
             self.audio_encoder.freeze()
             self.audio_encoder.unfreeze_enabled_adapters()
 
         self.fusion = TransformerDecoder(
-            num_layers=cfg.fusion_num_layers,
+            num_layers=cfg.audio_encoder.fusion.num_layers,
             hidden_size=self.bert_model(**self.bert_model.input_example()[0]).size()[-1],
-            inner_size=cfg.fusion_inner_size,
-            num_attention_heads=cfg.fusion_num_attention_heads,
+            inner_size=cfg.audio_encoder.fusion.inner_size,
+            num_attention_heads=cfg.audio_encoder.fusion.num_attention_heads,
         )
         self.audio_proj = Linear(
             self.audio_encoder.cfg.encoder.d_model, self.bert_model(**self.bert_model.input_example()[0]).size()[-1]
         )
 
-        if cfg.get('freeze_audio_encoder', False):
+        if cfg.audio_encoder.freeze.get('is_enabled', False):
             for param in self.audio_encoder.parameters():
                 param.requires_grad = False
-            for i in range(cfg.get('frozen_conf_num_layers')):
+            for i in range(cfg.audio_encoder.fusion.get('num_layers')):
                 self.audio_encoder.add_module(
                     f'conf_encoder_{i}',
-                    ConformerLayer(d_model=cfg.get('frozen_conf_d_model'), d_ff=cfg.get('frozen_conf_d_ff')),
+                    ConformerLayer(
+                        d_model=cfg.audio_encoder.freeze.get('d_model'), d_ff=cfg.audio_encoder.freeze.get('d_ff')
+                    ),
                 )
 
-        if cfg.get('restore_lexical_encoder_from', None):
-            self.bert_model = PunctuationCapitalizationModel.restore_from(cfg.restore_lexical_encoder_from).to(self.device).bert_model
-            # self.bert_model.load_state_dict(model.bert_model.state_dict())
-            # del model
+        if cfg.get('restore_lexical_encoder_from', None) and not self._is_model_being_restored():
+            self.bert_model = (
+                PunctuationCapitalizationModel.restore_from(cfg.restore_lexical_encoder_from)
+                .to(self.device)
+                .bert_model
+            )
 
         del self.audio_encoder.decoder
         del self.audio_encoder._wer

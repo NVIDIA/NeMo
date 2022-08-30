@@ -46,15 +46,19 @@ exp_manager:
     save_best_model: true
 
 model:
-  pretrained_audio_encoder: stt_en_conformer_ctc_medium # You can choose any pretrained ASR model from list_available_models() of EncDecCTCModel.
-
-  freeze_audio_encoder: false # If set to True weights of audio encoder will not be updated during training.
-
-  use_adapters: false # If set to True will enable adapters for audio encoder. Also, should provide config of adapter `LinearAdapterConfig`.
-
-  fusion_num_layers: 4 # Number of layers to use in fusion
-  fusion_inner_size: 2048 # Fusion inner size
-  fusion_num_attention_heads: 4 # Number of attention heads to use in fusion
+  audio_encoder:
+    pretrained_model: stt_en_conformer_ctc_medium # You can choose any pretrained ASR model from list_available_models() of EncDecCTCModel.
+    freeze:
+      is_enabled: false # If set to True weights of audio encoder will not be updated during training.
+      d_model: 256
+      d_ff: 1024
+      num_layers: 4
+    adapter:
+      enable: false # If set to True will enable adapters for audio encoder. Also, should provide config of adapter `LinearAdapterConfig`.
+    fusion:
+      num_layers: 4 # Number of layers to use in fusion
+      num_attention_heads: 4 # Number of attention heads to use in fusion
+      inner_size: 2048 # Fusion inner size
 
   class_labels:
     punct_labels_file: punct_label_ids.txt
