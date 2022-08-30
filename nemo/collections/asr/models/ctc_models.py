@@ -598,7 +598,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             2) The lengths of the acoustic sequence after propagation through the encoder, of shape [B].
             3) The greedy token predictions of the model of shape [B, T] (via argmax)
         """
-        norm_with_unmask = False
+        
         has_input_signal = input_signal is not None and input_signal_length is not None
         has_processed_signal = processed_signal is not None and processed_signal_length is not None
         if (has_input_signal ^ has_processed_signal) == False:
@@ -608,25 +608,32 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             )
 
         if not has_processed_signal:
-            processed_signal, processed_signal_length, x_mean, x_std, unnorm_processed_signal, unnorm_processed_signal_length = self.preprocessor(
+            processed_signal, processed_signal_length, x_mean, x_std, unnorm_processed_signal = self.preprocessor(
                 input_signal=input_signal, length=input_signal_length,
             )
 
         # mask here
+        batch_speech_segments = None
+        
+        norm_with_masked = False
+
         if batch_speech_segments is not None:
             vad_mask = self.contruct_vad_mask(unnorm_processed_signal, batch_speech_segments) # False is speech
             ZERO_LEVEL_SPEC_DB_VAL = -16.635  # Log-Melspectrogram value for zero signal
 
-            if norm_with_unmask:
+            if norm_with_masked:
                 x_mean, x_std = None, None
 
+            print("====", x_mean, x_std)
             unnorm_processed_signal = unnorm_processed_signal.masked_fill_(vad_mask, ZERO_LEVEL_SPEC_DB_VAL)
-            processed_signal, x_mean, x_std = normalize_batch(unnorm_processed_signal, unnorm_processed_signal_length, normalize_type="per_feature", x_mean=x_mean, x_std=x_std)
-            print(processed_signal)
+
+            processed_signal, x_mean, x_std = normalize_batch(
+                unnorm_processed_signal, processed_signal_length, normalize_type="per_feature", 
+                x_mean=x_mean, x_std=x_std)
+            
             
         if self.spec_augmentation is not None and self.training:
             processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
-
     
         encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
         log_probs = self.decoder(encoder_output=encoded)
@@ -652,7 +659,6 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         vad_mask = vad_mask.expand(processed_signal.shape)
         
         vad_mask = ~vad_mask
-        print(vad_mask)
         
         return vad_mask.to(device)
 

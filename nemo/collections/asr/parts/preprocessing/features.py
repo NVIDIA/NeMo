@@ -439,7 +439,8 @@ class FilterbankFeatures(nn.Module):
         if self.normalize:
             unnorm_x, unnorm_seq_len = x, seq_len
             x, x_mean, x_std = normalize_batch(x, seq_len, normalize_type=self.normalize, x_mean=None, x_std=None)
-
+        else:
+            x_mean, x_std, unnorm_x = None, None, x
         # mask to zero any values beyond seq_len in batch, pad to multiple of `pad_to` (for efficiency)
         max_len = x.size(-1)
         mask = torch.arange(max_len).to(x.device)
@@ -454,4 +455,5 @@ class FilterbankFeatures(nn.Module):
             if pad_amt != 0:
                 x = nn.functional.pad(x, (0, pad_to - pad_amt), value=self.pad_value)
 
-        return x, seq_len, x_mean, x_std, unnorm_x, unnorm_seq_len 
+        return x, seq_len, x_mean, x_std, unnorm_x
+        # need to check

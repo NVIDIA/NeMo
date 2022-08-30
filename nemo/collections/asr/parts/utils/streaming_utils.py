@@ -31,6 +31,38 @@ from nemo.core.neural_types import LengthsType, NeuralType
 # select all i-1 and ith buffer tokens to merge.
 MIN_MERGE_SUBSEQUENCE_LEN = 1
 
+CONSTANT = 0.01
+def normalize_batch(x, seq_len, normalize_type, x_mean=None, x_std=None):
+    if normalize_type == "per_feature":
+        if x_mean is None and x_std is None:
+            x_mean = torch.zeros((seq_len.shape[0], x.shape[1]), dtype=x.dtype, device=x.device)
+            x_std = torch.zeros((seq_len.shape[0], x.shape[1]), dtype=x.dtype, device=x.device)
+            for i in range(x.shape[0]):
+                if x[i, :, : seq_len[i]].shape[1] == 1:
+                    raise ValueError(
+                        "normalize_batch with `per_feature` normalize_type received a tensor of length 1. This will result "
+                        "in torch.std() returning nan"
+                    )
+                x_mean[i, :] = x[i, :, : seq_len[i]].mean(dim=1)
+                x_std[i, :] = x[i, :, : seq_len[i]].std(dim=1)
+        # make sure x_std is not zero
+            x_std += CONSTANT
+        return (x - x_mean.unsqueeze(2)) / x_std.unsqueeze(2), x_mean, x_std
+    elif normalize_type == "all_features":
+        x_mean = torch.zeros(seq_len.shape, dtype=x.dtype, device=x.device)
+        x_std = torch.zeros(seq_len.shape, dtype=x.dtype, device=x.device)
+        for i in range(x.shape[0]):
+            x_mean[i] = x[i, :, : seq_len[i].item()].mean()
+            x_std[i] = x[i, :, : seq_len[i].item()].std()
+        # make sure x_std is not zero
+        x_std += CONSTANT
+        return (x - x_mean.view(-1, 1, 1)) / x_std.view(-1, 1, 1), x_mean, x_std
+    elif "fixed_mean" in normalize_type and "fixed_std" in normalize_type:
+        x_mean = torch.tensor(normalize_type["fixed_mean"], device=x.device)
+        x_std = torch.tensor(normalize_type["fixed_std"], device=x.device)
+        return (x - x_mean.view(x.shape[0], x.shape[1]).unsqueeze(2)) / x_std.view(x.shape[0], x.shape[1]).unsqueeze(2), x_mean, x_std
+    else:
+        return x, x_mean, x_std
 
 def print_alignment(alignment):
     """
@@ -344,18 +376,63 @@ def inplace_buffer_merge(buffer, data, timesteps, model):
 
 
 class AudioFeatureIterator(IterableDataset):
-    def __init__(self, samples, frame_len, preprocessor, device):
+    def __init__(self, samples, frame_len, preprocessor, device, speech_segments=None):
         self._samples = samples
         self._frame_len = frame_len
         self._start = 0
         self.output = True
         self.count = 0
+        self.vad_mask = None
+        self.ZERO_LEVEL_SPEC_DB_VAL = -16.635  # Log-Melspectrogram value for zero signal
         timestep_duration = preprocessor._cfg['window_stride']
         self._feature_frame_len = frame_len / timestep_duration
         audio_signal = torch.from_numpy(self._samples).unsqueeze_(0).to(device)
         audio_signal_len = torch.Tensor([self._samples.shape[0]]).to(device)
-        self._features, self._features_len = preprocessor(input_signal=audio_signal, length=audio_signal_len,)
+        # feature is unnormed
+        self._features, self._features_len, x_mean, x_std, unnorm_processed_signal = preprocessor(input_signal=audio_signal, length=audio_signal_len,)
+        # print(self._features, self._features_len, x_mean, x_std, unnorm_processed_signal)
+
+        # mask here
+        if speech_segments is not None:
+            speech_segments = speech_segments.unsqueeze(0)
+            norm_with_masked = False
+            self.vad_mask = self.contruct_vad_mask(unnorm_processed_signal, speech_segments) # False is speech
+            """
+            if norm_with_masked:
+                x_mean, x_std = None, None
+
+            unnorm_processed_signal = unnorm_processed_signal.masked_fill_(self.vad_mask, self.ZERO_LEVEL_SPEC_DB_VAL)
+            # norm will be done within each frame
+            processed_signal = unnorm_processed_signal
+            # processed_signal, x_mean, x_std = normalize_batch(
+            #     unnorm_processed_signal, self._features_len, normalize_type="per_feature", 
+            #     x_mean=x_mean, x_std=x_std)
+            self._features = processed_signal
+            """
+            self.vad_mask = self.vad_mask.squeeze()
+           
         self._features = self._features.squeeze()
+        
+
+    def contruct_vad_mask(self, processed_signal, batch_speech_segments): 
+        device = processed_signal.device
+        vad_mask_shape = torch.Size([processed_signal.shape[0],processed_signal.shape[-1]])
+        vad_mask = torch.zeros(vad_mask_shape, dtype=torch.bool)
+
+        if len(batch_speech_segments) > 0:
+            for i in range(len(batch_speech_segments)):
+                speech_segments = batch_speech_segments[i]
+                for j in range(0, len(speech_segments), 2):
+                    if speech_segments[j] != -1:
+                        vad_mask[i, int(speech_segments[j]*100): int(speech_segments[j+1]*100)] = True
+
+        vad_mask = vad_mask.unsqueeze(1)
+        vad_mask = vad_mask.expand(processed_signal.shape)
+        
+        vad_mask = ~vad_mask
+        
+        return vad_mask.to(device)
+
 
     def __iter__(self):
         return self
@@ -366,16 +443,26 @@ class AudioFeatureIterator(IterableDataset):
         last = int(self._start + self._feature_frame_len)
         if last <= self._features_len[0]:
             frame = self._features[:, self._start : last].cpu()
+            frame_vad_mask = self.vad_mask[:, self._start : last].cpu() #new
             self._start = last
+            
             if self._start == self._features_len[0]-1:
                 self.output = False
         else:
             frame = np.zeros([self._features.shape[0], int(self._feature_frame_len)], dtype='float32')
+            frame_vad_mask = np.zeros([self._features.shape[0], int(self._feature_frame_len)], dtype='float32') #new
             samp_len = self._features_len[0] - self._start
             frame[:, 0:samp_len] = self._features[:, self._start : self._features_len[0]].cpu()
+            frame_vad_mask[:, 0:samp_len] = self.vad_mask[:, self._start : self._features_len[0]].cpu() #new
+            
             self.output = False
+        # Don't mask here
+        """
+        frame = np.ma.masked_array(data=frame, mask=frame_vad_mask) #new
+        frame = frame.filled(self.ZERO_LEVEL_SPEC_DB_VAL) # new
+        """
         self.count += 1
-        return frame
+        return frame, frame_vad_mask
 
 
 def speech_collate_fn(batch):
@@ -486,6 +573,7 @@ class FeatureFrameBufferer:
         total_buffer_len = int(total_buffer / timestep_duration)
         self.n_feat = asr_model._cfg.preprocessor.features
         self.buffer = np.ones([self.n_feat, total_buffer_len], dtype=np.float32) * self.ZERO_LEVEL_SPEC_DB_VAL
+        self.vad_mask_buffer = np.full(self.buffer.shape, False) # here to try
 
         self.batch_size = batch_size
 
@@ -506,6 +594,7 @@ class FeatureFrameBufferer:
         Reset frame_history and decoder's state
         '''
         self.buffer = np.ones(shape=self.buffer.shape, dtype=np.float32) * self.ZERO_LEVEL_SPEC_DB_VAL
+        self.vad_mask_buffer = np.full(self.buffer.shape, False) # here to try 
         self.prev_char = ''
         self.unmerged = []
         self.frame_buffers = []
@@ -516,15 +605,16 @@ class FeatureFrameBufferer:
 
     def get_batch_frames(self):
         if self.signal_end:
-            return []
+            return [], []
         batch_frames = []
-        for frame in self.frame_reader:
+        batch_vad_masks = [] # newbefore
+        for (frame, frame_vad_mask) in self.frame_reader:
             batch_frames.append(np.copy(frame))
+            batch_vad_masks.append(np.copy(frame_vad_mask))
             if len(batch_frames) == self.batch_size:
-                return batch_frames
+                return batch_frames, batch_vad_masks
         self.signal_end = True
-
-        return batch_frames
+        return batch_frames, batch_vad_masks
 
     def get_frame_buffers(self, frames):
         # Build buffers for each frame
@@ -535,6 +625,16 @@ class FeatureFrameBufferer:
             self.buffered_len += frame.shape[1]
             self.frame_buffers.append(np.copy(self.buffer))
         return self.frame_buffers
+
+    def get_vad_mask_buffers(self, vad_masks):
+        # Build buffers for each vad mask corresponding free
+        self.vad_mask_buffers = []
+        for vad_mask in vad_masks:
+            self.vad_mask_buffer[:, : -self.n_frame_len] = self.vad_mask_buffer[:, self.n_frame_len :]
+            self.vad_mask_buffer[:, -self.n_frame_len :] = vad_mask
+            self.buffered_len += vad_mask.shape[1]
+            self.vad_mask_buffers.append(np.copy(self.vad_mask_buffer))
+        return self.vad_mask_buffers
 
     def set_frame_reader(self, frame_reader):
         self.frame_reader = frame_reader
@@ -555,23 +655,52 @@ class FeatureFrameBufferer:
         return norm_consts
 
     def normalize_frame_buffers(self, frame_buffers, norm_consts):
-        CONSTANT = 1e-5
+        # CONSTANT = 1e-5
+        CONSTANT = 1e-2
         for i, frame_buffer in enumerate(frame_buffers):
             frame_buffers[i] = (frame_buffer - norm_consts[i][0]) / (norm_consts[i][1] + CONSTANT)
 
+
+    def mask_frame_buffers(self, frame_buffers, vad_mask_buffers, if_fixed_value=True):
+        
+        if_fixed_value = False
+
+        masked_frame_buffers = []
+        for i, frame_buffer in enumerate(frame_buffers):
+            frame_buffer_mask = np.ma.masked_array(data=frame_buffer, mask=vad_mask_buffers[i]) #new
+            if if_fixed_value:
+                mask_value = self.ZERO_LEVEL_SPEC_DB_VAL    
+            else:
+                mask_value = np.mean(frame_buffer[vad_mask_buffers[i]]) # 
+                # print("mask_value", mask_value)
+                if np.isnan(mask_value):
+                    mask_value = self.ZERO_LEVEL_SPEC_DB_VAL     
+                    print("nan, use ZERO_LEVEL_SPEC_DB_VAL")
+
+                print("mask_value", mask_value)
+
+            frame_buffer = frame_buffer_mask.filled(mask_value) # new
+            masked_frame_buffers.append(frame_buffer)
+        return masked_frame_buffers
+
+
     def get_buffers_batch(self):
-        batch_frames = self.get_batch_frames()
+        batch_frames, batch_vad_masks = self.get_batch_frames()
 
         while len(batch_frames) > 0:
-
             frame_buffers = self.get_frame_buffers(batch_frames)
+            vad_mask_buffers = self.get_vad_mask_buffers(batch_vad_masks)
+
             if len(frame_buffers) == 0:
                 continue
             if self.normalize_feature:
-                norm_consts = self.get_norm_consts_per_frame(batch_frames)
+                # norm_consts = self.get_norm_consts_per_frame(batch_frames)
+                frame_buffers = self.mask_frame_buffers(frame_buffers, vad_mask_buffers)
+                norm_consts = self.get_norm_consts_per_frame(frame_buffers)
                 self.normalize_frame_buffers(frame_buffers, norm_consts)
             return frame_buffers
         return []
+
 
 
 # class for streaming frame-based ASR
@@ -620,7 +749,8 @@ class FrameBatchASR:
         # some changes for streaming scenario
         cfg.preprocessor.dither = 0.0
         cfg.preprocessor.pad_to = 0
-        cfg.preprocessor.normalize = "None"
+        cfg.preprocessor.normalize = "None" 
+
         self.raw_preprocessor = EncDecCTCModelBPE.from_config_dict(cfg.preprocessor)
         self.raw_preprocessor.to(asr_model.device)
 
@@ -644,10 +774,15 @@ class FrameBatchASR:
         offset: float, 
         duration: float, 
         delay: float, 
-        model_stride_in_secs: float):
+        model_stride_in_secs: float,
+        speech_segments_filepath):
+
+        speech_segments = None
+        if speech_segments_filepath:
+            speech_segments = torch.load(speech_segments_filepath)
         samples = get_samples(audio_filepath, offset, duration)
         samples = np.pad(samples, (0, int(delay * model_stride_in_secs * self.asr_model._cfg.sample_rate)))
-        frame_reader = AudioFeatureIterator(samples, self.frame_len, self.raw_preprocessor, self.asr_model.device)
+        frame_reader = AudioFeatureIterator(samples, self.frame_len, self.raw_preprocessor, self.asr_model.device, speech_segments)
         self.set_frame_reader(frame_reader)
 
     def set_frame_reader(self, frame_reader):
@@ -656,7 +791,6 @@ class FrameBatchASR:
     @torch.no_grad()
     def infer_logits(self):
         frame_buffers = self.frame_bufferer.get_buffers_batch()
-
         while len(frame_buffers) > 0:
             self.frame_buffers += frame_buffers[:]
             self.data_layer.set_signal(frame_buffers[:])
@@ -769,7 +903,8 @@ class FrameBatchVAD:
                         offset: float,
                         duration: float,
                         delay: float, 
-                        model_stride_in_secs: float):
+                        model_stride_in_secs: float,
+                        batch_speech_segments):
         samples = get_samples(audio_filepath, offset, duration)
         self.pad_end_len = int(delay * model_stride_in_secs * self.vad_model._cfg.sample_rate)
         samples = np.pad(samples, (0, self.pad_end_len))

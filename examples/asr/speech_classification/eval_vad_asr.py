@@ -32,23 +32,24 @@ def main():
     db_list = ['clean'] 
     modes = ['offline'] #streaming
     langs = [
-        # 'riva_silence',
-        # 'driveix', 
+        'riva_silence',
+        'driveix', 
         'chris', 
-        # 'hub5',
-        # 'GTC2019-keynote-parts', 
-        # 'tmobile',
-        # 'Ring_central_with_duration', #?
-        # 'logmein',
-        # 'StreamingInTheCloud',
-        # 'tedlium2_test',
-        # 'wsj-eval-92',
-        # 'librivox-test-other',
-        # 'yt_med_eval'
+        'hub5',
+        'GTC2019-keynote-parts', 
+        'tmobile',
+        'Ring_central_with_duration', #?
+        'logmein',
+        # 'StreamingInTheCloud', #???
+        'tedlium2_test',
+        'wsj-eval-92',
+        'librivox-test-other',
+        'yt_med_eval'
     ]
 
     vad_exps = ["novad"] 
     models = ['riva_conformer_ctc'] 
+    # models = ['riva_citrinet_new']
 
     shift_length_in_sec = 0.08
     clean_text = True
@@ -64,7 +65,8 @@ def main():
     single= False # True
     exp = "_single" if single else ""
     exp = "_min10"
-    res_file = f"res_asr_{exp}_offlines_s8_tunedO_test_new_mask.csv"
+    # res_file = f"res_asr_{exp}_offlines_s8_tunedO_test_mask_norm_with_maskedFalse.csv"
+    res_file = f"res_asr_{exp}_offlines_s8_tunedO_test_nomask.csv"
 
     si_ratio = False  #True
 
@@ -130,18 +132,18 @@ def main():
                                     if not si_ratio:
                                         left, right = 0, 0
                                     if use_model_path:
-                                        if 'conformer_ctc' in asr_model:
-                                            # RIVA: buffered, with a chunk size of 4.8s, buffer size of 8s
-                                            # NeMo mimic offline chunk_len_in_ms 22
-
+                                        if 'conformer_ctc' in model:
+                                            # RIVA: buffered, with a chunk size of 4.8s, buffer size of 8s batch=128
+                                            # NeMo mimic offline chunk_len_in_ms=20000 total_buffer_in_secs=22 batch=128
+                                            print("========== asr_model!!!!!!!!!!!!", asr_model)
                                             os.system(f'python ../asr_chunked_inference/ctc/speech_to_text_buffered_infer_ctc.py \
                                                 --asr_model {asr_model} \
                                                 --test_manifest {input_manifest} \
-                                                --chunk_len_in_ms 20000 \
+                                                --chunk_len_in_ms 4800 \
                                                 --output_path {novad_output_manifest} \
                                                 --batch_size 128 \
                                                 --model_stride 4 \
-                                                --total_buffer_in_secs 22')
+                                                --total_buffer_in_secs 8')
                                         elif 'conformer_transducer' in asr_model:
                                             os.system(f'python ../asr_chunked_inference/rnnt/speech_to_text_buffered_infer_rnnt.py \
                                                 --asr_model {asr_model} \

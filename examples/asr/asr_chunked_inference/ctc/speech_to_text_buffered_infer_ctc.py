@@ -58,6 +58,7 @@ def get_wer_feat(
     hyps = []
     refs = []
     audio_filepaths = []
+    speech_segments_filepaths = []
     offsets = []
     durations = []
     total_durations_to_asr = []
@@ -73,6 +74,7 @@ def get_wer_feat(
             duration = row.get('duration', None)
 
             audio_filepaths.append(row['audio_filepath'])
+            speech_segments_filepaths.append(row['speech_segments_filepath'])
             offsets.append(offset)
             durations.append(duration)
 
@@ -115,7 +117,13 @@ def get_wer_feat(
                 total_streaming_vad_logits.append(streaming_vad_logits)
 
             else:
-                asr.read_audio_file(row['audio_filepath'], offset=offset, duration=duration, delay=delay, model_stride_in_secs=model_stride_in_secs)
+                asr.read_audio_file(row['audio_filepath'], offset=offset, duration=duration, delay=delay, model_stride_in_secs=model_stride_in_secs, 
+                    speech_segments_filepath=row['speech_segments_filepath']
+                )
+                # asr.read_audio_file(row['audio_filepath'], offset=offset, duration=duration, delay=delay, model_stride_in_secs=model_stride_in_secs, 
+                #     speech_segments_filepath=None
+                # )
+                # # here
                 hyp = asr.transcribe(tokens_per_chunk, delay)
                 hyps.append(hyp)
                 refs.append(row['text'])
@@ -124,7 +132,6 @@ def get_wer_feat(
                 speech_segments = "ALL"
                 total_speech_segments.append(speech_segments)
 
-            
             
             
     wer = word_error_rate(hypotheses=hyps, references=refs)

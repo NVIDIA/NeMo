@@ -82,9 +82,9 @@ class AudioPreprocessor(NeuralModule, ABC):
     @typecheck()
     @torch.no_grad()
     def forward(self, input_signal, length):
-        processed_signal, processed_length = self.get_features(input_signal, length)
-
-        return processed_signal, processed_length
+        processed_signal, processed_length, x_mean, x_std, unnorm_processed_signal = self.get_features(input_signal, length)
+        
+        return processed_signal, processed_length, x_mean, x_std, unnorm_processed_signal
 
     @abstractmethod
     def get_features(self, input_signal, length):
@@ -197,6 +197,9 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
         return {
             "processed_signal": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
             "processed_length": NeuralType(tuple('B'), LengthsType()),
+            "x_mean": NeuralType(('B', 'T'), SpectrogramType(), optional=True),
+            "x_std": NeuralType(('B', 'T'), SpectrogramType(), optional=True),
+            "unnorm_processed_signal": NeuralType(('B', 'D', 'T'), MelSpectrogramType(), optional=True),
         }
 
     def __init__(
