@@ -12,13 +12,13 @@ during training to directly access and correct pronunciations at inference time.
 
 G2P models convert out-of-vocabulary words (OOV), e.g. proper names and loaner words, as well as heteronyms in their phonetic form to improve the quality of the syntesized text.
 
-*Heteronyms* represent words that have the same spelling but different pronunciations, e.g., “read” in “I will read the book.” vs. “She read her project last week.”  A single model that can handle OOVs and heteronyms and replace dictionary lookups can significantly simplify and improve the quality of synthesized speech in
+*Heteronyms* represent words that have the same spelling but different pronunciations, e.g., “read” in “I will read the book.” vs. “She read her project last week.”  A single model that can handle OOVs and heteronyms and replace dictionary lookups can significantly simplify and improve the quality of synthesized speech.
 
 We support the following G2P models:
 
 * **ByT5 G2P** a text-to-text model that is based on ByT5 :cite:`g2p--xue2021byt5` neural network model that was originally proposed in :cite:`g2p--vrezavckova2021t5g2p` and :cite:`g2p--zhu2022byt5`.
 
-* **G2P-Conformer** CTC model -  uses a Conformer encoder :cite:`g2p--ggulati2020conformer` followed by a linear decoder; the model is trained with CTC-loss.
+* **G2P-Conformer** CTC model -  uses a Conformer encoder :cite:`g2p--ggulati2020conformer` followed by a linear decoder; the model is trained with CTC-loss. G2P-Conformer model has about 20 times fewer parameters than the ByT5 model and is a non-autoregressive model that makes it faster during inference.
 
 The models can be trained using words or sentences as input.
 If trained with sentence-level input, the models can handle out-of-vocabulary (OOV) and heteronyms along with unambiguous words in a single pass.
@@ -103,14 +103,17 @@ To run inference with a pretrained G2P model, run:
         manifest_filepath="<Path to .json manifest>" \
         output_file="<Path to .json manifest to save prediction>" \
         batch_size=32 \
-        num_workers=4
+        num_workers=4 \
+        pred_field="pred_text"
+
+Model's predictions will be saved in `pred_field` of the `output_file`.
 
 .. _sentence_level_dataset_pipeline:
 
 Sentence-level Dataset Preparation Pipeline
 -------------------------------------------
 
-Here is the overall overview of the Data labeling pipeline for sentence-level G2P model training:
+Here is the overall overview of the data labeling pipeline for sentence-level G2P model training:
 
     .. image:: images/data_labeling_pipeline.png
         :align: center
@@ -147,7 +150,7 @@ Manifest fields:
 
 * `homograph_span` - heteronym word in the sentence
 
-* `word_id` - heteronym label
+* `word_id` - heteronym label, e.g., word `diffuse` has the following possible labels: `diffuse_vrb` and `diffuse_adj`. See `https://github.com/google-research-datasets/WikipediaHomographData/blob/master/data/wordids.tsv <https://github.com/google-research-datasets/WikipediaHomographData/blob/master/data/wordids.tsv>`__ for more details.
 
 To convert the WikipediaHomographData to `.json` format suitable for the HeteronymClassificationModel training, run:
 
@@ -170,6 +173,7 @@ To train and evaluate the model, run:
         train_manifest=<Path to manifest file>" \
         validation_manifest=<Path to manifest file>" \
         model.encoder.pretrained="<Path to .nemo file or pretrained model name from list_available_models()>" \
+        model.wordids=<Path to wordids.tsv file, similar to https://github.com/google-research-datasets/WikipediaHomographData/blob/master/data/wordids.tsv> \
         do_training=True \
         do_testing=True
 
@@ -183,9 +187,11 @@ To run inference with a pretrained HeteronymClassificationModel, run:
         pretrained_model="<Path to .nemo file or pretrained model name from list_available_models()>" \
         output_file="<Path to .json manifest to save prediction>"
 
-Note, if the input manifest contains target "word_id", evaluation will be also performed.
+Note, if the input manifest contains target "word_id", evaluation will be also performed. During inference, the model predicts heteronym `word_id` and saves predictions in `"pred_text"` field of the `output_file`:
 
+.. code::
 
+  {"text_graphemes": "Oxygen is less able to diffuse into the blood, leading to hypoxia.", "pred_text": "diffuse_vrb", "start_end": [23, 30], "homograph_span": "diffuse", "word_id": "diffuse_vrb"}
 
 
 Requirements
