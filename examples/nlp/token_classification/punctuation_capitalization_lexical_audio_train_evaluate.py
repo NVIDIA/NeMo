@@ -31,22 +31,20 @@ from nemo.utils.exp_manager import exp_manager
 
 
 """
-This script show how to train a Punctuation and Capitalization Model.
+This script show how to train a Punctuation and Capitalization Model with lexical and acoustic features.
 More details on the task and data format could be found in tutorials/nlp/Punctuation_and_Capitalization.ipynb
 
 *** Setting the configs ***
 
 The model and the PT trainer are defined in a config file which declares multiple important sections.
 The most important ones are:
-    model: All arguments that are related to the Model - language model, tokenizer, token classifier, optimizer,
+    model: All arguments that are related to the Model - language model, audio encoder, tokenizer, token classifier, optimizer,
             schedulers, and datasets/data loaders.
     trainer: Any argument to be passed to PyTorch Lightning including number of epochs, number of GPUs,
             precision level, etc.
 This script uses the `/examples/nlp/token_classification/conf/punctuation_capitalization_lexical_audio_config.yaml` config file
 by default. You may update the config file from the file directly. 
 The other option is to set another config file via command line arguments by `--config-name=CONFIG_FILE_PATH'.
-
-For more details about the config files and different ways of model restoration, see tutorials/00_NeMo_Primer.ipynb
 
 *** Model training ***
 
@@ -55,45 +53,51 @@ To run this script and train the model from scratch, use:
         model.train_ds.ds_item=<PATH/TO/TRAIN/DATA> \
         model.train_ds.text_file=<NAME_OF_TRAIN_INPUT_TEXT_FILE> \
         model.train_ds.labels_file=<NAME_OF_TRAIN_LABELS_FILE> \
+        model.train_ds.audio_file=<NAME_OF_TRAIN_AUDIO_FILE> \
         model.validation_ds.ds_item=<PATH/TO/DEV/DATA> \
         model.validation_ds.text_file=<NAME_OF_DEV_INPUT_TEXT_FILE> \
-        model.validation_ds.labels_file=<NAME_OF_DEV_LABELS_FILE>
+        model.validation_ds.labels_file=<NAME_OF_DEV_LABELS_FILE> \
+        model.validation_ds.audio_file=<NAME_OF_DEV_AUDIO_FILE>
 
-To use one of the pretrained versions of the model and finetune it, run:
+To use BERT-like pretrained P&C models' weights to initialize lexical encoder, use:
     python punctuation_capitalization_lexical_audio_train_evaluate.py \
-        pretrained_model=punctuation_en_bert \
         model.train_ds.ds_item=<PATH/TO/TRAIN/DATA> \
         model.train_ds.text_file=<NAME_OF_TRAIN_INPUT_TEXT_FILE> \
         model.train_ds.labels_file=<NAME_OF_TRAIN_LABELS_FILE> \
+        model.train_ds.audio_file=<NAME_OF_TRAIN_AUDIO_FILE> \
         model.validation_ds.ds_item=<PATH/TO/DEV/DATA> \
         model.validation_ds.text_file=<NAME_OF_DEV_INPUT_TEXT_FILE> \
-        model.validation_ds.labels_file=<NAME_OF_DEV_LABELS_FILE>
+        model.validation_ds.labels_file=<NAME_OF_DEV_LABELS_FILE> \
+        model.validation_ds.audio_file=<NAME_OF_DEV_AUDIO_FILE> \
+        model.restore_lexical_encoder_from=<PATH/TO/CHECKPOINT.nemo>
 
-    pretrained_model   - pretrained PunctuationCapitalization model from list_available_models() or 
-        path to a .nemo file, for example: punctuation_en_bert or model.nemo
 
 If you wish to perform testing after training set `do_testing` to `true:
     python punctuation_capitalization_lexical_audio_train_evaluate.py \
         +do_testing=true \
-        pretrained_model=punctuation_en_bert \
+        pretrained_model=<PATH/TO/CHECKPOINT.nemo> \
         model.train_ds.ds_item=<PATH/TO/TRAIN/DATA> \
         model.train_ds.text_file=<NAME_OF_TRAIN_INPUT_TEXT_FILE> \
         model.train_ds.labels_file=<NAME_OF_TRAIN_LABELS_FILE> \
+        model.train_ds.audio_file=<NAME_OF_TRAIN_AUDIO_FILE> \
         model.validation_ds.ds_item=<PATH/TO/DEV/DATA> \
         model.validation_ds.text_file=<NAME_OF_DEV_INPUT_TEXT_FILE> \
         model.validation_ds.labels_file=<NAME_OF_DEV_LABELS_FILE> \
+        model.validation_ds.audio_file=<NAME_OF_DEV_AUDIO_FILE> \
         model.test_ds.ds_item=<PATH/TO/TEST_DATA> \
         model.test_ds.text_file=<NAME_OF_TEST_INPUT_TEXT_FILE> \
-        model.test_ds.labels_file=<NAME_OF_TEST_LABELS_FILE>
+        model.test_ds.labels_file=<NAME_OF_TEST_LABELS_FILE> \
+        model.test_ds.audio_file=<NAME_OF_TEST_AUDIO_FILE>
 
 Set `do_training` to `false` and `do_testing` to `true` to perform evaluation without training:
     python punctuation_capitalization_lexical_audio_train_evaluate.py \
         +do_testing=true \
         +do_training=false \
-        pretrained_model=punctuation_en_bert \
-        model.test_ds.ds_item=../../.././data/ \
-        model.test_ds.text_file=text_test.txt \
-        model.test_ds.labels_file=labels_test.txt
+        pretrained_model==<PATH/TO/CHECKPOINT.nemo> \
+        model.test_ds.ds_item=<PATH/TO/DEV/DATA> \
+        model.test_ds.text_file=<NAME_OF_TEST_INPUT_TEXT_FILE> \
+        model.test_ds.labels_file=<NAME_OF_TEST_LABELS_FILE> \
+        model.test_ds.audio_file=<NAME_OF_TEST_AUDIO_FILE>
 
 """
 
@@ -105,7 +109,7 @@ def main(cfg: DictConfig) -> None:
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
     if not cfg.do_training and not cfg.do_testing:
-        raise ValueError("At least one of config parameters `do_training` and `do_testing` has to `true`.")
+        raise ValueError("At least one of config parameters `do_training` and `do_testing` has to be `true`.")
     if cfg.do_training:
         if cfg.model.get('train_ds') is None:
             raise ValueError('`model.train_ds` config section is required if `do_training` config item is `True`.')
