@@ -50,6 +50,7 @@ def main(cfg):
         config_path = os.path.join(candidate_configs, f"{candidate_dir}.yaml")
         candidate_cfg = OmegaConf.load(config_path)
         model_cfg = candidate_cfg.get("model")
+        encoder_cfg = model_cfg.get("encoder")
         data_cfg = model_cfg.get("data")
         trainer_cfg = candidate_cfg.get("trainer")
 
@@ -61,30 +62,35 @@ def main(cfg):
             else model_cfg.get("seq_length")
         )
         dec_seq_len = data_cfg.get("seq_length_dec")
-        hs = model_cfg.get("hidden_size")
-        if model_name == "gpt3":
-            ffn_hs = None
-        else:
-            ffn_hs = model_cfg.get("ffn_hidden_size")
-        layers = model_cfg.get("num_layers")
-        tp = model_cfg.get("tensor_model_parallel_size")
-        pp = model_cfg.get("pipeline_model_parallel_size")
-        mbs = model_cfg.get("micro_batch_size")
         act_ckpt_granularity = model_cfg.get("activations_checkpoint_granularity", "full")
         if act_ckpt_granularity == "selective":
             act_ckpt_layers = "selective"
-        elif act_ckpt_granularity == "full":
-            act_ckpt_layers = model_cfg.get("activations_checkpoint_num_layers")
+
+        if model_name == "gpt3":
+            hs = model_cfg.get("hidden_size")
+            ffn_hs = None
+            layers = model_cfg.get("num_layers")
+            if act_ckpt_granularity == "full":
+                act_ckpt_layers = model_cfg.get("activations_checkpoint_num_layers")
+        else:
+            hs = encoder_cfg.get("hidden_size")
+            ffn_hs = encoder_cfg.get("ffn_hidden_size")
+            layers = encoder_cfg.get("num_layers")
+            if act_ckpt_granularity == "full":
+                act_ckpt_layers = encoder_cfg.get("activations_checkpoint_num_layers")
+        tp = model_cfg.get("tensor_model_parallel_size")
+        pp = model_cfg.get("pipeline_model_parallel_size")
+        mbs = model_cfg.get("micro_batch_size")
         vocab = settings_cfg.get("vocab_size")
         gpus_per_node = trainer_cfg.get("devices")
 
         if f"{nodes}nodes" not in candidate_dir:
             continue
 
-        files = os.listdir(os.path.join(training_logs, candidate_dir))
+        files = os.listdir(os.path.join(training_logs, candidate_dir, "results"))
         for f in files:
             if f[:6] == "events":
-                event_file = os.path.join(training_logs, candidate_dir, f)
+                event_file = os.path.join(training_logs, candidate_dir, "results", f)
                 ea = event_accumulator.EventAccumulator(event_file)
                 ea.Reload()
                 try:

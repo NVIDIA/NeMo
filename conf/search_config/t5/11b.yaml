@@ -12,7 +12,6 @@ train_settings:
   num_tokens_in_b: 1000  # Unit in billions, typically 300B for GPT3 models.
   vocab_size: 29000
   logs: ${base_results_dir}/${search_config_value}_${.gpu_memory_gb}gb  # Example base_results_dir/t5/0.22b
-  override_search_num_nodes: auto  # auto to use the minimum required number of nodes
   tensor_parallel_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8]
   pipeline_parallel_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8, 10]
   micro_batch_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8, 16]

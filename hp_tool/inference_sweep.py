@@ -56,6 +56,7 @@ def search_inference_config(base_cfg, cfg):
     flags = (
         f"--container-image {container} "
         f"--container-mounts {mounts_str} "
+        f"--no-container-mount-home "
         f"--output {output_log} "
         f"--error {error_log} "
     )

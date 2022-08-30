@@ -20,13 +20,13 @@ train_settings:
 inference_settings:
   run:
     model_type: t5
-    model_train_name: t5_11b
+    model_train_name: t5_0.22b
     data_type: fp16
     time_limit: 0:30:00
     results_dir: ${base_results_dir}/${search_config_value}/inference
     top_n: 10
     max_latency_ms: 500
-    tensor_parallel_sizes: [2]
+    tensor_parallel_sizes: [1]
     pipeline_parallel_sizes: [1]
   benchmark:
     input_len: 60
