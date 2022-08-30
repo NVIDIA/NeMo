@@ -232,8 +232,12 @@ class RNNTLoss(Loss):
             num_classes: Number of target classes for the joint network to predict.
                 (Excluding the RNN-T blank token).
 
-            reduction: Type of reduction to perform on loss. Possibly values are `mean`, `sum` or None.
-                None will return a torch vector comprising the individual loss values of the batch.
+            reduction: Type of reduction to perform on loss. Possible values are 
+                `mean_batch`, 'mean_volume`, `mean`, `sum` or None.
+                `None` will return a torch vector comprising the individual loss values of the batch.
+                `mean_batch` will average the losses in the batch
+                `mean` will divide each loss by the target length and then average
+                `mean_volume` will add up all the losses and divide by sum of target lengths
 
             loss_name: String that is resolved into an RNNT loss function. Available list of losses
                 is ininitialized in `RNNT_LOSS_RESOLVER` dictionary.

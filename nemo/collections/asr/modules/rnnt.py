@@ -1219,7 +1219,6 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
 
         # Optional arguments
         dropout = jointnet.get('dropout', 0.0)
-        # self.reduction = jointnet.get('reduction', 'mean_batch')
 
         self.pred, self.enc, self.joint_net = self._joint_net_modules(
             num_classes=self._num_classes,  # add 1 for blank symbol
