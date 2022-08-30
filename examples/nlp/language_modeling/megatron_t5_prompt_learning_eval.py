@@ -101,7 +101,7 @@ def main(cfg) -> None:
 
     model.freeze()
 
-    test_ds, test_dl = model.build_virtual_prompt_dataset(
+    _, test_dl = model.build_virtual_prompt_dataset(
         dataset_paths=cfg.data.test_ds,
         batch_size=cfg.data.global_batch_size,
         for_train=False,
@@ -111,7 +111,13 @@ def main(cfg) -> None:
         pin_memory=True,
     )
 
-    trainer.predict(model, test_dl)
+    outputs = trainer.predict(model, test_dl)
+    with open(cfg.pred_file_path, "w") as pred_file:
+        for batch in outputs:
+            preds = batch["predicted_token_ids"]
+            for pred in preds:
+                pred = pred.strip().replace("\n", " ")
+                pred_file.write(pred + "\n")
     print('test finish---------------------------------')
 
 

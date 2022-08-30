@@ -20,11 +20,26 @@ from collections import Counter
 
 
 """
-Expects every line in the pred text file to have the format:
+This script can be used to calcualte exact match and F1 scores for many different tasks, not just squad. 
 
-{prompt} answer: {answer}
+Example command for T5 Preds
 
-The prediction file will be split on "answer: " when looking for the LM's predicted answer. 
+    ```
+    python squad_metric_calc.py \
+        --ground-truth squad_test_gt.jsonl \
+        --preds squad_preds_t5.txt
+    ```
+
+Example command for GPT Preds
+
+    ```
+    python squad_metric_calc.py \
+        --ground-truth squad_test_gt.jsonl \
+        --preds squad_preds_gpt.txt \
+        --split-string "answer:"
+    ```
+
+    In this case, the prediction file will be split on "answer: " when looking for the LM's predicted answer. 
 
 """
 
@@ -85,6 +100,12 @@ def main():
         type=str,
         help="Text file with test set prompts + model predictions. Prediction file can be made by running NeMo/examples/nlp/language_modeling/megatron_gpt_prompt_learning_eval.py",
     )
+    parser.add_argument(
+        '--split-string',
+        type=str,
+        help="The text at the end of the prompt, write before the predicted answer. This will be used to find the model's predictions in pred files when the pred file containers both the prompt and prediction.",
+        default=None,
+    )  # If the pred file only has preditions, just pass none
 
     args = parser.parse_args()
 
@@ -97,9 +118,15 @@ def main():
 
     for i in range(len(preds)):
         truth = json.loads(ground_truth[i])
-        pred_sent = preds[i]
-        pred_answer = pred_sent.split("answer:")[-1].strip()
+        pred_answer = preds[i]
+
+        # Need to separate out preditions from prompt, spliting on the provided "split string"
+        if args.split_string is not None:
+            pred_answer = pred_answer.split(args.split_string)[-1].strip()
+
         true_answers = truth["answer"]
+        if not isinstance(true_answers, list):
+            true_answers = [true_answers]
 
         exact_match += metric_max_over_ground_truths(exact_match_score, pred_answer, true_answers)
         f1 += metric_max_over_ground_truths(f1_score, pred_answer, true_answers)
