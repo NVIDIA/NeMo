@@ -237,7 +237,7 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
     PUNCT_LIST = (  # Derived from LJSpeech and "/" additionally
         ',', '.', '!', '?', '-',
         ':', ';', '/', '"', '(',
-        ')', '[', ']', '{', '}',
+        ')', '[', ']', '{', '}', "К", "М", "Д"
     )
     VOWELS = (
         'AA', 'AE', 'AH', 'AO', 'AW',
