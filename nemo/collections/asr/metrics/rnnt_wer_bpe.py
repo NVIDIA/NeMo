@@ -125,6 +125,7 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
     def __init__(self, decoding_cfg, decoder, joint, tokenizer: TokenizerSpec):
         blank_id = tokenizer.tokenizer.vocab_size
         self.tokenizer = tokenizer
+        self.compute_langs = self.cfg.get('compute_langs', None)
 
         super(RNNTBPEDecoding, self).__init__(
             decoding_cfg=decoding_cfg, decoder=decoder, joint=joint, blank_id=blank_id
@@ -196,6 +197,28 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
         """
         words_and_langs = self.tokenizer.ids_to_words_and_langs(tokens)
         return words_and_langs
+
+    def decode_hypothesis(self, hypotheses_list: List[Hypothesis]) -> List[Union[Hypothesis, NBestHypotheses]]:
+        """
+        Decode a list of hypotheses into a list of strings.
+        Overrides the super() method optionally adding lang information
+
+        Args:
+            hypotheses_list: List of Hypothesis.
+
+        Returns:
+            A list of strings.
+        """        
+        hypotheses = super().decode_hypothesis(hypotheses_list)
+        if self.compute_langs:
+            if self.tokenizer.is_aggregate:
+                hypotheses[ind].langs = self.decode_tokens_to_lang(prediction)
+                hypotheses[ind].langs_chars = self.decode_ids_to_langs(prediction)
+                hypotheses[ind].langs_words = self.decode_ids_to_words_and_langs(prediction)
+            else:
+                logging.warning("Ignoring request for lang output in hypotheses since the model does not use an aggregate tokenizer")
+
+        return hypotheses
 
 
 class RNNTBPEWER(Metric):
