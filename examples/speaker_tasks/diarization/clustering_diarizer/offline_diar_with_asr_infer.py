@@ -24,7 +24,7 @@ from nemo.utils import logging
 """
 This script demonstrates how to run offline speaker diarization with asr.
 Usage:
-python offline_diarization_with_asr.py \
+python offline_diar_with_asr_infer.py \
     diarizer.manifest_filepath=<path to manifest file> \
     diarizer.out_dir='demo_asr_output' \
     diarizer.speaker_embeddings.model_path=<pretrained modelname or path to .nemo> \

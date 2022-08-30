@@ -22,7 +22,7 @@ from nemo.utils import logging
 """
 This script demonstrates how to use run speaker diarization.
 Usage:
-  python offline_diarization.py \
+  python offline_diar_infer.py \
     diarizer.manifest_filepath=<path to manifest file> \
     diarizer.out_dir='demo_output' \
     diarizer.speaker_embeddings.model_path=<pretrained modelname or path to .nemo> \

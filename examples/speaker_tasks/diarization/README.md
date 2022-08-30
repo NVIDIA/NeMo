@@ -47,7 +47,7 @@ Diarization Error Rate (DER) table of `titanet_large.nemo` model on well known e
 
 #### Example script
 ```bash
-  python offline_diarization.py \
+  python offline_diar_infer.py \
     diarizer.manifest_filepath=<path to manifest file> \
     diarizer.out_dir='demo_output' \
     diarizer.speaker_embeddings.model_path=<pretrained modelname or path to .nemo> \
@@ -58,7 +58,7 @@ If you have oracle VAD files and groundtruth RTTM files for evaluation:
 Provide rttm files in the input manifest file and enable oracle_vad as shown below. 
 
 ```bash
-python offline_diarization.py \
+python offline_diar_infer.py \
   python speaker_diarize.py \
     diarizer.manifest_filepath=<path to manifest file> \
     diarizer.out_dir='demo_output' \
@@ -108,7 +108,7 @@ Multiscale diarization system employs multiple scales at the same time to obtain
 #### Example script: single-scale and multiscale
 Single-scale setting:
 ```bash
-  python offline_diarization.py \
+  python offline_diar_infer.py \
      ... <other paramerters> ...
      parameters.window_length_in_sec=1.5 \
      parameters.shift_length_in_sec=0.75 \
@@ -117,7 +117,7 @@ Single-scale setting:
 
 Multiscale setting (base scale - window_length 0.5 s and shift_length 0.25):
 ```bash
-  python offline_diarization.py \
+  python offline_diar_infer.py \
      ... <other paramerters> ...
      parameters.window_length_in_sec=[1.5,1.0,0.5] \
      parameters.shift_length_in_sec=[0.75,0.5,0.25] \
@@ -128,7 +128,7 @@ Multiscale setting (base scale - window_length 0.5 s and shift_length 0.25):
 
 ## Run Speech Recognition with Speaker Diarization
 
-Using the script `offline_diarization_with_asr.py`, you can transcribe your audio recording with speaker labels as shown below:
+Using the script `offline_diar_with_asr_infer.py`, you can transcribe your audio recording with speaker labels as shown below:
 
 ```
 [00:03.34 - 00:04.46] speaker_0: back from the gym oh good how's it going 
@@ -136,12 +136,12 @@ Using the script `offline_diarization_with_asr.py`, you can transcribe your audi
 [00:12.10 - 00:13.97] speaker_0: well it's the middle of the week or whatever so
 ```
 
-Currently, offline_diarization_with_asr supports QuartzNet English model and ConformerCTC model (`QuartzNet15x5Base-En`, `stt_en_conformer_ctc_large`). 
+Currently, NeMo offline diarization inference supports QuartzNet English model and ConformerCTC ASR models (e.g.,`QuartzNet15x5Base-En`, `stt_en_conformer_ctc_large`). 
 
 #### Example script
 
 ```bash
-python offline_diarization_with_asr.py \
+python offline_diar_with_asr_infer.py \
     diarizer.manifest_filepath=<path to manifest file> \
     diarizer.out_dir='demo_asr_output' \
     diarizer.speaker_embeddings.model_path=<pretrained modelname or path to .nemo> \
@@ -151,7 +151,7 @@ python offline_diarization_with_asr.py \
 If you have reference rttm files or oracle number of speaker information, you can provide those file paths and number of speakers in the manifest file path and pass `diarizer.clustering.parameters.oracle_num_speakers=True` as shown in the following example.
 
 ```bash
-python offline_diarization_with_asr.py \
+python offline_diar_with_asr_infer.py \
     diarizer.manifest_filepath=<path to manifest file> \
     diarizer.out_dir='demo_asr_output' \
     diarizer.speaker_embeddings.model_path=<pretrained modelname or path to .nemo> \
@@ -243,7 +243,7 @@ pip install https://github.com/kpu/kenlm/archive/master.zip
 You should provide a trained KenLM language model to use pyctcdecode. Binary or `.arpa` format can be provided to hydra configuration as below.
 
 ```bash
-  python offline_diarization_with_asr.py \
+  python offline_diar_with_asr_infer.py \
     ... <other paramerters> ...
     diarizer.asr.ctc_decoder_parameters.pretrained_language_model="/path/to/kenlm_language_model.binary"
 ```
@@ -266,7 +266,7 @@ pip install arpa
  
 
 ```bash
-python offline_diarization_with_asr.py \
+python offline_diar_with_asr_infer.py \
     ... <other paramerters> ...
     diarizer.asr.realigning_lm_parameters.logprob_diff_threshold=1.2 \
     diarizer.asr.realigning_lm_parameters.arpa_language_model="/path/to/4gram_big.arpa"\
