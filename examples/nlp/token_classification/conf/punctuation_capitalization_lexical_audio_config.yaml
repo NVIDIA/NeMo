@@ -52,6 +52,10 @@ model:
 
   use_adapters: false # If set to True will enable adapters for audio encoder. Also, should provide config of adapter `LinearAdapterConfig`.
 
+  fusion_num_layers: 4 # Number of layers to use in fusion
+  fusion_inner_size: 2048 # Fusion inner size
+  fusion_num_attention_heads: 4 # Number of attention heads to use in fusion
+
   class_labels:
     punct_labels_file: punct_label_ids.txt
     capit_labels_file: capit_label_ids.txt
