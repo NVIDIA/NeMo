@@ -51,6 +51,11 @@ class MegatronGPTAdapterLearningModel(MegatronGPTPromptLearningModel):
         assert (
             cfg.adapter_tuning.adapter_dim % cfg.tensor_model_parallel_size == 0
         ), "The adapter dim should be divisible by tensor_model_parallel_size."
+        assert cfg.adapter_tuning.type in [
+            'linear_adapter',
+            'parallel_adapter',
+        ], "Adapter type should be 'linear_adapter' or 'parallel_adapter'"
+
         self.adapter_name_keys = ['adapter_1', 'adapter_2']
         frozen_model_cfg = MegatronGPTModel.restore_from(
             cfg.get('language_model_path'), trainer=trainer, return_config=True
@@ -63,20 +68,21 @@ class MegatronGPTAdapterLearningModel(MegatronGPTPromptLearningModel):
 
         logging.info(f'Before adding adapters:\n{self.frozen_model.summarize()}')
 
-        if cfg.adapter_tuning.type == "parallel":
+        if cfg.adapter_tuning.type == "parallel_adapter":
             adapter_cfg = ParallelLinearAdapterConfig(
                 in_features=frozen_model_cfg.hidden_size,
                 dim=cfg.adapter_tuning.adapter_dim,
-                norm_position=cfg.adapter_tuning.norm_position,
-                norm_type=cfg.adapter_tuning.norm_type,
-                column_init=cfg.adapter_tuning.column_init,
+                norm_position=cfg.adapter_tuning.get('norm_position', 'pre'),
+                norm_type=cfg.adapter_tuning.get('norm_type', 'mixedfusedlayernorm'),
+                column_init_method=cfg.adapter_tuning.get('column_init_method', 'xavier'),
+                row_init_method=cfg.adapter_tuning.get('row_init_method', 'zero'),
                 dropout=cfg.adapter_tuning.adapter_dropout,
             )
         else:
             adapter_cfg = LinearAdapterConfig(
                 in_features=frozen_model_cfg.hidden_size,
                 dim=cfg.adapter_tuning.adapter_dim,
-                norm_position=cfg.adapter_tuning.norm_position,
+                norm_position=cfg.adapter_tuning.get('norm_position', 'pre'),
                 dropout=cfg.adapter_tuning.adapter_dropout,
             )
 
