@@ -232,10 +232,8 @@ class PunctuationCapitalizationLexicalAudioModelConfig(PunctuationCapitalization
 
     fusion_inner_size: int = 2048
     """Fusion inner size"""
-
     fusion_num_attention_heads: int = 4
     """Number of attention heads to use in fusion"""
-
     fusion_num_layers: int = 4
     """"Number of layers to use in fusion"""
 
@@ -243,17 +241,19 @@ class PunctuationCapitalizationLexicalAudioModelConfig(PunctuationCapitalization
     """"Path to .nemo checkpoint to load weights from"""
 
     use_adapters: Optional[bool] = False
-    """use adapters for audio encoder"""
-
+    """Use adapters for audio encoder"""
     adapter_config: Optional[LinearAdapterConfig] = None
+    """Adapter config"""
 
     use_weighted_loss: Optional[bool] = False
+    """If set to ``True`` CrossEntropyLoss will be weighted"""
 
     frozen_conf_d_model: Optional[int] = 256
-
+    """`d_model` parameter of ``ConformerLayer``"""
     frozen_conf_d_ff: Optional[int] = 1024
-
+    """``d_ff`` parameter of ``ConformerLayer``"""
     frozen_conf_num_layers: Optional[int] = 8
+    """``num_layers`` number of ``ConformerLayer`` modules to add on top of audio encoder"""
 
 
 @dataclass
