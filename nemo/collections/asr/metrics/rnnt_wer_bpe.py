@@ -132,7 +132,7 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
     def __init__(self, decoding_cfg, decoder, joint, tokenizer: TokenizerSpec):
         blank_id = tokenizer.tokenizer.vocab_size
         self.tokenizer = tokenizer
-        self.compute_langs = self.cfg.get('compute_langs', False)
+        self.compute_langs = decoding_cfg.get('compute_langs', False)
 
         super(RNNTBPEDecoding, self).__init__(
             decoding_cfg=decoding_cfg, decoder=decoder, joint=joint, blank_id=blank_id
@@ -218,9 +218,20 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
         hypotheses = super().decode_hypothesis(hypotheses_list)
         if self.compute_langs:
             if isinstance(self.tokenizer, AggregateTokenizer):
-                hypotheses[ind].langs = self.decode_tokens_to_lang(prediction)
-                hypotheses[ind].langs_chars = self.decode_ids_to_langs(prediction)
-                hypotheses[ind].langs_words = self.decode_ids_to_words_and_langs(prediction)
+                for ind in range(len(hypotheses_list)):
+                    # Extract the integer encoded hypothesis
+                    prediction = hypotheses_list[ind].y_sequence
+
+                    if type(prediction) != list:
+                        prediction = prediction.tolist()
+
+                    # RNN-T sample level is already preprocessed by implicit RNNT decoding
+                    # Simply remove any blank tokens
+                    prediction = [p for p in prediction if p != self.blank_id]
+
+                    hypotheses[ind].langs = self.decode_tokens_to_lang(prediction)
+                    hypotheses[ind].langs_chars = self.decode_ids_to_langs(prediction)
+                    hypotheses[ind].langs_words = self.decode_ids_to_words_and_langs(prediction)
             else:
                 logging.warning(
                     "Ignoring request for lang output in hypotheses since the model does not use an aggregate tokenizer"
