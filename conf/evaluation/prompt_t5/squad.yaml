@@ -3,7 +3,7 @@ run:
   time_limit: "04:00:00"
   dependency: "singleton"
   model_train_name: t5_220m
-  task_name: "squad"  # SQuAD v1.1
+  task_name: "squad"
   prompt_learning_dir: ${base_results_dir}/${.model_train_name}/prompt_learning_squad # assume prompt learning was on squad task
   results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}_eval
 
@@ -28,5 +28,6 @@ tensor_model_parallel_size: 1
 pipeline_model_parallel_size: 1
 pipeline_model_parallel_split_rank: ${divide_floor:${.pipeline_model_parallel_size}, 2} # used for encoder and decoder model
 model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
-pretrained_language_model_file: ${base_results_dir}/${evaluation.run.model_train_name}/convert_nemo/results/megatron_t5.nemo  # path to a pretrained t5 nemo file
+language_model_path: ${base_results_dir}/${evaluation.run.model_train_name}/convert_nemo/results/megatron_t5.nemo  # path to a pretrained t5 nemo file
 virtual_prompt_model_file: ${evaluation.run.prompt_learning_dir}/results/megatron_t5_prompt.nemo # path to a Megatront5PromptLearningModel nemo file
+pred_file_path: ${evaluation.run.results_dir}/results/predictions.txt # Path will model predictions will be written
