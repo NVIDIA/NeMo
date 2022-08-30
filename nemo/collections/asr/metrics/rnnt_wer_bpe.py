@@ -21,7 +21,7 @@ from torchmetrics import Metric
 
 from nemo.collections.asr.metrics.rnnt_wer import AbstractRNNTDecoding, RNNTDecodingConfig
 from nemo.collections.asr.metrics.wer import move_dimension_to_the_front
-from nemo.collections.common.tokenizer.aggregate_tokenizer import AggregateTokenizer
+from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging
 
