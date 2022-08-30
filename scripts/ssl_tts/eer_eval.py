@@ -1,5 +1,6 @@
 import json
 import os
+import time
 
 import numpy as np
 import omegaconf
@@ -10,9 +11,9 @@ from sklearn.metrics import auc, roc_curve
 
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.tts.models import ssl_tts
-import time
 
 device = "cuda:0"
+
 
 def segment_wav(wav, segment_length=44100, hop_size=22050, min_segment_size=22050):
     if len(wav) < segment_length:
@@ -23,33 +24,36 @@ def segment_wav(wav, segment_length=44100, hop_size=22050, min_segment_size=2205
         si = 0
         segments = []
         while si < len(wav) - min_segment_size:
-            segment = wav[si:si+segment_length]
-#             print("Segment", si)
-#             IPython.display.display(IPython.display.Audio(segment, rate=22050))
+            segment = wav[si : si + segment_length]
+            #             print("Segment", si)
+            #             IPython.display.display(IPython.display.Audio(segment, rate=22050))
             if len(segment) < segment_length:
                 pad = torch.zeros(segment_length - len(segment))
                 segment = torch.cat([segment, pad])
-                
+
             segments.append(segment)
             si += hop_size
         return segments
 
+
 def sv_emb_from_audio_segmented(audio_path, ssl_model):
     wav = wav_featurizer.process(audio_path)
-    
+
     wav_segments = segment_wav(wav)
     signal_batch = torch.stack(wav_segments).to(device)
-    signal_length_batch = torch.stack( [ torch.tensor(signal_batch.shape[1]) for _i in range(len(wav_segments)) ] ).to(device)
+    signal_length_batch = torch.stack([torch.tensor(signal_batch.shape[1]) for _i in range(len(wav_segments))]).to(
+        device
+    )
     _, speaker_embeddings, _, _, _ = ssl_model.forward_for_export(
-                    input_signal=signal_batch, input_signal_length=signal_length_batch, normalize_content=True
-                )
-    
+        input_signal=signal_batch, input_signal_length=signal_length_batch, normalize_content=True
+    )
+
     speaker_embedding = torch.mean(speaker_embeddings, dim=0)
     l2_norm = torch.norm(speaker_embedding, p=2)
-    speaker_embedding = speaker_embedding/l2_norm
-    
+    speaker_embedding = speaker_embedding / l2_norm
+
     return speaker_embedding[None]
-    
+
 
 def sv_emb_from_audio(audio_path, ssl_model):
     # wav = wav_featurizer.process(audio_path)
@@ -61,10 +65,10 @@ def sv_emb_from_audio(audio_path, ssl_model):
     # return sv_emb
     wav = wav_featurizer.process(audio_path)
     audio_signal = wav[None].to(device)
-    audio_signal_length = torch.tensor( [ wav.shape[0] ]).to(device)
+    audio_signal_length = torch.tensor([wav.shape[0]]).to(device)
     _, speaker_embedding, _, _, _ = ssl_model.forward_for_export(
-                    input_signal=audio_signal, input_signal_length=audio_signal_length, normalize_content=True
-                )
+        input_signal=audio_signal, input_signal_length=audio_signal_length, normalize_content=True
+    )
     return speaker_embedding
 
 
@@ -140,9 +144,9 @@ with open('/home/shehzeenh/datasets/speaker_verification_full/vox_o_trial.txt') 
         if lidx > 1 and lidx % 50 == 0:
             et = time.time()
             time_elapsed = et - st
-            time_per_iter = time_elapsed/(lidx+1)
-            time_remaining = (len(lines) - lidx)*time_per_iter
-            time_remaining_mins = time_remaining/60.0
+            time_per_iter = time_elapsed / (lidx + 1)
+            time_remaining = (len(lines) - lidx) * time_per_iter
+            time_remaining_mins = time_remaining / 60.0
             print("processed {} of {}. Time remaining {} mins.".format(lidx, len(lines), time_remaining_mins))
 
 
