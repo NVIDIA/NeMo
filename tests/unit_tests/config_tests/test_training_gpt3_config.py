@@ -318,7 +318,7 @@ class TestTrainingGPT3Config:
 
           optim:
             name: distributed_fused_adam
-            lr: 1.5e-4
+            lr: 1.6e-4
             weight_decay: 0.1
             betas:
             - 0.9
@@ -327,7 +327,7 @@ class TestTrainingGPT3Config:
               name: CosineAnnealing
               warmup_steps: 115
               constant_steps: 12500
-              min_lr: 1.5e-5
+              min_lr: 1.6e-5
 
           nsys_profile:
             enabled: False
@@ -527,7 +527,7 @@ class TestTrainingGPT3Config:
 
           optim:
             name: distributed_fused_adam
-            lr: 1.3e-4
+            lr: 1.4e-4
             weight_decay: 0.1
             betas:
             - 0.9
@@ -536,7 +536,7 @@ class TestTrainingGPT3Config:
               name: CosineAnnealing
               warmup_steps: 115
               constant_steps: 12500
-              min_lr: 1.3e-5
+              min_lr: 1.4e-5
 
           nsys_profile:
             enabled: False
@@ -733,7 +733,7 @@ class TestTrainingGPT3Config:
 
           optim:
             name: distributed_fused_adam
-            lr: 1.0e-4
+            lr: 1.1e-4
             weight_decay: 0.1 
             betas: 
             - 0.9
@@ -742,7 +742,7 @@ class TestTrainingGPT3Config:
               name: CosineAnnealing
               warmup_steps: 115
               constant_steps: 12500
-              min_lr: 1.0e-5
+              min_lr: 1.1e-5
 
           nsys_profile:
             enabled: False
@@ -939,7 +939,7 @@ class TestTrainingGPT3Config:
 
           optim:
             name: distributed_fused_adam
-            lr: 0.8e-4
+            lr: 0.9e-4
             weight_decay: 0.1 
             betas: 
             - 0.9
@@ -948,7 +948,7 @@ class TestTrainingGPT3Config:
               name: CosineAnnealing
               warmup_steps: 115
               constant_steps: 12500
-              min_lr: 0.8e-5
+              min_lr: 0.9e-5
 
           nsys_profile:
             enabled: False
