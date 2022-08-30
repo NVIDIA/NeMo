@@ -73,7 +73,7 @@ def build_dataset(
         return dataset
 
     if len(data_prefix) == 1:
-        return _build_dataset(data_prefix, num_samples)
+        return _build_dataset(data_prefix[0], num_samples)
 
     else:
         output = get_datasets_weights_and_num_samples(data_prefix, num_samples)
@@ -98,7 +98,8 @@ def build_train_valid_test_datasets(
 ):
     if isinstance(data_prefix, DictConfig):
         assert data_prefix.get('train') is not None and data_prefix.get('test') is not None and data_prefix.get('validation') is not None, f"Data prefix dictionary should have train, test and validation keys.  data_prefix currently has only {data_prefix.keys()}"
-        logging.warning(cfg.data.splits_string  + " ignored since data prefix is of type dictionary.")
+        if cfg.data.splits_string is not None:
+            logging.warning(cfg.data.splits_string  + " ignored since data prefix is of type dictionary.")
         train_ds = build_dataset(
             cfg,
             trainer,
