@@ -1478,7 +1478,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         if get_key_value:
             output = [output, presents]
 
-        if self.is_adapter_available():  # TODO: (@adithyre) need to find the correct place for this adapter
+        if self.is_adapter_available():  # TODO: (@adithyre) was able to move adapter_2 back to the end of the transformer after ptl 1.7 update.
             adapter_2 = self.adapter_layer['adapter_2']
             strategy = adapter_2.adapter_strategy
             output = self.forward_single_enabled_adapter_(
