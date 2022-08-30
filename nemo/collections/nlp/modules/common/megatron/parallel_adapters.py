@@ -60,7 +60,7 @@ class ParallelLinearAdapter(AbstractAdapterModule):
             self.linear_in = ColumnLinear(in_features, dim, bias=False)
         else:
             self.linear_in = ColumnLinear(in_features, dim, bias=False, init_method=init_method_normal(0.2))
-        
+
         self.linear_out = RowParallelLinear(dim, in_features, bias=False, init_method=init_method_const(0.0))
 
         if norm_type == 'mixedfused':
