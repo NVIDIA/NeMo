@@ -48,6 +48,7 @@ class MegatronGPTAdapterLearningModel(MegatronGPTPromptLearningModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
+        assert cfg.adapter_tuning.get('adapter_dim', 0) > 0, "adapter_dim has not been set."
         assert (
             cfg.adapter_tuning.adapter_dim % cfg.tensor_model_parallel_size == 0
         ), "The adapter dim should be divisible by tensor_model_parallel_size."
