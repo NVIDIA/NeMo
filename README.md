@@ -294,7 +294,7 @@ Once your cluster is up and running, continue with the cluster validation steps.
 
 Before running the cluster validation script, ensure your NGC credentials have been added to `~/.config/enroot/.credentials` on all nodes.
 
-The cluster validation script at `csp/azure/cluster_validation.sh` will run GPU diagnostics and test NCCL node-to-node bus bandwidth.
+The cluster validation script at `tools.csp/azure/cluster_validation.sh` will run GPU diagnostics and test NCCL node-to-node bus bandwidth.
 The logs from these tests will be stored at `results/cluster_validation`. The script will list any nodes that fail these tests.
 These nodes should be replaced or restarted through the CycleCloud UI.
 
@@ -757,8 +757,8 @@ shared by multiple users in the same ACE by setting the permissions of the `bign
 
 To run the data preparation pipeline for T5 models, run:
 ```
-python3 /opt/bignlp/bignlp-scripts/main.py data_preparation=download_t5_pile run_data_preparation=True \
-run_training=False run_conversion=False run_fine_tuning=False run_evaluation=False run_export=False \
+python3 /opt/bignlp/bignlp-scripts/main.py data_preparation=t5/download_t5_pile \
+stages=[data_preparation] \
 cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile_t5 \
 base_results_dir=/mount/results data_preparation.file_numbers='0-29' \
 data_preparation.vocab_save_dir=/mount/data/bpe >> /results/data_t5_log.txt 2>&1
