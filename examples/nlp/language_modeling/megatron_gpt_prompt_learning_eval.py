@@ -140,7 +140,7 @@ def main(cfg) -> None:
         drop_last=False,
         shuffle=False,
     )
-    
+
     config = OmegaConf.to_container(cfg.inference)
     model.set_inference_config(config)
     response = trainer.predict(model, dataloader)
