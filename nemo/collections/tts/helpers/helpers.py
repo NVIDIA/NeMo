@@ -594,9 +594,8 @@ class DistributedBucketSampler(torch.utils.data.distributed.DistributedSampler):
     def __iter__(self):
       # deterministically shuffle based on epoch
       g = torch.Generator()
-      s = torch.randint(0, 30, (1,))
-      g.manual_seed(int(s) + self.epoch)
-      print('Epoch:', s + self.epoch)
+      g.manual_seed(self.epoch)
+      print('Epoch:', self.epoch)
       indices = []
       if self.shuffle:
           for bucket in self.buckets:
@@ -649,3 +648,14 @@ class DistributedBucketSampler(torch.utils.data.distributed.DistributedSampler):
 
     def __len__(self):
         return self.num_samples // self.batch_size
+
+    def set_epoch(self, epoch: int) -> None:
+        """
+        Sets the epoch for this sampler. When :attr:`shuffle=True`, this ensures all replicas
+        use a different random ordering for each epoch. Otherwise, the next iteration of this
+        sampler will yield the same ordering.
+        Args:
+            epoch (int): Epoch number.
+        """
+        print(f'Set epoch{epoch}')
+        self.epoch = epoch
