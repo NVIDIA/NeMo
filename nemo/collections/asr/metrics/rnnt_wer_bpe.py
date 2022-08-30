@@ -18,6 +18,7 @@ from typing import List
 import editdistance
 import torch
 from torchmetrics import Metric
+from typing import Callable, Dict, List, Optional, Union
 
 from nemo.collections.asr.metrics.rnnt_wer import AbstractRNNTDecoding, RNNTDecodingConfig
 from nemo.collections.asr.metrics.wer import move_dimension_to_the_front
