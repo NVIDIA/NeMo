@@ -78,7 +78,7 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
         )
         if cfg.audio_encoder.adapter.get('enable', False):
             with open_dict(cfg):
-                cfg.audio_encoder.adapter.config.in_features = self.audio_encoder.cfg.encoder.d_model
+                cfg.audio_encoder.adapter.config.in_features = self.audio_encoder.cfg.decoder.feat_in
             self.audio_encoder.add_adapter(name='audio_adapter', cfg=cfg.audio_encoder.adapter.config)
             self.audio_encoder.set_enabled_adapters(enabled=True)
             self.audio_encoder.freeze()
@@ -91,7 +91,7 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
             num_attention_heads=cfg.audio_encoder.fusion.num_attention_heads,
         )
         self.audio_proj = Linear(
-            self.audio_encoder.cfg.encoder.d_model, self.bert_model(**self.bert_model.input_example()[0]).size()[-1]
+            self.audio_encoder.cfg.decoder.feat_in, self.bert_model(**self.bert_model.input_example()[0]).size()[-1]
         )
 
         if cfg.audio_encoder.freeze.get('is_enabled', False):
@@ -132,6 +132,8 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
         else:
             self.loss_punct = self.loss
             self.loss_capit = self.loss
+
+        self.set_max_audio_length(1024)
 
     def _make_step(self, batch: Dict[str, torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         punct_logits, capit_logits = self(
@@ -181,6 +183,7 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
                         - ``capit_logits`` (:obj:`torch.Tensor`): a float torch tensor of shape
                           ``[Batch, Time, NumCapitalizationLabels]`` containing capitalization logits
                 """
+        self.update_max_seq_length(seq_length=features.size(1), device=features.device)
         lexical_hidden_states = self.bert_model(
             input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
         )
@@ -206,12 +209,43 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
             lexical_hidden_states,
             attention_mask,
             audio_hidden_states,
-            self.audio_encoder.encoder.make_pad_mask(audio_hidden_states_length.max(), audio_hidden_states_length),
+            self.make_pad_mask(audio_hidden_states.size(1), audio_hidden_states_length),
         )
+
         punct_logits = self.punct_classifier(hidden_states=fused)
         capit_logits = self.capit_classifier(hidden_states=fused)
 
         return punct_logits, capit_logits
+
+    def make_pad_mask(self, max_audio_length, seq_lens):
+        """Make masking for padding."""
+        mask = self.seq_range[:max_audio_length].expand(seq_lens.size(0), -1) < seq_lens.unsqueeze(-1)
+        return mask
+
+    def update_max_seq_length(self, seq_length: int, device):
+        if torch.distributed.is_initialized():
+            global_max_len = torch.tensor([seq_length], dtype=torch.float32, device=device)
+
+            # Update across all ranks in the distributed system
+            torch.distributed.all_reduce(global_max_len, op=torch.distributed.ReduceOp.MAX)
+
+            seq_length = global_max_len.int().item()
+
+        if seq_length > self.max_audio_length:
+            self.set_max_audio_length(seq_length)
+
+    def set_max_audio_length(self, max_audio_length):
+        """
+        Sets maximum input length.
+        Pre-calculates internal seq_range mask.
+        """
+        self.max_audio_length = max_audio_length
+        device = next(self.parameters()).device
+        seq_range = torch.arange(0, self.max_audio_length, device=device)
+        if hasattr(self, 'seq_range'):
+            self.seq_range = seq_range
+        else:
+            self.register_buffer('seq_range', seq_range, persistent=False)
 
     @classmethod
     def list_available_models(cls) -> List[PretrainedModelInfo]:
