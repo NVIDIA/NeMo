@@ -200,7 +200,9 @@ class SSLVocoderDataset(Dataset):
 
         self.speaker_conditioning_type = speaker_conditioning_type
         self.segment_speaker_embedding = segment_speaker_embedding
-        self.compute_mean_speaker_embeddings()
+
+        if self.speaker_conditioning_type in ["mean", "interpolate"]:
+            self.compute_mean_speaker_embeddings()
 
         if self.pitch_normalization == "speaker_wise":
             self.speaker_stats = {}
