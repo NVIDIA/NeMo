@@ -21,8 +21,8 @@ from torchmetrics import Metric
 
 from nemo.collections.asr.metrics.rnnt_wer import AbstractRNNTDecoding, RNNTDecodingConfig
 from nemo.collections.asr.metrics.wer import move_dimension_to_the_front
-from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.common.tokenizer.aggregate_tokenizer import AggregateTokenizer
+from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging
 
 __all__ = ['RNNTBPEDecoding', 'RNNTBPEWER']
@@ -212,7 +212,7 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
 
         Returns:
             A list of strings.
-        """        
+        """
         hypotheses = super().decode_hypothesis(hypotheses_list)
         if self.compute_langs:
             if isinstance(self.tokenizer, AggregateTokenizer):
@@ -220,7 +220,9 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
                 hypotheses[ind].langs_chars = self.decode_ids_to_langs(prediction)
                 hypotheses[ind].langs_words = self.decode_ids_to_words_and_langs(prediction)
             else:
-                logging.warning("Ignoring request for lang output in hypotheses since the model does not use an aggregate tokenizer")
+                logging.warning(
+                    "Ignoring request for lang output in hypotheses since the model does not use an aggregate tokenizer"
+                )
 
         return hypotheses
 
