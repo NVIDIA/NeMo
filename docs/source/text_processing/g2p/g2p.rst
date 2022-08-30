@@ -16,14 +16,15 @@ G2P models convert out-of-vocabulary words (OOV), e.g. proper names and loaner w
 
 We support the following G2P models:
 
-* **ByT5 G2P** a text-to-text model that is based on ByT5 :cite:`g2p-xue2021byt5` neural network model that was originally proposed in :cite:`g2p-vrezavckova2021t5g2p` and :cite:`g2p-zhu2022byt5`.
+* **ByT5 G2P** a text-to-text model that is based on ByT5 :cite:`g2p--xue2021byt5` neural network model that was originally proposed in :cite:`g2p--vrezavckova2021t5g2p` and :cite:`g2p--zhu2022byt5`.
 
-* **G2P-Conformer** CTC model -  uses a Conformer encoder :cite:`g2p-ggulati2020conformer` followed by a linear decoder; the model is trained with CTC-loss.
+* **G2P-Conformer** CTC model -  uses a Conformer encoder :cite:`g2p--ggulati2020conformer` followed by a linear decoder; the model is trained with CTC-loss.
 
 The models can be trained using words or sentences as input.
 If trained with sentence-level input, the models can handle out-of-vocabulary (OOV) and heteronyms along with unambiguous words in a single pass.
 See :ref:`Sentence-level Dataset Preparation Pipeline <sentence_level_dataset_pipeline>` on how to label data for G2P model training.
 
+Additionally, we support a purpose-built BERT-based classification model for heteronym disambiguation, see :ref:`this <bert_heteronym_cl>` for details.
 
 Model Training, Evaluation and Inference
 ----------------------------------------
@@ -37,10 +38,11 @@ Each line of the manifest should be in the following format:
 
   {"text_graphemes": "Swifts, flushed from chimneys.", "text": "ˈswɪfts, ˈfɫəʃt ˈfɹəm ˈtʃɪmniz."}
 
-Here:
+Manifest fields:
 
-``text`` - name of the field in manifest_filepath for ground truth phonemes
-``text_graphemes`` - name of the field in manifest_filepath for input grapheme text
+* ``text`` - name of the field in manifest_filepath for ground truth phonemes
+
+* ``text_graphemes`` - name of the field in manifest_filepath for input grapheme text
 
 The models can handle input with and without punctuation marks.
 
@@ -115,15 +117,21 @@ Here is the overall overview of the Data labeling pipeline for sentence-level G2
         :alt: Data labeling pipeline for sentence-level G2P model training
         :scale: 70%
 
+Here we describe the automatic phoneme-labeling process for generating augmented data. The figure below shows the phoneme-labeling steps to prepare data for sentence-level G2P model training. We first convert known unambiguous words to their phonetic pronunciations with dictionary lookups, e.g. CMU dictionary.
+Next, we automatically label heteronyms using a RAD-TTS Aligner :cite:`g2p--badlani2022one`. More details on how to disambiguate heteronyms with a pretrained Aligner model could be found in `NeMo/tutorials/tts/Aligner_Inference_Examples.ipynb <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/tts/Aligner_Inference_Examples.ipynb>`__ in `Google's Colab <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tts/Aligner_Inference_Examples.ipynb>`_.
+Finally, we mask-out OOV words with a special masking token, “<unk>” in the figure below (note, we use `model.tokenizer_grapheme.unk_token="҂"` symbol during G2P model training.)
+Using this unknown token forces a G2P model to produce the same masking token as a phonetic representation during training. During inference, the model generates phoneme predictions for OOV words without emitting the masking token as long as this token is not included in the grapheme input.
 
+
+
+.. _bert_heteronym_cl:
 
 Purpose-built BERT-based classification model for heteronym disambiguation
 --------------------------------------------------------------------------
 
-HeteronymClassificationModel is a BERT-based :cite:`g2p-devlin2018bert`model represents a token classification model and can handle multiple heteronyms at once.
-The model takes a sentence as an input, and then for every word, it selects a heteronym option out of the available forms.
+HeteronymClassificationModel is a BERT-based :cite:`g2p--ddevlin2018bert` model represents a token classification model and can handle multiple heteronyms at once. The model takes a sentence as an input, and then for every word, it selects a heteronym option out of the available forms.
 We mask irrelevant forms to disregard the model’s predictions for non-ambiguous words. E.g., given  the input “The Poems are simple to read and easy to comprehend.” the model scores possible {READ_PRESENT and READ_PAST} options for the word “read”.
-Possible heteronym forms are extracted from the WikipediaHomographData :cite:`g2p-gorman2018improving`.
+Possible heteronym forms are extracted from the WikipediaHomographData :cite:`g2p--gorman2018improving`.
 
 The model expects input to be in `.json` manifest format, where is line contains at least the following fields:
 
@@ -131,15 +139,20 @@ The model expects input to be in `.json` manifest format, where is line contains
 
   {"text_graphemes": "Oxygen is less able to diffuse into the blood, leading to hypoxia.", "start_end": [23, 30], "homograph_span": "diffuse", "word_id": "diffuse_vrb"}
 
-where
+Manifest fields:
+
 * `text_graphemes` - input sentence
+
 * `start_end` - beginning and end of the heteronym span in the input sentence
+
 * `homograph_span` - heteronym word in the sentence
+
 * `word_id` - heteronym label
 
-To convert the WikipediaHomographData :cite:`g2p-gorman2018improving` to `.json` format suitable for the HeteronymClassificationModel training, run:
+To convert the WikipediaHomographData to `.json` format suitable for the HeteronymClassificationModel training, run:
 
 .. code-block::
+
     # WikipediaHomographData could be downloaded from `https://github.com/google-research-datasets/WikipediaHomographData <https://github.com/google-research-datasets/WikipediaHomographData>`__.
 
     python NeMo/scripts/dataset_processing/g2p/export_wikihomograph_data_to_manifest.py \
@@ -166,9 +179,9 @@ To run inference with a pretrained HeteronymClassificationModel, run:
 .. code-block::
 
     python heteronym_classification_inference.py \
-    manifest="<Path to .json manifest>" \
-    pretrained_model="<Path to .nemo file or pretrained model name from list_available_models()>" \
-    output_file="<Path to .json manifest to save prediction>"
+        manifest="<Path to .json manifest>" \
+        pretrained_model="<Path to .nemo file or pretrained model name from list_available_models()>" \
+        output_file="<Path to .json manifest to save prediction>"
 
 Note, if the input manifest contains target "word_id", evaluation will be also performed.
 
@@ -178,7 +191,7 @@ Note, if the input manifest contains target "word_id", evaluation will be also p
 Requirements
 ------------
 
-G2P requires NeMo NLP and ASR collections installed. See, `Installation instructions <https://github.com/NVIDIA/NeMo/blob/main/docs/source/starthere/intro.rst#installation>`__ for more details.
+G2P requires NeMo NLP and ASR collections installed. See `Installation instructions <https://github.com/NVIDIA/NeMo/blob/main/docs/source/starthere/intro.rst#installation>`__ for more details.
 
 
 References
@@ -186,5 +199,5 @@ References
 
 .. bibliography:: ../text_processing_all.bib
     :style: plain
-    :labelprefix: g2p
-    :keyprefix: g2p-
+    :labelprefix: g2p-
+    :keyprefix: g2p--
