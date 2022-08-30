@@ -1,7 +1,7 @@
 NeMo Speaker Diarization Configuration Files
 ============================================
 
-Since speaker diarization model here is not a fully-trainable End-to-End model but an inference pipeline, we use **diarizer** instead of **model** which is used in other tasks.
+Since speaker diarization model here is not a fully-trainable end-to-end model but an inference pipeline, we use **diarizer** instead of **model** which is used in other tasks.
 
 The diarizer section will generally require information about the dataset(s) being used, models used in this pipeline, as well as inference related parameters such as post processing of each models.
 The sections on this page cover each of these in more detail.
@@ -37,7 +37,7 @@ An example ``diarizer``  Hydra configuration could look like:
 
 Under ``diarizer`` key, there are ``vad``, ``speaker_embeddings``, ``clustering`` and ``asr`` keys containing configurations for the inference of the corresponding modules.
 
-Configuration for Voice Activity Detector
+Configurations for Voice Activity Detector
 -----------------------------------------
 
 Parameters for VAD model are provided as in the following Hydra config example.
@@ -61,7 +61,7 @@ Parameters for VAD model are provided as in the following Hydra config example.
       min_duration_off: 0.2 # Threshold for short speech segment deletion
       filter_speech_first: True 
 
-Configuration for Speaker Embedding in Diarization
+Configurations for Speaker Embedding in Diarization
 --------------------------------------------------
 
 Parameters for speaker embedding model are provided in the following Hydra config example. Note that multiscale parameters either accept list or single floating point number.
@@ -76,7 +76,7 @@ Parameters for speaker embedding model are provided in the following Hydra confi
       multiscale_weights: null # Weight for each scale. should be null (for single scale) or a list matched with window/shift scale count. Ex) [1,1,1,1,1]
       save_embeddings: False # Save embeddings as pickle file for each audio input.
 
-Configuration for Clustering in Diarization
+Configurations for Clustering in Diarization
 -------------------------------------------
 
 Parameters for clustering algorithm are provided in the following Hydra config example.
@@ -91,7 +91,7 @@ Parameters for clustering algorithm are provided in the following Hydra config e
       max_rp_threshold: 0.25 # Determines the range of p-value search: 0 < p <= max_rp_threshold. 
       sparse_search_volume: 30 # The higher the number, the more values will be examined with more time. 
 
-Configuration for Diarization with ASR
+Configurations for Diarization with ASR
 --------------------------------------
 
 The following configuration needs to be appended under ``diarizer`` to run ASR with diarization to get a transcription with speaker labels. 
