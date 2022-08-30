@@ -91,9 +91,26 @@ def get_args() -> argparse.Namespace:
         type=Path,
         required=True,
     )
-    parser.add_argument("--audio_file", type=Path, required=False)
-    parser.add_argument("--use_audio", type=bool, required=False, default=False)
-    parser.add_argument("--sample_rate", type=int, required=False)
+    parser.add_argument(
+        "--audio_file",
+        type=Path,
+        required=False,
+        help="Path to source file which contains paths to audio one path per line. "
+        "Number of lines in `--audio_file` has to be equal to number of lines in `--labels` file",
+    )
+    parser.add_argument(
+        "--use_audio",
+        type=bool,
+        required=False,
+        action="store_true",
+        help="If set to `True` script creates lexical audio dataset which can be used with `PunctuationCapitalizationLexicalAudioModel`.",
+    )
+    parser.add_argument(
+        "--sample_rate",
+        type=int,
+        required=False,
+        help="Target sample rate of audios. Can be used for downsampling or upsampling.",
+    )
     parser.add_argument(
         "--labels",
         "-L",
