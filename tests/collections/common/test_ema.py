@@ -1,3 +1,4 @@
+import os.path
 from copy import deepcopy
 from typing import Any
 from unittest import mock
@@ -6,6 +7,7 @@ import pytest
 import pytorch_lightning as pl
 import torch
 from pytorch_lightning import Callback, Trainer
+from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.utilities.exceptions import MisconfigurationException
 from pytorch_lightning.utilities.types import STEP_OUTPUT
 
@@ -44,6 +46,74 @@ class TestEMAConfig:
     def test_ema_apex_unavailable(self):
         with pytest.raises(MisconfigurationException, match="EMA requires Apex to be installed"):
             EMA(ema=0.999)
+
+    @pytest.mark.unit
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.skipif(not apex_available, reason="apex is not installed")
+    def test_ema_saved_state(self, tmpdir):
+        """Test to ensure that when we re-load the EMA callback, it loads the state correctly"""
+        checkpoint_dir = os.path.join(tmpdir, 'checkpoints')
+        ema_callback = EMA(ema=0.999)
+
+        class TerminateCallback(Callback):
+            def on_train_epoch_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+                self.saved_ema_weights = ema_callback._ema_model_weights
+                self.pl_module_weights = list(pl_module.state_dict().values())
+                raise SystemExit
+
+        lenet5 = MNISTLeNet5(MNISTLeNet5Config())
+        terminate_callback = TerminateCallback()
+
+        lenet5.setup_training_data()
+        lenet5.setup_optimization()
+
+        trainer = Trainer(
+            default_root_dir=checkpoint_dir,
+            max_epochs=2,
+            limit_val_batches=0,
+            limit_train_batches=16,
+            logger=False,
+            enable_model_summary=False,
+            accelerator='gpu',
+            devices=1,
+            callbacks=[
+                ema_callback,
+                ModelCheckpoint(dirpath=checkpoint_dir, every_n_train_steps=8, save_top_k=-1, verbose=True),
+                terminate_callback,
+            ],
+        )
+        with pytest.raises(SystemExit):
+            trainer.fit(model=lenet5)
+        resume_path = os.path.join(checkpoint_dir, 'epoch=0-step=16.ckpt')
+
+        ema_callback = EMA(ema=0.999)
+
+        lenet5 = MNISTLeNet5(MNISTLeNet5Config())
+
+        lenet5.setup_training_data()
+        lenet5.setup_optimization()
+
+        class CheckStateCallback(Callback):
+            def on_train_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+                weights = list(pl_module.state_dict().values())
+                for x, y in zip(weights, terminate_callback.pl_module_weights):
+                    assert torch.allclose(x, y)
+                for x, y in zip(ema_callback._ema_model_weights, terminate_callback.saved_ema_weights):
+                    assert torch.allclose(x, y)
+                assert ema_callback._cur_step == 16
+
+        trainer = Trainer(
+            default_root_dir=checkpoint_dir,
+            max_epochs=2,
+            limit_val_batches=0,
+            limit_train_batches=16,
+            logger=False,
+            enable_model_summary=False,
+            accelerator='gpu',
+            devices=1,
+            callbacks=[ema_callback, CheckStateCallback()],
+        )
+        trainer.fit(lenet5, ckpt_path=resume_path)
 
 
 @pytest.mark.parametrize("precision", [32, 16, "bf16"])

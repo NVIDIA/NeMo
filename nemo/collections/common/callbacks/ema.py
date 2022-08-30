@@ -61,7 +61,10 @@ class EMA(Callback):
         if pl_module.device.type != "cuda":
             raise MisconfigurationException("Apex EMA Callback only works with CUDA. Ensure to set accelerator='gpu'.")
         logging.info('Creating EMA weights copy.')
-        self._ema_model_weights = [p.detach().clone() for p in pl_module.state_dict().values()]
+        if self._ema_model_weights is None:
+            self._ema_model_weights = [p.detach().clone() for p in pl_module.state_dict().values()]
+        # ensure that all the weights are on the correct device
+        self._ema_model_weights = [p.to(pl_module.device) for p in self._ema_model_weights]
         self._overflow_buf = torch.IntTensor([0]).to(pl_module.device)
 
     def apply_multi_tensor_ema(self, pl_module: "pl.LightningModule") -> None:
