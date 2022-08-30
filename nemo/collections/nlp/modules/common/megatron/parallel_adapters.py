@@ -44,6 +44,8 @@ class ParallelLinearAdapter(AbstractAdapterModule):
         dim: int,
         activation: str = 'swish',
         norm_position: str = 'post',
+        norm_type: str = 'mixedfused',
+        column_init: str = 'xavier',
         dropout: float = 0.0,
         adapter_strategy: adapter_mixin_strategies.ResidualAddAdapterStrategyConfig = None,
     ):
@@ -54,9 +56,17 @@ class ParallelLinearAdapter(AbstractAdapterModule):
         self.activation = activation_registry[activation]()
         self.norm_position = norm_position
 
-        self.linear_in = ColumnLinear(in_features, dim, bias=False, init_method=init_method_normal(0.2))
+        if column_init == 'xavier':
+            self.linear_in = ColumnLinear(in_features, dim, bias=False)
+        else:
+            self.linear_in = ColumnLinear(in_features, dim, bias=False, init_method=init_method_normal(0.2))
+        
         self.linear_out = RowParallelLinear(dim, in_features, bias=False, init_method=init_method_const(0.0))
-        self.layer_norm = MixedFusedLayerNorm(in_features, 1e-5, sequence_parallel_enbaled=False)
+
+        if norm_type == 'mixedfused':
+            self.layer_norm = MixedFusedLayerNorm(in_features, 1e-5, sequence_parallel_enbaled=False)
+        else:
+            self.layer_norm = nn.LayerNorm(in_features)
 
         if dropout > 0.0:
             self.dropout = nn.Dropout(dropout)
@@ -91,6 +101,8 @@ class ParallelLinearAdapterConfig:
     dim: int
     activation: str = 'swish'
     norm_position: str = 'post'
+    norm_type: str = 'mixedfused'
+    column_init: str = 'xavier'
     dropout: float = 0.0
     adapter_strategy: Optional[dict] = adapter_mixin_strategies.ResidualAddAdapterStrategyConfig()
     _target_: str = "{0}.{1}".format(ParallelLinearAdapter.__module__, ParallelLinearAdapter.__name__)

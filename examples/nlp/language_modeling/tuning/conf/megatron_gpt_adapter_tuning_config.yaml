@@ -106,7 +106,9 @@ model:
     type: 'parallel'
     adapter_dim: 50
     adapter_dropout: 0.1
+    column_init: 'xavier'
     norm_position: 'pre' # This can be set to 'pre' or 'post', 'pre' is normally what is used.
+    norm_type: 'mixedfused'
 
   data:
     train_ds: ??? # expects a list of paths to training data files

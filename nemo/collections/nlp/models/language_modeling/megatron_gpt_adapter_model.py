@@ -68,6 +68,8 @@ class MegatronGPTAdapterLearningModel(MegatronGPTPromptLearningModel):
                 in_features=frozen_model_cfg.hidden_size,
                 dim=cfg.adapter_tuning.adapter_dim,
                 norm_position=cfg.adapter_tuning.norm_position,
+                norm_type=cfg.adapter_tuning.norm_type,
+                column_init=cfg.adapter_tuning.column_init,
                 dropout=cfg.adapter_tuning.adapter_dropout,
             )
         else:
