@@ -87,7 +87,7 @@ class PunctuationCapitalizationDataConfigBase:
 
     use_bucketing: Optional[bool] = True
     """
-    Whether to pack samples unto ``tokens_in_batch`` or not. Increases GPU utilization but may cause significant RAM consumption if used together with ``use_audio``. 
+    Whether to pack samples into ``tokens_in_batch`` or not. Increases GPU utilization but may cause significant RAM consumption if used together with ``use_audio``. 
     """
 
     batch_size: Optional[int] = 32
@@ -527,14 +527,12 @@ class TokenizeCreateMasksClipWorker:
                 in one word have identical labels
         """
         all_input_ids, all_subtokens_mask, punct_all_labels, capit_all_labels = [], [], [], []
-        dummy = [
-            None for _ in range(len(queries))
-        ]  # Needed to avoid code duplication with different values of `self.use_audio`
+        dummy = [None] * len(queries)  # Needed to avoid code duplication with different values of `self.use_audio`
         all_audio_waveforms = [] if preload_audios else dummy
         audio_lengths = [] if preload_audios else dummy
         audio_filepaths = [] if not preload_audios else dummy
         progress_made = 0
-        queries = zip(queries, audio_queries) if audio_queries else zip(queries, [None for _ in range(len(queries))])
+        queries = zip(queries, audio_queries) if audio_queries else zip(queries, dummy)
         for i, (query, audio_query) in enumerate(queries):
             words = query.split()
             input_ids, subtokens_mask = [self.tokenizer.cls_id], [0]
@@ -1610,9 +1608,39 @@ class BertPunctuationCapitalizationDataset(Dataset):
         waveforms: Optional[List[np.ndarray]] = None,
         audio_lengths: Optional[List[np.ndarray]] = None,
         audio_filepaths: Optional[List[str]] = None,
-    ):
+    ) -> List[Dict[str, np.ndarray]]:
+        """
+
+        Args:
+            input_ids: a list of 1D int32 arrays which contain token ids of dataset source
+            subtokens_mask: a list of 1D boolean arrays which elements are ``True`` if corresponding token is the
+                first token in some word
+            punct_labels: a list of 1D int32 arrays which contain encoded punctuation labels
+            capit_labels: a list of 1D int32 arrays which contain encoded capitalization labels
+            waveforms:  a list of 1D float arrays which contain raw waveforms of audios.
+            audio_lengths: a list of 1D int32 arrays which contain length of corresponding audio from `waveforms`
+            audio_filepaths: a list of strings which contain paths to audio
+
+        Returns:
+            a list of batches. Each batch is a dictionary with items:
+              - ``'input_ids'``: a ``np.int32`` numpy array;
+              - ``'subtokens_mask'``: a boolean numpy array;
+              - ``'punct_labels'``: a ``np.int32`` numpy array;
+              - ``'capit_labels'``: a ``np.int32`` numpy array.
+            If ``self.add_masks_and_segment_ids_to_batch`` is ``True``, then a batch also contain items
+              - ``'segment_ids'``: a ``np.int8`` numpy array;
+              - ``'input_mask'``: a boolean numpy array;
+              - ``'loss_mask'``: a boolean numpy array.
+            If ``waveforms`` is not ``None``, then a batch also contain items
+              - ``features``: a ``np.float`` numpy array.
+              - ``features_length`` a ``np.int32`` numpy array.
+            If ``audio_filepaths`` is not ``None``, then a natch also contain items
+              - ``audio_filepaths`` a list of strings.
+
+            The values of a batch dictionary are numpy arrays of identical shape.
+        """
         batches = []
-        dummy = [None for _ in range(len(input_ids))]
+        dummy = [None] * len(input_ids)
 
         zipped = list(
             zip(
@@ -1651,7 +1679,6 @@ class BertPunctuationCapitalizationDataset(Dataset):
         audio_lengths: Optional[List[np.ndarray]] = None,
         audio_filepaths: Optional[List[str]] = None,
     ) -> List[Dict[str, np.ndarray]]:
-        # TODO: add docstring
         """
         Shuffle input sequences, sort them by number of tokens, pad, and pack into batches which satisfy following
         conditions:
@@ -1673,6 +1700,9 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 first token in some word
             punct_labels: a list of 1D int32 arrays which contain encoded punctuation labels
             capit_labels: a list of 1D int32 arrays which contain encoded capitalization labels
+            waveforms:  a list of 1D float arrays which contain raw waveforms of audios.
+            audio_lengths: a list of 1D int32 arrays which contain length of corresponding audio from `waveforms`
+            audio_filepaths: a list of strings which contain paths to audio
 
         Returns:
             a list of batches. Each batch is a dictionary with items:
@@ -1684,10 +1714,15 @@ class BertPunctuationCapitalizationDataset(Dataset):
               - ``'segment_ids'``: a ``np.int8`` numpy array;
               - ``'input_mask'``: a boolean numpy array;
               - ``'loss_mask'``: a boolean numpy array.
+            If ``waveforms`` is not ``None``, then a batch also contain items
+              - ``features``: a ``np.float`` numpy array.
+              - ``features_length`` a ``np.int32`` numpy array.
+            If ``audio_filepaths`` is not ``None``, then a natch also contain items
+              - ``audio_filepaths`` a list of strings.
 
             The values of a batch dictionary are numpy arrays of identical shape.
         """
-        dummy = [None for _ in range(len(input_ids))]
+        dummy = [None] * len(input_ids)
         zipped = list(
             zip(
                 input_ids,
