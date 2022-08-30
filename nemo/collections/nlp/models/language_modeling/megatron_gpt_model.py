@@ -639,16 +639,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
             self.model.sync_initial_word_embeddings()
 
-        if self.cfg.get('transformer_engine', False) and self.cfg.get('tensor_model_parallel_size', 1) > 1:
-            logging.info(f'Setting up transformer engine modules for tensor parallelism.')
-            if self.cfg.get('megatron_amp_O2', 'False'):
-                # when using O2 additional module key is added that casts the weights
-                for layer in self.model.module.language_model.encoder.layers:
-                    layer.set_tensor_parallel_group(parallel_state.get_tensor_model_parallel_group())
-
-            else:
-                for layer in self.model.language_model.encoder.layers:
-                    layer.set_tensor_parallel_group(parallel_state.get_tensor_model_parallel_group())
+        self.setup_transformer_engine_tp_groups()
 
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds'):
@@ -715,6 +706,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             if self.trainer.strategy.launcher is not None:
                 self.trainer.strategy.launcher.launch(dummy, trainer=self.trainer)
             self.trainer.strategy.setup_environment()
+        
+        self.setup_transformer_engine_tp_groups()
 
         # set the default sampling params if it is None.
         # default do greedy sampling
@@ -787,3 +780,19 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             )
         )
         return result
+    
+    def setup_transformer_engine_tp_groups(self):
+        """ This should be called after model parallel groups have been initialized
+            and only needs to be called when using Transformer Engine.
+        """
+        # TransformerEngine needs TP groups once they are created
+        if self.cfg.get('transformer_engine', False) and self.cfg.get('tensor_model_parallel_size', 1) > 1:
+            logging.info(f'Setting up transformer engine modules for tensor parallelism.')
+            if self.cfg.get('megatron_amp_O2', 'False'):
+                # when using O2 additional module key is added that casts the weights
+                for layer in self.model.module.language_model.encoder.layers:
+                    layer.set_tensor_parallel_group(parallel_state.get_tensor_model_parallel_group())
+
+            else:
+                for layer in self.model.language_model.encoder.layers:
+                    layer.set_tensor_parallel_group(parallel_state.get_tensor_model_parallel_group())

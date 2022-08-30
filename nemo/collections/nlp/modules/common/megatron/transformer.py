@@ -2192,12 +2192,10 @@ class ParallelTransformer(MegatronModule):
             else:
                 if get_key_value:
                     presents = []
-                
+
                 # fp8_autocast will not do anything if TE or FP8 isn't used
                 with fp8_autocast(
-                    enabled=self.fp8,
-                    fp8_recipe=self.fp8_recipe,
-                    fp8_group=parallel_state.get_data_parallel_group(),
+                    enabled=self.fp8, fp8_recipe=self.fp8_recipe, fp8_group=parallel_state.get_data_parallel_group(),
                 ):
                     for index in range(self.num_layers):
                         layer = self._get_layer(index)
