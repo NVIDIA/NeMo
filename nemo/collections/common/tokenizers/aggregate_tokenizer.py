@@ -160,18 +160,6 @@ class AggregateTokenizer(TokenizerSpec):
 
         return langs
 
-    def ids_to_tokens_and_langs(self, ids):
-        tokens_and_langs = []
-
-        for id in ids:
-            offset_id = self.offset_token_ids_by_token_id[id]
-            tokenizer = self.tokenizers_by_token_id[id]
-            token = tokenizer.ids_to_tokens([offset_id])[0]
-            lang = self.langs_by_token_id[id]
-            tokens_and_langs.append({'token': token, 'lang': lang})
-
-        return tokens_and_langs
-
     def ids_to_text_and_langs(self, ids):
         text_and_langs = []
 

@@ -22,6 +22,7 @@ from torchmetrics import Metric
 from nemo.collections.asr.metrics.rnnt_wer import AbstractRNNTDecoding, RNNTDecodingConfig
 from nemo.collections.asr.metrics.wer import move_dimension_to_the_front
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+from nemo.collections.common.tokenizer.aggregate_tokenizer import AggregateTokenizer
 from nemo.utils import logging
 
 __all__ = ['RNNTBPEDecoding', 'RNNTBPEWER']
@@ -57,6 +58,10 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
             compute_timestamps: A bool flag, which determines whether to compute the character/subword, or
                 word based timestamp mapping the output log-probabilities to discrete intervals of timestamps.
                 The timestamps will be available in the returned Hypothesis.timestep as a dictionary.
+
+            compute_langs: a bool flag, which allows to compute language id (LID) information per token,
+                word, and the entire sample (most likely language id). The LIDS will be available 
+                in the returned Hypothesis object as a dictionary
 
             rnnt_timestamp_type: A str value, which represents the types of timestamps that should be calculated.
                 Can take the following values - "char" for character/subword time stamps, "word" for word level
@@ -125,7 +130,7 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
     def __init__(self, decoding_cfg, decoder, joint, tokenizer: TokenizerSpec):
         blank_id = tokenizer.tokenizer.vocab_size
         self.tokenizer = tokenizer
-        self.compute_langs = self.cfg.get('compute_langs', None)
+        self.compute_langs = self.cfg.get('compute_langs', False)
 
         super(RNNTBPEDecoding, self).__init__(
             decoding_cfg=decoding_cfg, decoder=decoder, joint=joint, blank_id=blank_id
@@ -182,7 +187,6 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
             A list of decoded LIDS.
         """
         lang_list = self.tokenizer.ids_to_text_and_langs(tokens)
-        # lang_list = self.tokenizer.ids_to_tokens_and_langs(tokens)
         return lang_list
 
     def decode_ids_to_words_and_langs(self, tokens: List[int]) -> List[str]:
@@ -211,7 +215,7 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
         """        
         hypotheses = super().decode_hypothesis(hypotheses_list)
         if self.compute_langs:
-            if self.tokenizer.is_aggregate:
+            if isinstance(self.tokenizer, AggregateTokenizer):
                 hypotheses[ind].langs = self.decode_tokens_to_lang(prediction)
                 hypotheses[ind].langs_chars = self.decode_ids_to_langs(prediction)
                 hypotheses[ind].langs_words = self.decode_ids_to_words_and_langs(prediction)
