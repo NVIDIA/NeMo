@@ -159,7 +159,7 @@ class AggregateTokenizer(TokenizerSpec):
             tokenizer = self.tokenizers_by_token_id[id]
             token = tokenizer.ids_to_tokens([offset_id])[0]
             text = token.replace('▁', ' ')
-            text = text.strip() # strip for display purposes
+            text = text.strip()  # strip for display purposes
             lang = self.langs_by_token_id[id]
             text_and_langs.append({'char': text, 'lang': lang})
 
@@ -176,7 +176,7 @@ class AggregateTokenizer(TokenizerSpec):
             if token.startswith('▁'):
                 if len(word_ids) > 0:  # if this isn't the first word
                     word = self.ids_to_text(word_ids)
-                    word = word.strip() # strip for display purposes
+                    word = word.strip()  # strip for display purposes
                     lang = self.ids_to_lang(word_ids)
                     wl = {'word': word, 'lang': lang}
                     words_and_langs.append(wl)
@@ -185,7 +185,7 @@ class AggregateTokenizer(TokenizerSpec):
 
         if len(word_ids) > 0:  # the last tokens
             word = self.ids_to_text(word_ids)
-            word = word.strip() # strip for display purposes
+            word = word.strip()  # strip for display purposes
             lang = self.ids_to_lang(word_ids)
             wl = {'word': word, 'lang': lang}
             words_and_langs.append(wl)
