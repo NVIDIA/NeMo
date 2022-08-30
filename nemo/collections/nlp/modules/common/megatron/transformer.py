@@ -1633,7 +1633,6 @@ class AutocastTransformerLayer(TransformerLayer):
         tp_size: int = 1,
         params_dtype: torch.dtype = torch.float32,
         get_rng_state_tracker: Optional[Callable] = None,
-        checkpoint_core_attention: bool = False,
         fuse_wgrad_accumulation: bool = False,
         apply_query_key_layer_scaling: bool = True,
         attention_softmax_in_fp32: bool = False,
@@ -1663,7 +1662,6 @@ class AutocastTransformerLayer(TransformerLayer):
             tp_size=tp_size,
             params_dtype=params_dtype,
             get_rng_state_tracker=get_rng_state_tracker,
-            checkpoint_core_attention=checkpoint_core_attention,
             fuse_wgrad_accumulation=fuse_wgrad_accumulation,
             apply_query_key_layer_scaling=apply_query_key_layer_scaling,
             attention_softmax_in_fp32=attention_softmax_in_fp32,
@@ -1694,6 +1692,7 @@ class AutocastTransformerLayer(TransformerLayer):
         enc_dec_attn_mask: Optional[torch.Tensor] = None,
         inference_params: Optional[Any] = None,
         is_first_microbatch: Optional[bool] = None,
+        checkpoint_core_attention: Optional[bool] = False,
     ) -> torch.Tensor:
         if self.dtype == torch.float32:
             return super().forward(
@@ -1703,6 +1702,7 @@ class AutocastTransformerLayer(TransformerLayer):
                 enc_dec_attn_mask=enc_dec_attn_mask,
                 inference_params=inference_params,
                 is_first_microbatch=is_first_microbatch,
+                checkpoint_core_attention=checkpoint_core_attention,
             )
         with torch.autocast(device_type="cuda", dtype=self.dtype):
             return super().forward(
@@ -1712,6 +1712,7 @@ class AutocastTransformerLayer(TransformerLayer):
                 enc_dec_attn_mask=enc_dec_attn_mask,
                 inference_params=inference_params,
                 is_first_microbatch=is_first_microbatch,
+                checkpoint_core_attention=checkpoint_core_attention,
             )
 
 
@@ -1843,6 +1844,7 @@ class ParallelTransformer(MegatronModule):
 
         self.is_first_microbatch = True
         self.microbatch_count = 0  # transformer engine forward needs to know if it is working on the first microbatch
+        self.checkpoint_core_attention = activations_checkpoint_granularity == 'selective' # transformer engine forward allows for more granular selective checkpointing
 
         if self.model_type == ModelType.encoder_or_decoder:
             assert (
@@ -1860,8 +1862,6 @@ class ParallelTransformer(MegatronModule):
                 lt = layer_type
 
             if self.transformer_engine:
-                checkpoint_core_attention = activations_checkpoint_granularity == 'selective'
-
                 return AutocastTransformerLayer(
                     hidden_size=hidden_size,
                     ffn_hidden_size=ffn_hidden_size,
@@ -1877,7 +1877,6 @@ class ParallelTransformer(MegatronModule):
                     tp_size=parallel_state.get_tensor_model_parallel_world_size(),
                     params_dtype=torch.float32,  # dtype params are initialized in
                     get_rng_state_tracker=tensor_parallel.random.get_cuda_rng_tracker,
-                    checkpoint_core_attention=checkpoint_core_attention,
                     fuse_wgrad_accumulation=gradient_accumulation_fusion,
                     apply_query_key_layer_scaling=apply_query_key_layer_scaling,
                     seq_length=None,  # used for jit warmup
@@ -2222,6 +2221,7 @@ class ParallelTransformer(MegatronModule):
                                 enc_dec_attn_mask=enc_dec_attn_mask,
                                 inference_params=inference_params,
                                 is_first_microbatch=self.is_first_microbatch,
+                                checkpoint_core_attention=self.checkpoint_core_attention,
                             )
 
                         else:
