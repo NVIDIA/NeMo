@@ -90,16 +90,16 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
       - [5.8.3.1. Common](#5831-common)
       - [5.8.3.2. Slurm](#5832-slurm)
       - [5.8.3.3. Base Command Platform](#5833-base-command-platform)
-  * [5.9. Model Finetuning](#59-model-finetuning)
-    + [5.9.1. T5 Finetuning](#591-t5-finetuning)
+  * [5.9. Model Finetuning](#59-model-fine_tuning)
+    + [5.9.1. T5 Finetuning](#591-t5-fine_tuning)
       - [5.9.1.1. Common](#5911-common)
       - [5.9.1.2. Slurm](#5912-slurm)
       - [5.9.1.3. Base Command Platform](#5913-base-command-platform)
-    + [5.9.2. mT5 Finetuning](#592-mt5-finetuning)
+    + [5.9.2. mT5 Finetuning](#592-mt5-fine_tuning)
       - [5.9.2.1. Common](#5921-common)
       - [5.9.2.2. Slurm](#5922-slurm)
       - [5.9.2.3. Base Command Platform](#5923-base-command-platform)
-    + [5.9.3. Finetuning on Custom Tasks](#593-finetuning-on-custom-tasks)
+    + [5.9.3. Finetuning on Custom Tasks](#593-fine_tuning-on-custom-tasks)
   * [5.10. Model Prompt Learning](#510-model-prompt-learning)
     + [5.10.1. GPT-3 Prompt Learning](#5101-gpt-3-prompt-learning)
       - [5.10.1.1. Common](#51011-common)
@@ -506,12 +506,12 @@ only one of them should be set to `True` at a time.
 **Settings for GPT-3 Models**: Default settings for GPT-3 models are in the `config/config.yaml` file:
 
 ```yaml
-run_data_preparation: True
-run_training: True
-run_conversion: True
-run_finetuning: False  # Fine-tuning is only supported in T5 models.
-run_evaluation: True
-run_export: True
+stages:
+  - data_preparation
+  - training
+  - conversion
+  - evaluation
+  - export
 ```
 
 [//]: # (##### 4.1.1.3.2. Settings for T5 Models )
@@ -522,40 +522,42 @@ run_export: True
 ```yaml
 # default values:
 cluster: bcm  # Leave it as bcm even if using bcp. It will be ignored for bcp.
-data_preparation: download_t5_pile
+data_preparation: t5/download_t5_pile
 training: t5/220m
-conversion: convert_t5
-finetuning: t5/mnli
-evaluation: t5/mnli_matched
-export: t5
+conversion: t5/convert_t5
+fine_tuning: t5/squad
+evaluation: t5/squad
+export: t5/export_t5
 
-run_data_preparation: True
-run_training: True
-run_conversion: True
-run_finetuning: True
-run_prompt_learning: False
-run_evaluation: True
-run_export: True
+stages:
+  - data_preparation
+  - training
+  - conversion
+  - fine_tuning
+  - prompt_learning
+  - evaluation
+  - export
 ```
 
 **Settings for mT5 Models**: Default settings for T5 models are in the `config/config.yaml` file:
 ```yaml
 # default values:
 cluster: bcm  # Leave it as bcm even if using bcp. It will be ignored for bcp.
-data_preparation: download_mc4
+data_preparation: mt5/download_mc4
 training: mt5/390m
-conversion: convert_mt5
-finetuning: mt5/xnli
-evaluation: mt5/xnli
-export: mt5
+conversion: mt5/convert_mt5
+fine_tuning: mt5/xquad
+evaluation: mt5/xquad
+export: mt5/export_mt5
 
-run_data_preparation: True
-run_training: True
-run_conversion: True
-run_finetuning: True
-run_prompt_learning: False
-run_evaluation: True
-run_export: True
+stages:
+  - data_preparation
+  - training
+  - conversion
+  - fine_tuning
+  - prompt_learning
+  - evaluation
+  - export
 ```
 
 To run these pipelines execute:
@@ -634,13 +636,8 @@ Example:
 To run only the data preparation pipeline and not the training, evaluation or
 inference pipelines, set the `conf/config.yaml` file to:
 ```yaml
-run_data_preparation: True
-run_training: False
-run_conversion: False
-run_finetuning: False
-run_prompt_learning: False
-run_evaluation: False
-run_export: False
+stages:
+  - data_preparation
 ```
 
 And then run:
@@ -665,8 +662,8 @@ shared by multiple users in the same ACE by setting the permissions of the `bign
 
 To run the data preparation pipeline for GPT-3 models, run:
 ```
-python3 /opt/bignlp/bignlp-scripts/main.py run_data_preparation=True run_training=False run_conversion=False run_finetuning=False    \
-run_evaluation=False run_export=False cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile_gpt3 \
+python3 /opt/bignlp/bignlp-scripts/main.py stages=[data_preparation] \
+cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile_gpt3 \
 base_results_dir=/mount/results data_preparation.file_numbers='0-29' \
 data_preparation.vocab_save_dir=/mount/data/bpe data_preparation.merges_save_dir=/mount/data/bpe >> /results/data_gpt3_log.txt 2>&1
 ```
@@ -680,30 +677,35 @@ Any other parameter can also be added to the command to modify its behavior.
 
 Set the configuration for the data preparation job for GPT-3 models in the YAML file:
 ```yaml
-dataset: pile    # Dataset name
-download_the_pile: True    # Whether to download the Pile dataset from the internet.
-the_pile_url: "https://mystic.the-eye.eu/public/AI/pile/train/"    # Source URL to download the Pile dataset from.
-file_numbers: "0-29"    # The Pile dataset consists of 30 files (0-29), choose which ones to download.
-preprocess_data: True    # True to preprocess the data from a jsonl file, False otherwise.
-download_vocab_url: "https://huggingface.co/gpt2/resolve/main/vocab.json"    # URL to download the vocab from.
-download_merges_url: "https://huggingface.co/gpt2/resolve/main/merges.txt"    # URL to download the merges from.
+run:
+  name: download_gpt3_pile
+  results_dir: ${base_results_dir}/${.name}
+  time_limit: "4:00:00"
+  dependency: "singleton"
+  node_array_size: 30
+  array: ${..file_numbers}
+  bcp_preproc_npernode: 2 # 2 should be safe to use and x2 times faster.
+
+dataset: pile
+download_the_pile: True  # Whether to download the pile dataset from the internet.
+the_pile_url: "https://mystic.the-eye.eu/public/AI/pile/train/"  # Source URL to download The Pile dataset from.
+file_numbers: "0-29"  # The pile dataset consists of 30 files (0-29), choose which ones to download.
+preprocess_data: True  # True to preprocess the data from a jsonl file, False otherwise.
+download_vocab_url: "https://huggingface.co/gpt2/resolve/main/vocab.json"  # URL to download the vocab from.
+download_merges_url: "https://huggingface.co/gpt2/resolve/main/merges.txt"  # URL to download the merges from.
 vocab_save_dir: ${data_dir}/bpe
 merges_save_dir: ${data_dir}/bpe
 tokenizer_type: GPT2BPETokenizer
-log_dir: ${base_results_dir}/data_preparation/gpt3_pile_logs    # Where to save the logs
 rm_downloaded: True # Extract script will remove downloaded zst after extraction
 rm_extracted: True # Preprocess script will remove extracted files after preproc.
-nodes: 30
-time_limit: "4:00:00"
-bcp_preproc_npernode: 2 # 2 should be safe to use and x2 times faster.
 ```
 
 ##### 5.1.2.2. Data Preparation for T5 Models
 <a id="markdown-data-preparation-for-t5-models" name="data-preparation-for-t5-models"></a>
 The `data_preparation` parameter in `conf/config.yaml` specifies which file to use for data preparation
-configuration purposes. The `data_preparation` parameter needs to be specified as `download_t5_pile` for
+configuration purposes. The `data_preparation` parameter needs to be specified as `t5/download_t5_pile` for
 preparing the Pile dataset for T5 models. The config file can be found in 
-`conf/data_preparation/download_t5_pile.yaml`. GPT-3 models and T5 models use
+`conf/data_preparation/t5/download_t5_pile.yaml`. GPT-3 models and T5 models use
 different tokenizer and vocab files. The default parameters can be found in the
 corresponding config files.
 
@@ -719,7 +721,7 @@ files 0, 3, 5, 6, and 7.
 
 First, ensure the cluster configuration settings in the `conf/cluster/bcm.yaml` file are correct.
 The `cluster` and `cluster_type` parameters in `conf/config.yaml` must be set to `bcm`.
-Then, modify the `time_limit` or any other parameter related to the job in the `download_t5_pile.yaml`
+Then, modify the `time_limit` or any other parameter related to the job in the `t5/download_t5_pile.yaml`
 file for T5 models.
 The data preparation can be parallelized by using up to 30 nodes to download all 30 files in parallel.
 
@@ -728,13 +730,8 @@ Example:
 To run only the data preparation pipeline and not the training, evaluation or
 inference pipelines, set the `conf/config.yaml` file to:
 ```yaml
-run_data_preparation: True
-run_training: False
-run_conversion: False
-run_finetuning: False
-run_prompt_learning: False
-run_evaluation: False
-run_export: False
+stages:
+  - data_preparation: True
 ```
 
 And then run:
@@ -761,7 +758,7 @@ shared by multiple users in the same ACE by setting the permissions of the `bign
 To run the data preparation pipeline for T5 models, run:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py data_preparation=download_t5_pile run_data_preparation=True \
-run_training=False run_conversion=False run_finetuning=False run_evaluation=False run_export=False \
+run_training=False run_conversion=False run_fine_tuning=False run_evaluation=False run_export=False \
 cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile_t5 \
 base_results_dir=/mount/results data_preparation.file_numbers='0-29' \
 data_preparation.vocab_save_dir=/mount/data/bpe >> /results/data_t5_log.txt 2>&1
@@ -828,7 +825,7 @@ inference pipelines, set the `conf/config.yaml` file to:
 run_data_preparation: True
 run_training: False
 run_conversion: False
-run_finetuning: False
+run_fine_tuning: False
 run_prompt_learning: False
 run_evaluation: False
 run_export: False
@@ -858,7 +855,7 @@ shared by multiple users in the same ACE by setting the permissions of the `bign
 To run the data preparation pipeline for mT5 models, run:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py data_preparation=download_mc4 run_data_preparation=True \
-run_training=False run_conversion=False run_finetuning=False run_evaluation=False run_export=False \
+run_training=False run_conversion=False run_fine_tuning=False run_evaluation=False run_export=False \
 cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
 base_results_dir=/mount/results data_preparation.languages=\'cs,da,de,el,en,es,fi,fr,hi,hu,it,ja,ko,lt,lv,nl,no,pl,pt,ro,ru,sk,sv,zh\' \
 data_preparation.nodes=20 data_preparation.workers_per_node=4 >> /results/data_mt5_log.txt 2>&1
@@ -933,7 +930,7 @@ python3 main.py
 To train a 126M GPT-3 model on Base Command Platform cluster on 8 nodes, use the command:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py training=gpt3/126m run_training=True \
-run_data_preparation=False run_conversion=False run_finetuning=False run_evaluation=False run_export=False \
+run_data_preparation=False run_conversion=False run_fine_tuning=False run_evaluation=False run_export=False \
 bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile_gpt3 \
 base_results_dir=/mount/results training.trainer.num_nodes=\$NGC_ARRAY_SIZE \
 training.model.tokenizer.vocab_file=/mount/data/bpe/vocab.json \
@@ -970,7 +967,7 @@ python3 main.py
 To train a 5B GPT-3 model on Base Command Platform cluster on 20 nodes, use the command:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py training=gpt3/5b run_training=True \
-run_data_preparation=False run_conversion=False run_finetuning=False run_evaluation=False run_export=False \
+run_data_preparation=False run_conversion=False run_fine_tuning=False run_evaluation=False run_export=False \
 bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile_gpt3 \
 base_results_dir=/mount/results training.trainer.num_nodes=\$NGC_ARRAY_SIZE \
 training.model.tokenizer.vocab_file=/mount/data/bpe/vocab.json \
@@ -1003,7 +1000,7 @@ python3 main.py
 To train a 20B GPT-3 model on Base Command Platform cluster on 80 nodes, use the command:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py training=gpt3/20b run_training=True \
-run_data_preparation=False run_conversion=False run_finetuning=False run_evaluation=False run_export=False \
+run_data_preparation=False run_conversion=False run_fine_tuning=False run_evaluation=False run_export=False \
 bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile_gpt3 \
 base_results_dir=/mount/results training.trainer.num_nodes=\$NGC_ARRAY_SIZE \
 training.model.tokenizer.vocab_file=/mount/data/bpe/vocab.json \
@@ -1035,7 +1032,7 @@ python3 main.py
 To train a 40B GPT-3 model on Base Command Platform cluster on 80 nodes, use the command:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py training=gpt3/40b run_training=True \
-run_data_preparation=False run_conversion=False run_finetuning=False run_evaluation=False run_export=False \
+run_data_preparation=False run_conversion=False run_fine_tuning=False run_evaluation=False run_export=False \
 bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile_gpt3 \
 base_results_dir=/mount/results training.trainer.num_nodes=\$NGC_ARRAY_SIZE \
 training.model.tokenizer.vocab_file=/mount/data/bpe/vocab.json \
@@ -1067,7 +1064,7 @@ python3 main.py
 To train a 175B GPT-3 model on Base Command Platform cluster on 128 nodes, use the command:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py training=gpt3/175b run_training=True \
-run_data_preparation=False run_conversion=False run_finetuning=False run_evaluation=False run_export=False \
+run_data_preparation=False run_conversion=False run_fine_tuning=False run_evaluation=False run_export=False \
 bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile_gpt3 \
 base_results_dir=/mount/results training.trainer.num_nodes=\$NGC_ARRAY_SIZE \
 training.model.tokenizer.vocab_file=/mount/data/bpe/vocab.json \
@@ -1109,7 +1106,7 @@ python3 main.py
 To train a 220M model on Base Command Platform cluster on 4 nodes, use the command:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py training=t5/220m run_training=True \
-run_data_preparation=False run_conversion=False run_finetuning=False run_evaluation=False run_export=False \
+run_data_preparation=False run_conversion=False run_fine_tuning=False run_evaluation=False run_export=False \
 bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile_t5 \
 base_results_dir=/mount/results training.trainer.num_nodes=\$NGC_ARRAY_SIZE \
 training.model.tokenizer.vocab_file=/mount/data/bpe/vocab.txt cluster_type=bcp
@@ -1144,7 +1141,7 @@ python3 main.py
 To train a 3B model on Base Command Platform cluster on 20 nodes, use the command:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py training=t5/3b run_training=True \
-run_data_preparation=False run_conversion=False run_finetuning=False run_evaluation=False run_export=False \
+run_data_preparation=False run_conversion=False run_fine_tuning=False run_evaluation=False run_export=False \
 bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile_t5 \
 base_results_dir=/mount/results training.trainer.num_nodes=\$NGC_ARRAY_SIZE \
 training.model.tokenizer.vocab_file=/mount/data/bpe/vocab.txt cluster_type=bcp
@@ -1176,7 +1173,7 @@ python3 main.py
 To train a 11B model on Base Command Platform cluster on 20 nodes, use the command:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py training=t5/11b run_training=True \
-run_data_preparation=False run_conversion=False run_finetuning=False run_evaluation=False run_export=False \
+run_data_preparation=False run_conversion=False run_fine_tuning=False run_evaluation=False run_export=False \
 bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile_t5 \
 base_results_dir=/mount/results training.trainer.num_nodes=\$NGC_ARRAY_SIZE \
 training.model.tokenizer.vocab_file=/mount/data/bpe/vocab.txt cluster_type=bcp
@@ -1208,7 +1205,7 @@ python3 main.py
 To train a 23B model on Base Command Platform cluster on 40 nodes, use the command:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py training=t5/23b run_training=True \
-run_data_preparation=False run_conversion=False run_finetuning=False run_evaluation=False run_export=False \
+run_data_preparation=False run_conversion=False run_fine_tuning=False run_evaluation=False run_export=False \
 bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile_t5 \
 base_results_dir=/mount/results training.trainer.num_nodes=\$NGC_ARRAY_SIZE \
 training.model.tokenizer.vocab_file=/mount/data/bpe/vocab.txt cluster_type=bcp
@@ -1239,7 +1236,7 @@ python3 main.py
 To train a 41B model on Base Command Platform cluster on 40 nodes, use the command:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py training=t5/41b run_training=True \
-run_data_preparation=False run_conversion=False run_finetuning=False run_evaluation=False run_export=False \
+run_data_preparation=False run_conversion=False run_fine_tuning=False run_evaluation=False run_export=False \
 bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile_t5 \
 base_results_dir=/mount/results training.trainer.num_nodes=\$NGC_ARRAY_SIZE \
 training.model.tokenizer.vocab_file=/mount/data/bpe/vocab.txt cluster_type=bcp
@@ -1281,7 +1278,7 @@ python3 main.py
 To train a 170M model on Base Command Platform cluster on 4 nodes, use the command:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py training=mt5/170m run_training=True \
-run_data_preparation=False run_conversion=False run_finetuning=False run_evaluation=False run_export=False \
+run_data_preparation=False run_conversion=False run_fine_tuning=False run_evaluation=False run_export=False \
 bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data base_results_dir=/mount/results \
 training.trainer.num_nodes=\$NGC_ARRAY_SIZE cluster_type=bcp
 ```
@@ -1316,7 +1313,7 @@ python3 main.py
 To train a 390M model on Base Command Platform cluster on 8 nodes, use the command:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py training=mt5/390m run_training=True \
-run_data_preparation=False run_conversion=False run_finetuning=False run_evaluation=False run_export=False \
+run_data_preparation=False run_conversion=False run_fine_tuning=False run_evaluation=False run_export=False \
 bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data base_results_dir=/mount/results \
 training.trainer.num_nodes=\$NGC_ARRAY_SIZE cluster_type=bcp
 ```
@@ -1347,7 +1344,7 @@ python3 main.py
 To train a 3B model on Base Command Platform cluster on 20 nodes, use the command:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py training=mt5/3b run_training=True \
-run_data_preparation=False run_conversion=False run_finetuning=False run_evaluation=False run_export=False \
+run_data_preparation=False run_conversion=False run_fine_tuning=False run_evaluation=False run_export=False \
 bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data base_results_dir=/mount/results \
 training.trainer.num_nodes=\$NGC_ARRAY_SIZE cluster_type=bcp
 ```
@@ -1863,7 +1860,7 @@ inference pipelines, set the `conf/config.yaml` file to:
 run_data_preparation: True
 run_training: False
 run_conversion: False
-run_finetuning: False
+run_fine_tuning: False
 run_evaluation: False
 run_export: False
 ```
@@ -1888,7 +1885,7 @@ nodes which is equal to the number of custom dataset files for faster preparatio
 
 To run the data preparation pipeline, run:
 ```
-python3 /opt/bignlp/bignlp-scripts/main.py run_data_preparation=True run_training=False run_conversion=False run_finetuning=False    \
+python3 /opt/bignlp/bignlp-scripts/main.py run_data_preparation=True run_training=False run_conversion=False run_fine_tuning=False    \
 run_evaluation=False run_export=False cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
 base_results_dir=/mount/results data_preparation=custom_dataset \
 dataprepartion.train_tokenizer_args.inp=/path/to/text/file/for/training/tokenizer \
@@ -1985,7 +1982,7 @@ inference pipelines, set the `conf/config.yaml` file to:
 run_data_preparation: False
 run_training: True
 run_conversion: False
-run_finetuning: False
+run_fine_tuning: False
 run_prompt_learning: False
 run_evaluation: False
 run_export: False
@@ -2046,7 +2043,7 @@ inference pipelines, set the `conf/config.yaml` file to:
 run_data_preparation: False
 run_training: True
 run_conversion: False
-run_finetuning: False
+run_fine_tuning: False
 run_prompt_learning: False
 run_evaluation: False
 run_export: False
@@ -2108,7 +2105,7 @@ inference pipelines, set the `conf/config.yaml` file to:
 run_data_preparation: False
 run_training: True
 run_conversion: False
-run_finetuning: False
+run_fine_tuning: False
 run_prompt_learning: False
 run_evaluation: False
 run_export: False
@@ -2217,7 +2214,7 @@ evaluation or inference pipelines set the `conf/config.yaml` file to:
 run_data_preparation: False
 run_training: False
 run_conversion: True
-run_finetuning: False
+run_fine_tuning: False
 run_prompt_learning: False
 run_evaluation: False
 run_export: False
@@ -2237,7 +2234,7 @@ from the command line, using hydra. The conversion script must be launched in a 
 To run the conversion pipeline to convert a 126M checkpoint stored in 
 `/mount/results/gpt3_126m/checkpoints`, run:
 ```
-python3 /opt/bignlp/bignlp-scripts/main.py run_data_preparation=False run_training=False run_conversion=True run_finetuning=False    \
+python3 /opt/bignlp/bignlp-scripts/main.py run_data_preparation=False run_training=False run_conversion=True run_fine_tuning=False    \
 run_evaluation=False run_export=False cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile_gpt3 \
 base_results_dir=/mount/results conversion.run.model_train_name=gpt3_126m conversion.model.vocab_file=/mount/data/bpe/vocab.json \
 conversion.model.merge_file=/mount/data/bpe/merges.txt conversion.run.results_dir=/mount/results/gpt3_126m/convert_nemo \
@@ -2316,7 +2313,7 @@ evaluation or inference pipelines set the `conf/config.yaml` file to:
 run_data_preparation: False
 run_training: False
 run_conversion: True
-run_finetuning: False
+run_fine_tuning: False
 run_prompt_learning: False
 run_evaluation: False
 run_export: False
@@ -2337,7 +2334,7 @@ To run the conversion pipeline to convert a T5 220M checkpoint stored in
 `/mount/results/t5_220m/checkpoints`, run:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py conversion=convert_t5 \
-run_data_preparation=False run_training=False run_conversion=True run_finetuning=False    \
+run_data_preparation=False run_training=False run_conversion=True run_fine_tuning=False    \
 run_evaluation=False run_export=False cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile_t5 \
 base_results_dir=/mount/results conversion.model.vocab_file=/mount/data/bpe/vocab.txt \
 conversion.run.model_train_name=t5_220m conversion.run.results_dir=/mount/results/t5_220m/convert_nemo \
@@ -2418,7 +2415,7 @@ evaluation or inference pipelines set the `conf/config.yaml` file to:
 run_data_preparation: False
 run_training: False
 run_conversion: True
-run_finetuning: False
+run_fine_tuning: False
 run_prompt_learning: False
 run_evaluation: False
 run_export: False
@@ -2439,7 +2436,7 @@ To run the conversion pipeline to convert a mT5 390M checkpoint stored in
 `/mount/results/mt5_390m/checkpoints`, run:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py conversion=convert_mt5 \
-run_data_preparation=False run_training=False run_conversion=True run_finetuning=False    \
+run_data_preparation=False run_training=False run_conversion=True run_fine_tuning=False    \
 run_evaluation=False run_export=False cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
 conversion.run.model_train_name=mt5_390m \
 base_results_dir=/mount/results conversion.run.results_dir=/mount/results/mt5_390m/convert_nemo \
@@ -2452,22 +2449,22 @@ The stdout and stderr outputs will also be redirected to the `/results/convert_m
 Any other parameter can also be added to the command to modify its behavior.
 
 ### 5.9. Model Finetuning
-<a id="markdown-model-finetuning" name="model-finetuning"></a>
+<a id="markdown-model-fine_tuning" name="model-fine_tuning"></a>
 
 We also provide an easy-to-use tool to help fine-tuning the trained checkpoints
 on GLUE tasks for T5 models and on XNLI for mT5 models. Fine-tuning for GPT-3 models are not supported.
 
 #### 5.9.1. T5 Finetuning
-<a id="markdown-t5-finetuning" name="t5-finetuning"></a>
+<a id="markdown-t5-fine_tuning" name="t5-fine_tuning"></a>
 
 The following downstream GLUE tasks are supported for T5 models: 
 `cola`, `sst-2`, `mrpc`, `qqp`, `mnli`, `qnli`, and `rte`.
 
 The configuration used for the fine-tuning needs to be specified in the
-`conf/config.yaml` file, specifying the `finetuning` parameter, which specifies the
-file to use for fine-tuning purposes. The `run_finetuning` parameter must be set
+`conf/config.yaml` file, specifying the `fine_tuning` parameter, which specifies the
+file to use for fine-tuning purposes. The `run_fine_tuning` parameter must be set
 to `True` to run the fine-tuning pipeline. To fine-tune checkpoint on `mnli` task, set
-`finetuning` parameter to `t5/mnli`, which can be found in `conf/finetuning/t5/mnli.yaml`. The
+`fine_tuning` parameter to `t5/mnli`, which can be found in `conf/fine_tuning/t5/mnli.yaml`. The
 parameters can be modified to adapt different GLUE tasks and checkpoints
 in fine-tuning runs. One will need to tune the fine-tuning hyper parameters
 to reach the best accuracy for a specific GLUE task. The provided hyper parameters
@@ -2475,7 +2472,7 @@ are only optimized for T5 220M model on `mnli` task.
 
 ##### 5.9.1.1. Common
 <a id="markdown-common" name="common"></a>
-To specify the configuration for what tasks to run for finetuning, 
+To specify the configuration for what tasks to run for fine_tuning, 
 use the `run.task_name` parameter. 
 And use all the `run` parameters to define the job specific config:
 ```yaml
@@ -2493,7 +2490,7 @@ To specify which model checkpoint to load and its definition, use the `model` pa
 
 ```yaml
 model: # For different fine-tuning tasks, tuning the hyper parameters accordingly; below is only for MNLI
-    restore_from_path: ${base_results_dir}/${finetuning.run.model_train_name}/${finetuning.run.convert_name}/megatron_t5.nemo # Path to a trained T5 .nemo file
+    restore_from_path: ${base_results_dir}/${fine_tuning.run.model_train_name}/${fine_tuning.run.convert_name}/megatron_t5.nemo # Path to a trained T5 .nemo file
     tensor_model_parallel_size: 1
     pipeline_model_parallel_size: 1
 ```
@@ -2523,7 +2520,7 @@ conversion or inference pipelines set the `conf/config.yaml` file to:
 run_data_preparation: False
 run_training: False
 run_conversion: False
-run_finetuning: True
+run_fine_tuning: True
 run_prompt_learning: False
 run_evaluation: False
 run_export: False
@@ -2543,11 +2540,11 @@ from the command line, using hydra. The evaluation script must be launched in a 
 To run the fine-tuning pipeline to fine-tune a 220M T5 model converted checkpoint stored in 
 /mount/results/t5_220m/convert_nemo, run:
 ```
-python3 /opt/bignlp/bignlp-scripts/main.py finetuning=t5/mnli run_data_preparation=False run_training=False \
-run_conversion=False run_finetuning=True run_evaluation=False run_export=False cluster_type=bcp \
+python3 /opt/bignlp/bignlp-scripts/main.py fine_tuning=t5/mnli run_data_preparation=False run_training=False \
+run_conversion=False run_fine_tuning=True run_evaluation=False run_export=False cluster_type=bcp \
 bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data base_results_dir=/mount/results \
-finetuning.run.model_train_name=t5_220m \
-finetuning.model.restore_from_path=/mount/results/t5_220m/convert_nemo/megatron_t5.nemo \
+fine_tuning.run.model_train_name=t5_220m \
+fine_tuning.model.restore_from_path=/mount/results/t5_220m/convert_nemo/megatron_t5.nemo \
 >> /results/finetune_t5_log.txt 2>&1
 ```
 
@@ -2558,19 +2555,19 @@ Any other parameter can also be added to the command to modify its behavior.
 
 
 #### 5.9.2. mT5 Finetuning
-<a id="markdown-mt5-finetuning" name="mt5-finetuning"></a>
+<a id="markdown-mt5-fine_tuning" name="mt5-fine_tuning"></a>
 
 XNLI benchmark are supported for mT5 models.
 
 The configuration used for the fine-tuning needs to be specified in the
-`conf/config.yaml` file, specifying the `finetuning` parameter, which specifies the
-file to use for fine-tuning purposes. The `run_finetuning` parameter must be set
+`conf/config.yaml` file, specifying the `fine_tuning` parameter, which specifies the
+file to use for fine-tuning purposes. The `run_fine_tuning` parameter must be set
 to `True` to run the fine-tuning pipeline. To fine-tune checkpoint on `xnli` task, set
-`finetuning` parameter to `mt5/xnli`, which can be found in `conf/finetuning/mt5/xnli.yaml`.
+`fine_tuning` parameter to `mt5/xnli`, which can be found in `conf/fine_tuning/mt5/xnli.yaml`.
 
 ##### 5.9.2.1. Common
 <a id="markdown-common" name="common"></a>
-To specify the configuration for what tasks to run for finetuning, 
+To specify the configuration for what tasks to run for fine_tuning, 
 use the `run.task_name` parameter. 
 And use all the `run` parameters to define the job specific config:
 ```yaml
@@ -2588,7 +2585,7 @@ To specify which model checkpoint to load and its definition, use the `model` pa
 
 ```yaml
 model:
-  restore_from_path: ${base_results_dir}/${finetuning.run.model_train_name}/${finetuning.run.convert_name}/megatron_mt5.nemo # Path to a trained mt5 .nemo file
+  restore_from_path: ${base_results_dir}/${fine_tuning.run.model_train_name}/${fine_tuning.run.convert_name}/megatron_mt5.nemo # Path to a trained mt5 .nemo file
   tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1
 ```
@@ -2618,7 +2615,7 @@ conversion or inference pipelines set the `conf/config.yaml` file to:
 run_data_preparation: False
 run_training: False
 run_conversion: False
-run_finetuning: True
+run_fine_tuning: True
 run_prompt_learning: False
 run_evaluation: False
 run_export: False
@@ -2638,11 +2635,11 @@ from the command line, using hydra. The evaluation script must be launched in a 
 To run the fine-tuning pipeline to fine-tune a 390M mT5 model converted checkpoint stored in 
 /mount/results/mt5_390m/convert_nemo, run:
 ```
-python3 /opt/bignlp/bignlp-scripts/main.py  finetuning=mt5/xnli run_data_preparation=False run_training=False \
-run_conversion=False run_finetuning=True run_evaluation=False run_export=False cluster_type=bcp \
+python3 /opt/bignlp/bignlp-scripts/main.py  fine_tuning=mt5/xnli run_data_preparation=False run_training=False \
+run_conversion=False run_fine_tuning=True run_evaluation=False run_export=False cluster_type=bcp \
 bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data base_results_dir=/mount/results \
-finetuning.run.model_train_name=mt5_390m \
-finetuning.model.restore_from_path=/mount/results/mt5_390m/convert_nemo/megatron_mt5_glue_xnli.nemo \
+fine_tuning.run.model_train_name=mt5_390m \
+fine_tuning.model.restore_from_path=/mount/results/mt5_390m/convert_nemo/megatron_mt5_glue_xnli.nemo \
 >> /results/finetune_mt5_log.txt 2>&1
 ```
 
@@ -2651,14 +2648,14 @@ The stdout and stderr outputs will also be redirected to the /results/finetune_m
 Any other parameter can also be added to the command to modify its behavior.
 
 #### 5.9.3. Finetuning on Custom Tasks
-<a id="markdown-finetuning-on-custom-tasks" name="finetuning-on-custom-tasks"></a>
+<a id="markdown-fine_tuning-on-custom-tasks" name="fine_tuning-on-custom-tasks"></a>
 We also support fine-tuning on custom down-stream tasks in T5 and mT5. In order to benchmark on your own
 dataset, you are required to split the original dataset into two files, i.e. a txt file corresponding to the 
 source (context) data, and txt file corresponding to the target data. Each line of these two files forms a 
 fine-tuning sample.
 
-Custom fine-tuning configuration files can be found in `conf/finetuning/t5/custom_task.yaml` for T5 models
-and `conf/finetuning/mt5/custom_task.yaml` for mT5 models. The essential parameters are listed below. You need
+Custom fine-tuning configuration files can be found in `conf/fine_tuning/t5/custom_task.yaml` for T5 models
+and `conf/fine_tuning/mt5/custom_task.yaml` for mT5 models. The essential parameters are listed below. You need
 to specify the dataset paths and preferred benchmark metrics.
 ```yaml
   data:
@@ -2763,7 +2760,7 @@ conversion or other pipelines set the `conf/config.yaml` file to:
 run_data_preparation: False
 run_training: False
 run_conversion: False
-run_finetuning: False
+run_fine_tuning: False
 run_prompt_learning: True
 run_evaluation: False
 run_export: False
@@ -2784,7 +2781,7 @@ To run the prompt learning pipeline to prompt-learn a 5B GPT-3 model converted c
 `/mount/results/gpt3_5b/convert_nemo`, run:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py  prompt_learning=gpt3/squad run_data_preparation=False run_training=False \
-run_conversion=False run_finetuning=False run_evaluation=False run_export=False run_prompt_tuning=True cluster_type=bcp \
+run_conversion=False run_fine_tuning=False run_evaluation=False run_export=False run_prompt_tuning=True cluster_type=bcp \
 bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data base_results_dir=/mount/results \
 prompt_learning.run.model_train_name=gpt3_5b \
 prompt_learning.model.language_model_path=/mount/results/gpt3_5b/convert_nemo/megatron_gpt.nemo \
@@ -2877,7 +2874,7 @@ conversion or inference pipelines set the `conf/config.yaml` file to:
 run_data_preparation: False
 run_training: False
 run_conversion: False
-run_finetuning: False
+run_fine_tuning: False
 run_prompt_learning: False
 run_evaluation: True
 run_export: False
@@ -2897,7 +2894,7 @@ from the command line, using hydra. The evaluation script must be launched in a 
 To run the evaluation pipeline to evaluate a 126M GPT-3 model checkpoint stored in 
 `/mount/results/gpt3_126m/checkpoints`, run:
 ```
-python3 /opt/bignlp/bignlp-scripts/main.py run_data_preparation=False run_training=False run_conversion=False run_finetuning=False    \
+python3 /opt/bignlp/bignlp-scripts/main.py run_data_preparation=False run_training=False run_conversion=False run_fine_tuning=False    \
 run_evaluation=True run_export=False cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile_gpt3 \
 base_results_dir=/mount/results evaluation.model.vocab_file=/mount/data/bpe/vocab.json \
 evaluation.model.merge_file=/mount/data/bpe/merges.txt evaluation.run.results_dir=/mount/results/gpt3_126m/evaluation \
@@ -2918,7 +2915,7 @@ Any other parameter can also be added to the command to modify its behavior.
 On top of fine-tuned checkpoint, you can run the evaluation scripts to
 evaluate the capabilities of the finetuned T5 model on the following 
 downstream evaluation tasks: `cola`, `sst-2`, `mrpc`, `qqp`, 
-`mnli`, `qnli`, and `rte`. Usually the task of finetuning and evaluation
+`mnli`, `qnli`, and `rte`. Usually the task of fine_tuning and evaluation
 should be the same.
 
 The model evaluation must be performed with a fine-tuned checkpoint in `.nemo` format.
@@ -2943,7 +2940,7 @@ run:
     dependency: "singleton"
     model_train_name: t5_220m
     task_name: "mnli" # Supported task names: "cola", "sst-2", "mrpc", "qqp", "mnli", "qnli", "rte"
-    finetuning_results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
+    fine_tuning_results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
     results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}_eval
 ```
 
@@ -2951,7 +2948,7 @@ To specify which fine-tuned checkpoint to load and its definition, use the `mode
 
 ```yaml
 model:
-    restore_from_path: ${evaluation.run.finetuning_results_dir}/checkpoints/megatron_t5_glue.nemo # Path to a finetuned T5 .nemo file
+    restore_from_path: ${evaluation.run.fine_tuning_results_dir}/checkpoints/megatron_t5_glue.nemo # Path to a finetuned T5 .nemo file
     tensor_model_parallel_size: 1
     pipeline_model_parallel_size: 1
 ```
@@ -2981,7 +2978,7 @@ conversion or inference pipelines set the `conf/config.yaml` file to:
 run_data_preparation: False
 run_training: False
 run_conversion: False
-run_finetuning: False
+run_fine_tuning: False
 run_prompt_learning: False
 run_evaluation: True
 run_export: False
@@ -3002,7 +2999,7 @@ To run the evaluation pipeline to evaluate a 220M T5 model which has been fine-t
 on `mnli` task and checkpoint stored in `/mount/results/t5_220m/mnli/checkpoints`, run:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py evaluation=t5/mnli_matched \
-run_data_preparation=False run_training=False run_conversion=False run_finetuning=False    \
+run_data_preparation=False run_training=False run_conversion=False run_fine_tuning=False    \
 run_evaluation=True run_export=False cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
 base_results_dir=/mount/results evaluation.run.model_train_name=t5_220m \
 evaluation.model.restore_from_path=/mount/results/t5_220m/mnli/checkpoints/megatron_t5_glue.nemo \
@@ -3020,7 +3017,7 @@ Any other parameter can also be added to the command to modify its behavior.
 
 On top of fine-tuned checkpoint, you can run the evaluation scripts to
 evaluate the capabilities of the finetuned mT5 model on the following 
-downstream evaluation tasks: `xnli`. Usually the task of finetuning and evaluation
+downstream evaluation tasks: `xnli`. Usually the task of fine_tuning and evaluation
 should be the same.
 
 The model evaluation must be performed with a fine-tuned checkpoint in `.nemo` format.
@@ -3045,7 +3042,7 @@ run:
     dependency: "singleton"
     model_train_name: mt5_390m
     task_name: "xnli"
-    finetuning_results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
+    fine_tuning_results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
     results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}_eval
 ```
 
@@ -3053,7 +3050,7 @@ To specify which fine-tuned checkpoint to load and its definition, use the `mode
 
 ```yaml
 model:
-    restore_from_path: ${evaluation.run.finetuning_results_dir}/checkpoints/megatron_mt5_glue_xnli.nemo # Path to a finetuned T5 .nemo file
+    restore_from_path: ${evaluation.run.fine_tuning_results_dir}/checkpoints/megatron_mt5_glue_xnli.nemo # Path to a finetuned T5 .nemo file
     tensor_model_parallel_size: 1
     pipeline_model_parallel_size: 1
 ```
@@ -3083,7 +3080,7 @@ conversion or inference pipelines set the `conf/config.yaml` file to:
 run_data_preparation: False
 run_training: False
 run_conversion: False
-run_finetuning: False
+run_fine_tuning: False
 run_prompt_learning: False
 run_evaluation: True
 run_export: False
@@ -3104,7 +3101,7 @@ To run the evaluation pipeline to evaluate a 390M mT5 model which has been fine-
 on `xnli` task and checkpoint stored in `/mount/results/mt5_390m/xnli/checkpoints`, run:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py evaluation=mt5/xnli \
-run_data_preparation=False run_training=False run_conversion=False run_finetuning=False \
+run_data_preparation=False run_training=False run_conversion=False run_fine_tuning=False \
 run_evaluation=True run_export=False cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
 base_results_dir=/mount/results evaluation.run.model_train_name=mt5_390m \
 evaluation.model.restore_from_path=/mount/results/mt5_390m/mnli/checkpoints/megatron_mt5_glue_xnli.nemo \
@@ -3190,7 +3187,7 @@ conversion or inference pipelines set the `conf/config.yaml` file to:
 run_data_preparation: False
 run_training: False
 run_conversion: False
-run_finetuning: False
+run_fine_tuning: False
 run_prompt_learning: False
 run_evaluation: True
 run_export: False
@@ -3210,7 +3207,7 @@ from the command line, using hydra. The evaluation script must be launched in a 
 To run the evaluation pipeline to evaluate a prompt learnt 5B GPT-3 model checkpoint stored in 
 `/mount/results/gpt3_5b/checkpoints`, run:
 ```
-python3 /opt/bignlp/bignlp-scripts/main.py run_data_preparation=False run_training=False run_conversion=False run_finetuning=False    \
+python3 /opt/bignlp/bignlp-scripts/main.py run_data_preparation=False run_training=False run_conversion=False run_fine_tuning=False    \
 run_evaluation=True run_export=False cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
 base_results_dir=/mount/results evaluation.run.results_dir=/mount/results/gpt3_5b/eval_prompt_squad \
 evaluation.model.nemo_model=/mount/results/gpt3_5b/prompt_learning_squad/megatron_gpt_prompt.nemo \
@@ -3339,7 +3336,7 @@ in the `conf/config.yaml`:
 run_data_preparation: False
 run_training: False
 run_conversion: False
-run_finetuning: False
+run_fine_tuning: False
 run_prompt_learning: False
 run_evaluation: False
 run_export: True
@@ -3359,7 +3356,7 @@ from the command line, using hydra. The export scripts must be launched in a mul
 To run the export pipeline to evaluate a 126M GPT-3 model checkpoint stored in 
 `/mount/results/gpt3_126m/checkpoints`, run:
 ```
-python3 /opt/bignlp/bignlp-scripts/main.py run_data_preparation=False run_training=False run_conversion=False run_finetuning=False    \
+python3 /opt/bignlp/bignlp-scripts/main.py run_data_preparation=False run_training=False run_conversion=False run_fine_tuning=False    \
 run_evaluation=False run_export=True cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile_gpt3 \
 base_results_dir=/mount/results \
 
@@ -3395,7 +3392,7 @@ run:
   time_limit: "2:00:00"
   model_train_name: "t5_220m"
   task_name: "mnli"
-  finetuning_results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
+  fine_tuning_results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
   config_summary: tp${export.model.tensor_model_parallel_size}_pp${export.triton_deployment.pipeline_model_parallel_size}_${export.model.weight_data_type}_${export.triton_deployment.data_type}
   results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}_export_${.config_summary}
   model_type: "t5"
@@ -3406,7 +3403,7 @@ and parameters of conversion to the FasterTransformer format, use the `model` pa
 
 ```yaml
 model:
-  checkpoint_path: ${export.run.finetuning_results_dir}/checkpoints/megatron_t5_glue.nemo
+  checkpoint_path: ${export.run.fine_tuning_results_dir}/checkpoints/megatron_t5_glue.nemo
   # FT checkpoint will be saved in ${.triton_model_dir}/1/${.tensor_model_parallel_size}-gpu
   tensor_model_parallel_size: 8
   weight_data_type: fp16   # fp32|fp16
@@ -3481,7 +3478,7 @@ in the `conf/config.yaml`:
 run_data_preparation: False
 run_training: False
 run_conversion: False
-run_finetuning: False
+run_fine_tuning: False
 run_prompt_learning: False
 run_evaluation: False
 run_export: True
@@ -3502,7 +3499,7 @@ To run the export pipeline to evaluate a 220m T5 model checkpoint stored in
 `/mount/results/t5_220m/mnli/checkpoints`, run:
 
 ```
-python3 /opt/bignlp/bignlp-scripts/main.py run_data_preparation=False run_training=False run_conversion=False run_finetuning=False \
+python3 /opt/bignlp/bignlp-scripts/main.py run_data_preparation=False run_training=False run_conversion=False run_fine_tuning=False \
 run_evaluation=False run_export=True cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
 base_results_dir=/mount/results \
 export.run.model_train_name=t5_220m \
@@ -3538,7 +3535,7 @@ run:
   time_limit: "2:00:00"
   model_train_name: "mt5_390m"
   task_name: "xnli"
-  finetuning_results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
+  fine_tuning_results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
   config_summary: tp${export.model.tensor_model_parallel_size}_pp${export.triton_deployment.pipeline_model_parallel_size}_${export.model.weight_data_type}_${export.triton_deployment.data_type}
   results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}_export_${.config_summary}
   model_type: "mt5"
@@ -3549,7 +3546,7 @@ and parameters of conversion to the FasterTransformer format, use the `model` pa
 
 ```yaml
 model:
-  checkpoint_path: ${export.run.finetuning_results_dir}/checkpoints/megatron_mt5_glue_xnli.nemo
+  checkpoint_path: ${export.run.fine_tuning_results_dir}/checkpoints/megatron_mt5_glue_xnli.nemo
   # FT checkpoint will be saved in ${.triton_model_dir}/1/${.tensor_model_parallel_size}-gpu
   tensor_model_parallel_size: 8
   weight_data_type: fp16   # fp32|fp16
@@ -3624,7 +3621,7 @@ in the `conf/config.yaml`:
 run_data_preparation: False
 run_training: False
 run_conversion: False
-run_finetuning: False
+run_fine_tuning: False
 run_prompt_learning: False
 run_evaluation: False
 run_export: True
@@ -3645,7 +3642,7 @@ To run the export pipeline to evaluate a 390m mT5 model checkpoint stored in
 `/mount/results/mt5_390m/xnli/checkpoints`, run:
 
 ```
-python3 /opt/bignlp/bignlp-scripts/main.py run_data_preparation=False run_training=False run_conversion=False run_finetuning=False \
+python3 /opt/bignlp/bignlp-scripts/main.py run_data_preparation=False run_training=False run_conversion=False run_fine_tuning=False \
 run_evaluation=False run_export=True cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
 base_results_dir=/mount/results \
 export.run.model_train_name=mt5_390m \
@@ -3918,7 +3915,7 @@ Training Accuracy: NVIDIA DGX SuperPOD (4 x 8 x A100 80GB for 220M T5 Model; 20 
 We evaluated the 220M parameter and 3B parameter T5 models on 2 GLUE
 tasks. The results can be found in the table below. The user can 
 finetune on top of any `.nemo` trained checkpoint file on all available 
-GLUE tasks mentioned in T5 finetuning section with their own recipes.
+GLUE tasks mentioned in T5 fine_tuning section with their own recipes.
 
 | Task        |Metric                        | 220M    | 3B    |
 |---------| ---------------- |-------|-------|
@@ -3997,7 +3994,7 @@ Training Accuracy: NVIDIA DGX SuperPOD (4 x 8 x A100 80GB for 170M mT5 Model; 8 
 
 We evaluated the 170M parameter, 390M parameter, and 3B parameter mT5 models on XNLI
 task. The results can be found in the table below. The user can 
-finetune on top of any `.nemo` trained checkpoint file on `XNLI` task mentioned in mT5 finetuning section.
+finetune on top of any `.nemo` trained checkpoint file on `XNLI` task mentioned in mT5 fine_tuning section.
 
 | Task-Language | Metric    | 170M  | 390M  | 3B    |
 |---------------|-----------|-------|-------|-------|
