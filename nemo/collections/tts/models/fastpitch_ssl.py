@@ -216,7 +216,7 @@ class FastPitchModel_SSL(ModelPT):
         encoded = encoded.permute(0, 2, 1)  # (B, C, T) -> (B, T, C)
 
         if self.num_datasets > 1:
-            dataset_embedding = self.dataset_embedding_layer(dataset_id) # (B, C)
+            dataset_embedding = self.dataset_embedding_layer(dataset_id)  # (B, C)
             dataset_embedding_repeated = dataset_embedding[:, None, :].repeat(1, encoded.shape[1], 1)
             encoded = encoded + dataset_embedding_repeated
 
@@ -241,7 +241,7 @@ class FastPitchModel_SSL(ModelPT):
         enc_mask = mask_from_lens(encoded_len)
         # durs = torch.ones_like(enc_mask) * 4.0
         enc_mask = enc_mask[:, :, None]
-        
+
         # if mels.shape[2] != durs.shape[1]*4:
         #     raise ValueError("mels and durs have different lengths")
 
@@ -310,7 +310,6 @@ class FastPitchModel_SSL(ModelPT):
 
         enc_mask = mask_from_lens(encoded_len)
         enc_mask = enc_mask[:, :, None]
-        
 
         mels_pred, _, _, log_durs_pred, pitch_pred, _, _, _, attn_hard_dur, pitch = self(
             text=None,

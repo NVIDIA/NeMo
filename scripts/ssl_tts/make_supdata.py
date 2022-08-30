@@ -1,11 +1,12 @@
-
-from email.mime import audio
+import argparse
 import json
-from locale import normalize
-from multiprocessing import Pool
 import os
 import pickle
 import shutil
+import time
+from email.mime import audio
+from locale import normalize
+from multiprocessing import Pool
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
@@ -24,12 +25,11 @@ from nemo.collections.tts.torch.helpers import get_base_dir
 from nemo.collections.tts.torch.tts_tokenizers import EnglishCharsTokenizer
 from nemo.core.classes import Dataset
 from nemo.utils import logging
-import argparse
-import time
 
 SUP_DATA_DIR = None
 
 wav_featurizer = WaveformFeaturizer(sample_rate=22050, int_values=False, augmentor=None)
+
 
 class AudioDataset(Dataset):
     def __init__(self, manifest_path, min_duration=0.5, max_duration=16.0):
@@ -50,7 +50,7 @@ class AudioDataset(Dataset):
         SUP_DATA_DIR = self.sup_data_dir
         self.pad_multiple = 1024
         self.sample_rate = 22050
-    
+
     def __len__(self):
         return len(self.data)
 
@@ -71,7 +71,7 @@ class AudioDataset(Dataset):
         # print("audio", audio.shape)
         # print("audio_length", audio_length)
         return audio, audio_length
-    
+
     def pad_collate_fn(self, batch):
         final_batch = {}
         for row in batch:
@@ -109,6 +109,7 @@ class AudioDataset(Dataset):
             "wav_path": sample["audio_filepath"],
         }
 
+
 def segment_wav(wav, segment_length=44100, hop_size=22050, min_segment_size=22050):
     if len(wav) < segment_length:
         pad = torch.zeros(segment_length - len(wav))
@@ -118,13 +119,14 @@ def segment_wav(wav, segment_length=44100, hop_size=22050, min_segment_size=2205
         si = 0
         segments = []
         while si < len(wav) - min_segment_size:
-            segment = wav[si:si+segment_length]
+            segment = wav[si : si + segment_length]
             if len(segment) < segment_length:
                 pad = torch.zeros(segment_length - len(segment))
                 segment = torch.cat([segment, pad])
             segments.append(segment)
             si += hop_size
         return segments
+
 
 def segment_batch(batch):
     all_segments = []
@@ -136,10 +138,11 @@ def segment_batch(batch):
         audio_actual = audio[:audio_length]
         audio_segments = segment_wav(audio_actual)
         all_segments += audio_segments
-        segment_indices.append( (si, si + len(audio_segments)-1) )
+        segment_indices.append((si, si + len(audio_segments) - 1))
         si += len(audio_segments)
-    
+
     return torch.stack(all_segments), segment_indices
+
 
 def get_mel_spectrogram(fb, wav):
     EPSILON = 1e-9
@@ -164,18 +167,16 @@ def get_mel_spectrogram(fb, wav):
 
     return log_mel
 
+
 def load_wav(wav_path, pad_multiple=1024):
-    wav = AudioSegment.segment_from_file(
-        wav_path, target_sr=22050, n_segments=-1, trim=False,
-    ).samples
-    
+    wav = AudioSegment.segment_from_file(wav_path, target_sr=22050, n_segments=-1, trim=False,).samples
+
     if wav.shape[0] % pad_multiple != 0:
-        wav = np.concatenate(
-                [wav, np.zeros(pad_multiple - wav.shape[0] % pad_multiple)]
-            )
+        wav = np.concatenate([wav, np.zeros(pad_multiple - wav.shape[0] % pad_multiple)])
     wav = wav[:-1]
-    
+
     return wav
+
 
 def save_pitch_contour(wav_and_id):
     sup_data_dir = SUP_DATA_DIR
@@ -183,7 +184,7 @@ def save_pitch_contour(wav_and_id):
     wav = load_wav(wav_path)
     pitch_contour_fn = f"pitch_contour_{wav_text_id}.pt"
     pitch_contour_fp = os.path.join(sup_data_dir, pitch_contour_fn)
-    
+
     f0, _, _ = librosa.pyin(
         wav,
         fmin=librosa.note_to_hz('C2'),
@@ -194,16 +195,21 @@ def save_pitch_contour(wav_and_id):
         center=True,
         fill_na=0.0,
     )
-    
+
     pitch_contour = torch.tensor(f0, dtype=torch.float32)
     torch.save(pitch_contour, pitch_contour_fp)
     print("saved", pitch_contour_fp)
-    
+
     return pitch_contour
+
 
 def main():
     parser = argparse.ArgumentParser(description='Evaluate the model')
-    parser.add_argument('--ssl_model_ckpt_path', type=str, default="/home/pneekhara/NeMo2022/SSLCheckPoints/SSLConformer22050_Epoch37.ckpt")
+    parser.add_argument(
+        '--ssl_model_ckpt_path',
+        type=str,
+        default="/home/pneekhara/NeMo2022/SSLCheckPoints/SSLConformer22050_Epoch37.ckpt",
+    )
     parser.add_argument('--manifest_path', type=str, default="/home/pneekhara/NeMo2022/libri_val_formatted.json")
     parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--ssl_content_emb_type', type=str, default="embedding_and_probs")
@@ -217,8 +223,10 @@ def main():
     ssl_model_ckpt_path = args.ssl_model_ckpt_path
 
     dataset = AudioDataset(manifest_path)
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=False, collate_fn=dataset.pad_collate_fn, num_workers=8)
-    
+    dataloader = torch.utils.data.DataLoader(
+        dataset, batch_size=args.batch_size, shuffle=False, collate_fn=dataset.pad_collate_fn, num_workers=8
+    )
+
     ssl_model = ssl_tts.SSLDisentangler.load_from_checkpoint(ssl_model_ckpt_path, strict=False)
     with open_dict(ssl_model.cfg):
         ssl_model.cfg.preprocessor.exact_pad = True
@@ -227,10 +235,11 @@ def main():
     ssl_model.eval()
     ssl_model.to(device)
 
-    fb = torch.tensor(
-        librosa.filters.mel(sr=22050, n_fft=1024, n_mels=80, fmin=0, fmax=8000),
-        dtype=torch.float,
-    ).unsqueeze(0).to(device)
+    fb = (
+        torch.tensor(librosa.filters.mel(sr=22050, n_fft=1024, n_mels=80, fmin=0, fmax=8000), dtype=torch.float,)
+        .unsqueeze(0)
+        .to(device)
+    )
 
     st = time.time()
     bidx = 0
@@ -250,21 +259,18 @@ def main():
                 normalize_content=True,
             )
 
-            batch_mel_specs = get_mel_spectrogram(fb, batch['audio'][:,:-1].to(device))
+            batch_mel_specs = get_mel_spectrogram(fb, batch['audio'][:, :-1].to(device))
             audio_segmented, segment_indices = segment_batch(batch)
             audio_seg_len = torch.tensor([len(segment) for segment in audio_segmented]).to(device).long()
 
             _, batch_speaker_embeddings, _, _, _ = ssl_model.forward_for_export(
-                input_signal=audio_segmented.to(device),
-                input_signal_length=audio_seg_len,
-                normalize_content=True,
-            ) 
+                input_signal=audio_segmented.to(device), input_signal_length=audio_seg_len, normalize_content=True,
+            )
 
-            
             for idx in range(batch['audio'].shape[0]):
                 wav_path = batch['wav_path'][idx]
                 wav_id = batch['rel_audio_path_as_text_id'][idx]
-                wav_and_id_list.append( (wav_path, wav_id) )
+                wav_and_id_list.append((wav_path, wav_id))
                 content_embedding = batch_content_embedding[idx].detach()
                 content_log_probs = batch_content_log_probs[:, idx, :].detach()  # (content lob prob is (t, b, c))
                 encoded_len = batch_encoded_len[idx].detach()
@@ -278,8 +284,8 @@ def main():
 
                 bsi_start = segment_indices[idx][0]
                 bsi_end = segment_indices[idx][1]
-                speaker_embedding = torch.mean(batch_speaker_embeddings[bsi_start:bsi_end+1], dim=0)
-                
+                speaker_embedding = torch.mean(batch_speaker_embeddings[bsi_start : bsi_end + 1], dim=0)
+
                 l2_norm = torch.norm(speaker_embedding, p=2)
                 speaker_embedding = speaker_embedding / l2_norm
 
@@ -319,8 +325,8 @@ def main():
                     # print("duration ds", duration)
                     encoded_len = torch.tensor(final_content_embedding.shape[1]).long()
 
-                mel_len = int(batch['audio_len'][idx].item()/256.0)
-                item_mel = batch_mel_specs[idx][:,:mel_len]
+                mel_len = int(batch['audio_len'][idx].item() / 256.0)
+                item_mel = batch_mel_specs[idx][:, :mel_len]
                 # print("item mel shape: ", item_mel.shape)
 
                 wav_text_id = batch["rel_audio_path_as_text_id"][idx]
@@ -338,17 +344,12 @@ def main():
                 torch.save(final_content_embedding.cpu(), content_emb_fp)
                 torch.save(speaker_embedding.cpu(), speaker_emb_fp)
                 torch.save(duration.cpu(), duration_fp)
-            
-            et = time.time()
-            print("Time per batch", bidx, len(dataloader), (et - st)/bidx)
 
+            et = time.time()
+            print("Time per batch", bidx, len(dataloader), (et - st) / bidx)
 
     with Pool(args.pool_workers) as p:
-        p.map(save_pitch_contour, wav_and_id_list)            
-            
-            
-
-            
+        p.map(save_pitch_contour, wav_and_id_list)
 
 
 if __name__ == '__main__':
