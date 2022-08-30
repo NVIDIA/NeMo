@@ -2444,8 +2444,8 @@ The following downstream GLUE tasks are supported for T5 models:
 
 The configuration used for the fine-tuning needs to be specified in the
 `conf/config.yaml` file, specifying the `fine_tuning` parameter, which specifies the
-file to use for fine-tuning purposes. The `run_fine_tuning` parameter must be set
-to `True` to run the fine-tuning pipeline. To fine-tune checkpoint on `mnli` task, set
+file to use for fine-tuning purposes. The `fine_tuning` parameter must be included in `stages` 
+to run the fine-tuning pipeline. To fine-tune checkpoint on `mnli` task, set
 `fine_tuning` parameter to `t5/mnli`, which can be found in `conf/fine_tuning/t5/mnli.yaml`. The
 parameters can be modified to adapt different GLUE tasks and checkpoints
 in fine-tuning runs. One will need to tune the fine-tuning hyper parameters
@@ -2464,14 +2464,14 @@ run:
     dependency: "singleton"
     convert_name: convert_nemo
     model_train_name: t5_220m
-    task_name: "mnli" # Supported task names: "cola", "sst-2", "mrpc", "qqp", "mnli", "qnli", "rte"
+    task_name: "mnli"
     results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
 ```
 
 To specify which model checkpoint to load and its definition, use the `model` parameter:
 
 ```yaml
-model: # For different fine-tuning tasks, tuning the hyper parameters accordingly; below is only for MNLI
+model:
     restore_from_path: ${base_results_dir}/${fine_tuning.run.model_train_name}/${fine_tuning.run.convert_name}/megatron_t5.nemo # Path to a trained T5 .nemo file
     tensor_model_parallel_size: 1
     pipeline_model_parallel_size: 1
@@ -2499,13 +2499,8 @@ To run only the evaluation pipeline and not the data preparation, training,
 conversion or inference pipelines set the `conf/config.yaml` file to:
 
 ```yaml
-run_data_preparation: False
-run_training: False
-run_conversion: False
-run_fine_tuning: True
-run_prompt_learning: False
-run_evaluation: False
-run_export: False
+stages:
+  - fine_tuning
 ```
 
 then run:
@@ -2522,8 +2517,8 @@ from the command line, using hydra. The evaluation script must be launched in a 
 To run the fine-tuning pipeline to fine-tune a 220M T5 model converted checkpoint stored in 
 /mount/results/t5_220m/convert_nemo, run:
 ```
-python3 /opt/bignlp/bignlp-scripts/main.py fine_tuning=t5/mnli run_data_preparation=False run_training=False \
-run_conversion=False run_fine_tuning=True run_evaluation=False run_export=False cluster_type=bcp \
+python3 /opt/bignlp/bignlp-scripts/main.py fine_tuning=t5/mnli stages=[fine_tuning] \
+ cluster_type=bcp \
 bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data base_results_dir=/mount/results \
 fine_tuning.run.model_train_name=t5_220m \
 fine_tuning.model.restore_from_path=/mount/results/t5_220m/convert_nemo/megatron_t5.nemo \
@@ -2543,8 +2538,8 @@ XNLI benchmark are supported for mT5 models.
 
 The configuration used for the fine-tuning needs to be specified in the
 `conf/config.yaml` file, specifying the `fine_tuning` parameter, which specifies the
-file to use for fine-tuning purposes. The `run_fine_tuning` parameter must be set
-to `True` to run the fine-tuning pipeline. To fine-tune checkpoint on `xnli` task, set
+file to use for fine-tuning purposes. The `fine_tuning` parameter must be included in `stages` 
+ to run the fine-tuning pipeline. To fine-tune checkpoint on `xnli` task, set
 `fine_tuning` parameter to `mt5/xnli`, which can be found in `conf/fine_tuning/mt5/xnli.yaml`.
 
 ##### 5.9.2.1. Common
@@ -2594,13 +2589,8 @@ To run only the evaluation pipeline and not the data preparation, training,
 conversion or inference pipelines set the `conf/config.yaml` file to:
 
 ```yaml
-run_data_preparation: False
-run_training: False
-run_conversion: False
-run_fine_tuning: True
-run_prompt_learning: False
-run_evaluation: False
-run_export: False
+stages:
+  - fine_tuning
 ```
 
 then run:
@@ -2617,8 +2607,8 @@ from the command line, using hydra. The evaluation script must be launched in a 
 To run the fine-tuning pipeline to fine-tune a 390M mT5 model converted checkpoint stored in 
 /mount/results/mt5_390m/convert_nemo, run:
 ```
-python3 /opt/bignlp/bignlp-scripts/main.py  fine_tuning=mt5/xnli run_data_preparation=False run_training=False \
-run_conversion=False run_fine_tuning=True run_evaluation=False run_export=False cluster_type=bcp \
+python3 /opt/bignlp/bignlp-scripts/main.py  fine_tuning=mt5/xnli stages=[fine_tuning] \
+ cluster_type=bcp \
 bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data base_results_dir=/mount/results \
 fine_tuning.run.model_train_name=mt5_390m \
 fine_tuning.model.restore_from_path=/mount/results/mt5_390m/convert_nemo/megatron_mt5_glue_xnli.nemo \
@@ -2663,7 +2653,7 @@ You can follow the instructions in T5 and mT5 fine-tuning sections to submit a c
 
 Within NeMo Megatron we refer to **p-tuning** and **prompt tuning** methods collectively as prompt
 learning. Both methods are parameter efficient alternatives to fine-tuning pretrained language
-models. Our NeMo implementation makes it possible to use one pretrained GPT-3 model on many downstream
+models. Our NeMo implementation makes it possible to use one pretrained GPT-3, T5 or mT5 models on many downstream
 tasks without needing to tune the model's full set of parameters. It also allows for adding new tasks
 to your model without overwriting or disrupting previous tasks for which the model has already been
 p-tuned/prompt-tuned. Because the original model parameters are frozen and never altered by either
@@ -2677,7 +2667,6 @@ Instead of selecting discrete text prompts in a manual or automated fashion, pro
 
 For more details of our implementation, please check [Prompt Learning](https://github.com/NVIDIA/NeMo/blob/main/docs/source/nlp/prompt_learning.rst) in NeMo.
 
-We support prompt learning on NeMo Megatron GPT-3 models.
 
 #### 5.10.1. GPT-3 Prompt Learning
 <a id="markdown-gpt-3-prompt-learning" name="gpt-3-prompt-learning"></a>
@@ -2689,8 +2678,8 @@ format.
 
 The configuration used for the prompt learning needs to be defined in the
 `conf/config.yaml` file by modifying the `prompt_learning` parameter, which specifies the
-file to use for prompt learning purposes. The `run_prompt_learning` parameter must be set
-to `True` to run the prompt learning pipeline. To prompt learning on `squad` task, set
+file to use for prompt learning purposes. The `prompt_learning` parameter must be included
+in `stages` to run the prompt learning pipeline. To prompt learning on `squad` task, set
 `prompt_learning` parameter to `gpt3/squad`, which can be found in `conf/prompt_learning/gpt3/squad.yaml`.
 
 ##### 5.10.1.1. Common
@@ -2739,13 +2728,8 @@ To run only the prompt learning pipeline and not the data preparation, training,
 conversion or other pipelines set the `conf/config.yaml` file to:
 
 ```yaml
-run_data_preparation: False
-run_training: False
-run_conversion: False
-run_fine_tuning: False
-run_prompt_learning: True
-run_evaluation: False
-run_export: False
+stages:
+  - prompt_learning
 ```
 
 then run:
@@ -2762,8 +2746,8 @@ from the command line, using hydra. The evaluation script must be launched in a 
 To run the prompt learning pipeline to prompt-learn a 5B GPT-3 model converted checkpoint stored in 
 `/mount/results/gpt3_5b/convert_nemo`, run:
 ```
-python3 /opt/bignlp/bignlp-scripts/main.py  prompt_learning=gpt3/squad run_data_preparation=False run_training=False \
-run_conversion=False run_fine_tuning=False run_evaluation=False run_export=False run_prompt_tuning=True cluster_type=bcp \
+python3 /opt/bignlp/bignlp-scripts/main.py \
+stages=[prompt_learning] cluster_type=bcp \
 bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data base_results_dir=/mount/results \
 prompt_learning.run.model_train_name=gpt3_5b \
 prompt_learning.model.language_model_path=/mount/results/gpt3_5b/convert_nemo/megatron_gpt.nemo \
@@ -2774,6 +2758,106 @@ The command above assumes you mounted the data workspace in `/mount/data`, and t
 The stdout and stderr outputs will also be redirected to the `/results/prompt_learning_gpt3_log.txt` file, to be able to download the logs from NGC.
 Any other parameter can also be added to the command to modify its behavior.
 
+#### 5.10.2. T5/mT5 Prompt Learning
+<a id="markdown-t5-mt5-prompt-learning" name="t5-mt5-prompt-learning"></a>
+
+The configuration used for the prompt learning needs to be defined in the
+`conf/config.yaml` file by modifying the `prompt_learning` parameter, which specifies the
+file to use for prompt learning purposes. The `prompt_learning` parameter must be included
+in `stages` to run the prompt learning pipeline. To prompt learning on `squad` task, set
+`prompt_learning` parameter to `t5/squad`, which can be found in `conf/prompt_learning/t5/squad.yaml` for T5 models
+(or `mt5/squad`, which can be found in `conf/prompt_learning/mt5/squad.yaml` for mT5 models).
+
+##### 5.10.2.1. Common
+<a id="markdown-common" name="common"></a>
+To specify the configuration for prompt learning, 
+use all the `run` parameters to define the job specific config:
+```yaml
+run:
+  name: ${.task_name}_${.model_train_name}
+  time_limit: "04:00:00"
+  dependency: "singleton"
+  convert_name: convert_nemo
+  model_train_name: t5_220m # or mt5_390m
+  task_name: "squad"
+  results_dir: ${base_results_dir}/${.model_train_name}/prompt_learning_${.task_name}
+```
+
+To specify which language model checkpoint to load and its definition, use the `model` parameter:
+
+```yaml
+model:
+  language_model_path: ${base_results_dir}/${prompt_learning.run.model_train_name}/${prompt_learning.run.convert_name}/megatron_t5.nemo # or megatron_mt5.nemo
+  tensor_model_parallel_size: 1
+  pipeline_model_parallel_size: 1
+```
+
+##### 5.10.1.2. Slurm
+<a id="markdown-slurm" name="slurm"></a>
+
+Set configuration for a Slurm cluster in the `conf/cluster/bcm.yaml` file:
+
+```yaml
+partition: null
+account: null
+exclusive: True
+gpus_per_task: 1
+gpus_per_node: null
+mem: 0
+overcommit: False
+job_name_prefix: "bignlp-"
+```
+
+**Example:**
+
+To run only the prompt learning pipeline and not the data preparation, training, 
+conversion or other pipelines set the `conf/config.yaml` file to:
+
+```yaml
+stages:
+  - prompt_learning
+```
+
+then run:
+```
+python3 main.py
+```
+
+##### 5.10.1.3. Base Command Platform
+<a id="markdown-base-command-platform" name="base-command-platform"></a>
+In order to run the prompt learning script on Base Command Platform, set the
+`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overriden
+from the command line, using hydra. The evaluation script must be launched in a multi-node job.
+
+To run the prompt learning pipeline to prompt-learn a 220M T5 model converted checkpoint stored in 
+`/mount/results/t5_220m/convert_nemo`, run:
+```
+python3 /opt/bignlp/bignlp-scripts/main.py \
+stages=[prompt_learning] cluster_type=bcp \
+bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data base_results_dir=/mount/results \
+prompt_learning.run.model_train_name=t5_220m \
+prompt_learning.model.language_model_path=/mount/results/t5_220m/convert_nemo/megatron_t5.nemo \
+>> /results/prompt_learning_t5_log.txt 2>&1
+```
+
+The command above assumes you mounted the data workspace in `/mount/data`, and the results workspace in `/mount/results`. 
+The stdout and stderr outputs will also be redirected to the `/results/prompt_learning_t5_log.txt` file, to be able to download the logs from NGC.
+Any other parameter can also be added to the command to modify its behavior.
+
+To run the prompt learning pipeline to prompt-learn a 390M mT5 model converted checkpoint stored in 
+`/mount/results/mt5_390m/convert_nemo`, run:
+```
+python3 /opt/bignlp/bignlp-scripts/main.py \
+stages=[prompt_learning] cluster_type=bcp \
+bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data base_results_dir=/mount/results \
+prompt_learning.run.model_train_name=mt5_390m \
+prompt_learning.model.language_model_path=/mount/results/t5_220m/convert_nemo/megatron_mt5.nemo \
+>> /results/prompt_learning_mt5_log.txt 2>&1
+```
+
+The command above assumes you mounted the data workspace in `/mount/data`, and the results workspace in `/mount/results`. 
+The stdout and stderr outputs will also be redirected to the `/results/prompt_learning_mt5_log.txt` file, to be able to download the logs from NGC.
+Any other parameter can also be added to the command to modify its behavior.
 
 ### 5.11. Model Evaluation
 <a id="markdown-model-evaluation" name="model-evaluation"></a>
@@ -2791,8 +2875,8 @@ a converted checkpoint (`.nemo` format).
 
 The configuration used for the evaluation needs to be specified in the
 `conf/config.yaml` file, specifying the `evaluation` parameter, which specifies the
-file to use for evaluation purposes. The `run_evaluation` parameter must be set
-to `True` to run the evaluation pipeline. The default value is set to
+file to use for evaluation purposes. The `evaluation` parameter must be included in `stages`
+ to run the evaluation pipeline. The default value is set to
 `gpt3/evaluate_all`, which can be found in `conf/evaluation/gpt3/evaluate_all.yaml`. The
 parameters can be modified to adapt different evaluation tasks and checkpoints
 in evaluation runs. For Base Command Platform, all these parameters should be overriden from the command line.
@@ -2853,13 +2937,8 @@ To run only the evaluation pipeline and not the data preparation, training,
 conversion or inference pipelines set the `conf/config.yaml` file to:
 
 ```yaml
-run_data_preparation: False
-run_training: False
-run_conversion: False
-run_fine_tuning: False
-run_prompt_learning: False
-run_evaluation: True
-run_export: False
+stages:
+  - evaluation
 ```
 
 then run:
@@ -2876,8 +2955,8 @@ from the command line, using hydra. The evaluation script must be launched in a 
 To run the evaluation pipeline to evaluate a 126M GPT-3 model checkpoint stored in 
 `/mount/results/gpt3_126m/checkpoints`, run:
 ```
-python3 /opt/bignlp/bignlp-scripts/main.py run_data_preparation=False run_training=False run_conversion=False run_fine_tuning=False    \
-run_evaluation=True run_export=False cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile_gpt3 \
+python3 /opt/bignlp/bignlp-scripts/main.py stages=[evaluation] \
+ cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile_gpt3 \
 base_results_dir=/mount/results evaluation.model.vocab_file=/mount/data/bpe/vocab.json \
 evaluation.model.merge_file=/mount/data/bpe/merges.txt evaluation.run.results_dir=/mount/results/gpt3_126m/evaluation \
 evaluation.model.checkpoint_folder=/mount/results/gpt3_126m/checkpoints evaluation.model.eval_batch_size=16 \
@@ -2904,8 +2983,8 @@ The model evaluation must be performed with a fine-tuned checkpoint in `.nemo` f
 
 The configuration used for the evaluation needs to be specified in the
 `conf/config.yaml` file, specifying the `evaluation` parameter, which specifies the
-file to use for evaluation purposes. The `run_evaluation` parameter must be set
-to `True` to run the evaluation pipeline. The default value is set to
+file to use for evaluation purposes. The `evaluation` parameter must be included in `stages`
+ to run the evaluation pipeline. The default value is set to
 `t5/mnli_matched`, which can be found in `conf/evaluation/t5/mnli_matched.yaml`. The
 parameters can be modified to adapt different evaluation tasks and checkpoints
 in evaluation runs. For Base Command Platform, all these parameters should be overriden from the command line.
@@ -2921,7 +3000,7 @@ run:
     time_limit: "04:00:00"
     dependency: "singleton"
     model_train_name: t5_220m
-    task_name: "mnli" # Supported task names: "cola", "sst-2", "mrpc", "qqp", "mnli", "qnli", "rte"
+    task_name: "mnli"
     fine_tuning_results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
     results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}_eval
 ```
@@ -2957,13 +3036,8 @@ To run only the evaluation pipeline and not the data preparation, training,
 conversion or inference pipelines set the `conf/config.yaml` file to:
 
 ```yaml
-run_data_preparation: False
-run_training: False
-run_conversion: False
-run_fine_tuning: False
-run_prompt_learning: False
-run_evaluation: True
-run_export: False
+stages:
+  - evaluation
 ```
 
 then run:
@@ -2981,8 +3055,8 @@ To run the evaluation pipeline to evaluate a 220M T5 model which has been fine-t
 on `mnli` task and checkpoint stored in `/mount/results/t5_220m/mnli/checkpoints`, run:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py evaluation=t5/mnli_matched \
-run_data_preparation=False run_training=False run_conversion=False run_fine_tuning=False    \
-run_evaluation=True run_export=False cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
+stages=[evaluation] \
+ cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
 base_results_dir=/mount/results evaluation.run.model_train_name=t5_220m \
 evaluation.model.restore_from_path=/mount/results/t5_220m/mnli/checkpoints/megatron_t5_glue.nemo \
 >> /results/eval_t5_log.txt 2>&1
@@ -3006,8 +3080,8 @@ The model evaluation must be performed with a fine-tuned checkpoint in `.nemo` f
 
 The configuration used for the evaluation needs to be specified in the
 `conf/config.yaml` file, specifying the `evaluation` parameter, which specifies the
-file to use for evaluation purposes. The `run_evaluation` parameter must be set
-to `True` to run the evaluation pipeline. The default value is set to
+file to use for evaluation purposes. The `evaluation` parameter must be included in `stages`
+ to run the evaluation pipeline. The default value is set to
 `mt5/xnli`, which can be found in `conf/evaluation/mt5/xnli.yaml`. The
 parameters can be modified to adapt different evaluation tasks and checkpoints
 in evaluation runs. For Base Command Platform, all these parameters should be overriden from the command line.
@@ -3059,13 +3133,8 @@ To run only the evaluation pipeline and not the data preparation, training,
 conversion or inference pipelines set the `conf/config.yaml` file to:
 
 ```yaml
-run_data_preparation: False
-run_training: False
-run_conversion: False
-run_fine_tuning: False
-run_prompt_learning: False
-run_evaluation: True
-run_export: False
+stages:
+  - evaluation
 ```
 
 then run:
@@ -3076,15 +3145,14 @@ python3 main.py
 ##### 5.11.3.3. Base Command Platform
 <a id="markdown-base-command-platform" name="base-command-platform"></a>
 In order to run the evaluation script on Base Command Platform for mT5 models, set the
-`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overriden
+`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overridden
 from the command line, using hydra. The evaluation script must be launched in a multi-node job.
 
 To run the evaluation pipeline to evaluate a 390M mT5 model which has been fine-tuned
 on `xnli` task and checkpoint stored in `/mount/results/mt5_390m/xnli/checkpoints`, run:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py evaluation=mt5/xnli \
-run_data_preparation=False run_training=False run_conversion=False run_fine_tuning=False \
-run_evaluation=True run_export=False cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
+stages=[evaluation] cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
 base_results_dir=/mount/results evaluation.run.model_train_name=mt5_390m \
 evaluation.model.restore_from_path=/mount/results/mt5_390m/mnli/checkpoints/megatron_mt5_glue_xnli.nemo \
 >> /results/eval_mt5_log.txt 2>&1
@@ -3105,8 +3173,8 @@ on the SQuAD v2.0 test dataset created in prompt learning step.
 
 The configuration used for the evaluation needs to be defined in the
 `conf/config.yaml` file by modifying the `evaluation` parameter, which specifies the
-file to use for evaluation purposes. The `run_evaluation` parameter must be set
-to `True` to run the evaluation pipeline. The value should be set to
+file to use for evaluation purposes. The `evaluation` parameter must be included in `stages`
+ to run the evaluation pipeline. The value should be set to
 `prompt_gpt3/squad.yaml`, which can be found in `conf/evaluation/prompt_gpt3/squad.yaml`. The
 parameters can be modified to adapt different evaluation tasks and checkpoints
 in evaluation runs. For Base Command Platform, all these parameters should be overridden from the command line.
@@ -3166,13 +3234,8 @@ To run only the evaluation pipeline and not the data preparation, training,
 conversion or inference pipelines set the `conf/config.yaml` file to:
 
 ```yaml
-run_data_preparation: False
-run_training: False
-run_conversion: False
-run_fine_tuning: False
-run_prompt_learning: False
-run_evaluation: True
-run_export: False
+stages:
+  - evaluation
 ```
 
 then run:
@@ -3189,8 +3252,8 @@ from the command line, using hydra. The evaluation script must be launched in a 
 To run the evaluation pipeline to evaluate a prompt learnt 5B GPT-3 model checkpoint stored in 
 `/mount/results/gpt3_5b/checkpoints`, run:
 ```
-python3 /opt/bignlp/bignlp-scripts/main.py run_data_preparation=False run_training=False run_conversion=False run_fine_tuning=False    \
-run_evaluation=True run_export=False cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
+python3 /opt/bignlp/bignlp-scripts/main.py stages=[evaluation] \
+ cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
 base_results_dir=/mount/results evaluation.run.results_dir=/mount/results/gpt3_5b/eval_prompt_squad \
 evaluation.model.nemo_model=/mount/results/gpt3_5b/prompt_learning_squad/megatron_gpt_prompt.nemo \
 evaluation.model.nemo_model=4 evaluation.model.tensor_model_parallel_size=2 \
@@ -3199,6 +3262,120 @@ evaluation.model.nemo_model=4 evaluation.model.tensor_model_parallel_size=2 \
 
 The command above assumes you mounted the data workspace in `/mount/data`, and the results workspace in `/mount/results`. 
 The stdout and stderr outputs will also be redirected to the `/results/eval_prompt_gpt3_log.txt` file, to be able to download the logs from NGC.
+Any other parameter can also be added to the command to modify its behavior.
+
+
+#### 5.11.4. Prompt Learnt T5/mT5 Evaluation
+<a id="markdown-prompt-learnt-t5-mt5-evaluation" name="prompt-learnt-t5-mt5-evaluation"></a>
+
+We also provide a simple tool to help evaluate the prompt learnt T5 or mT5 checkpoints. You can
+evaluate the capabilities of the prompt learnt models on a customized prompt learning test dataset.
+We provide an example to evaluate our checkpoint, which went through prompt learning on SQuAD v2.0,
+on the SQuAD v2.0 test dataset created in prompt learning step.
+
+The configuration used for the evaluation needs to be defined in the
+`conf/config.yaml` file by modifying the `evaluation` parameter, which specifies the
+file to use for evaluation purposes. The `evaluation` parameter must be included in `stages`
+ to run the evaluation pipeline. The value should be set to
+`prompt_t5/squad.yaml`, which can be found in `conf/evaluation/prompt_t5/squad.yaml` for T5 models (or 
+`prompt_mt5/squad.yaml`, which can be found in `conf/evaluation/prompt_mt5/squad.yaml` for mT5 models). The
+parameters can be modified to adapt different evaluation tasks and checkpoints
+in evaluation runs. For Base Command Platform, all these parameters should be overridden from the command line.
+
+##### 5.11.4.1. Common
+<a id="markdown-common" name="common"></a>
+To specify the configuration, use all the `run` parameters to define the job specific config. (
+`run.tasks` has to be set to `prompt` to run evaluation on prompt learning test tasks):
+```yaml
+run:
+  name: eval_${.task_name}_${.model_train_name}
+  time_limit: "04:00:00"
+  dependency: "singleton"
+  model_train_name: t5_220m # or mt5_390m
+  task_name: "squad"
+  prompt_learning_dir: ${base_results_dir}/${.model_train_name}/prompt_learning_squad # assume prompt learning was on squad task
+  results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}_eval
+```
+
+To specify which model checkpoint to load and which prompt learning test dataset to evaluate, 
+use the following parameters:
+
+```yaml
+data:
+  test_ds:
+    - ${data_dir}/prompt_data/squad-v2.0/squad_test.jsonl
+  num_workers: 4
+  global_batch_size: 16
+  micro_batch_size: 16
+tensor_model_parallel_size: 1
+pipeline_model_parallel_size: 1
+pipeline_model_parallel_split_rank: ${divide_floor:${.pipeline_model_parallel_size}, 2}
+model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
+pretrained_language_model_file: ${base_results_dir}/${evaluation.run.model_train_name}/convert_nemo/results/megatron_t5.nemo  # or megatron_mt5.nemo
+virtual_prompt_model_file: ${evaluation.run.prompt_learning_dir}/results/megatron_t5_prompt.nemo # or megatron_mt5_prompt.nemo
+```
+
+##### 5.11.4.2. Slurm
+<a id="markdown-slurm" name="slurm"></a>
+
+Set configuration for a Slurm cluster in the `conf/cluster/bcm.yaml` file:
+
+```yaml
+partition: null
+account: null
+exclusive: True
+gpus_per_task: 1
+gpus_per_node: null
+mem: 0
+overcommit: False
+job_name_prefix: "bignlp-"
+```
+
+**Example:**
+
+To run only the evaluation pipeline and not the data preparation, training, 
+conversion or inference pipelines set the `conf/config.yaml` file to:
+
+```yaml
+stages:
+  - evaluation
+```
+
+then run:
+```
+python3 main.py
+```
+
+##### 5.11.4.3. Base Command Platform
+<a id="markdown-base-command-platform" name="base-command-platform"></a>
+In order to run the evaluation script on Base Command Platform, set the
+`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overriden
+from the command line, using hydra. The evaluation script must be launched in a multi-node job.
+
+To run the evaluation pipeline to evaluate a prompt learnt 220M T5 model checkpoint stored in 
+`/mount/results/t5_220m/prompt_learning_squad`, run:
+```
+python3 /opt/bignlp/bignlp-scripts/main.py stages=[evaluation] \
+ cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
+base_results_dir=/mount/results evaluation.run.results_dir=/mount/results/t5_220m/eval_prompt_squad \
+evaluation.model.virtual_prompt_model_file=/mount/results/t5_220m/prompt_learning_squad/megatron_t5_prompt.nemo \
+>> /results/eval_prompt_t5_log.txt 2>&1
+```
+The command above assumes you mounted the data workspace in `/mount/data`, and the results workspace in `/mount/results`. 
+The stdout and stderr outputs will also be redirected to the `/results/eval_prompt_t5_log.txt` file, to be able to download the logs from NGC.
+Any other parameter can also be added to the command to modify its behavior.
+
+To run the evaluation pipeline to evaluate a prompt learnt 390M mT5 model checkpoint stored in 
+`/mount/results/mt5_390m/prompt_learning_squad`, run:
+```
+python3 /opt/bignlp/bignlp-scripts/main.py stages=[evaluation] \
+ cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
+base_results_dir=/mount/results evaluation.run.results_dir=/mount/results/mt5_390m/eval_prompt_squad \
+evaluation.model.virtual_prompt_model_file=/mount/results/mt5_390m/prompt_learning_squad/megatron_mt5_prompt.nemo \
+>> /results/eval_prompt_mt5_log.txt 2>&1
+```
+The command above assumes you mounted the data workspace in `/mount/data`, and the results workspace in `/mount/results`. 
+The stdout and stderr outputs will also be redirected to the `/results/eval_prompt_mt5_log.txt` file, to be able to download the logs from NGC.
 Any other parameter can also be added to the command to modify its behavior.
 
 ### 5.12. Model Export
@@ -3217,9 +3394,9 @@ GPT-3 model is evaluated with `lambada` task which results can be compared with 
 
 The configuration used for the export needs to be specified in the
 `conf/config.yaml` file, specifying the `export` parameter, which specifies the
-file to use for export purposes. The `run_export` parameter must be set
-to `True` to run the training pipeline export stage. The default value is set to
-`gpt3`, which can be found in `conf/export/gpt3.yaml`. The
+file to use for export purposes. The `export` parameter must be inclueded in `stages`
+to run the training pipeline export stage. The default value is set to
+`gpt3/export_gpt3`, which can be found in `conf/export/gpt3/export_gpt3.yaml`. The
 parameters can be modified to adapt different export and set of tests run on prepared Triton Model Repository.
 For Base Command Platform, all these parameters should be overridden from the command line.
 
