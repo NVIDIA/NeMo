@@ -78,6 +78,10 @@ def main(cfg) -> None:
 
     # trainer required for restoring model parallel models
     trainer = Trainer(plugins=NLPDDPPlugin(), **cfg.trainer)
+    assert (
+        cfg.trainer.devices * cfg.trainer.num_nodes
+        == cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
+    ), "devices * num_nodes should equal tensor_model_parallel_size * pipeline_model_parallel_size"
 
     # Update frozen GPT model path if it is given in case it has changed
     prompt_learning_cfg = MegatronGPTPromptLearningModel.restore_from(
