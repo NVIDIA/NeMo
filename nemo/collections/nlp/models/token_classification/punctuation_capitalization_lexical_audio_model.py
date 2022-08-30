@@ -57,12 +57,12 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
         :class:`~nemo.collections.nlp.data.token_classification.punctuation_capitalization_tarred_dataset.BertPunctuationCapitalizationTarredDataset` with parameter ``use_audio`` set to ``True``.
 
         Args:
-            cfg (:obj:`DictConfig`): a model configuration. It should follow dataclass
+            cfg: a model configuration. It should follow dataclass
                 :class:`~nemo.collections.nlp.models.token_classification.punctuation_capitalization_config.PunctuationCapitalizationLexicalAudioModelConfig`
                 See an example of full config in
                 `nemo/examples/nlp/token_classification/conf/punctuation_capitalization_lexical_audio_config.yaml
                 <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/conf/punctuation_capitalization_lexical_audio_config.yaml>`_
-            trainer (:obj:`pytorch_lightning.Trainer`): an instance of a PyTorch Lightning trainer
+            trainer: an instance of a PyTorch Lightning trainer
         """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None) -> None:
@@ -103,9 +103,9 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
                 )
 
         if cfg.get('restore_lexical_encoder_from', None):
-            model = PunctuationCapitalizationModel.restore_from(cfg.restore_lexical_encoder_from).to(self.device)
-            self.bert_model.load_state_dict(model.bert_model.state_dict())
-            del model
+            self.bert_model = PunctuationCapitalizationModel.restore_from(cfg.restore_lexical_encoder_from).to(self.device).bert_model
+            # self.bert_model.load_state_dict(model.bert_model.state_dict())
+            # del model
 
         del self.audio_encoder.decoder
         del self.audio_encoder._wer

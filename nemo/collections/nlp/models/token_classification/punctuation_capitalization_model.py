@@ -73,12 +73,12 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
     :class:`~nemo.collections.nlp.data.token_classification.punctuation_capitalization_tarred_dataset.BertPunctuationCapitalizationTarredDataset`.
 
     Args:
-        cfg (:obj:`DictConfig`): a model configuration. It should follow dataclass
+        cfg: a model configuration. It should follow dataclass
             :class:`~nemo.collections.nlp.models.token_classification.punctuation_capitalization_config.PunctuationCapitalizationModelConfig`
             See an example of full config in
             `nemo/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml
             <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml>`_
-        trainer (:obj:`pytorch_lightning.Trainer`): an instance of a PyTorch Lightning trainer
+        trainer: an instance of a PyTorch Lightning trainer
     """
 
     @property
