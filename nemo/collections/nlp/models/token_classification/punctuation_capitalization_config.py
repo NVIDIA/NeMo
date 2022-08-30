@@ -215,6 +215,20 @@ class PunctuationCapitalizationModelConfig:
 
 @dataclass
 class PunctuationCapitalizationLexicalAudioModelConfig(PunctuationCapitalizationModelConfig):
+    """
+    A configuration of
+    :class:`~nemo.collections.nlp.models.token_classification.punctuation_lexical_audio_capitalization_model.PunctuationCapitalizationLexicalAudioModel`
+    model.
+
+    See an example of model config in
+    `nemo/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml
+    <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/conf/punctuation_capitalization_lexical_audio_config.yaml>`_
+
+    Audio encoder can be frozen during training with ``freeze_audio_encoder`` parameter.
+    Adapter can be added to audio encoder with ``use_adapters`` and ``adapter_config`` parameters.
+    More conformer layers can be added on top of pretrained audio encoder with ``frozen_conf_d_model``, ``frozen_conf_d_ff`` and ``frozen_conf_num_layers`` parameters.
+    """
+
     train_ds: Optional[PunctuationCapitalizationTrainDataConfig] = None
     """A configuration for creating training dataset and data loader."""
 
