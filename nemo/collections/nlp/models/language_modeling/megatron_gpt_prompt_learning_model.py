@@ -134,6 +134,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 hidden_size=self.hidden_size,
             )
 
+        self.padded_vocab_size = self.frozen_model.padded_vocab_size
         self._prompt_table_key = VirtualPromptSource.PROMPT_TABLE.value
         self._prompt_encoder_key = VirtualPromptSource.PROMPT_ENCODER.value
 

@@ -111,17 +111,7 @@ def main(cfg) -> None:
         pin_memory=True,
     )
 
-    input_prediction_pairs = trainer.predict(model, test_dl)
-    print("***************************")
-    with open(cfg.pred_file_path, "w", encoding="utf-8") as pred_file:
-        for pair in input_prediction_pairs:
-            prompt, pred = pair
-            pred = pred.strip()
-            pred = pred.replace("\n", " ")
-            pred_file.write(pred + "\n")
-    print(f"Inference Complete, prediction file saved at {cfg.pred_file_path}")
-    print("***************************")
-
+    trainer.predict(model, test_dl)
     print('test finish---------------------------------')
 
 
