@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import logging
 from typing import Dict, List, Optional, Tuple
 
 import torch
@@ -19,8 +19,6 @@ from omegaconf import DictConfig, open_dict
 from pytorch_lightning import Trainer
 from torch.nn import Linear
 
-import nemo.collections.asr as nemo_asr
-from nemo.collections.asr.parts.submodules.conformer_modules import ConformerLayer
 from nemo.collections.common.losses.cross_entropy import CrossEntropyLoss
 from nemo.collections.nlp.models.token_classification.punctuation_capitalization_model import (
     PunctuationCapitalizationModel,
@@ -28,6 +26,14 @@ from nemo.collections.nlp.models.token_classification.punctuation_capitalization
 from nemo.collections.nlp.modules.common.transformer import TransformerDecoder
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.classes.mixins import adapter_mixins
+
+try:
+    import nemo.collections.asr as nemo_asr
+    from nemo.collections.asr.parts.submodules.conformer_modules import ConformerLayer
+
+    ASR_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    ASR_AVAILABLE = False
 
 __all__ = ['PunctuationCapitalizationLexicalAudioModel']
 
@@ -67,6 +73,8 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None) -> None:
         super().__init__(cfg, trainer)
+        if not ASR_AVAILABLE:
+            logging.error("`nemo_asr` is not installed, please install via reinstall.sh")
         audio_cfg = nemo_asr.models.ASRModel.from_pretrained(cfg.audio_encoder.pretrained_model, return_config=True)
 
         if cfg.audio_encoder.get('adapter', None):
