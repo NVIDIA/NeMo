@@ -72,15 +72,14 @@ def main(cfg) -> None:
     # NOTE: Only data can be overriden here since this the file being restored here should already correspond to a GLUE/XNLI finetuned model.
     OmegaConf.set_struct(t5_cfg, True)
     with open_dict(t5_cfg):
-        t5_cfg.masked_softmax_fusion = False
         t5_cfg.precision = cfg.trainer.precision
         # Overwrite data configs
-        if cfg.model.data.validation_ds.src_file_name is not None:
+        if cfg.model.data.validation_ds.get('src_file_name', None) is not None:
             logging.info(
                 'Found validation_ds.src_file_name in the config file. Overriding the finetuned model config file with the values from the new config file.'
             )
             t5_cfg.data.validation_ds.src_file_name = cfg.model.data.validation_ds.src_file_name
-        if cfg.model.data.validation_ds.tgt_file_name is not None:
+        if cfg.model.data.validation_ds.get('tgt_file_name', None) is not None:
             logging.info(
                 'Found validation_ds.tgt_file_name in the config file. Overriding the finetuned model config file with the values from the new config file.'
             )
