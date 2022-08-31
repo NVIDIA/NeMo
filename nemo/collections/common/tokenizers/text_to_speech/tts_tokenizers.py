@@ -476,11 +476,12 @@ class IPATokenizer(BaseTokenizer):
         self.g2p = g2p
 
     def encode_from_g2p(self, g2p_text: List[str], raw_text: str = None):
-        """Encodes text that has already been run through G2P, can be a mix of phonemes and graphemes.
+        """
+        Encodes text that has already been run through G2P.
         Called for encoding to tokens after text preprocessing and G2P.
 
         Args:
-            g2p_text: g2p's output, could be a mixture of phonemes and graphemes,
+            g2p_text: G2P's output, could be a mixture of phonemes and graphemes,
                 e.g. "see OOV" -> ['ˈ', 's', 'i', ' ', 'O', 'O', 'V']
             raw_text: original raw input
         """
