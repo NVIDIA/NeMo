@@ -107,6 +107,7 @@ class AudioDataset(Dataset):
             "audio_len": audio_length,
             "rel_audio_path_as_text_id": rel_audio_path_as_text_id,
             "wav_path": sample["audio_filepath"],
+            "speaker": speaker,
         }
 
 
@@ -180,7 +181,7 @@ def load_wav(wav_path, pad_multiple=1024):
 
 def save_pitch_contour(wav_and_id):
     sup_data_dir = SUP_DATA_DIR
-    wav_path, wav_text_id = wav_and_id
+    wav_path, wav_text_id = wav_and_id[0], wav_and_id[1]
     wav = load_wav(wav_path)
     pitch_contour_fn = f"pitch_contour_{wav_text_id}.pt"
     pitch_contour_fp = os.path.join(sup_data_dir, pitch_contour_fn)
@@ -188,7 +189,7 @@ def save_pitch_contour(wav_and_id):
     f0, _, _ = librosa.pyin(
         wav,
         fmin=librosa.note_to_hz('C2'),
-        fmax=librosa.note_to_hz('C7'),
+        fmax=500,
         frame_length=1024,
         hop_length=256,
         sr=22050,
@@ -202,6 +203,54 @@ def save_pitch_contour(wav_and_id):
 
     return pitch_contour
 
+def compute_pitch_stats(wav_and_id_list):
+    def _is_valid_pitch(pitch_mean, pitch_std):
+        c1 = pitch_mean > 0 and pitch_mean < 1000
+        c2 = pitch_std > 0 and pitch_std < 1000
+        return c1 and c2
+
+    sup_data_dir = SUP_DATA_DIR
+    speaker_wise_pitch_contours = {}
+    for item in wav_and_id_list:
+        _, wav_id, speaker = item
+        pitch_contour_fn = f"pitch_contour_{wav_id}.pt"
+        pitch_contour_fp = os.path.join(sup_data_dir, pitch_contour_fn)
+        if speaker not in speaker_wise_pitch_contours:
+            speaker_wise_pitch_contours[speaker] = []
+        speaker_wise_pitch_contours[speaker].append(pitch_contour_fp)
+    
+    speaker_pitch_stats = {}
+    for speaker in speaker_wise_pitch_contours:
+        non_zero_pc = []
+        for pitch_contour_fp in speaker_wise_pitch_contours[speaker][:50]:
+            pitch_contour = torch.load(pitch_contour_fp)
+            pitch_contour_nonzero = pitch_contour[pitch_contour != 0]
+            if len(pitch_contour_nonzero) > 0:
+                non_zero_pc.append(pitch_contour_nonzero)
+        
+        if len(non_zero_pc) > 0:
+            non_zero_pc = torch.cat(non_zero_pc)
+            pitch_mean = non_zero_pc.mean().item()
+            pitch_std = non_zero_pc.std().item()
+            valid = True
+
+            if not _is_valid_pitch(pitch_mean, pitch_std):
+                print("invalid pitch: {}".format(speaker))
+                pitch_mean = 212.0
+                pitch_std = 70.0
+                valid = "False"
+        else:
+            print("could not find pitch contour for speaker {}".format(speaker))
+            valid = "False"
+            pitch_mean = 212.0
+            pitch_std = 70.0
+        
+        speaker_pitch_stats[speaker]  = {"pitch_mean": pitch_mean, "pitch_std": pitch_std, "valid": valid}
+    
+    with open(os.path.join(sup_data_dir, "speaker_pitch_stats.json"), "w") as f:
+        print(sup_data_dir)
+        print("speaker_pitch_stats.json")
+        json.dump(speaker_pitch_stats, f)
 
 def main():
     parser = argparse.ArgumentParser(description='Evaluate the model')
@@ -244,6 +293,7 @@ def main():
     st = time.time()
     bidx = 0
     wav_and_id_list = []
+    
     for batch in tqdm(dataloader):
         bidx += 1
         with torch.no_grad():
@@ -268,9 +318,11 @@ def main():
             )
 
             for idx in range(batch['audio'].shape[0]):
+                _speaker = batch['speaker'][idx].item()
                 wav_path = batch['wav_path'][idx]
+                
                 wav_id = batch['rel_audio_path_as_text_id'][idx]
-                wav_and_id_list.append((wav_path, wav_id))
+                wav_and_id_list.append((wav_path, wav_id, _speaker))
                 content_embedding = batch_content_embedding[idx].detach()
                 content_log_probs = batch_content_log_probs[:, idx, :].detach()  # (content lob prob is (t, b, c))
                 encoded_len = batch_encoded_len[idx].detach()
@@ -350,6 +402,9 @@ def main():
 
     with Pool(args.pool_workers) as p:
         p.map(save_pitch_contour, wav_and_id_list)
+    
+    compute_pitch_stats(wav_and_id_list)
+
 
 
 if __name__ == '__main__':
