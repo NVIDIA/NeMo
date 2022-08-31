@@ -29,7 +29,8 @@ python offline_diar_with_asr_infer.py \
     diarizer.out_dir='demo_asr_output' \
     diarizer.speaker_embeddings.model_path=<pretrained modelname or path to .nemo> \
     diarizer.asr.model_path=<pretrained modelname or path to .nemo> \
-    diarizer.asr.parameters.asr_based_vad=True
+    diarizer.asr.parameters.asr_based_vad=True \
+    diarizer.speaker_embeddings.parameters.save_embeddings=False
 
 Check out whole parameters in ./conf/offline_diarization_with_asr.yaml and their meanings.
 For details, have a look at <NeMo_git_root>/tutorials/speaker_tasks/Speaker_Diarization_Inference.ipynb

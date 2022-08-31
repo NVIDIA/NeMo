@@ -51,6 +51,7 @@ Diarization Error Rate (DER) table of `titanet_large.nemo` model on well known e
     diarizer.manifest_filepath=<path to manifest file> \
     diarizer.out_dir='demo_output' \
     diarizer.speaker_embeddings.model_path=<pretrained modelname or path to .nemo> \
+    diarizer.speaker_embeddings.parameters.save_embeddings=False \
     diarizer.vad.model_path=<pretrained modelname or path to .nemo>
 ```
 
@@ -63,6 +64,7 @@ python offline_diar_infer.py \
     diarizer.manifest_filepath=<path to manifest file> \
     diarizer.out_dir='demo_output' \
     diarizer.speaker_embeddings.model_path=<pretrained modelname or path to .nemo> \
+    diarizer.speaker_embeddings.parameters.save_embeddings=False \
     diarizer.oracle_vad=True
 ```
 
@@ -116,6 +118,7 @@ Single-scale setting:
 ```
 
 Multiscale setting (base scale - window_length 0.5 s and shift_length 0.25):
+
 ```bash
   python offline_diar_infer.py \
      ... <other paramerters> ...
@@ -146,6 +149,7 @@ python offline_diar_with_asr_infer.py \
     diarizer.out_dir='demo_asr_output' \
     diarizer.speaker_embeddings.model_path=<pretrained modelname or path to .nemo> \
     diarizer.asr.model_path=<pretrained modelname or path to .nemo> \
+    diarizer.speaker_embeddings.parameters.save_embeddings=False \
     diarizer.asr.parameters.asr_based_vad=True
 ```
 If you have reference rttm files or oracle number of speaker information, you can provide those file paths and number of speakers in the manifest file path and pass `diarizer.clustering.parameters.oracle_num_speakers=True` as shown in the following example.
@@ -156,6 +160,7 @@ python offline_diar_with_asr_infer.py \
     diarizer.out_dir='demo_asr_output' \
     diarizer.speaker_embeddings.model_path=<pretrained modelname or path to .nemo> \
     diarizer.asr.model_path=<pretrained modelname or path to .nemo> \
+    diarizer.speaker_embeddings.parameters.save_embeddings=False \
     diarizer.asr.parameters.asr_based_vad=True \
     diarizer.clustering.parameters.oracle_num_speakers=True
 ```

@@ -26,7 +26,8 @@ Usage:
     diarizer.manifest_filepath=<path to manifest file> \
     diarizer.out_dir='demo_output' \
     diarizer.speaker_embeddings.model_path=<pretrained modelname or path to .nemo> \
-    diarizer.vad.model_path='vad_marblenet'
+    diarizer.vad.model_path='vad_marblenet' \
+    diarizer.speaker_embeddings.parameters.save_embeddings=False
 
 Check out whole parameters in ./conf/offline_diarization.yaml and their meanings.
 For details, have a look at <NeMo_git_root>/tutorials/speaker_tasks/Speaker_Diarization_Inference.ipynb
