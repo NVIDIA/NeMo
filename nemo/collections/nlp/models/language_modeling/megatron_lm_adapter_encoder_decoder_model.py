@@ -78,16 +78,6 @@ class MegatronLMAdapterEncoderDecoderModel(MegatronLMEncoderDecoderModel):
     def list_available_models(cls):
         pass
 
-    def state_dict(self, destination=None, prefix=None, keep_vars=False):
-        state_dict_ = {}
-        for name, module in self.enc_dec_model.named_modules():
-            if isinstance(module, adapter_mixins.AdapterModuleMixin):
-                for adapter_key in self.adapter_name_keys:
-                    adapter_module = module.adapter_layer[adapter_key]
-                    state_adapter_key = ':'.join([name, adapter_key])
-                    state_dict_[state_adapter_key] = adapter_module.state_dict()
-        return state_dict_
-
     def _validate_adapters_cfg(self, cfg):
         assert cfg.type in ['parallel_adapter', 'linear_adapter']
         assert hasattr(cfg, 'adapter_dim')
@@ -99,6 +89,21 @@ class MegatronLMAdapterEncoderDecoderModel(MegatronLMEncoderDecoderModel):
         for val in ['row_init_method', 'column_init_method']:
             if hasattr(cfg, val):
                 assert cfg.get(val) in ['xavier', 'zero', 'normal']
+
+    def state_dict(self, destination=None, prefix=None, keep_vars=False):
+        state_dict_ = {}
+
+        if hasattr(self.cfg, 'adapter_tuning'):
+            for name, module in self.enc_dec_model.named_modules():
+                if isinstance(module, adapter_mixins.AdapterModuleMixin):
+                    for adapter_key in self.adapter_name_keys:
+                        adapter_module = module.adapter_layer[adapter_key]
+                        state_adapter_key = ':'.join([name, adapter_key])
+                        state_dict_[state_adapter_key] = adapter_module.state_dict()
+        else:
+            for name, module in self.enc_dec_model.named_modules():
+                state_dict_[name] = module.state_dict()
+        return state_dict_
 
     def load_state_dict(self, state_dict, strict: bool = True):
         for name, module in self.enc_dec_model.named_modules():
@@ -121,11 +126,15 @@ class MegatronLMAdapterEncoderDecoderModel(MegatronLMEncoderDecoderModel):
         and/or prompt table will use the learning rate set by the user. 
         """
         # self freeze and unfreeze enabled adapters
-        self.freeze()
-        param_groups = {'params': [p for p in self.enc_dec_model.parameters()]}
-        for _, module in self.enc_dec_model.named_modules():
-            if isinstance(module, adapter_mixins.AdapterModuleMixin):
-                module.set_enabled_adapters(enabled=True)
-                module.unfreeze_enabled_adapters()
+        if hasattr(self.cfg, 'adapter_tuning'):
+            self.freeze()
+            param_groups = {'params': [p for p in self.enc_dec_model.parameters()]}
+            for _, module in self.enc_dec_model.named_modules():
+                if isinstance(module, adapter_mixins.AdapterModuleMixin):
+                    module.set_enabled_adapters(enabled=True)
+                    module.unfreeze_enabled_adapters()
+        else:
+            param_groups = {'params': [p for p in self.enc_dec_model.parameters()]}
+
         self._optimizer_param_groups = [param_groups]
         logging.info(f'Optimizer groups set:\n{self.summarize()}')
