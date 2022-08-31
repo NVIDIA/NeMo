@@ -172,7 +172,7 @@ def main(cfg):
 
     if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.manifest_filepath is not None:
         if model.prepare_test(trainer):
-            trainer.test(asr_model)
+            trainer.test(model)
 
 
 if __name__ == '__main__':
