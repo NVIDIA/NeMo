@@ -21,6 +21,7 @@ import numpy as np
 import torch
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
+from torchmetrics import AUROC, Accuracy
 from tqdm import tqdm
 
 from nemo.collections.asr.data.audio_to_label import AudioToSpeechLabelDataset
@@ -117,6 +118,9 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
 
         self.task = None
         self._accuracy = TopKClassificationAccuracy(top_k=[1])
+        self._macro_accuracy = Accuracy(num_classes=cfg.decoder.num_classes, average='macro')
+        self._auroc = AUROC(num_classes=cfg.decoder.num_classes)
+
         self.labels = None
         if hasattr(self._cfg, 'spec_augment') and self._cfg.spec_augment is not None:
             self.spec_augmentation = EncDecSpeakerLabelModel.from_config_dict(self._cfg.spec_augment)
@@ -310,6 +314,8 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         loss_value = self.loss(logits=logits, labels=labels)
         acc_top_k = self._accuracy(logits=logits, labels=labels)
         correct_counts, total_counts = self._accuracy.correct_counts_k, self._accuracy.total_counts_k
+        self._macro_accuracy.update(preds=logits, target=labels)
+        self._auroc.update(preds=logits, target=labels)
 
         return {
             'val_loss': loss_value,
@@ -326,16 +332,26 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         self._accuracy.correct_counts_k = correct_counts
         self._accuracy.total_counts_k = total_counts
         topk_scores = self._accuracy.compute()
+        macro_accuracy_score = self._macro_accuracy.compute()
+        auroc_score = self._auroc.compute()
+
         self._accuracy.reset()
+        self._macro_accuracy.reset()
+        self._auroc.reset()
 
         logging.info("val_loss: {:.3f}".format(val_loss_mean))
         self.log('val_loss', val_loss_mean)
         for top_k, score in zip(self._accuracy.top_k, topk_scores):
             self.log('val_epoch_accuracy_top@{}'.format(top_k), score)
 
+        self.log('val_acc_macro', macro_accuracy_score, sync_dist=True)
+        self.log('val_auroc', auroc_score, sync_dist=True)
+
         return {
             'val_loss': val_loss_mean,
             'val_acc_top_k': topk_scores,
+            'val_acc_macro': macro_accuracy_score,
+            'val_auroc': auroc_score,
         }
 
     def test_step(self, batch, batch_idx, dataloader_idx: int = 0):
@@ -344,6 +360,8 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         loss_value = self.loss(logits=logits, labels=labels)
         acc_top_k = self._accuracy(logits=logits, labels=labels)
         correct_counts, total_counts = self._accuracy.correct_counts_k, self._accuracy.total_counts_k
+        self._macro_accuracy.update(preds=logits, target=labels)
+        self._auroc.update(preds=logits, target=labels)
 
         return {
             'test_loss': loss_value,
@@ -360,16 +378,26 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         self._accuracy.correct_counts_k = correct_counts
         self._accuracy.total_counts_k = total_counts
         topk_scores = self._accuracy.compute()
+        macro_accuracy_score = self._macro_accuracy.compute()
+        auroc_score = self._auroc.compute()
+
         self._accuracy.reset()
+        self._macro_accuracy.reset()
+        self._auroc.reset()
 
         logging.info("test_loss: {:.3f}".format(test_loss_mean))
         self.log('test_loss', test_loss_mean)
         for top_k, score in zip(self._accuracy.top_k, topk_scores):
             self.log('test_epoch_accuracy_top@{}'.format(top_k), score)
 
+        self.log('test_acc_macro', macro_accuracy_score, sync_dist=True)
+        self.log('test_auroc', auroc_score, sync_dist=True)
+
         return {
             'test_loss': test_loss_mean,
             'test_acc_top_k': topk_scores,
+            'test_acc_macro': macro_accuracy_score,
+            'test_auroc': auroc_score,
         }
 
     @torch.no_grad()
