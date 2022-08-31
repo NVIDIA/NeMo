@@ -100,7 +100,6 @@ def get_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--use_audio",
-        type=bool,
         required=False,
         action="store_true",
         help="If set to `True` script creates lexical audio dataset which can be used with `PunctuationCapitalizationLexicalAudioModel`.",
