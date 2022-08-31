@@ -4272,6 +4272,7 @@ Inference parameters:
 
 ## 9. Known Issues
 <a id="markdown-known-issues" name="known-issues"></a>
+* The validation / evaluation scripts of fine-tuning in T5 models calculates exact match accuracies based on the first answer among multiple possible answers. It results in lower accuracy reported for SQuAD evaluation.
 * The 22.05 inference container provides better performance for large models like 530B, but can be slower for 5B model for some configurations
 * The inference profiling scripts can fail to produce final summary of results due to the division by zero error. The results are still present in CSV files
 * For customers looking to do inference on BCP please use a previous inference container
