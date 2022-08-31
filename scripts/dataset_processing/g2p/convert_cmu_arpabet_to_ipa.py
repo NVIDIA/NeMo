@@ -68,10 +68,7 @@ def convert_arp_to_ipa(arp_to_ipa_dict: Dict[str, str], arp_input: str, remove_s
 
     word_ipa = ""
     phonemes = arp_input.split()
-    try:
-        syllables = syllabify(phonemes)
-    except:
-        syllables = [[phonemes]]
+    syllables = syllabify(phonemes)
 
     for syl_idx, syll in enumerate(syllables):
         syll_stress = ""
