@@ -46,13 +46,20 @@ from omegaconf import MISSING, DictConfig, OmegaConf
 from torch.nn.utils.rnn import pad_sequence
 from tqdm import tqdm
 
-from nemo.collections.asr.parts.preprocessing import AudioSegment
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.data_utils.data_preprocessing import get_label_stats, get_stats
 from nemo.core.classes import Dataset
 from nemo.core.neural_types import AudioSignal, ChannelType, LabelsType, LengthsType, MaskType, NeuralType
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
+
+try:
+    from nemo.collections.asr.parts.preprocessing import AudioSegment
+
+    ASR_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    ASR_AVAILABLE = False
+
 
 MAX_NUM_QUERIES_IN_SPLIT = 10 ** 4
 TOKENIZATION_PROGRESS_REPORT_PERIOD = 10 ** 3
@@ -566,9 +573,15 @@ class TokenizeCreateMasksClipWorker:
             capit_labels.append(pad_id)
             capit_all_labels.append(np.array(self._maybe_clip(capit_labels, pad_id), dtype=np.int32))
             if preload_audios and audio_query:
-                segment = AudioSegment.from_file(audio_query.strip(), target_sr=sample_rate)
-                all_audio_waveforms.append(segment.samples)
-                audio_lengths.append(segment.num_samples)
+                if ASR_AVAILABLE:
+                    segment = AudioSegment.from_file(audio_query.strip(), target_sr=sample_rate)
+                    all_audio_waveforms.append(segment.samples)
+                    audio_lengths.append(segment.num_samples)
+                else:
+                    raise ModuleNotFoundError(
+                        'Nemo ASR was not installed, see https://github.com/NVIDIA/NeMo#installation for installation instructions'
+                    )
+
             elif audio_query:
                 audio_filepaths.append(audio_query.strip())
 
@@ -1914,9 +1927,14 @@ class BertPunctuationCapitalizationDataset(Dataset):
                     batch['features'] = torch.as_tensor(batch['features'], dtype=torch.float)
                     batch['features_length'] = torch.as_tensor(batch['features_length'], dtype=torch.long)
                 elif self.use_audio:
-                    waveform = AudioSegment.from_file(batch['audio_filepaths'], target_sr=self.sample_rate)
-                    batch['features'] = torch.as_tensor(waveform.samples, dtype=torch.float)
-                    batch['features_length'] = torch.as_tensor(waveform.num_samples, dtype=torch.long)
+                    if ASR_AVAILABLE:
+                        waveform = AudioSegment.from_file(batch['audio_filepaths'], target_sr=self.sample_rate)
+                        batch['features'] = torch.as_tensor(waveform.samples, dtype=torch.float)
+                        batch['features_length'] = torch.as_tensor(waveform.num_samples, dtype=torch.long)
+                    else:
+                        raise ModuleNotFoundError(
+                            'Nemo ASR was not installed, see https://github.com/NVIDIA/NeMo#installation for installation instructions'
+                        )
 
             segment_ids = pad_sequence([batch['segment_ids'] for batch in batches])
             input_mask = pad_sequence([batch['input_mask'] for batch in batches])

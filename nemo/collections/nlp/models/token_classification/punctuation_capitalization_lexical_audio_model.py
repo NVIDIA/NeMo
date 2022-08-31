@@ -74,7 +74,9 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
     def __init__(self, cfg: DictConfig, trainer: Trainer = None) -> None:
         super().__init__(cfg, trainer)
         if not ASR_AVAILABLE:
-            logging.error("`nemo_asr` is not installed, please install via reinstall.sh")
+            raise ModuleNotFoundError(
+                'Nemo ASR was not installed, see https://github.com/NVIDIA/NeMo#installation for installation instructions'
+            )
         audio_cfg = nemo_asr.models.ASRModel.from_pretrained(cfg.audio_encoder.pretrained_model, return_config=True)
 
         if cfg.audio_encoder.get('adapter', None):
