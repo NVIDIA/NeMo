@@ -175,7 +175,7 @@ def run_benchmark(
     cluster_config_path = os.path.join(cfg.bignlp_hp_tool_path, "conf/cluster/bcm.yaml")
 
     cmd = (
-        f"export CUDA_VISIBLE_DEVICES={','.join(map(str, range(0, 8)))} "
+        f"export CUDA_VISIBLE_DEVICES={','.join(map(str, range(0, 8)))} && "
         f"/opt/bignlp/FasterTransformer/build/bin/multi_gpu_gpt_sweep "
         f"{cluster_config_path} "
         f"{start_id_path} "
