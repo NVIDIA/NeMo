@@ -631,11 +631,12 @@ def estimateNumofSpeakers(affinity_mat: torch.Tensor, max_num_speaker: int, cuda
         lambda_gap: (torch.tensor)
             The gap between the lambda values from eigendecomposition
     """
-    laplacian = getLaplacian(affinity_mat)
-    lambdas, _ = eigDecompose(laplacian, cuda)
-    lambdas = torch.sort(lambdas)[0]
-    lambda_gap = getLamdaGaplist(lambdas)
-    num_of_spk = torch.argmax(lambda_gap[: min(max_num_speaker, lambda_gap.shape[0])]) + 1
+    with torch.no_grad():
+        laplacian = getLaplacian(affinity_mat)
+        lambdas, _ = eigDecompose(laplacian, cuda)
+        lambdas = torch.sort(lambdas)[0]
+        lambda_gap = getLamdaGaplist(lambdas)
+        num_of_spk = torch.argmax(lambda_gap[: min(max_num_speaker, lambda_gap.shape[0])]) + 1
     return num_of_spk, lambdas, lambda_gap
 
 @torch.jit.script
@@ -1001,7 +1002,7 @@ class NMESC:
             self.max_N = torch.max(
                 torch.floor(torch.tensor(self.mat.shape[0] * self.fixed_thres)).type(torch.int), self.min_p_value
             )
-            p_value_list = torch.tensor(self.max_N).unsqueeze(0)
+            p_value_list = torch.tensor(self.max_N).unsqueeze(0).int()
         else:
             self.max_N = torch.max(
                 torch.floor(torch.tensor(self.mat.shape[0] * self.max_rp_threshold)).type(torch.int), self.min_p_value
