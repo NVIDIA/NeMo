@@ -35,8 +35,7 @@ from collections import Counter
 from typing import Dict, List, Tuple
 
 import torch
-from torch.linalg import eigh
-
+from torch.linalg import eigh, eigvalsh
 
 @torch.jit.script
 def cos_similarity(a: torch.Tensor, b: torch.Tensor, eps=torch.tensor(3.5e-4)):
@@ -429,8 +428,6 @@ def getCosAffinityMatrix(emb: torch.Tensor):
     sim_d = cos_similarity(emb, emb)
     sim_d = ScalerMinMax(sim_d)
     return sim_d
-        # embeddings_in_scales: Dict[int, torch.Tensor],
-        # timestamps_in_scales: Dict[int, torch.Tensor],
 
 @torch.jit.script
 def getMultiScaleCosAffinityMatrix(
@@ -495,6 +492,20 @@ def eigDecompose(laplacian: torch.Tensor, cuda: bool, device: torch.device = tor
         laplacian = laplacian.float()
     lambdas, diffusion_map = eigh(laplacian)
     return lambdas, diffusion_map
+
+@torch.jit.script
+def eigValueSh(laplacian: torch.Tensor, cuda: bool, device: torch.device = torch.device('cpu')):
+    """
+    Calculate only eigenvalues from the Laplacian matrix.
+    """
+    if cuda:
+        if device is None:
+            device = torch.cuda.current_device()
+        laplacian = laplacian.float().to(device)
+    else:
+        laplacian = laplacian.float()
+    lambdas = eigvalsh(laplacian)
+    return lambdas
 
 
 @torch.jit.script
@@ -633,7 +644,7 @@ def estimateNumofSpeakers(affinity_mat: torch.Tensor, max_num_speaker: int, cuda
     """
     with torch.no_grad():
         laplacian = getLaplacian(affinity_mat)
-        lambdas, _ = eigDecompose(laplacian, cuda)
+        lambdas = eigValueSh(laplacian, cuda=cuda)
         lambdas = torch.sort(lambdas)[0]
         lambda_gap = getLamdaGaplist(lambdas)
         num_of_spk = torch.argmax(lambda_gap[: min(max_num_speaker, lambda_gap.shape[0])]) + 1
@@ -748,7 +759,7 @@ class SpectralClustering:
                 clustering label output
         """
         laplacian = getLaplacian(affinity_mat)
-        lambdas_, diffusion_map_ = eigDecompose(laplacian, cuda)
+        lambdas_, diffusion_map_ = eigDecompose(laplacian, cuda=cuda)
         diffusion_map = diffusion_map_[:, :n_spks]
         inv_idx = torch.arange(diffusion_map.size(1) - 1, -1, -1).long()
         embedding = diffusion_map.T[inv_idx, :]
