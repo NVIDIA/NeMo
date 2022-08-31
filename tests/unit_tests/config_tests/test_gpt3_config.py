@@ -27,7 +27,7 @@ class TestGPT3Config:
         inference_settings:
           run:
             model_type: gpt3
-            model_train_name: gpt3_126m
+            model_train_name: gpt3_0.126b
             data_type: fp16 # fp32|fp16|bf16
             timelimit: 0:30:00
             results_dir: ${base_results_dir}/${search_config_value}

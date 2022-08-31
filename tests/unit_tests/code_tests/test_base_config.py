@@ -230,14 +230,24 @@ class TestGenerateBaseconfig:
             assert not out_cfg["exp_manager"]["create_wandb_logger"], "exp_manager.create_wandb_logger should be False."
 
         # Model parameters
-        assert out_cfg["model"]["num_layers"] == expected["num_layers"]
+        if model_name == "gpt3":
+            assert out_cfg["model"]["num_layers"] == expected["num_layers"]
+            assert out_cfg["model"]["hidden_size"] == expected["hs"]
+            assert out_cfg["model"]["num_attention_heads"] == expected["att_heads"]
+            if out_cfg["model"]["ffn_hidden_size"] is not None:
+                assert out_cfg["model"]["ffn_hidden_size"] == expected["ffn"]
+            if out_cfg["model"]["kv_channels"] is not None:
+                assert out_cfg["model"]["kv_channels"] == expected["kv"]
+        else:
+            assert out_cfg["model"]["encoder"]["num_layers"] == expected["num_layers"]
+            assert out_cfg["model"]["encoder"]["hidden_size"] == expected["hs"]
+            assert out_cfg["model"]["encoder"]["num_attention_heads"] == expected["att_heads"]
+            if out_cfg["model"]["encoder"]["ffn_hidden_size"] is not None:
+                assert out_cfg["model"]["encoder"]["ffn_hidden_size"] == expected["ffn"]
+            if out_cfg["model"]["encoder"]["kv_channels"] is not None:
+                assert out_cfg["model"]["encoder"]["kv_channels"] == expected["kv"]
+
         assert out_cfg["model"]["global_batch_size"] == expected["gbs"]
-        assert out_cfg["model"]["hidden_size"] == expected["hs"]
-        assert out_cfg["model"]["num_attention_heads"] == expected["att_heads"]
-        if out_cfg["model"]["ffn_hidden_size"] is not None:
-            assert out_cfg["model"]["ffn_hidden_size"] == expected["ffn"]
-        if out_cfg["model"]["kv_channels"] is not None:
-            assert out_cfg["model"]["kv_channels"] == expected["kv"]
         assert out_cfg["model"]["init_method_std"] == pytest.approx(expected=expected["init_std"], rel=self.margin)
         assert out_cfg["model"]["optim"]["lr"] == expected["lr"]
         assert out_cfg["model"]["optim"]["sched"]["min_lr"] == pytest.approx(expected=expected["min_lr"], rel=self.margin)

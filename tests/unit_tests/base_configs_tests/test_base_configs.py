@@ -155,18 +155,18 @@ class TestBaseConfigs:
           dependency: "singleton"
 
         name: megatron_t5
-        restore_from_path: null
+        restore_from_path: null # used when starting from a .nemo file
 
         trainer:
           num_nodes: 4
           devices: 8
           accelerator: gpu
           precision: bf16
-          logger: False
+          logger: False # logger provided by exp_manager
           enable_checkpointing: False
           replace_sampler_ddp: False
           max_epochs: null
-          max_steps: 1000000
+          max_steps: 1000000 # consumed_samples = global_step * global_batch_size
           max_time: "06:23:30:00"
           log_every_n_steps: 1
           val_check_interval: 50
@@ -177,7 +177,7 @@ class TestBaseConfigs:
 
 
         exp_manager:
-          explicit_log_dir: ${training.run.results_dir}
+          explicit_log_dir: ${training.run.results_dir}/results
           exp_dir: null
           name: megatron_t5
           create_wandb_logger: False
@@ -191,8 +191,8 @@ class TestBaseConfigs:
             monitor: val_loss
             save_top_k: 10
             mode: min
-            always_save_nemo: False
-            save_nemo_on_train_end: False
+            always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
+            save_nemo_on_train_end: False # not recommended when training large models on clusters with short time limits
             filename: 'megatron_t5--{val_loss:.2f}-{step}-{consumed_samples}'
             model_parallel_size: ${multiply:${training.model.tensor_model_parallel_size}, ${training.model.pipeline_model_parallel_size}}
           log_step_timing: True
@@ -203,66 +203,122 @@ class TestBaseConfigs:
         model:
           # model parallelism
           micro_batch_size: 64
-          global_batch_size: 2048
+          global_batch_size: 2048 # will use more micro batches to reach global batch size
           tensor_model_parallel_size: 1
           pipeline_model_parallel_size: 1
-          resume_from_checkpoint: null
+          resume_from_checkpoint: null # manually set the checkpoint file to load from
           pipeline_model_parallel_split_rank: ${divide_floor:${.pipeline_model_parallel_size}, 2}
 
           # model architecture
-          make_vocab_size_divisible_by: 128
-          pre_process: True
-          post_process: True
+          make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
+          pre_process: True # add embedding
+          post_process: True # add pooler
 
-          megatron_amp_O2: True
+          megatron_amp_O2: True # use AMP with O2 style mixed precision instead of native amp on-the-fly weight autocasting.
           grad_allreduce_chunk_size_mb: 125
+          gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
 
           seq_length: 512
           max_position_embeddings: ${.seq_length}
-          num_layers: 12
-          hidden_size: 768
-          ffn_hidden_size: 2048 
-          num_attention_heads: 12
-          init_method_std: 0.015
-          hidden_dropout: 0.1
-          attention_dropout: 0.1
-          position_embedding_type: 'learned_absolute'
-          relative_attention_num_buckets: 32
-          relative_attention_max_distance: 128
-          kv_channels: null
-          apply_query_key_layer_scaling: True
-          layernorm_epsilon: 1e-5
-          persist_layer_norm: True
-          gradient_as_bucket_view: True
-          bias_activation_fusion: True
-          grad_div_ar_fusion: True
-          masked_softmax_fusion: True
-          encoder_arch: 'transformer'
-          decoder_arch: 'transformer'
-          activation: 'geglu'
+
+          encoder:
+            num_layers: 12
+            hidden_size: 768
+            ffn_hidden_size: 2048  # Transformer FFN hidden size. 4 * hidden_size.
+            num_attention_heads: 12
+            kv_channels: 64  # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
+            init_method_std: 0.015  # Standard deviation of the zero mean normal distribution used for weight initialization.')
+            hidden_dropout: 0.1  # Dropout probability for hidden state transformer.
+            attention_dropout: 0.1 # Dropout probability in the attention layer.
+            position_embedding_type: 'learned_absolute' # Position embedding type. Options ['learned_absolute', 'relative']
+            relative_attention_num_buckets: 32 # Relative position number of buckets for computing the bias
+            relative_attention_max_distance: 128 # max_distance to keep relative distance in the attention_num_buckets.
+            relative_position_bias_self_attention_only: True # Whether to only use relative position bias for self attention only.
+            apply_query_key_layer_scaling: True # scale Q * K^T by 1 / layer-number.
+            layernorm_epsilon: 1e-5
+            persist_layer_norm: True # Use of persistent fused layer norm kernel.
+            bias_activation_fusion: True # Use a kernel that fuses the bias addition from weight matrices with the subsequent activation function.
+            grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce
+            masked_softmax_fusion: True # Use a kernel that fuses the attention softmax with it's mask.
+            bias_dropout_add_fusion: True # Use a kernel that fuses the bias addition, dropout and residual connection addition.
+            bias: True # Whether to use bias terms in all weight matrices.
+            normalization: 'layernorm' # Normalization layer to use. Options are 'layernorm', 'rmsnorm'
+            arch: 'transformer' # Options: ['transformer', 'perceiver']
+            activation: 'geglu' # Options ['gelu', 'geglu', 'swiglu', 'reglu']
+            headscale: False # Whether to learn extra parameters that scale the output of the each self-attention head.
+            transformer_block_type: 'pre_ln' # Options ['pre_ln', 'post_ln', 'normformer']
+            openai_gelu: False # Use OpenAI's GELU instead of the default GeLU
+            # miscellaneous
+            onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
+            fp32_residual_connection: False # Use FP32 for residual connections.
+            # activations checkpointing
+            activations_checkpoint_method: null # 'uniform', 'block'
+            activations_checkpoint_num_layers: 0
+
+          decoder:
+            num_layers: 12
+            hidden_size: 768
+            ffn_hidden_size: 2048  # Transformer FFN hidden size. 4 * hidden_size.
+            num_attention_heads: 12
+            kv_channels: 64  # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
+            init_method_std: 0.015 # Standard deviation of the zero mean normal distribution used for weight initialization.')
+            hidden_dropout: 0.1 # Dropout probability for hidden state transformer.
+            attention_dropout: 0.1 # Dropout probability in the attention layer.
+            position_embedding_type: 'learned_absolute' # Position embedding type. Options ['learned_absolute', 'relative']
+            relative_attention_num_buckets: 32 # Relative position number of buckets for computing the bias
+            relative_attention_max_distance: 128 # max_distance to keep relative distance in the attention_num_buckets.
+            relative_position_bias_self_attention_only: True # Whether to only use relative position bias for self attention only.
+            apply_query_key_layer_scaling: True # scale Q * K^T by 1 / layer-number.
+            layernorm_epsilon: 1e-5
+            persist_layer_norm: True # Use of persistent fused layer norm kernel.
+            bias_activation_fusion: True # Use a kernel that fuses the bias addition from weight matrices with the subsequent activation function.
+            grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce
+            masked_softmax_fusion: True # Use a kernel that fuses the attention softmax with it's mask.
+            bias_dropout_add_fusion: True # Use a kernel that fuses the bias addition, dropout and residual connection addition.
+            bias: True # Whether to use bias terms in all weight matrices.
+            normalization: 'layernorm' # Normalization layer to use. Options are 'layernorm', 'rmsnorm'
+            arch: 'transformer' # Options: ['transformer', 'perceiver']
+            activation: 'geglu' # Options ['gelu', 'geglu', 'swiglu', 'reglu']
+            headscale: False # Whether to learn extra parameters that scale the output of the each self-attention head.
+            transformer_block_type: 'pre_ln' # Options ['pre_ln', 'post_ln', 'normformer']
+            openai_gelu: False # Use OpenAI's GELU instead of the default GeLU
+            # miscellaneous
+            onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
+            fp32_residual_connection: False # Use FP32 for residual connections.
+            # activations checkpointing
+            activations_checkpoint_method: null # 'uniform', 'block'
+            activations_checkpoint_num_layers: 0
 
           tokenizer:
             library: 'megatron'
             type: 'BertWordPieceCase'
             model: null
-            vocab_file: ${data_dir}/vocab.txt
+            vocab_file: ${data_dir}/bpe/vocab.txt
             merge_file: null
             num_sentinel_tokens: 100
 
           # precision
-          native_amp_init_scale: 4294967296
+          native_amp_init_scale: 4294967296 # 2 ** 32
           native_amp_growth_interval: 1000
-          fp32_residual_connection: False
-          fp16_lm_cross_entropy: False
+          fp16_lm_cross_entropy: False # Move the cross entropy unreduced loss calculation for lm head to fp16
 
           # miscellaneous
           seed: 1234
-          use_cpu_initialization: False
-          onnx_safe: False
-          apex_transformer_log_level: 30
+          use_cpu_initialization: False # Init weights on the CPU (slow for large models)
+          apex_transformer_log_level: 30 # Python logging level displays logs with severity greater than or equal to this
 
-          activations_checkpoint_method: block
-          activations_checkpoint_num_layers: 0
+
+          # embedding sharing
+          share_token_embeddings: True # If True share encoder/decoder embeddings
+          share_decoder_tokens_head_embeddings: True # If True share decoder embeddings and decoder projection to logits
+
+          nsys_profile:
+            enabled: False
+            trace: [nvtx,cuda]
+            start_step: 10  # Global batch to start profiling
+            end_step: 10 # Global batch to end profiling
+            ranks: [0] # Global rank IDs to profile
+            gen_shape: False # Generate model and kernel details including input shapes
 
           optim:
             name: fused_adam
@@ -281,12 +337,12 @@ class TestBaseConfigs:
 
           data:
             data_impl: mmap
-            splits_string: "999982,9,9"
+            splits_string: "90,5,5"
             seq_length: 512
             seq_length_dec: 128
             skip_warmup: True
             num_workers: 4
-            dataloader_type: single
+            dataloader_type: single # cyclic
             masked_lm_prob: 0.15
             dataset_type: 't5'
             short_seq_prob: 0.0
@@ -296,10 +352,11 @@ class TestBaseConfigs:
             permutation: False
             whole_word_masking: True
             favor_longer_ngrams: False
-            index_mapping_dir: null
-            data_prefix:
+            respect_document_boundaries: True # If true, a single training exampl cannot cross document boundaries, increasing the fraction of <pad> tokens within a batch.
+            index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
+            data_prefix: # Should be weight path weight path... for a blended dataset
               - 1.0
-              - ${data_dir}/my-t5_00_bert_tokenizer_text_document
+              - ${data_dir}/my-t5_00_text_document
         """
         expected = OmegaConf.create(s)
         assert (
@@ -310,26 +367,26 @@ class TestBaseConfigs:
         conf = OmegaConf.load("base_configs/mt5.yaml")
         s = """
         run:
-          name: mt5_390m
+          name: mt5_170m
           results_dir: ${base_results_dir}/${.name}
           time_limit: "7-00:00:00"
           dependency: "singleton"
-          preprocessed_dir: ${data_dir}/mc4/preprocessed
-          blending_alpha: 0.7
+          preprocessed_dir: ${data_dir}/mc4/preprocessed # used for auto data blending
+          blending_alpha: 0.7 # blending ratio across different languages; language sampling ratio ~L^alpha
 
         name: megatron_mt5
-        restore_from_path: null
+        restore_from_path: null # used when starting from a .nemo file
 
         trainer:
           num_nodes: 4
           devices: 8
           accelerator: gpu
           precision: bf16
-          logger: False
+          logger: False # logger provided by exp_manager
           enable_checkpointing: False
           replace_sampler_ddp: False
           max_epochs: null
-          max_steps: 1000000
+          max_steps: 1000000 # consumed_samples = global_step * global_batch_size
           max_time: "06:23:30:00"
           log_every_n_steps: 1
           val_check_interval: 50
@@ -340,7 +397,7 @@ class TestBaseConfigs:
 
 
         exp_manager:
-          explicit_log_dir: ${training.run.results_dir}
+          explicit_log_dir: ${training.run.results_dir}/results
           exp_dir: null
           name: megatron_mt5
           create_wandb_logger: False
@@ -354,8 +411,8 @@ class TestBaseConfigs:
             monitor: val_loss
             save_top_k: 10
             mode: min
-            always_save_nemo: False
-            save_nemo_on_train_end: False
+            always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
+            save_nemo_on_train_end: False # not recommended when training large models on clusters with short time limits
             filename: 'megatron_mt5--{val_loss:.2f}-{step}-{consumed_samples}'
             model_parallel_size: ${multiply:${training.model.tensor_model_parallel_size}, ${training.model.pipeline_model_parallel_size}}
           log_step_timing: True
@@ -365,67 +422,123 @@ class TestBaseConfigs:
 
         model:
           # model parallelism
-          micro_batch_size: 32
-          global_batch_size: 2048
+          micro_batch_size: 64
+          global_batch_size: 2048 # will use more micro batches to reach global batch size
           tensor_model_parallel_size: 1
           pipeline_model_parallel_size: 1
-          resume_from_checkpoint: null
+          resume_from_checkpoint: null # manually set the checkpoint file to load from
           pipeline_model_parallel_split_rank: ${divide_floor:${.pipeline_model_parallel_size}, 2}
 
           # model architecture
-          make_vocab_size_divisible_by: 128
-          pre_process: True
-          post_process: True
+          make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
+          pre_process: True # add embedding
+          post_process: True # add pooler
 
-          megatron_amp_O2: True
+          megatron_amp_O2: True # use AMP with O2 style mixed precision instead of native amp on-the-fly weight autocasting.
           grad_allreduce_chunk_size_mb: 125
+          gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
 
           seq_length: 512
           max_position_embeddings: ${.seq_length}
-          num_layers: 12
-          hidden_size: 768
-          ffn_hidden_size: 2048
-          num_attention_heads: 12
-          init_method_std: 0.015
-          hidden_dropout: 0.1
-          attention_dropout: 0.1
-          position_embedding_type: 'learned_absolute'
-          relative_attention_num_buckets: 32
-          relative_attention_max_distance: 128
-          kv_channels: 64
-          apply_query_key_layer_scaling: True
-          layernorm_epsilon: 1e-5
-          persist_layer_norm: True
-          gradient_as_bucket_view: True
-          bias_activation_fusion: True
-          grad_div_ar_fusion: True
-          masked_softmax_fusion: True
-          encoder_arch: 'transformer'
-          decoder_arch: 'transformer'
-          activation: 'geglu'
+
+          encoder:
+            num_layers: 8
+            hidden_size: 512
+            ffn_hidden_size: 1024  # Transformer FFN hidden size. 4 * hidden_size.
+            num_attention_heads: 6
+            kv_channels: 64  # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
+            init_method_std: 0.015  # Standard deviation of the zero mean normal distribution used for weight initialization.')
+            hidden_dropout: 0.1  # Dropout probability for hidden state transformer.
+            attention_dropout: 0.1 # Dropout probability in the attention layer.
+            position_embedding_type: 'learned_absolute' # Position embedding type. Options ['learned_absolute', 'relative']
+            relative_attention_num_buckets: 32 # Relative position number of buckets for computing the bias
+            relative_attention_max_distance: 128 # max_distance to keep relative distance in the attention_num_buckets.
+            relative_position_bias_self_attention_only: True # Whether to only use relative position bias for self attention only.
+            apply_query_key_layer_scaling: True # scale Q * K^T by 1 / layer-number.
+            layernorm_epsilon: 1e-5
+            persist_layer_norm: True # Use of persistent fused layer norm kernel.
+            bias_activation_fusion: True # Use a kernel that fuses the bias addition from weight matrices with the subsequent activation function.
+            grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce
+            masked_softmax_fusion: True # Use a kernel that fuses the attention softmax with it's mask.
+            bias_dropout_add_fusion: True # Use a kernel that fuses the bias addition, dropout and residual connection addition.
+            bias: True # Whether to use bias terms in all weight matrices.
+            normalization: 'layernorm' # Normalization layer to use. Options are 'layernorm', 'rmsnorm'
+            arch: 'transformer' # Options: ['transformer', 'perceiver']
+            activation: 'geglu' # Options ['gelu', 'geglu', 'swiglu', 'reglu']
+            headscale: False # Whether to learn extra parameters that scale the output of the each self-attention head.
+            transformer_block_type: 'pre_ln' # Options ['pre_ln', 'post_ln', 'normformer']
+            openai_gelu: False # Use OpenAI's GELU instead of the default GeLU
+            # miscellaneous
+            onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
+            fp32_residual_connection: False # Use FP32 for residual connections.
+            # activations checkpointing
+            activations_checkpoint_method: null # 'uniform', 'block'
+            activations_checkpoint_num_layers: 0
+
+          decoder:
+            num_layers: 8
+            hidden_size: 512
+            ffn_hidden_size: 1024  # Transformer FFN hidden size. 4 * hidden_size.
+            num_attention_heads: 6
+            kv_channels: 64  # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
+            init_method_std: 0.015 # Standard deviation of the zero mean normal distribution used for weight initialization.')
+            hidden_dropout: 0.1 # Dropout probability for hidden state transformer.
+            attention_dropout: 0.1 # Dropout probability in the attention layer.
+            position_embedding_type: 'learned_absolute' # Position embedding type. Options ['learned_absolute', 'relative']
+            relative_attention_num_buckets: 32 # Relative position number of buckets for computing the bias
+            relative_attention_max_distance: 128 # max_distance to keep relative distance in the attention_num_buckets.
+            relative_position_bias_self_attention_only: True # Whether to only use relative position bias for self attention only.
+            apply_query_key_layer_scaling: True # scale Q * K^T by 1 / layer-number.
+            layernorm_epsilon: 1e-5
+            persist_layer_norm: True # Use of persistent fused layer norm kernel.
+            bias_activation_fusion: True # Use a kernel that fuses the bias addition from weight matrices with the subsequent activation function.
+            grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce
+            masked_softmax_fusion: True # Use a kernel that fuses the attention softmax with it's mask.
+            bias_dropout_add_fusion: True # Use a kernel that fuses the bias addition, dropout and residual connection addition.
+            bias: True # Whether to use bias terms in all weight matrices.
+            normalization: 'layernorm' # Normalization layer to use. Options are 'layernorm', 'rmsnorm'
+            arch: 'transformer' # Options: ['transformer', 'perceiver']
+            activation: 'geglu' # Options ['gelu', 'geglu', 'swiglu', 'reglu']
+            headscale: False # Whether to learn extra parameters that scale the output of the each self-attention head.
+            transformer_block_type: 'pre_ln' # Options ['pre_ln', 'post_ln', 'normformer']
+            openai_gelu: False # Use OpenAI's GELU instead of the default GeLU
+            # miscellaneous
+            onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
+            fp32_residual_connection: False # Use FP32 for residual connections.
+            # activations checkpointing
+            activations_checkpoint_method: null # 'uniform', 'block'
+            activations_checkpoint_num_layers: 0
 
           tokenizer:
             library: 'sentencepiece'
             type: null
-            model: ${data_dir}/mt5_tokenizer.model
+            model: ${data_dir}/mc4/bpe/mt5_tokenizer.model
             vocab_file: null
             merge_file: null
             num_sentinel_tokens: 100
 
           # precision
-          native_amp_init_scale: 4294967296
+          native_amp_init_scale: 4294967296 # 2 ** 32
           native_amp_growth_interval: 1000
-          fp32_residual_connection: False
-          fp16_lm_cross_entropy: False
+          fp16_lm_cross_entropy: False # Move the cross entropy unreduced loss calculation for lm head to fp16
 
           # miscellaneous
           seed: 1234
-          use_cpu_initialization: False
-          onnx_safe: False
-          apex_transformer_log_level: 30
+          use_cpu_initialization: False # Init weights on the CPU (slow for large models)
+          apex_transformer_log_level: 30 # Python logging level displays logs with severity greater than or equal to this
 
-          activations_checkpoint_method: block
-          activations_checkpoint_num_layers: 0
+
+          # embedding sharing
+          share_token_embeddings: True # If True share encoder/decoder embeddings
+          share_decoder_tokens_head_embeddings: True # If True share decoder embeddings and decoder projection to logits
+
+          nsys_profile:
+            enabled: False
+            trace: [nvtx,cuda]
+            start_step: 10  # Global batch to start profiling
+            end_step: 10 # Global batch to end profiling
+            ranks: [0] # Global rank IDs to profile
+            gen_shape: False # Generate model and kernel details including input shapes
 
           optim:
             name: fused_adam
@@ -449,7 +562,7 @@ class TestBaseConfigs:
             seq_length_dec: 128
             skip_warmup: True
             num_workers: 8
-            dataloader_type: single
+            dataloader_type: single # cyclic
             masked_lm_prob: 0.15
             dataset_type: 't5'
             short_seq_prob: 0.0
@@ -459,10 +572,9 @@ class TestBaseConfigs:
             permutation: False
             whole_word_masking: False
             favor_longer_ngrams: False
-            index_mapping_dir: null
-            data_prefix:
-              - 1.0
-              - ${data_dir}/mt_000-001_text_document
+            respect_document_boundaries: True # If true, a single training exampl cannot cross document boundaries, increasing the fraction of <pad> tokens within a batch.
+            index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
+            data_prefix: null # Should be weight path weight path... for a blended dataset. If null will automatically blend all language files in mC4_dir.
         """
         expected = OmegaConf.create(s)
         assert (

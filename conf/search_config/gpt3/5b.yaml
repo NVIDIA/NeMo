@@ -26,10 +26,10 @@ inference_settings:
     results_dir: ${base_results_dir}/${search_config_value}/inference
     top_n: 10
     max_latency_ms: 500
-    tensor_parallel_sizes: [8]
+    tensor_parallel_sizes: [1,2,4]
     pipeline_parallel_sizes: [1]
   benchmark:
     input_len: 60
     output_len: 20
-    batch_sizes: [1, 2, 4, 8, 16, 32, 64, 128, 256]
+    batch_sizes: [8, 16, 32, 64, 128, 256]
     triton_wait_time_s: 300
