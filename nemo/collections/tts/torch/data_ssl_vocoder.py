@@ -204,6 +204,9 @@ class SSLVocoderDataset(Dataset):
 
         if self.pitch_normalization == "speaker_wise":
             self.speaker_stats = {}
+            if speaker_stats_pitch_fp is None:
+                speaker_stats_pitch_fp = os.path.join(sup_data_dir, "speaker_pitch_stats.json")
+                assert os.path.exists(speaker_stats_pitch_fp), "speaker_stats_pitch_fp does not exist"
             with open(speaker_stats_pitch_fp, "r") as f:
                 speaker_stats_raw = json.load(f)
                 for key in speaker_stats_raw:
@@ -367,7 +370,7 @@ class SSLVocoderDataset(Dataset):
             f0, _, _ = librosa.pyin(
                 wav.numpy(),
                 fmin=librosa.note_to_hz('C2'),
-                fmax=librosa.note_to_hz('C7'),
+                fmax=librosa.note_to_hz(500),
                 frame_length=frame_length,
                 hop_length=hop_length,
                 sr=self.ssl_sample_rate,
