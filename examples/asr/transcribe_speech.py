@@ -32,7 +32,6 @@ from nemo.collections.asr.parts.utils.transcribe_utils import transcribe_partial
 from nemo.core.config import hydra_runner
 from nemo.utils import logging, model_utils
 
-
 """
 Transcribe audio file on a single CPU/GPU. Useful for transcription of moderate amounts of audio data.
 
@@ -41,16 +40,17 @@ Transcribe audio file on a single CPU/GPU. Useful for transcription of moderate 
   pretrained_name: name of pretrained ASR model (from NGC registry)
   audio_dir: path to directory with audio files
   dataset_manifest: path to dataset JSON manifest file (in NeMo format)
-  
+  add_info: Boolean telling weather we going to add transcriptions to existing ones
+
   output_filename: Output filename where the transcriptions will be written
   batch_size: batch size during inference
-  
+
   cuda: Optional int to enable or disable execution of model on certain CUDA device.
   amp: Bool to decide if Automatic Mixed Precision should be used during inference
   audio_type: Str filetype of the audio. Supported = wav, flac, mp3
-  
+
   overwrite_transcripts: Bool which when set allowes repeated transcriptions to overwrite previous results.
-  
+
   rnnt_decoding: Decoding sub-config for RNNT. Refer to documentation for specific values.
 
 # Usage
@@ -89,6 +89,8 @@ class TranscriptionConfig:
     cuda: Optional[int] = None
     amp: bool = False
     audio_type: str = "wav"
+    add_info: bool = False  # Sets mode of work, is set to True will add new transcriptions to existing .JSON file.
+    model_name_manual: Optional[str] = None  # If you need to use another model name, rather than standard one.
 
     # Recompute model transcription, even if the output folder exists with scores.
     overwrite_transcripts: bool = True
@@ -157,8 +159,12 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         else:
             asr_model.change_decoding_strategy(cfg.ctc_decoding)
 
-    # get audio filenames
-    if cfg.audio_dir is not None:
+    # get audio filenames #add_info is true -> require manifest
+    if cfg.audio_dir is not None and cfg.add_info is True:
+        logging.error(f"If you setting add_info to True then you must have dataset_manifest")
+        return None
+
+    if cfg.audio_dir is not None and cfg.add_info is False:
         filepaths = list(glob.glob(os.path.join(cfg.audio_dir, f"**/*.{cfg.audio_type}"), recursive=True))
     else:
         # get filenames from manifest
@@ -199,17 +205,20 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         # create default output filename
         if cfg.audio_dir is not None:
             cfg.output_filename = os.path.dirname(os.path.join(cfg.audio_dir, '.')) + '.json'
-        else:
+        elif cfg.add_info is False:
             cfg.output_filename = cfg.dataset_manifest.replace('.json', f'_{model_name}.json')
+        else:
+            cfg.output_filename = cfg.dataset_manifest.replace('.json', f'_and_{model_name}.json')
 
     # if transcripts should not be overwritten, and already exists, skip re-transcription step and return
-    if not cfg.overwrite_transcripts and os.path.exists(cfg.output_filename):
+    if not cfg.overwrite_transcripts and os.path.exists(cfg.output_filename) and not cfg.add_info:
         logging.info(
             f"Previous transcripts found at {cfg.output_filename}, and flag `overwrite_transcripts`"
-            f"is {cfg.overwrite_transcripts}. Returning without re-transcribing text."
-        )
-
+            f"is {cfg.overwrite_transcripts}. Returning without re-transcribing text.")
         return cfg
+
+    if cfg.add_info and cfg.overwrite_transcripts:
+        logging.warning(f"Nothing will be overwritten, as add_info set to True")
 
     # transcribe audio
     with autocast():
@@ -247,11 +256,21 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
             for idx, text in enumerate(transcriptions):
                 item = {'audio_filepath': filepaths[idx], 'pred_text': text}
                 f.write(json.dumps(item) + "\n")
-        else:
+        elif not cfg.add_info:
             with open(cfg.dataset_manifest, 'r') as fr:
                 for idx, line in enumerate(fr):
                     item = json.loads(line)
                     item['pred_text'] = transcriptions[idx]
+                    f.write(json.dumps(item) + "\n")
+        elif cfg.add_info:
+            if cfg.model_name_manual is not None:
+                mod_nam = cfg.model_name_manual
+            else:
+                mod_nam = model_name
+            with open(cfg.dataset_manifest, 'r') as fr:
+                for idx, line in enumerate(fr):
+                    item = json.loads(line)
+                    item['pred_text_' + mod_nam] = transcriptions[idx]
                     f.write(json.dumps(item) + "\n")
 
     logging.info("Finished writing predictions !")
