@@ -20,8 +20,8 @@ class TestCalculateTpPpMbsGrid:
             (5.0, 24, "gpt3", {"tensor_parallel_sizes": "auto", "pipeline_parallel_sizes": "auto", "micro_batch_sizes": "auto", "gpu_memory_gb": 80}, {"tp": [1,2,4], "pp": [1], "mbs": [1,2,3,4,6,8]}),
             (10.0, 24, "gpt3", {"tensor_parallel_sizes": "auto", "pipeline_parallel_sizes": "auto", "micro_batch_sizes": "auto", "gpu_memory_gb": 80}, {"tp": [1,2,4,8], "pp": [1], "mbs": [1,2,3,4,6,8]}),
             (20.0, 44, "gpt3", {"tensor_parallel_sizes": "auto", "pipeline_parallel_sizes": "auto", "micro_batch_sizes": "auto", "gpu_memory_gb": 80}, {"tp": [1,2,4,8], "pp": [1,2,4], "mbs": [1,2,3,4,6,8]}),
-            (40.0, 48, "gpt3", {"tensor_parallel_sizes": "auto", "pipeline_parallel_sizes": "auto", "micro_batch_sizes": "auto", "gpu_memory_gb": 80}, {"tp": [1,2,4,8], "pp": [1,2,3,4], "mbs": [1,2,4,8]}),
-            (175.0, 96, "gpt3", {"tensor_parallel_sizes": "auto", "pipeline_parallel_sizes": "auto", "micro_batch_sizes": "auto", "gpu_memory_gb": 80}, {"tp": [2,4,8], "pp": [1,2,3,4,6,8,12,16], "mbs": [1,2,4,8]}),
+            (40.0, 48, "gpt3", {"tensor_parallel_sizes": "auto", "pipeline_parallel_sizes": "auto", "micro_batch_sizes": "auto", "gpu_memory_gb": 80}, {"tp": [2,4,8], "pp": [1,2,3,4], "mbs": [1,2,4,8]}),
+            (175.0, 96, "gpt3", {"tensor_parallel_sizes": "auto", "pipeline_parallel_sizes": "auto", "micro_batch_sizes": "auto", "gpu_memory_gb": 80}, {"tp": [4,8], "pp": [2,3,4,6,8,12,16], "mbs": [1,2,4]}),
             # T5 tests
             (0.22, 12, "t5", {"tensor_parallel_sizes": [1,2,4,5], "pipeline_parallel_sizes": [2,4,8], "micro_batch_sizes": [4,8,32], "gpu_memory_gb": 80}, {"tp": [1,2,4,5], "pp": [2,4,8], "mbs": [4,8,32]}),
             (0.22, 12, "t5", {"tensor_parallel_sizes": "auto", "pipeline_parallel_sizes": "auto", "micro_batch_sizes": "auto", "gpu_memory_gb": 80}, {"tp": [1,2], "pp": [1], "mbs": [16,32,64,128]}),

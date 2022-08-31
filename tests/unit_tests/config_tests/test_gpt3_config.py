@@ -28,9 +28,9 @@ class TestGPT3Config:
           run:
             model_type: gpt3
             model_train_name: gpt3_0.126b
-            data_type: fp16 # fp32|fp16|bf16
+            data_type: fp16
             timelimit: 0:30:00
-            results_dir: ${base_results_dir}/${search_config_value}
+            results_dir: ${base_results_dir}/${search_config_value}_${...train_settings.gpu_memory_gb}gb
             top_n: 10
             max_latency_ms: 500
             tensor_parallel_sizes: [1, 2]
@@ -58,7 +58,7 @@ class TestGPT3Config:
           limit_search_runs: 100
           output_top_n: 10
           max_steps_per_run: 50
-          max_minutes_per_run: 40
+          max_minutes_per_run: 10
           tflops_per_gpu: 140
           num_tokens_in_b: 300
           vocab_size: 51200
@@ -72,17 +72,17 @@ class TestGPT3Config:
           run:
             model_type: gpt3
             model_train_name: gpt3_5b
-            data_type: fp16 # fp32|fp16|bf16
+            data_type: fp16
             time_limit: 0:30:00
-            results_dir: ${base_results_dir}/${search_config_value}/inference
+            results_dir: ${base_results_dir}/${search_config_value}_${...train_settings.gpu_memory_gb}gb
             top_n: 10
             max_latency_ms: 500
-            tensor_parallel_sizes: [8]
+            tensor_parallel_sizes: [1,2,4]
             pipeline_parallel_sizes: [1]
           benchmark:
             input_len: 60
             output_len: 20
-            batch_sizes: [1, 2, 4, 8, 16, 32, 64, 128, 256]
+            batch_sizes: [8, 16, 32, 64, 128, 256]
             triton_wait_time_s: 300
         """
         expected = OmegaConf.create(s)
@@ -102,7 +102,7 @@ class TestGPT3Config:
           limit_search_runs: 100
           output_top_n: 10
           max_steps_per_run: 50
-          max_minutes_per_run: 50
+          max_minutes_per_run: 15
           tflops_per_gpu: 140
           num_tokens_in_b: 300
           vocab_size: 51200
@@ -115,17 +115,17 @@ class TestGPT3Config:
           run:
             model_type: gpt3
             model_train_name: gpt3_20b
-            data_type: fp16 # fp32|fp16|bf16
+            data_type: fp16
             time_limit: 0:30:00
-            results_dir: ${base_results_dir}/${search_config_value}/inference
+            results_dir: ${base_results_dir}/${search_config_value}_${...train_settings.gpu_memory_gb}gb
             top_n: 10
             max_latency_ms: 500
-            tensor_parallel_sizes: [8]
+            tensor_parallel_sizes: [2,4,8]
             pipeline_parallel_sizes: [1]
           benchmark:
             input_len: 60
             output_len: 20
-            batch_sizes: [1, 2, 4, 8, 16, 32, 64, 128, 256]
+            batch_sizes: [8, 16, 32, 64, 128, 256]
             triton_wait_time_s: 300
         """
         expected = OmegaConf.create(s)
@@ -145,7 +145,7 @@ class TestGPT3Config:
           limit_search_runs: 100
           output_top_n: 10
           max_steps_per_run: 50
-          max_minutes_per_run: 60
+          max_minutes_per_run: 15
           tflops_per_gpu: 140
           num_tokens_in_b: 300
           vocab_size: 51200
@@ -158,17 +158,17 @@ class TestGPT3Config:
           run:
             model_type: gpt3
             model_train_name: gpt3_40b
-            data_type: fp16 # fp32|fp16|bf16
+            data_type: fp16
             time_limit: 0:30:00
-            results_dir: ${base_results_dir}/${search_config_value}/inference
+            results_dir: ${base_results_dir}/${search_config_value}_${...train_settings.gpu_memory_gb}gb
             top_n: 10
             max_latency_ms: 500
-            tensor_parallel_sizes: [1, 2, 4, 8]
+            tensor_parallel_sizes: [2, 4, 8]
             pipeline_parallel_sizes: [1]
           benchmark:
             input_len: 60
             output_len: 20
-            batch_sizes: [1, 8, 16, 32, 64, 128, 256]
+            batch_sizes: [8, 16, 32, 64, 128, 256]
             triton_wait_time_s: 300
         """
         expected = OmegaConf.create(s)
@@ -188,7 +188,7 @@ class TestGPT3Config:
           limit_search_runs: 50
           output_top_n: 10
           max_steps_per_run: 50
-          max_minutes_per_run: 60
+          max_minutes_per_run: 30
           tflops_per_gpu: 140
           num_tokens_in_b: 300
           vocab_size: 51200
@@ -201,17 +201,17 @@ class TestGPT3Config:
           run:
             model_type: gpt3
             model_train_name: gpt3_175b
-            data_type: fp16 # fp32|fp16|bf16
+            data_type: fp16
             time_limit: 0:30:00
-            results_dir: ${base_results_dir}/${search_config_value}/inference
+            results_dir: ${base_results_dir}/${search_config_value}_${...train_settings.gpu_memory_gb}gb
             top_n: 10
             max_latency_ms: 500
             tensor_parallel_sizes: [8]
-            pipeline_parallel_sizes: [1]
+            pipeline_parallel_sizes: [1,2,4,8]
           benchmark:
             input_len: 60
             output_len: 20
-            batch_sizes: [1, 2, 4, 8, 16, 32, 64, 128, 256]
+            batch_sizes: [8, 16, 32, 64, 128, 256]
             triton_wait_time_s: 300
         """
         expected = OmegaConf.create(s)

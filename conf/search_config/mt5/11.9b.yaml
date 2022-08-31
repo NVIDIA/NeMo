@@ -23,7 +23,7 @@ inference_settings:
     model_train_name: mt5_11.9b
     data_type: fp16 # fp32|fp16|bf16
     time_limit: 0:30:00
-    results_dir: ${base_results_dir}/${search_config_value}/inference
+    results_dir: ${base_results_dir}/${search_config_value}_${...train_settings.gpu_memory_gb}gb
     top_n: 10
     max_latency_ms: 500
     tensor_parallel_sizes: [2,4,8]

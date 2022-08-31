@@ -12,7 +12,6 @@ train_settings:
   num_tokens_in_b: 1000  # Unit in billions, typically 300B for GPT3 models.
   vocab_size: 29000
   logs: ${base_results_dir}/${search_config_value}_${.gpu_memory_gb}gb  # Example base_results_dir/t5/0.22b
-  override_search_num_nodes: auto  # auto to use the minimum required number of nodes
   tensor_parallel_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8]
   pipeline_parallel_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8, 10]
   micro_batch_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8, 16]
@@ -24,7 +23,7 @@ inference_settings:
     model_train_name: t5_23.5b
     data_type: fp16 # fp32|fp16|bf16
     time_limit: 0:30:00
-    results_dir: ${base_results_dir}/${search_config_value}/inference
+    results_dir: ${base_results_dir}/${search_config_value}_${...train_settings.gpu_memory_gb}gb
     top_n: 10
     max_latency_ms: 500
     tensor_parallel_sizes: [2,4,8]
