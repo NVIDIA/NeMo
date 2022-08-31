@@ -12,6 +12,7 @@ trainer:
   max_steps: -1
   log_every_n_steps: 10
   val_check_interval: 1.0
+  accumulate_grad_batches: 1
   gradient_clip_val: 1.0
   resume_from_checkpoint: null 
 
@@ -41,8 +42,8 @@ model:
   virtual_prompt_style: "p-tuning" # one of 'prompt-tuning', 'p-tuning', or 'inference'
   tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1 
-  global_batch_size: 8
-  micro_batch_size: 8
+  global_batch_size: 8 
+  micro_batch_size: 8 # micro batch size should equal global batch size when pipeline parallel = 1
   
   restore_path: null # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
   language_model_path: ??? # Path to the pretrained T5 language model .nemo file, always required
