@@ -23,11 +23,11 @@ USAGE Example:
 
 
 import os
+import torch
 
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.nlp.models.machine_translation.megatron_adapter_nmt_model import MegatronAdapterNMTModel
 from nemo.collections.nlp.models.machine_translation.megatron_nmt_model import MegatronNMTModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
@@ -81,14 +81,14 @@ def main(cfg) -> None:
             raise ValueError("need adapter weights when using adapter_file")
 
         # get base config file
-        pretrained_cfg = MegatronAdapterNMTModel.restore_from(cfg.model_file, trainer=trainer, return_config=True)
+        pretrained_cfg = MegatronNMTModel.restore_from(cfg.model_file, trainer=trainer, return_config=True)
 
         # edit config file
         with open_dict(pretrained_cfg):
             pretrained_cfg.pretrained_model_path = cfg.model_file
             pretrained_cfg.adapter_tuning = cfg.adapter_tuning
 
-        model = MegatronAdapterNMTModel.restore_from(
+        model = MegatronNMTModel.restore_from(
             restore_path=cfg.adapters_file,
             trainer=trainer,
             override_config_path=pretrained_cfg,

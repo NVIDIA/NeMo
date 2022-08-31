@@ -12,22 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.nlp.models.machine_translation.megatron_nmt_model import MegatronNMTModel
+from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_model import MegatronLMEncoderDecoderModel
 from nemo.collections.nlp.modules.common.megatron.parallel_adapters import ParallelLinearAdapterConfig
-from nemo.collections.common.parts import adapter_modules
-from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
+from nemo.collections.common.parts.adapter_modules import LinearAdapterConfig
 from nemo.core.classes.mixins import adapter_mixins
 from nemo.utils import logging
 
-__all__ = ["MegatronAdapterNMTModel"]
+__all__ = ["MegatronLMAdapterEncoderDecoderModel"]
 
 
-class MegatronAdapterNMTModel(MegatronNMTModel):
+class MegatronLMAdapterEncoderDecoderModel(MegatronLMEncoderDecoderModel):
     """
     Megatron Adapter NMT training
     """
@@ -35,38 +33,47 @@ class MegatronAdapterNMTModel(MegatronNMTModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
 
-        with open_dict(cfg):
-            cfg.megatron_amp_O2 = False
-            cfg.micro_batch_size = self.cfg.micro_batch_size
-            cfg.global_batch_size = self.cfg.global_batch_size
-            cfg.precision = trainer.precision
+        if hasattr(cfg, 'adapter_tuning'):
+            logging.info('Using Adapters')
 
-        self.adapter_name_keys = ['adapter_1', 'adapter_2']
-        frozen_model = MegatronNMTModel.restore_from(
-            cfg.get('pretrained_model_path'),
-            trainer=trainer,
-            override_config_path=cfg,
-            save_restore_connector=NLPSaveRestoreConnector(),
-        )
+            # validate and add adapters
+            self._validate_adapters_cfg(cfg.adapter_tuning)
 
-        # set the base model and enc_dec_model module
-        self.enc_dec_model = frozen_model.enc_dec_model
-        logging.info(f'Before adding adapters:\n{self.summarize()}')
-        self.freeze()
-        for _, module in self.enc_dec_model.enc_dec_model.named_modules():
-            if isinstance(module, adapter_mixins.AdapterModuleMixin):
-                for adapter_key in self.adapter_name_keys:
-                    module.add_adapter(
-                        name=adapter_key,
-                        cfg=ParallelLinearAdapterConfig(
-                            in_features=cfg.hidden_size,
-                            dim=cfg.adapter_tuning.adapter_dim,
-                            norm_position='post',
-                            dropout=cfg.adapter_tuning.adapter_dropout,
-                        ),
-                    )
+            with open_dict(cfg):    
+                cfg.tokenizer = self.cfg.encoder_tokenizer
 
-        logging.info(f'After adding adapters:\n{self.summarize()}')
+            self.adapter_name_keys = ['adapter_1', 'adapter_2']
+
+            # set the base model and enc_dec_model module
+            logging.info(f'Before adding adapters:\n{self.summarize()}')
+            self.freeze()
+            if cfg.adapter_tuning.type == "parallel_adapter":
+                adapter_cfg = ParallelLinearAdapterConfig(
+                    in_features=cfg.hidden_size,
+                    dim=cfg.adapter_tuning.adapter_dim,
+                    norm_position=cfg.adapter_tuning.get('norm_position', 'pre'),
+                    norm_type=cfg.adapter_tuning.get('norm_type', 'mixedfusedlayernorm'),
+                    column_init_method=cfg.adapter_tuning.get('column_init_method', 'xavier'),
+                    row_init_method=cfg.adapter_tuning.get('row_init_method', 'zero'),
+                    dropout=cfg.adapter_tuning.adapter_dropout,
+                )
+            else:
+                adapter_cfg = LinearAdapterConfig(
+                    in_features=cfg.hidden_size,
+                    dim=cfg.adapter_tuning.adapter_dim,
+                    norm_position=cfg.adapter_tuning.get('norm_position', 'pre'),
+                    dropout=cfg.adapter_tuning.adapter_dropout,
+                )
+
+            for _, module in self.enc_dec_model.named_modules():
+                if isinstance(module, adapter_mixins.AdapterModuleMixin):
+                    for adapter_key in self.adapter_name_keys:
+                        module.add_adapter(
+                            name=adapter_key,
+                            cfg=adapter_cfg
+                        )
+
+            logging.info(f'After adding adapters:\n{self.summarize()}')
 
     @classmethod
     def list_available_models(cls):
@@ -81,6 +88,18 @@ class MegatronAdapterNMTModel(MegatronNMTModel):
                     state_adapter_key = ':'.join([name, adapter_key])
                     state_dict_[state_adapter_key] = adapter_module.state_dict()
         return state_dict_
+
+    def _validate_adapters_cfg(self, cfg):
+        assert cfg.type in ['parallel_adapter', 'linear_adapter']
+        assert hasattr(cfg, 'adapter_dim')
+        assert cfg.norm_position in ['pre', 'post']
+        
+        if hasattr(cfg, 'norm_type'):
+            assert cfg.norm_type in ['mixedfusedlayernorm', 'layernorm']
+
+        for val in ['row_init_method', 'column_init_method']:
+            if hasattr(cfg, val):
+                assert cfg.get(val) in ['xavier', 'zero', 'normal']
 
     def load_state_dict(self, state_dict, strict: bool = True):
         for name, module in self.enc_dec_model.named_modules():

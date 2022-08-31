@@ -43,6 +43,8 @@ from nemo.collections.nlp.parts.nlp_overrides import GlobalBatchDataFetcher
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging, timers
 
+from nemo.collections.nlp.models.language_modeling.megatron_lm_adapter_encoder_decoder_model import MegatronLMAdapterEncoderDecoderModel
+
 try:
     from apex.transformer import parallel_state
     from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
@@ -55,7 +57,7 @@ except (ImportError, ModuleNotFoundError):
 __all__ = ["MegatronNMTModel"]
 
 
-class MegatronNMTModel(MegatronLMEncoderDecoderModel):
+class MegatronNMTModel(MegatronLMAdapterEncoderDecoderModel):
     """
     Megatron NMT training
     """
