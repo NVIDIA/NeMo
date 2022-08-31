@@ -21,10 +21,6 @@ model:
         min_snr_db: 0
         max_snr_db: 15
 
-      impulse:
-        manifest_path: null
-        prob: 0.5
-
       speed:
         prob: 0.5
         sr: *sample_rate
