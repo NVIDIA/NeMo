@@ -226,14 +226,17 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel):
             shuffle_n = config.get('shuffle_n', 4 * config['batch_size']) if shuffle else 0
             dataset = audio_to_label_dataset.get_tarred_classification_label_dataset(
                 featurizer=featurizer,
-                config=OmegaConf.to_container(config),
+                config=config,
                 shuffle_n=shuffle_n,
                 global_rank=self.global_rank,
                 world_size=self.world_size,
             )
             shuffle = False
             batch_size = config['batch_size']
-            collate_func = dataset.collate_fn
+            if hasattr(dataset, 'collate_fn'):
+                collate_func = dataset.collate_fn
+            else:
+                collate_func = dataset.datasets[0].collate_fn
 
         else:
             if 'manifest_filepath' in config and config['manifest_filepath'] is None:
@@ -242,17 +245,16 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel):
 
             if 'vad_stream' in config and config['vad_stream']:
                 logging.info("Perform streaming frame-level VAD")
-                dataset = audio_to_label_dataset.get_speech_label_dataset(
-                    featurizer=featurizer, config=OmegaConf.to_container(config)
-                )
+                dataset = audio_to_label_dataset.get_speech_label_dataset(featurizer=featurizer, config=config)
                 batch_size = 1
                 collate_func = dataset.vad_frame_seq_collate_fn
             else:
-                dataset = audio_to_label_dataset.get_classification_label_dataset(
-                    featurizer=featurizer, config=OmegaConf.to_container(config)
-                )
+                dataset = audio_to_label_dataset.get_classification_label_dataset(featurizer=featurizer, config=config)
                 batch_size = config['batch_size']
-                collate_func = dataset.collate_fn
+                if hasattr(dataset, 'collate_fn'):
+                    collate_func = dataset.collate_fn
+                else:
+                    collate_func = dataset.datasets[0].collate_fn
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
@@ -411,6 +413,13 @@ class EncDecClassificationModel(_EncDecBaseModel):
             List of available pre-trained models.
         """
         results = []
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="vad_multilingual_marblenet",
+            description="For details about this model, please visit https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/vad_multilingual_marblenet",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/vad_multilingual_marblenet/versions/1.10.0/files/vad_multilingual_marblenet.nemo",
+        )
+        results.append(model)
 
         model = PretrainedModelInfo(
             pretrained_model_name="vad_telephony_marblenet",

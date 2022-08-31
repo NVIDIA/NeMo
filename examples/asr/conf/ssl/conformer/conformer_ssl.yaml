@@ -85,8 +85,8 @@ model:
     d_model: 512
 
     # Sub-sampling params
-    subsampling: striding # vggnet or striding, vggnet may give better results but needs more memory
-    subsampling_factor: 4 # must be power of 2
+    subsampling: striding # vggnet, striding, stacking or stacking_norm, dw_striding
+    subsampling_factor: 4 # must be power of 2 for striding and vggnet
     subsampling_conv_channels: -1 # -1 sets it to d_model
 
     # Feed forward module's params
@@ -103,7 +103,7 @@ model:
 
     # Convolution module's params
     conv_kernel_size: 31
-    conv_norm_type: 'batch_norm' # batch_norm or layer_norm
+    conv_norm_type: 'batch_norm' # batch_norm or layer_norm or groupnormN (N specifies the number of groups)
 
     ### regularization
     dropout: 0.1 # The dropout used in most of the Conformer Modules
@@ -181,7 +181,7 @@ trainer:
   devices: -1 # number of GPUs, -1 would use all available GPUs
   num_nodes: 1
   max_epochs: 1000
-  max_steps: null # computed at runtime if not set
+  max_steps: -1 # computed at runtime if not set
   val_check_interval: 1.0 # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
   accelerator: auto
   strategy: ddp
@@ -189,7 +189,7 @@ trainer:
   gradient_clip_val: 1.0
   precision: 32 # Should be set to 16 for O1 and O2 to enable the AMP.
   log_every_n_steps: 10  # Interval of logging.
-  progress_bar_refresh_rate: 10
+  enable_progress_bar: True
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
   num_sanity_val_steps: 0 # number of steps to perform validation steps for sanity check the validation process before starting the training, setting to 0 disables it
   check_val_every_n_epoch: 1 # number of evaluations on validation every n epochs

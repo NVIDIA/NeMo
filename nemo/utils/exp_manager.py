@@ -232,7 +232,6 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     local_rank = int(os.environ.get("LOCAL_RANK", 0))
     global_rank = trainer.node_rank * trainer.num_devices + local_rank
     logging.rank = global_rank
-    world_size = trainer.world_size
 
     if cfg is None:
         logging.error("exp_manager did not receive a cfg argument. It will be disabled.")
@@ -817,13 +816,14 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         # Load the best model and then re-save it
         if self.save_best_model:
             # wait for all processes
-            trainer.training_type_plugin.barrier("SaveBestCheckpointConnector.resume_end")
+            trainer.strategy.barrier("SaveBestCheckpointConnector.resume_end")
             if self.best_model_path == "":
                 logging.warning(
                     f"{self} was told to save the best checkpoint at the end of training, but no saved checkpoints "
                     "were found. Saving latest model instead."
                 )
             else:
+                self.best_model_path = trainer.strategy.broadcast(self.best_model_path)
                 trainer._checkpoint_connector.restore(self.best_model_path)
 
         if self.save_nemo_on_train_end:
