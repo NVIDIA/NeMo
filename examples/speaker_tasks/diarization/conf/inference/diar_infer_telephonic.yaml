@@ -1,6 +1,7 @@
 # This YAML file is created for all types of offline speaker diarization inference tasks in `<NeMo git root>/example/speaker_tasks/diarization` folder.
 # The inference parameters for VAD, speaker embedding extractor, clustering module, MSDD module, ASR decoder are all included in this YAML file. 
 # All the keys under `diarizer` key (`vad`, `speaker_embeddings`, `clustering`, `msdd_model`, `asr`) can be selectively used for its own purpose and also can be ignored if the module is not used.
+# The configurations in this YAML file is suitable for telephone recordings involving 2~8 speakers in a session and may not show the best performance on the other types of acoustic conditions or dialogues.
 # An example line in an input manifest file (`.json` format):
 # {"audio_filepath": "/path/to/audio_file", "offset": 0, "duration": null, "label": "infer", "text": "-", "num_speakers": null, "rttm_filepath": "/path/to/rttm/file", "uem_filepath": "/path/to/uem/file"}
 name: &name "ClusterDiarizer"
@@ -39,12 +40,12 @@ diarizer:
       window_length_in_sec: [1.5,1.25,1.0,0.75,0.5] # Window length(s) in sec (floating-point number). either a number or a list. ex) 1.5 or [1.5,1.0,0.5]
       shift_length_in_sec: [0.75,0.625,0.5,0.375,0.25] # Shift length(s) in sec (floating-point number). either a number or a list. ex) 0.75 or [0.75,0.5,0.25]
       multiscale_weights: [1,1,1,1,1] # Weight for each scale. should be null (for single scale) or a list matched with window/shift scale count. ex) [0.33,0.33,0.33]
-      save_embeddings: True # Save speaker embeddings in pickle format.
+      save_embeddings: True # If True, save speaker embeddings in pickle format. This should be True if clustering result is used for other models, such as `msdd_model`.
   
   clustering:
     parameters:
       oracle_num_speakers: False # If True, use num of speakers value provided in manifest file.
-      max_num_speakers: 20 # Max number of speakers for each recording. If an oracle number of speakers is passed, this value is ignored.
+      max_num_speakers: 8 # Max number of speakers for each recording. If an oracle number of speakers is passed, this value is ignored.
       enhanced_count_thres: 80 # If the number of segments is lower than this number, enhanced speaker counting is activated.
       max_rp_threshold: 0.25 # Determines the range of p-value search: 0 < p <= max_rp_threshold. 
       sparse_search_volume: 30 # The higher the number, the more values will be examined with more time. 

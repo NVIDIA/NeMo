@@ -6,7 +6,7 @@ Since speaker diarization model here is not a fully-trainable end-to-end model b
 The diarizer section will generally require information about the dataset(s) being used, models used in this pipeline, as well as inference related parameters such as post processing of each models.
 The sections on this page cover each of these in more detail.
 
-Example configuration files for speaker diarization inference can be found in ``<NeMo_git_root>/examples/speaker_tasks/diarization/conf/inference/``. Choose a yaml file that fits to your interest. For example, if you want to diarize audio recordings of telephonic speech, choose ``diar_infer_telephonic.yaml``.
+Example configuration files for speaker diarization inference can be found in ``<NeMo_git_root>/examples/speaker_tasks/diarization/conf/inference/``. Choose a yaml file that fits your targeted domain. For example, if you want to diarize audio recordings of telephonic speech, choose ``diar_infer_telephonic.yaml``.
 
 .. note::
   For model details and deep understanding about configs, fine-tuning, tuning threshold, and evaluation, 
