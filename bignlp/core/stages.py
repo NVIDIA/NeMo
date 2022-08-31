@@ -376,9 +376,11 @@ class FineTuning(NeMoStage):
         task_name = self.stage_cfg.run.get("task_name")
 
         # GLUE for internal use
-        from bignlp.utils.data_utils.download_glue import download_glue, TASKS_LOWER
-        if task_name in TASKS_LOWER:
-            download_glue(data_dir=os.path.join(data_dir, "glue_data"), tasks=task_name)
+        download_glue_script_path = self._bignlp_path / "bignlp/utils/data_utils/download_glue.py"
+        if download_glue_script_path.exists():
+            from bignlp.utils.data_utils.download_glue import download_glue, TASKS_LOWER
+            if task_name in TASKS_LOWER:
+                download_glue(data_dir=os.path.join(data_dir, "glue_data"), tasks=task_name)
 
         # Prepare dataset for squad
         if task_name in ["squad", "xquad"]:
