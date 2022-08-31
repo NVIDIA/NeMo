@@ -620,7 +620,7 @@ def sample_sequence_batch(
             maxlen = model.cfg.encoder_seq_length + 1
 
         lengths = torch.ones([batch_size]).long().cuda() * maxlen
-
+        prev_context_length=0
         while context_length < maxlen:
             # types2use = None
             if counter == 0:
@@ -628,6 +628,8 @@ def sample_sequence_batch(
                 set_inference_key_value_memory = True
                 tokens2use = tokens[:, :context_length]
                 positions2use = position_ids[:, :context_length]
+                attention_mask2use = attention_mask[..., :context_length, :context_length]
+
                 # not using type2use. uncomment it if it is used
                 # if type_ids is not None:
                 #     types2use = type_ids[:, :context_length]
@@ -636,11 +638,14 @@ def sample_sequence_batch(
                 set_inference_key_value_memory = False
                 tokens2use = tokens[:, context_length - 1].view(batch_size, -1)
                 positions2use = position_ids[:, context_length - 1].view(batch_size, -1)
+                attention_mask2use = attention_mask[..., prev_context_length:context_length, prev_context_length:context_length]
+
                 # not using type2use. uncomment it if it is used
                 # if type_ids is not None:
                 #     types2use = type_ids[:, context_length - 1].view(batch_size, -1)
 
-            attention_mask_repeat = torch.concat([attention_mask for _ in range(micro_batch_size)])
+            #attention_mask_repeat = torch.concat([attention_mask for _ in range(micro_batch_size)])
+            attention_mask_repeat = torch.concat([attention_mask2use for _ in range(micro_batch_size)])
             setkey_value_array = torch.tensor(
                 [set_inference_key_value_memory] * micro_batch_size, device=torch.cuda.current_device()
             )
@@ -655,6 +660,8 @@ def sample_sequence_batch(
                 tensor_shape = [tokens2use.shape[1], micro_batch_size, model.cfg.hidden_size]
 
             output = forward_step(model, batch, tensor_shape)
+
+            prev_context_length = context_length
 
             if parallel_state.is_pipeline_last_stage():
                 output = output[0]['logits'].float()
