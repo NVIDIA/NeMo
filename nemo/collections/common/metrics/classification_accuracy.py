@@ -59,7 +59,7 @@ class TopKClassificationAccuracy(Metric):
         accuracy, compute acc=correct_count/total_count
     """
 
-    full_state_update = False  # https://devblog.pytorchlightning.ai/torchmetrics-v0-9-faster-forward-d595bb321e6d
+    full_state_update = True  # https://devblog.pytorchlightning.ai/torchmetrics-v0-9-faster-forward-d595bb321e6d
 
     def __init__(self, top_k=None, dist_sync_on_step=False):
         super().__init__(dist_sync_on_step=dist_sync_on_step)
