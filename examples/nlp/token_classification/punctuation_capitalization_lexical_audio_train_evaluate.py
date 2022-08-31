@@ -18,7 +18,6 @@ import pytorch_lightning as pl
 import torch
 from omegaconf import DictConfig, OmegaConf
 
-from nemo.collections.nlp.models import PunctuationCapitalizationModel
 from nemo.collections.nlp.models.token_classification.punctuation_capitalization_config import (
     PunctuationCapitalizationLexicalAudioConfig,
 )
@@ -123,7 +122,7 @@ def main(cfg: DictConfig) -> None:
     else:
         if os.path.exists(cfg.pretrained_model):
             model = PunctuationCapitalizationLexicalAudioModel.restore_from(cfg.pretrained_model)
-        elif cfg.pretrained_model in PunctuationCapitalizationModel.get_available_model_names():
+        elif cfg.pretrained_model in PunctuationCapitalizationLexicalAudioModel.get_available_model_names():
             model = PunctuationCapitalizationLexicalAudioModel.from_pretrained(cfg.pretrained_model)
         else:
             raise ValueError(
