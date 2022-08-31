@@ -27,8 +27,7 @@ from pyannote.core import Annotation, Segment, Timeline
 from pyannote.metrics.diarization import DiarizationErrorRate
 from tqdm import tqdm
 
-from nemo.collections.asr.parts.utils.nmesc_clustering import COSclustering
-from nemo.collections.asr.parts.utils.nmesc_clustering_export import SpeakerClustering
+from nemo.collections.asr.parts.utils.nmesc_clustering import SpeakerClustering
 from nemo.utils import logging
 
 
@@ -48,7 +47,7 @@ def get_uniqname_from_filepath(filepath):
         raise TypeError("input must be filepath string")
 
 
-def get_uniq_id_with_dur(meta, deci=3):
+def get_uniq_id_with_dur(meta, decimals=3):
     """
     Return basename with offset and end time labels
     """
@@ -56,11 +55,11 @@ def get_uniq_id_with_dur(meta, deci=3):
     if meta['offset'] is None and meta['duration'] is None:
         return bare_uniq_id
     if meta['offset']:
-        offset = str(int(round(meta['offset'], deci) * pow(10, deci)))
+        offset = str(int(round(meta['offset'], decimals) * pow(10, decimals)))
     else:
         offset = 0
     if meta['duration']:
-        endtime = str(int(round(meta['offset'] + meta['duration'], deci) * pow(10, deci)))
+        endtime = str(int(round(meta['offset'] + meta['duration'], decimals) * pow(10, decimals)))
     else:
         endtime = 'NULL'
     uniq_id = f"{bare_uniq_id}_{offset}_{endtime}"
@@ -206,10 +205,6 @@ def get_embs_and_timestamps(multiscale_embeddings_and_timestamps, multiscale_arg
         uniq_id: {}
         for uniq_id in multiscale_embeddings_and_timestamps[0][0].keys()
     }
-    # embs_and_timestamps = {
-        # uniq_id: {'multiscale_weights': [], 'scale_dict': {}}
-        # for uniq_id in multiscale_embeddings_and_timestamps[0][0].keys()
-    # }
     if multiscale_args_dict['use_single_scale_clustering']:
         _multiscale_args_dict = deepcopy(multiscale_args_dict)
         _multiscale_args_dict['scale_dict'] = {0: multiscale_args_dict['scale_dict'][0]}
@@ -217,43 +212,25 @@ def get_embs_and_timestamps(multiscale_embeddings_and_timestamps, multiscale_arg
     else:
         _multiscale_args_dict = multiscale_args_dict
 
-    embeddings, time_stamps = multiscale_embeddings_and_timestamps[0]
+    embeddings, timestamps = multiscale_embeddings_and_timestamps[0]
     for uniq_id in embeddings.keys():
         embeddings_dict, time_stamps_dict = {}, {}
         embeddings_list, time_stamps_list, segment_index_list = [], [], []
         for scale_idx in sorted(_multiscale_args_dict['scale_dict'].keys()):
-            embeddings, time_stamps = multiscale_embeddings_and_timestamps[scale_idx]
-            assert len(embeddings[uniq_id]) == len(time_stamps[uniq_id])
-            time_stamps_tensor= torch.tensor([[float(x.split()[0]), float(x.split()[1])] for x in time_stamps[uniq_id]])
-            # embeddings_dict[scale_idx] = embeddings[uniq_id]
-            # time_stamps_dict[scale_idx] = time_stamps_tensor
+            embeddings, timestamps = multiscale_embeddings_and_timestamps[scale_idx]
+            if len(embeddings[uniq_id]) != len(timestamps[uniq_id]):
+                raise ValueError("Mismatch of counts between embedding vectors and timestamps")
+            time_stamps_tensor = torch.tensor(timestamps[uniq_id])
             embeddings_list.append(embeddings[uniq_id])
             segment_index_list.append(embeddings[uniq_id].shape[0])
             time_stamps_list.append(time_stamps_tensor)
 
         embs_and_timestamps[uniq_id]['multiscale_weights'] = (
-            torch.tensor(_multiscale_args_dict['multiscale_weights']).unsqueeze(0).half()
+            torch.tensor(_multiscale_args_dict['multiscale_weights']).unsqueeze(0).float()
         )
-        # embs_and_timestamps[uniq_id]['embeddings'] = embeddings_dict
-        # embs_and_timestamps[uniq_id]['time_stamps'] = time_stamps_dict
         embs_and_timestamps[uniq_id]['embeddings'] = torch.cat(embeddings_list, dim=0)
-        embs_and_timestamps[uniq_id]['time_stamps'] = torch.cat(time_stamps_list, dim=0)
+        embs_and_timestamps[uniq_id]['timestamps'] = torch.cat(time_stamps_list, dim=0)
         embs_and_timestamps[uniq_id]['multiscale_segment_counts'] = torch.tensor(segment_index_list)
-
-
-    # for scale_idx in sorted(_multiscale_args_dict['scale_dict'].keys()):
-        # embeddings, time_stamps = multiscale_embeddings_and_timestamps[scale_idx]
-        # embeddings_dict, time_stamps_dict = {}, {}
-        # for uniq_id in embeddings.keys():
-            # embs_and_timestamps[uniq_id]['multiscale_weights'] = (
-                # torch.tensor(_multiscale_args_dict['multiscale_weights']).unsqueeze(0).half()
-            # )
-            # assert len(embeddings[uniq_id]) == len(time_stamps[uniq_id])
-            # time_stamps_tensor= torch.tensor([[float(x.split()[0]), float(x.split()[1])] for x in time_stamps[uniq_id]])
-            # embs_and_timestamps[uniq_id]['scale_dict'][scale_idx] = {
-                # 'embeddings': embeddings[uniq_id],
-                # 'time_stamps': time_stamps_tensor
-            # }
 
     return embs_and_timestamps
 
@@ -331,7 +308,7 @@ def uem_timeline_from_file(uem_file, uniq_name=''):
 
 def labels_to_rttmfile(labels, uniq_id, out_rttm_dir):
     """
-    Write rttm file with uniq_id name in out_rttm_dir with time_stamps in labels
+    Write rttm file with uniq_id name in out_rttm_dir with timestamps in labels
     """
     filename = os.path.join(out_rttm_dir, uniq_id + '.rttm')
     with open(filename, 'w') as f:
@@ -413,7 +390,7 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
     Args:
         embs_and_timestamps (dict): This dictionary contains the following items indexed by unique IDs.
             'embeddings' : Embeddings with key as unique_id
-            'time_stamps' : Time stamps list for each audio recording
+            'timestamps' : Time stamps list for each audio recording
         AUDIO_RTTM_MAP (dict): AUDIO_RTTM_MAP for mapping unique id with audio file path and rttm path
         out_rttm_dir (str): Path to write predicted rttms
         clustering_params (dict): clustering parameters provided through config that contains max_num_speakers (int),
@@ -435,53 +412,38 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
         logging.warning("cuda=False, using CPU for Eigen decomposition. This might slow down the clustering process.")
         cuda = False
 
-    for uniq_id, value in tqdm(AUDIO_RTTM_MAP.items()):
+    for uniq_id, audio_rttm_values in tqdm(AUDIO_RTTM_MAP.items()):
         if clustering_params.oracle_num_speakers:
-            num_speakers = value.get('num_speakers', None)
+            num_speakers = audio_rttm_values.get('num_speakers', None)
             if num_speakers is None:
                 raise ValueError("Provided option as oracle num of speakers but num_speakers in manifest is null")
         else:
-            num_speakers = None
-        uniq_embs_and_timestamps=embs_and_timestamps[uniq_id]
-        # import ipdb; ipdb.set_trace() 
-        multiscale_weights = uniq_embs_and_timestamps['multiscale_weights'].float()
-        embeddings_in_scales = uniq_embs_and_timestamps['embeddings']
-        timestamps_in_scales = uniq_embs_and_timestamps['time_stamps']
-        multiscale_segment_counts = uniq_embs_and_timestamps['multiscale_segment_counts']
-        num_speakers = -1 if num_speakers is None else num_speakers 
-        
+            num_speakers = -1
+        uniq_embs_and_timestamps = embs_and_timestamps[uniq_id]
+        num_speakers = torch.tensor(num_speakers, dtype=torch.long)
+       
         speaker_clustering = SpeakerClustering(
                     max_num_speaker=max_num_speakers,
                     enhanced_count_thres=clustering_params.enhanced_count_thres,
                     max_rp_threshold=clustering_params.max_rp_threshold,
                     sparse_search_volume=clustering_params.sparse_search_volume,
-                    multiscale_weights=multiscale_weights,
+                    multiscale_weights=uniq_embs_and_timestamps['multiscale_weights'],
                     cuda=cuda)
-        
-        speaker_clustering = torch.jit.script(speaker_clustering)
+
+        speaker_clustering = torch.jit.script(speaker_clustering) 
         
         cluster_labels = speaker_clustering.forward(
-            embeddings_in_scales,
-            timestamps_in_scales,
-            multiscale_segment_counts,
+            uniq_embs_and_timestamps['embeddings'],
+            uniq_embs_and_timestamps['timestamps'],
+            uniq_embs_and_timestamps['multiscale_segment_counts'],
             oracle_num_speakers=num_speakers,
             )
-         
-        # cluster_labels = COSclustering(
-            # uniq_embs_and_timestamps=embs_and_timestamps[uniq_id],
-            # oracle_num_speakers=num_speakers,
-            # max_num_speaker=max_num_speakers,
-            # enhanced_count_thres=clustering_params.enhanced_count_thres,
-            # max_rp_threshold=clustering_params.max_rp_threshold,
-            # sparse_search_volume=clustering_params.sparse_search_volume,
-            # cuda=cuda,
-        # )
-
-        # base_scale_idx = max(embeddings_in_scales.keys())
-        base_scale_idx = multiscale_segment_counts.shape[0] - 1
+        
+        base_scale_idx = uniq_embs_and_timestamps['multiscale_segment_counts'].shape[0] - 1
         timestamps = speaker_clustering.timestamps_in_scales[base_scale_idx]
         cluster_labels = cluster_labels.cpu().numpy()
-        assert len(cluster_labels) == timestamps.shape[0]
+        if len(cluster_labels) != timestamps.shape[0]:
+            raise ValueError("Mismatch of length between cluster_labels and timestamps.")
         
         lines = []
         for idx, label in enumerate(cluster_labels):
@@ -497,7 +459,7 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
         hypothesis = labels_to_pyannote_object(labels, uniq_name=uniq_id)
         all_hypothesis.append([uniq_id, hypothesis])
 
-        rttm_file = value.get('rttm_filepath', None)
+        rttm_file = audio_rttm_values.get('rttm_filepath', None)
         if rttm_file is not None and os.path.exists(rttm_file) and not no_references:
             ref_labels = rttm_to_labels(rttm_file)
             reference = labels_to_pyannote_object(ref_labels, uniq_name=uniq_id)
@@ -575,11 +537,10 @@ def get_vad_out_from_rttm_line(rttm_line):
         start, dur, _ = float(vad_out[3]), float(vad_out[4]), vad_out[7]
     else:
         start, dur, _ = float(vad_out[0]), float(vad_out[1]), vad_out[2]
-    start, dur = float("{:}".format(start)), float("{:}".format(dur))
     return start, dur
 
 
-def get_offset_and_duration(AUDIO_RTTM_MAP, uniq_id, deci=5):
+def get_offset_and_duration(AUDIO_RTTM_MAP, uniq_id, decimals=5):
     """
     Extract offset and duration information from AUDIO_RTTM_MAP dictionary.
     If duration information is not specified, a duration value is extracted from the audio file directly.
@@ -597,8 +558,8 @@ def get_offset_and_duration(AUDIO_RTTM_MAP, uniq_id, deci=5):
     """
     audio_path = AUDIO_RTTM_MAP[uniq_id]['audio_filepath']
     if AUDIO_RTTM_MAP[uniq_id].get('duration', None):
-        duration = round(AUDIO_RTTM_MAP[uniq_id]['duration'], deci)
-        offset = round(AUDIO_RTTM_MAP[uniq_id]['offset'], deci)
+        duration = round(AUDIO_RTTM_MAP[uniq_id]['duration'], decimals)
+        offset = round(AUDIO_RTTM_MAP[uniq_id]['offset'], decimals)
     else:
         sound = sf.SoundFile(audio_path)
         duration = sound.frames / sound.samplerate
@@ -606,7 +567,7 @@ def get_offset_and_duration(AUDIO_RTTM_MAP, uniq_id, deci=5):
     return offset, duration
 
 
-def write_overlap_segments(outfile, AUDIO_RTTM_MAP, uniq_id, overlap_range_list, include_uniq_id, deci=5):
+def write_overlap_segments(outfile, AUDIO_RTTM_MAP, uniq_id, overlap_range_list, include_uniq_id, decimals=5):
     """
     Write the json dictionary into the specified manifest file.
 
@@ -624,8 +585,8 @@ def write_overlap_segments(outfile, AUDIO_RTTM_MAP, uniq_id, overlap_range_list,
     for (stt, end) in overlap_range_list:
         meta = {
             "audio_filepath": audio_path,
-            "offset": round(stt, deci),
-            "duration": round(end - stt, deci),
+            "offset": round(stt, decimals),
+            "duration": round(end - stt, decimals),
             "label": 'UNK',
             "uniq_id": uniq_id,
         }
@@ -714,7 +675,7 @@ def getOverlapRange(rangeA, rangeB):
     return [max(rangeA[0], rangeB[0]), min(rangeA[1], rangeB[1])]
 
 
-def combine_float_overlaps(ranges, deci=5, margin=2):
+def combine_float_overlaps(ranges, decimals=5, margin=2):
     """
     Combine overlaps with floating point numbers. Since neighboring integers are considered as continuous range,
     we need to add margin to the starting range before merging then subtract margin from the result range.
@@ -723,7 +684,7 @@ def combine_float_overlaps(ranges, deci=5, margin=2):
         ranges (list):
             List containing ranges.
             Example: [(10.2, 10.83), (10.42, 10.91), (10.45, 12.09)]
-        deci (int):
+        decimals (int):
             Number of rounding decimals
         margin (int):
             margin for determining overlap of the two ranges when ranges are converted to integer ranges.
@@ -747,13 +708,13 @@ def combine_float_overlaps(ranges, deci=5, margin=2):
     """
     ranges_int = []
     for x in ranges:
-        stt, end = fl2int(x[0], deci) + margin, fl2int(x[1], deci)
+        stt, end = fl2int(x[0], decimals) + margin, fl2int(x[1], decimals)
         if stt == end:
             logging.warning(f"The range {stt}:{end} is too short to be combined thus skipped.")
         else:
             ranges_int.append([stt, end])
     merged_ranges = combine_int_overlaps(ranges_int)
-    merged_ranges = [[int2fl(x[0] - margin, deci), int2fl(x[1], deci)] for x in merged_ranges]
+    merged_ranges = [[int2fl(x[0] - margin, decimals), int2fl(x[1], decimals)] for x in merged_ranges]
     return merged_ranges
 
 
@@ -788,21 +749,21 @@ def combine_int_overlaps(ranges):
     return merged_list
 
 
-def fl2int(x, deci=3):
+def fl2int(x, decimals=3):
     """
     Convert floating point number to integer.
     """
-    return int(round(x * pow(10, deci)))
+    return int(round(x * pow(10, decimals)))
 
 
-def int2fl(x, deci=3):
+def int2fl(x, decimals=3):
     """
     Convert integer to floating point number.
     """
-    return round(float(x / pow(10, deci)), int(deci))
+    return round(float(x / pow(10, decimals)), int(decimals))
 
 
-def getMergedRanges(label_list_A: List, label_list_B: List, deci: int = 3) -> List:
+def getMergedRanges(label_list_A: List, label_list_B: List, decimals: int = 3) -> List:
     """
     Calculate the merged ranges between label_list_A and label_list_B.
 
@@ -821,10 +782,10 @@ def getMergedRanges(label_list_A: List, label_list_B: List, deci: int = 3) -> Li
     elif label_list_A != [] and label_list_B == []:
         return label_list_A
     else:
-        label_list_A = [[fl2int(x[0] + 1, deci), fl2int(x[1], deci)] for x in label_list_A]
-        label_list_B = [[fl2int(x[0] + 1, deci), fl2int(x[1], deci)] for x in label_list_B]
+        label_list_A = [[fl2int(x[0] + 1, decimals), fl2int(x[1], decimals)] for x in label_list_A]
+        label_list_B = [[fl2int(x[0] + 1, decimals), fl2int(x[1], decimals)] for x in label_list_B]
         combined = combine_int_overlaps(label_list_A + label_list_B)
-        return [[int2fl(x[0] - 1, deci), int2fl(x[1], deci)] for x in combined]
+        return [[int2fl(x[0] - 1, decimals), int2fl(x[1], decimals)] for x in combined]
 
 
 def getSubRangeList(target_range, source_range_list) -> List:
@@ -862,7 +823,7 @@ def getSubRangeList(target_range, source_range_list) -> List:
         return out_range
 
 
-def write_rttm2manifest(AUDIO_RTTM_MAP: str, manifest_file: str, include_uniq_id: bool = False, deci: int = 5) -> str:
+def write_rttm2manifest(AUDIO_RTTM_MAP: str, manifest_file: str, include_uniq_id: bool = False, decimals: int = 5) -> str:
     """
     Write manifest file based on rttm files (or vad table out files). This manifest file would be used by
     speaker diarizer to compute embeddings and cluster them. This function takes care of overlapping VAD timestamps
@@ -879,17 +840,16 @@ def write_rttm2manifest(AUDIO_RTTM_MAP: str, manifest_file: str, include_uniq_id
         manifest (str):
             The path to the output manifest file.
     """
-
     with open(manifest_file, 'w') as outfile:
         for uniq_id in AUDIO_RTTM_MAP:
             rttm_file_path = AUDIO_RTTM_MAP[uniq_id]['rttm_filepath']
             rttm_lines = read_rttm_lines(rttm_file_path)
-            offset, duration = get_offset_and_duration(AUDIO_RTTM_MAP, uniq_id, deci)
+            offset, duration = get_offset_and_duration(AUDIO_RTTM_MAP, uniq_id, decimals)
             vad_start_end_list_raw = []
             for line in rttm_lines:
                 start, dur = get_vad_out_from_rttm_line(line)
                 vad_start_end_list_raw.append([start, start + dur])
-            vad_start_end_list = combine_float_overlaps(vad_start_end_list_raw, deci)
+            vad_start_end_list = combine_float_overlaps(vad_start_end_list_raw, decimals)
             if len(vad_start_end_list) == 0:
                 logging.warning(f"File ID: {uniq_id}: The VAD label is not containing any speech segments.")
             elif duration <= 0:
@@ -898,7 +858,7 @@ def write_rttm2manifest(AUDIO_RTTM_MAP: str, manifest_file: str, include_uniq_id
                 overlap_range_list = getSubRangeList(
                     source_range_list=vad_start_end_list, target_range=[offset, offset + duration]
                 )
-                write_overlap_segments(outfile, AUDIO_RTTM_MAP, uniq_id, overlap_range_list, include_uniq_id, deci)
+                write_overlap_segments(outfile, AUDIO_RTTM_MAP, uniq_id, overlap_range_list, include_uniq_id, decimals)
     return manifest_file
 
 

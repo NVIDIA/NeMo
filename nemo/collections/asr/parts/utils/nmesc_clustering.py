@@ -32,7 +32,7 @@
 # https://github.com/tango4j/Auto-Tuning-Spectral-Clustering.
 
 from collections import Counter
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import torch
 from torch.linalg import eigh
@@ -237,7 +237,7 @@ def kmeans_torch(
     centers = plusplus_init_states[0]
 
     iter_count = 0
-    selected_cluster_indices = torch.zeros(input_size).int()
+    selected_cluster_indices = torch.zeros(input_size).long()
 
     for iter_count in range(iter_limit):
         euc_dist = getEuclideanDistance(X, centers, device=device)
@@ -356,7 +356,6 @@ def getMinimumConnection(mat: torch.Tensor, max_N: torch.Tensor, n_list: torch.T
 
     return affinity_mat, p_value
 
-
 @torch.jit.script
 def getRepeatedList(mapping_argmat: torch.Tensor, score_mat_size: torch.Tensor):
     """
@@ -370,75 +369,46 @@ def getRepeatedList(mapping_argmat: torch.Tensor, score_mat_size: torch.Tensor):
     return repeat_list
 
 
-def get_argmin_mat(uniq_scale_dict: dict):
+@torch.jit.script
+def get_argmin_mat(timestamps_in_scales: List[torch.Tensor]):
     """
     Calculate the mapping between the base scale and other scales. A segment from a longer scale is
     repeatedly mapped to a segment from a shorter scale or the base scale.
 
     Args:
-        uniq_scale_dict (dict) :
+        uniq_scale_dict: (dict)
             Dictionary of embeddings and timestamps for each scale.
+            Indexed by integer scale key and contains sub-dictionaries.
+            uniq_scale_dict = {0 : sub_dict_0, 1: sub_dict_1, 2: sub_dict_2 ..., }
+
+            Sub-dictionary contents:
+            1. sub_dict['embeddings']
+                Contains torch.Tensor which has dimension of (Number of base segments) x (Embedding Dimension)
+
+            2. sub_dict['time_stamps']
+                Contains torch.Tensor which has dimension of (Number of base segments) x 2
+                [[start1, end1], [start2, end2], [start3, end3], ..., [startN, endN]]
 
     Returns:
         session_scale_mapping_dict (dict) :
             Dictionary containing argmin arrays indexed by scale index.
     """
-    scale_list = sorted(list(uniq_scale_dict.keys()))
-    segment_anchor_dict = {}
+    scale_list = list(range(len(timestamps_in_scales)))
+    segment_anchor_list = []
     for scale_idx in scale_list:
-        time_stamp_list = uniq_scale_dict[scale_idx]['time_stamps']
-        time_stamps_float = torch.tensor([[float(x.split()[0]), float(x.split()[1])] for x in time_stamp_list])
-        segment_anchor_dict[scale_idx] = torch.mean(time_stamps_float, dim=1)
+        time_stamps_float = timestamps_in_scales[scale_idx]
+        segment_anchor_list.append(torch.mean(time_stamps_float, dim=1))
 
     base_scale_idx = max(scale_list)
-    base_scale_anchor = segment_anchor_dict[base_scale_idx]
-    session_scale_mapping_dict = {}
+    base_scale_anchor = segment_anchor_list[base_scale_idx]
+    session_scale_mapping_dict = []
     for scale_idx in scale_list:
-        curr_scale_anchor = segment_anchor_dict[scale_idx]
+        curr_scale_anchor = segment_anchor_list[scale_idx]
         curr_mat = torch.tile(curr_scale_anchor, (base_scale_anchor.shape[0], 1))
         base_mat = torch.tile(base_scale_anchor, (curr_scale_anchor.shape[0], 1)).t()
         argmin_mat = torch.argmin(torch.abs(curr_mat - base_mat), dim=1)
-        session_scale_mapping_dict[scale_idx] = argmin_mat
+        session_scale_mapping_dict.append(argmin_mat)
     return session_scale_mapping_dict
-
-
-def getMultiScaleCosAffinityMatrix(uniq_embs_and_timestamps: dict, device: torch.device = torch.device('cpu')):
-    """
-    Calculate cosine similarity values among speaker embeddings for each scale then
-    apply multiscale weights to calculate the fused similarity matrix.
-
-    Args:
-        uniq_embs_and_timestamps: (dict)
-            The dictionary containing embeddings, timestamps and multiscale weights.
-            If uniq_embs_and_timestamps contains only one scale, single scale diarization
-            is performed.
-
-    Returns:
-        fused_sim_d (torch.tensor):
-            This function generates an affinity matrix that is obtained by calculating
-            the weighted sum of the affinity matrices from the different scales.
-
-        base_scale_emb (torch.tensor):
-            The base scale embedding (the embeddings from the finest scale)
-    """
-    uniq_scale_dict = uniq_embs_and_timestamps['scale_dict']
-    base_scale_idx = max(uniq_scale_dict.keys())
-    base_scale_emb = uniq_scale_dict[base_scale_idx]['embeddings']
-    multiscale_weights = uniq_embs_and_timestamps['multiscale_weights'].float().to(device)
-    score_mat_list, repeated_tensor_list = [], []
-    session_scale_mapping_dict = get_argmin_mat(uniq_scale_dict)
-    for scale_idx in sorted(uniq_scale_dict.keys()):
-        mapping_argmat = session_scale_mapping_dict[scale_idx]
-        emb_t = uniq_scale_dict[scale_idx]['embeddings'].half().to(device)
-        score_mat_torch = getCosAffinityMatrix(emb_t)
-        repeat_list = getRepeatedList(mapping_argmat, torch.tensor(score_mat_torch.shape[0])).to(device)
-        repeated_tensor_0 = torch.repeat_interleave(score_mat_torch, repeats=repeat_list, dim=0)
-        repeated_tensor_1 = torch.repeat_interleave(repeated_tensor_0, repeats=repeat_list, dim=1)
-        repeated_tensor_list.append(repeated_tensor_1)
-    repp = torch.stack(repeated_tensor_list).float()
-    fused_sim_d = torch.matmul(repp.permute(2, 1, 0), multiscale_weights.t()).squeeze(2).t()
-    return fused_sim_d, base_scale_emb
-
 
 @torch.jit.script
 def getCosAffinityMatrix(emb: torch.Tensor):
@@ -459,7 +429,46 @@ def getCosAffinityMatrix(emb: torch.Tensor):
     sim_d = cos_similarity(emb, emb)
     sim_d = ScalerMinMax(sim_d)
     return sim_d
+        # embeddings_in_scales: Dict[int, torch.Tensor],
+        # timestamps_in_scales: Dict[int, torch.Tensor],
 
+@torch.jit.script
+def getMultiScaleCosAffinityMatrix(
+        multiscale_weights: torch.Tensor,
+        embeddings_in_scales: List[torch.Tensor],
+        timestamps_in_scales: List[torch.Tensor],
+        device: torch.device = torch.device('cpu')):
+    """
+    Calculate cosine similarity values among speaker embeddings for each scale then
+    apply multiscale weights to calculate the fused similarity matrix.
+
+    Args:
+        uniq_embs_and_timestamps: (dict)
+            The dictionary containing embeddings, timestamps and multiscale weights.
+            If uniq_embs_and_timestamps contains only one scale, single scale diarization
+            is performed.
+
+    Returns:
+        fused_sim_d (torch.tensor):
+            This function generates an affinity matrix that is obtained by calculating
+            the weighted sum of the affinity matrices from the different scales.
+
+    """
+    multiscale_weights = multiscale_weights.to(device)
+    score_mat_list, repeated_tensor_list = [], []
+    session_scale_mapping_dict = get_argmin_mat(timestamps_in_scales)
+    scale_list = list(range(len(timestamps_in_scales)))
+    for scale_idx in scale_list:
+        mapping_argmat = session_scale_mapping_dict[scale_idx]
+        emb_t = embeddings_in_scales[scale_idx].half().to(device)
+        score_mat_torch = getCosAffinityMatrix(emb_t)
+        repeat_list = getRepeatedList(mapping_argmat, torch.tensor(score_mat_torch.shape[0])).to(device)
+        repeated_tensor_0 = torch.repeat_interleave(score_mat_torch, repeats=repeat_list, dim=0)
+        repeated_tensor_1 = torch.repeat_interleave(repeated_tensor_0, repeats=repeat_list, dim=1)
+        repeated_tensor_list.append(repeated_tensor_1)
+    repp = torch.stack(repeated_tensor_list).float()
+    fused_sim_d = torch.matmul(repp.permute(2, 1, 0), multiscale_weights.t()).squeeze(2).t()
+    return fused_sim_d
 
 @torch.jit.script
 def getLaplacian(X: torch.Tensor):
@@ -501,7 +510,7 @@ def getLamdaGaplist(lambdas: torch.Tensor):
 @torch.jit.script
 def addAnchorEmb(emb: torch.Tensor, anchor_sample_n: int, anchor_spk_n: int, sigma: float):
     """
-    Add randomly generated synthetic embeddings to make eigen analysis more stable.
+    Add randomly generated synthetic embeddings to make eigenanalysis more stable.
     We refer to these embeddings as anchor embeddings.
 
     emb (torch.tensor):
@@ -587,7 +596,7 @@ def getEnhancedSpeakerCount(
             sparse_search=True,
             sparse_search_volume=50,
             fixed_thres=-1.0,
-            NME_mat_size=300,
+            nme_mat_size=300,
             cuda=cuda,
         )
         est_num_of_spk, _ = nmesc.NMEanalysis()
@@ -628,7 +637,6 @@ def estimateNumofSpeakers(affinity_mat: torch.Tensor, max_num_speaker: int, cuda
     lambda_gap = getLamdaGaplist(lambdas)
     num_of_spk = torch.argmax(lambda_gap[: min(max_num_speaker, lambda_gap.shape[0])]) + 1
     return num_of_spk, lambdas, lambda_gap
-
 
 @torch.jit.script
 class SpectralClustering:
@@ -673,7 +681,7 @@ class SpectralClustering:
         self.cuda = cuda
         self.device = device
 
-    def predict(self, X):
+    def forward(self, X):
         """
         Call self.clusterSpectralEmbeddings() function to predict cluster labels.
 
@@ -745,7 +753,6 @@ class SpectralClustering:
         embedding = diffusion_map.T[inv_idx, :]
         return embedding[:n_spks].T
 
-
 @torch.jit.script
 class NMESC:
     """
@@ -773,7 +780,7 @@ class NMESC:
         NMEanalysis():
             Performs NME-analysis to estimate p_value and the number of speakers
 
-        subsampleAffinityMat(NME_mat_size):
+        subsampleAffinityMat(nme_mat_size):
             Subsamples the number of speakers to reduce the computational load
 
         getPvalueList():
@@ -792,15 +799,16 @@ class NMESC:
 
     def __init__(
         self,
-        mat,
+        mat: torch.Tensor,
         max_num_speaker: int = 10,
         max_rp_threshold: float = 0.15,
         sparse_search: bool = True,
         sparse_search_volume: int = 30,
-        NME_mat_size: int = 512,
-        use_subsampling_for_NME: bool = True,
+        nme_mat_size: int = 512,
+        use_subsampling_for_nme: bool = True,
         fixed_thres: float = 0.0,
         maj_vote_spk_count: bool = False,
+        parallelism: bool = True,
         cuda: bool = False,
         device: torch.device = torch.device('cpu'),
     ):
@@ -827,7 +835,7 @@ class NMESC:
                 Default is 30. The lower the value, the faster NME-analysis becomes.
                 However, a value lower than 20 might cause a poor parameter estimation.
 
-            use_subsampling_for_NME: (bool)
+            use_subsampling_for_nme: (bool)
                 Use subsampling to reduce the calculational complexity.
                 Default is True.
 
@@ -844,15 +852,13 @@ class NMESC:
             cuda (bool)
                 Use cuda for Eigen decomposition if cuda=True.
 
-            NME_mat_size: (int)
+            nme_mat_size: (int)
                 Targeted size of matrix for NME analysis.
-
-
         """
         self.max_num_speaker: int = max_num_speaker
         self.max_rp_threshold = max_rp_threshold
-        self.use_subsampling_for_NME = use_subsampling_for_NME
-        self.NME_mat_size: int = NME_mat_size
+        self.use_subsampling_for_nme = use_subsampling_for_nme
+        self.nme_mat_size: int = nme_mat_size
         self.sparse_search = sparse_search
         self.sparse_search_volume = sparse_search_volume
         self.min_p_value = torch.tensor(2)
@@ -864,27 +870,45 @@ class NMESC:
         self.p_value_list: torch.Tensor = self.min_p_value.unsqueeze(0)
         self.device = device
         self.maj_vote_spk_count = maj_vote_spk_count
+        self.parallelism = parallelism
 
-    def NMEanalysis(self):
+    def forward(self):
         """
         Subsample the input matrix to reduce the computational load.
         """
-        if self.use_subsampling_for_NME:
-            subsample_ratio = self.subsampleAffinityMat(self.NME_mat_size)
+        if self.use_subsampling_for_nme:
+            subsample_ratio = self.subsampleAffinityMat(self.nme_mat_size)
         else:
             subsample_ratio = torch.tensor(1)
 
-        # Scans p_values and find a p_value that generates
-        # the smallest g_p value.
-        eig_ratio_list, est_num_of_spk_list = [], []
+        # Scans p_values and find a p_value that generates the smallest g_p value.
+        results : List[torch.Tensor] = []
         est_spk_n_dict: Dict[int, torch.Tensor] = {}
         self.p_value_list = self.getPvalueList()
-        for p_value in self.p_value_list:
-            est_num_of_spk, g_p = self.getEigRatio(p_value)
+        p_volume = self.p_value_list.shape[0]
+        eig_ratio_list = torch.zeros(p_volume,)
+        est_num_of_spk_list = torch.zeros(p_volume,)
+
+        if self.parallelism:
+            futures : List[torch.jit.Future[torch.Tensor]] = []
+            for p_idx, p_value in enumerate(self.p_value_list):
+                futures.append(torch.jit.fork(self.getEigRatio, p_value))
+            for future in futures:
+                results.append(torch.jit.wait(future))
+
+        else:
+            for p_idx, p_value in enumerate(self.p_value_list):
+                results.append(self.getEigRatio(p_value))
+
+        # Retrieve the eigen analysis results
+        for p_idx, p_value in enumerate(self.p_value_list):
+            output = results[p_idx]
+            g_p, est_num_of_spk = output[0], output[1].int()
+            eig_ratio_list[p_idx] = g_p
             est_spk_n_dict[p_value.item()] = est_num_of_spk
-            eig_ratio_list.append(g_p)
-            est_num_of_spk_list.append(est_num_of_spk)
-        index_nn = torch.argmin(torch.tensor(eig_ratio_list))
+            est_num_of_spk_list[p_idx] = est_num_of_spk
+
+        index_nn = torch.argmin(eig_ratio_list)
         rp_p_value = self.p_value_list[index_nn]
         affinity_mat = getAffinityGraphMat(self.mat, rp_p_value)
 
@@ -902,38 +926,38 @@ class NMESC:
             est_num_of_spk = est_spk_n_dict[rp_p_value.item()]
         return est_num_of_spk, p_hat_value
 
-    def subsampleAffinityMat(self, NME_mat_size: int):
+    def subsampleAffinityMat(self, nme_mat_size: int):
         """
         Perform subsampling of affinity matrix.
         This subsampling is for calculational complexity, not for performance.
-        The smaller NME_mat_size is,
+        The smaller nme_mat_size is,
             - the bigger the chance of missing a speaker.
             - the faster p-value estimation speed (based on eigen decomposition).
 
-        The recommended NME_mat_size is 250~750.
+        The recommended nme_mat_size is 250~750.
         However, if there are speakers who speak for very short period of time in the recording,
         this subsampling might make the system miss underrepresented speakers.
         Use this variable with caution.
 
         Args:
-            NME_mat_size: (int)
+            nme_mat_size: (int)
                 The targeted matrix size
 
         Returns:
             subsample_ratio : (float)
-                The ratio between NME_mat_size and the original matrix size
+                The ratio between nme_mat_size and the original matrix size
 
         """
-        subsample_ratio = torch.max(torch.tensor(1), torch.tensor(self.mat.shape[0] / NME_mat_size)).type(torch.int)
+        subsample_ratio = torch.max(torch.tensor(1), torch.tensor(self.mat.shape[0] / nme_mat_size)).type(torch.int)
         self.mat = self.mat[:: subsample_ratio.item(), :: subsample_ratio.item()]
         return subsample_ratio
 
     def getEigRatio(self, p_neighbors: int):
         """
-        For a given p_neighbors value, calculate g_p, which is a ratio between p_neighbors and the 
+        For a given p_neighbors value, calculate g_p, which is a ratio between p_neighbors and the
         maximum eigengap values.
         References:
-            Tae Jin Park et al., Auto-Tuning Spectral Clustering for Speaker Diarization Using 
+            Tae Jin Park et al., Auto-Tuning Spectral Clustering for Speaker Diarization Using
             Normalized Maximum Eigengap, IEEE Signal Processing Letters 27 (2019),
             https://arxiv.org/abs/2003.02405
 
@@ -951,9 +975,9 @@ class NMESC:
         est_num_of_spk, lambdas, lambda_gap_list = estimateNumofSpeakers(affinity_mat, self.max_num_speaker, self.cuda)
         arg_sorted_idx = torch.argsort(lambda_gap_list[: self.max_num_speaker], descending=True)
         max_key = arg_sorted_idx[0]
-        max_eig_gap = lambda_gap_list[max_key] / (max(lambdas) + self.eps)
+        max_eig_gap = lambda_gap_list[max_key] / (torch.max(lambdas).item() + self.eps)
         g_p = (p_neighbors / self.mat.shape[0]) / (max_eig_gap + self.eps)
-        return est_num_of_spk, g_p
+        return torch.stack([g_p, est_num_of_spk])
 
     def getPvalueList(self):
         """
@@ -984,125 +1008,201 @@ class NMESC:
             )
             if self.sparse_search:
                 search_volume = torch.min(self.max_N, torch.tensor(self.sparse_search_volume).type(torch.int))
+                # search at least two values
                 N = torch.max(search_volume, torch.tensor(2))
-                p_value_list = torch.unique(torch.linspace(start=1, end=self.max_N, steps=N).type(torch.int))
+                # avoid repeating values by limiting the step size
+                steps = min(self.max_N, N) 
+                p_value_list = torch.linspace(start=1, end=self.max_N, steps=N).type(torch.int)
             else:
                 p_value_list = torch.arange(1, self.max_N + 1)
         if p_value_list.shape[0] == 0:
             raise ValueError("p_value_list should not be empty.")
         return p_value_list
 
+class SpeakerClustering(torch.nn.Module):
+    def __init__(
+        self,
+        max_num_speaker: int = 8,
+        min_samples_for_nmesc: int = 6,
+        nme_mat_size: int = 300,
+        enhanced_count_thres: int = 80,
+        max_rp_threshold: float = 0.15,
+        sparse_search: bool = True,
+        sparse_search_volume: int = 30,
+        maj_vote_spk_count: bool = False,
+        fixed_thres: float = 0.0,
+        multiscale_weights: torch.Tensor = torch.tensor(1).unsqueeze(0),
+        parallelism: bool = False,
+        cuda: bool = False,
+    ):
+        """
+        Clustering method for speaker diarization based on cosine similarity.
+        NME-SC part is converted to torch.tensor based operations in NeMo 1.9.
 
-def COSclustering(
-    uniq_embs_and_timestamps,
-    oracle_num_speakers=None,
-    max_num_speaker: int = 8,
-    min_samples_for_NMESC: int = 6,
-    enhanced_count_thres: int = 80,
-    max_rp_threshold: float = 0.15,
-    sparse_search: bool = True,
-    sparse_search_volume: int = 30,
-    maj_vote_spk_count: bool = False,
-    fixed_thres: float = 0.0,
-    cuda=False,
-):
-    """
-    Clustering method for speaker diarization based on cosine similarity.
-    NME-SC part is converted to torch.tensor based operations in NeMo 1.9.
+        Args:
+            max_num_speaker: (int)
+                The maximum number of clusters to consider for each session
 
-    Args:
-        uniq_embs_and_timestamps: (dict)
-            The dictionary containing embeddings, timestamps and multiscale weights.
-            If uniq_embs_and_timestamps contains only one scale, single scale diarization
-            is performed.
+            min_samples_for_nmesc: (int)
+                The minimum number of samples required for NME clustering. This avoids
+                zero p_neighbour_lists. If the input has fewer segments than min_samples,
+                it is directed to the enhanced speaker counting mode.
 
-        oracle_num_speaker: (int or None)
-            The oracle number of speakers if known else None
+            enhanced_count_thres: (int)
+                For the short audio recordings under 60 seconds, clustering algorithm cannot
+                accumulate enough amount of speaker profile for each cluster.
+                Thus, getEnhancedSpeakerCount() employs anchor embeddings (dummy representations)
+                to mitigate the effect of cluster sparsity.
+                enhanced_count_thres = 80 is recommended.
 
-        max_num_speaker: (int)
-            The maximum number of clusters to consider for each session
+            max_rp_threshold: (float)
+                Limits the range of parameter search.
+                Clustering performance can vary depending on this range.
+                Default is 0.15.
 
-        min_samples_for_NMESC: (int)
-            The minimum number of samples required for NME clustering. This avoids
-            zero p_neighbour_lists. If the input has fewer segments than min_samples,
-            it is directed to the enhanced speaker counting mode.
+            sparse_search: (bool)
+                Toggle sparse search mode. If True, limit the size of p_value_list to sparse_search_volume.
 
-        enhanced_count_thres: (int)
-            For the short audio recordings under 60 seconds, clustering algorithm cannot
-            accumulate enough amount of speaker profile for each cluster.
-            Thus, getEnhancedSpeakerCount() employs anchor embeddings (dummy representations)
-            to mitigate the effect of cluster sparsity.
-            enhanced_count_thres = 80 is recommended.
+            sparse_search_volume: (int)
+                Number of p_values we search during NME analysis.
+                Default is 30. The lower the value, the faster NME-analysis becomes.
+                Lower than 20 might cause a poor parameter estimation.
 
-        max_rp_threshold: (float)
-            Limits the range of parameter search.
-            Clustering performance can vary depending on this range.
-            Default is 0.15.
+            maj_vote_spk_count: (bool)
+                If True, take a majority vote on all p-values in the given range to estimate the number of speakers.
+                The majority voting may contribute to surpress overcounting of the speakers and improve speaker
+                counting accuracy.
 
-        maj_vote_spk_count: (bool)
-            If True, take a majority vote on all p-values in the given range to estimate the number of speakers.
-            The majority voting may contribute to surpress overcounting of the speakers and improve speaker
-            counting accuracy.
+            fixed_thres: (float)
+                If fixed_thres value is provided, NME-analysis process will be skipped.
+                This value should be optimized on a development set to obtain a quality result.
+                Default is None and performs NME-analysis to estimate the threshold.
 
-        sparse_search: (bool)
-            Toggle sparse search mode. If True, limit the size of p_value_list to sparse_search_volume.
+            multiscale_weights: (torch.tensor)
+                Multi-scale weights that are used when affinity scores are merged.
 
-        sparse_search_volume: (int)
-            Number of p_values we search during NME analysis.
-            Default is 30. The lower the value, the faster NME-analysis becomes.
-            Lower than 20 might cause a poor parameter estimation.
+            parallelism: (bool)
+                Use dynamic parallelism feature in torch.jit compiler to accelerate the p-value search.
 
-        fixed_thres: (float)
-            If fixed_thres value is provided, NME-analysis process will be skipped.
-            This value should be optimized on a development set to obtain a quality result.
-            Default is None and performs NME-analysis to estimate the threshold.
+            cuda: (bool)
+                Boolean variable for toggling cuda availability.
 
-    Returns:
-        Y: (torch.tensor[int])
-            Speaker label for each segment.
-    """
-    device = torch.device("cuda") if cuda else torch.device("cpu")
+        """
+        super().__init__()
+        self.max_num_speaker: int = max_num_speaker
+        self.min_samples_for_nmesc: int = min_samples_for_nmesc
+        self.nme_mat_size: int = nme_mat_size
+        self.enhanced_count_thres: int = enhanced_count_thres
+        self.max_rp_threshold: float = max_rp_threshold
+        self.sparse_search: bool = sparse_search
+        self.sparse_search_volume: int = sparse_search_volume
+        self.maj_vote_spk_count: bool = maj_vote_spk_count
+        self.fixed_thres: float = fixed_thres
+        self.multiscale_weights: torch.Tensor = multiscale_weights
+        self.parallelism: bool = parallelism
+        self.cuda: bool = cuda
+        self.embeddings_in_scales: List[torch.Tensor] = [torch.Tensor(0)]
+        self.timestamps_in_scales: List[torch.Tensor] = [torch.Tensor(0)]
+        self.device = torch.device("cuda") if self.cuda else torch.device("cpu")
 
-    # Get base-scale (the highest index) information from uniq_embs_and_timestamps.
-    uniq_scale_dict = uniq_embs_and_timestamps['scale_dict']
-    emb = uniq_scale_dict[max(uniq_scale_dict.keys())]['embeddings']
+    def split_input_data(
+        self, 
+        embeddings_in_scales: torch.Tensor, 
+        timestamps_in_scales: torch.Tensor, 
+        multiscale_segment_counts: torch.LongTensor,
+        ):
+        """
+        Split multiscale embeddings and multiscale timestamps and put split scale-wise data into python lists.
+        This formatting function is needed to make the input type as `torch.Tensor`.
 
-    if emb.shape[0] == 1:
-        return torch.zeros((1,), dtype=torch.int32).cpu().numpy()
-    elif emb.shape[0] <= max(enhanced_count_thres, min_samples_for_NMESC) and oracle_num_speakers is None:
-        est_num_of_spk_enhanced = getEnhancedSpeakerCount(emb, cuda)
-    else:
-        est_num_of_spk_enhanced = None
+        Args:
+            embeddings_in_scales (Tensor):
+                Concatenated torch tensor containing embeddings in multiple scales
+            timestamps_in_scales (Tensor):
+                Concatenated torch tensor containing timestamps in multiple scales
 
-    if oracle_num_speakers:
-        max_num_speaker = oracle_num_speakers
+        Returns:
+            embeddings_in_scales (list):
+                List containing split embedding tensors by each scale
+            timestamps_in_scales (list):
+                List containing split timestamps tensors by each scale
 
-    mat, emb = getMultiScaleCosAffinityMatrix(uniq_embs_and_timestamps, device)
+        """
+        split_index: List[int] = multiscale_segment_counts.tolist()
+        embeddings_in_scales = torch.split(embeddings_in_scales, split_index, dim=0)
+        timestamps_in_scales = torch.split(timestamps_in_scales, split_index, dim=0)
+        embeddings_in_scales, timestamps_in_scales = list(embeddings_in_scales), list(timestamps_in_scales)
+        return embeddings_in_scales, timestamps_in_scales
 
-    nmesc = NMESC(
-        mat,
-        max_num_speaker=max_num_speaker,
-        max_rp_threshold=max_rp_threshold,
-        sparse_search=sparse_search,
-        sparse_search_volume=sparse_search_volume,
-        fixed_thres=fixed_thres,
-        NME_mat_size=300,
-        maj_vote_spk_count=maj_vote_spk_count,
-        cuda=cuda,
-        device=device,
-    )
+    def forward(
+        self,
+        embeddings_in_scales: torch.Tensor,
+        timestamps_in_scales: torch.Tensor,
+        multiscale_segment_counts: torch.LongTensor,
+        oracle_num_speakers: torch.LongTensor,
+        ):
+        """
+        Calculate affinity matrix using timestamps and speaker embeddings, run NME analysis to estimate the best
+        p-value and perform spectral clustering based on the estimated p-value and the calculated affinity matrix.
 
-    if emb.shape[0] > min_samples_for_NMESC:
-        est_num_of_spk, p_hat_value = nmesc.NMEanalysis()
-        affinity_mat = getAffinityGraphMat(mat, p_hat_value)
-    else:
-        affinity_mat = mat
+        Args:
+            uniq_scale_dict: (dict)
+                Dictionary of embeddings and timestamps for each scale.
+                Indexed by integer scale key and contains sub-dictionaries.
+                uniq_scale_dict = {0 : sub_dict_0, 1: sub_dict_1, 2: sub_dict_2 ...}
 
-    if oracle_num_speakers:
-        est_num_of_spk = oracle_num_speakers
-    elif est_num_of_spk_enhanced:
-        est_num_of_spk = est_num_of_spk_enhanced
+                Sub-dictionary contents:
+                1. sub_dict['embeddings']
+                    Contains torch.Tensor which has dimension of (Number of base segments) x (Embedding Dimension)
 
-    spectral_model = SpectralClustering(n_clusters=est_num_of_spk, cuda=cuda, device=device)
-    Y = spectral_model.predict(affinity_mat)
-    return Y.cpu().numpy()
+                2. sub_dict['time_stamps']
+                    Contains torch.Tensor which has dimension of (Number of base segments) x 2
+                    [[start1, end1], [start2, end2], [start3, end3], ..., [startN, endN]]
+
+        Returns:
+            Y: (torch.tensor[int])
+                Speaker label for each segment.
+        """
+
+        self.embeddings_in_scales, self.timestamps_in_scales = self.split_input_data(embeddings_in_scales,
+                                                                                     timestamps_in_scales,
+                                                                                     multiscale_segment_counts)
+        emb = embeddings_in_scales[multiscale_segment_counts.shape[0]-1]
+
+        if emb.shape[0] == 1:
+            return torch.zeros((1,), dtype=torch.int64)
+        
+        oracle_num_speakers = int(oracle_num_speakers.item())
+
+        if oracle_num_speakers > 0:
+            self.max_num_speaker = oracle_num_speakers
+
+        mat = getMultiScaleCosAffinityMatrix(self.multiscale_weights, self.embeddings_in_scales, self.timestamps_in_scales, self.device)
+        nmesc = NMESC(
+            mat,
+            max_num_speaker=self.max_num_speaker,
+            max_rp_threshold=self.max_rp_threshold,
+            sparse_search=self.sparse_search,
+            sparse_search_volume=self.sparse_search_volume,
+            fixed_thres=self.fixed_thres,
+            nme_mat_size=self.nme_mat_size,
+            maj_vote_spk_count=self.maj_vote_spk_count,
+            parallelism=self.parallelism,
+            cuda=self.cuda,
+            device=self.device,
+        )
+
+        if mat.shape[0] > self.min_samples_for_nmesc:
+            est_num_of_spk, p_hat_value = nmesc.forward()
+            affinity_mat = getAffinityGraphMat(mat, p_hat_value)
+        else:
+            affinity_mat = mat
+            est_num_of_spk = torch.tensor(1).to(self.device)
+
+        if oracle_num_speakers > 0:
+            est_num_of_spk = torch.tensor(oracle_num_speakers).to(self.device)
+
+        spectral_model = SpectralClustering(n_clusters=est_num_of_spk, cuda=self.cuda, device=self.device)
+        Y = spectral_model.forward(affinity_mat)
+        return Y
+
