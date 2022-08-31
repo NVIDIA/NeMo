@@ -401,7 +401,7 @@ def launch_throughput_measure(dependency_list, model_name, model_size_in_b, num_
         f"--container-mounts {mounts_str} "
         f"--no-container-mount-home "
     )
-    if cfg.get("ci_test"):  # Whether this job is running in CI or not.
+    if os.getenv('BIGNLP_CI'):  # Whether this job is running in CI or not.
         flags += f"-o {log_dir}/slurm_%j.log "
     else:
         flags += (
@@ -429,7 +429,7 @@ def launch_throughput_measure(dependency_list, model_name, model_size_in_b, num_
         partition=partition,
         account=account,
     )
-    if cfg.get("ci_test"):
+    if os.getenv('BIGNLP_CI'):
         job_id = subprocess.check_output([f'sbatch {new_script_path} | tee "{log_dir}/launcher.log" '], shell=True)
     else:
         job_id = subprocess.check_output([f"sbatch --parsable {new_script_path}"], shell=True)
