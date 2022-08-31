@@ -34,6 +34,9 @@ from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset impo
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
     MegatronPretrainingBatchSampler,
 )
+from nemo.collections.nlp.models.language_modeling.megatron_lm_adapter_encoder_decoder_model import (
+    MegatronLMAdapterEncoderDecoderModel,
+)
 from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_model import (
     MegatronLMEncoderDecoderModel,
 )
@@ -42,8 +45,6 @@ from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTE
 from nemo.collections.nlp.parts.nlp_overrides import GlobalBatchDataFetcher
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging, timers
-
-from nemo.collections.nlp.models.language_modeling.megatron_lm_adapter_encoder_decoder_model import MegatronLMAdapterEncoderDecoderModel
 
 try:
     from apex.transformer import parallel_state

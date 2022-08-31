@@ -16,9 +16,11 @@ from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_model import MegatronLMEncoderDecoderModel
-from nemo.collections.nlp.modules.common.megatron.parallel_adapters import ParallelLinearAdapterConfig
 from nemo.collections.common.parts.adapter_modules import LinearAdapterConfig
+from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_model import (
+    MegatronLMEncoderDecoderModel,
+)
+from nemo.collections.nlp.modules.common.megatron.parallel_adapters import ParallelLinearAdapterConfig
 from nemo.core.classes.mixins import adapter_mixins
 from nemo.utils import logging
 
@@ -39,7 +41,7 @@ class MegatronLMAdapterEncoderDecoderModel(MegatronLMEncoderDecoderModel):
             # validate and add adapters
             self._validate_adapters_cfg(cfg.adapter_tuning)
 
-            with open_dict(cfg):    
+            with open_dict(cfg):
                 cfg.tokenizer = self.cfg.encoder_tokenizer
 
             self.adapter_name_keys = ['adapter_1', 'adapter_2']
@@ -68,10 +70,7 @@ class MegatronLMAdapterEncoderDecoderModel(MegatronLMEncoderDecoderModel):
             for _, module in self.enc_dec_model.named_modules():
                 if isinstance(module, adapter_mixins.AdapterModuleMixin):
                     for adapter_key in self.adapter_name_keys:
-                        module.add_adapter(
-                            name=adapter_key,
-                            cfg=adapter_cfg
-                        )
+                        module.add_adapter(name=adapter_key, cfg=adapter_cfg)
 
             logging.info(f'After adding adapters:\n{self.summarize()}')
 
@@ -93,7 +92,7 @@ class MegatronLMAdapterEncoderDecoderModel(MegatronLMEncoderDecoderModel):
         assert cfg.type in ['parallel_adapter', 'linear_adapter']
         assert hasattr(cfg, 'adapter_dim')
         assert cfg.norm_position in ['pre', 'post']
-        
+
         if hasattr(cfg, 'norm_type'):
             assert cfg.norm_type in ['mixedfusedlayernorm', 'layernorm']
 
