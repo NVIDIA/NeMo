@@ -464,7 +464,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 elif enc_input_ids is not None:
                     enc_seq_length = enc_input_ids.size(1)
 
-                decoder_self_attention_relative_position_bias = self.encoder_relative_position_embedding(
+                decoder_self_attention_relative_position_bias = self.decoder_relative_position_embedding(
                     query_seq_length=dec_seq_length, key_seq_length=dec_seq_length,
                 )
                 if not self.decoder_cfg.relative_position_bias_self_attention_only:
