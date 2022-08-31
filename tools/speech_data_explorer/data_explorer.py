@@ -23,6 +23,7 @@ import math
 import operator
 import os
 import pickle
+import time
 from collections import defaultdict
 
 import dash
@@ -31,24 +32,19 @@ import diff_match_patch
 import editdistance
 import jiwer
 import librosa
+import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+import plotly.express as px
 import soundfile as sf
 import tqdm
 from dash import dash_table, dcc, html
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
+from IPython.display import Image
 from plotly import express as px
 from plotly import graph_objects as go
 from plotly.subplots import make_subplots
-
-import pandas as pd
-import matplotlib.pyplot as plt
-import plotly.express as px
-import time
-
-
-import os
-from IPython.display import Image
 
 # number of items in a table per page
 DATA_PAGE_SIZE = 10
@@ -101,11 +97,11 @@ def parse_args():
         help='estimate frequency bandwidth and signal level of audio recordings',
     )
     parser.add_argument('--debug', '-d', action='store_true', help='enable debug mode')
-    #new
+    # new
     parser.add_argument('--compare_1st', '-c1', help='path to JSON manifest files (after transcription)')
     parser.add_argument('--compare_2nd', '-c2', help='path to JSON manifest files (after transcription)')
     args = parser.parse_args()
-    
+
     print(args)
     return args
 
@@ -185,10 +181,8 @@ def load_data(data_filename, disable_caching=False, estimate_audio=False, vocab=
 
     sm = difflib.SequenceMatcher()
     metrics_available = False
-    #new
-    
-    
-    
+    # new
+
     with open(data_filename, 'r', encoding='utf8') as f:
         for line in tqdm.tqdm(f):
             item = json.loads(line)
@@ -263,9 +257,9 @@ def load_data(data_filename, disable_caching=False, estimate_audio=False, vocab=
             wer = wer_dist / wer_count * 100.0
             cer = cer_dist / cer_count * 100.0
             wmr = wmr_count / wer_count * 100.0
-    
+
             acc_sum = 0
-            for item in vocabulary_data: #adding accuracy
+            for item in vocabulary_data:  # adding accuracy
                 w = item['word']
                 word_accuracy = match_vocab[w] / vocabulary[w] * 100.0
                 acc_sum += word_accuracy
@@ -276,17 +270,17 @@ def load_data(data_filename, disable_caching=False, estimate_audio=False, vocab=
             wer = wer_dist / wer_count * 100.0
             cer = cer_dist / cer_count * 100.0
             wmr = wmr_count / wer_count * 100.0
-    
+
             acc_sum = 0
-            for item in vocabulary_data: #adding accuracy
+            for item in vocabulary_data:  # adding accuracy
                 w = item['word']
                 word_accuracy = match_vocab[w] / vocabulary[w] * 100.0
-                #print(word_accuracy)
+                # print(word_accuracy)
                 acc_sum += word_accuracy
                 item['accuracy' + '_' + str(model_num)] = round(word_accuracy, 1)
-                #item['accuracy' + '_' + str(model_num+1 % 3)] = round(word_accuracy, 1)
-            mwa = acc_sum / len(vocabulary_data)        
-        
+                # item['accuracy' + '_' + str(model_num+1 % 3)] = round(word_accuracy, 1)
+            mwa = acc_sum / len(vocabulary_data)
+
     num_hours /= 3600.0
 
     if not disable_caching:
@@ -354,48 +348,39 @@ if args.compare_1st != None and args.compare_2nd != None:
     print("N_2: ", args.compare_2nd)
     n1 = args.compare_1st
     n2 = args.compare_2nd
-    #print(n1)
-    
-    
+    # print(n1)
+
     model_name_1 = n1.split('.')[-2]
     model_name_2 = n2.split('.')[-2]
-    
-    
+
     for_col_names = pd.DataFrame()
     for_col_names.insert(0, 'word', ['a'])
     for_col_names.insert(1, 'count', [0])
-    for_col_names.insert(2, 'accuracy_model_' + model_name_1 , [0])
-    for_col_names.insert(3, 'accuracy_model_' + model_name_2 , [0])
+    for_col_names.insert(2, 'accuracy_model_' + model_name_1, [0])
+    for_col_names.insert(3, 'accuracy_model_' + model_name_2, [0])
     for_col_names.insert(4, 'accuracy_diff ' + '(' + model_name_1 + ' - ' + model_name_2 + ')', [0])
     for_col_names.insert(5, 'count^(-1)', [0])
     print(for_col_names)
-    
-    
-    
-    
-    
-    
+
     cmp_mode = True
     model_num_1 = 1
     model_num_2 = 2
-    #data for visualisation
-    data_1, wer_1, cer_1, wmr_1, mwa_1, num_hours_1, vocabulary_1, alphabet_1, metrics_available_1 = load_data(args.compare_1st,disable_caching=True, cmp_mode=True, model_num=1)
-    data_2, wer_2, cer_2, wmr_2, mwa_2, num_hours_2, vocabulary_2, alphabet_2, metrics_available_2 = load_data(args.compare_2nd,disable_caching=True, cmp_mode=True, model_num=2)    
-    
-    
-    #probably there is smth better than this
-    for i in range(len(vocabulary_1)):
-        vocabulary_1[i].update(vocabulary_2[i]) 
+    # data for visualisation
+    data_1, wer_1, cer_1, wmr_1, mwa_1, num_hours_1, vocabulary_1, alphabet_1, metrics_available_1 = load_data(
+        args.compare_1st, disable_caching=True, cmp_mode=True, model_num=1
+    )
+    data_2, wer_2, cer_2, wmr_2, mwa_2, num_hours_2, vocabulary_2, alphabet_2, metrics_available_2 = load_data(
+        args.compare_2nd, disable_caching=True, cmp_mode=True, model_num=2
+    )
 
-    
-    #to_do - rewrite tool section with single vocabulary
+    # probably there is smth better than this
+    for i in range(len(vocabulary_1)):
+        vocabulary_1[i].update(vocabulary_2[i])
+
+    # to_do - rewrite tool section with single vocabulary
 data, wer, cer, wmr, mwa, num_hours, vocabulary, alphabet, metrics_available = load_data(
     args.manifest, args.disable_caching_metrics, args.estimate_audio_metrics, args.vocab
 )
-
-
-
-
 
 
 print('Starting server...')
@@ -437,9 +422,7 @@ for k in data[0]:
 
 if metrics_available:
     figure_word_acc = plot_word_accuracy(vocabulary)
-    
 
-    
 
 stats_layout = [
     dbc.Row(dbc.Col(html.H5(children='Global Statistics'), class_name='text-secondary'), class_name='mt-3'),
@@ -560,7 +543,7 @@ if metrics_available:
     ]
 
 wordstable_columns = [{'name': 'Word', 'id': 'word'}, {'name': 'Count', 'id': 'count'}]
-#new
+# new
 wordstable_columns_tool = [{'name': 'Word', 'id': 'word'}, {'name': 'Count', 'id': 'count'}]
 wordstable_columns_tool.append({'name': 'Accuracy_1, %', 'id': 'accuracy_1'})
 wordstable_columns_tool.append({'name': 'Accuracy_2, %', 'id': 'accuracy_2'})
@@ -568,8 +551,8 @@ if 'OOV' in vocabulary[0]:
     wordstable_columns.append({'name': 'OOV', 'id': 'OOV'})
 if metrics_available:
     wordstable_columns.append({'name': 'Accuracy, %', 'id': 'accuracy'})
-#if metrics_available_1 and metrics_available_2:
-    #wordstable_columns_tool.append
+# if metrics_available_1 and metrics_available_2:
+# wordstable_columns_tool.append
 
 stats_layout += [
     dbc.Row(dbc.Col(html.H5('Vocabulary'), class_name='text-secondary'), class_name='mt-3'),
@@ -598,7 +581,7 @@ stats_layout += [
     dbc.Row(dbc.Col([html.Button('Download Vocabulary', id='btn_csv'), dcc.Download(id='download-vocab-csv'),]),),
 ]
 
-#VOCAB
+# VOCAB
 @app.callback(
     Output('download-vocab-csv', 'data'),
     [Input('btn_csv', 'n_clicks'), State('wordstable', 'sort_by'), State('wordstable', 'filter_query')],
@@ -653,106 +636,96 @@ def update_wordstable(page_current, sort_by, filter_query):
         vocabulary_view[page_current * DATA_PAGE_SIZE : (page_current + 1) * DATA_PAGE_SIZE],
         math.ceil(len(vocabulary_view) / DATA_PAGE_SIZE),
     ]
+
+
 ##new section
 
 
-
-def Data_preparation_unrelated_models(mod1, mod2, name1 = model_name_1, name2 = model_name_2):    
+def Data_preparation_unrelated_models(mod1, mod2, name1=model_name_1, name2=model_name_2):
     res = pd.DataFrame()
     tmp = mod1['word']
     res.insert(0, 'word', tmp)
     res.insert(1, 'count', [float(i) for i in mod1['count']])
-    res.insert(2, 'accuracy_model_' + name1 , mod1['accuracy_1'])
-    res.insert(3, 'accuracy_model_' + name2 , mod2['accuracy_2'])
+    res.insert(2, 'accuracy_model_' + name1, mod1['accuracy_1'])
+    res.insert(3, 'accuracy_model_' + name2, mod2['accuracy_2'])
     res.insert(4, 'accuracy_diff ' + '(' + name1 + ' - ' + name2 + ')', mod1['accuracy_1'] - mod2['accuracy_2'])
-    res.insert(2, 'count^(-1)', 1/mod1['count'])
-    
+    res.insert(2, 'count^(-1)', 1 / mod1['count'])
+
     return res
-
-
-
-
 
 
 @app.callback(
     Output('voc_graph', 'figure'),
-    [Input('datatable-advanced-filtering', 'filter_query'),
-     Input('xaxis-column', 'value'), Input('yaxis-column', 'value'), Input('color-column', 'value'), Input('size-column', 'value'),
-     Input("datatable-advanced-filtering", "derived_virtual_data"),],
-    prevent_initial_call=False,)
-def Draw_vocab(filter_query, Ox, Oy, color, size, data, value=None): 
+    [
+        Input('datatable-advanced-filtering', 'filter_query'),
+        Input('xaxis-column', 'value'),
+        Input('yaxis-column', 'value'),
+        Input('color-column', 'value'),
+        Input('size-column', 'value'),
+        Input("datatable-advanced-filtering", "derived_virtual_data"),
+    ],
+    prevent_initial_call=False,
+)
+def Draw_vocab(filter_query, Ox, Oy, color, size, data, value=None):
     import pandas as pd
 
     df = pd.DataFrame.from_records(data)
 
-
     res = Prepare_data(df)
 
-    fig = px.scatter(res, x = Ox, y= Oy, color=color, size=size, hover_data={'word':True, Ox:True, Oy:True, 'count':True}, width=1300, height=1000)
-    if (Ox == 'accuracy_model_' + model_name_1 and Oy == 'accuracy_model_' + model_name_2 ) or (Oy == 'accuracy_model_' + model_name_1 and Ox == 'accuracy_model_' + model_name_2 ):
-        fig.add_shape(type="line",
-        x0=0, y0=0, x1=100, y1=100,
-        line=dict(
-            color="MediumPurple",
-            width=1,
-            dash="dot",))
+    fig = px.scatter(
+        res,
+        x=Ox,
+        y=Oy,
+        color=color,
+        size=size,
+        hover_data={'word': True, Ox: True, Oy: True, 'count': True},
+        width=1300,
+        height=1000,
+    )
+    if (Ox == 'accuracy_model_' + model_name_1 and Oy == 'accuracy_model_' + model_name_2) or (
+        Oy == 'accuracy_model_' + model_name_1 and Ox == 'accuracy_model_' + model_name_2
+    ):
+        fig.add_shape(type="line", x0=0, y0=0, x1=100, y1=100, line=dict(color="MediumPurple", width=1, dash="dot",))
 
     return fig
 
 
-def Prepare_data(df, name1 = model_name_1, name2 = model_name_2):
+def Prepare_data(df, name1=model_name_1, name2=model_name_2):
     res = pd.DataFrame()
     tmp = df['word']
     res.insert(0, 'word', tmp)
     res.insert(1, 'count', [float(i) for i in df['count']])
-    res.insert(2, 'accuracy_model_' + name1 , df['accuracy_1'])
-    res.insert(3, 'accuracy_model_' + name2 , df['accuracy_2'])
+    res.insert(2, 'accuracy_model_' + name1, df['accuracy_1'])
+    res.insert(3, 'accuracy_model_' + name2, df['accuracy_2'])
     res.insert(4, 'accuracy_diff ' + '(' + name1 + ' - ' + name2 + ')', df['accuracy_1'] - df['accuracy_2'])
-    res.insert(2, 'count^(-1)', 1/df['count'])
+    res.insert(2, 'count^(-1)', 1 / df['count'])
     return res
 
 
-
-
-
-
-
-
-            
 comparation_layout = [
-    #dbc.Row(dbc.Col(html.H5('More information can be found in documentation'), class_name='text-secondary'), class_name='mt-9'),
-    
-    
+    # dbc.Row(dbc.Col(html.H5('More information can be found in documentation'), class_name='text-secondary'), class_name='mt-9'),
     html.Hr(),
-
-    html.Div([
-        dcc.Dropdown(
-            for_col_names.columns[::], #add columns
-            'count',
-            id='xaxis-column'
-        ),
-        dcc.Dropdown(
-            for_col_names.columns[::], #add columns
-            'word',
-            id='yaxis-column'
-        ),  
-        dcc.Dropdown(
-            for_col_names.select_dtypes(include='number').columns[::], #add columns
-            placeholder='Select what will encode color of points',
-            id='color-column'
-        ),  
-        dcc.Dropdown(
-            for_col_names.select_dtypes(include='number').columns[::], #add columns
-            placeholder='Select what will encode size of points',
-            id='size-column'
-        ),         
-        dcc.Input(id='filter-query-input', placeholder='Enter filter query'),
-        
-        ], style={'width': '50%', 'display': 'inline-block', 'float':'middle'}),
-    
+    html.Div(
+        [
+            dcc.Dropdown(for_col_names.columns[::], 'count', id='xaxis-column'),  # add columns
+            dcc.Dropdown(for_col_names.columns[::], 'word', id='yaxis-column'),  # add columns
+            dcc.Dropdown(
+                for_col_names.select_dtypes(include='number').columns[::],  # add columns
+                placeholder='Select what will encode color of points',
+                id='color-column',
+            ),
+            dcc.Dropdown(
+                for_col_names.select_dtypes(include='number').columns[::],  # add columns
+                placeholder='Select what will encode size of points',
+                id='size-column',
+            ),
+            dcc.Input(id='filter-query-input', placeholder='Enter filter query'),
+        ],
+        style={'width': '50%', 'display': 'inline-block', 'float': 'middle'},
+    ),
     html.Hr(),
-    html.Div(id='filter-query-output'), #Nice
-    
+    html.Div(id='filter-query-output'),  # Nice
     dash_table.DataTable(
         id='datatable-advanced-filtering',
         columns=wordstable_columns_tool,
@@ -760,21 +733,21 @@ comparation_layout = [
         editable=False,
         page_action='native',
         page_size=5,
-        filter_action="native"
-    ),    
+        filter_action="native",
+    ),
     html.Hr(),
     html.Div(id='datatable-query-structure', style={'whitespace': 'pre'}),
     html.Hr(),
     dbc.Row(dbc.Col(dcc.Graph(id='voc_graph'),),),
     html.Hr(),
     html.Hr(),
-    ]
+]
 
 
 @app.callback(
     Output('filter-query-input', 'style'),
     Output('filter-query-output', 'style'),
-    Input('filter-query-read-write', 'value')
+    Input('filter-query-read-write', 'value'),
 )
 def query_input_output(val):
     input_style = {'width': '100%'}
@@ -784,50 +757,41 @@ def query_input_output(val):
     return input_style, output_style
 
 
-
-
-@app.callback(
-    Output('datatable-advanced-filtering', 'filter_query'),
-    Input('filter-query-input', 'value')
-)
+@app.callback(Output('datatable-advanced-filtering', 'filter_query'), Input('filter-query-input', 'value'))
 def write_query(query):
     if query is None:
         return ''
     return query
 
 
-@app.callback(
-    Output('filter-query-output', 'children'),
-    Input('datatable-advanced-filtering', 'filter_query')
-)
+@app.callback(Output('filter-query-output', 'children'), Input('datatable-advanced-filtering', 'filter_query'))
 def read_query(query):
     if query is None:
         return "No filter query"
     return dcc.Markdown('`filter_query = "{}"`'.format(query))
 
 
-
-
 @app.callback(
     Output('datatable-query-structure', 'children'),
-    Input('datatable-advanced-filtering', 'derived_filter_query_structure')
+    Input('datatable-advanced-filtering', 'derived_filter_query_structure'),
 )
 def display_query(query):
     if query is None:
         return ''
-    return html.Details([
-        html.Summary('Derived filter query structure'),
-        html.Div(dcc.Markdown('''```json
+    return html.Details(
+        [
+            html.Summary('Derived filter query structure'),
+            html.Div(
+                dcc.Markdown(
+                    '''```json
 {}
-```'''.format(json.dumps(query, indent=4))))
-    ])
-
-
-
-
-
-
-
+```'''.format(
+                        json.dumps(query, indent=4)
+                    )
+                )
+            ),
+        ]
+    )
 
 
 ###########################################################################################################################################END
@@ -940,7 +904,7 @@ app.layout = html.Div(
             children=[
                 dbc.NavItem(dbc.NavLink('Statistics', id='stats_link', href='/', active=True)),
                 dbc.NavItem(dbc.NavLink('Samples', id='samples_link', href='/samples')),
-                dbc.NavItem(dbc.NavLink('Comparative tool', id='comp_tool', href='/comparation'))
+                dbc.NavItem(dbc.NavLink('Comparative tool', id='comp_tool', href='/comparation')),
             ],
             brand='Speech Data Explorer',
             sticky='top',
@@ -953,7 +917,12 @@ app.layout = html.Div(
 
 
 @app.callback(
-    [Output('page-content', 'children'), Output('stats_link', 'active'), Output('samples_link', 'active'), Output('comp_tool', 'active')],
+    [
+        Output('page-content', 'children'),
+        Output('stats_link', 'active'),
+        Output('samples_link', 'active'),
+        Output('comp_tool', 'active'),
+    ],
     [Input('url', 'pathname')],
 )
 def nav_click(url):

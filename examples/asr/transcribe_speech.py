@@ -32,6 +32,7 @@ from nemo.collections.asr.parts.utils.transcribe_utils import transcribe_partial
 from nemo.core.config import hydra_runner
 from nemo.utils import logging, model_utils
 
+
 """
 Transcribe audio file on a single CPU/GPU. Useful for transcription of moderate amounts of audio data.
 
@@ -214,7 +215,8 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     if not cfg.overwrite_transcripts and os.path.exists(cfg.output_filename) and not cfg.add_info:
         logging.info(
             f"Previous transcripts found at {cfg.output_filename}, and flag `overwrite_transcripts`"
-            f"is {cfg.overwrite_transcripts}. Returning without re-transcribing text.")
+            f"is {cfg.overwrite_transcripts}. Returning without re-transcribing text."
+        )
         return cfg
 
     if cfg.add_info and cfg.overwrite_transcripts:
