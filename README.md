@@ -3488,17 +3488,11 @@ job_name_prefix: "bignlp-"
 
 **Example:**
 
-To run only the export pipeline, enable `run_export` flag, simultaneously disabling the `run_` flags 
-in the `conf/config.yaml`:
+To run only the export pipeline, include `export` under `stages` in the `conf/config.yaml`:
 
 ```yaml
-run_data_preparation: False
-run_training: False
-run_conversion: False
-run_fine_tuning: False
-run_prompt_learning: False
-run_evaluation: False
-run_export: True
+stages:
+  - export
 ```
 
 then run:
@@ -3515,10 +3509,10 @@ from the command line, using hydra. The export scripts must be launched in a mul
 To run the export pipeline to evaluate a 126M GPT-3 model checkpoint stored in 
 `/mount/results/gpt3_126m/checkpoints`, run:
 ```
-python3 /opt/bignlp/bignlp-scripts/main.py run_data_preparation=False run_training=False run_conversion=False run_fine_tuning=False    \
-run_evaluation=False run_export=True cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile_gpt3 \
+python3 /opt/bignlp/bignlp-scripts/main.py \
+stages=[export] \
+cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile_gpt3 \
 base_results_dir=/mount/results \
-
 export.run.model_train_name=gpt3_126m \
 export.model.tensor_model_parallel_size=2 \
 export.triton_deployment.pipeline_model_parallel_size=1 \
@@ -3538,7 +3532,7 @@ The configuration used for the export needs to be specified in the
 `conf/config.yaml` file, specifying the `export` parameter, which specifies the
 file to use for export purposes. The `run_export` parameter must be set
 to `True` to run the training pipeline export stage. `export` parameter should be changed to
-`t5`, which maps to `conf/export/t5.yaml` configuration file. The
+`t5/export_t5`, which maps to `conf/export/t5/export_t5.yaml` configuration file. The
 parameters can be modified to adapt different export and set of tests run on prepared Triton Model Repository.
 For Base Command Platform, all these parameters should be overridden from the command line.
 
@@ -3630,17 +3624,12 @@ job_name_prefix: "bignlp-"
 
 **Example:**
 
-To run only the export pipeline, enable `run_export` flag, simultaneously disabling the `run_` flags 
-in the `conf/config.yaml`:
+To run only the export pipeline, include only `export` in `stages`
+under the `conf/config.yaml`:
 
 ```yaml
-run_data_preparation: False
-run_training: False
-run_conversion: False
-run_fine_tuning: False
-run_prompt_learning: False
-run_evaluation: False
-run_export: True
+stages:
+  - export
 ```
 
 then run:
@@ -3658,8 +3647,8 @@ To run the export pipeline to evaluate a 220m T5 model checkpoint stored in
 `/mount/results/t5_220m/mnli/checkpoints`, run:
 
 ```
-python3 /opt/bignlp/bignlp-scripts/main.py run_data_preparation=False run_training=False run_conversion=False run_fine_tuning=False \
-run_evaluation=False run_export=True cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
+python3 /opt/bignlp/bignlp-scripts/main.py stages=[export] \
+cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
 base_results_dir=/mount/results \
 export.run.model_train_name=t5_220m \
 export.model.tensor_model_parallel_size=2 \
@@ -3681,7 +3670,7 @@ The configuration used for the export needs to be specified in the
 `conf/config.yaml` file, specifying the `export` parameter, which specifies the
 file to use for export purposes. The `run_export` parameter must be set
 to `True` to run the training pipeline export stage. `export` parameter should be changed to
-`mt5`, which maps to `conf/export/mt5.yaml` configuration file. The
+`mt5/export_mt5`, which maps to `conf/export/export_mt5.yaml` configuration file. The
 parameters can be modified to adapt different export and set of tests run on prepared Triton Model Repository.
 For Base Command Platform, all these parameters should be overridden from the command line.
 
@@ -3777,13 +3766,8 @@ To run only the export pipeline, enable `run_export` flag, simultaneously disabl
 in the `conf/config.yaml`:
 
 ```yaml
-run_data_preparation: False
-run_training: False
-run_conversion: False
-run_fine_tuning: False
-run_prompt_learning: False
-run_evaluation: False
-run_export: True
+stages:
+  - export
 ```
 
 then run:
@@ -3801,8 +3785,8 @@ To run the export pipeline to evaluate a 390m mT5 model checkpoint stored in
 `/mount/results/mt5_390m/xnli/checkpoints`, run:
 
 ```
-python3 /opt/bignlp/bignlp-scripts/main.py run_data_preparation=False run_training=False run_conversion=False run_fine_tuning=False \
-run_evaluation=False run_export=True cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
+python3 /opt/bignlp/bignlp-scripts/main.py stages=[export] \
+cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
 base_results_dir=/mount/results \
 export.run.model_train_name=mt5_390m \
 export.model.tensor_model_parallel_size=2 \
@@ -4244,6 +4228,13 @@ Inference parameters:
 
 ## 8. Changelog
 <a id="markdown-changelog" name="changelog"></a>
+**NeMo Megatron 22.08.01**
+* Distributed Adam Optimizer for GPT-3
+* Asymmetric Encoder-decoder Configuration for T5 and mT5
+* Possible to Untie Embeddings with Classifier Layer fo T5 and mT5
+* Relative Position Embeddings for T5 and mT5 (PP>=3)
+* P-Tuning and Prompt Tuning for T5 and mT5 (PP=1)
+* Refactoring scripts make it more user-friendly
 
 **NeMo Megatron 22.06-hotfix.01**
 * Fix: Hyperparameter tool for T5 and mT5
