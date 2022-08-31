@@ -340,7 +340,7 @@ def launch_grid_search_configs(base_dir, results_cfgs, model_name, cfg):
             src_file = os.path.join(base_dir, file_name)
             dst_dir = os.path.join(bignlp_scripts_path, "conf/training", model_name, file_name)
             shutil.copyfile(src_file, dst_dir)
-            job_id = train.run_training(file_name, bignlp_hp_tool_path, bignlp_scripts_path, model_name, results_dir, cfg)
+            job_id = train.run_training(file_name, bignlp_scripts_path, model_name, results_dir, cfg)
             os.remove(dst_dir)
             
             if job_id is not None:
