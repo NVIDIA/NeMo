@@ -2224,13 +2224,13 @@ In order to run the conversion script on Base Command Platform, set the
 from the command line, using hydra. The conversion script must be launched in a multi-node job.
 
 To run the conversion pipeline to convert a 126M checkpoint stored in 
-`/mount/results/gpt3_126m/checkpoints`, run:
+`/mount/results/gpt3_126m/results/checkpoints`, run:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py stages=[conversion] \
 cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile_gpt3 \
 base_results_dir=/mount/results conversion.run.model_train_name=gpt3_126m conversion.model.vocab_file=/mount/data/bpe/vocab.json \
 conversion.model.merge_file=/mount/data/bpe/merges.txt conversion.run.results_dir=/mount/results/gpt3_126m/convert_nemo \
-conversion.model.checkpoint_folder=/mount/results/gpt3_126m/checkpoints conversion.model.tensor_model_parallel_size=1 \
+conversion.model.checkpoint_folder=/mount/results/gpt3_126m/results/checkpoints conversion.model.tensor_model_parallel_size=1 \
 >> /results/convert_gpt3_log.txt 2>&1
 ```
 The command above assumes you mounted the data workspace in `/mount/data`, and the results workspace in `/mount/results`. 
@@ -2318,13 +2318,13 @@ In order to run the conversion script on Base Command Platform, set the
 from the command line, using hydra. The conversion script must be launched in a multi-node job.
 
 To run the conversion pipeline to convert a T5 220M checkpoint stored in 
-`/mount/results/t5_220m/checkpoints`, run:
+`/mount/results/t5_220m/results/checkpoints`, run:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py conversion=convert_t5 \
 stages=[conversion] \
 cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile_t5 \
 base_results_dir=/mount/results conversion.model.vocab_file=/mount/data/bpe/vocab.txt \
-conversion.run.model_train_name=t5_220m conversion.run.results_dir=/mount/results/t5_220m/convert_nemo \
+conversion.run.model_train_name=t5_220m conversion.run.results_dir=/mount/results/t5_220m/results/convert_nemo \
 conversion.model.checkpoint_folder=/mount/results/t5_220m/checkpoints \
 conversion.model.tensor_model_parallel_size=1 conversion.model.pipeline_model_parallel_size=1 \
 >> /results/convert_t5_log.txt 2>&1
@@ -2415,13 +2415,13 @@ In order to run the conversion script on Base Command Platform, set the
 from the command line, using hydra. The conversion script must be launched in a multi-node job.
 
 To run the conversion pipeline to convert a mT5 390M checkpoint stored in 
-`/mount/results/mt5_390m/checkpoints`, run:
+`/mount/results/mt5_390m/results/checkpoints`, run:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py conversion=convert_mt5 \
 stages=[conversion] \
 cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
 conversion.run.model_train_name=mt5_390m \
-base_results_dir=/mount/results conversion.run.results_dir=/mount/results/mt5_390m/convert_nemo \
+base_results_dir=/mount/results conversion.run.results_dir=/mount/results/mt5_390m/results/convert_nemo \
 conversion.model.checkpoint_folder=/mount/results/mt5_390m/checkpoints \
 conversion.model.tensor_model_parallel_size=1 conversion.model.pipeline_model_parallel_size=1 \
 >> /results/convert_mt5_log.txt 2>&1
@@ -2434,23 +2434,21 @@ Any other parameter can also be added to the command to modify its behavior.
 <a id="markdown-model-fine_tuning" name="model-fine_tuning"></a>
 
 We also provide an easy-to-use tool to help fine-tuning the trained checkpoints
-on GLUE tasks for T5 models and on XNLI for mT5 models. Fine-tuning for GPT-3 models are not supported.
+on SQuAD for T5 models and on XQuAD for mT5 models. Fine-tuning for GPT-3 models are not supported.
 
 #### 5.9.1. T5 Fine-tuning
 <a id="markdown-t5-fine_tuning" name="t5-fine_tuning"></a>
 
-The following downstream GLUE tasks are supported for T5 models: 
-`cola`, `sst-2`, `mrpc`, `qqp`, `mnli`, `qnli`, and `rte`.
 
 The configuration used for the fine-tuning needs to be specified in the
 `conf/config.yaml` file, specifying the `fine_tuning` parameter, which specifies the
 file to use for fine-tuning purposes. The `fine_tuning` parameter must be included in `stages` 
-to run the fine-tuning pipeline. To fine-tune checkpoint on `mnli` task, set
-`fine_tuning` parameter to `t5/mnli`, which can be found in `conf/fine_tuning/t5/mnli.yaml`. The
+to run the fine-tuning pipeline. To fine-tune checkpoint on `squad` task, set
+`fine_tuning` parameter to `t5/squad`, which can be found in `conf/fine_tuning/t5/squad.yaml`. The
 parameters can be modified to adapt different GLUE tasks and checkpoints
 in fine-tuning runs. One will need to tune the fine-tuning hyper parameters
 to reach the best accuracy for a specific GLUE task. The provided hyper parameters
-are only optimized for T5 220M model on `mnli` task.
+are only optimized for T5 220M model on `squad` task.
 
 ##### 5.9.1.1. Common
 <a id="markdown-common" name="common"></a>
@@ -2464,7 +2462,7 @@ run:
     dependency: "singleton"
     convert_name: convert_nemo
     model_train_name: t5_220m
-    task_name: "mnli"
+    task_name: "squad"
     results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
 ```
 
@@ -2517,11 +2515,11 @@ from the command line, using hydra. The evaluation script must be launched in a 
 To run the fine-tuning pipeline to fine-tune a 220M T5 model converted checkpoint stored in 
 /mount/results/t5_220m/convert_nemo, run:
 ```
-python3 /opt/bignlp/bignlp-scripts/main.py fine_tuning=t5/mnli stages=[fine_tuning] \
+python3 /opt/bignlp/bignlp-scripts/main.py fine_tuning=t5/squad stages=[fine_tuning] \
  cluster_type=bcp \
 bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data base_results_dir=/mount/results \
 fine_tuning.run.model_train_name=t5_220m \
-fine_tuning.model.restore_from_path=/mount/results/t5_220m/convert_nemo/megatron_t5.nemo \
+fine_tuning.model.restore_from_path=/mount/results/t5_220m/convert_nemo/results/megatron_t5.nemo \
 >> /results/finetune_t5_log.txt 2>&1
 ```
 
@@ -2534,13 +2532,13 @@ Any other parameter can also be added to the command to modify its behavior.
 #### 5.9.2. mT5 Fine-tuning
 <a id="markdown-mt5-fine_tuning" name="mt5-fine_tuning"></a>
 
-XNLI benchmark are supported for mT5 models.
+XQuAD benchmark are supported for mT5 models.
 
 The configuration used for the fine-tuning needs to be specified in the
 `conf/config.yaml` file, specifying the `fine_tuning` parameter, which specifies the
 file to use for fine-tuning purposes. The `fine_tuning` parameter must be included in `stages` 
- to run the fine-tuning pipeline. To fine-tune checkpoint on `xnli` task, set
-`fine_tuning` parameter to `mt5/xnli`, which can be found in `conf/fine_tuning/mt5/xnli.yaml`.
+ to run the fine-tuning pipeline. To fine-tune checkpoint on `xquad` task, set
+`fine_tuning` parameter to `mt5/xquad`, which can be found in `conf/fine_tuning/mt5/xquad.yaml`.
 
 ##### 5.9.2.1. Common
 <a id="markdown-common" name="common"></a>
@@ -2554,7 +2552,7 @@ run:
   dependency: "singleton"
   convert_name: convert_nemo
   model_train_name: mt5_220m
-  task_name: "xnli"
+  task_name: "xquad"
   results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
 ```
 
@@ -2607,11 +2605,11 @@ from the command line, using hydra. The evaluation script must be launched in a 
 To run the fine-tuning pipeline to fine-tune a 390M mT5 model converted checkpoint stored in 
 /mount/results/mt5_390m/convert_nemo, run:
 ```
-python3 /opt/bignlp/bignlp-scripts/main.py  fine_tuning=mt5/xnli stages=[fine_tuning] \
+python3 /opt/bignlp/bignlp-scripts/main.py  fine_tuning=mt5/xquad stages=[fine_tuning] \
  cluster_type=bcp \
 bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data base_results_dir=/mount/results \
 fine_tuning.run.model_train_name=mt5_390m \
-fine_tuning.model.restore_from_path=/mount/results/mt5_390m/convert_nemo/megatron_mt5_glue_xnli.nemo \
+fine_tuning.model.restore_from_path=/mount/results/mt5_390m/convert_nemo/results/megatron_mt5_xquad.nemo \
 >> /results/finetune_mt5_log.txt 2>&1
 ```
 
@@ -2750,7 +2748,7 @@ python3 /opt/bignlp/bignlp-scripts/main.py \
 stages=[prompt_learning] cluster_type=bcp \
 bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data base_results_dir=/mount/results \
 prompt_learning.run.model_train_name=gpt3_5b \
-prompt_learning.model.language_model_path=/mount/results/gpt3_5b/convert_nemo/megatron_gpt.nemo \
+prompt_learning.model.language_model_path=/mount/results/gpt3_5b/convert_nemo/results/megatron_gpt.nemo \
 >> /results/prompt_learning_gpt3_log.txt 2>&1
 ```
 
@@ -2836,7 +2834,7 @@ python3 /opt/bignlp/bignlp-scripts/main.py \
 stages=[prompt_learning] cluster_type=bcp \
 bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data base_results_dir=/mount/results \
 prompt_learning.run.model_train_name=t5_220m \
-prompt_learning.model.language_model_path=/mount/results/t5_220m/convert_nemo/megatron_t5.nemo \
+prompt_learning.model.language_model_path=/mount/results/t5_220m/convert_nemo/results/megatron_t5.nemo \
 >> /results/prompt_learning_t5_log.txt 2>&1
 ```
 
@@ -2851,7 +2849,7 @@ python3 /opt/bignlp/bignlp-scripts/main.py \
 stages=[prompt_learning] cluster_type=bcp \
 bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data base_results_dir=/mount/results \
 prompt_learning.run.model_train_name=mt5_390m \
-prompt_learning.model.language_model_path=/mount/results/t5_220m/convert_nemo/megatron_mt5.nemo \
+prompt_learning.model.language_model_path=/mount/results/t5_220m/convert_nemo/results/megatron_mt5.nemo \
 >> /results/prompt_learning_mt5_log.txt 2>&1
 ```
 
@@ -2959,7 +2957,7 @@ python3 /opt/bignlp/bignlp-scripts/main.py stages=[evaluation] \
  cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile_gpt3 \
 base_results_dir=/mount/results evaluation.model.vocab_file=/mount/data/bpe/vocab.json \
 evaluation.model.merge_file=/mount/data/bpe/merges.txt evaluation.run.results_dir=/mount/results/gpt3_126m/evaluation \
-evaluation.model.checkpoint_folder=/mount/results/gpt3_126m/checkpoints evaluation.model.eval_batch_size=16 \
+evaluation.model.checkpoint_folder=/mount/results/gpt3_126m/results/checkpoints evaluation.model.eval_batch_size=16 \
 evaluation.model.tensor_model_parallel_size=1 \
 >> /results/eval_gpt3_log.txt 2>&1
 ```
@@ -2974,18 +2972,14 @@ Any other parameter can also be added to the command to modify its behavior.
 
 
 On top of fine-tuned checkpoint, you can run the evaluation scripts to
-evaluate the capabilities of the finetuned T5 model on the following 
-downstream evaluation tasks: `cola`, `sst-2`, `mrpc`, `qqp`, 
-`mnli`, `qnli`, and `rte`. Usually the task of fine_tuning and evaluation
-should be the same.
-
+evaluate the capabilities of the finetuned T5 model on SQuAD.
 The model evaluation must be performed with a fine-tuned checkpoint in `.nemo` format.
 
 The configuration used for the evaluation needs to be specified in the
 `conf/config.yaml` file, specifying the `evaluation` parameter, which specifies the
 file to use for evaluation purposes. The `evaluation` parameter must be included in `stages`
  to run the evaluation pipeline. The default value is set to
-`t5/mnli_matched`, which can be found in `conf/evaluation/t5/mnli_matched.yaml`. The
+`t5/squad`, which can be found in `conf/evaluation/t5/squad.yaml`. The
 parameters can be modified to adapt different evaluation tasks and checkpoints
 in evaluation runs. For Base Command Platform, all these parameters should be overriden from the command line.
 
@@ -3000,7 +2994,7 @@ run:
     time_limit: "04:00:00"
     dependency: "singleton"
     model_train_name: t5_220m
-    task_name: "mnli"
+    task_name: "squad"
     fine_tuning_results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
     results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}_eval
 ```
@@ -3052,13 +3046,13 @@ In order to run the evaluation script on Base Command Platform for T5 models, se
 from the command line, using hydra. The evaluation script must be launched in a multi-node job.
 
 To run the evaluation pipeline to evaluate a 220M T5 model which has been fine-tuned
-on `mnli` task and checkpoint stored in `/mount/results/t5_220m/mnli/checkpoints`, run:
+on `squad` task and checkpoint stored in `/mount/results/t5_220m/squad/results/checkpoints`, run:
 ```
-python3 /opt/bignlp/bignlp-scripts/main.py evaluation=t5/mnli_matched \
+python3 /opt/bignlp/bignlp-scripts/main.py evaluation=t5/squad \
 stages=[evaluation] \
  cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
 base_results_dir=/mount/results evaluation.run.model_train_name=t5_220m \
-evaluation.model.restore_from_path=/mount/results/t5_220m/mnli/checkpoints/megatron_t5_glue.nemo \
+evaluation.model.restore_from_path=/mount/results/t5_220m/squad/results/checkpoints/megatron_t5_glue.nemo \
 >> /results/eval_t5_log.txt 2>&1
 ```
 
@@ -3073,7 +3067,7 @@ Any other parameter can also be added to the command to modify its behavior.
 
 On top of fine-tuned checkpoint, you can run the evaluation scripts to
 evaluate the capabilities of the finetuned mT5 model on the following 
-downstream evaluation tasks: `xnli`. Usually the task of fine_tuning and evaluation
+downstream evaluation tasks: `xquad`. Usually the task of fine_tuning and evaluation
 should be the same.
 
 The model evaluation must be performed with a fine-tuned checkpoint in `.nemo` format.
@@ -3082,7 +3076,7 @@ The configuration used for the evaluation needs to be specified in the
 `conf/config.yaml` file, specifying the `evaluation` parameter, which specifies the
 file to use for evaluation purposes. The `evaluation` parameter must be included in `stages`
  to run the evaluation pipeline. The default value is set to
-`mt5/xnli`, which can be found in `conf/evaluation/mt5/xnli.yaml`. The
+`mt5/xquad`, which can be found in `conf/evaluation/mt5/xquad.yaml`. The
 parameters can be modified to adapt different evaluation tasks and checkpoints
 in evaluation runs. For Base Command Platform, all these parameters should be overriden from the command line.
 
@@ -3097,7 +3091,7 @@ run:
     time_limit: "04:00:00"
     dependency: "singleton"
     model_train_name: mt5_390m
-    task_name: "xnli"
+    task_name: "xquad"
     fine_tuning_results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
     results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}_eval
 ```
@@ -3106,7 +3100,7 @@ To specify which fine-tuned checkpoint to load and its definition, use the `mode
 
 ```yaml
 model:
-    restore_from_path: ${evaluation.run.fine_tuning_results_dir}/checkpoints/megatron_mt5_glue_xnli.nemo # Path to a finetuned T5 .nemo file
+    restore_from_path: ${evaluation.run.fine_tuning_results_dir}/checkpoints/megatron_mt5_xquad.nemo # Path to a finetuned T5 .nemo file
     tensor_model_parallel_size: 1
     pipeline_model_parallel_size: 1
 ```
@@ -3149,12 +3143,12 @@ In order to run the evaluation script on Base Command Platform for mT5 models, s
 from the command line, using hydra. The evaluation script must be launched in a multi-node job.
 
 To run the evaluation pipeline to evaluate a 390M mT5 model which has been fine-tuned
-on `xnli` task and checkpoint stored in `/mount/results/mt5_390m/xnli/checkpoints`, run:
+on `xquad` task and checkpoint stored in `/mount/results/mt5_390m/xquad/results/checkpoints`, run:
 ```
-python3 /opt/bignlp/bignlp-scripts/main.py evaluation=mt5/xnli \
+python3 /opt/bignlp/bignlp-scripts/main.py evaluation=mt5/xquad \
 stages=[evaluation] cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
 base_results_dir=/mount/results evaluation.run.model_train_name=mt5_390m \
-evaluation.model.restore_from_path=/mount/results/mt5_390m/mnli/checkpoints/megatron_mt5_glue_xnli.nemo \
+evaluation.model.restore_from_path=/mount/results/mt5_390m/xquad/results/checkpoints/megatron_mt5_xquad.nemo \
 >> /results/eval_mt5_log.txt 2>&1
 ```
 
@@ -3255,7 +3249,7 @@ To run the evaluation pipeline to evaluate a prompt learnt 5B GPT-3 model checkp
 python3 /opt/bignlp/bignlp-scripts/main.py stages=[evaluation] \
  cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
 base_results_dir=/mount/results evaluation.run.results_dir=/mount/results/gpt3_5b/eval_prompt_squad \
-evaluation.model.nemo_model=/mount/results/gpt3_5b/prompt_learning_squad/megatron_gpt_prompt.nemo \
+evaluation.model.nemo_model=/mount/results/gpt3_5b/prompt_learning_squad/results/megatron_gpt_prompt.nemo \
 evaluation.model.nemo_model=4 evaluation.model.tensor_model_parallel_size=2 \
 >> /results/eval_prompt_gpt3_log.txt 2>&1
 ```
@@ -3358,7 +3352,7 @@ To run the evaluation pipeline to evaluate a prompt learnt 220M T5 model checkpo
 python3 /opt/bignlp/bignlp-scripts/main.py stages=[evaluation] \
  cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
 base_results_dir=/mount/results evaluation.run.results_dir=/mount/results/t5_220m/eval_prompt_squad \
-evaluation.model.virtual_prompt_model_file=/mount/results/t5_220m/prompt_learning_squad/megatron_t5_prompt.nemo \
+evaluation.model.virtual_prompt_model_file=/mount/results/t5_220m/prompt_learning_squad/results/megatron_t5_prompt.nemo \
 >> /results/eval_prompt_t5_log.txt 2>&1
 ```
 The command above assumes you mounted the data workspace in `/mount/data`, and the results workspace in `/mount/results`. 
@@ -3371,7 +3365,7 @@ To run the evaluation pipeline to evaluate a prompt learnt 390M mT5 model checkp
 python3 /opt/bignlp/bignlp-scripts/main.py stages=[evaluation] \
  cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
 base_results_dir=/mount/results evaluation.run.results_dir=/mount/results/mt5_390m/eval_prompt_squad \
-evaluation.model.virtual_prompt_model_file=/mount/results/mt5_390m/prompt_learning_squad/megatron_mt5_prompt.nemo \
+evaluation.model.virtual_prompt_model_file=/mount/results/mt5_390m/prompt_learning_squad/results/megatron_mt5_prompt.nemo \
 >> /results/eval_prompt_mt5_log.txt 2>&1
 ```
 The command above assumes you mounted the data workspace in `/mount/data`, and the results workspace in `/mount/results`. 
@@ -4053,18 +4047,6 @@ Inference parameters:
 <a id="markdown-t5-results" name="t5-results"></a>
 
 #### 7.2.1. Training Accuracy Results
-Training Accuracy: NVIDIA DGX SuperPOD (4 x 8 x A100 80GB for 220M T5 Model; 20 x 8 x A100 80GB for 3B T5 Model)
-
-We evaluated the 220M parameter and 3B parameter T5 models on 2 GLUE
-tasks. The results can be found in the table below. The user can 
-finetune on top of any `.nemo` trained checkpoint file on all available 
-GLUE tasks mentioned in T5 fine_tuning section with their own recipes.
-
-| Task        |Metric                        | 220M    | 3B    |
-|---------| ---------------- |-------|-------|
-| MNLI-m    |Accuracy                    | 86.8% | 90.6% |
-| MNLI-mm |Accuracy                    | 87.3% | 90.6% |
-| SST-2     |Accuracy                    | 94.3% | 97.2% |
 
 Training the 220M T5 model to convergence takes 4 days, and the loss curve can be seen in the figure below:
 
@@ -4135,17 +4117,17 @@ Inference parameters:
 #### 7.3.1. Training Accuracy Results
 Training Accuracy: NVIDIA DGX SuperPOD (4 x 8 x A100 80GB for 170M mT5 Model; 8 x 8 x A100 80GB for 390M mT5 Model; 20 x 8 x A100 80GB for 3B mT5 Model)
 
-We evaluated the 170M parameter, 390M parameter, and 3B parameter mT5 models on XNLI
+We evaluated the 170M parameter and 390M parameter mT5 models on XNLI
 task. The results can be found in the table below. The user can 
-finetune on top of any `.nemo` trained checkpoint file on `XNLI` task mentioned in mT5 fine_tuning section.
+finetune on top of any `.nemo` trained checkpoint file on `XQuAD` task mentioned in mT5 fine_tuning section.
 
-| Task-Language | Metric    | 170M  | 390M  | 3B    |
-|---------------|-----------|-------|-------|-------|
-| XNLI-en       | Accuracy  | 80.1% | 84.6% | 89.4% |
-| XNLI-es       | Accuracy  | 73.3% | 79.3% | 86.4% |
-| XNLI-de       | Accuracy  | 69.6% | 76.4% | 84.5% |
-| XNLI-fr       | Accuracy  | 72.2% | 78.6% | 85.8% |
-| XNLI-zh       | Accuracy  | 73.8% | 70.1% | 79.9% |
+| Task-Language | Metric    | 170M  | 390M  |
+|---------------|-----------|-------|-------|
+| XQuAD-de      | Accuracy  | 43.0% | 54.7% |
+| XQuAD-en      | Accuracy  | 63.8% | 68.8% |
+| XQuAD-es      | Accuracy  | 47.0% | 55.3% |
+| XQuAD-hi      | Accuracy  | 34.5% | 47.1% |
+| XQuAD-zh      | Accuracy  | 46.8% | 56.1% |
 
 
 Training the 170M mT5 model to convergence takes 4 days, and the loss curve can be seen in the figure below:
