@@ -82,8 +82,9 @@ model:
     new_prompt_init_text: ['some init text goes here'] # some init text if init method is text, or None if init method is random
 
   p_tuning: # P-tuning specific params
+    encoder_type: "mlp" # Either "mlp" or "lstm", mlp is default
+    num_layers: 2 # 2 recommended for MLP, 1 recommended for LSTM, must be at least 2 for mlp
     dropout: 0.0
-    num_layers: 2
 
   data:
     train_ds: [data/rte_train.jsonl,]

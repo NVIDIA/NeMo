@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import enum
 from typing import Dict, Optional
 
 import torch
@@ -23,6 +24,9 @@ from nemo.core.neural_types import ChannelType, NeuralType
 
 __all__ = ['PromptEncoder']
 
+class PromptEncoderType(enum.Enum):
+    LSTM = 'lstm'
+    MLP = 'mlp'
 
 class PromptEncoder(NeuralModule, Exportable):
     """
@@ -40,7 +44,7 @@ class PromptEncoder(NeuralModule, Exportable):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return {"output_embeds": NeuralType(('B', 'T', 'C'), ChannelType())}
 
-    def __init__(self, total_virtual_tokens: int, hidden_size: int, lstm_dropout: float, num_layers: int):
+    def __init__(self, encoder_type: enum, total_virtual_tokens: int, token_dim: int, hidden_size, lstm_dropout: float, num_layers: int):
         """
         Initializes the PromptEncoder module.
         Args:
@@ -50,8 +54,11 @@ class PromptEncoder(NeuralModule, Exportable):
             num_layers: number of layers used in the LSTM
         """
         super().__init__()
+        self.input_size = token_dim
+        self.output_size = token_dim
         self.hidden_size = hidden_size
         self.total_virtual_tokens = total_virtual_tokens
+        self.encoder_type = encoder_type
 
         # Set fixed indicies for forward pass
         self.register_buffer('indices', torch.LongTensor(list(range(self.total_virtual_tokens))))
@@ -59,18 +66,34 @@ class PromptEncoder(NeuralModule, Exportable):
         # embedding
         self.embedding = torch.nn.Embedding(self.total_virtual_tokens, self.hidden_size)
 
-        # LSTM
-        self.lstm_head = torch.nn.LSTM(
-            input_size=self.hidden_size,
-            hidden_size=self.hidden_size // 2,
-            num_layers=num_layers,
-            dropout=lstm_dropout,
-            bidirectional=True,
-            batch_first=True,
-        )
-        self.mlp_head = nn.Sequential(
-            nn.Linear(self.hidden_size, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, self.hidden_size)
-        )
+        if self.encoder_type == PromptEncoderType.LSTM:
+            # LSTM
+            self.lstm_head = torch.nn.LSTM(
+                input_size=self.input_size,
+                hidden_size=self.hidden_size,
+                num_layers=num_layers,
+                dropout=lstm_dropout,
+                bidirectional=True,
+                batch_first=True,
+            )
+
+            self.mlp_head = nn.Sequential(
+                nn.Linear(self.hidden_size * 2, self.hidden_size * 2), nn.ReLU(), nn.Linear(self.hidden_size * 2, self.output_size)
+            )
+        
+        elif self.encoder_type == PromptEncoderType.MLP:
+            if num_layers <= 1:
+                raise ValueError("The MLP prompt encoder must have at least 2 layers, and exactly 2 layers is recommended.")
+
+            layers = [nn.Linear(self.input_size, self.hidden_size), nn.ReLU()]
+            for _ in range(num_layers - 2):
+                layers.extend([nn.Linear(self.hidden_size, self.hidden_size), nn.ReLU()])
+
+            layers.append(nn.Linear(self.hidden_size, self.output_size))
+            self.mlp_head = nn.Sequential(*layers)
+        
+        else:
+            raise ValueError("Prompt encoder type not recognized. Please use one of MLP (recommended) or LSTM.")
 
     @typecheck()
     def forward(self, taskname_embeddings) -> torch.Tensor:
@@ -81,5 +104,12 @@ class PromptEncoder(NeuralModule, Exportable):
 
         # Replace general input with task specific embeddings to specify the correct task
         input_embeds[:, 0:length, :] = taskname_embeddings[:, 0:length, :]
-        output_embeds = self.mlp_head(self.lstm_head(input_embeds)[0])
+        
+        if self.encoder_type == PromptEncoderType.LSTM: 
+            output_embeds = self.mlp_head(self.lstm_head(input_embeds)[0])
+        elif self.encoder_type == PromptEncoderType.MLP:
+            output_embeds = self.mlp_head(input_embeds)
+        else:
+            raise ValueError("Prompt encoder type not recognized. Please use one of MLP (recommended) or LSTM.")
+
         return output_embeds
