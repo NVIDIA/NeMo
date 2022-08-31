@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import logging
+import os
 from typing import Dict, List, Optional, Tuple
 
 import torch
@@ -116,11 +117,14 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
                 )
 
         if cfg.get('restore_lexical_encoder_from', None) and not self._is_model_being_restored():
-            self.bert_model = (
-                PunctuationCapitalizationModel.restore_from(cfg.restore_lexical_encoder_from)
-                .to(self.device)
-                .bert_model
-            )
+            if os.path.exists(cfg.get('restore_lexical_encoder_from')):
+                self.bert_model = (
+                    PunctuationCapitalizationModel.restore_from(cfg.restore_lexical_encoder_from)
+                    .to(self.device)
+                    .bert_model
+                )
+            else:
+                raise ValueError(f'Provided path {cfg.get("restore_lexical_encoder_from")} does not exists')
 
         del self.audio_encoder.decoder
         del self.audio_encoder._wer
