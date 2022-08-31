@@ -664,11 +664,11 @@ class ParallelAttention(MegatronModule):
                 headscale_tensor=headscale_tensor,
             )
             return output_
+
         if rotary_pos_emb is None:
             rot_tuple = (rotary_pos_emb,)
         else:
-            rot_tuple = (rotary_pos_emb[0],
-                         rotary_pos_emb[1])
+            rot_tuple = (rotary_pos_emb[0], rotary_pos_emb[1])
 
         hidden_states = tensor_parallel.checkpoint(
             custom_forward,
@@ -1857,26 +1857,21 @@ class ParallelTransformer(MegatronModule):
                 else:
                     hidden_tuple = (hidden_states,)
                 middle_tuple = (
-                        attention_mask,
-                        encoder_output,
-                        enc_dec_attn_mask,
+                    attention_mask,
+                    encoder_output,
+                    enc_dec_attn_mask,
                 )
 
                 if rotary_pos_emb is None:
                     rot_tuple = (rotary_pos_emb,)
                 else:
-                    rot_tuple = (rotary_pos_emb[0],
-                                 rotary_pos_emb[1],
-                                 rotary_pos_emb[2])
-                
-                final_tuple = (self_attention_relative_position_bias,
-                               cross_attention_relative_position_bias)
+                    rot_tuple = (rotary_pos_emb[0], rotary_pos_emb[1], rotary_pos_emb[2])
+
+                final_tuple = (self_attention_relative_position_bias, cross_attention_relative_position_bias)
                 arg_tuple = hidden_tuple + middle_tuple + rot_tuple + final_tuple
 
                 hidden_states = tensor_parallel.checkpoint(
-                    custom(l, l + self.activations_checkpoint_num_layers),
-                    False,
-                    *arg_tuple
+                    custom(l, l + self.activations_checkpoint_num_layers), False, *arg_tuple
                 )
                 l += self.activations_checkpoint_num_layers
         elif self.activations_checkpoint_method == 'block':
@@ -1889,32 +1884,23 @@ class ParallelTransformer(MegatronModule):
                 else:
                     hidden_tuple = (hidden_states,)
                 middle_tuple = (
-                        attention_mask,
-                        encoder_output,
-                        enc_dec_attn_mask,
+                    attention_mask,
+                    encoder_output,
+                    enc_dec_attn_mask,
                 )
 
                 if rotary_pos_emb is None:
                     rot_tuple = (rotary_pos_emb,)
                 else:
-                    rot_tuple = (rotary_pos_emb[0],
-                                 rotary_pos_emb[1],
-                                 rotary_pos_emb[2])
-                
-                final_tuple = (self_attention_relative_position_bias,
-                               cross_attention_relative_position_bias)
+                    rot_tuple = (rotary_pos_emb[0], rotary_pos_emb[1], rotary_pos_emb[2])
+
+                final_tuple = (self_attention_relative_position_bias, cross_attention_relative_position_bias)
                 arg_tuple = hidden_tuple + middle_tuple + rot_tuple + final_tuple
 
                 if l < self.activations_checkpoint_num_layers:
-                    hidden_states = tensor_parallel.checkpoint(
-                        custom(l, l + 1),
-                        False,
-                        *arg_tuple
-                    )
+                    hidden_states = tensor_parallel.checkpoint(custom(l, l + 1), False, *arg_tuple)
                 else:
-                    hidden_states = custom(l, l + 1)(
-                        *arg_tuple
-                    )
+                    hidden_states = custom(l, l + 1)(*arg_tuple)
         else:
             raise ValueError("Invalid activation checkpoint method.")
 

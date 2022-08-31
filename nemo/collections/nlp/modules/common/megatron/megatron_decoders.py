@@ -165,7 +165,7 @@ def get_decoder_model(
             chunk_size=chunk_size,
             layer_number_offset=layer_number_offset,
             sequence_parallel=sequence_parallel,
-            gradient_accumulation_fusion=gradient_accumulation_fusion
+            gradient_accumulation_fusion=gradient_accumulation_fusion,
         )
     else:
         raise ValueError(f"Unknown decoder arch = {arch}. Available decoder arch = {AVAILABLE_DECODERS}")

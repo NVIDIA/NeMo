@@ -167,7 +167,7 @@ def get_encoder_model(
             chunk_size=chunk_size,
             layer_number_offset=layer_number_offset,
             sequence_parallel=sequence_parallel,
-            gradient_accumulation_fusion=gradient_accumulation_fusion
+            gradient_accumulation_fusion=gradient_accumulation_fusion,
         )
     elif arch == "perceiver":
         encoder = MegatronPerceiverEncoderModule(
