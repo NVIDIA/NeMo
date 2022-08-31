@@ -542,10 +542,8 @@ export.gpt3.126m_tp1_pp1_split:
     FT_TP_SIZE: 2
     FT_PP_SIZE: 2
     FT_DEPLOYMENT_DATA: fp16
-    FT_EVAL_MARGIN: "0.005"
-    FT_EVAL_TASK: lambada
   needs:
-    - eval.gpt3.126m_tp1_pp1_lambada
+    - train.gpt3.126m_tp1_pp1_1node_100steps
 
 export.gpt3.126m_tp1_pp2_split:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
@@ -562,10 +560,8 @@ export.gpt3.126m_tp1_pp2_split:
     FT_TP_SIZE: 2
     FT_PP_SIZE: 2
     FT_DEPLOYMENT_DATA: fp16
-    FT_EVAL_MARGIN: "0.005"
-    FT_EVAL_TASK: lambada
   needs:
-    - eval.gpt3.126m_tp1_pp2_lambada
+    - train.gpt3.126m_tp1_pp2_1node_100steps
 
 export.gpt3.126m_tp2_pp1_merge:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
@@ -582,10 +578,8 @@ export.gpt3.126m_tp2_pp1_merge:
     FT_TP_SIZE: 1
     FT_PP_SIZE: 2
     FT_DEPLOYMENT_DATA: bf16
-    FT_EVAL_MARGIN: "0.005"
-    FT_EVAL_TASK: lambada
   needs:
-    - eval.gpt3.126m_tp2_pp1_lambada
+    - train.gpt3.126m_tp2_pp1_1node_100steps
 
 export.gpt3.126m_tp2_pp2_merge:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
@@ -602,10 +596,8 @@ export.gpt3.126m_tp2_pp2_merge:
     FT_TP_SIZE: 1
     FT_PP_SIZE: 1
     FT_DEPLOYMENT_DATA: fp16
-    FT_EVAL_MARGIN: "0.005"
-    FT_EVAL_TASK: lambada
   needs:
-    - eval.gpt3.126m_tp2_pp2_lambada
+    - train.gpt3.126m_tp2_pp2_1node_100steps
 
 export.t5.220m_tp1_pp1_split:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
@@ -622,10 +614,8 @@ export.t5.220m_tp1_pp1_split:
     FT_TP_SIZE: 2
     FT_PP_SIZE: 2
     FT_DEPLOYMENT_DATA: fp16
-    FT_EVAL_MARGIN: "0.005"
-    FT_EVAL_TASK: mnli
   needs:
-    - eval.t5.220m_tp1_pp1
+    - finetune.t5.220m_tp1_pp1_1node_100steps_mnli
 
 export.t5.220m_tp2_pp2_merge:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
@@ -641,10 +631,8 @@ export.t5.220m_tp2_pp2_merge:
     FT_TP_SIZE: 1
     FT_PP_SIZE: 1
     FT_DEPLOYMENT_DATA: bf16
-    FT_EVAL_MARGIN: "0.005"
-    FT_EVAL_TASK: mnli
   needs:
-    - eval.t5.220m_tp2_pp2
+    - finetune.t5.220m_tp2_pp2_1node_100steps_mnli
 
 export.mt5.170m_tp1_pp1_split:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
@@ -661,10 +649,8 @@ export.mt5.170m_tp1_pp1_split:
     FT_TP_SIZE: 2
     FT_PP_SIZE: 2
     FT_DEPLOYMENT_DATA: bf16
-    FT_EVAL_MARGIN: "0.005"
-    FT_EVAL_TASK: xnli
   needs:
-    - eval.mt5.170m_tp1_pp1
+    - finetune.mt5.170m_tp1_pp1_1node_100steps_xnli
 
 export.mt5.170m_tp2_pp2_merge:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
@@ -681,10 +667,8 @@ export.mt5.170m_tp2_pp2_merge:
     FT_TP_SIZE: 1
     FT_PP_SIZE: 1
     FT_DEPLOYMENT_DATA: fp16
-    FT_EVAL_MARGIN: "0.005"
-    FT_EVAL_TASK: xnli
   needs:
-    - eval.mt5.170m_tp2_pp2
+    - finetune.mt5.170m_tp2_pp2_1node_100steps_xnli
 
 eval.gpt3.126m_tp1_pp1_lambada:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
