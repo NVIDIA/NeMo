@@ -126,43 +126,6 @@ def hungarian_algorithm(spk_count, U_set, cmm_P, cmm_Q, PmQ, QmP):
             mapping_array[x] = col_ind[x]
     return mapping_array
 
-
-def keep_only_common_labels(P, Q, PmQ, QmP):
-    """
-    Keep only common speaker labels. Filter out any labels that are not in common.
-    Only common labels will be matched while running hungarian algorithm.
-
-    Example:
-        Input:
-        set(P) = [0, 1, 2, 4]
-        set(Q) = [1, 2, 3, 4]
-
-        Output:
-        set(P) = [1, 2, 4]
-        set(Q) = [1, 2, 4]
-    This is mainly for the newly added speakers from the labels in Y_new.
-
-    Args:
-
-    Returns:
-        P (numpy.ndarray):
-
-        Q (numpy.ndarray):
-    """
-    keyQ = np.ones_like(Q).astype(bool)
-    keyP = np.ones_like(P).astype(bool)
-    for spk in list(QmP):
-        keyQ[Q == spk] = False
-    for spk in list(PmQ):
-        keyP[P == spk] = False
-    common_key = keyP * keyQ
-    if all(~common_key) != True:
-        cmm_P, cmm_Q = P[common_key], Q[common_key]
-    else:
-        cmm_P, cmm_Q = P, Q
-    return cmm_P, cmm_Q
-
-
 def get_indices_for_merging(cmat, ndx, target_num):
     """
     Get indeces of the embeddings we want to merge or drop.
@@ -280,7 +243,7 @@ def get_online_segments_from_slices(
     sig_indexes,
     seg_index_offset,
     sample_rate,
-    deci,
+    decimals,
 ):
     """
     Create short speech segments from sclices for online processing purpose.
@@ -311,8 +274,8 @@ def get_online_segments_from_slices(
             raise ValueError("len(signal) is zero. Signal length should not be zero.")
         if len(signal) < slice_length:
             signal = repeat_signal(signal, len(signal), slice_length)
-        start_abs_sec = round(float(buffer_start + start_sec), deci)
-        end_abs_sec = round(float(buffer_start + end_sec), deci)
+        start_abs_sec = round(float(buffer_start + start_sec), decimals)
+        end_abs_sec = round(float(buffer_start + end_sec), decimals)
         sigs_list.append(signal)
         sig_rangel_list.append([start_abs_sec, end_abs_sec])
         sig_indexes.append(seg_index_offset)
@@ -403,7 +366,7 @@ def get_segments_from_buffer(
     segment_indexes,
     window,
     shift,
-    deci,
+    decimals,
 ):
     sigs_list, sig_rangel_list, sig_indexes = [], [], []
     if len(segment_indexes) > 0:
@@ -430,7 +393,7 @@ def get_segments_from_buffer(
             sig_indexes=sig_indexes,
             seg_index_offset=seg_index_offset,
             sample_rate=sample_rate,
-            deci=deci,
+            decimals=decimals,
         )
         seg_index_offset, sigs_list, sig_rangel_list, sig_indexes = subsegment_output
 
@@ -470,11 +433,7 @@ def stitch_cluster_labels(Y_old, Y_new, with_history=True):
 
         # P and Q occasionally have no common labels which means totally flipped (0<->1) labels.
         # This should be differentiated from the second case.
-        if with_history and (len(PmQ) > 0 or len(QmP) > 0):
-            # Only common labels are interested so only keep common labels on old and new label sets.
-            cmm_P, cmm_Q = keep_only_common_labels(P, Q, PmQ, QmP)
-        else:
-            cmm_P, cmm_Q = P, Q
+        cmm_P, cmm_Q = P, Q
 
         if len(U_set) == 1:
             # When two speaker vectors are exactly the same: No need to encode.
@@ -631,7 +590,7 @@ class OnlineDiarizer(ClusteringDiarizer):
         self.embed_seg_len = self.multiscale_args_dict['scale_dict'][self.base_scale_index][0]
         self.n_embed_seg_len = int(self.sample_rate * self.embed_seg_len)
         self.max_embed_count = 0
-        self.deci = 2
+        self.decimals = 2
 
         self.MINIMUM_CLUS_BUFFER_SIZE = 32
         self.MINIMUM_HIST_BUFFER_SIZE = 32
@@ -661,11 +620,11 @@ class OnlineDiarizer(ClusteringDiarizer):
 
         for scale_idx, (window, shift) in self.multiscale_args_dict['scale_dict'].items():
             self.multiscale_embeddings_and_timestamps[scale_idx] = [None, None]
-            self.embs_array[self.uniq_id][scale_idx] = None
-            self.time_stamps[self.uniq_id][scale_idx] = []
-            self.segment_range_ts[self.uniq_id][scale_idx] = []
-            self.segment_raw_audio[self.uniq_id][scale_idx] = []
-            self.segment_indexes[self.uniq_id][scale_idx] = []
+            self.embs_array[scale_idx] = None
+            self.time_stamps[scale_idx] = []
+            self.segment_range_ts[scale_idx] = []
+            self.segment_raw_audio[scale_idx] = []
+            self.segment_indexes[scale_idx] = []
 
     def _init_buffer_frame_timestamps(self):
         """
@@ -721,7 +680,7 @@ class OnlineDiarizer(ClusteringDiarizer):
             then skip embedding merging.
 
         """
-        segment_indexes_mat = np.array(self.segment_indexes[self.uniq_id][self.base_scale_index]).astype(int)
+        segment_indexes_mat = np.array(self.segment_indexes[self.base_scale_index]).astype(int)
         self.total_segments_processed_count = segment_indexes_mat[-1] + 1
         hist_curr_boundary = self.total_segments_processed_count - self.current_n
         new_emb_n, emb_hist = None, None
@@ -759,7 +718,7 @@ class OnlineDiarizer(ClusteringDiarizer):
         embedding vector is repeated to fill the voidness. The repeated embedding will be soon replaced by the actual
         embeddings once the system takes new frames.
         """
-        segment_indexes_mat = np.array(self.segment_indexes[self.uniq_id][self.base_scale_index]).astype(int)
+        segment_indexes_mat = np.array(self.segment_indexes[self.base_scale_index]).astype(int)
         curr_clustered_segments = np.where(segment_indexes_mat >= self.history_buffer_seg_end)[0]
         if emb_in[curr_clustered_segments].shape[0] < self.current_n:
             delta_count = self.current_n - emb_in[curr_clustered_segments].shape[0]
@@ -932,10 +891,10 @@ class OnlineDiarizer(ClusteringDiarizer):
             * (self.history_n + self.current_n)
         )
         keep_range = scale_buffer_size + self.memory_margin
-        self.embs_array[self.uniq_id][scale_idx] = self.embs_array[self.uniq_id][scale_idx][-keep_range:]
-        self.segment_raw_audio[self.uniq_id][scale_idx] = self.segment_raw_audio[self.uniq_id][scale_idx][-keep_range:]
-        self.segment_range_ts[self.uniq_id][scale_idx] = self.segment_range_ts[self.uniq_id][scale_idx][-keep_range:]
-        self.segment_indexes[self.uniq_id][scale_idx] = self.segment_indexes[self.uniq_id][scale_idx][-keep_range:]
+        self.embs_array[scale_idx] = self.embs_array[scale_idx][-keep_range:]
+        self.segment_raw_audio[scale_idx] = self.segment_raw_audio[scale_idx][-keep_range:]
+        self.segment_range_ts[scale_idx] = self.segment_range_ts[scale_idx][-keep_range:]
+        self.segment_indexes[scale_idx] = self.segment_indexes[scale_idx][-keep_range:]
     
     @timeit    
     def temporal_label_major_vote(self):
@@ -967,23 +926,23 @@ class OnlineDiarizer(ClusteringDiarizer):
         total_cluster_labels = total_cluster_labels.tolist()
         
         if not self.isOnline:
-            self.memory_segment_ranges[scale_idx] = copy.deepcopy(self.segment_range_ts[self.uniq_id][scale_idx])
-            self.memory_segment_indexes[scale_idx] = copy.deepcopy(self.segment_indexes[self.uniq_id][scale_idx])
+            self.memory_segment_ranges[scale_idx] = copy.deepcopy(self.segment_range_ts[scale_idx])
+            self.memory_segment_indexes[scale_idx] = copy.deepcopy(self.segment_indexes[scale_idx])
             if scale_idx == self.base_scale_index:
                 self.memory_cluster_labels = copy.deepcopy(total_cluster_labels)
         
         # Only if there are newly obtained embeddings, update ranges and embeddings.
-        elif self.segment_indexes[self.uniq_id][scale_idx][-1] > self.memory_segment_indexes[scale_idx][-1]:
+        elif self.segment_indexes[scale_idx][-1] > self.memory_segment_indexes[scale_idx][-1]:
             global_idx = max(self.memory_segment_indexes[scale_idx]) - self.memory_margin
 
             # convert global index global_idx to buffer index buffer_idx
-            segment_indexes_mat = np.array(self.segment_indexes[self.uniq_id][scale_idx]).astype(int)
+            segment_indexes_mat = np.array(self.segment_indexes[scale_idx]).astype(int)
             buffer_idx = get_mapped_index(segment_indexes_mat, global_idx)
 
             self.memory_segment_ranges[scale_idx][global_idx:] = \
-                    copy.deepcopy(self.segment_range_ts[self.uniq_id][scale_idx][buffer_idx:])
+                    copy.deepcopy(self.segment_range_ts[scale_idx][buffer_idx:])
             self.memory_segment_indexes[scale_idx][global_idx:] = \
-                    copy.deepcopy(self.segment_indexes[self.uniq_id][scale_idx][buffer_idx:])
+                    copy.deepcopy(self.segment_indexes[scale_idx][buffer_idx:])
             if scale_idx == self.base_scale_index:
                 self.memory_cluster_labels[global_idx:] = copy.deepcopy(total_cluster_labels[global_idx:])
                 assert len(self.memory_cluster_labels) == len(self.memory_segment_ranges[scale_idx])
@@ -991,10 +950,10 @@ class OnlineDiarizer(ClusteringDiarizer):
             # Remove unnecessary old values
             self.remove_old_data(scale_idx)
         
-        assert len(self.embs_array[self.uniq_id][scale_idx]) == \
-               len(self.segment_raw_audio[self.uniq_id][scale_idx]) == \
-               len(self.segment_indexes[self.uniq_id][scale_idx]) == \
-               len(self.segment_range_ts[self.uniq_id][scale_idx])
+        assert len(self.embs_array[scale_idx]) == \
+               len(self.segment_raw_audio[scale_idx]) == \
+               len(self.segment_indexes[scale_idx]) == \
+               len(self.segment_range_ts[scale_idx])
         
         if self.use_temporal_label_major_vote:
             cluster_label_hyp = self.temporal_label_major_vote()
@@ -1044,7 +1003,7 @@ class OnlineDiarizer(ClusteringDiarizer):
                 segment_indexes,
                 window,
                 shift,
-                self.deci,
+                self.decimals,
             )
             segment_raw_audio.extend(sigs_list)
             segment_range_ts.extend(sig_rangel_list)
@@ -1161,23 +1120,23 @@ class OnlineDiarizer(ClusteringDiarizer):
             segment_ranges_str = self._run_segmentation(
                 audio_buffer,
                 vad_ts,
-                self.segment_raw_audio[self.uniq_id][scale_idx],
-                self.segment_range_ts[self.uniq_id][scale_idx],
-                self.segment_indexes[self.uniq_id][scale_idx],
+                self.segment_raw_audio[scale_idx],
+                self.segment_range_ts[scale_idx],
+                self.segment_indexes[scale_idx],
                 window,
                 shift,
             )
 
             # Extract speaker embeddings from the extracted subsegment timestamps.
             embeddings = self._extract_embeddings(
-                self.segment_raw_audio[self.uniq_id][scale_idx],
-                self.segment_range_ts[self.uniq_id][scale_idx],
-                self.segment_indexes[self.uniq_id][scale_idx],
-                self.embs_array[self.uniq_id][scale_idx],
+                self.segment_raw_audio[scale_idx],
+                self.segment_range_ts[scale_idx],
+                self.segment_indexes[scale_idx],
+                self.embs_array[scale_idx],
             )
             
             # Save the embeddings and segmentation timestamps in memory 
-            self.embs_array[self.uniq_id][scale_idx] = embeddings
+            self.embs_array[scale_idx] = embeddings
             self.multiscale_embeddings_and_timestamps[scale_idx] = [
                 {self.uniq_id: embeddings},
                 {self.uniq_id: segment_ranges_str},

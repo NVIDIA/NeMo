@@ -129,6 +129,7 @@ def timeit(method):
 class ASR_DIAR_ONLINE_DEMO(ASR_DIAR_ONLINE):
     def __init__(self, cfg):
         super().__init__(cfg)
+        self.max_lm_realigning_words = 2
         # self.load_punctuation_model()
 
     def realign_speaker_labels(self, words, memory_cluster_labels):
