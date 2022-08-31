@@ -54,7 +54,12 @@ model:
       d_ff: 1024 # Hidden dimension of PositionwiseFeedForward
       num_layers: 4 # Number of additional Conformer layers
     adapter:
-      enable: false # If set to True will enable adapters for audio encoder. Also, should provide config of adapter `LinearAdapterConfig`.
+      enable: false # If set to True will enable adapters for audio encoder.
+      config:
+        # For more details see `nemo.collections.common.parts.LinearAdapter` class
+        in_features: -1 # Will be replaced with size of audio encoder
+        dim: 128 # Hidden dimension of the feed forward network.
+        activation: 'swish' # Str name for an activation function.
     fusion:
       num_layers: 4 # Number of layers to use in fusion
       num_attention_heads: 4 # Number of attention heads to use in fusion
