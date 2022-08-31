@@ -158,18 +158,18 @@ def main(cfg):
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
 
-    if cfg.name == 'TitaNet':
-        the_model = EncDecSpeakerLabelModel(cfg=cfg.model, trainer=trainer)
+    if 'titanet' in cfg.name.lower():
+        model = EncDecSpeakerLabelModel(cfg=cfg.model, trainer=trainer)
     else:
-        the_model = EncDecClassificationModel(cfg=cfg.model, trainer=trainer)
+        model = EncDecClassificationModel(cfg=cfg.model, trainer=trainer)
 
     # Initialize the weights of the model from another model, if provided via config
-    the_model.maybe_init_from_pretrained_checkpoint(cfg)
+    model.maybe_init_from_pretrained_checkpoint(cfg)
 
-    trainer.fit(the_model)
+    trainer.fit(model)
 
     if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.manifest_filepath is not None:
-        if the_model.prepare_test(trainer):
+        if model.prepare_test(trainer):
             trainer.test(asr_model)
 
 

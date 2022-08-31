@@ -334,7 +334,7 @@ class ASRSpeechLabel(SpeechLabel):
             else:
                 label = float(item['label'])
 
-            labels.append(item['label'])
+            labels.append(label)
             offsets.append(item['offset'])
 
         if cal_labels_occurrence:

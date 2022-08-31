@@ -144,7 +144,9 @@ model:
     angular: False
 
   loss:
-    weight: 'auto'
+    weight: 'auto' # could either be 'auto' or 1D tensor
+    scale: 30 # specify this if use angular loss
+    margin: 0.2  # specify this if use angular loss
     
   optim:
     name: sgd

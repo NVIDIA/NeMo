@@ -268,7 +268,7 @@ target_label_n, "offset": offset_in_sec_n}
         max_duration: Optional[float] = None,
         trim: bool = False,
         is_regression_task: bool = False,
-        cal_labels_occurrence: bool = False,
+        cal_labels_occurrence: Optional[bool] = False,
     ):
         super().__init__()
         self.collection = collections.ASRSpeechLabel(
@@ -389,7 +389,10 @@ class AudioToSpeechLabelDataset(_AudioLabelDataset):
             Use this for VAD task during inference.
         normalize_audio (bool): Whether to normalize audio signal.
             Defaults to False.
-        is_regression_task (bool): Whether the dataset is for a regression task instead of classification
+        is_regression_task (bool): Whether the dataset is for a regression task instead of classification.
+            Defaults to False.
+        cal_labels_occurrence (bool): Wether to calculate occurrence of labels
+            Defaults to False.
     """
 
     def __init__(
@@ -405,7 +408,7 @@ class AudioToSpeechLabelDataset(_AudioLabelDataset):
         shift_length_in_sec: Optional[float] = 1,
         normalize_audio: bool = False,
         is_regression_task: bool = False,
-        cal_labels_occurrence: bool = False,
+        cal_labels_occurrence: Optional[bool] = False,
     ):
         self.window_length_in_sec = window_length_in_sec
         self.shift_length_in_sec = shift_length_in_sec

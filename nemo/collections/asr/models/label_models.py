@@ -96,30 +96,41 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         self.preprocessor = EncDecSpeakerLabelModel.from_config_dict(cfg.preprocessor)
         self.encoder = EncDecSpeakerLabelModel.from_config_dict(cfg.encoder)
         self.decoder = EncDecSpeakerLabelModel.from_config_dict(cfg.decoder)
-        if 'angular' in cfg.decoder and cfg.decoder['angular']:
-            logging.info("loss is Angular Softmax")
-            scale = cfg.loss.scale
-            margin = cfg.loss.margin
-            self.loss = AngularSoftmaxLoss(scale=scale, margin=margin)
-        else:
-            logging.info("loss is Softmax-CrossEntropy")
-            if 'weight' in cfg.loss and cfg.loss.weight:
-                if cfg.loss.weight == 'auto':
-                    self.cal_labels_occurrence = True
-                    # Goal is to give more weight to the classes with less samples so as to match the ones with the higher frequencies
-                    weight = [
-                        sum(self.labels_occurrence) / (len(self.labels_occurrence) * i) for i in self.labels_occurrence
-                    ]
-                else:
-                    weight = cfg.loss.weight
-                self.loss = CELoss(weight=weight)
+
+        if 'loss' in cfg:
+            if 'angular' in cfg.decoder and cfg.decoder['angular']:
+                logging.info("loss is Angular Softmax")
+                scale = cfg.loss.scale
+                margin = cfg.loss.margin
+                self.loss = AngularSoftmaxLoss(scale=scale, margin=margin)
             else:
-                self.loss = CELoss()
+                logging.info("loss is Softmax-CrossEntropy")
+                if 'weight' in cfg.loss and cfg.loss['weight']:
+                    if cfg.loss.weight == 'auto':
+                        self.cal_labels_occurrence = True
+                        # Goal is to give more weight to the classes with less samples so as to match the ones with the higher frequencies
+                        weight = [
+                            sum(self.labels_occurrence) / (len(self.labels_occurrence) * i)
+                            for i in self.labels_occurrence
+                        ]
+                    else:
+                        weight = cfg.loss.weight
+                    self.loss = CELoss(weight=weight)
+                else:
+                    self.loss = CELoss()
+        else:
+            self.loss = CELoss()  # default loss for this class, basically to pass test
 
         self.task = None
         self._accuracy = TopKClassificationAccuracy(top_k=[1])
-        self._macro_accuracy = Accuracy(num_classes=cfg.decoder.num_classes, average='macro')
-        self._auroc = AUROC(num_classes=cfg.decoder.num_classes)
+
+        if 'num_classes' in cfg.decoder:
+            num_classes = cfg.decoder.num_classes
+        else:
+            num_classes = cfg.decoder.params.num_classes  # to pass test
+
+        self._macro_accuracy = Accuracy(num_classes=num_classes, average='macro')
+        self._auroc = AUROC(num_classes=num_classes)
 
         self.labels = None
         if hasattr(self._cfg, 'spec_augment') and self._cfg.spec_augment is not None:
