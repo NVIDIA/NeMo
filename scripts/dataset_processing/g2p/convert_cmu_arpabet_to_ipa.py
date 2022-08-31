@@ -34,17 +34,12 @@ def parse_args():
         type=str,
         default="tts_dataset_files/cmudict-0.7b_nv22.08",
     )
-    parser.add_argument(
-        "--ipa_out",
-        help="Path to save IPA version of the dictionary",
-        type=str,
-        default="tts_dataset_files/ipa-cmudict-0.7b_nv22.08_new",
-    )
+    parser.add_argument("--ipa_out", help="Path to save IPA version of the dictionary", type=str, required=True)
     parser.add_argument(
         "--mapping",
         help="ARPABET to IPA phoneme mapping file",
         type=str,
-        default="tts_dataset_files/cmudict-arpabet_to_ipa_nv22.07.tsv",
+        default="tts_dataset_files/cmudict-arpabet_to_ipa_nv22.08.tsv",
     )
     return parser.parse_args()
 
@@ -68,11 +63,17 @@ def convert_arp_to_ipa(arp_to_ipa_dict: Dict[str, str], arp_input: str, remove_s
 
     word_ipa = ""
     phonemes = arp_input.split()
+
+    # split ARPABET phoneme input into syllables,
+    # e.g. syllabify(["HH", "AH0", "L", "OW1"]) -> [(['HH'], ['AH0'], []), (['L'], ['OW1'], [])]
     syllables = syllabify(phonemes)
 
     for syl_idx, syll in enumerate(syllables):
         syll_stress = ""
         syll_ipa = ""
+
+        # syll is a tuple of lists of phonemes, here we flatten it and get rid of empty entries,
+        # e.g. (['HH'], ['AH0'], []) -> ['HH', 'AH0']
         syll = [x for x in itertools.chain.from_iterable(syll)]
         for phon_idx, phon in enumerate(syll):
             if phon[-1].isdigit():
@@ -81,6 +82,7 @@ def convert_arp_to_ipa(arp_to_ipa_dict: Dict[str, str], arp_input: str, remove_s
                     raise ValueError(f"{syll_stress} unknown")
                 syll_stress = stress_dict[syll_stress]
 
+            # some phonemes are followed by a digit that represents stress, e.g., `AH0`
             if phon not in arp_to_ipa_dict and phon[-1].isdigit():
                 phon = phon[:-1]
 
@@ -125,7 +127,9 @@ def convert_cmu_arpabet_to_ipa(arp_ipa_map_file: str, arp_dict_file: str, output
             if line.startswith(";;;"):
                 f_ipa.write(line)
             else:
-                graphemes, phonemes = line.strip().split("  ")
+                # First, split the line at " #" if there are comments in the dictionary file following the mapping entries.
+                # Next, split at default "  " separator.
+                graphemes, phonemes = line.split(" #")[0].strip().split("  ")
                 ipa_form = convert_arp_to_ipa(arp_to_ipa_dict, phonemes, remove_space=True)
                 f_ipa.write(f"{graphemes}  {ipa_form}\n")
 
