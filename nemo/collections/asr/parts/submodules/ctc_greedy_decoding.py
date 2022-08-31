@@ -31,7 +31,7 @@ def pack_hypotheses(hypotheses: List[rnnt_utils.Hypothesis], logitlen: torch.Ten
             logitlen_cpu = logitlen
 
     for idx, hyp in enumerate(hypotheses):  # type: rnnt_utils.Hypothesis
-        hyp.y_sequence = torch.tensor(hyp.y_sequence,) 
+        hyp.y_sequence = torch.tensor(hyp.y_sequence,)
 
         if logitlen is not None:
             hyp.length = logitlen_cpu[idx]
