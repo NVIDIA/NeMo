@@ -54,7 +54,7 @@ def get_pitch_contour(wav, pitch_mean=None, pitch_std=None):
     return pitch_contour
 
 
-def get_speaker_stats(ssl_model, wav_featurizer, audio_paths):
+def get_speaker_stats(ssl_model, wav_featurizer, audio_paths, duration):
     all_segments = []
     all_wavs = []
     for audio_path in audio_paths:
@@ -62,6 +62,11 @@ def get_speaker_stats(ssl_model, wav_featurizer, audio_paths):
         segments = segment_wav(wav)
         all_segments += segments
         all_wavs.append(wav)
+
+        if len(all_segments) >= duration:
+            # each segment is 2 seconds with one second overlap.
+            # so 10 segments would mean 0 to 2, 1 to 3.. 9 to 11 (11 seconds.)
+            break
 
     signal_batch = torch.stack(all_segments)
     # print("signal batch", signal_batch.shape)
@@ -116,7 +121,7 @@ def load_speaker_stats(
     ssl_model,
     wav_featurizer,
     manifest_name,
-    samples_per_spk=10,
+    duration_per_speaker=10,
     pitch_stats_json=None,
     recache=False,
     out_dir=".",
@@ -135,7 +140,7 @@ def load_speaker_stats(
     for speaker in speaker_wise_paths:
         print("computing stats for {}".format(speaker))
         speaker_embedding, pitch_mean, pitch_std = get_speaker_stats(
-            ssl_model, wav_featurizer, speaker_wise_paths[speaker][:samples_per_spk]
+            ssl_model, wav_featurizer, speaker_wise_paths[speaker], duration_per_speaker
         )
         speaker_stats[speaker] = {
             'speaker_embedding': speaker_embedding,
@@ -232,6 +237,7 @@ def visualize_embeddings(embedding_dict_np, title="TSNE", out_dir=".", out_file=
     Arguments:
     embedding_dict_np : Dictionary with keys as speaker ids/labels and value as list of np arrays (embeddings).
     """
+    plt.clf()
     color = []
     marker_shape = []
     universal_embed_list = []
@@ -455,10 +461,12 @@ def evaluate(
     compute_pitch=1,
     compute_duration=1,
     use_unique_tokens=1,
+    duration_per_speaker=10 # in seconds.
 ):
     manifest_name = manifest_path.split("/")[-1].split(".")[0]
     fp_ckpt_name = "FastPitch" + fastpitch_ckpt_path.split("/")[-1].split(".")[0]
-    out_dir = os.path.join(base_out_dir, manifest_name + "_" + fp_ckpt_name)
+    out_dir_name = "{}_{}_SpkDur_{}".format(manifest_name, fp_ckpt_name, int(duration_per_speaker) )
+    out_dir = os.path.join(base_out_dir, out_dir_name)
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
 
@@ -510,7 +518,8 @@ def evaluate(
             wav_featurizer,
             manifest_name=manifest_name,
             out_dir=out_dir,
-            pitch_stats_json=pitch_stats_json,
+            duration_per_speaker=duration_per_speaker,
+            pitch_stats_json=pitch_stats_json
         )
 
     compute_pitch = compute_pitch == 1
@@ -619,6 +628,7 @@ def main():
     parser.add_argument('--compute_duration', type=int, default=1)
     parser.add_argument('--use_unique_tokens', type=int, default=1)
     parser.add_argument('--precomputed_stats_fp', type=str, default=None)
+    parser.add_argument('--duration_per_speaker', type=int, default=10)
     args = parser.parse_args()
 
     evaluate(
@@ -637,6 +647,7 @@ def main():
         compute_pitch=args.compute_pitch,
         compute_duration=args.compute_duration,
         use_unique_tokens=args.use_unique_tokens,
+        duration_per_speaker=args.duration_per_speaker
     )
 
 if __name__ == '__main__':
