@@ -76,6 +76,9 @@ before_script:
     - export RUN_NAME=${RUN_TASK}_${RUN_MODEL}_${RUN_JOB_NAME}
     - export RESULTS_DIR=${BASE_RESULTS_DIR}/${RUN_MODEL}/${RUN_SIZE}_${GPU_MEM}gb
     - env
+    - cd ..
+    - git clone ssh://git@gitlab-master.nvidia.com:12051/dl/JoC/bignlp-scripts.git
+    - cd bignlp-hp-tool
     - bash tests/ci_tests/selene/scripts/${RUN_TASK}/${RUN_MODEL}/${RUN_JOB_NAME}.sh
     # Wait for job to launch
     - sleep 10s # Without this, "sacct" in jobstate.sh does not always find the SLURM job.

@@ -1,5 +1,4 @@
-HYDRA_FULL_ERROR=1 python3 main.py \
-    +ci_test=True \
+HYDRA_FULL_ERROR=1 BIGNLP_CI=1 python3 main.py \
     search_config=gpt3/0.126b \
     run_training_hp_search=True \
     run_inference_hp_search=False \
@@ -7,13 +6,9 @@ HYDRA_FULL_ERROR=1 python3 main.py \
     data_dir=/lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train \
     base_results_dir=${BASE_RESULTS_DIR} \
     "training_container='${BUILD_IMAGE_TRAINING_NAME_SRUN}'" \
-    "inference_container='${BUILD_IMAGE_INFERENCE_NAME_SRUN}'" \
-    "cluster.env.training_container_image='${BUILD_IMAGE_TRAINING_NAME_SRUN}'" \
-    "cluster.env.inference_container_image='${BUILD_IMAGE_INFERENCE_NAME_SRUN}'" \
-    cluster.cluster.partition=${SLURM_PARTITION} \
-    cluster.cluster.account=${SLURM_ACCOUNT} \
-    cluster.cluster.support_gpus_allocation=False \
-    cluster.env.job_name_prefix="${SLURM_ACCOUNT}-bignlp_hp_tool:" \
+    cluster.partition=${SLURM_PARTITION} \
+    cluster.account=${SLURM_ACCOUNT} \
+    cluster.job_name_prefix="${SLURM_ACCOUNT}-bignlp_hp_tool:" \
     cluster.gpus_per_task=null \
     cluster.gpus_per_node=null \
     search_config.train_settings.gpu_memory_gb=80 \
