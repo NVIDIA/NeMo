@@ -50,9 +50,9 @@ model:
     pretrained_model: stt_en_conformer_ctc_medium # You can choose any pretrained ASR model from list_available_models() of EncDecCTCModel.
     freeze:
       is_enabled: false # If set to True weights of audio encoder will not be updated during training.
-      d_model: 256
-      d_ff: 1024
-      num_layers: 4
+      d_model: 256 # Input dimension of MultiheadAttentionMechanism and PositionwiseFeedForward
+      d_ff: 1024 # Hidden dimension of PositionwiseFeedForward
+      num_layers: 4 # Number of additional Conformer layers
     adapter:
       enable: false # If set to True will enable adapters for audio encoder. Also, should provide config of adapter `LinearAdapterConfig`.
     fusion:
