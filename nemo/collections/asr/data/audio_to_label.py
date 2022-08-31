@@ -268,7 +268,7 @@ target_label_n, "offset": offset_in_sec_n}
         max_duration: Optional[float] = None,
         trim: bool = False,
         is_regression_task: bool = False,
-        cal_labels_occurrence: bool = False
+        cal_labels_occurrence: bool = False,
     ):
         super().__init__()
         self.collection = collections.ASRSpeechLabel(

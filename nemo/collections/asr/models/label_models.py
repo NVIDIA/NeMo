@@ -106,7 +106,9 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
                 if cfg.loss.weight == 'auto':
                     self.cal_labels_occurrence = True
                     # Goal is to give more weight to the classes with less samples so as to match the ones with the higher frequencies
-                    weight = [sum(self.labels_occurrence) / (len(self.labels_occurrence) * i) for i in self.labels_occurrence]
+                    weight = [
+                        sum(self.labels_occurrence) / (len(self.labels_occurrence) * i) for i in self.labels_occurrence
+                    ]
                 else:
                     weight = cfg.loss.weight
                 self.loss = CELoss(weight=weight)
@@ -177,8 +179,8 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
                 return None
 
             cal_labels_occurrence = config.get('cal_labels_occurrence', False)
-            if cal_labels_occurrence or self.cal_labels_occurrence: 
-                cal_labels_occurrence = True 
+            if cal_labels_occurrence or self.cal_labels_occurrence:
+                cal_labels_occurrence = True
 
             dataset = AudioToSpeechLabelDataset(
                 manifest_filepath=config['manifest_filepath'],
@@ -188,7 +190,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
                 min_duration=config.get('min_duration', None),
                 trim=config.get('trim_silence', False),
                 normalize_audio=config.get('normalize_audio', False),
-                cal_labels_occurrence=cal_labels_occurrence, 
+                cal_labels_occurrence=cal_labels_occurrence,
             )
             self.labels_occurrence = dataset.labels_occurrence
 

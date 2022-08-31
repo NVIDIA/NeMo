@@ -152,12 +152,12 @@ from nemo.utils.exp_manager import exp_manager
 
 @hydra_runner(config_path="../conf/matchboxnet", config_name="matchboxnet_3x1x64_v1")
 def main(cfg):
-  
+
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
- 
+
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
- 
+
     if cfg.name == 'TitaNet':
         the_model = EncDecSpeakerLabelModel(cfg=cfg.model, trainer=trainer)
     else:
@@ -171,6 +171,7 @@ def main(cfg):
     if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.manifest_filepath is not None:
         if the_model.prepare_test(trainer):
             trainer.test(asr_model)
+
 
 if __name__ == '__main__':
     main()  # noqa pylint: disable=no-value-for-parameter
