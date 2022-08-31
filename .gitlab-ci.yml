@@ -164,12 +164,16 @@ release_perf:
     - sleep 10s # Without this, "sacct" in jobstate.sh does not always find the SLURM job.
     - if [[ "$RUN_STAGE" = "data_prep" ]]; then 
           export SLURM_JOBID=$(grep 'Submitted batch job' "${RESULTS_DIR}/preprocess/launcher.log" | awk '{ print $4 }');
+      elif [[ "$RUN_STAGE" = "export" ]]; then 
+          export SLURM_JOBID=$(grep 'Submitted batch job' "${RESULTS_DIR}/convert/launcher.log" | awk '{ print $4 }');
       else
           export SLURM_JOBID=$(grep 'Submitted batch job' "${RESULTS_DIR}/launcher.log" | awk '{ print $4 }');
       fi
     - echo $SLURM_JOBID
     - if [[ "$RUN_STAGE" = "data_prep" ]]; then
         export SLURM_OUTPUT=${RESULTS_DIR}/preprocess/slurm_${SLURM_JOBID}.out;
+      elif [[ "$RUN_STAGE" = "export" ]]; then 
+        export SLURM_OUTPUT=${RESULTS_DIR}/convert/slurm_${SLURM_JOBID}.out;
       else
         export SLURM_OUTPUT=${RESULTS_DIR}/slurm_${SLURM_JOBID}.out;
       fi
