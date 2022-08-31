@@ -90,7 +90,9 @@ python speech_to_label.py \
     --config-path=<path to dir of configs e.g. "../conf/lang_id">
     --config-name=<name of config without .yaml e.g. "titanet_large"> \
     model.train_ds.manifest_filepath="<path to train manifest>" \
-    model.validation_ds.manifest_filepath=["<path to val manifest>","<path to test manifest>"] \
+    model.validation_ds.manifest_filepath="<path to val manifest>" \
+    model.train_ds.augmentor.noise.manifest_path="<path to noise manifest>" \
+    model.train_ds.augmentor.impulse.manifest_path="<path to impulse manifest>" \
     model.decoder.num_classes=<num of languages> \
     trainer.devices=2 \
     trainer.max_epochs=40 \
