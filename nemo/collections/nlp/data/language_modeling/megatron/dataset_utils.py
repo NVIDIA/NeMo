@@ -1117,7 +1117,13 @@ def _build_train_valid_test_datasets(
                 respect_document_boundaries,
                 **kwargs)
 
-        return dataset
+            # Set the original pointer so dataset remains the main dataset.
+            if hasattr(indexed_dataset, 'set_doc_idx'):
+                indexed_dataset.set_doc_idx(doc_idx_ptr)
+            # Checks.
+            assert indexed_dataset.doc_idx[0] == 0
+            assert indexed_dataset.doc_idx.shape[0] == (total_num_of_documents + 1)
+            return dataset
 
     train_dataset = build_dataset(0, 'train')
     valid_dataset = build_dataset(1, 'valid')
