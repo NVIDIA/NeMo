@@ -514,16 +514,15 @@ class NeMoEvaluation(NeMoStage):
         choice_model_type, choice_name = self.get_stage_config_choice()
         pred_file_path = self.stage_cfg.get("pred_file_path")
         ground_truth_file_path = self.stage_cfg.get("ground_truth_file_path")
-        calculation_command = []
         if "prompt" in choice_model_type:
-            code_path = self._bignlp_path / "bignlp/collections/metric_calculation/squad_metric_calc.py",
+            code_path = self._bignlp_path / "bignlp/collections/metric_calculation/squad_metric_calc.py"
             args = create_args_list(
                 pred=pred_file_path,
                 ground_truth=ground_truth_file_path,
             )
             calculation_command = [f"python3 {code_path}", *args]
-        command_groups += [calculation_command]
-        command_groups = clean_command_groups(command_groups)
+            calculation_command = " \\\n  ".join(calculation_command)
+            command_groups += [[calculation_command]]
         return command_groups
 
     def _get_nemo_code_path(self, model_type):
