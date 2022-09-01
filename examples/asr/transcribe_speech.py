@@ -99,6 +99,9 @@ class TranscriptionConfig:
     # Decoding strategy for RNNT models
     rnnt_decoding: RNNTDecodingConfig = RNNTDecodingConfig(fused_batch_size=-1)
 
+    # decoder type: ctc/rnnt
+    decoder_type: Optional[str] = None
+
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
 def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
@@ -152,7 +155,11 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     # Setup decoding strategy
     if hasattr(asr_model, 'change_decoding_strategy'):
         # Check if ctc or rnnt model
-        if hasattr(asr_model, 'joint'):  # RNNT model
+        if cfg.decoder_type is not None:
+            asr_model.change_decoding_strategy(
+                cfg.rnnt_decoding if cfg.decoder_type == 'rnnt' else cfg.ctc_decoding, decoder_type=cfg.decoder_type
+            )
+        elif hasattr(asr_model, 'joint'):  # RNNT model
             asr_model.change_decoding_strategy(cfg.rnnt_decoding)
         else:
             asr_model.change_decoding_strategy(cfg.ctc_decoding)
