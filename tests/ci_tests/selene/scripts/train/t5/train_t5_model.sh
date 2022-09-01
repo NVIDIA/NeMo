@@ -13,6 +13,7 @@ fi
 
 DATA_DIR=/lustre/fsw/joc/big_nlp/t5/dataset/Pile
 DATA_PREFIX=[1.0,/lustre/fsw/joc/big_nlp/t5/dataset/Pile/my-t5_00_text_document]
+PP_SPLIT_RANK=${PP_SPLIT_RANK:-`expr ${PP_SIZE} / 2`}
 
 set -o xtrace
 
@@ -35,5 +36,6 @@ HYDRA_FULL_ERROR=1 BIGNLP_CI=1 python3 main.py \
     training.trainer.max_steps=${MAX_STEPS} \
     training.model.tensor_model_parallel_size=${TP_SIZE} \
     training.model.pipeline_model_parallel_size=${PP_SIZE} \
+    training.model.pipeline_model_parallel_split_rank=${PP_SPLIT_RANK} \
     training.model.data.data_prefix=${DATA_PREFIX} \
     "${params[@]}" ${ADDITIONAL_PARAMS}

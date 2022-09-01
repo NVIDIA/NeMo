@@ -210,6 +210,7 @@ release_perf:
           git checkout -b $CI_PIPELINE_ID
           GIT_BRANCHES=`git branch -r`
           if [[ "$GIT_BRANCHES" =~ .*"$CI_PIPELINE_ID".* ]]; then git pull origin $CI_PIPELINE_ID; fi
+          mkdir -p tests/ci_tests/selene/pytest/$RUN_STAGE/${RUN_MODEL}_result_files
           if [[ "$RUN_STAGE" == "eval" &&  "$RUN_MODEL" =~ "gpt3" ]]; then
             cp $RESULTS_DIR/results/$RUN_NAME*/metrics.json tests/ci_tests/selene/pytest/$RUN_STAGE/${RUN_MODEL}_result_files/${RUN_NAME}.json
           else
@@ -847,7 +848,7 @@ convert.t5.220m_tp2_pp2:
   needs:
     - train.t5.220m_tp2_pp2_2node_100steps
 
-finetune.t5.220m_tp1_pp1_1node_100steps_mnli:
+finetune.t5.220m_tp1_pp1_1node_100steps_squad:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
@@ -858,13 +859,13 @@ finetune.t5.220m_tp1_pp1_1node_100steps_mnli:
     PP_SIZE: 1
     MAX_STEPS: 100
     NUM_NODES: 1
-    TIME_LIMIT: "40:00"
+    TIME_LIMIT: "01:00:00"
     TEST_LEVEL: L0
-    TEST_TASK: mnli
+    TEST_TASK: squad
   needs:
     - convert.t5.220m_tp1_pp1
 
-finetune.t5.220m_tp2_pp2_2node_100steps_mnli:
+finetune.t5.220m_tp2_pp2_2node_100steps_squad:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
@@ -875,9 +876,9 @@ finetune.t5.220m_tp2_pp2_2node_100steps_mnli:
     PP_SIZE: 2
     MAX_STEPS: 100
     NUM_NODES: 2
-    TIME_LIMIT: "40:00"
+    TIME_LIMIT: "01:00:00"
     TEST_LEVEL: L1
-    TEST_TASK: mnli
+    TEST_TASK: squad
   needs:
     - convert.t5.220m_tp2_pp2
 
@@ -886,35 +887,35 @@ eval.t5.220m_tp1_pp1:
   variables:
     <<: [*VARS, *LUNA_VARS]
     RUN_STAGE: eval
-    TEST_TASK: mnli_matched
+    TEST_TASK: squad
     RUN_MODEL: t5
     RUN_MODEL_SIZE: 220m
     TIME_LIMIT: "1:00:00"
     TP_SIZE: 1
     PP_SIZE: 1
     NUM_NODES: 1
-    FINETUNE_JOB_DIR: finetune_t5_220m_tp1_pp1_1node_100steps_mnli
+    FINETUNE_JOB_DIR: finetune_t5_220m_tp1_pp1_1node_100steps_squad
     TEST_LEVEL: L0
   needs:
-    - finetune.t5.220m_tp1_pp1_1node_100steps_mnli
+    - finetune.t5.220m_tp1_pp1_1node_100steps_squad
 
 eval.t5.220m_tp2_pp2:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
     RUN_STAGE: eval
-    TEST_TASK: mnli_matched
+    TEST_TASK: squad
     RUN_MODEL: t5
     RUN_MODEL_SIZE: 220m
     TIME_LIMIT: "1:00:00"
     TP_SIZE: 2
     PP_SIZE: 2
     NUM_NODES: 2
-    FINETUNE_JOB_DIR: finetune_t5_220m_tp2_pp2_2node_100steps_mnli
+    FINETUNE_JOB_DIR: finetune_t5_220m_tp2_pp2_2node_100steps_squad
     MICRO_BATCH_SIZE: 8
     TEST_LEVEL: L1
   needs:
-    - finetune.t5.220m_tp2_pp2_2node_100steps_mnli
+    - finetune.t5.220m_tp2_pp2_2node_100steps_squad
 
 convert.mt5.170m_tp1_pp1:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
@@ -946,7 +947,7 @@ convert.mt5.170m_tp2_pp2:
   needs:
     - train.mt5.170m_tp2_pp2_2node_100steps
 
-finetune.mt5.170m_tp1_pp1_1node_100steps_xnli:
+finetune.mt5.170m_tp1_pp1_1node_100steps_xquad:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
@@ -959,11 +960,11 @@ finetune.mt5.170m_tp1_pp1_1node_100steps_xnli:
     NUM_NODES: 1
     TIME_LIMIT: "30:00"
     TEST_LEVEL: L0
-    TEST_TASK: xnli
+    TEST_TASK: xquad
   needs:
     - convert.mt5.170m_tp1_pp1
 
-finetune.mt5.170m_tp2_pp2_2node_100steps_xnli:
+finetune.mt5.170m_tp2_pp2_2node_100steps_xquad:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
@@ -974,9 +975,9 @@ finetune.mt5.170m_tp2_pp2_2node_100steps_xnli:
     PP_SIZE: 2
     MAX_STEPS: 100
     NUM_NODES: 2
-    TIME_LIMIT: "40:00"
+    TIME_LIMIT: "01:00:00"
     TEST_LEVEL: L1
-    TEST_TASK: xnli
+    TEST_TASK: xquad
   needs:
     - convert.mt5.170m_tp2_pp2
 
@@ -985,35 +986,35 @@ eval.mt5.170m_tp1_pp1:
   variables:
     <<: [*VARS, *LUNA_VARS]
     RUN_STAGE: eval
-    TEST_TASK: xnli
+    TEST_TASK: xquad
     RUN_MODEL: mt5
     RUN_MODEL_SIZE: 170m
     TIME_LIMIT: "1:00:00"
     TP_SIZE: 1
     PP_SIZE: 1
     NUM_NODES: 1
-    FINETUNE_JOB_DIR: finetune_mt5_170m_tp1_pp1_1node_100steps_xnli
+    FINETUNE_JOB_DIR: finetune_mt5_170m_tp1_pp1_1node_100steps_xquad
     TEST_LEVEL: L0
   needs:
-    - finetune.mt5.170m_tp1_pp1_1node_100steps_xnli
+    - finetune.mt5.170m_tp1_pp1_1node_100steps_xquad
 
 eval.mt5.170m_tp2_pp2:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
     RUN_STAGE: eval
-    TEST_TASK: xnli
+    TEST_TASK: xquad
     RUN_MODEL: mt5
     RUN_MODEL_SIZE: 170m
     TIME_LIMIT: "1:00:00"
     TP_SIZE: 2
     PP_SIZE: 2
     NUM_NODES: 2
-    FINETUNE_JOB_DIR: finetune_mt5_170m_tp2_pp2_2node_100steps_xnli
+    FINETUNE_JOB_DIR: finetune_mt5_170m_tp2_pp2_2node_100steps_xquad
     MICRO_BATCH_SIZE: 8
     TEST_LEVEL: L1
   needs:
-    - finetune.mt5.170m_tp2_pp2_2node_100steps_xnli
+    - finetune.mt5.170m_tp2_pp2_2node_100steps_xquad
 
 prompt_learn.gpt3.126m_tp1_pp1_1node_100steps_squad:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
@@ -1093,7 +1094,7 @@ prompt_learn.mt5.170m_tp2_pp2_2node_100steps_squad:
     PP_SIZE: 2
     MAX_STEPS: 100
     NUM_NODES: 2
-    TIME_LIMIT: "40:00"
+    TIME_LIMIT: "01:00:00"
     TEST_LEVEL: L1
   needs:
     - convert.mt5.170m_tp2_pp2
@@ -1126,7 +1127,7 @@ prompt_learn.t5.220m_tp2_pp2_2node_100steps_squad:
     PP_SIZE: 2
     MAX_STEPS: 100
     NUM_NODES: 2
-    TIME_LIMIT: "40:00"
+    TIME_LIMIT: "01:00:00"
     TEST_LEVEL: L1
   needs:
     - convert.t5.220m_tp2_pp2
@@ -1255,7 +1256,7 @@ train.gpt3.126m_tp2_pp2_2node_100steps_SP:
     PP_SIZE: 2
     NUM_NODES: 2
     MAX_STEPS: 100
-    TIME_LIMIT: "40:00"
+    TIME_LIMIT: "01:00:00"
     TEST_LEVEL: L1
     ADDITIONAL_PARAMS: "training.model.sequence_parallel=True"
   needs:
@@ -1274,7 +1275,7 @@ eval.gpt3.126m_tp2_pp2_lambada_SP:
     TRAIN_JOB_NAME: train_gpt3_126m_tp2_pp2_2node_100steps_SP
     TP_SIZE: 2
     PP_SIZE: 2
-    TIME_LIMIT: "40:00"
+    TIME_LIMIT: "01:00:00"
     TEST_LEVEL: L1
   needs:
     - train.gpt3.126m_tp2_pp2_2node_100steps_SP
@@ -1291,7 +1292,7 @@ convert.gpt3.126m_tp2_pp2_SP:
     UPSTREAM_RUN_NAME: train_gpt3_126m_tp2_pp2_2node_100steps_SP
     TP_SIZE: 2
     PP_SIZE: 2
-    TIME_LIMIT: "40:00"
+    TIME_LIMIT: "01:00:00"
     TEST_LEVEL: L1
   needs:
     - train.gpt3.126m_tp2_pp2_2node_100steps_SP
@@ -1310,7 +1311,7 @@ prompt_learn.gpt3.126m_tp2_pp2_2node_100steps_squad_SP:
     PP_SIZE: 2
     NUM_NODES: 2
     MAX_STEPS: 100
-    TIME_LIMIT: "40:00"
+    TIME_LIMIT: "01:00:00"
     TEST_LEVEL: L1
   needs:
     - convert.gpt3.126m_tp2_pp2_SP
@@ -1330,7 +1331,7 @@ eval.gpt3.prompt_126m_tp2_pp2_squad_SP:
     NUM_NODES: 2
     PROMPT_LEARN_MODEL_DIR: prompt_learn_gpt3_126m_tp2_pp2_2node_squad_SP
     CONVERT_MODEL_DIR: convert_gpt3_126m_tp2_pp2_SP
-    TIME_LIMIT: "40:00"
+    TIME_LIMIT: "01:00:00"
     TEST_LEVEL: L1
   needs:
     - prompt_learn.gpt3.126m_tp2_pp2_2node_100steps_squad_SP
@@ -1347,7 +1348,7 @@ train.gpt3.126m_tp2_pp2_2node_100steps_SP_SAR:
     PP_SIZE: 2
     NUM_NODES: 2
     MAX_STEPS: 100
-    TIME_LIMIT: "40:00"
+    TIME_LIMIT: "01:00:00"
     TEST_LEVEL: L1
     ADDITIONAL_PARAMS: "training.model.activations_checkpoint_granularity=selective training.model.activations_checkpoint_method=null training.model.activations_checkpoint_num_layers=null training.model.sequence_parallel=True "
   needs:
@@ -1366,7 +1367,7 @@ eval.gpt3.126m_tp2_pp2_lambada_SP_SAR:
     TRAIN_JOB_NAME: train_gpt3_126m_tp2_pp2_2node_100steps_SP_SAR
     TP_SIZE: 2
     PP_SIZE: 2
-    TIME_LIMIT: "40:00"
+    TIME_LIMIT: "01:00:00"
     TEST_LEVEL: L1
   needs:
     - train.gpt3.126m_tp2_pp2_2node_100steps_SP_SAR
@@ -1383,7 +1384,7 @@ convert.gpt3.126m_tp2_pp2_SP_SAR:
     UPSTREAM_RUN_NAME: train_gpt3_126m_tp2_pp2_2node_100steps_SP_SAR
     TP_SIZE: 2
     PP_SIZE: 2
-    TIME_LIMIT: "40:00"
+    TIME_LIMIT: "01:00:00"
     TEST_LEVEL: L1
   needs:
     - train.gpt3.126m_tp2_pp2_2node_100steps_SP_SAR
@@ -1402,7 +1403,7 @@ prompt_learn.gpt3.126m_tp2_pp2_2node_100steps_squad_SP_SAR:
     PP_SIZE: 2
     NUM_NODES: 2
     MAX_STEPS: 100
-    TIME_LIMIT: "40:00"
+    TIME_LIMIT: "01:00:00"
     TEST_LEVEL: L1
   needs:
     - convert.gpt3.126m_tp2_pp2_SP_SAR
@@ -1422,7 +1423,7 @@ eval.gpt3.prompt_126m_tp2_pp2_squad_SP_SAR:
     NUM_NODES: 2
     PROMPT_LEARN_MODEL_DIR: prompt_learn_gpt3_126m_tp2_pp2_2node_squad_SP_SAR
     CONVERT_MODEL_DIR: convert_gpt3_126m_tp2_pp2_SP_SAR
-    TIME_LIMIT: "40:00"
+    TIME_LIMIT: "01:00:00"
     TEST_LEVEL: L1
   needs:
     - prompt_learn.gpt3.126m_tp2_pp2_2node_100steps_squad_SP_SAR
@@ -1440,7 +1441,7 @@ train.gpt3.126m_tp2_pp2_2node_100steps_DistOpt:
     PP_SIZE: 2
     NUM_NODES: 2
     MAX_STEPS: 100
-    TIME_LIMIT: "00:40:00"
+    TIME_LIMIT: "01:00:00"
     TEST_LEVEL: L1
     ADDITIONAL_PARAMS: "training.model.optim.name=distributed_fused_adam"
   needs:
@@ -1459,7 +1460,7 @@ eval.gpt3.126m_tp2_pp2_lambada_DistOpt:
     TRAIN_JOB_NAME: train_gpt3_126m_tp2_pp2_2node_100steps_DistOpt
     TP_SIZE: 2
     PP_SIZE: 2
-    TIME_LIMIT: "00:40:00"
+    TIME_LIMIT: "01:00:00"
     TEST_LEVEL: L1
   needs:
     - train.gpt3.126m_tp2_pp2_2node_100steps_DistOpt
@@ -1476,7 +1477,7 @@ convert.gpt3.126m_tp2_pp2_DistOpt:
     UPSTREAM_RUN_NAME: train_gpt3_126m_tp2_pp2_2node_100steps_DistOpt
     TP_SIZE: 2
     PP_SIZE: 2
-    TIME_LIMIT: "00:40:00"
+    TIME_LIMIT: "01:00:00"
     TEST_LEVEL: L1
   needs:
     - train.gpt3.126m_tp2_pp2_2node_100steps_DistOpt
@@ -1495,7 +1496,7 @@ prompt_learn.gpt3.126m_tp2_pp2_2node_100steps_squad_DistOpt:
     PP_SIZE: 2
     NUM_NODES: 2
     MAX_STEPS: 100
-    TIME_LIMIT: "00:40:00"
+    TIME_LIMIT: "01:00:00"
     TEST_LEVEL: L1
   needs:
     - convert.gpt3.126m_tp2_pp2_DistOpt
@@ -1515,7 +1516,7 @@ eval.gpt3.prompt_126m_tp2_pp2_squad_DistOpt:
     NUM_NODES: 2
     PROMPT_LEARN_MODEL_DIR: prompt_learn_gpt3_126m_tp2_pp2_2node_squad_DistOpt
     CONVERT_MODEL_DIR: convert_gpt3_126m_tp2_pp2_DistOpt
-    TIME_LIMIT: "00:40:00"
+    TIME_LIMIT: "01:00:00"
     TEST_LEVEL: L1
   needs:
     - prompt_learn.gpt3.126m_tp2_pp2_2node_100steps_squad_DistOpt
@@ -1533,7 +1534,7 @@ train.gpt3.126m_tp2_pp2_2node_100steps_DistOpt_SP_SAR:
     PP_SIZE: 2
     NUM_NODES: 2
     MAX_STEPS: 100
-    TIME_LIMIT: "00:40:00"
+    TIME_LIMIT: "01:00:00"
     TEST_LEVEL: L1
     ADDITIONAL_PARAMS: "training.model.optim.name=distributed_fused_adam training.model.activations_checkpoint_granularity=selective training.model.activations_checkpoint_method=null training.model.activations_checkpoint_num_layers=null training.model.sequence_parallel=True "
   needs:
@@ -1552,7 +1553,7 @@ eval.gpt3.126m_tp2_pp2_lambada_DistOpt_SP_SAR:
     TRAIN_JOB_NAME: train_gpt3_126m_tp2_pp2_2node_100steps_DistOpt_SP_SAR
     TP_SIZE: 2
     PP_SIZE: 2
-    TIME_LIMIT: "00:40:00"
+    TIME_LIMIT: "01:00:00"
     TEST_LEVEL: L1
   needs:
     - train.gpt3.126m_tp2_pp2_2node_100steps_DistOpt_SP_SAR
@@ -1569,7 +1570,7 @@ convert.gpt3.126m_tp2_pp2_DistOpt_SP_SAR:
     UPSTREAM_RUN_NAME: train_gpt3_126m_tp2_pp2_2node_100steps_DistOpt_SP_SAR
     TP_SIZE: 2
     PP_SIZE: 2
-    TIME_LIMIT: "00:40:00"
+    TIME_LIMIT: "01:00:00"
     TEST_LEVEL: L1
   needs:
     - train.gpt3.126m_tp2_pp2_2node_100steps_DistOpt_SP_SAR
@@ -1588,7 +1589,7 @@ prompt_learn.gpt3.126m_tp2_pp2_2node_100steps_squad_DistOpt_SP_SAR:
     PP_SIZE: 2
     NUM_NODES: 2
     MAX_STEPS: 100
-    TIME_LIMIT: "00:40:00"
+    TIME_LIMIT: "01:00:00"
     TEST_LEVEL: L1
   needs:
     - convert.gpt3.126m_tp2_pp2_DistOpt_SP_SAR
@@ -1608,7 +1609,590 @@ eval.gpt3.prompt_126m_tp2_pp2_squad_DistOpt_SP_SAR:
     NUM_NODES: 2
     PROMPT_LEARN_MODEL_DIR: prompt_learn_gpt3_126m_tp2_pp2_2node_squad_DistOpt_SP_SAR
     CONVERT_MODEL_DIR: convert_gpt3_126m_tp2_pp2_DistOpt_SP_SAR
-    TIME_LIMIT: "00:40:00"
+    TIME_LIMIT: "01:00:00"
     TEST_LEVEL: L1
   needs:
     - prompt_learn.gpt3.126m_tp2_pp2_2node_100steps_squad_DistOpt_SP_SAR
+
+train.mt5.170m_tp2_pp4_2node_100steps:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: train
+    RUN_MODEL: mt5
+    RUN_MODEL_SIZE: 170m
+    RUN_NAME_SUFFIX: ""
+    TP_SIZE: 2
+    PP_SIZE: 4
+    NUM_NODES: 2
+    MAX_STEPS: 100
+    TIME_LIMIT: "01:00:00"
+    TEST_LEVEL: L1
+    ADDITIONAL_PARAMS: ""
+  needs:
+    - build-BigNLP
+
+
+convert.mt5.170m_tp2_pp4:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: convert
+    RUN_MODEL: mt5
+    RUN_MODEL_SIZE: 170m
+    RUN_NAME_SUFFIX: ""
+    UPSTREAM_RUN_NAME: train_mt5_170m_tp2_pp4_2node_100steps
+    TP_SIZE: 2
+    PP_SIZE: 4
+    TIME_LIMIT: "01:00:00"
+    TEST_LEVEL: L1
+  needs:
+    - train.mt5.170m_tp2_pp4_2node_100steps
+
+
+finetune.mt5.170m_tp2_pp4_2node_100steps_xquad:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: finetune
+    RUN_MODEL: mt5
+    RUN_MODEL_SIZE: 170m
+    RUN_NAME_SUFFIX: ""
+    TEST_TASK: xquad
+    TP_SIZE: 2
+    PP_SIZE: 4
+    NUM_NODES: 2
+    MAX_STEPS: 100
+    TIME_LIMIT: "01:00:00"
+    TEST_LEVEL: L1
+  needs:
+    - convert.mt5.170m_tp2_pp4
+
+
+eval.mt5.170m_tp2_pp4_xquad:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: eval
+    RUN_MODEL: mt5
+    RUN_MODEL_SIZE: 170m
+    RUN_NAME_SUFFIX: ""
+    TEST_TASK: xquad
+    TP_SIZE: 2
+    PP_SIZE: 4
+    NUM_NODES: 2
+    FINETUNE_JOB_DIR: finetune_mt5_170m_tp2_pp4_2node_100steps_xquad
+    TIME_LIMIT: "01:00:00"
+    TEST_LEVEL: L1
+  needs:
+    - finetune.mt5.170m_tp2_pp4_2node_100steps_xquad
+
+
+prompt_learn.mt5.170m_tp2_pp4_2node_100steps_squad:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: prompt_learn
+    RUN_MODEL: mt5
+    RUN_MODEL_SIZE: 170m
+    RUN_NAME_SUFFIX: ""
+    TEST_TASK: squad
+    TP_SIZE: 2
+    PP_SIZE: 4
+    NUM_NODES: 2
+    MAX_STEPS: 100
+    TIME_LIMIT: "01:00:00"
+    TEST_LEVEL: L1
+  needs:
+    - convert.mt5.170m_tp2_pp4
+
+
+eval.mt5.prompt_170m_tp2_pp4_squad:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: eval
+    RUN_MODEL: prompt_mt5
+    RUN_MODEL_SIZE: 170m
+    RUN_NAME_SUFFIX: ""
+    TEST_TASK: squad
+    TP_SIZE: 2
+    PP_SIZE: 4
+    NUM_NODES: 2
+    PROMPT_LEARN_MODEL_DIR: prompt_learn_mt5_170m_tp2_pp4_2node_squad
+    CONVERT_MODEL_DIR: convert_mt5_170m_tp2_pp4
+    TIME_LIMIT: "01:00:00"
+    TEST_LEVEL: L1
+  needs:
+    - prompt_learn.mt5.170m_tp2_pp4_2node_100steps_squad
+
+
+train.mt5.170m_tp2_pp4_2node_100steps_RPE:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: train
+    RUN_MODEL: mt5
+    RUN_MODEL_SIZE: 170m
+    RUN_NAME_SUFFIX: "RPE"
+    TP_SIZE: 2
+    PP_SIZE: 4
+    NUM_NODES: 2
+    MAX_STEPS: 100
+    TIME_LIMIT: "01:00:00"
+    TEST_LEVEL: L1
+    ADDITIONAL_PARAMS: "training.model.encoder.position_embedding_type=relative training.model.decoder.position_embedding_type=relative "
+  needs:
+    - build-BigNLP
+
+
+convert.mt5.170m_tp2_pp4_RPE:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: convert
+    RUN_MODEL: mt5
+    RUN_MODEL_SIZE: 170m
+    RUN_NAME_SUFFIX: "RPE"
+    UPSTREAM_RUN_NAME: train_mt5_170m_tp2_pp4_2node_100steps_RPE
+    TP_SIZE: 2
+    PP_SIZE: 4
+    TIME_LIMIT: "01:00:00"
+    TEST_LEVEL: L1
+  needs:
+    - train.mt5.170m_tp2_pp4_2node_100steps_RPE
+
+
+finetune.mt5.170m_tp2_pp4_2node_100steps_xquad_RPE:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: finetune
+    RUN_MODEL: mt5
+    RUN_MODEL_SIZE: 170m
+    RUN_NAME_SUFFIX: "RPE"
+    TEST_TASK: xquad
+    TP_SIZE: 2
+    PP_SIZE: 4
+    NUM_NODES: 2
+    MAX_STEPS: 100
+    TIME_LIMIT: "01:00:00"
+    TEST_LEVEL: L1
+  needs:
+    - convert.mt5.170m_tp2_pp4_RPE
+
+
+eval.mt5.170m_tp2_pp4_xquad_RPE:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: eval
+    RUN_MODEL: mt5
+    RUN_MODEL_SIZE: 170m
+    RUN_NAME_SUFFIX: "RPE"
+    TEST_TASK: xquad
+    TP_SIZE: 2
+    PP_SIZE: 4
+    NUM_NODES: 2
+    FINETUNE_JOB_DIR: finetune_mt5_170m_tp2_pp4_2node_100steps_xquad_RPE
+    TIME_LIMIT: "01:00:00"
+    TEST_LEVEL: L1
+  needs:
+    - finetune.mt5.170m_tp2_pp4_2node_100steps_xquad_RPE
+
+
+prompt_learn.mt5.170m_tp2_pp4_2node_100steps_squad_RPE:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: prompt_learn
+    RUN_MODEL: mt5
+    RUN_MODEL_SIZE: 170m
+    RUN_NAME_SUFFIX: "RPE"
+    TEST_TASK: squad
+    TP_SIZE: 2
+    PP_SIZE: 4
+    NUM_NODES: 2
+    MAX_STEPS: 100
+    TIME_LIMIT: "01:00:00"
+    TEST_LEVEL: L1
+  needs:
+    - convert.mt5.170m_tp2_pp4_RPE
+
+
+eval.mt5.prompt_170m_tp2_pp4_squad_RPE:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: eval
+    RUN_MODEL: prompt_mt5
+    RUN_MODEL_SIZE: 170m
+    RUN_NAME_SUFFIX: "RPE"
+    TEST_TASK: squad
+    TP_SIZE: 2
+    PP_SIZE: 4
+    NUM_NODES: 2
+    PROMPT_LEARN_MODEL_DIR: prompt_learn_mt5_170m_tp2_pp4_2node_squad_RPE
+    CONVERT_MODEL_DIR: convert_mt5_170m_tp2_pp4_RPE
+    TIME_LIMIT: "01:00:00"
+    TEST_LEVEL: L1
+  needs:
+    - prompt_learn.mt5.170m_tp2_pp4_2node_100steps_squad_RPE
+
+
+
+train.mt5.170m_tp2_pp4_2node_100steps_RPE_EncLayer2_DecLayer6_SplitRank1:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: train
+    RUN_MODEL: mt5
+    RUN_MODEL_SIZE: 170m
+    RUN_NAME_SUFFIX: "RPE_EncLayer2_DecLayer6_SplitRank1"
+    TP_SIZE: 2
+    PP_SIZE: 4
+    PP_SPLIT_RANK: 1
+    NUM_NODES: 2
+    MAX_STEPS: 100
+    TIME_LIMIT: "01:00:00"
+    TEST_LEVEL: L1
+    ADDITIONAL_PARAMS: "training.model.encoder.num_layers=2 training.model.decoder.num_layers=6 training.model.encoder.position_embedding_type=relative training.model.decoder.position_embedding_type=relative "
+  needs:
+    - build-BigNLP
+
+
+convert.mt5.170m_tp2_pp4_RPE_EncLayer2_DecLayer6_SplitRank1:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: convert
+    RUN_MODEL: mt5
+    RUN_MODEL_SIZE: 170m
+    RUN_NAME_SUFFIX: "RPE_EncLayer2_DecLayer6_SplitRank1"
+    UPSTREAM_RUN_NAME: train_mt5_170m_tp2_pp4_2node_100steps_RPE_EncLayer2_DecLayer6_SplitRank1
+    TP_SIZE: 2
+    PP_SIZE: 4
+    PP_SPLIT_RANK: 1
+    TIME_LIMIT: "01:00:00"
+    TEST_LEVEL: L1
+  needs:
+    - train.mt5.170m_tp2_pp4_2node_100steps_RPE_EncLayer2_DecLayer6_SplitRank1
+
+
+finetune.mt5.170m_tp2_pp4_2node_100steps_xquad_RPE_EncLayer2_DecLayer6_SplitRank1:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: finetune
+    RUN_MODEL: mt5
+    RUN_MODEL_SIZE: 170m
+    RUN_NAME_SUFFIX: "RPE_EncLayer2_DecLayer6_SplitRank1"
+    TEST_TASK: xquad
+    TP_SIZE: 2
+    PP_SIZE: 4
+    PP_SPLIT_RANK: 1
+    NUM_NODES: 2
+    MAX_STEPS: 100
+    TIME_LIMIT: "01:00:00"
+    TEST_LEVEL: L1
+  needs:
+    - convert.mt5.170m_tp2_pp4_RPE_EncLayer2_DecLayer6_SplitRank1
+
+
+eval.mt5.170m_tp2_pp4_xquad_RPE_EncLayer2_DecLayer6_SplitRank1:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: eval
+    RUN_MODEL: mt5
+    RUN_MODEL_SIZE: 170m
+    RUN_NAME_SUFFIX: "RPE_EncLayer2_DecLayer6_SplitRank1"
+    TEST_TASK: xquad
+    TP_SIZE: 2
+    PP_SIZE: 4
+    PP_SPLIT_RANK: 1
+    NUM_NODES: 2
+    FINETUNE_JOB_DIR: finetune_mt5_170m_tp2_pp4_2node_100steps_xquad_RPE_EncLayer2_DecLayer6_SplitRank1
+    TIME_LIMIT: "01:00:00"
+    TEST_LEVEL: L1
+  needs:
+    - finetune.mt5.170m_tp2_pp4_2node_100steps_xquad_RPE_EncLayer2_DecLayer6_SplitRank1
+
+
+prompt_learn.mt5.170m_tp2_pp4_2node_100steps_squad_RPE_EncLayer2_DecLayer6_SplitRank1:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: prompt_learn
+    RUN_MODEL: mt5
+    RUN_MODEL_SIZE: 170m
+    RUN_NAME_SUFFIX: "RPE_EncLayer2_DecLayer6_SplitRank1"
+    TEST_TASK: squad
+    TP_SIZE: 2
+    PP_SIZE: 4
+    PP_SPLIT_RANK: 1
+    NUM_NODES: 2
+    MAX_STEPS: 100
+    TIME_LIMIT: "01:00:00"
+    TEST_LEVEL: L1
+  needs:
+    - convert.mt5.170m_tp2_pp4_RPE_EncLayer2_DecLayer6_SplitRank1
+
+
+eval.mt5.prompt_170m_tp2_pp4_squad_RPE_EncLayer2_DecLayer6_SplitRank1:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: eval
+    RUN_MODEL: prompt_mt5
+    RUN_MODEL_SIZE: 170m
+    RUN_NAME_SUFFIX: "RPE_EncLayer2_DecLayer6_SplitRank1"
+    TEST_TASK: squad
+    TP_SIZE: 2
+    PP_SIZE: 4
+    PP_SPLIT_RANK: 1
+    NUM_NODES: 2
+    PROMPT_LEARN_MODEL_DIR: prompt_learn_mt5_170m_tp2_pp4_2node_squad_RPE_EncLayer2_DecLayer6_SplitRank1
+    CONVERT_MODEL_DIR: convert_mt5_170m_tp2_pp4_RPE_EncLayer2_DecLayer6_SplitRank1
+    TIME_LIMIT: "01:00:00"
+    TEST_LEVEL: L1
+  needs:
+    - prompt_learn.mt5.170m_tp2_pp4_2node_100steps_squad_RPE_EncLayer2_DecLayer6_SplitRank1
+
+
+train.mt5.170m_tp2_pp4_2node_100steps_EncLayer2_DecLayer6_SplitRank1:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: train
+    RUN_MODEL: mt5
+    RUN_MODEL_SIZE: 170m
+    RUN_NAME_SUFFIX: "EncLayer2_DecLayer6_SplitRank1"
+    TP_SIZE: 2
+    PP_SIZE: 4
+    PP_SPLIT_RANK: 1
+    NUM_NODES: 2
+    MAX_STEPS: 100
+    TIME_LIMIT: "01:00:00"
+    TEST_LEVEL: L1
+    ADDITIONAL_PARAMS: "training.model.encoder.num_layers=2 training.model.decoder.num_layers=6 "
+  needs:
+    - build-BigNLP
+
+
+convert.mt5.170m_tp2_pp4_EncLayer2_DecLayer6_SplitRank1:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: convert
+    RUN_MODEL: mt5
+    RUN_MODEL_SIZE: 170m
+    RUN_NAME_SUFFIX: "EncLayer2_DecLayer6_SplitRank1"
+    UPSTREAM_RUN_NAME: train_mt5_170m_tp2_pp4_2node_100steps_EncLayer2_DecLayer6_SplitRank1
+    TP_SIZE: 2
+    PP_SIZE: 4
+    PP_SPLIT_RANK: 1
+    TIME_LIMIT: "01:00:00"
+    TEST_LEVEL: L1
+  needs:
+    - train.mt5.170m_tp2_pp4_2node_100steps_EncLayer2_DecLayer6_SplitRank1
+
+
+finetune.mt5.170m_tp2_pp4_2node_100steps_xquad_EncLayer2_DecLayer6_SplitRank1:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: finetune
+    RUN_MODEL: mt5
+    RUN_MODEL_SIZE: 170m
+    RUN_NAME_SUFFIX: "EncLayer2_DecLayer6_SplitRank1"
+    TEST_TASK: xquad
+    TP_SIZE: 2
+    PP_SIZE: 4
+    PP_SPLIT_RANK: 1
+    NUM_NODES: 2
+    MAX_STEPS: 100
+    TIME_LIMIT: "01:00:00"
+    TEST_LEVEL: L1
+  needs:
+    - convert.mt5.170m_tp2_pp4_EncLayer2_DecLayer6_SplitRank1
+
+
+eval.mt5.170m_tp2_pp4_xquad_EncLayer2_DecLayer6_SplitRank1:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: eval
+    RUN_MODEL: mt5
+    RUN_MODEL_SIZE: 170m
+    RUN_NAME_SUFFIX: "EncLayer2_DecLayer6_SplitRank1"
+    TEST_TASK: xquad
+    TP_SIZE: 2
+    PP_SIZE: 4
+    PP_SPLIT_RANK: 1
+    NUM_NODES: 2
+    FINETUNE_JOB_DIR: finetune_mt5_170m_tp2_pp4_2node_100steps_xquad_EncLayer2_DecLayer6_SplitRank1
+    TIME_LIMIT: "01:00:00"
+    TEST_LEVEL: L1
+  needs:
+    - finetune.mt5.170m_tp2_pp4_2node_100steps_xquad_EncLayer2_DecLayer6_SplitRank1
+
+
+prompt_learn.mt5.170m_tp2_pp4_2node_100steps_squad_EncLayer2_DecLayer6_SplitRank1:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: prompt_learn
+    RUN_MODEL: mt5
+    RUN_MODEL_SIZE: 170m
+    RUN_NAME_SUFFIX: "EncLayer2_DecLayer6_SplitRank1"
+    TEST_TASK: squad
+    TP_SIZE: 2
+    PP_SIZE: 4
+    PP_SPLIT_RANK: 1
+    NUM_NODES: 2
+    MAX_STEPS: 100
+    TIME_LIMIT: "01:00:00"
+    TEST_LEVEL: L1
+  needs:
+    - convert.mt5.170m_tp2_pp4_EncLayer2_DecLayer6_SplitRank1
+
+
+eval.mt5.prompt_170m_tp2_pp4_squad_EncLayer2_DecLayer6_SplitRank1:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: eval
+    RUN_MODEL: prompt_mt5
+    RUN_MODEL_SIZE: 170m
+    RUN_NAME_SUFFIX: "EncLayer2_DecLayer6_SplitRank1"
+    TEST_TASK: squad
+    TP_SIZE: 2
+    PP_SIZE: 4
+    PP_SPLIT_RANK: 1
+    NUM_NODES: 2
+    PROMPT_LEARN_MODEL_DIR: prompt_learn_mt5_170m_tp2_pp4_2node_squad_EncLayer2_DecLayer6_SplitRank1
+    CONVERT_MODEL_DIR: convert_mt5_170m_tp2_pp4_EncLayer2_DecLayer6_SplitRank1
+    TIME_LIMIT: "01:00:00"
+    TEST_LEVEL: L1
+  needs:
+    - prompt_learn.mt5.170m_tp2_pp4_2node_100steps_squad_EncLayer2_DecLayer6_SplitRank1
+
+
+train.mt5.390m_tp4_pp1_1node_100steps:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: train
+    RUN_MODEL: mt5
+    RUN_MODEL_SIZE: 390m
+    RUN_NAME_SUFFIX: ""
+    TP_SIZE: 4
+    PP_SIZE: 1
+    PP_SPLIT_RANK: 0
+    NUM_NODES: 1
+    MAX_STEPS: 100
+    TIME_LIMIT: "01:00:00"
+    TEST_LEVEL: L1
+    ADDITIONAL_PARAMS: ""
+  needs:
+    - build-BigNLP
+
+
+convert.mt5.390m_tp4_pp1:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: convert
+    RUN_MODEL: mt5
+    RUN_MODEL_SIZE: 390m
+    RUN_NAME_SUFFIX: ""
+    UPSTREAM_RUN_NAME: train_mt5_390m_tp4_pp1_1node_100steps
+    TP_SIZE: 4
+    PP_SIZE: 1
+    PP_SPLIT_RANK: 0
+    TIME_LIMIT: "01:00:00"
+    TEST_LEVEL: L1
+  needs:
+    - train.mt5.390m_tp4_pp1_1node_100steps
+
+
+finetune.mt5.390m_tp4_pp1_1node_100steps_xquad:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: finetune
+    RUN_MODEL: mt5
+    RUN_MODEL_SIZE: 390m
+    RUN_NAME_SUFFIX: ""
+    TEST_TASK: xquad
+    TP_SIZE: 4
+    PP_SIZE: 1
+    PP_SPLIT_RANK: 0
+    NUM_NODES: 1
+    MAX_STEPS: 100
+    TIME_LIMIT: "01:00:00"
+    TEST_LEVEL: L1
+  needs:
+    - convert.mt5.390m_tp4_pp1
+
+
+eval.mt5.390m_tp4_pp1_xquad:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: eval
+    RUN_MODEL: mt5
+    RUN_MODEL_SIZE: 390m
+    RUN_NAME_SUFFIX: ""
+    TEST_TASK: xquad
+    TP_SIZE: 4
+    PP_SIZE: 1
+    PP_SPLIT_RANK: 0
+    NUM_NODES: 1
+    FINETUNE_JOB_DIR: finetune_mt5_390m_tp4_pp1_1node_100steps_xquad
+    TIME_LIMIT: "01:00:00"
+    TEST_LEVEL: L1
+  needs:
+    - finetune.mt5.390m_tp4_pp1_1node_100steps_xquad
+
+
+prompt_learn.mt5.390m_tp4_pp1_1node_100steps_squad:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: prompt_learn
+    RUN_MODEL: mt5
+    RUN_MODEL_SIZE: 390m
+    RUN_NAME_SUFFIX: ""
+    TEST_TASK: squad
+    TP_SIZE: 4
+    PP_SIZE: 1
+    PP_SPLIT_RANK: 0
+    NUM_NODES: 1
+    MAX_STEPS: 100
+    TIME_LIMIT: "01:00:00"
+    TEST_LEVEL: L1
+  needs:
+    - convert.mt5.390m_tp4_pp1
+
+
+eval.mt5.prompt_390m_tp4_pp1_squad:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: eval
+    RUN_MODEL: prompt_mt5
+    RUN_MODEL_SIZE: 390m
+    RUN_NAME_SUFFIX: ""
+    TEST_TASK: squad
+    TP_SIZE: 4
+    PP_SIZE: 1
+    PP_SPLIT_RANK: 0
+    NUM_NODES: 1
+    PROMPT_LEARN_MODEL_DIR: prompt_learn_mt5_390m_tp4_pp1_1node_squad
+    CONVERT_MODEL_DIR: convert_mt5_390m_tp4_pp1
+    TIME_LIMIT: "01:00:00"
+    TEST_LEVEL: L1
+  needs:
+    - prompt_learn.mt5.390m_tp4_pp1_1node_100steps_squad

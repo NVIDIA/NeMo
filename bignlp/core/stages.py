@@ -500,6 +500,7 @@ class Conversion(BigNLPStage):
             nemo_file_path=nemo_file_path,
             tensor_model_parallel_size=model_cfg.get("tensor_model_parallel_size"),
             pipeline_model_parallel_size=model_cfg.get("pipeline_model_parallel_size"),
+            pipeline_model_parallel_split_rank=model_cfg.get("pipeline_model_parallel_split_rank"),
         )
         args += ["--bcp"] if self.cluster == "bcp" else []
 

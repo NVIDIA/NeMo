@@ -5,6 +5,7 @@ if __name__ == "__main__":
         "RUN_NAME_SUFFIX": "SP",
         "TP_SIZE": "2",
         "PP_SIZE": "2",
+        "PP_SPLIT_RANK": "",
         "NUM_NODES": "2",
         "MAX_STEPS": "100",
         "TIME_LIMIT": "00:40:00",
@@ -15,6 +16,12 @@ if __name__ == "__main__":
         suffix = "_" + vars['RUN_NAME_SUFFIX']
     else:
         suffix = ""
+
+    mp_string = \
+    f"""TP_SIZE: {vars['TP_SIZE']}
+                PP_SIZE: {vars['PP_SIZE']}"""
+    if vars["PP_SPLIT_RANK"]:
+        mp_string += f"\n                PP_SPLIT_RANK: {vars['PP_SPLIT_RANK']}"
 
     for stage in ["train", "eval", "convert", "finetune", "prompt_learn"]:
         vars['RUN_STAGE'] = stage
@@ -37,8 +44,7 @@ if __name__ == "__main__":
                 RUN_MODEL_SIZE: {vars['RUN_MODEL_SIZE']}
                 RUN_NAME_SUFFIX: "{vars['RUN_NAME_SUFFIX']}"
                 UPSTREAM_RUN_NAME: {vars['TRAIN_NAME']}
-                TP_SIZE: {vars['TP_SIZE']}
-                PP_SIZE: {vars['PP_SIZE']}
+                {mp_string}
                 TIME_LIMIT: "{vars['TIME_LIMIT']}"
                 TEST_LEVEL: {vars['TEST_LEVEL']}
               needs:
@@ -63,8 +69,7 @@ if __name__ == "__main__":
                 RUN_MODEL: {vars['RUN_MODEL']}
                 RUN_MODEL_SIZE: {vars['RUN_MODEL_SIZE']}
                 RUN_NAME_SUFFIX: "{vars['RUN_NAME_SUFFIX']}"
-                TP_SIZE: {vars['TP_SIZE']}
-                PP_SIZE: {vars['PP_SIZE']}
+                {mp_string}
                 NUM_NODES: {vars['NUM_NODES']}
                 MAX_STEPS: {vars['MAX_STEPS']}
                 TIME_LIMIT: "{vars['TIME_LIMIT']}"
@@ -93,8 +98,7 @@ if __name__ == "__main__":
                 RUN_MODEL_SIZE: {vars['RUN_MODEL_SIZE']}
                 RUN_NAME_SUFFIX: "{vars['RUN_NAME_SUFFIX']}"
                 TEST_TASK: {vars['TEST_TASK']}
-                TP_SIZE: {vars['TP_SIZE']}
-                PP_SIZE: {vars['PP_SIZE']}
+                {mp_string}
                 NUM_NODES: {vars['NUM_NODES']}
                 MAX_STEPS: {vars['MAX_STEPS']}
                 TIME_LIMIT: "{vars['TIME_LIMIT']}"
@@ -116,8 +120,7 @@ if __name__ == "__main__":
                 RUN_MODEL_SIZE: {vars['RUN_MODEL_SIZE']}
                 RUN_NAME_SUFFIX: "{vars['RUN_NAME_SUFFIX']}"
                 TEST_TASK: {vars['TEST_TASK']}
-                TP_SIZE: {vars['TP_SIZE']}
-                PP_SIZE: {vars['PP_SIZE']}
+                {mp_string}
                 NUM_NODES: {vars['NUM_NODES']}
                 PROMPT_LEARN_MODEL_DIR: {vars['PROMPT_NAME']}
                 CONVERT_MODEL_DIR: {vars['CONVERT_NAME']}
@@ -151,8 +154,7 @@ if __name__ == "__main__":
                 RUN_MODEL_SIZE: {vars['RUN_MODEL_SIZE']}
                 RUN_NAME_SUFFIX: "{vars['RUN_NAME_SUFFIX']}"
                 TEST_TASK: {vars['TEST_TASK']}
-                TP_SIZE: {vars['TP_SIZE']}
-                PP_SIZE: {vars['PP_SIZE']}
+                {mp_string}
                 NUM_NODES: {vars['NUM_NODES']}
                 MAX_STEPS: {vars['MAX_STEPS']}
                 TIME_LIMIT: "{vars['TIME_LIMIT']}"
@@ -174,8 +176,7 @@ if __name__ == "__main__":
                 RUN_MODEL_SIZE: {vars['RUN_MODEL_SIZE']}
                 RUN_NAME_SUFFIX: "{vars['RUN_NAME_SUFFIX']}"
                 TEST_TASK: {vars['TEST_TASK']}
-                TP_SIZE: {vars['TP_SIZE']}
-                PP_SIZE: {vars['PP_SIZE']}
+                {mp_string}
                 NUM_NODES: {vars['NUM_NODES']}
                 FINETUNE_JOB_DIR: {vars['FINETUNE_NAME']}
                 TIME_LIMIT: "{vars['TIME_LIMIT']}"
@@ -212,8 +213,7 @@ if __name__ == "__main__":
                 RUN_NAME_SUFFIX: "{vars['RUN_NAME_SUFFIX']}"
                 TEST_TASK: {vars['TEST_TASK']}
                 TRAIN_JOB_NAME: {vars['TRAIN_NAME']}
-                TP_SIZE: {vars['TP_SIZE']}
-                PP_SIZE: {vars['PP_SIZE']}
+                {mp_string}
                 TIME_LIMIT: "{vars['TIME_LIMIT']}"
                 TEST_LEVEL: {vars['TEST_LEVEL']}
               needs:
