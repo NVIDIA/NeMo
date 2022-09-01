@@ -2,6 +2,7 @@ params=()
 if [[ ! -z $LOCAL_NEMO_PATH ]]; then
   params+=("container_mounts=[${LOCAL_NEMO_PATH}:/opt/bignlp/NeMo]")
 fi
+PP_SPLIT_RANK=${PP_SPLIT_RANK:-`expr ${PP_SIZE} / 2`}
 
 HYDRA_FULL_ERROR=1 BIGNLP_CI=1 python3 main.py \
     evaluation=${RUN_MODEL}/squad \
@@ -23,4 +24,5 @@ HYDRA_FULL_ERROR=1 BIGNLP_CI=1 python3 main.py \
     evaluation.pretrained_language_model_file=${BASE_RESULTS_DIR}/${CONVERT_MODEL_DIR}/results/megatron_t5.nemo \
     evaluation.tensor_model_parallel_size=${TP_SIZE} \
     evaluation.pipeline_model_parallel_size=${PP_SIZE} \
+    evaluation.pipeline_model_parallel_split_rank=${PP_SPLIT_RANK} \
     "${params[@]}" ${ADDITIONAL_PARAMS}

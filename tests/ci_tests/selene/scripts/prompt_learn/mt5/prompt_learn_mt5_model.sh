@@ -19,6 +19,7 @@ else
     params+=("container_mounts=[${LOCAL_NEMO_PATH}:/opt/bignlp/NeMo]")
   fi
 fi
+PP_SPLIT_RANK=${PP_SPLIT_RANK:-`expr ${PP_SIZE} / 2`}
 
 set -o xtrace
 
@@ -42,4 +43,5 @@ HYDRA_FULL_ERROR=1 BIGNLP_CI=1 python3 main.py \
     prompt_learning.model.language_model_path=${LANGUAGE_MODEL_PATH}\
     prompt_learning.model.tensor_model_parallel_size=${TP_SIZE} \
     prompt_learning.model.pipeline_model_parallel_size=${PP_SIZE} \
+    prompt_learning.model.pipeline_model_parallel_split_rank=${PP_SPLIT_RANK} \
      "${params[@]}" ${ADDITIONAL_PARAMS}

@@ -11,6 +11,7 @@ if [[ ! -z $LOCAL_NEMO_PATH ]]; then
   params+=("container_mounts=[${LOCAL_NEMO_PATH}:/opt/bignlp/NeMo]")
 fi
 DATA_DIR=/lustre/fsw/joc/big_nlp/mt5/dataset/ci_data
+PP_SPLIT_RANK=${PP_SPLIT_RANK:-`expr ${PP_SIZE} / 2`}
 
 #TODO : Can add additional parameters (key value pairs from gitlab-ci.yaml file)
 HYDRA_FULL_ERROR=1 BIGNLP_CI=1 python3 main.py \
@@ -31,4 +32,5 @@ HYDRA_FULL_ERROR=1 BIGNLP_CI=1 python3 main.py \
     training.trainer.max_steps=${MAX_STEPS} \
     training.model.tensor_model_parallel_size=${TP_SIZE} \
     training.model.pipeline_model_parallel_size=${PP_SIZE} \
+    training.model.pipeline_model_parallel_split_rank=${PP_SPLIT_RANK} \
     "${params[@]}" ${ADDITIONAL_PARAMS}

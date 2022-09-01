@@ -24,6 +24,7 @@ class TestConversionmT5Config:
           hparams_file: ${conversion.run.train_dir}/results/hparams.yaml
           tensor_model_parallel_size: 1 # 1 for 170m and 390m, 2 for 3b
           pipeline_model_parallel_size: 1
+          pipeline_model_parallel_split_rank: ${divide_floor:${.pipeline_model_parallel_size}, 2}
           model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
           vocab_file: null
           merge_file: null
@@ -58,6 +59,7 @@ class TestConversionT5Config:
           hparams_file: ${conversion.run.train_dir}/results/hparams.yaml
           tensor_model_parallel_size: 1 # 1 for 220m, 2 for 3b
           pipeline_model_parallel_size: 1
+          pipeline_model_parallel_split_rank: ${divide_floor:${.pipeline_model_parallel_size}, 2}
           model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
           vocab_file: ${data_dir}/bpe/vocab.txt
           merge_file: null
