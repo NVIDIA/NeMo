@@ -4084,14 +4084,14 @@ SuperPOD using a different number of nodes. When scaling from 1 node to 20 nodes
 speed-up. We are actively working on improving the scaling performance for T5 models. The table and chart below show the performance results.
 
 
-|         |                                        |        |                |                | Nodes    |                |                 |
-|-----|----------------------------------------|--------|--------|--------|--------|--------|---------|
-|         |                                        | 1      | 2            | 4            | 5            | 10         | 20            |
-|         | Tokens per Second                      |103842|	204421	|397813	|489345	|929345	|1701415|
-| 3B    | Perfect Linear Scaling (Tokens)        |  103842|	207685	|415369	|519211	|1038423|	2076845|
-|         | Speed-up                               |1x	  | 1.97x	|3.83x	|4.71x	|8.95x	|16.38x|
+|        |                                    |           |          |          | Nodes    |          |          |
+|--------|------------------------------------|-----------|----------|----------|----------|----------|----------|
+|        |                                    | 1         | 2        | 4        | 5        | 10       | 20       |
+|        | Tokens per Second                  | 110769    | 215579   | 417644   | 515100   | 957506   |  1626353 |
+| 3B     | Perfect Linear Scaling (Tokens)    | 110769    | 221538   | 443077   | 553846   | 1107692  | 2215385  |
+|        | Speed-up                           | 1x        | 1.95x    | 3.77x    | 4.65x    | 8.64x    | 14.68x   |
 
-<img src="img/3B_T5_throughput_2205.svg"/>
+<img src="img/3B_T5_throughput_2208.svg"/>
 
 #### 7.2.3. Inference Performance
 Inference performance was measured for NVIDIA DGX SuperPOD (1 x 8 x A100 80GB).
@@ -4184,11 +4184,12 @@ The table and chart below show the performance results.
 |         |                                    |        |         |         | Nodes   |         |          |
 |---------|------------------------------------|--------|---------|---------|---------|---------|----------|
 |         |                                    | 1      | 2       | 4       | 5       | 10      | 20       |
-|         | Tokens per Second                  | 87685	 | 172433	 | 336312  |411142	| 769202  | 1303767  |
-| 3B      | Perfect Linear Scaling (Tokens)    | 87685	 | 175371	 | 350741  |438427	| 876853  | 1753706  |
-|         | Speed-up                           | 1x	    | 1.97x	  | 3.84x	  |4.69x   	| 8.77x  | 14.87x |
+|         | Tokens per Second                  | 91166  | 179583  | 346263  | 429088  | 798570  | 1303767  |
+| 3B      | Perfect Linear Scaling (Tokens)    | 91166  | 182331  | 364663  | 455829  | 911657  | 1823314  |
+|         | Speed-up                           | 1x     | 1.97x   | 3.8x    | 4.71x   | 8.76x   | 14.3x    |
 
-<img src="img/3B_mT5_throughput_2205.svg"/>
+
+<img src="img/3B_mT5_throughput_2208.svg"/>
 
 #### 7.3.3. Inference Performance
 Inference performance was measured for NVIDIA DGX SuperPOD (1 x 8 x A100 80GB).
