@@ -2273,9 +2273,9 @@ class ParallelTransformer(MegatronModule):
                             elif self.activations_checkpoint_method == 'block':
                                 activations_checkpoint_num_layers = self.activations_checkpoint_num_layers
                                 # Decrease the number of layers to checkpoint at later pipeline stages
-                                if activations_checkpoint_layers_per_pipeline is not None:
+                                if self.activations_checkpoint_layers_per_pipeline is not None:
                                     activations_checkpoint_num_layers -= (
-                                        int(parallel_state.get_pipeline_model_parallel_rank() * activations_checkpoint_layers_per_pipeline)
+                                        int(parallel_state.get_pipeline_model_parallel_rank() * self.activations_checkpoint_layers_per_pipeline)
                                     )
                                 checkpoint_core_attention = index < activations_checkpoint_num_layers
                         else:
