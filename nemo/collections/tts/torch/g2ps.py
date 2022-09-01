@@ -341,6 +341,9 @@ class IPAG2P(BaseG2p):
             if isinstance(heteronyms, str) or isinstance(heteronyms, pathlib.Path)
             else heteronyms
         )
+        if set_graphemes_upper:
+            self.heteronyms = [het.upper() for het in self.heteronyms]
+
         self.phoneme_probability = phoneme_probability
         self._rng = random.Random()
 
