@@ -23,7 +23,6 @@ import math
 import operator
 import os
 import pickle
-import time
 from collections import defaultdict
 
 import dash
@@ -32,7 +31,6 @@ import diff_match_patch
 import editdistance
 import jiwer
 import librosa
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import plotly.express as px
@@ -41,7 +39,6 @@ import tqdm
 from dash import dash_table, dcc, html
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
-from IPython.display import Image
 from plotly import express as px
 from plotly import graph_objects as go
 from plotly.subplots import make_subplots
