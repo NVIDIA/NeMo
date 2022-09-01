@@ -23,6 +23,14 @@ def hparams_override(cfg):
             conf.cfg.tokenizer.merge_file = merge_file
         if tokenizer_model is not None:
             conf.cfg.tokenizer.model = tokenizer_model
+        if "activations_checkpoint_granularity" in conf.cfg:
+            conf.cfg.activations_checkpoint_granularity = None
+        if "activations_checkpoint_method" in conf.cfg:
+            conf.cfg.activations_checkpoint_method = None
+        if "sequence_parallel" in conf.cfg:
+            conf.cfg.sequence_parallel = False
+        if conf.cfg.optim.name == "distributed_fused_adam":
+            conf.cfg.optim.name = "fused_adam"
 
         if is_global_rank_zero():
             with open(hparams_override_file, "w") as f:
