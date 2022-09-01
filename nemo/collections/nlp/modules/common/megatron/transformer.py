@@ -73,6 +73,7 @@ except:
                 "Transformer Engine was not found. transformer_engine.pytorch.transformer.TransformerLayer will not work. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
 
+
 # TODO: import this from TE ?
 class InferenceParams:
     """Inference parameters that are passed to the main model in order
@@ -92,14 +93,13 @@ class InferenceParams:
         "swap between batches"
         if len(self.key_value_memory_dict) == 0:
             raise ValueError("should not swap when dict in empty")
-        
+
         for layer_number in self.key_value_memory_dict.keys():
             inference_key_memory, inference_value_memory = self.key_value_memory_dict[layer_number]
-            assert len(batch_idx) == inference_key_memory.shape[1] ## make sure batch size is the same
+            assert len(batch_idx) == inference_key_memory.shape[1]  ## make sure batch size is the same
             new_inference_key_memory = inference_key_memory[:, batch_idx]
             new_inference_value_memory = inference_value_memory[:, batch_idx]
-            self.key_value_memory_dict[layer_number] = (
-                    new_inference_key_memory, new_inference_value_memory)
+            self.key_value_memory_dict[layer_number] = (new_inference_key_memory, new_inference_value_memory)
 
 
 """ We use the following notation throughout this file:
@@ -856,7 +856,7 @@ class ParallelAttention(MegatronModule):
             key_layer = self.inference_key_memory[:end, ...]
             value_layer = self.inference_value_memory[:end, ...]
             # Adjust attention mask - no need for this here we do it in text_generation_utils.py
-            #attention_mask = attention_mask[..., start:end, :end]
+            # attention_mask = attention_mask[..., start:end, :end]
             # adjust the key rotary positional embedding
             if rotary_pos_emb is not None:
                 q_pos_emb, k_pos_emb = rotary_pos_emb
@@ -1872,7 +1872,9 @@ class ParallelTransformer(MegatronModule):
 
         self.is_first_microbatch = True
         self.microbatch_count = 0  # transformer engine forward needs to know if it is working on the first microbatch
-        self.checkpoint_core_attention = activations_checkpoint_granularity == 'selective' # transformer engine forward allows for more granular selective checkpointing
+        self.checkpoint_core_attention = (
+            activations_checkpoint_granularity == 'selective'
+        )  # transformer engine forward allows for more granular selective checkpointing
 
         if self.model_type == ModelType.encoder_or_decoder:
             assert (
@@ -2236,7 +2238,10 @@ class ParallelTransformer(MegatronModule):
                         if self.transformer_engine:
                             # TODO: inference with TE
                             # how to do max_batch_size?
-                            inference_params = InferenceParams(hidden_states.shape[1], inference_max_sequence_len)
+                            if inference_max_sequence_len is not None:
+                                inference_params = InferenceParams(hidden_states.shape[1], inference_max_sequence_len)
+                            else:
+                                inference_params = None
 
                             hidden_states = layer(
                                 hidden_states,
