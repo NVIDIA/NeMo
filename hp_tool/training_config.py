@@ -340,7 +340,7 @@ def launch_grid_search_configs(base_dir, results_cfgs, model_name, cfg):
             src_file = os.path.join(base_dir, file_name)
             dst_dir = os.path.join(bignlp_scripts_path, "conf/training", model_name, file_name)
             shutil.copyfile(src_file, dst_dir)
-            job_id = train.run_training(file_name, bignlp_hp_tool_path, bignlp_scripts_path, model_name, results_dir, cfg)
+            job_id = train.run_training(file_name, bignlp_scripts_path, model_name, results_dir, cfg)
             os.remove(dst_dir)
             
             if job_id is not None:
@@ -401,7 +401,7 @@ def launch_throughput_measure(dependency_list, model_name, model_size_in_b, num_
         f"--container-mounts {mounts_str} "
         f"--no-container-mount-home "
     )
-    if cfg.get("ci_test"):  # Whether this job is running in CI or not.
+    if os.getenv('BIGNLP_CI'):  # Whether this job is running in CI or not.
         flags += f"-o {log_dir}/slurm_%j.log "
     else:
         flags += (
@@ -411,7 +411,7 @@ def launch_throughput_measure(dependency_list, model_name, model_size_in_b, num_
 
     new_script_path = os.path.join(bignlp_hp_tool_path, "hp_tool/scripts/compare_throughput.sh")
     code_path = os.path.join(bignlp_hp_tool_path, "hp_tool/scripts/compare_throughput_results.py")
-    train_cmd = f"HYDRA_FULL_ERROR=1 python3 -u {code_path} search_config.train_settings.model_size_in_b={model_size_in_b} search_config={model_name}/{model_size_in_b}b search_config_value={model_name}/{model_size_in_b}b +nodes={num_nodes} "
+    train_cmd = f"HYDRA_FULL_ERROR=1 python3 -u {code_path} bignlp_hp_tool_path={bignlp_hp_tool_path} search_config.train_settings.model_size_in_b={model_size_in_b} search_config={model_name}/{model_size_in_b}b search_config_value={model_name}/{model_size_in_b}b +nodes={num_nodes} "
     utils.create_slurm_file(
         new_script_path=new_script_path,
         cmds=[train_cmd],
@@ -429,7 +429,7 @@ def launch_throughput_measure(dependency_list, model_name, model_size_in_b, num_
         partition=partition,
         account=account,
     )
-    if cfg.get("ci_test"):
+    if os.getenv('BIGNLP_CI'):
         job_id = subprocess.check_output([f'sbatch {new_script_path} | tee "{log_dir}/launcher.log" '], shell=True)
     else:
         job_id = subprocess.check_output([f"sbatch --parsable {new_script_path}"], shell=True)

@@ -12,6 +12,8 @@ class TestClusterConfig:
         gpus_per_node: 8
         mem: 0
         job_name_prefix: "bignlp-hp-tool:"
+        srun_args:
+          - "--no-container-mount-home"
         """
         expected = OmegaConf.create(s)
         assert (

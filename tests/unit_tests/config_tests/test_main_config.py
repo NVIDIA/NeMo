@@ -22,6 +22,7 @@ class TestConfig:
         bignlp_hp_tool_path: ???
         bignlp_scripts_path: ${bignlp_hp_tool_path}/../bignlp-scripts
         base_results_dir: ${bignlp_hp_tool_path}/results
+        data_dir: ${bignlp_scripts_path}/data
 
         training_container: nvcr.io/ea-bignlp/bignlp-training:22.08-py3
         
