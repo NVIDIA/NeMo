@@ -1406,20 +1406,21 @@ tool provides several different capabilities, as shown in the table below:
 <a id="markdown-model-size-recommendation" name="model-size-recommendation"></a>
 
 For users who do not know what model size they wish to train, our tool is capable of recommending 
-a model size, given the hardware and training constraints. If the number of GPUs, the TFLOPS per GPU, 
-the maximum time to train, and the number of tokens to train for are known, then our tool can 
+a model size, given the hardware and training constraints. If you know the number of GPUs, the 
+TFLOPS per GPU, the maximum time to train, and the number of tokens to train for, then our tool can 
 recommend a model size that can be trained with the specified hardware and time constraints.
 
 For example, if the user has 20 NVIDIA DGX nodes available (80GB GPU memory), and wants to train a 
 GPT-3 model for a maximum of 5 days, the tool will recommend using a 5B parameter GPT-3 model. 
-The tool will perform an optimized estimate using heuristics.
 
 
 ##### 5.3.1.2. Base Config Generation
 <a id="markdown-base-config-generation" name="base-config-generation"></a>
 
 If the model size is provided by the user, or after the model size is suggested, 
-the tool will generate a base configuration for the target model. This configuration will be a valid configuration in YAML format, which can be trained using NeMo-Megatron. The optimization will happen at the next step.
+the tool will generate a base configuration for the target model. This configuration will be a 
+valid configuration in YAML format, which can be trained using NeMo-Megatron. However, the 
+throughput optimization will happen at the next step (Training HP Search).
 
 
 ##### 5.3.1.3. Training HP Search
@@ -1427,24 +1428,22 @@ the tool will generate a base configuration for the target model. This configura
 
 Given the input model size and the base configuration, 
 the tool will now search over four different critical Hyper-Parameters, that have great impact on the 
-training throughput: Tensor Parallelism (TP), Pipeline Parallelism (PP), Micro Batch Size (MBS), 
-and Activation Checkpointing Layers (ActCkpt).
+training throughput but do not affect model convergence: Tensor Parallelism (TP), Pipeline Parallelism (PP), 
+Micro Batch Size (MBS), and Activation Checkpointing Layers (ActCkpt).
 
-First, the tool will use heuristics to choose good candidates for those four parameters to generate 
+First, the tool will use heuristics to choose good candidates for those four parameters, and generate 
 the grid of candidate configurations. All the candidate configurations will be saved to the results directory, 
 and will include YAML files with the corresponding config. NOTE: some of these configurations might not work, 
 due to high memory usage or for other reasons. The next step will determine which configurations are valid.
 
 Once all the candidate configurations are generated, the tool will use heuristics to sort the most promising 
-candidate configurations. Then, the tool will launch the most promising candidates in parallel, where the number 
+candidate configurations. Then, it will launch the most promising candidates in parallel, where the number 
 of candidates can be set by the `limit_search_runs` parameter, to perform a grid search over the four training 
-parameters. This search will launch the 
-jobs using NeMo-Megatron, and it will train each config for a maximum of `max_minutes_per_run` minutes 
-and a maximum of `max_steps_per_run` training steps, whichever is reached first on the 
-target cluster. During this search, the jobs will run in the minimum number of nodes required by default, using 
-Data Parallelism of 1 (DP=1) in most cases, but the number of nodes can be manually overriden using the 
-`override_search_num_nodes`. Once all the jobs have finished running, the final result will be summarized in a 
-CSV file.
+parameters. This search will launch the jobs using NeMo-Megatron, and it will train each config for a maximum 
+of `max_minutes_per_run` minutes and a maximum of `max_steps_per_run` training steps, whichever is reached first 
+on the target cluster. During this search, the jobs will run with the number of nodes specified in the configuration 
+files, using the `num_nodes` parameter. Once all the jobs have finished running, the final result will be 
+summarized in a CSV file.
 
 
 ##### 5.3.1.4. Inference HP Search
@@ -1478,7 +1477,9 @@ directories have been copied from the container to the local file system.
 
 The first parameter that must be set is the `bignlp_hp_tool_path` parameter inside the `conf/config.yaml` 
 file. This parameter must point to the absolute path where the `bignlp-hp-tool` repository is stored in 
-the file system. Additionally, if using a Slurm-based cluster, the config file in the 
+the file system. The location of the bignlp-scripts directory must also be specified, using the 
+`bignlp_scripts_path` parameter. The tool assumes that by default these two directories are inside the same 
+parent directory. Additionally, if using a Slurm-based cluster, the config file in the 
 `conf/cluster/bcm.yaml` subfolder has the parameters to set the generic cluster related information, 
 such as the `partition` or `account` parameters.
 
@@ -1513,7 +1514,7 @@ bignlp_scripts_path: ${bignlp_hp_tool_path}/../bignlp-scripts  # Path to the loc
 data_dir: ${bignlp_scripts_path}/data
 base_results_dir: ${bignlp_hp_tool_path}/results
 
-training_container: nvcr.io/ea-bignlp/bignlp-training:22.06-hotfix.01-py3
+training_container: nvcr.io/ea-bignlp/bignlp-training:22.08-py3
 inference_container: nvcr.io/ea-bignlp/bignlp-inference:22.05-py3
 container_mounts:
     - null
@@ -1554,19 +1555,18 @@ The config is split in two sections: `train_settings` and `inference_settings`.
 ```yaml
 train_settings:
   model_size_in_b: 5 # unit in billion parameters
-  num_nodes: 20
+  num_nodes: 16
   gpus_per_node: 8
   gpu_memory_gb: 80  # Memory per GPU, in GB. Currently 40GB and 80GB A100s supported.
   max_training_days: 5 # unit in days
   limit_search_runs: 100 # Max number of runs to be launched in parallel for grid search.
   output_top_n: 10  # The result will print the top N fastest training configs.
   max_steps_per_run: 50 # Max steps per run for the grid search.
-  max_minutes_per_run: 40 # minutes per run for the grid search.
+  max_minutes_per_run: 10 # minutes per run for the grid search.
   tflops_per_gpu: 140  # Estimated tflops per GPU.
   num_tokens_in_b: 300  # Unit in billions, typically 300B for GPT3 models.
   vocab_size: 51200
   logs: ${base_results_dir}/${search_config_value}_${.gpu_memory_gb}gb  # Example base_results_dir/gpt3/126m
-  override_search_num_nodes: auto  # auto to use the minimum required number of nodes
   tensor_parallel_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8]
   pipeline_parallel_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8, 10]
   micro_batch_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8, 16]
@@ -1592,7 +1592,8 @@ inference_settings:
 Every time we call `python3 main.py`, a base configuration will be generated for the given model, 
 and it will be saved to the `logs` directory indicated in your config files. The base configuration 
 consists of a YAML file that can be run using the NeMo-Megatron training container. However, this 
-base configuration has not yet been optimized to achieve the highest possible throughput.
+base configuration has not yet been optimized to achieve the highest possible throughput, the 
+optimization will take place in the next step (Training HP Search).
 
 
 ###### 5.3.2.2.3. Training HP Search
@@ -1609,19 +1610,18 @@ correspoinding YAML file:
 ```yaml
 train_settings:
   model_size_in_b: 5 # unit in billion parameters
-  num_nodes: 20
+  num_nodes: 16
   gpus_per_node: 8
   gpu_memory_gb: 80  # Memory per GPU, in GB. Currently 40GB and 80GB A100s supported.
   max_training_days: 5 # unit in days
   limit_search_runs: 100 # Max number of runs to be launched in parallel for grid search.
   output_top_n: 10  # The result will print the top N fastest training configs.
   max_steps_per_run: 50 # Max steps per run for the grid search.
-  max_minutes_per_run: 40 # minutes per run for the grid search.
+  max_minutes_per_run: 10 # minutes per run for the grid search.
   tflops_per_gpu: 140  # Estimated tflops per GPU.
   num_tokens_in_b: 300  # Unit in billions, typically 300B for GPT3 models.
   vocab_size: 51200
   logs: ${base_results_dir}/${search_config_value}_${.gpu_memory_gb}gb  # Example base_results_dir/gpt3/126m
-  override_search_num_nodes: auto  # auto to use the minimum required number of nodes
   tensor_parallel_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8]
   pipeline_parallel_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8, 10]
   micro_batch_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8, 16]
@@ -1630,9 +1630,8 @@ train_settings:
 
 The `model_size_in_b` parameter indicates how many billion parameters the model should contain, and 
 the tool will provide a config and HPs for a model of that size. The `num_nodes` parameter indicates 
-how many nodes will be used to train this model to full convergence, after the HP search is finished. 
-Therefore, it will be ignored by the HP search tool, and it will only be used when generating the 
-final config YAML files. The `gpus_per_node` parameter indicates how many GPUs are available in each 
+how many nodes the HP tool should use to run each training job. The `gpus_per_node` parameter 
+indicates how many GPUs are available in each 
 node. To modify the behavior of the heuristics depending on whether 40gb or 80gb A100 GPUs are 
 available, the `gpu_memory_gb` can be set to 40 or 80, respectively, and the HP tool will recommend 
 candidate configs that are more suitable to each setting. 
@@ -1657,10 +1656,7 @@ billions of tokens you will train your model for, when training to full converge
 when estimating how long it will take to train the model, to the desired number of tokens. The 
 `vocab_size` parameter must show the vocabulary size that will be used during training. The `logs` 
 parameter can be used to configure where the result logs will be saved. By default, this directory 
-will be created inside the `base_results_dir` indicated in the `conf/config.yaml` file. The 
-`override_search_num_nodes` parameter can be used to override the number of nodes that will be 
-used for each training run in the HP grid search. By default, leaving this as `auto` will run the tool 
-with the smallest possible node count, to save compute. Finally, 
+will be created inside the `base_results_dir` indicated in the `conf/config.yaml` file. Finally, 
 the `tensor_parallel_sizes`, `pipeline_parallel_sizes`, `micro_batch_sizes`, and `act_ckpt_layers` 
 parameters can be used to override the heuristics that choose the grid search space for these 
 four parameters. If these are left as `auto`, our tool will select appropriate values. However, 
@@ -1762,15 +1758,9 @@ tool. To see more details on how to interpret the inference results, review the 
 Search Results section.
 
 Notes: 
- - Since the HP search tool uses the minimum number of nodes necessary to save compute and time, 
-the result might vary slightly when increasing the node count for these models. This value can be 
-overriden using the `override_search_num_nodes` parameter, but increasing the node count will make 
-the search somewhat more costly.
- - If one of the optimal configs is very close to 100% GPU memory utilization, it is possible that 
-the full training job will crash due to a memory spike. We recommend using a config that keeps the 
-memory usage under 98% to avoid this issue. To save some memory, the recommendation is to try 
-increasing the activation checkpointing layers by one each time. The performance will suffer 
-slightly, but the memory footprint will be reduced.
+ - The result of the Training HP Search will vary when it is run with different numbers of nodes. 
+ This is mainly caused by the new distributed optimizer, which provides higher memory savings when 
+ using more nodes (higher DP value).
 
 ##### 5.3.2.5. Logging Runs with Weights and Biases
 <a id="markdown-logging-runs-with-weights-and-biases" name="logging-runs-with-weights-and-biases"></a>
