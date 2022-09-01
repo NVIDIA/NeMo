@@ -70,5 +70,5 @@ if __name__ == '__main__':
     if run_stage in ["train", "finetune", "prompt_learn"]:
         collect_train_test_metrics(ci_job_results_dir)
 
-    if run_stage in ["eval"] and run_model in ["t5", "mt5", "prompt_t5", "prompt_mt5"]:
+    if run_stage in ["eval"] and run_model in ["t5", "mt5",]:
         collect_val_test_metrics(ci_job_results_dir)

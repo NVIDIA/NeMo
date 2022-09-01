@@ -76,9 +76,9 @@ model:
 
   data:
     train_ds:
-      - ${data_dir}/prompt_data/squad-v2.0/squad_train.jsonl # multiple prompt dataset can be given at the same time
+      - ${data_dir}/prompt_data/v1.1/squad_train.jsonl # multiple prompt dataset can be given at the same time
     validation_ds:
-      - ${data_dir}/prompt_data/squad-v2.0/squad_val.jsonl
+      - ${data_dir}/prompt_data/v1.1/squad_val.jsonl
     add_eos: True
     shuffle: True
     num_workers: 4

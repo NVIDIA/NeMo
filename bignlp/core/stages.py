@@ -14,6 +14,8 @@ from bignlp.core.logger import logger
 from bignlp.utils.job_utils import JobPaths
 from bignlp.utils.file_utils import download_single_file
 from bignlp.utils.data_utils.prepare_squad import prepare_squad_for_fine_tuning
+from bignlp.utils.data_utils.prepare_squad import prepare_squad_for_prompt_learning
+
 
 
 class BigNLPStage:
@@ -411,23 +413,11 @@ class PromptLearning(NeMoStage):
         task_name = self.stage_cfg.run.get("task_name")
         # Prepare squad dataset
         if task_name == 'squad':
-            data_dir = os.path.join(data_dir, "prompt_data")
-            squad_dir = os.path.join(data_dir, "squad-v2.0")
-            if not os.path.exists(squad_dir):
-                os.makedirs(squad_dir)
-                download_single_file("https://rajpurkar.github.io/SQuAD-explorer/dataset/train-v2.0.json", squad_dir,
-                                     "train-v2.0.json")
-                download_single_file("https://rajpurkar.github.io/SQuAD-explorer/dataset/dev-v2.0.json", squad_dir,
-                                     "dev-v2.0.json")
-                preprocess_script = self._bignlp_path / "bignlp/utils/data_utils/prompt_learning_squad_preprocessing.py"
-                os.system(
-                    f"python {preprocess_script} "
-                    f"--data-dir={squad_dir} "
-                    f"--file-name='train-v2.0.json' "
-                    f"--save-name-base='squad' "
-                    f"--make-ground-truth "
-                    f"--train-percent=0.8"
-                )
+            prepare_squad_for_prompt_learning(
+                os.path.join(data_dir, "prompt_data"),
+                self._bignlp_path,
+            )
+
 
     def _get_nemo_code_path(self, model_type):
         model_type_to_code_path = {
@@ -517,6 +507,23 @@ class NeMoEvaluation(NeMoStage):
     def setup_stage_vars(self, cfg):
         self.stage_name = "evaluation"
         self.stage_cfg = cfg.get("evaluation")
+
+    def make_stage_command_groups(self, stage_cfg_path):
+        command_groups = super().make_stage_command_groups(stage_cfg_path)
+
+        choice_model_type, choice_name = self.get_stage_config_choice()
+        pred_file_path = self.stage_cfg.get("pred_file_path")
+        ground_truth_file_path = self.stage_cfg.get("ground_truth_file_path")
+        if "prompt" in choice_model_type:
+            code_path = self._bignlp_path / "bignlp/collections/metric_calculation/squad_metric_calc.py"
+            args = create_args_list(
+                pred=pred_file_path,
+                ground_truth=ground_truth_file_path,
+            )
+            calculation_command = [f"python3 {code_path}", *args]
+            calculation_command = " \\\n  ".join(calculation_command)
+            command_groups += [[calculation_command]]
+        return command_groups
 
     def _get_nemo_code_path(self, model_type):
         if "gpt3" in model_type:
