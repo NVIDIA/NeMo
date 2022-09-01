@@ -245,9 +245,8 @@ class RadTTSEncoder(nn.Module):
 
         # recent amp change -- change in_lens to int
         in_lens = in_lens.int().cpu()
-        # mikyas added this for RuntimeError: `lengths` array must be sorted in decreasing order when `enforce_sorted` is True. You can pass `enforce_sorted=False` to pack_padded_sequence and/or pack_sequence to sidestep this requirement if you do not need ONNX exportability.
-        in_lens = sorted(in_lens, reverse=True)
-        x = nn.utils.rnn.pack_padded_sequence(x, in_lens, batch_first=True)
+        
+        x = nn.utils.rnn.pack_padded_sequence(x, in_lens, enforce_sorted=False, batch_first=True)
 
         self.lstm.flatten_parameters()
         outputs, _ = self.lstm(x)
