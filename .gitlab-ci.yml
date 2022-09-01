@@ -8,7 +8,7 @@ variables: &VARS
   NGC_BIGNLP_CI_PATH: "bignlp_ci" # mount at /mount/results
   CONTAINER_NVCR_BASE: nvcr.io/nvidian/bignlp-ci:training
   TESTS_TO_RUN_AFTER_MERGING: L0  # Can specify levels, ci job names etc as a space seperated list to run during merge request
-  TESTS_TO_RUN_ON_THIS_COMMIT: L0
+  TESTS_TO_RUN_ON_THIS_COMMIT: NONE
   TEST_REGEX_ON_THIS_COMMIT: NONE #https://github.com/google/re2/wiki/Syntax (Can define regex as in this spec) e.g /.*gpt3.*/
   CREATE_TEST_DATA: "False"
 
@@ -164,16 +164,12 @@ release_perf:
     - sleep 10s # Without this, "sacct" in jobstate.sh does not always find the SLURM job.
     - if [[ "$RUN_STAGE" = "data_prep" ]]; then 
           export SLURM_JOBID=$(grep 'Submitted batch job' "${RESULTS_DIR}/preprocess/launcher.log" | awk '{ print $4 }');
-      elif [[ "$RUN_STAGE" = "export" ]]; then 
-          export SLURM_JOBID=$(grep 'Submitted batch job' "${RESULTS_DIR}/convert/launcher.log" | awk '{ print $4 }');
       else
           export SLURM_JOBID=$(grep 'Submitted batch job' "${RESULTS_DIR}/launcher.log" | awk '{ print $4 }');
       fi
     - echo $SLURM_JOBID
     - if [[ "$RUN_STAGE" = "data_prep" ]]; then
         export SLURM_OUTPUT=${RESULTS_DIR}/preprocess/slurm_${SLURM_JOBID}.out;
-      elif [[ "$RUN_STAGE" = "export" ]]; then 
-        export SLURM_OUTPUT=${RESULTS_DIR}/convert/slurm_${SLURM_JOBID}.out;
       else
         export SLURM_OUTPUT=${RESULTS_DIR}/slurm_${SLURM_JOBID}.out;
       fi
@@ -547,8 +543,10 @@ export.gpt3.126m_tp1_pp1_split:
     FT_TP_SIZE: 2
     FT_PP_SIZE: 2
     FT_DEPLOYMENT_DATA: fp16
+    FT_EVAL_MARGIN: "0.005"
+    FT_EVAL_TASK: lambada
   needs:
-    - train.gpt3.126m_tp1_pp1_1node_100steps
+    - eval.gpt3.126m_tp1_pp1_lambada
 
 export.gpt3.126m_tp1_pp2_split:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
@@ -565,8 +563,10 @@ export.gpt3.126m_tp1_pp2_split:
     FT_TP_SIZE: 2
     FT_PP_SIZE: 2
     FT_DEPLOYMENT_DATA: fp16
+    FT_EVAL_MARGIN: "0.005"
+    FT_EVAL_TASK: lambada
   needs:
-    - train.gpt3.126m_tp1_pp2_1node_100steps
+    - eval.gpt3.126m_tp1_pp2_lambada
 
 export.gpt3.126m_tp2_pp1_merge:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
@@ -583,8 +583,10 @@ export.gpt3.126m_tp2_pp1_merge:
     FT_TP_SIZE: 1
     FT_PP_SIZE: 2
     FT_DEPLOYMENT_DATA: bf16
+    FT_EVAL_MARGIN: "0.005"
+    FT_EVAL_TASK: lambada
   needs:
-    - train.gpt3.126m_tp2_pp1_1node_100steps
+    - eval.gpt3.126m_tp2_pp1_lambada
 
 export.gpt3.126m_tp2_pp2_merge:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
@@ -601,8 +603,10 @@ export.gpt3.126m_tp2_pp2_merge:
     FT_TP_SIZE: 1
     FT_PP_SIZE: 1
     FT_DEPLOYMENT_DATA: fp16
+    FT_EVAL_MARGIN: "0.005"
+    FT_EVAL_TASK: lambada
   needs:
-    - train.gpt3.126m_tp2_pp2_1node_100steps
+    - eval.gpt3.126m_tp2_pp2_lambada
 
 export.t5.220m_tp1_pp1_split:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
@@ -619,8 +623,10 @@ export.t5.220m_tp1_pp1_split:
     FT_TP_SIZE: 2
     FT_PP_SIZE: 2
     FT_DEPLOYMENT_DATA: fp16
+    FT_EVAL_MARGIN: "0.005"
+    FT_EVAL_TASK: mnli
   needs:
-    - finetune.t5.220m_tp1_pp1_1node_100steps_mnli
+    - eval.t5.220m_tp1_pp1
 
 export.t5.220m_tp2_pp2_merge:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
@@ -636,8 +642,10 @@ export.t5.220m_tp2_pp2_merge:
     FT_TP_SIZE: 1
     FT_PP_SIZE: 1
     FT_DEPLOYMENT_DATA: bf16
+    FT_EVAL_MARGIN: "0.005"
+    FT_EVAL_TASK: mnli
   needs:
-    - finetune.t5.220m_tp2_pp2_1node_100steps_mnli
+    - eval.t5.220m_tp2_pp2
 
 export.mt5.170m_tp1_pp1_split:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
@@ -654,8 +662,10 @@ export.mt5.170m_tp1_pp1_split:
     FT_TP_SIZE: 2
     FT_PP_SIZE: 2
     FT_DEPLOYMENT_DATA: bf16
+    FT_EVAL_MARGIN: "0.005"
+    FT_EVAL_TASK: xnli
   needs:
-    - finetune.mt5.170m_tp1_pp1_1node_100steps_xnli
+    - eval.mt5.170m_tp1_pp1
 
 export.mt5.170m_tp2_pp2_merge:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
@@ -672,8 +682,10 @@ export.mt5.170m_tp2_pp2_merge:
     FT_TP_SIZE: 1
     FT_PP_SIZE: 1
     FT_DEPLOYMENT_DATA: fp16
+    FT_EVAL_MARGIN: "0.005"
+    FT_EVAL_TASK: xnli
   needs:
-    - finetune.mt5.170m_tp2_pp2_1node_100steps_xnli
+    - eval.mt5.170m_tp2_pp2
 
 eval.gpt3.126m_tp1_pp1_lambada:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
