@@ -3161,7 +3161,7 @@ model:
   model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
   precision: bf16 # must match training precision - 32, 16 or bf16
   eval_batch_size: 4
-  prompt_dataset_paths: ${data_dir}/prompt_data/squad-v2.0/squad_test.jsonl
+  prompt_dataset_paths: ${data_dir}/prompt_data/v1.1/squad_test.jsonl
   disable_special_tokens: False # Whether to disable virtual tokens in prompt model evaluation. This is equivalent to evaluate without prompt-/p-tuning.
 ```
 

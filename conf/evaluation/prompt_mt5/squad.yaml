@@ -19,7 +19,7 @@ trainer:
 
 data:
   test_ds:
-    - ${data_dir}/prompt_data/squad-v2.0/squad_test.jsonl
+    - ${data_dir}/prompt_data/v1.1/squad_test.jsonl
   num_workers: 4
   global_batch_size: 16
   micro_batch_size: 16

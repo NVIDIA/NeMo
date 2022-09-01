@@ -1,8 +1,20 @@
 import os
 import json
+from pathlib import Path
 from .download_squad import download_squad
 
-# TODO: Merge with prompt squad
+def prepare_squad_for_prompt_learning(data_dir, bignlp_path):
+    squad_dir = data_dir
+    download_squad(squad_dir, ["v1.1"])
+    squad_v1_dir = os.path.join(squad_dir, "v1.1")
+
+    preprocess_script = bignlp_path / "bignlp/utils/data_utils/prompt_learning_squad_preprocessing.py"
+    os.system(
+        f"python {preprocess_script} "
+        f"--data-dir={squad_v1_dir} "
+    )
+
+
 def prepare_squad_for_fine_tuning(data_dir):
     squad_dir = data_dir
     download_squad(squad_dir, ["v1.1", "xquad"])
