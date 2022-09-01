@@ -22,6 +22,7 @@ from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
 
+from nemo.collections.tts.modules.submodules import PartialConv1d
 from nemo.collections.tts.helpers.helpers import plot_alignment_to_numpy
 from nemo.collections.tts.losses.radttsloss import AttentionBinarizationLoss, RADTTSLoss
 from nemo.collections.tts.models.base import SpectrogramGenerator
@@ -416,3 +417,14 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
 
     def get_export_subnet(self, subnet=None):
         return self.model.get_export_subnet(subnet)
+
+    def _prepare_for_export(self, **kwargs):
+        """
+        Override this method to prepare module for export. This is in-place operation.
+        Base version does common necessary module replacements (Apex etc)
+        """
+        PartialConv1d.forward = PartialConv1d.forward_no_cache
+        super()._prepare_for_export(**kwargs)
+
+    def _export_teardown(self):
+        PartialConv1d.forward = PartialConv1d.forward_with_cache

@@ -238,6 +238,7 @@ class RadTTSModule(NeuralModule, Exportable):
                     batch_first=True,
                     bidirectional=True,
                 )
+                self.context_lstm.flatten_parameters()
 
                 if context_lstm_norm is not None:
                     if 'spectral' in context_lstm_norm:
@@ -346,6 +347,7 @@ class RadTTSModule(NeuralModule, Exportable):
         # text_embeddings: b x len_text x n_text_dim
         text_embeddings = self.embedding(text).transpose(1, 2)
         # text_enc: b x n_text_dim x encoder_dim (512)
+        print ("text_embeddings: ", text_embeddings.shape)
         if in_lens is None:
             text_enc = self.encoder.infer(text_embeddings).transpose(1, 2)
         else:
@@ -377,7 +379,7 @@ class RadTTSModule(NeuralModule, Exportable):
             unfolded_out_lens_packed = nn.utils.rnn.pack_padded_sequence(
                 context_w_spkvec.transpose(1, 2), unfolded_out_lens, batch_first=True, enforce_sorted=False
             )
-            self.context_lstm.flatten_parameters()
+            # self.context_lstm.flatten_parameters()
             context_lstm_packed_output, _ = self.context_lstm(unfolded_out_lens_packed)
             context_lstm_padded_output, _ = nn.utils.rnn.pad_packed_sequence(
                 context_lstm_packed_output, batch_first=True
@@ -650,23 +652,27 @@ class RadTTSModule(NeuralModule, Exportable):
         spk_vec_text = self.encode_speaker(speaker_id_text)
         spk_vec_attributes = self.encode_speaker(speaker_id_attributes)
 
-        txt_enc, txt_emb = self.encode_text(text, in_lens)
+        txt_emb = self.embedding(text).transpose(1, 2)
+        # text_enc: b x n_text_dim x encoder_dim (512)
+        #if in_lens is None:
+        txt_enc = self.encoder.infer(txt_emb).transpose(1, 2)
+        #else:
+        #    text_enc = self.encoder(text_embeddings, in_lens).transpose(1, 2)
 
         if dur is None:
             # get token durations
             z_dur = txt_enc.new_zeros((1, 1, text.shape[1]), dtype=torch.float)
             z_dur = torch.normal(z_dur) * sigma_txt
             dur = self.dur_pred_layer.infer(z_dur, txt_enc, spk_vec_text, lens=in_lens)
-            print ("Dur: ", dur)
             dur = pad_dur(dur, txt_enc)
-            print ("Padded dur: ", dur)
+            print ("Padded dur: ", dur.shape)
 
             dur = dur[:, 0]
             dur = dur.clamp(0, token_duration_max)
-            print ("Clamped dur: ", dur)
 
         # get attributes f0, energy, vpred, etc)
         txt_enc_time_expanded, out_lens = regulate_len(dur, txt_enc.transpose(1, 2), pace, group_size= self.n_group_size)
+        print ("txt_enc_time_expanded, out_lens: ", txt_enc_time_expanded.shape, out_lens)
         n_groups = torch.div(out_lens, self.n_group_size, rounding_mode='floor')
 
         txt_enc_time_expanded.transpose_(1, 2)
@@ -692,14 +698,14 @@ class RadTTSModule(NeuralModule, Exportable):
 
         if f0 is None:
             n_f0_feature_channels = 2 if self.use_first_order_features else 1
-            z_f0 = torch.normal(txt_enc.new_zeros(1, n_f0_feature_channels, out_lens)) * sigma_f0
+            z_f0 = torch.normal(txt_enc.new_zeros(1, n_f0_feature_channels, out_lens[0])) * sigma_f0
             f0 = self.infer_f0(z_f0, ap_txt_enc_time_expanded, spk_vec_attributes, voiced_mask, out_lens)[:, 0]
 
         f0 = adjust_f0(f0, f0_mean, f0_std, voiced_mask.to(dtype=bool))
 
         if energy_avg is None:
             n_energy_feature_channels = 2 if self.use_first_order_features else 1
-            z_energy_avg = torch.normal(txt_enc.new_zeros(1, n_energy_feature_channels, out_lens)) * sigma_energy
+            z_energy_avg = torch.normal(txt_enc.new_zeros(1, n_energy_feature_channels, out_lens[0])) * sigma_energy
             energy_avg = self.infer_energy(z_energy_avg, ap_txt_enc_time_expanded, spk_vec, out_lens)[:, 0]
 
         # replication pad, because ungrouping with different group sizes
@@ -717,7 +723,7 @@ class RadTTSModule(NeuralModule, Exportable):
                 txt_enc_time_expanded, spk_vec, out_lens, f0 * voiced_mask, energy_avg
             )
 
-        residual = torch.normal(txt_enc.new_zeros(1, 80 * self.n_group_size, n_groups)) * sigma
+        residual = torch.normal(txt_enc.new_zeros(batch_size, 80 * self.n_group_size, n_groups[0])) * sigma
 
         # map from z sample to data
         num_steps_to_exit = len(self.exit_steps)
@@ -803,6 +809,7 @@ class RadTTSModule(NeuralModule, Exportable):
                 print("Removed wnorm from {}".format(name))
             except:
                 pass
+        self.encoder.remove_batch_norm()
         self.to(device=dev)
 
     @property
@@ -857,8 +864,8 @@ class RadTTSModule(NeuralModule, Exportable):
             text,
             speaker_id_text=speaker_id_text,
             speaker_id_attributes=speaker_id_attributes,
-            sigma=0.7,
-            sigma_txt=0.7,
+            sigma=0.0,
+            sigma_txt=0.0,
             sigma_f0=1.0,
             sigma_energy=1.0,
             f0_mean=145.0,
