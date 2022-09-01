@@ -55,11 +55,6 @@
 ;;;   - Merged with https://github.com/Alexir/CMUdict/blob/master/cmudict-0.7b
 ;;;   - British spellings omitted
 ;;;
-;;;   This dictionary was created using ARPABET to IPA phoneme mapping
-;;;   NeMo/scripts/tts_dataset_files/cmudict-arpabet_to_ipa_nv22.08.tsv
-;;;   and NeMo/scripts/dataset_processing/g2p/convert_cmu_arpabet_to_ipa.py
-;;;   conversion script
-;;;
 ;;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
 !EXCLAMATION-POINT  EH2 K S K L AH0 M EY1 SH AH0 N P OY2 N T
