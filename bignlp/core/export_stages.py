@@ -28,7 +28,6 @@ class Export(BigNLPStage):
     def setup_stage_vars(self, cfg):
         self.stage_name = "export"
         self.stage_cfg = cfg.get("export")
-        self.accuracy_cfg = self.stage_cfg.get("accuracy")
 
     def _make_checkpoint_search_command(self, **kwargs):
         checkpoint_override = [f"{k}={v}" for k, v in kwargs.items()]
@@ -54,18 +53,11 @@ class Export(BigNLPStage):
                 "t5": self._get_t5_conversion_cmds,
                 "mt5": self._get_t5_conversion_cmds,
             },
-            "accuracy": {
-                "gpt3": self._get_gpt_accuracy_cmds,
-                "t5": self._get_t5_accuracy_cmds,
-                "mt5": self._get_mt5_accuracy_cmds,
-            },
         }[sub_stage][choice_model_type]
         return cmds_fn(self.cfg)
 
     def _make_sub_stages(self):
         sub_stages = ["convert"]
-        if self.accuracy_cfg.get("enabled", False):
-            sub_stages.append("accuracy")
         return sub_stages
     
     def setup_folder_and_data(self) -> None:
@@ -114,7 +106,6 @@ class Export(BigNLPStage):
         cfg = self.cfg
         stage_cfg = self.stage_cfg
 
-        accuracy_cfg = stage_cfg.get("accuracy")
         ft_model_cfg = stage_cfg.get("model")
         triton_cfg = stage_cfg.get("triton_deployment")
         run_cfg = stage_cfg.get("run")
@@ -127,8 +118,8 @@ class Export(BigNLPStage):
         container_mounts = self._make_container_mounts_string()
 
         num_tasks = ft_model_cfg.tensor_model_parallel_size * triton_cfg.pipeline_model_parallel_size
-        nodes = 1 if sub_stage == "convert" else int(math.ceil(num_tasks / accuracy_cfg.ntasks_per_node))
-        ntasks_per_node = 1 if sub_stage == "convert" else accuracy_cfg.ntasks_per_node
+        nodes = 1
+        ntasks_per_node = 1
 
         setup = None
         env_vars = self.get_env_vars()
@@ -266,121 +257,4 @@ class Export(BigNLPStage):
                 + f"{convert_cmd} && \\\n"
                 + triton_prepare_model_config_cmd
             )
-        ]
-
-    def _get_gpt_accuracy_cmds(self, cfg):
-        run_cfg = cfg.export.run
-        ft_model_cfg = cfg.export.model
-        triton_cfg = cfg.export.triton_deployment
-        accuracy_cfg = cfg.export.accuracy
-
-        checkpoint_path = f"{triton_cfg.triton_model_dir}/1/{ft_model_cfg.tensor_model_parallel_size}-gpu"
-
-        lambada_script_path = FT_PATH / "examples/pytorch/gpt/lambada_task_example.py"
-        update_config_script_path = FT_PATH / "examples/pytorch/gpt/utils/update_gpt_config.py"
-        lib_path = FT_PATH_WITH_BUILD / "build/lib/libth_parallel_gpt.so"
-
-        lambada_path = accuracy_cfg.test_data
-        create_config_ini_cmd = (
-            f"mkdir -p $(dirname {accuracy_cfg.runtime_config_ini_path}) && \\\n"
-            f"cp {checkpoint_path}/config.ini {accuracy_cfg.runtime_config_ini_path} && \\\n"
-            f"python -u {update_config_script_path} \\\n"
-            f" --model-dir {checkpoint_path} \\\n"
-            f" --config-ini-path {accuracy_cfg.runtime_config_ini_path} \\\n"
-            f" --pipeline-para-size {triton_cfg.pipeline_model_parallel_size} \\\n"
-            f" --tensor-para-size {ft_model_cfg.tensor_model_parallel_size} \\\n"
-            f" --max-seq-len {accuracy_cfg.runtime.max_seq_len} \\\n"
-            f" --beam-width {accuracy_cfg.runtime.beam_width} \\\n"
-            f" --sampling-top-k {accuracy_cfg.runtime.sampling_top_k} \\\n"
-            f" --sampling-top-p {accuracy_cfg.runtime.sampling_top_p} \\\n"
-            f" --data-type {triton_cfg.data_type} && \\\n"
-            f"mkdir -p $(dirname {lambada_path}) && \\\n"
-            f"wget https://github.com/cybertronai/bflm/raw/master/lambada_test.jsonl -O {lambada_path}"
-        )
-
-        lambada_cmd = (
-            f"python -u {lambada_script_path} \\\n"
-            f" --checkpoint-path {checkpoint_path} \\\n"
-            f" --lib-path {lib_path} \\\n"
-            f" --config-ini-path {accuracy_cfg.runtime_config_ini_path} \\\n"
-            f" --lambada-path {lambada_path} \\\n"
-            f" --output-path {accuracy_cfg.output_path} \\\n"
-            f" --batch-size {accuracy_cfg.batch_size}"
-        )
-
-        # separate into 2 tasks to not start lambada cmd before configurations and data files are prepared
-        # LOCAL_RANK is set with an enroot hook for Pytorch containers
-        # SLURM_LOCALID is set by Slurm
-        # OMPI_COMM_WORLD_LOCAL_RANK is set by mpirun
-        return [
-            (
-                f"export PYTHONPATH={FT_PATH}:${{PYTHONPATH}} && \\\n"
-                'export MY_LOCAL_RANK="${LOCAL_RANK:=${SLURM_LOCALID:=${OMPI_COMM_WORLD_LOCAL_RANK:-}}}" && \\\n'
-                'if [ ${MY_LOCAL_RANK} == "0" ]; then ' + create_config_ini_cmd + "; fi"
-            ),
-            f"export PYTHONPATH={FT_PATH}:${{PYTHONPATH}} && \\\n" + lambada_cmd,
-        ]
-
-    def _get_t5_accuracy_cmds(self, cfg):
-        run_cfg = cfg.export.run
-        ft_model_cfg = cfg.export.model
-        triton_cfg = cfg.export.triton_deployment
-        accuracy_cfg = cfg.export.accuracy
-
-        checkpoint_path = f"{triton_cfg.triton_model_dir}/1/{ft_model_cfg.tensor_model_parallel_size}-gpu"
-
-        mnli_script_path = FT_PATH / "examples/pytorch/t5/mnli_task_example.py"
-        lib_path = FT_PATH_WITH_BUILD / "build/lib/libth_t5.so"
-        mnli_path = accuracy_cfg.test_data
-
-        mnli_cmd = (
-            f"python -u {mnli_script_path} \\\n"
-            f" --ckpt_path {checkpoint_path} \\\n"
-            f" --lib_path {lib_path} \\\n"
-            f" --data_path {mnli_path} \\\n"
-            f" --output_path {accuracy_cfg.output_path} \\\n"
-            f" --batch_size {accuracy_cfg.batch_size} \\\n"
-            f" --max_output_len {accuracy_cfg.max_output_len} \\\n"
-            f" --beam_width {accuracy_cfg.runtime.beam_width} \\\n"
-            f" --sampling_topk {accuracy_cfg.runtime.sampling_top_k} \\\n"
-            f" --sampling_topp {accuracy_cfg.runtime.sampling_top_p} \\\n"
-            f" --data_type {triton_cfg.data_type} \\\n"
-            f" --tensor_para_size {ft_model_cfg.tensor_model_parallel_size} \\\n"
-            f" --pipeline_para_size {triton_cfg.pipeline_model_parallel_size}"
-        )
-
-        return [
-            f"export PYTHONPATH={FT_PATH}:${{PYTHONPATH}} && \\\n" + mnli_cmd,
-        ]
-
-    def _get_mt5_accuracy_cmds(self, cfg):
-        run_cfg = cfg.export.run
-        ft_model_cfg = cfg.export.model
-        triton_cfg = cfg.export.triton_deployment
-        accuracy_cfg = cfg.export.accuracy
-
-        checkpoint_path = f"{triton_cfg.triton_model_dir}/1/{ft_model_cfg.tensor_model_parallel_size}-gpu"
-
-        xnli_script_path = FT_PATH / "examples/pytorch/t5/xnli_task_example.py"
-        lib_path = FT_PATH_WITH_BUILD / "build/lib/libth_t5.so"
-        xnli_path = accuracy_cfg.test_data
-
-        xnli_cmd = (
-            f"python -u {xnli_script_path} \\\n"
-            f" --ckpt_path {checkpoint_path} \\\n"
-            f" --lib_path {lib_path} \\\n"
-            f" --data_path {xnli_path} \\\n"
-            f" --output_path {accuracy_cfg.output_path} \\\n"
-            f" --batch_size {accuracy_cfg.batch_size} \\\n"
-            f" --max_output_len {accuracy_cfg.max_output_len} \\\n"
-            f" --beam_width {accuracy_cfg.runtime.beam_width} \\\n"
-            f" --sampling_topk {accuracy_cfg.runtime.sampling_top_k} \\\n"
-            f" --sampling_topp {accuracy_cfg.runtime.sampling_top_p} \\\n"
-            f" --data_type {triton_cfg.data_type} \\\n"
-            f" --tensor_para_size {ft_model_cfg.tensor_model_parallel_size} \\\n"
-            f" --pipeline_para_size {triton_cfg.pipeline_model_parallel_size}"
-        )
-
-        return [
-            f"export PYTHONPATH={FT_PATH}:${{PYTHONPATH}} && \\\n" + xnli_cmd,
         ]

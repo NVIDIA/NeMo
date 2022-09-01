@@ -164,12 +164,16 @@ release_perf:
     - sleep 10s # Without this, "sacct" in jobstate.sh does not always find the SLURM job.
     - if [[ "$RUN_STAGE" = "data_prep" ]]; then 
           export SLURM_JOBID=$(grep 'Submitted batch job' "${RESULTS_DIR}/preprocess/launcher.log" | awk '{ print $4 }');
+      elif [[ "$RUN_STAGE" = "export" ]]; then 
+          export SLURM_JOBID=$(grep 'Submitted batch job' "${RESULTS_DIR}/convert/launcher.log" | awk '{ print $4 }');
       else
           export SLURM_JOBID=$(grep 'Submitted batch job' "${RESULTS_DIR}/launcher.log" | awk '{ print $4 }');
       fi
     - echo $SLURM_JOBID
     - if [[ "$RUN_STAGE" = "data_prep" ]]; then
         export SLURM_OUTPUT=${RESULTS_DIR}/preprocess/slurm_${SLURM_JOBID}.out;
+      elif [[ "$RUN_STAGE" = "export" ]]; then 
+        export SLURM_OUTPUT=${RESULTS_DIR}/convert/slurm_${SLURM_JOBID}.out;
       else
         export SLURM_OUTPUT=${RESULTS_DIR}/slurm_${SLURM_JOBID}.out;
       fi
@@ -546,7 +550,7 @@ export.gpt3.126m_tp1_pp1_split:
     FT_EVAL_MARGIN: "0.005"
     FT_EVAL_TASK: lambada
   needs:
-    - eval.gpt3.126m_tp1_pp1_lambada
+    - train.gpt3.126m_tp1_pp1_1node_100steps
 
 export.gpt3.126m_tp1_pp2_split:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
@@ -566,7 +570,7 @@ export.gpt3.126m_tp1_pp2_split:
     FT_EVAL_MARGIN: "0.005"
     FT_EVAL_TASK: lambada
   needs:
-    - eval.gpt3.126m_tp1_pp2_lambada
+    - train.gpt3.126m_tp1_pp2_1node_100steps
 
 export.gpt3.126m_tp2_pp1_merge:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
@@ -586,7 +590,7 @@ export.gpt3.126m_tp2_pp1_merge:
     FT_EVAL_MARGIN: "0.005"
     FT_EVAL_TASK: lambada
   needs:
-    - eval.gpt3.126m_tp2_pp1_lambada
+    - train.gpt3.126m_tp2_pp1_1node_100steps
 
 export.gpt3.126m_tp2_pp2_merge:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
@@ -606,7 +610,7 @@ export.gpt3.126m_tp2_pp2_merge:
     FT_EVAL_MARGIN: "0.005"
     FT_EVAL_TASK: lambada
   needs:
-    - eval.gpt3.126m_tp2_pp2_lambada
+    - train.gpt3.126m_tp2_pp2_1node_100steps
 
 export.t5.220m_tp1_pp1_split:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
@@ -626,7 +630,7 @@ export.t5.220m_tp1_pp1_split:
     FT_EVAL_MARGIN: "0.005"
     FT_EVAL_TASK: mnli
   needs:
-    - eval.t5.220m_tp1_pp1
+    - finetune.t5.220m_tp1_pp1_1node_100steps_mnli
 
 export.t5.220m_tp2_pp2_merge:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
@@ -645,7 +649,7 @@ export.t5.220m_tp2_pp2_merge:
     FT_EVAL_MARGIN: "0.005"
     FT_EVAL_TASK: mnli
   needs:
-    - eval.t5.220m_tp2_pp2
+    - finetune.t5.220m_tp2_pp2_1node_100steps_mnli
 
 export.mt5.170m_tp1_pp1_split:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
@@ -665,7 +669,7 @@ export.mt5.170m_tp1_pp1_split:
     FT_EVAL_MARGIN: "0.005"
     FT_EVAL_TASK: xnli
   needs:
-    - eval.mt5.170m_tp1_pp1
+    - finetune.mt5.170m_tp1_pp1_1node_100steps_xnli
 
 export.mt5.170m_tp2_pp2_merge:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
@@ -685,7 +689,7 @@ export.mt5.170m_tp2_pp2_merge:
     FT_EVAL_MARGIN: "0.005"
     FT_EVAL_TASK: xnli
   needs:
-    - eval.mt5.170m_tp2_pp2
+    - finetune.mt5.170m_tp2_pp2_1node_100steps_xnli
 
 eval.gpt3.126m_tp1_pp1_lambada:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
