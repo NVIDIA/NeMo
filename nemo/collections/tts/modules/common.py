@@ -245,7 +245,7 @@ class RadTTSEncoder(nn.Module):
 
         # recent amp change -- change in_lens to int
         in_lens = in_lens.int().cpu()
-        
+
         x = nn.utils.rnn.pack_padded_sequence(x, in_lens, enforce_sorted=False, batch_first=True)
 
         self.lstm.flatten_parameters()
