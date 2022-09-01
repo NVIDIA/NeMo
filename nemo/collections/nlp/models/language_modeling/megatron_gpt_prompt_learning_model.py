@@ -808,10 +808,11 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         self.frozen_model.model.set_input_tensor(input_tensor)
 
     def get_forward_output_and_loss_func(self):
-        def fwd_output_and_loss_func(batch, model):
+        def fwd_output_and_loss_func(batch, model, checkpoint_activations_all_layers=None):
             batch = [x.cuda(non_blocking=True) for x in batch]
             input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids = batch
-            output_tensor = model(input_ids, position_ids, attention_mask, taskname_ids, labels, inference=False)
+            output_tensor = model(input_ids, position_ids, attention_mask, taskname_ids, labels,
+                inference=False, checkpoint_activations_all_layers=checkpoint_activations_all_layers)
 
             if len(output_tensor) == 2:
                 output_tensor, _ = output_tensor
