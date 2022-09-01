@@ -31,3 +31,4 @@ model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_mode
 language_model_path: ${base_results_dir}/${evaluation.run.model_train_name}/convert_nemo/results/megatron_mt5.nemo  # path to a pretrained mt5 nemo file
 virtual_prompt_model_file: ${evaluation.run.prompt_learning_dir}/results/megatron_mt5_prompt.nemo # path to a Megatronmt5PromptLearningModel nemo file
 pred_file_path: ${evaluation.run.results_dir}/results/predictions.txt # Path will model predictions will be written
+ground_truth_file_path: ${data_dir}/prompt_data/v1.1/squad_test_ground_truth.jsonl
