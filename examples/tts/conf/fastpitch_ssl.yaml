@@ -38,6 +38,8 @@ speaker_conditioning_type: per_sample
 segment_speaker_embedding: true
 
 model:
+  ssl_model_ckpt_path: ${ssl_model_ckpt_path}
+  speaker_loss: false
   use_encoder: true
   use_duration_predictor: ${use_unique_tokens}
   pitch_conditioning: true

@@ -47,7 +47,8 @@ from nemo.core.neural_types.elements import (
 )
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging, model_utils
-
+from nemo.collections.tts.models import ssl_tts
+import os
 
 def mask_from_lens(lens, max_len: Optional[int] = None):
     if max_len is None:
@@ -134,15 +135,24 @@ class FastPitchModel_SSL(ModelPT):
             cfg.n_mel_channels,
         )
 
-        self.vocoder = {
-            'vocoder': vocoder,
-        }
+        self.non_trainable_models = {}
+        use_speaker_loss = self._cfg.get("speaker_loss", False)
+        self.use_speaker_loss = use_speaker_loss
+        if use_speaker_loss:
+            if os.path.exists(self._cfg.ssl_model_ckpt_path):
+                ssl_model = ssl_tts.SSLDisentangler.load_from_checkpoint(self._cfg.ssl_model_ckpt_path, strict=False).to(self.device)
+                ssl_model.eval()
+                self.non_trainable_models['ssl_model'] = ssl_model
+            else:
+                print("SSL model ckpt does not exist")
+            
+        self.non_trainable_models['vocoder'] = vocoder
 
     def vocode_spectrogram(self, spectrogram):
         # spec [C, T] numpy
         with torch.no_grad():
             _spec = torch.from_numpy(spectrogram).unsqueeze(0).to(torch.float32)
-            wav_generated = self.vocoder['vocoder'].generator(x=_spec)[0]
+            wav_generated = self.non_trainable_models['vocoder'].generator(x=_spec)[0]
             return wav_generated.numpy()
 
     @property
@@ -222,6 +232,24 @@ class FastPitchModel_SSL(ModelPT):
 
         return encoded
 
+    def compute_speaker_loss(self, generated_mel, gt_speaker_embedding):
+        # generated_mel is (B, C, T)
+        ssl_model = self.non_trainable_models['ssl_model']
+        generated_mel_sliced = generated_mel[:, :, :172]
+        generated_mel_len_batch = torch.tensor([generated_mel_sliced.shape[-1] for _idx in range(generated_mel_sliced.shape[0]) ] ).long().to(self.device)
+
+        encoded, encoded_len = ssl_model.encoder(audio_signal=generated_mel_sliced, length=generated_mel_len_batch)  # b,c,t
+        pred_speaker_embedding = ssl_model.downstream_nets['speaker_verification'](encoded[:, :, 0])
+        l2_norm = torch.norm(pred_speaker_embedding, p=2, dim=-1, keepdim=True)
+        speaker_embedding_normalized = pred_speaker_embedding / l2_norm
+        
+        cosine_similarity = torch.nn.functional.cosine_similarity(
+            gt_speaker_embedding, speaker_embedding_normalized, dim=-1
+        ).mean()
+        
+        speaker_loss = 1 - cosine_similarity
+        return speaker_loss
+
     def training_step(self, batch, batch_idx):
         audio = batch["audio"]
         audio_lens = batch["audio_len"]
@@ -272,6 +300,11 @@ class FastPitchModel_SSL(ModelPT):
             loss += pitch_loss
             self.log("t_pitch_loss", pitch_loss)
 
+        if self.use_speaker_loss:
+            speaker_loss = self.compute_speaker_loss(mels_pred, speaker_embedding)
+            loss += speaker_loss
+            self.log("t_speaker_loss", speaker_loss)
+            
         self.log("t_loss", loss)
         self.log("t_mel_loss", mel_loss)
 
