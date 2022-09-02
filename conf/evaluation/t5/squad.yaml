@@ -21,7 +21,7 @@ trainer:
 exp_manager:
   explicit_log_dir: ${evaluation.run.results_dir}/results
   exp_dir: null
-  name: megatron_t5_${fine_tuning.run.task_name}_eval
+  name: megatron_t5_${evaluation.run.task_name}_eval
   create_checkpoint_callback: False
 
 model:
@@ -31,8 +31,8 @@ model:
 
   data:
     validation_ds:
-      src_file_name: ${data_dir}/squad_data/v1.1/train-v1.1_src.txt
-      tgt_file_name: ${data_dir}/squad_data/v1.1/train-v1.1_tgt.txt
+      src_file_name: ${data_dir}/squad_data/v1.1/dev-v1.1_src.txt
+      tgt_file_name: ${data_dir}/squad_data/v1.1/dev-v1.1_tgt.txt
       global_batch_size: 128
       micro_batch_size: 16
       shuffle: False
@@ -41,8 +41,9 @@ model:
       max_src_seq_length: 512
       max_tgt_seq_length: 128
       drop_last: False
-      write_predictions_to_file: False
-      output_file_path_prefix: null # Prefix of the file to write predictions to.
+      write_predictions_to_file: True
+      output_file_path_prefix: ${evaluation.run.results_dir}/results/predictions
+      ground_truth_file_path: ${data_dir}/prompt_data/v1.1/squad_test_ground_truth.jsonl
       metric:
         name: "exact_string_match" # Name of the evaluation metric to use.
         average: null # Average the metric over the dataset. Options: ['macro', 'micro']. Works only for 'F1', 'accuracy' etc. Refer to torchmetrics for metrics where this is supported.
