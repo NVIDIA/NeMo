@@ -902,7 +902,7 @@ def update_datatable(page_current, sort_by, filter_query):
 
         if op in ('eq', 'ne', 'lt', 'le', 'gt', 'ge'):
             data_view = [x for x in data_view if getattr(operator, op)(x[col_name], filter_value)]
-        elif op == 'condtains':
+        elif op == 'contains':
             data_view = [x for x in data_view if filter_value in str(x[col_name])]
 
     if len(sort_by):
