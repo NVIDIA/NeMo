@@ -1481,12 +1481,6 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         # MLP.
         mlp_output, mlp_bias = self.mlp(normalization_output)
 
-        if self.is_adapter_available():  # TODO: (@adithyre) need to find the correct place for this adapter
-            adapter_2 = self.adapter_layer['adapter_2']
-            strategy = adapter_2.adapter_strategy
-            mlp_output = self.forward_single_enabled_adapter_(
-                mlp_output, adapter_2, adapter_name='adapter_2', adapter_strategy=strategy
-            )
         residual = layernorm_input
 
         bias_dropout_add_func = self._get_bias_droput_add_func(
