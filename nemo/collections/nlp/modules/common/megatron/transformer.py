@@ -96,10 +96,11 @@ class InferenceParams:
 
         for layer_number in self.key_value_memory_dict.keys():
             inference_key_memory, inference_value_memory = self.key_value_memory_dict[layer_number]
-            assert len(batch_idx) == inference_key_memory.shape[1]  ## make sure batch size is the same
+            assert len(batch_idx) == inference_key_memory.shape[1] ## make sure batch size is the same
             new_inference_key_memory = inference_key_memory[:, batch_idx]
             new_inference_value_memory = inference_value_memory[:, batch_idx]
-            self.key_value_memory_dict[layer_number] = (new_inference_key_memory, new_inference_value_memory)
+            self.key_value_memory_dict[layer_number] = (
+                    new_inference_key_memory, new_inference_value_memory)
 
 
 """ We use the following notation throughout this file:
@@ -2136,8 +2137,8 @@ class ParallelTransformer(MegatronModule):
                 )
                 l += self.activations_checkpoint_num_layers
         elif self.activations_checkpoint_method == 'block':
-            # When pipeline-parallel size > 1, weather to checkpoint all layers in a micro-batch is
-            # decided by pipeline scheduling.
+            # When pipeline-parallel size > 1 and 'num_micro_batches_with_partial_activation_checkpoints' = int,
+            # pipeline scheduling can force to checkpoint all layers or partial layers in a micro-batch.
             if checkpoint_activations_all_layers:
                 activations_checkpoint_num_layers = self.num_layers
             else:
@@ -2267,10 +2268,9 @@ class ParallelTransformer(MegatronModule):
                         if layer_past is not None:
                             past = layer_past[index]
 
-                        # Checkpoint activation based on pipeline micro-batch scheduling:
-                        # Checkpointing decision is made in the scheduler to checkpoint a partial
-                        # number of Transformer layers in a micro-batches.
                         if self.activations_checkpoint_granularity == 'selective':
+                            # When pipeline-parallel size > 1 and 'num_micro_batches_with_partial_activation_checkpoints' = int,
+                            # pipeline scheduling can force to checkpoint all layers or partial layers in a micro-batch.
                             if checkpoint_activations_all_layers == True or self.activations_checkpoint_method == 'uniform':
                                 checkpoint_core_attention = True
                             elif self.activations_checkpoint_method == 'block':
