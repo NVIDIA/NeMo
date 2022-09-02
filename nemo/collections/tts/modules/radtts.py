@@ -27,7 +27,7 @@ from nemo.collections.tts.modules.common import (
     Invertible1x1Conv,
     Invertible1x1ConvLUS,
     LinearNorm,
-    RadTTSEncoder,
+    getRadTTSEncoder,
     get_mask_from_lengths,
 )
 from nemo.core.classes import Exportable, NeuralModule
@@ -190,7 +190,7 @@ class RadTTSModule(NeuralModule, Exportable):
         self.speaker_embedding = torch.nn.Embedding(n_speakers, self.n_speaker_dim)
         self.embedding = torch.nn.Embedding(n_text, n_text_dim)
         self.flows = torch.nn.ModuleList()
-        self.encoder = RadTTSEncoder(
+        self.encoder = getRadTTSEncoder(
             encoder_embedding_dim=n_text_dim, norm_fn=nn.InstanceNorm1d, lstm_norm_fn=text_encoder_lstm_norm
         )
         self.dummy_speaker_embedding = dummy_speaker_embedding
@@ -654,10 +654,10 @@ class RadTTSModule(NeuralModule, Exportable):
 
         txt_emb = self.embedding(text).transpose(1, 2)
         # text_enc: b x n_text_dim x encoder_dim (512)
-        #if in_lens is None:
-        txt_enc = self.encoder.infer(txt_emb).transpose(1, 2)
-        #else:
-        #    text_enc = self.encoder(text_embeddings, in_lens).transpose(1, 2)
+        if in_lens is None:
+            txt_enc = self.encoder.infer(txt_emb).transpose(1, 2)
+        else:
+            txt_enc = self.encoder(txt_emb, in_lens).transpose(1, 2)
 
         if dur is None:
             # get token durations
@@ -809,7 +809,6 @@ class RadTTSModule(NeuralModule, Exportable):
                 print("Removed wnorm from {}".format(name))
             except:
                 pass
-        self.encoder.remove_batch_norm()
         self.to(device=dev)
 
     @property

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Tuple, Optional, List, Tuple
+from typing import Optional, List, Tuple
 
 import torch
 from torch.autograd import Variable
@@ -25,11 +25,9 @@ class PartialConv1d(torch.nn.Conv1d):
     this affect.
     """
     def __init__(self, *args, **kwargs):
-        self.multi_channel = False
         super(PartialConv1d, self).__init__(*args, **kwargs)
         weight_maskUpdater = torch.ones(1, 1, self.kernel_size[0])
         self.register_buffer("weight_maskUpdater", weight_maskUpdater, persistent=False )
-        self.slide_winsize = self.weight_maskUpdater.shape[1] * self.weight_maskUpdater.shape[2]
         if self.bias is not None:
             bias_view = self.bias.view(1, self.out_channels, 1)
             self.register_buffer('bias_view', bias_view, persistent=False)
@@ -40,15 +38,18 @@ class PartialConv1d(torch.nn.Conv1d):
         self.register_buffer('update_mask', update_mask, persistent=False)
         mask_ratio = torch.ones(1, 1, 1)
         self.register_buffer('mask_ratio', mask_ratio, persistent=False)
-
+        mask_tmpl = torch.ones(1, 1, 4096)
+        self.register_buffer('mask_tmpl', mask_tmpl, persistent=False)
+        self.partial:bool=True
+        
     def calculate_mask(self, input: torch.Tensor, mask_in: Optional[torch.Tensor]):
             with torch.no_grad():
-                # if self.weight_maskUpdater.dtype != input.dtype:
-                #    self.weight_maskUpdater = self.weight_maskUpdater.to(dtype=input.dtype, device=input.device)
                 if mask_in is None:
-                    mask = torch.ones(1, 1, input.shape[2]).to(dtype=input.dtype, device=input.device)
+                    print("no mask")
+                    mask = self.mask_tmpl[:,:,input.shape[2]]
                 else:
                     mask = mask_in
+                    print("mask: ", mask_in.shape)
                 update_mask = F.conv1d(
                     mask,
                     self.weight_maskUpdater,
@@ -59,7 +60,8 @@ class PartialConv1d(torch.nn.Conv1d):
                     groups=1,
                 )
                 # for mixed precision training, change 1e-8 to 1e-6
-                mask_ratio = self.slide_winsize / (update_mask + 1e-6)
+                slide_winsize = self.weight_maskUpdater.shape[1] * self.weight_maskUpdater.shape[2]
+                mask_ratio = slide_winsize / (update_mask + 1e-6)
                 update_mask = torch.clamp(update_mask, 0, 1)
                 mask_ratio = torch.mul(mask_ratio, update_mask)
                 return mask, mask_ratio, update_mask
@@ -79,7 +81,7 @@ class PartialConv1d(torch.nn.Conv1d):
 
         return output
 
-            
+    @torch.jit.ignore        
     def forward_with_cache(self, input: torch.Tensor, mask_in: Optional[torch.Tensor] = None) -> torch.Tensor:
         use_cache = not (torch.jit.is_tracing() or torch.onnx.is_in_onnx_export())
         cache_hit = use_cache and mask_in is None and self.last_size == (input.shape[0], input.shape[1], input.shape[2])
@@ -99,11 +101,17 @@ class PartialConv1d(torch.nn.Conv1d):
         return self.forward_aux(input, mask, mask_ratio, update_mask)
 
     def forward_no_cache(self, input: torch.Tensor, mask_in: Optional[torch.Tensor] = None) -> torch.Tensor:
-        mask, mask_ratio, update_mask = self.calculate_mask(input, mask_in)
-        return self.forward_aux(input, mask, mask_ratio, update_mask)
-    
+        if self.partial:
+            mask, mask_ratio, update_mask = self.calculate_mask(input, mask_in)
+            return self.forward_aux(input, mask, mask_ratio, update_mask)
+        else:
+            return self._conv_forward(input, self.weight, self.bias)
+        
     def forward(self, input: torch.Tensor, mask_in: Optional[torch.Tensor] = None) -> torch.Tensor:
-        return self.forward_with_cache(input, mask_in)
+        if self.partial:
+            return self.forward_no_cache(input, mask_in)
+        else:
+            return self._conv_forward(input, self.weight, self.bias)
     
 class LinearNorm(torch.nn.Module):
     def __init__(self, in_dim, out_dim, bias=True, w_init_gain='linear'):
@@ -127,21 +135,15 @@ class ConvNorm(torch.nn.Module):
         dilation=1,
         bias=True,
         w_init_gain='linear',
-        use_partial_padding=False,
-        use_weight_norm=False,
+        use_partial_padding:bool=False,
+        use_weight_norm:bool=False,
     ):
         super(ConvNorm, self).__init__()
         if padding is None:
             assert kernel_size % 2 == 1
             padding = int(dilation * (kernel_size - 1) / 2)
-        self.kernel_size = kernel_size
-        self.dilation = dilation
-        self.use_partial_padding = use_partial_padding
-        self.use_weight_norm = use_weight_norm
-        conv_fn = torch.nn.Conv1d
-        if self.use_partial_padding:
-            conv_fn = PartialConv1d
-        self.conv = conv_fn(
+        self.use_partial_padding:bool = use_partial_padding
+        conv = PartialConv1d(
             in_channels,
             out_channels,
             kernel_size=kernel_size,
@@ -150,17 +152,14 @@ class ConvNorm(torch.nn.Module):
             dilation=dilation,
             bias=bias,
         )
-        torch.nn.init.xavier_uniform_(self.conv.weight, gain=torch.nn.init.calculate_gain(w_init_gain))
-        if self.use_weight_norm:
-            self.conv = torch.nn.utils.weight_norm(self.conv)
-
-    def forward(self, signal, mask=None):
-        if self.use_partial_padding:
-            conv_signal = self.conv(signal, mask)
-        else:
-            conv_signal = self.conv(signal)
-        return conv_signal
-
+        conv.partial = use_partial_padding 
+        torch.nn.init.xavier_uniform_(conv.weight, gain=torch.nn.init.calculate_gain(w_init_gain))
+        if use_weight_norm:
+            conv = torch.nn.utils.weight_norm(conv)
+        self.conv = conv
+        
+    def forward(self, input: torch.Tensor, mask_in: Optional[torch.Tensor] = None) -> torch.Tensor:
+        return self.conv(input, mask_in)
 
 class LocationLayer(torch.nn.Module):
     def __init__(self, attention_n_filters, attention_kernel_size, attention_dim):

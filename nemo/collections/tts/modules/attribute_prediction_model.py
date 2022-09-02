@@ -15,6 +15,7 @@
 import torch
 from torch import nn
 from torch.nn import functional as F
+from typing import Optional, List, Tuple, Dict
 
 from nemo.collections.tts.modules.common import ConvLSTMLinear, ConvNorm
 
@@ -80,7 +81,7 @@ class DAP(AttributeProcessing):
         arch_hparams['in_dim'] = self.bottleneck_layer.out_dim + n_speaker_dim
         self.feat_pred_fn = ConvLSTMLinear(**arch_hparams)
         
-    def forward(self, txt_enc, spk_emb, x, lens):
+    def forward(self, txt_enc:torch.Tensor, spk_emb:torch.Tensor, x:Optional[torch.Tensor], lens:Optional[torch.Tensor]) -> Dict[str, Optional[torch.Tensor]]:
         if x is not None:
             x = self.normalize(x)
 
@@ -90,8 +91,10 @@ class DAP(AttributeProcessing):
         x_hat = self.feat_pred_fn(context, lens)    
         outputs = {'x_hat': x_hat, 'x': x}
         return outputs
-
-    def infer(self, z, txt_enc, spk_emb, lens=None):
+    
+    @torch.jit.export
+    def infer(self, z:torch.Tensor, txt_enc:torch.Tensor, spk_emb:torch.Tensor, lens:Optional[torch.Tensor]=None) -> torch.Tensor:
         x_hat = self.forward(txt_enc, spk_emb, x=None, lens=lens)['x_hat']
+        assert x_hat is not None
         x_hat = self.denormalize(x_hat)
         return x_hat

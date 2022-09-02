@@ -15,7 +15,7 @@
 ###############################################################################
 
 import ast
-from typing import Tuple, List
+from typing import Tuple, List, Optional
 
 import numpy as np
 import torch
@@ -139,12 +139,15 @@ class ConvLSTMLinear(nn.Module):
                 padding=int((kernel_size - 1) / 2),
                 dilation=1,
                 w_init_gain='relu',
+                use_weight_norm = False,
                 use_partial_padding = use_partial_padding
             )
             if norm_fn is not None:
+                print("Applying {} norm to {}".format(norm_fn, conv_layer))
                 conv_layer = nn.Sequential(conv_layer, norm_fn(n_channels, affine=True))
             else:
-                conv_layer = torch.nn.utils.weight_norm(conv_layer.conv, name='weight')
+                conv_layer = torch.nn.utils.weight_norm(conv_layer.conv)
+                print("Applying weight norm to {}".format(conv_layer))
             convolutions.append(conv_layer)
 
         self.convolutions = nn.ModuleList(convolutions)
@@ -165,7 +168,7 @@ class ConvLSTMLinear(nn.Module):
             self.dense = nn.Linear(n_channels, out_dim)
         self.bilstm.flatten_parameters()
         
-    def run_padded_sequence(self, context, lens):
+    def run_padded_sequence(self, context:torch.Tensor, lens:torch.Tensor) -> torch.Tensor:
         context_embedded = []
         for b_ind in range(context.size()[0]):  # TODO: speed up
             curr_context = context[b_ind : b_ind + 1, :, : lens[b_ind]].clone()
@@ -176,7 +179,7 @@ class ConvLSTMLinear(nn.Module):
         return context
 
 
-    def run_unsorted_inputs(self, context, lens):
+    def run_unsorted_inputs(self, context:torch.Tensor, lens:torch.Tensor) -> torch.Tensor:
         lens_sorted, ids_sorted = torch.sort(lens, descending=True)
         unsort_ids = torch.zeros_like(ids_sorted)
         for i in range(ids_sorted.shape[0]):
@@ -194,8 +197,8 @@ class ConvLSTMLinear(nn.Module):
         context = context[unsort_ids]
         return context
 
-    def forward(self, context, lens):
-        if context.size()[0] > 1:
+    def forward(self, context:torch.Tensor, lens:Optional[torch.Tensor])->torch.Tensor:
+        if lens is not None and context.size()[0] > 1:
             context = self.run_padded_sequence(context, lens)
         else:
             for conv in self.convolutions:
@@ -211,38 +214,23 @@ class ConvLSTMLinear(nn.Module):
 
         return context
 
-
-class RadTTSEncoder(ConvLSTMLinear):
-    """RadTTSEncoder module:
-        - Three 1-d convolution banks
-        - Bidirectional LSTM
-    """
-
-    def __init__(
-        self,
+def getRadTTSEncoder(
         encoder_n_convolutions=3,
         encoder_embedding_dim=512,
         encoder_kernel_size=5,
         norm_fn=nn.BatchNorm1d,
         lstm_norm_fn=None,
     ):
-        super(RadTTSEncoder, self).__init__(
-            in_dim=encoder_embedding_dim,
-            n_layers = encoder_n_convolutions,
-            n_channels=encoder_embedding_dim,
-            kernel_size=encoder_kernel_size,
-            p_dropout=0.5,
-            use_partial_padding=True,
-            norm_fn = norm_fn,
-            lstm_norm_fn = lstm_norm_fn
+    return ConvLSTMLinear(
+        in_dim=encoder_embedding_dim,
+        n_layers = encoder_n_convolutions,
+        n_channels=encoder_embedding_dim,
+        kernel_size=encoder_kernel_size,
+        p_dropout=0.5,
+        use_partial_padding=True,
+        norm_fn = norm_fn,
+        lstm_norm_fn = lstm_norm_fn
         )
-        self.lstm=self.bilstm
-        
-    def remove_batch_norm(self):
-        new_list = torch.nn.ModuleList()
-        for conv in self.convolutions:
-            new_list.append(conv[0])
-        self.convolutions = new_list
 
 class Invertible1x1ConvLUS(torch.nn.Module):
     def __init__(self, c):
