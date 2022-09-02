@@ -8,8 +8,8 @@ run:
   results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}_eval
 
 trainer:
-  devices: 8
-  num_nodes: 1
+  devices: ${divide_ceil:${evaluation.model.model_parallel_size}, ${.num_nodes}}
+  num_nodes: ${divide_ceil:${evaluation.model.model_parallel_size}, 8}
   accelerator: gpu
   precision: bf16
   logger: False # logger provided by exp_manager
@@ -28,13 +28,16 @@ model:
   restore_from_path: ${evaluation.run.fine_tuning_dir}/results/checkpoints/megatron_t5_squad.nemo # Path to a finetuned T5 .nemo file
   gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
   megatron_amp_O2: False # Enable O2 optimization for megatron amp
-
+  tensor_model_parallel_size: 1
+  pipeline_model_parallel_size: 1
+  pipeline_model_parallel_split_rank: ${divide_floor:${.pipeline_model_parallel_size}, 2}
+  model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
   data:
     validation_ds:
       src_file_name: ${data_dir}/squad_data/v1.1/dev-v1.1_src.txt
       tgt_file_name: ${data_dir}/squad_data/v1.1/dev-v1.1_tgt.txt
-      global_batch_size: 128
-      micro_batch_size: 16
+      global_batch_size: 64
+      micro_batch_size: 64
       shuffle: False
       num_workers: 4
       pin_memory: True
