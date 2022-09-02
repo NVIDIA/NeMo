@@ -411,7 +411,7 @@ def launch_throughput_measure(dependency_list, model_name, model_size_in_b, num_
 
     new_script_path = os.path.join(bignlp_hp_tool_path, "hp_tool/scripts/compare_throughput.sh")
     code_path = os.path.join(bignlp_hp_tool_path, "hp_tool/scripts/compare_throughput_results.py")
-    train_cmd = f"HYDRA_FULL_ERROR=1 python3 -u {code_path} bignlp_hp_tool_path={bignlp_hp_tool_path} search_config.train_settings.model_size_in_b={model_size_in_b} search_config={model_name}/{model_size_in_b}b search_config_value={model_name}/{model_size_in_b}b +nodes={num_nodes} "
+    train_cmd = f"HYDRA_FULL_ERROR=1 python3 -u {code_path} bignlp_hp_tool_path={bignlp_hp_tool_path} search_config.train_settings.model_size_in_b={model_size_in_b} search_config={model_name}/{model_size_in_b}b search_config_value={model_name}/{model_size_in_b}b +nodes={num_nodes} base_results_dir={base_results_dir} "
     utils.create_slurm_file(
         new_script_path=new_script_path,
         cmds=[train_cmd],
