@@ -790,7 +790,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     def build_train_valid_test_datasets(self):
         raise NotImplementedError("Please implement this method in child-class")
 
-    def build_pretraining_data_loader(self, dataset, consumed_samples):
+    def build_pretraining_data_loader(self, dataset, consumed_samples, num_workers):
         """Buld dataloader given an input dataset."""
 
         if dataset is None:
@@ -826,7 +826,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         # Torch dataloader.
         return torch.utils.data.DataLoader(
-            dataset, batch_sampler=batch_sampler, num_workers=self._cfg.data.num_workers, pin_memory=True,
+            dataset, batch_sampler=batch_sampler, num_workers=num_workers, pin_memory=True,
         )
 
     def setup(self, stage=None):
@@ -881,7 +881,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds'):
             consumed_samples = self.compute_consumed_samples(0)
-            self._train_dl = self.build_pretraining_data_loader(self._train_ds, consumed_samples)
+            self._train_dl = self.build_pretraining_data_loader(
+                self._train_ds, consumed_samples, num_workers=self._cfg.data.num_workers
+            )
 
     def on_pretrain_routine_start(self) -> None:
         # keep a copy of init_global_step
@@ -891,12 +893,14 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     def setup_validation_data(self, cfg):
         if hasattr(self, '_validation_ds'):
             consumed_samples = 0
-            self._validation_dl = self.build_pretraining_data_loader(self._validation_ds, consumed_samples)
+            self._validation_dl = self.build_pretraining_data_loader(
+                self._validation_ds, consumed_samples, num_workers=0
+            )
 
     def setup_test_data(self, cfg):
         if hasattr(self, '_test_ds'):
             consumed_samples = 0
-            self._test_dl = self.build_pretraining_data_loader(self._test_ds, consumed_samples)
+            self._test_dl = self.build_pretraining_data_loader(self._test_ds, consumed_samples, num_workers=0)
 
     def compute_consumed_samples(self, steps_since_resume=0):
         app_state = AppState()
