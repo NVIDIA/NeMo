@@ -512,9 +512,9 @@ class NeMoEvaluation(NeMoStage):
         command_groups = super().make_stage_command_groups(stage_cfg_path)
 
         choice_model_type, choice_name = self.get_stage_config_choice()
-        pred_file_path = self.stage_cfg.get("pred_file_path")
-        ground_truth_file_path = self.stage_cfg.get("ground_truth_file_path")
         if "prompt" in choice_model_type:
+            pred_file_path = self.stage_cfg.get("pred_file_path")
+            ground_truth_file_path = self.stage_cfg.get("ground_truth_file_path")
             code_path = self._bignlp_path / "bignlp/collections/metric_calculation/squad_metric_calc.py"
             args = create_args_list(
                 pred=pred_file_path,
@@ -522,6 +522,23 @@ class NeMoEvaluation(NeMoStage):
             )
             calculation_command = [f"python3 {code_path}", *args]
             calculation_command = " \\\n  ".join(calculation_command)
+        elif choice_name == "squad":
+            output_file_path_prefix = self.stage_cfg.model.data.validation_ds.get("output_file_path_prefix")
+            pred_file_path = output_file_path_prefix + "_validation_dataloader0_inputs_preds_labels.json"
+            ground_truth_file_path = self.stage_cfg.model.data.validation_ds.get("ground_truth_file_path")
+            code_path = self._bignlp_path / "bignlp/collections/metric_calculation/fine_tuning_metric_calc.py"
+            args = create_args_list(
+                replace_underscore=False,
+                pred_file=pred_file_path,
+                target_file=ground_truth_file_path,
+                squad_eval_script_path=self._bignlp_path / "bignlp/collections/metric_calculation/squad_metric_calc.py",
+            )
+            calculation_command = [f"python3 {code_path}", *args]
+            calculation_command = " \\\n  ".join(calculation_command)
+        else:
+            calculation_command = None
+
+        if calculation_command is not None:
             command_groups += [[calculation_command]]
         return command_groups
 
