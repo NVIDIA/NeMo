@@ -1701,6 +1701,7 @@ class AutocastTransformerLayer(TransformerLayer):
             layer_type=layer_type,
             drop_path_rate=drop_path_rate,
             use_emha=use_emha,
+            set_parallel_mode=True,
         )
 
         if autocast_dtype == 32:
