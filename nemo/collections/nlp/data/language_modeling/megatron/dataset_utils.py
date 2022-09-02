@@ -538,7 +538,8 @@ def make_text_memmap_bin_compatibility(text_memmap_ds):
 
     return text_memmap_ds
 
-def get_dataset(   
+
+def get_dataset(
     indexed_dataset,
     start_index,
     end_index,
@@ -560,11 +561,11 @@ def get_dataset(
     delete_mask_prob=0,  # This flag is used in BART only, and will not have effect on T5/BERT
     respect_document_boundaries=True,
     **kwargs,
-    ):
+):
 
     if dataset_type not in DSET_TYPES:
         raise ValueError("Invalid dataset_type: ", dataset_type)
-        
+
     # from nemo.collections.nlp.data.language_modeling.megatron.ict_dataset import ICTDataset
     from nemo.collections.nlp.data.language_modeling.megatron.bert_dataset import BertDataset
     from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import T5Dataset
@@ -587,7 +588,7 @@ def get_dataset(
     elif dataset_type == DSET_TYPE_T5:
         assert tokenizer is not None, "Tokenizer is required for T5 dataset"
         logging.info("Instatiating T5 Dataset ...")
-        documents = np.arange(start = start_index, stop = end_index, step=1, dtype=np.int32)
+        documents = np.arange(start=start_index, stop=end_index, step=1, dtype=np.int32)
         dataset = T5Dataset(
             cfg=cfg,
             trainer=trainer,
@@ -618,7 +619,7 @@ def get_dataset(
             **kwargs,
         )
     elif dataset_type == DSET_TYPE_T5_LM:
-        documents = np.arange(start = start_index, stop = end_index, step=1, dtype=np.int32)
+        documents = np.arange(start=start_index, stop=end_index, step=1, dtype=np.int32)
         logging.info("Instatiating T5 Prefix-LM Dataset ...")
         dataset = T5LMAdaptedDataset(
             cfg=cfg,
@@ -633,7 +634,7 @@ def get_dataset(
         )
     elif dataset_type == DSET_TYPE_BART:
         assert tokenizer is not None, "Tokenizer is required for BART dataset"
-        documents = np.arange(start = start_index, stop = end_index, step=1, dtype=np.int32)
+        documents = np.arange(start=start_index, stop=end_index, step=1, dtype=np.int32)
         logging.info("Instatiating BART Dataset ...")
         dataset = BARTDataset(
             cfg=cfg,
@@ -655,7 +656,7 @@ def get_dataset(
         )
     elif dataset_type == DSET_TYPE_UL2:
         assert tokenizer is not None, "Tokenizer is required for UL2 dataset"
-        documents = np.arange(start = start_index, stop = end_index, step=1, dtype=np.int32)
+        documents = np.arange(start=start_index, stop=end_index, step=1, dtype=np.int32)
         logging.info("Instatiating UL2 Dataset ...")
         extreme_ngram_span_length_distribution = cfg.data.get(
             "extreme_ngram_span_length_distribution", "truncated_normal"
@@ -703,34 +704,37 @@ def get_dataset(
         raise NotImplementedError("Dataset type not fully implemented.")
     return dataset
 
-def build_dataset(            
-            cfg,
-            trainer,
-            data_prefix,
-            data_impl,
-            num_samples,
-            max_seq_length,
-            masked_lm_prob,
-            short_seq_prob,
-            seed,
-            skip_warmup,
-            binary_head,
-            max_seq_length_dec,
-            name,
-            dataset_type,
-            tokenizer,
-            max_ngram_size,
-            mean_ngram_size,
-            geometric_dist,
-            permutation,
-            whole_word_masking,
-            favor_long_ngrams,
-            delete_mask_prob,
-            respect_document_boundaries,
-            data_impl_kwargs):
-            
+
+def build_dataset(
+    cfg,
+    trainer,
+    data_prefix,
+    data_impl,
+    num_samples,
+    max_seq_length,
+    masked_lm_prob,
+    short_seq_prob,
+    seed,
+    skip_warmup,
+    binary_head,
+    max_seq_length_dec,
+    name,
+    dataset_type,
+    tokenizer,
+    max_ngram_size,
+    mean_ngram_size,
+    geometric_dist,
+    permutation,
+    whole_word_masking,
+    favor_long_ngrams,
+    delete_mask_prob,
+    respect_document_boundaries,
+    data_impl_kwargs,
+):
     def _build_dataset(current_data_prefix, current_num_samples):
-        indexed_dataset = get_indexed_dataset_(current_data_prefix, data_impl, skip_warmup, data_impl_kwargs=data_impl_kwargs)
+        indexed_dataset = get_indexed_dataset_(
+            current_data_prefix, data_impl, skip_warmup, data_impl_kwargs=data_impl_kwargs
+        )
         total_num_of_documents = indexed_dataset.sizes.shape[0]
         # Print stats about the splits.
         logging.info(' > dataset split:')
@@ -740,15 +744,15 @@ def build_dataset(
             indexed_dataset.set_doc_idx(doc_idx_ptr[0:total_num_of_documents])
 
         kwargs = dict(
-                name=name,
-                data_prefix=current_data_prefix,
-                num_epochs=None,
-                max_num_samples=int(current_num_samples),
-                max_seq_length=max_seq_length,
-                seed=seed,
-            )
+            name=name,
+            data_prefix=current_data_prefix,
+            num_epochs=None,
+            max_num_samples=int(current_num_samples),
+            max_seq_length=max_seq_length,
+            seed=seed,
+        )
 
-        dataset = get_dataset(   
+        dataset = get_dataset(
             indexed_dataset,
             0,
             total_num_of_documents,
@@ -769,7 +773,8 @@ def build_dataset(
             favor_long_ngrams,
             delete_mask_prob,
             respect_document_boundaries,
-            **kwargs) 
+            **kwargs,
+        )
 
         # Set the original pointer so dataset remains the main dataset.
         if hasattr(indexed_dataset, 'set_doc_idx'):
@@ -789,7 +794,7 @@ def build_dataset(
         for i in range(len(prefixes)):
             dataset = _build_dataset(prefixes[i], datasets_num_samples[i])
             datasets.append(dataset)
-        return BlendableDataset(datasets, weights, num_samples)    
+        return BlendableDataset(datasets, weights, num_samples)
 
 
 def build_train_valid_test_datasets(
@@ -835,9 +840,13 @@ def build_train_valid_test_datasets(
         )
 
     if isinstance(data_prefix, DictConfig):
-        assert data_prefix.get('train') is not None and data_prefix.get('test') is not None and data_prefix.get('validation') is not None, f"Data prefix dictionary should have train, test and validation keys.  data_prefix currently has only {data_prefix.keys()}"
+        assert (
+            data_prefix.get('train') is not None
+            and data_prefix.get('test') is not None
+            and data_prefix.get('validation') is not None
+        ), f"Data prefix dictionary should have train, test and validation keys.  data_prefix currently has only {data_prefix.keys()}"
         if cfg.data.splits_string is not None:
-            logging.warning(cfg.data.splits_string  + " ignored since data prefix is of type dictionary.")
+            logging.warning(cfg.data.splits_string + " ignored since data prefix is of type dictionary.")
         train_ds = build_dataset(
             cfg,
             trainer,
@@ -916,8 +925,8 @@ def build_train_valid_test_datasets(
             respect_document_boundaries=respect_document_boundaries,
             data_impl_kwargs=data_impl_kwargs,
         )
-        return train_ds, validation_ds, test_ds     
-   
+        return train_ds, validation_ds, test_ds
+
     else:
 
         if len(data_prefix) == 1:
@@ -1093,8 +1102,8 @@ def _build_train_valid_test_datasets(
                 max_seq_length=max_seq_length,
                 seed=seed,
             )
-            
-            dataset = get_dataset(   
+
+            dataset = get_dataset(
                 indexed_dataset,
                 splits[index],
                 splits[index + 1],
@@ -1115,7 +1124,8 @@ def _build_train_valid_test_datasets(
                 favor_long_ngrams,
                 delete_mask_prob,
                 respect_document_boundaries,
-                **kwargs)
+                **kwargs,
+            )
 
             # Set the original pointer so dataset remains the main dataset.
             if hasattr(indexed_dataset, 'set_doc_idx'):

@@ -19,8 +19,8 @@ import time
 
 import numpy as np
 import torch
-
 from omegaconf.dictconfig import DictConfig
+
 from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
     get_datasets_weights_and_num_samples,
     get_train_valid_test_split_,
@@ -39,19 +39,8 @@ except (ImportError, ModuleNotFoundError):
 
     HAVE_APEX = False
 
-def build_dataset(
-    cfg,
-    trainer,
-    data_prefix,
-    data_impl,
-    num_samples,
-    seq_length,
-    seed,
-    skip_warmup,
-    tokenizer,
-    name
-):
 
+def build_dataset(cfg, trainer, data_prefix, data_impl, num_samples, seq_length, seed, skip_warmup, tokenizer, name):
     def _build_dataset(current_data_prefix, current_num_samples):
         indexed_dataset = get_indexed_dataset_(current_data_prefix, data_impl, skip_warmup)
         total_num_of_documents = indexed_dataset.sizes.shape[0]
@@ -59,16 +48,16 @@ def build_dataset(
         logging.info(' > dataset split:')
         logging.info('     Total {} documents is : {} '.format(name, total_num_of_documents))
         dataset = GPTDataset(
-                    cfg,
-                    trainer,
-                    tokenizer,
-                    name,
-                    current_data_prefix,
-                    np.arange(start=0, stop=total_num_of_documents, step=1, dtype=np.int32),
-                    indexed_dataset,
-                    current_num_samples, 
-                    seq_length,
-                    seed,
+            cfg,
+            trainer,
+            tokenizer,
+            name,
+            current_data_prefix,
+            np.arange(start=0, stop=total_num_of_documents, step=1, dtype=np.int32),
+            indexed_dataset,
+            current_num_samples,
+            seq_length,
+            seed,
         )
         return dataset
 
@@ -84,6 +73,7 @@ def build_dataset(
             datasets.append(dataset)
         return BlendableDataset(datasets, weights, num_samples)
 
+
 def build_train_valid_test_datasets(
     cfg,
     trainer,
@@ -97,9 +87,13 @@ def build_train_valid_test_datasets(
     tokenizer,
 ):
     if isinstance(data_prefix, DictConfig):
-        assert data_prefix.get('train') is not None and data_prefix.get('test') is not None and data_prefix.get('validation') is not None, f"Data prefix dictionary should have train, test and validation keys.  data_prefix currently has only {data_prefix.keys()}"
+        assert (
+            data_prefix.get('train') is not None
+            and data_prefix.get('test') is not None
+            and data_prefix.get('validation') is not None
+        ), f"Data prefix dictionary should have train, test and validation keys.  data_prefix currently has only {data_prefix.keys()}"
         if cfg.data.splits_string is not None:
-            logging.warning(cfg.data.splits_string  + " ignored since data prefix is of type dictionary.")
+            logging.warning(cfg.data.splits_string + " ignored since data prefix is of type dictionary.")
         train_ds = build_dataset(
             cfg,
             trainer,
@@ -110,7 +104,7 @@ def build_train_valid_test_datasets(
             seed,
             skip_warmup,
             tokenizer,
-            "train"
+            "train",
         )
         validation_ds = build_dataset(
             cfg,
@@ -122,7 +116,7 @@ def build_train_valid_test_datasets(
             seed,
             skip_warmup,
             tokenizer,
-            "valid"
+            "valid",
         )
         test_ds = build_dataset(
             cfg,
@@ -134,7 +128,7 @@ def build_train_valid_test_datasets(
             seed,
             skip_warmup,
             tokenizer,
-            "test"
+            "test",
         )
         return train_ds, validation_ds, test_ds
 
@@ -158,7 +152,7 @@ def build_train_valid_test_datasets(
         # Parse the values.
         output = get_datasets_weights_and_num_samples(data_prefix, train_valid_test_num_samples)
         prefixes, weights, datasets_train_valid_test_num_samples = output
-    
+
         # Build individual datasets.
         train_datasets = []
         valid_datasets = []
@@ -202,10 +196,10 @@ def build_train_valid_test_datasets(
 def _build_train_valid_test_datasets(
     cfg,
     trainer,
-    data_prefix, 
-    data_impl, 
+    data_prefix,
+    data_impl,
     splits_string,
-    train_valid_test_num_samples, 
+    train_valid_test_num_samples,
     seq_length,
     seed,
     skip_warmup,
@@ -242,10 +236,10 @@ def _build_train_valid_test_datasets(
                 trainer,
                 tokenizer,
                 name,
-                data_prefix, 
-                documents, 
+                data_prefix,
+                documents,
                 indexed_dataset,
-                train_valid_test_num_samples[index], 
+                train_valid_test_num_samples[index],
                 seq_length,
                 seed,
             )
