@@ -15,7 +15,7 @@
 ###############################################################################
 
 import ast
-from typing import Tuple, List, Optional
+from typing import Tuple, List
 
 import numpy as np
 import torch
@@ -168,7 +168,7 @@ class ConvLSTMLinear(nn.Module):
             self.dense = nn.Linear(n_channels, out_dim)
         self.bilstm.flatten_parameters()
         
-    def run_padded_sequence(self, context:torch.Tensor, lens:torch.Tensor) -> torch.Tensor:
+    def run_padded_sequence(self, context, lens):
         context_embedded = []
         for b_ind in range(context.size()[0]):  # TODO: speed up
             curr_context = context[b_ind : b_ind + 1, :, : lens[b_ind]].clone()
@@ -179,7 +179,7 @@ class ConvLSTMLinear(nn.Module):
         return context
 
 
-    def run_unsorted_inputs(self, context:torch.Tensor, lens:torch.Tensor) -> torch.Tensor:
+    def run_unsorted_inputs(self, context, lens):
         lens_sorted, ids_sorted = torch.sort(lens, descending=True)
         unsort_ids = torch.zeros_like(ids_sorted)
         for i in range(ids_sorted.shape[0]):
@@ -197,7 +197,7 @@ class ConvLSTMLinear(nn.Module):
         context = context[unsort_ids]
         return context
 
-    def forward(self, context:torch.Tensor, lens:Optional[torch.Tensor])->torch.Tensor:
+    def forward(self, context, lens=None):
         if lens is not None and context.size()[0] > 1:
             context = self.run_padded_sequence(context, lens)
         else:
