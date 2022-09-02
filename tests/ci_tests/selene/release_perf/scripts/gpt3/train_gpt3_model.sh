@@ -15,21 +15,21 @@ case $RUN_MODEL_SIZE in
     ;;
 
   5b)
-    NUM_NODES=${NUM_NODES:-20}
-    TP_SIZE=${TP_SIZE:-2}
+    NUM_NODES=${NUM_NODES:-16}
+    TP_SIZE=${TP_SIZE:-1}
     PP_SIZE=${PP_SIZE:-1}
     ;;
 
   20b)
-    NUM_NODES=${NUM_NODES:-80}
+    NUM_NODES=${NUM_NODES:-64}
     TP_SIZE=${TP_SIZE:-4}
-    PP_SIZE=${PP_SIZE:-4}
+    PP_SIZE=${PP_SIZE:-1}
     ;;
 
   40b)
-    NUM_NODES=${NUM_NODES:-80}
+    NUM_NODES=${NUM_NODES:-128}
     TP_SIZE=${TP_SIZE:-4}
-    PP_SIZE=${PP_SIZE:-4}
+    PP_SIZE=${PP_SIZE:-2}
     ;;
 
   175b)

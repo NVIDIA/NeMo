@@ -142,7 +142,7 @@ train.gpt3.5b_5node_100steps:
     <<: [*VARS, *LUNA_VARS]
     RUN_MODEL: gpt3
     RUN_MODEL_SIZE: 5b
-    NUM_NODES: 5
+    NUM_NODES: 4
     TIME_LIMIT: "4:00:00"
 
 train.gpt3.5b_20node_100steps:
@@ -152,7 +152,7 @@ train.gpt3.5b_20node_100steps:
     <<: [*VARS, *LUNA_VARS]
     RUN_MODEL: gpt3
     RUN_MODEL_SIZE: 5b
-    NUM_NODES: 20
+    NUM_NODES: 16
     TIME_LIMIT: "4:00:00"
 
 train.gpt3.20b_20node_100steps:
@@ -162,7 +162,7 @@ train.gpt3.20b_20node_100steps:
     <<: [*VARS, *LUNA_VARS]
     RUN_MODEL: gpt3
     RUN_MODEL_SIZE: 20b
-    NUM_NODES: 20
+    NUM_NODES: 16
     TIME_LIMIT: "3:00:00"
 
 train.gpt3.20b_80node_100steps:
@@ -172,7 +172,7 @@ train.gpt3.20b_80node_100steps:
     <<: [*VARS, *LUNA_VARS]
     RUN_MODEL: gpt3
     RUN_MODEL_SIZE: 20b
-    NUM_NODES: 80
+    NUM_NODES: 64
     TIME_LIMIT: "3:00:00"
 
 train.gpt3.40b_20node_100steps:
@@ -182,7 +182,7 @@ train.gpt3.40b_20node_100steps:
     <<: [*VARS, *LUNA_VARS]
     RUN_MODEL: gpt3
     RUN_MODEL_SIZE: 40b
-    NUM_NODES: 20
+    NUM_NODES: 32
     TIME_LIMIT: "3:00:00"
 
 
@@ -193,7 +193,7 @@ train.gpt3.40b_80node_100steps:
     <<: [*VARS, *LUNA_VARS]
     RUN_MODEL: gpt3
     RUN_MODEL_SIZE: 40b
-    NUM_NODES: 80
+    NUM_NODES: 128
     TIME_LIMIT: "3:00:00"
 
 train.gpt3.175b_32node_50steps:
