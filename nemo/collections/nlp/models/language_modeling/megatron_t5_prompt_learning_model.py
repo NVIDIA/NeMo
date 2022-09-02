@@ -176,13 +176,12 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         return loss_mean
 
     def get_forward_output_and_loss_func(self):
-        def fwd_output_and_loss_func(batch, model, checkpoint_activations_all_layers=None):
+        def fwd_output_and_loss_func(batch, model):
             batch = [x.cuda(non_blocking=True) for x in batch]
             enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids = batch
 
             output_tensor, encoder_input = model(
-                enc_input, dec_input, enc_mask, dec_mask, position_ids, taskname_ids, labels, inference=False,
-                checkpoint_activations_all_layers=checkpoint_activations_all_layers,
+                enc_input, dec_input, enc_mask, dec_mask, position_ids, taskname_ids, labels, inference=False
             )
 
             def loss_func(output_tensor):
