@@ -158,6 +158,22 @@ class BiLSTM(nn.Module):
         ret, _ = self.bilstm(seq)
         return nn.utils.rnn.pad_packed_sequence(
             ret, batch_first=True)
+
+    @torch.jit.export
+    def run_and_sort_inputs(self, context:torch.Tensor, lens:torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        lens_sorted, ids_sorted = torch.sort(lens, descending=True)
+        unsort_ids = torch.zeros_like(ids_sorted)
+        for i in range(ids_sorted.shape[0]):
+            unsort_ids[ids_sorted[i]] = i
+        lens_sorted = lens_sorted.long().cpu()
+
+        context = context[ids_sorted]
+        seq = nn.utils.rnn.pack_padded_sequence(
+            context, lens_sorted, batch_first=True)
+        ret, _ = self.bilstm(seq)
+        return  nn.utils.rnn.pad_packed_sequence(
+            ret, batch_first=True)
+
         
 class ConvLSTMLinear(BiLSTM):
     def __init__(self, in_dim=None, out_dim=None, n_layers=2, n_channels=256, kernel_size=3, p_dropout=0.1,
@@ -196,21 +212,6 @@ class ConvLSTMLinear(BiLSTM):
         self.dense = None
         if out_dim is not None:
             self.dense = nn.Linear(n_channels, out_dim)
-
-    def run_and_sort_inputs(self, context:torch.Tensor, lens:torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        lens_sorted, ids_sorted = torch.sort(lens, descending=True)
-        unsort_ids = torch.zeros_like(ids_sorted)
-        for i in range(ids_sorted.shape[0]):
-            unsort_ids[ids_sorted[i]] = i
-        lens_sorted = lens_sorted.long().cpu()
-
-        context = context[ids_sorted]
-        seq = nn.utils.rnn.pack_padded_sequence(
-            context, lens_sorted, batch_first=True)
-        ret, _ = self.bilstm(seq)
-        return  nn.utils.rnn.pad_packed_sequence(
-            ret, batch_first=True)
-
             
     def run_padded_sequence(self, context, lens):
         context_embedded = []
@@ -230,7 +231,7 @@ class ConvLSTMLinear(BiLSTM):
                 context = self.dropout(F.relu(conv(context)))
             context = context.transpose(1, 2)
         if lens is not None:
-            context, out_lens = self.run_and_sort_inputs(context, lens)
+            context, out_lens = self.run_unsorted_inputs(context, lens)
         else:
             context, _ = self.bilstm(context)
 
