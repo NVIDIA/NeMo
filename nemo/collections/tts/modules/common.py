@@ -122,14 +122,53 @@ def unsort_tensor(context: torch.Tensor, ids_sorted):
     context = context[unsort_ids]
     return context
 
-class ConvLSTMLinear(nn.Module):
-    def __init__(self, in_dim, out_dim=None, n_layers=2, n_channels=256, kernel_size=3, p_dropout=0.1,
-                 use_partial_padding=False, norm_fn=None, lstm_norm_fn="spectral"):
-        super(ConvLSTMLinear, self).__init__()
-        self.out_dim = out_dim
-        self.dropout = nn.Dropout(p=p_dropout)
+def norm_bilstm(self, lstm_norm_fn):
+        if lstm_norm_fn is not None:
+            if 'spectral' in lstm_norm_fn:
+                print("Applying spectral norm to LSTM")
+                lstm_norm_fn_pntr = torch.nn.utils.spectral_norm
+            elif 'weight' in lstm_norm_fn:
+                print("Applying weight norm to LSTM")
+                lstm_norm_fn_pntr = torch.nn.utils.weight_norm
+                
+        lstm_norm_fn_pntr(self, 'weight_hh_l0')
+        lstm_norm_fn_pntr(self, 'weight_hh_l0_reverse')
+        self.flatten_parameters()
+    
 
-        convolutions = []
+class BiLSTM(nn.Module):
+    def __init__(self, input_size, hidden_size, num_layers = 1, lstm_norm_fn="spectral"):
+        super().__init__()
+        self.bilstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True, bidirectional=True)
+        norm_bilstm(self.bilstm, lstm_norm_fn)
+        
+    @torch.jit.export
+    def run_unsorted_inputs(self, context:torch.Tensor, lens:torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        seq = nn.utils.rnn.pack_padded_sequence(
+            context, lens.long().cpu(), batch_first=True, enforce_sorted=False)
+        ret, _ = self.bilstm(seq)
+        return nn.utils.rnn.pad_packed_sequence(
+            ret, batch_first=True)
+
+    @torch.jit.export
+    def run_sorted_inputs(self, context:torch.Tensor, lens:torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        lens_sorted = lens.long().cpu()
+        seq = nn.utils.rnn.pack_padded_sequence(
+            context, lens_sorted, batch_first=True)
+        ret, _ = self.bilstm(seq)
+        return nn.utils.rnn.pad_packed_sequence(
+            ret, batch_first=True)
+        
+class ConvLSTMLinear(BiLSTM):
+    def __init__(self, in_dim=None, out_dim=None, n_layers=2, n_channels=256, kernel_size=3, p_dropout=0.1,
+                 use_partial_padding=False, norm_fn=None, lstm_norm_fn="spectral"):
+        super(ConvLSTMLinear, self).__init__(n_channels, int(n_channels // 2), 1)
+        self.out_dim = out_dim
+
+        if n_layers > 0:
+            self.dropout = nn.Dropout(p=p_dropout)
+            self.convolutions = nn.ModuleList()
+
         for i in range(n_layers):
             conv_layer = ConvNorm(
                 in_dim if i == 0 else n_channels,
@@ -148,26 +187,31 @@ class ConvLSTMLinear(nn.Module):
             else:
                 conv_layer = torch.nn.utils.weight_norm(conv_layer.conv)
                 print("Applying weight norm to {}".format(conv_layer))
-            convolutions.append(conv_layer)
+            self.convolutions.append(conv_layer)
 
-        self.convolutions = nn.ModuleList(convolutions)
+        # self.bilstm = nn.LSTM(n_channels, int(n_channels // 2), 1, batch_first=True, bidirectional=True)
+        # norm_bilstm(self.bilstm, lstm_norm_fn)
 
-        self.bilstm = nn.LSTM(n_channels, int(n_channels // 2), 1, batch_first=True, bidirectional=True)
-        if lstm_norm_fn is not None:
-            if 'spectral' in lstm_norm_fn:
-                print("Applying spectral norm to text encoder LSTM")
-                lstm_norm_fn_pntr = torch.nn.utils.spectral_norm
-            elif 'weight' in lstm_norm_fn:
-                print("Applying weight norm to text encoder LSTM")
-                lstm_norm_fn_pntr = torch.nn.utils.weight_norm
-                
-        self.bilstm = lstm_norm_fn_pntr(self.bilstm, 'weight_hh_l0')
-        self.bilstm = lstm_norm_fn_pntr(self.bilstm, 'weight_hh_l0_reverse')
+        # self.bilstm = BiLSTM(n_channels, int(n_channels // 2), 1)
         self.dense = None
         if out_dim is not None:
             self.dense = nn.Linear(n_channels, out_dim)
-        self.bilstm.flatten_parameters()
-        
+
+    def run_and_sort_inputs(self, context:torch.Tensor, lens:torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        lens_sorted, ids_sorted = torch.sort(lens, descending=True)
+        unsort_ids = torch.zeros_like(ids_sorted)
+        for i in range(ids_sorted.shape[0]):
+            unsort_ids[ids_sorted[i]] = i
+        lens_sorted = lens_sorted.long().cpu()
+
+        context = context[ids_sorted]
+        seq = nn.utils.rnn.pack_padded_sequence(
+            context, lens_sorted, batch_first=True)
+        ret, _ = self.bilstm(seq)
+        return  nn.utils.rnn.pad_packed_sequence(
+            ret, batch_first=True)
+
+            
     def run_padded_sequence(self, context, lens):
         context_embedded = []
         for b_ind in range(context.size()[0]):  # TODO: speed up
@@ -178,25 +222,6 @@ class ConvLSTMLinear(nn.Module):
         context = torch.nn.utils.rnn.pad_sequence(context_embedded, batch_first=True)
         return context
 
-
-    def run_unsorted_inputs(self, context, lens):
-        lens_sorted, ids_sorted = torch.sort(lens, descending=True)
-        unsort_ids = torch.zeros_like(ids_sorted)
-        for i in range(ids_sorted.shape[0]):
-            unsort_ids[ids_sorted[i]] = i
-        lens_sorted = lens_sorted.long().cpu()
-
-        context = context[ids_sorted]
-        context = nn.utils.rnn.pack_padded_sequence(
-            context, lens_sorted, batch_first=True)
-        context = self.bilstm(context)[0]
-        context = nn.utils.rnn.pad_packed_sequence(
-            context, batch_first=True)[0]
-
-        # map back to original indices
-        context = context[unsort_ids]
-        return context
-
     def forward(self, context, lens=None):
         if lens is not None and context.size()[0] > 1:
             context = self.run_padded_sequence(context, lens)
@@ -205,9 +230,9 @@ class ConvLSTMLinear(nn.Module):
                 context = self.dropout(F.relu(conv(context)))
             context = context.transpose(1, 2)
         if lens is not None:
-            context = self.run_unsorted_inputs(context, lens)
+            context, out_lens = self.run_and_sort_inputs(context, lens)
         else:
-            context = self.bilstm(context)[0]
+            context, _ = self.bilstm(context)
 
         if self.dense is not None:
             context = self.dense(context).permute(0, 2, 1)
