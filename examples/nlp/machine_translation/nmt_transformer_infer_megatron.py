@@ -87,13 +87,15 @@ def main(cfg) -> None:
         with open_dict(pretrained_cfg):
             pretrained_cfg.pretrained_model_path = cfg.model_file
             pretrained_cfg.adapter_tuning = cfg.adapter_tuning
+            pretrained_cfg.adapters_file = cfg.adapters_file
 
         model = MegatronNMTModel.restore_from(
-            restore_path=cfg.adapters_file,
+            restore_path=cfg.model_file,
             trainer=trainer,
             override_config_path=pretrained_cfg,
             save_restore_connector=NLPSaveRestoreConnector(),
         )
+        # model.add_enable_adapters()
     else:
         # load NMT model without adapters
         if cfg.model_file is not None:

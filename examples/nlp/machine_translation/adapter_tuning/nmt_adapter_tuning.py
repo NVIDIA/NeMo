@@ -188,12 +188,12 @@ def main(cfg) -> None:
             override_config_path=pretrained_cfg,
             save_restore_connector=NLPSaveRestoreConnector(),
         )
+
     else:
         model = MegatronNMTModel(cfg.model, trainer)
 
     trainer.fit(model)
     trainer.validate(model)
-
 
 if __name__ == '__main__':
     main()

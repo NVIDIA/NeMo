@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import tempfile
+import torch
+
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
@@ -20,6 +23,7 @@ from nemo.collections.common.parts.adapter_modules import LinearAdapterConfig
 from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_model import (
     MegatronLMEncoderDecoderModel,
 )
+from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.modules.common.megatron.parallel_adapters import ParallelLinearAdapterConfig
 from nemo.core.classes.mixins import adapter_mixins
 from nemo.utils import logging
@@ -47,10 +51,9 @@ class MegatronLMAdapterEncoderDecoderModel(MegatronLMEncoderDecoderModel):
             self.adapter_name_keys = ['adapter_1', 'adapter_2']
 
             # set the base model and enc_dec_model module
-            logging.info(f'Before adding adapters:\n{self.summarize()}')
             self.freeze()
             if cfg.adapter_tuning.type == "parallel_adapter":
-                adapter_cfg = ParallelLinearAdapterConfig(
+                self.adapter_cfg = ParallelLinearAdapterConfig(
                     in_features=cfg.hidden_size,
                     dim=cfg.adapter_tuning.adapter_dim,
                     norm_position=cfg.adapter_tuning.get('norm_position', 'pre'),
@@ -59,24 +62,38 @@ class MegatronLMAdapterEncoderDecoderModel(MegatronLMEncoderDecoderModel):
                     row_init_method=cfg.adapter_tuning.get('row_init_method', 'zero'),
                     dropout=cfg.adapter_tuning.adapter_dropout,
                 )
-            else:
-                adapter_cfg = LinearAdapterConfig(
+            elif cfg.adapter_tuning.type == 'linear_adapter':
+                self.adapter_cfg = LinearAdapterConfig(
                     in_features=cfg.hidden_size,
                     dim=cfg.adapter_tuning.adapter_dim,
                     norm_position=cfg.adapter_tuning.get('norm_position', 'pre'),
                     dropout=cfg.adapter_tuning.adapter_dropout,
                 )
 
-            for _, module in self.enc_dec_model.named_modules():
-                if isinstance(module, adapter_mixins.AdapterModuleMixin):
-                    for adapter_key in self.adapter_name_keys:
-                        module.add_adapter(name=adapter_key, cfg=adapter_cfg)
-
-            logging.info(f'After adding adapters:\n{self.summarize()}')
+            # override checkpoint saving
+            self.state_dict = self._state_dict
+            self.load_state_dict = self._load_adapters_weights
+            self.add_enable_adapters()
 
     @classmethod
     def list_available_models(cls):
         pass
+
+    def add_enable_adapters(self):
+        logging.info(f'Before adding adapters:\n{self.summarize()}')
+        print(self.adapter_cfg)
+        for _, module in self.enc_dec_model.named_modules():
+            if isinstance(module, adapter_mixins.AdapterModuleMixin):
+                for adapter_key in self.adapter_name_keys:
+                    module.add_adapter(name=adapter_key, cfg=self.adapter_cfg)
+        logging.info(f'After adding adapters:\n{self.summarize()}')
+
+        # load adapters weights if provided
+        if hasattr(self.cfg, 'adapters_file'):
+            with tempfile.TemporaryDirectory() as tmpdir:
+                adapters_state_dict = self.extract_state_dict_from(self.cfg.adapters_file, tmpdir, save_restore_connector=NLPSaveRestoreConnector())
+                self._load_adapters_weights(adapters_state_dict)
+                logging.info(f'Adapters weights loaded successfully from {self.cfg.adapters_file}')
 
     def _validate_adapters_cfg(self, cfg):
         assert cfg.type in ['parallel_adapter', 'linear_adapter']
@@ -90,22 +107,18 @@ class MegatronLMAdapterEncoderDecoderModel(MegatronLMEncoderDecoderModel):
             if hasattr(cfg, val):
                 assert cfg.get(val) in ['xavier', 'zero', 'normal']
 
-    def state_dict(self, destination=None, prefix=None, keep_vars=False):
+    def _state_dict(self, destination=None, prefix=None, keep_vars=False):
         state_dict_ = {}
 
-        if hasattr(self.cfg, 'adapter_tuning'):
-            for name, module in self.enc_dec_model.named_modules():
-                if isinstance(module, adapter_mixins.AdapterModuleMixin):
-                    for adapter_key in self.adapter_name_keys:
-                        adapter_module = module.adapter_layer[adapter_key]
-                        state_adapter_key = ':'.join([name, adapter_key])
-                        state_dict_[state_adapter_key] = adapter_module.state_dict()
-        else:
-            for name, module in self.enc_dec_model.named_modules():
-                state_dict_[name] = module.state_dict()
+        for name, module in self.enc_dec_model.named_modules():
+            if isinstance(module, adapter_mixins.AdapterModuleMixin):
+                for adapter_key in self.adapter_name_keys:
+                    adapter_module = module.adapter_layer[adapter_key]
+                    state_adapter_key = ':'.join([name, adapter_key])
+                    state_dict_[state_adapter_key] = adapter_module.state_dict()
         return state_dict_
 
-    def load_state_dict(self, state_dict, strict: bool = True):
+    def _load_adapters_weights(self, state_dict, strict=True):    
         for name, module in self.enc_dec_model.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin):
                 for adapter_key in self.adapter_name_keys:
@@ -114,6 +127,8 @@ class MegatronLMAdapterEncoderDecoderModel(MegatronLMEncoderDecoderModel):
                     # only load the adapters if they are in the state_dict
                     if state_adapter_key in state_dict:
                         adapter_module.load_state_dict(state_dict[state_adapter_key], strict)
+
+        super().load_state_dict(state_dict, strict=False)
 
     def setup_optimizer_param_groups(self):
         """
