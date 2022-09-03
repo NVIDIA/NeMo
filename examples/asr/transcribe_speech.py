@@ -161,11 +161,11 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
             asr_model.change_decoding_strategy(cfg.ctc_decoding)
 
     # get audio filenames #add_info is true -> require manifest
-    if cfg.audio_dir is not None and cfg.add_info is True:
+    if cfg.audio_dir is not None and cfg.add_info:
         logging.error(f"If you setting add_info to True then you must have dataset_manifest")
         return None
 
-    if cfg.audio_dir is not None and cfg.add_info is False:
+    if cfg.audio_dir is not None and not cfg.add_info:
         filepaths = list(glob.glob(os.path.join(cfg.audio_dir, f"**/*.{cfg.audio_type}"), recursive=True))
     else:
         # get filenames from manifest
@@ -206,7 +206,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         # create default output filename
         if cfg.audio_dir is not None:
             cfg.output_filename = os.path.dirname(os.path.join(cfg.audio_dir, '.')) + '.json'
-        elif cfg.add_info is False:
+        elif not cfg.add_info:
             cfg.output_filename = cfg.dataset_manifest.replace('.json', f'_{model_name}.json')
         else:
             cfg.output_filename = cfg.dataset_manifest.replace('.json', f'_and_{model_name}.json')
