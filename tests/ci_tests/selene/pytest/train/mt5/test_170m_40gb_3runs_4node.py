@@ -10,8 +10,8 @@ class TestCImT5170m:
         candidate_configs_dir = os.path.join(BASE_RESULTS_DIR, "mt5/0.17b_40gb/candidate_configs")
         training_logs_dir = os.path.join(BASE_RESULTS_DIR, "mt5/0.17b_40gb/training_logs")
         final_result_dir = os.path.join(BASE_RESULTS_DIR, "mt5/0.17b_40gb/final_result")
-        final_summary_csv = os.path.join(BASE_RESULTS_DIR, "mt5/0.17b_40gb/final_result/final_summary_1nodes.csv")
-        optimal_cfg = os.path.join(BASE_RESULTS_DIR, "mt5/0.17b_40gb/final_result/optimal_config_0.17b_1nodes.yaml")
+        final_summary_csv = os.path.join(BASE_RESULTS_DIR, "mt5/0.17b_40gb/final_result/final_summary_4nodes.csv")
+        optimal_cfg = os.path.join(BASE_RESULTS_DIR, "mt5/0.17b_40gb/final_result/optimal_config_0.17b_4nodes.yaml")
 
         assert os.path.exists(base_cfg), f"File not found: {base_cfg}"
         assert os.path.exists(candidate_configs_dir), f"Dir not found: {candidate_configs_dir}"

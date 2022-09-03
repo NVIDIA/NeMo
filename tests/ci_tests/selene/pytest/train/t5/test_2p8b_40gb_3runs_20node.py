@@ -6,12 +6,12 @@ BASE_RESULTS_DIR = os.environ.get("BASE_RESULTS_DIR")
 class TestCIT52p8b:
 
     def test_ci_train_t5_2p8b_80gb_3runs(self):
-        base_cfg = os.path.join(BASE_RESULTS_DIR, "t5/2.8b_80gb/base_cfg_2.8b.yaml")
-        candidate_configs_dir = os.path.join(BASE_RESULTS_DIR, "t5/2.8b_80gb/candidate_configs")
-        training_logs_dir = os.path.join(BASE_RESULTS_DIR, "t5/2.8b_80gb/training_logs")
-        final_result_dir = os.path.join(BASE_RESULTS_DIR, "t5/2.8b_80gb/final_result")
-        final_summary_csv = os.path.join(BASE_RESULTS_DIR, "t5/2.8b_80gb/final_result/final_summary_1nodes.csv")
-        optimal_cfg = os.path.join(BASE_RESULTS_DIR, "t5/2.8b_80gb/final_result/optimal_config_2.8b_1nodes.yaml")
+        base_cfg = os.path.join(BASE_RESULTS_DIR, "t5/2.8b_40gb/base_cfg_2.8b.yaml")
+        candidate_configs_dir = os.path.join(BASE_RESULTS_DIR, "t5/2.8b_40gb/candidate_configs")
+        training_logs_dir = os.path.join(BASE_RESULTS_DIR, "t5/2.8b_40gb/training_logs")
+        final_result_dir = os.path.join(BASE_RESULTS_DIR, "t5/2.8b_40gb/final_result")
+        final_summary_csv = os.path.join(BASE_RESULTS_DIR, "t5/2.8b_40gb/final_result/final_summary_20nodes.csv")
+        optimal_cfg = os.path.join(BASE_RESULTS_DIR, "t5/2.8b_40gb/final_result/optimal_config_2.8b_20nodes.yaml")
 
         assert os.path.exists(base_cfg), f"File not found: {base_cfg}"
         assert os.path.exists(candidate_configs_dir), f"Dir not found: {candidate_configs_dir}"
