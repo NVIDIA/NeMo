@@ -13,8 +13,8 @@
 # limitations under the License.
 
 import tempfile
-import torch
 
+import torch
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
@@ -23,8 +23,8 @@ from nemo.collections.common.parts.adapter_modules import LinearAdapterConfig
 from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_model import (
     MegatronLMEncoderDecoderModel,
 )
-from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.modules.common.megatron.parallel_adapters import ParallelLinearAdapterConfig
+from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.core.classes.mixins import adapter_mixins
 from nemo.utils import logging
 
@@ -91,7 +91,9 @@ class MegatronLMAdapterEncoderDecoderModel(MegatronLMEncoderDecoderModel):
         # load adapters weights if provided
         if hasattr(self.cfg, 'adapters_file'):
             with tempfile.TemporaryDirectory() as tmpdir:
-                adapters_state_dict = self.extract_state_dict_from(self.cfg.adapters_file, tmpdir, save_restore_connector=NLPSaveRestoreConnector())
+                adapters_state_dict = self.extract_state_dict_from(
+                    self.cfg.adapters_file, tmpdir, save_restore_connector=NLPSaveRestoreConnector()
+                )
                 self._load_adapters_weights(adapters_state_dict)
                 logging.info(f'Adapters weights loaded successfully from {self.cfg.adapters_file}')
 
@@ -118,7 +120,7 @@ class MegatronLMAdapterEncoderDecoderModel(MegatronLMEncoderDecoderModel):
                     state_dict_[state_adapter_key] = adapter_module.state_dict()
         return state_dict_
 
-    def _load_adapters_weights(self, state_dict, strict=True):    
+    def _load_adapters_weights(self, state_dict, strict=True):
         for name, module in self.enc_dec_model.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin):
                 for adapter_key in self.adapter_name_keys:

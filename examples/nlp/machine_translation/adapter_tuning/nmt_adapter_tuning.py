@@ -195,5 +195,6 @@ def main(cfg) -> None:
     trainer.fit(model)
     trainer.validate(model)
 
+
 if __name__ == '__main__':
     main()
