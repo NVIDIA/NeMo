@@ -20,8 +20,27 @@ DEFAULT_PUNCTUATION = (
     ')', '[', ']', '{', '}',
 )
 
+GRAPHEME_CHARACTER_SETS = {
+    "en-us": (
+        'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J',
+        'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T',
+        'U', 'V', 'W', 'X', 'Y', 'Z', 'À', 'É'
+    ),
+    "es": (
+        'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J',
+        'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T',
+        'U', 'V', 'W', 'X', 'Y', 'Z', 'Á', 'É', 'Í', 'Ñ',
+        'Ó', 'Ú', 'Ü'
+    ),
+    "de": (
+        'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J',
+        'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T',
+        'U', 'V', 'W', 'X', 'Y', 'Z', 'Ä', 'É', 'Ê', 'Ñ',
+        'Ö', 'Ü'
+    ),
+}
 
-CHARACTER_SETS = {
+IPA_CHARACTER_SETS = {
     "en-us": (
         'a', 'b', 'd', 'e', 'f', 'h', 'i', 'j', 'k', 'l',
         'm', 'n', 'o', 'p', 'r', 's', 't', 'u', 'v', 'w',
@@ -46,11 +65,18 @@ CHARACTER_SETS = {
 # fmt: on
 
 
-def get_ipa_character_list(language):
-    if language not in CHARACTER_SETS:
-        raise ValueError(f"Character set not found for language {language}")
-    char_list = list(CHARACTER_SETS[language])
-    return char_list
+def get_grapheme_character_set(language):
+    if language not in GRAPHEME_CHARACTER_SETS:
+        raise ValueError(f"Grapheme character set not found for language {language}")
+    char_set = set(GRAPHEME_CHARACTER_SETS[language])
+    return char_set
+
+
+def get_ipa_character_set(language):
+    if language not in IPA_CHARACTER_SETS:
+        raise ValueError(f"IPA character set not found for language {language}")
+    char_set = set(IPA_CHARACTER_SETS[language])
+    return char_set
 
 
 def get_ipa_punctuation_list(language):

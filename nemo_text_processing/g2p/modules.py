@@ -254,6 +254,7 @@ class IPAG2P(BaseG2p):
         apply_to_oov_word=None,
         ignore_ambiguous_words=True,
         heteronyms=None,
+        use_chars=False,
         phoneme_probability: Optional[float]=None,
         use_stresses: Optional[bool]=True,
         set_graphemes_upper: Optional[bool]=True
@@ -276,6 +277,8 @@ class IPAG2P(BaseG2p):
             ignore_ambiguous_words: Whether to not handle word via phoneme_dict with ambiguous phoneme sequences.
                 Defaults to True.
             heteronyms (str, Path, List): Path to file with heteronyms (every line is new word) or list of words.
+            use_chars: Whether to include chars/graphemes in the token list. This should be set to True if phoneme_probability is used
+                or if apply_to_oov_word ever returns graphemes.
             phoneme_probability (Optional[float]): The probability (0.<var<1.) that each word is phonemized. Defaults to None which is the same as 1.
                 Note that this code path is only run if the word can be phonemized. For example: If the word does not have a entry in the g2p dict, it will be returned
                 as characters. If the word has multiple entries and ignore_ambiguous_words is True, it will be returned as characters.
@@ -286,6 +289,12 @@ class IPAG2P(BaseG2p):
         """
         self.use_stresses = use_stresses
         self.set_graphemes_upper = set_graphemes_upper
+        self.use_chars = use_chars
+        self.phoneme_probability = phoneme_probability
+        self._rng = random.Random()
+
+        if not self.use_chars and self.phoneme_probability is not None:
+            logging.warning("use_chars was not set while using phoneme_probability.")
 
         if isinstance(phoneme_dict, str) or isinstance(phoneme_dict, pathlib.Path):
             # Load phoneme_dict from file path
@@ -293,6 +302,7 @@ class IPAG2P(BaseG2p):
                 phoneme_dict,
                 use_stresses,
                 self.STRESS_SYMBOLS,
+                use_chars=self.use_chars,
                 upper=set_graphemes_upper,
             )
         else:
@@ -301,9 +311,10 @@ class IPAG2P(BaseG2p):
             self.phoneme_dict = phoneme_dict
 
             self.symbols = set()
-            for entries in phoneme_dict.values():
-                for phonemes in entries:
-                    self.symbols.update(phonemes)
+            for word, phonemes in phoneme_dict.items():
+                self.symbols.update(phonemes)
+                if self.use_chars:
+                    self.symbols.update(word)
 
             # Update dict to remove stresses if use_stresses=False
             if not use_stresses:
@@ -346,11 +357,8 @@ class IPAG2P(BaseG2p):
         if set_graphemes_upper and heteronyms:
             self.heteronyms = [het.upper() for het in self.heteronyms]
 
-        self.phoneme_probability = phoneme_probability
-        self._rng = random.Random()
-
     @staticmethod
-    def _parse_as_cmu_dict(phoneme_dict_path, use_stresses=False, stress_symbols=[], upper=True):
+    def _parse_as_cmu_dict(phoneme_dict_path, use_stresses=False, stress_symbols=[], use_chars=False, upper=True):
         """Loads IPA CMUdict, and generates a set of all valid symbols."""
         g2p_dict = defaultdict(list)
         symbols = set()
@@ -371,6 +379,8 @@ class IPAG2P(BaseG2p):
                         for stress_symbol in stress_symbols:
                             pronunciation = pronunciation.replace(stress_symbol, '')
                     symbols.update(pronunciation)  # This will insert each char individually
+                    if use_chars:
+                        symbols.update(word)
                     g2p_dict[word].append(list(pronunciation))
 
         return g2p_dict, symbols
@@ -379,6 +389,12 @@ class IPAG2P(BaseG2p):
     def _parse_file_by_lines(p):
         with open(p, 'r') as f:
             return [l.rstrip() for l in f.readlines()]
+
+    def add_symbols(self, symbols):
+        """By default the G2P symbols will be inferred from the words & pronunciations in the phoneme_dict.
+        Use this to add characters in the vocabulary that are not present in the phoneme_dict.
+        """
+        self.symbols.update(symbols)
 
     def is_unique_in_phoneme_dict(self, word):
         return len(self.phoneme_dict[word]) == 1
@@ -393,7 +409,7 @@ class IPAG2P(BaseG2p):
             return word, True
 
         # Punctuation (assumes other chars have been stripped)
-        if re.search("[a-zA-Z]", word) is None:
+        if re.search(r"[a-zA-ZÀ-ÿ\d]", word) is None:
             return list(word), True
 
         # Heteronym
