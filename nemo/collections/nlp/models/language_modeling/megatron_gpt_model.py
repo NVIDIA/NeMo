@@ -247,6 +247,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 dtype=self.autocast_dtype,
                 grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
                 sequence_parallel_enabled=self.cfg.get('sequence_parallel', False),
+                sync_batch_comm=self.cfg.get('sync_batch_comm', True),
                 num_micro_batches_with_partial_activation_checkpoints=self.cfg.get('num_micro_batches_with_partial_activation_checkpoints', None),
             )
         else:
@@ -468,6 +469,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 tensor_shape=tensor_shape,
                 dtype=self.autocast_dtype,
                 sequence_parallel_enabled=self.cfg.get('sequence_parallel', False),
+                sync_batch_comm=self.cfg.get('sync_batch_comm', True),
             )
         else:
             losses_reduced_per_micro_batch = forward_backward_no_pipelining(
