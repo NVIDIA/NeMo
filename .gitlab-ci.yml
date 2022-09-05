@@ -10,7 +10,7 @@ variables: &VARS
   TESTS_TO_RUN_AFTER_MERGING: L0  # Can specify levels, ci job names etc as a space seperated list to run during merge request
   TESTS_TO_RUN_ON_THIS_COMMIT: L0 L1 L2
   TEST_REGEX_ON_THIS_COMMIT: NONE #https://github.com/google/re2/wiki/Syntax (Can define regex as in this spec) e.g /.*gpt3.*/
-  CREATE_TEST_DATA: "True"
+  CREATE_TEST_DATA: "False"
 
 
 stages:
