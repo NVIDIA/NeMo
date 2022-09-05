@@ -2,7 +2,7 @@
 
 variables: &VARS
   BIGNLP_REGISTRY: "gitlab-master.nvidia.com:5005/dl/joc/bignlp-scripts"
-  BIGNLP_BASE_IMAGE: "nvcr.io/nvidian/bignlp-training:22.08.10_temp-py"
+  BIGNLP_BASE_IMAGE: "nvcr.io/nvidian/bignlp-training:22.08.10_fix-py"
   SELENE_BIGNLP_CI_PATH: "/lustre/fsw/joc/big_nlp/bignlp_ci"
   LOCAL_NEMO_PATH: ""
   NGC_BIGNLP_CI_PATH: "bignlp_ci" # mount at /mount/results
@@ -201,31 +201,33 @@ release_perf:
     - python3 tests/ci_tests/utils/convert_ci_metric_to_json.py $RESULTS_DIR $RUN_STAGE $RUN_MODEL
     # If you wan to be able to automatically add test results file then set the CREATE_TEST_DATA flag to be true.
     # It will run the test on selene copy the results file and paste it in the bignlp-scripts repo and raise a PR.
+#    cd ..
+#    mkdir test
+#    cd test
+#    git clone ssh://git@gitlab-master.nvidia.com:12051/dl/JoC/bignlp-scripts.git
+#    cd bignlp-scripts
+#    git checkout -b $CI_PIPELINE_ID
+#    GIT_BRANCHES=`git branch -r`
+#    if [[ "$GIT_BRANCHES" =~ .*"$CI_PIPELINE_ID".* ]]; then git pull origin $CI_PIPELINE_ID; fi
+#    mkdir -p tests/ci_tests/selene/pytest/$RUN_STAGE/${RUN_MODEL}_result_files
+#    if [[ "$RUN_STAGE" == "eval" &&  "$RUN_MODEL" =~ "gpt3" ]]; then
+#    cp $RESULTS_DIR/results/$RUN_NAME*/metrics.json tests/ci_tests/selene/pytest/$RUN_STAGE/${RUN_MODEL}_result_files/${RUN_NAME}.json
+#    else
+#    cp $RESULTS_DIR/*.json tests/ci_tests/selene/pytest/$RUN_STAGE/${RUN_MODEL}_result_files/${RUN_NAME}.json
+#    fi
+#    git add tests/ci_tests/selene/pytest/$RUN_STAGE/${RUN_MODEL}_result_files/*
+#    sed -i '0,/TESTS_TO_RUN_ON_THIS_COMMIT:
+#      .*/s/TESTS_TO_RUN_ON_THIS_COMMIT:
+#        .*/TESTS_TO_RUN_ON_THIS_COMMIT: NONE/' .gitlab-ci.yml
+#    git add .gitlab-ci.yml
+#    git commit -m "Adding the result file for $RUN_NAME"
+#    git push origin $CI_PIPELINE_ID
+#    echo "Created test file and pushed it"
     - |
         ALLOWED_STAGES=("train" "eval" "finetune" "prompt_learn");
         if [[ "$CREATE_TEST_DATA" == "True" && ${ALLOWED_STAGES[*]} =~ "$RUN_STAGE" ]]; then
           echo "Current working directory"
           echo $pwd
-          cd ..
-          mkdir test
-          cd test
-          git clone ssh://git@gitlab-master.nvidia.com:12051/dl/JoC/bignlp-scripts.git
-          cd bignlp-scripts
-          git checkout -b $CI_PIPELINE_ID
-          GIT_BRANCHES=`git branch -r`
-          if [[ "$GIT_BRANCHES" =~ .*"$CI_PIPELINE_ID".* ]]; then git pull origin $CI_PIPELINE_ID; fi
-          mkdir -p tests/ci_tests/selene/pytest/$RUN_STAGE/${RUN_MODEL}_result_files
-          if [[ "$RUN_STAGE" == "eval" &&  "$RUN_MODEL" =~ "gpt3" ]]; then
-            cp $RESULTS_DIR/results/$RUN_NAME*/metrics.json tests/ci_tests/selene/pytest/$RUN_STAGE/${RUN_MODEL}_result_files/${RUN_NAME}.json
-          else
-            cp $RESULTS_DIR/*.json tests/ci_tests/selene/pytest/$RUN_STAGE/${RUN_MODEL}_result_files/${RUN_NAME}.json
-          fi
-          git add tests/ci_tests/selene/pytest/$RUN_STAGE/${RUN_MODEL}_result_files/*
-          sed -i '0,/TESTS_TO_RUN_ON_THIS_COMMIT: .*/s/TESTS_TO_RUN_ON_THIS_COMMIT: .*/TESTS_TO_RUN_ON_THIS_COMMIT: NONE/' .gitlab-ci.yml
-          git add .gitlab-ci.yml
-          git commit -m "Adding the result file for $RUN_NAME"
-          git push origin $CI_PIPELINE_ID
-          echo "Created test file and pushed it"
           exit ${SLURM_EXITCODE}
         fi
     # Run Pytest
