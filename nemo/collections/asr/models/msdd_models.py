@@ -1004,7 +1004,7 @@ class OverlapAwareDiarizer:
         msdd_model._cfg.max_num_of_spks = cfg.diarizer.clustering.parameters.max_num_speakers
         return msdd_model.cfg
 
-    def extract_standalone_speaker_model(self, ext: str = '.ckpt') -> str:
+    def extract_standalone_speaker_model(self, prefix: str = 'msdd._speaker_model.') -> str:
         """
         MSDD model file contains speaker embedding model and MSDD model. This function extracts standalone speaker model and save it to
         `self.spk_emb_state_dict` to be loaded separately for clustering diarizer.
@@ -1016,16 +1016,16 @@ class OverlapAwareDiarizer:
             standalone_model_path (str):
                 Path to the extracted standalone model without speaker embedding extractor model.
         """
-        loaded_model = torch.load(self._cfg.diarizer.msdd_model.model_path)
-        spk_emb_state_dict = {}
+        model_state_dict = self.msdd_model.state_dict()
         spk_emb_module_names = []
-        for name in loaded_model['state_dict'].keys():
-            if 'msdd._speaker_model' in name:
+        for name in model_state_dict.keys():
+            if prefix in name:
                 spk_emb_module_names.append(name)
 
+        spk_emb_state_dict = {}
         for name in spk_emb_module_names:
-            org_name = name.replace('msdd._speaker_model.', '')
-            spk_emb_state_dict[org_name] = loaded_model['state_dict'][name]
+            org_name = name.replace(prefix, '')
+            spk_emb_state_dict[org_name] = model_state_dict[name]
 
         return spk_emb_state_dict
 
@@ -1036,13 +1036,14 @@ class OverlapAwareDiarizer:
         if cfg.diarizer.msdd_model.model_path.endswith('.nemo'):
             logging.info(f"Using local nemo file from {cfg.diarizer.msdd_model.model_path}")
             self.msdd_model = EncDecDiarLabelModel.restore_from(restore_path=cfg.diarizer.msdd_model.model_path)
-            self.spk_emb_state_dict = self.extract_standalone_speaker_model('.nemo')
         elif cfg.diarizer.msdd_model.model_path.endswith('.ckpt'):
             logging.info(f"Using local checkpoint from {cfg.diarizer.msdd_model.model_path}")
             self.msdd_model = EncDecDiarLabelModel.load_from_checkpoint(
                 checkpoint_path=cfg.diarizer.msdd_model.model_path
             )
-            self.spk_emb_state_dict = self.extract_standalone_speaker_model('.ckpt')
+        else:
+            raise ValueError("Not a supported type of model path")
+        self.spk_emb_state_dict = self.extract_standalone_speaker_model()
 
     def get_pred_mat(self, data_list: List[Union[Tuple[int], List[torch.Tensor]]]) -> torch.Tensor:
         """
@@ -1203,7 +1204,7 @@ class OverlapAwareDiarizer:
         return emb_vectors_split, emb_seq, seq_len
 
     def get_range_clus_avg_emb(
-        self, test_batch: List[torch.Tensor], _test_data_collection: List[Any]
+            self, test_batch: List[torch.Tensor], _test_data_collection: List[Any], device: torch.device('cpu')
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         This function is only used when `get_range_average` function is called. This module calculates cluster-average embeddings for
@@ -1239,9 +1240,9 @@ class OverlapAwareDiarizer:
                 sess_emb_vectors.append(emb_vectors_split)
                 sess_emb_seq.append(emb_seq)
                 sess_sig_lengths.append(seq_len)
-        sess_emb_vectors = torch.stack(sess_emb_vectors)
-        sess_emb_seq = torch.stack(sess_emb_seq)
-        sess_sig_lengths = torch.tensor(sess_sig_lengths)
+        sess_emb_vectors = torch.stack(sess_emb_vectors).to(device)
+        sess_emb_seq = torch.stack(sess_emb_seq).to(device)
+        sess_sig_lengths = torch.tensor(sess_sig_lengths).to(device)
         return sess_emb_vectors, sess_emb_seq, sess_sig_lengths
 
     def diar_infer(
@@ -1271,7 +1272,7 @@ class OverlapAwareDiarizer:
         if self._cfg.diarizer.msdd_model.parameters.split_infer:
             split_count = torch.ceil(torch.tensor(signals.shape[1] / self.diar_window_length)).int()
             sess_emb_vectors, sess_emb_seq, sess_sig_lengths = self.get_range_clus_avg_emb(
-                test_batch, test_data_collection,
+                test_batch, test_data_collection, device=self.msdd_model.device
             )
             with autocast():
                 _preds, scale_weights = self.msdd_model.forward_infer(
@@ -1285,7 +1286,7 @@ class OverlapAwareDiarizer:
         else:
             with autocast():
                 _preds, scale_weights = self.msdd_model.forward_infer(
-                    input_signal=signals, input_signal_length=signal_lengths, emb_vectors=emb_vectors, targets=_targets
+                    input_signal=signals, input_signal_length=signal_lengths, emb_vectors=emb_vectors, targets=None
                 )
         self.max_pred_length = max(_preds.shape[1], self.max_pred_length)
         preds = torch.zeros(_preds.shape[0], self.max_pred_length, _preds.shape[2])
@@ -1354,7 +1355,7 @@ class OverlapAwareDiarizer:
                 self.msdd_model.clus_test_label_dict,
                 preds_list,
                 threshold=threshold,
-                infer_overlap=(not ignore_overlap),
+                infer_overlap=True,
                 use_clus_as_main=self.use_clus_as_main,
                 overlap_infer_spk_limit=self.overlap_infer_spk_limit,
                 use_adaptive_thres=self.use_adaptive_thres,

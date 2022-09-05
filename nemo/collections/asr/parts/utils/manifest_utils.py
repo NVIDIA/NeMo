@@ -79,7 +79,10 @@ def get_subsegment_dict(subsegments_manifest_file: str, window: float, shift: fl
             dic = json.loads(segment)
             audio, offset, duration, label = dic['audio_filepath'], dic['offset'], dic['duration'], dic['label']
             subsegments = get_subsegments(offset=offset, window=window, shift=shift, duration=duration)
-            uniq_id = get_uniq_id_with_period(audio)
+            if dic['uniq_id'] is not None:
+                uniq_id = dic['uniq_id']
+            else:
+                uniq_id = get_uniq_id_with_period(audio)
             if uniq_id not in _subsegment_dict:
                 _subsegment_dict[uniq_id] = {'ts': [], 'json_dic': []}
             for subsegment in subsegments:
