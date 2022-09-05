@@ -307,7 +307,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         logits, _ = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
         loss = self.loss(logits=logits, labels=labels)
 
-        self.log('loss', loss)
+        self.log('loss', loss, sync_dist=True)
         self.log('learning_rate', self._optimizer.param_groups[0]['lr'])
         self.log('global_step', self.trainer.global_step)
 
@@ -315,7 +315,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         top_k = self._accuracy.compute()
         self._accuracy.reset()
         for i, top_i in enumerate(top_k):
-            self.log(f'training_batch_accuracy_top@{i}', top_i)
+            self.log(f'training_batch_accuracy_top@{i}', top_i, sync_dist=True)
 
         return {'loss': loss}
 
@@ -351,7 +351,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         self._auroc.reset()
 
         logging.info("val_loss: {:.3f}".format(val_loss_mean))
-        self.log('val_loss', val_loss_mean)
+        self.log('val_loss', val_loss_mean, sync_dist=True)
         for top_k, score in zip(self._accuracy.top_k, topk_scores):
             self.log('val_epoch_accuracy_top@{}'.format(top_k), score)
 
@@ -397,7 +397,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         self._auroc.reset()
 
         logging.info("test_loss: {:.3f}".format(test_loss_mean))
-        self.log('test_loss', test_loss_mean)
+        self.log('test_loss', test_loss_mean, sync_dist=True)
         for top_k, score in zip(self._accuracy.top_k, topk_scores):
             self.log('test_epoch_accuracy_top@{}'.format(top_k), score)
 
