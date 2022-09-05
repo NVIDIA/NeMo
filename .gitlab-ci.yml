@@ -816,7 +816,6 @@ eval.t5.220m_tp1_pp1:
     TIME_LIMIT: "1:00:00"
     TP_SIZE: 1
     PP_SIZE: 1
-    NUM_NODES: 1
     FINETUNE_JOB_DIR: finetune_t5_220m_tp1_pp1_1node_100steps_squad
     TEST_LEVEL: L0
   needs:
@@ -833,9 +832,7 @@ eval.t5.220m_tp2_pp2:
     TIME_LIMIT: "1:00:00"
     TP_SIZE: 2
     PP_SIZE: 2
-    NUM_NODES: 2
     FINETUNE_JOB_DIR: finetune_t5_220m_tp2_pp2_2node_100steps_squad
-    MICRO_BATCH_SIZE: 8
     TEST_LEVEL: L1
   needs:
     - finetune.t5.220m_tp2_pp2_2node_100steps_squad
@@ -915,7 +912,6 @@ eval.mt5.170m_tp1_pp1:
     TIME_LIMIT: "1:00:00"
     TP_SIZE: 1
     PP_SIZE: 1
-    NUM_NODES: 1
     FINETUNE_JOB_DIR: finetune_mt5_170m_tp1_pp1_1node_100steps_xquad
     TEST_LEVEL: L0
   needs:
@@ -932,7 +928,6 @@ eval.mt5.170m_tp2_pp2:
     TIME_LIMIT: "1:00:00"
     TP_SIZE: 2
     PP_SIZE: 2
-    NUM_NODES: 2
     FINETUNE_JOB_DIR: finetune_mt5_170m_tp2_pp2_2node_100steps_xquad
     MICRO_BATCH_SIZE: 8
     TEST_LEVEL: L1
@@ -1603,7 +1598,6 @@ eval.mt5.170m_tp2_pp4_xquad:
     TEST_TASK: xquad
     TP_SIZE: 2
     PP_SIZE: 4
-    NUM_NODES: 2
     FINETUNE_JOB_DIR: finetune_mt5_170m_tp2_pp4_2node_100steps_xquad
     TIME_LIMIT: "01:00:00"
     TEST_LEVEL: L1
@@ -1641,7 +1635,6 @@ eval.mt5.prompt_170m_tp2_pp4_squad:
     TEST_TASK: squad
     TP_SIZE: 2
     PP_SIZE: 4
-    NUM_NODES: 2
     PROMPT_LEARN_MODEL_DIR: prompt_learn_mt5_170m_tp2_pp4_2node_squad
     CONVERT_MODEL_DIR: convert_mt5_170m_tp2_pp4
     TIME_LIMIT: "01:00:00"
@@ -1716,7 +1709,6 @@ eval.mt5.170m_tp2_pp4_xquad_RPE:
     TEST_TASK: xquad
     TP_SIZE: 2
     PP_SIZE: 4
-    NUM_NODES: 2
     FINETUNE_JOB_DIR: finetune_mt5_170m_tp2_pp4_2node_100steps_xquad_RPE
     TIME_LIMIT: "01:00:00"
     TEST_LEVEL: L1
@@ -1754,7 +1746,6 @@ eval.mt5.prompt_170m_tp2_pp4_squad_RPE:
     TEST_TASK: squad
     TP_SIZE: 2
     PP_SIZE: 4
-    NUM_NODES: 2
     PROMPT_LEARN_MODEL_DIR: prompt_learn_mt5_170m_tp2_pp4_2node_squad_RPE
     CONVERT_MODEL_DIR: convert_mt5_170m_tp2_pp4_RPE
     TIME_LIMIT: "01:00:00"
@@ -1834,7 +1825,6 @@ eval.mt5.170m_tp2_pp4_xquad_RPE_EncLayer2_DecLayer6_SplitRank1:
     TP_SIZE: 2
     PP_SIZE: 4
     PP_SPLIT_RANK: 1
-    NUM_NODES: 2
     FINETUNE_JOB_DIR: finetune_mt5_170m_tp2_pp4_2node_100steps_xquad_RPE_EncLayer2_DecLayer6_SplitRank1
     TIME_LIMIT: "01:00:00"
     TEST_LEVEL: L1
@@ -1874,7 +1864,6 @@ eval.mt5.prompt_170m_tp2_pp4_squad_RPE_EncLayer2_DecLayer6_SplitRank1:
     TP_SIZE: 2
     PP_SIZE: 4
     PP_SPLIT_RANK: 1
-    NUM_NODES: 2
     PROMPT_LEARN_MODEL_DIR: prompt_learn_mt5_170m_tp2_pp4_2node_squad_RPE_EncLayer2_DecLayer6_SplitRank1
     CONVERT_MODEL_DIR: convert_mt5_170m_tp2_pp4_RPE_EncLayer2_DecLayer6_SplitRank1
     TIME_LIMIT: "01:00:00"
@@ -1953,7 +1942,6 @@ eval.mt5.170m_tp2_pp4_xquad_EncLayer2_DecLayer6_SplitRank1:
     TP_SIZE: 2
     PP_SIZE: 4
     PP_SPLIT_RANK: 1
-    NUM_NODES: 2
     FINETUNE_JOB_DIR: finetune_mt5_170m_tp2_pp4_2node_100steps_xquad_EncLayer2_DecLayer6_SplitRank1
     TIME_LIMIT: "01:00:00"
     TEST_LEVEL: L1
@@ -1993,7 +1981,6 @@ eval.mt5.prompt_170m_tp2_pp4_squad_EncLayer2_DecLayer6_SplitRank1:
     TP_SIZE: 2
     PP_SIZE: 4
     PP_SPLIT_RANK: 1
-    NUM_NODES: 2
     PROMPT_LEARN_MODEL_DIR: prompt_learn_mt5_170m_tp2_pp4_2node_squad_EncLayer2_DecLayer6_SplitRank1
     CONVERT_MODEL_DIR: convert_mt5_170m_tp2_pp4_EncLayer2_DecLayer6_SplitRank1
     TIME_LIMIT: "01:00:00"
@@ -2072,7 +2059,6 @@ eval.mt5.390m_tp4_pp1_xquad:
     TP_SIZE: 4
     PP_SIZE: 1
     PP_SPLIT_RANK: 0
-    NUM_NODES: 1
     FINETUNE_JOB_DIR: finetune_mt5_390m_tp4_pp1_1node_100steps_xquad
     TIME_LIMIT: "01:00:00"
     TEST_LEVEL: L1
@@ -2112,7 +2098,6 @@ eval.mt5.prompt_390m_tp4_pp1_squad:
     TP_SIZE: 4
     PP_SIZE: 1
     PP_SPLIT_RANK: 0
-    NUM_NODES: 1
     PROMPT_LEARN_MODEL_DIR: prompt_learn_mt5_390m_tp4_pp1_1node_squad
     CONVERT_MODEL_DIR: convert_mt5_390m_tp4_pp1
     TIME_LIMIT: "01:00:00"

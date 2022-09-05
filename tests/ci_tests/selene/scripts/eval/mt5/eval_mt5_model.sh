@@ -3,8 +3,7 @@ if [[ ! -z $LOCAL_NEMO_PATH ]]; then
   params+=("container_mounts=[${LOCAL_NEMO_PATH}:/opt/bignlp/NeMo]")
 fi
 set -o xtrace
-
-MICRO_BATCH_SIZE=${MICRO_BATCH_SIZE:-4}
+PP_SPLIT_RANK=${PP_SPLIT_RANK:-`expr ${PP_SIZE} / 2`}
 
 HYDRA_FULL_ERROR=1 BIGNLP_CI=1 python3 main.py \
     evaluation=${RUN_MODEL}/${TEST_TASK} \
@@ -20,7 +19,8 @@ HYDRA_FULL_ERROR=1 BIGNLP_CI=1 python3 main.py \
     cluster.job_name_prefix="${SLURM_ACCOUNT}-bignlp_ci:" \
     evaluation.run.time_limit=${TIME_LIMIT} \
     evaluation.run.results_dir=${BASE_RESULTS_DIR}/${RUN_NAME} \
-    evaluation.trainer.num_nodes=${NUM_NODES} \
+    evaluation.model.tensor_model_parallel_size=${TP_SIZE} \
+    evaluation.model.pipeline_model_parallel_size=${PP_SIZE} \
+    evaluation.model.pipeline_model_parallel_split_rank=${PP_SPLIT_RANK} \
     evaluation.model.restore_from_path=${BASE_RESULTS_DIR}/${FINETUNE_JOB_DIR}/results/checkpoints/megatron_mt5_xquad.nemo \
-    evaluation.model.data.validation_ds.micro_batch_size=${MICRO_BATCH_SIZE} \
     "${params[@]}"
