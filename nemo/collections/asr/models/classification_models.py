@@ -488,7 +488,7 @@ class EncDecClassificationModel(_EncDecBaseModel):
         logits = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
         loss_value = self.loss(logits=logits, labels=labels)
 
-        self.log('train_loss', loss_value, sync_dist=True)
+        self.log('train_loss', loss_value)
         self.log('learning_rate', self._optimizer.param_groups[0]['lr'])
         self.log('global_step', self.trainer.global_step)
 
@@ -697,7 +697,6 @@ class EncDecRegressionModel(_EncDecBaseModel):
                 'train_mae': train_mae,
                 'learning_rate': self._optimizer.param_groups[0]['lr'],
             },
-            sync_dist=True,
         )
 
         return {'loss': loss}
