@@ -7,8 +7,110 @@ import torch
 import numpy as np
 
 from nemo.core import Dataset, typecheck
+from nemo.utils import logging
 from nemo.collections.common.tokenizers import TokenizerSpec
-from nemo.core.neural_types import NeuralType, TokenIndex, LengthsType
+from nemo.core.neural_types import NeuralType, TokenIndex, LengthsType, IntType, StringType
+
+
+class InferencePunctCapSegDataset(Dataset):
+    """
+
+    Args:
+        tokenizer: A :class:`TokenizerSpec` for the model being used for inference.
+        input_texts: An optional list of one or more strings to run inference on.
+        input_file: An optional file to read lines from. Should be mutually exclusive with `input_texts`.
+        max_length: The maximum length for inputs. Longer inputs will be split into multiple batch elements.
+        fold_overlap: When folding long sequences, repeat this many tokens from the end of the previous split into the
+            beginning of the next split.
+    """
+    def __init__(
+            self,
+            tokenizer: TokenizerSpec,
+            input_texts: Optional[List[str]] = None,
+            input_file: Optional[str] = None,
+            max_length: int = 512,
+            fold_overlap: int = 16
+    ):
+        super().__init__()
+        if not ((input_texts is None) ^ (input_file is None)):
+            raise ValueError(f"Need exactly one of `input_texts` or `input_file`")
+        self._tokenizer = tokenizer
+        self._max_length = max_length
+        self._fold_overlap = fold_overlap
+
+        self._data: List[str]
+        if input_texts is not None:
+            self._data = input_texts
+        else:
+            self._data = []
+            with open(input_file) as f:
+                for line in f:
+                    self._data.append(line.strip())
+        logging.info(f"Inference dataset instantiated with {len(self._data)} lines of text.")
+
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        return {
+            "folded_input_ids": NeuralType(("B", "T"), TokenIndex()),
+            "folded_batch_ids": NeuralType(("B",), IntType()),
+            "lengths": NeuralType(("B",), LengthsType()),
+            "input_strings": [NeuralType(("B",), StringType())],
+        }
+
+    def __len__(self):
+        return len(self._data)
+
+    def __getitem__(self, idx):
+        input_text = self._data[idx]
+        input_ids = self._tokenizer.text_to_ids(input_text)
+        return input_ids, input_text
+
+    def _fold_batch(self, input_ids: List[List[int]]) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Folds inputs to adhere to max length"""
+        out_batch_ids: List[int] = []
+        out_input_ids: List[List[int]] = []
+        out_lengths: List[int] = []
+        bos = self._tokenizer.bos_id
+        eos = self._tokenizer.eos_id
+        for batch_idx, next_input_ids in enumerate(input_ids):
+            start = 0
+            while True:
+                stop = min(start + self._max_length - 2, len(next_input_ids))
+                subsegment_ids = [bos] + next_input_ids[start:stop] + [eos]
+                out_input_ids.append(subsegment_ids)
+                out_lengths.append(len(subsegment_ids))
+                out_batch_ids.append(batch_idx)
+                if stop >= len(next_input_ids):
+                    break
+                start = stop - self._fold_overlap
+
+        batch_ids = torch.tensor(out_batch_ids)
+        lengths = torch.tensor(out_lengths)
+        ids_tensor = torch.full(
+            size=[lengths.shape[0], lengths.max()],
+            dtype=torch.long,
+            fill_value=self._tokenizer.pad_id
+        )
+        for i, ids in enumerate(out_input_ids):
+            ids_tensor[i, :len(ids)] = torch.tensor(ids)
+
+        return ids_tensor, lengths, batch_ids
+
+    @typecheck()
+    def collate_fn(self, batch):
+        """
+        Returns:
+            A tuple adhering to this class's `input_types` (folded_input_ids, folded_batch_ids, lengths, input_strings)
+                where `folded_input_ids` is the tensor of input tokens, `folded_batch_ids` map each batch element back
+                to its original input number (for long sentences that were split), `lengths` is the length of each
+                element in `folded_batch_ids`, and `input_strings` is the original texts from which the inputs were
+                generated. `input_strings` is returns because some tokenizers are non-invertible, so this will preserve
+                the original input texts.
+        """
+        all_ids: List[List[int]] = [x[0] for x in batch]
+        all_strs: List[str] = [x[1] for x in batch]
+        input_ids, lengths, batch_ids = self._fold_batch(all_ids)
+        return input_ids, batch_ids, lengths, all_strs
 
 
 class PunctCapSegDataset(Dataset):
@@ -977,6 +1079,8 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
         return len(self._data)
 
     def __getitem__(self, idx):
+        # Important not to let every worker use the same RNG because we randomly concat indices, and that would result
+        # in the 2nd+ sentences being the same in every worker.
         rng = self._rng if self._rng is not None else np.random.default_rng()
         # Each sequence starts with BOS and targets ignore first index
         bos = self._tokenizer.bos_id
@@ -1006,7 +1110,6 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
             full_text = full_text.lower()
 
         # Make punctuation targets
-        # input_tokens = self._tokenizer.text_to_tokens(full_text)
         (
             punct_input_tokens,
             punct_pre_targets,
