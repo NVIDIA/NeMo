@@ -183,7 +183,7 @@ class EnglishG2p(BaseG2p):
             return word, True
 
         # punctuation
-        if re.search("[a-zA-Z]", word) is None:
+        if re.search(r"[a-zA-ZÀ-ÿ\d]", word) is None:
             return list(word), True
 
         # heteronym
@@ -347,6 +347,9 @@ class IPAG2P(BaseG2p):
             if isinstance(heteronyms, str) or isinstance(heteronyms, pathlib.Path)
             else heteronyms
         )
+        if set_graphemes_upper and heteronyms:
+            self.heteronyms = [het.upper() for het in self.heteronyms]
+
         self.phoneme_probability = phoneme_probability
         self._rng = random.Random()
 
