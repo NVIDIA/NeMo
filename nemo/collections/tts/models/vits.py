@@ -287,7 +287,7 @@ class VitsModel(TextToWaveform):
         optim_g.step()
 
         schedulers = self.lr_schedulers()
-        if schedulers is not None:# and self.trainer.is_last_batch:
+        if schedulers is not None and self.trainer.is_last_batch:
             sch1, sch2 = schedulers
             sch1.step()
             sch2.step()
@@ -318,7 +318,6 @@ class VitsModel(TextToWaveform):
     def validation_step(self, batch, batch_idx):
         (y, y_lengths, x, x_lengths) = batch
 
-        # TODO: fix hardcode
         y_hat, attn, mask, *_ = self.net_g.infer(x, x_lengths, max_len=1000)
         y_hat = y_hat.squeeze()
         y_hat_lengths = mask.sum([1, 2]).long() * self._cfg.train_ds.dataset.hop_length
@@ -358,16 +357,9 @@ class VitsModel(TextToWaveform):
                 ]
 
                 logger.log({"specs": specs, "audios": audios})
-    
-    
-    # def on_train_epoch_start(self):
-    #     print(self.current_epoch, self.val_dataloader)
-    #     self.trainer.train_dataloader.sampler.set_epoch(self.current_epoch)
-
 
     def _loader(self, cfg):
         try:
-            # _ = cfg.model.train_ds.manifest_filepath
             _ = cfg['dataset']['manifest_filepath']
         except omegaconf.errors.MissingMandatoryValue:
             logging.warning("manifest_filepath was skipped. No dataset for this model.")
@@ -395,11 +387,11 @@ class VitsModel(TextToWaveform):
         train_sampler = DistributedBucketSampler(
             dataset,
             self.cfg.train_ds.batch_sampler.batch_size,
-            [32,300,400,500,600,700,800,900,1000],
-            shuffle=True)
+            self.cfg.train_ds.batch_sampler.boundaries,
+            shuffle=self.cfg.train_ds.batch_sampler.shuffle)
+
         dataloader = torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, batch_sampler=train_sampler, 
         **self.cfg.train_ds.dataloader_params,)
-        print('made ddp loader')
         return dataloader
     
     def setup_training_data(self, cfg):
