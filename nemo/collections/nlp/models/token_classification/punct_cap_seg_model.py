@@ -486,7 +486,6 @@ class PunctCapSegModel(NLPModel):
         # Sort by original batch index
         for position, batch_id in enumerate(batch_ids.tolist()):
             batch_id_to_indices[batch_id].append(position)
-        print(f"{batch_id_to_indices=}")
         for batch_index in range(len(batch_id_to_indices)):
             indices = batch_id_to_indices[batch_index]
             unfolded_tensor: Optional[torch.Tensor] = None
@@ -494,7 +493,6 @@ class PunctCapSegModel(NLPModel):
                 length = lengths[index]
                 # Strip BOS and EOS here. Reduce time dim by 1 because we extract batch element.
                 subsegment_tensor = folded_tensor[index].narrow(time_dim - 1, 1, length - 2)
-                print(f"{subsegment_tensor.tolist()=}")
                 if unfolded_tensor is None:
                     unfolded_tensor = subsegment_tensor
                 else:
@@ -504,7 +502,6 @@ class PunctCapSegModel(NLPModel):
                             subsegment_tensor.narrow(time_dim - 1, overlap//2, length - 2 - overlap//2)
                         )
                     )
-                print(f"{unfolded_tensor.tolist()=}")
             if return_tensors:
                 unfolded_outputs.append(unfolded_tensor)
             else:
@@ -664,7 +661,6 @@ class PunctCapSegModel(NLPModel):
             for batch_idx, scores in enumerate(all_scores):
                 ids = unfolded_input_ids[batch_idx]
                 tokens = self.tokenizer.ids_to_tokens(ids)
-                print(f"{tokens=}")
                 segmented_texts = []
                 start = 0
                 stop = 0
@@ -885,6 +881,10 @@ class PunctCapSegModel(NLPModel):
 
         Args:
             texts: List of input texts to process.
+            batch_size: Sequences per batch.
+            fold_overlap: For sequences > `max_length`, re-use this many tokens from the end of each subsegment for the
+                beginning of the next.
+            max_length: Break the sequences to have at most this many tokens per batch element.
             punct_threshold: Punctuation threshold. If 0.0, use argmax for all non-null predictions.
             seg_threshold: Sentence boundary detection threshold. Split on all subtokens which score above this value.
             truecase_threshold: True-casing threshold. Upper-case all chars that score above this value; lower-case all
@@ -902,7 +902,6 @@ class PunctCapSegModel(NLPModel):
             fold_overlap=fold_overlap,
             max_length=max_length
         )
-        print(f"{punctuated_texts=}")
         if not two_pass:
             segmented_texts: List[List[str]] = self.infer_segmentation(
                 punctuated_texts,
@@ -911,7 +910,6 @@ class PunctCapSegModel(NLPModel):
                 fold_overlap=fold_overlap,
                 max_length=max_length
             )
-            print(f"{segmented_texts=}")
             output_texts: List[List[str]] = self.infer_capitalization(
                 segmented_texts,
                 threshold=truecase_threshold,

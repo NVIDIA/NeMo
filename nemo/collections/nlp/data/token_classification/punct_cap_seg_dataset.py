@@ -1068,8 +1068,8 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
                         continue
                     data.append(line)
                     num_lines_from_file += 1
-            print(f"Dataset for '{self.language}' collected {num_lines_from_file} lines from '{text_file}'")
-        print(
+            logging.info(f"Dataset for '{self.language}' collected {num_lines_from_file} lines from '{text_file}'")
+        logging.info(
             f"Dataset for '{self.language}' collected {len(data)} lines from {len(text_files)} "
             f"file{'s' if len(text_files) > 1 else ''}."
         )
