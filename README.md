@@ -1381,8 +1381,10 @@ to measure the time it takes to finish each global step), and other relevant met
 ### 5.3. Using the HP Tool to Find the Optimal Configuration
 <a id="markdown-using-the-hp-tool-to-find-the-optimal-configuration" name="using-the-hp-tool-to-find-the-optimal-configuration"></a>
 This tool searches for the Hyper-Parameters (HPs) that achieve the highest throughput for training 
-Large Language Models (LLMs) using NeMo-Megatron. It also searches for the inference HPs that 
-achieve the highest throughput and the lowest latency.
+Large Language Models (LLMs) using NeMo-Megatron.
+
+Note: The inference HP search is not available in this release. Please use a previous version of 
+the container to use this feature.
 
 #### 5.3.1. HP Tool Capabilities
 <a id="markdown-hp-tool-capabilities" name="hp-tool-capabilities"></a>
@@ -1397,7 +1399,7 @@ tool provides several different capabilities, as shown in the table below:
 | Base Config Generation               | Yes   | Yes | Yes |
 | Training HP Search                   | Yes   | Yes | Yes |
 | Parallel Training HP Search          | Yes   | Yes | Yes |
-| Inference HP Search                  | Yes   | No  | No  |
+| Inference HP Search                  | No    | No  | No  |
 | Parallel Inference HP Search         | No    | No  | No  |
 | SLURM Based Clusters                 | Yes   | Yes | Yes |
 | Base Command Platform Based Clusters | No    | No  | No  |
@@ -1445,25 +1447,6 @@ on the target cluster. During this search, the jobs will run with the number of 
 files, using the `num_nodes` parameter. Once all the jobs have finished running, the final result will be 
 summarized in a CSV file.
 
-
-##### 5.3.1.4. Inference HP Search
-<a id="markdown-inference-hp-search" name="inference-hp-search"></a>
-
-The tool can also search the best HPs for inference purposes. It will empirically measure the 
-throughput and latency for each given configuration in the grid search space, and return a comprehensive 
-table with all the numbers. The tool will search over three different critical HPs, which have great 
-impact on the inference throughput and latency: Tensor Parallelism (TP), Pipeline Parallelism (PP), and 
-Batch Size (BS). Technically, the tool is also capable of searching over different input/output sequence 
-lengths. However, we do not recommend adding multiple different sequence lengths to the same search, 
-since the model that uses the shortest sequence lengths will always achieve higher throughput and lower 
-latency. Therefore, we recommend performing several different inference searches for different sequence 
-lengths.
-
-Once the search space has been defined, the tool will launch a job for each config, and measure the 
-throughput and latency. This search will launch the jobs using NeMo-Megatron on the target cluster. 
-Once all the jobs have finished running, the final result will be summarized in a CSV file.
-
-
 #### 5.3.2. Usage
 <a id="markdown-usage" name="usage"></a>
 
@@ -1507,7 +1490,6 @@ defaults:
   - override hydra/job_logging: stdout
 
 run_training_hp_search: True
-run_inference_hp_search: True
 
 bignlp_hp_tool_path: ???  # Path to the location of bignlp-hp-tool codebase.
 bignlp_scripts_path: ${bignlp_hp_tool_path}/../bignlp-scripts  # Path to the location of BigNLP-Inference-Scripts codebase.
@@ -1515,7 +1497,6 @@ data_dir: ${bignlp_scripts_path}/data
 base_results_dir: ${bignlp_hp_tool_path}/results
 
 training_container: nvcr.io/ea-bignlp/bignlp-training:22.08-py3
-inference_container: nvcr.io/ea-bignlp/bignlp-inference:22.05-py3
 container_mounts:
     - null
 
@@ -1541,16 +1522,14 @@ parameter in the `conf/config.yaml` file. For example, if we wish to run a 5B GP
 set this value to `gpt3/5b` (the .yaml ending should not be included). 
 
 The tool will always generate the base configuration for the given model first. Then, the 
-`run_training_hp_search` and `run_inference_hp_search` parameters can be set to `True`, 
-to run the training and inference HP searches, respectively. If any of these two parameters are set 
-to `False`, the corresponding pipeline will not be executed. Once these parameters are set, we can 
-run the tool calling `python3 main.py`. 
+`run_training_hp_search` parameter can be set to `True`, to run the training HP searches. 
+If this two parameter is set to `False`, the training pipeline will not be executed. Once this 
+parameter is set, we can run the tool by calling `python3 main.py`. 
 
 ###### 5.3.2.2.1. Model Config
 <a id="markdown-model-config" name="model-config"></a>
 
 To run the `gpt3/5b` config, we need to set up the `conf/search_config/gpt3/5b.yaml` file correctly.
-The config is split in two sections: `train_settings` and `inference_settings`. 
 
 ```yaml
 train_settings:
@@ -1571,19 +1550,6 @@ train_settings:
   pipeline_parallel_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8, 10]
   micro_batch_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8, 16]
   act_ckpt_layers: auto  # auto to use our recommendation, or a list, such as [0, 1, 2, 3]
- 
-inference_settings:
-  vocab_size: 51200
-  start_id: 50256
-  end_id: 50256
-  input_seq_len: 60
-  output_seq_len: 20
-  max_latency_ms: 1200
-  top_n: 10
-  logs: ${base_results_dir}/${search_config_value}  # Example base_results_dir/gpt3/126m
-  tensor_parallel_sizes: [1, 2, 4, 8]
-  pipeline_parallel_sizes: [1]
-  max_batch_sizes: [8, 16, 32, 64, 128, 256]
 ```
 
 ###### 5.3.2.2.2. Base Config Generation
@@ -1662,43 +1628,7 @@ parameters can be used to override the heuristics that choose the grid search sp
 four parameters. If these are left as `auto`, our tool will select appropriate values. However, 
 if you wish to override them, you can use these parameters. For example, if you only wish to search 
 for configurations with Tensor Parallelism (TP) values of 1 and 2, you can set 
-`tensor_parallel_sizes: [1, 2]` and leave the other parameters as `auto`.  
-
-###### 5.3.2.2.4. Inference HP Search
-<a id="markdown-inference-hp-search" name="inference-hp-search"></a>
-
-To run the inference HP search pipeline, the parameter `run_inference_hp_search` must be set to `True`
-in the `conf/config.yaml` file. The model used to search the best inference HPs must be selected
-using the `search_config` parameter in `conf/config.yaml`. For example, by default, this parameter
-will be set to `gpt3/5b`, so our tool will search the optimal inference HPs for a 5B parameter GPT-3
-model. The configuration for this model can be found in the `conf/search_config/gpt3/5b.yaml` file.
-To configure the behavior of the HP search, the following parameters can be modified in the
-correspoinding YAML file:
-
-```yaml
-inference_settings:
-  vocab_size: 51200  # Vocabulary size
-  start_id: 50256  # id of start token in vocabulary
-  end_id: 50256  # id of end token in vocabulary
-  input_seq_len: 60  # Length of the input sequence
-  output_seq_len: 20  # Length of the output sequence
-  max_latency_ms: 1200  # Maximum allowed latency
-  top_n: 10  # Top N models to be output in the summary.
-  logs: ${base_results_dir}/${search_config_value}  # Log directory
-  tensor_parallel_sizes: [1, 2, 4, 8]
-  pipeline_parallel_sizes: [1]
-  max_batch_sizes: [8, 16, 32, 64, 128, 256]
-```
-
-The `vocab_size` parameter indicates the vocabulary size. The `start_id` and `end_id` parameters 
-indicate the ids of the start and end tokens in the vocabulary, respectively. The `input_seq_len` 
-and `output_seq_len` parameters show the length of the input and output sequences for the model, 
-respectively. The `max_latency_ms` value can be used to only output models that meet that latency 
-requirement, in milliseconds. The `top_n` parameter can be used to modify how many configs will be 
-written to the output summary file. The `logs` parameter indicates where the logs will be stored.
-Finally, the `tensor_parallel_sizes`, `pipeline_parallel_sizes`, and `max_batch_sizes` must be a 
-list of values to generate the desired HP search. In this case, these values cannot be null, they 
-must be provided by the user.
+`tensor_parallel_sizes: [1, 2]` and leave the other parameters as `auto`.
 
 
 ##### 5.3.2.3. Running Custom Model Size Configs
@@ -1719,10 +1649,9 @@ modified using the `vocab_size`, `num_tokens_in_b`, and `tflops_per_gpu` paramet
 Once all these parameters are set correctly, and after selecting the `gpt3/unknown_size` as the 
 config to run in the `search_config` parameter in the `conf/config.yaml` file, the training 
 pipeline can be executed calling `python3 main.py`. This will produce a base configuration for 
-the suggested model size. If `run_training_hp_search` or `run_inference_hp_search` are set to 
-`True`, the tool will also search for the HPs for training or inference, using the rest of the 
-configuration yaml file as input. The tool will behave the same way as when using a predefined 
-config.
+the suggested model size. If `run_training_hp_search` is set to `True`, the tool will also search 
+for the HPs for training, using the rest of the configuration yaml file as input. The tool will 
+behave the same way as when using a predefined config.
 
 ##### 5.3.2.4. Interpreting the Results
 <a id="markdown-interpreting-the-results" name="interpreting-the-results"></a>
@@ -1749,13 +1678,6 @@ from highest throughput to slowest throughput. The CSV file also includes inform
 samples per second achieved by each model, the time per global step, the TFLOPS per GPU achieved, 
 and so on. The `final_results` directory will also contain a YAML file, which corresponds to the 
 config with the lowest training time. This is the recommended model for training. 
-
-For the inference HP search, the results can be found inside the directory specified in the 
-`logs` parameter of the YAML config file. Inside that directory, you will find:
-`.../inference/workspace/navigator_workspace/analyzer/results/metrics-model-inference.csv`. 
-This csv file will have the results of every model that was profiled by the inference HP search 
-tool. To see more details on how to interpret the inference results, review the Deployment 
-Search Results section.
 
 Notes: 
  - The result of the Training HP Search will vary when it is run with different numbers of nodes. 
