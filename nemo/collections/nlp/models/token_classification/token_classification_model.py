@@ -243,7 +243,6 @@ class TokenClassificationModel(NLPModel):
             label_ids_dict=self._cfg.label_ids,
             get_weights=False,
         )
-
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
 
     def _setup_dataloader_from_config(self, cfg: DictConfig) -> DataLoader:
@@ -350,10 +349,27 @@ class TokenClassificationModel(NLPModel):
                 subtokens_mask = subtokens_mask > 0.5
                 preds = tensor2list(torch.argmax(logits, axis=-1)[subtokens_mask])
                 all_preds.extend(preds)
+
+            # extract predictions for the current query from the list of all predictions
+            preds_per_query = []
+            queries = [q.strip().split() for q in queries]
+            num_words = [len(q) for q in queries]
+            if sum(num_words) != len(all_preds):
+                raise ValueError('Pred and words must have the same length')
+
+            start_idx = 0
+            end_idx = 0
+            ids_to_labels = {v: k for k, v in self._cfg.label_ids.items()}
+            for id, query in enumerate(queries):
+                end_idx += len(query)
+                cur_preds = all_preds[start_idx:end_idx]
+                cur_preds = [ids_to_labels[x] for x in cur_preds]
+                preds_per_query.append(cur_preds)
+                start_idx = end_idx
         finally:
             # set mode back to its original value
             self.train(mode=mode)
-        return all_preds
+        return preds_per_query
 
     def add_predictions(
         self, queries: Union[List[str], str], batch_size: int = 32, output_file: Optional[str] = None
@@ -377,22 +393,8 @@ class TokenClassificationModel(NLPModel):
 
         result = []
         all_preds = self._infer(queries, batch_size)
-
         queries = [q.strip().split() for q in queries]
-        num_words = [len(q) for q in queries]
-        if sum(num_words) != len(all_preds):
-            raise ValueError('Pred and words must have the same length')
-
-        ids_to_labels = {v: k for k, v in self._cfg.label_ids.items()}
-        start_idx = 0
-        end_idx = 0
-        for query in queries:
-            end_idx += len(query)
-
-            # extract predictions for the current query from the list of all predictions
-            preds = all_preds[start_idx:end_idx]
-            start_idx = end_idx
-
+        for query, preds in zip(queries, all_preds):
             query_with_entities = ''
             for j, word in enumerate(query):
                 # strip out the punctuation to attach the entity tag to the word not to a punctuation mark
@@ -404,8 +406,7 @@ class TokenClassificationModel(NLPModel):
                     word = word[:-1]
 
                 query_with_entities += word
-                label = ids_to_labels[preds[j]]
-
+                label = preds[j]
                 if label != self._cfg.dataset.pad_label:
                     query_with_entities += '[' + label + ']'
                 query_with_entities += punct + ' '
@@ -448,11 +449,13 @@ class TokenClassificationModel(NLPModel):
             queries = f.readlines()
 
         all_preds = self._infer(queries, batch_size)
+
         with_labels = labels_file is not None
         if with_labels:
+            all_labels = []
             with open(labels_file, 'r') as f:
-                all_labels_str = f.readlines()
-                all_labels_str = ' '.join([labels.strip() for labels in all_labels_str])
+                for line in f:
+                    all_labels.append(line.strip())
 
         # writing labels and predictions to a file in output_dir is specified in the config
         os.makedirs(output_dir, exist_ok=True)
@@ -460,21 +463,41 @@ class TokenClassificationModel(NLPModel):
         try:
             with open(filename, 'w') as f:
                 if with_labels:
-                    f.write('labels\t' + all_labels_str + '\n')
-                    logging.info(f'Labels save to {filename}')
+                    # TODO tmp - remove
+                    import json
 
-                # convert labels from string label to ids
-                ids_to_labels = {v: k for k, v in self._cfg.label_ids.items()}
-                all_preds_str = [ids_to_labels[pred] for pred in all_preds]
-                f.write('preds\t' + ' '.join(all_preds_str) + '\n')
+                    all_items = []
+
+                    for query, cur_labels, cur_preds in zip(queries, all_labels, all_preds):
+                        cur_preds = ' '.join(cur_preds)
+                        f.write(f"query : {query.strip()}\n")
+                        f.write(f"labels: {cur_labels}\n")
+                        f.write(f"preds : {cur_preds}\n")
+
+                        query_label = " ".join([q + l for q, l in zip(query.split(), cur_labels.split())])
+                        query_pred = " ".join([q + p for q, p in zip(query.split(), cur_preds.split())])
+
+                        item = {
+                            "audio_filepath": "none",
+                            "duration": 0.1,
+                            "text": query_label,
+                            "pred_text": query_pred,
+                        }
+                        all_items.append(item)
+                    with open("manifest_preds.json", "w") as f_out:
+                        for item in all_items:
+                            f_out.write(json.dumps(item, ensure_ascii=False) + '\n')
+                else:
+                    for query, cur_preds in zip(queries, all_preds):
+                        f.write(f"query : {query.strip()}\n")
+                        f.write(f"preds : {' '.join(cur_preds)}\n")
+
                 logging.info(f'Predictions saved to {filename}')
 
             if with_labels and add_confusion_matrix:
-                all_labels = all_labels_str.split()
-                # convert labels from string label to ids
                 label_ids = self._cfg.label_ids
-                all_labels = [label_ids[label] for label in all_labels]
-
+                all_labels = [label_ids[l] for cur_labels in all_labels for l in cur_labels.split()]
+                all_preds = [label_ids[l] for cur_pred in all_preds for l in cur_pred]
                 plot_confusion_matrix(
                     all_labels, all_preds, output_dir, label_ids=label_ids, normalize=normalize_confusion_matrix
                 )

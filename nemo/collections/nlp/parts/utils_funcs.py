@@ -92,7 +92,7 @@ def plot_confusion_matrix(
         title = (prefix + title).strip()
         fig_name = os.path.join(graph_fold, title + '_' + time.strftime('%Y%m%d-%H%M%S'))
         plt.savefig(fig_name)
-        logging.info(f'Confusion matrix saved to {fig_name}')
+        logging.info(f'Confusion matrix saved to {fig_name}.png')
 
 
 def _plot_confusion_matrix(labels: List[int], preds: List[int], graph_fold: str):

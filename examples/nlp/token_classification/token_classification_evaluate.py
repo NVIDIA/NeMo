@@ -15,7 +15,7 @@
 import os
 
 import pytorch_lightning as pl
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.nlp.models import TokenClassificationModel
 from nemo.core.config import hydra_runner
@@ -93,6 +93,7 @@ def main(cfg: DictConfig) -> None:
         )
 
     data_dir = cfg.model.dataset.get('data_dir', None)
+
     if data_dir is None:
         logging.error(
             'No dataset directory provided. Skipping evaluation. '
@@ -104,10 +105,16 @@ def main(cfg: DictConfig) -> None:
         model.update_data_dir(data_dir=data_dir)
         model._cfg.dataset = cfg.model.dataset
 
+        # add test_ds to the pretrained mdoel config in case it was not present during training
+        OmegaConf.set_struct(model._cfg, False)
+        model._cfg.test_ds = cfg.model.test_ds
+        OmegaConf.set_struct(model._cfg, True)
+
+        model.setup_test_data(cfg.model.test_ds)
+
         if not hasattr(cfg.model, 'test_ds'):
             logging.error(f'model.test_ds was not found in the config, skipping evaluation')
         elif model.prepare_test(trainer):
-            model.setup_test_data(cfg.model.test_ds)
             trainer.test(model)
 
             model.evaluate_from_file(
