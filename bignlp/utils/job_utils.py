@@ -34,11 +34,11 @@ class JobPaths:
 
     @property
     def stderr(self) -> Path:
-        return Path(self.folder / f"log-{self._job_name}_%j.err")
+        return Path(self.folder / f"log-{self._job_name}_%J.err")
 
     @property
     def stdout(self) -> Path:
-        return Path(self.folder / f"log-{self._job_name}_%j.out")
+        return Path(self.folder / f"log-{self._job_name}_%J.out")
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.folder})"
