@@ -657,5 +657,4 @@ class DistributedBucketSampler(torch.utils.data.distributed.DistributedSampler):
         Args:
             epoch (int): Epoch number.
         """
-        print(f'Set epoch{epoch}')
         self.epoch = epoch

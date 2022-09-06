@@ -173,17 +173,15 @@ class VitsModel(TextToWaveform):
         wu_ratio = 0.02
         wu_steps = 16000
         
-        scheduler_g = CosineAnnealing(optimizer=optim_g, max_steps=max_steps, min_lr=min_lr, warmup_steps=wu_steps,)
-        scheduler_d = CosineAnnealing(optimizer=optim_d, max_steps=max_steps, min_lr=min_lr)#, warmup_steps=1000,)
+        # scheduler_g = CosineAnnealing(optimizer=optim_g, max_steps=max_steps, min_lr=min_lr, warmup_steps=wu_steps,)
+        # scheduler_d = CosineAnnealing(optimizer=optim_d, max_steps=max_steps, min_lr=min_lr)#, warmup_steps=1000,)
 
-        # scheduler_g = torch.optim.lr_scheduler.ExponentialLR(optim_g, gamma=self._cfg.lr_decay)
-        # scheduler_d = torch.optim.lr_scheduler.ExponentialLR(optim_d, gamma=self._cfg.lr_decay)
-        scheduler_g_dict = {
-            'scheduler': scheduler_g,
-            'interval': 'step',
-        }
+        scheduler_g = torch.optim.lr_scheduler.ExponentialLR(optim_g, gamma=self._cfg.lr_decay)
+        scheduler_d = torch.optim.lr_scheduler.ExponentialLR(optim_d, gamma=self._cfg.lr_decay)
         
+        scheduler_g_dict = {'scheduler': scheduler_g, 'interval': 'step'}
         scheduler_d_dict = {'scheduler': scheduler_d, 'interval': 'step'}
+        
         return [optim_g, optim_d], [scheduler_g_dict, scheduler_d_dict]
 
     # only for inference
@@ -212,8 +210,7 @@ class VitsModel(TextToWaveform):
         optim_g, optim_d = self.optimizers()
 
         (y, y_lengths, x, x_lengths) = batch
-        # if batch_idx == 0:
-        #     print('tokens:', x[0][:10])
+
         spec = self.get_spec(y)
         spec_lengths = self.audio_to_melspec_precessor.get_seq_len(y_lengths)
 
@@ -246,19 +243,17 @@ class VitsModel(TextToWaveform):
 
         y = torch.unsqueeze(y, 1)
         y = slice_segments(y, ids_slice * self.cfg.n_window_stride, self._cfg.segment_size)
+        
         # with autocast(enabled=True):
-
         y_d_hat_r, y_d_hat_g, _, _ = self.net_d(y, y_hat.detach())
 
         # with autocast(enabled=False):
-        # loss_disc_real, loss_disc_gen, losses_disc_r, losses_disc_g = self.disc_loss(disc_real_outputs=y_d_hat_r, 
         loss_disc, losses_disc_r, losses_disc_g = self.disc_loss(disc_real_outputs=y_d_hat_r, 
         disc_generated_outputs=y_d_hat_g)
-        # loss_disc_all = torch.max(loss_disc_real, loss_disc_gen)
         loss_disc_all = loss_disc
-        # if self.global_step <= 180000:
-        # train discriminator
 
+        
+        # train discriminator
         optim_d.zero_grad()
         self.manual_backward(loss_disc_all)
         norm_d = clip_grad_value_(self.net_d.parameters(), None)
@@ -275,10 +270,6 @@ class VitsModel(TextToWaveform):
         loss_gen, losses_gen = self.gen_loss(disc_outputs=y_d_hat_g)
         loss_gen_all = loss_gen + loss_fm + loss_mel + loss_dur + loss_kl
 
-        # if loss_gen > loss_disc:
-        #     loss_gen_all = loss_fm + loss_mel + loss_dur + loss_kl + loss_gen
-        # else:
-        #     loss_gen_all = loss_fm + loss_mel + loss_dur + loss_kl
         
         # train generator
         optim_g.zero_grad()
