@@ -74,6 +74,7 @@ def get_language_model(
     onnx_safe=False,
     megatron_legacy=False,
     activations_checkpoint_granularity=None,
+    activations_checkpoint_layers_per_pipeline=None,
     sequence_parallel=False,
     transformer_engine=False,
     fp8=False,
@@ -135,6 +136,7 @@ def get_language_model(
         onnx_safe=onnx_safe,
         megatron_legacy=megatron_legacy,
         activations_checkpoint_granularity=activations_checkpoint_granularity,
+        activations_checkpoint_layers_per_pipeline=activations_checkpoint_layers_per_pipeline,
         sequence_parallel=sequence_parallel,
         transformer_engine=transformer_engine,
         fp8=fp8,
@@ -420,6 +422,7 @@ class TransformerLanguageModel(MegatronModule):
         onnx_safe=False,
         megatron_legacy=False,
         activations_checkpoint_granularity=None,
+        activations_checkpoint_layers_per_pipeline=None,
         sequence_parallel=False,
         transformer_engine=False,
         fp8=False,
@@ -501,6 +504,7 @@ class TransformerLanguageModel(MegatronModule):
             megatron_legacy=megatron_legacy,
             sequence_parallel=sequence_parallel,
             activations_checkpoint_granularity=activations_checkpoint_granularity,
+            activations_checkpoint_layers_per_pipeline=activations_checkpoint_layers_per_pipeline,
             transformer_engine=transformer_engine,
             fp8=fp8,
             fp8_e4m3=fp8_e4m3,
@@ -546,6 +550,7 @@ class TransformerLanguageModel(MegatronModule):
                 megatron_legacy=megatron_legacy,
                 sequence_parallel=sequence_parallel,
                 activations_checkpoint_granularity=activations_checkpoint_granularity,
+                activations_checkpoint_layers_per_pipeline=activations_checkpoint_layers_per_pipeline,
                 transformer_engine=transformer_engine,
             )
             self._decoder_key = 'decoder'
@@ -583,6 +588,7 @@ class TransformerLanguageModel(MegatronModule):
         encoder_input=None,
         set_inference_key_value_memory=False,
         inference_max_sequence_len=None,
+        checkpoint_activations_all_layers=None,
     ):
         # Embeddings.
         if self.pre_process and encoder_input is None:
@@ -603,6 +609,7 @@ class TransformerLanguageModel(MegatronModule):
                 get_key_value=get_key_value,
                 set_inference_key_value_memory=set_inference_key_value_memory,
                 inference_max_sequence_len=inference_max_sequence_len,
+                checkpoint_activations_all_layers=checkpoint_activations_all_layers,
             )
         else:
             encoder_output = enc_hidden_states.to(encoder_input.dtype)
@@ -632,6 +639,7 @@ class TransformerLanguageModel(MegatronModule):
             enc_dec_attn_mask=enc_dec_attn_mask,
             set_inference_key_value_memory=set_inference_key_value_memory,
             inference_max_sequence_len=inference_max_sequence_len,
+            checkpoint_activations_all_layers=checkpoint_activations_all_layers,
         )
 
         if self.add_pooler and self.post_process:

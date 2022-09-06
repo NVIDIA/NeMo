@@ -118,6 +118,7 @@ class GPTModel(MegatronModule):
         activations_checkpoint_granularity=None,
         activations_checkpoint_method=None,
         activations_checkpoint_num_layers=1,
+        activations_checkpoint_layers_per_pipeline=None,
         normalization='layernorm',
         layernorm_epsilon=1e-5,
         bias_activation_fusion=True,
@@ -183,6 +184,7 @@ class GPTModel(MegatronModule):
             activations_checkpoint_granularity=activations_checkpoint_granularity,
             activations_checkpoint_method=activations_checkpoint_method,
             activations_checkpoint_num_layers=activations_checkpoint_num_layers,
+            activations_checkpoint_layers_per_pipeline=activations_checkpoint_layers_per_pipeline,
             normalization=normalization,
             layernorm_epsilon=layernorm_epsilon,
             bias_activation_fusion=bias_activation_fusion,
@@ -225,6 +227,7 @@ class GPTModel(MegatronModule):
         encoder_input=None,
         set_inference_key_value_memory=False,
         inference_max_sequence_len=None,
+        checkpoint_activations_all_layers=None,
     ):
         # input_ids: [b, s]
         # position_ids: [b, s]
@@ -239,6 +242,7 @@ class GPTModel(MegatronModule):
             encoder_input=encoder_input,
             set_inference_key_value_memory=set_inference_key_value_memory,
             inference_max_sequence_len=inference_max_sequence_len,
+            checkpoint_activations_all_layers=checkpoint_activations_all_layers,
         )
 
         if self.post_process:
