@@ -415,7 +415,9 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
 
         ms_avg_embs = torch.stack(ms_avg_embs_list).permute(0, 1, 3, 2)
         ms_avg_embs = ms_avg_embs.float().detach().to(embs.device)
-        assert not ms_avg_embs.requires_grad, "ms_avg_embs.requires_grad = True. ms_avg_embs should be detached from the torch graph."
+        assert (
+            not ms_avg_embs.requires_grad
+        ), "ms_avg_embs.requires_grad = True. ms_avg_embs should be detached from the torch graph."
         return ms_avg_embs
 
     @torch.no_grad()
