@@ -333,13 +333,6 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         if isinstance(outputs[0], dict):
             outputs = [outputs]
 
-        self.log(
-            'consumed_samples',
-            self.compute_consumed_samples(self.trainer.global_step - self.init_global_step),
-            rank_zero_only=True,
-        )
-        self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True)
-
         loss_list = []
         bleu_score_list = []
         for dataloader_idx, output in enumerate(outputs):
