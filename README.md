@@ -130,7 +130,7 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
 
 - [6. Deploying the BigNLP Model](#6-deploying-the-bignlp-model)
   * [6.1. Run NVIDIA Triton Server with Generated Model Repository](#61-run-nvidia-triton-server-with-generated-model-repository)
-  * [6.2 GPT text generation with ensemble](#62-gpt-text-generation-with-ensemble)
+  * [6.2. GPT text generation with ensemble](#62-gpt-text-generation-with-ensemble)
 - [7. Performance](#7-performance)
   * [7.1. GPT-3 Results](#71-gpt-3-results)
     + [7.1.1. Training Accuracy Results](#711-training-accuracy-results)
@@ -3607,7 +3607,7 @@ If you notice warning about missing files, you should double check your model:
 [WARNING] file /triton-model-repository/model_name/1/1-gpu/model.final_layernorm.weight.bin cannot be opened, loading model fails!
 ```
 
-## 6.2 GPT text generation with ensemble.
+## 6.2. GPT text generation with ensemble.
 
 FasterTransformer for GPT implements a part of whole text generation application.
 
@@ -3664,6 +3664,33 @@ python3 /your/folders/fastertransformer_backend/tools/end_to_end_test.py
 ```
 
 The `end_to_end_test.py` script contains a string examples, which you can replace with your text.
+
+
+
+## 6.3. UL2 checkpoints deployment.
+
+You can deploy UL2 T5 checkpoints using
+[readme](https://github.com/NVIDIA/FasterTransformer/blob/main/docs/t5_guide.md#running-ul2-on-fastertransformer-pytorch-op)
+created by FasterTransformer.
+
+You can use huggingface t5 conversion script see below:
+
+```
+python3 FasterTransformer/examples/pytorch/t5/utils/huggingface_t5_ckpt_convert.py \
+        -in_file <UL2 checkpoint folder from training> \
+        -saved_dir <FasterTransformer destination folder> \
+        -inference_tensor_para_size <tensor parallel size> \
+        -weight_data_type <data type>
+```
+
+Triton FasterTransformer backend repo contains configuration example [config.pbtxt](https://github.com/triton-inference-server/fastertransformer_backend/blob/main/all_models/t5/fastertransformer/config.pbtxt).
+
+You can use Triton configuration script
+[prepare\_triton\_model\_config.py](./bignlp/collections/export_scripts/prepare_triton_model_config.py)
+to modify config.pbtxt to match
+configuration of your UL2 checkpoint and your cluster configuration.
+
+
 
 
 ## 7. Performance
