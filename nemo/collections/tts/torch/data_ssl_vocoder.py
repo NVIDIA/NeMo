@@ -379,7 +379,7 @@ class SSLVocoderDataset(Dataset):
             f0, _, _ = librosa.pyin(
                 wav.numpy(),
                 fmin=librosa.note_to_hz('C2'),
-                fmax=librosa.note_to_hz(500),
+                fmax=500,
                 frame_length=frame_length,
                 hop_length=hop_length,
                 sr=self.ssl_sample_rate,
