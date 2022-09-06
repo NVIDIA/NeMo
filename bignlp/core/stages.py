@@ -490,8 +490,13 @@ class Conversion(BigNLPStage):
             nemo_file_path=nemo_file_path,
             tensor_model_parallel_size=model_cfg.get("tensor_model_parallel_size"),
             pipeline_model_parallel_size=model_cfg.get("pipeline_model_parallel_size"),
-            pipeline_model_parallel_split_rank=model_cfg.get("pipeline_model_parallel_split_rank"),
         )
+        if model_cfg.get("pipeline_model_parallel_split_rank") is not None:
+            args += create_args_list(
+                replace_underscore=False,
+                pipeline_model_parallel_split_rank=model_cfg.get("pipeline_model_parallel_split_rank"),
+            )
+
         args += ["--bcp"] if self.cluster == "bcp" else []
 
         core_command = [f"python3 -u {code_path}", *args]

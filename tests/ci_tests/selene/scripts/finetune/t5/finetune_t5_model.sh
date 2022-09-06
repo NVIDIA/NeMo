@@ -41,4 +41,5 @@ HYDRA_FULL_ERROR=1 BIGNLP_CI=1 python3 main.py \
     fine_tuning.model.pipeline_model_parallel_size=${PP_SIZE} \
     fine_tuning.model.pipeline_model_parallel_split_rank=${PP_SPLIT_RANK} \
     fine_tuning.model.data.train_ds.micro_batch_size=${MICRO_BATH_SIZE} \
+    fine_tuning.model.data.validation_ds.micro_batch_size=${MICRO_BATH_SIZE} \
     "${params[@]}" ${ADDITIONAL_PARAMS}

@@ -2,7 +2,7 @@
 
 variables: &VARS
   BIGNLP_REGISTRY: "gitlab-master.nvidia.com:5005/dl/joc/bignlp-scripts"
-  BIGNLP_BASE_IMAGE: "nvcr.io/nvidian/bignlp-training:22.08.08_temp-py"
+  BIGNLP_BASE_IMAGE: "nvcr.io/nvidian/bignlp-training:22.08.11-py"
   SELENE_BIGNLP_CI_PATH: "/lustre/fsw/joc/big_nlp/bignlp_ci"
   LOCAL_NEMO_PATH: ""
   NGC_BIGNLP_CI_PATH: "bignlp_ci" # mount at /mount/results
@@ -216,16 +216,18 @@ release_perf:
           if [[ "$GIT_BRANCHES" =~ .*"$CI_PIPELINE_ID".* ]]; then git pull origin $CI_PIPELINE_ID; fi
           mkdir -p tests/ci_tests/selene/pytest/$RUN_STAGE/${RUN_MODEL}_result_files
           if [[ "$RUN_STAGE" == "eval" &&  "$RUN_MODEL" =~ "gpt3" ]]; then
-            cp $RESULTS_DIR/results/$RUN_NAME*/metrics.json tests/ci_tests/selene/pytest/$RUN_STAGE/${RUN_MODEL}_result_files/${RUN_NAME}.json
+          cp $RESULTS_DIR/results/$RUN_NAME*/metrics.json tests/ci_tests/selene/pytest/$RUN_STAGE/${RUN_MODEL}_result_files/${RUN_NAME}.json
           else
-            cp $RESULTS_DIR/*.json tests/ci_tests/selene/pytest/$RUN_STAGE/${RUN_MODEL}_result_files/${RUN_NAME}.json
+          cp $RESULTS_DIR/*.json tests/ci_tests/selene/pytest/$RUN_STAGE/${RUN_MODEL}_result_files/${RUN_NAME}.json
           fi
           git add tests/ci_tests/selene/pytest/$RUN_STAGE/${RUN_MODEL}_result_files/*
-          sed -i '0,/TESTS_TO_RUN_ON_THIS_COMMIT: .*/s/TESTS_TO_RUN_ON_THIS_COMMIT: .*/TESTS_TO_RUN_ON_THIS_COMMIT: NONE/' .gitlab-ci.yml
+          sed -i '0,/TESTS_TO_RUN_ON_THIS_COMMIT:
+            .*/s/TESTS_TO_RUN_ON_THIS_COMMIT:
+              .*/TESTS_TO_RUN_ON_THIS_COMMIT: NONE/' .gitlab-ci.yml
           git add .gitlab-ci.yml
           git commit -m "Adding the result file for $RUN_NAME"
           git push origin $CI_PIPELINE_ID
-          echo "Created test file and pushed it"
+          echo "Created test file and pushed it"       
           exit ${SLURM_EXITCODE}
         fi
     # Run Pytest
@@ -816,7 +818,6 @@ eval.t5.220m_tp1_pp1:
     TIME_LIMIT: "1:00:00"
     TP_SIZE: 1
     PP_SIZE: 1
-    NUM_NODES: 1
     FINETUNE_JOB_DIR: finetune_t5_220m_tp1_pp1_1node_100steps_squad
     TEST_LEVEL: L0
   needs:
@@ -833,9 +834,7 @@ eval.t5.220m_tp2_pp2:
     TIME_LIMIT: "1:00:00"
     TP_SIZE: 2
     PP_SIZE: 2
-    NUM_NODES: 2
     FINETUNE_JOB_DIR: finetune_t5_220m_tp2_pp2_2node_100steps_squad
-    MICRO_BATCH_SIZE: 8
     TEST_LEVEL: L1
   needs:
     - finetune.t5.220m_tp2_pp2_2node_100steps_squad
@@ -915,7 +914,6 @@ eval.mt5.170m_tp1_pp1:
     TIME_LIMIT: "1:00:00"
     TP_SIZE: 1
     PP_SIZE: 1
-    NUM_NODES: 1
     FINETUNE_JOB_DIR: finetune_mt5_170m_tp1_pp1_1node_100steps_xquad
     TEST_LEVEL: L0
   needs:
@@ -932,7 +930,6 @@ eval.mt5.170m_tp2_pp2:
     TIME_LIMIT: "1:00:00"
     TP_SIZE: 2
     PP_SIZE: 2
-    NUM_NODES: 2
     FINETUNE_JOB_DIR: finetune_mt5_170m_tp2_pp2_2node_100steps_xquad
     MICRO_BATCH_SIZE: 8
     TEST_LEVEL: L1
@@ -1603,7 +1600,6 @@ eval.mt5.170m_tp2_pp4_xquad:
     TEST_TASK: xquad
     TP_SIZE: 2
     PP_SIZE: 4
-    NUM_NODES: 2
     FINETUNE_JOB_DIR: finetune_mt5_170m_tp2_pp4_2node_100steps_xquad
     TIME_LIMIT: "01:00:00"
     TEST_LEVEL: L1
@@ -1641,7 +1637,6 @@ eval.mt5.prompt_170m_tp2_pp4_squad:
     TEST_TASK: squad
     TP_SIZE: 2
     PP_SIZE: 4
-    NUM_NODES: 2
     PROMPT_LEARN_MODEL_DIR: prompt_learn_mt5_170m_tp2_pp4_2node_squad
     CONVERT_MODEL_DIR: convert_mt5_170m_tp2_pp4
     TIME_LIMIT: "01:00:00"
@@ -1716,7 +1711,6 @@ eval.mt5.170m_tp2_pp4_xquad_RPE:
     TEST_TASK: xquad
     TP_SIZE: 2
     PP_SIZE: 4
-    NUM_NODES: 2
     FINETUNE_JOB_DIR: finetune_mt5_170m_tp2_pp4_2node_100steps_xquad_RPE
     TIME_LIMIT: "01:00:00"
     TEST_LEVEL: L1
@@ -1754,7 +1748,6 @@ eval.mt5.prompt_170m_tp2_pp4_squad_RPE:
     TEST_TASK: squad
     TP_SIZE: 2
     PP_SIZE: 4
-    NUM_NODES: 2
     PROMPT_LEARN_MODEL_DIR: prompt_learn_mt5_170m_tp2_pp4_2node_squad_RPE
     CONVERT_MODEL_DIR: convert_mt5_170m_tp2_pp4_RPE
     TIME_LIMIT: "01:00:00"
@@ -1834,7 +1827,6 @@ eval.mt5.170m_tp2_pp4_xquad_RPE_EncLayer2_DecLayer6_SplitRank1:
     TP_SIZE: 2
     PP_SIZE: 4
     PP_SPLIT_RANK: 1
-    NUM_NODES: 2
     FINETUNE_JOB_DIR: finetune_mt5_170m_tp2_pp4_2node_100steps_xquad_RPE_EncLayer2_DecLayer6_SplitRank1
     TIME_LIMIT: "01:00:00"
     TEST_LEVEL: L1
@@ -1874,7 +1866,6 @@ eval.mt5.prompt_170m_tp2_pp4_squad_RPE_EncLayer2_DecLayer6_SplitRank1:
     TP_SIZE: 2
     PP_SIZE: 4
     PP_SPLIT_RANK: 1
-    NUM_NODES: 2
     PROMPT_LEARN_MODEL_DIR: prompt_learn_mt5_170m_tp2_pp4_2node_squad_RPE_EncLayer2_DecLayer6_SplitRank1
     CONVERT_MODEL_DIR: convert_mt5_170m_tp2_pp4_RPE_EncLayer2_DecLayer6_SplitRank1
     TIME_LIMIT: "01:00:00"
@@ -1953,7 +1944,6 @@ eval.mt5.170m_tp2_pp4_xquad_EncLayer2_DecLayer6_SplitRank1:
     TP_SIZE: 2
     PP_SIZE: 4
     PP_SPLIT_RANK: 1
-    NUM_NODES: 2
     FINETUNE_JOB_DIR: finetune_mt5_170m_tp2_pp4_2node_100steps_xquad_EncLayer2_DecLayer6_SplitRank1
     TIME_LIMIT: "01:00:00"
     TEST_LEVEL: L1
@@ -1993,7 +1983,6 @@ eval.mt5.prompt_170m_tp2_pp4_squad_EncLayer2_DecLayer6_SplitRank1:
     TP_SIZE: 2
     PP_SIZE: 4
     PP_SPLIT_RANK: 1
-    NUM_NODES: 2
     PROMPT_LEARN_MODEL_DIR: prompt_learn_mt5_170m_tp2_pp4_2node_squad_EncLayer2_DecLayer6_SplitRank1
     CONVERT_MODEL_DIR: convert_mt5_170m_tp2_pp4_EncLayer2_DecLayer6_SplitRank1
     TIME_LIMIT: "01:00:00"
@@ -2072,7 +2061,6 @@ eval.mt5.390m_tp4_pp1_xquad:
     TP_SIZE: 4
     PP_SIZE: 1
     PP_SPLIT_RANK: 0
-    NUM_NODES: 1
     FINETUNE_JOB_DIR: finetune_mt5_390m_tp4_pp1_1node_100steps_xquad
     TIME_LIMIT: "01:00:00"
     TEST_LEVEL: L1
@@ -2112,7 +2100,6 @@ eval.mt5.prompt_390m_tp4_pp1_squad:
     TP_SIZE: 4
     PP_SIZE: 1
     PP_SPLIT_RANK: 0
-    NUM_NODES: 1
     PROMPT_LEARN_MODEL_DIR: prompt_learn_mt5_390m_tp4_pp1_1node_squad
     CONVERT_MODEL_DIR: convert_mt5_390m_tp4_pp1
     TIME_LIMIT: "01:00:00"
