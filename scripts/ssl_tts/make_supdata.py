@@ -263,7 +263,9 @@ def main():
     parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--ssl_content_emb_type', type=str, default="embedding_and_probs")
     parser.add_argument('--use_unique_tokens', type=int, default=0)
+    parser.add_argument('--num_workers', type=int, default=8)
     parser.add_argument('--pool_workers', type=int, default=30)
+    parser.add_argument('--num_pitch_per_speaker', type=int, default=50) # saves time.
 
     args = parser.parse_args()
 
@@ -273,7 +275,7 @@ def main():
 
     dataset = AudioDataset(manifest_path)
     dataloader = torch.utils.data.DataLoader(
-        dataset, batch_size=args.batch_size, shuffle=False, collate_fn=dataset.pad_collate_fn, num_workers=8
+        dataset, batch_size=args.batch_size, shuffle=False, collate_fn=dataset.pad_collate_fn, num_workers=args.num_workers
     )
 
     ssl_model = ssl_tts.SSLDisentangler.load_from_checkpoint(ssl_model_ckpt_path, strict=False)
@@ -407,9 +409,13 @@ def main():
             speaker_wise_fps[speaker] = []
         speaker_wise_fps[speaker].append(row)
     
+    
     filtered_wav_and_id_list = []
     for speaker in speaker_wise_fps:
-        filtered_wav_and_id_list += speaker_wise_fps[speaker][:50]
+        if args.num_pitch_per_speaker is not None:
+            filtered_wav_and_id_list += speaker_wise_fps[speaker][:args.num_pitch_per_speaker]
+        else:
+            filtered_wav_and_id_list += speaker_wise_fps[speaker]
 
     with Pool(args.pool_workers) as p:
         p.map(save_pitch_contour, filtered_wav_and_id_list)

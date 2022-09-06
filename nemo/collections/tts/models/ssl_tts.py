@@ -1,3 +1,4 @@
+from concurrent.futures import process
 import itertools
 from dataclasses import dataclass
 from typing import Dict, Optional, Union
@@ -19,7 +20,8 @@ from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.optim.lr_scheduler import WarmupPolicy
 from nemo.utils import logging
-
+import librosa
+from nemo.collections.asr.parts.preprocessing import features
 
 def decode(tokenizer, token_list):
     return tokenizer.sep.join(tokenizer._id2token[t] for t in token_list)
@@ -86,6 +88,16 @@ class SSLDisentangler(ModelPT):
 
         self.automatic_optimization = False
 
+
+        stft_cfg = self._cfg.preprocessor
+        librosa_mel_filter = librosa.filters.mel(sr=stft_cfg.sample_rate, n_fft=stft_cfg.n_fft, n_mels=stft_cfg.features, fmin=0, fmax=8000)
+        fb = torch.tensor(
+            librosa_mel_filter,
+            dtype=torch.float,
+        ).unsqueeze(0)
+
+        self.register_buffer("fb", fb)
+
     @classmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:
         """
@@ -141,6 +153,7 @@ class SSLDisentangler(ModelPT):
                     segment_max_duration=data_config['segment_max_duration'],
                     sup_data_types=['speaker_id'],
                     sup_data_path=data_config['sup_data_path'],
+                    pad_multiple=data_config.get('pad_multiple', 1),
                 )
                 sv_loader = torch.utils.data.DataLoader(
                     sv_dataset,
@@ -161,6 +174,7 @@ class SSLDisentangler(ModelPT):
                     pitch_augment=data_config.get('pitch_augment', False),
                     cache_pitch_augment=data_config.get('cache_pitch_augment', True),
                     sup_data_path=data_config['sup_data_path'],
+                    pad_multiple=data_config.get('pad_multiple', 1),
                 )
                 content_loader = torch.utils.data.DataLoader(
                     content_dataset,
@@ -231,11 +245,40 @@ class SSLDisentangler(ModelPT):
         else:
             return [optim_backbone, optim_downstream]
 
+    def get_mel_spectrogram(self, audio, audio_len):
+        EPSILON = 1e-9
+        window_fn = torch.hann_window
+
+        stft_cfg = self._cfg.preprocessor
+        spec = torch.stft(
+            input=audio,
+            n_fft=stft_cfg.n_fft,
+            hop_length=stft_cfg.n_window_stride,
+            win_length=stft_cfg.n_window_size,
+            window=window_fn(stft_cfg.n_window_size, periodic=False).float().to(self.device) if window_fn else None,
+            return_complex=True,
+            center=True,
+        )
+
+        if spec.dtype in [torch.cfloat, torch.cdouble]:
+            spec = torch.view_as_real(spec)
+        spec = torch.sqrt(spec.pow(2).sum(-1) + EPSILON)
+
+        mel = torch.matmul(self.fb.to(spec.dtype), spec)
+        log_mel = torch.log(torch.clamp(mel, min=torch.finfo(mel.dtype).tiny))
+        mel_len = torch.ceil(audio_len / stft_cfg.n_window_stride).long()
+        log_mel_normalized = features.normalize_batch(log_mel, mel_len, "per_feature")
+
+        return log_mel_normalized, mel_len
+
     def _forward(self, input_signal=None, input_signal_length=None, for_export=False, normalize_content=True):
 
-        processed_signal, processed_signal_length = self.preprocessor_disentangler(
-            input_signal=input_signal, length=input_signal_length,
-        )
+        if self._cfg.get("preprocessing", "default") == "custom":
+            processed_signal, processed_signal_length = self.get_mel_spectrogram(input_signal, input_signal_length)
+        else:
+            processed_signal, processed_signal_length = self.preprocessor_disentangler(
+                input_signal=input_signal, length=input_signal_length,
+            )
 
         if for_export:
             encoded, encoded_len = self.encoder.forward_for_export(

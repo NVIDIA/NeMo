@@ -5,8 +5,8 @@ hifi_ckpt_path = "/home/pneekhara/NeMo2022/HiFiCKPTS/hifigan_libritts/HiFiLibriE
 
 fastpitch_model_ckpts = [
     # "/home/pneekhara/NeMo2022/tensorboards/FastPitch/DurationPredictor/SegMeanEpoch404.ckpt", 
+    "/home/pneekhara/NeMo2022/tensorboards/FastPitch/SpeakerLossFTTry3/SpeakerLossEpoch54.ckpt", 
     # "/home/pneekhara/NeMo2022/tensorboards/FastPitch/DurationPredictor/SegPerSampleEpoch549.ckpt", 
-    "/home/pneekhara/NeMo2022/tensorboards/FastPitch/DurationPredictor/SegDurPerSampleEpoch604.ckpt", 
     # "/home/pneekhara/NeMo2022/tensorboards/FastPitch/DurationPredictor/DurEpoch404.ckpt", 
 ]
 

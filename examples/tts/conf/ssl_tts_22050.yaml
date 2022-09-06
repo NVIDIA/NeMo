@@ -33,10 +33,11 @@ model:
   stop_gradient: false
   augment_ctc: true
   aug_loss_type: "cosine"
-
+  preprocessing: "default" # default or custom (custom is same as fastpitch training)
+  pad_multiple: 1
   train_ds:
-    manifest_speaker_verification_fp: "/home/shehzeenh/datasets/speaker_verification_full/vox1/train_10.json"
-    manifest_content_fp: "/home/shehzeenh/datasets/All_LibriSpeech/train_libri_small.json"
+    manifest_speaker_verification_fp: "/home/pneekhara/NeMo2022/vox_train_10.json"
+    manifest_content_fp: "/home/pneekhara/NeMo2022/libri_val_formatted.json"
     sample_rate: ${model.sample_rate}
     batch_size_content: 8 # you may increase batch_size if your memory allows
     batch_size_sv: 20
@@ -47,13 +48,14 @@ model:
     max_duration_content: 16.7
     min_duration_content: 8.0
     segment_max_duration: 2
-    sup_data_path: "/home/shehzeenh/datasets/SupData/train"
+    sup_data_path: "/home/pneekhara/Datasets/SupData/train"
     pitch_augment: ${model.pitch_augment}
     cache_pitch_augment: true
+    pad_multiple: ${model.pad_multiple}
 
   validation_ds:
-    manifest_speaker_verification_fp: "/home/shehzeenh/datasets/speaker_verification_full/vox1/validation_10.json"
-    manifest_content_fp: "/home/shehzeenh/datasets/All_LibriSpeech/dev_clean.json"
+    manifest_speaker_verification_fp: "/home/pneekhara/NeMo2022/vox_val_10.json"
+    manifest_content_fp: "/home/pneekhara/NeMo2022/libri_val_formatted.json"
     sample_rate: ${model.sample_rate}
     batch_size_content: 4 # you may increase batch_size if your memory allows
     batch_size_sv: 8
@@ -65,9 +67,10 @@ model:
     max_duration_content: 16.7
     min_duration_content: 8.0
     segment_max_duration: 5
-    sup_data_path: "/home/shehzeenh/datasets/SupData/val"
+    sup_data_path: "/home/pneekhara/Datasets/SupData/val"
     pitch_augment: ${model.pitch_augment}
     cache_pitch_augment: true
+    pad_multiple: ${model.pad_multiple}
 
   # text_tokenizer:
   #   _target_: nemo.collections.tts.torch.tts_tokenizers.EnglishPhonemesTokenizer
@@ -109,8 +112,8 @@ model:
   downstream_heads:
     task_names: ['speaker_verification', 'content']
     speaker_embed_size: 256
-    num_speakers: 1211
-    content_embed_size: 256
+    num_speakers: 5994
+    content_embed_size: 128
 
   encoder:
     _target_: nemo.collections.asr.modules.ConformerEncoder

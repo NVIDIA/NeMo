@@ -480,7 +480,7 @@ def evaluate(
     fastpitch_model = fastpitch_ssl.FastPitchModel_SSL.load_from_checkpoint(fastpitch_ckpt_path)
     fastpitch_model = fastpitch_model.to(device)
     fastpitch_model.eval()
-    fastpitch_model.vocoder = {'vocoder': vocoder}
+    fastpitch_model.non_trainable_models = {'vocoder': vocoder}
 
     nemo_sv_model = label_models.EncDecSpeakerLabelModel.from_pretrained(sv_model_name)
     nemo_sv_model = nemo_sv_model.to(device)
