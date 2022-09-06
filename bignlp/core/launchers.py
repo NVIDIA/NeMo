@@ -125,7 +125,7 @@ class InteractiveLauncher(Launcher):
 
         paths = job_utils.JobPaths(folder=self.folder, job_name=self.job_name)
         time_tag = datetime.datetime.now().strftime("%m%d_%H%M%S")
-        stdout = str(paths.stdout).replace("_%J", f"_{time_tag}")
+        stdout = str(paths.stdout).replace("_%j", f"_{time_tag}")
 
         # now create
         lines = ["#!/bin/bash", ""]
@@ -193,7 +193,7 @@ class BCPLauncher(Launcher):
     def _make_submission_file_text(self, command_groups: List[List[str]]) -> str:
         paths = job_utils.JobPaths(folder=self.folder, job_name=self.job_name)
         time_tag = datetime.datetime.now().strftime("%m%d_%H%M%S")
-        stdout = str(paths.stdout).replace("_%J", f"_{time_tag}")
+        stdout = str(paths.stdout).replace("_%j", f"_{time_tag}")
 
         nnodes = self.parameters.get("nnodes", 1)
         npernode = self.parameters.get("npernode", 1)
@@ -465,15 +465,15 @@ def _make_sbatch_string(
     stderr = str(paths.stderr)
 
     if array is not None:
-        stdout = stdout.replace("%J", "%A_%a")
-        stderr = stderr.replace("%J", "%A_%a")
+        stdout = stdout.replace("%j", "%A_%a")
+        stderr = stderr.replace("%j", "%A_%a")
     parameters["output"] = stdout.replace("%t", "0")
 
     if not stderr_to_stdout:
         parameters["error"] = stderr.replace("%t", "0")
 
     if BIGNLP_CI: # Override output file for slurm
-        parameters["output"] = parameters["error"] = str(paths.folder / "slurm_%J.out")
+        parameters["output"] = parameters["error"] = str(paths.folder / "slurm_%j.out")
         stdout = stderr = parameters["output"]
 
     if additional_parameters is not None:
@@ -497,7 +497,7 @@ def _make_sbatch_string(
     if BIGNLP_MEMORY_MEASURE:
         srun_args += ["--overlap"]
 
-        mem_stdout = stdout.replace("_%J", "_mem_%J")
+        mem_stdout = stdout.replace("_%j", "_mem_%j")
         mem_stdout = mem_stdout.replace("_%A_%a", "_mem_%A_%a")
         mem_srun_cmd = shlex.join([
             "srun", "--ntasks=1", "--ntasks-per-node=1", "--output", mem_stdout, *container_flags, *srun_args
@@ -515,7 +515,7 @@ def _make_sbatch_string(
         command = ";\n  ".join(command_group)
         lines += [
             "",
-            f"# command group {group_ind}",
+            f"# command {group_ind + 1}",
             f"{srun_cmd} bash -c \"",
             f"  {command} \"",
             "",

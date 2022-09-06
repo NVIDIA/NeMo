@@ -116,7 +116,7 @@ if [[ $RUN_DCGMI == 1 ]]; then
     JOBID=$(sbatch  -N $NUM_NODES \
             -p $PARTITION \
             -w $NODES \
-            -o $RESULTS_DIR/dcgmi-%J.out \
+            -o $RESULTS_DIR/dcgmi-%j.out \
             -W dcgmi_diag.sh)
     JOBID=${JOBID##* } # Remove everything but the slurm job id from output of sbatch command
     grep -i "fail" $RESULTS_DIR/dcgmi-${JOBID}.out > /dev/null # Check log for failures
@@ -162,7 +162,7 @@ if [[ $RUN_NCCL == 1 ]]; then
         id=$(sbatch -N 2 \
                     -w ${NODES_ARR[$i]},${NODES_ARR[$j]} \
                     --parsable \
-                    -o $RESULTS_DIR/%x_%J.log \
+                    -o $RESULTS_DIR/%x_%j.log \
                     ./nccl.sh)
         slurm_ids+=($id)
     done
