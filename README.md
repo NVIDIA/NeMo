@@ -3821,7 +3821,7 @@ The `end_to_end_test.py` script contains a string examples, which you can replac
 <a id="markdown-gpt-3-results" name="gpt-3-results"></a>
 
 #### 7.1.1. Training Accuracy Results
-Training Accuracy: NVIDIA DGX SuperPOD (8 x 8 x A100 80GB for 126M GPT-3 Model; 20 x 8 x A100 80GB for 5B GPT-3 Model)
+Training Accuracy: NVIDIA DGX SuperPOD (8 x 8 x A100 80GB for 126M GPT-3 Model; 16 x 8 x A100 80GB for 5B GPT-3 Model)
 
 We evaluated the 126M parameter and 5B parameter models on 8 different language
 tasks. The results can be found in the table below. All the tasks are provided
@@ -3863,21 +3863,22 @@ given Global Batch Size (GBS).
 #### 7.1.2. Training Performance Results
 <a id="markdown-training-performance-results" name="training-performance-results"></a>
 Training performance: 
- - NVIDIA DGX SuperPOD (20 x 8 x A100 80GB for 5B GPT-3 model)
+ - NVIDIA DGX SuperPOD (16 x 8 x A100 80GB for 5B GPT-3 model)
  - NVIDIA DGX SuperPODs (128 x 8 x A100 80GB for 175B GPT-3 model)
 
 We measured the throughput of training 5B and 175B parameter GPT-3 models on 
 different numbers of DGX nodes, and we achieved near-linear
-scaling. For example, when scaling from 1 node to 20 nodes with a 5B model, we achieve 18.51x
-speed-up. When scaling from 16 nodes to 128 nodes with a 175B model, we achieve 6.85x speed-up.
+scaling. For example, when scaling from 1 node to 16 nodes with a 5B model, we achieve 16.35x
+speed-up, and when we scale it from 1 node to 32 nodes, we achieve a 28.73x speedup. 
+When scaling from 16 nodes to 128 nodes with a 175B model, we achieve 6.85x speed-up.
 The tables and charts below show the performance results.
 
-|      |                                 |        |        |        | Nodes  |        |        |        |
-| ---- | ------------------------------- | ------ | ------ | ------ | ------ | ------ | ------ | ------ |
-|      |                                 | 1      | 2      | 5      | 9      | 10     | 18     | 20     |
-|      | Tokens per Second               | 39543  | 79128  | 195047 | 344523 | 383500 | 670254 | 731791 |
-| 5B   | Perfect Linear Scaling (Tokens) | 39543  | 79086  | 197715 | 355887 | 395430 | 711774 | 790860 |
-|      | Speed-up                        | 1x     | 2x     | 4.93x  | 8.71x  | 9.7x   | 16.95x | 18.51x |
+|      |                                 |        |        |        | Nodes  |        |         |
+| ---- | ------------------------------- | ------ | ------ | ------ | ------ | ------ | ------- |
+|      |                                 | 1      | 2      | 4      | 8      | 16     | 32      |
+|      | Tokens per Second               | 40345  | 79815  | 161754 | 312774 | 659481 | 1159288 |
+| 5B   | Perfect Linear Scaling (Tokens) | 40345  | 80690  | 161380 | 322760 | 645520 | 1291040 |
+|      | Speed-up                        | 1x     | 1.98x  | 4.01x  | 7.75x  | 16.35x | 28.73x  |
 
 <img src="img/5B_GPT_3_throughput.svg"/>
 
