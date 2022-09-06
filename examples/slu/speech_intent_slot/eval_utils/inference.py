@@ -89,7 +89,7 @@ def slurp_inference(model, path2manifest: str, batch_size: int = 4, num_workers:
         }
 
         temporary_datalayer = model._setup_transcribe_dataloader(config)
-        for test_batch in tqdm(temporary_datalayer, desc="Transcribing"):
+        for test_batch in tqdm(temporary_datalayer, desc="Transcribing", ncols=80):
             predictions = model.predict(
                 input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
             )

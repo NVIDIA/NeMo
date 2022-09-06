@@ -140,12 +140,12 @@ An example config for the model can be:
 Loss Configurations
 ---------------------------------
 
-The loss function by default is the negative log-likelihood loss, where optional label-smoothing can be applied by using the following config:
+The loss function by default is the negative log-likelihood loss, where optional label-smoothing can be applied by using the following config (default is 0.0):
 
 .. code-block:: yaml
 
   loss:
-    label_smoothing: 0.1
+    label_smoothing: 0.0
 
 
 Inference Configurations
@@ -160,14 +160,3 @@ During inference, three types of sequence generation strategies can be applied: 
     temperature: 1.0  # for top-k sampling
     beam_size: 1  # K for top-k sampling, N for beam search
     len_pen: 0  # for beam-search
-
-
-
-
-References
------------
-
-.. bibliography:: ../asr_all.bib
-    :style: plain
-    :labelprefix: SSL-MODELS
-    :keyprefix: ssl-models-

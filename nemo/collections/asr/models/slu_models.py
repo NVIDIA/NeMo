@@ -107,6 +107,7 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
             use_cer=self._cfg.get('use_cer', False),
             dist_sync_on_step=True,
             log_prediction=self._cfg.get("log_prediction", False),
+            fold_consecutive=False,
         )
 
     @property
@@ -228,8 +229,7 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
         eos_semantics = semantics[:, 1:]
         eos_semantics_len = semantics_len - 1  # subtract 1 for eos tokens
 
-        eos_semantics_mask = get_seq_mask(eos_semantics, eos_semantics_len)
-        loss_value = self.loss(log_probs=log_probs, labels=eos_semantics, output_mask=eos_semantics_mask)
+        loss_value = self.loss(log_probs=log_probs, labels=eos_semantics, lengths=eos_semantics_len)
 
         tensorboard_logs = {'train_loss': loss_value.item()}
         if len(self._optimizer.param_groups) == 1:
@@ -324,6 +324,20 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
             'val_wer_denom': wer_denom,
             'val_wer': wer,
         }
+
+    def test_step(self, batch, batch_idx, dataloader_idx=0):
+        logs = self.validation_step(batch, batch_idx, dataloader_idx=dataloader_idx)
+        test_logs = {
+            'test_loss': logs['val_loss'],
+            'test_wer_num': logs['val_wer_num'],
+            'test_wer_denom': logs['val_wer_denom'],
+            'test_wer': logs['val_wer'],
+        }
+        return test_logs
+
+    def test_dataloader(self):
+        if self._test_dl is not None:
+            return self._test_dl
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
         if 'augmentor' in config:

@@ -12,4 +12,4 @@ Our E2E model in NeMo is based on an **Encoder-Decoder** framework, where a Conf
 
 The output is a Python dictionary object flattened as a string representation, so that the problem can be formulated as a sequence-to-sequence (audio-to-text) problem.
 
-The model is trained by Negative Log-Likelihood (NLL) Loss with teacher forcing and label smoothing.
+The model is trained by Negative Log-Likelihood (NLL) Loss with teacher forcing.

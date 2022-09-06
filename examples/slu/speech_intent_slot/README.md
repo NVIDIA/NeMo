@@ -1,7 +1,7 @@
 # NeMo End-to-End Speech Intent Classification and Slot Filling on SLURP Dataset
 
 ## Introduction
-This example shows how to train an end-to-end model for spoken language understanding on the SLURP dataset [2]. The model is an encoder-decoder framework, where the encoder is a Conformer-large [3] model initialized from [here](https://ngc.nvidia.com/models/nvidia:nemo:stt_en_conformer_ctc_large), while the decoder is a Transformer decoder [4] that is randomly initialized. The model is trained by minimizing the negative log-likelihood (NLL) loss with teacher forcing and label smoothing.
+This example shows how to train an end-to-end model for spoken language understanding on the SLURP dataset [2]. The model is an encoder-decoder framework, where the encoder is a Conformer-large [3] model initialized from [here](https://ngc.nvidia.com/models/nvidia:nemo:stt_en_conformer_ctc_large), while the decoder is a Transformer decoder [4] that is randomly initialized. The model is trained by minimizing the negative log-likelihood (NLL) loss with teacher forcing.
 
 ## Results
 
@@ -64,6 +64,7 @@ Run with the default config that uses ASR-pretrained encoder on NeMo ASR-set 3.0
 
 ```bash
 DATA_DIR="./slurp_data"
+EXP_NAME="slurp_conformer_transformer_large"
 CUDA_VISIBLE_DEVICES=0 python run_speech_intent_slot_train.py \
     --config-path="./configs" --config-name=conformer_transformer_large_bpe \
     model.train_ds.manifest_filepath="[${DATA_DIR}/train_slu.json,${DATA_DIR}/train_synthetic_slu.json]" \
@@ -76,7 +77,9 @@ CUDA_VISIBLE_DEVICES=0 python run_speech_intent_slot_train.py \
     trainer.devices=1 \
     trainer.max_epochs=100 \
     model.optim.sched.warmup_steps=2000 \
-    exp_manager.name="slurp_conformer_transformer_large"
+    exp_manager.name=$EXP_NAME \
+    exp_manager.resume_if_exists=true \
+    exp_manager.resume_ignore_no_checkpoint=true
 ```
 
 
@@ -86,13 +89,14 @@ After training, we can evaluate the model by running the following script, which
 DATA_DIR="./slurp_data"
 EXP_NAME="slurp_conformer_transformer_large"
 CKPT_DIR="./nemo_experiments/${EXP_NAME}/checkpoints"
+CKPT_AVG_DIR="../../../examples/slu/speech_intent_slot/${CKPT_DIR}"
 
-python ../../../scripts/checkpoint_averaging/checkpoint_averaging.py ${CKPT_DIR}
+python ../../../scripts/checkpoint_averaging/checkpoint_averaging.py $CKPT_AVG_DIR
 
 NEMO_MODEL="${CKPT_DIR}/${EXP_NAME}-averaged.nemo"
 CUDA_VISIBLE_DEVICES=0 python run_speech_intent_slot_eval.py \
     dataset_manifest="${DATA_DIR}/test_slu.json" \
-    model_path=${NEMO_MODEL} \
+    model_path=$NEMO_MODEL \
     batch_size=32 \
     num_workers=8 \
     sequence_generator.type="beam" \

@@ -137,7 +137,7 @@ model:
     log_softmax: true
 
   loss:
-    label_smoothing: 0.1
+    label_smoothing: 0.0
 
   sequence_generator:
     type: greedy  # choices=[greedy, topk, beam]
