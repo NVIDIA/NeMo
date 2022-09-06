@@ -48,7 +48,10 @@ from nemo.core.neural_types.elements import (
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging, model_utils
 from nemo.collections.tts.models import ssl_tts
+from nemo.collections.asr.parts.preprocessing import features
+
 import os
+
 
 def mask_from_lens(lens, max_len: Optional[int] = None):
     if max_len is None:
@@ -140,7 +143,9 @@ class FastPitchModel_SSL(ModelPT):
         self.use_speaker_loss = use_speaker_loss
         if use_speaker_loss:
             if os.path.exists(self._cfg.ssl_model_ckpt_path):
-                ssl_model = ssl_tts.SSLDisentangler.load_from_checkpoint(self._cfg.ssl_model_ckpt_path, strict=False).to(self.device)
+                print("Loading SSL model from ", self._cfg.ssl_model_ckpt_path)
+                # print("Device: ", self.device, self.fastpitch.device)
+                ssl_model = ssl_tts.SSLDisentangler.load_from_checkpoint(self._cfg.ssl_model_ckpt_path, strict=False).cpu()
                 ssl_model.eval()
                 self.non_trainable_models['ssl_model'] = ssl_model
             else:
@@ -232,22 +237,80 @@ class FastPitchModel_SSL(ModelPT):
 
         return encoded
 
-    def compute_speaker_loss(self, generated_mel, gt_speaker_embedding):
-        # generated_mel is (B, C, T)
-        ssl_model = self.non_trainable_models['ssl_model']
-        generated_mel_sliced = generated_mel[:, :, :172]
-        generated_mel_len_batch = torch.tensor([generated_mel_sliced.shape[-1] for _idx in range(generated_mel_sliced.shape[0]) ] ).long().to(self.device)
+    def convert_to_ssl_mel(self, mel, mel_lens):
+        antilog_mel  = torch.exp(mel)
+        antolog_mag = torch.matmul(self.fb_inverse , antilog_mel)
+        antolog_mag = antolog_mag.pow(2)
+        antolog_mag = antolog_mag
+        log_mel =  torch.log(torch.matmul(self.fb, antolog_mag) + 1e-9)
+        normalized_mel = features.normalize_batch(log_mel, mel_lens, "per_feature")
+        return normalized_mel
 
-        encoded, encoded_len = ssl_model.encoder(audio_signal=generated_mel_sliced, length=generated_mel_len_batch)  # b,c,t
+    def compute_speaker_loss(self, gt_mel, generated_mel, gt_speaker_embedding):
+        ssl_model = self.non_trainable_models['ssl_model']
+        ssl_model.to(self.device)
+        self.fb = self.fb.to(self.device)
+        self.fb_inverse = self.fb_inverse.to(self.device)
+        generated_mel_sliced = generated_mel[:, :, :173]
+        gt_mel_sliced = gt_mel[:, :, :173]
+        generated_mel_len_batch = torch.tensor([generated_mel_sliced.shape[-1] for _idx in range(generated_mel_sliced.shape[0]) ] ).long().to(self.device)
+        
+        normalized_mel = self.convert_to_ssl_mel(generated_mel_sliced, generated_mel_len_batch)
+        gt_normalized_mel = self.convert_to_ssl_mel(gt_mel_sliced, generated_mel_len_batch)
+
+        # two_sec_audio = audio[:, :22050*2]
+        # audio_len = torch.tensor([two_sec_audio.shape[-1] for _idx in range(two_sec_audio.shape[0]) ] ).long().to(self.device)
+        # ssl_spec, ssl_spec_len = ssl_model.preprocessor_disentangler(
+        #     input_signal=two_sec_audio, length=audio_len,
+        # )
+
+        if self.global_step % 100 == 0:
+            
+
+            # self.tb_logger.add_image(
+            #     "ssl_spec",
+            #     plot_spectrogram_to_numpy(ssl_spec[0].data.cpu().float().numpy()),
+            #     self.global_step,
+            #     dataformats="HWC",
+            # )
+
+            self.tb_logger.add_image(
+                "gt_normalized_mel",
+                plot_spectrogram_to_numpy(gt_normalized_mel[0].data.cpu().float().numpy()),
+                self.global_step,
+                dataformats="HWC",
+            )
+
+            self.tb_logger.add_image(
+                "gen_mel_sliced",
+                plot_spectrogram_to_numpy(generated_mel_sliced[0].data.cpu().float().numpy()),
+                self.global_step,
+                dataformats="HWC",
+            )
+
+            self.tb_logger.add_image(
+                "gen_mel_normalied",
+                plot_spectrogram_to_numpy(normalized_mel[0].data.cpu().float().numpy()),
+                self.global_step,
+                dataformats="HWC",
+            )
+        
+        encoded, _ = ssl_model.encoder(audio_signal=normalized_mel, length=generated_mel_len_batch)  # b,c,t
         pred_speaker_embedding = ssl_model.downstream_nets['speaker_verification'](encoded[:, :, 0])
         l2_norm = torch.norm(pred_speaker_embedding, p=2, dim=-1, keepdim=True)
         speaker_embedding_normalized = pred_speaker_embedding / l2_norm
-        
+
+        encoded_gt, _ = ssl_model.encoder(audio_signal=gt_normalized_mel, length=generated_mel_len_batch)  # b,c,t
+        pred_speaker_embedding_gt = ssl_model.downstream_nets['speaker_verification'](encoded_gt[:, :, 0])
+        l2_norm = torch.norm(pred_speaker_embedding_gt, p=2, dim=-1, keepdim=True)
+        speaker_embedding_normalized_gt = pred_speaker_embedding_gt / l2_norm
+
         cosine_similarity = torch.nn.functional.cosine_similarity(
-            gt_speaker_embedding, speaker_embedding_normalized, dim=-1
+            speaker_embedding_normalized_gt, speaker_embedding_normalized, dim=-1
         ).mean()
         
         speaker_loss = 1 - cosine_similarity
+        # print("speaker loss", speaker_loss)
         return speaker_loss
 
     def training_step(self, batch, batch_idx):
@@ -301,7 +364,7 @@ class FastPitchModel_SSL(ModelPT):
             self.log("t_pitch_loss", pitch_loss)
 
         if self.use_speaker_loss:
-            speaker_loss = self.compute_speaker_loss(mels_pred, speaker_embedding)
+            speaker_loss = self.compute_speaker_loss(mels, mels_pred, speaker_embedding)
             loss += speaker_loss
             self.log("t_speaker_loss", speaker_loss)
             
@@ -508,6 +571,8 @@ class FastPitchModel_SSL(ModelPT):
 
     def setup_training_data(self, cfg):
         self._train_dl = self.__setup_dataloader_from_config(cfg)
+        self.fb = self._train_dl.dataset.fb
+        self.fb_inverse = self._train_dl.dataset.fb_inverse
 
     def setup_validation_data(self, cfg):
         self._validation_dl = self.__setup_dataloader_from_config(cfg)

@@ -173,8 +173,15 @@ class SSLVocoderDataset(Dataset):
             self.n_fft = ssl_cfg.preprocessor.n_fft
             self.n_mels = 80
 
+            librosa_mel_filter = librosa.filters.mel(sr=self.sample_rate, n_fft=self.n_fft, n_mels=self.n_mels, fmin=0, fmax=8000)
+            librosa_mel_inverse = np.linalg.pinv(librosa_mel_filter)
             self.fb = torch.tensor(
-                librosa.filters.mel(sr=self.sample_rate, n_fft=self.n_fft, n_mels=self.n_mels, fmin=0, fmax=8000),
+                librosa_mel_filter,
+                dtype=torch.float,
+            ).unsqueeze(0)
+
+            self.fb_inverse = torch.tensor(
+                librosa_mel_inverse,
                 dtype=torch.float,
             ).unsqueeze(0)
 
