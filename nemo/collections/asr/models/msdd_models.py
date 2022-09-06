@@ -30,6 +30,7 @@ from tqdm import tqdm
 from nemo.collections.asr.data.audio_to_diar_label import AudioToSpeechMSDDInferDataset, AudioToSpeechMSDDTrainDataset
 from nemo.collections.asr.metrics.multi_binary_acc import MultiBinaryAccuracy
 from nemo.collections.asr.models import ClusteringDiarizer
+from nemo.collections.asr.models.clustering_diarizer import get_available_model_names
 from nemo.collections.asr.models.asr_model import ExportableEncDecModel
 from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
@@ -182,7 +183,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
                     "requested {} model name not available in pretrained models, instead".format(model_path)
                 )
             logging.info("Loading pretrained {} model from NGC".format(model_path))
-            self._speaker_model = EncDecSpeakerLabelModel.from_pretrained(model_name=model_path)
+            self.msdd._speaker_model = EncDecSpeakerLabelModel.from_pretrained(model_name=model_path)
         self._speaker_params = self.cfg_msdd_model.diarizer.speaker_embeddings.parameters
 
     def __setup_dataloader_from_config(self, config):
