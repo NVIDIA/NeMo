@@ -104,11 +104,7 @@ def convert(local_rank, rank, world_size, args):
     app_state.pipeline_model_parallel_size = args.pipeline_model_parallel_size
     app_state.tensor_model_parallel_size = args.tensor_model_parallel_size
     # Auto set split rank for T5, BART, NMT if split rank is None.
-    if (
-        args.pipeline_model_parallel_size > 1
-        and args.pipeline_model_parallel_split_rank is None
-        and args.model_type in ['t5', 'bart', 'nmt']
-    ):
+    if args.pipeline_model_parallel_size > 1 and args.model_type in ['t5', 'bart', 'nmt']:
         if args.pipeline_model_parallel_split_rank is not None:
             app_state.pipeline_model_parallel_split_rank = args.pipeline_model_parallel_split_rank
         else:
@@ -119,6 +115,9 @@ def convert(local_rank, rank, world_size, args):
             else:
                 # If split rank is not set, then we set it to be pipeline_model_parallel_size // 2 - this is because in most cases we have the same number of enc/dec layers.
                 app_state.pipeline_model_parallel_split_rank = args.pipeline_model_parallel_size // 2
+    else:
+        app_state.pipeline_model_parallel_split_rank = None
+
     app_state.model_parallel_size = app_state.tensor_model_parallel_size * app_state.pipeline_model_parallel_size
 
     parallel_state.initialize_model_parallel(
