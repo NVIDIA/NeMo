@@ -263,7 +263,7 @@ def main():
     parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--ssl_content_emb_type', type=str, default="embedding_and_probs")
     parser.add_argument('--use_unique_tokens', type=int, default=0)
-    parser.add_argument('--pool_workers', type=int, default=60)
+    parser.add_argument('--pool_workers', type=int, default=30)
 
     args = parser.parse_args()
 
@@ -400,10 +400,21 @@ def main():
             et = time.time()
             print("Time per batch", bidx, len(dataloader), (et - st) / bidx)
 
-    with Pool(args.pool_workers) as p:
-        p.map(save_pitch_contour, wav_and_id_list)
+    speaker_wise_fps = {}
+    for row in wav_and_id_list:
+        wav_path, wav_id, speaker = row
+        if speaker not in speaker_wise_fps:
+            speaker_wise_fps[speaker] = []
+        speaker_wise_fps[speaker].append(row)
     
-    compute_pitch_stats(wav_and_id_list)
+    filtered_wav_and_id_list = []
+    for speaker in speaker_wise_fps:
+        filtered_wav_and_id_list += speaker_wise_fps[speaker][:50]
+
+    with Pool(args.pool_workers) as p:
+        p.map(save_pitch_contour, filtered_wav_and_id_list)
+    
+    compute_pitch_stats(filtered_wav_and_id_list)
 
 
 
