@@ -96,7 +96,9 @@ class MegatronBertModel(MegatronBaseModel):
 
     def forward(self, input_ids, attention_mask, token_type_ids, lm_labels=None):
         output_tensor = self.model(input_ids, attention_mask, token_type_ids=token_type_ids, lm_labels=lm_labels)
-        return output_tensor
+
+        # Return the output tensor of encoder and transpose from [seq_len, batch, hidden] to [batch, seq_len, hidden]
+        return output_tensor.transpose(1, 0)
 
     def training_step(self, batch, batch_idx):
         tokens, types, sentence_order, loss_mask, lm_labels, padding_mask = self.process_batch(batch)
