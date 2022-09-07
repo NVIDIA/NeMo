@@ -220,6 +220,7 @@ Figure 1: The GPT-3 family architecture. The 5B variant includes 24 transformer 
 | Distributed data preprocessing | Yes (the Pile only)       | N/A                                                                                                                                                                  |
 | NVfuser                         | No             | N/A                                                                                                                                                                  |
 | P-Tuning and Prompt Tuning                | Yes             | N/A                                                                                                                                                                  |
+| Distributed Optimizer (ZeRO-2)               | Yes             | N/A                                                                                                                                                                  |
 
 ### 2.2. T5 and mT5 Models
 <a id="markdown-t5-and-mt5-models" name="t5-and-mt5-models"></a>
