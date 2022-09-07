@@ -131,7 +131,10 @@ def post_language_model_processing(
 
 
 class BertModel(MegatronModule):
-    """Bert Language model."""
+    """
+    Bert Language model.
+    Model returns [seq, batch, hidden] shape
+    """
 
     def __init__(
         self,

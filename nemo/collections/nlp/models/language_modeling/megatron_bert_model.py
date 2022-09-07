@@ -45,7 +45,8 @@ except (ImportError, ModuleNotFoundError):
 
 class MegatronBertModel(MegatronBaseModel):
     """
-    Megatron Bert pretraining
+    Megatron Bert pretraining.
+    Model returns [batch, seq, hidden] shape
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
