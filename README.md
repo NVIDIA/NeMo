@@ -2736,7 +2736,7 @@ from the command line, using hydra. The evaluation script must be launched in a 
 To run the prompt learning pipeline to prompt-learn a 5B GPT-3 model converted checkpoint stored in 
 `/mount/results/gpt3_5b/convert_nemo`, run:
 ```
-python3 /opt/bignlp/bignlp-scripts/main.py \
+python3 /opt/bignlp/bignlp-scripts/main.py prompt_learning=gpt3/squad \
 stages=[prompt_learning] cluster_type=bcp \
 bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data base_results_dir=/mount/results \
 prompt_learning.run.model_train_name=gpt3_5b \
@@ -2822,7 +2822,7 @@ from the command line, using hydra. The evaluation script must be launched in a 
 To run the prompt learning pipeline to prompt-learn a 220M T5 model converted checkpoint stored in 
 `/mount/results/t5_220m/convert_nemo`, run:
 ```
-python3 /opt/bignlp/bignlp-scripts/main.py \
+python3 /opt/bignlp/bignlp-scripts/main.py prompt_learning=t5/squad \
 stages=[prompt_learning] cluster_type=bcp \
 bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data base_results_dir=/mount/results \
 prompt_learning.run.model_train_name=t5_220m \
@@ -2837,7 +2837,7 @@ Any other parameter can also be added to the command to modify its behavior.
 To run the prompt learning pipeline to prompt-learn a 390M mT5 model converted checkpoint stored in 
 `/mount/results/mt5_390m/convert_nemo`, run:
 ```
-python3 /opt/bignlp/bignlp-scripts/main.py \
+python3 /opt/bignlp/bignlp-scripts/main.py prompt_learning=mt5/squad \
 stages=[prompt_learning] cluster_type=bcp \
 bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data base_results_dir=/mount/results \
 prompt_learning.run.model_train_name=mt5_390m \
@@ -3793,6 +3793,14 @@ Inference parameters:
 
 #### 7.2.1. Training Accuracy Results
 
+The user can also prompt-learn on top of any `.nemo` trained checkpoint file on `SQuAD` task mentioned in T5 prompt-learning section.
+The results can be found in the table below.
+
+| Task   | Metric      | 220M  | 3B    |
+|--------|-------------|-------|-------|
+| SQuAD  | Exact Match | 74.20 | 78.52 |
+| SQuAD  | F1          | 84.54 | 87.17 |
+
 Training the 220M T5 model to convergence takes 4 days, and the loss curve can be seen in the figure below:
 
 <img src="img/220M_T5_loss_final.svg"/>
@@ -3862,17 +3870,25 @@ Inference parameters:
 #### 7.3.1. Training Accuracy Results
 Training Accuracy: NVIDIA DGX SuperPOD (4 x 8 x A100 80GB for 170M mT5 Model; 8 x 8 x A100 80GB for 390M mT5 Model; 20 x 8 x A100 80GB for 3B mT5 Model)
 
-We evaluated the 170M parameter and 390M parameter mT5 models on XNLI
-task. The results can be found in the table below. The user can 
-finetune on top of any `.nemo` trained checkpoint file on `XQuAD` task mentioned in mT5 fine_tuning section.
+We evaluated our mT5 models on XQuAD task. The results can be found in the table below. The user can 
+fine-tune on top of any `.nemo` trained checkpoint file on `XQuAD` task mentioned in mT5 fine-tuning section.
 
-| Task-Language | Metric    | 170M  | 390M  |
-|---------------|-----------|-------|-------|
-| XQuAD-de      | Accuracy  | 43.0% | 54.7% |
-| XQuAD-en      | Accuracy  | 63.8% | 68.8% |
-| XQuAD-es      | Accuracy  | 47.0% | 55.3% |
-| XQuAD-hi      | Accuracy  | 34.5% | 47.1% |
-| XQuAD-zh      | Accuracy  | 46.8% | 56.1% |
+| Task-Language | Metric      | 170M  | 390M  |
+|---------------|-------------|-------|-------|
+| XQuAD-de      | Exact Match | 43.0  | 54.7  |
+| XQuAD-en      | Exact Match | 63.8  | 68.8  |
+| XQuAD-es      | Exact Match | 47.0  | 55.3  |
+| XQuAD-hi      | Exact Match | 34.5  | 47.1  |
+| XQuAD-zh      | Exact Match | 46.8  | 56.1  |
+
+The user can also prompt-learn on top of any `.nemo` trained checkpoint file on `SQuAD` task mentioned in mT5 prompt-learning section.
+The results can be found in the table below.
+
+| Task   | Metric      | 390M  | 3B    |
+|--------|-------------|-------|-------|
+| SQuAD  | Exact Match | 76.86 | 81.55 |
+| SQuAD  | F1          | 84.67 | 89.34 |
+
 
 
 Training the 170M mT5 model to convergence takes 4 days, and the loss curve can be seen in the figure below:
@@ -3959,7 +3975,7 @@ Inference parameters:
 **NeMo Megatron 22.08.01**
 * Distributed Adam Optimizer for GPT-3
 * Asymmetric Encoder-decoder Configuration for T5 and mT5
-* Possible to Untie Embeddings with Classifier Layer fo T5 and mT5
+* Possible to Untie Embeddings with Classifier Layer for T5 and mT5
 * Relative Position Embeddings for T5 and mT5 (PP>=3)
 * P-Tuning and Prompt Tuning for T5 and mT5 (PP=1)
 * Refactoring scripts make it more user-friendly
