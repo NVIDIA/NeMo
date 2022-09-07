@@ -99,13 +99,13 @@ class MegatronBertModel(MegatronBaseModel):
 
         # Return the output tensor of encoder and transpose from [seq_len, batch, hidden] to [batch, seq_len, hidden]
         if lm_labels is None:
-            output_tensor = output_tensor
+            output_tensor = output_tensor.transpose(1, 0).contiguous()
         else:
             lm_loss_, sop_logits = output_tensor
 
-            lm_loss_ = lm_loss_.transpose(1, 0)
+            lm_loss_ = lm_loss_.transpose(1, 0).contiguous() 
             if sop_logits is not None:
-                sop_logits = sop_logits.transpose(1, 0)
+                sop_logits = sop_logits.transpose(1, 0).contiguous()
 
             output_tensor = (lm_loss_, sop_logits)
 
