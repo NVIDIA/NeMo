@@ -91,28 +91,35 @@ build-BigNLP:
     # Follow output of the job
     - tail --pid="${PID}" -f "${SLURM_OUTPUT}" # Stream job output until it finishes.
     - echo "Finished job with name ${RUN_NAME}"
+    - export SLURM_NODELIST=$(./jobnodes.sh "${SLURM_JOBID}");    echo "SLURM_NODELIST='${SLURM_NODELIST}'"
+    - export SLURM_STATE=$(./jobstate.sh "${SLURM_JOBID}");       echo "SLURM_JOBID=${SLURM_JOBID} SLURM_STATE='${SLURM_STATE}'"
+    - export SLURM_WALLTIME=$(./jobtime.sh "${SLURM_JOBID}");     echo "SLURM_WALLTIME=${SLURM_WALLTIME} secs"
+    - export SLURM_EXITCODE=$(./jobexitcode.sh "${SLURM_JOBID}" || echo $?); echo "SLURM_EXITCODE='${SLURM_EXITCODE}'"
     - cd ${GIT_CLONE_PATH}
     # Run metrics collection
-    - git clone ssh://git@gitlab-master.nvidia.com:12051/dl/JoC/bignlp-scripts.git
-    - pushd bignlp-scripts/public/data/${RUN_MODEL}
-    - git checkout -b $CI_PIPELINE_ID
-    - GIT_BRANCHES=`git branch -r`
-    - if [[ "$GIT_BRANCHES" =~ .*"$CI_PIPELINE_ID".* ]]; then git pull origin $CI_PIPELINE_ID; fi
-    - GIT_RESULTS_DIR_PATH=`pwd`
-    - popd
-    - python3 tests/ci_tests/utils/get_train_time.py $RESULTS_DIR $GIT_RESULTS_DIR_PATH $BIGNLP_BASE_IMAGE
-    - cd bignlp-scripts
-    # Replace first occurance of tests_to_run_on_this_commit with none. 
-    - | 
-      sed -i '0,/TESTS_TO_RUN_ON_THIS_COMMIT: .*/s/TESTS_TO_RUN_ON_THIS_COMMIT: .*/TESTS_TO_RUN_ON_THIS_COMMIT: NONE/' .gitlab-ci.yml
-    - git add -A
-    - git commit -m "Adding results file for $RUN_MODEL"
-    - git push origin $CI_PIPELINE_ID
+    - |
+        if [[ ${SLURM_EXITCODE} == 0 ]]; then
+          git clone ssh://git@gitlab-master.nvidia.com:12051/dl/JoC/bignlp-scripts.git
+          pushd bignlp-scripts/public/data/${RUN_MODEL}
+          git checkout -b $CI_PIPELINE_ID
+          GIT_BRANCHES=`git branch -r`
+          if [[ "$GIT_BRANCHES" =~ .*"$CI_PIPELINE_ID".* ]]; then git pull origin $CI_PIPELINE_ID; fi
+          GIT_RESULTS_DIR_PATH=`pwd`
+          popd
+          python3 tests/ci_tests/utils/get_train_time.py $RESULTS_DIR $GIT_RESULTS_DIR_PATH $BIGNLP_BASE_IMAGE
+          cd bignlp-scripts
+          sed -i '0,/TESTS_TO_RUN_ON_THIS_COMMIT: .*/s/TESTS_TO_RUN_ON_THIS_COMMIT: .*/TESTS_TO_RUN_ON_THIS_COMMIT: NONE/' .gitlab-ci.yml
+          git add -A
+          git commit -m "Adding results file for $RUN_MODEL"
+          git push origin $CI_PIPELINE_ID
+        fi
+    - exit ${SLURM_EXITCODE}
   allow_failure: false
   rules:
     - when: manual
   needs:
     - build-BigNLP
+
 #### Release Configs ####
 ## GPT3
 train.gpt3.126m_2node_100steps:
