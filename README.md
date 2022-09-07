@@ -2791,7 +2791,7 @@ model:
   pipeline_model_parallel_size: 1
 ```
 
-##### 5.10.1.2. Slurm
+##### 5.10.2.2. Slurm
 <a id="markdown-slurm" name="slurm"></a>
 
 Set configuration for a Slurm cluster in the `conf/cluster/bcm.yaml` file:
@@ -2822,7 +2822,7 @@ then run:
 python3 main.py
 ```
 
-##### 5.10.1.3. Base Command Platform
+##### 5.10.2.3. Base Command Platform
 <a id="markdown-base-command-platform" name="base-command-platform"></a>
 In order to run the prompt learning script on Base Command Platform, set the
 `cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overriden
