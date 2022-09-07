@@ -9,7 +9,7 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
 - [1. Model Overview](#1-model-overview)
 - [2. Feature Matrix](#2-feature-matrix)
   * [2.1. GPT-3 Models](#21-gpt-3-models)
-  * [2.2. T5 and mT5 Models](#22-t5-mt5-models)
+  * [2.2. T5 and mT5 Models](#22-t5-and-mt5-models)
 - [3. Setup](#3-setup)
   * [3.1. Support Matrix](#31-support-matrix)
 - [4. Cloud Service Providers](#4-cloud-service-providers)
@@ -43,7 +43,7 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
     + [5.2.1. Predefined Configurations of GPT-3 Models](#521-predefined-configurations-of-gpt-3-models)
     + [5.2.2. Predefined Configurations of T5 Models](#522-predefined-configurations-of-t5-models)
     + [5.2.3. Predefined Configurations of mT5 Models](#523-predefined-configurations-of-mt5-models)
-    + [5.2.4. Training Logs with TensorBoard and weights and biases](#524-training-logs-with-tensorboard-and-weights---biases)
+    + [5.2.4. Training Logs with TensorBoard and weights and biases](#524-training-logs-with-tensorboard-and-weights-and-biases)
   * [5.3. Using the HP Tool to Find the Optimal Configuration](#53-using-the-hp-tool-to-find-the-optimal-configuration)
     + [5.3.1. HP Tool Capabilities](#531-hp-tool-capabilities)
       - [5.3.1.1. Model Size Recommendation](#5311-model-size-recommendation)
@@ -61,7 +61,7 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
       - [5.3.2.4. Interpreting the Results](#5324-interpreting-the-results)
       - [5.3.2.5. Logging Runs with Weights and Biases](#5325-logging-runs-with-weights-and-biases)
   * [5.4. Training with Custom Configurations](#54-training-with-custom-configurations)
-    + [5.4.1. Example: Changing Embedding Type for T5 models](#541-example--changing-embedding-type-for-t5-models)
+    + [5.4.1. Example: Changing Embedding Type for T5 models](#541-example-changing-embedding-type-for-t5-models)
   * [5.5. Bring Your Own Dataset](#55-bring-your-own-dataset)
     + [5.5.1. Slurm](#551-slurm)
     + [5.5.2. Base Command Platform](#552-base-command-platform)
@@ -105,10 +105,10 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
       - [5.10.1.1. Common](#51011-common)
       - [5.10.1.2. Slurm](#51012-slurm)
       - [5.10.1.3. Base Command Platform](#51013-base-command-platform)
-    + [5.10.2. T5 and mT5 Prompt Learning](#5102-t5-mt5-prompt-learning)
+    + [5.10.2. T5 and mT5 Prompt Learning](#5102-t5-and-mt5-prompt-learning)
       - [5.10.2.1. Common](#51021-common)
-      - [5.10.2.2. Slurm](#51012-slurm-1)
-      - [5.10.2.3. Base Command Platform](#51013-base-command-platform-1)
+      - [5.10.2.2. Slurm](#51022-slurm)
+      - [5.10.2.3. Base Command Platform](#51023-base-command-platform)
   * [5.11. Model Evaluation](#511-model-evaluation)
     + [5.11.1. GPT-3 Evaluation](#5111-gpt-3-evaluation)
       - [5.11.1.1. Common](#51111-common)
@@ -126,10 +126,10 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
       - [5.11.4.1. Common](#51141-common)
       - [5.11.4.2. Slurm](#51142-slurm)
       - [5.11.4.3. Base Command Platform](#51143-base-command-platform)
-    + [5.11.5. Prompt Learnt T5 and mT5 Evaluation](#5114-prompt-learnt-t5-mt5-evaluation)
-      - [5.11.5.1. Common](#51141-common-1)
-      - [5.11.5.2. Slurm](#51142-slurm-1)
-      - [5.11.5.3. Base Command Platform](#51143-base-command-platform-1)
+    + [5.11.5. Prompt Learnt T5 and mT5 Evaluation](#5115-prompt-learnt-t5-and-mt5-evaluation)
+      - [5.11.5.1. Common](#51151-common)
+      - [5.11.5.2. Slurm](#51152-slurm)
+      - [5.11.5.3. Base Command Platform](#51153-base-command-platform)
   * [5.12. Model Export](#512-model-export)
     + [5.12.1. GPT-3 Export](#5121-gpt-3-export)
       - [5.12.1.1. Common](#51211-common)
@@ -154,6 +154,9 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
     + [7.3.3. Inference Performance](#733-inference-performance)
 - [8. Changelog](#8-changelog)
 - [9. Known Issues](#9-known-issues)
+
+<small><i><a href='http://ecotrust-canada.github.io/markdown-toc/'>Table of contents generated with markdown-toc</a></i></small>
+
 
 <!-- /TOC -->
 
@@ -219,7 +222,7 @@ Figure 1: The GPT-3 family architecture. The 5B variant includes 24 transformer 
 | P-Tuning and Prompt Tuning                | Yes             | N/A                                                                                                                                                                  |
 
 ### 2.2. T5 and mT5 Models
-<a id="markdown-t5-mt5-models" name="t5-mt5-models"></a>
+<a id="markdown-t5-and-mt5-models" name="t5-and-mt5-models"></a>
 
 | Feature                          | Training                                                 | Inference |
 |----------------------------------|----------------------------------------------------------|:---------:|
@@ -2757,7 +2760,7 @@ The stdout and stderr outputs will also be redirected to the `/results/prompt_le
 Any other parameter can also be added to the command to modify its behavior.
 
 #### 5.10.2. T5 and mT5 Prompt Learning
-<a id="markdown-t5-mt5-prompt-learning" name="t5-mt5-prompt-learning"></a>
+<a id="markdown-t5-and-mt5-prompt-learning" name="t5-and-mt5-prompt-learning"></a>
 
 The configuration used for the prompt learning needs to be defined in the
 `conf/config.yaml` file by modifying the `prompt_learning` parameter, which specifies the
@@ -3261,7 +3264,7 @@ Any other parameter can also be added to the command to modify its behavior.
 
 
 #### 5.11.5. Prompt Learnt T5 and mT5 Evaluation
-<a id="markdown-prompt-learnt-t5-mt5-evaluation" name="prompt-learnt-t5-mt5-evaluation"></a>
+<a id="markdown-prompt-learnt-t5-and-mt5-evaluation" name="prompt-learnt-t5-and-mt5-evaluation"></a>
 
 We also provide a simple tool to help evaluate the prompt learnt T5 or mT5 checkpoints. You can
 evaluate the capabilities of the prompt learnt models on a customized prompt learning test dataset.
