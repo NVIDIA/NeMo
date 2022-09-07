@@ -155,8 +155,6 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
 - [8. Changelog](#8-changelog)
 - [9. Known Issues](#9-known-issues)
 
-<small><i><a href='http://ecotrust-canada.github.io/markdown-toc/'>Table of contents generated with markdown-toc</a></i></small>
-
 
 <!-- /TOC -->
 
