@@ -701,7 +701,7 @@ def get_dataset(
             **kwargs,
         )
     else:
-        raise NotImplementedError("Dataset type not fully implemented.")
+        raise NotImplementedError(f"Dataset type {dataset_type} not fully implemented.")
     return dataset
 
 
