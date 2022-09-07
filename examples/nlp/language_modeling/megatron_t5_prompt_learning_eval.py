@@ -112,7 +112,7 @@ def main(cfg) -> None:
     )
 
     outputs = trainer.predict(model, test_dl)
-    with open(cfg.pred_file_path, "w") as pred_file:
+    with open(cfg.pred_file_path, "w", encoding="utf-8") as pred_file:
         for batch in outputs:
             preds = batch["predicted_token_ids"]
             for pred in preds:
