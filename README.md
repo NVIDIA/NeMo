@@ -4049,6 +4049,6 @@ Inference parameters:
 <a id="markdown-known-issues" name="known-issues"></a>
 Fixes for the following issues will be released shortly:
 * The inference hyperparameter search is not available in this release. Please use the NeMo Megatron 22.06.RC2 training container to use this feature
-* Accuracy and performance measurement for GPT-3 is currently not supported Please use the NeMo Megatron 22.05 inference container to use this feature
+* Accuracy and performance measurement for GPT-3 is currently not supported. Please use the NeMo Megatron 22.05 inference container to use this feature
 * For running inference on BCP please use the NeMo Megatron 22.03 inference container
 * The fine-tuning SQuAD results for T5 are lower than expected
