@@ -9,7 +9,7 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
 - [1. Model Overview](#1-model-overview)
 - [2. Feature Matrix](#2-feature-matrix)
   * [2.1. GPT-3 Models](#21-gpt-3-models)
-  * [2.2. T5/mT5 Models](#22-t5-mt5-models)
+  * [2.2. T5 and mT5 Models](#22-t5-mt5-models)
 - [3. Setup](#3-setup)
   * [3.1. Support Matrix](#31-support-matrix)
 - [4. Cloud Service Providers](#4-cloud-service-providers)
@@ -43,7 +43,7 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
     + [5.2.1. Predefined Configurations of GPT-3 Models](#521-predefined-configurations-of-gpt-3-models)
     + [5.2.2. Predefined Configurations of T5 Models](#522-predefined-configurations-of-t5-models)
     + [5.2.3. Predefined Configurations of mT5 Models](#523-predefined-configurations-of-mt5-models)
-    + [5.2.4. Training Logs with TensorBoard and Weights & Biases](#524-training-logs-with-tensorboard-and-weights---biases)
+    + [5.2.4. Training Logs with TensorBoard and weights and biases](#524-training-logs-with-tensorboard-and-weights---biases)
   * [5.3. Using the HP Tool to Find the Optimal Configuration](#53-using-the-hp-tool-to-find-the-optimal-configuration)
     + [5.3.1. HP Tool Capabilities](#531-hp-tool-capabilities)
       - [5.3.1.1. Model Size Recommendation](#5311-model-size-recommendation)
@@ -105,7 +105,7 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
       - [5.10.1.1. Common](#51011-common)
       - [5.10.1.2. Slurm](#51012-slurm)
       - [5.10.1.3. Base Command Platform](#51013-base-command-platform)
-    + [5.10.2. T5/mT5 Prompt Learning](#5102-t5-mt5-prompt-learning)
+    + [5.10.2. T5 and mT5 Prompt Learning](#5102-t5-mt5-prompt-learning)
       - [5.10.2.1. Common](#51021-common)
       - [5.10.1.2. Slurm](#51012-slurm-1)
       - [5.10.1.3. Base Command Platform](#51013-base-command-platform-1)
@@ -126,10 +126,10 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
       - [5.11.4.1. Common](#51141-common)
       - [5.11.4.2. Slurm](#51142-slurm)
       - [5.11.4.3. Base Command Platform](#51143-base-command-platform)
-    + [5.11.4. Prompt Learnt T5/mT5 Evaluation](#5114-prompt-learnt-t5-mt5-evaluation)
-      - [5.11.4.1. Common](#51141-common-1)
-      - [5.11.4.2. Slurm](#51142-slurm-1)
-      - [5.11.4.3. Base Command Platform](#51143-base-command-platform-1)
+    + [5.11.5. Prompt Learnt T5 and mT5 Evaluation](#5114-prompt-learnt-t5-mt5-evaluation)
+      - [5.11.5.1. Common](#51141-common-1)
+      - [5.11.5.2. Slurm](#51142-slurm-1)
+      - [5.11.5.3. Base Command Platform](#51143-base-command-platform-1)
   * [5.12. Model Export](#512-model-export)
     + [5.12.1. GPT-3 Export](#5121-gpt-3-export)
       - [5.12.1.1. Common](#51211-common)
@@ -218,7 +218,7 @@ Figure 1: The GPT-3 family architecture. The 5B variant includes 24 transformer 
 | NVfuser                         | No             | N/A                                                                                                                                                                  |
 | P-Tuning and Prompt Tuning                | Yes             | N/A                                                                                                                                                                  |
 
-### 2.2. T5/mT5 Models
+### 2.2. T5 and mT5 Models
 <a id="markdown-t5-mt5-models" name="t5-mt5-models"></a>
 
 | Feature                          | Training                                                 | Inference |
@@ -1364,7 +1364,7 @@ directories respectively. `$NGC_ARRAY_SIZE` is automatically set to the number o
 
 
 
-#### 5.2.4. Training Logs with TensorBoard and Weights & Biases
+#### 5.2.4. Training Logs with TensorBoard and weights and biases
 <a id="markdown-training-with-tb-wandb" name="training-with-tb-wandb"></a>
 The training code can log the model and system related metrics to both TensorBoard and 
 Weights & Biases (W&B). The local files will be stored in the directory specified in the 
@@ -1543,7 +1543,7 @@ which will show the optimal hyper-parameters for the given model.
 
 The predefined configs can be found in the `conf/search_config` directory. Each YAML file shows one 
 model type (GPT-3, T5 or mT5) and one model size (up to 175B parameters for GPT-3 and up to 42B 
-parameters for T5/mT5). To run the desired config, we will need to modify the `search_config` 
+parameters for T5 and mT5). To run the desired config, we will need to modify the `search_config` 
 parameter in the `conf/config.yaml` file. For example, if we wish to run a 5B GPT-3 model, we can 
 set this value to `gpt3/5b` (the .yaml ending should not be included). 
 
@@ -2756,7 +2756,7 @@ The command above assumes you mounted the data workspace in `/mount/data`, and t
 The stdout and stderr outputs will also be redirected to the `/results/prompt_learning_gpt3_log.txt` file, to be able to download the logs from NGC.
 Any other parameter can also be added to the command to modify its behavior.
 
-#### 5.10.2. T5/mT5 Prompt Learning
+#### 5.10.2. T5 and mT5 Prompt Learning
 <a id="markdown-t5-mt5-prompt-learning" name="t5-mt5-prompt-learning"></a>
 
 The configuration used for the prompt learning needs to be defined in the
@@ -3260,7 +3260,7 @@ The stdout and stderr outputs will also be redirected to the `/results/eval_prom
 Any other parameter can also be added to the command to modify its behavior.
 
 
-#### 5.11.4. Prompt Learnt T5/mT5 Evaluation
+#### 5.11.5. Prompt Learnt T5 and mT5 Evaluation
 <a id="markdown-prompt-learnt-t5-mt5-evaluation" name="prompt-learnt-t5-mt5-evaluation"></a>
 
 We also provide a simple tool to help evaluate the prompt learnt T5 or mT5 checkpoints. You can
@@ -3277,7 +3277,7 @@ file to use for evaluation purposes. The `evaluation` parameter must be included
 parameters can be modified to adapt different evaluation tasks and checkpoints
 in evaluation runs. For Base Command Platform, all these parameters should be overridden from the command line.
 
-##### 5.11.4.1. Common
+##### 5.11.5.1. Common
 <a id="markdown-common" name="common"></a>
 To specify the configuration, use all the `run` parameters to define the job specific config (
 `run.tasks` has to be set to `prompt` to run evaluation on prompt learning test tasks):
@@ -3310,7 +3310,7 @@ pretrained_language_model_file: ${base_results_dir}/${evaluation.run.model_train
 virtual_prompt_model_file: ${evaluation.run.prompt_learning_dir}/results/megatron_t5_prompt.nemo # or megatron_mt5_prompt.nemo
 ```
 
-##### 5.11.4.2. Slurm
+##### 5.11.5.2. Slurm
 <a id="markdown-slurm" name="slurm"></a>
 
 Set configuration for a Slurm cluster in the `conf/cluster/bcm.yaml` file:
@@ -3341,7 +3341,7 @@ then run:
 python3 main.py
 ```
 
-##### 5.11.4.3. Base Command Platform
+##### 5.11.5.3. Base Command Platform
 <a id="markdown-base-command-platform" name="base-command-platform"></a>
 In order to run the evaluation script on Base Command Platform, set the
 `cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overriden
@@ -3379,7 +3379,7 @@ Any other parameter can also be added to the command to modify its behavior.
 We also provide a tool to enable deployment of the BigNLP model on the NVIDIA Triton
 Inference Server with FasterTransformer Backend.
 
-The export supports only GPT-3. You can checkout T5/mT5 support
+The export supports only GPT-3. You can checkout T5 and mT5 support
 in FasterTransformer repository but it is limited to older versions of
 NeMo and Megatron-LM.
 
