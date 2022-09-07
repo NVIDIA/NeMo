@@ -343,11 +343,11 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         self._accuracy.correct_counts_k = correct_counts
         self._accuracy.total_counts_k = total_counts
         topk_scores = self._accuracy.compute()
-        
-        self._macro_accuracy.tp = torch.stack([x[f'{tag}_acc_stats'][0] for x in outputs]).sum(axis=0)
-        self._macro_accuracy.fp = torch.stack([x[f'{tag}_acc_stats'][1] for x in outputs]).sum(axis=0)
-        self._macro_accuracy.tn = torch.stack([x[f'{tag}_acc_stats'][2] for x in outputs]).sum(axis=0)
-        self._macro_accuracy.fn = torch.stack([x[f'{tag}_acc_stats'][3] for x in outputs]).sum(axis=0)
+
+        self._macro_accuracy.tp = torch.stack([x[f'{tag}_acc_macro_stats'][0] for x in outputs]).sum(axis=0)
+        self._macro_accuracy.fp = torch.stack([x[f'{tag}_acc_macro_stats'][1] for x in outputs]).sum(axis=0)
+        self._macro_accuracy.tn = torch.stack([x[f'{tag}_acc_macro_stats'][2] for x in outputs]).sum(axis=0)
+        self._macro_accuracy.fn = torch.stack([x[f'{tag}_acc_macro_stats'][3] for x in outputs]).sum(axis=0)
         macro_accuracy_score = self._macro_accuracy.compute()
 
         self._accuracy.reset()
@@ -378,7 +378,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             path2audio_file: path to audio wav file
 
         Returns:
-            embs: speaker embeddings 
+            embs: speaker embeddings
         """
         audio, sr = librosa.load(path2audio_file, sr=None)
         target_sr = self._cfg.train_ds.get('sample_rate', 16000)
@@ -408,11 +408,11 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         Verify if two audio files are from the same speaker or not.
 
         Args:
-            path2audio_file1: path to audio wav file of speaker 1  
-            path2audio_file2: path to audio wav file of speaker 2 
+            path2audio_file1: path to audio wav file of speaker 1
+            path2audio_file2: path to audio wav file of speaker 2
             threshold: cosine similarity score used as a threshold to distinguish two embeddings (default = 0.7)
 
-        Returns:  
+        Returns:
             True if both audio files are from same speaker, False otherwise
         """
         embs1 = self.get_embedding(path2audio_file1).squeeze()
