@@ -318,7 +318,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
 
         return {'loss': loss}
 
-    def validation_step(self, batch, batch_idx, dataloader_idx: int = 0, tag: str = 'val'):
+    def evaluation_step(self, batch, batch_idx, dataloader_idx: int = 0, tag: str = 'val'):
         audio_signal, audio_signal_len, labels, _ = batch
         logits, _ = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
         loss_value = self.loss(logits=logits, labels=labels)
@@ -335,7 +335,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             f'{tag}_acc_macro_stats': stats,
         }
 
-    def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0, tag: str = 'val'):
+    def multi_evaluation_epoch_end(self, outputs, dataloader_idx: int = 0, tag: str = 'val'):
         loss_mean = torch.stack([x[f'{tag}_loss'] for x in outputs]).mean()
         correct_counts = torch.stack([x[f'{tag}_correct_counts'] for x in outputs]).sum(axis=0)
         total_counts = torch.stack([x[f'{tag}_total_counts'] for x in outputs]).sum(axis=0)
@@ -353,7 +353,6 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         self._accuracy.reset()
         self._macro_accuracy.reset()
 
-        logging.info(f'{tag}_loss: {loss_mean:.3f}')
         self.log(f'{tag}_loss', loss_mean, sync_dist=True)
         for top_k, score in zip(self._accuracy.top_k, topk_scores):
             self.log(f'{tag}_acc_micro_top@{top_k}', score, sync_dist=True)
@@ -365,11 +364,17 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             f'{tag}_acc_macro': macro_accuracy_score,
         }
 
+    def validation_step(self, batch, batch_idx, dataloader_idx: int = 0):
+        return self.evaluation_step(batch, batch_idx, dataloader_idx, 'val')
+
+    def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
+        return self.multi_evaluation_epoch_end(outputs, dataloader_idx, 'val')
+
     def test_step(self, batch, batch_idx, dataloader_idx: int = 0):
-        return self.validation_step(batch, batch_idx, dataloader_idx, 'test')
+        return self.evaluation_step(batch, batch_idx, dataloader_idx, 'test')
 
     def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
-        return self.multi_validation_epoch_end(outputs, dataloader_idx, 'test')
+        return self.multi_evaluation_epoch_end(outputs, dataloader_idx, 'test')
 
     @torch.no_grad()
     def get_embedding(self, path2audio_file):
