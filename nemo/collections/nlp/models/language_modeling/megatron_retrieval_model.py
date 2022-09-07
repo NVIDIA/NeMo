@@ -91,25 +91,32 @@ class MegatronRetrievalModel(MegatronBaseModel):
         self.model.model_type = ModelType.encoder_and_decoder
 
         if hasattr(self.cfg, "shape_file"):
-            # self.grad_clip_pl_default = True
             set_base_shapes(self, self.cfg.shape_file, rescale_params=False)
             # add shape file
             self.register_artifact("model.shape_file", self.cfg.shape_file),
 
+            # here manually initialize all the named parameters with the muTranfer normal initializer
             for name, tensor in self.named_parameters():
                 if name.endswith('.dense_4h_to_h.weight') or name.endswith('.dense.weight'):
+                    # initialize all the output dense matrix weight
+                    # match the megatron lm model
                     std = self.cfg.init_method_std / math.sqrt(2.0 * 12.0)
                     normal_(tensor, 0, std)
                 elif name.endswith('layernorm.weight'):
+                    # initialize all the layer norm weight
                     if tensor.std() != 0 and tensor.mean() != 1:
                         raise ValueError(f'need to check {name} init')
                     normal_(tensor, 1, 0)
                 elif name.endswith('.weight'):
+                    # initialize all the other dense matrix weight
                     normal_(tensor, 0, self.cfg.init_method_std)
                 else:
                     if tensor.std() != 0 and tensor.mean() != 0:
                         raise ValueError(f'need to check {name} init')
 
+            # here manually overwrite the norm factor
+            # note, has to turn off the model.apply_query_key_layer_scaling
+            assert not self.cfg.apply_query_key_layer_scaling
             for name, layer in self.named_modules():
                 if (
                     name.endswith('.self_attention')

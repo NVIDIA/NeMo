@@ -183,6 +183,11 @@ def process_sentence_chunks(
     shard_id: int,
     total_shards: int,
 ):
+    """
+    This function takes chunked tokens from the retrieval dataset and map it back to text.
+    In stage 1, it divides the total work into `total_shards`, and process only at the `shard_id`.  
+    If the stage is None, it process all the chunks.
+    """
     total_chunks = ds.chunks
     start = 0
     threshold = 0

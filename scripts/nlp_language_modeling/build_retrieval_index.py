@@ -135,6 +135,12 @@ def process_sentence_chunks(
     shard_id: int,
     total_shards: int,
 ):
+    """
+    This function takes chunked tokens from the retrieval dataset and map it back to text.
+    In stage 0, it only loads the first `warm_up_size` chunks that is used for building the Faiss index structure.
+    In other stages, in addition to the warm_up_size chunks, it also sends the chunked text and add their embeddings into the index.
+    In stage 1, it divides the total work into `total_shards`, and process only at the `shard_id`. If the stage is None, it process all the chunks.
+    """
     total_chunks = ds.chunks
     num_docs = len(ds._index.sizes)
     assert len(ds._index.sizes) == len(ds._index._chunk_id_start)
