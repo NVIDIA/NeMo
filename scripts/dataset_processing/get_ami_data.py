@@ -14,11 +14,19 @@
 #
 # Download the AMI test dataset used to evaluate Speaker Diarization
 # More information here: https://groups.inf.ed.ac.uk/ami/corpus/
-# USAGE: python get_ami_data.py --data_root=<where to put data> --manifest_filepath AMItest_input_manifest.json
+# USAGE: python get_ami_data.py
 import argparse
 import os
 
 from nemo.collections.asr.parts.utils.manifest_utils import create_manifest
+
+# todo: once https://github.com/tango4j/diarization_annotation/pull/1 merged, we can use the same repo
+test_rttm_url = (
+    "https://raw.githubusercontent.com/tango4j/diarization_annotation/main/AMI_corpus/test/split_rttms.tar.gz"
+)
+dev_rttm_url = (
+    "https://raw.githubusercontent.com/SeanNaren/diarization_annotation/dev/AMI_corpus/dev/split_rttms.tar.gz"
+)
 
 test_set_ids = [
     "EN2002a",
@@ -47,36 +55,70 @@ test_set_ids = [
     "TS3007d",
 ]
 
+dev_set_ids = [
+    "IS1008a",
+    "IS1008b",
+    "IS1008c",
+    "IS1008d",
+    "ES2011a",
+    "ES2011b",
+    "ES2011c",
+    "ES2011d",
+    "TS3004a",
+    "TS3004b",
+    "TS3004c",
+    "TS3004d",
+    "IB4001",
+    "IB4002",
+    "IB4003",
+    "IB4004",
+    "IB4010",
+    "IB4011",
+]
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Download the AMI Test Corpus Dataset for Speaker Diarization")
-    parser.add_argument("--manifest_filepath", help="path to output manifest file", type=str, required=True)
-    parser.add_argument("--data_root", help="path to output manifest file", type=str, default="ami_dataset")
+    parser.add_argument(
+        "--test_manifest_filepath",
+        help="path to output test manifest file",
+        type=str,
+        default='AMItest_input_manifest.json',
+    )
+    parser.add_argument(
+        "--dev_manifest_filepath",
+        help="path to output test manifest file",
+        type=str,
+        default='AMIdev_input_manifest.json',
+    )
+    parser.add_argument("--data_root", help="path to output data directory", type=str, default="ami_dataset")
     args = parser.parse_args()
 
     data_path = os.path.abspath(args.data_root)
     os.makedirs(data_path, exist_ok=True)
-    audio_path = os.path.join(data_path, "audio")
-    os.makedirs(audio_path, exist_ok=True)
-    rttm_path = os.path.join(data_path, "split_rttms")
 
-    for id in test_set_ids:
-        os.system(
-            f"wget -P {audio_path} https://groups.inf.ed.ac.uk/ami/AMICorpusMirror//amicorpus/{id}/audio/{id}.Mix-Headset.wav"
-        )
+    for ids, manifest_path, split, rttm_url in (
+        (test_set_ids, args.test_manifest_filepath, 'test', test_rttm_url),
+        (dev_set_ids, args.dev_manifest_filepath, 'dev', dev_rttm_url),
+    ):
+        split_path = os.path.join(data_path, split)
+        audio_path = os.path.join(split_path, "audio")
+        os.makedirs(split_path, exist_ok=True)
+        rttm_path = os.path.join(split_path, "split_rttms")
 
-    os.system(
-        f"wget -P {data_path} https://raw.githubusercontent.com/tango4j/diarization_annotation/main/AMI_corpus/test/split_rttms.tar.gz"
-    )
-    os.system(f"tar -xzvf {data_path}/split_rttms.tar.gz -C {data_path}")
+        for id in ids:
+            os.system(
+                f"wget -P {audio_path} https://groups.inf.ed.ac.uk/ami/AMICorpusMirror//amicorpus/{id}/audio/{id}.Mix-Headset.wav"
+            )
 
-    audio_files_path = 'audio_files.txt'
-    rttm_files_path = 'rttm_files.txt'
-    with open(audio_files_path, 'w') as f:
-        f.write('\n'.join(os.path.join(audio_path, p) for p in os.listdir(audio_path)))
+        if not os.path.exists(f"{split_path}/split_rttms.tar.gz"):
+            os.system(f"wget -P {split_path} {rttm_url}")
+        os.system(f"tar -xzvf {split_path}/split_rttms.tar.gz -C {split_path}")
 
-    with open(rttm_files_path, 'w') as f:
-        f.write('\n'.join(os.path.join(rttm_path, p) for p in os.listdir(rttm_path)))
+        audio_files_path = os.path.join(split_path, 'audio_files.txt')
+        rttm_files_path = os.path.join(split_path, 'rttm_files.txt')
+        with open(audio_files_path, 'w') as f:
+            f.write('\n'.join(os.path.join(audio_path, p) for p in os.listdir(audio_path)))
+        with open(rttm_files_path, 'w') as f:
+            f.write('\n'.join(os.path.join(rttm_path, p) for p in os.listdir(rttm_path)))
 
-    create_manifest(
-        audio_files_path, args.manifest_filepath, rttm_path=rttm_files_path,
-    )
+        create_manifest(audio_files_path, manifest_path, rttm_path=rttm_files_path)
