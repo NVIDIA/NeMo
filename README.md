@@ -1408,8 +1408,8 @@ tool provides several different capabilities, as shown in the table below:
 <a id="markdown-model-size-recommendation" name="model-size-recommendation"></a>
 
 For users who do not know what model size they wish to train, our tool is capable of recommending 
-a model size, given the hardware and training constraints. If you know the number of GPUs, the 
-TFLOPS per GPU, the maximum time to train, and the number of tokens to train for, then our tool can 
+a model size, given the hardware and training constraints. If the number of GPUs, the TFLOPS per GPU, 
+the maximum time to train, and the number of tokens to train for are known, then the tool can 
 recommend a model size that can be trained with the specified hardware and time constraints.
 
 For example, if the user has 20 NVIDIA DGX nodes available (80GB GPU memory), and wants to train a 
@@ -1522,8 +1522,8 @@ parameter in the `conf/config.yaml` file. For example, if we wish to run a 5B GP
 set this value to `gpt3/5b` (the .yaml ending should not be included). 
 
 The tool will always generate the base configuration for the given model first. Then, the 
-`run_training_hp_search` parameter can be set to `True`, to run the training HP searches. 
-If this two parameter is set to `False`, the training pipeline will not be executed. Once this 
+`run_training_hp_search` parameter can be set to `True` to run the training HP searches. 
+If this parameter is set to `False`, the training pipeline will not be executed. Once this 
 parameter is set, we can run the tool by calling `python3 main.py`. 
 
 ###### 5.3.2.2.1. Model Config
@@ -1682,7 +1682,7 @@ config with the lowest training time. This is the recommended model for training
 Notes: 
  - The result of the Training HP Search will vary when it is run with different numbers of nodes. 
  This is mainly caused by the new distributed optimizer, which provides higher memory savings when 
- using more nodes (higher DP value).
+ using more nodes (i.e. higher data parallel value).
 
 ##### 5.3.2.5. Logging Runs with Weights and Biases
 <a id="markdown-logging-runs-with-weights-and-biases" name="logging-runs-with-weights-and-biases"></a>
