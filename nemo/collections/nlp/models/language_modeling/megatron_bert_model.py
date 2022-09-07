@@ -103,7 +103,7 @@ class MegatronBertModel(MegatronBaseModel):
         else:
             lm_loss_, sop_logits = output_tensor
 
-            lm_loss_ = lm_loss_.transpose(1, 0).contiguous() 
+            lm_loss_ = lm_loss_.transpose(1, 0).contiguous()
             if sop_logits is not None:
                 sop_logits = sop_logits.transpose(1, 0).contiguous()
 
