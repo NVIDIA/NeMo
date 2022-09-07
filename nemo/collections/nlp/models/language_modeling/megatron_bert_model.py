@@ -98,7 +98,7 @@ class MegatronBertModel(MegatronBaseModel):
         output_tensor = self.model(input_ids, attention_mask, token_type_ids=token_type_ids, lm_labels=lm_labels)
 
         # Return the output tensor of encoder and transpose from [seq_len, batch, hidden] to [batch, seq_len, hidden]
-        if lm_labels is None:
+        if torch.is_tensor(output_tensor):
             output_tensor = output_tensor.transpose(1, 0).contiguous()
         else:
             lm_loss_, sop_logits = output_tensor
