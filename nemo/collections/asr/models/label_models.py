@@ -332,7 +332,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             f'{tag}_correct_counts': correct_counts,
             f'{tag}_total_counts': total_counts,
             f'{tag}_acc_micro_top_k': acc_top_k,
-            f'{tag}_acc_macro_stats': stats
+            f'{tag}_acc_macro_stats': stats,
         }
 
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0, tag: str = 'val'):
@@ -353,15 +353,17 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         self._accuracy.reset()
         self._macro_accuracy.reset()
 
-        tensorboard_log = {
-            f'{tag}_loss': oss_mean,
-            f'{tag}_acc_macro_top@1': macro_accuracy_score,
-        }
-
+        logging.info(f'{tag}_loss: {loss_mean:.3f}')
+        self.log(f'{tag}_loss', loss_mean, sync_dist=True)
         for top_k, score in zip(self._accuracy.top_k, topk_scores):
-            tensorboard_log[f'{tag}_acc_micro_top@{top_k}'] = score
+            self.log(f'{tag}_acc_micro_top@{top_k}', score, sync_dist=True)
+        self.log(f'{tag}_acc_macro', macro_accuracy_score, sync_dist=True)
 
-        return {'log': tensorboard_log}
+        return {
+            f'{tag}_loss': loss_mean,
+            f'{tag}_acc_top_k': topk_scores,
+            f'{tag}_acc_macro': macro_accuracy_score,
+        }
 
     def test_step(self, batch, batch_idx, dataloader_idx: int = 0):
         return self.validation_step(batch, batch_idx, dataloader_idx, 'test')
