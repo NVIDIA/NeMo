@@ -13,13 +13,13 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
 - [3. Setup](#3-setup)
   * [3.1. Support Matrix](#31-support-matrix)
 - [4. Cloud Service Providers](#4-cloud-service-providers)
-  * [4.1 Azure](#41-azure)
-    + [4.1.1 Cluster Bring-Up](#411-cluster-bring-up)
-    + [4.1.2 Cluster Validation](#412-cluster-validation)
-      - [4.1.2.1 Validation Script Usage](#4121-validation-script-usage)
-    + [4.1.3 Config Modifications](#413-config-modifications)
-      - [4.1.3.1 Generate NCCL Topology](#4131-generate-nccl-topology)
-      - [4.1.3.2 Environment Variables](#4132-environment-variables)
+  * [4.1. Azure](#41-azure)
+    + [4.1.1. Cluster Bring-Up](#411-cluster-bring-up)
+    + [4.1.2. Cluster Validation](#412-cluster-validation)
+      - [4.1.2.1. Validation Script Usage](#4121-validation-script-usage)
+    + [4.1.3. Config Modifications](#413-config-modifications)
+      - [4.1.3.1. Generate NCCL Topology](#4131-generate-nccl-topology)
+      - [4.1.3.2. Environment Variables](#4132-environment-variables)
 - [5. Quick Start Guide](#5-quick-start-guide)
   * [5.1. Training BigNLP Models](#51-training-bignlp-models)
     + [5.1.1. Prepare Environment](#511-prepare-environment)
@@ -61,11 +61,11 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
       - [5.3.2.4. Interpreting the Results](#5324-interpreting-the-results)
       - [5.3.2.5. Logging Runs with Weights and Biases](#5325-logging-runs-with-weights-and-biases)
   * [5.4. Training with Custom Configurations](#54-training-with-custom-configurations)
-    + [5.4.1 Example: Changing Embedding Type for T5 models](#541-example--changing-embedding-type-for-t5-models)
+    + [5.4.1. Example: Changing Embedding Type for T5 models](#541-example--changing-embedding-type-for-t5-models)
   * [5.5. Bring Your Own Dataset](#55-bring-your-own-dataset)
-        * [5.5.1. Slurm](#551-slurm)
-        * [5.5.2. Base Command Platform](#552-base-command-platform)
-        * [5.5.3. Common](#553-common)
+    + [5.5.1. Slurm](#551-slurm)
+    + [5.5.2. Base Command Platform](#552-base-command-platform)
+    + [5.5.3. Common](#553-common)
   * [5.6. Model Training](#56-model-training)
     + [5.6.1. GPT-3 Training](#561-gpt-3-training)
       - [5.6.1.1. Slurm](#5611-slurm)
@@ -154,7 +154,6 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
     + [7.3.3. Inference Performance](#733-inference-performance)
 - [8. Changelog](#8-changelog)
 - [9. Known Issues](#9-known-issues)
-
 
 <!-- /TOC -->
 
@@ -271,10 +270,10 @@ Figure 1: The GPT-3 family architecture. The 5B variant includes 24 transformer 
 ## 4. Cloud Service Providers
 <a id="markdown-cloud-service-providers" name="cloud-service-providers"></a>
 
-### 4.1 Azure
+### 4.1. Azure
 <a id="markdown-azure" name="azure"></a>
 
-#### 4.1.1 Cluster Bring-Up
+#### 4.1.1. Cluster Bring-Up
 <a id="markdown-cluster-bring-up" name="cluster-bring-up"></a>
 To set up a Slurm cluster for bignlp, we recommend using Azure CycleCloud with the following steps:
 
@@ -289,7 +288,7 @@ To set up a Slurm cluster for bignlp, we recommend using Azure CycleCloud with t
 
 Once your cluster is up and running, continue with the cluster validation steps.
 
-#### 4.1.2 Cluster Validation
+#### 4.1.2. Cluster Validation
 <a id="markdown-cluster-validation" name="cluster-validation"></a>
 
 Before running the cluster validation script, ensure your NGC credentials have been added to `~/.config/enroot/.credentials` on all nodes.
@@ -298,7 +297,7 @@ The cluster validation script at `tools/csp/azure/cluster_validation.sh` will ru
 The logs from these tests will be stored at `results/cluster_validation`. The script will list any nodes that fail these tests.
 These nodes should be replaced or restarted through the CycleCloud UI.
 
-##### 4.1.2.1 Validation Script Usage
+##### 4.1.2.1. Validation Script Usage
 <a id="markdown-validation-script-usage" name="validation-script-usage"></a>
 
 The script has 3 required parameters:
@@ -323,11 +322,11 @@ By default, the script will run both the GPU diagnostics and the NCCL test. You 
 
 See `bash cluster_validation.sh -h` for more information.
 
-#### 4.1.3 Config Modifications
+#### 4.1.3. Config Modifications
 <a id="markdown-config-modifications" name="config-modifications"></a>
 Before launching jobs, the NCCL topology file needs to be created, and some changes to the config files must be made.
 
-##### 4.1.3.1 Generate NCCL Topology
+##### 4.1.3.1. Generate NCCL Topology
 <a id="markdown-generate-nccl-topology" name="generate-nccl-topology"></a>
 
 To generate the NCCL topology file, run the following:
@@ -345,7 +344,7 @@ env_vars:
     NCCL_TOPO_FILE: /opt/microsoft/ndv4-topo.xml
 ```
 
-##### 4.1.3.2 Environment Variables
+##### 4.1.3.2. Environment Variables
 <a id="markdown-environment-variables" name="environment-variables"></a>
 Set these environment variables in `config.yaml` (in addition to `NCCL_TOPO_FILE` as defined above):
 ```
@@ -1806,7 +1805,7 @@ The training config files can be modified, or other files can be created to be
 used for training. They should follow the same structure and guidelines as the
 existing model configurations.
 
-#### 5.4.1 Example: Changing Embedding Type for T5 models
+#### 5.4.1. Example: Changing Embedding Type for T5 models
 <a id="markdown-example-changing-embedding-time-for-t5-models" name="example-changing-embedding-time-for-t5-models"></a>
 
 Here we show an example to change the embedding type for T5 models. Let's assume a case you want to
@@ -1855,7 +1854,7 @@ a fresh SentencePiece tokenizer with our scripts or load existing ones.
 The data preparation can be parallelized by using multiple nodes (by default 20 nodes) to preprocess 
 all custom dataset files in parallel.
 
-###### 5.5.1. Slurm
+#### 5.5.1. Slurm
 <a id="markdown-451-slurm" name="451-slurm"></a>
 
 First, ensure the cluster related configuration in the `conf/cluster/bcm.yaml` file is correct.
@@ -1878,7 +1877,7 @@ And then run:
 python3 main.py
 ```
 
-###### 5.5.2. Base Command Platform
+#### 5.5.2. Base Command Platform
 <a id="markdown-452-base-command-platform" name="452-base-command-platform"></a>
 
 In order to run the data preparation script on Base Command Platform, set the
@@ -1905,7 +1904,7 @@ The command above assumes you mounted the data
 workspace in `/mount/data`, and the results workspace in `/mount/results`. Stdout and stderr are redirected to the `/results/data_gpt3_log.txt` file, so it can be downloaded from NGC. 
 Any other parameter can also be added to the command to modify its behavior.
 
-###### 5.5.3. Common
+#### 5.5.3. Common
 <a id="markdown-453-common" name="453-common"></a>
 
 Set the configuration for the custom data preparation job in the YAML file:
@@ -2679,7 +2678,7 @@ The configuration used for the prompt learning needs to be defined in the
 file to use for prompt learning purposes. The `prompt_learning` parameter must be included
 in `stages` to run the prompt learning pipeline. To prompt learning on `squad` task, set
 `prompt_learning` parameter to `gpt3/squad`, which can be found in `conf/prompt_learning/gpt3/squad.yaml`.
-The tool currently support P-tuning technique only.
+The tool currently supports P-tuning technique only.
 
 ##### 5.10.1.1. Common
 <a id="markdown-common" name="common"></a>
@@ -2766,7 +2765,7 @@ file to use for prompt learning purposes. The `prompt_learning` parameter must b
 in `stages` to run the prompt learning pipeline. To prompt learning on `squad` task, set
 `prompt_learning` parameter to `t5/squad`, which can be found in `conf/prompt_learning/t5/squad.yaml` for T5 models
 (or `mt5/squad`, which can be found in `conf/prompt_learning/mt5/squad.yaml` for mT5 models). 
-The tool currently support P-tuning technique only.
+The tool currently supports P-tuning technique only.
 
 ##### 5.10.2.1. Common
 <a id="markdown-common" name="common"></a>
@@ -4046,6 +4045,7 @@ Inference parameters:
 
 ## 9. Known Issues
 <a id="markdown-known-issues" name="known-issues"></a>
+Fixes for the following issues will be released shortly:
 * The inference hyperparameter search is not available in this release. Please use the NeMo Megatron 22.06.RC2 training container to use this feature
 * Accuracy and performance measurement for GPT-3 is currently not supported Please use the NeMo Megatron 22.05 inference container to use this feature
 * For running inference on BCP please use the NeMo Megatron 22.03 inference container
