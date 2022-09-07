@@ -13,7 +13,7 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
 - [3. Setup](#3-setup)
   * [3.1. Support Matrix](#31-support-matrix)
 - [4. Cloud Service Providers](#4-cloud-service-providers)
-  * [4.1. Azure](#41-azure)
+  * [4.1 Azure](#41-azure)
     + [4.1.1 Cluster Bring-Up](#411-cluster-bring-up)
     + [4.1.2 Cluster Validation](#412-cluster-validation)
       - [4.1.2.1 Validation Script Usage](#4121-validation-script-usage)
@@ -61,11 +61,11 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
       - [5.3.2.4. Interpreting the Results](#5324-interpreting-the-results)
       - [5.3.2.5. Logging Runs with Weights and Biases](#5325-logging-runs-with-weights-and-biases)
   * [5.4. Training with Custom Configurations](#54-training-with-custom-configurations)
-    + [5.4.1 Example: Changing Embedding Type for T5 models](#541-example-changing-embedding-type-for-t5-models)
+    + [5.4.1 Example: Changing Embedding Type for T5 models](#541-example--changing-embedding-type-for-t5-models)
   * [5.5. Bring Your Own Dataset](#55-bring-your-own-dataset)
-      - [5.5.1. Slurm](#551-slurm)
-      - [5.5.2. Base Command Platform](#552-base-command-platform)
-      - [5.5.3. Common](#553-common)
+        * [5.5.1. Slurm](#551-slurm)
+        * [5.5.2. Base Command Platform](#552-base-command-platform)
+        * [5.5.3. Common](#553-common)
   * [5.6. Model Training](#56-model-training)
     + [5.6.1. GPT-3 Training](#561-gpt-3-training)
       - [5.6.1.1. Slurm](#5611-slurm)
@@ -90,21 +90,25 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
       - [5.8.3.1. Common](#5831-common)
       - [5.8.3.2. Slurm](#5832-slurm)
       - [5.8.3.3. Base Command Platform](#5833-base-command-platform)
-  * [5.9. Model Fine-tuning](#59-model-fine_tuning)
-    + [5.9.1. T5 Fine-tuning](#591-t5-fine_tuning)
+  * [5.9. Model Fine-tuning](#59-model-fine-tuning)
+    + [5.9.1. T5 Fine-tuning](#591-t5-fine-tuning)
       - [5.9.1.1. Common](#5911-common)
       - [5.9.1.2. Slurm](#5912-slurm)
       - [5.9.1.3. Base Command Platform](#5913-base-command-platform)
-    + [5.9.2. mT5 Fine-tuning](#592-mt5-fine_tuning)
+    + [5.9.2. mT5 Fine-tuning](#592-mt5-fine-tuning)
       - [5.9.2.1. Common](#5921-common)
       - [5.9.2.2. Slurm](#5922-slurm)
       - [5.9.2.3. Base Command Platform](#5923-base-command-platform)
-    + [5.9.3. Fine-tuning on Custom Tasks](#593-fine_tuning-on-custom-tasks)
+    + [5.9.3. Fine-tuning on Custom Tasks](#593-fine-tuning-on-custom-tasks)
   * [5.10. Model Prompt Learning](#510-model-prompt-learning)
     + [5.10.1. GPT-3 Prompt Learning](#5101-gpt-3-prompt-learning)
       - [5.10.1.1. Common](#51011-common)
       - [5.10.1.2. Slurm](#51012-slurm)
       - [5.10.1.3. Base Command Platform](#51013-base-command-platform)
+    + [5.10.2. T5/mT5 Prompt Learning](#5102-t5-mt5-prompt-learning)
+      - [5.10.2.1. Common](#51021-common)
+      - [5.10.1.2. Slurm](#51012-slurm-1)
+      - [5.10.1.3. Base Command Platform](#51013-base-command-platform-1)
   * [5.11. Model Evaluation](#511-model-evaluation)
     + [5.11.1. GPT-3 Evaluation](#5111-gpt-3-evaluation)
       - [5.11.1.1. Common](#51111-common)
@@ -122,15 +126,19 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
       - [5.11.4.1. Common](#51141-common)
       - [5.11.4.2. Slurm](#51142-slurm)
       - [5.11.4.3. Base Command Platform](#51143-base-command-platform)
+    + [5.11.4. Prompt Learnt T5/mT5 Evaluation](#5114-prompt-learnt-t5-mt5-evaluation)
+      - [5.11.4.1. Common](#51141-common-1)
+      - [5.11.4.2. Slurm](#51142-slurm-1)
+      - [5.11.4.3. Base Command Platform](#51143-base-command-platform-1)
   * [5.12. Model Export](#512-model-export)
     + [5.12.1. GPT-3 Export](#5121-gpt-3-export)
       - [5.12.1.1. Common](#51211-common)
       - [5.12.1.2. Slurm](#51212-slurm)
       - [5.12.1.3. Base Command Platform](#51213-base-command-platform)
-
 - [6. Deploying the BigNLP Model](#6-deploying-the-bignlp-model)
   * [6.1. Run NVIDIA Triton Server with Generated Model Repository](#61-run-nvidia-triton-server-with-generated-model-repository)
-  * [6.2. GPT text generation with ensemble](#62-gpt-text-generation-with-ensemble)
+- [6.2. GPT-3 text generation with ensemble](#62-gpt-3-text-generation-with-ensemble)
+- [6.3. UL2 checkpoints deployment](#63-ul2-checkpoints-deployment)
 - [7. Performance](#7-performance)
   * [7.1. GPT-3 Results](#71-gpt-3-results)
     + [7.1.1. Training Accuracy Results](#711-training-accuracy-results)
@@ -1802,8 +1810,8 @@ existing model configurations.
 <a id="markdown-example-changing-embedding-time-for-t5-models" name="example-changing-embedding-time-for-t5-models"></a>
 
 Here we show an example to change the embedding type for T5 models. Let's assume a case you want to
-train a 220M T5 model. Instead of using default absolute learnable positional embeddings, you 
-want to use relative positional embeddings.
+train a 220M T5 model. Instead of using default absolute learnable position embeddings, you 
+want to use relative position embeddings.
 
 First of all, you might want to check the training configuration file in `conf/training/(model_type)/(model_size).yaml`. 
 In this case it will be `conf/training/t5/220m.yaml`. In the configuration file, you can find all the options we support.
@@ -2426,7 +2434,7 @@ Any other parameter can also be added to the command to modify its behavior.
 <a id="markdown-model-fine_tuning" name="model-fine_tuning"></a>
 
 We also provide an easy-to-use tool to help fine-tuning the trained checkpoints
-on SQuAD for T5 models and on XQuAD for mT5 models. Fine-tuning for GPT-3 models are not supported.
+on SQuAD for T5 models and on XQuAD for mT5 models. Fine-tuning for GPT-3 models is not supported.
 
 #### 5.9.1. T5 Fine-tuning
 <a id="markdown-t5-fine_tuning" name="t5-fine_tuning"></a>
@@ -2534,7 +2542,7 @@ file to use for fine-tuning purposes. The `fine_tuning` parameter must be includ
 
 ##### 5.9.2.1. Common
 <a id="markdown-common" name="common"></a>
-To specify the configuration for what tasks to run for fine_tuning, 
+To specify the configuration for what tasks to run for fine-tuning, 
 use the `run.task_name` parameter. 
 And use all the `run` parameters to define the job specific config:
 ```yaml
@@ -2610,7 +2618,7 @@ The stdout and stderr outputs will also be redirected to the /results/finetune_m
 Any other parameter can also be added to the command to modify its behavior.
 
 #### 5.9.3. Fine-tuning on Custom Tasks
-<a id="markdown-fine_tuning-on-custom-tasks" name="fine_tuning-on-custom-tasks"></a>
+<a id="markdown-fine-tuning-on-custom-tasks" name="fine-tuning-on-custom-tasks"></a>
 We also support fine-tuning on custom down-stream tasks in T5 and mT5. In order to benchmark on your own
 dataset, you are required to split the original dataset into two files, i.e. a txt file corresponding to the 
 source (context) data, and txt file corresponding to the target data. Each line of these two files forms a 
@@ -2655,14 +2663,14 @@ Instead of selecting discrete text prompts in a manual or automated fashion, pro
 - Our prompt tuning implementation is based off Lester et. al’s EMNLP 2021 paper "[The Power of Scale for Parameter-Efficient Prompt Tuning](https://arxiv.org/abs/2104.08691)"
 - Our p-tuning implementation is based off Liu et al's paper "[GPT Understands, Too](https://arxiv.org/abs/2103.10385)"
 
-For more details of our implementation, please check [Prompt Learning](https://github.com/NVIDIA/NeMo/blob/main/docs/source/nlp/prompt_learning.rst) in NeMo.
+For more details of our implementation, please check [Prompt Learning](https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/nlp/nemo_megatron/prompt_learning.html) in NeMo.
 
 
 #### 5.10.1. GPT-3 Prompt Learning
 <a id="markdown-gpt-3-prompt-learning" name="gpt-3-prompt-learning"></a>
 
-SQuAD v2.0 benchmark is supported for prompt learning. With default prompt learning config file, 
-our scripts will download and preprocess original SQuAD v2.0 dataset to prompt learning dataset format.
+SQuAD v1.1 benchmark is supported for prompt learning. With default prompt learning config file, 
+our scripts will download and preprocess original SQuAD v1.1 dataset to prompt learning dataset format.
 You can also bring your own task dataset as long as it has been processed into the prompt learning dataset 
 format.
 
@@ -2671,6 +2679,7 @@ The configuration used for the prompt learning needs to be defined in the
 file to use for prompt learning purposes. The `prompt_learning` parameter must be included
 in `stages` to run the prompt learning pipeline. To prompt learning on `squad` task, set
 `prompt_learning` parameter to `gpt3/squad`, which can be found in `conf/prompt_learning/gpt3/squad.yaml`.
+The tool currently support P-tuning technique only.
 
 ##### 5.10.1.1. Common
 <a id="markdown-common" name="common"></a>
@@ -2756,7 +2765,8 @@ The configuration used for the prompt learning needs to be defined in the
 file to use for prompt learning purposes. The `prompt_learning` parameter must be included
 in `stages` to run the prompt learning pipeline. To prompt learning on `squad` task, set
 `prompt_learning` parameter to `t5/squad`, which can be found in `conf/prompt_learning/t5/squad.yaml` for T5 models
-(or `mt5/squad`, which can be found in `conf/prompt_learning/mt5/squad.yaml` for mT5 models).
+(or `mt5/squad`, which can be found in `conf/prompt_learning/mt5/squad.yaml` for mT5 models). 
+The tool currently support P-tuning technique only.
 
 ##### 5.10.2.1. Common
 <a id="markdown-common" name="common"></a>
@@ -3059,7 +3069,7 @@ Any other parameter can also be added to the command to modify its behavior.
 
 On top of fine-tuned checkpoint, you can run the evaluation scripts to
 evaluate the capabilities of the finetuned mT5 model on the following 
-downstream evaluation tasks: `xquad`. Usually the task of fine_tuning and evaluation
+downstream evaluation tasks: `xquad`. Usually the task of fine-tuning and evaluation
 should be the same.
 
 The model evaluation must be performed with a fine-tuned checkpoint in `.nemo` format.
@@ -3159,7 +3169,7 @@ on the SQuAD v2.0 test dataset created in prompt learning step.
 
 The configuration used for the evaluation needs to be defined in the
 `conf/config.yaml` file by modifying the `evaluation` parameter, which specifies the
-file to use for evaluation purposes. The `evaluation` parameter must be included in `stages`
+file to be used for evaluation purposes. The `evaluation` parameter must be included in `stages`
  to run the evaluation pipeline. The value should be set to
 `prompt_gpt3/squad.yaml`, which can be found in `conf/evaluation/prompt_gpt3/squad.yaml`. The
 parameters can be modified to adapt different evaluation tasks and checkpoints
@@ -3270,7 +3280,7 @@ in evaluation runs. For Base Command Platform, all these parameters should be ov
 
 ##### 5.11.4.1. Common
 <a id="markdown-common" name="common"></a>
-To specify the configuration, use all the `run` parameters to define the job specific config. (
+To specify the configuration, use all the `run` parameters to define the job specific config (
 `run.tasks` has to be set to `prompt` to run evaluation on prompt learning test tasks):
 ```yaml
 run:
@@ -3607,9 +3617,9 @@ If you notice warning about missing files, you should double check your model:
 [WARNING] file /triton-model-repository/model_name/1/1-gpu/model.final_layernorm.weight.bin cannot be opened, loading model fails!
 ```
 
-## 6.2. GPT text generation with ensemble.
+## 6.2. GPT-3 text generation with ensemble
 
-FasterTransformer for GPT implements a part of whole text generation application.
+FasterTransformer for GPT-3 implements a part of whole text generation application.
 
 An
 [ensemble](https://github.com/triton-inference-server/server/blob/main/docs/architecture.md#ensemble-models)
@@ -3667,7 +3677,7 @@ The `end_to_end_test.py` script contains a string examples, which you can replac
 
 
 
-## 6.3. UL2 checkpoints deployment.
+## 6.3. UL2 checkpoints deployment
 
 You can deploy UL2 T5 checkpoints using
 [readme](https://github.com/NVIDIA/FasterTransformer/blob/main/docs/t5_guide.md#running-ul2-on-fastertransformer-pytorch-op)
@@ -3972,13 +3982,15 @@ Inference parameters:
 
 ## 8. Changelog
 <a id="markdown-changelog" name="changelog"></a>
-**NeMo Megatron 22.08.01**
+**NeMo Megatron 22.08**
 * Distributed Adam Optimizer for GPT-3
-* Asymmetric Encoder-decoder Configuration for T5 and mT5
-* Possible to Untie Embeddings with Classifier Layer for T5 and mT5
-* Relative Position Embeddings for T5 and mT5 (PP>=3)
-* P-Tuning and Prompt Tuning for T5 and mT5 (PP=1)
-* Refactoring scripts make it more user-friendly
+* Asymmetric encoder-decoder configuration for T5 and mT5
+* Support for untying embeddings from the classifier layer for T5 and mT5
+* Relative Position Embeddings for T5 and mT5 (pipeline parallelism>=3)
+* P-Tuning and Prompt Tuning for T5 and mT5 with tensor parallelism (training only)
+* Code refactor - improved consistency and readability of configurations and logs
+* SQuAD fine-tuning and evaluation support for T5 with pipeline parallelism =<2
+* XQuAD fine-tuning and evaluation support for mT5 with pipeline parallelism =<2
 
 **NeMo Megatron 22.06-hotfix.01**
 * Fix: Hyperparameter tool for T5 and mT5
@@ -4034,7 +4046,7 @@ Inference parameters:
 
 ## 9. Known Issues
 <a id="markdown-known-issues" name="known-issues"></a>
-* The validation / evaluation scripts of fine-tuning in T5 models calculates exact match accuracies based on the first answer among multiple possible answers. It results in lower accuracy reported for SQuAD evaluation.
-* The 22.05 inference container provides better performance for large models like 530B, but can be slower for 5B model for some configurations
-* The inference profiling scripts can fail to produce final summary of results due to the division by zero error. The results are still present in CSV files
-* For customers looking to do inference on BCP please use a previous inference container
+* The inference hyperparameter search is not available in this release. Please use the NeMo Megatron 22.06.RC2 training container to use this feature
+* Accuracy and performance measurement for GPT-3 is currently not supported Please use the NeMo Megatron 22.05 inference container to use this feature
+* For running inference on BCP please use the NeMo Megatron 22.03 inference container
+* The fine-tuning SQuAD results for T5 are lower than expected
