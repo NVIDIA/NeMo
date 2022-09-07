@@ -370,14 +370,31 @@ class MegatronBaseModel(NLPModel):
 
         # Configure distributed optimizer
         if self.with_distributed_adam:
-            # Overlapped communication interferes with grad reductions
-            # for pipeline parallelism and sequence parallelism
-            if self.cfg.get('pipeline_model_parallel_size', 1) > 1 or self.cfg.get('sequence_parallel', False):
-                self._optimizer.overlap_grad_sync = False
-                self._optimizer.greedy_grad_copy = self.megatron_amp_o2
+            # Disable async grad reductions for params that are
+            # synchronized for pipeline parallelism and sequence
+            # parallelism
+            if parallel_state.get_pipeline_model_parallel_world_size() > 1 and (
+                parallel_state.is_pipeline_first_stage() or parallel_state.is_pipeline_last_stage()
+            ):
+                if self.model.share_token_embeddings:
+                    param = self.model.word_embeddings_weight()
+                    param._disable_greedy_grad_copy = not self.megatron_amp_o2
+                    param._disable_overlap_grad_sync = True
+                     # Initialize embedding grad first to minimize
+                     # number of buckets needed to hold
+                    self._optimizer.init_params([param])
+            for param in self.model.parameters():
+                if getattr(param, 'sequence_parallel_enabled', False):
+                    param._disable_greedy_grad_copy = not self.megatron_amp_o2
+                    param._disable_overlap_grad_sync = True
 
             # Initialize params so that main grads are available
-            self._optimizer.init_params(reversed(list(self.parameters())))
+            # Note: Consolidate grads without overlap
+            self._optimizer.init_params(
+                p for p in self.parameters()
+                if getattr(p, '_disable_overlap_grad_sync', False)
+            )
+            self._optimizer.init_params(self.parameters())
 
         if self._scheduler is None:
             return self._optimizer

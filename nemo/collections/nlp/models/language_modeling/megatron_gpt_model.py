@@ -199,6 +199,25 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             batch_for_pipeline = self.process_global_batch(batch)
         tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
 
+        # handle asynchronous grad reduction
+        if self.with_distributed_adam:
+            if self.megatron_amp_o2:
+                # copy grads to main grad
+                custom_sync_context_handler = lambda: self._optimizer.no_sync(greedy_grad_copy=True)
+            else:
+                # keep grad tensors around
+                custom_sync_context_handler = lambda: self._optimizer.no_sync(greedy_grad_copy=False)
+        else:
+            if (self.megatron_amp_o2
+                and self.cfg.get('pipeline_model_parallel_size', 1) == 1
+                and not self.cfg.get('sequence_parallel', False)):
+                custom_sync_context_handler = self._optimizer.no_sync
+            else:
+                # TODO: enable async grad all reduce with O1/autocast
+                # mixed precision training, with pipeline parallelism,
+                # or with sequence parallelism
+                custom_sync_context_handler = None
+
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
             losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
                 forward_step_func=self.get_forward_output_and_loss_func(),
@@ -209,25 +228,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 dtype=self.autocast_dtype,
                 grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
                 sequence_parallel_enabled=self.cfg.get('sequence_parallel', False),
+                custom_sync_context_handler=custom_sync_context_handler,
             )
         else:
-            # no pipeline parallelism so we reduce grads
-            # asynchronously
-            if self.with_distributed_adam:
-                if self.megatron_amp_o2:
-                    # copy grads to main grad
-                    custom_sync_context_handler = lambda: self._optimizer.no_sync(greedy_grad_copy=True)
-                else:
-                    # keep grad tensors around
-                    custom_sync_context_handler = lambda: self._optimizer.no_sync(greedy_grad_copy=False)
-            else:
-                if self.megatron_amp_o2 and not self.cfg.get('sequence_parallel', False):
-                    custom_sync_context_handler = self._optimizer.no_sync
-                else:
-                    # TODO: enable async grad all reduce for
-                    # O1/autocast mixed precision training and
-                    # sequence parallelism
-                    custom_sync_context_handler = None
             losses_reduced_per_micro_batch = forward_backward_no_pipelining(
                 forward_step_func=self.get_forward_output_and_loss_func(),
                 batch=batch_for_pipeline,
@@ -253,8 +256,18 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.allreduce_sequence_parallel_gradients()
 
         if self.with_distributed_adam:
-            # gradients are reduced internally in distributed optimizer
-            pass
+            # launch grad reductions
+            if not parallel_state.is_pipeline_first_stage():
+                # first pipeline stage overlaps backward pass with
+                # grad reductions
+                self._optimizer.try_grad_sync(
+                    p for p in self.parameters()
+                    if not getattr(p, '_disable_overlap_grad_sync', False)
+                )
+            self._optimizer.try_grad_sync(
+                p for p in self.parameters()
+                if getattr(p, 'sequence_parallel_enabled', False)
+            )
         elif self.megatron_amp_o2:
             # when using pipeline parallelism grads must be all-reduced after the pipeline (not asynchronously)
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1 or self.cfg.get('sequence_parallel', False):
