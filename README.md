@@ -3868,9 +3868,8 @@ Training performance:
 
 We measured the throughput of training 5B and 175B parameter GPT-3 models on 
 different numbers of DGX nodes, and we achieved near-linear
-scaling. For example, when scaling from 1 node to 16 nodes with a 5B model, we achieve 16.35x
-speed-up, and when we scale it from 1 node to 32 nodes, we achieve a 28.73x speedup. 
-When scaling from 16 nodes to 128 nodes with a 175B model, we achieve 6.85x speed-up.
+scaling. For example, when scaling from 1 node to 32 nodes with a 5B model, we achieve a 28.73x
+speed-up. When scaling from 8 nodes to 128 (16x more nodes) nodes with a 175B model, we achieve 14.62x speed-up.
 The tables and charts below show the performance results.
 
 |      |                                 |        |        |        | Nodes  |        |         |
@@ -3882,12 +3881,12 @@ The tables and charts below show the performance results.
 
 <img src="img/5B_GPT_3_throughput.svg"/>
 
-|      |                                 |        | Nodes  |        |
-| ---- | ------------------------------- | ------ | ------ | ------ |
-|      |                                 | 16     | 32     | 128    |
-|      | Tokens per Second               | 20642  | 38025  | 141306 |
-| 175B | Perfect Linear Scaling (Tokens) | 20642  | 41285  | 165140 |
-|      | Speed-up                        | 1x     | 1.84x  | 6.85x  |
+|      |                                 |        | Nodes  |        |       |        |
+| ---- | ------------------------------- | ------ | ------ | ------ | ----- | ------ |
+|      |                                 | 8      | 16     | 32     | 64    | 128    |
+|      | Tokens per Second               | 7500   | 14950  | 29537  | 58211 | 109684 |
+| 175B | Perfect Linear Scaling (Tokens) | 7500   | 15000  | 30000  | 60000 | 120000 |
+|      | Speed-up                        | 1x     | 1.99x  | 3.94x  | 7.76x | 14.62x |
 
 <img src="img/175B_GPT_3_throughput.svg"/>
 
