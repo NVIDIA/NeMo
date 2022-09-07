@@ -33,7 +33,7 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning.callbacks import Callback, ModelCheckpoint
 from pytorch_lightning.callbacks.timer import Interval, Timer
 from pytorch_lightning.loggers import LoggerCollection as _LoggerCollection
-from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
+from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger, MLFlowLogger
 from pytorch_lightning.loops import TrainingEpochLoop
 from pytorch_lightning.strategies.ddp import DDPStrategy
 from pytorch_lightning.utilities import rank_zero_info
@@ -122,6 +122,8 @@ class ExpManagerConfig:
     summary_writer_kwargs: Optional[Dict[Any, Any]] = None
     create_wandb_logger: Optional[bool] = False
     wandb_logger_kwargs: Optional[Dict[Any, Any]] = None
+    create_mlflow_logger: Optional[bool] = True
+    mlflow_logger_kwargs: Optional[Dict[Any, Any]] = None
     # Checkpointing parameters
     create_checkpoint_callback: Optional[bool] = True
     checkpoint_callback_params: Optional[CallbackParams] = CallbackParams()
@@ -231,6 +233,10 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             - wandb_logger_kwargs (dict): A dictionary of kwargs that can be passed to lightning's WandBLogger
                 class. Note that name and project are required parameters if create_wandb_logger is True.
                 Defaults to None.
+            - create_mlflow_logger (bool): Whether to create an MLFlow logger and attach it to the pytorch lightning
+                training. Defaults to False
+            - mlflow_logger_kwargs (dict): required: A dictionary of kwargs that can be passed to lightning's MLFlowLogger
+                class. Defaults to None.
             - create_checkpoint_callback (bool): Whether to create a ModelCheckpoint callback and attach it to the
                 pytorch lightning trainer. The ModelCheckpoint saves the top 3 models with the best "val_loss", the most
                 recent checkpoint under ``*last.ckpt``, and the final checkpoint after training completes under ``*end.ckpt``.
@@ -297,6 +303,14 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     # If name returned from get_log_dir is "", use cfg.name for checkpointing
     if checkpoint_name is None or checkpoint_name == '':
         checkpoint_name = cfg.name or "default"
+
+    # Set mlflow name if it's not set, before the main name is erased
+    if cfg.create_mlflow_logger and (not cfg.mlflow_logger_kwargs.get("experiment_name", None)):
+        cfg.mlflow_logger_kwargs.experiment_name = cfg.name
+        logging.warning('mlflow logger specified but no experiment name set. '
+                        'Using the same as Tensorboard: %s', 
+                        cfg.mlflow_logger_kwargs.experiment_name)
+
     cfg.name = name  # Used for configure_loggers so that the log_dir is properly set even if name is ""
     cfg.version = version
 
@@ -339,7 +353,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
 
     # For some reason, LearningRateLogger requires trainer to have a logger. Safer to create logger on all ranks
     # not just global rank 0.
-    if cfg.create_tensorboard_logger or cfg.create_wandb_logger:
+    if cfg.create_tensorboard_logger or cfg.create_wandb_logger or cfg.create_mlflow_logger:
         configure_loggers(
             trainer,
             exp_dir,
@@ -349,6 +363,8 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             cfg.summary_writer_kwargs,
             cfg.create_wandb_logger,
             cfg.wandb_logger_kwargs,
+            cfg.create_mlflow_logger,
+            cfg.mlflow_logger_kwargs
         )
 
     # add loggers timing callbacks
@@ -412,12 +428,12 @@ def error_checks(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictC
             "Hydra changed the working directory. This interferes with ExpManger's functionality. Please pass "
             "hydra.run.dir=. to your python script."
         )
-    if trainer.logger is not None and (cfg.create_tensorboard_logger or cfg.create_wandb_logger):
+    if trainer.logger is not None and (cfg.create_tensorboard_logger or cfg.create_wandb_logger or cfg.create_mlflow_logger):
         raise LoggerMisconfigurationError(
             "The pytorch lightning trainer that was passed to exp_manager contained a logger, and either "
             f"create_tensorboard_logger: {cfg.create_tensorboard_logger} or create_wandb_logger: "
-            f"{cfg.create_wandb_logger} was set to True. These can only be used if trainer does not already have a"
-            " logger."
+            f"{cfg.create_wandb_logger} or create_mlflow_logger: {cfg.create_mlflow_logger} was set to True. "
+            "These can only be used if trainer does not already have a logger."
         )
     if trainer.num_nodes > 1 and not check_slurm(trainer):
         logging.error(
@@ -685,6 +701,8 @@ def configure_loggers(
     summary_writer_kwargs: dict,
     create_wandb_logger: bool,
     wandb_kwargs: dict,
+    create_mlflow_logger: bool,
+    mlflow_kwargs: dict,
 ):
     """ Creates TensorboardLogger and/or WandBLogger and attach them to trainer. Raises ValueError if
     summary_writer_kwargs or wandb_kwargs are misconfigured.
@@ -717,6 +735,14 @@ def configure_loggers(
 
         logger_list.append(wandb_logger)
         logging.info("WandBLogger has been set up")
+
+    if create_mlflow_logger:
+        if mlflow_kwargs is None:
+            mlflow_kwargs = {}
+        mlflow_logger = MLFlowLogger(run_name=version, **mlflow_kwargs)
+
+        logger_list.append(mlflow_logger)
+        logging.info('MLFlowLogger has been set up')
 
     logger_list = (
         LoggerList(logger_list, nemo_name=name, nemo_version=version) if len(logger_list) > 1 else logger_list[0]
