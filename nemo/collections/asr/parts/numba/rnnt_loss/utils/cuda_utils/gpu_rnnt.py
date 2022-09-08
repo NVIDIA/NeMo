@@ -53,6 +53,7 @@ class GPURNNT:
         clamp: float,
         num_threads: int,
         stream,
+        sigma,
     ):
         """
         Helper class to launch the CUDA Kernels to compute the Transducer Loss.
@@ -87,6 +88,8 @@ class GPURNNT:
         self.clamp_ = abs(clamp)
         self.num_threads_ = num_threads
         self.stream_ = stream  # type: cuda.cudadrv.driver.Stream
+
+        self.sigma = sigma
 
         if num_threads > 0:
             numba.set_num_threads(min(multiprocessing.cpu_count(), num_threads))
@@ -168,6 +171,7 @@ class GPURNNT:
         gpu_rnnt_kernel.compute_alphas_kernel[self.minibatch_, self.maxU_, self.stream_, 0](
             acts,
             denom,
+            self.sigma,
             alphas,
             llForward,
             input_lengths,
@@ -188,6 +192,7 @@ class GPURNNT:
             gpu_rnnt_kernel.compute_betas_kernel[self.minibatch_, self.maxU_, self.stream_, 0](
                 acts,
                 denom,
+                self.sigma,
                 betas,
                 llBackward,
                 input_lengths,
@@ -210,6 +215,7 @@ class GPURNNT:
                 grads,
                 acts,
                 denom,
+                self.sigma,
                 alphas,
                 betas,
                 llForward,

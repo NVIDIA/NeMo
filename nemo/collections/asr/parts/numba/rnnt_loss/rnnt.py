@@ -149,6 +149,7 @@ def rnnt_loss_gpu(
     fastemit_lambda: float,
     clamp: float,
     num_threads: int,
+    sigma: float,
 ):
     """
     Wrapper method for accessing GPU RNNT loss.
@@ -208,6 +209,7 @@ def rnnt_loss_gpu(
         clamp=clamp,
         num_threads=num_threads,
         stream=stream,
+        sigma=sigma,
     )
 
     if grads is None:
