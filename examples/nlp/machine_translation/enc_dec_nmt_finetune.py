@@ -29,7 +29,6 @@ from nemo.utils import logging
 from nemo.utils.config_utils import update_model_config
 from nemo.utils.exp_manager import ExpManagerConfig, exp_manager
 
-
 """
 Usage:
  python enc_dec_nmt_finetune.py \
