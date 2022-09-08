@@ -310,6 +310,7 @@ def plot_histogram(data, key, label):
     fig.update_layout(showlegend=False, margin=dict(l=0, r=0, t=0, b=0, pad=0))
     return fig
 
+
 def absolute_audio_filepath(audio_filepath, manifest_path):
     """Return absolute path to an audio file.
     Check if a file existst at audio_filepath.
@@ -329,6 +330,7 @@ def absolute_audio_filepath(audio_filepath, manifest_path):
         filename = expanduser(audio_filepath)
 
     return filename
+
 
 def plot_word_accuracy(vocabulary_data):
     labels = ['Unrecognized', 'Sometimes recognized', 'Always recognized']
@@ -367,7 +369,7 @@ if args.compare_1st == None or args.compare_2nd == None:
         logging.WARN("One of arguments (c1 or c2) is missing!")
     model_name_1 = 'Not_defined'
     model_name_2 = 'Not_defined'
-    for_col_names = pd.DataFrame() #Not_defined
+    for_col_names = pd.DataFrame()  # Not_defined
     vocabulary_1 = 'Not_defined'
     vocabulary_2 = 'Not_defined'
 
