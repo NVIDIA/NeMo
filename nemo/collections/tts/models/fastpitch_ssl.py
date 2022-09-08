@@ -51,7 +51,7 @@ from nemo.collections.tts.models import ssl_tts
 from nemo.collections.asr.parts.preprocessing import features
 
 import os
-
+import librosa
 
 def mask_from_lens(lens, max_len: Optional[int] = None):
     if max_len is None:
@@ -494,6 +494,95 @@ class FastPitchModel_SSL(ModelPT):
             wav_vocoded = self.vocode_spectrogram(spec_predict[:, :_spec_len])
             self.tb_logger.add_audio("Generated Audio", wav_vocoded, self.global_step, 22050)
             self.log_train_images = True
+    
+    def get_mel_spectrogram(self, wav):
+        stft_cfg = self._cfg.preprocessor
+
+        librosa_mel_filter = librosa.filters.mel(sr=stft_cfg.sample_rate, n_fft=stft_cfg.n_fft, n_mels=stft_cfg.features, fmin=0, fmax=8000)
+        fb = torch.tensor(
+            librosa_mel_filter,
+            dtype=torch.float,
+        ).unsqueeze(0)
+
+        EPSILON = 1e-9
+        window_fn = torch.hann_window
+        spec = torch.stft(
+            input=wav,
+            n_fft=stft_cfg.n_fft,
+            hop_length=stft_cfg.n_window_stride,
+            win_length=stft_cfg.n_window_size,
+            window=window_fn(stft_cfg.n_window_size, periodic=False).to(torch.float) if window_fn else None,
+            return_complex=True,
+            center=True,
+        )
+
+        if spec.dtype in [torch.cfloat, torch.cdouble]:
+            spec = torch.view_as_real(spec)
+        spec = torch.sqrt(spec.pow(2).sum(-1) + EPSILON)
+
+        mel = torch.matmul(fb.to(spec.dtype), spec)
+        log_mel = torch.log(torch.clamp(mel, min=torch.finfo(mel.dtype).tiny))
+
+        return log_mel
+
+    def optimize_embedding(
+        self,
+        content_embedding,
+        speaker_embedding,
+        encoded_len=None,
+        pitch_contour=None,
+        durs_gt=None,
+        mels_gt=None,
+        optimize_iters=100,
+        lr=5e-4
+    ):
+        _bs, _, _n_time = content_embedding.size()
+        if encoded_len is None:
+            encoded_len = (torch.ones(_bs) * _n_time).long().to(self.device)
+        
+        print("Device: ", self.device)
+        # content_embedding_trainable = torch.nn.Parameter(content_embedding.data.clone(), requires_grad=True)
+        content_embedding_trainable = torch.tensor(content_embedding.data.clone(), requires_grad=True, device=self.device)
+        speaker_embedding = speaker_embedding.to(self.device)
+        optimizer = torch.optim.Adam([content_embedding_trainable], lr=lr)
+        durs_gt = durs_gt.to(self.device)
+        pitch_contour = pitch_contour.to(self.device)
+        mels_gt = mels_gt.to(self.device)
+        # content_embedding_trainable = content_embedding_trainable.to(self.device)
+        
+        for backprop_iter in range(optimize_iters):
+            enc_out = self.compute_encoding(content_embedding_trainable, speaker_embedding)
+            if self.use_encoder:
+                enc_out, _ = self.encoder(input=enc_out, seq_lens=encoded_len)
+                enc_mask = mask_from_lens(encoded_len)
+                durs = durs_gt
+                enc_mask = enc_mask[:, :, None]
+                pitch = average_pitch(pitch_contour.unsqueeze(1), durs_gt).squeeze(1)
+
+                mels_pred, _, _, log_durs_pred, pitch_pred, _, _, _, attn_hard_dur, pitch = self(
+                    text=None,
+                    durs=durs,
+                    pitch=pitch,
+                    speaker=None,
+                    pace=1.0,
+                    spec=None,
+                    attn_prior=None,
+                    mel_lens=None,
+                    input_lens=None,
+                    enc_out=enc_out,
+                    enc_mask=enc_mask,
+                )
+
+                mel_loss = self.mel_loss(spect_predicted=mels_pred, spect_tgt=mels_gt)
+                optimizer.zero_grad()
+                mel_loss.backward()
+                optimizer.step()
+                content_embedding_trainable = content_embedding_trainable.detach()
+                print("Mel loss", backprop_iter, mel_loss.item())
+        
+        return content_embedding_trainable
+
+
 
     def synthesize_wav(
         self,

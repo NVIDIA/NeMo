@@ -5,13 +5,17 @@ hifi_ckpt_path = "/home/pneekhara/NeMo2022/HiFiCKPTS/hifigan_libritts/HiFiLibriE
 
 fastpitch_model_ckpts = [
     # "/home/pneekhara/NeMo2022/tensorboards/FastPitch/DurationPredictor/SegMeanEpoch404.ckpt", 
-    "/home/pneekhara/NeMo2022/tensorboards/FastPitch/SpeakerLossFTTry3/SpeakerLossEpoch54.ckpt", 
-    # "/home/pneekhara/NeMo2022/tensorboards/FastPitch/DurationPredictor/SegPerSampleEpoch549.ckpt", 
+    # "/home/pneekhara/NeMo2022/tensorboards/FastPitch/SpeakerLossFTTry3/SpeakerLossEpoch84.ckpt", 
+    # "/home/pneekhara/NeMo2022/tensorboards/FastPitch/DurationPredictor/SpeakerLossEpoch139.ckpt", 
+    # "/home/pneekhara/NeMo2022/tensorboards/FastPitch/LibriAllTraining/LibriAllFREpoch39.ckpt",
+    "/home/pneekhara/NeMo2022/tensorboards/FastPitch/SpeakerLossFTTry3/SpeakerLossEpoch174.ckpt", 
     # "/home/pneekhara/NeMo2022/tensorboards/FastPitch/DurationPredictor/DurEpoch404.ckpt", 
 ]
 
-manifest_paths = ["/home/pneekhara/NeMo2022/libri_train_formatted.json", "/home/pneekhara/Datasets/LibriDev/libri_dev_clean_local.json"]
-pitch_stats_jsons = ["/home/pneekhara/NeMo2022/libri_speaker_stats.json", None]
+manifest_paths = ["/home/pneekhara/Datasets/LibriDev/libri_dev_clean_local.json", "/home/pneekhara/NeMo2022/libri_train_formatted.json"]
+# manifest_paths = ["/home/pneekhara/Datasets/vctk/vctk_test_local.json"]
+pitch_stats_jsons = [None, "/home/pneekhara/NeMo2022/libri_speaker_stats.json"]
+# pitch_stats_jsons = [None]
 # sv_model_names = ["speakerverification_speakernet", "ecapa_tdnn"]
 sv_model_names = ["speakerverification_speakernet"]
 evaluation_types = ["reconstructed", "swapping"]
@@ -22,8 +26,8 @@ max_samples_per_spk = 15
 # precomputed_stats_fps = ["/home/pneekhara/NeMo2022/Evaluations/UpdatedEvaluation/stats_seen.pkl", "/home/pneekhara/NeMo2022/Evaluations/UpdatedEvaluation/stats_unseen.pkl"]
 precomputed_stats_fps = [None, None]
 compute_pitch=1
-compute_duration=1
-use_unique_tokens=1
+compute_duration=0
+use_unique_tokens=0
 durations_per_speaker = [
     # 5, 
     10, 
