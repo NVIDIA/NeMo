@@ -62,7 +62,11 @@ except ImportError:
 
 
 def convert_weights(hf_model, nemo_state_dict_path):
-    hf_model = T5ForConditionalGeneration.from_pretrained(hf_model, low_cpu_mem_usage=True)
+    if hf_model == 'google/ul2':
+        torch_dtype = torch.bfloat16
+    else:
+        torch_dtype = torch.float32
+    hf_model = T5ForConditionalGeneration.from_pretrained(hf_model, low_cpu_mem_usage=True, torch_dtype=torch_dtype)
     hf_model_config = hf_model.config
     with tempfile.TemporaryDirectory() as tmp:
         torch.save(hf_model.state_dict(), os.path.join(tmp, 'model.pt'))
