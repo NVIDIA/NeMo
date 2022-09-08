@@ -571,7 +571,18 @@ class OnlineDiarizer(ClusteringDiarizer):
         self._init_temporal_major_voting_module()
         self._init_buffer_frame_timestamps()
         
+        # Set speaker embedding model in eval mode
         self._speaker_model.eval()
+    
+    def reset(self):
+        """
+        Reset all the variables
+        """
+        self._init_segment_variables()
+        self._init_online_clustering_module()
+        self._init_memory_buffer_variables()
+        self._init_temporal_major_voting_module()
+        self._init_buffer_frame_timestamps()
 
     def _init_online_clustering_module(self): 
         self.online_clus = OnlineClustering(self.cfg.diarizer)
@@ -581,8 +592,6 @@ class OnlineDiarizer(ClusteringDiarizer):
     def _init_memory_buffer_variables(self):
         self.memory_segment_ranges = {key: [] for key in self.multiscale_args_dict['scale_dict'].keys()}
         self.memory_segment_indexes = {key: [] for key in self.multiscale_args_dict['scale_dict'].keys()}
-        # self.memory_segment_ranges = []
-        # self.memory_segment_indexes = []
         self.memory_cluster_labels = np.array([])
         self.Y_fullhist = []
         self.cumulative_speech_labels = []

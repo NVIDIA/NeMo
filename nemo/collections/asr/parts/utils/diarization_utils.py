@@ -1341,32 +1341,26 @@ class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
             self.device = torch.device("cpu")
             self.cuda = False
 
+        self.metric = None
+
+        # ASR parameters
         self.frame_len = float(self._cfg_diarizer.asr.parameters.frame_len)
         self.frame_overlap = float(self._cfg_diarizer.asr.parameters.frame_overlap)
-        
-        self.metric = None
-        self.string_out = ""
-        self.frame_index = 0
-        self.eval_frequency = 20
-        self.asr_batch_size = 16
+        self.word_ts_anchor_offset = float(self._cfg_diarizer.asr.parameters.word_ts_anchor_offset)
+        self.max_word_ts_length_in_sec = self._cfg_diarizer.asr.parameters.max_word_ts_length_in_sec
+        self.asr_based_vad_threshold = self._cfg_diarizer.asr.parameters.asr_based_vad_threshold
+        self.asr_batch_size = 1 # Streaming mode requires only one batch
+        self.word_update_margin = 0.0  
         self.ROUND = 2
-        self.audio_queue_pause = 0.5
-        self.audio_off_count = 0
-        self.asr_model_path = self._cfg_diarizer.asr.model_path
+
+        # Model initializations
         self.load_online_VAD_model(self.params)
         self.asr_model = self.set_asr_model()
-        self.init_FrameBatchASR()
+        self._init_FrameBatchASR()
         self.load_punctuation_model()
         self._init_diar_eval_variables()
 
-        # For diarization
-        self.word_ts_anchor_offset = float(self._cfg_diarizer.asr.parameters.word_ts_anchor_offset)
-        self.fine_embs_array = None
-        self.Y_fullhist = []
-        
-        # Minimun width to consider non-speech activity 
-        self.max_word_ts_length_in_sec = self._cfg_diarizer.asr.parameters.max_word_ts_length_in_sec
-        self.asr_based_vad_threshold = self._cfg_diarizer.asr.parameters.asr_based_vad_threshold
+        # Streaming buffer parameters
         self.CHUNK_SIZE = int(self.frame_len*self.sample_rate)
         self.n_frame_len = int(self.frame_len * self.sample_rate)
         self.n_frame_overlap = int(self.frame_overlap * self.sample_rate)
@@ -1374,23 +1368,9 @@ class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
                                dtype=np.float32)
         self.audio_buffer_length = self.audio_buffer.shape[0]
         self.overlap_frames_count = int(self.n_frame_overlap/self.sample_rate)
-        self.cumulative_speech_labels = []
 
-        self.buffer_start = None
-        self.frame_start = 0
-        self.word_seq = []
-        self.word_ts_seq = []
-        self.merged_cluster_labels = []
-        self.offline_logits = None
-        self.debug_mode = False
-        self.streaming_buffer_list = []
         self.reset()
-        self.segment_ranges = []
-        self.cluster_labels = []
 
-        # Text display
-        self.word_update_margin = 0.0  
-        self.end_time = 0.0 
     
     def get_audio_rttm_map(self, uniq_id):
         self.uniq_id = uniq_id
@@ -1602,7 +1582,7 @@ class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
         word_ts = self.fix_word_ts(word_ts)
         return word_ts 
     
-    def init_FrameBatchASR(self):
+    def _init_FrameBatchASR(self):
         torch.manual_seed(0)
         torch.set_grad_enabled(False)
 
@@ -1706,14 +1686,13 @@ class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
         comp_ETA = time.time()-loop_start_time 
         logging.info(f"Total ASR and Diarization ETA: {ETA:.3f} comp ETA {comp_ETA:.3f}")
 
-    def audio_queue_launcher(self, Audio, state=""):
+    def audio_queue_launcher(self, Audio, state):
         """
         Pass the audio stream to streaming ASR pipeline. If Audio variable is not provided, the system puts on hold until
         audio stream is resumed.
         """
         stt = time.time()
-        logging.info(f"Streaming launcher took {(stt-self.end_time):.3f}s")
-        audio_read_stt = time.time()
+        logging.info(f"Streaming launcher took {(stt-self.launcher_end_time):.3f}s")
         audio_queue = process_audio_file(Audio)
         self.audio_queue_buffer = np.append(self.audio_queue_buffer, audio_queue)
         while len(self.audio_queue_buffer) > self.CHUNK_SIZE:
@@ -1721,8 +1700,8 @@ class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
             self.audio_queue_buffer = self.audio_queue_buffer[self.CHUNK_SIZE:]
             self.streaming_step(frame)
         eta = time.time() - stt
-        self.end_time = time.time()
-        return f"Audio Queue Length {len(self.audio_queue_buffer)/self.sample_rate:.2f}s", ""
+        self.launcher_end_time = time.time()
+        return f"Audio Queue Length {len(self.audio_queue_buffer)/self.sample_rate:.2f}s", str(self.frame_index)
     
     def transfer_frame_info_to_diarizer(self):
         """
@@ -1738,8 +1717,15 @@ class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
         '''
         Reset frame_history and decoder's state
         '''
+        self.string_out = ""
+        self.frame_index = 0
+        self.frame_start = 0
+        self.buffer_start = None
+        self.launcher_end_time = 0.0 
         self.audio_buffer=np.zeros(shape=self.audio_buffer.shape, dtype=np.float32)
         self.prev_char = ''
+        self.word_seq = []
+        self.word_ts_seq = []
 
     
     @torch.no_grad()
