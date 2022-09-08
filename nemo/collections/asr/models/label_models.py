@@ -306,7 +306,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         logits, _ = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
         loss = self.loss(logits=logits, labels=labels)
 
-        self.log('loss', loss, sync_dist=True)
+        self.log('loss', loss)
         self.log('learning_rate', self._optimizer.param_groups[0]['lr'])
         self.log('global_step', self.trainer.global_step)
 
