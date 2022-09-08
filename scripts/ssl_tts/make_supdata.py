@@ -257,7 +257,7 @@ def main():
     parser.add_argument(
         '--ssl_model_ckpt_path',
         type=str,
-        default="/home/pneekhara/NeMo2022/SSLCheckPoints/SSLConformer22050_Epoch37.ckpt",
+        default="/home/pneekhara/NeMo2022/tensorboards/ConformerModels/ConformerCompatibleTry3/ConformerCompatible_Epoch3.ckpt",
     )
     parser.add_argument('--manifest_path', type=str, default="/home/pneekhara/NeMo2022/libri_val_formatted.json")
     parser.add_argument('--batch_size', type=int, default=32)
@@ -265,7 +265,9 @@ def main():
     parser.add_argument('--use_unique_tokens', type=int, default=1)
     parser.add_argument('--num_workers', type=int, default=8)
     parser.add_argument('--pool_workers', type=int, default=30)
+    parser.add_argument('--compute_pitch_contours', type=int, default=1)
     parser.add_argument('--num_pitch_per_speaker', type=int, default=None) # saves time.
+    
 
     args = parser.parse_args()
 
@@ -401,26 +403,27 @@ def main():
 
             et = time.time()
             print("Time per batch", bidx, len(dataloader), (et - st) / bidx)
+    
+    if args.compute_pitch_contours == 1:
+        speaker_wise_fps = {}
+        for row in wav_and_id_list:
+            wav_path, wav_id, speaker = row
+            if speaker not in speaker_wise_fps:
+                speaker_wise_fps[speaker] = []
+            speaker_wise_fps[speaker].append(row)
+        
+        
+        filtered_wav_and_id_list = []
+        for speaker in speaker_wise_fps:
+            if args.num_pitch_per_speaker is not None:
+                filtered_wav_and_id_list += speaker_wise_fps[speaker][:args.num_pitch_per_speaker]
+            else:
+                filtered_wav_and_id_list += speaker_wise_fps[speaker]
 
-    speaker_wise_fps = {}
-    for row in wav_and_id_list:
-        wav_path, wav_id, speaker = row
-        if speaker not in speaker_wise_fps:
-            speaker_wise_fps[speaker] = []
-        speaker_wise_fps[speaker].append(row)
-    
-    
-    filtered_wav_and_id_list = []
-    for speaker in speaker_wise_fps:
-        if args.num_pitch_per_speaker is not None:
-            filtered_wav_and_id_list += speaker_wise_fps[speaker][:args.num_pitch_per_speaker]
-        else:
-            filtered_wav_and_id_list += speaker_wise_fps[speaker]
-
-    with Pool(args.pool_workers) as p:
-        p.map(save_pitch_contour, filtered_wav_and_id_list)
-    
-    compute_pitch_stats(filtered_wav_and_id_list)
+        with Pool(args.pool_workers) as p:
+            p.map(save_pitch_contour, filtered_wav_and_id_list)
+        
+        compute_pitch_stats(filtered_wav_and_id_list)
 
 
 

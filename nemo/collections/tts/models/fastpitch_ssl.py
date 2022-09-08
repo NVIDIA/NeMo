@@ -51,7 +51,7 @@ from nemo.collections.tts.models import ssl_tts
 from nemo.collections.asr.parts.preprocessing import features
 
 import os
-
+import librosa
 
 def mask_from_lens(lens, max_len: Optional[int] = None):
     if max_len is None:
@@ -237,80 +237,25 @@ class FastPitchModel_SSL(ModelPT):
 
         return encoded
 
-    def convert_to_ssl_mel(self, mel, mel_lens):
-        antilog_mel  = torch.exp(mel)
-        antolog_mag = torch.matmul(self.fb_inverse , antilog_mel)
-        antolog_mag = antolog_mag.pow(2)
-        antolog_mag = antolog_mag
-        log_mel =  torch.log(torch.matmul(self.fb, antolog_mag) + 1e-9)
-        normalized_mel = features.normalize_batch(log_mel, mel_lens, "per_feature")
-        return normalized_mel
-
-    def compute_speaker_loss(self, gt_mel, generated_mel, gt_speaker_embedding):
+    def compute_speaker_loss(self, generated_mel, gt_speaker_embedding):
         ssl_model = self.non_trainable_models['ssl_model']
         ssl_model.to(self.device)
-        self.fb = self.fb.to(self.device)
-        self.fb_inverse = self.fb_inverse.to(self.device)
-        generated_mel_sliced = generated_mel[:, :, :173]
-        gt_mel_sliced = gt_mel[:, :, :173]
+        
+        generated_mel_sliced = generated_mel[:, :, :172]
         generated_mel_len_batch = torch.tensor([generated_mel_sliced.shape[-1] for _idx in range(generated_mel_sliced.shape[0]) ] ).long().to(self.device)
         
-        normalized_mel = self.convert_to_ssl_mel(generated_mel_sliced, generated_mel_len_batch)
-        gt_normalized_mel = self.convert_to_ssl_mel(gt_mel_sliced, generated_mel_len_batch)
-
-        # two_sec_audio = audio[:, :22050*2]
-        # audio_len = torch.tensor([two_sec_audio.shape[-1] for _idx in range(two_sec_audio.shape[0]) ] ).long().to(self.device)
-        # ssl_spec, ssl_spec_len = ssl_model.preprocessor_disentangler(
-        #     input_signal=two_sec_audio, length=audio_len,
-        # )
-
-        if self.global_step % 100 == 0:
-            
-
-            # self.tb_logger.add_image(
-            #     "ssl_spec",
-            #     plot_spectrogram_to_numpy(ssl_spec[0].data.cpu().float().numpy()),
-            #     self.global_step,
-            #     dataformats="HWC",
-            # )
-
-            self.tb_logger.add_image(
-                "gt_normalized_mel",
-                plot_spectrogram_to_numpy(gt_normalized_mel[0].data.cpu().float().numpy()),
-                self.global_step,
-                dataformats="HWC",
-            )
-
-            self.tb_logger.add_image(
-                "gen_mel_sliced",
-                plot_spectrogram_to_numpy(generated_mel_sliced[0].data.cpu().float().numpy()),
-                self.global_step,
-                dataformats="HWC",
-            )
-
-            self.tb_logger.add_image(
-                "gen_mel_normalied",
-                plot_spectrogram_to_numpy(normalized_mel[0].data.cpu().float().numpy()),
-                self.global_step,
-                dataformats="HWC",
-            )
+        normalized_mel = features.normalize_batch(generated_mel_sliced, generated_mel_len_batch, "per_feature")
         
         encoded, _ = ssl_model.encoder(audio_signal=normalized_mel, length=generated_mel_len_batch)  # b,c,t
         pred_speaker_embedding = ssl_model.downstream_nets['speaker_verification'](encoded[:, :, 0])
         l2_norm = torch.norm(pred_speaker_embedding, p=2, dim=-1, keepdim=True)
         speaker_embedding_normalized = pred_speaker_embedding / l2_norm
 
-        encoded_gt, _ = ssl_model.encoder(audio_signal=gt_normalized_mel, length=generated_mel_len_batch)  # b,c,t
-        pred_speaker_embedding_gt = ssl_model.downstream_nets['speaker_verification'](encoded_gt[:, :, 0])
-        l2_norm = torch.norm(pred_speaker_embedding_gt, p=2, dim=-1, keepdim=True)
-        speaker_embedding_normalized_gt = pred_speaker_embedding_gt / l2_norm
-
         cosine_similarity = torch.nn.functional.cosine_similarity(
-            speaker_embedding_normalized_gt, speaker_embedding_normalized, dim=-1
+            speaker_embedding_normalized, gt_speaker_embedding, dim=-1
         ).mean()
         
         speaker_loss = 1 - cosine_similarity
-        # print("speaker loss", speaker_loss)
         return speaker_loss
 
     def training_step(self, batch, batch_idx):
@@ -364,7 +309,7 @@ class FastPitchModel_SSL(ModelPT):
             self.log("t_pitch_loss", pitch_loss)
 
         if self.use_speaker_loss:
-            speaker_loss = self.compute_speaker_loss(mels, mels_pred, speaker_embedding)
+            speaker_loss = self.compute_speaker_loss(mels_pred, speaker_embedding)
             loss += speaker_loss
             self.log("t_speaker_loss", speaker_loss)
             
@@ -494,6 +439,98 @@ class FastPitchModel_SSL(ModelPT):
             wav_vocoded = self.vocode_spectrogram(spec_predict[:, :_spec_len])
             self.tb_logger.add_audio("Generated Audio", wav_vocoded, self.global_step, 22050)
             self.log_train_images = True
+    
+    def get_mel_spectrogram(self, wav):
+        stft_cfg = self._cfg.preprocessor
+
+        librosa_mel_filter = librosa.filters.mel(sr=stft_cfg.sample_rate, n_fft=stft_cfg.n_fft, n_mels=stft_cfg.features, fmin=0, fmax=8000)
+        fb = torch.tensor(
+            librosa_mel_filter,
+            dtype=torch.float,
+        ).unsqueeze(0)
+
+        EPSILON = 1e-9
+        window_fn = torch.hann_window
+        spec = torch.stft(
+            input=wav,
+            n_fft=stft_cfg.n_fft,
+            hop_length=stft_cfg.n_window_stride,
+            win_length=stft_cfg.n_window_size,
+            window=window_fn(stft_cfg.n_window_size, periodic=False).to(torch.float) if window_fn else None,
+            return_complex=True,
+            center=True,
+        )
+
+        if spec.dtype in [torch.cfloat, torch.cdouble]:
+            spec = torch.view_as_real(spec)
+        spec = torch.sqrt(spec.pow(2).sum(-1) + EPSILON)
+
+        mel = torch.matmul(fb.to(spec.dtype), spec)
+        log_mel = torch.log(torch.clamp(mel, min=torch.finfo(mel.dtype).tiny))
+
+        return log_mel
+
+    def optimize_embedding(
+        self,
+        content_embedding,
+        speaker_embedding,
+        encoded_len=None,
+        pitch_contour=None,
+        durs_gt=None,
+        mels_gt=None,
+        optimize_iters=100,
+        lr=5e-4
+    ):
+        _bs, _, _n_time = content_embedding.size()
+        if encoded_len is None:
+            encoded_len = (torch.ones(_bs) * _n_time).long().to(self.device)
+        
+        print("Device: ", self.device)
+        # content_embedding_trainable = torch.nn.Parameter(content_embedding.data.clone(), requires_grad=True)
+        content_embedding_trainable = torch.tensor(content_embedding.data.clone(), requires_grad=True, device=self.device)
+        speaker_embedding = speaker_embedding.to(self.device)
+        optimizer = torch.optim.Adam([content_embedding_trainable], lr=lr)
+        durs_gt = durs_gt.to(self.device)
+        pitch_contour = pitch_contour.to(self.device)
+        mels_gt = mels_gt.to(self.device)
+        # content_embedding_trainable = content_embedding_trainable.to(self.device)
+        
+        for backprop_iter in range(optimize_iters):
+            enc_out = self.compute_encoding(content_embedding_trainable, speaker_embedding)
+            if self.use_encoder:
+                enc_out, _ = self.encoder(input=enc_out, seq_lens=encoded_len)
+                enc_mask = mask_from_lens(encoded_len)
+                durs = durs_gt
+                enc_mask = enc_mask[:, :, None]
+                pitch = average_pitch(pitch_contour.unsqueeze(1), durs_gt).squeeze(1)
+
+                mels_pred, _, _, log_durs_pred, pitch_pred, _, _, _, attn_hard_dur, pitch = self(
+                    text=None,
+                    durs=durs,
+                    pitch=pitch,
+                    speaker=None,
+                    pace=1.0,
+                    spec=None,
+                    attn_prior=None,
+                    mel_lens=None,
+                    input_lens=None,
+                    enc_out=enc_out,
+                    enc_mask=enc_mask,
+                )
+
+                mel_loss = self.mel_loss(spect_predicted=mels_pred, spect_tgt=mels_gt)
+                optimizer.zero_grad()
+                mel_loss.backward()
+                optimizer.step()
+                # content_embedding_trainable = content_embedding_trainable.detach()
+                speaker_embedding = speaker_embedding.detach()
+                durs_gt = durs_gt.detach()
+                pitch_contour = pitch_contour.detach()
+                print("Mel loss", backprop_iter, mel_loss.item())
+        
+        return content_embedding_trainable
+
+
 
     def synthesize_wav(
         self,
@@ -571,10 +608,6 @@ class FastPitchModel_SSL(ModelPT):
 
     def setup_training_data(self, cfg):
         self._train_dl = self.__setup_dataloader_from_config(cfg)
-        # self.fb = self._train_dl.dataset.fb
-        self.register_buffer("fb", self._train_dl.dataset.fb)
-        # self.fb_inverse = self._train_dl.dataset.fb_inverse
-        self.register_buffer("fb_inverse", self._train_dl.dataset.fb_inverse)
         
     def setup_validation_data(self, cfg):
         self._validation_dl = self.__setup_dataloader_from_config(cfg)

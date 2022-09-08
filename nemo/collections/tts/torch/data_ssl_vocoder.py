@@ -215,6 +215,7 @@ class SSLVocoderDataset(Dataset):
             self.speaker_stats = {}
             if speaker_stats_pitch_fp is None:
                 speaker_stats_pitch_fp = os.path.join(sup_data_dir, "speaker_pitch_stats.json")
+                print("speaker_stats_pitch_fp: {}".format(speaker_stats_pitch_fp))
                 assert os.path.exists(speaker_stats_pitch_fp), "speaker_stats_pitch_fp does not exist"
             with open(speaker_stats_pitch_fp, "r") as f:
                 speaker_stats_raw = json.load(f)

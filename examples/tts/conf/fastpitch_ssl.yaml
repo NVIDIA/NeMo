@@ -28,7 +28,7 @@ highfreq: 8000
 window: hann
 
 ssl_model_type: "conformer_multitask"
-ssl_model_ckpt_path: "/home/pneekhara/NeMo2022/SSLCheckPoints/SSLConformer22050_Epoch37.ckpt"
+ssl_model_ckpt_path: "/home/pneekhara/NeMo2022/tensorboards/ConformerModels/ConformerCompatibleTry3/ConformerCompatible_Epoch3.ckpt"
 ssl_content_emb_type: "embedding_and_probs"
 n_segments: 18432 #ignored for now
 speaker_stats_pitch_fp: null
@@ -234,6 +234,6 @@ exp_manager:
   create_tensorboard_logger: true
   create_checkpoint_callback: true
   checkpoint_callback_params:
-    monitor: v_loss
+    monitor: v_loss 
   resume_if_exists: false
   resume_ignore_no_checkpoint: false
