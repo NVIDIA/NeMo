@@ -38,8 +38,8 @@ jobs:
           repo: "NeMo"
           ignorePreReleases: "false"
           failOnError: "false"
-          fromTag: ${{ steps.previous_tag.outputs.tag_name }}
-          toTag: ${{ github.ref_name }}
+          fromTag: r1.10.0
+          toTag: r1.11.0
 
       - name: Print Changelog
         run: |
