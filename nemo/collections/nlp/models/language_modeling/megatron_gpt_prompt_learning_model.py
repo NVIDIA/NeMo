@@ -66,21 +66,21 @@ __all__ = ['MegatronGPTPromptLearningModel']
 
 class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
     """
-    Model class for prompt-tuning or p-tuning a pretrained Megatron GPT model. 
+    Model class for prompt-tuning or p-tuning a pretrained Megatron GPT model.
 
     Prompt Tuning initalizes virtual prompt embeddings directly from a copy of
     certain token embeddings from the the pretrained GPT model's vocabulary
-    and directly tunes these embedding weights. The token embeddings used in 
-    initalization are specified by the user in the config file. The model can 
-    be prompt-tuned for multiple tasks at once. virtual prompts are stored in a 
-    prompt table and can be added or deleted without disrupting virtual prompts 
-    for other tasks. 
+    and directly tunes these embedding weights. The token embeddings used in
+    initalization are specified by the user in the config file. The model can
+    be prompt-tuned for multiple tasks at once. virtual prompts are stored in a
+    prompt table and can be added or deleted without disrupting virtual prompts
+    for other tasks.
 
     P-tuning initializes an LSTM encoder model that generates virtual prompt
     embeddings for every task. Each task shares the same encoder. After ptuning
     is compelete, the learned virtual prompts can be saved to the prompt table
-    using add_ptuned_prompts_to_prompt_table(). Thus, if a user wants to add a 
-    new virtual prompt via p-tuning, they do not need to retrain on all previous 
+    using add_ptuned_prompts_to_prompt_table(). Thus, if a user wants to add a
+    new virtual prompt via p-tuning, they do not need to retrain on all previous
     tasks. This gives p-tuning the same task flexiblity as prompt-tuning.
     """
 
@@ -197,10 +197,10 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
     def load_task_templates(self, task_templates):
         """
-        Takes in the task template portion of the config and turns  
-        it into a table where each task's prompt template and 
-        the number of virtual tokens to insert in a given part of 
-        the prompt template are specified. 
+        Takes in the task template portion of the config and turns
+        it into a table where each task's prompt template and
+        the number of virtual tokens to insert in a given part of
+        the prompt template are specified.
         """
         self.task_templates = {}
         self.task_id_num_to_name = {}
@@ -236,7 +236,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
     def init_new_prompts(self):
         """
-        Initialize new virtual prompts to be tuned using prompt tuning 
+        Initialize new virtual prompts to be tuned using prompt tuning
         """
         for idx, taskname in enumerate(self.new_tasks):
             init_method = self.cfg.prompt_tuning.new_prompt_init_methods[idx].lower()
@@ -300,7 +300,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
     def add_ptuned_prompts_to_prompt_table(self):
         """
-        Adds all newly p-tuned virtual prompts to the prompt table 
+        Adds all newly p-tuned virtual prompts to the prompt table
         for inference. p-tuned virtual prompts WILL NOT be further
         tuned once added to the prompt table. After p-tuned prompts
         are added to the prompt table, the prompt encoder weights
@@ -350,10 +350,10 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
     def state_dict(self, destination=None, prefix=None, keep_vars=False):
         """
-        Custom state dict that only contains prompt table and prompt encoder parameters. 
-        No frozen model parameters are stored in the state dict. Prompt encoder parameters 
+        Custom state dict that only contains prompt table and prompt encoder parameters.
+        No frozen model parameters are stored in the state dict. Prompt encoder parameters
         are only in state dict for intermediate checkpoints saved during training. Final
-        nemo checkpoints at the end of training will contain prompt table parameters only. 
+        nemo checkpoints at the end of training will contain prompt table parameters only.
         """
         state_dict_ = {}
         if self.frozen_model.model.pre_process:
@@ -367,7 +367,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
     def load_state_dict(self, state_dict, strict: bool = True):
         """
         Custom load state dict method that only loads prompt table and prompt encoder
-        parameters. Matching load method for this class' custom state dict method. 
+        parameters. Matching load method for this class' custom state dict method.
         """
         if self.frozen_model.model.pre_process:
             if self._prompt_table_key in state_dict:
@@ -393,13 +393,13 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
     def setup_optimizer_param_groups(self):
         """
-        ModelPT override. Optimizer will get self._optimizer_param_groups. 
+        ModelPT override. Optimizer will get self._optimizer_param_groups.
         Makes two optimizer param groups, one for the frozen model params
-        and one for the prompt-table/prompt-encoder params. The learning 
+        and one for the prompt-table/prompt-encoder params. The learning
         rate for the frozen model's params will always be zero effectively
         freezing the model's params but still allowing for the needed gradients
-        to be passed around in pipeline parallel models. The prompt-encoder 
-        and/or prompt table will use the learning rate set by the user. 
+        to be passed around in pipeline parallel models. The prompt-encoder
+        and/or prompt table will use the learning rate set by the user.
         """
         # Freeze frozen model
         for param in self.frozen_model.parameters():
@@ -471,8 +471,8 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
     def embed_input_train(self, input_ids: Tensor, taskname_ids: Tensor):
         """
-        Replaces the virtual tokens in the input_ids with embeddings 
-        calculated from either the 'prompt_table' or 'prompt_encoder'. 
+        Replaces the virtual tokens in the input_ids with embeddings
+        calculated from either the 'prompt_table' or 'prompt_encoder'.
         The virtual token placeholders have token_ids listed in
         `self.pseudo_token_ids`.
 
@@ -521,11 +521,11 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
     def embed_input_inference(self, input_ids: Tensor, taskname_ids: Tensor):
         """
-        Replaces the virtual tokens in the input_ids with embeddings the 
+        Replaces the virtual tokens in the input_ids with embeddings the
         'prompt_table' only. The virtual token placeholders each have their
-        own unique token_id within `self.pseudo_token_ids` to facilitate 
-        placing the virtual tokens in their correct locations at each 
-        decoding time step. 
+        own unique token_id within `self.pseudo_token_ids` to facilitate
+        placing the virtual tokens in their correct locations at each
+        decoding time step.
 
         params:
             input_ids: the input token ids
@@ -997,7 +997,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 def get_pseudo_tokens(num_virtual_tokens):
     """
     Takes in an integer and returns a list of strings where each string
-    is a numbered virtual token placeholder. If 
+    is a numbered virtual token placeholder. If
     num_virtual_tokens = 3, then this function returns:
 
     ["<prompt_0>", "<prompt_1>", "<prompt_2>"]
@@ -1005,7 +1005,7 @@ def get_pseudo_tokens(num_virtual_tokens):
     Args:
         num_virtual_tokens: (int) Number of virtual token strings you want to make
 
-    returns a list of string. 
+    returns a list of string.
 
     """
     pseudo_tokens = [

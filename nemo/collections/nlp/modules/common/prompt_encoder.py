@@ -205,7 +205,7 @@ class PromptEncoderType(enum.Enum):
 
 class PromptEncoder(NeuralModule, Exportable):
     """
-    The prompt encoder network that is used to generate the virtual 
+    The prompt encoder network that is used to generate the virtual
     token embeddings for p-tuning.
     """
 
