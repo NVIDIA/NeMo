@@ -313,6 +313,7 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
             new_tokenizer_type: Type of tokenizer. Can be either `agg`, `bpe` or `wpe`.
             decoding_cfg: A config for the decoder, which is optional. If the decoding type
                 needs to be changed (from say Greedy to Beam decoding etc), the config can be passed here.
+            ctc_decoding_cfg: A config for CTC decoder, which is optional and can be used to change decoding type.
 
         Returns: None
 
@@ -466,6 +467,9 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         Args:
             decoding_cfg: A config for the decoder, which is optional. If the decoding type
                 needs to be changed (from say Greedy to Beam decoding etc), the config can be passed here.
+            decoder_type: (str) Can be set to 'rnnt' or 'ctc' to switch between appropriate decoder in a
+                model having both RNN-T and CTC decoders. Defaults to None, in which case RNN-T decoder is 
+                used. If set to 'ctc', it raises error if 'ctc_decoder' is not an attribute of the model.
         """
         if decoder_type is None or decoder_type == 'rnnt':
             if decoding_cfg is None:
