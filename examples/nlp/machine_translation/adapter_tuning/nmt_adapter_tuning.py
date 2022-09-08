@@ -95,104 +95,50 @@ def main(cfg) -> None:
     with open_dict(cfg):
         cfg.model.precision = cfg.trainer.precision
 
+    # create the base model with adapters
     if hasattr(cfg.model, 'pretrained_model_path') and cfg.model.pretrained_model_path is not None:
-        if not hasattr(cfg.model, 'pretrained_model_type'):
-            raise ValueError(f"Pretrained model type must be in [T5, BART].")
 
-        assert cfg.model.pretrained_model_type in ['T5', 'BART']
-        if cfg.model.pretrained_model_type == 'T5':
-            pretrained_cfg = MegatronT5Model.restore_from(
-                cfg.model.pretrained_model_path, trainer=trainer, return_config=True
-            )
-        else:
-            pretrained_cfg = MegatronBARTModel.restore_from(
-                cfg.model.pretrained_model_path, trainer=trainer, return_config=True
-            )
-        OmegaConf.set_struct(pretrained_cfg, True)
-        with open_dict(pretrained_cfg):
-            pretrained_cfg.masked_softmax_fusion = False
-            # Set source and target language/multilingual
-            pretrained_cfg.src_language = cfg.model.src_language
-            pretrained_cfg.tgt_language = cfg.model.tgt_language
-            pretrained_cfg.multilingual = cfg.model.multilingual
-            pretrained_cfg.shared_tokenizer = True
+        base_model_cfg = MegatronNMTModel.restore_from(
+            cfg.model.pretrained_model_path, trainer=trainer, return_config=True
+        )
 
-            # Max generation delta
-            pretrained_cfg.max_generation_delta = cfg.model.max_generation_delta
+        # Class target for the new class being restored.
+        base_model_cfg.target = "nemo.collections.nlp.models.machine_translation.megatron_nmt_model.MegatronNMTModel"
 
-            # Set label smoothing
-            pretrained_cfg.label_smoothing = cfg.model.label_smoothing
+        with open_dict(base_model_cfg):
+            # set model path and adapters
+            base_model_cfg.pretrained_model_path = cfg.model.pretrained_model_path
+            base_model_cfg.adapter_tuning = cfg.model.adapter_tuning
 
-            # Set tokenizer paths:
-            pretrained_cfg.encoder_tokenizer = pretrained_cfg.encoder_tokenizer
-            pretrained_cfg.decoder_tokenizer = pretrained_cfg.decoder_tokenizer
-
-            # Pre-trained models should use the legacy sentencepiece tokenizer ex: mT5
-            pretrained_cfg.encoder_tokenizer.sentencepiece_legacy = True
-            pretrained_cfg.decoder_tokenizer.sentencepiece_legacy = True
-
-            # Override dropout
-
-            # Old pre-trained checkpoints do not have separate encoder/decoder configurations, so replicate the config to encoder/decoder.
-            if not hasattr(pretrained_cfg, 'encoder'):
-                assert not hasattr(pretrained_cfg, 'decoder')
-                logging.warning(
-                    "No separate configuration for encoder, found in pretrained model, using encoder dropout settings everywhere."
-                )
-                pretrained_cfg.hidden_dropout = cfg.model.encoder.hidden_dropout
-                pretrained_cfg.attention_dropout = cfg.model.encoder.attention_dropout
-            else:
-                assert hasattr(pretrained_cfg, 'decoder') and hasattr(pretrained_cfg, 'encoder')
-                pretrained_cfg.encoder.hidden_dropout = cfg.model.encoder.hidden_dropout
-                pretrained_cfg.encoder.attention_dropout = cfg.model.encoder.attention_dropout
-                pretrained_cfg.decoder.hidden_dropout = cfg.model.decoder.hidden_dropout
-                pretrained_cfg.decoder.attention_dropout = cfg.model.decoder.attention_dropout
-
-            # Override precision
-            pretrained_cfg.precision = trainer.precision  # Set above from trainer.precision
-
-            # Override micro/global batch
-            pretrained_cfg.micro_batch_size = cfg.model.micro_batch_size
-            pretrained_cfg.global_batch_size = cfg.model.global_batch_size
-
-            # O2 AMP
-            pretrained_cfg.megatron_amp_O2 = cfg.model.get('megatron_amp_O2', False)
-
+            # override data paths
             # Override data and global/micro batch size.
-            pretrained_cfg.train_ds = cfg.model.train_ds
-            pretrained_cfg.train_ds.micro_batch_size = cfg.model.micro_batch_size
-            pretrained_cfg.train_ds.global_batch_size = cfg.model.global_batch_size
+            base_model_cfg.train_ds = cfg.model.train_ds
+            base_model_cfg.train_ds.micro_batch_size = cfg.model.micro_batch_size
+            base_model_cfg.train_ds.global_batch_size = cfg.model.global_batch_size
             if hasattr(cfg.model, 'validation_ds'):
-                pretrained_cfg.validation_ds = cfg.model.validation_ds
+                base_model_cfg.validation_ds = cfg.model.validation_ds
             else:
                 raise AttributeError(f"No validation dataset found in config.")
             if hasattr(cfg.model, 'test_ds'):
-                pretrained_cfg.test_ds = cfg.model.test_ds
+                base_model_cfg.test_ds = cfg.model.test_ds
 
             # Class target for the new class being restored.
-            pretrained_cfg.target = (
+            base_model_cfg.target = (
                 "nemo.collections.nlp.models.machine_translation.megatron_nmt_model.MegatronNMTModel"
             )
 
-            # Optimizer overrides.
-            pretrained_cfg.optim = cfg.model.optim
-
-            # set model path and adapters
-            pretrained_cfg.pretrained_model_path = cfg.model.pretrained_model_path
-            pretrained_cfg.adapter_tuning = cfg.model.adapter_tuning
-
+        # create model
         model = MegatronNMTModel.restore_from(
             cfg.model.pretrained_model_path,
             trainer=trainer,
-            override_config_path=pretrained_cfg,
+            override_config_path=base_model_cfg,
             save_restore_connector=NLPSaveRestoreConnector(),
         )
 
+        trainer.fit(model)
+        trainer.validate(model)
     else:
-        model = MegatronNMTModel(cfg.model, trainer)
-
-    trainer.fit(model)
-    trainer.validate(model)
+        raise ValueError("config should provide pretrained_model_path for adapter tuning.")
 
 
 if __name__ == '__main__':
