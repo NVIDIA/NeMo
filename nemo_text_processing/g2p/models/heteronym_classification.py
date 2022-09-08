@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-from typing import Optional
+from typing import List, Optional
 
 import torch
 from hydra.utils import instantiate
@@ -51,7 +51,7 @@ class HeteronymClassificationModel(NLPModel):
         self.wordids = cfg.wordids
         self.register_artifact("cfg.wordids", self.wordids)
         self.homograph_dict, self.wordid_to_idx = read_wordids(cfg.wordids)
-
+        self.supported_heteronyms = [h for h in self.homograph_dict.keys()]
         super().__init__(cfg=cfg, trainer=trainer)
 
         num_classes = len(self.wordid_to_idx)
@@ -168,9 +168,47 @@ class HeteronymClassificationModel(NLPModel):
         """
         return self.validation_epoch_end(outputs, "test")
 
-    # Functions for inference
+    # # Functions for inference
+    # @torch.no_grad()
+    # def disambiguate(self, sentences: List[str], batch_size: int, num_workers: int = 0):
+    #     supported_heteronyms = self.homograph_dict.keys()
+    #
+    #     for
+    #     import pdb; pdb.set_trace()
+    #     # store predictions for all queries in a single list
+    #     all_preds = []
+    #     mode = self.training
+    #     try:
+    #         device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    #         # Switch model to evaluation mode
+    #         self.eval()
+    #         self.to(device)
+    #         infer_datalayer = self._setup_infer_dataloader(
+    #             manifest, grapheme_field, batch_size=batch_size, num_workers=num_workers
+    #         )
+    #
+    #         for batch in tqdm(infer_datalayer):
+    #             input_ids, attention_mask, target_and_negatives_mask, subword_mask = batch
+    #             logits = self.forward(
+    #                 input_ids=input_ids.to(device),
+    #                 attention_mask=attention_mask.to(device),
+    #                 target_and_negatives_mask=target_and_negatives_mask.to(device),
+    #             )
+    #
+    #             preds = torch.argmax(logits, axis=-1)[subword_mask > 0]
+    #             preds = tensor2list(preds)
+    #             all_preds.extend(preds)
+    #     finally:
+    #         # set mode back to its original value
+    #         self.train(mode=mode)
+    #
+    #     # convert indices to wordids
+    #     idx_to_wordid = {v: k for k, v in self.wordid_to_idx.items()}
+    #     all_preds = [idx_to_wordid[p] for p in all_preds]
+    #     return all_preds
+
     @torch.no_grad()
-    def disambiguate(self, manifest, grapheme_field, batch_size: int, num_workers: int = 0):
+    def disambiguate_manifest(self, manifest, grapheme_field, batch_size: int, num_workers: int = 0):
         # store predictions for all queries in a single list
         all_preds = []
         mode = self.training

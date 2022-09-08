@@ -147,7 +147,7 @@ class T5G2PModel(G2PModel):
             for batch in infer_datalayer:
                 input_ids, _ = batch
                 generated_str, _, _ = self._generate_predictions(
-                    input_ids=input_ids.to(device), model_max_target_len=None
+                    input_ids=input_ids.to(device), model_max_target_len=512
                 )
                 all_preds.extend(generated_str)
                 del batch
@@ -170,6 +170,10 @@ class T5G2PModel(G2PModel):
             skip_special_tokens=True,
         )
         generated_str, _, _ = self._generate_predictions(input_ids=input_ids, model_max_target_len=self.max_target_len)
+        print("IN VALIDATION STEP:")
+        print(input_ids)
+        print(attention_mask)
+        print(generated_str)
         per = word_error_rate(hypotheses=generated_str, references=labels_str, use_cer=True)
         return {f"{split}_loss": val_loss, 'per': per}
 

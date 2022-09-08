@@ -99,11 +99,18 @@ def main(cfg):
 
     with torch.no_grad():
         preds = model.disambiguate(
-            manifest=cfg.manifest,
-            grapheme_field=cfg.grapheme_field,
+            ["I live in California."],
+            # grapheme_field=cfg.grapheme_field,
             batch_size=cfg.batch_size,
             num_workers=cfg.num_workers,
         )
+
+        # preds = model.disambiguate(
+        #     manifest=cfg.manifest,
+        #     grapheme_field=cfg.grapheme_field,
+        #     batch_size=cfg.batch_size,
+        #     num_workers=cfg.num_workers,
+        # )
 
     # save predictions to a file
     if cfg.errors_file is None:

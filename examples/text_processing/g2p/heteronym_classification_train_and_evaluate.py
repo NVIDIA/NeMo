@@ -32,8 +32,15 @@ python heteronym_classification_train_and_evaluate.py \
     train_manifest=<Path to manifest file>" \
     validation_manifest=<Path to manifest file>" \
     model.encoder.pretrained="<Path to .nemo file or pretrained model name from list_available_models()>" \
+    model.wordids="<Path to wordids.tsv file>" \
     do_training=True \
     do_testing=True
+    
+See https://github.com/google-research-datasets/WikipediaHomographData/blob/master/data/wordids.tsv for wordids file
+format example
+
+See https://github.com/NVIDIA/NeMo/blob/main/scripts/dataset_processing/g2p/export_wikihomograph_data_to_manifest.py
+on how to convert WikiHomograph data for HeteronymClassificationModel training/evaluation
 """
 
 

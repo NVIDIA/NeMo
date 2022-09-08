@@ -115,7 +115,6 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
             pred_field=cfg.pred_field,
         )
         print(f"IPA predictions saved in {cfg.output_file}")
-
         if cfg.phoneme_field is not None:
             get_metrics(cfg.output_file, phoneme_field=cfg.phoneme_field, grapheme_field=cfg.grapheme_field)
 
