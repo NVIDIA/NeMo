@@ -262,10 +262,10 @@ def main():
     parser.add_argument('--manifest_path', type=str, default="/home/pneekhara/NeMo2022/libri_val_formatted.json")
     parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--ssl_content_emb_type', type=str, default="embedding_and_probs")
-    parser.add_argument('--use_unique_tokens', type=int, default=0)
+    parser.add_argument('--use_unique_tokens', type=int, default=1)
     parser.add_argument('--num_workers', type=int, default=8)
     parser.add_argument('--pool_workers', type=int, default=30)
-    parser.add_argument('--num_pitch_per_speaker', type=int, default=50) # saves time.
+    parser.add_argument('--num_pitch_per_speaker', type=int, default=None) # saves time.
 
     args = parser.parse_args()
 

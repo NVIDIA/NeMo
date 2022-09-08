@@ -571,9 +571,11 @@ class FastPitchModel_SSL(ModelPT):
 
     def setup_training_data(self, cfg):
         self._train_dl = self.__setup_dataloader_from_config(cfg)
-        self.fb = self._train_dl.dataset.fb
-        self.fb_inverse = self._train_dl.dataset.fb_inverse
-
+        # self.fb = self._train_dl.dataset.fb
+        self.register_buffer("fb", self._train_dl.dataset.fb)
+        # self.fb_inverse = self._train_dl.dataset.fb_inverse
+        self.register_buffer("fb_inverse", self._train_dl.dataset.fb_inverse)
+        
     def setup_validation_data(self, cfg):
         self._validation_dl = self.__setup_dataloader_from_config(cfg)
 
