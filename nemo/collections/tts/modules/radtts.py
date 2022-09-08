@@ -620,7 +620,7 @@ class RadTTSModule(NeuralModule, Exportable):
         voiced_mask=None,
     ):
 
-        print ("Text: ", text)
+#        print ("Text: ", text)
         
         batch_size = text.shape[0]
         n_tokens = text.shape[1]
@@ -632,8 +632,8 @@ class RadTTSModule(NeuralModule, Exportable):
         spk_vec_text = self.encode_speaker(speaker_id_text)
         spk_vec_attributes = self.encode_speaker(speaker_id_attributes)
 
-        txt_enc, txt_emb = self.encode_text(text, None)
-        print ("txt_emb, txt_enc: ", txt_emb, txt_enc )
+        txt_enc, txt_emb = self.encode_text(text, in_lens)
+        # print ("txt_emb, txt_enc: ", txt_emb, txt_enc )
 
         if dur is None:
             # get token durations

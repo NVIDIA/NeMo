@@ -45,7 +45,7 @@ class PartialConv1d(torch.nn.Conv1d):
     def calculate_mask(self, input: torch.Tensor, mask_in: Optional[torch.Tensor]):
             with torch.no_grad():
                 if mask_in is None:
-                    mask = self.mask_tmpl[:,:,input.shape[2]]
+                    mask = self.mask_tmpl[:,:,:input.shape[2]]
                 else:
                     mask = mask_in
                 update_mask = F.conv1d(
