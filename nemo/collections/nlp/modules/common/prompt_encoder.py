@@ -198,6 +198,11 @@ class PromptEncoderMLP(NeuralModule, Exportable):
         return output_embeds
 
 
+class PromptEncoderType(enum.Enum):
+    LSTM = 'lstm'
+    MLP = 'mlp'
+
+
 class PromptEncoder(NeuralModule, Exportable):
     """
     The prompt encoder network that is used to generate the virtual
