@@ -93,6 +93,7 @@ class TTSDataset(Dataset):
         segment_max_duration: Optional[int] = None,
         pitch_augment: bool = False,
         cache_pitch_augment: bool = True,
+        pad_multiple: int = 1,
         **kwargs,
     ):
         """Dataset which can be used for training spectrogram generators and end-to-end TTS models.
@@ -311,6 +312,8 @@ class TTSDataset(Dataset):
 
         for data_type in self.sup_data_types:
             getattr(self, f"add_{data_type.name}")(**kwargs)
+        
+        self.pad_multiple = pad_multiple
 
     @staticmethod
     def filter_files(data, ignore_file, min_duration, max_duration, total_duration):
@@ -476,6 +479,14 @@ class TTSDataset(Dataset):
                 torch.save(audio_shifted, audio_shifted_path)
             return audio_shifted
 
+    def _pad_wav(self, wav):
+        if self.pad_multiple > 1:
+            if wav.shape[0] % self.pad_multiple != 0:
+                wav = torch.cat(
+                    [wav, torch.zeros(self.pad_multiple - wav.shape[0] % self.pad_multiple, dtype=torch.float)]
+                )
+        return wav
+
     def __getitem__(self, index):
         sample = self.data[index]
 
@@ -500,6 +511,7 @@ class TTSDataset(Dataset):
                 audio_shifted = self.pitch_shift(features.samples, self.sample_rate, rel_audio_path_as_text_id)
 
             features = torch.tensor(features.samples)
+            features = self._pad_wav(features)
             audio, audio_length = features, torch.tensor(features.shape[0]).long()
         else:
             features = self.featurizer.process(
@@ -510,6 +522,8 @@ class TTSDataset(Dataset):
                 trim_frame_length=self.trim_frame_length,
                 trim_hop_length=self.trim_hop_length,
             )
+
+            features = self._pad_wav(features)
             audio_shifted = None
             if self.pitch_augment:
                 audio_shifted = self.pitch_shift(
@@ -518,7 +532,7 @@ class TTSDataset(Dataset):
                 assert audio_shifted.size() == features.size(), "{} != {}".format(
                     audio_shifted.size(), features.size()
                 )
-
+            
             audio, audio_length = features, torch.tensor(features.shape[0]).long()
 
         if "text_tokens" in sample:
