@@ -181,7 +181,6 @@ def main(cfg) -> None:
             pretrained_cfg.pretrained_model_path = cfg.model.pretrained_model_path
             pretrained_cfg.adapter_tuning = cfg.model.adapter_tuning
 
-        # model = MegatronAdapterNMTModel.restore_from(
         model = MegatronNMTModel.restore_from(
             cfg.model.pretrained_model_path,
             trainer=trainer,

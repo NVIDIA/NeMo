@@ -99,6 +99,9 @@ def main(cfg) -> None:
         if hasattr(cfg.model, 'eval_languages'):
             t5_cfg.eval_languages = cfg.model.eval_languages
 
+        if hasattr(cfg.model, 'adapter_tuning'):
+            t5_cfg.adapter_tuning = cfg.model.adapter_tuning
+
     if hasattr(cfg.model.data.train_ds, 'task_name'):
         model = MegatronT5GLUEModel.restore_from(
             restore_path=cfg.model.restore_from_path,

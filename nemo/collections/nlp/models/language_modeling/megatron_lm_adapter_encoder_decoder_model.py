@@ -45,9 +45,6 @@ class MegatronLMAdapterEncoderDecoderModel(MegatronLMEncoderDecoderModel):
             # validate and add adapters
             self._validate_adapters_cfg(cfg.adapter_tuning)
 
-            with open_dict(cfg):
-                cfg.tokenizer = self.cfg.encoder_tokenizer
-
             self.adapter_name_keys = ['adapter_1', 'adapter_2']
 
             # set the base model and enc_dec_model module
