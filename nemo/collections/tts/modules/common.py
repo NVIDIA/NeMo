@@ -15,7 +15,7 @@
 ###############################################################################
 
 import ast
-from typing import Tuple, List
+from typing import Tuple, List, Optional
 
 import numpy as np
 import torch
@@ -223,7 +223,7 @@ class ConvLSTMLinear(BiLSTM):
         context = torch.nn.utils.rnn.pad_sequence(context_embedded, batch_first=True)
         return context
 
-    def forward(self, context, lens=None):
+    def forward(self, context:torch.Tensor, lens:Optional[torch.Tensor]=None):
         if lens is not None and context.size()[0] > 1:
             context = self.run_padded_sequence(context, lens)
         else:

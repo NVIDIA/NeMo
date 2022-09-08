@@ -530,6 +530,8 @@ def regulate_len(durations, enc_out, pace=1.0, mel_max_len=None, group_size=1):
     reps = (reps + 0.5).floor().long()
     dec_lens = reps.sum(dim=1)
 
+    print("reps, dec_lens", reps.shape, dec_lens)
+
     max_len = dec_lens.max()
     reps_cumsum = torch.cumsum(torch.nn.functional.pad(reps, (1, 0, 0, 0), value=0.0), dim=1)[:, None, :]
     reps_cumsum = reps_cumsum.to(dtype=dtype, device=enc_out.device)
@@ -542,8 +544,6 @@ def regulate_len(durations, enc_out, pace=1.0, mel_max_len=None, group_size=1):
     mult = (reps_cumsum[:, :, :-1] <= range_) & (reps_cumsum[:, :, 1:] > range_)
     mult = mult.to(dtype)
     enc_rep = torch.matmul(mult, enc_out)
-
-    # print("max_len, dec_lens", max_len, dec_lens)
         
     if mel_max_len is not None:
         enc_rep = enc_rep[:, :mel_max_len]

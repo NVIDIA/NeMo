@@ -339,11 +339,7 @@ class RadTTSModule(NeuralModule, Exportable):
         # text_embeddings: b x len_text x n_text_dim
         text_embeddings = self.embedding(text).transpose(1, 2)
         # text_enc: b x n_text_dim x encoder_dim (512)
-        if in_lens is None:
-            text_enc = self.encoder.infer(text_embeddings).transpose(1, 2)
-        else:
-            text_enc = self.encoder(text_embeddings, in_lens).transpose(1, 2)
-
+        text_enc = self.encoder(text_embeddings, in_lens).transpose(1, 2)
         return text_enc, text_embeddings
 
     def preprocess_context(self, context, speaker_vecs, out_lens, f0, energy_avg):
@@ -623,9 +619,8 @@ class RadTTSModule(NeuralModule, Exportable):
         energy_avg=None,
         voiced_mask=None,
     ):
-        # if in_lens is not None:
-        #     text=text[:, :in_lens[0]]
-        # pdb.set_trace()
+
+        print ("Text: ", text)
         
         batch_size = text.shape[0]
         n_tokens = text.shape[1]
@@ -637,12 +632,8 @@ class RadTTSModule(NeuralModule, Exportable):
         spk_vec_text = self.encode_speaker(speaker_id_text)
         spk_vec_attributes = self.encode_speaker(speaker_id_attributes)
 
-        txt_emb = self.embedding(text).transpose(1, 2)
-        # text_enc: b x n_text_dim x encoder_dim (512)
-        if in_lens is None:
-            txt_enc = self.encoder.infer(txt_emb).transpose(1, 2)
-        else:
-            txt_enc = self.encoder(txt_emb, in_lens).transpose(1, 2)
+        txt_enc, txt_emb = self.encode_text(text, None)
+        print ("txt_emb, txt_enc: ", txt_emb, txt_enc )
 
         if dur is None:
             # get token durations
@@ -655,7 +646,7 @@ class RadTTSModule(NeuralModule, Exportable):
 
         # get attributes f0, energy, vpred, etc)
         txt_enc_time_expanded, out_lens = regulate_len(dur, txt_enc.transpose(1, 2), pace, group_size= self.n_group_size)
-        # print ("txt_enc_time_expanded, out_lens: ", txt_enc_time_expanded.shape, out_lens)
+        print ("txt_enc_time_expanded, out_lens, dur: ", txt_enc_time_expanded.shape, out_lens, dur)
         n_groups = torch.div(out_lens, self.n_group_size, rounding_mode='floor')
 
         txt_enc_time_expanded.transpose_(1, 2)
@@ -853,8 +844,8 @@ class RadTTSModule(NeuralModule, Exportable):
             text,
             speaker_id_text=speaker_id_text,
             speaker_id_attributes=speaker_id_attributes,
-            sigma=0.7,
-            sigma_txt=0.7,
+            sigma=0.0,
+            sigma_txt=0.0,
             sigma_f0=1.0,
             sigma_energy=1.0,
             f0_mean=145.0,
