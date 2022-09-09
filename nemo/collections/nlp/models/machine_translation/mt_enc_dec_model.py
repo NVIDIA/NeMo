@@ -25,7 +25,6 @@ from requests import post
 import torch
 import torch.distributed as dist
 import torch.utils.data as pt_data
-import webdataset as wd
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.utilities import rank_zero_only
