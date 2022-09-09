@@ -131,9 +131,8 @@ class HeteronymClassificationDataset(Dataset):
 
         heteronym_span_idx = 0
         # split sentence by space and keep track of word boundaries
-        # we assume a heteronym is a starndalone word
+        # we assume a heteronym is a standalone word
         matches = [(m.group(0), (m.start(), m.end() - 1)) for m in re.finditer(r'\S+', sentence)]
-        # import pdb; pdb.set_trace()
         for match in matches:
             word, word_start_end = match
 
@@ -151,9 +150,6 @@ class HeteronymClassificationDataset(Dataset):
                     prefix = sentence[word_start_end[0] : heteronym_start_end[0]]
                     prefix_ids = self.tokenizer.text_to_ids(prefix)
                     subtokens_mask.extend([self.PAD_TOKEN] * len(prefix_ids))
-                    # if "-Nestle" in word:
-                    #     import pdb;
-                    #     pdb.set_trace()
 
                 word = word[word.index(prefix) + len(prefix_ids) :]
                 word_input_ids = self.tokenizer.text_to_ids(word)
@@ -161,13 +157,7 @@ class HeteronymClassificationDataset(Dataset):
 
                 subtokens_mask.extend([1] + [self.PAD_TOKEN] * (len(word_input_ids) - 1))
                 if with_labels:
-                    try:
-                        cur_target_word_id = self.wordid_to_idx[word_ids[heteronym_span_idx]]
-                    except:
-                        import pdb
-
-                        pdb.set_trace()
-                        print()
+                    cur_target_word_id = self.wordid_to_idx[word_ids[heteronym_span_idx]]
                     target_word_ids.extend(
                         [self.LOSS_PAD_TOKEN] * len(prefix_ids)
                         + [cur_target_word_id]
@@ -191,9 +181,6 @@ class HeteronymClassificationDataset(Dataset):
 
         if heteronym_span_idx < len(start_end):
             logging.info("Not all heteronym spans were processed. Skipping example.")
-            import pdb
-
-            pdb.set_trace()
             return None
 
         # add eos token
@@ -206,13 +193,6 @@ class HeteronymClassificationDataset(Dataset):
         if with_labels:
             output.append(target_word_ids)
 
-        if len(input_ids) != len(subtokens_mask):
-            import pdb
-
-            pdb.set_trace()
-            print()
-        # import pdb;
-        # pdb.set_trace()
         return output  # [input_ids, target_and_negatives, subtokens_mask, [Optional] target]
 
     def __len__(self):
@@ -271,79 +251,13 @@ class HeteronymClassificationDataset(Dataset):
             for value in cur_target_and_negatives:
                 target_and_negatives_mask[i][value] = 1
 
-        # import pdb;
-        # pdb.set_trace()
-        # # Encode inputs (graphemes)
-        # input_batch = [entry["input_ids"] for entry in batch]
-        # input_encoding = self.tokenizer.tokenizer(
-        #     input_batch, padding='longest', max_length=self.max_seq_len, truncation=True, return_tensors='pt',
-        # )
-        #
-        # input_ids, attention_mask = input_encoding.input_ids, input_encoding.attention_mask
-        # # create a mask 1 for target_and_negatives and 0 for the rest of the entries since they're not relevant to the target word
-        # target_and_negatives = [entry["target_and_negatives"] for entry in batch]
-        # batch_size = input_ids.shape[0]
-        # num_classes = len(self.wordid_to_idx)
-        # target_and_negatives_mask = torch.zeros(batch_size, num_classes)
-        # for i, values in enumerate(target_and_negatives):
-        #     for v in values:
-        #         target_and_negatives_mask[i][v] = 1
-        #
-        # # pad prediction mask (masks out irrelevant subwords)
-        # subword_mask = [entry["subword_mask"] for entry in batch]
-        # pred_mask_len = [len(entry) for entry in subword_mask]
-        # max_pred_mask_len = max(pred_mask_len)
-        # subword_mask = [
-        #     entry + [0] * (max_pred_mask_len - entry_len) for entry, entry_len in zip(subword_mask, pred_mask_len)
-        # ]
-        # subword_mask = torch.tensor(subword_mask)
-        try:
-            output = [
-                torch.LongTensor(padded_input_ids),
-                torch.LongTensor(padded_attention_mask),
-                target_and_negatives_mask,
-                torch.LongTensor(padded_subtokens_mask),
-            ]
-
-            if self.with_labels:
-                output.append(torch.LongTensor(padded_targets))
-        except:
-            import pdb
-
-            pdb.set_trace()
-            print()
-        return output
-
-
-"""
-    def _collate_fn(self, batch):
-        max_length = 0
-        for input_ids, segment_ids, input_mask, label in batch:
-            if len(input_ids) > max_length:
-                max_length = len(input_ids)
-
-        padded_input_ids = []
-        padded_segment_ids = []
-        padded_input_mask = []
-        labels = []
-        for input_ids, segment_ids, input_mask, label in batch:
-            if len(input_ids) < max_length:
-                pad_width = max_length - len(input_ids)
-                padded_input_ids.append(np.pad(input_ids, pad_width=[0, pad_width], constant_values=self.pad_id))
-                padded_segment_ids.append(np.pad(segment_ids, pad_width=[0, pad_width], constant_values=self.pad_id))
-                padded_input_mask.append(np.pad(input_mask, pad_width=[0, pad_width], constant_values=self.pad_id))
-            else:
-                padded_input_ids.append(input_ids)
-                padded_segment_ids.append(segment_ids)
-                padded_input_mask.append(input_mask)
-            labels.append(label)
-
-        return (
+        output = [
             torch.LongTensor(padded_input_ids),
-            torch.LongTensor(padded_segment_ids),
-            torch.LongTensor(padded_input_mask),
-            torch.LongTensor(labels),
-        )
+            torch.LongTensor(padded_attention_mask),
+            target_and_negatives_mask,
+            torch.LongTensor(padded_subtokens_mask),
+        ]
 
-
-"""
+        if self.with_labels:
+            output.append(torch.LongTensor(padded_targets))
+        return output
