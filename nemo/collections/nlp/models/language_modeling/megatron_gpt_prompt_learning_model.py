@@ -125,7 +125,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 trainer=trainer,
                 save_restore_connector=save_resotre_connector,
                 override_config_path=frozen_model_cfg,
-            )
+            ).to(dtype=self.autocast_dtype)
 
         # TODO: Enable amp_o2 training
         self.megatron_amp_o2 = False
@@ -268,7 +268,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 hidden_size=self.cfg.p_tuning.encoder_hidden,
                 output_size=self.hidden_size,
                 init_std=self.cfg.p_tuning.init_std,
-            )
+            ).to(dtype=self.autocast_dtype)
         elif encoder_type == PromptEncoderType.BIGLSTM:
             self.prompt_encoder = BIGLSTMPromptEncoder(
                 total_virtual_tokens=total_virtual_tokens,
@@ -276,7 +276,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 output_size=self.hidden_size,
                 lstm_dropout=self.cfg.p_tuning.dropout,
                 num_layers=self.cfg.p_tuning.num_layers,
-            )
+            ).to(dtype=self.autocast_dtype)
         elif encoder_type == PromptEncoderType.LSTM or encoder_type == PromptEncoderType.MLP:
             self.prompt_encoder = PromptEncoder(
                 encoder_type=encoder_type,
@@ -285,7 +285,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 hidden_size=self.cfg.p_tuning.get("encoder_hidden", self.hidden_size // 2),
                 lstm_dropout=self.cfg.p_tuning.get("dropout", 0.0),
                 num_layers=self.cfg.p_tuning.get("num_layers", 2),
-            )
+            ).to(dtype=self.autocast_dtype)
         else:
             raise ValueError('not supported')
 
