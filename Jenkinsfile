@@ -3652,7 +3652,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         trainer.val_check_interval=8 \
         trainer.limit_val_batches=2 \
         trainer.accumulate_grad_batches=1 \
-        trainer.max_steps=10 \
+        trainer.max_steps=5 \
         trainer.precision=16 \
         trainer.gradient_clip_val=1.0 \
         exp_manager.exp_dir=examples/nlp/language_modeling/bart_pretrain_results \
@@ -3677,8 +3677,8 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         trainer.devices=2 \
         trainer.accelerator=gpu \
         trainer.log_every_n_steps=1 \
-        trainer.val_check_interval=10 \
-        trainer.limit_val_batches=2 \
+        trainer.val_check_interval=8 \
+        trainer.limit_val_batches=1 \
         trainer.accumulate_grad_batches=1 \
         trainer.max_steps=10 \
         trainer.precision=16 \
