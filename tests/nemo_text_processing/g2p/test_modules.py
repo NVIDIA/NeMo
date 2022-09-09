@@ -27,7 +27,7 @@ class TestModules:
         phoneme_dict=PHONEME_DICT_PATH,
         apply_to_oov_word=lambda x: x,
         use_chars=False,
-        phoneme_probability=1.0,
+        phoneme_probability=None,
         set_graphemes_upper=True,
     ):
         return IPAG2P(

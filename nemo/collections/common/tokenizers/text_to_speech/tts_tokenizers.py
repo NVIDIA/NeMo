@@ -599,11 +599,12 @@ class PhonemizerTokenizer(IPATokenizer):
         if non_default_chars:
             char_set = non_default_chars
         else:
-            char_set = get_ipa_character_set(language)
+            locale = self._get_locale(language)
+            char_set = get_ipa_character_set(locale)
             if use_stresses:
                 char_set.update(self.ESPEAK_SYMBOLS)
             if use_chars:
-                grapheme_set = get_grapheme_character_set(language)
+                grapheme_set = get_grapheme_character_set(locale)
                 char_set.update(grapheme_set)
 
         if not punct:
@@ -611,7 +612,8 @@ class PhonemizerTokenizer(IPATokenizer):
         elif non_default_punct_list:
             punct_list = non_default_punct_list
         else:
-            punct_list = get_ipa_punctuation_list(language)
+            locale = self._get_locale(language)
+            punct_list = get_ipa_punctuation_list(locale)
 
         espeak_logger = getLogger('espeak')
         espeak_logger.setLevel(espeak_logging_level)
@@ -640,6 +642,18 @@ class PhonemizerTokenizer(IPATokenizer):
             pad_with_space=pad_with_space,
             text_preprocessing_func=lambda text: text,
         )
+
+    @staticmethod
+    def _get_locale(language):
+        # Converts eSpeak language string to ISO language tag
+        if language == "en-us":
+            return "en-US"
+        elif language == "es":
+            return "es-ES"
+        elif language == "de":
+            return "de-DE"
+
+        raise ValueError(f"Language not supported {language}")
 
     def _text_to_phonemes_espeak(self, text):
         phonemes = self.espeak_backend.phonemize([text])[0]

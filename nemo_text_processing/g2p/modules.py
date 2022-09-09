@@ -246,6 +246,10 @@ class EnglishG2p(BaseG2p):
 class IPAG2P(BaseG2p):
     # fmt: off
     STRESS_SYMBOLS = ["ˈ", "ˌ"]
+    # Regex for roman characters, accented characters, and locale-agnostic numbers/digits
+    CHAR_REGEX = re.compile(r"[a-zA-ZÀ-ÿ\d]")
+    PUNCT_REGEX = re.compile(r"[^a-zA-ZÀ-ÿ\d]")
+    # fmt: on
 
     def __init__(
         self,
@@ -255,9 +259,9 @@ class IPAG2P(BaseG2p):
         ignore_ambiguous_words=True,
         heteronyms=None,
         use_chars=False,
-        phoneme_probability: Optional[float]=None,
-        use_stresses: Optional[bool]=True,
-        set_graphemes_upper: Optional[bool]=True
+        phoneme_probability: Optional[float] = None,
+        use_stresses: Optional[bool] = True,
+        set_graphemes_upper: Optional[bool] = True,
     ):
         """Generic IPA G2P module. This module converts words from grapheme to International Phonetic Alphabet representations.
         Optionally, it can ignore heteronyms, ambiguous words, or words marked as unchangeable by word_tokenize_func (see code for details).
@@ -289,22 +293,21 @@ class IPAG2P(BaseG2p):
         """
         self.use_stresses = use_stresses
         self.set_graphemes_upper = set_graphemes_upper
-        self.use_chars = use_chars
         self.phoneme_probability = phoneme_probability
         self._rng = random.Random()
 
-        if not self.use_chars and self.phoneme_probability is not None:
-            logging.warning("use_chars was not set while using phoneme_probability.")
+        if not use_chars and self.phoneme_probability is not None:
+            self.use_chars = True
+            logging.warning(
+                "phoneme_probability was not None, characters will be enabled even though "
+                "use_chars was set to False."
+            )
+        else:
+            self.use_chars = use_chars
 
         if isinstance(phoneme_dict, str) or isinstance(phoneme_dict, pathlib.Path):
             # Load phoneme_dict from file path
-            self.phoneme_dict, self.symbols = self._parse_as_cmu_dict(
-                phoneme_dict,
-                use_stresses,
-                self.STRESS_SYMBOLS,
-                use_chars=self.use_chars,
-                upper=set_graphemes_upper,
-            )
+            self.phoneme_dict, self.symbols = self._parse_as_cmu_dict(phoneme_dict)
         else:
             # Load phoneme_dict as dictionary object
             logging.info("Loading phoneme_dict as a Dict object. Extracting valid symbols from values.")
@@ -314,7 +317,8 @@ class IPAG2P(BaseG2p):
             for word, phonemes in phoneme_dict.items():
                 self.symbols.update(phonemes)
                 if self.use_chars:
-                    self.symbols.update(word)
+                    word_no_punct = self.PUNCT_REGEX.sub('', word)
+                    self.symbols.update(word_no_punct)
 
             # Update dict to remove stresses if use_stresses=False
             if not use_stresses:
@@ -322,7 +326,7 @@ class IPAG2P(BaseG2p):
                     self.symbols.remove(stress_symbol)
 
                 updated_phoneme_dict = {}
-                for k,vs in self.phoneme_dict.items():
+                for k, vs in self.phoneme_dict.items():
                     new_vs = []
                     for pron in vs:
                         new_vs.append([symbol for symbol in pron if symbol not in self.STRESS_SYMBOLS])
@@ -332,7 +336,7 @@ class IPAG2P(BaseG2p):
             # Update dict keys if graphemes should be set to uppercase
             if set_graphemes_upper:
                 updated_phoneme_dict = {}
-                for k,vs, in self.phoneme_dict.items():
+                for k, vs, in self.phoneme_dict.items():
                     updated_phoneme_dict[k.upper()] = vs
                 self.phoneme_dict = updated_phoneme_dict
 
@@ -358,7 +362,11 @@ class IPAG2P(BaseG2p):
             self.heteronyms = [het.upper() for het in self.heteronyms]
 
     @staticmethod
-    def _parse_as_cmu_dict(phoneme_dict_path, use_stresses=False, stress_symbols=[], use_chars=False, upper=True):
+    def _parse_file_by_lines(p):
+        with open(p, 'r') as f:
+            return [l.rstrip() for l in f.readlines()]
+
+    def _parse_as_cmu_dict(self, phoneme_dict_path):
         """Loads IPA CMUdict, and generates a set of all valid symbols."""
         g2p_dict = defaultdict(list)
         symbols = set()
@@ -369,26 +377,22 @@ class IPAG2P(BaseG2p):
                 if len(line) and ('A' <= line[0] <= 'Z' or line[0] == "'"):
                     parts = line.split('  ')
                     word = re.sub(_alt_re, '', parts[0])
-                    if upper:
+                    if self.set_graphemes_upper:
                         word = word.upper()
                     else:
                         word = word.lower()
 
                     pronunciation = parts[1].strip()
-                    if not use_stresses:
-                        for stress_symbol in stress_symbols:
+                    if not self.use_stresses:
+                        for stress_symbol in self.STRESS_SYMBOLS:
                             pronunciation = pronunciation.replace(stress_symbol, '')
                     symbols.update(pronunciation)  # This will insert each char individually
-                    if use_chars:
-                        symbols.update(word)
+                    if self.use_chars:
+                        word_no_punct = self.PUNCT_REGEX.sub('', word)
+                        symbols.update(word_no_punct)
                     g2p_dict[word].append(list(pronunciation))
 
         return g2p_dict, symbols
-
-    @staticmethod
-    def _parse_file_by_lines(p):
-        with open(p, 'r') as f:
-            return [l.rstrip() for l in f.readlines()]
 
     def add_symbols(self, symbols):
         """By default the G2P symbols will be inferred from the words & pronunciations in the phoneme_dict.
@@ -409,7 +413,7 @@ class IPAG2P(BaseG2p):
             return word, True
 
         # Punctuation (assumes other chars have been stripped)
-        if re.search(r"[a-zA-ZÀ-ÿ\d]", word) is None:
+        if self.CHAR_REGEX.search(word) is None:
             return list(word), True
 
         # Heteronym

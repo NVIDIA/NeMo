@@ -145,7 +145,7 @@ class TestTTSTokenizers:
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     def test_phonemizer_tokenizer_unsupported_language(self):
-        with pytest.raises(ValueError, match="character set not found"):
+        with pytest.raises(ValueError, match="Language not supported"):
             self._create_tokenizer("pt-BR")
 
     @pytest.mark.skipif(
