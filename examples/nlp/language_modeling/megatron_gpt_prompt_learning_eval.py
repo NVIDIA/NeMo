@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+
 import torch
 from omegaconf import OmegaConf
 from omegaconf.omegaconf import open_dict
@@ -21,7 +23,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_
     MegatronGPTPromptLearningModel,
 )
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.core.config import hydra_runner
 
 
@@ -83,15 +85,27 @@ def main(cfg) -> None:
 
     # Load prompt tuned model, virtual_prompt_model_file must be provided in config
     # Update frozen GPT model path in case it has changed
+    save_resotre_connector = NLPSaveRestoreConnector()
+    if os.path.isdir(cfg.gpt_model_file):
+        save_resotre_connector.model_extracted_dir = cfg.gpt_model_file
+
     prompt_learning_cfg = MegatronGPTPromptLearningModel.restore_from(
-        cfg.virtual_prompt_model_file, trainer=trainer, return_config=True
+        cfg.virtual_prompt_model_file,
+        trainer=trainer,
+        return_config=True,
+        save_restore_connector=save_resotre_connector,
     )
     with open_dict(prompt_learning_cfg):
         prompt_learning_cfg.language_model_path = cfg.gpt_model_file
+        # turn off the sequence parallel
+        prompt_learning_cfg.sequence_parallel = False
 
     # Now load prompt learning model with frozen gpt model base
     model = MegatronGPTPromptLearningModel.restore_from(
-        restore_path=cfg.virtual_prompt_model_file, trainer=trainer, override_config_path=prompt_learning_cfg
+        restore_path=cfg.virtual_prompt_model_file,
+        trainer=trainer,
+        override_config_path=prompt_learning_cfg,
+        save_restore_connector=save_resotre_connector,
     )
 
     model.freeze()
