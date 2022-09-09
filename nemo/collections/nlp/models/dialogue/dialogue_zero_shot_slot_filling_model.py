@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import os
-from typing import Dict, Optional
+from typing import Dict, Optional, List, Tuple
 
 import torch
 from omegaconf import DictConfig, OmegaConf
@@ -281,7 +281,7 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         dot_product_score = self.get_entity_description_score(mention_hidden_states_pad)
         dot_product_score_log_softmax = torch.log_softmax(dot_product_score, dim=-1)
 
-        predicted_bio_slot = torch.argmax(bio_slot_logits, axis=-1)
+        predicted_bio_slot = torch.argmax(bio_slot_logits, dim=-1)
         predicted_mention_hidden_states_pad = DialogueZeroShotSlotFillingModel.get_entity_embedding_from_hidden_states(
             predicted_bio_slot, hidden_states
         )
@@ -289,6 +289,49 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         predicted_dot_product_score_log_softmax = torch.log_softmax(predicted_dot_product_score, dim=-1)
 
         return bio_slot_logits, dot_product_score_log_softmax, predicted_dot_product_score_log_softmax
+
+    def predict(self, text: str, slot_descriptions: List[str]) -> Tuple[torch.tensor, List[str], torch.tensor]:
+        """
+        Method for performing inference on text given a list of slot types and descriptions
+        Args:
+            text: The actual text on which inference needs to be performed
+            slot_descriptions: A list of slot types and descriptions separated by a tab.
+                e.g. drink type\tThe type of drink
+        """
+        input_ids, token_type_ids, attention_mask, loss_mask, subtokens_mask, _ = DialogueZeroShotSlotFillingDataset.get_features(
+            [text],
+            self.max_seq_length,
+            self.tokenizer,
+            pad_label=self.cfg.data_desc.pad_label,
+            word_level_slots=None,
+            ignore_extra_tokens=True,
+            ignore_start_end=True,
+        )
+        input_ids = torch.tensor(input_ids, dtype=torch.int32).to(self.device)
+        token_type_ids = torch.tensor(token_type_ids, dtype=torch.int32).to(self.device)
+        attention_mask = torch.tensor(attention_mask, dtype=torch.int32).to(self.device)
+        subtokens_mask = torch.tensor(subtokens_mask, dtype=torch.int32)
+
+        hidden_states = self.bert_model(
+            input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
+        )
+        bio_slot_logits = self.bio_mlp(hidden_states)
+        predicted_bio_slot = torch.argmax(bio_slot_logits, dim=-1)
+        predicted_mention_hidden_states_pad = DialogueZeroShotSlotFillingModel.get_entity_embedding_from_hidden_states(
+            predicted_bio_slot, hidden_states
+        )
+        predicted_dot_product_score = self.get_entity_description_score(predicted_mention_hidden_states_pad,
+                                                                        slot_descriptions)
+        # predicted_dot_product_score_log_softmax = torch.log_softmax(predicted_dot_product_score, dim=-1)
+        predicted_slot_similarity_preds = torch.argmax(predicted_dot_product_score, dim=-1)
+
+        predicted_slot_class_batch = DialogueZeroShotSlotFillingModel.align_mention_to_tokens(
+            predicted_bio_slot, predicted_slot_similarity_preds, label_id_for_empty_slot=self.label_id_for_empty_slot
+        )
+
+        utterance_tokens = self.get_utterance_tokens(input_ids[0], subtokens_mask[0])
+
+        return predicted_slot_class_batch[0], utterance_tokens, predicted_bio_slot[0]
 
     def calculate_loss(
         self,
@@ -444,7 +487,7 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         slot_class = []
         for one_bio_labels, one_mention_labels in zip(bio_labels, mention_labels):
             start_and_end = DialogueZeroShotSlotFillingModel.get_start_and_end_for_bio(one_bio_labels)
-            one_slot_class = torch.ones(len(one_mention_labels)) * label_id_for_empty_slot
+            one_slot_class = torch.ones(len(one_mention_labels), dtype=torch.int32) * label_id_for_empty_slot
 
             for idx, one_start_and_end in enumerate(start_and_end):
                 start, exclusive_end = one_start_and_end
@@ -487,12 +530,12 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
                 i += 1
         return start_and_end
 
-    def get_entity_description_score(self, mention_hidden_states_pad):
+    def get_entity_description_score(self, mention_hidden_states_pad, entity_types_descriptions=None):
         """
         Score entity description based on the dot product similarity between mention and description
         Args: 
             mention_hidden_states_pad: mention embedding of size (batch_size * max_num_mention * hidden_state_dim)
-            self.description_embeddings: description embeddings of size (num_slot_class * shared_embedding_dim)
+            entity_types_descriptions: entity types and descriptions List[types\tdescriptions]
             
         Returns:
             dot product score matrix of given mention embedding and description embedding (batch_size * max_num_mention * num_slot_class)
@@ -501,10 +544,15 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         # Make sure that self.description_projection_mlp and self.description_embeddings are on the main trainer device
         if next(self.description_projection_mlp.parameters()).device != self.device:
             self.description_projection_mlp.to(self.device)
-        if self.description_embeddings.device != self.device:
-            self.description_embeddings = self.description_embeddings.to(self.device)
 
-        projected_description_embedding = self.description_projection_mlp(self.description_embeddings)
+        if entity_types_descriptions:
+            entity_type_embeddings = self.get_description_embedding(entity_types_descriptions)
+            projected_description_embedding = self.description_projection_mlp(entity_type_embeddings)
+        else:
+            projected_description_embedding = self.description_projection_mlp(self.description_embeddings)
+            if self.description_embeddings.device != self.device:
+                self.description_embeddings = self.description_embeddings.to(self.device)
+
         projected_mention_embedding = self.mention_projection_mlp(mention_hidden_states_pad)
         dot_product_score = torch.matmul(projected_mention_embedding, torch.t(projected_description_embedding))
 
