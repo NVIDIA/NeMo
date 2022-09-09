@@ -121,9 +121,9 @@ model:
     num_classes: ???
     pool_mode: 'attention'
     emb_sizes: 192
-    angular: True
 
   loss:
+    _target_: nemo.collections.asr.losses.angularloss.AngularSoftmaxLoss # you could also use cross-entrophy loss
     scale: 30
     margin: 0.2
 
