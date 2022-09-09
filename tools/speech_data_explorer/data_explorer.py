@@ -102,7 +102,7 @@ def parse_args():
         help='A base path for the relative paths in manifest. It defaults to manifest path.',
     )
     parser.add_argument('--debug', '-d', action='store_true', help='enable debug mode')
-    # new
+
     parser.add_argument('--compare_1st', '-c1', help='path to JSON manifest files (after transcription)')
     parser.add_argument('--compare_2nd', '-c2', help='path to JSON manifest files (after transcription)')
     args = parser.parse_args()
@@ -191,7 +191,6 @@ def load_data(data_filename, disable_caching=False, estimate_audio=False, vocab=
 
     sm = difflib.SequenceMatcher()
     metrics_available = False
-    # new
 
     with open(data_filename, 'r', encoding='utf8') as f:
         for line in tqdm.tqdm(f):
@@ -286,10 +285,8 @@ def load_data(data_filename, disable_caching=False, estimate_audio=False, vocab=
             for item in vocabulary_data:  # adding accuracy
                 w = item['word']
                 word_accuracy = match_vocab[w] / vocabulary[w] * 100.0
-                # print(word_accuracy)
                 acc_sum += word_accuracy
                 item['accuracy' + '_' + str(model_num)] = round(word_accuracy, 1)
-                # item['accuracy' + '_' + str(model_num+1 % 3)] = round(word_accuracy, 1)
             mwa = acc_sum / len(vocabulary_data)
 
     num_hours /= 3600.0
@@ -388,7 +385,6 @@ if args.compare_1st is not None and args.compare_2nd is not None:
     print("N_2: ", args.compare_2nd)
     n1 = args.compare_1st
     n2 = args.compare_2nd
-    # print(n1)
 
     model_name_1 = n1.split('.')[-2]
     model_name_2 = n2.split('.')[-2]
@@ -413,11 +409,11 @@ if args.compare_1st is not None and args.compare_2nd is not None:
         args.compare_2nd, disable_caching=True, cmp_mode=True, model_num=2
     )
 
-    # probably there is smth better than this
+    #
     for i in range(len(vocabulary_1)):
         vocabulary_1[i].update(vocabulary_2[i])
 
-    # to_do - rewrite tool section with single vocabulary
+    #
 data, wer, cer, wmr, mwa, num_hours, vocabulary, alphabet, metrics_available = load_data(
     args.manifest, args.disable_caching_metrics, args.estimate_audio_metrics, args.vocab, args.audio_base_path
 )
@@ -591,8 +587,7 @@ if 'OOV' in vocabulary[0]:
     wordstable_columns.append({'name': 'OOV', 'id': 'OOV'})
 if metrics_available:
     wordstable_columns.append({'name': 'Accuracy, %', 'id': 'accuracy'})
-# if metrics_available_1 and metrics_available_2:
-# wordstable_columns_tool.append
+
 
 stats_layout += [
     dbc.Row(dbc.Col(html.H5('Vocabulary'), class_name='text-secondary'), class_name='mt-3'),
@@ -678,8 +673,6 @@ def update_wordstable(page_current, sort_by, filter_query):
     ]
 
 
-##new section
-
 
 def Data_preparation_unrelated_models(mod1, mod2, name1=model_name_1, name2=model_name_2):
     res = pd.DataFrame()
@@ -711,7 +704,7 @@ def Draw_vocab(filter_query, Ox, Oy, color, size, data, value=None):
 
     df = pd.DataFrame.from_records(data)
 
-    res = Prepare_data(df)
+    res = prepare_data(df)
 
     fig = px.scatter(
         res,
@@ -731,7 +724,7 @@ def Draw_vocab(filter_query, Ox, Oy, color, size, data, value=None):
     return fig
 
 
-def Prepare_data(df, name1=model_name_1, name2=model_name_2):
+def prepare_data(df, name1=model_name_1, name2=model_name_2):
     res = pd.DataFrame()
     tmp = df['word']
     res.insert(0, 'word', tmp)
@@ -744,19 +737,18 @@ def Prepare_data(df, name1=model_name_1, name2=model_name_2):
 
 
 comparison_layout = [
-    # dbc.Row(dbc.Col(html.H5('More information can be found in documentation'), class_name='text-secondary'), class_name='mt-9'),
     html.Hr(),
     html.Div(
         [
-            dcc.Dropdown(for_col_names.columns[::], 'count', id='xaxis-column'),  # add columns
-            dcc.Dropdown(for_col_names.columns[::], 'word', id='yaxis-column'),  # add columns
+            dcc.Dropdown(for_col_names.columns[::], 'count', id='xaxis-column'),
+            dcc.Dropdown(for_col_names.columns[::], 'word', id='yaxis-column'),
             dcc.Dropdown(
-                for_col_names.select_dtypes(include='number').columns[::],  # add columns
+                for_col_names.select_dtypes(include='number').columns[::],
                 placeholder='Select what will encode color of points',
                 id='color-column',
             ),
             dcc.Dropdown(
-                for_col_names.select_dtypes(include='number').columns[::],  # add columns
+                for_col_names.select_dtypes(include='number').columns[::],
                 placeholder='Select what will encode size of points',
                 id='size-column',
             ),
@@ -765,7 +757,7 @@ comparison_layout = [
         style={'width': '50%', 'display': 'inline-block', 'float': 'middle'},
     ),
     html.Hr(),
-    html.Div(id='filter-query-output'),  # Nice
+    html.Div(id='filter-query-output'),
     dash_table.DataTable(
         id='datatable-advanced-filtering',
         columns=wordstable_columns_tool,
@@ -834,7 +826,6 @@ def display_query(query):
     )
 
 
-###########################################################################################################################################END
 samples_layout = [
     dbc.Row(dbc.Col(html.H5('Data'), class_name='text-secondary'), class_name='mt-3'),
     dbc.Row(
