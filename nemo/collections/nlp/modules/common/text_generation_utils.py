@@ -622,30 +622,34 @@ def sample_sequence_batch(
         lengths = torch.ones([batch_size]).long().cuda() * maxlen
         prev_context_length=0
         while context_length < maxlen:
-            # types2use = None
-            if counter == 0:
-                # Allocate memory for the entire context.
-                set_inference_key_value_memory = True
+            if not model.cfg.transformer_engine:
+                # types2use = None
+                if counter == 0:
+                    # Allocate memory for the entire context.
+                    set_inference_key_value_memory = True
+                    tokens2use = tokens[:, :context_length]
+                    positions2use = position_ids[:, :context_length]
+
+                    # not using type2use. uncomment it if it is used
+                    # if type_ids is not None:
+                    #     types2use = type_ids[:, :context_length]
+                else:
+                    # Set this to false so the memory is not reallocated.
+                    set_inference_key_value_memory = False
+                    tokens2use = tokens[:, context_length - 1].view(batch_size, -1)
+                    positions2use = position_ids[:, context_length - 1].view(batch_size, -1)
+
+                    # not using type2use. uncomment it if it is used
+                    # if type_ids is not None:
+                    #     types2use = type_ids[:, context_length - 1].view(batch_size, -1)
+                attention_mask_repeat = torch.concat([attention_mask for _ in range(micro_batch_size)])
+            else:
+                set_inference_key_value_memory = False
                 tokens2use = tokens[:, :context_length]
                 positions2use = position_ids[:, :context_length]
-                attention_mask2use = attention_mask[..., :context_length, :context_length]
+                attentions2use = attention_mask[:, :, :context_length, :context_length]
+                attention_mask_repeat = torch.concat([attentions2use for _ in range(micro_batch_size)])
 
-                # not using type2use. uncomment it if it is used
-                # if type_ids is not None:
-                #     types2use = type_ids[:, :context_length]
-            else:
-                # Set this to false so the memory is not reallocated.
-                set_inference_key_value_memory = False
-                tokens2use = tokens[:, context_length - 1].view(batch_size, -1)
-                positions2use = position_ids[:, context_length - 1].view(batch_size, -1)
-                attention_mask2use = attention_mask[..., prev_context_length:context_length, prev_context_length:context_length]
-
-                # not using type2use. uncomment it if it is used
-                # if type_ids is not None:
-                #     types2use = type_ids[:, context_length - 1].view(batch_size, -1)
-
-            #attention_mask_repeat = torch.concat([attention_mask for _ in range(micro_batch_size)])
-            attention_mask_repeat = torch.concat([attention_mask2use for _ in range(micro_batch_size)])
             setkey_value_array = torch.tensor(
                 [set_inference_key_value_memory] * micro_batch_size, device=torch.cuda.current_device()
             )

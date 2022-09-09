@@ -74,35 +74,6 @@ except:
             )
 
 
-# TODO: import this from TE ?
-class InferenceParams:
-    """Inference parameters that are passed to the main model in order
-    to efficienly calculate and store the context during inference."""
-
-    def __init__(self, max_batch_size, max_sequence_len):
-        """Note that offsets are set to zero and we always set the
-        flag to allocate memory. After the first call, make sure to
-        set this flag to False."""
-        self.max_sequence_len = max_sequence_len
-        self.max_batch_size = max_batch_size
-        self.sequence_len_offset = 0
-        self.batch_size_offset = 0
-        self.key_value_memory_dict = {}
-
-    def swap_key_value_dict(self, batch_idx):
-        "swap between batches"
-        if len(self.key_value_memory_dict) == 0:
-            raise ValueError("should not swap when dict in empty")
-
-        for layer_number in self.key_value_memory_dict.keys():
-            inference_key_memory, inference_value_memory = self.key_value_memory_dict[layer_number]
-            assert len(batch_idx) == inference_key_memory.shape[1] ## make sure batch size is the same
-            new_inference_key_memory = inference_key_memory[:, batch_idx]
-            new_inference_value_memory = inference_value_memory[:, batch_idx]
-            self.key_value_memory_dict[layer_number] = (
-                    new_inference_key_memory, new_inference_value_memory)
-
-
 """ We use the following notation throughout this file:
      h: hidden size
      n: number of attention heads
@@ -857,7 +828,7 @@ class ParallelAttention(MegatronModule):
             key_layer = self.inference_key_memory[:end, ...]
             value_layer = self.inference_value_memory[:end, ...]
             # Adjust attention mask - no need for this here we do it in text_generation_utils.py
-            # attention_mask = attention_mask[..., start:end, :end]
+            attention_mask = attention_mask[..., start:end, :end]
             # adjust the key rotary positional embedding
             if rotary_pos_emb is not None:
                 q_pos_emb, k_pos_emb = rotary_pos_emb
@@ -2285,12 +2256,8 @@ class ParallelTransformer(MegatronModule):
                             checkpoint_core_attention = False
 
                         if self.transformer_engine:
-                            # TODO: inference with TE
-                            # how to do max_batch_size?
-                            if inference_max_sequence_len is not None:
-                                inference_params = InferenceParams(hidden_states.shape[1], inference_max_sequence_len)
-                            else:
-                                inference_params = None
+
+                            inference_params = None
 
                             hidden_states = layer(
                                 hidden_states,

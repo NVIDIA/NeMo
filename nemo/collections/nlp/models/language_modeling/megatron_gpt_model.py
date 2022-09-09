@@ -710,7 +710,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 self.trainer.strategy.launcher.launch(dummy, trainer=self.trainer)
             self.trainer.strategy.setup_environment()
         
-        self.setup_transformer_engine_tp_groups()
+            self.setup_transformer_engine_tp_groups()
 
         # set the default sampling params if it is None.
         # default do greedy sampling
