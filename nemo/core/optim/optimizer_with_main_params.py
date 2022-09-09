@@ -215,8 +215,6 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
                 for param in param_group['params']:
                     if param.requires_grad:
                         num_elements[i] = num_elements.get(i, 0) + param.data.nelement()
-                    else:
-                        import ipdb; ipdb.set_trace()
 
                 # Allocate gradient memory buffers for each data type
                 self._main_grad_buffers[i] = GradBucket(num_elements[i], self._grad_allreduce_chunk_size_mb)
