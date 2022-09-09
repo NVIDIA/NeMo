@@ -364,9 +364,9 @@ def plot_word_accuracy(vocabulary_data):
 
 args = parse_args()
 print('Loading data...')
-if args.compare_1st == None or args.compare_2nd == None:
+if args.compare_1st is None or args.compare_2nd is None:
     if args.compare_1st != None or args.compare_2nd != None:
-        logging.WARN("One of arguments (c1 or c2) is missing!")
+        raise AttributeError("One of arguments (c1 or c2) is missing!")
     model_name_1 = 'Not_defined'
     model_name_2 = 'Not_defined'
     for_col_names = pd.DataFrame()  # Not_defined
@@ -374,7 +374,7 @@ if args.compare_1st == None or args.compare_2nd == None:
     vocabulary_2 = 'Not_defined'
 
 
-if args.compare_1st != None and args.compare_2nd != None:
+if args.compare_1st is not None and args.compare_2nd is not None:
     print("Comparing following files:")
     print("N_1: ", args.compare_1st)
     print("N_2: ", args.compare_2nd)
