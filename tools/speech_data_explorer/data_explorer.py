@@ -743,7 +743,7 @@ def Prepare_data(df, name1=model_name_1, name2=model_name_2):
     return res
 
 
-comparation_layout = [
+comparison_layout = [
     # dbc.Row(dbc.Col(html.H5('More information can be found in documentation'), class_name='text-secondary'), class_name='mt-9'),
     html.Hr(),
     html.Div(
@@ -944,7 +944,7 @@ app.layout = html.Div(
             children=[
                 dbc.NavItem(dbc.NavLink('Statistics', id='stats_link', href='/', active=True)),
                 dbc.NavItem(dbc.NavLink('Samples', id='samples_link', href='/samples')),
-                dbc.NavItem(dbc.NavLink('Comparative tool', id='comp_tool', href='/comparation')),
+                dbc.NavItem(dbc.NavLink('Comparative tool', id='comp_tool', href='/comparison')),
             ],
             brand='Speech Data Explorer',
             sticky='top',
@@ -968,8 +968,8 @@ app.layout = html.Div(
 def nav_click(url):
     if url == '/samples':
         return [samples_layout, False, True, False]
-    elif url == '/comparation':
-        return [comparation_layout, False, False, False]
+    elif url == '/comparison':
+        return [comparison_layout, False, False, False]
     else:
         return [stats_layout, True, False, False]
 
