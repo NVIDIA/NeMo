@@ -1,11 +1,12 @@
 import os.path
 from copy import deepcopy
-from typing import Any
+from typing import Any, Dict, Union
 from unittest import mock
 
 import pytest
 import pytorch_lightning as pl
 import torch
+from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Callback, Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.utilities.exceptions import MisconfigurationException
@@ -13,7 +14,59 @@ from pytorch_lightning.utilities.types import STEP_OUTPUT
 
 from nemo.collections.common.callbacks import EMA
 from nemo.collections.common.callbacks.ema import apex_available
-from nemo.collections.cv.models import MNISTLeNet5, MNISTLeNet5Config
+from nemo.core import ModelPT
+
+
+class OnesDataset(torch.utils.data.Dataset):
+    def __init__(self, dataset_len):
+        super().__init__()
+        self.__dataset_len = dataset_len
+
+    def __getitem__(self, *args):
+        return torch.ones(2)
+
+    def __len__(self):
+        return self.__dataset_len
+
+
+class ExampleModel(ModelPT):
+    def __init__(self, *args, **kwargs):
+        cfg = OmegaConf.structured({})
+        super().__init__(cfg)
+        self.l1 = torch.nn.modules.Linear(in_features=2, out_features=1)
+
+    def train_dataloader(self):
+        dataset = OnesDataset(16)
+        return torch.utils.data.DataLoader(dataset, batch_size=2)
+
+    def val_dataloader(self):
+        dataset = OnesDataset(10)
+        return torch.utils.data.DataLoader(dataset, batch_size=2)
+
+    def forward(self, batch):
+        output = self.l1(batch)
+        return torch.nn.functional.l1_loss(output, torch.zeros(output.size()).to(output.device))
+
+    def validation_step(self, batch, batch_idx):
+        return self(batch)
+
+    def training_step(self, batch, batch_idx):
+        return self(batch)
+
+    def configure_optimizers(self):
+        return torch.optim.Adam(self.parameters(), lr=0.1)
+
+    def list_available_models(self):
+        pass
+
+    def setup_training_data(self, train_data_config: Union[DictConfig, Dict]):
+        pass
+
+    def setup_validation_data(self, val_data_config: Union[DictConfig, Dict]):
+        pass
+
+    def validation_epoch_end(self, loss):
+        self.log("val_loss", torch.stack(loss).mean())
 
 
 class TestEMAConfig:
@@ -26,9 +79,7 @@ class TestEMAConfig:
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.skipif(not apex_available, reason="apex is not installed")
     def test_ema_cuda(self):
-        lenet5 = MNISTLeNet5(MNISTLeNet5Config())
-        lenet5.setup_training_data()
-        lenet5.setup_optimization()
+        model = ExampleModel()
 
         trainer = Trainer(
             max_epochs=1,
@@ -40,7 +91,7 @@ class TestEMAConfig:
             callbacks=EMA(ema=0.999),
         )
         with pytest.raises(MisconfigurationException, match="Apex EMA Callback only works with CUDA"):
-            trainer.fit(model=lenet5)
+            trainer.fit(model=model)
 
     @mock.patch('nemo.collections.common.callbacks.ema.apex_available', False)
     def test_ema_apex_unavailable(self):
@@ -61,11 +112,8 @@ class TestEMAConfig:
                 self.pl_module_weights = list(pl_module.state_dict().values())
                 raise SystemExit
 
-        lenet5 = MNISTLeNet5(MNISTLeNet5Config())
+        model = ExampleModel()
         terminate_callback = TerminateCallback()
-
-        lenet5.setup_training_data()
-        lenet5.setup_optimization()
 
         trainer = Trainer(
             default_root_dir=checkpoint_dir,
@@ -83,15 +131,12 @@ class TestEMAConfig:
             ],
         )
         with pytest.raises(SystemExit):
-            trainer.fit(model=lenet5)
+            trainer.fit(model=model)
         resume_path = os.path.join(checkpoint_dir, 'epoch=0-step=16.ckpt')
 
         ema_callback = EMA(ema=0.999)
 
-        lenet5 = MNISTLeNet5(MNISTLeNet5Config())
-
-        lenet5.setup_training_data()
-        lenet5.setup_optimization()
+        model = ExampleModel()
 
         class CheckStateCallback(Callback):
             def on_train_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
@@ -113,26 +158,19 @@ class TestEMAConfig:
             devices=1,
             callbacks=[ema_callback, CheckStateCallback()],
         )
-        trainer.fit(lenet5, ckpt_path=resume_path)
+        trainer.fit(model, ckpt_path=resume_path)
 
 
-@pytest.mark.parametrize("precision", [32, 16, "bf16"])
-@pytest.mark.parametrize("accumulate_grad_batches", [1, 2])
+@pytest.mark.parametrize("precision", [32, 16])
+@pytest.mark.parametrize("accumulate_grad_batches", [2])
 @pytest.mark.run_only_on('GPU')
 @pytest.mark.skipif(not apex_available, reason="apex is not installed")
 class TestEMATrain:
     @pytest.mark.unit
-    def test_mnist_run(self, test_data_dir, precision, accumulate_grad_batches):
-        class MnistValidationLeNet5(MNISTLeNet5):
-            def validation_step(self, batch, what_is_this_input):
-                _, images, targets, _ = batch
-                predictions = self(images=images)
-                loss = self.loss(predictions=predictions, targets=targets)
-                return {"val_loss": loss}
+    def test_example_run(self, test_data_dir, precision, accumulate_grad_batches):
+        pl.seed_everything(1234)
 
-        lenet5 = MnistValidationLeNet5(MNISTLeNet5Config())
-        lenet5.setup_training_data()
-        lenet5.setup_optimization()
+        model = ExampleModel()
 
         trainer = Trainer(
             max_epochs=1,
@@ -147,12 +185,12 @@ class TestEMATrain:
             devices=1,
             callbacks=[EMA(ema=0.999), EMAAssertCallback()],
         )
-        trainer.fit(model=lenet5, val_dataloaders=lenet5.train_dataloader())
+        trainer.fit(model=model, val_dataloaders=model.train_dataloader())
 
 
 class EMAAssertCallback(Callback):
     def __init__(self):
-        self.before_calc_ema_weights = None
+        self._before_calc_ema_weights = None
 
     def on_train_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
         model_weights = list(pl_module.state_dict().values())
@@ -164,20 +202,19 @@ class EMAAssertCallback(Callback):
         self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", batch: Any, batch_idx: int
     ) -> None:
         ema_callback = [x for x in trainer.callbacks if isinstance(x, EMA)][0]
-        if trainer.global_step == ema_callback._cur_step:
-            return
         # saved for manual calculation of ema to compare against implementation
-        self.before_calc_ema_weights = deepcopy(ema_callback._ema_model_weights)
+        self._before_calc_ema_weights = deepcopy(ema_callback._ema_model_weights)
 
     def on_train_batch_end(
         self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", outputs: STEP_OUTPUT, batch: Any, batch_idx: int
     ) -> None:
-        ema_callback = [x for x in trainer.callbacks if isinstance(x, EMA)][0]
-        if trainer.global_step == ema_callback._cur_step:
+        if trainer.global_step % trainer.accumulate_grad_batches != 0:
+            # skip assertion as ema weights are not updated.
             return
+        ema_callback = [x for x in trainer.callbacks if isinstance(x, EMA)][0]
         ema = ema_callback.ema
         expected_ema_weights = []
-        for orig_weight, ema_weight in zip(list(pl_module.state_dict().values()), self.before_calc_ema_weights):
+        for orig_weight, ema_weight in zip(list(pl_module.state_dict().values()), self._before_calc_ema_weights):
             expected_ema_weight = orig_weight * (1 - ema) + ema_weight * ema
             expected_ema_weights.append(expected_ema_weight)
 
@@ -187,7 +224,7 @@ class EMAAssertCallback(Callback):
     def on_validation_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
         ema_callback = [x for x in trainer.callbacks if isinstance(x, EMA)][0]
         # todo (sean): shouldn't use the weights buffer to check original weights
-        self.original_weights = list(x.detach().clone() for x in ema_callback._weights_buffer)
+        self._original_weights = list(x.detach().clone() for x in ema_callback._weights_buffer)
         if ema_callback.ema_initialized:
             for ema_weights, module_weights in zip(ema_callback._ema_model_weights, pl_module.state_dict().values()):
                 torch.allclose(ema_weights, module_weights)
@@ -196,6 +233,6 @@ class EMAAssertCallback(Callback):
         ema_callback = [x for x in trainer.callbacks if isinstance(x, EMA)][0]
         model_weights = list(pl_module.state_dict().values())
         if ema_callback.ema_initialized:
-            for orig_weights, module_weights in zip(self.original_weights, model_weights):
+            for orig_weights, module_weights in zip(self._original_weights, model_weights):
                 # original weights are stored on cpu to reduce mem overhead
                 torch.allclose(orig_weights, module_weights.cpu())
