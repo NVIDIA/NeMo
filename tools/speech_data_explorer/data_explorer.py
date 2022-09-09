@@ -96,11 +96,21 @@ def parse_args():
         action='store_true',
         help='estimate frequency bandwidth and signal level of audio recordings',
     )
+    parser.add_argument(
+        '--audio-base-path',
+        default=None,
+        type=str,
+        help='A base path for the relative paths in manifest. It defaults to manifest path.',
+    )
     parser.add_argument('--debug', '-d', action='store_true', help='enable debug mode')
     # new
     parser.add_argument('--compare_1st', '-c1', help='path to JSON manifest files (after transcription)')
     parser.add_argument('--compare_2nd', '-c2', help='path to JSON manifest files (after transcription)')
     args = parser.parse_args()
+
+    # assume audio_filepath is relative to the directory where the manifest is stored
+    if args.audio_base_path is None:
+        args.audio_base_path = os.path.dirname(args.manifest)
 
     print(args)
     return args
@@ -124,7 +134,7 @@ def eval_bandwidth(signal, sr, threshold=-50):
 
 
 # load data from JSON manifest file
-def load_data(data_filename, disable_caching=False, estimate_audio=False, vocab=None, cmp_mode=False, model_num=None):
+def load_data(data_filename, disable_caching=False, estimate_audio=False, vocab=None, cmp_mode=False, model_num=None, audio_base_path=None):
 
     if vocab is not None:
         # load external vocab
@@ -152,7 +162,7 @@ def load_data(data_filename, disable_caching=False, estimate_audio=False, vocab=
                     item['OOV'] = item['word'] not in vocabulary_ext
             if estimate_audio:
                 for item in data:
-                    filepath = absolute_audio_filepath(item['audio_filepath'], data_filename)
+                    filepath = absolute_audio_filepath(item['audio_filepath'], audio_base_path)
                     signal, sr = librosa.load(path=filepath, sr=None)
                     bw = eval_bandwidth(signal, sr)
                     item['freq_bandwidth'] = int(bw)
@@ -311,17 +321,16 @@ def plot_histogram(data, key, label):
     return fig
 
 
-def absolute_audio_filepath(audio_filepath, manifest_path):
+def absolute_audio_filepath(audio_filepath, audio_base_path):
     """Return absolute path to an audio file.
     Check if a file existst at audio_filepath.
-    If not, assume that the path is relative to the directory where manifest is stored.
+    If not, assume that the path is relative to audio_base_path.
     """
     audio_filepath = Path(audio_filepath)
 
     if not audio_filepath.is_file() and not audio_filepath.is_absolute():
-        # assume audio_filepath is relative to the directory where the manifest is stored
-        manifest_dir = Path(args.manifest).parent
-        audio_filepath = manifest_dir / audio_filepath
+        audio_filepath = audio_base_path / audio_filepath
+
         if audio_filepath.is_file():
             filename = str(audio_filepath)
         else:
@@ -361,7 +370,7 @@ def plot_word_accuracy(vocabulary_data):
 
     return fig
 
-
+# parse the CLI arguments
 args = parse_args()
 print('Loading data...')
 if args.compare_1st is None or args.compare_2nd is None:
@@ -411,7 +420,7 @@ if args.compare_1st is not None and args.compare_2nd is not None:
 
     # to_do - rewrite tool section with single vocabulary
 data, wer, cer, wmr, mwa, num_hours, vocabulary, alphabet, metrics_available = load_data(
-    args.manifest, args.disable_caching_metrics, args.estimate_audio_metrics, args.vocab
+    args.manifest, args.disable_caching_metrics, args.estimate_audio_metrics, args.vocab, args.audio_base_path
 )
 
 
@@ -1006,7 +1015,7 @@ def plot_signal(idx, data):
         raise PreventUpdate
     figs = make_subplots(rows=2, cols=1, subplot_titles=('Waveform', 'Spectrogram'))
     try:
-        filename = absolute_audio_filepath(data[idx[0]]['audio_filepath'], args.manifest)
+        filename = absolute_audio_filepath(data[idx[0]]['audio_filepath'], args.audio_base_path)
         audio, fs = librosa.load(path=filename, sr=None)
         if 'offset' in data[idx[0]]:
             audio = audio[
