@@ -19,7 +19,7 @@ import random
 import re
 import time
 from collections import defaultdict
-from typing import Optional
+from typing import Optional, Tuple
 
 import nltk
 import torch
@@ -256,7 +256,8 @@ class IPAG2P(BaseG2p):
         heteronyms=None,
         phoneme_probability: Optional[float]=None,
         use_stresses: Optional[bool]=True,
-        set_graphemes_upper: Optional[bool]=True
+        set_graphemes_upper: Optional[bool]=True,
+        pretrained_model: Optional[str] = None
     ):
         """Generic IPA G2P module. This module converts words from grapheme to International Phonetic Alphabet representations.
         Optionally, it can ignore heteronyms, ambiguous words, or words marked as unchangeable by word_tokenize_func (see code for details).
@@ -286,7 +287,8 @@ class IPAG2P(BaseG2p):
         """
         self.use_stresses = use_stresses
         self.set_graphemes_upper = set_graphemes_upper
-
+        from nemo_text_processing.g2p.models.heteronym_classification import HeteronymClassificationModel
+        self.pretrained_g2p_model = HeteronymClassificationModel.restore_from("/home/ebakhturina/NeMo/examples/text_processing/g2p/nemo_experiments/HeteronymClassification/2022-09-08_15-17-40/checkpoints/HeteronymClassification.nemo")
         if isinstance(phoneme_dict, str) or isinstance(phoneme_dict, pathlib.Path):
             # Load phoneme_dict from file path
             self.phoneme_dict, self.symbols = self._parse_as_cmu_dict(
@@ -348,6 +350,10 @@ class IPAG2P(BaseG2p):
 
         self.phoneme_probability = phoneme_probability
         self._rng = random.Random()
+        import pdb;
+        pdb.set_trace()
+        print()
+
 
     @staticmethod
     def _parse_as_cmu_dict(phoneme_dict_path, use_stresses=False, stress_symbols=[], upper=True):
@@ -383,7 +389,7 @@ class IPAG2P(BaseG2p):
     def is_unique_in_phoneme_dict(self, word):
         return len(self.phoneme_dict[word]) == 1
 
-    def parse_one_word(self, word: str):
+    def parse_one_word(self, word: str, text: Optional[str]=None, start_end: Optional[Tuple[int, int]]=None):
         """Returns parsed `word` and `status` (bool: False if word wasn't handled, True otherwise).
         """
         if self.set_graphemes_upper:
@@ -398,6 +404,8 @@ class IPAG2P(BaseG2p):
 
         # Heteronym
         if self.heteronyms and word in self.heteronyms:
+            if self.pretrained_g2p_model and text and start_end:
+                self.pretrained_g2p_model
             return word, True
 
         # `'s` suffix (with apostrophe) - not in phoneme dict
@@ -443,8 +451,11 @@ class IPAG2P(BaseG2p):
     def __call__(self, text):
         words = self.word_tokenize_func(text)
 
+        start_idx = 0
         prons = []
         for word, without_changes in words:
+            end_idx = text.index(word, start_idx) + len(word)
+
             if without_changes:
                 prons.extend(word)
                 continue

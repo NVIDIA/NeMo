@@ -13,7 +13,8 @@
 # limitations under the License.
 
 
-from typing import List, Optional
+import json
+from typing import List, Optional, Tuple
 
 import torch
 from hydra.utils import instantiate
@@ -168,44 +169,60 @@ class HeteronymClassificationModel(NLPModel):
         """
         return self.validation_epoch_end(outputs, "test")
 
-    # # Functions for inference
-    # @torch.no_grad()
-    # def disambiguate(self, sentences: List[str], batch_size: int, num_workers: int = 0):
-    #     supported_heteronyms = self.homograph_dict.keys()
-    #
-    #     for
-    #     import pdb; pdb.set_trace()
-    #     # store predictions for all queries in a single list
-    #     all_preds = []
-    #     mode = self.training
-    #     try:
-    #         device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    #         # Switch model to evaluation mode
-    #         self.eval()
-    #         self.to(device)
-    #         infer_datalayer = self._setup_infer_dataloader(
-    #             manifest, grapheme_field, batch_size=batch_size, num_workers=num_workers
-    #         )
-    #
-    #         for batch in tqdm(infer_datalayer):
-    #             input_ids, attention_mask, target_and_negatives_mask, subword_mask = batch
-    #             logits = self.forward(
-    #                 input_ids=input_ids.to(device),
-    #                 attention_mask=attention_mask.to(device),
-    #                 target_and_negatives_mask=target_and_negatives_mask.to(device),
-    #             )
-    #
-    #             preds = torch.argmax(logits, axis=-1)[subword_mask > 0]
-    #             preds = tensor2list(preds)
-    #             all_preds.extend(preds)
-    #     finally:
-    #         # set mode back to its original value
-    #         self.train(mode=mode)
-    #
-    #     # convert indices to wordids
-    #     idx_to_wordid = {v: k for k, v in self.wordid_to_idx.items()}
-    #     all_preds = [idx_to_wordid[p] for p in all_preds]
-    #     return all_preds
+    # Functions for inference
+    @torch.no_grad()
+    def disambiguate(
+        self, sentences: List[List[str]], start_end: List[List[Tuple[int, int]]], batch_size: int, num_workers: int = 0
+    ):
+        supported_heteronyms = self.homograph_dict.keys()
+        if len(sentences) != len(start_end):
+            raise ValueError(
+                f"Number of sentences should match the lengths of provided start-end indices, {len(sentences)} != {len(start_end)}"
+            )
+
+        tmp_manifest = "/tmp/manifest.json"
+        with open(tmp_manifest, "w") as f:
+            for cur_sentence, cur_start_ends in zip(sentences, start_end):
+                homograph_span = [cur_sentence[x[0] : x[1]] for x in cur_start_ends]
+
+                for homograph in homograph_span:
+                    if homograph.lower() not in supported_heteronyms:
+                        raise ValueError(f"{homograph} is not in the list of supported heteronyms")
+
+                item = {"text_graphemes": cur_sentence, "start_end": cur_start_ends, "homograph_span": homograph_span}
+                f.write(json.dumps(item, ensure_ascii=False) + '\n')
+
+        # store predictions for all queries in a single list
+        all_preds = []
+        mode = self.training
+        try:
+            device = 'cuda' if torch.cuda.is_available() else 'cpu'
+            # Switch model to evaluation mode
+            self.eval()
+            self.to(device)
+            infer_datalayer = self._setup_infer_dataloader(
+                tmp_manifest, grapheme_field="text_graphemes", batch_size=batch_size, num_workers=num_workers
+            )
+
+            for batch in tqdm(infer_datalayer):
+                input_ids, attention_mask, target_and_negatives_mask, subword_mask = batch
+                logits = self.forward(
+                    input_ids=input_ids.to(device),
+                    attention_mask=attention_mask.to(device),
+                    target_and_negatives_mask=target_and_negatives_mask.to(device),
+                )
+
+                preds = torch.argmax(logits, axis=-1)[subword_mask > 0]
+                preds = tensor2list(preds)
+                all_preds.extend(preds)
+        finally:
+            # set mode back to its original value
+            self.train(mode=mode)
+
+        # convert indices to wordids
+        idx_to_wordid = {v: k for k, v in self.wordid_to_idx.items()}
+        all_preds = [idx_to_wordid[p] for p in all_preds]
+        return all_preds
 
     @torch.no_grad()
     def disambiguate_manifest(self, manifest, grapheme_field, batch_size: int, num_workers: int = 0):
@@ -289,7 +306,7 @@ class HeteronymClassificationModel(NLPModel):
         return torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params)
 
     def _setup_infer_dataloader(
-        self, manifest, grapheme_field, batch_size: int, num_workers: int
+        self, manifest: str, grapheme_field: str, batch_size: int, num_workers: int
     ) -> 'torch.utils.data.DataLoader':
 
         dataset = HeteronymClassificationDataset(

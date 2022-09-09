@@ -15,8 +15,10 @@
 
 import json
 import os
-from typing import Dict, List
+import re
+from typing import Dict, List, Optional, Tuple
 
+import numpy as np
 import torch
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
@@ -65,98 +67,153 @@ class HeteronymClassificationDataset(Dataset):
         self.with_labels = with_labels
         self.wiki_homograph_dict = wiki_homograph_dict
         self.wordid_to_idx = wordid_to_idx
+        self.LOSS_PAD_TOKEN = -100
+        self.PAD_TOKEN = 0
 
-        sentences, start_end_indices, homographs, word_ids = [], [], [], []
         num_skipped = 0
         with open(manifest, "r") as f:
             for line in f:
                 line = json.loads(line)
-                cur_start_end, cur_homographs, cur_word_ids = (
-                    line["start_end"],
-                    line["homograph_span"],
-                    line["word_id"],
-                )
+                cur_start_end, cur_homographs = (line["start_end"], line["homograph_span"])
+
+                # during inference word_id is not present in the manifest
+                if "word_id" in line:
+                    cur_word_ids = line["word_id"]
+                else:
+                    if isinstance(cur_homographs, str):
+                        cur_word_ids = None
+                    else:
+                        cur_word_ids = [None] * len(cur_homographs)
+
                 if isinstance(cur_homographs, str):
                     cur_start_end, cur_homographs, cur_word_ids = [cur_start_end], [cur_homographs], [cur_word_ids]
 
-                for se, h, w in zip(cur_start_end, cur_homographs, cur_word_ids):
-                    grapheme_sent = line[grapheme_field]
+                example = self._prepare_sample(line[grapheme_field], cur_start_end, cur_homographs, cur_word_ids)
+                if example is None:
+                    num_skipped += 1
+                    continue
 
-                    # +2 for bos and eos tokens
-                    if (
-                        grapheme_sent[se[0] : se[1]] != h
-                        or len(self.tokenizer.text_to_tokens(grapheme_sent)) + 2 > max_seq_len
-                    ):
-                        num_skipped += 1
-                    else:
-                        sentences.append(grapheme_sent)
-                        start_end_indices.append(se)
-                        homographs.append(h)
-                        word_ids.append(w)
+                example_dict = {
+                    "input_ids": example[0],
+                    "target_and_negatives": example[1],
+                    "subtokens_mask": example[2],
+                }
+                if with_labels:
+                    example_dict["target"] = example[-1]
 
-        for sentence, start_end_index, homograph, word_id in zip(sentences, start_end_indices, homographs, word_ids):
-            start, end = start_end_index
-            if self.with_labels:
-                target_and_negatives, subword_mask, target = self._prepare_sample(
-                    sentence, start, end, homograph, word_id
-                )
-                self.data.append(
-                    {
-                        "input": sentence,
-                        "target": target,
-                        "target_and_negatives": target_and_negatives,
-                        "subword_mask": subword_mask,
-                    }
-                )
-            else:
-                target_and_negatives, subword_mask = self._prepare_sample(sentence, start, end, homograph)
-                self.data.append(
-                    {"input": sentence, "subword_mask": subword_mask, "target_and_negatives": target_and_negatives}
-                )
-
+                self.data.append(example_dict)
         logging.info(f"Number of samples in {manifest}: {len(self.data)}, remove {num_skipped} lines")
 
-    def _prepare_sample(self, sentence: str, start: int, end: int, homograph: str, word_id=None):
+    def _prepare_sample(
+        self, sentence: str, start_end: List[Tuple[int, int]], homograph: str, word_ids: Optional[List[int]] = None
+    ):
         """
         Prepares a single training sample
 
         Args:
             sentence: input sentence in grapheme form
-            start: start of the homograph span
-            end: end of the homograph span
+            start_end: start and end indices of the homograph spans
             homograph: homograph
-            word_id: [Optional] target word_id, use None for inference
+            word_ids: [Optional] target word_ids, use None for inference
         """
-        l_context = self.tokenizer.text_to_ids(sentence[:start])
-        r_context = self.tokenizer.text_to_ids(sentence[end:])
-        l_context_len = len(l_context)
-        r_context_len = len(r_context)
-        sentence_tokenized = self.tokenizer.text_to_ids(sentence)
+        # drop example where sequence length exceeds max sequence length, +2 for special tokens
+        length = len(self.tokenizer.text_to_tokens(sentence)) + 2
+        if length > self.max_seq_len:
+            return None
 
-        grapheme_ipa_forms = self.wiki_homograph_dict[homograph.lower()]
-        homograph_len = len(sentence_tokenized[l_context_len : len(sentence_tokenized) - r_context_len])
-        # use prediction of the first subword of the homograph
-        homograph_mask = [1] + [0] * (homograph_len - 1)
-        subword_mask = [0] * (l_context_len + 1) + homograph_mask + [0] * (r_context_len + 1)
-        target_and_negatives = [self.wordid_to_idx[wordid_] for wordid_ in grapheme_ipa_forms]
-        output = [target_and_negatives, subword_mask]
+        # add bos token
+        input_ids = [self.tokenizer.bos_id]
+        subtokens_mask = [self.PAD_TOKEN]  # the first tokens of heteronym spans are 1s, the rest of the tokens are 0s
+        target_and_negatives = []
+        with_labels = True
+        if with_labels:
+            target_word_ids = [self.LOSS_PAD_TOKEN]  # -100 to pad plain tokens
 
-        if self.with_labels:
-            if word_id is None:
-                raise ValueError(f"word_id must be provided when self.with_labels==True, i.e., training mode")
+        heteronym_span_idx = 0
+        # split sentence by space and keep track of word boundaries
+        # we assume a heteronym is a starndalone word
+        matches = [(m.group(0), (m.start(), m.end() - 1)) for m in re.finditer(r'\S+', sentence)]
+        # import pdb; pdb.set_trace()
+        for match in matches:
+            word, word_start_end = match
 
-            target_word_id = self.wordid_to_idx[word_id]
-            # add extra -100 tokens at the begging and end for [CLS] and [SEP] bert tokens
-            target_word_id = (
-                [-100] * (l_context_len + 1)
-                + [target_word_id]
-                + [-100] * (homograph_len - 1)
-                + [-100] * (r_context_len + 1)
-            )
-            assert len(target_word_id) == len(self.tokenizer.tokenizer([sentence])["input_ids"][0])
-            output.append(target_word_id)
+            # check if the start of the next heteronym span is within the word indices
+            if (
+                heteronym_span_idx < len(start_end)
+                and word_start_end[0] <= start_end[heteronym_span_idx][0] < word_start_end[1]
+            ):
+                heteronym_start_end = start_end[heteronym_span_idx]
+                prefix = ""
+                prefix_ids = []
+                # for cases when word also includes punctuation marks at the beginning or a prefix,
+                # e.g. "diffuse" vs. diffuse vs. pre-diffuse for heteronym {diffuse}
+                if word_start_end[0] < heteronym_start_end[0]:
+                    prefix = sentence[word_start_end[0] : heteronym_start_end[0]]
+                    prefix_ids = self.tokenizer.text_to_ids(prefix)
+                    subtokens_mask.extend([self.PAD_TOKEN] * len(prefix_ids))
+                    # if "-Nestle" in word:
+                    #     import pdb;
+                    #     pdb.set_trace()
 
-        return output  # [target_and_negatives, subword_mask] and (optional) target
+                word = word[word.index(prefix) + len(prefix_ids) :]
+                word_input_ids = self.tokenizer.text_to_ids(word)
+                input_ids.extend(prefix_ids + word_input_ids)
+
+                subtokens_mask.extend([1] + [self.PAD_TOKEN] * (len(word_input_ids) - 1))
+                if with_labels:
+                    try:
+                        cur_target_word_id = self.wordid_to_idx[word_ids[heteronym_span_idx]]
+                    except:
+                        import pdb
+
+                        pdb.set_trace()
+                        print()
+                    target_word_ids.extend(
+                        [self.LOSS_PAD_TOKEN] * len(prefix_ids)
+                        + [cur_target_word_id]
+                        + [self.LOSS_PAD_TOKEN] * (len(word_input_ids) - 1)
+                    )
+
+                heteronym = sentence.lower()[heteronym_start_end[0] : heteronym_start_end[1]]
+                if heteronym not in self.wiki_homograph_dict:
+                    logging.debug(f"{heteronym} is not supported. Skipping example.")
+                    return None
+
+                grapheme_ipa_forms = self.wiki_homograph_dict[heteronym]
+                target_and_negatives.extend([self.wordid_to_idx[wordid_] for wordid_ in grapheme_ipa_forms])
+                heteronym_span_idx += 1
+            else:
+                ids = self.tokenizer.text_to_ids(word)
+                input_ids.extend(ids)
+                subtokens_mask.extend([self.PAD_TOKEN] * len(ids))
+                if with_labels:
+                    target_word_ids.extend([self.LOSS_PAD_TOKEN] * len(ids))
+
+        if heteronym_span_idx < len(start_end):
+            logging.info("Not all heteronym spans were processed. Skipping example.")
+            import pdb
+
+            pdb.set_trace()
+            return None
+
+        # add eos token
+        input_ids.append(self.tokenizer.eos_id)
+        subtokens_mask.append(self.PAD_TOKEN)
+        if with_labels:
+            target_word_ids.append(self.LOSS_PAD_TOKEN)
+
+        output = [input_ids, target_and_negatives, subtokens_mask]
+        if with_labels:
+            output.append(target_word_ids)
+
+        if len(input_ids) != len(subtokens_mask):
+            import pdb
+
+            pdb.set_trace()
+            print()
+        # import pdb;
+        # pdb.set_trace()
+        return output  # [input_ids, target_and_negatives, subtokens_mask, [Optional] target]
 
     def __len__(self):
         return len(self.data)
@@ -172,39 +229,121 @@ class HeteronymClassificationDataset(Dataset):
         return tokens
 
     def _collate_fn(self, batch):
-        # Encode inputs (graphemes)
-        input_batch = [entry["input"] for entry in batch]
-        input_encoding = self.tokenizer.tokenizer(
-            input_batch, padding='longest', max_length=self.max_seq_len, truncation=True, return_tensors='pt',
-        )
+        """
+        Args:
+            batch:  A list of tuples of (input_ids, target_and_negatives, subtokens_mask, [Optional] target_word_ids).
+        """
+        max_length = max([len(entry["input_ids"]) for entry in batch])
 
-        input_ids, attention_mask = input_encoding.input_ids, input_encoding.attention_mask
-        # create a mask 1 for target_and_negatives and 0 for the rest of the entries since they're not relevant to the target word
-        target_and_negatives = [entry["target_and_negatives"] for entry in batch]
-        batch_size = input_ids.shape[0]
-        num_classes = len(self.wordid_to_idx)
-        target_and_negatives_mask = torch.zeros(batch_size, num_classes)
-        for i, values in enumerate(target_and_negatives):
-            for v in values:
-                target_and_negatives_mask[i][v] = 1
-
-        # pad prediction mask (masks out irrelevant subwords)
-        subword_mask = [entry["subword_mask"] for entry in batch]
-        pred_mask_len = [len(entry) for entry in subword_mask]
-        max_pred_mask_len = max(pred_mask_len)
-        subword_mask = [
-            entry + [0] * (max_pred_mask_len - entry_len) for entry, entry_len in zip(subword_mask, pred_mask_len)
-        ]
-        subword_mask = torch.tensor(subword_mask)
-        output = [input_ids, attention_mask, target_and_negatives_mask, subword_mask]
+        padded_input_ids = []
+        padded_subtokens_mask = []
+        padded_attention_mask = []
 
         if self.with_labels:
-            # Encode targets
-            targets = [entry["target"] for entry in batch]
-            targets_len = [len(entry) for entry in targets]
-            max_target_len = max(targets_len)
-            targets = [entry + [-100] * (max_target_len - entry_len) for entry, entry_len in zip(targets, targets_len)]
-            targets = torch.tensor(targets)
-            assert input_ids.shape == targets.shape
-            output.append(targets)
+            padded_targets = []
+
+        for item in batch:
+            input_ids = item["input_ids"]
+            if len(input_ids) < max_length:
+                pad_width = max_length - len(input_ids)
+                padded_attention_mask.append([1] * len(input_ids) + [0] * pad_width)
+                padded_input_ids.append(np.pad(input_ids, pad_width=[0, pad_width], constant_values=self.PAD_TOKEN))
+                padded_subtokens_mask.append(
+                    np.pad(item["subtokens_mask"], pad_width=[0, pad_width], constant_values=self.PAD_TOKEN)
+                )
+
+                if self.with_labels:
+                    padded_targets.append(
+                        np.pad(item["target"], pad_width=[0, pad_width], constant_values=self.LOSS_PAD_TOKEN)
+                    )
+            else:
+                padded_attention_mask.append([1] * len(input_ids))
+                padded_input_ids.append(input_ids)
+                padded_subtokens_mask.append(item["subtokens_mask"])
+                if self.with_labels:
+                    padded_targets.append(item["target"])
+
+        batch_size = len(batch)
+        num_classes = len(self.wordid_to_idx)
+        target_and_negatives = [entry["target_and_negatives"] for entry in batch]
+        target_and_negatives_mask = torch.zeros(batch_size, num_classes)
+        for i, cur_target_and_negatives in enumerate(target_and_negatives):
+            for value in cur_target_and_negatives:
+                target_and_negatives_mask[i][value] = 1
+
+        # import pdb;
+        # pdb.set_trace()
+        # # Encode inputs (graphemes)
+        # input_batch = [entry["input_ids"] for entry in batch]
+        # input_encoding = self.tokenizer.tokenizer(
+        #     input_batch, padding='longest', max_length=self.max_seq_len, truncation=True, return_tensors='pt',
+        # )
+        #
+        # input_ids, attention_mask = input_encoding.input_ids, input_encoding.attention_mask
+        # # create a mask 1 for target_and_negatives and 0 for the rest of the entries since they're not relevant to the target word
+        # target_and_negatives = [entry["target_and_negatives"] for entry in batch]
+        # batch_size = input_ids.shape[0]
+        # num_classes = len(self.wordid_to_idx)
+        # target_and_negatives_mask = torch.zeros(batch_size, num_classes)
+        # for i, values in enumerate(target_and_negatives):
+        #     for v in values:
+        #         target_and_negatives_mask[i][v] = 1
+        #
+        # # pad prediction mask (masks out irrelevant subwords)
+        # subword_mask = [entry["subword_mask"] for entry in batch]
+        # pred_mask_len = [len(entry) for entry in subword_mask]
+        # max_pred_mask_len = max(pred_mask_len)
+        # subword_mask = [
+        #     entry + [0] * (max_pred_mask_len - entry_len) for entry, entry_len in zip(subword_mask, pred_mask_len)
+        # ]
+        # subword_mask = torch.tensor(subword_mask)
+        try:
+            output = [
+                torch.LongTensor(padded_input_ids),
+                torch.LongTensor(padded_attention_mask),
+                target_and_negatives_mask,
+                torch.LongTensor(padded_subtokens_mask),
+            ]
+
+            if self.with_labels:
+                output.append(torch.LongTensor(padded_targets))
+        except:
+            import pdb
+
+            pdb.set_trace()
+            print()
         return output
+
+
+"""
+    def _collate_fn(self, batch):
+        max_length = 0
+        for input_ids, segment_ids, input_mask, label in batch:
+            if len(input_ids) > max_length:
+                max_length = len(input_ids)
+
+        padded_input_ids = []
+        padded_segment_ids = []
+        padded_input_mask = []
+        labels = []
+        for input_ids, segment_ids, input_mask, label in batch:
+            if len(input_ids) < max_length:
+                pad_width = max_length - len(input_ids)
+                padded_input_ids.append(np.pad(input_ids, pad_width=[0, pad_width], constant_values=self.pad_id))
+                padded_segment_ids.append(np.pad(segment_ids, pad_width=[0, pad_width], constant_values=self.pad_id))
+                padded_input_mask.append(np.pad(input_mask, pad_width=[0, pad_width], constant_values=self.pad_id))
+            else:
+                padded_input_ids.append(input_ids)
+                padded_segment_ids.append(segment_ids)
+                padded_input_mask.append(input_mask)
+            labels.append(label)
+
+        return (
+            torch.LongTensor(padded_input_ids),
+            torch.LongTensor(padded_segment_ids),
+            torch.LongTensor(padded_input_mask),
+            torch.LongTensor(labels),
+        )
+
+
+"""

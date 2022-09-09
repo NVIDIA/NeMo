@@ -88,6 +88,8 @@ def main(cfg):
         if hasattr(cfg.model, "test_ds") and cfg.model.test_ds.dataset.manifest is not None:
             model.setup_test_data(cfg.model.test_ds)
             trainer.test(model)
+        else:
+            logging.info("test_ds not found, skipping evaluation")
 
 
 if __name__ == '__main__':
