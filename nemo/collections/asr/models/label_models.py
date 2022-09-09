@@ -87,7 +87,12 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         self.world_size = 1
-        self.cal_labels_occurrence = False
+        # self.cal_labels_occurrence_train = False
+        self.labels_occurrence = None
+
+        if cfg.loss.weight == 'auto':
+            self.cal_labels_occurrence_train = True
+
         if trainer is not None:
             self.world_size = trainer.num_nodes * trainer.num_devices
 
@@ -96,6 +101,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         self.preprocessor = EncDecSpeakerLabelModel.from_config_dict(cfg.preprocessor)
         self.encoder = EncDecSpeakerLabelModel.from_config_dict(cfg.encoder)
         self.decoder = EncDecSpeakerLabelModel.from_config_dict(cfg.decoder)
+        self.eval_loss = CELoss()  # val and test losses are CELoss()
 
         if 'loss' in cfg:
             if 'angular' in cfg.decoder and cfg.decoder['angular']:
@@ -107,12 +113,15 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
                 logging.info("loss is Softmax-CrossEntropy")
                 if 'weight' in cfg.loss and cfg.loss['weight']:
                     if cfg.loss.weight == 'auto':
-                        self.cal_labels_occurrence = True
+
                         # Goal is to give more weight to the classes with less samples so as to match the ones with the higher frequencies
-                        weight = [
-                            sum(self.labels_occurrence) / (len(self.labels_occurrence) * i)
-                            for i in self.labels_occurrence
-                        ]
+                        if self.labels_occurrence:
+                            weight = [
+                                sum(self.labels_occurrence) / (len(self.labels_occurrence) * i)
+                                for i in self.labels_occurrence
+                            ]
+                        else:
+                            weight = None
                     else:
                         weight = cfg.loss.weight
                     self.loss = CELoss(weight=weight)
@@ -192,10 +201,6 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
                 logging.warning(f"Could not load dataset as `manifest_filepath` was None. Provided config : {config}")
                 return None
 
-            cal_labels_occurrence = config.get('cal_labels_occurrence', False)
-            if cal_labels_occurrence or self.cal_labels_occurrence:
-                cal_labels_occurrence = True
-
             dataset = AudioToSpeechLabelDataset(
                 manifest_filepath=config['manifest_filepath'],
                 labels=config['labels'],
@@ -204,9 +209,10 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
                 min_duration=config.get('min_duration', None),
                 trim=config.get('trim_silence', False),
                 normalize_audio=config.get('normalize_audio', False),
-                cal_labels_occurrence=cal_labels_occurrence,
+                cal_labels_occurrence=config.get('cal_labels_occurrence', False),
             )
-            self.labels_occurrence = dataset.labels_occurrence
+            if dataset.labels_occurrence:
+                self.labels_occurrence = dataset.labels_occurrence
 
         if hasattr(dataset, 'fixed_seq_collate_fn'):
             collate_fn = dataset.fixed_seq_collate_fn
@@ -225,6 +231,14 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         )
 
     def setup_training_data(self, train_data_layer_config: Optional[Union[DictConfig, Dict]]):
+        cal_labels_occurrence = train_data_layer_config.get('cal_labels_occurrence', False)
+        if not cal_labels_occurrence:
+            if self.cal_labels_occurrence_train:
+                logging.info(
+                    f"To use weighted='auto' for CE loss, the train_ds.cal_labels_occurrence needs to be True. Changing!"
+                )
+                train_data_layer_config['cal_labels_occurrence'] = True
+
         self.labels = self.extract_labels(train_data_layer_config)
         train_data_layer_config['labels'] = self.labels
         if 'shuffle' not in train_data_layer_config:
@@ -249,10 +263,27 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
                 )
 
     def setup_validation_data(self, val_data_layer_config: Optional[Union[DictConfig, Dict]]):
+        if 'cal_labels_occurrence' in val_data_layer_config and val_data_layer_config['cal_labels_occurrence']:
+            logging.info(
+                f"To use weighted='auto' for CE loss, the validation_ds.cal_labels_occurrence needs to be False. Changing!"
+            )
+            val_data_layer_config[
+                'cal_labels_occurrence'
+            ] = False  # Do not calculate labels occurence for weighed CE loss for validation set# Do not calculate labels occurence for weighed CE loss for validation set
+
         val_data_layer_config['labels'] = self.labels
+
         self._validation_dl = self.__setup_dataloader_from_config(config=val_data_layer_config)
 
     def setup_test_data(self, test_data_layer_params: Optional[Union[DictConfig, Dict]]):
+        if 'cal_labels_occurrence' in test_data_layer_params and test_data_layer_params['cal_labels_occurrence']:
+            logging.info(
+                f"To use weighted='auto' for CE loss, the test_ds.cal_labels_occurrence needs to be False. Changing!"
+            )
+            test_data_layer_params[
+                'cal_labels_occurrence'
+            ] = False  # Do not calculate labels occurence for weighed CE loss for validation set
+
         if hasattr(self, 'dataset'):
             test_data_layer_params['labels'] = self.labels
 
@@ -321,7 +352,8 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
     def evaluation_step(self, batch, batch_idx, dataloader_idx: int = 0, tag: str = 'val'):
         audio_signal, audio_signal_len, labels, _ = batch
         logits, _ = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
-        loss_value = self.loss(logits=logits, labels=labels)
+        # evaluation step (validation, test) loss is CE loss
+        loss_value = self.eval_loss(logits=logits, labels=labels)
         acc_top_k = self._accuracy(logits=logits, labels=labels)
         correct_counts, total_counts = self._accuracy.correct_counts_k, self._accuracy.total_counts_k
         self._macro_accuracy.update(preds=logits, target=labels)
