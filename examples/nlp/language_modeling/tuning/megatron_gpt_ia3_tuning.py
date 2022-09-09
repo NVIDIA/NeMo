@@ -54,7 +54,7 @@ Usage:
 """
 
 
-@hydra_runner(config_path="conf", config_name="megatron_gpt_adapter_tuning_config")
+@hydra_runner(config_path="conf", config_name="megatron_gpt_ia3_tuning_config")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
