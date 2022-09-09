@@ -1398,6 +1398,8 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                     if 'value_infused_adapter' in self.adapter_layer
                     else None
                 )
+            else:
+                key_infused_adapter, value_infused_adapter = None, None
 
             attention_output, attention_bias = self.self_attention(
                 hidden_states,
@@ -1510,6 +1512,8 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
             mlp_infused_adapter = (
                 self.adapter_layer['mlp_infused_adapter'] if 'mlp_infused_adapter' in self.adapter_layer else None
             )
+        else:
+            mlp_infused_adapter = None
 
         mlp_output, mlp_bias = self.mlp(normalization_output, infused_adapter=mlp_infused_adapter)
 
