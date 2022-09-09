@@ -814,12 +814,12 @@ class ParallelAttention(MegatronModule):
 
         if key_infused_adapter:
             kls = key_layer.shape
-            key_layer = key_infused_adapter(key_layer.contiguous().view(kls[0], kls[1], -1))
-            key_layer = key_layer.view(kls)
+            key_layer = key_infused_adapter(key_layer.reshape(kls[0], kls[1], -1))
+            key_layer = key_layer.reshape(kls)
         if value_infused_adapter:
             vls = value_layer.shape
-            value_layer = value_infused_adapter(value_layer.contiguous().view(vls[0], vls[1], -1))
-            value_layer = value_layer.view(vls)
+            value_layer = value_infused_adapter(value_layer.reshape(vls[0], vls[1], -1))
+            value_layer = value_layer.reshape(vls)
 
         # ===================================================
         # Adjust key, value, and attention mask for inference
