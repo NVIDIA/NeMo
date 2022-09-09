@@ -150,7 +150,7 @@ from nemo.collections.asr.models import EncDecClassificationModel, EncDecSpeaker
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
-
+import torch
 
 @hydra_runner(config_path="../conf/matchboxnet", config_name="matchboxnet_3x1x64_v1")
 def main(cfg):
@@ -167,13 +167,14 @@ def main(cfg):
 
     # Initialize the weights of the model from another model, if provided via config
     model.maybe_init_from_pretrained_checkpoint(cfg)
-
     trainer.fit(model)
-
+    torch.distributed.destroy_process_group()
+    
     if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.manifest_filepath is not None:
-        if model.prepare_test(trainer):
-            trainer.test(model)
-
+        if trainer.is_global_zero:
+            trainer = pl.Trainer(devices=1, accelerator=cfg.trainer.accelerator, strategy=cfg.trainer.strategy)
+            if model.prepare_test(trainer):
+                trainer.test(model)
 
 if __name__ == '__main__':
     main()  # noqa pylint: disable=no-value-for-parameter
