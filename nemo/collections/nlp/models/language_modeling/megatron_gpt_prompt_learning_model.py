@@ -105,8 +105,12 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             frozen_model_cfg.global_batch_size = self.cfg.global_batch_size
             frozen_model_cfg.precision = trainer.precision
             frozen_model_cfg.sequence_parallel = self.cfg.get("sequence_parallel", False)
-            frozen_model_cfg.activations_checkpoint_granularity = self.cfg.get("activations_checkpoint_granularity", None)
-            frozen_model_cfg.activations_checkpoint_num_layers = self.cfg.get("activations_checkpoint_num_layers", None)
+            frozen_model_cfg.activations_checkpoint_granularity = self.cfg.get(
+                "activations_checkpoint_granularity", None
+            )
+            frozen_model_cfg.activations_checkpoint_num_layers = self.cfg.get(
+                "activations_checkpoint_num_layers", None
+            )
             frozen_model_cfg.activations_checkpoint_method = self.cfg.get("activations_checkpoint_method", None)
 
         if self.trainer.precision == 32:
