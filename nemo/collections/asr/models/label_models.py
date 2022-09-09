@@ -91,7 +91,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         self.labels_occurrence = None
 
         if 'loss' in cfg:
-            if cfg.loss.weight:
+            if 'weight' in cfg.loss:
                 if cfg.loss.weight == 'auto':
                     self.cal_labels_occurrence_train = True
                 else:
@@ -113,7 +113,8 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             weight = [sum(self.labels_occurrence) / (len(self.labels_occurrence) * i) for i in self.labels_occurrence]
 
         if 'loss' not in cfg:
-            self.loss = CrossEntropyLoss()  # default loss for this class, basically to pass test
+            self.loss = CrossEntropyLoss()  # default loss for this class, basically serves to pass test
+            self.eval_loss = CrossEntropyLoss()
         else:
             self.loss = instantiate(cfg.loss, weight=weight)
             self.eval_loss = instantiate(cfg.loss, weight=None)
@@ -220,6 +221,12 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
 
     def setup_training_data(self, train_data_layer_config: Optional[Union[DictConfig, Dict]]):
         cal_labels_occurrence = train_data_layer_config.get('cal_labels_occurrence', False)
+        if cal_labels_occurrence and not self.cal_labels_occurrence_train:
+            # No need to Calculate labels occurence for weighed CE loss for train set if weight does not equal 'auto'
+            train_data_layer_config['cal_labels_occurrence'] = False
+            logging.info(
+                f"No need to calcualte labels_occurrence if not use weighted='auto' for CE loss. Changing on the fly!"
+            )
         if not cal_labels_occurrence:
             if self.cal_labels_occurrence_train:
                 # Calculate labels occurence for weighed CE loss for train set if weight equals 'auto'
@@ -339,7 +346,6 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
     def evaluation_step(self, batch, batch_idx, dataloader_idx: int = 0, tag: str = 'val'):
         audio_signal, audio_signal_len, labels, _ = batch
         logits, _ = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
-        # evaluation step (validation, test) loss is CE loss
         loss_value = self.eval_loss(logits=logits, labels=labels)
         acc_top_k = self._accuracy(logits=logits, labels=labels)
         correct_counts, total_counts = self._accuracy.correct_counts_k, self._accuracy.total_counts_k
