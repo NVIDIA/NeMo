@@ -45,7 +45,6 @@ AVAILABLE_OPTIMIZERS = {
 try:
     from apex.optimizers import FusedLAMB
     from apex.optimizers import FusedAdam
-    from apex.transformer import parallel_state
 
     HAVE_APEX = True
 

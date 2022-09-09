@@ -172,6 +172,29 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         else:
             self._optimizer_param_groups = get_params_for_weight_decay_optimization([self.model])
 
+    def configure_optimizers(self):
+
+        if self.with_distributed_adam:
+            # Disable async grad reductions for params that are
+            # synchronized for pipeline parallelism and sequence
+            # parallelism
+            if (
+                parallel_state.get_pipeline_model_parallel_world_size() > 1
+                and (parallel_state.is_pipeline_first_stage() or parallel_state.is_pipeline_last_stage())
+                and self.model.share_token_embeddings
+            ):
+                # Disable overlapped grad sync for embedding grad when
+                # pipeline parallelism is enabled
+                param = self.model.word_embeddings_weight()
+                param._disable_greedy_grad_copy = not self.megatron_amp_o2
+                param._disable_overlap_grad_sync = True
+            for param in self.parameters():
+                if getattr(param, 'sequence_parallel_enabled', False):
+                    param._disable_greedy_grad_copy = not self.megatron_amp_o2
+                    param._disable_overlap_grad_sync = True
+
+        return super().configure_optimizers()
+
     def forward(self, tokens, text_position_ids, attention_mask, labels):
         output_tensor = self.model(tokens, text_position_ids, attention_mask, labels=labels)
         return output_tensor
@@ -207,9 +230,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 # keep grad tensors around
                 custom_sync_context_handler = lambda: self._optimizer.no_sync(greedy_grad_copy=False)
         else:
-            if (self.megatron_amp_o2
+            if (
+                self.megatron_amp_o2
                 and self.cfg.get('pipeline_model_parallel_size', 1) == 1
-                and not self.cfg.get('sequence_parallel', False)):
+                and not self.cfg.get('sequence_parallel', False)
+            ):
                 custom_sync_context_handler = self._optimizer.no_sync
             else:
                 # TODO: enable async grad all reduce with O1/autocast
@@ -256,17 +281,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         if self.with_distributed_adam:
             # launch grad reductions
+            # Note: grads in first pipeline stage have already been
+            # reduced
             if not parallel_state.is_pipeline_first_stage():
-                # first pipeline stage overlaps backward pass with
-                # grad reductions
                 self._optimizer.try_grad_sync(
-                    p for p in self.parameters()
-                    if not getattr(p, '_disable_overlap_grad_sync', False)
+                    p for p in self.parameters() if not getattr(p, '_disable_overlap_grad_sync', False)
                 )
-            self._optimizer.try_grad_sync(
-                p for p in self.parameters()
-                if getattr(p, 'sequence_parallel_enabled', False)
-            )
         elif self.megatron_amp_o2:
             # when using pipeline parallelism grads must be all-reduced after the pipeline (not asynchronously)
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1 or self.cfg.get('sequence_parallel', False):

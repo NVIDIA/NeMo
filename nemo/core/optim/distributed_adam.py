@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from apex.transformer import parallel_state
 from apex.contrib.optimizers.distributed_fused_adam import DistributedFusedAdam
+from apex.transformer import parallel_state
+
 
 # Wrapper class that supports main_grad buffer
 # Note: main_grad buffer is used for O2-style optimizations
@@ -29,15 +30,13 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
                 need_to_initialize = 'fragments' not in self.state[param]
                 if need_to_initialize:
                     self._init_param_state(param, param_group_id, param_id)
-                if (self.greedy_grad_copy
-                    and not getattr(param, '_disable_greedy_grad_copy', False)):
+                if self.greedy_grad_copy and not getattr(param, '_disable_greedy_grad_copy', False):
                     self._grad_copy(param)
-                    if (self.overlap_grad_sync
-                        and not getattr(param, '_disable_overlap_grad_sync', False)):
+                    if self.overlap_grad_sync and not getattr(param, '_disable_overlap_grad_sync', False):
                         self._try_start_bucket_grad_sync(
-                            params=[param],
-                            ignore_last_bucket=need_to_initialize,
+                            params=[param], ignore_last_bucket=need_to_initialize,
                         )
+
         return hook
 
     def try_grad_sync(self, params):
