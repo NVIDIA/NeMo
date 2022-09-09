@@ -287,7 +287,7 @@ def convert_weights(hf_model, nemo_state_dict_path):
     return hf_model_config
 
 
-def package_into_nemo_file(state_dict_path, base_yaml_config, hf_model_config, nemo_file_path, hf_model_name):
+def package_into_nemo_file(state_dict_path, base_yaml_config, hf_model_config, nemo_file_path, hf_model_name, megatron_amp_O2):
     """
     Packages the state dict, config file and tokenizer into a `.nemo` file.
     """
@@ -317,13 +317,22 @@ def package_into_nemo_file(state_dict_path, base_yaml_config, hf_model_config, n
         base_cfg.decoder.activation = act_fn
         base_cfg.decoder.relative_attention_num_buckets = hf_model_config.relative_attention_num_buckets
 
+        base_cfg.megatron_amp_O2 = megatron_amp_O2
+
     with tempfile.TemporaryDirectory() as tmp:
         tokenizer = AutoTokenizer.from_pretrained(hf_model_name)
         tokenizer_path = tokenizer.save_vocabulary(tmp)[0]
         base_cfg.tokenizer.model = tokenizer_path
         model = MegatronT5Model(base_cfg, trainer).to('cpu')
         model._save_restore_connector = NLPSaveRestoreConnector()
-        model.load_state_dict(torch.load(state_dict_path))
+        state_dict = torch.load(state_dict_path)
+        if megatron_amp_O2:
+            new_state_dict = {}
+            for key in state_dict.keys():
+                new_key = key.replace('model.', 'model.module.', 1)
+                new_state_dict[new_key] = state_dict[key]
+            state_dict = new_state_dict
+        model.load_state_dict(state_dict)
         model.save_to(nemo_file_path)
 
 
@@ -353,14 +362,21 @@ if __name__ == '__main__':
         default="hf_t5v1_1_base_config.yaml",
         help="Path to a base yaml config that we edit based on the provided model.",
     )
+    parser.add_argument(
+        "--megatron_amp_O2",
+        type=bool,
+        action="store_true",
+        help="Whether to store O2 weights. This may be useful for models like ul2 where only pre-trained half precision weights were released.",
+    )
     args = parser.parse_args()
     if not os.path.exists(args.base_yaml_config):
         raise FileNotFoundError(f"Base yaml config file {args.base_yaml_config} does not exist.")
-    hf_model_config = convert_weights(args.hf_model_name, args.nemo_state_dict_path)
+    hf_model_config = convert_weights(args.hf_model_name, args.nemo_state_dict_path, args.megatron_amp_O2)
     package_into_nemo_file(
         state_dict_path=args.nemo_state_dict_path,
         base_yaml_config=args.base_yaml_config,
         hf_model_config=hf_model_config,
         nemo_file_path=args.nemo_file_path,
         hf_model_name=args.hf_model_name,
+        megatron_amp_O2=args.megatron_amp_O2,
     )
