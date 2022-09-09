@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from calendar import c
 import os
 import re
+from calendar import c
 from collections import OrderedDict
 from functools import partial
 from typing import Any, List, Optional, Union

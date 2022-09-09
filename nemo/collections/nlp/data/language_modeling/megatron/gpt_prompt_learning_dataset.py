@@ -13,6 +13,8 @@
 # limitations under the License.
 
 import json
+import os
+import pickle
 
 import torch
 from tqdm.auto import tqdm
@@ -20,11 +22,7 @@ from tqdm.auto import tqdm
 from nemo.collections.nlp.modules.common import VirtualPromptSource
 from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
 from nemo.core import Dataset
-from nemo.utils import logging
-import pickle
-import os
-
-from nemo.utils import AppState
+from nemo.utils import AppState, logging
 
 __all__ = ['GPTPromptLearningDataset']
 
@@ -87,7 +85,7 @@ class GPTPromptLearningDataset(Dataset):
         logging.info("Loading and tokenizing dataset ... ")
 
         if load_cache and cache_data_path is not None and os.path.exists(cache_data_path):
-            # load it from the cache 
+            # load it from the cache
             logging.info(f'load the data from the cache file {cache_data_path}')
             with open(cache_data_path, 'rb') as f:
                 self.examples = pickle.load(f)
@@ -110,7 +108,6 @@ class GPTPromptLearningDataset(Dataset):
                     with open(cache_data_path, 'wb') as f:
                         pickle.dump(self.examples, f)
                     logging.info(f'save the data to the cache file {cache_data_path}')
-
 
     def load_data(self, dataset):
         """
