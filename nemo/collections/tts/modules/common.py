@@ -260,11 +260,11 @@ class ConvLSTMLinear(BiLSTM):
             context, _ = self.bilstm(context)
         else:
             # borisf : does not match ADLR (values, lengths)
-            # context = self.run_masked_tensor(context, lens)
+            context = self.run_masked_tensor(context, lens)
             # borisf : does not match ADLR (values, lengths) 
             # context = self.run_masked_sequence(context, lens)
             # borisf : does match ADLR 
-            context = self.run_padded_sequence(context, lens)
+            # context = self.run_padded_sequence(context, lens)
             context, _ = self.run_unsorted_inputs(context, lens)
             
         if self.dense is not None:
@@ -285,7 +285,7 @@ def getRadTTSEncoder(
         n_channels=encoder_embedding_dim,
         kernel_size=encoder_kernel_size,
         p_dropout=0.5,
-        use_partial_padding=True,
+        use_partial_padding=False,
         norm_fn = norm_fn,
         lstm_norm_fn = lstm_norm_fn
         )

@@ -103,12 +103,16 @@ class PartialConv1d(torch.nn.Conv1d):
             mask, mask_ratio, update_mask = self.calculate_mask(input, mask_in)
             return self.forward_aux(input, mask, mask_ratio, update_mask)
         else:
+            if mask_in is not None:
+                input = torch.mul(input, mask_in)
             return self._conv_forward(input, self.weight, self.bias)
         
     def forward(self, input: torch.Tensor, mask_in: Optional[torch.Tensor] = None) -> torch.Tensor:
         if self.partial:
             return self.forward_with_cache(input, mask_in)
         else:
+            if mask_in is not None:
+                input = torch.mul(input, mask_in)
             return self._conv_forward(input, self.weight, self.bias)
     
 class LinearNorm(torch.nn.Module):
