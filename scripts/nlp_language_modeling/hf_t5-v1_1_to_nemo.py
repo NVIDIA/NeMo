@@ -370,7 +370,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     if not os.path.exists(args.base_yaml_config):
         raise FileNotFoundError(f"Base yaml config file {args.base_yaml_config} does not exist.")
-    hf_model_config = convert_weights(args.hf_model_name, args.nemo_state_dict_path, args.megatron_amp_O2)
+    hf_model_config = convert_weights(args.hf_model_name, args.nemo_state_dict_path)
     package_into_nemo_file(
         state_dict_path=args.nemo_state_dict_path,
         base_yaml_config=args.base_yaml_config,
