@@ -19,7 +19,6 @@ import datetime
 import difflib
 import io
 import json
-import logging
 import math
 import operator
 import os
