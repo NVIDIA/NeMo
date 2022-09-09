@@ -364,7 +364,6 @@ if __name__ == '__main__':
     )
     parser.add_argument(
         "--megatron_amp_O2",
-        type=bool,
         action="store_true",
         help="Whether to store O2 weights. This may be useful for models like ul2 where only pre-trained half precision weights were released.",
     )
