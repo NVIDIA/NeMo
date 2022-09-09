@@ -161,8 +161,8 @@ class TestEMAConfig:
         trainer.fit(model, ckpt_path=resume_path)
 
 
-@pytest.mark.parametrize("precision", [32, 16])
-@pytest.mark.parametrize("accumulate_grad_batches", [2])
+@pytest.mark.parametrize("precision", [16, "bf16", 32])
+@pytest.mark.parametrize("accumulate_grad_batches", [1, 2])
 @pytest.mark.run_only_on('GPU')
 @pytest.mark.skipif(not apex_available, reason="apex is not installed")
 class TestEMATrain:
@@ -208,7 +208,7 @@ class EMAAssertCallback(Callback):
     def on_train_batch_end(
         self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", outputs: STEP_OUTPUT, batch: Any, batch_idx: int
     ) -> None:
-        if trainer.global_step % trainer.accumulate_grad_batches != 0:
+        if (batch_idx + 1) % trainer.accumulate_grad_batches != 0:
             # skip assertion as ema weights are not updated.
             return
         ema_callback = [x for x in trainer.callbacks if isinstance(x, EMA)][0]
