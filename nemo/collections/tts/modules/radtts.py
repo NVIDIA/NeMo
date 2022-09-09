@@ -29,10 +29,10 @@ from nemo.collections.tts.modules.common import (
     Invertible1x1ConvLUS,
     LinearNorm,
     BiLSTM,
-    norm_bilstm,
     getRadTTSEncoder,
     get_mask_from_lengths,
 )
+from nemo.collections.tts.modules.submodules import PartialConv1d
 from nemo.core.classes import Exportable, NeuralModule
 from nemo.core.neural_types.elements import (
     Index,
@@ -238,10 +238,7 @@ class RadTTSModule(NeuralModule, Exportable):
                     input_size=n_in_context_lstm,
                     hidden_size=n_context_lstm_hidden,
                     num_layers=1,
-                    # bidirectional = True,
-                    # batch_first = True
                 )
-                # norm_bilstm(self.context_lstm, context_lstm_norm)
 
             self.exit_steps = []
             self.n_early_size = n_early_size
@@ -633,7 +630,7 @@ class RadTTSModule(NeuralModule, Exportable):
         spk_vec_attributes = self.encode_speaker(speaker_id_attributes)
 
         txt_enc, txt_emb = self.encode_text(text, in_lens)
-        # print ("txt_emb, txt_enc: ", txt_emb, txt_enc )
+        print ("txt_enc: ", txt_enc.shape, txt_enc )
 
         if dur is None:
             # get token durations
@@ -646,7 +643,7 @@ class RadTTSModule(NeuralModule, Exportable):
 
         # get attributes f0, energy, vpred, etc)
         txt_enc_time_expanded, out_lens = regulate_len(dur, txt_enc.transpose(1, 2), pace, group_size= self.n_group_size)
-        print ("txt_enc_time_expanded, out_lens, dur: ", txt_enc_time_expanded.shape, out_lens, dur)
+        # print ("txt_enc_time_expanded, out_lens, dur: ", txt_enc_time_expanded.shape, out_lens, dur)
         n_groups = torch.div(out_lens, self.n_group_size, rounding_mode='floor')
 
         txt_enc_time_expanded.transpose_(1, 2)
@@ -805,6 +802,7 @@ class RadTTSModule(NeuralModule, Exportable):
 
     # Methods for model exportability
     def _prepare_for_export(self, **kwargs):
+        PartialConv1d.forward=PartialConv1d.forward_no_cache
         self.remove_norms()
         self.encoder = torch.jit.script(self.encoder)
         self.v_pred_module.feat_pred_fn = torch.jit.script(self.v_pred_module.feat_pred_fn)

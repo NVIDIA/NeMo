@@ -107,7 +107,7 @@ class PartialConv1d(torch.nn.Conv1d):
         
     def forward(self, input: torch.Tensor, mask_in: Optional[torch.Tensor] = None) -> torch.Tensor:
         if self.partial:
-            return self.forward_no_cache(input, mask_in)
+            return self.forward_with_cache(input, mask_in)
         else:
             return self._conv_forward(input, self.weight, self.bias)
     
@@ -135,6 +135,7 @@ class ConvNorm(torch.nn.Module):
         w_init_gain='linear',
         use_partial_padding:bool=False,
         use_weight_norm:bool=False,
+        norm_fn = None
     ):
         super(ConvNorm, self).__init__()
         if padding is None:
@@ -154,10 +155,17 @@ class ConvNorm(torch.nn.Module):
         torch.nn.init.xavier_uniform_(conv.weight, gain=torch.nn.init.calculate_gain(w_init_gain))
         if use_weight_norm:
             conv = torch.nn.utils.weight_norm(conv)
+        if norm_fn is not None:
+            self.norm = norm_fn(out_channels, affine=True)
+        else:
+            self.norm = None
         self.conv = conv
         
     def forward(self, input: torch.Tensor, mask_in: Optional[torch.Tensor] = None) -> torch.Tensor:
-        return self.conv(input, mask_in)
+        ret = self.conv(input, mask_in)
+        if self.norm is not None:
+            ret = self.norm(ret)
+        return ret
 
 class LocationLayer(torch.nn.Module):
     def __init__(self, attention_n_filters, attention_kernel_size, attention_dim):

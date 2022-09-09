@@ -53,6 +53,21 @@ def update_params(config, params):
             print("{}, {} params not updated".format(k, v))
 
 
+
+def get_mask_from_lengths_and_val(lengths, val):
+    """Constructs binary mask from a 1D torch tensor of input lengths
+
+    Args:
+        lengths (torch.tensor): 1D tensor
+    Returns:
+        mask (torch.tensor): num_sequences x max_length x 1 binary tensor
+    """
+    max_len = val.shape[-1]
+    ids = torch.arange(0, max_len, device=lengths.device)
+    mask = ids < lengths.unsqueeze(1)
+    return mask.float()
+
+            
 @torch.jit.script
 def get_mask_from_lengths(lengths):
     """Constructs binary mask from a 1D torch tensor of input lengths
@@ -122,7 +137,10 @@ def unsort_tensor(context: torch.Tensor, ids_sorted):
     context = context[unsort_ids]
     return context
 
-def norm_bilstm(self, lstm_norm_fn):
+class BiLSTM(nn.Module):
+    def __init__(self, input_size, hidden_size, num_layers = 1, lstm_norm_fn="spectral"):
+        super().__init__()
+        self.bilstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True, bidirectional=True)
         if lstm_norm_fn is not None:
             if 'spectral' in lstm_norm_fn:
                 print("Applying spectral norm to LSTM")
@@ -131,16 +149,9 @@ def norm_bilstm(self, lstm_norm_fn):
                 print("Applying weight norm to LSTM")
                 lstm_norm_fn_pntr = torch.nn.utils.weight_norm
                 
-        lstm_norm_fn_pntr(self, 'weight_hh_l0')
-        lstm_norm_fn_pntr(self, 'weight_hh_l0_reverse')
-        self.flatten_parameters()
-    
-
-class BiLSTM(nn.Module):
-    def __init__(self, input_size, hidden_size, num_layers = 1, lstm_norm_fn="spectral"):
-        super().__init__()
-        self.bilstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True, bidirectional=True)
-        norm_bilstm(self.bilstm, lstm_norm_fn)
+        lstm_norm_fn_pntr(self.bilstm, 'weight_hh_l0')
+        lstm_norm_fn_pntr(self.bilstm, 'weight_hh_l0_reverse')
+        self.bilstm.flatten_parameters()
         
     @torch.jit.export
     def run_unsorted_inputs(self, context:torch.Tensor, lens:torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -152,9 +163,8 @@ class BiLSTM(nn.Module):
 
     @torch.jit.export
     def run_sorted_inputs(self, context:torch.Tensor, lens:torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        lens_sorted = lens.long().cpu()
         seq = nn.utils.rnn.pack_padded_sequence(
-            context, lens_sorted, batch_first=True)
+            context, lens.long().cpu(), batch_first=True)
         ret, _ = self.bilstm(seq)
         return nn.utils.rnn.pad_packed_sequence(
             ret, batch_first=True)
@@ -195,20 +205,16 @@ class ConvLSTMLinear(BiLSTM):
                 dilation=1,
                 w_init_gain='relu',
                 use_weight_norm = False,
-                use_partial_padding = use_partial_padding
+                use_partial_padding = use_partial_padding,
+                norm_fn = norm_fn
             )
             if norm_fn is not None:
                 print("Applying {} norm to {}".format(norm_fn, conv_layer))
-                conv_layer = nn.Sequential(conv_layer, norm_fn(n_channels, affine=True))
             else:
                 conv_layer = torch.nn.utils.weight_norm(conv_layer.conv)
                 print("Applying weight norm to {}".format(conv_layer))
             self.convolutions.append(conv_layer)
 
-        # self.bilstm = nn.LSTM(n_channels, int(n_channels // 2), 1, batch_first=True, bidirectional=True)
-        # norm_bilstm(self.bilstm, lstm_norm_fn)
-
-        # self.bilstm = BiLSTM(n_channels, int(n_channels // 2), 1)
         self.dense = None
         if out_dim is not None:
             self.dense = nn.Linear(n_channels, out_dim)
@@ -223,18 +229,44 @@ class ConvLSTMLinear(BiLSTM):
         context = torch.nn.utils.rnn.pad_sequence(context_embedded, batch_first=True)
         return context
 
+    def run_masked_sequence(self, context, lens):
+        mask = get_mask_from_lengths_and_val(lens, context)
+        unsq_mask = mask.unsqueeze(1)
+        context_embedded = []
+        for b_ind in range(context.size()[0]):  # TODO: speed up
+            curr_context = context[b_ind : b_ind + 1, :, :].clone()
+            curr_mask = unsq_mask[b_ind : b_ind + 1, :, :]
+            for conv in self.convolutions:
+                curr_context = self.dropout(F.relu(conv(curr_context, curr_mask)))
+            curr_context = torch.mul(curr_context, curr_mask)
+            context_embedded.append(curr_context[0].transpose(0, 1))
+        context = torch.nn.utils.rnn.pad_sequence(context_embedded, batch_first=True)
+        return context
+    
+    def run_masked_tensor(self, context, lens):
+        mask = get_mask_from_lengths_and_val(lens, context)
+        unsq_mask = mask.unsqueeze(1)
+        for conv in self.convolutions:
+            context = self.dropout(F.relu(conv(context, unsq_mask)))
+        context = torch.mul(context, unsq_mask)
+        context = context.transpose(1, 2)
+        return context
+    
     def forward(self, context:torch.Tensor, lens:Optional[torch.Tensor]=None):
-        if lens is not None and context.size()[0] > 1:
-            context = self.run_padded_sequence(context, lens)
-        else:
+        if lens is None:
             for conv in self.convolutions:
                 context = self.dropout(F.relu(conv(context)))
             context = context.transpose(1, 2)
-        if lens is not None:
-            context, out_lens = self.run_unsorted_inputs(context, lens)
-        else:
             context, _ = self.bilstm(context)
-
+        else:
+            # borisf : does not match ADLR (values, lengths)
+            # context = self.run_masked_tensor(context, lens)
+            # borisf : does not match ADLR (values, lengths) 
+            # context = self.run_masked_sequence(context, lens)
+            # borisf : does match ADLR 
+            context = self.run_padded_sequence(context, lens)
+            context, _ = self.run_unsorted_inputs(context, lens)
+            
         if self.dense is not None:
             context = self.dense(context).permute(0, 2, 1)
 
