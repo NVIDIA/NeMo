@@ -113,7 +113,6 @@ class PromptEncoder(NeuralModule, Exportable):
     @typecheck()
     def forward(self, taskname_embeddings) -> torch.Tensor:
         input_embeds = self.embedding(self.indices).unsqueeze(0)
-        input_embeds = torch.nn.functional.dropout(input_embeds, p=self.embedding_dropout, training=self.training)
         batch_size, task_seq_length, _ = taskname_embeddings.shape
         input_embeds = input_embeds.expand(batch_size, self.total_virtual_tokens, self.token_dim).clone()
         length = min(task_seq_length, self.total_virtual_tokens)
