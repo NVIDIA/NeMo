@@ -21,9 +21,17 @@ from nemo.collections.asr.models import label_models
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.tts.models import fastpitch_ssl, hifigan, hifigan_ssl, ssl_tts
 
+import fnmatch
+from transformers import Wav2Vec2Processor, Wav2Vec2Model
+from tqdm import tqdm
+from scipy import linalg
+
 plt.rcParams["figure.figsize"] = (10, 10)
 device = "cpu"
 
+wave_model = WaveformFeaturizer(sample_rate=16000)
+processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-base-960h")
+model = Wav2Vec2Model.from_pretrained("facebook/wav2vec2-large-xlsr-53")
 
 def load_wav(wav_path, wav_featurizer, pad_multiple=1024):
     wav = wav_featurizer.process(wav_path)
@@ -444,6 +452,56 @@ def calculate_eer(speaker_embeddings, mode="generated"):
         'auc': _auc,
     }
 
+def get_activation(filename):
+    audio = wave_model.process(filename, trim=False)
+    inputs = processor(audio, sampling_rate=16000, return_tensors="pt")
+    with torch.no_grad():
+        outputs = model(**inputs)
+    # activation = outputs.last_hidden_state.mean(axis=1)
+    activation = outputs.extract_features.mean(axis=1)
+    return activation
+
+def frechet_classifier_distance_from_activations(activations1, activations2):
+    mu1, sigma1 = calculate_activation_statistics(activations1)
+    mu2, sigma2 = calculate_activation_statistics(activations2)
+    fid = calculate_frechet_distance(mu1, sigma1, mu2, sigma2)
+    return fid
+
+def calculate_activation_statistics(act):
+    mu = np.mean(act, axis=0)
+    sigma = np.cov(act, rowvar=False)
+    return mu, sigma
+
+def calculate_frechet_distance(mu1, sigma1, mu2, sigma2, eps=1e-6):
+    mu1 = np.atleast_1d(mu1)
+    mu2 = np.atleast_1d(mu2)
+
+    sigma1 = np.atleast_2d(sigma1)
+    sigma2 = np.atleast_2d(sigma2)
+
+    assert mu1.shape == mu2.shape, "Training and test mean vectors have different lengths"
+    assert sigma1.shape == sigma2.shape, "Training and test covariances have different dimensions"
+
+    diff = mu1 - mu2
+    # product might be almost singular
+    covmean, _ = linalg.sqrtm(sigma1.dot(sigma2), disp=False)
+    if not np.isfinite(covmean).all():
+        msg = "fid calculation produces singular product; adding %s to diagonal of cov estimates" % eps
+        print (msg)
+        offset = np.eye(sigma1.shape[0]) * eps
+        covmean = linalg.sqrtm((sigma1 + offset).dot(sigma2 + offset))
+
+    # numerical error might give slight imaginary component
+    if np.iscomplexobj(covmean):
+        if not np.allclose(np.diagonal(covmean).imag, 0, atol=1e-3):
+            m = np.max(np.abs(covmean.imag))
+            raise ValueError("Imaginary component {}".format(m))
+        covmean = covmean.real
+
+    tr_covmean = np.trace(covmean)
+
+    return diff.dot(diff) + np.trace(sigma1) + np.trace(sigma2) - 2 * tr_covmean
+
 
 def evaluate(
     manifest_path,
@@ -563,27 +621,41 @@ def evaluate(
 
     speaker_embeddings = {}
     original_filepaths = filtered_paths
+
+    generated_fp_list = []
+    original_fp_list = []
     for key in generated_file_paths:
         speaker_embeddings["generated_{}".format(key)] = []
         speaker_embeddings["original_{}".format(key)] = []
 
         for fp in generated_file_paths[key]:
+            generated_fp_list.append(fp)
             print("getting embedding for {}".format(fp))
             embedding = nemo_sv_model.get_embedding(fp)
             embedding = embedding.cpu().detach().numpy().flatten()
             speaker_embeddings["generated_{}".format(key)].append(embedding)
 
         for fp in original_filepaths[key]:
+            original_fp_list.append(fp)
             print("getting embedding for {}".format(fp))
             embedding = nemo_sv_model.get_embedding(fp)
             embedding = embedding.cpu().detach().numpy().flatten()
             speaker_embeddings["original_{}".format(key)].append(embedding)
+
+    gns = []
+    gts = []
+    for gn, gt in tqdm(zip(generated_fp_list, original_fp_list)):
+        gns.append(get_activation(gn))
+        gts.append(get_activation(gt))
+
+    fid = frechet_classifier_distance_from_activations(np.concatenate(gts), np.concatenate(gns))
 
     sv_metrics = calculate_eer(speaker_embeddings)
     sv_metrics_real = calculate_eer(speaker_embeddings, mode="real")
     metrics = {
         'generated': sv_metrics,
         'real': sv_metrics_real,
+        'fid' : fid
     }
     with open(os.path.join(out_dir, "sv_metrics_{}_{}.json".format(evaluation_type, sv_model_name)), "w") as f:
         json.dump(metrics, f)

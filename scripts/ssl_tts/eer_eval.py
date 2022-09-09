@@ -12,7 +12,7 @@ from sklearn.metrics import auc, roc_curve
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.tts.models import ssl_tts
 
-device = "cuda:0"
+device = "cuda:1"
 
 
 def segment_wav(wav, segment_length=44100, hop_size=22050, min_segment_size=22050):
@@ -110,7 +110,8 @@ def get_checkpoint(folder_path):
 # ssl_model.maybe_init_from_pretrained_checkpoint(cfg=cfg)
 # wav_featurizer = WaveformFeaturizer(sample_rate=16000, int_values=False, augmentor=None)
 
-ssl_model_ckpt_path = "/home/shehzeenh/Conformer-SSL/3253979_/Conformer-SSL/checkpoints/Conformer22050_Epoch37.ckpt"
+# ssl_model_ckpt_path = "/home/shehzeenh/Conformer-SSL/3253979_/Conformer-SSL/checkpoints/Conformer22050_Epoch37.ckpt"
+ssl_model_ckpt_path = "/home/shehzeenh/Conformer-SSL/ConformerEpoch1.ckpt"
 ssl_model = ssl_tts.SSLDisentangler.load_from_checkpoint(ssl_model_ckpt_path, strict=False)
 ssl_model = ssl_model.to(device)
 ssl_model.eval()
