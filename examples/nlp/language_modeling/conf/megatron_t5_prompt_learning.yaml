@@ -65,21 +65,20 @@ model:
 
   prompt_tuning: # Prompt tunin specific params
     new_prompt_init_methods: ['text'] # List of 'text' or 'random', should correspond to tasks listed in new tasks
-    new_prompt_init_text: ['Extractive question answering'] # some init text if init method is text, or None if init method is random
+    new_prompt_init_text: ['some init text goes here'] # some init text if init method is text, or None if init method is random
 
   data:
-    train_ds: ["/raid/Data/prompt-learning-data/squad1.1/squad_train_3k.jsonl"]
-    validation_ds: ["/raid/Data/prompt-learning-data/squad1.1/squad_val.jsonl"]
-    add_eos: False
-    add_bos: False
-    decoder_starts_with_pad: True
-    add_eos_to_decoder_output: False
+    train_ds: ["data/squad_train.jsonl"]
+    validation_ds: ["data/squad_val.jsonl"]
+    add_eos: true
+    add_bos: false
+    decoder_starts_with_pad: False
+    add_eos_to_decoder_output: True
     add_sentinel_to_input: True
-    ul2_prompt_token: <extra_id_x> # <extra_id_s>, <extra_id_r>, <extra_id_x>
-    shuffle: True
-    num_workers: 0
-    pin_memory: True
-
+    ul2_prompt_token: null # <extra_id_s>, <extra_id_r>, <extra_id_x>
+    shuffle: true
+    num_workers: 4
+    pin_memory: true
 
   optim:
     name: fused_adam
@@ -90,7 +89,7 @@ model:
     - 0.98
     sched:
       name: CosineAnnealing
-      warmup_steps: 100
+      warmup_steps: 50
       constant_steps: 0
       min_lr: 0.0
       monitor: val_loss
