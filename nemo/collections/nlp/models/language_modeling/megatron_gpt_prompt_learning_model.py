@@ -434,7 +434,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             position_embeddings = self.frozen_model.model.language_model.embedding.position_embeddings(position_ids)
             encoder_input = input_embeds + position_embeddings
             encoder_input = encoder_input.transpose(0, 1).contiguous()
-            if self.cfg.sequence_parallel:
+            if self.cfg.get("sequence_parallel", False):
                 encoder_input = tensor_parallel.mappings.scatter_to_sequence_parallel_region(encoder_input)
         else:
             encoder_input = None
@@ -585,7 +585,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 tensor_shape=tensor_shape,
                 dtype=self.autocast_dtype,
                 grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
-                sequence_parallel_enabled=self.cfg.sequence_parallel,
+                sequence_parallel_enabled=self.cfg.get("sequence_parallel", False),
             )
         else:
             losses_reduced_per_micro_batch = forward_backward_no_pipelining(
@@ -822,7 +822,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         assert batch_size % data_parallel_size == 0, "Global batch size must be evenly divisible by data parallel size"
 
         if for_train:
-            if self.cfg.sequence_parallel:
+            if self.cfg.get("sequence_parallel", False):
                 collate_fn = partial(
                     dataset.collate_fn, tp_workers=parallel_state.get_tensor_model_parallel_world_size()
                 )
