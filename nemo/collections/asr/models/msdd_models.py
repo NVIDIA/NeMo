@@ -25,12 +25,19 @@ import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig, open_dict
 from pytorch_lightning import Trainer
+from pytorch_lightning.utilities import rank_zero_only
 from tqdm import tqdm
 
 from nemo.collections.asr.data.audio_to_diar_label import AudioToSpeechMSDDInferDataset, AudioToSpeechMSDDTrainDataset
 from nemo.collections.asr.metrics.multi_binary_acc import MultiBinaryAccuracy
 from nemo.collections.asr.models import ClusteringDiarizer
-from nemo.collections.asr.models.clustering_diarizer import get_available_model_names
+from nemo.collections.asr.models.clustering_diarizer import (
+    get_available_model_names,
+    _MODEL_CONFIG_YAML,
+    _VAD_MODEL,
+    _SPEAKER_MODEL, 
+)
+
 from nemo.collections.asr.models.asr_model import ExportableEncDecModel
 from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
@@ -82,7 +89,15 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
         Returns:
             List of available pre-trained models.
         """
-        return None
+        result = []
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="diar_msdd_telephonic",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/diar_msdd_telephonic/versions/1.0.0/files/diar_msdd_telephonic.nemo",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:diar_msdd_telephonic",
+        )
+        result.append(model)
+        return result
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         """
@@ -177,13 +192,6 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
         elif model_path.endswith('.ckpt'):
             self._speaker_model = EncDecSpeakerLabelModel.load_from_checkpoint(model_path, map_location=rank_id)
             logging.info("Speaker Model restored locally from {}".format(model_path))
-        else:
-            if model_path not in get_available_model_names(EncDecSpeakerLabelModel):
-                logging.warning(
-                    "requested {} model name not available in pretrained models, instead".format(model_path)
-                )
-            logging.info("Loading pretrained {} model from NGC".format(model_path))
-            self.msdd._speaker_model = EncDecSpeakerLabelModel.from_pretrained(model_name=model_path)
         self._speaker_params = self.cfg_msdd_model.diarizer.speaker_embeddings.parameters
 
     def __setup_dataloader_from_config(self, config):
@@ -647,14 +655,8 @@ class ClusterEmbedding:
             Config dictionary from diarization inference YAML file
         cfg_msdd_model (DictConfig):
             Config dictionary from MSDD model checkpoint file
-        self.clus_diar_model (class `ClusteringDiarizer`):
-            This is a placeholder for class instance of `ClusteringDiarizer`
-        self.msdd_model (class `EncDecDiarLabelModel`):
-            This is a placeholder for class instance of `EncDecDiarLabelModel`
-        self.spk_emb_state_dict (dict):
-            Dictionary containing `state_dict` of speaker embedding model
-        self.use_speaker_model_from_ckpt (bool):
-            If True, speaker embedding model included in MSDD checkpoint is used.
+        self._speaker_model (class `EncDecSpeakerLabelModel`):
+            This is a placeholder for class instance of `EncDecSpeakerLabelModel`
         self.scale_window_length_list (list):
             List containing the window lengths (i.e., scale length) of each scale.
         self.scale_n (int):
@@ -667,11 +669,7 @@ class ClusterEmbedding:
         self.cfg_diar_infer = cfg_diar_infer
         self._cfg_msdd = cfg_msdd_model
         self.clus_diar_model = None
-        self.msdd_model = None
-        self.spk_emb_state_dict = {}
-        self.use_speaker_model_from_ckpt = self.cfg_diar_infer.diarizer.msdd_model.parameters.get(
-            'use_speaker_model_from_ckpt', True
-        )
+        self._speaker_model = None
         self.scale_window_length_list = list(
             self.cfg_diar_infer.diarizer.speaker_embeddings.parameters.window_length_in_sec
         )
@@ -833,14 +831,11 @@ class ClusterEmbedding:
         self.cfg_diar_infer.diarizer.out_dir = emb_dir
 
         # Run ClusteringDiarizer which includes system VAD or oracle VAD.
-        self.clus_diar_model = ClusteringDiarizer(cfg=self.cfg_diar_infer)
+        self.clus_diar_model = ClusteringDiarizer(cfg=self.cfg_diar_infer, 
+                                                  speaker_model=self._speaker_model)
         self._out_dir = self.clus_diar_model._diarizer_params.out_dir
         self.out_rttm_dir = os.path.join(self._out_dir, 'pred_ovl_rttms')
         os.makedirs(self.out_rttm_dir, exist_ok=True)
-
-        # Load speaker embedding model state_dict which is loaded from the MSDD checkpoint.
-        if self.use_speaker_model_from_ckpt:
-            self.clus_diar_model._speaker_model.load_state_dict(self.spk_emb_state_dict)
 
         self.clus_diar_model._cluster_params = self.cfg_diar_infer.diarizer.clustering.parameters
         self.clus_diar_model.multiscale_args_dict[
@@ -966,7 +961,16 @@ class OverlapAwareDiarizer:
     def __init__(self, cfg: DictConfig):
         """ """
         self._cfg = cfg
-
+        self.use_speaker_model_from_ckpt = cfg.diarizer.msdd_model.parameters.get('use_speaker_model_from_ckpt', True)
+        self.use_clus_as_main = cfg.diarizer.msdd_model.parameters.get('use_clus_as_main', False)
+        self.max_overlap_spks = cfg.diarizer.msdd_model.parameters.get('max_overlap_spks', 2)
+        self.num_spks_per_model = cfg.diarizer.msdd_model.parameters.get('num_spks_per_model', 2)
+        self.use_adaptive_thres = cfg.diarizer.msdd_model.parameters.get('use_adaptive_thres', True)
+        self.max_pred_length = cfg.diarizer.msdd_model.parameters.get('max_pred_length', 0)
+        self.diar_eval_settings = cfg.diarizer.msdd_model.parameters.get(
+            'diar_eval_settings', [(0.25, True), (0.25, False), (0.0, False)]
+        )
+        
         self._init_msdd_model(cfg)
         self.diar_window_length = cfg.diarizer.msdd_model.parameters.diar_window_length
         self.msdd_model.cfg = self.transfer_diar_params_to_model_params(self.msdd_model, cfg)
@@ -975,21 +979,12 @@ class OverlapAwareDiarizer:
 
         # Initialize clustering and embedding preparation instance (as a diarization encoder).
         self.clustering_embedding = ClusterEmbedding(cfg_diar_infer=cfg, cfg_msdd_model=self.msdd_model.cfg)
-        self.clustering_embedding.spk_emb_state_dict = self.spk_emb_state_dict
-
+        self.clustering_embedding._speaker_model = self._speaker_model
+        
         # Parameters for creating diarization results from MSDD outputs.
         self.clustering_max_spks = self.msdd_model._cfg.max_num_of_spks
-
         self.overlap_infer_spk_limit = cfg.diarizer.msdd_model.parameters.get(
             'overlap_infer_spk_limit', self.clustering_max_spks
-        )
-        self.use_clus_as_main = cfg.diarizer.msdd_model.parameters.get('use_clus_as_main', False)
-        self.max_overlap_spks = cfg.diarizer.msdd_model.parameters.get('max_overlap_spks', 2)
-        self.num_spks_per_model = cfg.diarizer.msdd_model.parameters.get('num_spks_per_model', 2)
-        self.use_adaptive_thres = cfg.diarizer.msdd_model.parameters.get('use_adaptive_thres', True)
-        self.max_pred_length = cfg.diarizer.msdd_model.parameters.get('max_pred_length', 0)
-        self.diar_eval_settings = cfg.diarizer.msdd_model.parameters.get(
-            'diar_eval_settings', [(0.25, True), (0.25, False), (0.0, False)]
         )
 
     def transfer_diar_params_to_model_params(self, msdd_model, cfg):
@@ -1004,6 +999,35 @@ class OverlapAwareDiarizer:
         msdd_model.cfg.test_ds.seq_eval_mode = cfg.diarizer.msdd_model.parameters.seq_eval_mode
         msdd_model._cfg.max_num_of_spks = cfg.diarizer.clustering.parameters.max_num_speakers
         return msdd_model.cfg
+    
+    @rank_zero_only
+    def save_to(self, save_path: str):
+        """
+        Saves model instances (weights and configuration) into EFF archive.
+        You can use "restore_from" method to fully restore instance from .nemo file.
+
+        .nemo file is an archive (tar.gz) with the following:
+            model_config.yaml - model configuration in .yaml format. You can deserialize this into cfg argument for model's constructor
+            model_wights.chpt - model checkpoint
+
+        Args:
+            save_path: Path to .nemo file where model instance should be saved
+        """
+        self.clus_diar = self.clustering_embedding.clus_diar_model 
+        _NEURAL_DIAR_MODEL = "msdd_model.nemo"
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_yaml = os.path.join(tmpdir, _MODEL_CONFIG_YAML)
+            spkr_model = os.path.join(tmpdir, _SPEAKER_MODEL)
+            neural_diar_model = os.path.join(tmpdir, _NEURAL_DIAR_MODEL)
+
+            self.clus_diar.to_config_file(path2yaml_file=config_yaml)
+            if self.clus_diar.has_vad_model:
+                vad_model = os.path.join(tmpdir, _VAD_MODEL)
+                self.clus_diar._vad_model.save_to(vad_model)
+            self.clus_diar._speaker_model.save_to(spkr_model)
+            self.msdd_model.save_to(neural_diar_model)
+            self.clus_diar.__make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
 
     def extract_standalone_speaker_model(self, prefix: str = 'msdd._speaker_model.') -> str:
         """
@@ -1022,29 +1046,42 @@ class OverlapAwareDiarizer:
         for name in model_state_dict.keys():
             if prefix in name:
                 spk_emb_module_names.append(name)
-
+                
         spk_emb_state_dict = {}
         for name in spk_emb_module_names:
             org_name = name.replace(prefix, '')
             spk_emb_state_dict[org_name] = model_state_dict[name]
-
-        return spk_emb_state_dict
+        
+        _speaker_model = EncDecSpeakerLabelModel.from_config_dict(self.msdd_model.cfg.speaker_model_cfg)
+        _speaker_model.load_state_dict(spk_emb_state_dict)
+        return _speaker_model
 
     def _init_msdd_model(self, cfg: DictConfig):
         """
         Initialized MSDD model with the provided config. Load either from `.nemo` file or `.ckpt` checkpoint files.
         """
-        if cfg.diarizer.msdd_model.model_path.endswith('.nemo'):
-            logging.info(f"Using local nemo file from {cfg.diarizer.msdd_model.model_path}")
-            self.msdd_model = EncDecDiarLabelModel.restore_from(restore_path=cfg.diarizer.msdd_model.model_path)
-        elif cfg.diarizer.msdd_model.model_path.endswith('.ckpt'):
-            logging.info(f"Using local checkpoint from {cfg.diarizer.msdd_model.model_path}")
+        model_path = cfg.diarizer.msdd_model.model_path
+        if model_path.endswith('.nemo'):
+            logging.info(f"Using local nemo file from {model_path}")
+            self.msdd_model = EncDecDiarLabelModel.restore_from(restore_path=model_path)
+        elif model_path.endswith('.ckpt'):
+            logging.info(f"Using local checkpoint from {model_path}")
             self.msdd_model = EncDecDiarLabelModel.load_from_checkpoint(
-                checkpoint_path=cfg.diarizer.msdd_model.model_path
+                checkpoint_path=model_path
             )
         else:
-            raise ValueError("Not a supported type of model path")
-        self.spk_emb_state_dict = self.extract_standalone_speaker_model()
+            if model_path not in get_available_model_names(EncDecDiarLabelModel):
+                logging.warning(
+                    f"requested {model_path} model name not available in pretrained models, instead"
+                )
+            logging.info("Loading pretrained {} model from NGC".format(model_path))
+            self.msdd_model = EncDecDiarLabelModel.from_pretrained(model_name=model_path)
+
+        # Load speaker embedding model state_dict which is loaded from the MSDD checkpoint.
+        if not self.use_speaker_model_from_ckpt:
+            self._speaker_model = self.extract_standalone_speaker_model()
+        else:
+            self._speaker_model = None
 
     def get_pred_mat(self, data_list: List[Union[Tuple[int], List[torch.Tensor]]]) -> torch.Tensor:
         """
