@@ -16,9 +16,9 @@ import contextlib
 import glob
 import json
 import os
-from dataclasses import dataclass, is_dataclass
+from dataclasses import dataclass, is_dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
 
 import pytorch_lightning as pl
 import torch
@@ -99,6 +99,9 @@ class TranscriptionConfig:
     # Decoding strategy for RNNT models
     rnnt_decoding: RNNTDecodingConfig = RNNTDecodingConfig(fused_batch_size=-1)
 
+    # Set enc params which may have been set randomly during training
+    val_random_params_enc: Dict[str, Any] = field(default_factory=dict)
+
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
 def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
@@ -148,6 +151,9 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     asr_model.set_trainer(trainer)
     asr_model = asr_model.eval()
     partial_audio = False
+
+    if cfg.val_random_params_enc is not None and hasattr(asr_model.encoder, 'set_val_random_params'):
+        asr_model.encoder.set_val_random_params(cfg.val_random_params_enc)
 
     # Setup decoding strategy
     if hasattr(asr_model, 'change_decoding_strategy'):
