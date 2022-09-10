@@ -172,24 +172,26 @@ class HeteronymClassificationModel(NLPModel):
     # Functions for inference
     @torch.no_grad()
     def disambiguate(
-        self, sentences: List[List[str]], start_end: List[List[Tuple[int, int]]], batch_size: int, num_workers: int = 0
+        self,
+        sentences: List[str],
+        start_end: List[Tuple[int, int]],
+        homographs: List[List[str]],
+        batch_size: int,
+        num_workers: int = 0,
     ):
-        supported_heteronyms = self.homograph_dict.keys()
-        if len(sentences) != len(start_end):
+
+        if isinstance(sentences, str):
+            sentences = [sentences]
+
+        if len(sentences) != len(start_end) != len(homographs):
             raise ValueError(
                 f"Number of sentences should match the lengths of provided start-end indices, {len(sentences)} != {len(start_end)}"
             )
 
         tmp_manifest = "/tmp/manifest.json"
         with open(tmp_manifest, "w") as f:
-            for cur_sentence, cur_start_ends in zip(sentences, start_end):
-                homograph_span = [cur_sentence[x[0] : x[1]] for x in cur_start_ends]
-
-                for homograph in homograph_span:
-                    if homograph.lower() not in supported_heteronyms:
-                        raise ValueError(f"{homograph} is not in the list of supported heteronyms")
-
-                item = {"text_graphemes": cur_sentence, "start_end": cur_start_ends, "homograph_span": homograph_span}
+            for cur_sentence, cur_start_ends, cur_homographs in zip(sentences, start_end, homographs):
+                item = {"text_graphemes": cur_sentence, "start_end": cur_start_ends, "homograph_span": cur_homographs}
                 f.write(json.dumps(item, ensure_ascii=False) + '\n')
 
         # store predictions for all queries in a single list
@@ -204,7 +206,7 @@ class HeteronymClassificationModel(NLPModel):
                 tmp_manifest, grapheme_field="text_graphemes", batch_size=batch_size, num_workers=num_workers
             )
 
-            for batch in tqdm(infer_datalayer):
+            for batch in infer_datalayer:
                 input_ids, attention_mask, target_and_negatives_mask, subword_mask = batch
                 logits = self.forward(
                     input_ids=input_ids.to(device),

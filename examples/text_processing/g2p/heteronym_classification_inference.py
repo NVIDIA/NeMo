@@ -102,12 +102,14 @@ def main(cfg):
         preds = model.disambiguate(
             sentences=["I live in California. I read a book."],
             start_end=[[(2, 6), (24, 28)]],
+            homographs=[["live", "read"]],
             # grapheme_field=cfg.grapheme_field,
             batch_size=cfg.batch_size,
             num_workers=cfg.num_workers,
         )
+        print(preds)
 
-        # preds = model.disambiguate(
+        # preds = model.disambiguate_manifest(
         #     manifest=cfg.manifest,
         #     grapheme_field=cfg.grapheme_field,
         #     batch_size=cfg.batch_size,

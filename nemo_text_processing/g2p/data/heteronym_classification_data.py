@@ -105,15 +105,19 @@ class HeteronymClassificationDataset(Dataset):
         logging.info(f"Number of samples in {manifest}: {len(self.data)}, remove {num_skipped} lines")
 
     def _prepare_sample(
-        self, sentence: str, start_end: List[Tuple[int, int]], homograph: str, word_ids: Optional[List[int]] = None
+        self,
+        sentence: str,
+        start_end: List[Tuple[int, int]],
+        homographs: List[str],
+        word_ids: Optional[List[int]] = None,
     ):
         """
         Prepares a single training sample
 
         Args:
             sentence: input sentence in grapheme form
-            start_end: start and end indices of the homograph spans
-            homograph: homograph
+            start_end: start and end indices of the homograph spans, start_end indices should be in increasing order
+            homographs: homographs present in the sentence
             word_ids: [Optional] target word_ids, use None for inference
         """
         # drop example where sequence length exceeds max sequence length, +2 for special tokens
@@ -121,12 +125,16 @@ class HeteronymClassificationDataset(Dataset):
         if length > self.max_seq_len:
             return None
 
+        # check the correctness on start-end indices
+        for homograph_, start_end_ in zip(homographs, start_end):
+            if homograph_.lower() != sentence[start_end_[0] : start_end_[1]].lower():
+                return None
+
         # add bos token
         input_ids = [self.tokenizer.bos_id]
         subtokens_mask = [self.PAD_TOKEN]  # the first tokens of heteronym spans are 1s, the rest of the tokens are 0s
         target_and_negatives = []
-        with_labels = True
-        if with_labels:
+        if self.with_labels:
             target_word_ids = [self.LOSS_PAD_TOKEN]  # -100 to pad plain tokens
 
         heteronym_span_idx = 0
@@ -156,7 +164,8 @@ class HeteronymClassificationDataset(Dataset):
                 input_ids.extend(prefix_ids + word_input_ids)
 
                 subtokens_mask.extend([1] + [self.PAD_TOKEN] * (len(word_input_ids) - 1))
-                if with_labels:
+
+                if self.with_labels:
                     cur_target_word_id = self.wordid_to_idx[word_ids[heteronym_span_idx]]
                     target_word_ids.extend(
                         [self.LOSS_PAD_TOKEN] * len(prefix_ids)
@@ -176,7 +185,7 @@ class HeteronymClassificationDataset(Dataset):
                 ids = self.tokenizer.text_to_ids(word)
                 input_ids.extend(ids)
                 subtokens_mask.extend([self.PAD_TOKEN] * len(ids))
-                if with_labels:
+                if self.with_labels:
                     target_word_ids.extend([self.LOSS_PAD_TOKEN] * len(ids))
 
         if heteronym_span_idx < len(start_end):
@@ -186,11 +195,11 @@ class HeteronymClassificationDataset(Dataset):
         # add eos token
         input_ids.append(self.tokenizer.eos_id)
         subtokens_mask.append(self.PAD_TOKEN)
-        if with_labels:
+        if self.with_labels:
             target_word_ids.append(self.LOSS_PAD_TOKEN)
 
         output = [input_ids, target_and_negatives, subtokens_mask]
-        if with_labels:
+        if self.with_labels:
             output.append(target_word_ids)
 
         return output  # [input_ids, target_and_negatives, subtokens_mask, [Optional] target]

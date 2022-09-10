@@ -23,7 +23,7 @@ from typing import Optional, Tuple
 
 import nltk
 import torch
-from nemo_text_processing.g2p.data.data_utils import english_word_tokenize
+from nemo_text_processing.g2p.data.data_utils import english_word_tokenize, get_wordid_to_nemo
 
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
@@ -257,7 +257,7 @@ class IPAG2P(BaseG2p):
         phoneme_probability: Optional[float]=None,
         use_stresses: Optional[bool]=True,
         set_graphemes_upper: Optional[bool]=True,
-        pretrained_model: Optional[str] = None
+        pretrained_g2p_model: Optional[str] = None
     ):
         """Generic IPA G2P module. This module converts words from grapheme to International Phonetic Alphabet representations.
         Optionally, it can ignore heteronyms, ambiguous words, or words marked as unchangeable by word_tokenize_func (see code for details).
@@ -287,8 +287,8 @@ class IPAG2P(BaseG2p):
         """
         self.use_stresses = use_stresses
         self.set_graphemes_upper = set_graphemes_upper
-        from nemo_text_processing.g2p.models.heteronym_classification import HeteronymClassificationModel
-        self.pretrained_g2p_model = HeteronymClassificationModel.restore_from("/home/ebakhturina/NeMo/examples/text_processing/g2p/nemo_experiments/HeteronymClassification/2022-09-08_15-17-40/checkpoints/HeteronymClassification.nemo")
+        self.pretrained_g2p_model = pretrained_g2p_model
+
         if isinstance(phoneme_dict, str) or isinstance(phoneme_dict, pathlib.Path):
             # Load phoneme_dict from file path
             self.phoneme_dict, self.symbols = self._parse_as_cmu_dict(
@@ -350,10 +350,10 @@ class IPAG2P(BaseG2p):
 
         self.phoneme_probability = phoneme_probability
         self._rng = random.Random()
-        import pdb;
-        pdb.set_trace()
-        print()
 
+    def set_pretrained_g2p_model(self, g2p_model):
+        self.pretrained_g2p_model = g2p_model
+        self.wordid_to_nemo_cmu = get_wordid_to_nemo("/home/ebakhturina/NeMo/scripts/tts_dataset_files/wordid_to_nemo_cmu.tsv")
 
     @staticmethod
     def _parse_as_cmu_dict(phoneme_dict_path, use_stresses=False, stress_symbols=[], upper=True):
@@ -405,7 +405,12 @@ class IPAG2P(BaseG2p):
         # Heteronym
         if self.heteronyms and word in self.heteronyms:
             if self.pretrained_g2p_model and text and start_end:
-                self.pretrained_g2p_model
+                try:
+                    heteronym_word_id = self.pretrained_g2p_model.disambiguate(text, [start_end], [word.lower()], batch_size=1)[0]
+                    heteronym_ipa = self.wordid_to_nemo_cmu[heteronym_word_id]
+                    return [x for x in heteronym_ipa], True
+                except Exception as e:
+                    return word, True
             return word, True
 
         # `'s` suffix (with apostrophe) - not in phoneme dict
@@ -454,14 +459,13 @@ class IPAG2P(BaseG2p):
         start_idx = 0
         prons = []
         for word, without_changes in words:
-            end_idx = text.index(word, start_idx) + len(word)
+            end_idx = text.lower().index(word, start_idx) + len(word)
 
             if without_changes:
                 prons.extend(word)
                 continue
 
-            pron, is_handled = self.parse_one_word(word)
-
+            pron, is_handled = self.parse_one_word(word, text, [start_idx, end_idx])
             word_by_hyphen = word.split("-")
             if not is_handled and len(word_by_hyphen) > 1:
                 pron = []
@@ -472,5 +476,5 @@ class IPAG2P(BaseG2p):
                 pron.pop()
 
             prons.extend(pron)
-
+            start_idx = end_idx
         return prons
