@@ -16,9 +16,9 @@ import contextlib
 import glob
 import json
 import os
-from dataclasses import dataclass, is_dataclass, field
+from dataclasses import dataclass, field, is_dataclass
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
 import pytorch_lightning as pl
 import torch

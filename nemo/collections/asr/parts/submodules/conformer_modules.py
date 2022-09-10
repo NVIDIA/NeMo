@@ -15,8 +15,8 @@
 
 import torch
 from torch import nn as nn
-from torch.nn import functional as F
 from torch.nn import LayerNorm
+from torch.nn import functional as F
 
 from nemo.collections.asr.parts.submodules.causal_convs import CausalConv1D
 from nemo.collections.asr.parts.submodules.multi_head_attention import (
@@ -181,7 +181,9 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
             x = self.streaming_norm_conv(residual)
         else:
             x = self.norm_conv(residual)
-        x = self.conv(x, pad_mask=pad_mask, cache=cache_last_time, cache_next=cache_last_time_next, streaming=streaming)
+        x = self.conv(
+            x, pad_mask=pad_mask, cache=cache_last_time, cache_next=cache_last_time_next, streaming=streaming
+        )
         residual = residual + self.dropout(x)
 
         if use_streaming_layer_norm:
@@ -217,7 +219,14 @@ class ConformerConvolution(nn.Module):
     """
 
     def __init__(
-        self, d_model, kernel_size, norm_type='batch_norm', conv_context_size=None, pointwise_activation='glu_', conv_dual_mode=False, streaming_layer_norm=False
+        self,
+        d_model,
+        kernel_size,
+        norm_type='batch_norm',
+        conv_context_size=None,
+        pointwise_activation='glu_',
+        conv_dual_mode=False,
+        streaming_layer_norm=False,
     ):
         super(ConformerConvolution, self).__init__()
         assert (kernel_size - 1) % 2 == 0
@@ -254,10 +263,12 @@ class ConformerConvolution(nn.Module):
             )
 
             if conv_dual_mode:
-                dw_conv_dual_mode_kernel_mask = torch.cat([
-                    torch.ones(dw_conv_input_dim, 1, (kernel_size + 1) // 2),
-                    torch.zeros(dw_conv_input_dim, 1, kernel_size // 2)],
-                    dim=-1
+                dw_conv_dual_mode_kernel_mask = torch.cat(
+                    [
+                        torch.ones(dw_conv_input_dim, 1, (kernel_size + 1) // 2),
+                        torch.zeros(dw_conv_input_dim, 1, kernel_size // 2),
+                    ],
+                    dim=-1,
                 )
                 self.register_buffer('dw_conv_dual_mode_kernel_mask', dw_conv_dual_mode_kernel_mask, persistent=False)
         else:
@@ -305,8 +316,14 @@ class ConformerConvolution(nn.Module):
             # use convolution in dual mode, i.e., mask right half of the kernel
             # to disable access to future context for streaming mode
             kernel = self.depthwise_conv.weight * self.dw_conv_dual_mode_kernel_mask
-            return F.conv1d(x, kernel, self.depthwise_conv.bias,
-                    stride=1, padding=(self.kernel_size - 1) // 2, groups=self.dw_conv_input_dim)
+            return F.conv1d(
+                x,
+                kernel,
+                self.depthwise_conv.bias,
+                stride=1,
+                padding=(self.kernel_size - 1) // 2,
+                groups=self.dw_conv_input_dim,
+            )
 
     def forward(self, x, pad_mask=None, cache=None, cache_next=None, streaming=False):
         x = x.transpose(1, 2)

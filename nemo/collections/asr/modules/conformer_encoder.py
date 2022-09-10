@@ -15,7 +15,7 @@
 import math
 import random
 from collections import OrderedDict
-from typing import List, Optional, Dict
+from typing import Dict, List, Optional
 
 import torch
 import torch.distributed
@@ -197,9 +197,13 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             self.streaming = True
 
         if self.streaming is False and conv_dual_mode:
-            raise ValueError(f"conv_dual_mode should be enabled only when training streaming and non-streaming modes together!")
+            raise ValueError(
+                f"conv_dual_mode should be enabled only when training streaming and non-streaming modes together!"
+            )
         if self.streaming is False and streaming_layer_norm:
-            raise ValueError(f"streaming_layer_norm should be enabled only when training streaming and non-streaming modes together!")
+            raise ValueError(
+                f"streaming_layer_norm should be enabled only when training streaming and non-streaming modes together!"
+            )
 
         if isinstance(conv_context_size, ListConfig):
             conv_context_size = list(conv_context_size)
@@ -222,8 +226,10 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             conv_context_size = [(conv_kernel_size - 1) // 2, (conv_kernel_size - 1) // 2]
         self.conv_context_size = conv_context_size
 
-        if conv_dual_mode and self.conv_context_size != [(conv_kernel_size - 1) // 2 , (conv_kernel_size - 1) // 2]:
-            raise ValueError(f"conv_dual_mode requires conv_context_size to be [(conv_kernel_size - 1) // 2, (conv_kernel_size - 1) // 2]")
+        if conv_dual_mode and self.conv_context_size != [(conv_kernel_size - 1) // 2, (conv_kernel_size - 1) // 2]:
+            raise ValueError(
+                f"conv_dual_mode requires conv_context_size to be [(conv_kernel_size - 1) // 2, (conv_kernel_size - 1) // 2]"
+            )
 
         if att_context_style == "chunked_limited":
             # the left context for self-attention in chunked_limited mode should be dividable by the right context
@@ -365,7 +371,6 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             self.register_buffer('seq_range', seq_range, persistent=False)
         self.pos_enc.extend_pe(max_audio_length, device)
 
-
     @typecheck()
     def forward(self, audio_signal, length, cache_last_channel=None, cache_last_time=None):
         self.update_max_seq_length(seq_length=audio_signal.size(2), device=audio_signal.device)
@@ -383,7 +388,9 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
 
         att_mask = torch.ones(1, max_audio_length, max_audio_length, dtype=torch.bool, device=audio_signal.device)
         if self.training:
-            streaming = [self.streaming, "full" not in self.att_context_size][random.uniform(0, 1) < self.non_streaming_prob]
+            streaming = [self.streaming, "full" not in self.att_context_size][
+                random.uniform(0, 1) < self.non_streaming_prob
+            ]
         else:
             streaming = self.val_random_params['att_context_size_right'] != 'full'
 
