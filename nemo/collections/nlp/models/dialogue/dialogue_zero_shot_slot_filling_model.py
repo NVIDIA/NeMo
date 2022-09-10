@@ -31,8 +31,8 @@ from nemo.collections.nlp.data.intent_slot_classification import IntentSlotDataD
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.metrics.dialogue_metrics import DialogueClassificationMetrics
 from nemo.collections.nlp.models.nlp_model import NLPModel
+from nemo.core import PretrainedModelInfo
 from nemo.core.classes import typecheck
-from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 
 
@@ -61,30 +61,35 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
             hidden_size=self.hidden_size, num_classes=3, num_layers=2, activation='relu', log_softmax=True,
         )
 
-        self.mention_projection_mlp = torch.nn.Linear(self.hidden_size, 300, bias=False).to(self.device)
-        self.description_projection_mlp = torch.nn.Linear(self.hidden_size, 300, bias=False).to(self.device)
+        self.mention_projection_mlp = torch.nn.Linear(self.hidden_size, 300, bias=False, device=self.device)
+        self.description_projection_mlp = torch.nn.Linear(self.hidden_size, 300, bias=False, device=self.device)
 
         # Initialize slot description and description embeddings
-        self._get_slot_description(cfg.dataset.data_dir)
+        self._set_slot_descriptions(cfg.dataset.data_dir)
 
+        # Set-up losses and classification report
         self._setup_losses_and_classfication_report()
 
+        # Set-up label ID for empty slot
+        self._set_label_id_for_empty_slot(cfg.dataset.data_dir)
+
+    def _set_label_id_for_empty_slot(self, data_dir):
         # drive through dataset: label_id_for_empty_slot = 0; assistant dataset: label_id_for_empty_slot = 54
         # use the train_slot_stats.tsv file majority class as the "Other" slot class
-        file_path_for_stats = cfg.data_dir + "/train_slot_stats.tsv"
+        file_path_for_stats = os.path.join(data_dir, "train_slot_stats.tsv")
         with open(file_path_for_stats) as f:
-            self.label_id_for_empty_slot = int(f.read().strip().split('\n')[0].split()[0])
+            self.label_id_for_empty_slot = int(next(f).strip().split('\t')[0])
 
-    def _get_slot_description(self, data_dir):
+    def _set_slot_descriptions(self, data_dir):
         """ Method read slot description file """
-        description_file_name = data_dir + "/description.slots.csv"
+        description_file_name = os.path.join(data_dir, "description.slots.csv")
         with open(description_file_name) as f:
-            descriptions = f.read().strip().split('\n')
+            descriptions = [line.strip() for line in f.readlines()]
 
         self.slot_descriptions = descriptions
-        self.description_embeddings = self.get_description_embedding(self.slot_descriptions)
 
-    def _set_defaults_data_desc(self, cfg):
+    @staticmethod
+    def _set_defaults_data_desc(cfg):
         """
         Method makes sure that cfg.data_desc params are set.
         If not, set's them to "dummy" defaults.
@@ -252,7 +257,7 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
 
             mention_states = [torch.mean(torch.stack(mention_state), 0) for mention_state in mention_states]
             mention_states += [
-                torch.zeros((hidden_states_dim)).to(hidden_states.device)
+                torch.zeros(hidden_states_dim).to(hidden_states.device)
                 for i in range(max_token_len - len(mention_states))
             ]
             mention_hidden_states.append(torch.stack(mention_states))
@@ -307,10 +312,10 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
             ignore_extra_tokens=True,
             ignore_start_end=True,
         )
-        input_ids = torch.tensor(input_ids, dtype=torch.int32).to(self.device)
-        token_type_ids = torch.tensor(token_type_ids, dtype=torch.int32).to(self.device)
-        attention_mask = torch.tensor(attention_mask, dtype=torch.int32).to(self.device)
-        subtokens_mask = torch.tensor(subtokens_mask, dtype=torch.int32)
+        input_ids = torch.tensor(input_ids, dtype=torch.int32, device=self.device)
+        token_type_ids = torch.tensor(token_type_ids, dtype=torch.int32, device=self.device)
+        attention_mask = torch.tensor(attention_mask, dtype=torch.int32, device=self.device)
+        subtokens_mask = torch.tensor(subtokens_mask, dtype=torch.int32, device=self.device)
 
         hidden_states = self.bert_model(
             input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
@@ -322,7 +327,6 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         )
         predicted_dot_product_score = self.get_entity_description_score(predicted_mention_hidden_states_pad,
                                                                         slot_descriptions)
-        # predicted_dot_product_score_log_softmax = torch.log_softmax(predicted_dot_product_score, dim=-1)
         predicted_slot_similarity_preds = torch.argmax(predicted_dot_product_score, dim=-1)
 
         predicted_slot_class_batch = DialogueZeroShotSlotFillingModel.align_mention_to_tokens(
@@ -355,6 +359,9 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
 
         loss = self.total_loss(loss_1=bio_slot_loss, loss_2=slot_loss_mention_and_description)
         return loss
+
+    def on_fit_start(self) -> None:
+        self.description_embeddings = self.get_description_embedding(self.slot_descriptions).to(self.device)
 
     def training_step(self, batch, batch_idx):
         """
@@ -541,17 +548,11 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
             dot product score matrix of given mention embedding and description embedding (batch_size * max_num_mention * num_slot_class)
         
         """
-        # Make sure that self.description_projection_mlp and self.description_embeddings are on the main trainer device
-        if next(self.description_projection_mlp.parameters()).device != self.device:
-            self.description_projection_mlp.to(self.device)
-
         if entity_types_descriptions:
             entity_type_embeddings = self.get_description_embedding(entity_types_descriptions)
             projected_description_embedding = self.description_projection_mlp(entity_type_embeddings)
         else:
             projected_description_embedding = self.description_projection_mlp(self.description_embeddings)
-            if self.description_embeddings.device != self.device:
-                self.description_embeddings = self.description_embeddings.to(self.device)
 
         projected_mention_embedding = self.mention_projection_mlp(mention_hidden_states_pad)
         dot_product_score = torch.matmul(projected_mention_embedding, torch.t(projected_description_embedding))
@@ -563,9 +564,10 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         """
         Extract continuous spans of slot_ids
         Args:
-            Slot_ids: list of str representing slot of each word token
+            slot_ids: list of str representing slot of each word token
             For instance, 'O', 'email_address', 'email_address', 'email_address', 'O', 'O', 'O', 'O']
             Corresponds to ['enter', 'atdfd@yahoo', 'dot', 'com', 'into', 'my', 'contact', 'list']
+            utterance_tokens: A list of utterance tokens
         Returns:
             list of str where each element is a slot name-value pair
             e.g. ['email_address(atdfd@yahoo dot com)']
@@ -831,5 +833,4 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         Returns:
             List of available pre-trained models.
         """
-        result = []
-        return result
+        return
