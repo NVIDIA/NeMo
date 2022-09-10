@@ -242,7 +242,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
 
                 elif isinstance(self.att_context_size[1], list):
                     if self.att_context_size[0] % (self.att_context_size[1][0] + 1) > 0:
-                        raise ValueError("att_context_size[0] % (att_context_size[1] + 1) should be zero!")
+                        raise ValueError("att_context_size[0] % (att_context_size[1][0] + 1) should be zero!")
                     self.chunk_size = self.att_context_size[1][0] + 1
                 else:
                     raise ValueError(f"Not valid type for att_context_size: {att_context_size}")
