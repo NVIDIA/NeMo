@@ -111,9 +111,8 @@ class _GreedyRNNTInfer(Typing):
         decoder_model: rnnt_abstract.AbstractRNNTDecoder,
         joint_model: rnnt_abstract.AbstractRNNTJoint,
         blank_index: int,
-        big_blank_index: int,
-        huge_blank_index: int,
-        big_blank_duration: int,
+        big_blank_index_list: list,
+        big_blank_duration_list: list,
         max_symbols_per_step: Optional[int] = None,
         preserve_alignments: bool = False,
     ):
@@ -122,9 +121,8 @@ class _GreedyRNNTInfer(Typing):
         self.joint = joint_model
 
         self._blank_index = blank_index
-        self._big_blank_index = big_blank_index
-        self._huge_blank_index = huge_blank_index
-        self._big_blank_duration = big_blank_duration
+        self._big_blank_index_list = big_blank_index_list
+        self._big_blank_duration_list = big_blank_duration_list
         self._SOS = blank_index  # Start of single index
         self.max_symbols = max_symbols_per_step
         self.preserve_alignments = preserve_alignments
@@ -427,9 +425,8 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         decoder_model: rnnt_abstract.AbstractRNNTDecoder,
         joint_model: rnnt_abstract.AbstractRNNTJoint,
         blank_index: int,
-        big_blank_index: int,
-        huge_blank_index: int,
-        big_blank_duration: int,
+        big_blank_index_list: int,
+        big_blank_duration_list: int,
         max_symbols_per_step: Optional[int] = None,
         preserve_alignments: bool = False,
     ):
@@ -437,9 +434,8 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             decoder_model=decoder_model,
             joint_model=joint_model,
             blank_index=blank_index,
-            big_blank_index=big_blank_index,
-            huge_blank_index=huge_blank_index,
-            big_blank_duration=big_blank_duration,
+            big_blank_index_list=big_blank_index_list,
+            big_blank_duration_list=big_blank_duration_list,
             max_symbols_per_step=max_symbols_per_step,
             preserve_alignments=preserve_alignments,
         )
@@ -577,19 +573,16 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
                     # Update blank mask with current predicted blanks
                     # This is accumulating blanks over all time steps T and all target steps min(max_symbols, U)
-                    k_is_blank = k == self._blank_index
-                    k_is_big_blank = k == self._big_blank_index
-                    k_is_huge_blank = k == self._huge_blank_index
+                    k_is_blank = k >= self._blank_index
+                    k_is_big_blank = k > self._blank_index
+
+
                     blank_mask.bitwise_or_(k_is_blank)
-                    blank_mask.bitwise_or_(k_is_big_blank)
-                    blank_mask.bitwise_or_(k_is_huge_blank)
 
                     big_blank_mask.bitwise_or_(k_is_big_blank)
-                    big_blank_mask.bitwise_or_(k_is_huge_blank)
 
                     del k_is_blank
                     del k_is_big_blank
-                    del k_is_huge_blank
 
 #                    print("blank mask is", blank_mask)
 

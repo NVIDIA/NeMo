@@ -77,9 +77,8 @@ def compute_alphas_kernel(
     maxU: int,
     alphabet_size: int,
     blank_: int,
-    big_blank_: int,
-    huge_blank_: int,
-    big_blank_duration_: int
+    big_blank_list_: list,
+    big_blank_duration_list_: list
 ):
     """
     Compute alpha (forward variable) probabilities over the transduction step.
