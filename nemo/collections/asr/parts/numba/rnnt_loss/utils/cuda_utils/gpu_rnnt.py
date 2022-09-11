@@ -46,9 +46,8 @@ class GPURNNT:
         alphabet_size: int,
         workspace,
         blank: int,
-        big_blank: int,
-        huge_blank: int,
-        blank_duration: int,
+        big_blank_list: list,
+        blank_duration_list: list,
         fastemit_lambda: float,
         clamp: float,
         num_threads: int,
@@ -79,9 +78,8 @@ class GPURNNT:
             workspace
         )  # a flat vector of floatX numbers that represents allocated memory slices
         self.blank_ = blank
-        self.big_blank_ = big_blank
-        self.huge_blank_ = huge_blank
-        self.blank_duration_ = blank_duration
+        self.big_blank_list_ = big_blank_list
+        self.blank_duration_list_ = blank_duration_list
 
         self.fastemit_lambda_ = fastemit_lambda
         self.clamp_ = abs(clamp)
@@ -178,9 +176,8 @@ class GPURNNT:
             self.maxU_,
             self.alphabet_size_,
             self.blank_,
-            self.big_blank_,
-            self.huge_blank_,
-            self.blank_duration_,
+            self.big_blank_list_,
+            self.blank_duration_list_,
         )
 
         if training:
@@ -198,9 +195,8 @@ class GPURNNT:
                 self.maxU_,
                 self.alphabet_size_,
                 self.blank_,
-                self.big_blank_,
-                self.huge_blank_,
-                self.blank_duration_,
+                self.big_blank_list_,
+                self.blank_duration_list_,
             )
 
             # Compute gradient
@@ -221,9 +217,8 @@ class GPURNNT:
                 self.maxU_,
                 self.alphabet_size_,
                 self.blank_,
-                self.big_blank_,
-                self.huge_blank_,
-                self.blank_duration_,
+                self.big_blank_list_,
+                self.blank_duration_list_,
                 self.fastemit_lambda_,
                 self.clamp_,
             )
