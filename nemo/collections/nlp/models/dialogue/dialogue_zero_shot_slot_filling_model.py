@@ -67,6 +67,8 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         # Initialize slot description and description embeddings
         self._set_slot_descriptions(cfg.dataset.data_dir)
 
+        self.description_embeddings = self.get_description_embeddings(self.slot_descriptions)
+
         # Set-up losses and classification report
         self._setup_losses_and_classfication_report()
 
@@ -74,8 +76,9 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         self._set_label_id_for_empty_slot(cfg.dataset.data_dir)
 
     def _set_label_id_for_empty_slot(self, data_dir):
-        # drive through dataset: label_id_for_empty_slot = 0; assistant dataset: label_id_for_empty_slot = 54
-        # use the train_slot_stats.tsv file majority class as the "Other" slot class
+        """
+        Set label id for empty slot using the majority class (first line) in train_slot_stats.tsv
+        """
         file_path_for_stats = os.path.join(data_dir, "train_slot_stats.tsv")
         with open(file_path_for_stats) as f:
             self.label_id_for_empty_slot = int(next(f).strip().split('\t')[0])
@@ -195,7 +198,7 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         logging.info(f'Setting data_dir to {data_dir}.')
         self.data_dir = data_dir
 
-    def get_description_embedding(self, descriptions):
+    def get_description_embeddings(self, descriptions):
         """
         Generate one description's embedding
 
@@ -361,7 +364,7 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         return loss
 
     def on_fit_start(self) -> None:
-        self.description_embeddings = self.get_description_embedding(self.slot_descriptions).to(self.device)
+        self.description_embeddings = self.description_embeddings.to(self.device)
 
     def training_step(self, batch, batch_idx):
         """
@@ -549,7 +552,7 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         
         """
         if entity_types_descriptions:
-            entity_type_embeddings = self.get_description_embedding(entity_types_descriptions)
+            entity_type_embeddings = self.get_description_embeddings(entity_types_descriptions)
             projected_description_embedding = self.description_projection_mlp(entity_type_embeddings)
         else:
             projected_description_embedding = self.description_projection_mlp(self.description_embeddings)
