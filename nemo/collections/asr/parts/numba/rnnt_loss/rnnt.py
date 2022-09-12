@@ -184,12 +184,26 @@ def rnnt_loss_gpu(
     num_threads = max(1, num_threads)  # have to use at least 1 thread
 
     gpu_size, status = rnnt_helper.get_workspace_size(maxT, maxU, minibatch_size, gpu=True)
+
     if status != global_constants.RNNTStatus.RNNT_STATUS_SUCCESS:
         raise RuntimeError("Invalid parameter passed when calculating working space memory")
 
     # Select GPU index
     cuda.select_device(acts.device.index)
     gpu_workspace = torch.zeros(gpu_size, device=acts.device, dtype=acts.dtype, requires_grad=False)
+
+    merged_list = list(big_blank_label_list) + list(blank_duration_list)
+
+#    print("HERE merged_list", merged_list)
+
+    big_blank_workspace = torch.zeros(2 * len(big_blank_label_list), device=acts.device, dtype=torch.long, requires_grad=False)
+#    big_blank_workspace = torch.LongTensor(merged_list, device=acts.device, dtype=torch.long, requires_grad=False)
+
+    for i in range(0, len(big_blank_label_list)):
+        big_blank_workspace[i] = big_blank_label_list[i]
+        big_blank_workspace[i + len(big_blank_label_list)] = blank_duration_list[i]
+
+#    print("HERE big_blank_workspace", big_blank_workspace)
 
     ### VIEW TENSORS AS VECTORS FOR POINTER INDEXING ###
     acts, acts_shape = rnnt_helper.flatten_tensor(acts)
@@ -200,9 +214,9 @@ def rnnt_loss_gpu(
         maxU=maxU,
         alphabet_size=alphabet_size,
         workspace=gpu_workspace,
+        big_blank_workspace=big_blank_workspace,
+        num_big_blanks=len(big_blank_label_list),
         blank=blank_label,
-        big_blank_list=big_blank_label_list,
-        blank_duration_list=blank_duration_list,
         fastemit_lambda=fastemit_lambda,
         clamp=clamp,
         num_threads=num_threads,
@@ -238,5 +252,5 @@ def rnnt_loss_gpu(
         if status != global_constants.RNNTStatus.RNNT_STATUS_SUCCESS:
             raise RuntimeError("Could not calculate forward scores")
 
-    del gpu_workspace, wrapper
+    del gpu_workspace, big_blank_workspace, wrapper
     return True

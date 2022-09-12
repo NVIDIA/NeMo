@@ -45,9 +45,9 @@ class GPURNNT:
         maxU: int,
         alphabet_size: int,
         workspace,
+        big_blank_workspace,
+        num_big_blanks: int,
         blank: int,
-        big_blank_list: list,
-        blank_duration_list: list,
         fastemit_lambda: float,
         clamp: float,
         num_threads: int,
@@ -78,9 +78,13 @@ class GPURNNT:
         self.gpu_workspace = cuda.as_cuda_array(
             workspace
         )  # a flat vector of floatX numbers that represents allocated memory slices
+        self.big_blank_workspace = cuda.as_cuda_array(
+            big_blank_workspace
+        )  # a flat vector of floatX numbers that represents allocated memory slices
+
+        self.num_big_blanks = num_big_blanks
+
         self.blank_ = blank
-        self.big_blank_list_ = big_blank_list
-        self.blank_duration_list_ = blank_duration_list
 
         self.fastemit_lambda_ = fastemit_lambda
         self.clamp_ = abs(clamp)
@@ -160,7 +164,7 @@ class GPURNNT:
         if training:
             grads *= 0.0  # zero grads
 
-        used_offset, (denom, alphas, betas, llForward, llBackward) = self._prepare_workspace()
+        used_offset, (denom, alphas, betas, llForward, llBackward, BBLabels, BBDuations) = self._prepare_workspace()
 
         ######## START EXECUTION ########
         self.log_softmax(acts, denom)
@@ -180,8 +184,9 @@ class GPURNNT:
             self.maxU_,
             self.alphabet_size_,
             self.blank_,
-            self.big_blank_list_,
-            self.blank_duration_list_,
+            BBLabels,
+            BBDuations,
+            self.num_big_blanks,
         )
 
         if training:
@@ -200,8 +205,9 @@ class GPURNNT:
                 self.maxU_,
                 self.alphabet_size_,
                 self.blank_,
-                self.big_blank_list_,
-                self.blank_duration_list_,
+                BBLabels,
+                BBDuations,
+                self.num_big_blanks,
             )
 
             # Compute gradient
@@ -223,8 +229,9 @@ class GPURNNT:
                 self.maxU_,
                 self.alphabet_size_,
                 self.blank_,
-                self.big_blank_list_,
-                self.blank_duration_list_,
+                BBLabels,
+                BBDuations,
+                self.num_big_blanks,
                 self.fastemit_lambda_,
                 self.clamp_,
             )
@@ -304,4 +311,7 @@ class GPURNNT:
         llBackward = self.gpu_workspace[used_offset : used_offset + self.minibatch_]
         used_offset += self.minibatch_
 
-        return used_offset, (denom, alphas, betas, llForward, llBackward)
+        BBLabels = self.big_blank_workspace[0:self.num_big_blanks]
+        BBDurations = self.big_blank_workspace[self.num_big_blanks:2* self.num_big_blanks]
+
+        return used_offset, (denom, alphas, betas, llForward, llBackward, BBLabels, BBDurations,)

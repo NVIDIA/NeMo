@@ -142,6 +142,8 @@ class RNNTLossNumba(Module):
         super(RNNTLossNumba, self).__init__()
         self.blank = blank
         self.big_blank_list = big_blank_list
+
+        print("HERE big_blank_list", big_blank_list)
         self.blank_duration_list = blank_duration_list
         self.fastemit_lambda = fastemit_lambda
         self.clamp = float(clamp) if clamp > 0 else 0.0

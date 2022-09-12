@@ -27,6 +27,7 @@
 # limitations under the License.
 
 import math
+from typing import List
 
 import torch
 from numba import cuda
@@ -77,8 +78,9 @@ def compute_alphas_kernel(
     maxU: int,
     alphabet_size: int,
     blank_: int,
-    big_blank_list_: list,
-    big_blank_duration_list_: list
+    big_blank_number: torch.Tensor,
+    big_blank_duration: torch.Tensor,
+    num_big_blanks: int,
 ):
     """
     Compute alpha (forward variable) probabilities over the transduction step.
@@ -139,20 +141,14 @@ def compute_alphas_kernel(
                     denom, acts, maxT, maxU, alphabet_size, b, t - 1, 0, blank_
                 ) - sigma
 
-                if t >= big_blank_duration_:
-                    alphas[offset + t * maxU + u] = rnnt_helper.log_sum_exp(
-                        alphas[offset + t * maxU + u],
-                        alphas[offset + (t - big_blank_duration_) * maxU + u] + logp(
-                          denom, acts, maxT, maxU, alphabet_size, b, t - big_blank_duration_, 0, big_blank_
-                        )
-                    ) - sigma
-                if t >= 2 * big_blank_duration_:
-                    alphas[offset + t * maxU + u] = rnnt_helper.log_sum_exp(
-                        alphas[offset + t * maxU + u],
-                        alphas[offset + (t - 2 * big_blank_duration_) * maxU + u] + logp(
-                          denom, acts, maxT, maxU, alphabet_size, b, t - 2 * big_blank_duration_, 0, huge_blank_
+                for i in range(num_big_blanks):
+                    if t >= big_blank_duration[i]:
+                        alphas[offset + t * maxU + u] = rnnt_helper.log_sum_exp(
+                            alphas[offset + t * maxU + u],
+                            alphas[offset + (t - big_blank_duration[i]) * maxU + u] + logp(
+                              denom, acts, maxT, maxU, alphabet_size, b, t - big_blank_duration[i], 0, big_blank_number[i]
+                            )
                         ) - sigma
-                    )
 
         elif u < U:
             # for u in range(1, U) step to initialize alphas[b, 0, u]
@@ -172,23 +168,16 @@ def compute_alphas_kernel(
 
                 alphas[offset + t * maxU + u] = rnnt_helper.log_sum_exp(emit, no_emit)
 
-                if t >= big_blank_duration_:
-                    big_blank_no_emit = alphas[offset + (t - big_blank_duration_) * maxU + u] + logp(
-                        denom, acts, maxT, maxU, alphabet_size, b, t - big_blank_duration_, u, big_blank_
-                    ) - sigma
-                    alphas[offset + t * maxU + u] = rnnt_helper.log_sum_exp(
-                        alphas[offset + t * maxU + u],
-                        big_blank_no_emit
-                    )
+                for i in range(num_big_blanks):
+                    if t >= big_blank_duration[i]:
+                        big_blank_no_emit = alphas[offset + (t - big_blank_duration[i]) * maxU + u] + logp(
+                            denom, acts, maxT, maxU, alphabet_size, b, t - big_blank_duration[i], u, big_blank_number[i]
+                        ) - sigma
+                        alphas[offset + t * maxU + u] = rnnt_helper.log_sum_exp(
+                            alphas[offset + t * maxU + u],
+                            big_blank_no_emit
+                        )
 
-                if t >= 2 * big_blank_duration_:
-                    big_blank_no_emit = alphas[offset + (t - 2 * big_blank_duration_) * maxU + u] + logp(
-                        denom, acts, maxT, maxU, alphabet_size, b, t - 2 * big_blank_duration_, u, huge_blank_
-                    ) - sigma
-                    alphas[offset + t * maxU + u] = rnnt_helper.log_sum_exp(
-                        alphas[offset + t * maxU + u],
-                        big_blank_no_emit
-                    )
 
         # sync across all B=b and U=u
         cuda.syncthreads()
@@ -200,17 +189,12 @@ def compute_alphas_kernel(
             denom, acts, maxT, maxU, alphabet_size, b, T - 1, U - 1, blank_
         ) - sigma
 
-        if T >= big_blank_duration_:
-            big_blank_loglike = alphas[offset + (T - big_blank_duration_) * maxU + U - 1] + logp(
-                denom, acts, maxT, maxU, alphabet_size, b, T - big_blank_duration_, U - 1, big_blank_
-            ) - sigma
-            loglike = rnnt_helper.log_sum_exp(loglike, big_blank_loglike)
-
-        if T >= 2 * big_blank_duration_:
-            big_blank_loglike = alphas[offset + (T - 2 * big_blank_duration_) * maxU + U - 1] + logp(
-                denom, acts, maxT, maxU, alphabet_size, b, T - 2 * big_blank_duration_, U - 1, huge_blank_
-            ) - sigma
-            loglike = rnnt_helper.log_sum_exp(loglike, big_blank_loglike)
+        for i in range(num_big_blanks):
+            if T >= big_blank_duration[i]:
+                big_blank_loglike = alphas[offset + (T - big_blank_duration[i]) * maxU + U - 1] + logp(
+                    denom, acts, maxT, maxU, alphabet_size, b, T - big_blank_duration[i], U - 1, big_blank_number[i]
+                ) - sigma
+                loglike = rnnt_helper.log_sum_exp(loglike, big_blank_loglike)
 
 
         llForward[b] = loglike
@@ -231,9 +215,9 @@ def compute_betas_kernel(
     maxU: int,
     alphabet_size: int,
     blank_: int,
-    big_blank_: int,
-    huge_blank_: int,
-    big_blank_duration_: int
+    big_blank_number: torch.Tensor,
+    big_blank_duration: torch.Tensor,
+    num_big_blanks: int,
 ):
     """
     Compute beta (backward variable) probabilities over the transduction step.
@@ -277,12 +261,12 @@ def compute_betas_kernel(
     # Initilize beta[b, t=T-1, u=U-1] for all b in B with log_probs[b, t=T-1, u=U-1, blank]
     if u == 0:
         betas[offset + (T - 1) * maxU + U - 1] = logp(denom, acts, maxT, maxU, alphabet_size, b, T - 1, U - 1, blank_) - sigma
-        if T >= big_blank_duration_ and big_blank_duration_ == 1:
-            betas[offset + (T - 1) * maxU + U - 1] = rnnt_helper.log_sum_exp(
-                betas[offset + (T - 1) * maxU + U - 1],
-                logp(denom, acts, maxT, maxU, alphabet_size, b, T - big_blank_duration_, U - 1, big_blank_) - sigma
-            )
-#            betas[offset + (T - big_blank_duration_) * maxU + U - 1] = logp(denom, acts, maxT, maxU, alphabet_size, b, T - big_blank_duration_, U - 1, big_blank_)
+        for i in range(num_big_blanks):
+            if T >= big_blank_duration[i] and big_blank_duration[i] == 1:
+                betas[offset + (T - 1) * maxU + U - 1] = rnnt_helper.log_sum_exp(
+                    betas[offset + (T - 1) * maxU + U - 1],
+                    logp(denom, acts, maxT, maxU, alphabet_size, b, T - 1, U - 1, big_blank_number[i]) - sigma
+                )
 
     # sync until all betas are initialized
     cuda.syncthreads()
@@ -298,35 +282,22 @@ def compute_betas_kernel(
                 betas[offset + t * maxU + U - 1] = betas[offset + (t + 1) * maxU + U - 1] + logp(
                     denom, acts, maxT, maxU, alphabet_size, b, t, U - 1, blank_
                 ) - sigma
-                if t + big_blank_duration_ < T:
-                    betas[offset + t * maxU + U - 1] = rnnt_helper.log_sum_exp(
-                        betas[offset + t * maxU + U - 1],
-                        betas[offset + (t + big_blank_duration_) * maxU + U - 1] + logp(
-                          denom, acts, maxT, maxU, alphabet_size, b, t, U - 1, big_blank_
-                        ) - sigma
-                    )
-                elif t + big_blank_duration_ == T and big_blank_duration_ != 1:
-                    betas[offset + t * maxU + U - 1] = rnnt_helper.log_sum_exp(
-                        betas[offset + t * maxU + U - 1],
-                        logp(
-                          denom, acts, maxT, maxU, alphabet_size, b, t, U - 1, big_blank_
-                        ) - sigma
-                    )
 
-                if t + 2 * big_blank_duration_ < T:
-                    betas[offset + t * maxU + U - 1] = rnnt_helper.log_sum_exp(
-                        betas[offset + t * maxU + U - 1],
-                        betas[offset + (t + 2 * big_blank_duration_) * maxU + U - 1] + logp(
-                          denom, acts, maxT, maxU, alphabet_size, b, t, U - 1, huge_blank_
-                        ) - sigma
-                    )
-                elif t + 2 * big_blank_duration_ == T:
-                    betas[offset + t * maxU + U - 1] = rnnt_helper.log_sum_exp(
-                        betas[offset + t * maxU + U - 1],
-                        logp(
-                          denom, acts, maxT, maxU, alphabet_size, b, t, U - 1, huge_blank_
-                        ) - sigma
-                    )
+                for i in range(num_big_blanks):
+                    if t + big_blank_duration[i] < T:
+                        betas[offset + t * maxU + U - 1] = rnnt_helper.log_sum_exp(
+                            betas[offset + t * maxU + U - 1],
+                            betas[offset + (t + big_blank_duration[i]) * maxU + U - 1] + logp(
+                              denom, acts, maxT, maxU, alphabet_size, b, t, U - 1, big_blank_number[i]
+                            ) - sigma
+                        )
+                    elif t + big_blank_duration[i] == T and big_blank_duration[i] != 1:
+                        betas[offset + t * maxU + U - 1] = rnnt_helper.log_sum_exp(
+                            betas[offset + t * maxU + U - 1],
+                            logp(
+                              denom, acts, maxT, maxU, alphabet_size, b, t, U - 1, big_blank_number[i]
+                            ) - sigma
+                        )
 
 
 
@@ -345,23 +316,16 @@ def compute_betas_kernel(
                     denom, acts, maxT, maxU, alphabet_size, b, t, u, labels[u]
                 ) - sigma
                 betas[offset + t * maxU + u] = rnnt_helper.log_sum_exp(emit, no_emit)
-                if t < T - big_blank_duration_:
-                    big_blank_no_emit = betas[offset + (t + big_blank_duration_) * maxU + u] + logp(
-                        denom, acts, maxT, maxU, alphabet_size, b, t, u, big_blank_
-                    ) - sigma
-                    betas[offset + t * maxU + u] = rnnt_helper.log_sum_exp(
-                        betas[offset + t * maxU + u],
-                        big_blank_no_emit
-                    )
 
-                if t < T - 2 * big_blank_duration_:
-                    big_blank_no_emit = betas[offset + (t + 2 * big_blank_duration_) * maxU + u] + logp(
-                        denom, acts, maxT, maxU, alphabet_size, b, t, u, huge_blank_
-                    ) - sigma
-                    betas[offset + t * maxU + u] = rnnt_helper.log_sum_exp(
-                        betas[offset + t * maxU + u],
-                        big_blank_no_emit
-                    )
+                for i in range(num_big_blanks):
+                    if t < T - big_blank_duration[i]:
+                        big_blank_no_emit = betas[offset + (t + big_blank_duration[i]) * maxU + u] + logp(
+                            denom, acts, maxT, maxU, alphabet_size, b, t, u, big_blank_number[i]
+                        ) - sigma
+                        betas[offset + t * maxU + u] = rnnt_helper.log_sum_exp(
+                            betas[offset + t * maxU + u],
+                            big_blank_no_emit
+                        )
 
         # sync across all B=b and U=u
         cuda.syncthreads()
@@ -389,9 +353,9 @@ def compute_grad_kernel(
     maxU: int,
     alphabet_size: int,
     blank_: int,
-    big_blank_: int,
-    huge_blank_: int,
-    big_blank_duration_: int,
+    big_blank_number: torch.Tensor,
+    big_blank_duration: torch.Tensor,
+    num_big_blanks: int,
     fastemit_lambda: float,
     clamp: float,
 ):
@@ -485,19 +449,19 @@ def compute_grad_kernel(
             # grad[b, T-1, U-1, v=blank] -= exp(alphas[b, t, u) + logpk - logll[b])
             if (idx == blank_) and (t == T - 1) and (u == U - 1):
                 grad -= math.exp(alphas[col] + logpk - logll[mb])
-            elif (idx == big_blank_) and (t == T - big_blank_duration_) and (u == U - 1):
-                grad -= math.exp(alphas[col] + logpk - logll[mb])
-            elif (idx == huge_blank_) and (t == T - 2 * big_blank_duration_) and (u == U - 1):
-                grad -= math.exp(alphas[col] + logpk - logll[mb])
+            else:
+                for i in range(num_big_blanks):
+                    if (idx == big_blank_number[i]) and (t == T - big_blank_duration[i]) and (u == U - 1):
+                        grad -= math.exp(alphas[col] + logpk - logll[mb])
 
             # grad of blank across t < T;
             # grad[b, t<T-1, u, v=blank] -= exp(alphas[b, t, u] + logpk - logll[b] betas[b, t + 1, u])
             if (idx == blank_) and (t < T - 1):
                 grad -= math.exp(alphas[col] + logpk - logll[mb] + betas[col + maxU])
-            elif (idx == big_blank_) and (t < T - big_blank_duration_):
-                grad -= math.exp(alphas[col] + logpk - logll[mb] + betas[col + big_blank_duration_ * maxU])
-            elif (idx == huge_blank_) and (t < T - 2 * big_blank_duration_):
-                grad -= math.exp(alphas[col] + logpk - logll[mb] + betas[col + 2 * big_blank_duration_ * maxU])
+            else:
+                for i in range(num_big_blanks):
+                    if (idx == big_blank_number[i]) and (t < T - big_blank_duration[i]):
+                      grad -= math.exp(alphas[col] + logpk - logll[mb] + betas[col + big_blank_duration[i] * maxU])
 
             # grad of correct token across u < U;
             # grad[b, t, u<U-1, v=label[u]] -= exp(alphas[b, t, u] + logpk - logll[b] + betas[b, t, u+1])

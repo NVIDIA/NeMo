@@ -432,7 +432,7 @@ if __name__ == "__main__":
     duration=2
 
     Loss = RNNTLossPytorch(V - 3, blank_duration=duration, reduction='mean')
-    Loss2 = RNNTLoss(V - 3, blank_duration=duration, reduction='mean_batch', loss_name='warprnnt_numba')
+    Loss2 = RNNTLoss(V - 3, blank_duration_list=[duration, 2 * duration], reduction='mean_batch', loss_name='warprnnt_numba')
 
     for t in range(1000):
         acts = torch.rand([B, T, U, V]) - 0.5
