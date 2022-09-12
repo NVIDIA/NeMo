@@ -1,1 +1,1 @@
-{"best": 77.87498660000003, "nvcr.io/nvidian/bignlp-training:22.08.05-py*1661801295.868823338": 84.77792, "nvcr.io/nvidian/bignlp-training:22.06.10-py*1661658138.8745751": 77.87498660000003}
+{"train_time_metrics": {"nvcr.io/nvidian/bignlp-training:22.08.05-py": [1661801295.8688233, 84.77792], "nvcr.io/nvidian/bignlp-training:22.06.10-py": [1661658138.8745751, 77.87498660000003]}, "peak_memory_metrics": {}}

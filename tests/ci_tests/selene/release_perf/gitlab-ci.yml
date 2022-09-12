@@ -1,5 +1,6 @@
 variables: &VARS
   BIGNLP_CI_PATH: "/lustre/fsw/joc/big_nlp/bignlp_ci"
+  MEMORY_MEASURE_TEST: "False" # Set to true if you want to run memory test
 
 stages:
   - build
@@ -69,8 +70,16 @@ build-BigNLP:
     - set -x
     - export PIPELINE_DIR="${SELENE_BIGNLP_CI_PATH}/${CI_PIPELINE_ID}"
     - export BASE_RESULTS_DIR="${PIPELINE_DIR}/results"
+    # Set up a working directory that is available cluster-wide.
+    - export CONFIG_DIR="${SELENE_BIGNLP_CI_PATH}/.config/${CI_JOB_ID}" && echo "CONFIG_DIR=${CONFIG_DIR}"
+    - mkdir -p "${CONFIG_DIR}" && chmod 755 "${CONFIG_DIR}"
+    # Emulate "enroot login" since enroot is not available on the head node
+    - export ENROOT_CONFIG_PATH="${CONFIG_DIR}/.enroot" && mkdir -p "${ENROOT_CONFIG_PATH}"
+    - echo "machine ${CI_REGISTRY/:5005/} login gitlab-ci-token password ${CI_BUILD_TOKEN}"
+    - echo "machine ${CI_REGISTRY/:5005/} login gitlab-ci-token password ${CI_BUILD_TOKEN}" > "${ENROOT_CONFIG_PATH}/.credentials"
     - env
     - source tests/ci_tests/selene/release_perf/scripts/${RUN_MODEL}/train_${RUN_MODEL}_model.sh
+    - echo "Job submitted"
     # Wait for job to launch
     - sleep 10s # Without this, "sacct" in jobstate.sh does not always find the SLURM job.
     - export SLURM_JOBID=$(grep 'Submitted batch job' "${RESULTS_DIR}/launcher.log" | awk '{ print $4 }')
@@ -97,23 +106,26 @@ build-BigNLP:
     - export SLURM_EXITCODE=$(./jobexitcode.sh "${SLURM_JOBID}" || echo $?); echo "SLURM_EXITCODE='${SLURM_EXITCODE}'"
     - cd ${GIT_CLONE_PATH}
     # Run metrics collection
+    - git clone ssh://git@gitlab-master.nvidia.com:12051/dl/JoC/bignlp-scripts.git
+    - cd bignlp-scripts
+    - pushd public/data/${RUN_MODEL}
+    - git checkout -b $CI_PIPELINE_ID
+    - GIT_BRANCHES=`git branch -r`
+    - if [[ "$GIT_BRANCHES" =~ .*"$CI_PIPELINE_ID".* ]]; then git pull origin $CI_PIPELINE_ID; fi
+    - GIT_RESULTS_DIR_PATH=`pwd`
+    - popd
     - |
-        if [[ ${SLURM_EXITCODE} == 0 ]]; then
-          git clone ssh://git@gitlab-master.nvidia.com:12051/dl/JoC/bignlp-scripts.git
-          pushd bignlp-scripts/public/data/${RUN_MODEL}
-          git checkout -b $CI_PIPELINE_ID
-          GIT_BRANCHES=`git branch -r`
-          if [[ "$GIT_BRANCHES" =~ .*"$CI_PIPELINE_ID".* ]]; then git pull origin $CI_PIPELINE_ID; fi
-          GIT_RESULTS_DIR_PATH=`pwd`
-          popd
-          python3 tests/ci_tests/utils/get_train_time.py $RESULTS_DIR $GIT_RESULTS_DIR_PATH $BIGNLP_BASE_IMAGE
-          cd bignlp-scripts
-          sed -i '0,/TESTS_TO_RUN_ON_THIS_COMMIT: .*/s/TESTS_TO_RUN_ON_THIS_COMMIT: .*/TESTS_TO_RUN_ON_THIS_COMMIT: NONE/' .gitlab-ci.yml
-          git add -A
-          git commit -m "Adding results file for $RUN_MODEL"
-          git push origin $CI_PIPELINE_ID
+        if [[ "$MEMORY_MEASURE_TEST" == "True" ]]; then 
+          python3 tests/ci_tests/utils/get_memory_metrics.py $RESULTS_DIR $GIT_RESULTS_DIR_PATH $BIGNLP_BASE_IMAGE
+        else 
+          python3 tests/ci_tests/utils/get_train_time.py $RESULTS_DIR $GIT_RESULTS_DIR_PATH $BIGNLP_BASE_IMAGE; 
         fi
-    - exit ${SLURM_EXITCODE}
+    # Replace first occurance of tests_to_run_on_this_commit with none. 
+    - | 
+      sed -i '0,/TESTS_TO_RUN_ON_THIS_COMMIT: .*/s/TESTS_TO_RUN_ON_THIS_COMMIT: .*/TESTS_TO_RUN_ON_THIS_COMMIT: NONE/' .gitlab-ci.yml
+    - git add -A
+    - git commit -m "Adding results file for $RUN_MODEL"
+    - git push origin $CI_PIPELINE_ID
   allow_failure: false
   rules:
     - when: manual
@@ -131,6 +143,7 @@ train.gpt3.126m_2node_100steps:
     RUN_MODEL_SIZE: 126m
     NUM_NODES: 2
     TIME_LIMIT: "20:00"
+    MEMORY_MEASURE_TEST: "True"
 
 train.gpt3.126m_8node_100steps:
   stage: gpt3_configs

@@ -43,10 +43,6 @@ case $RUN_MODEL_SIZE in
     ;;
 esac
 
-LOG_EVERY_N_STEPS=`expr $MAX_STEPS / 100`
-VAL_CHECK_INTERVAL=`expr $MAX_STEPS / 5`
-LIMIT_VAL_BATCHES=`expr $MAX_STEPS / 20`
-
 if [[ $AMP_STYLE = O1 ]]; then
   AMP_O2_FLAG=False
 else
@@ -56,6 +52,21 @@ fi
 
 export RUN_NAME=${RUN_MODEL}_${RUN_MODEL_SIZE}_tp${TP_SIZE}_pp${PP_SIZE}_${NUM_NODES}nodes_${PRECISION}_precision_${AMP_STYLE}_${MAX_STEPS}steps
 export RESULTS_DIR=${BASE_RESULTS_DIR}/${RUN_NAME}
+
+params=()
+if [[ "$MEMORY_MEASURE_TEST" == "True" ]]; then
+  MAX_STEPS=10
+  TIME_LIMIT="1:00:00"
+  export BIGNLP_MEMORY_MEASURE=1
+  params+=(++env_vars.PYTORCH_NO_CUDA_MEMORY_CACHING=1)
+  LOG_EVERY_N_STEPS=10
+  VAL_CHECK_INTERVAL=10
+  LIMIT_VAL_BATCHES=5
+else
+  LOG_EVERY_N_STEPS=`expr $MAX_STEPS / 100`
+  VAL_CHECK_INTERVAL=`expr $MAX_STEPS / 5`
+  LIMIT_VAL_BATCHES=`expr $MAX_STEPS / 20`  
+fi 
 
 HYDRA_FULL_ERROR=1 BIGNLP_CI=1 python3 main.py \
     training=${RUN_MODEL}/${RUN_MODEL_SIZE} \
@@ -80,4 +91,5 @@ HYDRA_FULL_ERROR=1 BIGNLP_CI=1 python3 main.py \
     training.model.tensor_model_parallel_size=${TP_SIZE} \
     training.model.pipeline_model_parallel_size=${PP_SIZE} \
     training.model.megatron_amp_O2=${AMP_O2_FLAG} \
-    training.exp_manager.create_checkpoint_callback=${CREATE_CHECKPOINT_CALLBACK_FLAG}
+    training.exp_manager.create_checkpoint_callback=${CREATE_CHECKPOINT_CALLBACK_FLAG} \
+    "${params[@]}"

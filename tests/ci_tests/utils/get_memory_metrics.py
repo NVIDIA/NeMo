@@ -1,8 +1,8 @@
 import os
 import sys
 import json
-from CITestHelper import CITestHelper
 import time
+import numpy
 from os.path import exists
 
 if __name__ == '__main__':
@@ -11,26 +11,25 @@ if __name__ == '__main__':
     git_results_dir_path = args[1]
     base_image = args[2]
     current_timestamp = time.time()
-
-    train_time_list = CITestHelper.read_tb_logs_as_list(ci_job_results_dir, "train_step_timing")
-    train_time_list = train_time_list[len(train_time_list) // 2:]  # Discard the first half.
-    train_time_avg = sum(train_time_list) / len(train_time_list)
-
+    memory_metrics_log_file = list(filter(lambda x: "mem" in x,os.listdir(ci_job_results_dir)))[0] # output file of name log-joc-bignlp_ci:gpt3_126m_tp1_pp1_1nodes_bf16_precision_O2_10steps_mem_2948081.out
+    memory_metrics_log_file = os.path.join(ci_job_results_dir, memory_metrics_log_file)
+    
+    max_memory_used = max(numpy.genfromtxt(memory_metrics_log_file, delimiter=' ', skip_header=2)[:,-2]) 
     output_file_name = ci_job_results_dir.rsplit("/", 1)[1]+".json"
     release_perf_file = os.path.join(git_results_dir_path, output_file_name)
 
     if not exists(release_perf_file):
         new_result={}
-        new_result[base_image] = [current_timestamp,train_time_avg]
+        new_result[base_image] = [current_timestamp,max_memory_used]
         final_result={}
-        final_result["train_time_metrics"] = new_result
-        final_result["peak_memory_metrics"] = {}
+        final_result["train_time_metrics"] = {}
+        final_result["peak_memory_metrics"] = new_result
         with open(release_perf_file, "w") as f:
             json.dump(final_result, f)
     else:
         with open(release_perf_file) as f:
             previous_results = json.load(f)    
-        previous_results["train_time_metrics"][base_image] = [current_timestamp,train_time_avg] 
+        previous_results["peak_memory_metrics"][base_image] = [current_timestamp,max_memory_used]
         final_result = previous_results
         with open(release_perf_file, 'w') as f:
              json.dump(final_result, f)
