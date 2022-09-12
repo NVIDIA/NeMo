@@ -59,7 +59,7 @@ def creat_folder_and_copy_files(args, output_path):
 
 def copy_file(source_path, target_path, filename):
     global_parameters = "*"
-    filename_with_path = source_path + filename
+    filename_with_path = os.path.join(source_path, filename)
 
     if filename_with_path in glob.glob(os.path.join(source_path, global_parameters)):
         if filename_with_path not in glob.glob(os.path.join(target_path, global_parameters)):
