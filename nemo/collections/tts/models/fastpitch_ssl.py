@@ -11,44 +11,25 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import contextlib
 import os
 import random
-from dataclasses import dataclass
 from typing import Optional
 
 import librosa
 import torch
 from hydra.utils import instantiate
-from omegaconf import DictConfig, OmegaConf, open_dict
+from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
 
 from nemo.collections.asr.parts.preprocessing import features
-from nemo.collections.common.parts.preprocessing import parsers
-from nemo.collections.tts.helpers.helpers import (
-    plot_multipitch_to_numpy,
-    plot_pitch_to_numpy,
-    plot_spectrogram_to_numpy,
-)
-from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
+from nemo.collections.tts.helpers.helpers import plot_multipitch_to_numpy, plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.fastpitchloss import DurationLoss, MelLoss, PitchLoss
 from nemo.collections.tts.models import ssl_tts
-from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.modules.fastpitch import FastPitchModule, average_pitch
-from nemo.collections.tts.torch.tts_data_types import SpeakerID
-from nemo.core.classes import Exportable, ModelPT
+from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.neural_types.elements import (
-    Index,
-    LengthsType,
-    MelSpectrogramType,
-    ProbsType,
-    RegressionValuesType,
-    TokenDurationType,
-    TokenIndex,
-    TokenLogDurationType,
-)
+from nemo.core.neural_types.elements import MelSpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging, model_utils
 
