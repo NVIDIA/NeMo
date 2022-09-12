@@ -248,7 +248,9 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         if self.cal_labels_occurrence_train:
             # Calculate labels occurence for weighed CE loss for train set if weight equals 'auto'
             # Note in this case, the cal_labels_occurrence in val_data_layer_config and test_data_layer_params need to be stay as False
-            train_data_layer_config['cal_labels_occurrence'] = True
+            OmegaConf.set_struct(train_data_layer_config, True)
+            with open_dict(train_data_layer_config):
+                train_data_layer_config['cal_labels_occurrence'] = True
 
         self.labels = self.extract_labels(train_data_layer_config)
         train_data_layer_config['labels'] = self.labels
