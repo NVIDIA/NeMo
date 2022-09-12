@@ -1,4 +1,4 @@
-name: p_tuning_squad_t5
+name: t5_ia3_tuning
 
 trainer:
   devices: 1
@@ -9,9 +9,9 @@ trainer:
   enable_checkpointing: False
   replace_sampler_ddp: False
   max_epochs: 10
-  max_steps: -1 
+  max_steps: 100
   log_every_n_steps: 10
-  val_check_interval: 1
+  val_check_interval: 20
   accumulate_grad_batches: 1
   gradient_clip_val: 1.0
   resume_from_checkpoint: null 
@@ -22,24 +22,25 @@ exp_manager:
   name: ${name}
   create_wandb_logger: False
   wandb_logger_kwargs:
-    project: PromptLearning-T5
-    name: ${name}
+    project: null
+    name: null
   resume_if_exists: True
   resume_ignore_no_checkpoint: True
   create_checkpoint_callback: True
   checkpoint_callback_params:
     monitor: val_loss
-    save_top_k: 2
+    save_top_k: 1
     mode: min
-    save_nemo_on_train_end: False # Should be false, correct prompt learning model file is saved at model.virtual_prompt_save_path set below
-    filename: "megatron_t5_prompt_tune--{${exp_manager.checkpoint_callback_params.monitor}:.3f}-{step}"
+    save_nemo_on_train_end: True # Should be false, correct prompt learning model file is saved at model.virtual_prompt_save_path set below
+    filename: "megatron_t5_ia3_tune--{${exp_manager.checkpoint_callback_params.monitor}:.3f}-{step}"
     model_parallel_size: ${model.tensor_model_parallel_size}
     save_best_model: True
 
 model:
   seed: 1234
   virtual_prompt_save_path: ${name}.nemo # .nemo filename/absolute path to where the virtual prompt model parameters will be saved
-  virtual_prompt_style: "p-tuning" # one of 'prompt-tuning', 'p-tuning', or 'inference'
+  virtual_prompt_style: 'no-prompts' #'prompt-tuning' # adapter tuning requires no virtual prompts
+  gradient_as_bucket_view: false
   tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1 
   encoder_seq_length: 2048
@@ -53,27 +54,19 @@ model:
 
   task_templates: 
   - taskname: "squad" 
-    prompt_template: "<|VIRTUAL_PROMPT_0|> {context} {question} {answer}" 
-    total_virtual_tokens: 100
-    virtual_token_splits: [100] 
+    prompt_template: "{context} {question} {answer}" 
+    total_virtual_tokens: 0
+    virtual_token_splits: [] 
     truncate_field: context
     answer_field: answer
 
   - taskname: "rte" 
-    prompt_template: "<|VIRTUAL_PROMPT_0|> sentence1: {premise} sentence2: {hypothesis} Answer: {answer}" 
-    total_virtual_tokens: 10
-    virtual_token_splits: [10]
+    prompt_template: "sentence1: {premise} sentence2: {hypothesis} Answer: {answer}" 
+    total_virtual_tokens: 0
+    virtual_token_splits: []
     truncate_field: null
     answer_only_loss: True
     answer_field: "answer"
-
-  p_tuning:
-    dropout: 0.0
-    num_layers: 2
-
-  prompt_tuning: # Prompt tunin specific params
-    new_prompt_init_methods: ['text'] # List of 'text' or 'random', should correspond to tasks listed in new tasks
-    new_prompt_init_text: ['some init text goes here'] # some init text if init method is text, or None if init method is random
 
   data:
     train_ds: ["data/squad_train.jsonl"]

@@ -24,6 +24,7 @@ __all__ = ['BasePromptLearningDataset']
 class BasePromptLearningDataset(Dataset):
     """
     The base dataset class for prompt-tuning or p-tuning.
+    TODO: (@adithyare) should be merged into GPTPromptLearningDataset
     """
 
     def __init__(
@@ -132,7 +133,6 @@ class BasePromptLearningDataset(Dataset):
         answer_only_loss=None,
     ):
         # Sanity check amount of virtual token
-        assert total_virtual_tokens > 0, "There should be at least one virtual prompt token"
         assert (
             total_virtual_tokens < self.max_seq_length
         ), "virtual prompt tokens should not exceed max sequence length"
@@ -172,7 +172,7 @@ class BasePromptLearningDataset(Dataset):
             taskname_ids = torch.tensor(taskname_ids)
 
         # Task ids are just used for a look up embeddings for prompt-table
-        elif self.virtual_prompt_source == VirtualPromptSource.PROMPT_TABLE:
+        elif self.virtual_prompt_source in [VirtualPromptSource.PROMPT_TABLE, VirtualPromptSource.NO_PROMPT]:
             taskname_ids = torch.tensor(taskname_ids)
 
         return taskname_ids
