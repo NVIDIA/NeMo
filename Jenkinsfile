@@ -2,7 +2,7 @@ pipeline {
   agent {
         docker {
       //image 'nvcr.io/nvidia/pytorch:22.05-py3'
-      image 'gitlab-master.nvidia.com:5005/eharper/nemo_containers:megatron_gpt_v16'
+      image 'gitlab-master.nvidia.com:5005/eharper/nemo_containers:nemo_ci_pytorch_22.07_apex_3c19f1061879394f28272a99a7ea26d58f72dace'
       args '--device=/dev/nvidia0 --gpus all -e TRANSFORMERS_OFFLINE=1 --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache:/root/.cache --shm-size=8g'
         }
   }
@@ -41,7 +41,7 @@ pipeline {
 
     stage('Install test requirements') {
       steps {
-        sh 'apt-get update && apt-get install -y bc && pip install -r requirements/requirements_test.txt'
+        sh 'apt-get update && apt-get install -y bc && apt-get install -y espeak-ng && pip install -r requirements/requirements_test.txt'
       }
     }
 
@@ -212,65 +212,6 @@ pipeline {
       }
     }
 
-    stage('L0: Computer Vision Integration') {
-      when {
-        anyOf {
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      failFast true
-      parallel {
-        stage ('MNIST image classification with LeNet-5 Integration Test - on CPU') {
-          steps {
-            sh 'cd examples/cv && \
-            python mnist_lenet5_image_classification_pure_lightning.py trainer.devices=1 \
-            trainer.accelerator="cpu" \
-            trainer.fast_dev_run=true model.dataset.data_folder=/home/TestData \
-            && rm -rf outputs'
-          }
-        }
-      }
-    }
-
-    // We have no integration tests, please enable this when one is added
-    // stage('L0: Integration Tests GPU') {
-    //   steps {
-    //     sh 'pytest -s -m "integration and not skipduringci and not pleasefixme"'
-    //   }
-    // }
-
-    // stage('L0: Integration Tests CPU') {
-    //   when {
-    //     anyOf{
-    //       branch 'main'
-    //       changeRequest target: 'main'
-    //     }
-    //   }
-    //   steps {
-    //     sh 'pytest -s -m "integration and not pleasefixme" --cpu'
-    //   }
-    // }
-
-    // We have no system tests, please enable this when one is added
-    // stage('L1: System Tests GPU') {
-    //   steps {
-    //     sh 'pytest -m "system and not skipduringci and not pleasefixme"'
-    //   }
-    // }
-
-    // stage('L1: System Tests CPU') {
-    //   when {
-    //     anyOf{
-    //       branch 'dev
-    //       changeRequest target: 'main'
-    //     }
-    //   }
-    //   steps {
-    //     sh 'pytest -m "system and not pleasefixme" --cpu'
-    //   }
-    // }
-
     stage('L2: ASR dev run') {
       when {
         anyOf {
@@ -437,7 +378,7 @@ pipeline {
 
         stage('Speaker Diarization with ASR Inference') {
           steps {
-            sh 'python examples/speaker_tasks/diarization/offline_diarization_with_asr.py \
+            sh 'python examples/speaker_tasks/diarization/clustering_diarizer/offline_diar_with_asr_infer.py \
 	    diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
             diarizer.speaker_embeddings.model_path=/home/TestData/an4_diarizer/spkr.nemo \
             diarizer.speaker_embeddings.parameters.save_embeddings=True \
@@ -453,7 +394,7 @@ pipeline {
 
         stage('Speaker Diarization Inference') {
           steps {
-            sh 'python examples/speaker_tasks/diarization/offline_diarization.py \
+            sh 'python examples/speaker_tasks/diarization/clustering_diarizer/offline_diar_infer.py \
 	    diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
             diarizer.speaker_embeddings.model_path=/home/TestData/an4_diarizer/spkr.nemo \
             diarizer.speaker_embeddings.parameters.save_embeddings=True \
@@ -463,6 +404,19 @@ pipeline {
             diarizer.vad.model_path=/home/TestData/an4_diarizer/MatchboxNet_VAD_3x2.nemo \
             diarizer.out_dir=examples/speaker_tasks/diarization/speaker_diarization_results'
             sh 'rm -rf examples/speaker_tasks/diarization/speaker_diarization_results'
+          }
+        }
+	
+        stage('Multispeaker ASR Data Simulation') {
+          steps {
+            sh 'python tools/speech_data_simulator/multispeaker_simulator.py \
+            --config-path=conf --config-name=data_simulator.yaml \
+            data_simulator.random_seed=42 \
+            data_simulator.manifest_filepath=/home/TestData/LibriSpeechShort/dev-clean-align-short.json \
+            data_simulator.outputs.output_dir=./test_simulator \
+            data_simulator.session_config.num_sessions=2 \
+            data_simulator.session_config.session_length=60'
+            sh 'rm -rf ./test_simulator'
           }
         }
       }
@@ -597,7 +551,7 @@ pipeline {
             trainer.devices=[0] \
             trainer.accelerator="gpu" \
             trainer.max_epochs=1 \
-            +trainer.max_steps=1 \
+            trainer.max_steps=1 \
             +trainer.num_sanity_val_steps=1 \
             exp_manager.exp_dir=examples/asr/speech_to_text_results'
             sh 'rm -rf examples/asr/speech_to_text_results'
@@ -612,7 +566,7 @@ pipeline {
             trainer.devices=[1] \
             trainer.accelerator="gpu" \
             trainer.max_epochs=1 \
-            +trainer.max_steps=1 \
+            trainer.max_steps=1 \
             +trainer.num_sanity_val_steps=1 \
             model.preprocessor._target_=nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor \
             ~model.preprocessor.window_size \
@@ -656,7 +610,87 @@ pipeline {
 
       }
     }
-
+    stage('L2: Megatron GPT Adapter TP=2') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel{
+        stage('GPT Adapter tuning & inference TP=2 PP=1') {
+          steps {
+            sh "python examples/nlp/language_modeling/tuning/megatron_gpt_adapter_tuning.py \
+                --config-name=megatron_gpt_adapter_tuning_config \
+                name='/home/TestData/nlp/adapter_tuning/test_tp2_pp1' \
+                trainer.devices=2 \
+                trainer.max_steps=6 \
+                trainer.val_check_interval=2 \
+                trainer.max_epochs=null \
+                model.tensor_model_parallel_size=2 \
+                model.language_model_path='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp2_pp1.nemo' \
+                model.existing_tasks=[] \
+                model.new_tasks=['rte'] \
+                model.data.train_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+                model.data.validation_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+                model.global_batch_size=4"
+            sh "python examples/nlp/language_modeling/tuning/megatron_gpt_adapter_eval.py \
+                --config-name=megatron_gpt_adapter_inference \
+                adapter_model_file='/home/TestData/nlp/adapter_tuning/test_tp2_pp1.nemo' \
+                gpt_model_file='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp2_pp1.nemo' \
+                inference.greedy=True \
+                inference.add_BOS=False \
+                trainer.devices=2 \
+                tensor_model_parallel_size=2 \
+                data_paths=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl']"
+            sh "rm -rf /home/TestData/nlp/adapter_tuning/test_tp2_pp1.nemo"
+            sh "rm -rf /home/TestData/nlp/adapter_tuning/test_tp2_pp1"
+          }
+        }
+      }
+    }
+    stage('L2: Megatron GPT Adapter PP=2') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel{
+        stage('GPT Adapter tuning & inference TP=1 PP=2') {
+          steps {
+            sh "python examples/nlp/language_modeling/tuning/megatron_gpt_adapter_tuning.py \
+                --config-name=megatron_gpt_adapter_tuning_config \
+                name='/home/TestData/nlp/adapter_tuning/test_tp1_pp2' \
+                trainer.devices=2 \
+                trainer.max_steps=6 \
+                trainer.val_check_interval=2 \
+                trainer.max_epochs=null \
+                model.tensor_model_parallel_size=1 \
+                model.pipeline_model_parallel_size=2 \
+                model.language_model_path='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp1_pp2.nemo' \
+                model.existing_tasks=[] \
+                model.new_tasks=['rte'] \
+                model.data.train_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+                model.data.validation_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+                model.global_batch_size=4"
+            sh "python examples/nlp/language_modeling/tuning/megatron_gpt_adapter_eval.py \
+                --config-name=megatron_gpt_adapter_inference \
+                adapter_model_file='/home/TestData/nlp/adapter_tuning/test_tp1_pp2.nemo' \
+                gpt_model_file='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp1_pp2.nemo' \
+                inference.greedy=True \
+                inference.add_BOS=False \
+                trainer.devices=2 \
+                tensor_model_parallel_size=2 \
+                data_paths=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl']"
+            sh "rm -rf /home/TestData/nlp/adapter_tuning/test_tp1_pp2.nemo"
+            sh "rm -rf /home/TestData/nlp/adapter_tuning/test_tp1_pp2"
+          }
+        }
+      }
+    }
     stage('L2: Speech Transcription') {
       when {
         anyOf {
@@ -1935,6 +1969,7 @@ pipeline {
         }
       }
     }
+    
     stage('L2: Parallel Pretraining BERT pretraining from Text/Preprocessed') {
       when {
         anyOf {
@@ -2849,7 +2884,7 @@ pipeline {
                 model.tokenizer.merge_file=/home/TestData/nlp/megatron_retro/gpt2-merges.txt \
                 model.tokenizer.vocab_file=/home/TestData/nlp/megatron_retro/gpt2-vocab.json \
                 model.data.data_prefix=[/home/TestData/nlp/megatron_retro/retro_wiki_test_text_document] \
-                model.data.knn_index=[/home/TestData/nlp/megatron_retro/knn_map_wiki_test.idx] \
+                model.data.knn_index=[/home/TestData/nlp/megatron_retro/knn2_map_wiki_test.idx] \
                 model.data.retrieval_prefix=/home/TestData/nlp/megatron_retro/retro_wiki_test_text_document \
                 model.data.index_mapping_dir=/home/TestData/nlp/megatron_retro \
                 model.data.num_workers=8 \
@@ -3144,7 +3179,8 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         }
       }
     }
-
+    
+    
 
     // TODO: Add this test back. Test was failing on CI machines due to HW error
     // stage('L2: Megatron GPT Convert from Megatron-LM checkpoing and Eval') {

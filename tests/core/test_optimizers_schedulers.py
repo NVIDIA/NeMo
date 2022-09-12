@@ -134,15 +134,24 @@ class TestOptimizersSchedulers:
     MAX_STEPS = 10
     D_MODEL = 16
 
-    # fused_adam is looking for CUDA and this test is being run on CPU only tests
+    # Apex optimizers require CUDA and this test is being run on CPU only tests
     @pytest.mark.unit
     def test_get_optimizer(self):
         model = TempModel()
+        if torch.cuda.is_available():
+            model.cuda()
 
         for opt_name in AVAILABLE_OPTIMIZERS.keys():
             if opt_name == 'fused_adam':
                 if not torch.cuda.is_available():
                     continue
+            if opt_name == 'distributed_fused_adam':
+                if not torch.cuda.is_available() or not torch.distributed.is_nccl_available():
+                    continue
+                if not torch.distributed.is_initialized():
+                    torch.distributed.init_process_group(
+                        'nccl', world_size=1, rank=0, store=torch.distributed.HashStore(),
+                    )
             opt_cls = optim.get_optimizer(opt_name)
             if opt_name == 'adafactor':
                 # Adafactor's default mode uses relative_step without any lr.
@@ -876,8 +885,7 @@ class TestOptimizersSchedulers:
                 accumulate_grad_batches=accumulate_grad_batches,
                 limit_train_batches=limit_train_batches,
                 enable_checkpointing=False,
-                progress_bar_refresh_rate=0,
-                weights_summary=None,
+                enable_progress_bar=False,
             )
             max_steps = optim.lr_scheduler.compute_max_steps(
                 max_epochs, accumulate_grad_batches, limit_train_batches, devices, dataset_len, batch_size, drop_last,
@@ -952,8 +960,7 @@ class TestOptimizersSchedulers:
                 accumulate_grad_batches=accumulate_grad_batches,
                 limit_train_batches=limit_train_batches,
                 enable_checkpointing=False,
-                progress_bar_refresh_rate=0,
-                weights_summary=None,
+                enable_progress_bar=False,
             )
             model = ExampleModel(batch_size, dataset_len, drop_last, max_steps)
             trainer.callbacks.append(SchedulerNoOpCallback())

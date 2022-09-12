@@ -21,7 +21,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_
     MegatronGPTPromptLearningModel,
 )
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.core.config import hydra_runner
 
 
@@ -75,7 +75,7 @@ def main(cfg) -> None:
         raise EnvironmentError("GPU is needed for the inference")
 
     # trainer required for restoring model parallel models
-    trainer = Trainer(plugins=NLPDDPPlugin(), **cfg.trainer)
+    trainer = Trainer(strategy=NLPDDPStrategy(), **cfg.trainer)
     assert (
         cfg.trainer.devices * cfg.trainer.num_nodes
         == cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
@@ -134,7 +134,7 @@ def main(cfg) -> None:
     max_input_length = model.frozen_model.cfg.encoder_seq_length - length_params["max_length"]
 
     _, dataloader = model.build_virtual_prompt_dataset(
-        dataset_paths=cfg.data_paths,
+        data=cfg.data_paths,
         batch_size=64,
         max_seq_length=max_input_length,
         min_seq_length=model.cfg.data.get('min_seq_length', 1),
