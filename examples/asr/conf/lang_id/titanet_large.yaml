@@ -12,7 +12,6 @@ model:
     tarred_audio_filepaths: null
     tarred_shard_strategy: "scatter"
     num_workers: 16
-    cal_labels_occurrence: True
 
     augmentor:
       noise:
