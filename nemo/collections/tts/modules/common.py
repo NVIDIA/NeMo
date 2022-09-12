@@ -19,10 +19,11 @@ from typing import Tuple, List, Optional
 
 import numpy as np
 import torch
-from torch import nn
+from torch import nn, Tensor
 from torch.cuda import amp
 from torch.cuda.amp import autocast as autocast
 from torch.nn import functional as F
+from torch.nn.utils.rnn import PackedSequence
 
 from nemo.collections.tts.helpers.splines import (
     piecewise_linear_inverse_transform,
@@ -30,29 +31,6 @@ from nemo.collections.tts.helpers.splines import (
     unbounded_piecewise_quadratic_transform,
 )
 from nemo.collections.tts.modules.submodules import ConvNorm, LinearNorm
-
-
-def update_params(config, params):
-    for param in params:
-        print(param)
-        k, v = param.split("=")
-        try:
-            v = ast.literal_eval(v)
-        except:
-            pass
-
-        k_split = k.split('.')
-        if len(k_split) > 1:
-            parent_k = k_split[0]
-            cur_param = ['.'.join(k_split[1:]) + "=" + str(v)]
-            update_params(config[parent_k], cur_param)
-        elif k in config and len(k_split) == 1:
-            print(f"overriding {k} with {v}")
-            config[k] = v
-        else:
-            print("{}, {} params not updated".format(k, v))
-
-
 
 def get_mask_from_lengths_and_val(lengths, val):
     """Constructs binary mask from a 1D torch tensor of input lengths
@@ -112,31 +90,6 @@ class DenseLayer(nn.Module):
             x = torch.tanh(linear(x))
         return x
 
-def sort_packed(context: torch.nn.utils.rnn.PackedSequence, lens) -> torch.nn.utils.rnn.PackedSequence: 
-    lens_sorted, ids_sorted = torch.sort(lens, descending=True)
-    context_sorted = context[ids_sorted]
-    print("Sorted type: ", context_sorted)
-    context = nn.utils.rnn.pack_padded_sequence(context_sorted, lens_sorted.to(dtype=torch.int64, device="cpu"), batch_first=True)
-    return context, unsort_ids
-
-@torch.jit.script
-def list_to_tensor(self, context: List[torch.Tensor]) -> torch.Tensor:
-    ret = torch.nn.utils.rnn.pad_sequence(context, batch_first=True)
-    return ret
-
-@torch.jit.script
-def packed_to_tensor(context: torch.nn.utils.rnn.PackedSequence):
-    context = nn.utils.rnn.pad_packed_sequence(context, batch_first=True)[0]
-
-@torch.jit.script
-def unsort_tensor(context: torch.Tensor, ids_sorted):
-    unsort_ids = torch.zeros_like(ids_sorted)
-    for i in range(ids_sorted.shape[0]):
-        unsort_ids[ids_sorted[i]] = i
-    # map back to original indices
-    context = context[unsort_ids]
-    return context
-
 class BiLSTM(nn.Module):
     def __init__(self, input_size, hidden_size, num_layers = 1, lstm_norm_fn="spectral"):
         super().__init__()
@@ -154,35 +107,27 @@ class BiLSTM(nn.Module):
         self.bilstm.flatten_parameters()
         
     @torch.jit.export
-    def run_unsorted_inputs(self, context:torch.Tensor, lens:torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        seq = nn.utils.rnn.pack_padded_sequence(
-            context, lens.long().cpu(), batch_first=True, enforce_sorted=False)
+    def lstm_tensor(self, context:Tensor, lens:Tensor, enforce_sorted:bool=False) -> Tuple[Tensor, Tensor]:
+        seq = nn.utils.rnn.pack_padded_sequence(context, lens.long().cpu(), batch_first=True, enforce_sorted=enforce_sorted)
         ret, _ = self.bilstm(seq)
-        return nn.utils.rnn.pad_packed_sequence(
-            ret, batch_first=True)
+        return nn.utils.rnn.pad_packed_sequence(ret, batch_first=True)
 
     @torch.jit.export
-    def run_sorted_inputs(self, context:torch.Tensor, lens:torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        seq = nn.utils.rnn.pack_padded_sequence(
-            context, lens.long().cpu(), batch_first=True)
+    def lstm_sequence(self, seq:PackedSequence) -> Tuple[Tensor, Tensor]:
         ret, _ = self.bilstm(seq)
-        return nn.utils.rnn.pad_packed_sequence(
-            ret, batch_first=True)
+        return nn.utils.rnn.pad_packed_sequence(ret, batch_first=True)
 
+    
     @torch.jit.export
-    def run_and_sort_inputs(self, context:torch.Tensor, lens:torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def sort_and_lstm_tensor(self, context:Tensor, lens:Tensor) -> Tuple[Tensor, Tensor]:
         lens_sorted, ids_sorted = torch.sort(lens, descending=True)
         unsort_ids = torch.zeros_like(ids_sorted)
         for i in range(ids_sorted.shape[0]):
             unsort_ids[ids_sorted[i]] = i
-        lens_sorted = lens_sorted.long().cpu()
-
         context = context[ids_sorted]
-        seq = nn.utils.rnn.pack_padded_sequence(
-            context, lens_sorted, batch_first=True)
+        seq = nn.utils.rnn.pack_padded_sequence(context, lens_sorted.long().cpu(), batch_first=True)
         ret, _ = self.bilstm(seq)
-        return  nn.utils.rnn.pad_packed_sequence(
-            ret, batch_first=True)
+        return  nn.utils.rnn.pad_packed_sequence(ret, batch_first=True)
 
         
 class ConvLSTMLinear(BiLSTM):
@@ -219,40 +164,29 @@ class ConvLSTMLinear(BiLSTM):
         if out_dim is not None:
             self.dense = nn.Linear(n_channels, out_dim)
             
-    def run_padded_sequence(self, context, lens):
+    def conv_to_sequence(self, context:Tensor, lens:Tensor, enforce_sorted:bool=False) -> PackedSequence:
         context_embedded = []
-        for b_ind in range(context.size()[0]):  # TODO: speed up
+        bs: int=context.shape[0]
+        b_ind:int = 0 
+        for b_ind in range(bs):  # TODO: speed up
             curr_context = context[b_ind : b_ind + 1, :, : lens[b_ind]].clone()
             for conv in self.convolutions:
                 curr_context = self.dropout(F.relu(conv(curr_context)))
             context_embedded.append(curr_context[0].transpose(0, 1))
-        context = torch.nn.utils.rnn.pad_sequence(context_embedded, batch_first=True)
-        return context
+        seq = torch.nn.utils.rnn.pack_sequence(context_embedded, enforce_sorted=enforce_sorted)
+        return seq
 
-    def run_masked_sequence(self, context, lens):
+    def masked_conv_to_sequence(self, context:Tensor, lens:Tensor, enforce_sorted:bool=False) -> PackedSequence:
         mask = get_mask_from_lengths_and_val(lens, context)
-        unsq_mask = mask.unsqueeze(1)
-        context_embedded = []
-        for b_ind in range(context.size()[0]):  # TODO: speed up
-            curr_context = context[b_ind : b_ind + 1, :, :].clone()
-            curr_mask = unsq_mask[b_ind : b_ind + 1, :, :]
-            for conv in self.convolutions:
-                curr_context = self.dropout(F.relu(conv(curr_context, curr_mask)))
-            curr_context = torch.mul(curr_context, curr_mask)
-            context_embedded.append(curr_context[0].transpose(0, 1))
-        context = torch.nn.utils.rnn.pad_sequence(context_embedded, batch_first=True)
-        return context
-    
-    def run_masked_tensor(self, context, lens):
-        mask = get_mask_from_lengths_and_val(lens, context)
-        unsq_mask = mask.unsqueeze(1)
         for conv in self.convolutions:
-            context = self.dropout(F.relu(conv(context, unsq_mask)))
-        context = torch.mul(context, unsq_mask)
+            context = self.dropout(F.relu(conv(context, mask)))
+        context = torch.mul(context, mask)
         context = context.transpose(1, 2)
-        return context
+        seq = torch.nn.utils.rnn.pack_padded_sequence(context, lens.long().cpu(), batch_first=True, enforce_sorted=enforce_sorted)
+        return seq
+
     
-    def forward(self, context:torch.Tensor, lens:Optional[torch.Tensor]=None):
+    def forward(self, context:Tensor, lens:Optional[Tensor]=None) -> Tensor:
         if lens is None:
             for conv in self.convolutions:
                 context = self.dropout(F.relu(conv(context)))
@@ -260,12 +194,12 @@ class ConvLSTMLinear(BiLSTM):
             context, _ = self.bilstm(context)
         else:
             # borisf : does not match ADLR (values, lengths)
-            context = self.run_masked_tensor(context, lens)
+            # context = self.run_masked_tensor(context, lens)
             # borisf : does not match ADLR (values, lengths) 
-            # context = self.run_masked_sequence(context, lens)
+            # seq = self.masked_conv_to_sequence(context, lens)
             # borisf : does match ADLR 
-            # context = self.run_padded_sequence(context, lens)
-            context, _ = self.run_unsorted_inputs(context, lens)
+            seq = self.conv_to_sequence(context, lens)
+            context, _ = self.lstm_sequence(seq)
             
         if self.dense is not None:
             context = self.dense(context).permute(0, 2, 1)
@@ -285,7 +219,7 @@ def getRadTTSEncoder(
         n_channels=encoder_embedding_dim,
         kernel_size=encoder_kernel_size,
         p_dropout=0.5,
-        use_partial_padding=False,
+        use_partial_padding=True,
         norm_fn = norm_fn,
         lstm_norm_fn = lstm_norm_fn
         )
@@ -416,7 +350,7 @@ class SimpleConvNet(torch.nn.Module):
             self.last_layer.weight.data *= 0
             self.last_layer.bias.data *= 0
 
-    def forward(self, z_w_context, seq_lens: torch.Tensor = None):
+    def forward(self, z_w_context, seq_lens: Tensor = None):
         # seq_lens: tensor array of sequence sequence lengths
         # output should be b x n_mel_channels x z_w_context.shape(2)
         mask = None
@@ -486,7 +420,7 @@ class WN(torch.nn.Module):
             res_skip_layer = nn.utils.weight_norm(res_skip_layer)
             self.res_skip_layers.append(res_skip_layer)
 
-    def forward(self, forward_input: Tuple[torch.Tensor, torch.Tensor], seq_lens: torch.Tensor = None):
+    def forward(self, forward_input: Tuple[Tensor, Tensor], seq_lens: Tensor = None):
         z, context = forward_input
         z = torch.cat((z, context), 1)  # append context to z as well
         z = self.start(z)

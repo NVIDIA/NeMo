@@ -351,7 +351,7 @@ class RadTTSModule(NeuralModule, Exportable):
                     context_w_spkvec = torch.cat((context_w_spkvec, energy_avg), 1)
 
             unfolded_out_lens = out_lens // self.n_group_size
-            context_lstm_padded_output, ret_lens = self.context_lstm.run_unsorted_inputs(context_w_spkvec.transpose(1, 2), unfolded_out_lens)
+            context_lstm_padded_output, ret_lens = self.context_lstm.lstm_tensor(context_w_spkvec.transpose(1, 2), unfolded_out_lens)
             context_w_spkvec = context_lstm_padded_output.transpose(1, 2)
 
         if not self.context_lstm_w_f0_and_energy:
@@ -608,7 +608,7 @@ class RadTTSModule(NeuralModule, Exportable):
         voiced_mask=None,
     ):
 
-#        print ("Text: ", text)
+        # print ("Text, lens: ", text.shape, in_lens.shape)
         
         batch_size = text.shape[0]
         n_tokens = text.shape[1]
@@ -621,7 +621,7 @@ class RadTTSModule(NeuralModule, Exportable):
         spk_vec_attributes = self.encode_speaker(speaker_id_attributes)
 
         txt_enc, txt_emb = self.encode_text(text, in_lens)
-        print ("txt_enc: ", txt_enc.shape, txt_enc )
+        # print ("txt_enc: ", txt_enc.shape, txt_enc )
 
         if dur is None:
             # get token durations
@@ -833,8 +833,8 @@ class RadTTSModule(NeuralModule, Exportable):
             text,
             speaker_id_text=speaker_id_text,
             speaker_id_attributes=speaker_id_attributes,
-            sigma=0.0,
-            sigma_txt=0.0,
+            sigma=0.7,
+            sigma_txt=0.7,
             sigma_f0=1.0,
             sigma_energy=1.0,
             f0_mean=145.0,
