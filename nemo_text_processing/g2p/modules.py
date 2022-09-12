@@ -32,8 +32,11 @@ from nemo.utils.get_rank import is_global_rank_zero
 
 class BaseG2p(abc.ABC):
     def __init__(
-        self, phoneme_dict=None, word_tokenize_func=lambda x: x, apply_to_oov_word=None,
-        mapping_file: Optional[str] = None
+        self,
+        phoneme_dict=None,
+        word_tokenize_func=lambda x: x,
+        apply_to_oov_word=None,
+        mapping_file: Optional[str] = None,
     ):
         """Abstract class for creating an arbitrary module to convert grapheme words
         to phoneme sequences, leave unchanged, or use apply_to_oov_word.
@@ -62,7 +65,7 @@ class EnglishG2p(BaseG2p):
         heteronyms=None,
         encoding='latin-1',
         phoneme_probability: Optional[float] = None,
-        mapping_file: Optional[str] = None
+        mapping_file: Optional[str] = None,
     ):
         """English G2P module. This module converts words from grapheme to phoneme representation using phoneme_dict in CMU dict format.
         Optionally, it can ignore words which are heteronyms, ambiguous or marked as unchangeable by word_tokenize_func (see code for details).
@@ -96,7 +99,10 @@ class EnglishG2p(BaseG2p):
             )
 
         super().__init__(
-            phoneme_dict=phoneme_dict, word_tokenize_func=word_tokenize_func, apply_to_oov_word=apply_to_oov_word, mapping_file=mapping_file
+            phoneme_dict=phoneme_dict,
+            word_tokenize_func=word_tokenize_func,
+            apply_to_oov_word=apply_to_oov_word,
+            mapping_file=mapping_file,
         )
 
         self.ignore_ambiguous_words = ignore_ambiguous_words
@@ -265,7 +271,7 @@ class IPAG2P(BaseG2p):
         phoneme_probability: Optional[float] = None,
         use_stresses: Optional[bool] = True,
         set_graphemes_upper: Optional[bool] = True,
-        mapping_file: Optional[str] = None,	
+        mapping_file: Optional[str] = None,
     ):
         """Generic IPA G2P module. This module converts words from grapheme to International Phonetic Alphabet representations.
         Optionally, it can ignore heteronyms, ambiguous words, or words marked as unchangeable by word_tokenize_func (see code for details).
@@ -353,7 +359,10 @@ class IPAG2P(BaseG2p):
             )
 
         super().__init__(
-            phoneme_dict=self.phoneme_dict, word_tokenize_func=word_tokenize_func, apply_to_oov_word=apply_to_oov_word, mapping_file=mapping_file
+            phoneme_dict=self.phoneme_dict,
+            word_tokenize_func=word_tokenize_func,
+            apply_to_oov_word=apply_to_oov_word,
+            mapping_file=mapping_file,
         )
 
         self.ignore_ambiguous_words = ignore_ambiguous_words

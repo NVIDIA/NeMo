@@ -15,11 +15,11 @@
 ###############################################################################
 
 import ast
-from typing import Tuple, List, Optional
+from typing import List, Optional, Tuple
 
 import numpy as np
 import torch
-from torch import nn, Tensor
+from torch import Tensor, nn
 from torch.cuda import amp
 from torch.cuda.amp import autocast as autocast
 from torch.nn import functional as F
@@ -31,6 +31,7 @@ from nemo.collections.tts.helpers.splines import (
     unbounded_piecewise_quadratic_transform,
 )
 from nemo.collections.tts.modules.submodules import ConvNorm, LinearNorm
+
 
 def get_mask_from_lengths_and_val(lengths, val):
     """Constructs binary mask from a 1D torch tensor of input lengths
@@ -45,7 +46,7 @@ def get_mask_from_lengths_and_val(lengths, val):
     mask = ids < lengths.unsqueeze(1)
     return mask.float()
 
-            
+
 @torch.jit.script
 def get_mask_from_lengths(lengths):
     """Constructs binary mask from a 1D torch tensor of input lengths
@@ -90,8 +91,9 @@ class DenseLayer(nn.Module):
             x = torch.tanh(linear(x))
         return x
 
+
 class BiLSTM(nn.Module):
-    def __init__(self, input_size, hidden_size, num_layers = 1, lstm_norm_fn="spectral"):
+    def __init__(self, input_size, hidden_size, num_layers=1, lstm_norm_fn="spectral"):
         super().__init__()
         self.bilstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True, bidirectional=True)
         if lstm_norm_fn is not None:
@@ -101,25 +103,26 @@ class BiLSTM(nn.Module):
             elif 'weight' in lstm_norm_fn:
                 print("Applying weight norm to LSTM")
                 lstm_norm_fn_pntr = torch.nn.utils.weight_norm
-                
+
         lstm_norm_fn_pntr(self.bilstm, 'weight_hh_l0')
         lstm_norm_fn_pntr(self.bilstm, 'weight_hh_l0_reverse')
         self.bilstm.flatten_parameters()
-        
+
     @torch.jit.export
-    def lstm_tensor(self, context:Tensor, lens:Tensor, enforce_sorted:bool=False) -> Tuple[Tensor, Tensor]:
-        seq = nn.utils.rnn.pack_padded_sequence(context, lens.long().cpu(), batch_first=True, enforce_sorted=enforce_sorted)
+    def lstm_tensor(self, context: Tensor, lens: Tensor, enforce_sorted: bool = False) -> Tuple[Tensor, Tensor]:
+        seq = nn.utils.rnn.pack_padded_sequence(
+            context, lens.long().cpu(), batch_first=True, enforce_sorted=enforce_sorted
+        )
         ret, _ = self.bilstm(seq)
         return nn.utils.rnn.pad_packed_sequence(ret, batch_first=True)
 
     @torch.jit.export
-    def lstm_sequence(self, seq:PackedSequence) -> Tuple[Tensor, Tensor]:
+    def lstm_sequence(self, seq: PackedSequence) -> Tuple[Tensor, Tensor]:
         ret, _ = self.bilstm(seq)
         return nn.utils.rnn.pad_packed_sequence(ret, batch_first=True)
 
-    
     @torch.jit.export
-    def sort_and_lstm_tensor(self, context:Tensor, lens:Tensor) -> Tuple[Tensor, Tensor]:
+    def sort_and_lstm_tensor(self, context: Tensor, lens: Tensor) -> Tuple[Tensor, Tensor]:
         lens_sorted, ids_sorted = torch.sort(lens, descending=True)
         unsort_ids = torch.zeros_like(ids_sorted)
         for i in range(ids_sorted.shape[0]):
@@ -127,12 +130,22 @@ class BiLSTM(nn.Module):
         context = context[ids_sorted]
         seq = nn.utils.rnn.pack_padded_sequence(context, lens_sorted.long().cpu(), batch_first=True)
         ret, _ = self.bilstm(seq)
-        return  nn.utils.rnn.pad_packed_sequence(ret, batch_first=True)
+        return nn.utils.rnn.pad_packed_sequence(ret, batch_first=True)
 
-        
+
 class ConvLSTMLinear(BiLSTM):
-    def __init__(self, in_dim=None, out_dim=None, n_layers=2, n_channels=256, kernel_size=3, p_dropout=0.1,
-                 use_partial_padding=False, norm_fn=None, lstm_norm_fn="spectral"):
+    def __init__(
+        self,
+        in_dim=None,
+        out_dim=None,
+        n_layers=2,
+        n_channels=256,
+        kernel_size=3,
+        p_dropout=0.1,
+        use_partial_padding=False,
+        norm_fn=None,
+        lstm_norm_fn="spectral",
+    ):
         super(ConvLSTMLinear, self).__init__(n_channels, int(n_channels // 2), 1)
         self.out_dim = out_dim
 
@@ -149,9 +162,9 @@ class ConvLSTMLinear(BiLSTM):
                 padding=int((kernel_size - 1) / 2),
                 dilation=1,
                 w_init_gain='relu',
-                use_weight_norm = False,
-                use_partial_padding = use_partial_padding,
-                norm_fn = norm_fn
+                use_weight_norm=False,
+                use_partial_padding=use_partial_padding,
+                norm_fn=norm_fn,
             )
             if norm_fn is not None:
                 print("Applying {} norm to {}".format(norm_fn, conv_layer))
@@ -163,11 +176,11 @@ class ConvLSTMLinear(BiLSTM):
         self.dense = None
         if out_dim is not None:
             self.dense = nn.Linear(n_channels, out_dim)
-            
-    def conv_to_sequence(self, context:Tensor, lens:Tensor, enforce_sorted:bool=False) -> PackedSequence:
+
+    def conv_to_sequence(self, context: Tensor, lens: Tensor, enforce_sorted: bool = False) -> PackedSequence:
         context_embedded = []
-        bs: int=context.shape[0]
-        b_ind:int = 0 
+        bs: int = context.shape[0]
+        b_ind: int = 0
         for b_ind in range(bs):  # TODO: speed up
             curr_context = context[b_ind : b_ind + 1, :, : lens[b_ind]].clone()
             for conv in self.convolutions:
@@ -176,17 +189,18 @@ class ConvLSTMLinear(BiLSTM):
         seq = torch.nn.utils.rnn.pack_sequence(context_embedded, enforce_sorted=enforce_sorted)
         return seq
 
-    def masked_conv_to_sequence(self, context:Tensor, lens:Tensor, enforce_sorted:bool=False) -> PackedSequence:
+    def masked_conv_to_sequence(self, context: Tensor, lens: Tensor, enforce_sorted: bool = False) -> PackedSequence:
         mask = get_mask_from_lengths_and_val(lens, context)
         for conv in self.convolutions:
             context = self.dropout(F.relu(conv(context, mask)))
         context = torch.mul(context, mask)
         context = context.transpose(1, 2)
-        seq = torch.nn.utils.rnn.pack_padded_sequence(context, lens.long().cpu(), batch_first=True, enforce_sorted=enforce_sorted)
+        seq = torch.nn.utils.rnn.pack_padded_sequence(
+            context, lens.long().cpu(), batch_first=True, enforce_sorted=enforce_sorted
+        )
         return seq
 
-    
-    def forward(self, context:Tensor, lens:Optional[Tensor]=None) -> Tensor:
+    def forward(self, context: Tensor, lens: Optional[Tensor] = None) -> Tensor:
         if lens is None:
             for conv in self.convolutions:
                 context = self.dropout(F.relu(conv(context)))
@@ -195,34 +209,36 @@ class ConvLSTMLinear(BiLSTM):
         else:
             # borisf : does not match ADLR (values, lengths)
             # context = self.run_masked_tensor(context, lens)
-            # borisf : does not match ADLR (values, lengths) 
+            # borisf : does not match ADLR (values, lengths)
             # seq = self.masked_conv_to_sequence(context, lens)
-            # borisf : does match ADLR 
+            # borisf : does match ADLR
             seq = self.conv_to_sequence(context, lens)
             context, _ = self.lstm_sequence(seq)
-            
+
         if self.dense is not None:
             context = self.dense(context).permute(0, 2, 1)
 
         return context
 
+
 def getRadTTSEncoder(
-        encoder_n_convolutions=3,
-        encoder_embedding_dim=512,
-        encoder_kernel_size=5,
-        norm_fn=nn.BatchNorm1d,
-        lstm_norm_fn=None,
-    ):
+    encoder_n_convolutions=3,
+    encoder_embedding_dim=512,
+    encoder_kernel_size=5,
+    norm_fn=nn.BatchNorm1d,
+    lstm_norm_fn=None,
+):
     return ConvLSTMLinear(
         in_dim=encoder_embedding_dim,
-        n_layers = encoder_n_convolutions,
+        n_layers=encoder_n_convolutions,
         n_channels=encoder_embedding_dim,
         kernel_size=encoder_kernel_size,
         p_dropout=0.5,
         use_partial_padding=True,
-        norm_fn = norm_fn,
-        lstm_norm_fn = lstm_norm_fn
-        )
+        norm_fn=norm_fn,
+        lstm_norm_fn=lstm_norm_fn,
+    )
+
 
 class Invertible1x1ConvLUS(torch.nn.Module):
     def __init__(self, c):

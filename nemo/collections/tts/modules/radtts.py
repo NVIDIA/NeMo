@@ -12,25 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pdb
+
 ###############################################################################
 import torch
 import torch.nn.functional as F
 from torch import nn
-import pdb
 
 from nemo.collections.tts.helpers.helpers import mas_width1 as mas
 from nemo.collections.tts.helpers.helpers import regulate_len
 from nemo.collections.tts.modules.attribute_prediction_model import get_attribute_prediction_model
 from nemo.collections.tts.modules.common import (
     AffineTransformationLayer,
+    BiLSTM,
     ConvAttention,
     ExponentialClass,
     Invertible1x1Conv,
     Invertible1x1ConvLUS,
     LinearNorm,
-    BiLSTM,
-    getRadTTSEncoder,
     get_mask_from_lengths,
+    getRadTTSEncoder,
 )
 from nemo.collections.tts.modules.submodules import PartialConv1d
 from nemo.core.classes import Exportable, NeuralModule
@@ -226,9 +227,7 @@ class RadTTSModule(NeuralModule, Exportable):
                     n_flowstep_cond_dims = self.n_speaker_dim + n_text_dim * n_group_size
 
                 self.context_lstm = BiLSTM(
-                    input_size=n_in_context_lstm,
-                    hidden_size=n_context_lstm_hidden,
-                    num_layers=1,
+                    input_size=n_in_context_lstm, hidden_size=n_context_lstm_hidden, num_layers=1,
                 )
 
             self.exit_steps = []
@@ -334,7 +333,7 @@ class RadTTSModule(NeuralModule, Exportable):
 
         if self.n_group_size > 1:
             context = self.unfold(context)
-            
+
             if f0 is not None:
                 f0 = self.unfold(f0[:, None, :])
             if energy_avg is not None:
@@ -351,7 +350,9 @@ class RadTTSModule(NeuralModule, Exportable):
                     context_w_spkvec = torch.cat((context_w_spkvec, energy_avg), 1)
 
             unfolded_out_lens = out_lens // self.n_group_size
-            context_lstm_padded_output, ret_lens = self.context_lstm.lstm_tensor(context_w_spkvec.transpose(1, 2), unfolded_out_lens)
+            context_lstm_padded_output, ret_lens = self.context_lstm.lstm_tensor(
+                context_w_spkvec.transpose(1, 2), unfolded_out_lens
+            )
             context_w_spkvec = context_lstm_padded_output.transpose(1, 2)
 
         if not self.context_lstm_w_f0_and_energy:
@@ -371,8 +372,8 @@ class RadTTSModule(NeuralModule, Exportable):
             mel: B x C x T tensor of temporal data
         """
         b, d, t = mel.shape
-        mel = mel.reshape(b, -1, self.n_group_size, t).transpose(2,3)
-        return mel.reshape(b, -1, t*self.n_group_size)
+        mel = mel.reshape(b, -1, self.n_group_size, t).transpose(2, 3)
+        return mel.reshape(b, -1, t * self.n_group_size)
 
     def unfold(self, mel):
         """operation used for the
@@ -382,8 +383,8 @@ class RadTTSModule(NeuralModule, Exportable):
             mel: B x C x T tensor of temporal data
         """
         b, d, t = mel.shape
-        mel = mel.reshape(b, d, -1, self.n_group_size).transpose(2,3)
-        return mel.reshape(b, d*self.n_group_size, -1)
+        mel = mel.reshape(b, d, -1, self.n_group_size).transpose(2, 3)
+        return mel.reshape(b, d * self.n_group_size, -1)
 
     def binarize_attention(self, attn, in_lens, out_lens):
         """For training purposes only. Binarizes attention with MAS. These will
@@ -609,7 +610,7 @@ class RadTTSModule(NeuralModule, Exportable):
     ):
 
         # print ("Text, lens: ", text.shape, in_lens.shape)
-        
+
         batch_size = text.shape[0]
         n_tokens = text.shape[1]
         spk_vec = self.encode_speaker(speaker_id)
@@ -633,7 +634,9 @@ class RadTTSModule(NeuralModule, Exportable):
             dur = dur.clamp(0, token_duration_max)
 
         # get attributes f0, energy, vpred, etc)
-        txt_enc_time_expanded, out_lens = regulate_len(dur, txt_enc.transpose(1, 2), pace, group_size= self.n_group_size)
+        txt_enc_time_expanded, out_lens = regulate_len(
+            dur, txt_enc.transpose(1, 2), pace, group_size=self.n_group_size
+        )
         # print ("txt_enc_time_expanded, out_lens, dur: ", txt_enc_time_expanded.shape, out_lens, dur)
         n_groups = torch.div(out_lens, self.n_group_size, rounding_mode='floor')
 
@@ -645,7 +648,7 @@ class RadTTSModule(NeuralModule, Exportable):
                 voiced_mask = torch.sigmoid(voiced_mask[:, 0]) > 0.5
                 voiced_mask = voiced_mask.float()
                 # print ("V mask, enc: ", voiced_mask.shape, txt_enc_time_expanded.shape)
-                
+
         ap_txt_enc_time_expanded = txt_enc_time_expanded
         # voice mask augmentation only used for attribute prediction
         if self.ap_use_voiced_embeddings:
@@ -667,14 +670,16 @@ class RadTTSModule(NeuralModule, Exportable):
 
         if energy_avg is None:
             n_energy_feature_channels = 2 if self.use_first_order_features else 1
-            z_energy_avg = torch.normal(txt_enc.new_zeros(batch_size, n_energy_feature_channels, out_lens[0])) * sigma_energy
+            z_energy_avg = (
+                torch.normal(txt_enc.new_zeros(batch_size, n_energy_feature_channels, out_lens[0])) * sigma_energy
+            )
             energy_avg = self.infer_energy(z_energy_avg, ap_txt_enc_time_expanded, spk_vec, out_lens)[:, 0]
-    
+
         # replication pad, because ungrouping with different group sizes
         # may lead to mismatched lengths
         # FIXME: use replication pad
         (energy_avg, f0) = pad_energy_avg_and_f0(energy_avg, f0, out_lens)
-    
+
         if self.decoder_use_unvoiced_bias:
             context_w_spkvec = self.preprocess_context(
                 txt_enc_time_expanded, spk_vec, out_lens, f0 * voiced_mask + f0_bias, energy_avg
@@ -685,21 +690,21 @@ class RadTTSModule(NeuralModule, Exportable):
                 txt_enc_time_expanded, spk_vec, out_lens, f0 * voiced_mask, energy_avg
             )
 
-#        return {'mel': txt_enc_time_expanded, 'out_lens': out_lens, 'dur': dur, 'f0': f0, 'energy_avg': energy_avg}
-            
+        #        return {'mel': txt_enc_time_expanded, 'out_lens': out_lens, 'dur': dur, 'f0': f0, 'energy_avg': energy_avg}
+
         residual = torch.normal(txt_enc.new_zeros(batch_size, 80 * self.n_group_size, n_groups[0])) * sigma
 
         # map from z sample to data
         num_steps_to_exit = len(self.exit_steps)
         mel = residual[:, num_steps_to_exit * self.n_early_size :]
         remaining_residual = residual[:, : num_steps_to_exit * self.n_early_size]
-    
+
         for i, flow_step in enumerate(reversed(self.flows)):
             curr_step = self.n_flows - i - 1
             mel = flow_step(mel, context_w_spkvec, inverse=True, seq_lens=n_groups)
-            if num_steps_to_exit > 0 and curr_step == self.exit_steps[num_steps_to_exit-1]:
+            if num_steps_to_exit > 0 and curr_step == self.exit_steps[num_steps_to_exit - 1]:
                 # concatenate the next chunk of z
-                num_steps_to_exit=num_steps_to_exit-1
+                num_steps_to_exit = num_steps_to_exit - 1
                 residual_to_add = remaining_residual[:, num_steps_to_exit * self.n_early_size :]
                 remaining_residual = remaining_residual[:, : num_steps_to_exit * self.n_early_size]
                 mel = torch.cat((residual_to_add, mel), 1)
@@ -707,7 +712,7 @@ class RadTTSModule(NeuralModule, Exportable):
         if self.n_group_size > 1:
             mel = self.fold(mel)
 
-        # print ("mel=", mel.shape, "out_lens=", out_lens, "dur=", dur.shape)    
+        # print ("mel=", mel.shape, "out_lens=", out_lens, "dur=", dur.shape)
 
         return {'mel': mel, 'out_lens': out_lens, 'dur': dur, 'f0': f0, 'energy_avg': energy_avg}
 
@@ -793,7 +798,7 @@ class RadTTSModule(NeuralModule, Exportable):
 
     # Methods for model exportability
     def _prepare_for_export(self, **kwargs):
-        PartialConv1d.forward=PartialConv1d.forward_no_cache
+        PartialConv1d.forward = PartialConv1d.forward_no_cache
         self.remove_norms()
         self.encoder = torch.jit.script(self.encoder)
         self.v_pred_module.feat_pred_fn = torch.jit.script(self.v_pred_module.feat_pred_fn)

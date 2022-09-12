@@ -512,6 +512,7 @@ def eval_tts_scores(
 
     return {'STOI': stoi_score, 'PESQ': pesq_score}
 
+
 def regulate_len(durations, enc_out, pace=1.0, mel_max_len=None, group_size=1):
     """A function that takes predicted durations per encoded token, and repeats enc_out according to the duration.
     NOTE: durations.shape[1] == enc_out.shape[1]
@@ -537,21 +538,22 @@ def regulate_len(durations, enc_out, pace=1.0, mel_max_len=None, group_size=1):
     reps_cumsum = reps_cumsum.to(dtype=dtype, device=enc_out.device)
 
     if group_size > 1:
-        max_len =  torch.div(max_len, group_size, rounding_mode="trunc") * group_size 
+        max_len = torch.div(max_len, group_size, rounding_mode="trunc") * group_size
         dec_lens = torch.clamp_max(dec_lens, max_len)
-        
+
     range_ = torch.arange(max_len).to(enc_out.device)[None, :, None]
     mult = (reps_cumsum[:, :, :-1] <= range_) & (reps_cumsum[:, :, 1:] > range_)
     mult = mult.to(dtype)
     enc_rep = torch.matmul(mult, enc_out)
-        
+
     if mel_max_len is not None:
         enc_rep = enc_rep[:, :mel_max_len]
         dec_lens = torch.clamp_max(dec_lens, mel_max_len)
 
     return enc_rep, dec_lens
 
-def split_view(tensor, split_size:int, dim:int=0):
+
+def split_view(tensor, split_size: int, dim: int = 0):
     if dim < 0:  # Support negative indexing
         dim = len(tensor.shape) + dim
     # If not divisible by split_size, we need to pad with 0

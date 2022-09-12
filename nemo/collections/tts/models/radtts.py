@@ -15,25 +15,27 @@
 # ##########################################################################
 
 
-import torch
 import contextlib
+
+import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
 
-from nemo.collections.tts.modules.submodules import PartialConv1d
 from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import BaseTokenizer
 from nemo.collections.tts.helpers.helpers import plot_alignment_to_numpy
 from nemo.collections.tts.losses.radttsloss import AttentionBinarizationLoss, RADTTSLoss
 from nemo.collections.tts.models.base import SpectrogramGenerator
+from nemo.collections.tts.modules.submodules import PartialConv1d
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types.elements import Index, MelSpectrogramType, TokenIndex
 from nemo.core.neural_types.neural_type import NeuralType
+from nemo.core.optim.radam import RAdam
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
-from nemo.core.optim.radam import RAdam
+
 
 @experimental
 class RadTTSModel(SpectrogramGenerator, Exportable):
@@ -44,7 +46,7 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         self.text_normalizer_call = None
         self.text_normalizer_call_kwargs = {}
         self._setup_normalizer(cfg)
-        
+
         self.tokenizer = None
         self._setup_tokenizer(cfg)
 
@@ -260,9 +262,7 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
                 self.model.parameters(), lr=self.optim.lr, weight_decay=self.optim.weight_decay
             )
         elif self.optim.name == 'RAdam':  # False for inference riva
-            optimizer = RAdam(
-                self.model.parameters(), lr=self.optim.lr, weight_decay=self.optim.weight_decay
-            )
+            optimizer = RAdam(self.model.parameters(), lr=self.optim.lr, weight_decay=self.optim.weight_decay)
         else:
             logging.info("Unrecognized optimizer %s! Please choose the right optimizer" % (self.optim.name))
             exit(1)
@@ -275,7 +275,7 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         except omegaconf.errors.MissingMandatoryValue:
             logging.warning("manifest_filepath was skipped. No dataset for this model.")
             return None
-        #print("inside loader self normalizer", self.normalizer)
+        # print("inside loader self normalizer", self.normalizer)
         dataset = instantiate(
             cfg.dataset,
             text_normalizer=self.normalizer,
@@ -378,7 +378,7 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         with eval_phon_mode:
             tokens = self.tokenizer.encode(text)
         print("text to token phone_prob")
-        
+
         return torch.tensor(tokens).long().unsqueeze(0).cuda().to(self.device)
 
     @property

@@ -29,6 +29,7 @@ def get_attribute_prediction_model(config):
 
     return model
 
+
 class AttributeProcessing(nn.Module):
     def __init__(self, take_log_of_input=False):
         super(AttributeProcessing, self).__init__()
@@ -79,7 +80,7 @@ class DAP(AttributeProcessing):
 
         arch_hparams['in_dim'] = self.bottleneck_layer.out_dim + n_speaker_dim
         self.feat_pred_fn = ConvLSTMLinear(**arch_hparams)
-        
+
     def forward(self, txt_enc, spk_emb, x, lens):
         if x is not None:
             x = self.normalize(x)
@@ -87,7 +88,7 @@ class DAP(AttributeProcessing):
         txt_enc = self.bottleneck_layer(txt_enc)
         spk_emb_expanded = spk_emb[..., None].expand(-1, -1, txt_enc.shape[2])
         context = torch.cat((txt_enc, spk_emb_expanded), 1)
-        x_hat = self.feat_pred_fn(context, lens)    
+        x_hat = self.feat_pred_fn(context, lens)
         outputs = {'x_hat': x_hat, 'x': x}
         return outputs
 
