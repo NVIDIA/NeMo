@@ -514,17 +514,26 @@ class TestExpManager:
 
             class AssertCallback(Callback):
                 recorded_validations = 0
+                recorded_train_steps = 0
 
                 def on_validation_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
                     self.recorded_validations += 1
+
+                def on_train_batch_end(
+                    self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", outputs, batch: Any, batch_idx: int
+                ) -> None:
+                    self.recorded_train_steps += 1
 
                 def on_train_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
                     if resume_path is not None:
                         # we should only run validation at the end of training.
                         assert self.recorded_validations == 1
+                        # we continue from half way
+                        assert self.recorded_train_steps == len(pl_module.train_dataloader()) // 2
                     else:
                         # we've run validation within the middle of training and at the end of training.
                         assert self.recorded_validations == 2
+                        assert self.recorded_train_steps == len(pl_module.train_dataloader())
 
             model = TestModel()
             trainer = pl.Trainer(
