@@ -1,25 +1,38 @@
 import evaluate_synthesizer
 
 ssl_model_ckpt_path = "/home/pneekhara/NeMo2022/SSLCheckPoints/SSLConformer22050_Epoch37.ckpt"
+# ssl_model_ckpt_path = "/home/pneekhara/NeMo2022/tensorboards/ConformerModels/ConformerCompatibleTry3/ConformerCompatible_Epoch3.ckpt"
 hifi_ckpt_path = "/home/pneekhara/NeMo2022/HiFiCKPTS/hifigan_libritts/HiFiLibriEpoch334.ckpt"
 
 fastpitch_model_ckpts = [
     # "/home/pneekhara/NeMo2022/tensorboards/FastPitch/DurationPredictor/SegMeanEpoch404.ckpt", 
     # "/home/pneekhara/NeMo2022/tensorboards/FastPitch/SpeakerLossFTTry3/SpeakerLossEpoch84.ckpt", 
-    # "/home/pneekhara/NeMo2022/tensorboards/FastPitch/DurationPredictor/SpeakerLossEpoch139.ckpt", 
+    # "/home/pneekhara/NeMo2022/tensorboards/FastPitch/DurationPredictor/SegDurPerSampleEpoch604.ckpt", 
     # "/home/pneekhara/NeMo2022/tensorboards/FastPitch/LibriAllTraining/LibriAllFREpoch39.ckpt",
-    "/home/pneekhara/NeMo2022/tensorboards/FastPitch/SpeakerLossFTTry3/SpeakerLossEpoch174.ckpt", 
+    # "/home/pneekhara/NeMo2022/tensorboards/FastPitch/SpeakerLossFTTry3/SpeakerLossEpoch174.ckpt", 
     # "/home/pneekhara/NeMo2022/tensorboards/FastPitch/DurationPredictor/DurEpoch404.ckpt", 
+    # "/home/pneekhara/NeMo2022/tensorboards/FastPitch/SpeakerLossFinetuning/SpeakerLossFTEpoch219.ckpt",
+    # "/home/pneekhara/NeMo2022/tensorboards/FastPitchLibriAll/LibriAllDataIDEpoch94.ckpt",
+    # "/home/pneekhara/NeMo2022/tensorboards/FastPitchLibriAll/LibriAllSingleDataEpoch89.ckpt",
+    # 
+    # "/home/pneekhara/NeMo2022/tensorboards/FastPitch/DurationPredictor/SegMeanEpoch604.ckpt", 
+    # "/home/pneekhara/NeMo2022/tensorboards/FastPitch/DurationPredictor/SegDurInterp674.ckpt", 
+    # "/home/pneekhara/NeMo2022/tensorboards/FastPitch/DurationPredictor/SegDurPerSampleEpoch604.ckpt",
+    # 
+    "/home/pneekhara/NeMo2022/tensorboards/FastPitch/DurationPredictor/LibriAllFirstRun149.ckpt",
 ]
 
-manifest_paths = ["/home/pneekhara/Datasets/LibriDev/libri_dev_clean_local.json", "/home/pneekhara/NeMo2022/libri_train_formatted.json"]
+manifest_paths = [
+    "/home/pneekhara/Datasets/LibriDev/libri_dev_clean_local.json", 
+    "/home/pneekhara/NeMo2022/libri_train_formatted.json"
+]
 # manifest_paths = ["/home/pneekhara/Datasets/vctk/vctk_test_local.json"]
-pitch_stats_jsons = [None, "/home/pneekhara/NeMo2022/libri_speaker_stats.json"]
+pitch_stats_jsons = [None, None]
 # pitch_stats_jsons = [None]
 # sv_model_names = ["speakerverification_speakernet", "ecapa_tdnn"]
 sv_model_names = ["speakerverification_speakernet"]
 evaluation_types = ["reconstructed", "swapping"]
-base_out_dir = "/home/pneekhara/NeMo2022/Evaluations/MultipleDurationEval"
+base_out_dir = "/home/pneekhara/NeMo2022/Evaluations/ForPresentation"
 n_speakers = 10
 min_samples_per_spk = 15
 max_samples_per_spk = 15
@@ -33,6 +46,8 @@ durations_per_speaker = [
     10, 
     # 30
 ]
+
+dataset_id = 1
 
 for fastpitch_model_ckpt in fastpitch_model_ckpts:
     for midx, manifest_path in enumerate(manifest_paths):
@@ -58,5 +73,6 @@ for fastpitch_model_ckpt in fastpitch_model_ckpts:
                         compute_pitch=compute_pitch,
                         compute_duration=compute_duration,
                         use_unique_tokens=use_unique_tokens,
-                        duration_per_speaker=duration_per_speaker
+                        duration_per_speaker=duration_per_speaker,
+                        dataset_id=dataset_id
                     )

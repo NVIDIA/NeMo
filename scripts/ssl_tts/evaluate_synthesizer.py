@@ -29,9 +29,9 @@ from scipy import linalg
 plt.rcParams["figure.figsize"] = (10, 10)
 device = "cpu"
 
-wave_model = WaveformFeaturizer(sample_rate=16000)
-processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-base-960h")
-model = Wav2Vec2Model.from_pretrained("facebook/wav2vec2-large-xlsr-53")
+fid_wave_model = WaveformFeaturizer(sample_rate=16000)
+fid_processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-base-960h")
+fid_model = Wav2Vec2Model.from_pretrained("facebook/wav2vec2-large-xlsr-53")
 
 def load_wav(wav_path, wav_featurizer, pad_multiple=1024):
     wav = wav_featurizer.process(wav_path)
@@ -283,6 +283,7 @@ def swap_speakers(
     compute_pitch=False,
     compute_duration=False,
     use_unique_tokens=False,
+    dataset_id=0
 ):
     """
     source speaker is spk1
@@ -319,6 +320,7 @@ def swap_speakers(
             compute_pitch=compute_pitch,
             compute_duration=compute_duration,
             durs_gt=duration1,
+            dataset_id=dataset_id,
         )
         wav_generated = wav_generated[0][0]
 
@@ -339,6 +341,7 @@ def reconstruct_audio(
     compute_pitch=False,
     compute_duration=False,
     use_unique_tokens=False,
+    dataset_id=0
 ):
     spk_count = 0
     reconstructed_file_paths = {}
@@ -385,6 +388,7 @@ def reconstruct_audio(
                     compute_pitch=compute_pitch,
                     compute_duration=compute_duration,
                     durs_gt=duration,
+                    dataset_id=dataset_id,
                 )
                 wav_generated = wav_generated[0][0]
                 wav_name_reconstructed = "reconstructed_" + wav_name
@@ -453,10 +457,10 @@ def calculate_eer(speaker_embeddings, mode="generated"):
     }
 
 def get_activation(filename):
-    audio = wave_model.process(filename, trim=False)
-    inputs = processor(audio, sampling_rate=16000, return_tensors="pt")
+    audio = fid_wave_model.process(filename, trim=False)
+    inputs = fid_processor(audio, sampling_rate=16000, return_tensors="pt")
     with torch.no_grad():
-        outputs = model(**inputs)
+        outputs = fid_model(**inputs)
     # activation = outputs.last_hidden_state.mean(axis=1)
     activation = outputs.extract_features.mean(axis=1)
     return activation
@@ -519,11 +523,12 @@ def evaluate(
     compute_pitch=1,
     compute_duration=1,
     use_unique_tokens=1,
-    duration_per_speaker=10 # in seconds.
+    duration_per_speaker=10, # in seconds.
+    dataset_id=0,
 ):
     manifest_name = manifest_path.split("/")[-1].split(".")[0]
     fp_ckpt_name = "FastPitch" + fastpitch_ckpt_path.split("/")[-1].split(".")[0]
-    out_dir_name = "{}_{}_SpkDur_{}".format(manifest_name, fp_ckpt_name, int(duration_per_speaker) )
+    out_dir_name = "{}_{}_SpkDur_{}_dataid_{}".format(manifest_name, fp_ckpt_name, int(duration_per_speaker), dataset_id)
     out_dir = os.path.join(base_out_dir, out_dir_name)
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
@@ -535,7 +540,7 @@ def evaluate(
     vocoder = hifigan.HifiGanModel.load_from_checkpoint(hifi_ckpt_path).to(device)
     vocoder.eval()
 
-    fastpitch_model = fastpitch_ssl.FastPitchModel_SSL.load_from_checkpoint(fastpitch_ckpt_path)
+    fastpitch_model = fastpitch_ssl.FastPitchModel_SSL.load_from_checkpoint(fastpitch_ckpt_path, strict=False)
     fastpitch_model = fastpitch_model.to(device)
     fastpitch_model.eval()
     fastpitch_model.non_trainable_models = {'vocoder': vocoder}
@@ -597,6 +602,7 @@ def evaluate(
             compute_pitch=compute_pitch,
             compute_duration=compute_duration,
             use_unique_tokens=use_unique_tokens,
+            dataset_id=dataset_id,
         )
     elif evaluation_type == "swapping":
         generated_file_paths = {}
@@ -617,6 +623,7 @@ def evaluate(
                 compute_pitch=compute_pitch,
                 compute_duration=compute_duration,
                 use_unique_tokens=use_unique_tokens,
+                dataset_id=dataset_id,
             )
 
     speaker_embeddings = {}
@@ -659,8 +666,8 @@ def evaluate(
     }
     with open(os.path.join(out_dir, "sv_metrics_{}_{}.json".format(evaluation_type, sv_model_name)), "w") as f:
         json.dump(metrics, f)
-    print("Generated Metrics", sv_metrics)
-    print("Real Metrics", sv_metrics_real)
+    print("Metrics", metrics)
+    # print("Real Metrics", sv_metrics_real)
     eer_str = "EER: {:.3f}".format(sv_metrics['eer'])
     visualize_embeddings(
         speaker_embeddings,
@@ -701,6 +708,7 @@ def main():
     parser.add_argument('--use_unique_tokens', type=int, default=1)
     parser.add_argument('--precomputed_stats_fp', type=str, default=None)
     parser.add_argument('--duration_per_speaker', type=int, default=10)
+    parser.add_argument('--dataset_id', type=int, default=0)
     args = parser.parse_args()
 
     evaluate(
@@ -719,7 +727,8 @@ def main():
         compute_pitch=args.compute_pitch,
         compute_duration=args.compute_duration,
         use_unique_tokens=args.use_unique_tokens,
-        duration_per_speaker=args.duration_per_speaker
+        duration_per_speaker=args.duration_per_speaker,
+        dataset_id=args.dataset_id,
     )
 
 if __name__ == '__main__':
