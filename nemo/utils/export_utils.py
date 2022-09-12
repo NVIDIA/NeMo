@@ -211,7 +211,7 @@ try:
     from apex.normalization.fused_layer_norm import FusedLayerNorm, MixedFusedLayerNorm
     from apex.contrib.layer_norm.layer_norm import FastLayerNorm
     from apex.transformer.tensor_parallel.layers import RowParallelLinear
-    from apex.transformer.functional.fused_softmax import ScaledMaskedSoftmax, FusedScaleMaskSoftmax
+    from apex.transformer.functional.fused_softmax import FusedScaleMaskSoftmax
 
     def replace_FusedLayerNorm(n: nn.Module) -> Optional[nn.BatchNorm2d]:
         """
