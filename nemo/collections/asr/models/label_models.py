@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import copy
 import itertools
 from math import ceil
 from typing import Dict, List, Optional, Union
@@ -20,7 +20,7 @@ import librosa
 import numpy as np
 import torch
 from hydra.utils import instantiate
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from torchmetrics import Accuracy
 from tqdm import tqdm
@@ -112,12 +112,37 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             # Goal is to give more weight to the classes with less samples so as to match the ones with the higher frequencies
             weight = [sum(self.labels_occurrence) / (len(self.labels_occurrence) * i) for i in self.labels_occurrence]
 
-        if 'loss' not in cfg:
-            self.loss = CrossEntropyLoss()  # default loss for this class, basically serves to pass test
-            self.eval_loss = CrossEntropyLoss()
+        if 'loss' in cfg:
+            cfg_eval_loss = copy.deepcopy(cfg.loss)
+            # To support older version checkpoints
+            if '_target_' not in cfg_eval_loss and 'cls' not in cfg_eval_loss:
+                logging.info("Support older version checkpoints of label models")
+                OmegaConf.set_struct(cfg_eval_loss, True)
+                with open_dict(cfg_eval_loss):
+                    if 'angular' in cfg.decoder and cfg.decoder.angular:
+                        cfg_eval_loss._target_ = "nemo.collections.asr.losses.angularloss.AngularSoftmaxLoss"
+                    else:
+                        # in case if specified angular=False but loss contained 'scale' or 'margin'
+                        if 'scale' in cfg_eval_loss:
+                            del cfg_eval_loss.scale
+                        if 'margin' in cfg_eval_loss:
+                            del cfg_eval_loss.margin
+                        cfg_eval_loss._target_ = "nemo.collections.common.losses.cross_entropy.CrossEntropyLoss"
+
+            if 'weight' in cfg.loss:
+                cfg.loss.weight = weight
+                cfg_eval_loss.weight = None
+
+            # May need a general check for arguments of loss
+            self.loss = instantiate(cfg.loss)
+            self.eval_loss = instantiate(cfg_eval_loss)
+
         else:
-            self.loss = instantiate(cfg.loss, weight=weight)
-            self.eval_loss = instantiate(cfg.loss, weight=None)
+            tmp_loss_cfg = OmegaConf.create(
+                {"_target_": "nemo.collections.common.losses.cross_entropy.CrossEntropyLoss"}
+            )
+            self.loss = instantiate(tmp_loss_cfg)
+            self.eval_loss = instantiate(tmp_loss_cfg)
 
         self.task = None
         self._accuracy = TopKClassificationAccuracy(top_k=[1])
@@ -220,20 +245,10 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         )
 
     def setup_training_data(self, train_data_layer_config: Optional[Union[DictConfig, Dict]]):
-        cal_labels_occurrence = train_data_layer_config.get('cal_labels_occurrence', False)
-        if cal_labels_occurrence and not self.cal_labels_occurrence_train:
-            # No need to Calculate labels occurence for weighed CE loss for train set if weight does not equal 'auto'
-            train_data_layer_config['cal_labels_occurrence'] = False
-            logging.info(
-                f"No need to calcualte labels_occurrence if not use weighted='auto' for CE loss. Changing on the fly!"
-            )
-        if not cal_labels_occurrence:
-            if self.cal_labels_occurrence_train:
-                # Calculate labels occurence for weighed CE loss for train set if weight equals 'auto'
-                train_data_layer_config['cal_labels_occurrence'] = True
-                logging.info(
-                    f"To use weighted='auto' for CE loss, the train_ds.cal_labels_occurrence needs to be True. Changing on the fly!"
-                )
+        if self.cal_labels_occurrence_train:
+            # Calculate labels occurence for weighed CE loss for train set if weight equals 'auto'
+            # Note in this case, the cal_labels_occurrence in val_data_layer_config and test_data_layer_params need to be stay as False
+            train_data_layer_config['cal_labels_occurrence'] = True
 
         self.labels = self.extract_labels(train_data_layer_config)
         train_data_layer_config['labels'] = self.labels
@@ -259,25 +274,10 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
                 )
 
     def setup_validation_data(self, val_data_layer_config: Optional[Union[DictConfig, Dict]]):
-        if 'cal_labels_occurrence' in val_data_layer_config and val_data_layer_config['cal_labels_occurrence']:
-            # Do not calculate labels occurence for weighed CE loss for validation set
-            val_data_layer_config['cal_labels_occurrence'] = False
-            logging.info(
-                f"To use weighted='auto' for CE loss, the validation_ds.cal_labels_occurrence needs to be False. Changing on the fly!"
-            )
-
         val_data_layer_config['labels'] = self.labels
-
         self._validation_dl = self.__setup_dataloader_from_config(config=val_data_layer_config)
 
     def setup_test_data(self, test_data_layer_params: Optional[Union[DictConfig, Dict]]):
-        if 'cal_labels_occurrence' in test_data_layer_params and test_data_layer_params['cal_labels_occurrence']:
-            # Do not calculate labels occurence for weighed CE loss for test set
-            test_data_layer_params['cal_labels_occurrence'] = False
-            logging.info(
-                f"To use weighted='auto' for CE loss, the test_ds.cal_labels_occurrence needs to be False. Changing on the fly!"
-            )
-
         if hasattr(self, 'dataset'):
             test_data_layer_params['labels'] = self.labels
 
