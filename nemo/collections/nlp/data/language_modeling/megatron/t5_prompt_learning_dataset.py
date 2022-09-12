@@ -115,7 +115,9 @@ class T5PromptLearningDataset(BasePromptLearningDataset):
 
                 elif self.virtual_prompt_source == VirtualPromptSource.PROMPT_TABLE:
                     taskname_id = self.task_templates[taskname]["task_id_num"]
-                elif self.virtual_prompt_source == VirtualPromptSource.NO_PROMPT:  #TODO (@adithyare) this class and GPTPromptLearningDataset should be merged.
+                elif (
+                    self.virtual_prompt_source == VirtualPromptSource.NO_PROMPT
+                ):  # TODO (@adithyare) this class and GPTPromptLearningDataset should be merged.
                     taskname_id = -1
                 else:
                     raise ValueError("Invalid virtual prompt source specified")
