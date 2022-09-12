@@ -1025,8 +1025,13 @@ def extract_labels(path2ground_truth_label: str, time: list) -> list:
 
 
 def generate_vad_frame_pred(
-    vad_model, window_length_in_sec: float, shift_length_in_sec: float, manifest_vad_input: str, out_dir: str,
-save_artifacts: bool = False) -> str:
+    vad_model,
+    window_length_in_sec: float,
+    shift_length_in_sec: float,
+    manifest_vad_input: str,
+    out_dir: str,
+    save_artifacts: bool = False,
+) -> str:
     """
     Generate VAD frame level prediction and write to out_dir
     """
