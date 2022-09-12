@@ -495,6 +495,12 @@ class FastPitchModel_SSL(ModelPT):
         mels_gt = mels_gt.to(self.device)
         # content_embedding_trainable = content_embedding_trainable.to(self.device)
         
+        speaker_embedding = speaker_embedding.detach()
+        durs_gt = durs_gt.detach()
+        pitch_contour = pitch_contour.detach()
+        mels_gt = mels_gt.detach()
+        encoded_len = encoded_len.detach()
+
         for backprop_iter in range(optimize_iters):
             enc_out = self.compute_encoding(content_embedding_trainable, speaker_embedding)
             if self.use_encoder:
@@ -526,7 +532,16 @@ class FastPitchModel_SSL(ModelPT):
                 speaker_embedding = speaker_embedding.detach()
                 durs_gt = durs_gt.detach()
                 pitch_contour = pitch_contour.detach()
+                encoded_len = encoded_len.detach()
+                mels_gt = mels_gt.detach()
                 print("Mel loss", backprop_iter, mel_loss.item())
+                print("content_embedding_trainable", content_embedding_trainable.shape)
+        
+        # content_embedding_vector = content_embedding_trainable[:,:128,:]
+        # content_embedding_probs = content_embedding_trainable[:,128:,:]
+        # l2_norm = torch.norm(content_embedding_vector,  p=2, dim=-1, keepdim=True)
+        # content_embedding_vector = content_embedding_vector / l2_norm
+        # content_embedding_trainable = torch.cat((content_embedding_vector, content_embedding_probs), dim=1)
         
         return content_embedding_trainable
 
