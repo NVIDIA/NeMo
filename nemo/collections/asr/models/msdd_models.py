@@ -67,7 +67,7 @@ except ImportError:
         yield
 
 
-__all__ = ['EncDecDiarLabelModel', 'ClusterEmbedding', 'OverlapAwareDiarizer']
+__all__ = ['EncDecDiarLabelModel', 'ClusterEmbedding', 'NeuralDiarizer']
 
 
 class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
@@ -951,7 +951,7 @@ class ClusterEmbedding:
         return emb_scale_seq_dict
 
 
-class OverlapAwareDiarizer:
+class NeuralDiarizer:
     """
     Class for inference based on multiscale diarization decoder (MSDD). MSDD requires initializing clustering results from
     clustering diarizer. Overlap-aware diarizer requires separate RTTM generation and evaluation modules to check the effect of
@@ -961,6 +961,8 @@ class OverlapAwareDiarizer:
     def __init__(self, cfg: DictConfig):
         """ """
         self._cfg = cfg
+
+        # Parameter settings for MSDD model
         self.use_speaker_model_from_ckpt = cfg.diarizer.msdd_model.parameters.get('use_speaker_model_from_ckpt', True)
         self.use_clus_as_main = cfg.diarizer.msdd_model.parameters.get('use_clus_as_main', False)
         self.max_overlap_spks = cfg.diarizer.msdd_model.parameters.get('max_overlap_spks', 2)
