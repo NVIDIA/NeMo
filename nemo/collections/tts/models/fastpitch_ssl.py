@@ -541,6 +541,7 @@ class FastPitchModel_SSL(ModelPT):
         compute_pitch=False,
         compute_duration=False,
         durs_gt=None,
+        dataset_id=0,
     ):
         """
         content_embedding : (B, C, T)
@@ -550,9 +551,10 @@ class FastPitchModel_SSL(ModelPT):
         """
         _bs, _, _n_time = content_embedding.size()
         if encoded_len is None:
-            encoded_len = (torch.ones(_bs) * _n_time).long()
+            encoded_len = (torch.ones(_bs) * _n_time).long().to(self.device)
 
-        enc_out = self.compute_encoding(content_embedding, speaker_embedding)
+        dataset_id = (torch.ones(_bs) * dataset_id).long().to(self.device)
+        enc_out = self.compute_encoding(content_embedding, speaker_embedding, dataset_id=dataset_id)
         if self.use_encoder:
             enc_out, _ = self.encoder(input=enc_out, seq_lens=encoded_len)
 
