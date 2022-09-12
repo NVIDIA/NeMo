@@ -463,7 +463,7 @@ class TokenClassificationModel(NLPModel):
         try:
             with open(filename, 'w') as f:
                 if with_labels:
-                    # TODO tmp - remove
+                    # TODO tmp - to visualize with SDE
                     import json
 
                     all_items = []
