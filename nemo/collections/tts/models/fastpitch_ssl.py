@@ -12,16 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import contextlib
+import os
 import random
 from dataclasses import dataclass
 from typing import Optional
 
+import librosa
 import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
 
+from nemo.collections.asr.parts.preprocessing import features
 from nemo.collections.common.parts.preprocessing import parsers
 from nemo.collections.tts.helpers.helpers import (
     plot_multipitch_to_numpy,
@@ -30,6 +33,7 @@ from nemo.collections.tts.helpers.helpers import (
 )
 from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
 from nemo.collections.tts.losses.fastpitchloss import DurationLoss, MelLoss, PitchLoss
+from nemo.collections.tts.models import ssl_tts
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.modules.fastpitch import FastPitchModule, average_pitch
 from nemo.collections.tts.torch.tts_data_types import SpeakerID
@@ -47,11 +51,7 @@ from nemo.core.neural_types.elements import (
 )
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging, model_utils
-from nemo.collections.tts.models import ssl_tts
-from nemo.collections.asr.parts.preprocessing import features
 
-import os
-import librosa
 
 def mask_from_lens(lens, max_len: Optional[int] = None):
     if max_len is None:
@@ -145,12 +145,14 @@ class FastPitchModel_SSL(ModelPT):
             if os.path.exists(self._cfg.ssl_model_ckpt_path):
                 print("Loading SSL model from ", self._cfg.ssl_model_ckpt_path)
                 # print("Device: ", self.device, self.fastpitch.device)
-                ssl_model = ssl_tts.SSLDisentangler.load_from_checkpoint(self._cfg.ssl_model_ckpt_path, strict=False).cpu()
+                ssl_model = ssl_tts.SSLDisentangler.load_from_checkpoint(
+                    self._cfg.ssl_model_ckpt_path, strict=False
+                ).cpu()
                 ssl_model.eval()
                 self.non_trainable_models['ssl_model'] = ssl_model
             else:
                 print("SSL model ckpt does not exist")
-            
+
         self.non_trainable_models['vocoder'] = vocoder
 
     def vocode_spectrogram(self, spectrogram):
@@ -240,12 +242,16 @@ class FastPitchModel_SSL(ModelPT):
     def compute_speaker_loss(self, generated_mel, gt_speaker_embedding):
         ssl_model = self.non_trainable_models['ssl_model']
         ssl_model.to(self.device)
-        
+
         generated_mel_sliced = generated_mel[:, :, :172]
-        generated_mel_len_batch = torch.tensor([generated_mel_sliced.shape[-1] for _idx in range(generated_mel_sliced.shape[0]) ] ).long().to(self.device)
-        
+        generated_mel_len_batch = (
+            torch.tensor([generated_mel_sliced.shape[-1] for _idx in range(generated_mel_sliced.shape[0])])
+            .long()
+            .to(self.device)
+        )
+
         normalized_mel = features.normalize_batch(generated_mel_sliced, generated_mel_len_batch, "per_feature")
-        
+
         encoded, _ = ssl_model.encoder(audio_signal=normalized_mel, length=generated_mel_len_batch)  # b,c,t
         pred_speaker_embedding = ssl_model.downstream_nets['speaker_verification'](encoded[:, :, 0])
         l2_norm = torch.norm(pred_speaker_embedding, p=2, dim=-1, keepdim=True)
@@ -254,7 +260,7 @@ class FastPitchModel_SSL(ModelPT):
         cosine_similarity = torch.nn.functional.cosine_similarity(
             speaker_embedding_normalized, gt_speaker_embedding, dim=-1
         ).mean()
-        
+
         speaker_loss = 1 - cosine_similarity
         return speaker_loss
 
@@ -312,7 +318,7 @@ class FastPitchModel_SSL(ModelPT):
             speaker_loss = self.compute_speaker_loss(mels_pred, speaker_embedding)
             loss += speaker_loss
             self.log("t_speaker_loss", speaker_loss)
-            
+
         self.log("t_loss", loss)
         self.log("t_mel_loss", mel_loss)
 
@@ -439,15 +445,14 @@ class FastPitchModel_SSL(ModelPT):
             wav_vocoded = self.vocode_spectrogram(spec_predict[:, :_spec_len])
             self.tb_logger.add_audio("Generated Audio", wav_vocoded, self.global_step, 22050)
             self.log_train_images = True
-    
+
     def get_mel_spectrogram(self, wav):
         stft_cfg = self._cfg.preprocessor
 
-        librosa_mel_filter = librosa.filters.mel(sr=stft_cfg.sample_rate, n_fft=stft_cfg.n_fft, n_mels=stft_cfg.features, fmin=0, fmax=8000)
-        fb = torch.tensor(
-            librosa_mel_filter,
-            dtype=torch.float,
-        ).unsqueeze(0)
+        librosa_mel_filter = librosa.filters.mel(
+            sr=stft_cfg.sample_rate, n_fft=stft_cfg.n_fft, n_mels=stft_cfg.features, fmin=0, fmax=8000
+        )
+        fb = torch.tensor(librosa_mel_filter, dtype=torch.float,).unsqueeze(0)
 
         EPSILON = 1e-9
         window_fn = torch.hann_window
@@ -479,22 +484,24 @@ class FastPitchModel_SSL(ModelPT):
         durs_gt=None,
         mels_gt=None,
         optimize_iters=100,
-        lr=5e-4
+        lr=5e-4,
     ):
         _bs, _, _n_time = content_embedding.size()
         if encoded_len is None:
             encoded_len = (torch.ones(_bs) * _n_time).long().to(self.device)
-        
+
         print("Device: ", self.device)
         # content_embedding_trainable = torch.nn.Parameter(content_embedding.data.clone(), requires_grad=True)
-        content_embedding_trainable = torch.tensor(content_embedding.data.clone(), requires_grad=True, device=self.device)
+        content_embedding_trainable = torch.tensor(
+            content_embedding.data.clone(), requires_grad=True, device=self.device
+        )
         speaker_embedding = speaker_embedding.to(self.device)
         optimizer = torch.optim.Adam([content_embedding_trainable], lr=lr)
         durs_gt = durs_gt.to(self.device)
         pitch_contour = pitch_contour.to(self.device)
         mels_gt = mels_gt.to(self.device)
         # content_embedding_trainable = content_embedding_trainable.to(self.device)
-        
+
         speaker_embedding = speaker_embedding.detach()
         durs_gt = durs_gt.detach()
         pitch_contour = pitch_contour.detach()
@@ -536,16 +543,14 @@ class FastPitchModel_SSL(ModelPT):
                 mels_gt = mels_gt.detach()
                 print("Mel loss", backprop_iter, mel_loss.item())
                 print("content_embedding_trainable", content_embedding_trainable.shape)
-        
+
         # content_embedding_vector = content_embedding_trainable[:,:128,:]
         # content_embedding_probs = content_embedding_trainable[:,128:,:]
         # l2_norm = torch.norm(content_embedding_vector,  p=2, dim=-1, keepdim=True)
         # content_embedding_vector = content_embedding_vector / l2_norm
         # content_embedding_trainable = torch.cat((content_embedding_vector, content_embedding_probs), dim=1)
-        
+
         return content_embedding_trainable
-
-
 
     def synthesize_wav(
         self,
@@ -625,7 +630,7 @@ class FastPitchModel_SSL(ModelPT):
 
     def setup_training_data(self, cfg):
         self._train_dl = self.__setup_dataloader_from_config(cfg)
-        
+
     def setup_validation_data(self, cfg):
         self._validation_dl = self.__setup_dataloader_from_config(cfg)
 

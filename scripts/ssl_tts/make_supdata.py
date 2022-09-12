@@ -203,6 +203,7 @@ def save_pitch_contour(wav_and_id):
 
     return pitch_contour
 
+
 def compute_pitch_stats(wav_and_id_list):
     def _is_valid_pitch(pitch_mean, pitch_std):
         c1 = pitch_mean > 0 and pitch_mean < 1000
@@ -218,7 +219,7 @@ def compute_pitch_stats(wav_and_id_list):
         if speaker not in speaker_wise_pitch_contours:
             speaker_wise_pitch_contours[speaker] = []
         speaker_wise_pitch_contours[speaker].append(pitch_contour_fp)
-    
+
     speaker_pitch_stats = {}
     for speaker in speaker_wise_pitch_contours:
         non_zero_pc = []
@@ -227,7 +228,7 @@ def compute_pitch_stats(wav_and_id_list):
             pitch_contour_nonzero = pitch_contour[pitch_contour != 0]
             if len(pitch_contour_nonzero) > 0:
                 non_zero_pc.append(pitch_contour_nonzero)
-        
+
         if len(non_zero_pc) > 0:
             non_zero_pc = torch.cat(non_zero_pc)
             pitch_mean = non_zero_pc.mean().item()
@@ -244,13 +245,14 @@ def compute_pitch_stats(wav_and_id_list):
             valid = "False"
             pitch_mean = 212.0
             pitch_std = 70.0
-        
-        speaker_pitch_stats[speaker]  = {"pitch_mean": pitch_mean, "pitch_std": pitch_std, "valid": valid}
-    
+
+        speaker_pitch_stats[speaker] = {"pitch_mean": pitch_mean, "pitch_std": pitch_std, "valid": valid}
+
     with open(os.path.join(sup_data_dir, "speaker_pitch_stats.json"), "w") as f:
         print(sup_data_dir)
         print("speaker_pitch_stats.json")
         json.dump(speaker_pitch_stats, f)
+
 
 def main():
     parser = argparse.ArgumentParser(description='Evaluate the model')
@@ -266,8 +268,7 @@ def main():
     parser.add_argument('--num_workers', type=int, default=8)
     parser.add_argument('--pool_workers', type=int, default=30)
     parser.add_argument('--compute_pitch_contours', type=int, default=1)
-    parser.add_argument('--num_pitch_per_speaker', type=int, default=None) # saves time.
-    
+    parser.add_argument('--num_pitch_per_speaker', type=int, default=None)  # saves time.
 
     args = parser.parse_args()
 
@@ -277,7 +278,11 @@ def main():
 
     dataset = AudioDataset(manifest_path)
     dataloader = torch.utils.data.DataLoader(
-        dataset, batch_size=args.batch_size, shuffle=False, collate_fn=dataset.pad_collate_fn, num_workers=args.num_workers
+        dataset,
+        batch_size=args.batch_size,
+        shuffle=False,
+        collate_fn=dataset.pad_collate_fn,
+        num_workers=args.num_workers,
     )
 
     ssl_model = ssl_tts.SSLDisentangler.load_from_checkpoint(ssl_model_ckpt_path, strict=False)
@@ -297,7 +302,7 @@ def main():
     st = time.time()
     bidx = 0
     wav_and_id_list = []
-    
+
     for batch in tqdm(dataloader):
         bidx += 1
         with torch.no_grad():
@@ -324,7 +329,7 @@ def main():
             for idx in range(batch['audio'].shape[0]):
                 _speaker = batch['speaker'][idx].item()
                 wav_path = batch['wav_path'][idx]
-                
+
                 wav_id = batch['rel_audio_path_as_text_id'][idx]
                 wav_and_id_list.append((wav_path, wav_id, _speaker))
                 content_embedding = batch_content_embedding[idx].detach()
@@ -403,7 +408,7 @@ def main():
 
             et = time.time()
             print("Time per batch", bidx, len(dataloader), (et - st) / bidx)
-    
+
     if args.compute_pitch_contours == 1:
         speaker_wise_fps = {}
         for row in wav_and_id_list:
@@ -411,20 +416,18 @@ def main():
             if speaker not in speaker_wise_fps:
                 speaker_wise_fps[speaker] = []
             speaker_wise_fps[speaker].append(row)
-        
-        
+
         filtered_wav_and_id_list = []
         for speaker in speaker_wise_fps:
             if args.num_pitch_per_speaker is not None:
-                filtered_wav_and_id_list += speaker_wise_fps[speaker][:args.num_pitch_per_speaker]
+                filtered_wav_and_id_list += speaker_wise_fps[speaker][: args.num_pitch_per_speaker]
             else:
                 filtered_wav_and_id_list += speaker_wise_fps[speaker]
 
         with Pool(args.pool_workers) as p:
             p.map(save_pitch_contour, filtered_wav_and_id_list)
-        
-        compute_pitch_stats(filtered_wav_and_id_list)
 
+        compute_pitch_stats(filtered_wav_and_id_list)
 
 
 if __name__ == '__main__':

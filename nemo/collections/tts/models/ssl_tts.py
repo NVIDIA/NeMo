@@ -1,9 +1,10 @@
-from concurrent.futures import process
 import itertools
+from concurrent.futures import process
 from dataclasses import dataclass
 from typing import Dict, Optional, Union
 
 import editdistance
+import librosa
 import torch
 import torch.nn as nn
 from hydra.utils import instantiate
@@ -15,13 +16,13 @@ from pytorch_lightning.trainer.supporters import CombinedLoader
 import nemo.collections.tts.torch.data as TTSData
 from nemo.collections.asr.losses.angularloss import AngularSoftmaxLoss
 from nemo.collections.asr.models import ssl_models
+from nemo.collections.asr.parts.preprocessing import features
 from nemo.collections.tts.torch.tts_tokenizers import BaseTokenizer, EnglishCharsTokenizer, EnglishPhonemesTokenizer
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.optim.lr_scheduler import WarmupPolicy
 from nemo.utils import logging
-import librosa
-from nemo.collections.asr.parts.preprocessing import features
+
 
 def decode(tokenizer, token_list):
     return tokenizer.sep.join(tokenizer._id2token[t] for t in token_list)
@@ -88,13 +89,11 @@ class SSLDisentangler(ModelPT):
 
         self.automatic_optimization = False
 
-
         stft_cfg = self._cfg.preprocessor
-        librosa_mel_filter = librosa.filters.mel(sr=stft_cfg.sample_rate, n_fft=stft_cfg.n_fft, n_mels=stft_cfg.features, fmin=0, fmax=8000)
-        fb = torch.tensor(
-            librosa_mel_filter,
-            dtype=torch.float,
-        ).unsqueeze(0)
+        librosa_mel_filter = librosa.filters.mel(
+            sr=stft_cfg.sample_rate, n_fft=stft_cfg.n_fft, n_mels=stft_cfg.features, fmin=0, fmax=8000
+        )
+        fb = torch.tensor(librosa_mel_filter, dtype=torch.float,).unsqueeze(0)
 
         self.register_buffer("fb", fb)
 

@@ -312,7 +312,7 @@ class TTSDataset(Dataset):
 
         for data_type in self.sup_data_types:
             getattr(self, f"add_{data_type.name}")(**kwargs)
-        
+
         self.pad_multiple = pad_multiple
 
     @staticmethod
@@ -532,7 +532,7 @@ class TTSDataset(Dataset):
                 assert audio_shifted.size() == features.size(), "{} != {}".format(
                     audio_shifted.size(), features.size()
                 )
-            
+
             audio, audio_length = features, torch.tensor(features.shape[0]).long()
 
         if "text_tokens" in sample:

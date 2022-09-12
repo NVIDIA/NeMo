@@ -1,4 +1,5 @@
 import argparse
+import fnmatch
 import json
 import os
 import pickle
@@ -14,17 +15,15 @@ import torch.nn.functional as F
 import torchaudio
 from numpy import dot
 from numpy.linalg import norm
+from scipy import linalg
 from sklearn.manifold import TSNE
 from sklearn.metrics import auc, roc_curve
+from tqdm import tqdm
+from transformers import Wav2Vec2Model, Wav2Vec2Processor
 
 from nemo.collections.asr.models import label_models
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.tts.models import fastpitch_ssl, hifigan, hifigan_ssl, ssl_tts
-
-import fnmatch
-from transformers import Wav2Vec2Processor, Wav2Vec2Model
-from tqdm import tqdm
-from scipy import linalg
 
 plt.rcParams["figure.figsize"] = (10, 10)
 device = "cpu"
@@ -32,6 +31,7 @@ device = "cpu"
 fid_wave_model = WaveformFeaturizer(sample_rate=16000)
 fid_processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-base-960h")
 fid_model = Wav2Vec2Model.from_pretrained("facebook/wav2vec2-large-xlsr-53")
+
 
 def load_wav(wav_path, wav_featurizer, pad_multiple=1024):
     wav = wav_featurizer.process(wav_path)
@@ -283,7 +283,7 @@ def swap_speakers(
     compute_pitch=False,
     compute_duration=False,
     use_unique_tokens=False,
-    dataset_id=0
+    dataset_id=0,
 ):
     """
     source speaker is spk1
@@ -341,7 +341,7 @@ def reconstruct_audio(
     compute_pitch=False,
     compute_duration=False,
     use_unique_tokens=False,
-    dataset_id=0
+    dataset_id=0,
 ):
     spk_count = 0
     reconstructed_file_paths = {}
@@ -456,6 +456,7 @@ def calculate_eer(speaker_embeddings, mode="generated"):
         'auc': _auc,
     }
 
+
 def get_activation(filename):
     audio = fid_wave_model.process(filename, trim=False)
     inputs = fid_processor(audio, sampling_rate=16000, return_tensors="pt")
@@ -465,16 +466,19 @@ def get_activation(filename):
     activation = outputs.extract_features.mean(axis=1)
     return activation
 
+
 def frechet_classifier_distance_from_activations(activations1, activations2):
     mu1, sigma1 = calculate_activation_statistics(activations1)
     mu2, sigma2 = calculate_activation_statistics(activations2)
     fid = calculate_frechet_distance(mu1, sigma1, mu2, sigma2)
     return fid
 
+
 def calculate_activation_statistics(act):
     mu = np.mean(act, axis=0)
     sigma = np.cov(act, rowvar=False)
     return mu, sigma
+
 
 def calculate_frechet_distance(mu1, sigma1, mu2, sigma2, eps=1e-6):
     mu1 = np.atleast_1d(mu1)
@@ -491,7 +495,7 @@ def calculate_frechet_distance(mu1, sigma1, mu2, sigma2, eps=1e-6):
     covmean, _ = linalg.sqrtm(sigma1.dot(sigma2), disp=False)
     if not np.isfinite(covmean).all():
         msg = "fid calculation produces singular product; adding %s to diagonal of cov estimates" % eps
-        print (msg)
+        print(msg)
         offset = np.eye(sigma1.shape[0]) * eps
         covmean = linalg.sqrtm((sigma1 + offset).dot(sigma2 + offset))
 
@@ -523,12 +527,14 @@ def evaluate(
     compute_pitch=1,
     compute_duration=1,
     use_unique_tokens=1,
-    duration_per_speaker=10, # in seconds.
+    duration_per_speaker=10,  # in seconds.
     dataset_id=0,
 ):
     manifest_name = manifest_path.split("/")[-1].split(".")[0]
     fp_ckpt_name = "FastPitch" + fastpitch_ckpt_path.split("/")[-1].split(".")[0]
-    out_dir_name = "{}_{}_SpkDur_{}_dataid_{}".format(manifest_name, fp_ckpt_name, int(duration_per_speaker), dataset_id)
+    out_dir_name = "{}_{}_SpkDur_{}_dataid_{}".format(
+        manifest_name, fp_ckpt_name, int(duration_per_speaker), dataset_id
+    )
     out_dir = os.path.join(base_out_dir, out_dir_name)
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
@@ -582,7 +588,7 @@ def evaluate(
             manifest_name=manifest_name,
             out_dir=out_dir,
             duration_per_speaker=duration_per_speaker,
-            pitch_stats_json=pitch_stats_json
+            pitch_stats_json=pitch_stats_json,
         )
 
     compute_pitch = compute_pitch == 1
@@ -659,11 +665,7 @@ def evaluate(
 
     sv_metrics = calculate_eer(speaker_embeddings)
     sv_metrics_real = calculate_eer(speaker_embeddings, mode="real")
-    metrics = {
-        'generated': sv_metrics,
-        'real': sv_metrics_real,
-        'fid' : fid
-    }
+    metrics = {'generated': sv_metrics, 'real': sv_metrics_real, 'fid': fid}
     with open(os.path.join(out_dir, "sv_metrics_{}_{}.json".format(evaluation_type, sv_model_name)), "w") as f:
         json.dump(metrics, f)
     print("Metrics", metrics)
@@ -730,6 +732,7 @@ def main():
         duration_per_speaker=args.duration_per_speaker,
         dataset_id=args.dataset_id,
     )
+
 
 if __name__ == '__main__':
     main()
