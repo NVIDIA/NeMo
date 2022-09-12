@@ -73,11 +73,12 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
 
         blank_durations = self.cfg.model_defaults.blank_duration # will change to be configurable
         print("PASSED duations", blank_durations)
+        self.num_big_blanks = len(blank_durations)
         sigma = self.cfg.model_defaults.big_blank_sigma
 
         print("num_classes_with_blank is", self.joint.num_classes_with_blank)
         self.loss = RNNTLoss(
-            num_classes=self.joint.num_classes_with_blank - 1 - len(blank_durations), blank_duration_list=blank_durations, loss_name=loss_name, loss_kwargs=loss_kwargs, sigma=sigma
+            num_classes=self.joint.num_classes_with_blank - 1 - self.num_big_blanks, blank_duration_list=blank_durations, loss_name=loss_name, loss_kwargs=loss_kwargs, sigma=sigma
         )
 
         if hasattr(self.cfg, 'spec_augment') and self._cfg.spec_augment is not None:
@@ -346,7 +347,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             del self.loss
             loss_name, loss_kwargs = self.extract_rnnt_loss_cfg(self.cfg.get('loss', None))
             self.loss = RNNTLoss(
-                num_classes=self.joint.num_classes_with_blank - 3, loss_name=loss_name, loss_kwargs=loss_kwargs
+                num_classes=self.joint.num_classes_with_blank - 1 - self.num_big_blanks, loss_name=loss_name, loss_kwargs=loss_kwargs
             )
 
             if decoding_cfg is None:
