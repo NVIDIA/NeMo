@@ -461,7 +461,7 @@ class TestExpManager:
         exp_manager(
             trainer,
             {
-                "explicit_log_dir": tmp_path,
+                "explicit_log_dir": str(tmp_path),
                 "checkpoint_callback_params": {"filename": f"{{val_loss:.4f}}-{{epoch}}-{{step}}"},
             },
         )
@@ -494,7 +494,7 @@ class TestExpManager:
         exp_manager(
             trainer,
             {
-                "explicit_log_dir": tmp_path,
+                "explicit_log_dir": str(tmp_path),
                 "checkpoint_callback_params": {"filename": f"{{val_loss:.4f}}-{{epoch}}-{{step}}"},
             },
         )
