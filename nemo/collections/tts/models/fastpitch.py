@@ -46,7 +46,7 @@ from nemo.utils import logging, model_utils
 
 @dataclass
 class G2PConfig:
-    _target_: str = "nemo.collections.common.tokenizers.text_to_speech.g2ps.EnglishG2p"
+    _target_: str = "nemo_text_processing.g2p.modules.EnglishG2p"
     phoneme_dict: str = "scripts/tts_dataset_files/cmudict-0.7b_nv22.08"
     heteronyms: str = "scripts/tts_dataset_files/heteronyms-052722"
     phoneme_probability: float = 0.5
@@ -181,6 +181,16 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
 
     def _setup_tokenizer(self, cfg):
         text_tokenizer_kwargs = {}
+
+        if "phoneme_dict" in cfg.text_tokenizer:
+            text_tokenizer_kwargs["phoneme_dict"] = self.register_artifact(
+                "text_tokenizer.phoneme_dict", cfg.text_tokenizer.phoneme_dict,
+            )
+        if "heteronyms" in cfg.text_tokenizer:
+            text_tokenizer_kwargs["heteronyms"] = self.register_artifact(
+                "text_tokenizer.heteronyms", cfg.text_tokenizer.heteronyms,
+            )
+
         if "g2p" in cfg.text_tokenizer:
             g2p_kwargs = {}
 
