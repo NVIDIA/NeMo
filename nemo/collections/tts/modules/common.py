@@ -32,7 +32,7 @@ from nemo.collections.tts.helpers.splines import (
 )
 from nemo.collections.tts.modules.submodules import ConvNorm, LinearNorm
 
-
+@torch.jit.script 
 def get_mask_from_lengths_and_val(lengths, val):
     """Constructs binary mask from a 1D torch tensor of input lengths
 
@@ -191,6 +191,7 @@ class ConvLSTMLinear(BiLSTM):
 
     def masked_conv_to_sequence(self, context: Tensor, lens: Tensor, enforce_sorted: bool = False) -> PackedSequence:
         mask = get_mask_from_lengths_and_val(lens, context)
+        mask = mask.unsqueeze(1)
         for conv in self.convolutions:
             context = self.dropout(F.relu(conv(context, mask)))
         context = torch.mul(context, mask)
@@ -207,8 +208,6 @@ class ConvLSTMLinear(BiLSTM):
             context = context.transpose(1, 2)
             context, _ = self.bilstm(context)
         else:
-            # borisf : does not match ADLR (values, lengths)
-            # context = self.run_masked_tensor(context, lens)
             # borisf : does not match ADLR (values, lengths)
             # seq = self.masked_conv_to_sequence(context, lens)
             # borisf : does match ADLR
