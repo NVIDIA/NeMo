@@ -123,10 +123,8 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
                         cfg_eval_loss._target_ = "nemo.collections.asr.losses.angularloss.AngularSoftmaxLoss"
                     else:
                         # in case if specified angular=False but loss contained 'scale' or 'margin'
-                        if 'scale' in cfg_eval_loss:
-                            del cfg_eval_loss.scale
-                        if 'margin' in cfg_eval_loss:
-                            del cfg_eval_loss.margin
+                        cfg_eval_loss.pop('scale', None)
+                        cfg_eval_loss.pop('margin', None)
                         cfg_eval_loss._target_ = "nemo.collections.common.losses.cross_entropy.CrossEntropyLoss"
 
             if 'weight' in cfg.loss:
