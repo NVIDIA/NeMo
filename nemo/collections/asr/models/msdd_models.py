@@ -116,15 +116,11 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
             self.pairwise_infer = True
         super().__init__(cfg=self.cfg_msdd_model, trainer=trainer)
 
-        if (
-            type(self.cfg_msdd_model.diarizer.speaker_embeddings.parameters.window_length_in_sec) == int
-            or len(self.cfg_msdd_model.diarizer.speaker_embeddings.parameters.window_length_in_sec) <= 1
-        ):
+        window_length_in_sec = self.cfg_msdd_model.diarizer.speaker_embeddings.parameters.window_length_in_sec
+        if isinstance(window_length_in_sec, int) or len(window_length_in_sec) <= 1:
             raise ValueError("window_length_in_sec should be a list containing multiple segment (window) lengths")
         else:
-            self.cfg_msdd_model.scale_n = len(
-                self.cfg_msdd_model.diarizer.speaker_embeddings.parameters.window_length_in_sec
-            )
+            self.cfg_msdd_model.scale_n = len(window_length_in_sec)
             self.cfg_msdd_model.msdd_module.scale_n = self.cfg_msdd_model.scale_n
             self.scale_n = self.cfg_msdd_model.scale_n
 
@@ -296,7 +292,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
             audio_eltype = AudioSignal()
         return {
             "features": NeuralType(('B', 'T'), audio_eltype),
-            "feature_length": NeuralType(('B'), LengthsType()),
+            "feature_length": NeuralType(('B',), LengthsType()),
             "ms_seg_timestamps": NeuralType(('B', 'C', 'T', 'D'), LengthsType()),
             "ms_seg_counts": NeuralType(('B', 'C'), LengthsType()),
             "clus_label_index": NeuralType(('B', 'T'), LengthsType()),
@@ -305,7 +301,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
         }
 
     @property
-    def output_types(self):
+    def output_types(self) -> Dict[str, NeuralType]:
         return OrderedDict(
             {
                 "probs": NeuralType(('B', 'T', 'C'), ProbsType()),
@@ -371,7 +367,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
     @torch.no_grad()
     def get_cluster_avg_embs_model(
         self, embs: torch.Tensor, clus_label_index: torch.Tensor, ms_seg_counts: torch.Tensor, scale_mapping
-    ):
+    ) -> torch.Tensor:
         """
         Calculate the cluster-average speaker embedding based on the ground-truth speaker labels (i.e., cluster labels).
 
@@ -417,7 +413,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
                 spk_set_list = []
                 for idx in range(self.cfg_msdd_model.max_num_of_spks):
                     _where = (clus_label_index_batch[scale_index] == idx).clone().detach()
-                    if torch.any(_where) == False:
+                    if not torch.any(_where):
                         avg_emb = torch.zeros(self.msdd._speaker_model._cfg.decoder.emb_sizes).to(embs.device)
                     else:
                         avg_emb = torch.mean(batch_emb_list[batch_idx][scale_index][_where], dim=0)
@@ -429,7 +425,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
         ms_avg_embs = torch.stack(ms_avg_embs_list).permute(0, 1, 3, 2)
         ms_avg_embs = ms_avg_embs.float().detach().to(embs.device)
         assert (
-            ms_avg_embs.requires_grad == False
+            not ms_avg_embs.requires_grad
         ), "ms_avg_embs.requires_grad = True. ms_avg_embs should be detached from the torch graph."
         return ms_avg_embs
 
@@ -440,7 +436,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
         processed_signal_len: torch.Tensor,
         ms_seg_timestamps: torch.Tensor,
         ms_seg_counts: torch.Tensor,
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         """
         Load acoustic feature from audio segments for each scale and save it into a torch.tensor matrix.
         In addition, create variables containing the information of the multiscale subsegmentation information.
@@ -616,7 +612,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
         test_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
         f1_acc = self._accuracy_test.compute()
         self._accuracy_test.reset()
-        self.log('val_f1_acc', f1_acc, sync_dist=True)
+        self.log('test_f1_acc', f1_acc, sync_dist=True)
         return {
             'test_loss': test_loss_mean,
             'test_f1_acc': f1_acc,
@@ -1030,7 +1026,7 @@ class NeuralDiarizer:
             self.msdd_model.save_to(neural_diar_model)
             self.clus_diar.__make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
 
-    def extract_standalone_speaker_model(self, prefix: str = 'msdd._speaker_model.') -> str:
+    def extract_standalone_speaker_model(self, prefix: str = 'msdd._speaker_model.') -> Dict:
         """
         MSDD model file contains speaker embedding model and MSDD model. This function extracts standalone speaker model and save it to
         `self.spk_emb_state_dict` to be loaded separately for clustering diarizer.

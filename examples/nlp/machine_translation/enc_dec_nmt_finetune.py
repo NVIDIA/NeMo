@@ -19,7 +19,6 @@ from omegaconf import OmegaConf
 from omegaconf.omegaconf import MISSING
 from pytorch_lightning import Trainer
 
-from nemo.collections.nlp.data.machine_translation.preproc_mt_data import MTDataPreproc
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
