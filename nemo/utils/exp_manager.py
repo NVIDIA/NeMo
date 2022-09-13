@@ -17,6 +17,7 @@ import re
 import subprocess
 import sys
 import time
+import warnings
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import timedelta
@@ -24,6 +25,7 @@ from pathlib import Path
 from shutil import copy, move
 from typing import Any, Dict, List, Optional, Union
 
+import pytorch_lightning
 import torch
 from hydra.core.hydra_config import HydraConfig
 from hydra.utils import get_original_cwd
@@ -32,6 +34,7 @@ from pytorch_lightning.callbacks import Callback, ModelCheckpoint
 from pytorch_lightning.callbacks.timer import Interval, Timer
 from pytorch_lightning.loggers import LoggerCollection as _LoggerCollection
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
+from pytorch_lightning.loops import TrainingEpochLoop
 from pytorch_lightning.strategies.ddp import DDPStrategy
 
 from nemo.collections.common.callbacks import EMA
@@ -120,6 +123,8 @@ class ExpManagerConfig:
     # Configures creation of log files for different ranks
     log_local_rank_0_only: Optional[bool] = False
     log_global_rank_0_only: Optional[bool] = False
+    # disable initial validation when resuming from a checkpoint saved during validation
+    disable_validation_on_resume: Optional[bool] = True
     # todo (sean): might not be the best place to add this, but allows us to enable it fast
     enable_ema: Optional[bool] = False
     ema: Optional[float] = 0.999
@@ -339,6 +344,10 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         configure_checkpointing(
             trainer, log_dir, checkpoint_name, cfg.resume_if_exists, cfg.checkpoint_callback_params
         )
+
+    if cfg.disable_validation_on_resume:
+        # extend training loop to skip initial validation when resuming from checkpoint
+        configure_no_restart_validation_training_loop(trainer)
 
     if is_global_rank_zero():
         # Move files_to_copy to folder and add git information if present
@@ -947,3 +956,25 @@ class StatelessTimer(Timer):
 
     def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
         return
+
+
+def configure_no_restart_validation_training_loop(trainer: pytorch_lightning.Trainer) -> None:
+    if type(trainer.fit_loop.epoch_loop) != TrainingEpochLoop:
+        warnings.warn("Detected custom epoch loop. Skipping no validation on restart support.", UserWarning)
+        return
+    loop = SkipResumeTrainingValidationLoop(trainer.min_steps, trainer.max_steps)
+    loop.trainer = trainer
+    trainer.fit_loop.epoch_loop = loop
+
+
+class SkipResumeTrainingValidationLoop(TrainingEpochLoop):
+    """
+    Extend the PTL Epoch loop to skip validating when resuming.
+    This happens when resuming a checkpoint that has already run validation, but loading restores
+    the training state before validation has run.
+    """
+
+    def _should_check_val_fx(self) -> bool:
+        if self.restarting and self.global_step % self.trainer.val_check_batch == 0:
+            return False
+        return super()._should_check_val_fx()
