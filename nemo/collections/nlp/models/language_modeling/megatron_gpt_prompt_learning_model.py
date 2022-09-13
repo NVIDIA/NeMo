@@ -101,6 +101,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         # Need to overwrite some params in frozen model's config before restoring
         with open_dict(frozen_model_cfg):
             frozen_model_cfg.megatron_amp_O2 = False
+            frozen_model_cfg.optim.name = "fused_adam"
             frozen_model_cfg.micro_batch_size = self.cfg.micro_batch_size
             frozen_model_cfg.global_batch_size = self.cfg.global_batch_size
             frozen_model_cfg.precision = trainer.precision
@@ -163,6 +164,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 hidden_size=self.hidden_size,
             )
 
+        self.padded_vocab_size = self.frozen_model.padded_vocab_size
         self._prompt_table_key = VirtualPromptSource.PROMPT_TABLE.value
         self._prompt_encoder_key = VirtualPromptSource.PROMPT_ENCODER.value
 
@@ -665,8 +667,6 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         return loss_mean
 
     def validation_epoch_end(self, outputs):
-        if not outputs:
-            return
         if parallel_state.is_pipeline_last_stage():
             # only the last pipeline parallel stages return loss
             averaged_loss = torch.stack(outputs).mean()
