@@ -91,9 +91,9 @@ class MegatronRetrievalModel(MegatronBaseModel):
         self.model.model_type = ModelType.encoder_and_decoder
 
         if hasattr(self.cfg, "shape_file"):
-            set_base_shapes(self, self.cfg.shape_file, rescale_params=False)
-            # add shape file
-            self.register_artifact("model.shape_file", self.cfg.shape_file),
+            set_base_shapes(self, 
+                            self.register_artifact("model.shape_file", self.cfg.shape_file), 
+                            rescale_params=False)
 
             # here manually initialize all the named parameters with the muTranfer normal initializer
             for name, tensor in self.named_parameters():
