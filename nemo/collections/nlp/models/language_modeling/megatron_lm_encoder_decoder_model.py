@@ -563,7 +563,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         batch_for_pipeline = [encoder_input_ids, encoder_attn_mask, decoder_input_ids, decoder_attn_mask]
         arg_names = ['enc_input_ids', 'enc_attn_mask', 'dec_input_ids', 'dec_attn_mask']
 
-        forward_step_func = self._get_forward_output_only_func(arg_names=arg_names, output_name="logits")
+        forward_step_func = self._get_forward_output_only_func(arg_names=arg_names, output_name=["logits"])
 
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
             output_tensor = forward_backward_pipelining_without_interleaving(
@@ -1042,6 +1042,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # consistency check
         if use_memory and return_cache:
             raise ValueError('Cannot use both memory and cache at the same time!')
+        if return_cache:
+            assert self.cfg.get('pipeline_model_parallel_size', 1) == 1, "Cannot use pipeline parallel with return cache!"
 
         # Check whether the DDP is initialized. This is needed when running inference outside of training loop.
         if parallel_state.is_unitialized():
@@ -1109,7 +1111,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 for i in range(num_tokens_to_generate)
             ]
         elif return_cache:
-            key_cache, value_cache = torch.zeros((1, 1, 1, 0))
+            cache = torch.zeros((16, 2, num_tokens_to_generate, enc_output.shape[0], 16, 64))
             return_memory_arr = torch.tensor([[True] for _ in range(enc_output.shape[0])])
 
             # cache memory index
@@ -1123,10 +1125,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             decoder_seq_length = predicted_tokens_dec.size(1)
             dec_mask = predicted_tokens_dec != tokenizer.pad_id
 
-            if not use_memory and not return_cache:
-                batch_for_pipeline = [enc_output, enc_output_attn_mask, predicted_tokens_dec, dec_mask]
-                arg_names = ['enc_output', 'enc_output_attn_mask', 'dec_input_ids', 'dec_attn_mask']
-            elif return_cache:
+            if return_cache:
                 batch_for_pipeline = [
                     enc_output,
                     enc_output_attn_mask,
@@ -1134,7 +1133,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     dec_mask[..., i : i + 1],
                     memory_ids[i],
                     return_memory_arr,
-                    None,
+                    cache[:, :, :i+1, :, :, :],
                 ]
                 arg_names = [
                     'enc_output',
@@ -1145,7 +1144,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     'return_memory',
                     'cached_states',
                 ]
-            else:
+            elif use_memory:
                 batch_for_pipeline = [
                     enc_output,
                     enc_output_attn_mask,
@@ -1164,9 +1163,27 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     'inference_max_sequence_len',
                     'memory_index',
                 ]
+            else:
+                batch_for_pipeline = [enc_output, enc_output_attn_mask, predicted_tokens_dec, dec_mask]
+                arg_names = ['enc_output', 'enc_output_attn_mask', 'dec_input_ids', 'dec_attn_mask']
 
             forward_step_func = self._get_forward_output_only_func(arg_names=arg_names, output_name="logits")
-            if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+
+            if return_cache:
+                # map batch and shared args into forward args
+                batch = [x.cuda(non_blocking=True) for x in batch_for_pipeline]
+                args = self._build_forward_args_from_kwargs(args_name=arg_names, args=batch)
+
+                with torch.cuda.amp.autocast(enabled=True):
+                    output = self.enc_dec_model(*args)
+
+                # cache size -> [16: list, 2: list, key/value size: torch]
+                output_tensor, new_cache = output
+                output_tensor = [{'logits': output_tensor}]
+                for index_attn in range(16):
+                    new_cache[index_attn] = torch.stack(new_cache[index_attn], dim=0)
+                cache[:, :, i, :, :, :] = torch.stack(new_cache, dim=0).squeeze(2)
+            elif self.cfg.get('pipeline_model_parallel_size', 1) > 1:
                 output_tensor = forward_backward_pipelining_without_interleaving(
                     forward_step_func=forward_step_func,
                     batch=batch_for_pipeline,
@@ -1186,9 +1203,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     decoder_sequence_length=decoder_seq_length,
                     dtype=self.autocast_dtype,
                 )
-
-            print(output_tensor)
-            exit(0)
+            
 
             # get output tensor
             if parallel_state.is_pipeline_last_stage():

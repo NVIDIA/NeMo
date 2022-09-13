@@ -501,6 +501,16 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
 
             if self.post_process and self.add_decoder:
                 dec_output, enc_output = output  # [s, b, h]
+                
+                # get presents
+                presents = None
+
+                if return_memory is not None and type(return_memory) is not bool:
+                    return_memory = return_memory.reshape(-1)[0]
+
+                if return_memory is not None and return_memory:
+                    dec_output, presents = dec_output
+
                 # project decoder output to vocabulary-size dimensions
                 if self.share_decoder_tokens_head_embeddings:
                     token_logits = self.tokens_head(dec_output, self.word_embeddings_weight())
@@ -523,11 +533,13 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
 
                     # [s, b] -> [b, s]
                     tokens_loss = tokens_loss.transpose(0, 1).contiguous()
-
                     return tokens_loss
                 else:
                     # [s, b, h] -> [b, s, h]
                     token_logits = token_logits.transpose(0, 1).contiguous()
+                    if presents is not None:
+                        ret = (token_logits, presents)
+                        return ret
                     return token_logits
 
             elif self.add_decoder and not self.add_encoder:

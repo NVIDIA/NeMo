@@ -123,9 +123,12 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         if self.decoder is None:
             raise ValueError(f"Cannot call .decode(...) when self.decoder is None.")
 
-        if not isinstance(set_inference_key_value_memory, bool):
+        if not isinstance(set_inference_key_value_memory, bool) and set_inference_key_value_memory is not None:
             set_inference_key_value_memory = set_inference_key_value_memory.reshape(-1)[0]
             inference_max_sequence_len = inference_max_sequence_len.reshape(-1)[0]
+
+        if not isinstance(return_memory, bool) and return_memory is not None:
+            return_memory = return_memory.reshape(-1)[0]
 
         """Decodes embedder input using decoder and encoder input"""
         dec_output = self.decoder(

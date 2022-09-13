@@ -754,7 +754,6 @@ class ParallelAttention(MegatronModule):
         # consistency check
         if return_memory:
             assert get_key_value == False
-            assert set_inference_key_value_memory == False and inference_max_sequence_len is None
 
         # =====================
         # Query, Key, and Value
@@ -835,7 +834,9 @@ class ParallelAttention(MegatronModule):
 
         # use memory if needed
         if cached_states is not None:
-            key_layer, value_layer = cached_states
+            cached_key, cached_value = cached_states
+            key_layer = torch.cat((cached_key.type_as(key_layer), key_layer), dim=0)
+            value_layer = torch.cat((cached_value.type_as(value_layer), value_layer), dim=0)
 
         if layer_past is not None:
             past_key, past_value = layer_past
@@ -1352,6 +1353,8 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         rotary_pos_emb=None,  # list of positional embedding tensors, first one self attention, second one and third one are for cross attention (q, k)
         self_attention_relative_position_bias=None,
         cross_attention_relative_position_bias=None,
+        return_memory=False,
+        cached_states=None,
     ):
         # Self attention.
         if rotary_pos_emb is not None:
@@ -1383,9 +1386,11 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 inference_max_sequence_len=inference_max_sequence_len,
                 rotary_pos_emb=self_attention_pos_emb,
                 relative_position_bias=self_attention_relative_position_bias,
+                return_memory=return_memory,
+                cached_states=cached_states,
             )
 
-            if get_key_value:
+            if get_key_value or return_memory:
                 attention_output, presents = attention_output
 
             # If normformer, apply norm on the output of the self attention.
@@ -1497,7 +1502,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         if self.transformer_block_type == 'post_ln':
             output = self.post_attention_layernorm(output)
 
-        if get_key_value:
+        if get_key_value or return_memory:
             output = [output, presents]
 
         return output
@@ -1529,6 +1534,8 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
         inference_max_sequence_len=None,
         self_attention_relative_position_bias=None,
         cross_attention_relative_position_bias=None,
+        return_memory=False,
+        cached_states=None,
     ):
         if self.dtype == torch.float32:
             return super().forward(
@@ -1543,6 +1550,8 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
                 rotary_pos_emb,
                 self_attention_relative_position_bias,
                 cross_attention_relative_position_bias,
+                return_memory,
+                cached_states,
             )
         with torch.autocast(device_type="cuda", dtype=self.dtype):
             return super().forward(
@@ -1557,6 +1566,8 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
                 rotary_pos_emb,
                 self_attention_relative_position_bias,
                 cross_attention_relative_position_bias,
+                return_memory,
+                cached_states,
             )
 
 
@@ -1945,6 +1956,7 @@ class ParallelTransformer(MegatronModule):
                 for index in range(self.num_layers):
                     layer = self._get_layer(index)
                     past = None
+                    cache = None
                     if layer_past is not None:
                         past = layer_past[index]
                     if cached_states is not None:
@@ -1964,6 +1976,9 @@ class ParallelTransformer(MegatronModule):
                         return_memory=return_memory,
                         cached_states=cache,
                     )
+                    if get_key_value or return_memory:
+                        hidden_states, present = hidden_states
+                        presents.append(present)
 
         output = hidden_states
         # Final layer norm.
