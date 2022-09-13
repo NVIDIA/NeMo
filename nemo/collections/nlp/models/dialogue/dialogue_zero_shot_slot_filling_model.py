@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import os
-from typing import Dict, Optional, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import torch
 from omegaconf import DictConfig, OmegaConf
@@ -38,7 +38,7 @@ from nemo.utils import logging
 
 class DialogueZeroShotSlotFillingModel(NLPModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        """ 
+        """
         Zero Shot Slot Filling Model
         based on part of the ReFinED paper
         https://aclanthology.org/2022.naacl-industry.24.pdf
@@ -56,17 +56,22 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         # init superclass
         super().__init__(cfg=cfg, trainer=trainer)
 
-        # Initialize MultiLayerPerceptron for predict bio's class
+        # Initialize MultiLayerPerceptron for predicting IOB class
         self.bio_mlp = MultiLayerPerceptron(
-            hidden_size=self.hidden_size, num_classes=3, num_layers=2, activation='relu', log_softmax=True,
+            hidden_size=self.hidden_size,
+            num_classes=3,
+            num_layers=2,
+            activation='relu',
+            log_softmax=True,
         )
 
         self.mention_projection_mlp = torch.nn.Linear(self.hidden_size, 300, bias=False, device=self.device)
         self.description_projection_mlp = torch.nn.Linear(self.hidden_size, 300, bias=False, device=self.device)
 
-        # Initialize slot description and description embeddings
+        # Initialize slot description
         self._set_slot_descriptions(cfg.dataset.data_dir)
 
+        # Initialize description embeddings
         self.description_embeddings = self.get_description_embeddings(self.slot_descriptions)
 
         # Set-up losses and classification report
@@ -84,7 +89,7 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
             self.label_id_for_empty_slot = int(next(f).strip().split('\t')[0])
 
     def _set_slot_descriptions(self, data_dir):
-        """ Method read slot description file """
+        """Method read slot description file"""
         description_file_name = os.path.join(data_dir, "description.slots.csv")
         with open(description_file_name) as f:
             descriptions = [line.strip() for line in f.readlines()]
@@ -109,7 +114,7 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
             OmegaConf.set_struct(cfg, True)
 
     def _set_data_desc_to_cfg(self, cfg, data_dir, train_ds, validation_ds):
-        """ Method creates IntentSlotDataDesc and copies generated values to cfg.data_desc. """
+        """Method creates IntentSlotDataDesc and copies generated values to cfg.data_desc."""
         # Save data from data desc to config - so it can be reused later, e.g. in inference.
         data_desc = IntentSlotDataDesc(data_dir=data_dir, modes=[train_ds.prefix, validation_ds.prefix])
         OmegaConf.set_struct(cfg, False)
@@ -138,8 +143,9 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         self.register_artifact('class_labels.slot_labels_file', slot_labels_file)
         OmegaConf.set_struct(cfg, True)
 
-    def _save_label_ids(self, label_ids: Dict[str, int], filename: str) -> None:
-        """ Saves label ids map to a file """
+    @staticmethod
+    def _save_label_ids(label_ids: Dict[str, int], filename: str) -> None:
+        """This method saves label ids map to a file"""
         with open(filename, 'w') as out:
             labels, _ = zip(*sorted(label_ids.items(), key=lambda x: x[1]))
             out.write('\n'.join(labels))
@@ -147,7 +153,7 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
             logging.info(f'Labels mapping saved to : {out.name}')
 
     def _setup_losses_and_classfication_report(self):
-        """ Method reconfigures the classifier depending on the settings of model cfg.data_desc """
+        """Method reconfigures the classifier depending on the settings of model cfg.data_desc"""
 
         self.bio_slot_loss = CrossEntropyLoss(logits_ndim=3)
         self.slot_loss = CrossEntropyLoss(logits_ndim=3)
@@ -157,7 +163,10 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
 
         # setup to track metrics
         self.bio_slot_classification_report = ClassificationReport(
-            num_classes=len([0, 1, 2]), label_ids={0: 0, 1: 1, 2: 2}, dist_sync_on_step=True, mode='micro',
+            num_classes=len([0, 1, 2]),
+            label_ids={0: 0, 1: 1, 2: 2},
+            dist_sync_on_step=True,
+            mode='micro',
         )
 
         self.slot_similarity_classification_report = ClassificationReport(
@@ -206,7 +215,7 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
             descriptions: list of slot description
             eg. ["food type\tdrinks menu vegetarian main desserts sides"]
         Returns:
-            description embedding by taking final layer embedding for the [CLS] token, 
+            description embedding by taking final layer embedding for the [CLS] token,
             which is then projected to shared embedding space
         """
 
@@ -227,7 +236,7 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
             last_hidden_states = outputs.last_hidden_state
             description_embeddings.append(last_hidden_states[0, 0, :])
 
-        return torch.stack(description_embeddings).to(self.device)
+        return torch.stack(description_embeddings)
 
     @staticmethod
     def get_entity_embedding_from_hidden_states(bio_slot_labels, hidden_states):
@@ -306,7 +315,14 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
             slot_descriptions: A list of slot types and descriptions separated by a tab.
                 e.g. drink type\tThe type of drink
         """
-        input_ids, token_type_ids, attention_mask, loss_mask, subtokens_mask, _ = DialogueZeroShotSlotFillingDataset.get_features(
+        (
+            input_ids,
+            token_type_ids,
+            attention_mask,
+            loss_mask,
+            subtokens_mask,
+            _,
+        ) = DialogueZeroShotSlotFillingDataset.get_features(
             [text],
             self.max_seq_length,
             self.tokenizer,
@@ -328,8 +344,9 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         predicted_mention_hidden_states_pad = DialogueZeroShotSlotFillingModel.get_entity_embedding_from_hidden_states(
             predicted_bio_slot, hidden_states
         )
-        predicted_dot_product_score = self.get_entity_description_score(predicted_mention_hidden_states_pad,
-                                                                        slot_descriptions)
+        predicted_dot_product_score = self.get_entity_description_score(
+            predicted_mention_hidden_states_pad, slot_descriptions
+        )
         predicted_slot_similarity_preds = torch.argmax(predicted_dot_product_score, dim=-1)
 
         predicted_slot_class_batch = DialogueZeroShotSlotFillingModel.align_mention_to_tokens(
@@ -486,11 +503,11 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
     def align_mention_to_tokens(bio_labels, mention_labels, label_id_for_empty_slot=0):
         """
         Align the mentions label to token level based on bio labels.
-        
+
         Args:
             bio_labels: (batch_size*max_token_length) [[1, 0, 0, 1, 2], [1, 2, 2, 0, 0]]
             mention_labels: [[2, 4, 0, 0, 0], [52, 0, 0, 0, 0]]
-        
+
         Returns:
             predicted_slot_class: [[2, 0, 0, 4, 4], [52, 52, 52, 0, 0]]
         """
@@ -516,9 +533,9 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         Args:
             one_bio_labels: tensor with size (max_token_length, )
             eg. [1, 0, 0, 1, 2]
-        
+
         Returns:
-            start_and_end: list of mention's start and end. 
+            start_and_end: list of mention's start and end.
             List length is the number of mentions in one_bio_labels.
             eg. [[0, 0], [3, 4]]
         """
@@ -543,13 +560,13 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
     def get_entity_description_score(self, mention_hidden_states_pad, entity_types_descriptions=None):
         """
         Score entity description based on the dot product similarity between mention and description
-        Args: 
+        Args:
             mention_hidden_states_pad: mention embedding of size (batch_size * max_num_mention * hidden_state_dim)
             entity_types_descriptions: entity types and descriptions List[types\tdescriptions]
-            
+
         Returns:
             dot product score matrix of given mention embedding and description embedding (batch_size * max_num_mention * num_slot_class)
-        
+
         """
         if entity_types_descriptions:
             entity_type_embeddings = self.get_description_embeddings(entity_types_descriptions)
@@ -638,7 +655,10 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         filename = os.path.join(self.cfg.dataset.dialogues_example_dir, "predictions.jsonl")
 
         DialogueClassificationMetrics.save_slot_predictions(
-            filename, all_generated_slots, all_ground_truth_slots, all_utterances,
+            filename,
+            all_generated_slots,
+            all_ground_truth_slots,
+            all_utterances,
         )
 
         (
