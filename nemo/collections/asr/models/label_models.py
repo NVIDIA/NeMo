@@ -104,28 +104,30 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
 
         super().__init__(cfg=cfg, trainer=trainer)
 
-        self.preprocessor = EncDecSpeakerLabelModel.from_config_dict(cfg.preprocessor)
-        self.encoder = EncDecSpeakerLabelModel.from_config_dict(cfg.encoder)
-        self.decoder = EncDecSpeakerLabelModel.from_config_dict(cfg.decoder)
-
         if self.labels_occurrence:
             # Goal is to give more weight to the classes with less samples so as to match the ones with the higher frequencies
             weight = [sum(self.labels_occurrence) / (len(self.labels_occurrence) * i) for i in self.labels_occurrence]
 
         if 'loss' in cfg:
-            cfg_eval_loss = copy.deepcopy(cfg.loss)
             # To support older version checkpoints
-            if '_target_' not in cfg_eval_loss and 'cls' not in cfg_eval_loss:
+            if '_target_' not in cfg.loss and 'cls' not in cfg.loss:
                 logging.info("Support older version checkpoints of label models")
-                OmegaConf.set_struct(cfg_eval_loss, True)
-                with open_dict(cfg_eval_loss):
+                OmegaConf.set_struct(cfg, True)
+                with open_dict(cfg):
                     if 'angular' in cfg.decoder and cfg.decoder.angular:
-                        cfg_eval_loss._target_ = "nemo.collections.asr.losses.angularloss.AngularSoftmaxLoss"
+                        cfg.loss._target_ = "nemo.collections.asr.losses.angularloss.AngularSoftmaxLoss"
                     else:
                         # in case if specified angular=False but loss contained 'scale' or 'margin'
-                        cfg_eval_loss.pop('scale', None)
-                        cfg_eval_loss.pop('margin', None)
-                        cfg_eval_loss._target_ = "nemo.collections.common.losses.cross_entropy.CrossEntropyLoss"
+                        cfg.loss.pop('scale', None)
+                        cfg.loss.pop('margin', None)
+                        cfg.loss._target_ = "nemo.collections.common.losses.cross_entropy.CrossEntropyLoss"
+
+            cfg_eval_loss = copy.deepcopy(cfg.loss)
+
+            if 'angular' in cfg.loss._target_:
+                OmegaConf.set_struct(cfg, True)
+                with open_dict(cfg):
+                    cfg.decoder.angular = True
 
             if 'weight' in cfg.loss:
                 cfg.loss.weight = weight
@@ -149,6 +151,10 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             num_classes = cfg.decoder.num_classes
         else:
             num_classes = cfg.decoder.params.num_classes  # to pass test
+
+        self.preprocessor = EncDecSpeakerLabelModel.from_config_dict(cfg.preprocessor)
+        self.encoder = EncDecSpeakerLabelModel.from_config_dict(cfg.encoder)
+        self.decoder = EncDecSpeakerLabelModel.from_config_dict(cfg.decoder)
 
         self._macro_accuracy = Accuracy(num_classes=num_classes, average='macro')
 
