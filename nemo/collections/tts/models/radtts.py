@@ -79,6 +79,7 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         self._tb_logger = None
         self.cfg = cfg
         self.log_train_images = False
+        # print("intial self normalizer", self.normalizer)
 
     def batch_dict(self, batch_data):
         if len(batch_data) < 14:
@@ -370,7 +371,8 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
             logging.warning("parse() is meant to be called in eval mode.")
         if normalize and self.text_normalizer_call is not None:
             text = self.text_normalizer_call(text, **self.text_normalizer_call_kwargs)
-        eval_phon_mode = contextlib.nullcontext()
+
+	eval_phon_mode = contextlib.nullcontext()
         if hasattr(self.tokenizer, "set_phone_prob"):
             eval_phon_mode = self.tokenizer.set_phone_prob(prob=1)
             print("changed to one")
