@@ -1,4 +1,4 @@
-name: t5_ia3_tuning
+name: ia3_tuning_${model.new_tasks[0]}_max_epochs${trainer.max_epochs}
 
 trainer:
   devices: 1
@@ -8,13 +8,14 @@ trainer:
   logger: False 
   enable_checkpointing: False
   replace_sampler_ddp: False
-  max_epochs: 10
+  max_epochs: -1
   max_steps: 100
   log_every_n_steps: 10
   val_check_interval: 20
   accumulate_grad_batches: 1
   gradient_clip_val: 1.0
   resume_from_checkpoint: null 
+  benchmark: False
 
 exp_manager:
   explicit_log_dir: null
@@ -31,21 +32,21 @@ exp_manager:
     monitor: val_loss
     save_top_k: 1
     mode: min
-    save_nemo_on_train_end: True # Should be false, correct prompt learning model file is saved at model.virtual_prompt_save_path set below
+    save_nemo_on_train_end: True
     filename: "megatron_t5_ia3_tune--{${exp_manager.checkpoint_callback_params.monitor}:.3f}-{step}"
     model_parallel_size: ${model.tensor_model_parallel_size}
     save_best_model: True
 
 model:
   seed: 1234
-  virtual_prompt_save_path: ${name}.nemo # .nemo filename/absolute path to where the virtual prompt model parameters will be saved
+  nemo_path: ${exp_manager.exp_dir}/${name}.nemo # .nemo filename/absolute path to where the virtual prompt model parameters will be saved
   virtual_prompt_style: 'no-prompts' #'prompt-tuning' # adapter tuning requires no virtual prompts
+  encoder_seq_length: 2048
   gradient_as_bucket_view: false
   tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1 
-  encoder_seq_length: 2048
-  global_batch_size: 8
-  micro_batch_size: 8
+  global_batch_size: 4
+  micro_batch_size: 2
   
   restore_path: null # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
   pretrained_language_model_path: ??? # Path to the pretrained T5 language model .nemo file, always required
@@ -54,18 +55,31 @@ model:
 
   task_templates: 
   - taskname: "squad" 
-    prompt_template: "{context} {question} {answer}" 
+    prompt_template: "context: {context} question: {question} answer: {answer}" 
     total_virtual_tokens: 0
-    virtual_token_splits: [] 
-    truncate_field: context
-    answer_field: answer
+    virtual_token_splits: []
+    truncate_field: null
+    answer_field: "answer"
+
+  - taskname: "arc-challenge" 
+    prompt_template: "question: {question} choices: {choices} answer: {answer}" 
+    total_virtual_tokens: 0
+    virtual_token_splits: []
+    truncate_field: null
+    answer_field: "answer"
+
+  - taskname: "xsum" 
+    prompt_template: "{source} Summary: {target}" 
+    total_virtual_tokens: 0
+    virtual_token_splits: []
+    truncate_field: null
+    answer_field: "target"
 
   - taskname: "rte" 
     prompt_template: "sentence1: {premise} sentence2: {hypothesis} Answer: {answer}" 
     total_virtual_tokens: 0
     virtual_token_splits: []
     truncate_field: null
-    answer_only_loss: True
     answer_field: "answer"
 
   data:
