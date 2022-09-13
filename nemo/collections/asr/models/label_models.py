@@ -31,7 +31,6 @@ from nemo.collections.asr.data.audio_to_text_dataset import convert_to_config_li
 from nemo.collections.asr.models.asr_model import ExportableEncDecModel
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
-from nemo.collections.common.losses import CrossEntropyLoss
 from nemo.collections.common.metrics import TopKClassificationAccuracy
 from nemo.collections.common.parts.preprocessing.collections import ASRSpeechLabel
 from nemo.core.classes import ModelPT
