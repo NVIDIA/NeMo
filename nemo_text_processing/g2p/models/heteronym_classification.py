@@ -183,7 +183,7 @@ class HeteronymClassificationModel(NLPModel):
         if isinstance(sentences, str):
             sentences = [sentences]
 
-        if len(sentences) != len(start_end) != len(homographs):
+        if len(sentences) != len(start_end) or len(sentences) != len(homographs):
             raise ValueError(
                 f"Number of sentences should match the lengths of provided start-end indices, {len(sentences)} != {len(start_end)}"
             )
