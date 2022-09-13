@@ -109,7 +109,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
 
         if 'loss' in cfg:
             # To support older version checkpoints
-            if '_target_' not in cfg.loss and 'cls' not in cfg.loss:
+            if '_target_' not in cfg.loss:
                 logging.info("Support older version checkpoints of label models")
                 OmegaConf.set_struct(cfg, True)
                 with open_dict(cfg):
