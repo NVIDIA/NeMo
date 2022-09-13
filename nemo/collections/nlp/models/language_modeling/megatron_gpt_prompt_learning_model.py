@@ -293,6 +293,10 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             )
         else:
             raise ValueError('not supported')
+        # cast the model weights to bf16 only for 'bf16' precision
+        # For fp16, cannot cast the model weights as AMP will complain
+        if self.trainer.precision == 'bf16':
+            self.prompt_encoder = self.prompt_encoder.to(dtype=self.autocast_dtype)
 
     def add_ptuned_prompts_to_prompt_table(self):
         """
@@ -611,19 +615,6 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
         return loss_mean
 
-    def backward(self, *args, **kwargs):
-        """ LightningModule hook to do backward.
-            We want this to do nothing since we run backward in the fwd/bwd functions from apex.
-            No need to call it here.
-        """
-        return
-
-    def optimizer_zero_grad(self, *args, **kwargs):
-        """ LightningModule hook to zero grad.
-            We want this to do nothing as we are zeroing grads during the training_step.
-        """
-        return
-
     def training_step(self, batch, batch_idx):
         # we zero grads here because we also call backward in the apex fwd/bwd functions
         self._optimizer.zero_grad()
@@ -635,7 +626,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         # we can avoid this broadcast by updating the PTL log function to accept specific ranks
         torch.distributed.broadcast(loss_mean, get_last_rank())
 
-        if self.cfg.precision == 16:
+        if self.cfg.precision == 16 and hasattr(self.trainer.precision_plugin.scaler, "_scale"):
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
                 self.log('loss_scale', loss_scale)
