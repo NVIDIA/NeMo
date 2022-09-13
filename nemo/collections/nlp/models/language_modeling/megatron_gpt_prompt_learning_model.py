@@ -88,14 +88,14 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         super().__init__(cfg, trainer)
 
         self.cfg = cfg
-        save_resotre_connector = NLPSaveRestoreConnector()
+        save_restore_connector = NLPSaveRestoreConnector()
         if os.path.isdir(cfg.get('language_model_path')):
-            save_resotre_connector.model_extracted_dir = cfg.get('language_model_path')
+            save_restore_connector.model_extracted_dir = cfg.get('language_model_path')
         frozen_model_cfg = MegatronGPTModel.restore_from(
             cfg.get('language_model_path'),
             trainer=trainer,
             return_config=True,
-            save_restore_connector=save_resotre_connector,
+            save_restore_connector=save_restore_connector,
         )
 
         # Need to overwrite some params in frozen model's config before restoring
@@ -122,12 +122,11 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         else:
             raise ValueError('precision must be in [32, 16, "bf16"]')
 
-        # Load pretrained GPT model and tokenizer, frozen model will have lr=0.0
         if cfg.get('language_model_path', None):
             self.frozen_model = MegatronGPTModel.restore_from(
                 cfg.get('language_model_path'),
                 trainer=trainer,
-                save_restore_connector=save_resotre_connector,
+                save_restore_connector=save_restore_connector,
                 override_config_path=frozen_model_cfg,
             ).to(dtype=self.autocast_dtype)
 
@@ -269,9 +268,9 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         if encoder_type == PromptEncoderType.TPMLP:
             self.prompt_encoder = PromptEncoderMLP(
                 total_virtual_tokens=total_virtual_tokens,
-                hidden_size=self.cfg.p_tuning.encoder_hidden,
+                hidden_size=self.cfg.p_tuning.get("encoder_hidden", 2048),
                 output_size=self.hidden_size,
-                init_std=self.cfg.p_tuning.init_std,
+                init_std=self.cfg.p_tuning.get("init_std", 0.023),
             )
         elif encoder_type == PromptEncoderType.BIGLSTM:
             self.prompt_encoder = BIGLSTMPromptEncoder(
@@ -643,12 +642,6 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         lr = self._optimizer.param_groups[0]['lr']
         self.log('lr', lr, rank_zero_only=True)
         self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True)
-
-        # Need to make sure the frozen model param learning rate stays 0.0
-        # so forceing lr to be 0.0 for gpt layers before param update
-        # if self.pipeline_parallel:
-        #     self._optimizer.param_groups[1]['lr'] = 0.0
-
         return loss_mean
 
     def backward(self, *args, **kwargs):

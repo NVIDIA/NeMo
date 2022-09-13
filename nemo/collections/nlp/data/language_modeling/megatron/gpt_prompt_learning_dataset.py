@@ -335,6 +335,7 @@ class GPTPromptLearningDataset(Dataset):
         batch_max = max(len(ids) for ids in input_ids)
 
         if tp_workers > 1:
+            # more sure the sequence length is multiply of number of tp_workers, needed for sequence parallel.
             resi_padding = (tp_workers - (batch_max - 1) % tp_workers) % tp_workers
         else:
             resi_padding = 0

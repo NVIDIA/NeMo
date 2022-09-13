@@ -48,6 +48,8 @@ Example usage:
                 checkpoint_name='megatron_gpt_prompt_tune--val_loss=3.401-step=500.ckpt' \
                 hparams_file=/results/ptune_squad/version_1/hparams.yaml
     ```
+    Note, the hparam file can be found under the pytorch lightning experiment result directory. The filename is `hparams.yaml`
+
 """
 
 
