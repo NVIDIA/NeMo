@@ -153,6 +153,12 @@ release_perf:
     - if [[ "$RUN_STAGE" = "data_prep" ]]; then export RUN_NAME=${RUN_STAGE}_${RUN_MODEL}_${DATASET}; fi
     - if [[ ! -z "$RUN_NAME_SUFFIX" ]]; then export RUN_NAME=${RUN_NAME}_${RUN_NAME_SUFFIX}; fi
     - export RESULTS_DIR=${BASE_RESULTS_DIR}/${RUN_NAME}
+    - export CONFIG_DIR="${SELENE_BIGNLP_CI_PATH}/.config/${CI_JOB_ID}" && echo "CONFIG_DIR=${CONFIG_DIR}"
+    - mkdir -p "${CONFIG_DIR}" && chmod 755 "${CONFIG_DIR}"
+    # Emulate "enroot login" since enroot is not available on the head node
+    - export ENROOT_CONFIG_PATH="${CONFIG_DIR}/.enroot" && mkdir -p "${ENROOT_CONFIG_PATH}"
+    - echo "machine ${CI_REGISTRY/:5005/} login gitlab-ci-token password ${CI_BUILD_TOKEN}"
+    - echo "machine ${CI_REGISTRY/:5005/} login gitlab-ci-token password ${CI_BUILD_TOKEN}" > $ENROOT_CONFIG_PATH/.credentials  
     - env
     - |
         if [[ "$RUN_STAGE" = "data_prep" ]]; then
@@ -205,7 +211,7 @@ release_perf:
         ALLOWED_STAGES=("train" "eval" "finetune" "prompt_learn");
         if [[ "$CREATE_TEST_DATA" == "True" && ${ALLOWED_STAGES[*]} =~ "$RUN_STAGE" ]]; then
           if [[ ${SLURM_EXITCODE} == 0 ]]; then
-            echo "Current working directory"
+            echo "Current working directory is "
             echo $pwd
             cd ..
             mkdir test
@@ -222,9 +228,7 @@ release_perf:
             cp $RESULTS_DIR/*.json tests/ci_tests/selene/pytest/$RUN_STAGE/${RUN_MODEL}_result_files/${RUN_NAME}.json
             fi
             git add tests/ci_tests/selene/pytest/$RUN_STAGE/${RUN_MODEL}_result_files/*
-            sed -i '0,/TESTS_TO_RUN_ON_THIS_COMMIT:
-              .*/s/TESTS_TO_RUN_ON_THIS_COMMIT:
-                .*/TESTS_TO_RUN_ON_THIS_COMMIT: NONE/' .gitlab-ci.yml
+            sed -i '0,/TESTS_TO_RUN_ON_THIS_COMMIT: .*/s/TESTS_TO_RUN_ON_THIS_COMMIT: .*/TESTS_TO_RUN_ON_THIS_COMMIT: NONE/' .gitlab-ci.yml
             git add .gitlab-ci.yml
             git commit -m "Adding the result file for $RUN_NAME"
             git push origin $CI_PIPELINE_ID
