@@ -372,7 +372,7 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         if normalize and self.text_normalizer_call is not None:
             text = self.text_normalizer_call(text, **self.text_normalizer_call_kwargs)
 
-	eval_phon_mode = contextlib.nullcontext()
+        eval_phon_mode = contextlib.nullcontext()
         if hasattr(self.tokenizer, "set_phone_prob"):
             eval_phon_mode = self.tokenizer.set_phone_prob(prob=1)
             print("changed to one")
