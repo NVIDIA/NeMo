@@ -92,39 +92,39 @@ class SequenceToSequenceDataset(Dataset):
         logging.info(f'Dataset Length : {len(self.examples)}')
 
     def collate_fn(self, batch):
-        enc_query = [item['text_enc'] for item in batch]
-        dec_input = [item['text_dec'] for item in batch]
+        text_enc = [item['text_enc'] for item in batch]
+        text_dec = [item['text_dec'] for item in batch]
         labels = [item['labels'] for item in batch]
 
-        if isinstance(enc_query[0], np.ndarray):
-            enc_query = [x.tolist() for x in enc_query]
+        if isinstance(text_enc[0], np.ndarray):
+            text_enc = [x.tolist() for x in text_enc]
 
-        if isinstance(dec_input[0], np.ndarray):
-            dec_input = [x.tolist() for x in dec_input]
+        if isinstance(text_dec[0], np.ndarray):
+            text_dec = [x.tolist() for x in text_dec]
 
         if isinstance(labels[0], np.ndarray):
             labels = [x.tolist() for x in labels]
 
-        max_dec_input_length = max([len(item) for item in dec_input]) if dec_input else 0
-        max_enc_query_length = max([len(item) for item in enc_query]) if enc_query else 0
+        max_dec_input_length = max([len(item) for item in text_dec]) if text_dec else 0
+        max_enc_query_length = max([len(item) for item in text_enc]) if text_enc else 0
         max_label_length = max([len(item) for item in labels]) if labels else 0
 
         loss_mask = [([1] * (len(item))) + ([0] * (max_label_length - len(item))) for item in labels]
-        enc_query = [item + [self.src_tokenizer.pad_id] * (max_enc_query_length - len(item)) for item in enc_query]
-        dec_input = [item + [self.tgt_tokenizer.pad_id] * (max_dec_input_length - len(item)) for item in dec_input]
+        text_enc = [item + [self.src_tokenizer.pad_id] * (max_enc_query_length - len(item)) for item in enc_query]
+        text_dec = [item + [self.tgt_tokenizer.pad_id] * (max_dec_input_length - len(item)) for item in dec_input]
         labels = [item + [self.tgt_tokenizer.pad_id] * (max_label_length - len(item)) for item in labels]
 
-        enc_query = torch.LongTensor(enc_query)
-        dec_input = torch.LongTensor(dec_input)
+        text_enc = torch.LongTensor(text_enc)
+        text_dec = torch.LongTensor(text_dec)
         labels = torch.LongTensor(labels)
         loss_mask = torch.LongTensor(loss_mask)
 
-        enc_mask = (enc_query != self.src_tokenizer.pad_id).long()
-        dec_mask = (dec_input != self.tgt_tokenizer.pad_id).long()
+        enc_mask = (text_enc != self.src_tokenizer.pad_id).long()
+        dec_mask = (text_dec != self.tgt_tokenizer.pad_id).long()
 
         return {
-            'text_enc': enc_query,
-            'text_dec': dec_input,
+            'text_enc': text_enc,
+            'text_dec': text_dec,
             'labels': labels,
             'loss_mask': loss_mask,
             'enc_mask': enc_mask,

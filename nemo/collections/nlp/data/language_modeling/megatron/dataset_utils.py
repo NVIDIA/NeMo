@@ -446,6 +446,8 @@ def create_extreme_masked_lm_predictions(
             if tokens[idx] == skip_masking_id:
                 skip_mask_idx = idx
                 break
+    else:
+        skip_mask_idx = None
 
     cand_indexes = [[i] for i in range(len(tokens))]
     for idx in range(len(cand_indexes)):
@@ -1021,7 +1023,6 @@ def get_samples_mapping(
         start_time = time.time()
         logging.info(' > building samples index mapping for {} ...'.format(name))
         # First compile and then import.
-        '''
         try:
             if is_global_rank_zero():
                 compile_helper()
@@ -1030,7 +1031,6 @@ def get_samples_mapping(
             raise ImportError(
                 f'Could not compile megatron dataset C++ helper functions and therefore cannot import helpers python file.'
             )
-        '''
         samples_mapping = helpers.build_mapping(
             indexed_dataset.doc_idx,
             indexed_dataset.sizes,
@@ -1050,7 +1050,6 @@ def get_samples_mapping(
             ' > elasped time to build and save samples mapping ' '(seconds): {:4f}'.format(time.time() - start_time)
         )
 
-    '''
     torch.distributed.barrier()
     counts = torch.cuda.LongTensor([1])
     torch.distributed.all_reduce(counts, group=parallel_state.get_data_parallel_group())
@@ -1059,7 +1058,6 @@ def get_samples_mapping(
         torch.distributed.get_world_size()
         // torch.distributed.get_world_size(group=parallel_state.get_tensor_model_parallel_group())
     )
-    '''
     # Load indexed dataset.
     logging.info(' > loading indexed mapping from {}'.format(indexmap_filename))
     start_time = time.time()
