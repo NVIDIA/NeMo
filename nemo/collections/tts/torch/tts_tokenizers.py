@@ -17,6 +17,7 @@ import itertools
 import string
 from contextlib import contextmanager
 from typing import List
+import functools
 
 import re
 
@@ -397,7 +398,7 @@ class IPAPhonemesTokenizer(BaseTokenizer):
         sep='|',  # To be able to distinguish between 2/3 letters codes.
         add_blank_at=None,
         pad_with_space=False,
-        text_preprocessing_func=lambda text: english_text_preprocessing(text, lower=False),
+        text_preprocessing_func=functools.partial(english_text_preprocessing, lower=False)
     ):
         """English phoneme-based tokenizer.
         Args:

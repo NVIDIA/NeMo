@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+import functools
 import json
 import math
 import os
@@ -218,6 +218,9 @@ class TTSDataset(Dataset):
         self.data = TTSDataset.filter_files(data, ignore_file, min_duration, max_duration, total_duration)
         self.base_data_dir = get_base_dir([item["audio_filepath"] for item in self.data])
 
+        random.seed(1234)
+        random.shuffle(self.data)
+        
         self.add_blank = add_blank
         # Initialize audio and mel related parameters
         self.sample_rate = sample_rate
@@ -247,14 +250,14 @@ class TTSDataset(Dataset):
             'none': None,
         }.get(self.window, None)
 
-        self.stft = lambda x: torch.stft(
-            input=x,
-            n_fft=self.n_fft,
-            hop_length=self.hop_len,
-            win_length=self.win_length,
-            window=window_fn(self.win_length, periodic=False).to(torch.float) if window_fn else None,
-            return_complex=True,
-        )
+        # self.stft = lambda x: torch.stft(
+        #     input=x,
+        #     n_fft=self.n_fft,
+        #     hop_length=self.hop_len,
+        #     win_length=self.win_length,
+        #     window=window_fn(self.win_length, periodic=False).to(torch.float) if window_fn else None,
+        #     return_complex=True,
+        # )
 
         # Initialize sup_data_path, sup_data_types and run preprocessing methods for every supplementary data type
         if sup_data_path is not None:
@@ -382,7 +385,13 @@ class TTSDataset(Dataset):
 
     def get_spec(self, audio):
         with torch.cuda.amp.autocast(enabled=False):
-            spec = self.stft(audio)
+            spec = torch.stft(audio,
+            n_fft=self.n_fft,
+            hop_length=self.hop_len,
+            win_length=self.win_length,
+            window=torch.hann_window(self.win_length, periodic=False).to(torch.float),
+            return_complex=True)
+            
             if spec.dtype in [torch.cfloat, torch.cdouble]:
                 spec = torch.view_as_real(spec)
             spec = torch.sqrt(spec.pow(2).sum(-1) + 1e-9)
