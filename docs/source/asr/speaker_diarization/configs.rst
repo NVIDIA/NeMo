@@ -1,7 +1,7 @@
 NeMo Speaker Diarization Configuration Files
 ============================================
 
-Both training and inference of speaker diarization is governed by ``.yaml`` files. The diarizer section will generally require information about the dataset(s) being used, models used in this pipeline, as well as inference related parameters such as post processing of each models. The sections on this page cover each of these in more detail.
+Both training and inference of speaker diarization is configured by ``.yaml`` files. The diarizer section will generally require information about the dataset(s) being used, models used in this pipeline, as well as inference related parameters such as post processing of each models. The sections on this page cover each of these in more detail.
 
 .. note::
   For model details and deep understanding about configs, training, fine-tuning and evaluations,
@@ -12,12 +12,12 @@ Both training and inference of speaker diarization is governed by ``.yaml`` file
 Hydra Configurations for Diarization Training 
 =============================================
 
-Currently, NeMo supports Mutiscale diarization decoder (MSDD) as a neural diarizer model. MSDD is a speaker diarization model based on initializing clustering and multiscale segmentation input. Example configuration files for MSDD model training can be found in ``<NeMo_git_root>/examples/speaker_tasks/diarization/conf/neural_diarizer/``. 
+Currently, NeMo supports Multi-scale diarization decoder (MSDD) as a neural diarizer model. MSDD is a speaker diarization model based on initializing clustering and multi-scale segmentation input. Example configuration files for MSDD model training can be found in ``<NeMo_git_root>/examples/speaker_tasks/diarization/conf/neural_diarizer/``.
 
 * Model name convention for MSDD: msdd_<number of scales>scl_<longest scale in decimal second (ds)>_<shortest scale in decimal second (ds)>_<overlap percentage of window shifting>Povl_<hidden layer size>x<number of LSTM layers>x<number of CNN output channels>x<repetition count of conv layer>
 * Example: `msdd_5scl_15_05_50Povl_256x3x32x2.yaml` has 5 scales, the longest scale is 1.5 sec, the shortest scale is 0.5 sec, with 50 percent overlap, hidden layer size is 256, 3 LSTM layers, 32 CNN channels, 2 repeated Conv layers
 
-MSDD model checkpoint (.ckpt) and NeMo file (.nemo) contain speaker embedding model (TitaNet) and the speaker model is loaded along with standalone MSDD moodule. Note that MSDD models require more than one scale. Thus, the parameters in diarizer.speaker_embeddings.parameters should have more than one scale to function as a MSDD model.
+MSDD model checkpoint (.ckpt) and NeMo file (.nemo) contain speaker embedding model (TitaNet) and the speaker model is loaded along with standalone MSDD module. Note that MSDD models require more than one scale. Thus, the parameters in diarizer.speaker_embeddings.parameters should have more than one scale to function as a MSDD model.
 
 
 General Diarizer Configuration
@@ -39,7 +39,7 @@ The items (OmegaConfig keys) directly under ``model`` determines segmentation an
         save_embeddings: True # Save embeddings as pickle file for each audio input.
 
 
-  num_workers: ${num_workers}
+  num_workers: ${num_workers} # Number of workers used for data-loading.
   max_num_of_spks: 2 # Number of speakers per model. This is currently fixed at 2.
   scale_n: 5 # Number of scales for MSDD model and initializing clustering.
   soft_label_thres: 0.5 # Threshold for creating discretized speaker label from continuous speaker label in RTTM files.
@@ -87,10 +87,10 @@ Training, validation, and test parameters are specified using the ``train_ds``, 
     seq_eval_mode: False
 
 
-Preprocessor Configuration
---------------------------
+Pre-processor Configuration
+---------------------------
 
-In MSDD configurations, preprocessor configuration follows the preprocessor of embedding extractor model. 
+In the MSDD configuration, pre-processor configuration follows the pre-processor of the embedding extractor model.
 
 .. code-block:: yaml
 
@@ -110,7 +110,7 @@ In MSDD configurations, preprocessor configuration follows the preprocessor of e
 Model Architecture Configurations
 ---------------------------------
 
-The hyperparameters for MSDD models are under ``msdd_module`` key. The model architecture can be changed by setting up ``weighting_scheme`` and ``context_vector_type``. The detailed explanation for architecture can be found in :doc:`Models <./models>` page.
+The hyper-parameters for MSDD models are under the ``msdd_module`` key. The model architecture can be changed by setting up the ``weighting_scheme`` and ``context_vector_type``. The detailed explanation for architecture can be found in the :doc:`Models <./models>` page.
 
 .. code-block:: yaml
 
@@ -130,7 +130,7 @@ The hyperparameters for MSDD models are under ``msdd_module`` key. The model arc
 Loss Configurations
 -------------------
 
-Neural diarizer uses binary cross entropy (BCE) loss. A set of weights for negative (absence of the speaker's speech) and positive (presence of the speaker's speech) can be provided to the loss function.
+Neural diarizer uses a binary cross entropy (BCE) loss. A set of weights for negative (absence of the speaker's speech) and positive (presence of the speaker's speech) can be provided to the loss function.
 
 .. code-block:: yaml
   loss: 
@@ -142,7 +142,6 @@ Hydra Configurations for Diarization Inference
 ==============================================
 
 Example configuration files for speaker diarization inference can be found in ``<NeMo_git_root>/examples/speaker_tasks/diarization/conf/inference/``. Choose a yaml file that fits your targeted domain. For example, if you want to diarize audio recordings of telephonic speech, choose ``diar_infer_telephonic.yaml``.
-
 
 The configurations for all the components of diarization inference are included in a single file named ``diar_infer_<domain>.yaml``. Each ``.yaml`` file has a few different sections for the following modules: VAD, Speaker Embedding, Clustering and ASR.
 
@@ -165,7 +164,7 @@ An example ``diarizer``  Hydra configuration could look like:
 Under ``diarizer`` key, there are ``vad``, ``speaker_embeddings``, ``clustering`` and ``asr`` keys containing configurations for the inference of the corresponding modules.
 
 Configurations for Voice Activity Detector
------------------------------------------
+------------------------------------------
 
 Parameters for VAD model are provided as in the following Hydra config example.
 
@@ -189,7 +188,7 @@ Parameters for VAD model are provided as in the following Hydra config example.
       filter_speech_first: True 
 
 Configurations for Speaker Embedding in Diarization
---------------------------------------------------
+---------------------------------------------------
 
 Parameters for speaker embedding model are provided in the following Hydra config example. Note that multiscale parameters either accept list or single floating point number.
 
@@ -204,7 +203,7 @@ Parameters for speaker embedding model are provided in the following Hydra confi
       save_embeddings: False # Save embeddings as pickle file for each audio input.
 
 Configurations for Clustering in Diarization
--------------------------------------------
+--------------------------------------------
 
 Parameters for clustering algorithm are provided in the following Hydra config example.
 
@@ -251,4 +250,3 @@ The following configuration needs to be appended under ``diarizer`` to run ASR w
       min_number_of_words: 3 # Min number of words for the left context.
       max_number_of_words: 10 # Max number of words for the right context.
       logprob_diff_threshold: 1.2  # The threshold for the difference between two log probability values from two hypotheses.
-
