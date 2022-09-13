@@ -40,16 +40,18 @@ __all__ = ["PromptEncoder", "BIGLSTMPromptEncoder", "PromptEncoderType", "Prompt
 
 
 class PromptEncoderType(enum.Enum):
-    BIGLSTM = 'biglstm'
-    TPMLP = 'tpmlp'
+    BIGLSTM = 'biglstm'  # LSTM model that works with large language model
+    TPMLP = 'tpmlp'  # mlp model that support tensor parallel, better work together with a large language model
     MLP = 'mlp'
     LSTM = 'lstm'
 
 
 class BIGLSTMPromptEncoder(NeuralModule, Exportable):
     """
-    The prompt encoder network that is used to generate the virtual 
-    token embeddings for p-tuning.
+    The LSTM prompt encoder network that is used to generate the virtual 
+    token embeddings for p-tuning.  It is specially used to work with large language model. 
+
+    To handle large language model, the LSTM only uses hidden_size as its hidden internal dimension, which is independent of LM hidden dimension.
     """
 
     @property
@@ -66,11 +68,12 @@ class BIGLSTMPromptEncoder(NeuralModule, Exportable):
         self, total_virtual_tokens: int, hidden_size: int, output_size: int, lstm_dropout: float, num_layers: int
     ):
         """
-        Initializes the PromptEncoder module.
+        Initializes the LSTM PromptEncoder module that works with large language model.
         Args:
             total_virtual_tokens: the total number of vitural tokens
-            hidden_size: hidden dimension
-            lstm_dropout: the dropout used for the LSTM
+            hidden_size: the lstm hidden dimension
+            output_size:  the output dimension
+            lstm_dropout: lstm dropout rate
             num_layers: number of layers used in the LSTM
         """
         super().__init__()
@@ -111,21 +114,14 @@ class BIGLSTMPromptEncoder(NeuralModule, Exportable):
         taskname_embeddings = torch.matmul(taskname_embeddings, self.mlp_head[2].weight)
         # Replace general input with task specific embeddings to specify the correct task
         input_embeds[:, 0:length, :] = taskname_embeddings[:, 0:length, :]
-
-        if self.encoder_type == PromptEncoderType.LSTM:
-            output_embeds = self.mlp_head(self.lstm_head(input_embeds)[0])
-        elif self.encoder_type == PromptEncoderType.MLP:
-            output_embeds = self.mlp_head(input_embeds)
-        else:
-            raise ValueError("Prompt encoder type not recognized. Please use one of MLP (recommended) or LSTM.")
-
+        output_embeds = self.mlp_head(self.lstm_head(input_embeds)[0])
         return output_embeds
 
 
 class PromptEncoderMLP(NeuralModule, Exportable):
     """
     The Tensor Parallel MLP prompt encoder network that is used to generate the virtual 
-    token embeddings for p-tuning.
+    token embeddings for p-tuning. It only have two layers.
     """
 
     @property
@@ -140,12 +136,12 @@ class PromptEncoderMLP(NeuralModule, Exportable):
 
     def __init__(self, total_virtual_tokens: int, hidden_size: int, output_size: int, init_std: float):
         """
-        Initializes the PromptEncoderMLP module.
+        Initializes the Tensor Model parallel MLP PromptEncoderMLP module.
         Args:
             total_virtual_tokens: the total number of vitural tokens
             hidden_size: hidden dimension
-            lstm_dropout: the dropout used for the LSTM
-            num_layers: number of layers used in the LSTM
+            output_size:  the output dimension
+            init_std: the MLP init std value 
         """
         super().__init__()
         self.hidden_size = hidden_size

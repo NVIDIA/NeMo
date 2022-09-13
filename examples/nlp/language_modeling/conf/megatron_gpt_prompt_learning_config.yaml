@@ -96,7 +96,7 @@ model:
   p_tuning: # P-tuning specific params
     encoder_type: "tpmlp" # ['tpmlp', 'lstm', 'biglstm', 'mlp'] 
     dropout: 0.0
-    num_layers: 2
+    num_layers: 2  # number of layers for MLP or LSTM layers. Note, it has no effect for tpmlp currently as it always assumes it is two layers.
     encoder_hidden: 2048 # encoder hidden for biglstm and tpmlp
     init_std: 0.023  # init std for tpmlp layers
 

@@ -183,10 +183,6 @@ model:
   native_amp_growth_interval: 1000
   fp16_lm_cross_entropy: False # Move the cross entropy unreduced loss calculation for lm head to fp16
 
-  # init parameters
-  out_init: 12.0
-  norm_init: 8.0
-
   # miscellaneous
   seed: 1234
 
