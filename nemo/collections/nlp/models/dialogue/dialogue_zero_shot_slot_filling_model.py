@@ -59,11 +59,7 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
 
         # Initialize MultiLayerPerceptron for predicting IOB class
         self.bio_mlp = MultiLayerPerceptron(
-            hidden_size=self.hidden_size,
-            num_classes=3,
-            num_layers=2,
-            activation='relu',
-            log_softmax=True,
+            hidden_size=self.hidden_size, num_classes=3, num_layers=2, activation='relu', log_softmax=True,
         )
 
         self.mention_projection_mlp = torch.nn.Linear(self.hidden_size, 300, bias=False, device=self.device)
@@ -164,10 +160,7 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
 
         # setup to track metrics
         self.bio_slot_classification_report = ClassificationReport(
-            num_classes=len([0, 1, 2]),
-            label_ids={0: 0, 1: 1, 2: 2},
-            dist_sync_on_step=True,
-            mode='micro',
+            num_classes=len([0, 1, 2]), label_ids={0: 0, 1: 1, 2: 2}, dist_sync_on_step=True, mode='micro',
         )
 
         self.slot_similarity_classification_report = ClassificationReport(
@@ -654,10 +647,7 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         filename = os.path.join(self.cfg.dataset.dialogues_example_dir, "predictions.jsonl")
 
         DialogueClassificationMetrics.save_slot_predictions(
-            filename,
-            all_generated_slots,
-            all_ground_truth_slots,
-            all_utterances,
+            filename, all_generated_slots, all_ground_truth_slots, all_utterances,
         )
 
         (
