@@ -110,7 +110,9 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         if 'loss' in cfg:
             # To support older version checkpoints
             if '_target_' not in cfg.loss:
-                logging.info("Support older version checkpoints of label models")
+                logging.info(
+                    "Setting angular: true/false in decoder is deprecated and will be removed in 1.13 version, use specific loss with _target_"
+                )
                 OmegaConf.set_struct(cfg, True)
                 with open_dict(cfg):
                     if 'angular' in cfg.decoder and cfg.decoder.angular:
