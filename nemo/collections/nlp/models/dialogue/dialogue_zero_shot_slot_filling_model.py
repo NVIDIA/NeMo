@@ -11,9 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import csv
 import os
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 import torch
 from omegaconf import DictConfig, OmegaConf
@@ -33,6 +33,7 @@ from nemo.collections.nlp.metrics.dialogue_metrics import DialogueClassification
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.core import PretrainedModelInfo
 from nemo.core.classes import typecheck
+from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.utils import logging
 
 
@@ -207,12 +208,12 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         logging.info(f'Setting data_dir to {data_dir}.')
         self.data_dir = data_dir
 
-    def get_description_embeddings(self, descriptions):
+    def get_description_embeddings(self, types_descriptions):
         """
         Generate one description's embedding
 
         Args:
-            descriptions: list of slot description
+            types_descriptions: list of slot description
             eg. ["food type\tdrinks menu vegetarian main desserts sides"]
         Returns:
             description embedding by taking final layer embedding for the [CLS] token,
@@ -220,23 +221,14 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         """
 
         model = BertModel.from_pretrained("bert-base-uncased")
-        description_embeddings = []
-        for one_description in descriptions:
-            tokens_of_entity_label, entity_description = one_description.split('\t')
-            inputs = self.tokenizer.tokenizer(
-                tokens_of_entity_label,
-                entity_description,
-                return_tensors="pt",
-                max_length=128,
-                truncation="only_second",
-                padding="max_length",
-            )
-            with torch.no_grad():
-                outputs = model(**inputs)
-            last_hidden_states = outputs.last_hidden_state
-            description_embeddings.append(last_hidden_states[0, 0, :])
-
-        return torch.stack(description_embeddings)
+        reader = csv.reader(types_descriptions, delimiter="\t")
+        types, descriptions = zip(*reader)
+        inputs = self.tokenizer.tokenizer(
+            types, descriptions, return_tensors="pt", max_length=128, truncation="only_second", padding="max_length"
+        )
+        with torch.no_grad():
+            output = model(**inputs)
+            return output.last_hidden_state[:, 0, :].to(self.device)
 
     @staticmethod
     def get_entity_embedding_from_hidden_states(bio_slot_labels, hidden_states):
@@ -307,23 +299,27 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
 
         return bio_slot_logits, dot_product_score_log_softmax, predicted_dot_product_score_log_softmax
 
-    def predict(self, text: str, slot_descriptions: List[str]) -> Tuple[torch.tensor, List[str], torch.tensor]:
+    def predict(
+        self, texts: Union[str, List[str]], slot_descriptions: List[str] = None
+    ) -> Tuple[torch.tensor, List[List[str]], torch.tensor]:
         """
         Method for performing inference on text given a list of slot types and descriptions
         Args:
-            text: The actual text on which inference needs to be performed
+            texts: A single string or a list of strings on which inference needs to be performed
             slot_descriptions: A list of slot types and descriptions separated by a tab.
                 e.g. drink type\tThe type of drink
         """
+        if isinstance(texts, str):
+            texts = [texts]
         (
             input_ids,
             token_type_ids,
-            attention_mask,
+            attention_masks,
             loss_mask,
-            subtokens_mask,
+            subtokens_masks,
             _,
         ) = DialogueZeroShotSlotFillingDataset.get_features(
-            [text],
+            texts,
             self.max_seq_length,
             self.tokenizer,
             pad_label=self.cfg.data_desc.pad_label,
@@ -333,11 +329,11 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         )
         input_ids = torch.tensor(input_ids, dtype=torch.int32, device=self.device)
         token_type_ids = torch.tensor(token_type_ids, dtype=torch.int32, device=self.device)
-        attention_mask = torch.tensor(attention_mask, dtype=torch.int32, device=self.device)
-        subtokens_mask = torch.tensor(subtokens_mask, dtype=torch.int32, device=self.device)
+        attention_masks = torch.tensor(attention_masks, dtype=torch.int32, device=self.device)
+        subtokens_masks = torch.tensor(subtokens_masks, dtype=torch.int32, device=self.device)
 
         hidden_states = self.bert_model(
-            input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
+            input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_masks
         )
         bio_slot_logits = self.bio_mlp(hidden_states)
         predicted_bio_slot = torch.argmax(bio_slot_logits, dim=-1)
@@ -353,9 +349,12 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
             predicted_bio_slot, predicted_slot_similarity_preds, label_id_for_empty_slot=self.label_id_for_empty_slot
         )
 
-        utterance_tokens = self.get_utterance_tokens(input_ids[0], subtokens_mask[0])
+        utterance_tokens = [
+            self.get_utterance_tokens(single_input_ids, single_subtokens_masks)
+            for single_input_ids, single_subtokens_masks in zip(input_ids, subtokens_masks)
+        ]
 
-        return predicted_slot_class_batch[0], utterance_tokens, predicted_bio_slot[0]
+        return predicted_slot_class_batch, utterance_tokens, predicted_bio_slot
 
     def calculate_loss(
         self,
@@ -811,6 +810,23 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
             drop_last=cfg.drop_last,
             collate_fn=dataset.collate_fn,
         )
+
+    @classmethod
+    def restore_from(
+        cls,
+        restore_path: str,
+        override_config_path: Optional[Union[OmegaConf, str]] = None,
+        map_location: Optional[torch.device] = None,
+        strict: bool = True,
+        return_config: bool = False,
+        save_restore_connector: SaveRestoreConnector = None,
+        trainer: Optional[Trainer] = None,
+    ):
+        instance: DialogueZeroShotSlotFillingModel = super().restore_from(
+            restore_path, override_config_path, map_location, strict, return_config, save_restore_connector, trainer
+        )
+        instance.description_embeddings = instance.description_embeddings.to(instance.device)
+        return instance
 
     def update_data_dirs(self, data_dir: str, dialogues_example_dir: str):
         """
