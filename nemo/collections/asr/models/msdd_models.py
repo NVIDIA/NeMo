@@ -31,12 +31,7 @@ from tqdm import tqdm
 from nemo.collections.asr.data.audio_to_diar_label import AudioToSpeechMSDDInferDataset, AudioToSpeechMSDDTrainDataset
 from nemo.collections.asr.metrics.multi_binary_acc import MultiBinaryAccuracy
 from nemo.collections.asr.models import ClusteringDiarizer
-from nemo.collections.asr.models.clustering_diarizer import (
-    get_available_model_names,
-    _MODEL_CONFIG_YAML,
-    _VAD_MODEL,
-    _SPEAKER_MODEL, 
-)
+from nemo.collections.asr.models.clustering_diarizer import get_available_model_names
 
 from nemo.collections.asr.models.asr_model import ExportableEncDecModel
 from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel
