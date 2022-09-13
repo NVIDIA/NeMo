@@ -50,17 +50,11 @@ class EncDecSpeechLabelModelTest(TestCase):
             'params': {'feat_in': 512, 'num_classes': 2, 'pool_mode': 'xvector', 'emb_sizes': [1024]},
         }
 
-        loss = {
-            'cls': 'nemo.collections.common.losses.cross_entropy.CrossEntropyLoss',
-            'params': {},
-        }
-
         modelConfig = DictConfig(
             {
                 'preprocessor': DictConfig(preprocessor),
                 'encoder': DictConfig(encoder),
                 'decoder': DictConfig(decoder),
-                'loss': DictConfig(loss),
             },
         )
         speaker_model = EncDecSpeakerLabelModel(cfg=modelConfig)
@@ -91,18 +85,8 @@ class EncDecSpeechLabelModelTest(TestCase):
             'params': {'feat_in': 3, 'num_classes': 2, 'pool_mode': 'attention', 'emb_sizes': 192},
         }
 
-        loss = {
-            'cls': 'nemo.collections.common.losses.cross_entropy.CrossEntropyLoss',
-            'params': {},
-        }
-
         modelConfig = DictConfig(
-            {
-                'preprocessor': DictConfig(preprocessor),
-                'encoder': DictConfig(encoder),
-                'decoder': DictConfig(decoder),
-                'loss': DictConfig(loss),
-            }
+            {'preprocessor': DictConfig(preprocessor), 'encoder': DictConfig(encoder), 'decoder': DictConfig(decoder),}
         )
         speaker_model = EncDecSpeakerLabelModel(cfg=modelConfig)
         speaker_model.train()
@@ -144,18 +128,8 @@ class EncDecSpeechLabelModelTest(TestCase):
             'params': {'feat_in': 256, 'num_classes': 2, 'pool_mode': 'attention', 'emb_sizes': [1024]},
         }
 
-        loss = {
-            'cls': 'nemo.collections.common.losses.cross_entropy.CrossEntropyLoss',
-            'params': {},
-        }
-
         modelConfig = DictConfig(
-            {
-                'preprocessor': DictConfig(preprocessor),
-                'encoder': DictConfig(encoder),
-                'decoder': DictConfig(decoder),
-                'loss': DictConfig(loss),
-            }
+            {'preprocessor': DictConfig(preprocessor), 'encoder': DictConfig(encoder), 'decoder': DictConfig(decoder),}
         )
         speaker_model = EncDecSpeakerLabelModel(cfg=modelConfig)
         speaker_model.train()
