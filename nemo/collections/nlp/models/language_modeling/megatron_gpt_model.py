@@ -506,6 +506,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.compute_consumed_samples(self.trainer.global_step - self.init_global_step),
             rank_zero_only=True,
         )
+        self.log('global_step', self.trainer.global_step, rank_zero_only=True)
 
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)

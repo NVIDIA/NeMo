@@ -598,6 +598,10 @@ def sample_sequence_batch(
         micro_batch_size=micro_batch_size,
         data_parallel_size=1,
     )
+    assert model.cfg.sequence_parallel == False, 'sequence_parallel should be False during inference. Disable it in the model config if restoring from nemo or in hparams.yaml if restoring from PTL checkpoint'
+    assert model.cfg.activations_checkpoint_granularity == None, 'activations_checkpoint_granularity should be None during inference. Disable it in the model config if restoring from nemo or in hparams.yaml if restoring from PTL checkpoint'
+    assert model.cfg.activations_checkpoint_method == None, 'activations_checkpoint_method should be None during inference. Disable it in the model config if restoring from nemo or in hparams.yaml if restoring from PTL checkpoint'
+
     tokenizer = model.tokenizer
     model.eval()
     with torch.no_grad():

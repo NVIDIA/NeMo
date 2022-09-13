@@ -164,12 +164,15 @@ def main(cfg) -> None:
         OmegaConf.set_struct(pretrained_cfg, True)
         with open_dict(pretrained_cfg):
             pretrained_cfg.sequence_parallel=False
+            pretrained_cfg.activations_checkpoint_granularity=None
+            pretrained_cfg.activations_checkpoint_method=None
         model = MegatronGPTModel.restore_from(restore_path=cfg.gpt_model_file, trainer=trainer, override_config_path=pretrained_cfg)
-        #model = MegatronGPTModel.restore_from(restore_path=cfg.gpt_model_file, trainer=trainer)
     elif cfg.checkpoint_dir:
         app_state = AppState()
         if cfg.tensor_model_parallel_size > 1 or cfg.pipeline_model_parallel_size > 1:
             app_state.model_parallel_size = cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
+            app_state.tensor_model_parallel_size = cfg.tensor_model_parallel_size
+            app_state.pipeline_model_parallel_size = cfg.pipeline_model_parallel_size
             (
                 app_state.tensor_model_parallel_rank,
                 app_state.pipeline_model_parallel_rank,
