@@ -212,7 +212,9 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
         Returns:
             A list of word-level confidence scores.
         """
-        return self._aggregate_token_confidence_subwords_sentencepiece(hypothesis.words, hypothesis.token_confidence, hypothesis.y_sequence)
+        return self._aggregate_token_confidence_subwords_sentencepiece(
+            hypothesis.words, hypothesis.token_confidence, hypothesis.y_sequence
+        )
 
     def decode_tokens_to_str(self, tokens: List[int]) -> str:
         """

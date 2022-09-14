@@ -13,12 +13,13 @@
 # limitations under the License.
 
 import argparse
-import copy
 import contextlib
+import copy
 import json
 import os
 from dataclasses import dataclass, is_dataclass
 from pathlib import Path
+from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -26,12 +27,8 @@ import pytorch_lightning as pl
 import texterrors
 import torch
 from omegaconf import MISSING, OmegaConf, open_dict
-from sklearn.metrics import roc_curve
-from sklearn.metrics import RocCurveDisplay
-from sklearn.metrics import precision_recall_curve
-from sklearn.metrics import PrecisionRecallDisplay
+from sklearn.metrics import PrecisionRecallDisplay, RocCurveDisplay, precision_recall_curve, roc_curve
 from sklearn.model_selection import ParameterGrid
-from typing import Optional
 
 from nemo.collections.asr.metrics.rnnt_wer import RNNTDecodingConfig
 from nemo.collections.asr.metrics.wer import CTCDecodingConfig
@@ -87,7 +84,11 @@ def get_correct_marks(r, h):
 
     This method considers only insertions and substitutions as incorrect marks.
     """
-    return [a == b for a, b in zip(*(texterrors.align_texts([str(rr) for rr in r], [str(hh) for hh in h], False)[:-1])) if b != "<eps>"]
+    return [
+        a == b
+        for a, b in zip(*(texterrors.align_texts([str(rr) for rr in r], [str(hh) for hh in h], False)[:-1]))
+        if b != "<eps>"
+    ]
 
 
 def get_token_targets_with_confidence(hyp):
@@ -105,7 +106,9 @@ def run_benchmark(model, batch_size, num_workers, is_rnnt, target_level, filepat
         Dictionary with benchmark results of the following scheme:
         `level: (auc_roc, auc_pr, auc_nt, nce, ece, auc_yc, max_yc, std_yc)` with `level` being 'token' or 'word'.
     """
-    transcriptions = model.transcribe(paths2audio_files=filepaths, batch_size=batch_size, return_hypotheses=True, num_workers=num_workers)
+    transcriptions = model.transcribe(
+        paths2audio_files=filepaths, batch_size=batch_size, return_hypotheses=True, num_workers=num_workers
+    )
     if is_rnnt:
         transcriptions = transcriptions[0]
 
@@ -118,23 +121,34 @@ def run_benchmark(model, batch_size, num_workers, is_rnnt, target_level, filepat
     for level in levels:
         if level == "token":
             targets_with_confidence = [get_token_targets_with_confidence(tran) for tran in transcriptions]
-            correct_marks = [get_correct_marks(model.tokenizer.text_to_ids(r), model.tokenizer.text_to_ids(h.text)) for r, h in zip(reference_texts, transcriptions)]
-        else: # "word"
+            correct_marks = [
+                get_correct_marks(model.tokenizer.text_to_ids(r), model.tokenizer.text_to_ids(h.text))
+                for r, h in zip(reference_texts, transcriptions)
+            ]
+        else:  # "word"
             targets_with_confidence = [get_word_targets_with_confidence(tran) for tran in transcriptions]
             correct_marks = [get_correct_marks(r.split(), h.words) for r, h in zip(reference_texts, transcriptions)]
 
-        y_true, y_score = np.array([[f, p[1]] for cm, twc in zip(correct_marks, targets_with_confidence) for f, p in zip(cm, twc)]).T
+        y_true, y_score = np.array(
+            [[f, p[1]] for cm, twc in zip(correct_marks, targets_with_confidence) for f, p in zip(cm, twc)]
+        ).T
         mask_correct = y_true == 1
         y_score_correct = y_score[mask_correct]
         y_score_incorrect = y_score[~mask_correct]
         result_yc = auc_yc(y_true, y_score, return_std_maximum=True, return_curve=True)
-        results[level] = [auc_roc(y_true, y_score), auc_pr(y_true, y_score), auc_nt(y_true, y_score), nce(y_true, y_score), ece(y_true, y_score)] + list(result_yc[:-1])
+        results[level] = [
+            auc_roc(y_true, y_score),
+            auc_pr(y_true, y_score),
+            auc_nt(y_true, y_score),
+            nce(y_true, y_score),
+            ece(y_true, y_score),
+        ] + list(result_yc[:-1])
 
         os.makedirs(plot_dir, exist_ok=True)
-        plt.hist(np.array(y_score_correct), 50, range=(0,1))
+        plt.hist(np.array(y_score_correct), 50, range=(0, 1))
         plt.savefig(plot_dir / Path(level + "_" + "hist_correct.png"), dpi=300)
         plt.clf()
-        plt.hist(np.array(y_score_incorrect), 50, range=(0,1))
+        plt.hist(np.array(y_score_incorrect), 50, range=(0, 1))
         plt.savefig(plot_dir / Path(level + "_" + "hist_incorrect.png"), dpi=300)
         plt.clf()
         fpr, tpr, _ = roc_curve(1 - y_true, 1 - y_score)
@@ -189,7 +203,14 @@ def get_experiment_params(cfg):
     if method_name == "entropy":
         entropy_type = cfg.method_cfg.entropy_type
         entropy_norm = cfg.method_cfg.entropy_norm
-        experiment_param_list = [aggregation, str(cfg.exclude_blank), method_name, entropy_type, entropy_norm, str(temperature)]
+        experiment_param_list = [
+            aggregation,
+            str(cfg.exclude_blank),
+            method_name,
+            entropy_type,
+            entropy_norm,
+            str(temperature),
+        ]
         experiment_str = "-".join([aggregation, blank, method_name, entropy_type, entropy_norm, str(temperature)])
     else:
         experiment_param_list = [aggregation, str(cfg.exclude_blank), method_name, "-", "-", str(temperature)]
@@ -305,6 +326,7 @@ def main(cfg: ConfidenceBenchmarkingConfig):
         logging.info("AMP enabled!\n")
         autocast = torch.cuda.amp.autocast
     else:
+
         @contextlib.contextmanager
         def autocast():
             yield
@@ -312,11 +334,37 @@ def main(cfg: ConfidenceBenchmarkingConfig):
     # do grig-based benchmarking if grid_params is provided, otherwise a regular one
     work_dir = Path(cfg.output_dir)
     os.makedirs(work_dir, exist_ok=True)
-    report_legend = ",".join(["model_type", "aggregation", "blank", "method_name", "entropy_type", "entropy_norm", "temperature", "target_level", "auc_roc", "auc_pr", "auc_nt", "nce", "ece", "auc_yc", "max_yc", "std_yc"]) + "\n"
+    report_legend = (
+        ",".join(
+            [
+                "model_type",
+                "aggregation",
+                "blank",
+                "method_name",
+                "entropy_type",
+                "entropy_norm",
+                "temperature",
+                "target_level",
+                "auc_roc",
+                "auc_pr",
+                "auc_nt",
+                "nce",
+                "ece",
+                "auc_yc",
+                "max_yc",
+                "std_yc",
+            ]
+        )
+        + "\n"
+    )
     model_typename = "RNNT" if is_rnnt else "CTC"
     if cfg.grid_params:
         report_file = work_dir / Path("report.csv")
-        asr_model.change_decoding_strategy(RNNTDecodingConfig(fused_batch_size=-1, strategy="greedy_batch", confidence_cfg=cfg.confidence_cfg) if is_rnnt else CTCDecodingConfig(confidence_cfg=cfg.confidence_cfg))
+        asr_model.change_decoding_strategy(
+            RNNTDecodingConfig(fused_batch_size=-1, strategy="greedy_batch", confidence_cfg=cfg.confidence_cfg)
+            if is_rnnt
+            else CTCDecodingConfig(confidence_cfg=cfg.confidence_cfg)
+        )
         params = json.loads(cfg.grid_params)
         hp_grid = ParameterGrid(params)
         hp_grid = list(hp_grid)
@@ -334,13 +382,26 @@ def main(cfg: ConfidenceBenchmarkingConfig):
                 asr_model.change_decoding_strategy(apply_parameters(asr_model.cfg.decoding, hp))
                 param_list, experiment_name = get_experiment_params(asr_model.cfg.decoding.confidence_cfg)
                 plot_dir = work_dir / Path(experiment_name)
-                results = run_benchmark(asr_model, cfg.batch_size, cfg.num_workers, is_rnnt, cfg.target_level, filepaths, reference_texts, plot_dir)
+                results = run_benchmark(
+                    asr_model,
+                    cfg.batch_size,
+                    cfg.num_workers,
+                    is_rnnt,
+                    cfg.target_level,
+                    filepaths,
+                    reference_texts,
+                    plot_dir,
+                )
                 for level, result in results.items():
                     f.write(f"{model_typename},{','.join(param_list)},{level},{','.join([str(r) for r in result])}\n")
                     f.flush()
     else:
         report_file = work_dir / Path("report.csv")
-        asr_model.change_decoding_strategy(RNNTDecodingConfig(fused_batch_size=-1, strategy="greedy_batch", confidence_cfg=cfg.confidence_cfg) if is_rnnt else CTCDecodingConfig(confidence_cfg=cfg.confidence_cfg))
+        asr_model.change_decoding_strategy(
+            RNNTDecodingConfig(fused_batch_size=-1, strategy="greedy_batch", confidence_cfg=cfg.confidence_cfg)
+            if is_rnnt
+            else CTCDecodingConfig(confidence_cfg=cfg.confidence_cfg)
+        )
         param_list, experiment_name = get_experiment_params(asr_model.cfg.decoding.confidence_cfg)
         plot_dir = work_dir / Path(experiment_name)
 
@@ -350,10 +411,20 @@ def main(cfg: ConfidenceBenchmarkingConfig):
         with open(work_dir / Path("report.csv"), "tw", encoding="utf-8") as f:
             f.write(report_legend)
             f.flush()
-            results = run_benchmark(asr_model, cfg.batch_size, cfg.num_workers, is_rnnt, cfg.target_level, filepaths, reference_texts, plot_dir)
+            results = run_benchmark(
+                asr_model,
+                cfg.batch_size,
+                cfg.num_workers,
+                is_rnnt,
+                cfg.target_level,
+                filepaths,
+                reference_texts,
+                plot_dir,
+            )
             for level, result in results.items():
                 f.write(f"{model_typename},{','.join(param_list)},{level},{','.join([str(r) for r in result])}\n")
     logging.info(f"===========================================Done===============================================")
+
 
 if __name__ == '__main__':
     main()

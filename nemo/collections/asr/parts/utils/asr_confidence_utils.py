@@ -12,15 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import partial
-from omegaconf import DictConfig, OmegaConf
 from typing import List, Optional
 
-import math
+from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
+
 
 @dataclass
 class ConfidenceMethodConfig:
@@ -33,11 +34,15 @@ class ConfidenceMethodConfig:
         if self.name not in ("max_prob", "entropy"):
             raise ValueError(f"`name` has to be one of the following: `max_prob`, `entropy`. Provided: {self.name}")
         if self.entropy_type not in ("gibbs", "tsallis", "renui"):
-            raise ValueError(f"`entropy_type` has to be one of the following: `gibbs`, `tsallis`, `renui`. Provided: {self.entropy_type}")
-        if self.temperature <= 0.:
+            raise ValueError(
+                f"`entropy_type` has to be one of the following: `gibbs`, `tsallis`, `renui`. Provided: {self.entropy_type}"
+            )
+        if self.temperature <= 0.0:
             raise ValueError(f"`temperature` has to be > 0. Provided: {self.temperature}")
         if self.entropy_norm not in ("lin", "exp"):
-            raise ValueError(f"`entropy_norm` has to be one of the following: `lin`, `exp`. Provided: {self.entropy_norm}")
+            raise ValueError(
+                f"`entropy_norm` has to be one of the following: `lin`, `exp`. Provided: {self.entropy_norm}"
+            )
 
 
 @dataclass
@@ -51,7 +56,9 @@ class ConfidenceConfig:
 
     def __post_init__(self):
         if self.aggregation not in ("mean", "min", "max", "prod"):
-            raise ValueError(f"`aggregation` has to be one of the following: `mean`, `min`, `max`, `prod`. Provided: {self.aggregation}")
+            raise ValueError(
+                f"`aggregation` has to be one of the following: `mean`, `min`, `max`, `prod`. Provided: {self.aggregation}"
+            )
 
 
 def get_confidence_measure_bank():
@@ -78,22 +85,48 @@ def get_confidence_measure_bank():
     def entropy_tsallis_exp(x, v, t):
         exp_neg_max_ent = math.exp((1 - math.pow(v, 1 - t)) / (1 - t))
         return (((1 - neg_entropy_temperature(x, t)) / (1 - t)).exp() - exp_neg_max_ent) / (1 - exp_neg_max_ent)
+
     def entropy_gibbs_exp(x, v, t):
         exp_neg_max_ent = math.pow(v, -t * math.pow(v, 1 - t))
         return ((neg_entropy_temperature_gibbs(x, t) * t).exp() - exp_neg_max_ent) / (1 - exp_neg_max_ent)
+
     # use Gibbs entropies for Tsallis and Rényi with t == 1.0
     entropy_gibbs_lin_baseline = lambda x, v: 1 + neg_entropy_gibbs(x) / math.log(v)
     entropy_gibbs_exp_baseline = lambda x, v: (neg_entropy_gibbs(x).exp() * v - 1) / (v - 1)
     # fill the measure bank
     confidence_measure_bank = {}
     # Maximum probability measure is implemented without temperature
-    confidence_measure_bank["max_prob"] = lambda x, v, t: (x.max(dim=-1)[0].exp() * v - 1) / (v - 1) if t == 1.0 else ((x.max(dim=-1)[0] * t).exp() * math.pow(v, t) - 1) / (math.pow(v, t) - 1)
-    confidence_measure_bank["entropy_gibbs_lin"] = lambda x, v, t: entropy_gibbs_lin_baseline(x, v) if t == 1.0 else 1 + neg_entropy_temperature_gibbs(x, t) / math.log(v) / math.pow(v, 1 - t)
-    confidence_measure_bank["entropy_gibbs_exp"] = lambda x, v, t: entropy_gibbs_exp_baseline(x, v) if t == 1.0 else entropy_gibbs_exp(x, v, t)
-    confidence_measure_bank["entropy_tsallis_lin"] = lambda x, v, t: entropy_gibbs_lin_baseline(x, v) if t == 1.0 else 1 + (1 - neg_entropy_temperature(x, t)) / (math.pow(v, 1 - t) - 1)
-    confidence_measure_bank["entropy_tsallis_exp"] = lambda x, v, t: entropy_gibbs_exp_baseline(x, v) if t == 1.0 else entropy_tsallis_exp(x, v, t)
-    confidence_measure_bank["entropy_renui_lin"] = lambda x, v, t: entropy_gibbs_lin_baseline(x, v) if t == 1.0 else 1 + neg_entropy_temperature(x, t).log2() / (t - 1) / math.log(v, 2)
-    confidence_measure_bank["entropy_renui_exp"] = lambda x, v, t: entropy_gibbs_exp_baseline(x, v) if t == 1.0 else (neg_entropy_temperature(x, t).pow(1 / (t - 1)) * v - 1) / (v - 1)
+    confidence_measure_bank["max_prob"] = (
+        lambda x, v, t: (x.max(dim=-1)[0].exp() * v - 1) / (v - 1)
+        if t == 1.0
+        else ((x.max(dim=-1)[0] * t).exp() * math.pow(v, t) - 1) / (math.pow(v, t) - 1)
+    )
+    confidence_measure_bank["entropy_gibbs_lin"] = (
+        lambda x, v, t: entropy_gibbs_lin_baseline(x, v)
+        if t == 1.0
+        else 1 + neg_entropy_temperature_gibbs(x, t) / math.log(v) / math.pow(v, 1 - t)
+    )
+    confidence_measure_bank["entropy_gibbs_exp"] = (
+        lambda x, v, t: entropy_gibbs_exp_baseline(x, v) if t == 1.0 else entropy_gibbs_exp(x, v, t)
+    )
+    confidence_measure_bank["entropy_tsallis_lin"] = (
+        lambda x, v, t: entropy_gibbs_lin_baseline(x, v)
+        if t == 1.0
+        else 1 + (1 - neg_entropy_temperature(x, t)) / (math.pow(v, 1 - t) - 1)
+    )
+    confidence_measure_bank["entropy_tsallis_exp"] = (
+        lambda x, v, t: entropy_gibbs_exp_baseline(x, v) if t == 1.0 else entropy_tsallis_exp(x, v, t)
+    )
+    confidence_measure_bank["entropy_renui_lin"] = (
+        lambda x, v, t: entropy_gibbs_lin_baseline(x, v)
+        if t == 1.0
+        else 1 + neg_entropy_temperature(x, t).log2() / (t - 1) / math.log(v, 2)
+    )
+    confidence_measure_bank["entropy_renui_exp"] = (
+        lambda x, v, t: entropy_gibbs_exp_baseline(x, v)
+        if t == 1.0
+        else (neg_entropy_temperature(x, t).pow(1 / (t - 1)) * v - 1) / (v - 1)
+    )
     return confidence_measure_bank
 
 
@@ -138,7 +171,9 @@ class ConfidenceMeasureMixin(ABC):
         if confidence_method_cfg.name == "max_prob":
             measure_name = "max_prob"
         elif confidence_method_cfg.name == "entropy":
-            measure_name = '_'.join([confidence_method_cfg.name, confidence_method_cfg.entropy_type, confidence_method_cfg.entropy_norm])
+            measure_name = '_'.join(
+                [confidence_method_cfg.name, confidence_method_cfg.entropy_type, confidence_method_cfg.entropy_norm]
+            )
         else:
             raise ValueError(f"Unsupported `confidence_method_cfg.name`: `{confidence_method_cfg.name}`")
         if measure_name not in self.confidence_measure_bank:
@@ -163,9 +198,13 @@ class ConfidenceMixin(ABC):
         self.preserve_word_confidence = confidence_cfg.get('preserve_word_confidence', False)
         # set preserve_frame_confidence and preserve_token_confidence to True
         # if preserve_word_confidence is True
-        self.preserve_token_confidence = confidence_cfg.get('preserve_token_confidence', False) | self.preserve_word_confidence
+        self.preserve_token_confidence = (
+            confidence_cfg.get('preserve_token_confidence', False) | self.preserve_word_confidence
+        )
         # set preserve_frame_confidence to True if preserve_token_confidence is True
-        self.preserve_frame_confidence = confidence_cfg.get('preserve_frame_confidence', False) | self.preserve_token_confidence
+        self.preserve_frame_confidence = (
+            confidence_cfg.get('preserve_frame_confidence', False) | self.preserve_token_confidence
+        )
         self.exclude_blank_from_confidence = confidence_cfg.get('exclude_blank', True)
         self.word_confidence_aggregation = confidence_cfg.get('aggregation', "min")
         self.confidence_method_cfg = confidence_cfg.get('method_cfg', None)
@@ -219,12 +258,14 @@ class ConfidenceMixin(ABC):
         i = 0
         for word in words:
             word_len = len(word)
-            word_confidence.append(self._aggregate_confidence(token_confidence[i: i+word_len]))
+            word_confidence.append(self._aggregate_confidence(token_confidence[i : i + word_len]))
             # we assume that there is exactly one space token between words and exclude it from word confidence
             i += word_len + 1
         return word_confidence
 
-    def _aggregate_token_confidence_subwords_sentencepiece(self, words: List[str], token_confidence: List[float], token_ids: List[int]) -> List[float]:
+    def _aggregate_token_confidence_subwords_sentencepiece(
+        self, words: List[str], token_confidence: List[float], token_ids: List[int]
+    ) -> List[float]:
         """Implementation of token confidence aggregation for subword-based models.
 
         **Note**: Only supports Sentencepiece based tokenizers !
@@ -252,16 +293,18 @@ class ConfidenceMixin(ABC):
                     # do not add confidence for `▁` if the current token starts with `▁`
                     # to match the result of `tokenizer.ids_to_text`
                     if not prev_underline:
-                        word_confidence.append(self._aggregate_confidence(token_confidence[j: i]))
+                        word_confidence.append(self._aggregate_confidence(token_confidence[j:i]))
                     j = i
                 prev_unk = token == '<unk>'
                 prev_underline = token == '▁'
             if not prev_underline:
-                word_confidence.append(self._aggregate_confidence(token_confidence[j: len(token_ids)]))
+                word_confidence.append(self._aggregate_confidence(token_confidence[j : len(token_ids)]))
         if len(words) != len(word_confidence):
-            raise RuntimeError(f"""Something went wrong with word-level confidence aggregation.\n
+            raise RuntimeError(
+                f"""Something went wrong with word-level confidence aggregation.\n
             Please check these values for debugging:\n
             len(words): {len(hypothesis.words)},\n
             len(word_confidence): {len(word_confidence)},\n
-            recognized text: `{' '.join(words)}`""")
+            recognized text: `{' '.join(words)}`"""
+            )
         return word_confidence

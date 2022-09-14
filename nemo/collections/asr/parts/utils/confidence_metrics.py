@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import math
+
 import numpy as np
 from sklearn.metrics import average_precision_score, log_loss, roc_auc_score
 
@@ -48,7 +49,7 @@ def nce(y_true, y_score):
     """
     p = sum(y_true) / len(y_true)
     eps = 1e-15
-    Hp = - (math.log(p + eps) * p + math.log(1 - p + eps) * (1 - p))
+    Hp = -(math.log(p + eps) * p + math.log(1 - p + eps) * (1 - p))
     return (Hp - log_loss(y_true, y_score)) / Hp
 
 
@@ -69,7 +70,7 @@ def ece(y_true, y_score, n_bins=100):
         py_index = (py.T[1] >= threshold).astype(int)
         # py_value = []
         # for i in range(py.shape[0]):
-            # py_value.append(py[i, py_index[i]])
+        # py_value.append(py[i, py_index[i]])
         # py_value = np.array(py_value)
         # memory leak
         py_value = py[np.arange(len(py_index)), py_index]

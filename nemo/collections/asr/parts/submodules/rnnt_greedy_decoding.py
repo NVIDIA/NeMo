@@ -27,13 +27,12 @@
 # limitations under the License.
 
 import math
-
 from dataclasses import dataclass
-from omegaconf import DictConfig
 from typing import List, Optional, Union
 
 import numpy as np
 import torch
+from omegaconf import DictConfig
 
 from nemo.collections.asr.modules import rnnt_abstract
 from nemo.collections.asr.parts.utils import rnnt_utils
@@ -418,7 +417,9 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
                 # Perform prediction network and joint network steps.
                 g, hidden_prime = self._pred_step(last_label, hypothesis.dec_state)
                 # If preserving per-frame confidence, log_normalize must be true
-                logp = self._joint_step(f, g, log_normalize=True if self.preserve_frame_confidence else None)[0, 0, 0, :]
+                logp = self._joint_step(f, g, log_normalize=True if self.preserve_frame_confidence else None)[
+                    0, 0, 0, :
+                ]
 
                 del g
 
@@ -684,7 +685,9 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
                     # Batched joint step - Output = [B, V + 1]
                     # If preserving per-frame confidence, log_normalize must be true
-                    logp = self._joint_step(f, g, log_normalize=True if self.preserve_frame_confidence else None)[:, 0, 0, :]
+                    logp = self._joint_step(f, g, log_normalize=True if self.preserve_frame_confidence else None)[
+                        :, 0, 0, :
+                    ]
 
                     if logp.dtype != torch.float32:
                         logp = logp.float()
@@ -895,7 +898,9 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
                     # Batched joint step - Output = [B, V + 1]
                     # If preserving per-frame confidence, log_normalize must be true
-                    logp = self._joint_step(f, g, log_normalize=True if self.preserve_frame_confidence else None)[:, 0, 0, :]
+                    logp = self._joint_step(f, g, log_normalize=True if self.preserve_frame_confidence else None)[
+                        :, 0, 0, :
+                    ]
 
                     if logp.dtype != torch.float32:
                         logp = logp.float()

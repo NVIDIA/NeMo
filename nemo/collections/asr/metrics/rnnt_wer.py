@@ -13,13 +13,13 @@
 # limitations under the License.
 
 import copy
+import math
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Callable, Dict, List, Optional, Union
 from types import BuiltinFunctionType, FunctionType
+from typing import Callable, Dict, List, Optional, Union
 
 import editdistance
-import math
 import numpy as np
 import torch
 from torchmetrics import Metric
@@ -27,7 +27,7 @@ from torchmetrics import Metric
 from nemo.collections.asr.metrics.wer import move_dimension_to_the_front
 from nemo.collections.asr.parts.submodules import rnnt_beam_decoding as beam_decode
 from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode
-from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMixin, ConfidenceConfig
+from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceConfig, ConfidenceMixin
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
 from nemo.utils import logging
 
@@ -208,9 +208,13 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             self.preserve_word_confidence = self.confidence_cfg.get('preserve_word_confidence', False)
             # set preserve_frame_confidence and preserve_token_confidence to True
             # if preserve_word_confidence is True
-            self.preserve_token_confidence = self.confidence_cfg.get('preserve_token_confidence', False) | self.preserve_word_confidence
+            self.preserve_token_confidence = (
+                self.confidence_cfg.get('preserve_token_confidence', False) | self.preserve_word_confidence
+            )
             # set preserve_frame_confidence to True if preserve_token_confidence is True
-            self.preserve_frame_confidence = self.confidence_cfg.get('preserve_frame_confidence', False) | self.preserve_token_confidence
+            self.preserve_frame_confidence = (
+                self.confidence_cfg.get('preserve_frame_confidence', False) | self.preserve_token_confidence
+            )
             self.exclude_blank_from_confidence = self.confidence_cfg.get('exclude_blank', True)
             self.word_confidence_reduction = self.confidence_cfg.get('reduction', "min")
             self.confidence_method_cfg = self.confidence_cfg.get('method_cfg', None)
@@ -434,7 +438,9 @@ class AbstractRNNTDecoding(ConfidenceMixin):
 
             if return_hypotheses:
                 # greedy decoding, can get high-level confidence scores
-                if self.preserve_frame_confidence and (self.preserve_word_confidence or self.preserve_token_confidence):
+                if self.preserve_frame_confidence and (
+                    self.preserve_word_confidence or self.preserve_token_confidence
+                ):
                     hypotheses = self.compute_confidence(hypotheses)
                 return hypotheses, None
 
@@ -503,7 +509,12 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     for ts, te in zip(hyp.timestep, hyp.timestep[1:] + [len(hyp.frame_confidence)]):
                         if ts != te:
                             # <blank> tokens are considered to belong to the last non-blank token, if any.
-                            token_confidence.append(self._aggregate_confidence([hyp.frame_confidence[ts][offset]] + [fc[0] for fc in hyp.frame_confidence[ts+1:te]]))
+                            token_confidence.append(
+                                self._aggregate_confidence(
+                                    [hyp.frame_confidence[ts][offset]]
+                                    + [fc[0] for fc in hyp.frame_confidence[ts + 1 : te]]
+                                )
+                            )
                             offset = 0
                         else:
                             token_confidence.append(hyp.frame_confidence[ts][offset])

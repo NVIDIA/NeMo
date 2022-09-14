@@ -12,20 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 from abc import abstractmethod
 from dataclasses import dataclass, is_dataclass
 from types import BuiltinFunctionType, FunctionType
 from typing import Callable, Dict, List, Optional, Union
 
 import editdistance
-import math
 import numpy as np
 import torch
 from omegaconf import DictConfig, OmegaConf
 from torchmetrics import Metric
 
 from nemo.collections.asr.parts.submodules import ctc_greedy_decoding
-from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMixin, ConfidenceConfig
+from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceConfig, ConfidenceMixin
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
 from nemo.utils import logging
 
@@ -398,7 +398,8 @@ class AbstractCTCDecoding(ConfidenceMixin):
         for hyp in hypotheses_list:
             if not isinstance(hyp.text, tuple) or len(hyp.text) != 3:
                 # the method must have been called in the wrong place
-                raise ValueError("""Wrong format of the `text` attribute of a hypothesis.\n
+                raise ValueError(
+                    """Wrong format of the `text` attribute of a hypothesis.\n
                     Expected: (decoded_prediction, token_repetitions)\n
                     The method invocation is expected between .decode_hypothesis() and .compute_ctc_timestamps()"""
                 )
@@ -411,7 +412,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 for tr in token_repetitions:
                     # token repetition can be zero
                     j = i + tr
-                    token_confidence.append(self._aggregate_confidence(non_blank_frame_confidence[i: j]))
+                    token_confidence.append(self._aggregate_confidence(non_blank_frame_confidence[i:j]))
                     i = j
             else:
                 # <blank> tokens are considered to belong to the last non-blank token, if any.
@@ -419,7 +420,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 if len(token_lengths) > 0:
                     ts = token_lengths[0]
                     for tl in token_lengths[1:] + [len(hyp.frame_confidence)]:
-                        token_confidence.append(self._aggregate_confidence(hyp.frame_confidence[ts:ts+tl]))
+                        token_confidence.append(self._aggregate_confidence(hyp.frame_confidence[ts : ts + tl]))
                         ts += tl
             hyp.token_confidence = token_confidence
         if self.preserve_word_confidence:
@@ -855,7 +856,9 @@ class CTCDecoding(AbstractCTCDecoding):
         Returns:
             A list of word-level confidence scores.
         """
-        return self._aggregate_token_confidence_chars(self.decode_tokens_to_str(hypothesis.text[0]).split(), hypothesis.token_confidence)
+        return self._aggregate_token_confidence_chars(
+            self.decode_tokens_to_str(hypothesis.text[0]).split(), hypothesis.token_confidence
+        )
 
     def decode_tokens_to_str(self, tokens: List[int]) -> str:
         """

@@ -135,7 +135,9 @@ class CTCBPEDecoding(AbstractCTCDecoding):
         Returns:
             A list of word-level confidence scores.
         """
-        return self._aggregate_token_confidence_subwords_sentencepiece(self.decode_tokens_to_str(hypothesis.text[0]).split(), hypothesis.token_confidence, hypothesis.text[0])
+        return self._aggregate_token_confidence_subwords_sentencepiece(
+            self.decode_tokens_to_str(hypothesis.text[0]).split(), hypothesis.token_confidence, hypothesis.text[0]
+        )
 
     def decode_tokens_to_str(self, tokens: List[int]) -> str:
         """

@@ -13,12 +13,11 @@
 # limitations under the License.
 
 import math
-
 from dataclasses import dataclass
-from omegaconf import DictConfig
 from typing import List, Optional
 
 import torch
+from omegaconf import DictConfig
 
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMeasureMixin, ConfidenceMethodConfig
@@ -125,7 +124,12 @@ class GreedyCTCInfer(Typing, ConfidenceMeasureMixin):
         return {"predictions": [NeuralType(elements_type=HypothesisType())]}
 
     def __init__(
-        self, blank_id: int, preserve_alignments: bool = False, compute_timestamps: bool = False, preserve_frame_confidence: bool = False, confidence_method_cfg: Optional[DictConfig] = None,
+        self,
+        blank_id: int,
+        preserve_alignments: bool = False,
+        compute_timestamps: bool = False,
+        preserve_frame_confidence: bool = False,
+        confidence_method_cfg: Optional[DictConfig] = None,
     ):
         super().__init__()
 
@@ -233,7 +237,9 @@ class GreedyCTCInfer(Typing, ConfidenceMeasureMixin):
             hypothesis.timestep = torch.nonzero(non_blank_ids, as_tuple=False)[:, 0].numpy().tolist()
 
         if self.preserve_frame_confidence:
-            raise ValueError("Requested for per-frame confidence, but predictions provided were labels, not log probabilities.")
+            raise ValueError(
+                "Requested for per-frame confidence, but predictions provided were labels, not log probabilities."
+            )
 
         return hypothesis
 

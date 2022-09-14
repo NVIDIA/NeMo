@@ -27,7 +27,6 @@
 # limitations under the License.
 
 import math
-
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -113,7 +112,7 @@ class Hypothesis:
         """
         non_blank_frame_confidence = []
         if len(self.timestep) != 0 and self.frame_confidence is not None:
-            if any(isinstance(i, list) for i in self.frame_confidence): # rnnt
+            if any(isinstance(i, list) for i in self.frame_confidence):  # rnnt
                 t_prev = -1
                 offset = 0
                 for t in self.timestep:
@@ -123,7 +122,7 @@ class Hypothesis:
                     else:
                         offset += 1
                     non_blank_frame_confidence.append(self.frame_confidence[t][offset])
-            else: # ctc
+            else:  # ctc
                 non_blank_frame_confidence = [self.frame_confidence[t] for t in self.timestep]
         return non_blank_frame_confidence
 
