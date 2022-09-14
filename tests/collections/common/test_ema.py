@@ -22,13 +22,13 @@ import pytorch_lightning as pl
 import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Callback, Trainer
-from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.utilities.exceptions import MisconfigurationException
 from pytorch_lightning.utilities.types import STEP_OUTPUT
 
 from nemo.collections.common.callbacks import EMA
 from nemo.collections.common.callbacks.ema import apex_available
 from nemo.core import ModelPT
+from nemo.utils.exp_manager import exp_manager
 
 
 class OnesDataset(torch.utils.data.Dataset):
@@ -115,13 +115,13 @@ class TestEMAConfig:
     @pytest.mark.unit
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.skipif(not apex_available, reason="apex is not installed")
-    def test_ema_saved_state(self, tmpdir):
-        """Test to ensure that when we re-load the EMA callback, it loads the state correctly"""
-        checkpoint_dir = os.path.join(tmpdir, 'checkpoints')
-        ema_callback = EMA(ema=0.999)
+    def test_ema_saved_state(self, tmpdir, caplog):
+        """Test to ensure that when we re-load the EMA callback, it loads the EMA weights correctly."""
+        temp_path = os.path.join(tmpdir, 'saved_state')
 
         class TerminateCallback(Callback):
             def on_train_epoch_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+                ema_callback = [x for x in trainer.callbacks if isinstance(x, EMA)][0]
                 self.saved_ema_weights = ema_callback._ema_model_weights
                 self.pl_module_weights = list(pl_module.state_dict().values())
                 raise SystemExit
@@ -130,49 +130,132 @@ class TestEMAConfig:
         terminate_callback = TerminateCallback()
 
         trainer = Trainer(
-            default_root_dir=checkpoint_dir,
             max_epochs=2,
-            limit_val_batches=0,
+            limit_val_batches=1,
             limit_train_batches=16,
             logger=False,
-            enable_model_summary=False,
+            val_check_interval=0.5,
+            enable_checkpointing=False,
             accelerator='gpu',
             devices=1,
-            callbacks=[
-                ema_callback,
-                ModelCheckpoint(dirpath=checkpoint_dir, every_n_train_steps=8, save_top_k=-1, verbose=True),
-                terminate_callback,
-            ],
+            callbacks=[terminate_callback],
+        )
+        exp_manager(
+            trainer,
+            {
+                "enable_ema": True,
+                "explicit_log_dir": str(temp_path),
+                "checkpoint_callback_params": {"filename": f"{{epoch}}-{{step}}"},
+            },
         )
         with pytest.raises(SystemExit):
             trainer.fit(model=model)
-        resume_path = os.path.join(checkpoint_dir, 'epoch=0-step=16.ckpt')
-
-        ema_callback = EMA(ema=0.999)
+        resume_path = os.path.join(temp_path, 'checkpoints/epoch=0-step=8.ckpt')
 
         model = ExampleModel()
 
         class CheckStateCallback(Callback):
             def on_train_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+                ema_callback = [x for x in trainer.callbacks if isinstance(x, EMA)][0]
                 weights = list(pl_module.state_dict().values())
                 for x, y in zip(weights, terminate_callback.pl_module_weights):
-                    assert torch.allclose(x, y)
+                    assert torch.allclose(x.cpu(), y.cpu())
                 for x, y in zip(ema_callback._ema_model_weights, terminate_callback.saved_ema_weights):
-                    assert torch.allclose(x, y)
-                assert ema_callback._cur_step == 16
+                    assert torch.allclose(x.cpu(), y.cpu())
+                assert ema_callback._cur_step == 8
 
         trainer = Trainer(
-            default_root_dir=checkpoint_dir,
             max_epochs=2,
             limit_val_batches=0,
             limit_train_batches=16,
             logger=False,
-            enable_model_summary=False,
+            enable_checkpointing=False,
             accelerator='gpu',
             devices=1,
-            callbacks=[ema_callback, CheckStateCallback()],
+            callbacks=[CheckStateCallback()],
+        )
+        exp_manager(
+            trainer,
+            {
+                "enable_ema": True,
+                "explicit_log_dir": str(temp_path),
+                "checkpoint_callback_params": {"filename": f"{{epoch}}-{{step}}"},
+            },
         )
         trainer.fit(model, ckpt_path=resume_path)
+
+        # ensure we can resume from the EMA weights
+        ema_path = os.path.join(temp_path, 'checkpoints/epoch=0-step=8-EMA.ckpt')
+
+        trainer = Trainer(
+            max_epochs=1,
+            limit_val_batches=0,
+            limit_train_batches=1,
+            logger=False,
+            enable_checkpointing=False,
+            accelerator='gpu',
+            devices=1,
+        )
+        exp_manager(
+            trainer,
+            {
+                "enable_ema": True,
+                "explicit_log_dir": str(temp_path),
+                "checkpoint_callback_params": {"filename": f"{{epoch}}-{{step}}"},
+            },
+        )
+        trainer.fit(model, ckpt_path=ema_path)
+
+        # ensure that we warn when the EMA weights do not exist
+        os.remove(ema_path)
+
+        trainer = Trainer(
+            max_epochs=1,
+            limit_val_batches=0,
+            limit_train_batches=1,
+            logger=False,
+            enable_checkpointing=False,
+            accelerator='gpu',
+            devices=1,
+        )
+        exp_manager(
+            trainer,
+            {
+                "enable_ema": True,
+                "explicit_log_dir": str(temp_path),
+                "checkpoint_callback_params": {"filename": f"{{epoch}}-{{step}}"},
+            },
+        )
+        with pytest.warns(UserWarning, match="we were unable to find the associated EMA weights when re-loading"):
+            trainer.fit(model, ckpt_path=resume_path)
+
+    @pytest.mark.unit
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.skipif(not apex_available, reason="apex is not installed")
+    def test_exp_manager_ema_weights(self, tmpdir):
+        """Test to ensure that the exp manager adds the EMA callback, and we save an additional EMA checkpoint."""
+        tmp_path = tmpdir / "exp_manager_test"
+        model = ExampleModel()
+        trainer = Trainer(max_epochs=1, enable_checkpointing=False, logger=False, accelerator='gpu', devices=1)
+        exp_manager(
+            trainer,
+            {
+                "enable_ema": True,
+                "explicit_log_dir": str(tmp_path),
+                "checkpoint_callback_params": {"filename": f"{{epoch}}-{{step}}"},
+            },
+        )
+        assert any(isinstance(callback, EMA) for callback in trainer.callbacks)
+        trainer.fit(model)
+
+        assert os.path.exists(tmp_path / "checkpoints/epoch=0-step=8.ckpt")
+        ema_path = tmp_path / "checkpoints/epoch=0-step=8-EMA.ckpt"
+        assert os.path.exists(ema_path)
+
+        duplicate_model = ExampleModel.load_from_checkpoint(str(ema_path))
+        ema_callback = [x for x in trainer.callbacks if isinstance(x, EMA)][0]
+        for saved_weight, ema_weight in zip(duplicate_model.state_dict().values(), ema_callback._ema_model_weights):
+            assert torch.allclose(saved_weight.cpu(), ema_weight.cpu())
 
 
 @pytest.mark.parametrize("precision", [16, "bf16", 32])

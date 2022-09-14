@@ -703,12 +703,12 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
     def __init__(
         self,
-        always_save_nemo=False,
-        save_nemo_on_train_end=True,
-        save_best_model=False,
-        postfix=".nemo",
-        n_resume=False,
-        model_parallel_size=None,
+        always_save_nemo: bool = False,
+        save_nemo_on_train_end: bool = True,
+        save_best_model: bool = False,
+        postfix: str = ".nemo",
+        n_resume: bool = False,
+        model_parallel_size: int = None,
         **kwargs,
     ):
         # Parse and store "extended" parameters: save_best model and postfix.
@@ -870,9 +870,29 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             except:
                 logging.info(f"Tried to remove checkpoint: {filepath} but failed.")
 
+    def _get_ema_callback(self, trainer) -> Optional[EMA]:
+        ema_callback = None
+        for callback in trainer.callbacks:
+            if isinstance(callback, EMA):
+                ema_callback = callback
+        return ema_callback
+
+    def _save_checkpoint(self, trainer, filepath: str) -> None:
+        super()._save_checkpoint(trainer, filepath)
+        ema_callback = self._get_ema_callback(trainer)
+        if ema_callback is not None:
+            # save EMA copy of the model as well.
+            ema_callback.replace_model_weights(trainer.lightning_module)
+            filepath = self._ema_format_filepath(filepath)
+            super()._save_checkpoint(trainer, filepath)
+            ema_callback.restore_model_weights(trainer.lightning_module)
+
+    def _ema_format_filepath(self, filepath: str) -> str:
+        return filepath.replace(self.FILE_EXTENSION, f'-EMA{self.FILE_EXTENSION}')
+
 
 def configure_checkpointing(
-    trainer: 'pytorch_lightning.Trainer', log_dir: Path, name: str, resume: bool, params: 'DictConfig'
+    trainer: 'pytorch_lightning.Trainer', log_dir: Path, name: str, resume: bool, params: 'DictConfig',
 ):
     """ Adds ModelCheckpoint to trainer. Raises CheckpointMisconfigurationError if trainer already has a ModelCheckpoint
     callback or if trainer.weights_save_path was passed to Trainer.

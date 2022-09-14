@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os.path
+import warnings
 from typing import Any, Dict, List, Optional
 
 import pytorch_lightning as pl
@@ -35,6 +37,7 @@ class EMA(Callback):
 
     When training a model, this callback will maintain moving averages of the trained parameters.
     When evaluating, we use the moving averages copy of the trained parameters.
+    When saving, we save an additional set of parameters with the prefix `ema`.
 
     Args:
         ema: The exponential decay used when calculating the moving average. Has to be between 0-1.
@@ -89,11 +92,42 @@ class EMA(Callback):
             self.apply_multi_tensor_ema(pl_module)
 
     def state_dict(self) -> Dict[str, Any]:
-        return dict(ema_weights=self._ema_model_weights, cur_step=self._cur_step)
+        return dict(cur_step=self._cur_step)
 
     def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
-        self._ema_model_weights = state_dict['ema_weights']
         self._cur_step = state_dict['cur_step']
+
+    def on_load_checkpoint(
+        self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", checkpoint: Dict[str, Any]
+    ) -> None:
+        checkpoint_callback = trainer.checkpoint_callback
+        from nemo.utils.exp_manager import NeMoModelCheckpoint
+
+        if (
+            trainer.ckpt_path
+            and checkpoint_callback is not None
+            and isinstance(checkpoint_callback, NeMoModelCheckpoint)
+        ):
+            ext = checkpoint_callback.FILE_EXTENSION
+            if trainer.ckpt_path.endswith(f'-EMA{ext}'):
+                logging.info(
+                    "loading EMA based weights. "
+                    "The callback will treat the loaded EMA weights as the main weights"
+                    " and create a new EMA copy when training."
+                )
+                return
+            ema_path = trainer.ckpt_path.replace(ext, f'-EMA{ext}')
+            if os.path.exists(ema_path):
+                ema_state_dict = torch.load(ema_path, map_location=torch.device('cpu'))
+                self._ema_model_weights = ema_state_dict['state_dict'].values()
+                del ema_state_dict
+                logging.info("EMA weights have been loaded successfully. Continuing training with saved EMA weights.")
+            else:
+                warnings.warn(
+                    "we were unable to find the associated EMA weights when re-loading, "
+                    "training will start with new EMA weights.",
+                    UserWarning,
+                )
 
     def replace_model_weights(self, pl_module: "pl.LightningModule") -> None:
         self._weights_buffer = [p.detach().clone().to('cpu') for p in pl_module.state_dict().values()]
