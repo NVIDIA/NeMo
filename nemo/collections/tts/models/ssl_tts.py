@@ -74,7 +74,7 @@ class SSLDisentangler(ModelPT):
                 num_chars = len(self._text_tokenizer.tokens)  # list of english tokens
                 self.downstream_nets[task] = nn.Linear(in_dim, out_dim)
                 self.content_linear = nn.Linear(out_dim, num_chars)
-                self.ctc_loss = nn.CTCLoss(blank=self._text_tokenizer.blank)
+                self.ctc_loss = nn.CTCLoss(blank=self._text_tokenizer.blank, zero_infinity=True)
                 self.pitch_augment = self._cfg.get('pitch_augment', False)
                 self.augment_ctc = self._cfg.get('augment_ctc', False)
                 self.aug_loss_type = self._cfg.get('aug_loss_type', 'mse')
@@ -363,13 +363,12 @@ class SSLDisentangler(ModelPT):
                 )
 
                 ctc_loss = self.ctc_loss(content_log_probs, target, encoded_len, target_len)
-
                 # check if ctc loss is nan
                 if torch.isfinite(ctc_loss):
                     self.log("t_ctc_loss", ctc_loss.item())
                     content_loss += ctc_loss
                 else:
-                    logging.warning(f"ctc_loss is not finite. Add min duration to avoid getting here.")
+                    logging.warning(f"ctc_loss is not finite")
 
                 if self.pitch_augment:
                     augmented_signal = batch[key]['audio_shifted']
@@ -432,9 +431,6 @@ class SSLDisentangler(ModelPT):
             self.log("lr backbone", optim_backbone.param_groups[0]['lr'])
             self.log("lr downstream", optim_downstream.param_groups[0]['lr'])
             self.log("t_loss", loss)
-            print("Loss", loss.item())
-            print("lr backbone", optim_backbone.param_groups[0]['lr'])
-            print("lr down", optim_downstream.param_groups[0]['lr'])
 
     def validation_step(self, batch, batch_idx):
 
