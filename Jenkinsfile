@@ -353,6 +353,24 @@ pipeline {
             sh 'rm -rf examples/speaker_tasks/recognition/speaker_recognition_results'
           }
         }
+        
+        stage('Speaker Diarization') {
+          steps {
+            sh 'python examples/speaker_tasks/diarization/neural_diarizer/multiscale_diar_decoder.py \
+            model.diarizer.speaker_embeddings.model_path=titanet_large \
+            model.train_ds.batch_size=5 \
+            model.validation_ds.batch_size=5 \
+            model.train_ds.emb_dir=examples/speaker_tasks/diarization/speaker_diarization_results \
+            model.validation_ds.emb_dir=examples/speaker_tasks/diarization/speaker_diarization_results \
+            model.train_ds.manifest_filepath=/home/TestData/an4_diarizer/simulated_train/msdd_data.50step.json \
+            model.validation_ds.manifest_filepath=/home/TestData/an4_diarizer/simulated_valid/msdd_data.50step.json \
+            +trainer.devices=[1] \
+            +trainer.accelerator="gpu" \
+            +trainer.fast_dev_run=True \
+            exp_manager.exp_dir=examples/speaker_tasks/diarization/speaker_diarization_results'
+            sh 'rm -rf examples/speaker_tasks/diarization/speaker_diarization_results'
+          }
+        }
 
         stage('Speech to Label') {
           steps {
@@ -375,7 +393,6 @@ pipeline {
           }
         }
 
-
         stage('Speaker Diarization with ASR Inference') {
           steps {
             sh 'python examples/speaker_tasks/diarization/clustering_diarizer/offline_diar_with_asr_infer.py \
@@ -392,10 +409,10 @@ pipeline {
           }
         }
 
-        stage('Speaker Diarization Inference') {
+        stage('Clustering Diarizer Inference') {
           steps {
             sh 'python examples/speaker_tasks/diarization/clustering_diarizer/offline_diar_infer.py \
-	    diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
+	        diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
             diarizer.speaker_embeddings.model_path=/home/TestData/an4_diarizer/spkr.nemo \
             diarizer.speaker_embeddings.parameters.save_embeddings=True \
             diarizer.speaker_embeddings.parameters.window_length_in_sec=1.5 \
@@ -403,6 +420,18 @@ pipeline {
             diarizer.speaker_embeddings.parameters.multiscale_weights=null \
             diarizer.vad.model_path=/home/TestData/an4_diarizer/MatchboxNet_VAD_3x2.nemo \
             diarizer.out_dir=examples/speaker_tasks/diarization/speaker_diarization_results'
+            sh 'rm -rf examples/speaker_tasks/diarization/speaker_diarization_results'
+          }
+        }
+	
+        stage('Neural Diarizer Inference') {
+          steps {
+            sh 'python examples/speaker_tasks/diarization/neural_diarizer/multiscale_diar_decoder_infer.py \
+            diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
+            diarizer.msdd_model.model_path=/home/TestData/an4_diarizer/diar_msdd_telephonic.nemo \
+            diarizer.speaker_embeddings.parameters.save_embeddings=True \
+            diarizer.vad.model_path=/home/TestData/an4_diarizer/MatchboxNet_VAD_3x2.nemo \
+            diarizer.out_dir=examples/speaker_tasks/diarization/speaker_diarization_results
             sh 'rm -rf examples/speaker_tasks/diarization/speaker_diarization_results'
           }
         }

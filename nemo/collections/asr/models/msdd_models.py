@@ -188,6 +188,16 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
         elif model_path.endswith('.ckpt'):
             self._speaker_model = EncDecSpeakerLabelModel.load_from_checkpoint(model_path, map_location=rank_id)
             logging.info("Speaker Model restored locally from {}".format(model_path))
+        else:
+            if model_path not in get_available_model_names(EncDecSpeakerLabelModel):
+                logging.warning(
+                    "requested {} model name not available in pretrained models, instead".format(model_path)
+                )
+                model_path = "titanet_large"
+            logging.info("Loading pretrained {} model from NGC".format(model_path))
+            self.msdd._speaker_model = EncDecSpeakerLabelModel.from_pretrained(
+                model_name=model_path, map_location=rank_id
+            )
         self._speaker_params = self.cfg_msdd_model.diarizer.speaker_embeddings.parameters
 
     def __setup_dataloader_from_config(self, config):
@@ -827,6 +837,9 @@ class ClusterEmbedding:
         self.cfg_diar_infer.diarizer.out_dir = emb_dir
 
         # Run ClusteringDiarizer which includes system VAD or oracle VAD.
+        import ipdb
+
+        ipdb.set_trace()
         self.clus_diar_model = ClusteringDiarizer(cfg=self.cfg_diar_infer, speaker_model=self._speaker_model)
         self._out_dir = self.clus_diar_model._diarizer_params.out_dir
         self.out_rttm_dir = os.path.join(self._out_dir, 'pred_ovl_rttms')
