@@ -46,6 +46,7 @@ class TestConfig:
           NCCL_IB_PCI_RELAXED_ORDERING: null # Needed to improve Azure performance
           NCCL_IB_TIMEOUT: null # InfiniBand Verbs Timeout. Set to 22 for Azure
           NCCL_DEBUG: null # Logging level for NCCL. Set to "INFO" for debug information
+          NCCL_PROTO: null # Protocol NCCL will use. Set to "simple" for AWS
         
         # GPU Mapping
         numa_mapping:
