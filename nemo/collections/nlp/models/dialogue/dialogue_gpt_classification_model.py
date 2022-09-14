@@ -129,7 +129,7 @@ class DialogueGPTClassificationModel(NLPModel):
             attn_masks = torch.stack(new_attn_masks)
             labels = self.get_binary_score_labels(input_ids)
 
-        loss = self(input_ids, attn_masks, labels, inference=False)
+        loss, _ = self(input_ids, attn_masks, labels, inference=False)
         self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         return {'loss': loss}
 
@@ -230,6 +230,13 @@ class DialogueGPTClassificationModel(NLPModel):
             output = self.language_model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
             loss = output['loss']
 
+            b_logits = output['logits']
+            # Shift so that tokens < n predict n
+            shift_logits = b_logits[..., :-1, :].contiguous()
+            shift_labels = labels[..., 1:].contiguous()
+            loss_fct = torch.nn.CrossEntropyLoss(reduction='none')
+            new_loss = loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
+            loss_per_sample = torch.mean(new_loss.view(shift_labels.size()), dim=-1)
         elif self.cfg.library == "megatron":
             num_prompt_tokens = (
                 len(self.language_model.pseudo_token_ids) if hasattr(self.language_model, 'pseudo_token_ids') else 0
@@ -294,7 +301,15 @@ class DialogueGPTClassificationModel(NLPModel):
             labels_mask = labels_mask_0 > 0
 
             loss = self.mask_and_reduce_loss(labels_mask, unmasked_unreduced_loss)
-        return loss
+            loss_per_sample = self.mask_and_reduce_loss_per_sample(labels_mask, unmasked_unreduced_loss)
+        return loss, loss_per_sample
+
+    def mask_and_reduce_loss_per_sample(self, loss_mask, output_tensor):
+        losses = output_tensor.float()
+        loss_mask = loss_mask.view(-1).float()
+        masked_loss = losses.view(-1) * loss_mask
+        loss_per_sample = torch.mean(masked_loss.view(output_tensor.size()), dim=-1)
+        return loss_per_sample
 
     def mask_and_reduce_loss(self, loss_mask, output_tensor):
         losses = output_tensor.float()
@@ -381,11 +396,39 @@ class DialogueGPTClassificationModel(NLPModel):
         best_candidate_input_ids = []
 
         for i in range(candidate_input_ids.size(0)):
+            # candidates are padded with first candidate to ensure equal number of candidates in batch
+            # run for loop to strip redundant candidates
+            last_j = candidate_input_ids.size(1)
+            for j in range(1, candidate_input_ids.size(1)):
+                if torch.equal(candidate_input_ids[i, j, :], candidate_input_ids[i, 0, :]):
+                    last_j = j
+                    break
+
+            utterance_end = utterance_length[i].item()
+            # this might cause GPU memory pressure there are many candidates
+            # if OOM, re-write to do this in a for loop with as many as train_ds.batch_size
+            _, loss_per_sample = self(
+                candidate_input_ids[i, :last_j, :],
+                candidate_attn_masks[i, :last_j, :],
+                candidate_input_ids[i, :last_j, :],
+            )
+
+            if minus_prior:
+                _, utterance_free_cand_loss_per_sample = self(
+                    candidate_input_ids[i, :last_j, utterance_end:],
+                    candidate_attn_masks[i, :last_j, utterance_end:],
+                    candidate_input_ids[i, :last_j, utterance_end:],
+                )
+                considered_loss = loss_per_sample - utterance_free_cand_loss_per_sample
+            else:
+                considered_loss = loss_per_sample
+            best_j = torch.argmin(considered_loss)
+            '''
             best_j = 0
 
             lowest_loss = float("inf")
+            print('best_j new: ', best_j)
 
-            utterance_end = utterance_length[i].item()
             for j in range(candidate_input_ids.size(1)):
 
                 if 0 < j < candidate_input_ids.size(1) and torch.equal(
@@ -393,7 +436,7 @@ class DialogueGPTClassificationModel(NLPModel):
                 ):
                     break
 
-                cand_loss = self(
+                cand_loss, _ = self(
                     candidate_input_ids[i, j : j + 1, :],
                     candidate_attn_masks[i, j : j + 1, :],
                     candidate_input_ids[i, j : j + 1, :],
@@ -402,7 +445,7 @@ class DialogueGPTClassificationModel(NLPModel):
                 considered_loss = cand_loss.item()
 
                 if minus_prior:
-                    utterance_free_cand_loss = self(
+                    utterance_free_cand_loss, _ = self(
                         candidate_input_ids[i, j : j + 1, utterance_end:],
                         candidate_attn_masks[i, j : j + 1, utterance_end:],
                         candidate_input_ids[i, j : j + 1, utterance_end:],
@@ -412,7 +455,9 @@ class DialogueGPTClassificationModel(NLPModel):
                 if considered_loss < lowest_loss:
                     best_j = j
                     lowest_loss = considered_loss
-
+            print('best j original: ', best_j)
+            raise ValueError
+            '''
             best_candidate_input_ids.append(candidate_input_ids[i, best_j, :])
 
         candidate_tokens = torch.stack(best_candidate_input_ids)
@@ -517,7 +562,7 @@ class DialogueGPTClassificationModel(NLPModel):
             correct_candidate,
         ) = batch
 
-        loss = self(input_ids, attn_masks, labels)
+        loss, _ = self(input_ids, attn_masks, labels)
         self.log("{}_loss".format(mode), loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
 
         # ranking using perplexity of candidates following the "<utterance> <label_type>:"
@@ -614,7 +659,10 @@ class DialogueGPTClassificationModel(NLPModel):
     def setup(self, stage=None):
         super().setup()
         if self.cfg.library == "megatron" and self.prompt_learning:
-            self.language_model.init_new_prompts()
+            if self.cfg.virtual_prompt_style == 'prompt-tuning':
+                self.language_model.init_new_prompts()
+            else:
+                self.language_model.init_prompt_encoder()
 
     def update_data_dirs(self, data_dir: str, dialogues_example_dir: str):
         """

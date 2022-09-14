@@ -108,7 +108,7 @@ class DialogueGPTClassificationDataset(DialogueDataset):
             self.label_to_description[label] = description
         for candidate in candidates:
             self.all_possible_labels.add(candidate)
-        self.max_candidates = max(self.max_candidates, len(candidates) * 2)
+        self.max_candidates = max(self.max_candidates, len(candidates))
 
     def default_encode(self, sentence):
         encodings_dict = self.tokenizer.tokenizer(
