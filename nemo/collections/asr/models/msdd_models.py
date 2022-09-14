@@ -1075,7 +1075,7 @@ class NeuralDiarizer:
             self.msdd_model = EncDecDiarLabelModel.from_pretrained(model_name=model_path)
 
         # Load speaker embedding model state_dict which is loaded from the MSDD checkpoint.
-        if not self.use_speaker_model_from_ckpt:
+        if self.use_speaker_model_from_ckpt:
             self._speaker_model = self.extract_standalone_speaker_model()
         else:
             self._speaker_model = None

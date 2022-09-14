@@ -29,6 +29,8 @@ Recommended models on NGC:
 - [stt_en_citrinet_1024](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/stt_en_citrinet_1024)
 
 ## Performance
+
+#### Clustering Diarizer 
 Diarization Error Rate (DER) table of `titanet_large.nemo` model on well known evaluation datasets. 
 
 |         Evaluation Condition           |   AMI(Lapel)   | AMI(MixHeadset)     |   CH109  | NIST SRE 2000 |  
@@ -41,31 +43,80 @@ Diarization Error Rate (DER) table of `titanet_large.nemo` model on well known e
 * The above result is based on the oracle Voice Activity Detection (VAD) result.
 * This result is based on [titanet_large.nemo](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/titanet_large) model.
 
-<br/>
+#### Neural Diarizer 
+
+Multi-scale Diarization Decoder (MSDD) model [Multi-scale Diarization decoder](https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/speaker_diarization/model.html)
+Diarization Error Rate (DER) table of [diar_msdd_telephonic.nemo](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/diar_msdd_telephonic) model on telephonic speech datasets.
+
+|                                 CH109| Forgiving                       | Fair                             | Full                            |
+|-------------------------------------:|---------------------------------|----------------------------------|---------------------------------|
+|              (collar, ignore_overlap)|  (0.25, True)                   |  (0.25, True)                    |   (0.0, False)                  |
+|                          False Alarm | -                               | 0.62%                            | 1.80%                           |
+|                                 Miss | -                               | 2.47%                            | 5.96%                           |
+|                            Confusion | -                               | 0.43%                            | 2.10%                           |
+|                                  DER | **0.58%**                       | **3.52%**                        | **9.86%**                       |
+
+
+|               NIST-SRE-2000 CallHome | Forgiving                       | Fair                             | Full                            |
+|-------------------------------------:|---------------------------------|----------------------------------|---------------------------------|
+|              (collar, ignore_overlap)|  (0.25, True)                   |  (0.25, True)                    |   (0.0, False)                  |
+|                          False Alarm | -                               | 1.05%                            | 2.24%                           |
+|                                 Miss | -                               | 7.62%                            | 11.09%                          |
+|                            Confusion | -                               | 4.06%                            | 6.03%                           |
+|                                  DER | **4.15%**                       | **12.73%**                       | **19.37%**                      |
+
+* Evaluation setting: Oracle VAD <br> UNKNOWN # of Speakers   
+* Speaker numbers known (max. 8)
+* Clustering parameter: `max_rp_threshold=0.15` 
+* All models were tested using the domain specific `.yaml` files which can be found in `conf/inference/` folder.
+* The above result is based on the oracle Voice Activity Detection (VAD) result.
 
 ## Run Speaker Diarization on Your Audio Files
 
-#### Example script
+#### Example script for clustering diarizer: with system-VAD
 ```bash
-  python offline_diar_infer.py \
+  python clustering_diarizer/offline_diar_infer.py \
     diarizer.manifest_filepath=<path to manifest file> \
     diarizer.out_dir='demo_output' \
-    diarizer.speaker_embeddings.model_path=<pretrained modelname or path to .nemo> \
     diarizer.speaker_embeddings.parameters.save_embeddings=False \
-    diarizer.vad.model_path=<pretrained modelname or path to .nemo>
+    diarizer.vad.model_path=<pretrained modelname or path to .nemo> \
+    diarizer.speaker_embeddings.model_path=<pretrained speaker embedding model name or path to .nemo> 
+```
+
+#### Example script for neural diarizer: with system-VAD
+```bash
+  python neural_diarizer/multiscale_diar_decoder_infer.py \
+    diarizer.manifest_filepath=<path to manifest file> \
+    diarizer.out_dir='demo_output' \
+    diarizer.speaker_embeddings.parameters.save_embeddings=False \
+    diarizer.vad.model_path=<pretrained modelname or path to .nemo> \
+    diarizer.speaker_embeddings.model_path=<pretrained speaker embedding model name or path to .nemo> \
+    diarizer.msdd_model.model_path=<pretrained MSDD model name or path .nemo> \
 ```
 
 If you have oracle VAD files and groundtruth RTTM files for evaluation:
 Provide rttm files in the input manifest file and enable oracle_vad as shown below. 
 
+#### Example script for clustering diarizer: with oracle-VAD
 ```bash
-python offline_diar_infer.py \
-  python speaker_diarize.py \
+  python clustering_diarizer/offline_diar_infer.py \
     diarizer.manifest_filepath=<path to manifest file> \
+    diarizer.oracle_vad=True
     diarizer.out_dir='demo_output' \
     diarizer.speaker_embeddings.model_path=<pretrained modelname or path to .nemo> \
     diarizer.speaker_embeddings.parameters.save_embeddings=False \
-    diarizer.oracle_vad=True
+    diarizer.vad.model_path=<pretrained modelname or path to .nemo>
+```
+#### Example script for neural diarizer: with oracle-VAD
+```bash
+  python neural_diarizer/multiscale_diar_decoder_infer.py \
+    diarizer.manifest_filepath=<path to manifest file> \
+    diarizer.oracle_vad=True \
+    diarizer.out_dir='demo_output' \
+    diarizer.speaker_embeddings.model_path=<pretrained modelname or path to .nemo> \
+    diarizer.vad.model_path=<pretrained modelname or path to .nemo> \
+    diarizer.speaker_embeddings.model_path=<pretrained speaker embedding model name or path to .nemo> \
+    diarizer.msdd_model.model_path=<pretrained MSDD model name or path .nemo> \
 ```
 
 #### Arguments

@@ -65,7 +65,6 @@ _MODEL_CONFIG_YAML = "model_config.yaml"
 _VAD_MODEL = "vad_model.nemo"
 _SPEAKER_MODEL = "speaker_model.nemo"
 
-
 def get_available_model_names(class_name):
     "lists available pretrained model names from NGC"
     available_models = class_name.list_available_models()
