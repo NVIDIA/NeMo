@@ -1,0 +1,41 @@
+<!--
+Copyright (c) 2019-2020, Amazon.com, Inc. or its affiliates. All rights reserved.
+See LICENSE.txt for license information
+
+Static pre-configured topology for `p4d.24xlarge` platform type.
+This has 2 groups of PCIe hierarchy under each socket. Each group has
+2 GPUs and 1 NIC behind a PCIe switch.
+
+This topology is ingested into NCCL using `NCCL_TOPO_FILE` environment
+variable when the underlying system is detected as `p4d.24xarge`.
+
+Note: The PCI IDs of GPUs and NICs needs to match the device IDs on the
+virtual machine.
+-->
+<system version="1">
+  <cpu numaid="0" affinity="000000ff,ffff0000,00ffffff" arch="x86_64" vendor="GenuineIntel" familyid="6" modelid="85">
+    <pci busid="ffff:ff:01.0" class="0x060400" vendor="0xffff" device="0xffff" subsystem_vendor="0xffff" subsystem_device="0xffff" link_speed="8 GT/s" link_width="16">  <!-- Switch 0 begins -->
+        <pci busid="0000:10:1c.0" class="0x030200" vendor="0x10de" device="0x20b0" subsystem_vendor="0x10de" subsystem_device="0x134f" link_speed="8 GT/s" link_width="16"/> <!-- GPU 0 -->
+        <pci busid="0000:10:1d.0" class="0x030200" vendor="0x10de" device="0x20b0" subsystem_vendor="0x10de" subsystem_device="0x134f" link_speed="8 GT/s" link_width="16"/> <!-- GPU 1 -->
+        <pci busid="0000:10:1b.0" class="0x020000" vendor="0x1d0f" device="0xefa0" subsystem_vendor="0x1d0f" subsystem_device="0xefa0" link_speed="8 GT/s" link_width="16"/> <!-- NIC 0 -->
+    </pci> <!-- Switch 0 ends -->
+    <pci busid="ffff:ff:02.0" class="0x060400" vendor="0xffff" device="0xffff" subsystem_vendor="0xffff" subsystem_device="0xffff" link_speed="8 GT/s" link_width="16">  <!-- Switch 1 begins -->
+        <pci busid="0000:20:1c.0" class="0x030200" vendor="0x10de" device="0x20b0" subsystem_vendor="0x10de" subsystem_device="0x134f" link_speed="8 GT/s" link_width="16"/> <!-- GPU 2 -->
+        <pci busid="0000:20:1d.0" class="0x030200" vendor="0x10de" device="0x20b0" subsystem_vendor="0x10de" subsystem_device="0x134f" link_speed="8 GT/s" link_width="16"/> <!-- GPU 3 -->
+        <pci busid="0000:20:1b.0" class="0x020000" vendor="0x1d0f" device="0xefa0" subsystem_vendor="0x1d0f" subsystem_device="0xefa0" link_speed="8 GT/s" link_width="16"/> <!-- NIC 1 -->
+    </pci> <!-- Switch 1 ends -->
+  </cpu>
+  <cpu numaid="1" affinity="ffffff00,0000ffff,ff000000" arch="x86_64" vendor="GenuineIntel" familyid="6" modelid="85">
+    <pci busid="ffff:ff:03.0" class="0x060400" vendor="0xffff" device="0xffff" subsystem_vendor="0xffff" subsystem_device="0xffff" link_speed="8 GT/s" link_width="16">  <!-- Switch 2 begins -->
+        <pci busid="0000:90:1c.0" class="0x030200" vendor="0x10de" device="0x20b0" subsystem_vendor="0x10de" subsystem_device="0x134f" link_speed="8 GT/s" link_width="16"/> <!-- GPU 4 -->
+        <pci busid="0000:90:1d.0" class="0x030200" vendor="0x10de" device="0x20b0" subsystem_vendor="0x10de" subsystem_device="0x134f" link_speed="8 GT/s" link_width="16"/> <!-- GPU 5 -->
+        <pci busid="0000:90:1b.0" class="0x020000" vendor="0x1d0f" device="0xefa0" subsystem_vendor="0x1d0f" subsystem_device="0xefa0" link_speed="8 GT/s" link_width="16"/> <!-- NIC 2 -->
+    </pci> <!-- Switch 2 ends -->
+    <pci busid="ffff:ff:04.0" class="0x060400" vendor="0xffff" device="0xffff" subsystem_vendor="0xffff" subsystem_device="0xffff" link_speed="8 GT/s" link_width="16">  <!-- Switch 3 begins -->
+        <pci busid="0000:a0:1c.0" class="0x030200" vendor="0x10de" device="0x20b0" subsystem_vendor="0x10de" subsystem_device="0x134f" link_speed="8 GT/s" link_width="16"/> <!-- GPU 6 -->
+        <pci busid="0000:a0:1d.0" class="0x030200" vendor="0x10de" device="0x20b0" subsystem_vendor="0x10de" subsystem_device="0x134f" link_speed="8 GT/s" link_width="16"/> <!-- GPU 7 -->
+        <pci busid="0000:a0:1b.0" class="0x020000" vendor="0x1d0f" device="0xefa0" subsystem_vendor="0x1d0f" subsystem_device="0xefa0" link_speed="8 GT/s" link_width="16"/> <!-- NIC 3 -->
+    </pci> <!-- Switch 3 ends -->
+  </cpu>
+</system>
+
