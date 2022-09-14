@@ -54,12 +54,12 @@ sf_supported_formats = ["." + i.lower() for i in available_formats.keys()]
 
 
 class AudioSegment(object):
-    """Monaural audio segment abstraction.	
-    :param samples: Audio samples [num_samples x num_channels].	
-    :type samples: ndarray.float32	
-    :param sample_rate: Audio sample rate.	
-    :type sample_rate: int	
-    :raises TypeError: If the sample data type is not float or int.	
+    """Monaural audio segment abstraction.
+    :param samples: Audio samples [num_samples x num_channels].
+    :type samples: ndarray.float32
+    :param sample_rate: Audio sample rate.
+    :type sample_rate: int
+    :raises TypeError: If the sample data type is not float or int.
     """
 
     def __init__(
@@ -74,8 +74,8 @@ class AudioSegment(object):
         trim_hop_length=512,
         orig_sr=None,
     ):
-        """Create audio segment from samples.	
-        Samples are convert float32 internally, with int scaled to [-1, 1].	
+        """Create audio segment from samples.
+        Samples are convert float32 internally, with int scaled to [-1, 1].
         """
         samples = self._convert_samples_to_float32(samples)
         if target_sr is not None and target_sr != sample_rate:
@@ -119,9 +119,9 @@ class AudioSegment(object):
 
     @staticmethod
     def _convert_samples_to_float32(samples):
-        """Convert sample type to float32.	
-        Audio sample type is usually integer or float-point.	
-        Integers will be scaled to [-1, 1] in float32.	
+        """Convert sample type to float32.
+        Audio sample type is usually integer or float-point.
+        Integers will be scaled to [-1, 1] in float32.
         """
         float32_samples = samples.astype('float32')
         if samples.dtype in np.sctypes['int']:
@@ -149,20 +149,20 @@ class AudioSegment(object):
         orig_sr=None,
     ):
         """	
-        Load a file supported by librosa and return as an AudioSegment.	
-        :param audio_file: path of file to load	
-        :param target_sr: the desired sample rate	
-        :param int_values: if true, load samples as 32-bit integers	
-        :param offset: offset in seconds when loading audio	
-        :param duration: duration in seconds when loading audio	
-        :param trim: if true, trim leading and trailing silence from an audio signal	
-        :param trim_ref: the reference amplitude. By default, it uses `np.max` and compares to the peak amplitude in	
-                         the signal	
-        :param trim_top_db: the threshold (in decibels) below reference to consider as silence	
-        :param trim_frame_length: the number of samples per analysis frame	
-        :param trim_hop_length: the number of samples between analysis frames	
-        :param orig_sr: the original sample rate	
-        :return: numpy array of samples	
+        Load a file supported by librosa and return as an AudioSegment.
+        :param audio_file: path of file to load
+        :param target_sr: the desired sample rate
+        :param int_values: if true, load samples as 32-bit integers
+        :param offset: offset in seconds when loading audio
+        :param duration: duration in seconds when loading audio
+        :param trim: if true, trim leading and trailing silence from an audio signal
+        :param trim_ref: the reference amplitude. By default, it uses `np.max` and compares to the peak amplitude in
+                         the signal
+        :param trim_top_db: the threshold (in decibels) below reference to consider as silence
+        :param trim_frame_length: the number of samples per analysis frame
+        :param trim_hop_length: the number of samples between analysis frames
+        :param orig_sr: the original sample rate
+        :return: numpy array of samples
         """
         samples = None
         if not isinstance(audio_file, str) or os.path.splitext(audio_file)[-1] in sf_supported_formats:
@@ -182,6 +182,7 @@ class AudioSegment(object):
                     f"Loading {audio_file} via SoundFile raised RuntimeError: `{e}`. "
                     f"NeMo will fallback to loading via pydub."
                 )
+
         if HAVE_PYDUB and samples is None:
             try:
                 samples = Audio.from_file(audio_file)
@@ -196,9 +197,11 @@ class AudioSegment(object):
                 samples = np.array(samples.get_array_of_samples())
             except CouldntDecodeError as err:
                 logging.error(f"Loading {audio_file} via pydub raised CouldntDecodeError: `{err}`.")
+
         if samples is None:
             libs = "soundfile, and pydub" if HAVE_PYDUB else "soundfile"
             raise Exception(f"Your audio file {audio_file} could not be decoded. We tried using {libs}.")
+            
         return cls(
             samples,
             sample_rate,
