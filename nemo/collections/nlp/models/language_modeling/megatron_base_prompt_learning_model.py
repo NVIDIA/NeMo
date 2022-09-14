@@ -24,14 +24,17 @@ from torch import Tensor
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common import (
+    BIGLSTMPromptEncoder,
     PromptEncoder,
+    PromptEncoderMLP,
     PromptEncoderType,
-    PromptTable,
+    PromptEncoderType,
     VirtualPromptPlaceholderToken,
     VirtualPromptSource,
     VirtualPromptStyle,
 )
 from nemo.collections.nlp.modules.common.transformer.text_generation import TextGeneration
+from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import logging
 
 __all__ = ['MegatronBasePromptLearningModel']
@@ -49,8 +52,8 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
     prompt table and can be added or deleted without disrupting virtual prompts 
     for other tasks. 
 
-    P-tuning initializes an LSTM encoder model that generates virtual prompt
-    embeddings for every task. Each task shares the same encoder. After ptuning
+    P-tuning initializes either an MLP or LSTM encoder model that generates virtual 
+    prompt embeddings for every task. Each task shares the same encoder. After ptuning
     is compelete, the learned virtual prompts can be saved to the prompt table
     using add_ptuned_prompts_to_prompt_table(). Thus, if a user wants to add a 
     new virtual prompt via p-tuning, they do not need to retrain on all previous 
@@ -60,64 +63,6 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
 
-        self.cfg = cfg
-
-        self.load_frozen_model(cfg, trainer)
-
-        self.tokenizer = self.frozen_model.tokenizer
-
-        if hasattr(self.frozen_model.cfg, "encoder") and hasattr(self.frozen_model.cfg, "decoder"):
-            self.hidden_size = (
-                self.frozen_model.cfg.encoder.hidden_size
-            )  # Encoder and decoder need to have the same hidden size and we check for this in the frozen enc-dec model.
-        else:
-            self.hidden_size = self.frozen_model.cfg.hidden_size
-
-        # TODO: Handle this when moving GPT prompt learning to the base class.
-        self.word_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.word_embeddings
-        self.existing_tasks = list(self.cfg.get('existing_tasks', []))
-        self.new_tasks = list(self.cfg.get('new_tasks', []))
-        self.virtual_prompt_style = VirtualPromptStyle(cfg.virtual_prompt_style)
-
-        # Load templates for assigning virtual prompt token positions
-        self.load_task_templates(self.cfg.task_templates)
-
-        # Prompt table stores all task embeddings, p-tuning virtual prompts get added to the table after training
-        self.prompt_table = PromptTable(
-            existing_tasks=self.existing_tasks,
-            task_templates=self.task_templates,
-            task_id_num_to_name=self.task_id_num_to_name,
-            hidden_size=self.hidden_size,
-        )
-        self._prompt_table_key = VirtualPromptSource.PROMPT_TABLE.value
-        self._prompt_encoder_key = VirtualPromptSource.PROMPT_ENCODER.value
-
-        # Prompt tuning stores virtual prompts in the prompt table and tunes their weight directly
-        if self.virtual_prompt_style in [VirtualPromptStyle.PROMPT_TUNING, VirtualPromptStyle.INFERENCE]:
-            self.virtual_prompt_source = VirtualPromptSource.PROMPT_TABLE
-
-        # P-Tuning uses an LSTM Encoder to produce virtual token embeddings
-        elif self.virtual_prompt_style == VirtualPromptStyle.P_TUNING:
-            self.virtual_prompt_source = VirtualPromptSource.PROMPT_ENCODER
-        else:
-            raise ValueError(
-                f"\nvirtual prompt style '{cfg.virtual_prompt_style}' not recognized, please use one of 'prompt-tuning' or 'p-tuning'"
-            )
-
-        self._reduced_loss_buffer = []
-        self._inference_config = None
-
-        # Prepare pseudo token ids for virtual/virtual prompt tokens
-        self.pseudo_tokens = get_pseudo_tokens(self.max_virtual_tokens)
-        if isinstance(self.tokenizer, SentencePieceTokenizer):
-            self.tokenizer.add_special_tokens(self.pseudo_tokens)
-        else:
-            self.tokenizer.add_special_tokens({'additional_special_tokens': self.pseudo_tokens})
-        self.pseudo_token_ids = self.tokenizer.tokens_to_ids(self.pseudo_tokens)
-        self.pseudo_token_ids_start = self.pseudo_token_ids[0]
-        self.pad_token_id = self.tokenizer.pad_id if self.tokenizer.pad_id is not None else self.tokenizer.unk_id
-        self.decoder_seq_length = cfg.get('decoder_seq_length', 40)
-
         if self.trainer.precision == 32:
             self.autocast_dtype = torch.float
         elif self.trainer.precision == 16:
@@ -126,8 +71,57 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
             self.autocast_dtype = torch.bfloat16
         else:
             raise ValueError('precision must be in [32, 16, "bf16"]')
+
+        self.cfg = cfg
+        # TODO: Enable amp_o2 training
+        self.megatron_amp_o2 = False
+        self.load_frozen_model(self.cfg, trainer)
+
+        self.pipeline_parallel = self.cfg.get('pipeline_model_parallel_size', 1) > 1
+        self.tokenizer = self.frozen_model.tokenizer
+        self.existing_tasks = list(self.cfg.get('existing_tasks', []))
+        self.new_tasks = list(self.cfg.get('new_tasks', []))
+        self.virtual_prompt_style = VirtualPromptStyle(cfg.virtual_prompt_style)
+        
+        # Prompt tuning stores virtual prompts in the prompt table and tunes their weight directly
+        if self.virtual_prompt_style in [VirtualPromptStyle.PROMPT_TUNING, VirtualPromptStyle.INFERENCE]:
+            self.virtual_prompt_source = VirtualPromptSource.PROMPT_TABLE
+
+        # P-Tuning uses either an MLP or LSTM Encoder to produce virtual token embeddings
+        elif self.virtual_prompt_style == VirtualPromptStyle.P_TUNING:
+            self.virtual_prompt_source = VirtualPromptSource.PROMPT_ENCODER
+        elif self.virtual_prompt_style == VirtualPromptStyle.NO_PROMPT:
+            self.virtual_prompt_source = VirtualPromptSource.NO_PROMPT
+        else:
+            raise ValueError(
+                f"\nvirtual prompt style '{cfg.virtual_prompt_style}' not recognized, please use one of 'prompt-tuning' or 'p-tuning'"
+            )
+
+        # Load templates for assigning virtual prompt token positions
+        self.load_task_templates(self.cfg.task_templates)
+        
+        # Prepare pseudo token ids for virtual/virtual prompt tokens
+        self.pseudo_tokens = get_pseudo_tokens(self.max_virtual_tokens)
+
+        if isinstance(self.tokenizer, SentencePieceTokenizer):
+            self.tokenizer.add_special_tokens(self.pseudo_tokens)
+        else:
+            self.tokenizer.add_special_tokens({'additional_special_tokens': self.pseudo_tokens})
+
+        self.pseudo_token_ids = self.tokenizer.tokens_to_ids(self.pseudo_tokens)
+        self.pseudo_token_ids_start = self.pseudo_token_ids[0] if self.pseudo_token_ids else None
+        self.pad_token_id = self.tokenizer.pad_id if self.tokenizer.pad_id is not None else self.tokenizer.unk_id
+
         # make sure the default pytorch lightning gradient clipping in the basemodel
         self.grad_clip_pl_default = True
+
+        self._prompt_table_key = VirtualPromptSource.PROMPT_TABLE.value
+        self._prompt_encoder_key = VirtualPromptSource.PROMPT_ENCODER.value
+        self._reduced_loss_buffer = []
+        self._inference_config = None
+
+    def load_frozen_model(self, cfg, trainer):
+        pass
 
     def load_task_templates(self, task_templates):
         """
@@ -200,14 +194,39 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         new_task = self.new_tasks[0]
         total_virtual_tokens = self.task_templates[new_task]["total_virtual_tokens"]
 
-        self.prompt_encoder = PromptEncoder(
-            encoder_type=PromptEncoderType(self.cfg.p_tuning.get("encoder_type", "mlp").lower()),
-            total_virtual_tokens=total_virtual_tokens,
-            token_dim=self.hidden_size,
-            hidden_size=self.cfg.p_tuning.get("encoder_hidden", self.hidden_size // 2),
-            lstm_dropout=self.cfg.p_tuning.get("dropout", 0.0),
-            num_layers=self.cfg.p_tuning.get("num_layers", 2),
-        )
+        encoder_type = PromptEncoderType(self.cfg.p_tuning.get("encoder_type", "tpmlp").lower())
+        if encoder_type == PromptEncoderType.TPMLP:
+            self.prompt_encoder = PromptEncoderMLP(
+                total_virtual_tokens=total_virtual_tokens,
+                hidden_size=self.cfg.p_tuning.get("encoder_hidden", 2048),
+                output_size=self.hidden_size,
+                init_std=self.cfg.p_tuning.get("init_std", 0.023),
+            )
+        elif encoder_type == PromptEncoderType.BIGLSTM:
+            self.prompt_encoder = BIGLSTMPromptEncoder(
+                total_virtual_tokens=total_virtual_tokens,
+                hidden_size=self.cfg.p_tuning.encoder_hidden,
+                output_size=self.hidden_size,
+                lstm_dropout=self.cfg.p_tuning.dropout,
+                num_layers=self.cfg.p_tuning.num_layers,
+            )
+        elif encoder_type == PromptEncoderType.LSTM or encoder_type == PromptEncoderType.MLP:
+            self.prompt_encoder = PromptEncoder(
+                encoder_type=encoder_type,
+                total_virtual_tokens=total_virtual_tokens,
+                token_dim=self.hidden_size,
+                hidden_size=self.cfg.p_tuning.get("encoder_hidden", self.hidden_size // 2),
+                lstm_dropout=self.cfg.p_tuning.get("dropout", 0.0),
+                num_layers=self.cfg.p_tuning.get("num_layers", 2),
+            )
+        else:
+            raise ValueError('not supported')
+            
+        # cast the model weights to bf16 only for 'bf16' precision
+        # For fp16, cannot cast the model weights as AMP will complain
+        if self.trainer.precision == 'bf16':
+            self.prompt_encoder = self.prompt_encoder.to(dtype=self.autocast_dtype)
+
 
     def add_ptuned_prompts_to_prompt_table(self):
         """
@@ -259,7 +278,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
 
         return tasks
 
-    def state_dict(self):
+    def state_dict(self, destination=None, prefix=None, keep_vars=False):
         """
         Custom state dict that only contains prompt table and prompt encoder parameters. 
         No frozen model parameters are stored in the state dict. Prompt encoder parameters 
@@ -291,9 +310,17 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
 
         self.prompt_table.load_state_dict(state_dict_, strict)
 
-        if self._prompt_encoder_key in state_dict and self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
+        if (
+            self._prompt_encoder_key in state_dict
+            and self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER
+        ):
             state_dict_ = state_dict[self._prompt_encoder_key]
+            
+            if not hasattr(self, "prompt_encoder"):
+                self.init_prompt_encoder()
+
             self.prompt_encoder.load_state_dict(state_dict_, strict)
+
 
     def embed_input_train(self, input_ids: Tensor, taskname_ids: Tensor):
         """
@@ -391,9 +418,32 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         input_embeds = torch.where(virtual_token_locations, virtual_token_embeds, discrete_token_embeds)
         return input_embeds
 
+    def training_step(self, batch, batch_idx):
+        # we zero grads here because we also call backward in the apex fwd/bwd functions
+        self._optimizer.zero_grad()
+        loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=False)
+        self.allreduce_gradients()
+
+        ## logging
+        # we can only log on one rank if it is rank zero so we broadcast from last rank
+        # we can avoid this broadcast by updating the PTL log function to accept specific ranks
+        torch.distributed.broadcast(loss_mean, get_last_rank())
+
+        if self.cfg.precision == 16 and hasattr(self.trainer.precision_plugin.scaler, "_scale"):
+            loss_scale = self.trainer.precision_plugin.scaler._scale
+            if loss_scale is not None:
+                self.log('loss_scale', loss_scale)
+
+        self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True)
+        lr = self._optimizer.param_groups[0]['lr']
+        self.log('lr', lr, rank_zero_only=True)
+        self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True)
+        
+        return loss_mean
+
     def on_train_end(self):
         # Save p-tuned prompts to prompt table for inference or future task training
-        if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING:
+        if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING and self.frozen_model.model.pre_process:
             self.add_ptuned_prompts_to_prompt_table()
             logging.info(f"All p-tuned prompts where moved to the prompt table.")
 
@@ -481,9 +531,6 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
 
     @classmethod
     def list_available_models(cls):
-        pass
-
-    def load_frozen_model(self, cfg, trainer):
         pass
 
 
