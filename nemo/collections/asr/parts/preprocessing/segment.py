@@ -32,6 +32,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 # This file contains code artifacts adapted from https://github.com/ryanleary/patter
+
 import math
 import os
 import random
@@ -49,6 +50,8 @@ try:
     from pydub.exceptions import CouldntDecodeError
 except ModuleNotFoundError:
     HAVE_PYDUB = False
+
+
 available_formats = sf.available_formats()
 sf_supported_formats = ["." + i.lower() for i in available_formats.keys()]
 
@@ -89,6 +92,7 @@ class AudioSegment(object):
         self._sample_rate = sample_rate
         if self._samples.ndim >= 2:
             self._samples = np.mean(self._samples, 1)
+
         self._orig_sr = orig_sr if orig_sr is not None else sample_rate
 
     def __eq__(self, other):
@@ -148,7 +152,7 @@ class AudioSegment(object):
         trim_hop_length=512,
         orig_sr=None,
     ):
-        """	
+        """
         Load a file supported by librosa and return as an AudioSegment.
         :param audio_file: path of file to load
         :param target_sr: the desired sample rate
@@ -201,7 +205,7 @@ class AudioSegment(object):
         if samples is None:
             libs = "soundfile, and pydub" if HAVE_PYDUB else "soundfile"
             raise Exception(f"Your audio file {audio_file} could not be decoded. We tried using {libs}.")
-            
+
         return cls(
             samples,
             sample_rate,
