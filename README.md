@@ -324,11 +324,11 @@ The values for these parameters should be in the same format that is found in `s
 With the following example:
 ```
 PARTITION AVAIL  TIMELIMIT  NODES  STATE NODELIST
-hp           up   infinite      8   idle x8a100-[0000-0007]
+x8a100       up   infinite      8   idle x8a100-[0000-0007]
 ```
 To test all 8 idle nodes, the script would be run as:
 ```
-bash cluster_validation.sh --nodes=8 --nodelist=x8a100-[0000-0007] --partition=hp
+bash cluster_validation.sh --nodes=8 --nodelist=x8a100-[0000-0007] --partition=x8a100
 ```
 
 By default, the script will run both the GPU diagnostics and the NCCL test. You can choose to run only one or the other by specifying:
