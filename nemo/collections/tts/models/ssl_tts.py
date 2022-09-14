@@ -67,7 +67,6 @@ class SSLDisentangler(ModelPT):
                 self.downstream_nets[task] = nn.Linear(in_dim, out_dim)
                 self.sv_linear = nn.Linear(out_dim, num_speakers)
                 self.sv_loss = AngularSoftmaxLoss(scale=30, margin=0.4)
-                # self.sv_loss = nn.CrossEntropyLoss()
 
             elif task == 'content':
                 in_dim = self._cfg.encoder.d_model
@@ -358,7 +357,6 @@ class SSLDisentangler(ModelPT):
                 signal_len = batch[key]['audio_lens']
                 target = batch[key]['text']  # (B, T)
                 target_len = batch[key]['text_lens']
-                # wav1 = signal[0].cpu().detach().numpy()
 
                 _, _, content_embedding, content_log_probs, encoded_len = self.forward(
                     input_signal=signal, input_signal_length=signal_len
@@ -438,7 +436,6 @@ class SSLDisentangler(ModelPT):
             print("lr backbone", optim_backbone.param_groups[0]['lr'])
             print("lr down", optim_downstream.param_groups[0]['lr'])
 
-        # return {'loss': loss}
 
     def validation_step(self, batch, batch_idx):
 
@@ -507,10 +504,6 @@ class SSLDisentangler(ModelPT):
                         normalized_ed = 1.0
                     cers.append(normalized_ed)
 
-                # pred_char_batch = torch.argmax(content_log_probs, dim=2)
-                # pred_char_batch = pred_char_batch.permute(1, 0)
-                # pred_char = decode(self._text_tokenizer, pred_char_batch[0].tolist())
-                # target_char = decode(self._text_tokenizer, target[0].tolist())
 
         return {
             'val_loss': loss_total.cpu(),
