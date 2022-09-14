@@ -12,10 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import math
 from abc import abstractmethod
 from dataclasses import dataclass, is_dataclass
-from types import BuiltinFunctionType, FunctionType
 from typing import Callable, Dict, List, Optional, Union
 
 import editdistance
@@ -301,6 +299,10 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 # greedy decoding, can get high-level confidence scores
                 if return_hypotheses and (self.preserve_word_confidence or self.preserve_token_confidence):
                     hypotheses = self.compute_confidence(hypotheses)
+                else:
+                    # remove unused token_repetitions from Hypothesis.text
+                    for hyp in hypotheses:
+                        hyp.text = hyp.text[:2]
                 timestamp_type = self.cfg.get('ctc_timestamp_type', 'all')
                 for hyp_idx in range(len(hypotheses)):
                     hypotheses[hyp_idx] = self.compute_ctc_timestamps(hypotheses[hyp_idx], timestamp_type)

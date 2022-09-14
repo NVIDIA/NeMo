@@ -14,9 +14,8 @@
 
 import copy
 import math
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from dataclasses import dataclass
-from types import BuiltinFunctionType, FunctionType
 from typing import Callable, Dict, List, Optional, Union
 
 import editdistance

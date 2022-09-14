@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import argparse
 import contextlib
 import copy
 import json
@@ -106,9 +105,12 @@ def run_benchmark(model, batch_size, num_workers, is_rnnt, target_level, filepat
         Dictionary with benchmark results of the following scheme:
         `level: (auc_roc, auc_pr, auc_nt, nce, ece, auc_yc, max_yc, std_yc)` with `level` being 'token' or 'word'.
     """
-    transcriptions = model.transcribe(
-        paths2audio_files=filepaths, batch_size=batch_size, return_hypotheses=True, num_workers=num_workers
-    )
+    # transcribe audio
+    with autocast():
+        with torch.no_grad():
+            transcriptions = model.transcribe(
+                paths2audio_files=filepaths, batch_size=batch_size, return_hypotheses=True, num_workers=num_workers
+            )
     if is_rnnt:
         transcriptions = transcriptions[0]
 
@@ -152,15 +154,15 @@ def run_benchmark(model, batch_size, num_workers, is_rnnt, target_level, filepat
         plt.savefig(plot_dir / Path(level + "_" + "hist_incorrect.png"), dpi=300)
         plt.clf()
         fpr, tpr, _ = roc_curve(1 - y_true, 1 - y_score)
-        roc_display = RocCurveDisplay(fpr=fpr, tpr=tpr).plot()
+        RocCurveDisplay(fpr=fpr, tpr=tpr).plot()
         plt.savefig(plot_dir / Path(level + "_" + "roc.png"), dpi=300)
         plt.clf()
         precision, recall, _ = precision_recall_curve(y_true, y_score)
-        pr_display = PrecisionRecallDisplay(precision=precision, recall=recall).plot()
+        PrecisionRecallDisplay(precision=precision, recall=recall).plot()
         plt.savefig(plot_dir / Path(level + "_" + "pr.png"), dpi=300)
         plt.clf()
         precision, recall, _ = precision_recall_curve(1 - y_true, 1 - y_score)
-        pr_display = PrecisionRecallDisplay(precision=precision, recall=recall).plot()
+        PrecisionRecallDisplay(precision=precision, recall=recall).plot()
         plt.savefig(plot_dir / Path(level + "_" + "nt.png"), dpi=300)
         plt.clf()
         plt.plot(*result_yc[-1])
@@ -279,18 +281,15 @@ def main(cfg: ConfidenceBenchmarkingConfig):
         asr_model = imported_class.restore_from(
             restore_path=cfg.model_path, map_location=map_location
         )  # type: ASRModel
-        model_name = os.path.splitext(os.path.basename(cfg.model_path))[0]
     else:
         # restore model by name
         asr_model = ASRModel.from_pretrained(
             model_name=cfg.pretrained_name, map_location=map_location
         )  # type: ASRModel
-        model_name = cfg.pretrained_name
 
     trainer = pl.Trainer(devices=device, accelerator=accelerator)
     asr_model.set_trainer(trainer)
     asr_model = asr_model.eval()
-    partial_audio = False
 
     # Check if ctc or rnnt model
     is_rnnt = hasattr(asr_model, 'joint')
@@ -307,19 +306,13 @@ def main(cfg: ConfidenceBenchmarkingConfig):
         return None
     manifest_dir = Path(cfg.dataset_manifest).parent
     with open(cfg.dataset_manifest, 'r') as f:
-        has_two_fields = []
         for line in f:
             item = json.loads(line)
-            if "offset" in item and "duration" in item:
-                has_two_fields.append(True)
-            else:
-                has_two_fields.append(False)
             audio_file = Path(item['audio_filepath'])
             if not audio_file.is_file() and not audio_file.is_absolute():
                 audio_file = manifest_dir / audio_file
             filepaths.append(str(audio_file.absolute()))
             reference_texts.append(item['text'])
-    partial_audio = all(has_two_fields)
 
     # setup AMP (optional)
     if cfg.amp and torch.cuda.is_available() and hasattr(torch.cuda, 'amp') and hasattr(torch.cuda.amp, 'autocast'):

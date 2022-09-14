@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import List, Union
+from typing import List
 
 import editdistance
 import torch
