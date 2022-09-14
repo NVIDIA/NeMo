@@ -26,7 +26,7 @@ from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 class ConfidenceMethodConfig:
     name: str = "entropy"
     entropy_type: str = "tsallis"
-    entropy_alpha: float = 0.33
+    temperature: float = 0.33
     entropy_norm: str = "exp"
 
     def __post_init__(self):
@@ -34,8 +34,8 @@ class ConfidenceMethodConfig:
             raise ValueError(f"`name` has to be one of the following: `max_prob`, `entropy`. Provided: {self.name}")
         if self.entropy_type not in ("gibbs", "tsallis", "renui"):
             raise ValueError(f"`entropy_type` has to be one of the following: `gibbs`, `tsallis`, `renui`. Provided: {self.entropy_type}")
-        if self.entropy_alpha <= 0.:
-            raise ValueError(f"`entropy_alpha` has to be > 0. Provided: {self.entropy_alpha}")
+        if self.temperature <= 0.:
+            raise ValueError(f"`temperature` has to be > 0. Provided: {self.temperature}")
         if self.entropy_norm not in ("lin", "exp"):
             raise ValueError(f"`entropy_norm` has to be one of the following: `lin`, `exp`. Provided: {self.entropy_norm}")
 
@@ -127,7 +127,7 @@ class ConfidenceMeasureMixin(ABC):
         # set confidence calculation method
         # we suppose that self.blank_id == len(vocabulary)
         self.num_tokens = (self.blank_id if hasattr(self, "blank_id") else self._blank_index) + 1
-        self.entropy_alpha = confidence_method_cfg.entropy_alpha
+        self.temperature = confidence_method_cfg.temperature
 
         # init confidence measure bank
         self.confidence_measure_bank = get_confidence_measure_bank()
@@ -143,7 +143,7 @@ class ConfidenceMeasureMixin(ABC):
             raise ValueError(f"Unsupported `confidence_method_cfg.name`: `{confidence_method_cfg.name}`")
         if measure_name not in self.confidence_measure_bank:
             raise ValueError(f"Unsupported measure setup: `{measure_name}`")
-        method = partial(self.confidence_measure_bank[measure_name], v=self.num_tokens, t=self.entropy_alpha)
+        method = partial(self.confidence_measure_bank[measure_name], v=self.num_tokens, t=self.temperature)
         self._get_confidence = lambda x: method(x).tolist()
 
 
