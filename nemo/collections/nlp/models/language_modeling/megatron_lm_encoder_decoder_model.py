@@ -12,12 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import functools
 import inspect
 import re
 from typing import Any, Dict, Optional
 
 import torch
+from omegaconf import OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -69,10 +71,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer=trainer)
-        if cfg.get('pipeline_model_parallel_size', 1) > 2 and self.cfg.get('position_embedding_type') == 'relative':
-            raise ValueError(
-                "pipeline_model_parallel_size cannot be > 2 with position_embedding_type == relative at the moment."
-            )
         if cfg.get('pipeline_model_parallel_size', 1) > 1:
             if cfg.get('pipeline_model_parallel_split_rank', 0) <= 0:
                 raise ValueError(
@@ -125,58 +123,78 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         """ModelPT override. Optimizer will get self._optimizer_param_groups"""
         self._optimizer_param_groups = get_params_for_weight_decay_optimization([self.enc_dec_model])
 
+    def _handle_bias_activation_fusion_args(self, cfg):
+        # For oldest models, we don't have the option to turn on/off bias activation fusion. It is always on.
+        if not hasattr(cfg, 'bias_gelu_fusion') and not hasattr(cfg, 'bias_activation_fusion'):
+            # Handle the case where the model can have bias=False
+            if cfg.get('bias', True):
+                cfg.bias_activation_fusion = True
+            else:
+                cfg.bias_activation_fusion = False
+        # For in-between models, Re-map bias_gelu_fusion to bias_activation_fusion
+        elif hasattr(cfg, 'bias_gelu_fusion'):
+            logging.warning('bias_gelu_fusion is deprecated. Please use bias_activation_fusion instead.')
+            cfg.bias_activation_fusion = cfg.bias_gelu_fusion
+
+    def _populate_encoder_decoder_configs_for_backward_compatibility(self, cfg):
+        """
+        Populate encoder and decoder configs for backward compatibility with a checkpoint that has a common enc/dec config.
+        """
+        # TODO: This will not remove redundant args that are already present in the new yaml file's config.model
+        encoder_cfg = copy.deepcopy(cfg)
+        decoder_cfg = copy.deepcopy(cfg)
+
+        OmegaConf.set_struct(encoder_cfg, True)
+        OmegaConf.set_struct(decoder_cfg, True)
+        OmegaConf.set_struct(cfg, True)
+
+        with open_dict(encoder_cfg), open_dict(decoder_cfg), open_dict(cfg):
+            encoder_cfg.arch = cfg.get('encoder_arch', 'transformer')
+            decoder_cfg.arch = cfg.get('decoder_arch', 'transformer')
+
+            self._handle_bias_activation_fusion_args(encoder_cfg)
+            self._handle_bias_activation_fusion_args(decoder_cfg)
+
+            cfg.encoder = encoder_cfg
+            cfg.decoder = decoder_cfg
+
     def model_provider_func(self, pre_process, post_process, add_encoder, add_decoder):
         # TODO: create get_encoder_decoder_model()here for different losses (e..g, nll, vae, mim)
-        if parallel_state.get_pipeline_model_parallel_world_size() > 1 and self.cfg.encoder_arch == 'perceiver':
+        if not hasattr(self.cfg, 'encoder') or not hasattr(self.cfg, 'decoder'):
+            logging.warning(
+                'Could not find encoder or decoder in config. This is probably because of restoring an old checkpoint. Copying shared model configs to encoder and decoder configs.'
+            )
+            # After the call below, self.cfg.encoder and self.cfg.decoder will be populated with the cfg.model configs from old checkpoints.
+            self._populate_encoder_decoder_configs_for_backward_compatibility(self.cfg)
+
+        if parallel_state.get_pipeline_model_parallel_world_size() > 1 and self.cfg.encoder.arch == 'perceiver':
             raise ValueError(f"Perceivers with pipeline parallel > 1 is not supported yet.")
-        if hasattr(self.cfg, 'bias_gelu_fusion'):
-            logging.warning('bias_gelu_fusion is deprecated. Please use bias_activation_fusion instead.')
-            activation_fusion = self.cfg.bias_gelu_fusion
+
+        if not hasattr(self.cfg, 'embedding_init_method_std'):
+            embedding_init_method_std = self.cfg.encoder.init_method_std
         else:
-            activation_fusion = self.cfg.get('bias_activation_fusion', True)
+            embedding_init_method_std = self.cfg.embedding_init_method_std
+
+        if not hasattr(self.cfg, 'embedding_dropout'):
+            embedding_dropout = self.cfg.encoder.hidden_dropout
+        else:
+            embedding_dropout = self.cfg.embedding_dropout
+
         model = MegatronTokenLevelEncoderDecoderModule(
-            encoder_arch=self.cfg.encoder_arch,
-            decoder_arch=self.cfg.decoder_arch,
+            encoder_cfg=self.cfg.encoder,
+            decoder_cfg=self.cfg.decoder,
             vocab_size=self.padded_vocab_size,
-            hidden_size=self.cfg.hidden_size,
             max_position_embeddings=self.cfg.max_position_embeddings,
-            num_layers=self.cfg.num_layers,
-            num_attention_heads=self.cfg.num_attention_heads,
-            apply_query_key_layer_scaling=self.cfg.get('apply_query_key_layer_scaling', True),
-            kv_channels=self.cfg.get('kv_channels', None),
-            ffn_hidden_size=self.cfg.ffn_hidden_size,
             num_tokentypes=0,
             parallel_output=True,
             pre_process=pre_process,
             post_process=post_process,
-            init_method_std=self.cfg.get('init_method_std', 0.02),
             fp16_cross_entropy=self.cfg.get('fp16_lm_cross_entropy', False),
             use_cpu_initialization=self.cfg.get('use_cpu_initialization', False),
-            hidden_dropout=self.cfg.get('hidden_dropout', 0.1),
-            attention_dropout=self.cfg.get('attention_dropout', 0.1),
-            position_embedding_type=self.cfg.get('position_embedding_type', 'learned_absolute'),
-            relative_attention_num_buckets=self.cfg.get('relative_attention_num_buckets', 32),
-            relative_attention_max_distance=self.cfg.get('relative_attention_max_distance', 128),
-            relative_position_bias_self_attention_only=self.cfg.get(
-                'relative_position_bias_self_attention_only', True
-            ),
             precision=self.cfg.get('precision', 16),
-            fp32_residual_connection=self.cfg.get('fp32_residual_connection', False),
-            activations_checkpoint_method=self.cfg.get('activations_checkpoint_method', None),
-            activations_checkpoint_num_layers=self.cfg.get('activations_checkpoint_num_layers', 1),
-            layernorm_epsilon=self.cfg.get('layernorm_epsilon', 1e-5),
-            persist_layer_norm=self.cfg.get('persist_layer_norm', False),
-            bias_activation_fusion=activation_fusion,
-            bias_dropout_add_fusion=self.cfg.get('bias_dropout_add_fusion', True),
-            masked_softmax_fusion=self.cfg.get('masked_softmax_fusion', True),
-            onnx_safe=self.cfg.get('onnx_safe', False),
-            activation=self.cfg.get('activation', 'gelu'),
-            bias=self.cfg.get('bias', True),
-            normalization=self.cfg.get('normalization', 'layernorm'),
-            transformer_block_type=self.cfg.get('transformer_block_type', 'pre_ln'),
-            headscale=self.cfg.get('headscale', False),
-            hidden_steps=self.cfg.get('hidden_steps', -1),
-            num_self_attention_per_cross_attention=self.cfg.get('num_self_attention_per_cross_attention', 1),
+            embedding_init_method_std=embedding_init_method_std,
+            embedding_dropout=embedding_dropout,
+            label_smoothing=self.cfg.get('label_smoothing', 0.0),
             add_encoder=add_encoder,
             add_decoder=add_decoder,
             share_token_embeddings=self.cfg.get('share_token_embeddings', True),
@@ -227,7 +245,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         batch_for_pipeline = self.process_global_batch(batch)
         encoder_seq_length = batch_for_pipeline[0].size(1)
         decoder_seq_length = batch_for_pipeline[1].size(1)
-        tensor_shape = [encoder_seq_length, get_micro_batch_size(), self.cfg.hidden_size]
+        tensor_shape = [encoder_seq_length, get_micro_batch_size(), self.cfg.encoder.hidden_size]
 
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
             losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
@@ -347,14 +365,13 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     def allreduce_word_and_position_embeddings(self):
 
         # Modified from megatron-lm: https://github.com/NVIDIA/Megatron-LM/blob/d41696840ed0a7edb7e0499eb82a48ae112d9bb3/megatron/training.py#L407
-        # All-reduce word_embeddings' grad across first and last stages to ensure
-        # that word_embeddings parameters stay in sync.
-        # This should only run for models that support pipelined model parallelism
-        # (BERT and GPT-2).
+        # All-reduce word_embeddings' grad across first, last stages to ensure that word_embeddings parameters stay in sync.
         if parallel_state.get_pipeline_model_parallel_world_size() > 1 and (
             parallel_state.is_rank_in_embedding_group()
         ):
-            if self.enc_dec_model.share_token_embeddings:
+            if self.cfg.get('share_token_embeddings', True) and self.cfg.get(
+                'share_decoder_tokens_head_embeddings', True
+            ):
                 word_embeddings_weight = self.enc_dec_model.word_embeddings_weight()
                 if self.megatron_amp_o2:
                     # O2 recipe stores a "main" copy of weights and grads
@@ -362,20 +379,74 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 else:
                     grad = word_embeddings_weight.grad
                 torch.distributed.all_reduce(grad, group=parallel_state.get_embedding_group())
+            else:
+                raise ValueError(
+                    f"Attempting to allreduce word_embeddings for pipeline parallel size > 1, but found untied word embeddings or token head embeddings. This is not supported yet."
+                )
 
-                # All reduce position embeddings for T5.
-                if (
-                    parallel_state.is_rank_in_position_embedding_group()
-                    and parallel_state.get_pipeline_model_parallel_world_size() > 1
-                    and parallel_state.get_pipeline_model_parallel_split_rank() is not None
-                    and self.cfg.get('position_embedding_type') == 'learned_absolute'
-                ):
-                    position_embeddings_weight = self.enc_dec_model.position_embeddings_weight()
+        # All-reduce position embeddings for T5.
+        if (
+            parallel_state.is_rank_in_position_embedding_group()
+            and parallel_state.get_pipeline_model_parallel_world_size() > 1
+            and parallel_state.get_pipeline_model_parallel_split_rank() is not None
+            and self.cfg.encoder.get('position_embedding_type') == 'learned_absolute'
+            and self.cfg.decoder.get('position_embedding_type') == 'learned_absolute'
+        ):
+            if self.cfg.get('share_token_embeddings', True):
+                position_embeddings_weight = self.enc_dec_model.position_embeddings_weight()
+                if self.megatron_amp_o2:
+                    grad = position_embeddings_weight.main_grad
+                else:
+                    grad = position_embeddings_weight.grad
+                torch.distributed.all_reduce(grad, group=parallel_state.get_position_embedding_group())
+
+        # All-reduce relative position embeddings for T5.
+        if (
+            parallel_state.get_pipeline_model_parallel_world_size()
+            > 2  # This > 2 and not > 1 since with PP=2 encoder RPE can live only on one rank.
+            and parallel_state.get_pipeline_model_parallel_split_rank() is not None
+        ):
+            # For split rank = 1, we have only one encoder rank and so we don't need to allreduce.
+            if (
+                self.cfg.encoder.get('position_embedding_type') == 'relative'
+                and parallel_state.is_rank_in_encoder_relative_position_embedding_group()
+                and parallel_state.get_pipeline_model_parallel_split_rank() > 1
+            ):
+                position_embeddings_weight = self.enc_dec_model.encoder_relative_position_embeddings_weight()
+                if self.megatron_amp_o2:
+                    grad = position_embeddings_weight.main_grad
+                else:
+                    grad = position_embeddings_weight.grad
+                torch.distributed.all_reduce(
+                    grad, group=parallel_state.get_encoder_relative_position_embedding_group()
+                )
+
+            # For split rank == pipeline_world_size - 1, we have only one decoder rank and so we don't need to allreduce.
+            if (
+                self.cfg.decoder.get('position_embedding_type') == 'relative'
+                and parallel_state.is_rank_in_decoder_relative_position_embedding_group()
+            ):
+                position_embeddings_weight = self.enc_dec_model.decoder_relative_position_embeddings_weight()
+                if self.megatron_amp_o2:
+                    grad = position_embeddings_weight.main_grad
+                else:
+                    grad = position_embeddings_weight.grad
+                torch.distributed.all_reduce(
+                    grad, group=parallel_state.get_decoder_relative_position_embedding_group()
+                )
+
+                # If the model also has separate RPE weights for decoder cross-attention, allreduce those as well.
+                if not self.cfg.decoder.get('relative_position_bias_self_attention_only', True):
+                    position_embeddings_weight = (
+                        self.enc_dec_model.decoder_cross_attention_relative_position_embeddings_weight()
+                    )
                     if self.megatron_amp_o2:
                         grad = position_embeddings_weight.main_grad
                     else:
                         grad = position_embeddings_weight.grad
-                    torch.distributed.all_reduce(grad, group=parallel_state.get_position_embedding_group())
+                    torch.distributed.all_reduce(
+                        grad, group=parallel_state.get_decoder_relative_position_embedding_group()
+                    )
 
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(batch, model):
@@ -400,12 +471,12 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         return fwd_output_and_loss_func
 
-    @functools.cached_property
+    @functools.lru_cache(maxsize=None)
     def _kwargs_to_arg_idx(self):
         """
         Returns a dict {kwarg name: arg index} to be used when mapping
         kwargs into a list of args.
-        
+
         Computed on first call, and then cached.
         """
         # build mapping of kwargs to arg index at first run
@@ -417,7 +488,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     def _build_forward_args_from_kwargs(self, args_name, args, **kwargs):
         """
         A helper method that converts arguments into positional arguments (by name)
-        
+
         args - a list of arguments to pass to self.enc_dec_model (tensors from batch)
         args_name - a list of argument name (to be matched against allowed kwargs)
         kwargs - a dict {arg name: arg value} (used for non-tensor values)
@@ -429,7 +500,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             raise ValueError(f"args_name = {args_name} cannot overlap kwargs = {list(kwargs.keys())}")
 
         # get mapping of kwarg names to arg index
-        kwargs_to_arg_idx = self._kwargs_to_arg_idx
+        kwargs_to_arg_idx = self._kwargs_to_arg_idx()
 
         # collect all arguments
         all_args_name = args_name[:]
@@ -479,7 +550,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         encoder_seq_length = batch_for_pipeline[0].size(1)
         decoder_seq_length = batch_for_pipeline[1].size(1)
 
-        tensor_shape = [encoder_seq_length, get_micro_batch_size(), self.cfg.hidden_size]
+        tensor_shape = [encoder_seq_length, get_micro_batch_size(), self.cfg.encoder.hidden_size]
 
         (
             encoder_input_ids,
@@ -534,7 +605,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         batch_for_pipeline = self.process_global_batch(batch)
         encoder_seq_length = batch_for_pipeline[0].size(1)
         decoder_seq_length = batch_for_pipeline[1].size(1)
-        tensor_shape = [encoder_seq_length, get_micro_batch_size(), self.cfg.hidden_size]
+
+        tensor_shape = [encoder_seq_length, get_micro_batch_size(), self.cfg.encoder.hidden_size]
 
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
             losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
@@ -571,8 +643,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         return loss_mean
 
     def validation_epoch_end(self, outputs):
-        if not outputs:
-            return
         if parallel_state.is_pipeline_last_stage():
             # only the last pipeline parallel stages return loss
             averaged_loss = torch.stack(outputs).mean()
@@ -595,8 +665,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         return self.validation_step(batch, batch_idx)
 
     def test_epoch_end(self, outputs):
-        if not outputs:
-            return
         if parallel_state.is_pipeline_last_stage():
             # only the last pipeline parallel stages return loss
             averaged_loss = torch.stack(outputs).mean()
@@ -718,7 +786,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     def build_train_valid_test_datasets(self):
         raise NotImplementedError("Please implement this method in child-class")
 
-    def build_pretraining_data_loader(self, dataset, consumed_samples):
+    def build_pretraining_data_loader(self, dataset, consumed_samples, num_workers):
         """Buld dataloader given an input dataset."""
 
         if dataset is None:
@@ -754,7 +822,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         # Torch dataloader.
         return torch.utils.data.DataLoader(
-            dataset, batch_sampler=batch_sampler, num_workers=self._cfg.data.num_workers, pin_memory=True,
+            dataset, batch_sampler=batch_sampler, num_workers=num_workers, pin_memory=True,
         )
 
     def setup(self, stage=None):
@@ -783,14 +851,35 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         # when using pipeline model parallel the final stage need to initialize word embeddings
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
+            assert (
+                self.cfg.share_token_embeddings
+            ), "share_word_embedding must be True when using pipeline model parallel > 1"
+            assert (
+                self.cfg.share_decoder_tokens_head_embeddings
+            ), "share_decoder_tokens_head_embeddings must be True when using pipeline model parallel > 1"
             self.enc_dec_model.sync_initial_word_embeddings()
-            if self.cfg.get('position_embedding_type') != 'relative':
+            if (
+                self.cfg.encoder.get('position_embedding_type') != 'relative'
+                and self.cfg.decoder.get('position_embedding_type') != 'relative'
+            ):
                 self.enc_dec_model.sync_initial_position_embeddings()
+            # Synchronize RPE embeddings across pipeline parallel ranks.
+            else:
+                if self.cfg.encoder.get('position_embedding_type', 'learned_absolute') == 'relative':
+                    self.enc_dec_model.sync_initial_encoder_relative_position_embeddings()
+                if self.cfg.decoder.get('position_embedding_type', 'learned_absolute') == 'relative':
+                    self.enc_dec_model.sync_initial_decoder_relative_position_embeddings()
+                if self.cfg.decoder.get(
+                    'position_embedding_type', 'learned_absolute'
+                ) == 'relative' and not self.cfg.decoder.get('relative_position_bias_self_attention_only', True):
+                    self.enc_dec_model.sync_initial_decoder_cross_attention_relative_position_embeddings()
 
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds'):
             consumed_samples = self.compute_consumed_samples(0)
-            self._train_dl = self.build_pretraining_data_loader(self._train_ds, consumed_samples)
+            self._train_dl = self.build_pretraining_data_loader(
+                self._train_ds, consumed_samples, num_workers=self._cfg.data.num_workers
+            )
 
     def on_pretrain_routine_start(self) -> None:
         # keep a copy of init_global_step
@@ -800,12 +889,14 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     def setup_validation_data(self, cfg):
         if hasattr(self, '_validation_ds'):
             consumed_samples = 0
-            self._validation_dl = self.build_pretraining_data_loader(self._validation_ds, consumed_samples)
+            self._validation_dl = self.build_pretraining_data_loader(
+                self._validation_ds, consumed_samples, num_workers=0
+            )
 
     def setup_test_data(self, cfg):
         if hasattr(self, '_test_ds'):
             consumed_samples = 0
-            self._test_dl = self.build_pretraining_data_loader(self._test_ds, consumed_samples)
+            self._test_dl = self.build_pretraining_data_loader(self._test_ds, consumed_samples, num_workers=0)
 
     def compute_consumed_samples(self, steps_since_resume=0):
         app_state = AppState()
@@ -823,7 +914,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     def encode(self, tokens_enc, enc_mask, encoder_input=None, reconfigure_microbatch=True):
         """
-        tokens_enc - encoder input tokens 
+        tokens_enc - encoder input tokens
         enc_mask - corresponding mask
         encoder_input - encoder input (bypass tokens), if given tokens_enc can be None.
         """
@@ -867,7 +958,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 micro_batch_size=global_batch_per_gpu,  # Make sure that there is no "grad acc" while decoding.
                 data_parallel_size=parallel_state.get_data_parallel_world_size(),
             )
-        tensor_shape = [encoder_seq_length, global_batch_per_gpu, self.cfg.hidden_size]
+        tensor_shape = [encoder_seq_length, global_batch_per_gpu, self.cfg.encoder.hidden_size]
 
         # build input arguments description
         if tokens_enc is not None:
@@ -932,7 +1023,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 data_parallel_size=parallel_state.get_data_parallel_world_size(),
             )
 
-        # Return the output tensor of encoder and transpose from [batch, seq_len, hidden] to [seq_len, batch, hidden]
+        # Return the output tensor of encoder and transpose from [seq_len, batch, hidden] to [batch, seq_len, hidden]
         return output_tensor.transpose(1, 0)
 
     def decode(
@@ -980,6 +1071,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         num_micro_batches_before_decode = get_num_microbatches()
         # Reconfigure microbatch calculator here to set num microbatches to 1 while decoding since its not clear how to decode with "grad acc".
         # reconfigure back to how things were before decode
+        # TODO: Check if the user is trying to do gradient acc and maybe throw error
         _reconfigure_microbatch_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
@@ -988,7 +1080,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
         predicted_tokens_dec = torch.LongTensor([tokenizer.bos_id] * global_batch_per_gpu).unsqueeze(1).to(device)
-        tensor_shape = [encoder_seq_length, global_batch_per_gpu, self.cfg.hidden_size]
+        tensor_shape = [encoder_seq_length, global_batch_per_gpu, self.cfg.encoder.hidden_size]
         assert predicted_tokens_dec.size(0) == global_batch_per_gpu
 
         # get encoder hiddens (output)
@@ -1144,7 +1236,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         """ PTL hook: https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#transfer-batch-to-device
             When using pipeline parallelism, we need the global batch to remain on the CPU,
             since the memory overhead will be too high when using a large number of microbatches.
-            Microbatches are transferred from CPU to GPU inside the pipeline. 
+            Microbatches are transferred from CPU to GPU inside the pipeline.
         """
         return batch
 

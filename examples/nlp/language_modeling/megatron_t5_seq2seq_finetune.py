@@ -20,10 +20,11 @@ from pytorch_lightning.trainer.connectors.checkpoint_connector import Checkpoint
 
 from nemo.collections.nlp.models.language_modeling.megatron_finetune_model import MegatronT5FinetuneModel
 from nemo.collections.nlp.models.language_modeling.megatron_glue_model import MegatronT5GLUEModel
+from nemo.collections.nlp.models.language_modeling.megatron_t0_model import MegatronT0Model
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
     MegatronHalfPrecisionPlugin,
-    NLPDDPPlugin,
+    NLPDDPStrategy,
     NLPSaveRestoreConnector,
     PipelineMixedPrecisionPlugin,
 )
@@ -38,13 +39,12 @@ def main(cfg) -> None:
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
     megatron_amp_o2 = cfg.model.get('megatron_amp_O2', False)
-    plugins = [
-        NLPDDPPlugin(
-            no_ddp_communication_hook=True,
-            gradient_as_bucket_view=cfg.model.gradient_as_bucket_view,
-            find_unused_parameters=False,
-        )
-    ]
+    plugins = []
+    strategy = NLPDDPStrategy(
+        no_ddp_communication_hook=True,
+        gradient_as_bucket_view=cfg.model.gradient_as_bucket_view,
+        find_unused_parameters=False,
+    )
     if cfg.trainer.precision in [16, 'bf16']:
         scaler = None
         if cfg.trainer.precision == 16:
@@ -61,7 +61,7 @@ def main(cfg) -> None:
     if cfg.get('cluster_type', None) == 'BCP':
         plugins.append(TorchElasticEnvironment())
 
-    trainer = Trainer(plugins=plugins, **cfg.trainer)
+    trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer)
 
     exp_manager(trainer, cfg.exp_manager)
 
@@ -101,6 +101,13 @@ def main(cfg) -> None:
 
     if hasattr(cfg.model.data.train_ds, 'task_name'):
         model = MegatronT5GLUEModel.restore_from(
+            restore_path=cfg.model.restore_from_path,
+            trainer=trainer,
+            override_config_path=t5_cfg,
+            save_restore_connector=NLPSaveRestoreConnector(),
+        )
+    elif hasattr(cfg.model.data.train_ds, 'file_names'):
+        model = MegatronT0Model.restore_from(
             restore_path=cfg.model.restore_from_path,
             trainer=trainer,
             override_config_path=t5_cfg,

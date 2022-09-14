@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:22.05-py3
+ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:22.07-py3
 
 
 # build an image that includes only the nemo dependencies, ensures that dependencies
@@ -28,9 +28,17 @@ RUN apt-get update && \
     apt-get install -y \
     libsndfile1 sox \
     libfreetype6 \
+    espeak-ng \
     python-setuptools swig \
     python-dev ffmpeg && \
     rm -rf /var/lib/apt/lists/*
+
+# FIXME a workaround to update apex. Remove when base image is updated
+WORKDIR /tmp/
+RUN git clone https://github.com/NVIDIA/apex.git && \
+    cd apex && \
+    git checkout 3c19f1061879394f28272a99a7ea26d58f72dace && \
+    pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" ./
 
 # uninstall stuff from base container
 RUN pip uninstall -y sacrebleu torchtext
@@ -53,6 +61,10 @@ WORKDIR /tmp/nemo
 COPY requirements .
 RUN for f in $(ls requirements*.txt); do pip install --disable-pip-version-check --no-cache-dir -r $f; done
 
+# install pynini
+COPY nemo_text_processing/install_pynini.sh /tmp/nemo/
+RUN /bin/bash /tmp/nemo/install_pynini.sh
+
 # install k2, skip if installation fails
 COPY scripts /tmp/nemo/scripts/
 RUN /bin/bash /tmp/nemo/scripts/speech_recognition/k2/setup.sh || exit 0
@@ -63,7 +75,7 @@ COPY . .
 
 # start building the final container
 FROM nemo-deps as nemo
-ARG NEMO_VERSION=1.11.0
+ARG NEMO_VERSION=1.12.0
 
 # Check that NEMO_VERSION is set. Build will fail without this. Expose NEMO and base container
 # version information as runtime environment variable for introspection purposes

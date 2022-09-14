@@ -14,6 +14,8 @@
 
 """Transformer based language model."""
 
+from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
+from nemo.collections.nlp.modules.common.megatron.megatron_encoder_module import MegatronEncoderModule
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer
 from nemo.collections.nlp.modules.common.megatron.utils import (
@@ -21,6 +23,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     attn_mask_postprocess,
     build_attention_mask_3d,
 )
+from nemo.core.classes.exportable import Exportable
 
 try:
     from apex.transformer.enums import AttnMaskType, ModelType
@@ -35,7 +38,7 @@ except (ImportError, ModuleNotFoundError):
 __all__ = ["MegatronTransformerEncoderModule"]
 
 
-class MegatronTransformerEncoderModule(MegatronModule):
+class MegatronTransformerEncoderModule(MegatronModule, Exportable, MegatronEncoderModule):
     """Transformer encoder model."""
 
     def __init__(
@@ -95,6 +98,7 @@ class MegatronTransformerEncoderModule(MegatronModule):
 
         # Transformer.
         self.model = ParallelTransformer(
+            layer_type=LayerType.encoder,
             init_method=self.init_method,
             output_layer_init_method=self.output_layer_init_method,
             num_layers=self.num_layers,
@@ -126,6 +130,7 @@ class MegatronTransformerEncoderModule(MegatronModule):
             transformer_block_type=transformer_block_type,
             headscale=headscale,
             model_type=parent_model_type,
+            gradient_accumulation_fusion=False,  # TODO: This has to be False for enc-dec models for now.
         )
         self._model_key = 'model'
 

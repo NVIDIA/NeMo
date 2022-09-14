@@ -415,6 +415,13 @@ class EncDecClassificationModel(_EncDecBaseModel):
         results = []
 
         model = PretrainedModelInfo(
+            pretrained_model_name="vad_multilingual_marblenet",
+            description="For details about this model, please visit https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/vad_multilingual_marblenet",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/vad_multilingual_marblenet/versions/1.10.0/files/vad_multilingual_marblenet.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
             pretrained_model_name="vad_telephony_marblenet",
             description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:vad_telephony_marblenet",
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/vad_telephony_marblenet/versions/1.0.0rc1/files/vad_telephony_marblenet.nemo",
@@ -683,14 +690,15 @@ class EncDecRegressionModel(_EncDecBaseModel):
         train_mse = self._mse(preds=logits, target=targets)
         train_mae = self._mae(preds=logits, target=targets)
 
-        tensorboard_logs = {
-            'train_loss': loss,
-            'train_mse': train_mse,
-            'train_mae': train_mae,
-            'learning_rate': self._optimizer.param_groups[0]['lr'],
-        }
+        self.log_dict(
+            {
+                'train_loss': loss,
+                'train_mse': train_mse,
+                'train_mae': train_mae,
+                'learning_rate': self._optimizer.param_groups[0]['lr'],
+            },
+        )
 
-        self.log_dict(tensorboard_logs)
         return {'loss': loss}
 
     def validation_step(self, batch, batch_idx, dataloader_idx: int = 0):
