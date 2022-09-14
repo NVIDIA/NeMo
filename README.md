@@ -1526,7 +1526,7 @@ bignlp_scripts_path: ${bignlp_hp_tool_path}/../bignlp-scripts  # Path to the loc
 data_dir: ${bignlp_scripts_path}/data
 base_results_dir: ${bignlp_hp_tool_path}/results
 
-training_container: nvcr.io/ea-bignlp/bignlp-training:22.08-py3
+training_container: nvcr.io/ea-bignlp/bignlp-training:22.08.01-py3
 container_mounts:
     - null
 
