@@ -12,7 +12,6 @@ import torch
 from omegaconf import open_dict
 from tqdm import tqdm
 
-from nemo.collections.asr.models import ssl_models
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 from nemo.collections.tts.models import ssl_tts
@@ -22,19 +21,13 @@ from nemo.core.classes import Dataset
 from nemo.utils import logging
 
 
-def decode(tokenizer, token_list):
-    return tokenizer.sep.join(tokenizer._id2token[t] for t in token_list)
-
-
 class SSLVocoderDataset(Dataset):
     def __init__(
         self,
         manifest_filepath: Union[str, Path, List[str], List[Path]],
         sample_rate: int,
-        ssl_model_type: str,
         ssl_model_ckpt_path: Union[str, Path],
         ssl_content_emb_type: str,
-        n_segments: Optional[int] = None,
         max_duration: Optional[float] = None,
         min_duration: Optional[float] = None,
         ignore_file: Optional[Union[str, Path]] = None,
@@ -60,10 +53,6 @@ class SSLVocoderDataset(Dataset):
                 "duration": <Duration of audio clip in seconds> (Optional),
                 "mel_filepath": <PATH_TO_LOG_MEL> (Optional, can be in .npy (numpy.save) or .pt (torch.save) format)
             sample_rate (int): The sample rate of the audio. Or the sample rate that we will resample all files to.
-            n_segments (int): The length of audio in samples to load. For example, given a sample rate of 16kHz, and
-                n_segments=16000, a random 1-second section of audio from the clip will be loaded. The section will
-                be randomly sampled everytime the audio is batched. Can be set to None to load the entire audio.
-                Must be specified if load_precomputed_mel is True.
             max_duration (Optional[float]): Max duration of audio clips in seconds. All samples exceeding this will be
                 pruned prior to training. Note: Requires "duration" to be set in the manifest file. It does not load
                 audio to compute duration. Defaults to None which does not prune.
@@ -74,8 +63,6 @@ class SSLVocoderDataset(Dataset):
         """
         super().__init__()
 
-        assert ssl_model_type in ["conformer", "conformer_multitask"]
-        self.ssl_model_type = ssl_model_type
         self._text_tokenizer = EnglishCharsTokenizer(add_blank_at="last")
 
         assert ssl_content_emb_type in ["probs", "embedding", "log_probs", "embedding_and_probs"]
@@ -122,64 +109,39 @@ class SSLVocoderDataset(Dataset):
         # Initialize audio and mel related parameters
         self.featurizer = WaveformFeaturizer(sample_rate=sample_rate)
         self.sample_rate = sample_rate
-        self.n_segments = n_segments
         self.trim = trim
 
-        if ssl_model_type == "conformer":
-            self.ssl_model = ssl_models.SpeechEncDecSelfSupervisedModel.from_pretrained(
-                model_name='ssl_en_conformer_large'
-            ).cpu()
-
-        elif ssl_model_type == "conformer_multitask":
-            self.ssl_model = ssl_tts.SSLDisentangler.load_from_checkpoint(ssl_model_ckpt_path, strict=False).cpu()
-
+        self.ssl_model = ssl_tts.SSLDisentangler.load_from_checkpoint(ssl_model_ckpt_path, strict=False).cpu()
         with open_dict(self.ssl_model.cfg):
             self.ssl_model.cfg.preprocessor.exact_pad = True
         self.ssl_model.preprocessor = hydra.utils.instantiate(self.ssl_model.cfg.preprocessor)
+        # preproecessor is called preprocessor_disentangler in the multitask conformer
         self.ssl_model.preprocessor_disentangler = self.ssl_model.preprocessor
-
         self.ssl_model.eval()
 
         ssl_cfg = self.ssl_model.cfg
         ssl_sample_rate = ssl_cfg.preprocessor.sample_rate
         self.ssl_sample_rate = ssl_sample_rate
-        if ssl_sample_rate == 16000:
-            self.load_mel_spectrogram = False
-            ssl_window_stride_seconds = ssl_cfg.preprocessor.window_stride
-            downsampling_rate_wav_to_mel = int(ssl_window_stride_seconds * ssl_sample_rate)  # 160
-            downsampling_rate_mel_to_ssl = int(ssl_cfg.encoder.subsampling_factor)  # 4
-            self.pad_multiple = downsampling_rate_wav_to_mel * downsampling_rate_mel_to_ssl
-            assert self.n_segments % self.pad_multiple == 0, "suggested n_segments: {}".format(
-                self.pad_multiple * (self.n_segments // self.pad_multiple)
-            )
-            self.n_segments_at_target_sr = n_segments * self.sample_rate / self.ssl_sample_rate
-            assert self.n_segments_at_target_sr.is_integer()
-            self.n_segments_at_target_sr = int(self.n_segments_at_target_sr)
-            self.ssl_frame_length = int(0.025 * ssl_sample_rate)
-            self.ssl_hop_length = int(0.01 * ssl_sample_rate)
-        elif ssl_sample_rate == 22050:
-            self.load_mel_spectrogram = True
-            assert sample_rate == ssl_sample_rate
-            downsampling_rate_wav_to_mel = ssl_cfg.preprocessor.n_window_stride  # 256
-            downsampling_rate_mel_to_ssl = ssl_cfg.encoder.subsampling_factor  # 4
-            self.pad_multiple = downsampling_rate_wav_to_mel * downsampling_rate_mel_to_ssl
-            assert self.n_segments % self.pad_multiple == 0, "suggested n_segments: {}".format(
-                self.pad_multiple * (self.n_segments // self.pad_multiple)
-            )
-            self.n_segments_at_target_sr = n_segments
-            self.ssl_frame_length = ssl_cfg.preprocessor.n_window_size
-            self.ssl_hop_length = ssl_cfg.preprocessor.n_window_stride
 
-            self.n_fft = ssl_cfg.preprocessor.n_fft
-            self.n_mels = 80
+        assert sample_rate == ssl_sample_rate
 
-            librosa_mel_filter = librosa.filters.mel(
-                sr=self.sample_rate, n_fft=self.n_fft, n_mels=self.n_mels, fmin=0, fmax=8000
-            )
-            librosa_mel_inverse = np.linalg.pinv(librosa_mel_filter)
-            self.fb = torch.tensor(librosa_mel_filter, dtype=torch.float,).unsqueeze(0)
+        downsampling_rate_wav_to_mel = ssl_cfg.preprocessor.n_window_stride  # 256
+        downsampling_rate_mel_to_ssl = ssl_cfg.encoder.subsampling_factor  # 4
+        self.pad_multiple = downsampling_rate_wav_to_mel * downsampling_rate_mel_to_ssl
 
-            self.fb_inverse = torch.tensor(librosa_mel_inverse, dtype=torch.float,).unsqueeze(0)
+        self.ssl_frame_length = ssl_cfg.preprocessor.n_window_size
+        self.ssl_hop_length = ssl_cfg.preprocessor.n_window_stride
+
+        self.n_fft = ssl_cfg.preprocessor.n_fft
+        self.n_mels = ssl_cfg.preprocessor.features
+
+        librosa_mel_filter = librosa.filters.mel(
+            sr=self.sample_rate, n_fft=self.n_fft, n_mels=self.n_mels, fmin=0, fmax=8000
+        )
+        librosa_mel_inverse = np.linalg.pinv(librosa_mel_filter)
+        self.fb = torch.tensor(librosa_mel_filter, dtype=torch.float,).unsqueeze(0)
+
+        self.fb_inverse = torch.tensor(librosa_mel_inverse, dtype=torch.float,).unsqueeze(0)
 
         self.pitch_conditioning = pitch_conditioning
         self.pitch_mean = pitch_mean
@@ -212,7 +174,9 @@ class SSLVocoderDataset(Dataset):
             if speaker_stats_pitch_fp is None:
                 speaker_stats_pitch_fp = os.path.join(sup_data_dir, "speaker_pitch_stats.json")
                 print("speaker_stats_pitch_fp: {}".format(speaker_stats_pitch_fp))
-                assert os.path.exists(speaker_stats_pitch_fp), "speaker_stats_pitch_fp does not exist"
+
+            assert os.path.exists(speaker_stats_pitch_fp), "speaker_stats_pitch_fp does not exist"
+
             with open(speaker_stats_pitch_fp, "r") as f:
                 speaker_stats_raw = json.load(f)
                 for key in speaker_stats_raw:
@@ -237,27 +201,19 @@ class SSLVocoderDataset(Dataset):
 
         mels_padded = []
         for mel in final_batch["mel_spectrogram"]:
-            # mel shape (n_mels, mel_len)
-            # pad to (n_mels, mel_len + max_mel_len - mel_len)
-            # print("mel original shape: ", mel.shape)
             mel_padded = torch.nn.functional.pad(mel, (0, max_mel_len - mel.size(1)), value=0)
-            # print("mel padded shape: ", mel_padded.shape)
             mels_padded.append(mel_padded)
 
         pitch_contours_padded = []
         for pitch_contour in final_batch["pitch_contour"]:
-            # print("pitch_contour original shape: ", pitch_contour.shape)
             pitch_contour_padded = torch.nn.functional.pad(
                 pitch_contour, (0, max_mel_len - pitch_contour.size(0)), value=0
             )
-            # print("pitch_contour padded shape: ", pitch_contour_padded.shape)
             pitch_contours_padded.append(pitch_contour_padded)
 
         content_embeddings_padded = []
         for encoded in final_batch["content_embedding"]:
-            # print("encoded original shape: ", encoded.shape)
             encoded_padded = torch.nn.functional.pad(encoded, (0, max_encoded_len - encoded.size(1)), value=0)
-            # print("encoded padded shape: ", encoded_padded.shape)
             content_embeddings_padded.append(encoded_padded)
 
         durations_padded = []
@@ -303,25 +259,7 @@ class SSLVocoderDataset(Dataset):
             l2_norm = torch.norm(mean_speaker_embeddings[speaker], p=2)
             mean_speaker_embeddings[speaker] /= l2_norm
 
-        # print("mean_speaker_embeddings: ", mean_speaker_embeddings.keys())
-
         self.mean_speaker_embeddings = mean_speaker_embeddings
-
-    def _collate_fn(self, batch):
-        final_batch = {}
-        for row in batch:
-            for key in row:
-                if key not in final_batch:
-                    final_batch[key] = []
-                final_batch[key].append(row[key])
-
-        for key in final_batch:
-            if final_batch[key][0] is None:
-                final_batch[key] = None
-            else:
-                final_batch[key] = torch.stack(final_batch[key])
-
-        return final_batch
 
     def filter_files(data, ignore_file, min_duration, max_duration, total_duration):
         if ignore_file:
@@ -367,12 +305,8 @@ class SSLVocoderDataset(Dataset):
         if os.path.exists(pitch_contour_fp):
             return torch.load(pitch_contour_fp)
         else:
-            if self.ssl_sample_rate == 16000:
-                frame_length = self.ssl_hop_length * 16
-                hop_length = self.ssl_hop_length * 4
-            elif self.ssl_sample_rate == 22050:
-                frame_length = self.ssl_frame_length
-                hop_length = self.ssl_hop_length
+            frame_length = self.ssl_frame_length
+            hop_length = self.ssl_hop_length
             f0, _, _ = librosa.pyin(
                 wav.numpy(),
                 fmin=librosa.note_to_hz('C2'),
@@ -446,163 +380,103 @@ class SSLVocoderDataset(Dataset):
             if os.path.exists(speaker_emb_fp):
                 speaker_embedding = torch.load(speaker_emb_fp)
             else:
-                speaker_embedding = None
-                assert self.ssl_model_type == "conformer"
+                raise ValueError(f"Speaker embedding file {speaker_emb_fp} does not exist")
             encoded_len = torch.tensor(content_embedding.shape[1]).long()
             if os.path.exists(duration_fp):
                 duration = torch.load(duration_fp)
             else:
+                # default duration is 4 frames per embedding
                 duration = torch.ones(content_embedding.shape[1]) * 4.0
             return content_embedding, speaker_embedding, encoded_len, duration
         else:
-            if self.ssl_model_type == "conformer_multitask":
-                with torch.no_grad():
-                    (
-                        _,
-                        speaker_embedding_normalized,
-                        content_embedding,
-                        content_log_probs,
-                        encoded_len,
-                    ) = self.ssl_model.forward_for_export(
-                        input_signal=audio_ssl[None],
-                        input_signal_length=audio_ssl_length[None],
-                        normalize_content=self.normalize_content,
-                    )
+            with torch.no_grad():
+                (
+                    _,
+                    speaker_embedding_normalized,
+                    content_embedding,
+                    content_log_probs,
+                    encoded_len,
+                ) = self.ssl_model.forward_for_export(
+                    input_signal=audio_ssl[None],
+                    input_signal_length=audio_ssl_length[None],
+                    normalize_content=self.normalize_content,
+                )
 
-                    if self.segment_speaker_embedding:
-                        if os.path.exists(speaker_emb_fp):
-                            # saving some time.
-                            speaker_embedding_normalized = torch.load(speaker_emb_fp)
+                if self.segment_speaker_embedding:
+                    if os.path.exists(speaker_emb_fp):
+                        # saving some time.
+                        speaker_embedding_normalized = torch.load(speaker_emb_fp)
+                        speaker_embedding_normalized = speaker_embedding_normalized[None]
+                    else:
+                        with torch.no_grad():
+                            segments = self.segment_wav(audio_ssl)
+                            signal_batch = torch.stack(segments)
+                            signal_length_batch = torch.stack(
+                                [torch.tensor(signal_batch.shape[1]) for _i in range(len(segments))]
+                            )
+                            _, speaker_embeddings, _, _, _ = self.ssl_model.forward_for_export(
+                                input_signal=signal_batch,
+                                input_signal_length=signal_length_batch,
+                                normalize_content=self.normalize_content,
+                            )
+                            speaker_embedding = torch.mean(speaker_embeddings, dim=0)
+                            l2_norm = torch.norm(speaker_embedding, p=2)
+                            speaker_embedding_normalized = speaker_embedding / l2_norm
                             speaker_embedding_normalized = speaker_embedding_normalized[None]
+
+                speaker_embedding_normalized = speaker_embedding_normalized[0].detach()
+                content_embedding = content_embedding[0].detach()
+                content_log_probs = content_log_probs[:, 0, :].detach()  # (content lob prob is (t, b, c))
+                encoded_len = encoded_len[0].detach()
+                content_embedding = content_embedding[: encoded_len.item()]
+                content_embedding = content_embedding.t()
+                content_log_probs = content_log_probs[: encoded_len.item()]
+                content_log_probs = content_log_probs.t()
+                content_probs = torch.exp(content_log_probs)
+
+                duration = torch.ones(content_embedding.shape[1]) * 4.0
+
+                if self.ssl_content_emb_type == "probs":
+                    final_content_embedding = content_probs
+                elif self.ssl_content_emb_type == "embedding":
+                    final_content_embedding = content_embedding
+                elif self.ssl_content_emb_type == "log_probs":
+                    final_content_embedding = content_log_probs
+                elif self.ssl_content_emb_type == "embedding_and_probs":
+                    final_content_embedding = torch.cat([content_embedding, content_probs], dim=0)
+
+                if self.use_unique_tokens:
+                    token_predictions = torch.argmax(content_probs, dim=0)
+                    # print("token predictions:", token_predictions)
+                    content_buffer = [final_content_embedding[:, 0]]
+                    unique_content_embeddings = []
+                    unique_tokens = []
+                    durations = []
+                    for _t in range(1, final_content_embedding.shape[1]):
+                        if token_predictions[_t] == token_predictions[_t - 1]:
+                            content_buffer.append(final_content_embedding[:, _t])
                         else:
-                            with torch.no_grad():
-                                segments = self.segment_wav(audio_ssl)
-                                signal_batch = torch.stack(segments)
-                                signal_length_batch = torch.stack(
-                                    [torch.tensor(signal_batch.shape[1]) for _i in range(len(segments))]
-                                )
-                                _, speaker_embeddings, _, _, _ = self.ssl_model.forward_for_export(
-                                    input_signal=signal_batch,
-                                    input_signal_length=signal_length_batch,
-                                    normalize_content=self.normalize_content,
-                                )
-                                speaker_embedding = torch.mean(speaker_embeddings, dim=0)
-                                l2_norm = torch.norm(speaker_embedding, p=2)
-                                speaker_embedding_normalized = speaker_embedding / l2_norm
-                                speaker_embedding_normalized = speaker_embedding_normalized[None]
-
-                    speaker_embedding_normalized = speaker_embedding_normalized[0].detach()
-                    content_embedding = content_embedding[0].detach()
-                    content_log_probs = content_log_probs[:, 0, :].detach()  # (content lob prob is (t, b, c))
-                    encoded_len = encoded_len[0].detach()
-                    content_embedding = content_embedding[: encoded_len.item()]
-                    content_embedding = content_embedding.t()
-                    content_log_probs = content_log_probs[: encoded_len.item()]
-                    content_log_probs = content_log_probs.t()
-                    content_probs = torch.exp(content_log_probs)
-
-                    duration = torch.ones(content_embedding.shape[1]) * 4.0
-
-                    if self.ssl_content_emb_type == "probs":
-                        final_content_embedding = content_probs
-                    elif self.ssl_content_emb_type == "embedding":
-                        final_content_embedding = content_embedding
-                    elif self.ssl_content_emb_type == "log_probs":
-                        final_content_embedding = content_log_probs
-                    elif self.ssl_content_emb_type == "embedding_and_probs":
-                        final_content_embedding = torch.cat([content_embedding, content_probs], dim=0)
-
-                    if self.use_unique_tokens:
-                        token_predictions = torch.argmax(content_probs, dim=0)
-                        # print("token predictions:", token_predictions)
-                        content_buffer = [final_content_embedding[:, 0]]
-                        unique_content_embeddings = []
-                        unique_tokens = []
-                        durations = []
-                        for _t in range(1, final_content_embedding.shape[1]):
-                            if token_predictions[_t] == token_predictions[_t - 1]:
-                                content_buffer.append(final_content_embedding[:, _t])
-                            else:
-                                durations.append(len(content_buffer) * 4)
-                                unique_content_embeddings.append(torch.mean(torch.stack(content_buffer), dim=0))
-                                content_buffer = [final_content_embedding[:, _t]]
-                                unique_tokens.append(token_predictions[_t].item())
-
-                        if len(content_buffer) > 0:
                             durations.append(len(content_buffer) * 4)
                             unique_content_embeddings.append(torch.mean(torch.stack(content_buffer), dim=0))
+                            content_buffer = [final_content_embedding[:, _t]]
                             unique_tokens.append(token_predictions[_t].item())
 
-                        unique_content_embedding = torch.stack(unique_content_embeddings)
-                        final_content_embedding = unique_content_embedding.t()
-                        duration = torch.tensor(durations).float()
-                        # print("duration ds", duration)
-                        encoded_len = torch.tensor(final_content_embedding.shape[1]).long()
+                    if len(content_buffer) > 0:
+                        durations.append(len(content_buffer) * 4)
+                        unique_content_embeddings.append(torch.mean(torch.stack(content_buffer), dim=0))
+                        unique_tokens.append(token_predictions[_t].item())
 
-                    torch.save(final_content_embedding, content_emb_fp)
-                    torch.save(speaker_embedding_normalized, speaker_emb_fp)
-                    torch.save(duration, duration_fp)
+                    unique_content_embedding = torch.stack(unique_content_embeddings)
+                    final_content_embedding = unique_content_embedding.t()
+                    duration = torch.tensor(durations).float()
+                    # print("duration ds", duration)
+                    encoded_len = torch.tensor(final_content_embedding.shape[1]).long()
 
-                    return final_content_embedding, speaker_embedding_normalized, encoded_len, duration
+                torch.save(final_content_embedding, content_emb_fp)
+                torch.save(speaker_embedding_normalized, speaker_emb_fp)
+                torch.save(duration, duration_fp)
 
-            elif self.ssl_model_type == "conformer":
-                with torch.no_grad():
-                    processed_signal, processed_signal_length = self.ssl_model.preprocessor(
-                        input_signal=audio_ssl[None], length=audio_ssl_length[None],
-                    )
-                    encoded, encoded_len = self.ssl_model.encoder.forward_for_export(
-                        audio_signal=processed_signal, length=processed_signal_length
-                    )
-                    encoded = encoded[0].detach()
-                    encoded_len = encoded_len[0].detach()
-                    torch.save(encoded, content_emb_fp)
-
-                    return encoded, None, encoded_len
-
-    def _segment_item(self, item):
-        """
-        item is the dict returned by __getitem__
-        """
-        segment_len = self.n_segments
-        encoded_segment_len = segment_len // self.pad_multiple
-
-        assert encoded_segment_len < item['encoded_len'], "{} < {}, {}".format(
-            encoded_segment_len, item['encoded_len'], len(item['audio'])
-        )
-        encoded_sidx = np.random.randint(0, item['encoded_len'] - encoded_segment_len)
-        encoded_eidx = encoded_sidx + encoded_segment_len
-
-        audio_sidx = encoded_sidx * self.pad_multiple * self.sample_rate // self.ssl_sample_rate
-        audio_eidx = audio_sidx + self.n_segments_at_target_sr
-
-        audio_segment = item['audio'][audio_sidx:audio_eidx]
-        encoded_segment = item['content_embedding'][:, encoded_sidx:encoded_eidx]
-
-        if item['pitch_contour'] is not None:
-            segment_pitch = item['pitch_contour'][encoded_sidx:encoded_eidx]
-        else:
-            segment_pitch = None
-
-        if item['mel_spectrogram'] is not None:
-            segment_mel = item['mel_spectrogram'][encoded_sidx:encoded_eidx]
-        else:
-            segment_mel = None
-
-        new_item = {
-            'audio': audio_segment,
-            'content_embedding': encoded_segment,
-            'audio_len': torch.tensor(self.n_segments_at_target_sr).long(),
-            'encoded_len': torch.tensor(encoded_segment_len).long(),
-            'pitch_contour': segment_pitch,
-            'mel_spectrogram': segment_mel,
-        }
-
-        # add remaining fields
-        for key in item:
-            if key not in new_item:
-                new_item[key] = item[key]
-
-        return new_item
+                return final_content_embedding, speaker_embedding_normalized, encoded_len, duration
 
     def _get_wav_from_filepath(self, audio_filepath):
         features = AudioSegment.segment_from_file(
@@ -646,8 +520,9 @@ class SSLVocoderDataset(Dataset):
 
         pitch_contour = None
         if self.pitch_conditioning:
+            # [:-1] makes the pitch contour length = audio length/hop size, must be a better way to do this
             pitch_contour = self.get_pitch_contour(audio_ssl[:-1], rel_audio_path_as_text_id)
-            # print(rel_audio_path_as_text_id, pitch_contour)
+
         content_embedding, speaker_embedding, encoded_len, duration = self.get_ssl_features(
             audio_ssl, audio_ssl_length, rel_audio_path_as_text_id
         )
@@ -667,24 +542,12 @@ class SSLVocoderDataset(Dataset):
 
         mel_spectrogram = None
         mel_len = None
-        if self.load_mel_spectrogram:
-            mel_spectrogram = self.get_mel_spectrogram(audio[:-1], rel_audio_path_as_text_id)
-            mel_len = torch.tensor(mel_spectrogram.shape[1]).long()
-            # print("mel spec", mel_spectrogram.shape)
-            # print("mel len", mel_len)
+
+        # [:-1] makes the pitch contour length = audio length/hop size
+        mel_spectrogram = self.get_mel_spectrogram(audio[:-1], rel_audio_path_as_text_id)
+        mel_len = torch.tensor(mel_spectrogram.shape[1]).long()
 
         if pitch_contour is not None:
-            # print("pitch contour", pitch_contour.shape)
-            if not self.load_mel_spectrogram:
-                # for vocoder, same as content message
-                pitch_contour = pitch_contour[: encoded_len.item()]
-                assert pitch_contour.shape[0] == content_embedding.shape[1] == encoded_len.item()
-            else:
-                # print("encoded len", encoded_len)
-                # assert pitch_contour.shape[0] == mel_spectrogram.shape[1] == encoded_len.item() * 4
-                pass
-            # print("pitch contour", pitch_contour.shape)
-
             if self.pitch_normalization in ["speaker_wise", "global"]:
                 if self.pitch_normalization == "speaker_wise":
                     mean = self.speaker_stats[sample["speaker"]]["pitch_mean"]
@@ -705,10 +568,7 @@ class SSLVocoderDataset(Dataset):
             if not self._is_valid_pitch_contour(pitch_contour):
                 print("invalid pitch contour for", sample["audio_filepath"])
                 print("Setting pitch contour to 0")
-                if not self.load_mel_spectrogram:
-                    pitch_contour = torch.zeros(encoded_len.item())
-                else:
-                    pitch_contour = torch.zeros(mel_spectrogram.shape[1])
+                pitch_contour = torch.zeros(mel_spectrogram.shape[1])
 
         item = {
             'audio': audio,
@@ -723,10 +583,8 @@ class SSLVocoderDataset(Dataset):
             'dataset_id': dataset_id,
             'duration': duration,
         }
-        if not self.load_mel_spectrogram:
-            return self._segment_item(item)
-        else:
-            return item
+
+        return item
 
     def __len__(self):
         return len(self.data)

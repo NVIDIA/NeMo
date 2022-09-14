@@ -9,11 +9,8 @@ validation_datasets: "/home/pneekhara/NeMo2022/libri_val_formatted.json"
 
 hifi_ckpt_path: "/home/pneekhara/NeMo2022/HiFiCKPTS/hifigan_libritts/HiFiLibriEpoch334.ckpt"
 
-# Default values from librosa.pyin
-pitch_fmin: 65.40639132514966
-pitch_fmax: 2093.004522404789
-
-# LJSpeech stats (per frame), train (these values depend on pitch_fmin and pitch_fmax)
+# LJSpeech stats (per frame)
+# ignored if pitch_normalization: speaker_wise
 pitch_mean: 212.35873413085938
 pitch_std: 68.52806091308594
 
@@ -27,10 +24,8 @@ lowfreq: 0
 highfreq: 8000
 window: hann
 
-ssl_model_type: "conformer_multitask"
 ssl_model_ckpt_path: "/home/pneekhara/NeMo2022/tensorboards/ConformerModels/ConformerCompatibleTry3/ConformerCompatible_Epoch3.ckpt"
 ssl_content_emb_type: "embedding_and_probs"
-n_segments: 18432 #ignored for now
 speaker_stats_pitch_fp: null
 pitch_normalization: speaker_wise
 use_unique_tokens: true
@@ -53,12 +48,6 @@ model:
   symbols_embedding_dim: 384
   pitch_embedding_kernel_size: 3
 
-  pitch_fmin: ${pitch_fmin}
-  pitch_fmax: ${pitch_fmax}
-
-  pitch_mean: ${pitch_mean}
-  pitch_std: ${pitch_std}
-
   sample_rate: ${sample_rate}
   n_mel_channels: ${n_mel_channels}
   n_window_size: ${n_window_size}
@@ -78,14 +67,12 @@ model:
       _target_: nemo.collections.tts.torch.data_ssl_vocoder.SSLVocoderDataset
       manifest_filepath: ${train_dataset}
       sample_rate: ${model.sample_rate}
-      ssl_model_type: ${ssl_model_type}
       ssl_model_ckpt_path: ${ssl_model_ckpt_path}
       ssl_content_emb_type: ${ssl_content_emb_type}
-      n_segments: ${n_segments}
       pitch_conditioning: true
       pitch_normalization: ${pitch_normalization}
-      pitch_mean: 212
-      pitch_std: 70
+      pitch_mean: ${pitch_mean}
+      pitch_std: ${pitch_std}
       recache_data: false
       speaker_stats_pitch_fp: ${speaker_stats_pitch_fp}
       min_duration: 0.5
@@ -106,14 +93,12 @@ model:
       _target_: nemo.collections.tts.torch.data_ssl_vocoder.SSLVocoderDataset
       manifest_filepath: ${validation_datasets}
       sample_rate: ${model.sample_rate}
-      ssl_model_type: ${ssl_model_type}
       ssl_model_ckpt_path: ${ssl_model_ckpt_path}
       ssl_content_emb_type: ${ssl_content_emb_type}
-      n_segments: ${n_segments}
       pitch_conditioning: true
       pitch_normalization: ${pitch_normalization}
-      pitch_mean: 212
-      pitch_std: 70
+      pitch_mean: ${pitch_mean}
+      pitch_std: ${pitch_std}
       recache_data: false
       speaker_stats_pitch_fp: ${speaker_stats_pitch_fp}
       min_duration: 0.5
@@ -152,6 +137,7 @@ model:
     log_zero_guard_value: 1e-05
     mag_power: 1.0
 
+  # both encoder and decoder have same architecture, FFTransformerDecoder 
   encoder: #n_embed and padding_idx are added by the model
     _target_: nemo.collections.tts.modules.transformer.FFTransformerDecoder
     n_layer: 6
@@ -176,10 +162,6 @@ model:
     dropatt: 0.1
     dropemb: 0.0
 
-  alignment_module:
-    _target_: nemo.collections.tts.modules.aligner.AlignmentEncoder
-    n_text_channels: ${model.symbols_embedding_dim}
-
   duration_predictor:
     _target_: nemo.collections.tts.modules.fastpitch.TemporalPredictor
     input_size: ${model.symbols_embedding_dim}
@@ -200,18 +182,6 @@ model:
     _target_: torch.optim.AdamW
     lr: 0.0002
     betas: [0.8, 0.99]
-  # optim:
-  #   name: adamw
-  #   lr: 0.1
-  #   betas: [0.9, 0.98]
-  #   weight_decay: 1e-6
-  #   eps: 1e-6
-
-  #   sched:
-  #     name: NoamAnnealing
-  #     warmup_steps: 1000
-  #     last_epoch: -1
-  #     d_model: 1  # Disable scaling based on model dim
 
 trainer:
   num_nodes: 1

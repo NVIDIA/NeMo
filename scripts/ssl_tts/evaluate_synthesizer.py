@@ -74,9 +74,11 @@ def get_speaker_stats(ssl_model, wav_featurizer, audio_paths, duration):
         if len(all_segments) >= duration:
             # each segment is 2 seconds with one second overlap.
             # so 10 segments would mean 0 to 2, 1 to 3.. 9 to 11 (11 seconds.)
+            all_segments = all_segments[: int(duration)]
             break
 
     signal_batch = torch.stack(all_segments)
+    print("signal batch", signal_batch.shape)
     # print("signal batch", signal_batch.shape)
     signal_length_batch = torch.stack([torch.tensor(signal_batch.shape[1]) for _i in range(len(all_segments))])
     # print("signal length", signal_length_batch.shape)
@@ -655,13 +657,14 @@ def evaluate(
             embedding = embedding.cpu().detach().numpy().flatten()
             speaker_embeddings["original_{}".format(key)].append(embedding)
 
-    gns = []
-    gts = []
-    for gn, gt in tqdm(zip(generated_fp_list, original_fp_list)):
-        gns.append(get_activation(gn))
-        gts.append(get_activation(gt))
+    # gns = []
+    # gts = []
+    # for gn, gt in tqdm(zip(generated_fp_list, original_fp_list)):
+    #     gns.append(get_activation(gn))
+    #     gts.append(get_activation(gt))
 
-    fid = frechet_classifier_distance_from_activations(np.concatenate(gts), np.concatenate(gns))
+    fid = 0
+    # fid = frechet_classifier_distance_from_activations(np.concatenate(gts), np.concatenate(gns))
 
     sv_metrics = calculate_eer(speaker_embeddings)
     sv_metrics_real = calculate_eer(speaker_embeddings, mode="real")
