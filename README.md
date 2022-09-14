@@ -169,11 +169,6 @@ and scale them to multiple nodes on NVIDIA DGX SuperPOD deployments. This deep l
 SuperPOD configurations using NVIDIA InfiniBand technology to provide efficient on-premises compute for training
 and inferring complex workloads.
 
-<!-- Should this line be removed/replaced -->
-Early access to NeMo Megatron is limited to enterprises that want to train and deploy GPT-3 and T5 style models on
-NVIDIA DGX SuperPOD to perform tasks such as answering deep domain questions, translating languages,
-comprehending and summarizing complex documents. 
-
 The model parallelism techniques of NeMo Megatron enable the efficient training of large models that do not fit in
 the memory of a single GPU. In the training tasks, tensor (intra-layer) and pipeline (inter-layer) model parallelism
 are adopted. Tensor model parallelism partitions individual transformer layers over multiple devices. Pipeline
@@ -3920,6 +3915,11 @@ Inference parameters:
 
 ## 8. Changelog
 <a id="markdown-changelog" name="changelog"></a>
+
+**NeMo Megatron 22.08.01**
+* Cloud service providers: support for Amazon Web Services (performance validated up to 20 `p4d.24xlarge` instances)
+* Cloud service providers: switched orchestration from Azure CycleCloud to NVIDIA Nephele for Microsoft Azure
+
 **NeMo Megatron 22.08**
 * Distributed Adam Optimizer for GPT-3
 * Asymmetric encoder-decoder configuration for T5 and mT5
