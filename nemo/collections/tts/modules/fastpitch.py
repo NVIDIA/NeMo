@@ -291,7 +291,7 @@ class FastPitchModule(NeuralModule):
             pitch,
         )
 
-    def infer(self, *, text, pitch=None, speaker=None, pace=1.0, volume=None, enc_out=None, enc_mask=None):
+    def infer(self, *, text, pitch=None, speaker=None, pace=1.0, volume=None):
         # Calculate speaker embedding
         if self.speaker_emb is None or speaker is None:
             spk_emb = 0
@@ -299,8 +299,7 @@ class FastPitchModule(NeuralModule):
             spk_emb = self.speaker_emb(speaker).unsqueeze(1)
 
         # Input FFT
-        if enc_out is None or enc_mask is None:
-            enc_out, enc_mask = self.encoder(input=text, conditioning=spk_emb)
+        enc_out, enc_mask = self.encoder(input=text, conditioning=spk_emb)
 
         # Predict duration and pitch
         log_durs_predicted = self.duration_predictor(enc_out, enc_mask)
