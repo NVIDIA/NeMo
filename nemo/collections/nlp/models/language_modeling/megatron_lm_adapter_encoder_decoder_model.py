@@ -39,6 +39,8 @@ class MegatronLMAdapterEncoderDecoderModel(MegatronLMEncoderDecoderModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
 
+        self.loading_base_model = True
+
         if hasattr(cfg, 'adapter_tuning'):
             logging.info('Using Adapters')
 
@@ -118,16 +120,20 @@ class MegatronLMAdapterEncoderDecoderModel(MegatronLMEncoderDecoderModel):
         return state_dict_
 
     def _load_adapters_weights(self, state_dict, strict=True):
-        for name, module in self.enc_dec_model.named_modules():
-            if isinstance(module, adapter_mixins.AdapterModuleMixin):
-                for adapter_key in self.adapter_name_keys:
-                    adapter_module = module.adapter_layer[adapter_key]
-                    state_adapter_key = ':'.join([name, adapter_key])
-                    # only load the adapters if they are in the state_dict
-                    if state_adapter_key in state_dict:
-                        adapter_module.load_state_dict(state_dict[state_adapter_key], strict)
-
-        super().load_state_dict(state_dict, strict=False)
+        if not self.loading_base_model:
+            # load adapters only
+            for name, module in self.enc_dec_model.named_modules():
+                if isinstance(module, adapter_mixins.AdapterModuleMixin):
+                    for adapter_key in self.adapter_name_keys:
+                        adapter_module = module.adapter_layer[adapter_key]
+                        state_adapter_key = ':'.join([name, adapter_key])
+                        # only load the adapters if they are in the state_dict
+                        if state_adapter_key in state_dict:
+                            adapter_module.load_state_dict(state_dict[state_adapter_key], strict)
+        else:
+            # load the base model once and change the loading to adapters only
+            super().load_state_dict(state_dict, strict=False)
+            self.loading_base_model = False
 
     def setup_optimizer_param_groups(self):
         """
