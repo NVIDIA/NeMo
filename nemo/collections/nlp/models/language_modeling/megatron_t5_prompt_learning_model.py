@@ -476,6 +476,12 @@ class MegatronT5PromptLearningModel(MegatronPromptLearningBaseModel):
         self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
         self.log('val_acc', val_acc, prog_bar=True, rank_zero_only=True)
 
+        # Save inference ready .nemo checkpoint version
+        if self.cfg.get("save_intermediate_nemo_file", True):
+            if self.lowest_val_loss is None or averaged_loss < self.lowest_val_loss:
+                self.save_checkpoint_as_nemo_file()
+                self.lowest_val_loss = averaged_loss
+
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> Any:
 
         enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids = batch

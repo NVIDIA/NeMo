@@ -46,6 +46,7 @@ model:
   
   restore_path: null # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
   language_model_path: ??? # Path to the pretrained T5 language model .nemo file, always required
+  save_intermediate_nemo_file: True # Will save an inference ready .nemo file after every validation run if the new val loss is lower than all previous val losses
   existing_tasks: []
   new_tasks: ["squad"] 
 
