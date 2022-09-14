@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import itertools
+import os
 from typing import Any, List
 
 import torch
@@ -27,14 +27,11 @@ from nemo.collections.nlp.data.language_modeling.megatron.t5_prompt_learning_dat
     T5Sentinel,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_base_prompt_learning_model import (
-    MegatronPromptLearningBaseModel,
+    MegatronBasePromptLearningModel,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
+from nemo.collections.nlp.modules.common import PromptTable, VirtualPromptStyle
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
-from nemo.collections.nlp.modules.common import (
-    PromptTable,
-    VirtualPromptStyle,
-)
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.utils import logging
 
@@ -50,7 +47,7 @@ except (ImportError, ModuleNotFoundError):
 __all__ = ['MegatronT5PromptLearningModel']
 
 
-class MegatronT5PromptLearningModel(MegatronPromptLearningBaseModel):
+class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
     """
     Model class for prompt-tuning or p-tuning a pretrained Megatron T5 model. 
 
@@ -82,8 +79,8 @@ class MegatronT5PromptLearningModel(MegatronPromptLearningBaseModel):
             VirtualPromptStyle.INFERENCE,
         ]:
 
-            self.word_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.word_embeddings 
-            
+            self.word_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.word_embeddings
+
             # Prompt table stores all task embeddings, p-tuning virtual prompts get added to the table after training
             self.prompt_table = PromptTable(
                 existing_tasks=self.existing_tasks,
@@ -97,15 +94,15 @@ class MegatronT5PromptLearningModel(MegatronPromptLearningBaseModel):
     def load_frozen_model(self, cfg, trainer):
         save_restore_connector = NLPSaveRestoreConnector()
 
-        # Load frozen model from unpacked directory 
+        # Load frozen model from unpacked directory
         if os.path.isdir(cfg.get('language_model_path')):
             save_restore_connector.model_extracted_dir = cfg.get('language_model_path')
 
         # TODO: Fix this once apex patches FusedScaledMaskedSoftmax.
         # This is a workaround for the fact that `masked_softmax_fusion` has issues with certain input sizes that may be present while finetuning.
         t5_cfg = MegatronT5Model.restore_from(
-            cfg.get('language_model_path'), 
-            trainer=trainer, 
+            cfg.get('language_model_path'),
+            trainer=trainer,
             return_config=True,
             save_restore_connector=save_restore_connector,
         )
@@ -119,7 +116,7 @@ class MegatronT5PromptLearningModel(MegatronPromptLearningBaseModel):
                 t5_cfg.masked_softmax_fusion = False
 
             t5_cfg.megatron_amp_O2 = self.megatron_amp_o2
-            
+
             # hack to make the _GLOBAL_NUM_MICROBATCHES_CALCULATOR initialize
             t5_cfg.micro_batch_size = cfg.get('micro_batch_size', 4)
             t5_cfg.global_batch_size = cfg.get('global_batch_size', 4)
@@ -139,12 +136,12 @@ class MegatronT5PromptLearningModel(MegatronPromptLearningBaseModel):
         are only in state dict for intermediate checkpoints saved during training. Final
         nemo checkpoints at the end of training will contain prompt table parameters only. 
         """
-      
+
         if self.frozen_model.enc_dec_model.pre_process:
             super().state_dict(destination, prefix, keep_vars)
         else:
             state_dict_ = {}
-        
+
             return state_dict_
 
     def load_state_dict(self, state_dict, strict: bool = True):
@@ -166,7 +163,7 @@ class MegatronT5PromptLearningModel(MegatronPromptLearningBaseModel):
 
         if self.frozen_model.enc_dec_model.pre_process:
             self.add_virtual_prompt_params_to_param_group()
-        else:    
+        else:
             self._optimizer_param_groups = ({'params': []},)
 
     def set_input_tensor(self, input_tensor):
@@ -195,7 +192,9 @@ class MegatronT5PromptLearningModel(MegatronPromptLearningBaseModel):
 
             # TODO: This check needs to be revisited with PP support.
             if hasattr(self.frozen_model.enc_dec_model.encoder_embedding, 'position_embeddings'):
-                position_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.position_embeddings(position_ids)
+                position_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.position_embeddings(
+                    position_ids
+                )
                 encoder_input = input_embeds + position_embeddings
             else:
                 encoder_input = input_embeds
@@ -253,7 +252,7 @@ class MegatronT5PromptLearningModel(MegatronPromptLearningBaseModel):
             return output_tensor, loss_func
 
         return fwd_output_and_loss_func
-    
+
     def setup(self, stage=None):
         if (
             stage == 'predict' or self.virtual_prompt_style == VirtualPromptStyle.INFERENCE

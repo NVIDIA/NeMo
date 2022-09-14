@@ -28,7 +28,6 @@ from nemo.collections.nlp.modules.common import (
     PromptEncoder,
     PromptEncoderMLP,
     PromptEncoderType,
-    PromptEncoderType,
     PromptTable,
     VirtualPromptPlaceholderToken,
     VirtualPromptSource,
@@ -49,10 +48,10 @@ try:
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
-__all__ = ['MegatronPromptLearningBaseModel']
+__all__ = ['MegatronBasePromptLearningModel']
 
 
-class MegatronPromptLearningBaseModel(MegatronBaseModel, TextGeneration):
+class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
     """
     Model class for prompt-tuning or p-tuning a pretrained Megatron model. 
 
@@ -94,7 +93,7 @@ class MegatronPromptLearningBaseModel(MegatronBaseModel, TextGeneration):
         self.existing_tasks = list(self.cfg.get('existing_tasks', []))
         self.new_tasks = list(self.cfg.get('new_tasks', []))
         self.virtual_prompt_style = VirtualPromptStyle(cfg.virtual_prompt_style)
-        
+
         # Prompt tuning stores virtual prompts in the prompt table and tunes their weight directly
         if self.virtual_prompt_style in [VirtualPromptStyle.PROMPT_TUNING, VirtualPromptStyle.INFERENCE]:
             self.virtual_prompt_source = VirtualPromptSource.PROMPT_TABLE
@@ -111,7 +110,7 @@ class MegatronPromptLearningBaseModel(MegatronBaseModel, TextGeneration):
 
         # Load templates for assigning virtual prompt token positions
         self.load_task_templates(self.cfg.task_templates)
-        
+
         # Prepare pseudo token ids for virtual/virtual prompt tokens
         self.pseudo_tokens = get_pseudo_tokens(self.max_virtual_tokens)
 
@@ -234,12 +233,11 @@ class MegatronPromptLearningBaseModel(MegatronBaseModel, TextGeneration):
             )
         else:
             raise ValueError('not supported')
-            
+
         # cast the model weights to bf16 only for 'bf16' precision
         # For fp16, cannot cast the model weights as AMP will complain
         if self.trainer.precision == 'bf16':
             self.prompt_encoder = self.prompt_encoder.to(dtype=self.autocast_dtype)
-
 
     def add_ptuned_prompts_to_prompt_table(self):
         """
@@ -320,12 +318,9 @@ class MegatronPromptLearningBaseModel(MegatronBaseModel, TextGeneration):
 
         self.prompt_table.load_state_dict(state_dict_, strict)
 
-        if (
-            self._prompt_encoder_key in state_dict
-            and self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER
-        ):
+        if self._prompt_encoder_key in state_dict and self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
             state_dict_ = state_dict[self._prompt_encoder_key]
-            
+
             if not hasattr(self, "prompt_encoder"):
                 self.init_prompt_encoder()
 
@@ -340,7 +335,7 @@ class MegatronPromptLearningBaseModel(MegatronBaseModel, TextGeneration):
 
         if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
             virtual_prompt_params['params'].extend([param for param in self.prompt_encoder.parameters()])
-                
+
         self._optimizer_param_groups = (virtual_prompt_params,)
 
     def embed_input_train(self, input_ids: Tensor, taskname_ids: Tensor):
@@ -504,7 +499,7 @@ class MegatronPromptLearningBaseModel(MegatronBaseModel, TextGeneration):
         lr = self._optimizer.param_groups[0]['lr']
         self.log('lr', lr, rank_zero_only=True)
         self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True)
-        
+
         return loss_mean
 
     def update_config_for_inference_and_save(self):

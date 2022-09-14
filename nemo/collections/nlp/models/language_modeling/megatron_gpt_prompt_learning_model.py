@@ -25,20 +25,16 @@ from pytorch_lightning.trainer.trainer import Trainer
 from torch import Tensor
 
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_dataset import GPTPromptLearningDataset
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.modules.common import (
-    PromptTable,
-    VirtualPromptSource,
-    VirtualPromptStyle,
+from nemo.collections.nlp.models.language_modeling.megatron_base_prompt_learning_model import (
+    MegatronBasePromptLearningModel,
 )
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.modules.common import PromptTable, VirtualPromptSource, VirtualPromptStyle
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.modules.common.text_generation_utils import (
     get_default_length_params,
     get_default_sampling_params,
     megatron_gpt_generate,
-)
-from nemo.collections.nlp.models.language_modeling.megatron_base_prompt_learning_model import (
-    MegatronPromptLearningBaseModel,
 )
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
@@ -47,6 +43,7 @@ from nemo.utils import logging
 
 try:
     from apex.transformer import parallel_state, tensor_parallel
+
     HAVE_APEX = True
 
 except (ImportError, ModuleNotFoundError):
@@ -56,7 +53,7 @@ except (ImportError, ModuleNotFoundError):
 __all__ = ['MegatronGPTPromptLearningModel']
 
 
-class MegatronGPTPromptLearningModel(MegatronPromptLearningBaseModel):
+class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
     """
     Model class for prompt-tuning or p-tuning a pretrained Megatron GPT model. 
 
@@ -88,7 +85,7 @@ class MegatronGPTPromptLearningModel(MegatronPromptLearningBaseModel):
         ]:
 
             self.word_embeddings = self.frozen_model.model.language_model.embedding.word_embeddings
-            
+
             # Prompt table stores all task embeddings, p-tuning virtual prompts get added to the table after training
             self.prompt_table = PromptTable(
                 existing_tasks=self.existing_tasks,
@@ -102,7 +99,7 @@ class MegatronGPTPromptLearningModel(MegatronPromptLearningBaseModel):
     def load_frozen_model(self, cfg, trainer):
         save_restore_connector = NLPSaveRestoreConnector()
 
-        # Load frozen model from unpacked directory 
+        # Load frozen model from unpacked directory
         if os.path.isdir(cfg.get('language_model_path')):
             save_restore_connector.model_extracted_dir = cfg.get('language_model_path')
 
@@ -144,12 +141,12 @@ class MegatronGPTPromptLearningModel(MegatronPromptLearningBaseModel):
         are only in state dict for intermediate checkpoints saved during training. Final
         nemo checkpoints at the end of training will contain prompt table parameters only. 
         """
-      
+
         if self.frozen_model.model.pre_process:
             super().state_dict(destination, prefix, keep_vars)
         else:
             state_dict_ = {}
-        
+
             return state_dict_
 
     def load_state_dict(self, state_dict, strict: bool = True):
@@ -171,7 +168,7 @@ class MegatronGPTPromptLearningModel(MegatronPromptLearningBaseModel):
 
         if self.frozen_model.model.pre_process:
             self.add_virtual_prompt_params_to_param_group()
-        else:    
+        else:
             self._optimizer_param_groups = ({'params': []},)
 
     def set_input_tensor(self, input_tensor):
@@ -246,7 +243,7 @@ class MegatronGPTPromptLearningModel(MegatronPromptLearningBaseModel):
             Dataloader produces a global batch which is turned into a list of microbatches.
             The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
-        sequence_parallel_enabled=self.cfg.get("sequence_parallel", False),
+        sequence_parallel_enabled = (self.cfg.get("sequence_parallel", False),)
         super().fwd_bwd_step(batch, forward_only, sequence_parallel_enabled=sequence_parallel_enabled)
 
     def get_forward_output_and_loss_func(self):
@@ -437,7 +434,6 @@ class MegatronGPTPromptLearningModel(MegatronPromptLearningBaseModel):
             if self.lowest_val_loss is None or averaged_loss < self.lowest_val_loss:
                 self.save_checkpoint_as_nemo_file()
                 self.lowest_val_loss = averaged_loss
-
 
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
