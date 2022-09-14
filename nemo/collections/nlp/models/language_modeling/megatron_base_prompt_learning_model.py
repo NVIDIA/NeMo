@@ -29,6 +29,7 @@ from nemo.collections.nlp.modules.common import (
     PromptEncoderMLP,
     PromptEncoderType,
     PromptEncoderType,
+    PromptTable,
     VirtualPromptPlaceholderToken,
     VirtualPromptSource,
     VirtualPromptStyle,
@@ -37,10 +38,21 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import Text
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import logging
 
-__all__ = ['MegatronBasePromptLearningModel']
+try:
+    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
+        forward_backward_pipelining_without_interleaving,
+    )
+    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
+
+    HAVE_APEX = True
+
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
+
+__all__ = ['MegatronPromptLearningBaseModel']
 
 
-class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
+class MegatronPromptLearningBaseModel(MegatronBaseModel, TextGeneration):
     """
     Model class for prompt-tuning or p-tuning a pretrained Megatron model. 
 
@@ -114,6 +126,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
 
         # make sure the default pytorch lightning gradient clipping in the basemodel
         self.grad_clip_pl_default = True
+        self.lowest_val_loss = None
 
         self._prompt_table_key = VirtualPromptSource.PROMPT_TABLE.value
         self._prompt_encoder_key = VirtualPromptSource.PROMPT_ENCODER.value
@@ -248,9 +261,6 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
                 taskname, virtual_prompt_embeddings, total_virtual_tokens
             )
 
-        # Remove prompt encoder from model
-        self.prompt_encoder = None
-
     def freeze_existing_virtual_prompt_params(self):
         """Freeze params of existing virtual prompts that should not be tuned further
         """
@@ -321,6 +331,17 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
 
             self.prompt_encoder.load_state_dict(state_dict_, strict)
 
+    def add_virtual_prompt_params_to_param_group(self):
+        """
+        Passes only prompt table and prompt encoder params to the optimizer.
+        """
+        virtual_prompt_params = {'params': []}
+        virtual_prompt_params['params'].extend([param for param in self.prompt_table.parameters()])
+
+        if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
+            virtual_prompt_params['params'].extend([param for param in self.prompt_encoder.parameters()])
+                
+        self._optimizer_param_groups = (virtual_prompt_params,)
 
     def embed_input_train(self, input_ids: Tensor, taskname_ids: Tensor):
         """
@@ -418,10 +439,55 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         input_embeds = torch.where(virtual_token_locations, virtual_token_embeds, discrete_token_embeds)
         return input_embeds
 
+    def fwd_bwd_step(self, batch, forward_only, disable_autocast=False, sequence_parallel_enabled=False):
+        """
+            Dataloader produces a global batch which is turned into a list of microbatches.
+            The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
+        """
+        # Get seq length of batch
+        _, seq_length = batch[0].shape
+        tensor_shape = [seq_length, self.cfg.micro_batch_size, self.hidden_size]
+
+        if self.pipeline_parallel:
+            losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
+                forward_step_func=self.get_forward_output_and_loss_func(),
+                batch=batch,
+                model=self,
+                forward_only=forward_only,
+                tensor_shape=tensor_shape,
+                dtype=self.autocast_dtype,
+                disable_autocast=disable_autocast,
+                grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
+                sequence_parallel_enabled=sequence_parallel_enabled,
+            )
+        else:
+            losses_reduced_per_micro_batch = forward_backward_no_pipelining(
+                forward_step_func=self.get_forward_output_and_loss_func(),
+                batch=batch,
+                model=self,
+                forward_only=forward_only,
+                tensor_shape=tensor_shape,
+                dtype=self.autocast_dtype,
+                disable_autocast=disable_autocast,
+                grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
+            )
+
+        # only the last stages of the pipeline return losses
+        if losses_reduced_per_micro_batch:
+            # average loss across micro batches
+            loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
+            loss_tensor = torch.concat(loss_tensors_list)
+            loss_mean = loss_tensor.mean()
+        else:
+            # we're not on the last pipeline stage so no losses
+            loss_mean = torch.tensor(0.0).cuda()
+
+        return loss_mean
+
     def training_step(self, batch, batch_idx):
         # we zero grads here because we also call backward in the apex fwd/bwd functions
         self._optimizer.zero_grad()
-        loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=False)
+        loss_mean = self.fwd_bwd_step(batch, forward_only=False)
         self.allreduce_gradients()
 
         ## logging
@@ -441,12 +507,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         
         return loss_mean
 
-    def on_train_end(self):
-        # Save p-tuned prompts to prompt table for inference or future task training
-        if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING and self.frozen_model.model.pre_process:
-            self.add_ptuned_prompts_to_prompt_table()
-            logging.info(f"All p-tuned prompts where moved to the prompt table.")
-
+    def update_config_for_inference_and_save(self):
         self.virtual_prompt_style = VirtualPromptStyle.INFERENCE
         self.virtual_prompt_source = VirtualPromptSource.PROMPT_TABLE
 
@@ -460,59 +521,31 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         self.save_to(save_path=self.cfg.nemo_path)
         logging.info(f"The final model was saved to {self.cfg.nemo_path}")
 
-    def setup(self, stage=None):
-        if stage == 'predict' or self.virtual_prompt_style == VirtualPromptStyle.INFERENCE:
-            self.freeze_existing_virtual_prompt_params()
-            return
+    def save_checkpoint_as_nemo_file(self):
+        self.add_ptuned_prompts_to_prompt_table()
 
-        self.setup_test_data()
-        if stage == 'test':
-            return
+        # Save current config and state dict params in temp values
+        current_virtual_prompt_style = self.virtual_prompt_style
+        current_virtual_prompt_source = self.virtual_prompt_source
+        current_existing_tasks = self.cfg.existing_tasks
+        current_new_tasks = self.cfg.new_tasks
 
-        if self.virtual_prompt_style == VirtualPromptStyle.PROMPT_TUNING:
-            self.init_new_prompts()
-        elif self.virtual_prompt_style == VirtualPromptStyle.P_TUNING:
-            self.init_prompt_encoder()
+        # Temporarily overwrite params to save an inference ready .nemo checkpoint
+        self.update_config_for_inference_and_save()
 
-        self.setup_training_data()
-        self.setup_validation_data()
-        self.freeze_existing_virtual_prompt_params()
+        # Set values back to their training state to continue training
+        self.virtual_prompt_style = current_virtual_prompt_style
+        self.virtual_prompt_source = current_virtual_prompt_source
 
-    def setup_training_data(self, training_data_config=None):
-        if self.cfg.data.get('train_ds', None):
-            self._train_ds, self._train_dl = self.build_virtual_prompt_dataset(
-                dataset_paths=self.cfg.data.train_ds,
-                batch_size=self.cfg.global_batch_size,
-                for_train=True,
-                drop_last=True,
-                shuffle=True,
-                num_workers=self.cfg.data.num_workers,
-                pin_memory=True,
-            )
+        with open_dict(self.cfg):
+            self.cfg.existing_tasks = current_existing_tasks
+            self.cfg.new_tasks = current_new_tasks
+            self.cfg.virtual_prompt_style = current_virtual_prompt_style.value
 
-    def setup_validation_data(self, validation_data_config=None):
-        if self.cfg.data.get('validation_ds', None):
-            self._validation_ds, self._validation_dl = self.build_virtual_prompt_dataset(
-                dataset_paths=self.cfg.data.validation_ds,
-                batch_size=self.cfg.global_batch_size,
-                for_train=True,
-                drop_last=True,
-                shuffle=False,
-                num_workers=self.cfg.data.num_workers,
-                pin_memory=True,
-            )
-
-    def setup_test_data(self, test_data_config=None):
-        if self.cfg.data.get('test_ds', None):
-            self._test_ds, self._test_dl = self.build_virtual_prompt_dataset(
-                dataset_paths=self.cfg.data.test_ds,
-                batch_size=self.cfg.global_batch_size,
-                for_train=False,
-                drop_last=False,
-                shuffle=False,
-                num_workers=self.cfg.data.num_workers,
-                pin_memory=True,
-            )
+    def on_pretrain_routine_start(self) -> None:
+        # keep a copy of init_global_step
+        self.init_global_step = self.trainer.global_step
+        return super().on_pretrain_routine_start()
 
     def set_inference_config(self, inference_config):
         self._inference_config = inference_config
@@ -520,14 +553,33 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
     def get_inference_config(self):
         return self._inference_config
 
-    def set_input_tensor(self, input_tensor):
-        """Set input tensor to be used instead of forward()'s input.
-        When doing pipeline parallelism the input from the previous
-        stage comes from communication, not from the input, so the
-        model's forward_step_func won't have it. This function is thus
-        used by internal code to bypass the input provided by the
-        forward_step_func"""
-        self.input_tensor = input_tensor
+    def backward(self, *args, **kwargs):
+        """ LightningModule hook to do backward.
+            We want this to do nothing since we run backward in the fwd/bwd functions from apex.
+            No need to call it here.
+        """
+        return
+
+    def optimizer_zero_grad(self, *args, **kwargs):
+        """ LightningModule hook to zero grad.
+            We want this to do nothing as we are zeroing grads during the training_step.
+        """
+        return
+
+    def setup(self, stage=None):
+        pass
+
+    def setup_training_data(self, training_data_config=None):
+        pass
+
+    def setup_validation_data(self, validation_data_config=None):
+        pass
+
+    def setup_test_data(self, test_data_config=None):
+        pass
+
+    def build_virtual_prompt_dataset(self):
+        pass
 
     @classmethod
     def list_available_models(cls):

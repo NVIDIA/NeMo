@@ -27,7 +27,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.t5_prompt_learning_dat
     T5Sentinel,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_base_prompt_learning_model import (
-    MegatronBasePromptLearningModel,
+    MegatronPromptLearningBaseModel,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
@@ -40,7 +40,6 @@ from nemo.utils import logging
 
 try:
     from apex.transformer import parallel_state
-    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
 
     HAVE_APEX = True
 
@@ -51,7 +50,7 @@ except (ImportError, ModuleNotFoundError):
 __all__ = ['MegatronT5PromptLearningModel']
 
 
-class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
+class MegatronT5PromptLearningModel(MegatronPromptLearningBaseModel):
     """
     Model class for prompt-tuning or p-tuning a pretrained Megatron T5 model. 
 
@@ -77,7 +76,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         # Encoder and decoder need to have the same hidden size and we check for this in the frozen enc-dec model.
         self.hidden_size = self.frozen_model.cfg.encoder.hidden_size
 
-        if self.virtual_prompt_style in [
+        if self.frozen_model.enc_dec_model.pre_process and self.virtual_prompt_style in [
             VirtualPromptStyle.P_TUNING,
             VirtualPromptStyle.PROMPT_TUNING,
             VirtualPromptStyle.INFERENCE,
@@ -133,8 +132,52 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             save_restore_connector=save_restore_connector,
         )
 
-        # Freeze all T5 model weights for prompt-tuning/p-tuning
-        self.frozen_model.freeze()
+    def state_dict(self, destination=None, prefix=None, keep_vars=False):
+        """
+        Custom state dict that only contains prompt table and prompt encoder parameters. 
+        No frozen model parameters are stored in the state dict. Prompt encoder parameters 
+        are only in state dict for intermediate checkpoints saved during training. Final
+        nemo checkpoints at the end of training will contain prompt table parameters only. 
+        """
+      
+        if self.frozen_model.enc_dec_model.pre_process:
+            super().state_dict(destination, prefix, keep_vars)
+        else:
+            state_dict_ = {}
+        
+            return state_dict_
+
+    def load_state_dict(self, state_dict, strict: bool = True):
+        """
+        Custom load state dict method that only loads prompt table and prompt encoder
+        parameters. Matching load method for this class' custom state dict method. 
+        """
+        if self.frozen_model.enc_dec_model.pre_process:
+            super().load_state_dict(state_dict, strict)
+
+    def setup_optimizer_param_groups(self):
+        """
+        ModelPT override. Optimizer will get self._optimizer_param_groups. 
+        Only want virtual prompt params to be passed to the optimizer.
+        """
+        ## Freeze frozen model
+        for param in self.frozen_model.parameters():
+            param.requires_grad = False
+
+        if self.frozen_model.enc_dec_model.pre_process:
+            self.add_virtual_prompt_params_to_param_group()
+        else:    
+            self._optimizer_param_groups = ({'params': []},)
+
+    def set_input_tensor(self, input_tensor):
+        """Set input tensor to be used instead of forward()'s input.
+        When doing pipeline parallelism the input from the previous
+        stage comes from communication, not from the input, so the
+        model's forward_step_func won't have it. This function is thus
+        used by internal code to bypass the input provided by the
+        forward_step_func"""
+
+        self.frozen_model.enc_dec_model.set_input_tensor(input_tensor)
 
     def forward(
         self, input_ids, dec_input, enc_mask, dec_mask, position_ids, taskname_ids, labels=None, inference=False,
@@ -144,17 +187,20 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         T5 style models.
         """
         # Get embeddings for text tokens and insert virtual token embeddings
-        if inference:
-            input_embeds = self.embed_input_inference(input_ids, taskname_ids)
-        else:
-            input_embeds = self.embed_input_train(input_ids, taskname_ids)
+        if self.frozen_model.enc_dec_model.pre_process:
+            if inference:
+                input_embeds = self.embed_input_inference(input_ids, taskname_ids)
+            else:
+                input_embeds = self.embed_input_train(input_ids, taskname_ids)
 
-        # TODO: This check needs to be revisited with PP support.
-        if hasattr(self.frozen_model.enc_dec_model.encoder_embedding, 'position_embeddings'):
-            position_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.position_embeddings(position_ids)
-            encoder_input = input_embeds + position_embeddings
+            # TODO: This check needs to be revisited with PP support.
+            if hasattr(self.frozen_model.enc_dec_model.encoder_embedding, 'position_embeddings'):
+                position_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.position_embeddings(position_ids)
+                encoder_input = input_embeds + position_embeddings
+            else:
+                encoder_input = input_embeds
         else:
-            encoder_input = input_embeds
+            encoder_input = None
 
         # Call forward on T5 model with preprocessed embeddings
         if self.autocast_dtype == torch.float32:
@@ -183,42 +229,12 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
         return output, encoder_input
 
-    
-
-    def fwd_bwd_step(self, batch, batch_idx, forward_only):
+    def fwd_bwd_step(self, batch, forward_only):
         """
             Dataloader produces a global batch which is turned into a list of microbatches.
             The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
-        # Get seq length of batch
-        _, seq_length = batch[0].shape
-        tensor_shape = [seq_length, self.cfg.micro_batch_size, self.hidden_size]
-
-        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
-            raise Exception("Pipeline parallelism is not supported yet")
-        else:
-            losses_reduced_per_micro_batch = forward_backward_no_pipelining(
-                forward_step_func=self.get_forward_output_and_loss_func(),
-                batch=batch,
-                model=self,
-                forward_only=forward_only,
-                tensor_shape=tensor_shape,
-                dtype=self.autocast_dtype,
-                disable_autocast=True,
-                grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
-            )
-
-        # only the last stages of the pipeline return losses
-        if losses_reduced_per_micro_batch:
-            # average loss across micro batches
-            loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
-            loss_tensor = torch.concat(loss_tensors_list)
-            loss_mean = loss_tensor.mean()
-        else:
-            # we're not on the last pipeline stage so no losses
-            loss_mean = torch.tensor(0.0).cuda()
-
-        return loss_mean
+        super().fwd_bwd_step(batch, forward_only, disable_autocast=True)
 
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(batch, model):
@@ -237,19 +253,124 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             return output_tensor, loss_func
 
         return fwd_output_and_loss_func
+    
+    def setup(self, stage=None):
+        if (
+            stage == 'predict' or self.virtual_prompt_style == VirtualPromptStyle.INFERENCE
+        ) and self.frozen_model.enc_dec_model.pre_process:
+            self.freeze_existing_virtual_prompt_params()
+            return
 
-    def backward(self, *args, **kwargs):
-        """ LightningModule hook to do backward.
-            We want this to do nothing since we run backward in the fwd/bwd functions from apex.
-            No need to call it here.
-        """
-        return
+        self.setup_test_data()
+        if stage == 'test':
+            return
 
-    def optimizer_zero_grad(self, *args, **kwargs):
-        """ LightningModule hook to zero grad.
-            We want this to do nothing as we are zeroing grads during the training_step.
-        """
-        return
+        if self.frozen_model.enc_dec_model.pre_process:
+            if self.virtual_prompt_style == VirtualPromptStyle.PROMPT_TUNING:
+                self.init_new_prompts()
+            elif self.virtual_prompt_style == VirtualPromptStyle.P_TUNING:
+                self.init_prompt_encoder()
+
+            self.freeze_existing_virtual_prompt_params()
+
+        self.setup_training_data()
+        self.setup_validation_data()
+
+    def setup_training_data(self, training_data_config=None):
+        if self.cfg.data.get('train_ds', None):
+            self._train_ds, self._train_dl = self.build_virtual_prompt_dataset(
+                dataset_paths=self.cfg.data.train_ds,
+                batch_size=self.cfg.global_batch_size,
+                for_train=True,
+                drop_last=True,
+                shuffle=True,
+                num_workers=self.cfg.data.num_workers,
+                pin_memory=True,
+            )
+
+    def setup_validation_data(self, validation_data_config=None):
+        if self.cfg.data.get('validation_ds', None):
+            self._validation_ds, self._validation_dl = self.build_virtual_prompt_dataset(
+                dataset_paths=self.cfg.data.validation_ds,
+                batch_size=self.cfg.global_batch_size,
+                for_train=True,
+                drop_last=True,
+                shuffle=False,
+                num_workers=self.cfg.data.num_workers,
+                pin_memory=True,
+            )
+
+    def setup_test_data(self, test_data_config=None):
+        if self.cfg.data.get('test_ds', None):
+            self._test_ds, self._test_dl = self.build_virtual_prompt_dataset(
+                dataset_paths=self.cfg.data.test_ds,
+                batch_size=self.cfg.global_batch_size,
+                for_train=False,
+                drop_last=False,
+                shuffle=False,
+                num_workers=self.cfg.data.num_workers,
+                pin_memory=True,
+            )
+
+    def build_virtual_prompt_dataset(
+        self, dataset_paths, batch_size, for_train, drop_last, shuffle, num_workers, pin_memory
+    ):
+        dataset = T5PromptLearningDataset(
+            datasets=dataset_paths,
+            tokenizer=self.tokenizer,
+            virtual_prompt_source=self.virtual_prompt_source,
+            task_templates=self.task_templates,
+            pseudo_tokens=self.pseudo_tokens,
+            pad_token_id=self.pad_token_id,
+            max_seq_length=self.cfg.data.get('max_seq_length', self.frozen_model.cfg.max_position_embeddings),
+            min_seq_length=self.cfg.data.get('min_seq_length', 1),
+            add_bos=self.cfg.data.get('add_bos', False),
+            add_eos=self.cfg.data.get('add_eos', True),
+            for_train=for_train,
+        )
+
+        rank = parallel_state.get_data_parallel_rank()
+        world_size = parallel_state.get_data_parallel_world_size()
+        sampler = torch.utils.data.distributed.DistributedSampler(
+            dataset, num_replicas=world_size, rank=rank, shuffle=shuffle
+        )
+
+        dataloader = torch.utils.data.DataLoader(
+            dataset,
+            collate_fn=dataset.collate_fn,
+            sampler=sampler,
+            batch_size=batch_size // world_size,
+            drop_last=drop_last,
+            num_workers=num_workers,
+            pin_memory=pin_memory,
+        )
+        print('build success', len(dataloader), dataset_paths)
+        return dataset, dataloader
+
+    def validation_step(self, batch, batch_idx, inference=False):
+        outcome = self.inference_step(batch, batch_idx, inference=inference)
+        return outcome
+
+    def validation_epoch_end(self, outputs):
+        self.inference_epoch_end(outputs)
+
+    def test_step(self, batch, batch_idx):
+        return self.validation_step(batch, batch_idx)
+
+    def test_epoch_end(self, outputs):
+        self.validation_epoch_end(outputs)
+
+    def on_train_end(self):
+        # Save p-tuned prompts to prompt table for inference or future task training
+        if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING and self.frozen_model.enc_dec_model.pre_process:
+            self.add_ptuned_prompts_to_prompt_table()
+            logging.info(f"All p-tuned prompts where moved to the prompt table.")
+
+            # Remove prompt encoder from model
+            self.prompt_encoder = None
+            logging.info(f"Prompt encoder deleted")
+
+        self.update_config_for_inference_and_save()
 
     def inference_step(self, batch, batch_idx, inference=False):
         enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids = batch
@@ -354,54 +475,6 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
         self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
         self.log('val_acc', val_acc, prog_bar=True, rank_zero_only=True)
-
-    def validation_step(self, batch, batch_idx, inference=False):
-        outcome = self.inference_step(batch, batch_idx, inference=inference)
-        return outcome
-
-    def validation_epoch_end(self, outputs):
-        self.inference_epoch_end(outputs)
-
-    def test_step(self, batch, batch_idx):
-        return self.validation_step(batch, batch_idx)
-
-    def test_epoch_end(self, outputs):
-        self.validation_epoch_end(outputs)
-
-    def build_virtual_prompt_dataset(
-        self, dataset_paths, batch_size, for_train, drop_last, shuffle, num_workers, pin_memory
-    ):
-        dataset = T5PromptLearningDataset(
-            datasets=dataset_paths,
-            tokenizer=self.tokenizer,
-            virtual_prompt_source=self.virtual_prompt_source,
-            task_templates=self.task_templates,
-            pseudo_tokens=self.pseudo_tokens,
-            pad_token_id=self.pad_token_id,
-            max_seq_length=self.cfg.data.get('max_seq_length', self.frozen_model.cfg.max_position_embeddings),
-            min_seq_length=self.cfg.data.get('min_seq_length', 1),
-            add_bos=self.cfg.data.get('add_bos', False),
-            add_eos=self.cfg.data.get('add_eos', True),
-            for_train=for_train,
-        )
-
-        rank = parallel_state.get_data_parallel_rank()
-        world_size = parallel_state.get_data_parallel_world_size()
-        sampler = torch.utils.data.distributed.DistributedSampler(
-            dataset, num_replicas=world_size, rank=rank, shuffle=shuffle
-        )
-
-        dataloader = torch.utils.data.DataLoader(
-            dataset,
-            collate_fn=dataset.collate_fn,
-            sampler=sampler,
-            batch_size=batch_size // world_size,
-            drop_last=drop_last,
-            num_workers=num_workers,
-            pin_memory=pin_memory,
-        )
-        print('build success', len(dataloader), dataset_paths)
-        return dataset, dataloader
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> Any:
 

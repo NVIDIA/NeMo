@@ -25,11 +25,9 @@ from pytorch_lightning.trainer.trainer import Trainer
 from torch import Tensor
 
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_dataset import GPTPromptLearningDataset
-from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common import (
     PromptTable,
-    VirtualPromptPlaceholderToken,
     VirtualPromptSource,
     VirtualPromptStyle,
 )
@@ -40,20 +38,15 @@ from nemo.collections.nlp.modules.common.text_generation_utils import (
     megatron_gpt_generate,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_base_prompt_learning_model import (
-    MegatronBasePromptLearningModel,
+    MegatronPromptLearningBaseModel,
 )
-from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam, TextGeneration
+from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import logging
 
 try:
     from apex.transformer import parallel_state, tensor_parallel
-    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
-        forward_backward_pipelining_without_interleaving,
-    )
-    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
-
     HAVE_APEX = True
 
 except (ImportError, ModuleNotFoundError):
@@ -63,7 +56,7 @@ except (ImportError, ModuleNotFoundError):
 __all__ = ['MegatronGPTPromptLearningModel']
 
 
-class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
+class MegatronGPTPromptLearningModel(MegatronPromptLearningBaseModel):
     """
     Model class for prompt-tuning or p-tuning a pretrained Megatron GPT model. 
 
@@ -170,25 +163,26 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
     def setup_optimizer_param_groups(self):
         """
         ModelPT override. Optimizer will get self._optimizer_param_groups. 
-        Makes two optimizer param groups, one for the frozen model params
-        and one for the prompt-table/prompt-encoder params. The learning 
-        rate for the frozen model's params will always be zero effectively
-        freezing the model's params but still allowing for the needed gradients
-        to be passed around in pipeline parallel models. The prompt-encoder 
-        and/or prompt table will use the learning rate set by the user. 
+        Only want virtual prompt params to be passed to the optimizer.
         """
-        # Freeze frozen model
+        ## Freeze frozen model
         for param in self.frozen_model.parameters():
             param.requires_grad = False
 
-        virtual_prompt_params = {'params': []}
-
         if self.frozen_model.model.pre_process:
-            virtual_prompt_params['params'].extend([param for param in self.prompt_table.parameters()])
+            self.add_virtual_prompt_params_to_param_group()
+        else:    
+            self._optimizer_param_groups = ({'params': []},)
 
-            if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
-                virtual_prompt_params['params'].extend([param for param in self.prompt_encoder.parameters()])
-        self._optimizer_param_groups = (virtual_prompt_params,)
+    def set_input_tensor(self, input_tensor):
+        """Set input tensor to be used instead of forward()'s input.
+        When doing pipeline parallelism the input from the previous
+        stage comes from communication, not from the input, so the
+        model's forward_step_func won't have it. This function is thus
+        used by internal code to bypass the input provided by the
+        forward_step_func"""
+
+        self.frozen_model.model.set_input_tensor(input_tensor)
 
     def forward(
         self,
@@ -247,93 +241,31 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
 
         return output
 
-    def on_pretrain_routine_start(self) -> None:
-        # keep a copy of init_global_step
-        self.init_global_step = self.trainer.global_step
-        return super().on_pretrain_routine_start()
-
-    def fwd_bwd_step(self, batch, batch_idx, forward_only):
+    def fwd_bwd_step(self, batch, forward_only):
         """
             Dataloader produces a global batch which is turned into a list of microbatches.
             The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
-        # Get seq length of batch
-        _, seq_length = batch[0].shape
-        tensor_shape = [seq_length, self.cfg.micro_batch_size, self.hidden_size]
+        sequence_parallel_enabled=self.cfg.get("sequence_parallel", False),
+        super().fwd_bwd_step(batch, forward_only, sequence_parallel_enabled=sequence_parallel_enabled)
 
-        if self.pipeline_parallel:
-            losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
-                forward_step_func=self.get_forward_output_and_loss_func(),
-                batch=batch,
-                model=self,
-                forward_only=forward_only,
-                tensor_shape=tensor_shape,
-                dtype=self.autocast_dtype,
-                grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
-                sequence_parallel_enabled=self.cfg.get("sequence_parallel", False),
-            )
-        else:
-            losses_reduced_per_micro_batch = forward_backward_no_pipelining(
-                forward_step_func=self.get_forward_output_and_loss_func(),
-                batch=batch,
-                model=self,
-                forward_only=forward_only,
-                tensor_shape=tensor_shape,
-                dtype=self.autocast_dtype,
-                grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
-            )
+    def get_forward_output_and_loss_func(self):
+        def fwd_output_and_loss_func(batch, model):
+            batch = [x.cuda(non_blocking=True) for x in batch]
+            input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids = batch
+            output_tensor = model(input_ids, position_ids, attention_mask, taskname_ids, labels, inference=False)
 
-        # only the last stages of the pipeline return losses
-        if losses_reduced_per_micro_batch:
-            # average loss across micro batches
-            loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
-            loss_tensor = torch.concat(loss_tensors_list)
-            loss_mean = loss_tensor.mean()
-        else:
-            # we're not on the last pipeline stage so no losses
-            loss_mean = torch.tensor(0.0).cuda()
+            if isinstance(output_tensor, tuple):
+                output_tensor, _ = output_tensor
 
-        return loss_mean
+            def loss_func(output_tensor):
+                loss = self.frozen_model.loss_func(loss_mask, output_tensor)
+                reduced_loss = average_losses_across_data_parallel_group([loss])
+                return loss, {'avg': reduced_loss}
 
-    def backward(self, *args, **kwargs):
-        """ LightningModule hook to do backward.
-            We want this to do nothing since we run backward in the fwd/bwd functions from apex.
-            No need to call it here.
-        """
-        return
+            return output_tensor, loss_func
 
-    def optimizer_zero_grad(self, *args, **kwargs):
-        """ LightningModule hook to zero grad.
-            We want this to do nothing as we are zeroing grads during the training_step.
-        """
-        return
-
-    def validation_step(self, batch, batch_idx):
-        loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=True)
-        if loss_mean.item == 0.0:
-            loss_mean = []
-
-        return loss_mean
-
-    def validation_epoch_end(self, outputs):
-        if parallel_state.is_pipeline_last_stage():
-            # only the last pipeline parallel stages return loss
-            averaged_loss = torch.stack(outputs).mean()
-        else:
-            averaged_loss = torch.tensor(0.0).cuda()
-
-        # we can only log on one rank if it is rank zero so we broadcast from last rank
-        torch.distributed.broadcast(averaged_loss, get_last_rank())
-
-        self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
-        logging.info(f'val_loss: {averaged_loss}')
-
-    def test_step(self, batch, batch_idx):
-        return self.validation_step(batch, batch_idx)
-
-    def test_epoch_end(self, outputs):
-        averaged_loss = average_losses_across_data_parallel_group(outputs)
-        logging.info(f'test_loss: {averaged_loss[0]}')
+        return fwd_output_and_loss_func
 
     def setup(self, stage=None):
         if (
@@ -480,65 +412,44 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
 
         return dataset, dataloader
 
-    def set_input_tensor(self, input_tensor):
-        """Set input tensor to be used instead of forward()'s input.
-        When doing pipeline parallelism the input from the previous
-        stage comes from communication, not from the input, so the
-        model's forward_step_func won't have it. This function is thus
-        used by internal code to bypass the input provided by the
-        forward_step_func"""
+    def validation_step(self, batch, batch_idx):
+        loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=True)
+        if loss_mean.item == 0.0:
+            loss_mean = []
 
-        self.frozen_model.model.set_input_tensor(input_tensor)
+        return loss_mean
 
-    def get_forward_output_and_loss_func(self):
-        def fwd_output_and_loss_func(batch, model):
-            batch = [x.cuda(non_blocking=True) for x in batch]
-            input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids = batch
-            output_tensor = model(input_ids, position_ids, attention_mask, taskname_ids, labels, inference=False)
+    def validation_epoch_end(self, outputs):
+        if parallel_state.is_pipeline_last_stage():
+            # only the last pipeline parallel stages return loss
+            averaged_loss = torch.stack(outputs).mean()
+        else:
+            averaged_loss = torch.tensor(0.0).cuda()
 
-            if isinstance(output_tensor, tuple):
-                output_tensor, _ = output_tensor
+        # we can only log on one rank if it is rank zero so we broadcast from last rank
+        torch.distributed.broadcast(averaged_loss, get_last_rank())
 
-            def loss_func(output_tensor):
-                loss = self.frozen_model.loss_func(loss_mask, output_tensor)
-                reduced_loss = average_losses_across_data_parallel_group([loss])
-                return loss, {'avg': reduced_loss}
+        self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
+        logging.info(f'val_loss: {averaged_loss}')
 
-            return output_tensor, loss_func
+    def test_step(self, batch, batch_idx):
+        return self.validation_step(batch, batch_idx)
 
-        return fwd_output_and_loss_func
+    def test_epoch_end(self, outputs):
+        averaged_loss = average_losses_across_data_parallel_group(outputs)
+        logging.info(f'test_loss: {averaged_loss[0]}')
 
-    def get_forward_output_only_func(self):
-        """
-        Used for generate method only for now.
-        """
+    def on_train_end(self):
+        # Save p-tuned prompts to prompt table for inference or future task training
+        if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING and self.frozen_model.model.pre_process:
+            self.add_ptuned_prompts_to_prompt_table()
+            logging.info(f"All p-tuned prompts where moved to the prompt table.")
 
-        def fwd_output_only_func(batch, model):
-            extra_arg = {}
-            (
-                tokens,
-                attention_mask,
-                position_ids,
-                task_ids,
-                set_inference_key_value_memory,
-                inference_max_sequence_len,
-            ) = batch
+            # Remove prompt encoder from model
+            self.prompt_encoder = None
+            logging.info(f"Prompt encoder deleted")
 
-            tokens = tokens.cuda()
-            attention_mask = attention_mask.cuda()
-            position_ids = position_ids.cuda()
-            task_ids = task_ids.cuda()
-            extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
-            extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
-
-            output_tensor = model(tokens, position_ids, attention_mask, task_ids, **extra_arg)
-
-            def id_func(output_tensor):
-                return output_tensor, {'logits': output_tensor}
-
-            return output_tensor, id_func
-
-        return fwd_output_only_func
+        self.update_config_for_inference_and_save()
 
     def generate(
         self,
@@ -593,6 +504,38 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         return megatron_gpt_generate(
             self.cuda(), processed_inputs, self.tokenizer, length_params, sampling_params, task_ids
         )
+
+    def get_forward_output_only_func(self):
+        """
+        Used for generate method only for now.
+        """
+
+        def fwd_output_only_func(batch, model):
+            extra_arg = {}
+            (
+                tokens,
+                attention_mask,
+                position_ids,
+                task_ids,
+                set_inference_key_value_memory,
+                inference_max_sequence_len,
+            ) = batch
+
+            tokens = tokens.cuda()
+            attention_mask = attention_mask.cuda()
+            position_ids = position_ids.cuda()
+            task_ids = task_ids.cuda()
+            extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
+            extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
+
+            output_tensor = model(tokens, position_ids, attention_mask, task_ids, **extra_arg)
+
+            def id_func(output_tensor):
+                return output_tensor, {'logits': output_tensor}
+
+            return output_tensor, id_func
+
+        return fwd_output_only_func
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
         inference_config = self.get_inference_config()
