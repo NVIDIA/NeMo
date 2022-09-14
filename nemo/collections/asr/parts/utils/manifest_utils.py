@@ -18,6 +18,7 @@ from collections import Counter
 from collections import OrderedDict as od
 from typing import Dict, List
 
+import librosa
 import numpy as np
 
 from nemo.collections.asr.parts.utils.speaker_utils import (
@@ -144,7 +145,9 @@ def write_truncated_subsegments(
                 try:
                     meta = input_manifest_dict[uniq_id]
                 except:
-                    import ipdb; ipdb.set_trace()
+                    import ipdb
+
+                    ipdb.set_trace()
                 meta['offset'] = offset_sec
                 meta['duration'] = dur
                 json.dump(meta, output_manifest_fp)
