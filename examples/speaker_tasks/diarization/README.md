@@ -96,27 +96,10 @@ Diarization Error Rate (DER) table of [diar_msdd_telephonic.nemo](https://catalo
 
 If you have oracle VAD files and groundtruth RTTM files for evaluation:
 Provide rttm files in the input manifest file and enable oracle_vad as shown below. 
-
-#### Example script for clustering diarizer: with oracle-VAD
 ```bash
-  python clustering_diarizer/offline_diar_infer.py \
-    diarizer.manifest_filepath=<path to manifest file> \
-    diarizer.oracle_vad=True
-    diarizer.out_dir='demo_output' \
-    diarizer.speaker_embeddings.model_path=<pretrained modelname or path to .nemo> \
-    diarizer.speaker_embeddings.parameters.save_embeddings=False \
-    diarizer.vad.model_path=<pretrained modelname or path to .nemo>
-```
-#### Example script for neural diarizer: with oracle-VAD
-```bash
-  python neural_diarizer/multiscale_diar_decoder_infer.py \
-    diarizer.manifest_filepath=<path to manifest file> \
+...
     diarizer.oracle_vad=True \
-    diarizer.out_dir='demo_output' \
-    diarizer.speaker_embeddings.model_path=<pretrained modelname or path to .nemo> \
-    diarizer.vad.model_path=<pretrained modelname or path to .nemo> \
-    diarizer.speaker_embeddings.model_path=<pretrained speaker embedding model name or path to .nemo> \
-    diarizer.msdd_model.model_path=<pretrained MSDD model name or path .nemo> \
+...
 ```
 
 #### Arguments
@@ -133,16 +116,6 @@ Mandatory fields are `audio_filepath`, `offset`, `duration`, `label:"infer"` and
 
 Some of important options in config file: 
 
-- **`diarizer.speaker_embeddings.model_path`: speaker embedding model name**
-
-Specify the name of speaker embedding model, then the script will download the model from NGC. Currently, we support 'titanet_large', 'ecapa_tdnn' and 'speakerverification_speakernet'.
-
-`diarizer.speaker_embeddings.model_path='titanet_large'`
-
-You could also download *.nemo files from [this link](https://ngc.nvidia.com/catalog/models?orderBy=scoreDESC&pageNumber=0&query=SpeakerNet&quickFilter=&filters=) and specify the full path name to the speaker embedding model file (`*.nemo`).
-
-`diarizer.speaker_embeddings.model_path='path/to/titanet_large.nemo'` 
- 
 - **`diarizer.vad.model_path`: voice activity detection modle name or path to the model**
 
 Specify the name of VAD model, then the script will download the model from NGC. Currently, we have 'vad_multilingual_marblenet', 'vad_marblenet' and  'vad_telephony_marblenet' as options for VAD models.
@@ -154,11 +127,37 @@ Instead, you can also download the model from [vad_multilingual_marblenet](https
 
 `diarizer.vad.model_path='path/to/vad_multilingual_marblenet.nemo'`
 
-- **`diarizer.speaker_embeddings.parameters.multiscale_weights`: multiscale diarization (Experimental)**
+- **`diarizer.speaker_embeddings.model_path`: speaker embedding model name**
+
+Specify the name of speaker embedding model, then the script will download the model from NGC. Currently, we support 'titanet_large', 'ecapa_tdnn' and 'speakerverification_speakernet'.
+
+`diarizer.speaker_embeddings.model_path='titanet_large'`
+
+You could also download *.nemo files from [this link](https://ngc.nvidia.com/catalog/models?orderBy=scoreDESC&pageNumber=0&query=SpeakerNet&quickFilter=&filters=) and specify the full path name to the speaker embedding model file (`*.nemo`).
+
+`diarizer.speaker_embeddings.model_path='path/to/titanet_large.nemo'` 
+ 
+
+- **`diarizer.speaker_embeddings.parameters.multiscale_weights`: multiscale diarization **
 
 Multiscale diarization system employs multiple scales at the same time to obtain a finer temporal resolution. To use multiscale feature, at least two scales and scale weights should be provided. The scales should be provided in descending order, from the longest scale to the base scale (the shortest). If multiple scales are provided, multiscale_weights must be provided in list format. The following example shows how multiscale parameters are specified and the recommended parameters.
 
+- **`diarizer.msdd_model.model_path`: neural diarizer (multiscale diarization decoder) name**
+
+If you want to use a neural diarizer model (e.g., MSDD model), specify the name of the neural diarizer model, then the script will download the model from NGC. Currently, we support 'diar_msdd_telephonic'.
+
+Note that you should not specify a scale setting that does not match with MSDD model. For example, `diar_msdd_telephonic` model is based on 5 scales as in the configs in model configs.
+
+`diarizer.speaker_embeddings.model_path='diar_msdd_telephonic'
+
+You could also download [diar_msdd_telephonic](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/diar_msdd_telephonic)
+and specify the full path name to the speaker embedding model file (`*.nemo`).
+
+`diarizer.msdd_model.model_path='path/to/diar_msdd_telephonic.nemo'` 
+ 
+
 #### Example script: single-scale and multiscale
+
 Single-scale setting:
 ```bash
   python offline_diar_infer.py \
