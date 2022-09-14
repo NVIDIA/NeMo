@@ -167,7 +167,6 @@ class AbstractRNNTDecoding(ABC):
                 decoder_model=decoder,
                 joint_model=joint,
                 blank_index=self.blank_id,
-                big_blank_index_list=self.big_blank_id_list,
                 big_blank_duration_list=self.big_blank_duration_list,
                 max_symbols_per_step=(
                     self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
@@ -181,7 +180,6 @@ class AbstractRNNTDecoding(ABC):
                 decoder_model=decoder,
                 joint_model=joint,
                 blank_index=self.blank_id,
-                big_blank_index_list=self.big_blank_id_list,
                 big_blank_duration_list=self.big_blank_duration_list,
                 max_symbols_per_step=(
                     self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
@@ -932,7 +930,7 @@ class RNNTWER(Metric):
 @dataclass
 class RNNTDecodingConfig:
     strategy: str = "greedy_batch"
-    duration: int = 1
+    duration: str = ""
     compute_hypothesis_token_set: bool = False
 
     # preserve decoding alignments

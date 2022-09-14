@@ -111,7 +111,6 @@ class _GreedyRNNTInfer(Typing):
         decoder_model: rnnt_abstract.AbstractRNNTDecoder,
         joint_model: rnnt_abstract.AbstractRNNTJoint,
         blank_index: int,
-        big_blank_index_list: list,
         big_blank_duration_list: list,
         max_symbols_per_step: Optional[int] = None,
         preserve_alignments: bool = False,
@@ -121,7 +120,6 @@ class _GreedyRNNTInfer(Typing):
         self.joint = joint_model
 
         self._blank_index = blank_index
-        self._big_blank_index_list = big_blank_index_list
         self._big_blank_duration_list = big_blank_duration_list
         self._SOS = blank_index  # Start of single index
         self.max_symbols = max_symbols_per_step
@@ -221,9 +219,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
         decoder_model: rnnt_abstract.AbstractRNNTDecoder,
         joint_model: rnnt_abstract.AbstractRNNTJoint,
         blank_index: int,
-        big_blank_index: int,
-        huge_blank_index: int,
-        big_blank_duration: int,
+        big_blank_duration_list: list,
         max_symbols_per_step: Optional[int] = None,
         preserve_alignments: bool = False,
     ):
@@ -231,9 +227,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
             decoder_model=decoder_model,
             joint_model=joint_model,
             blank_index=blank_index,
-            big_blank_index=big_blank_index,
-            huge_blank_index=huge_blank_index,
-            big_blank_duration=big_blank_duration,
+            big_blank_duration_list=big_blank_duration_list,
             max_symbols_per_step=max_symbols_per_step,
             preserve_alignments=preserve_alignments,
         )
@@ -315,8 +309,11 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
         # For timestep t in X_t
         blank_optimization = True
         big_blank_duration = 1
-        d1 = duration // 10
-        d2 = duration % 10
+
+        big_blank_durations = [int(i) for i in duration.split(",")]
+        big_blank_indices = [self._blank_index + 1 + i for i in range(len(big_blank_durations))]
+
+        print("HERE", big_blank_durations)
 
         for time_idx in range(out_len):
             if blank_optimization and big_blank_duration > 1:
@@ -352,14 +349,15 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
                 # get index k, of max prob
                 v, k = logp.max(0)
                 k = k.item()  # K is the label at timestep t_s in inner loop, s >= 0.
-                if k == logp.shape[0] - 2:
-                    big_blank_duration = d1
-                    print("BIG BLANK")
-                elif k == logp.shape[0] - 1:
-                    big_blank_duration = d2
-                    print("HUGE BLANK")
-                elif k == logp.shape[0] - 3:
+
+                if k == self._blank_index:
                     print("NORMAL BLANK")
+
+                elif k > self._blank_index:
+                  for i in range(len(big_blank_indices)):
+                      if k == big_blank_indices[i]:
+                          big_blank_duration = big_blank_durations[i]
+                          print("BIG BLANK #", i + 1)
                 else:
                     print("NO BLANK")
 
@@ -370,7 +368,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
                 del logp
 
                 # If blank token is predicted, exit inner loop, move onto next timestep t
-                if k == self._blank_index or k == self._big_blank_index or k == self._huge_blank_index:
+                if k >= self._blank_index:
                     not_blank = False
 
                     if self.preserve_alignments:
@@ -425,7 +423,6 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         decoder_model: rnnt_abstract.AbstractRNNTDecoder,
         joint_model: rnnt_abstract.AbstractRNNTJoint,
         blank_index: int,
-        big_blank_index_list: int,
         big_blank_duration_list: int,
         max_symbols_per_step: Optional[int] = None,
         preserve_alignments: bool = False,
@@ -434,7 +431,6 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             decoder_model=decoder_model,
             joint_model=joint_model,
             blank_index=blank_index,
-            big_blank_index_list=big_blank_index_list,
             big_blank_duration_list=big_blank_duration_list,
             max_symbols_per_step=max_symbols_per_step,
             preserve_alignments=preserve_alignments,
