@@ -436,7 +436,6 @@ class SSLDisentangler(ModelPT):
             print("lr backbone", optim_backbone.param_groups[0]['lr'])
             print("lr down", optim_downstream.param_groups[0]['lr'])
 
-
     def validation_step(self, batch, batch_idx):
 
         loss_total = 0
@@ -503,7 +502,6 @@ class SSLDisentangler(ModelPT):
                     else:
                         normalized_ed = 1.0
                     cers.append(normalized_ed)
-
 
         return {
             'val_loss': loss_total.cpu(),
