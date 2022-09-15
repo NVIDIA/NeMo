@@ -43,9 +43,17 @@ class EMA(Callback):
         ema: The exponential decay used when calculating the moving average. Has to be between 0-1.
         apply_ema_every_n_steps: Apply EMA every n global steps.
         start_step: Start applying EMA from ``start_step`` global step onwards.
+        save_ema_weights_in_callback_state: Enable saving ema weights in callback state.
+            This is not required when using NeMo as the experiment manager handles saving weights.
     """
 
-    def __init__(self, ema: float, apply_ema_every_n_steps: int = 1, start_step: int = 0):
+    def __init__(
+        self,
+        ema: float,
+        apply_ema_every_n_steps: int = 1,
+        start_step: int = 0,
+        save_ema_weights_in_callback_state: bool = False,
+    ):
         if not apex_available:
             raise MisconfigurationException(
                 "EMA requires Apex to be installed: https://github.com/NVIDIA/apex#installation."
@@ -58,6 +66,7 @@ class EMA(Callback):
         self._weights_buffer: Optional[List[torch.Tensor]] = None
         self.apply_ema_every_n_steps = apply_ema_every_n_steps
         self.start_step = start_step
+        self.save_ema_weights_in_callback_state = save_ema_weights_in_callback_state
         self.ema = ema
 
     def on_train_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
@@ -92,10 +101,14 @@ class EMA(Callback):
             self.apply_multi_tensor_ema(pl_module)
 
     def state_dict(self) -> Dict[str, Any]:
+        if self.save_ema_weights_in_callback_state:
+            return dict(cur_step=self._cur_step, ema_weights=self._ema_model_weights)
         return dict(cur_step=self._cur_step)
 
     def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
         self._cur_step = state_dict['cur_step']
+        # when loading using NeMo, ema weights will be loaded by the experiment manager separately.
+        self._ema_model_weights = state_dict.get('ema_weights')
 
     def on_load_checkpoint(
         self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", checkpoint: Dict[str, Any]

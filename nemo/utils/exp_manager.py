@@ -36,6 +36,7 @@ from pytorch_lightning.loggers import LoggerCollection as _LoggerCollection
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from pytorch_lightning.loops import TrainingEpochLoop
 from pytorch_lightning.strategies.ddp import DDPStrategy
+from pytorch_lightning.utilities import rank_zero_info
 
 from nemo.collections.common.callbacks import EMA
 from nemo.constants import NEMO_ENV_VARNAME_TESTING, NEMO_ENV_VARNAME_VERSION
@@ -884,6 +885,8 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             # save EMA copy of the model as well.
             ema_callback.replace_model_weights(trainer.lightning_module)
             filepath = self._ema_format_filepath(filepath)
+            if self.verbose:
+                rank_zero_info(f"Saving EMA weights to separate checkpoint {filepath}")
             super()._save_checkpoint(trainer, filepath)
             ema_callback.restore_model_weights(trainer.lightning_module)
 

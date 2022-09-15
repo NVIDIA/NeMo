@@ -257,6 +257,54 @@ class TestEMAConfig:
         for saved_weight, ema_weight in zip(duplicate_model.state_dict().values(), ema_callback._ema_model_weights):
             assert torch.allclose(saved_weight.cpu(), ema_weight.cpu())
 
+    @pytest.mark.unit
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.skipif(not apex_available, reason="apex is not installed")
+    def test_ema_save_in_callback(self, tmpdir):
+        """Test to ensure when `save_ema_weights_in_callback_state` is enabled, we save to the callback state."""
+        temp_path = os.path.join(tmpdir, 'saved_state')
+
+        model = ExampleModel()
+
+        trainer = Trainer(
+            max_epochs=2,
+            limit_val_batches=1,
+            limit_train_batches=16,
+            logger=False,
+            val_check_interval=0.5,
+            enable_checkpointing=False,
+            accelerator='gpu',
+            devices=1,
+            callbacks=[EMA(ema=0.999, save_ema_weights_in_callback_state=True)],
+        )
+        exp_manager(
+            trainer,
+            {"explicit_log_dir": str(temp_path), "checkpoint_callback_params": {"filename": f"{{epoch}}-{{step}}"},},
+        )
+        trainer.fit(model=model)
+
+        resume_path = os.path.join(temp_path, "checkpoints/epoch=0-step=8.ckpt")
+        callback = EMA(ema=0.999, save_ema_weights_in_callback_state=True)
+
+        class AssertCallback(Callback):
+            def on_train_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+                assert callback._ema_model_weights is not None
+
+        model = ExampleModel()
+
+        trainer = Trainer(
+            max_epochs=2,
+            limit_val_batches=1,
+            limit_train_batches=16,
+            logger=False,
+            val_check_interval=0.5,
+            enable_checkpointing=False,
+            accelerator='gpu',
+            devices=1,
+            callbacks=[callback, AssertCallback()],
+        )
+        trainer.fit(model, ckpt_path=resume_path)
+
 
 @pytest.mark.parametrize("precision", [16, "bf16", 32])
 @pytest.mark.parametrize("accumulate_grad_batches", [1, 2])
