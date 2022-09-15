@@ -15,9 +15,9 @@ Hydra Configurations for Diarization Training
 Currently, NeMo supports Multi-scale diarization decoder (MSDD) as a neural diarizer model. MSDD is a speaker diarization model based on initializing clustering and multi-scale segmentation input. Example configuration files for MSDD model training can be found in ``<NeMo_git_root>/examples/speaker_tasks/diarization/conf/neural_diarizer/``.
 
 * Model name convention for MSDD: msdd_<number of scales>scl_<longest scale in decimal second (ds)>_<shortest scale in decimal second (ds)>_<overlap percentage of window shifting>Povl_<hidden layer size>x<number of LSTM layers>x<number of CNN output channels>x<repetition count of conv layer>
-* Example: `msdd_5scl_15_05_50Povl_256x3x32x2.yaml` has 5 scales, the longest scale is 1.5 sec, the shortest scale is 0.5 sec, with 50 percent overlap, hidden layer size is 256, 3 LSTM layers, 32 CNN channels, 2 repeated Conv layers
+* Example: ``msdd_5scl_15_05_50Povl_256x3x32x2.yaml`` has 5 scales, the longest scale is 1.5 sec, the shortest scale is 0.5 sec, with 50 percent overlap, hidden layer size is 256, 3 LSTM layers, 32 CNN channels, 2 repeated Conv layers
 
-MSDD model checkpoint (.ckpt) and NeMo file (.nemo) contain speaker embedding model (TitaNet) and the speaker model is loaded along with standalone MSDD module. Note that MSDD models require more than one scale. Thus, the parameters in diarizer.speaker_embeddings.parameters should have more than one scale to function as a MSDD model.
+MSDD model checkpoint (.ckpt) and NeMo file (.nemo) contain speaker embedding model (TitaNet) and the speaker model is loaded along with standalone MSDD module. Note that MSDD models require more than one scale. Thus, the parameters in ``diarizer.speaker_embeddings.parameters`` should have more than one scale to function as a MSDD model.
 
 
 General Diarizer Configuration

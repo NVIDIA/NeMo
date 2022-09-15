@@ -8,9 +8,9 @@ Speaker diarization is the process of segmenting audio recordings by speaker lab
         :width: 800px
         :alt: Speaker diarization pipeline- VAD, segmentation, speaker embedding extraction, clustering
 
-To figure out "who spoke when", speaker diarization system needs to capture the characteristics of unseen speakers and tell apart which regions in the audio recording is belong to which speaker. To achieve this, speaker diarization system extracts voice characteristics, count the number of speakers, then assign the audio segments to corresponding speaker index.
+To figure out "who spoke when", speaker diarization systems need to capture the characteristics of unseen speakers and tell apart which regions in the audio recording belong to which speaker. To achieve this, speaker diarization systems extract voice characteristics, count the number of speakers, then assign the audio segments to the corresponding speaker index.
 
-The following figure shows the overall dataflow of NeMo speaker diarization pipeline. 
+The following figure shows the overall data flow of the NeMo speaker diarization pipeline. 
 
 .. image:: images/sd_pipeline.png
         :align: center

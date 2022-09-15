@@ -44,7 +44,6 @@ Diarization Error Rate (DER) table of `titanet_large.nemo` model on well known e
 * This result is based on [titanet_large.nemo](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/titanet_large) model.
 
 #### Neural Diarizer 
-
 Multi-scale Diarization Decoder (MSDD) model [Multi-scale Diarization decoder](https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/speaker_diarization/model.html)
 Diarization Error Rate (DER) table of [diar_msdd_telephonic.nemo](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/diar_msdd_telephonic) model on telephonic speech datasets.
 
@@ -79,7 +78,7 @@ Diarization Error Rate (DER) table of [diar_msdd_telephonic.nemo](https://catalo
     diarizer.manifest_filepath=<path to manifest file> \
     diarizer.out_dir='demo_output' \
     diarizer.speaker_embeddings.parameters.save_embeddings=False \
-    diarizer.vad.model_path=<pretrained modelname or path to .nemo> \
+    diarizer.vad.model_path=<pretrained model name or path to .nemo> \
     diarizer.speaker_embeddings.model_path=<pretrained speaker embedding model name or path to .nemo> 
 ```
 
@@ -89,7 +88,7 @@ Diarization Error Rate (DER) table of [diar_msdd_telephonic.nemo](https://catalo
     diarizer.manifest_filepath=<path to manifest file> \
     diarizer.out_dir='demo_output' \
     diarizer.speaker_embeddings.parameters.save_embeddings=False \
-    diarizer.vad.model_path=<pretrained modelname or path to .nemo> \
+    diarizer.vad.model_path=<pretrained model name or path to .nemo> \
     diarizer.speaker_embeddings.model_path=<pretrained speaker embedding model name or path to .nemo> \
     diarizer.msdd_model.model_path=<pretrained MSDD model name or path .nemo> \
 ```
@@ -146,7 +145,7 @@ Multiscale diarization system employs multiple scales at the same time to obtain
 
 If you want to use a neural diarizer model (e.g., MSDD model), specify the name of the neural diarizer model, then the script will download the model from NGC. Currently, we support 'diar_msdd_telephonic'.
 
-Note that you should not specify a scale setting that does not match with MSDD model. For example, `diar_msdd_telephonic` model is based on 5 scales as in the configs in model configs.
+Note that you should not specify a scale setting that does not match with the MSDD model you are using. For example, `diar_msdd_telephonic` model is based on 5 scales as in the configs in model configs.
 
 `diarizer.speaker_embeddings.model_path='diar_msdd_telephonic'
 
@@ -161,7 +160,7 @@ and specify the full path name to the speaker embedding model file (`*.nemo`).
 Single-scale setting:
 ```bash
   python offline_diar_infer.py \
-     ... <other paramerters> ...
+     ... <other parameters> ...
      parameters.window_length_in_sec=1.5 \
      parameters.shift_length_in_sec=0.75 \
      parameters.multiscale_weights=null \
@@ -171,7 +170,7 @@ Multiscale setting (base scale - window_length 0.5 s and shift_length 0.25):
 
 ```bash
   python offline_diar_infer.py \
-     ... <other paramerters> ...
+     ... <other parameters> ...
      parameters.window_length_in_sec=[1.5,1.0,0.5] \
      parameters.shift_length_in_sec=[0.75,0.5,0.25] \
      parameters.multiscale_weights=[0.33,0.33,0.33] \
@@ -185,7 +184,7 @@ Using the script `offline_diar_with_asr_infer.py`, you can transcribe your audio
 
 ```
 [00:03.34 - 00:04.46] speaker_0: back from the gym oh good how's it going 
-[00:04.46 - 00:09.96] speaker_1: oh pretty well it was really crowded today yeah i kind of assumed everylonewould be at the shore uhhuh
+[00:04.46 - 00:09.96] speaker_1: oh pretty well it was really crowded today yeah i kind of assumed everyone would be at the shore uhhuh
 [00:12.10 - 00:13.97] speaker_0: well it's the middle of the week or whatever so
 ```
 
@@ -197,8 +196,8 @@ Currently, NeMo offline diarization inference supports QuartzNet English model a
 python offline_diar_with_asr_infer.py \
     diarizer.manifest_filepath=<path to manifest file> \
     diarizer.out_dir='demo_asr_output' \
-    diarizer.speaker_embeddings.model_path=<pretrained modelname or path to .nemo> \
-    diarizer.asr.model_path=<pretrained modelname or path to .nemo> \
+    diarizer.speaker_embeddings.model_path=<pretrained model name or path to .nemo> \
+    diarizer.asr.model_path=<pretrained model name or path to .nemo> \
     diarizer.speaker_embeddings.parameters.save_embeddings=False \
     diarizer.asr.parameters.asr_based_vad=True
 ```
@@ -208,8 +207,8 @@ If you have reference rttm files or oracle number of speaker information, you ca
 python offline_diar_with_asr_infer.py \
     diarizer.manifest_filepath=<path to manifest file> \
     diarizer.out_dir='demo_asr_output' \
-    diarizer.speaker_embeddings.model_path=<pretrained modelname or path to .nemo> \
-    diarizer.asr.model_path=<pretrained modelname or path to .nemo> \
+    diarizer.speaker_embeddings.model_path=<pretrained model name or path to .nemo> \
+    diarizer.asr.model_path=<pretrained model name or path to .nemo> \
     diarizer.speaker_embeddings.parameters.save_embeddings=False \
     diarizer.asr.parameters.asr_based_vad=True \
     diarizer.clustering.parameters.oracle_num_speakers=True
@@ -237,7 +236,7 @@ For example, in `./demo_asr_output/`, you can check the results as below.
 ... 
 ```
 
-`my_audio1.json` file contains word-by-word json output with speaker label and time stamps. We also provide json output file for [gecko](https://gong-io.github.io/gecko/) tool, where you can visualize the diarization result along with ASR output.
+`my_audio1.json` file contains word-by-word json output with speaker label and time stamps. We also provide a json output file for [gecko](https://gong-io.github.io/gecko/) tool, where you can visualize the diarization result along with the ASR output.
 
 Example: `./demo_asr_output/pred_rttms/my_audio1.json`
 ```bash
@@ -276,7 +275,7 @@ Example: `./demo_asr_output/pred_rttms/my_audio1.txt`
 [00:04.46 - 00:09.96] speaker_1: pretty well it was really crowded today yeah i kind of assumed everylonewould be at the shore uhhuh
 [00:12.10 - 00:13.97] speaker_0: well it's the middle of the week or whatever so
 [00:13.97 - 00:15.78] speaker_1: but it's the fourth of july mm
-[00:16.90 - 00:21.80] speaker_0: so yeahg people still work tomorrow do you have to work tomorrow did you drive off yesterday
+[00:16.90 - 00:21.80] speaker_0: so yeah people still work tomorrow do you have to work tomorrow did you drive off yesterday
 ```
  
 In `speaker_outputs` folder we have three kinds of files as follows:
@@ -299,7 +298,7 @@ You should provide a trained KenLM language model to use pyctcdecode. Binary or 
 
 ```bash
   python offline_diar_with_asr_infer.py \
-    ... <other paramerters> ...
+    ... <other parameters> ...
     diarizer.asr.ctc_decoder_parameters.pretrained_language_model="/path/to/kenlm_language_model.binary"
 ```
 You can download publicly available language models (`.arpa` files) at [KALDI Tedlium Language Models](https://kaldi-asr.org/models/m5). Download [4-gram Big ARPA](https://kaldi-asr.org/models/5/4gram_big.arpa.gz) and provide the model path.
@@ -322,7 +321,7 @@ pip install arpa
 
 ```bash
 python offline_diar_with_asr_infer.py \
-    ... <other paramerters> ...
+    ... <other parameters> ...
     diarizer.asr.realigning_lm_parameters.logprob_diff_threshold=1.2 \
     diarizer.asr.realigning_lm_parameters.arpa_language_model="/path/to/4gram_big.arpa"\
 ```

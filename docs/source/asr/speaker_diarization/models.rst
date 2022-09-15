@@ -3,7 +3,7 @@ Models
 
 This section gives a brief overview of the supported speaker diarization models in NeMo's ASR collection.
 
-Currently speaker diarization pipeline in NeMo involves `MarbleNet <../speech_classification/models.html#marblenet-vad>`__ model for Voice Activity Detection (VAD) and `TitaNet <../speaker_recognition/models.html#titanet>`__ models for speaker embedding extraction and `Multi-scale Diarizerion Decoder` for neural diarizer. `Multi-scale Diarization Decoder` will be explained in this page.
+Currently speaker diarization pipeline in NeMo involves `MarbleNet <../speech_classification/models.html#marblenet-vad>`__ model for Voice Activity Detection (VAD) and `TitaNet <../speaker_recognition/models.html#titanet>`__ models for speaker embedding extraction and `Multi-scale Diarizerion Decoder` for neural diarizer,  which will be explained in this page.
 
 Multi-scale Diarization Decoder
 -------------------------------
@@ -55,9 +55,12 @@ Most importantly, the weight of each scale at each time step is determined throu
 
 The estimated scale weights are applied to cosine similarity values calculated for each speaker and each scale. The above figure shows the process of calculating the context vector by applying the estimated scale weights on cosine similarity calculated between cluster-average speaker embedding and input speaker embeddings. 
 
-Aside from CNN-based weighting scheme, MSDD implementation in NeMo toolkit allows multiple options for calculating scale weights `model.msdd_module.weighting_scheme`:
-- `conv_scale_weight`: Default setting. Use 1-D CNN filters to calculate scale weights.
-- `attn_scale_weight`: Calculate the scale weights by applying attention mechanism between cluster-average embeddings and input embeddings. This can be viewed as attention values for scale at each timestep.
+Aside from CNN-based weighting scheme, MSDD implementation in NeMo toolkit allows multiple options for calculating scale weights ``model.msdd_module.weighting_scheme``:
+
+
+- ``conv_scale_weight``: Default setting. Use 1-D CNN filters to calculate scale weights.   
+
+- ``attn_scale_weight``: Calculate the scale weights by applying an attention mechanism between cluster-average embeddings and input embeddings. This can be viewed as attention values for scale at each timestep.  
 
 Finally, each context vector for each step is fed to a multi-layer LSTM model that generates per-speaker speaker existence probability. The figure below shows how speaker label sequences are estimated by LSTM model and context vector input.
 
@@ -66,22 +69,39 @@ Finally, each context vector for each step is fed to a multi-layer LSTM model th
         :width: 400px
         :alt: Speaker diarization pipeline- VAD, segmentation, speaker embedding extraction, clustering
 
-In NeMo toolkit, MSDD implementation has multiple options for the context vector by specifying `model.msdd_module.context_vector_type`:
-- `cos_sim`: As described in this document, scale weights are applied to cosine similarity values between cluster-average embedding vectors and input embedding vectors. Default is `cos_sim`.
-- `elem_prod`: The scale weights are directly applied to speaker embedding vectors then a weighted speaker embedding vector is calculated for both cluster-average embedding vectors and input embedding vectors. Finally, elementwise product between the cluster-average weighted speaker embedding vector and input multi-scale embedding vector are calculated and fed to LSTMs as a context vector for each step.
+In NeMo toolkit, MSDD implementation has multiple options for the context vector by specifying ``model.msdd_module.context_vector_type``:
+
+
+- ``cos_sim``: As described in this document, scale weights are applied to cosine similarity values between cluster-average embedding vectors and input embedding vectors. Default is ``cos_sim``.   
+
+
+- ``elem_prod``: The scale weights are directly applied to speaker embedding vectors then a weighted speaker embedding vector is calculated for both cluster-average embedding vectors and input embedding vectors. Finally, elementwise product between the cluster-average weighted speaker embedding vector and input multi-scale embedding vector are calculated and fed to LSTMs as a context vector for each step.   
+
 
 MSDD is designed with the following aspects in mind:
 
 * **Flexible number of speakers**: MSDD employs pairwise inference to diarize conversation with arbitrary numbers of speakers. For example, if there are 4 speakers, 6 pairs will be extracted, and inference results from MSDD are averaged to obtain results for each of the 4 speakers.
 
+
 * **Overlap-aware diarization**: MSDD independently estimates the probability of two speaker labels of two speakers at each step. This enables overlap detection where two speakers are speaking at the same time.
+
 
 * **Pretrained speaker embedding model**: MSDD is based on the pretrained embedding extractor (TitaNet) model. By using a pretrained speaker model, we can leverage the neural network weights learned from a relatively large amount of single-speaker speech data. In addition, MSDD is designed to be optimized with a pretrained speaker to fine-tune the entire speaker diarization system on a domain-specific diarization dataset. 
 
-* **End-to-end training of diarization model**: Since all the operation in MSDD is speaker embedding model can be attached to the computational graph and can be jointly trained from the loss calculated from speaker label outputs. 
+
+* **End-to-end training of diarization model**: Since all the arithmetic operations in MSDD support gradient calculation, a speaker embedding model can be attached to the computational graph of an MSDD model and can be jointly trained from the loss calculated from speaker label outputs. 
+
 
 * **Superior temporal resolution for uniform segmentation approach**: While single-scale clustering diarizer shows the best performance at 1.5-second segment length where unit decision length is 0.75 second (half-overlap), the multi-scale approach has unit decision length of 0.25 second. The temporal resolution can be even more enhanced by using shorter shift length which requires more steps and resources. Note that merely applying 0.5-second segment length to a single-scale diarizer significantly drops the diarization performance due to the degraded fidelity of speaker features. 
 
+
 * **Performance improvement from clustering diarizer**: Diarization Error Rate (DER) is calculated by comparing hypothesis timestamps and ground-truth timestamps. MSDD can reduce the diarization error rate up to 60% on two speaker datasets when compared to the single-scale clustering diarizer.  
  
+References
+-----------
+
+.. bibliography:: ../asr_all.bib
+    :style: plain
+    :labelprefix: SD-MODELS
+    :keyprefix: sd-models-
 
