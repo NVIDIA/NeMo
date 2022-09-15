@@ -15,8 +15,8 @@
 # ##########################################################################
 
 
-
 import contextlib
+
 import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf
@@ -277,7 +277,6 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
             exit(1)
 
         return optimizer
-
 
     def _loader(self, cfg):
         try:

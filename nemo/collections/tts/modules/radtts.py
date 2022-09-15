@@ -41,8 +41,9 @@ from nemo.core.neural_types.elements import (
     TokenIndex,
     TokenLogDurationType,
 )
-
 from nemo.core.neural_types.neural_type import NeuralType
+
+
 @torch.jit.script
 def pad_dur(dur, txt_enc):
     if dur.shape[-1] < txt_enc.shape[-1]:

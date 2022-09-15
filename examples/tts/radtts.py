@@ -20,13 +20,16 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
+
 def freeze(model):
     for p in model.parameters():
         p.requires_grad = False
 
+
 def unfreeze(model):
     for p in model.parameters():
         p.requires_grad = True
+
 
 def prepare_model_weights(model, unfreeze_modules):
     if unfreeze_modules != 'all':
