@@ -74,6 +74,7 @@ model:
   virtual_prompt_style: 'p-tuning' # 'prompt-tuning'
   encoder_seq_length: 2048
   pipeline_model_parallel_size: 1
+  data_parallel_size: 1
   global_batch_size: 8
   micro_batch_size: 8
 
