@@ -20,7 +20,13 @@ from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionP
 
 from nemo.collections.nlp.models.language_modeling.megatron_finetune_model import MegatronT5FinetuneModel
 from nemo.collections.nlp.models.language_modeling.megatron_glue_model import MegatronT5GLUEModel
-from nemo.collections.nlp.parts.nlp_overrides import GradScaler, MegatronHalfPrecisionPlugin, NLPDDPPlugin
+from nemo.collections.nlp.models.language_modeling.megatron_t0_model import MegatronT0Model
+from nemo.collections.nlp.parts.nlp_overrides import (
+    GradScaler,
+    MegatronHalfPrecisionPlugin,
+    NLPDDPStrategy,
+    NLPSaveRestoreConnector,
+)
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import StatelessTimer, exp_manager
@@ -32,13 +38,12 @@ def main(cfg) -> None:
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
     megatron_amp_o2 = cfg.model.get('megatron_amp_O2', False)
-    plugins = [
-        NLPDDPPlugin(
-            no_ddp_communication_hook=True,
-            gradient_as_bucket_view=cfg.model.gradient_as_bucket_view,
-            find_unused_parameters=False,
-        )
-    ]
+    plugins = []
+    strategy = NLPDDPStrategy(
+        no_ddp_communication_hook=True,
+        gradient_as_bucket_view=cfg.model.gradient_as_bucket_view,
+        find_unused_parameters=False,
+    )
     if cfg.trainer.precision in [16, 'bf16']:
         scaler = None
         if cfg.trainer.precision == 16:
@@ -55,7 +60,7 @@ def main(cfg) -> None:
     if cfg.get('cluster_type', None) == 'BCP':
         plugins.append(TorchElasticEnvironment())
 
-    trainer = Trainer(plugins=plugins, **cfg.trainer)
+    trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer)
 
     exp_manager(trainer, cfg.exp_manager)
 
@@ -64,36 +69,52 @@ def main(cfg) -> None:
         if isinstance(callback, Timer):
             trainer.callbacks[idx] = StatelessTimer(cfg.trainer.max_time,)
 
-    # Get the T5 Base configuration.
-    if hasattr(t5_cfg.data.validation_ds, 'task_name'):
-        t5_cfg = MegatronT5GLUEModel.restore_from(
-            restore_path=cfg.model.restore_from_path, trainer=trainer, return_config=True
-        )
-    else:
-        t5_cfg = MegatronT5FinetuneModel.restore_from(
-            restore_path=cfg.model.restore_from_path, trainer=trainer, return_config=True
-        )
+    t5_cfg = MegatronT5GLUEModel.restore_from(
+        restore_path=cfg.model.restore_from_path, trainer=trainer, return_config=True
+    )
 
     # Override the T5 configuration with the one from the config file.
     # NOTE: Only data can be overriden here since this the file being restored here should already correspond to a GLUE/XNLI finetuned model.
     OmegaConf.set_struct(t5_cfg, True)
     with open_dict(t5_cfg):
-        t5_cfg.masked_softmax_fusion = False
         t5_cfg.precision = cfg.trainer.precision
         # Overwrite data configs
-        t5_cfg.data = cfg.model.data
-        # XNLI has eval languages in the yaml config.
-        if hasattr(cfg.model, 'eval_languages'):
-            t5_cfg.eval_languages = cfg.model.eval_languages
+        if cfg.model.data.validation_ds.get('src_file_name', None) is not None:
+            logging.info(
+                'Found validation_ds.src_file_name in the config file. Overriding the finetuned model config file with the values from the new config file.'
+            )
+            t5_cfg.data.validation_ds.src_file_name = cfg.model.data.validation_ds.src_file_name
+        if cfg.model.data.validation_ds.get('tgt_file_name', None) is not None:
+            logging.info(
+                'Found validation_ds.tgt_file_name in the config file. Overriding the finetuned model config file with the values from the new config file.'
+            )
+            t5_cfg.data.validation_ds.src_file_name = cfg.model.data.validation_ds.src_file_name
 
-    if hasattr(t5_cfg.data.validation_ds, 'task_name'):
-        model = MegatronT5GLUEModel.restore_from(
-            restore_path=cfg.model.restore_from_path, trainer=trainer, override_config_path=t5_cfg
-        )
-    else:
-        model = MegatronT5FinetuneModel.restore_from(
-            restore_path=cfg.model.restore_from_path, trainer=trainer, override_config_path=t5_cfg
-        )
+        t5_cfg.data.validation_ds.micro_batch_size = cfg.model.data.validation_ds.micro_batch_size
+        t5_cfg.data.validation_ds.global_batch_size = cfg.model.data.validation_ds.global_batch_size
+
+        if hasattr(cfg.model.data.validation_ds, 'task_name'):
+            model = MegatronT5GLUEModel.restore_from(
+                restore_path=cfg.model.restore_from_path,
+                trainer=trainer,
+                override_config_path=t5_cfg,
+                save_restore_connector=NLPSaveRestoreConnector(),
+            )
+        elif hasattr(cfg.model.data.validation_ds, 'file_names'):
+            model = MegatronT0Model.restore_from(
+                restore_path=cfg.model.restore_from_path,
+                trainer=trainer,
+                override_config_path=t5_cfg,
+                save_restore_connector=NLPSaveRestoreConnector(),
+            )
+        else:
+            model = MegatronT5FinetuneModel.restore_from(
+                restore_path=cfg.model.restore_from_path,
+                trainer=trainer,
+                override_config_path=t5_cfg,
+                save_restore_connector=NLPSaveRestoreConnector(),
+            )
+
     model.freeze()
     trainer.validate(model)
     if hasattr(cfg.model.data, 'test_ds'):

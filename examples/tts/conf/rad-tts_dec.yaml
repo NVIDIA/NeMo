@@ -27,8 +27,7 @@ lowfreq: 0
 highfreq: 8000
 window: "hann"
 
-
-phoneme_dict_path: "scripts/tts_dataset_files/cmudict-0.7b_nv22.07"
+phoneme_dict_path: "scripts/tts_dataset_files/cmudict-0.7b_nv22.08"
 heteronyms_path: "scripts/tts_dataset_files/heteronyms-052722"
 
 model:
@@ -61,7 +60,7 @@ model:
     apostrophe: true
     pad_with_space: true
     g2p:
-      _target_: nemo.collections.tts.torch.g2ps.EnglishG2p
+      _target_: "nemo_text_processing.g2p.modules.EnglishG2p"
       phoneme_dict: ${phoneme_dict_path}
       heteronyms: ${heteronyms_path}
       phoneme_probability: 0.5
@@ -90,7 +89,7 @@ model:
       
       
       text_tokenizer:
-        _target_: "nemo.collections.tts.torch.tts_tokenizers.EnglishPhonemesTokenizer"
+        _target_: "nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.EnglishPhonemesTokenizer"
         punct: True
         stresses: True
         chars: True
@@ -101,7 +100,7 @@ model:
         add_blank_at: null
         pad_with_space: True
         g2p:
-          _target_: "nemo.collections.tts.torch.g2ps.EnglishG2p"
+          _target_: "nemo_text_processing.g2p.modules.EnglishG2p"
           phoneme_dict: ${phoneme_dict_path}
           heteronyms: ${heteronyms_path}
           phoneme_probability: 0.5
@@ -134,7 +133,7 @@ model:
       pitch_fmax: ${pitch_fmax}
          
       text_tokenizer:
-        _target_: "nemo.collections.tts.torch.tts_tokenizers.EnglishPhonemesTokenizer"
+        _target_: "nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.EnglishPhonemesTokenizer"
         punct: True
         stresses: True
         chars: True
@@ -145,7 +144,7 @@ model:
         add_blank_at: null
         pad_with_space: True
         g2p:
-          _target_: "nemo.collections.tts.torch.g2ps.EnglishG2p"
+          _target_: "nemo_text_processing.g2p.modules.EnglishG2p"
           phoneme_dict: ${phoneme_dict_path}
           heteronyms: ${heteronyms_path}
           phoneme_probability: 0.5
@@ -157,7 +156,7 @@ model:
       pin_memory: false
 
   optim:
-    name: RAdam #This code base uses pytorch implemenation of RAdam which has not been tested fully when this is released we are waiting for SWIPAT approval to use https://github.com/LiyuanLucasLiu/RAdam/blob/master/LICENSE. Until that you can integrate this and train. we will switch code to this implementation once we get SWIPAT approval which could take a couple of days. 
+    name: RAdam 
     lr: 0.0001
     betas: [0.9, 0.98]
     weight_decay: 0.000001

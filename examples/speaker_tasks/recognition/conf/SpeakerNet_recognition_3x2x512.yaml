@@ -101,11 +101,9 @@ model:
     num_classes: 7205
     pool_mode: 'xvector'
     emb_sizes: [512,512]
-    angular: False
 
   loss:
-    scale: 30
-    margin: 0.2
+    _target_: from nemo.collections.common.losses.CrossEntropyLoss # you could also use AngularSoftmaxLoss
 
   optim:
     name: novograd
@@ -122,7 +120,7 @@ model:
     sched:
       name: CosineAnnealing
       iters_per_batch: 1 # computed at runtime
-      max_steps: null # computed at runtime or explicitly set here
+      max_steps: -1 # computed at runtime or explicitly set here
 
       # scheduler config override
       args:
@@ -136,7 +134,7 @@ model:
 trainer:
   devices: 1 # number of gpus
   max_epochs: 200
-  max_steps: null # computed at runtime if not set
+  max_steps: -1 # computed at runtime if not set
   num_nodes: 1
   accelerator: gpu
   strategy: ddp
@@ -146,7 +144,9 @@ trainer:
   logger: False
   log_every_n_steps: 1  # Interval of logging.
   val_check_interval: 1.0  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
-
+  gradient_clip_val: 1.0
+  
+    
 exp_manager:
   exp_dir: null
   name: *name

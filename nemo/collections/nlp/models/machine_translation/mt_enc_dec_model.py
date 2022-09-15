@@ -24,7 +24,6 @@ import numpy as np
 import torch
 import torch.distributed as dist
 import torch.utils.data as pt_data
-import webdataset as wd
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.utilities import rank_zero_only
@@ -408,9 +407,6 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
 
     def eval_epoch_end(self, outputs, mode, global_rank):
         # if user specifies one validation dataloader, then PTL reverts to giving a list of dictionary instead of a list of list of dictionary
-        if not outputs:
-            return
-
         if isinstance(outputs[0], dict):
             outputs = [outputs]
 

@@ -41,9 +41,8 @@ from nemo.core.neural_types.elements import (
     TokenIndex,
     TokenLogDurationType,
 )
+
 from nemo.core.neural_types.neural_type import NeuralType
-
-
 @torch.jit.script
 def pad_dur(dur, txt_enc):
     if dur.shape[-1] < txt_enc.shape[-1]:
@@ -737,7 +736,6 @@ class RadTTSModule(NeuralModule, Exportable):
 
         if self.n_group_size > 1:
             mel = self.fold(mel)
-
         return {'mel': mel, 'dur': dur, 'f0': f0, 'energy_avg': energy_avg}
 
     def infer_f0(self, residual, txt_enc_time_expanded, spk_vec, voiced_mask=None, lens=None):

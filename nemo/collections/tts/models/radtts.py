@@ -15,8 +15,8 @@
 # ##########################################################################
 
 
-import contextlib
 
+import contextlib
 import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf
@@ -88,8 +88,6 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         self._tb_logger = None
         self.cfg = cfg
         self.log_train_images = False
-
-        # print("intial self normalizer", self.normalizer)
 
     def batch_dict(self, batch_data):
         if len(batch_data) < 14:
@@ -280,13 +278,13 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
 
         return optimizer
 
+
     def _loader(self, cfg):
         try:
             _ = cfg.dataset.manifest_filepath
         except omegaconf.errors.MissingMandatoryValue:
             logging.warning("manifest_filepath was skipped. No dataset for this model.")
             return None
-        # print("inside loader self normalizer", self.normalizer)
         dataset = instantiate(
             cfg.dataset,
             text_normalizer=self.normalizer,
