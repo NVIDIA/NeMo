@@ -13,13 +13,16 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
 - [3. Setup](#3-setup)
   * [3.1. Support Matrix](#31-support-matrix)
 - [4. Cloud Service Providers](#4-cloud-service-providers)
-  * [4.1. Azure](#41-azure)
-    + [4.1.1. Cluster Bring-Up](#411-cluster-bring-up)
-    + [4.1.2. Cluster Validation](#412-cluster-validation)
-      - [4.1.2.1. Validation Script Usage](#4121-validation-script-usage)
-    + [4.1.3. Config Modifications](#413-config-modifications)
-      - [4.1.3.1. Generate NCCL Topology](#4131-generate-nccl-topology)
-      - [4.1.3.2. Environment Variables](#4132-environment-variables)
+  * [4.1. Cluster Bring-Up](#41-cluster-bring-up)
+    + [4.1.1. Common](#411-common)
+    + [4.1.2. AWS](#412-aws)
+  * [4.2. Cluster Validation](#42-cluster-validation)
+    + [4.2.1. Validation Script Usage](#421-validation-script-usage)
+  * [4.3. Config Modifications](#43-config-modifications)
+    + [4.3.1 Set NCCL Topology](#431-set-nccl-topology)
+    + [4.3.2 Environment Variables](#432-environment-variables)
+      - [4.3.2.1 Azure Variables](#4321-azure-variables)
+      - [4.3.2.2 AWS Variables](#4322-aws-variables)
 - [5. Quick Start Guide](#5-quick-start-guide)
   * [5.1. Training BigNLP Models](#51-training-bignlp-models)
     + [5.1.1. Prepare Environment](#511-prepare-environment)
@@ -43,7 +46,7 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
     + [5.2.1. Predefined Configurations of GPT-3 Models](#521-predefined-configurations-of-gpt-3-models)
     + [5.2.2. Predefined Configurations of T5 Models](#522-predefined-configurations-of-t5-models)
     + [5.2.3. Predefined Configurations of mT5 Models](#523-predefined-configurations-of-mt5-models)
-    + [5.2.4. Training Logs with TensorBoard and weights and biases](#524-training-logs-with-tensorboard-and-weights-and-biases)
+    + [5.2.4. Training Logs with TensorBoard and Weights and Biases](#524-training-logs-with-tensorboard-and-weights-and-biases)
   * [5.3. Using the HP Tool to Find the Optimal Configuration](#53-using-the-hp-tool-to-find-the-optimal-configuration)
     + [5.3.1. HP Tool Capabilities](#531-hp-tool-capabilities)
       - [5.3.1.1. Model Size Recommendation](#5311-model-size-recommendation)
@@ -60,7 +63,7 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
       - [5.3.2.4. Interpreting the Results](#5324-interpreting-the-results)
       - [5.3.2.5. Logging Runs with Weights and Biases](#5325-logging-runs-with-weights-and-biases)
   * [5.4. Training with Custom Configurations](#54-training-with-custom-configurations)
-    + [5.4.1. Example: Changing Embedding Type for T5 models](#541-example-changing-embedding-type-for-t5-models)
+    + [5.4.1. Example: Changing Embedding Type for T5 Models](#541-example-changing-embedding-type-for-t5-models)
   * [5.5. Bring Your Own Dataset](#55-bring-your-own-dataset)
     + [5.5.1. Slurm](#551-slurm)
     + [5.5.2. Base Command Platform](#552-base-command-platform)
@@ -121,11 +124,11 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
       - [5.11.3.1. Common](#51131-common)
       - [5.11.3.2. Slurm](#51132-slurm)
       - [5.11.3.3. Base Command Platform](#51133-base-command-platform)
-    + [5.11.4. Prompt Learnt GPT-3 Evaluation](#5114-prompt-learnt-gpt-3-evaluation)
+    + [5.11.4. Prompt Learned GPT-3 Evaluation](#5114-prompt-learned-gpt-3-evaluation)
       - [5.11.4.1. Common](#51141-common)
       - [5.11.4.2. Slurm](#51142-slurm)
       - [5.11.4.3. Base Command Platform](#51143-base-command-platform)
-    + [5.11.5. Prompt Learnt T5 and mT5 Evaluation](#5115-prompt-learnt-t5-and-mt5-evaluation)
+    + [5.11.5. Prompt Learned T5 and mT5 Evaluation](#5115-prompt-learned-t5-and-mt5-evaluation)
       - [5.11.5.1. Common](#51151-common)
       - [5.11.5.2. Slurm](#51152-slurm)
       - [5.11.5.3. Base Command Platform](#51153-base-command-platform)
@@ -136,8 +139,8 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
       - [5.12.1.3. Base Command Platform](#51213-base-command-platform)
 - [6. Deploying the BigNLP Model](#6-deploying-the-bignlp-model)
   * [6.1. Run NVIDIA Triton Server with Generated Model Repository](#61-run-nvidia-triton-server-with-generated-model-repository)
-- [6.2. GPT-3 text generation with ensemble](#62-gpt-3-text-generation-with-ensemble)
-- [6.3. UL2 checkpoints deployment](#63-ul2-checkpoints-deployment)
+- [6.2. GPT-3 Text Generation with Ensemble](#62-gpt-3-text-generation-with-ensemble)
+- [6.3. UL2 Checkpoint Deployment](#63-ul2-checkpoint-deployment)
 - [7. Performance](#7-performance)
   * [7.1. GPT-3 Results](#71-gpt-3-results)
     + [7.1.1. Training Accuracy Results](#711-training-accuracy-results)
@@ -165,11 +168,6 @@ models to billions of parameters. With NeMo Megatron, you can train different va
 and scale them to multiple nodes on NVIDIA DGX SuperPOD deployments. This deep learning (DL) software stack is optimized for DGX
 SuperPOD configurations using NVIDIA InfiniBand technology to provide efficient on-premises compute for training
 and inferring complex workloads.
-
-<!-- Should this line be removed/replaced -->
-Early access to NeMo Megatron is limited to enterprises that want to train and deploy GPT-3 and T5 style models on
-NVIDIA DGX SuperPOD to perform tasks such as answering deep domain questions, translating languages,
-comprehending and summarizing complex documents. 
 
 The model parallelism techniques of NeMo Megatron enable the efficient training of large models that do not fit in
 the memory of a single GPU. In the training tasks, tensor (intra-layer) and pipeline (inter-layer) model parallelism
@@ -271,34 +269,50 @@ Figure 1: The GPT-3 family architecture. The 5B variant includes 24 transformer 
 ## 4. Cloud Service Providers
 <a id="markdown-cloud-service-providers" name="cloud-service-providers"></a>
 
-### 4.1. Azure
-<a id="markdown-azure" name="azure"></a>
-
-#### 4.1.1. Cluster Bring-Up
+### 4.1 Cluster Bring-Up
 <a id="markdown-cluster-bring-up" name="cluster-bring-up"></a>
-To set up a Slurm cluster for bignlp, we recommend using Azure CycleCloud with the following steps:
 
-1. Follow the [cc-slurm-ngc](https://github.com/JonShelley/cc-slurm-ngc/blob/master/README.md) README to create the CycleCloud VM in the Azure portal. Complete all steps until "Download and setup the project", including creating a new storage account.
-2. Create an Azure AD application using [this document](https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal):
-    1. Check both your AD and subscription [permissions](https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal#permissions-required-for-registering-an-app) to ensure you can register an application and assign a role to it, or talk to your subscription administrator.
-    2. Create the [app registration](https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal#register-an-application-with-azure-ad-and-create-a-service-principal).
-    3. [Assign](https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal#assign-a-role-to-the-application) the contributor role to the application.
-    4. Create and record an [application secret](https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal#option-2-create-a-new-application-secret) along with your application ID.
-3. Go to \<cyclecloud vm ip\>/subscriptions. Name your subscription and enter your Tenant ID, Application ID, and Application Secret. Then choose a default location and the resource group and storage account you created in step 1 (leave the storage container field as is).
-4. Continue with the [cc-slurm-ngc](https://github.com/JonShelley/cc-slurm-ngc#download-and-setup-the-project) README to add the cc-slurm-ngc cluster type and deploy your cluster.
+#### 4.1.1 Common
+<a id="markdown-common" name="common"></a>
 
-Once your cluster is up and running, continue with the cluster validation steps.
+To set up a Slurm cluster for Nemo Megatron, we recommend using [Nephele](https://github.com/nvidia/nephele). This cluster deployment tool has been tested on Azure and AWS.
+We recommend hosting Nephele on a new VM instance in the CSP of your choice. To get started:
+- Clone the Nephele repo
+- Install the dependencies
+- Modify `nephele.conf`
+    - Add your CSP credentials
+    - Change `REPLICAS_x8a100` to the number of nodes in your desired cluster
 
-#### 4.1.2. Cluster Validation
+We also recommend mounting an external persistent NFS once the cluster is up and running (ensure it is mounted on all nodes) and using this to configure and run Nemo Megatron.
+
+The above steps apply to all CSPs, including Azure and AWS.
+Some modifications are necessary for AWS and are detailed below.
+
+#### 4.1.2 AWS
+<a id="markdown-aws" name="aws"></a>
+To launch jobs on AWS, the EFA driver and NCCL plugin first need to be installed on top of the training container.
+We recommend building a new container image with Docker, then creating an Enroot image.
+
+On the scheduler node:
+
+- Install Docker
+- Build the image with EFA drivers and NCCL plugin from `tools/csp/aws/Dockerfile`
+- Run this command on the Docker image to create an Enroot image:
+```
+    enroot import --output bignlp_training.sqsh dockerd://<image name>:<tag>
+```
+- Move the `.sqsh` file to the root of bignlp-scripts
+
+### 4.2 Cluster Validation
 <a id="markdown-cluster-validation" name="cluster-validation"></a>
 
 Before running the cluster validation script, ensure your NGC credentials have been added to `~/.config/enroot/.credentials` on all nodes.
 
-The cluster validation script at `tools/csp/azure/cluster_validation.sh` will run GPU diagnostics and test NCCL node-to-node bus bandwidth.
+The cluster validation script at `csp/<csp>/cluster_validation.sh` will run GPU diagnostics and test NCCL node-to-node bus bandwidth.
 The logs from these tests will be stored at `results/cluster_validation`. The script will list any nodes that fail these tests.
-These nodes should be replaced or restarted through the CycleCloud UI.
+These nodes should be replaced or restarted through the CSP UI.
 
-##### 4.1.2.1. Validation Script Usage
+#### 4.2.1 Validation Script Usage
 <a id="markdown-validation-script-usage" name="validation-script-usage"></a>
 
 The script has 3 required parameters:
@@ -310,11 +324,11 @@ The values for these parameters should be in the same format that is found in `s
 With the following example:
 ```
 PARTITION AVAIL  TIMELIMIT  NODES  STATE NODELIST
-hpc          up   infinite      8   idle hpc-pg0-[1-8]
+x8a100       up   infinite      8   idle x8a100-[0000-0007]
 ```
 To test all 8 idle nodes, the script would be run as:
 ```
-bash cluster_validation.sh --nodes=8 --nodelist=hpc-pg0-[1-8] --partition=hpc
+bash cluster_validation.sh --nodes=8 --nodelist=x8a100-[0000-0007] --partition=x8a100
 ```
 
 By default, the script will run both the GPU diagnostics and the NCCL test. You can choose to run only one or the other by specifying:
@@ -323,31 +337,32 @@ By default, the script will run both the GPU diagnostics and the NCCL test. You 
 
 See `bash cluster_validation.sh -h` for more information.
 
-#### 4.1.3. Config Modifications
+#### 4.3 Config Modifications
 <a id="markdown-config-modifications" name="config-modifications"></a>
-Before launching jobs, the NCCL topology file needs to be created, and some changes to the config files must be made.
+Before launching jobs some changes to the config must be made.
 
-##### 4.1.3.1. Generate NCCL Topology
+#### 4.3.1 Set NCCL Topology
 <a id="markdown-generate-nccl-topology" name="generate-nccl-topology"></a>
+The NCCL topology file is unique for each CSP, and can be found in their corresponding folders (`tools/csp/<csp>/topo.xml`)
 
-To generate the NCCL topology file, run the following:
-```
-sbatch -N 1 -o ndv4-topo.xml csp/azure/gentopo.sh
-mv ndv4-topo.xml /opt/microsoft/ndv4-topo.xml
-```
-
-In `conf/config.yaml`, mount the directory containing the topology file, and set where the topology file will be located:
+In `conf/config.yaml`, mount the directory containing the topology file:
 ```
 container_mounts:
-  - /opt/microsoft:/opt/microsoft
-
-env_vars:
-    NCCL_TOPO_FILE: /opt/microsoft/ndv4-topo.xml
+  - /path/to/bignlp-scripts/tools/csp/<csp>/:/nccl
 ```
 
-##### 4.1.3.2. Environment Variables
+Then set the path of the file in the container:
+```
+env_vars:
+    NCCL_TOPO_FILE: /nccl/topo.xml
+```
+
+#### 4.3.2 Environment Variables
 <a id="markdown-environment-variables" name="environment-variables"></a>
-Set these environment variables in `config.yaml` (in addition to `NCCL_TOPO_FILE` as defined above):
+
+#### 4.3.2.1 Azure Variables
+<a id="markdown-azure-variables" name="azure-variables"></a>
+Set these environment variables in `config.yaml` (these are only needed for Azure):
 ```
 env_vars:
   UCX_IB_PCI_RELAXED_ORDERING: auto
@@ -356,7 +371,15 @@ env_vars:
   NCCL_DEBUG: INFO
 ```
 
-Once all these steps have been completed, BigNLP jobs can be launched on your Azure cluster.
+#### 4.3.2.2 AWS Variables
+<a id="markdown-aws-variables" name="aws-variables"></a>
+AWS recommends setting the following flag to avoid data corruption:
+```
+env_vars:
+  NCCL_PROTO: simple
+```
+
+Setting this flag reduces training throughput by roughly 2%.
 
 ## 5. Quick Start Guide
 <a id="markdown-quick-start-guide" name="quick-start-guide"></a>
@@ -649,7 +672,7 @@ python3 main.py
 <a id="markdown-41212-base-command-platform" name="41212-base-command-platform"></a>
 
 In order to run the data preparation script on Base Command Platform, set the
-`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overriden
+`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overridden
 from the command line, using hydra. 
 By default, the data preparation script will download the data into the `bignlp-scripts/data/` directory.
 We recommend that the `data_dir` parameter is set to a workspace, so that the data 
@@ -743,7 +766,7 @@ python3 main.py
 <a id="markdown-41222-base-command-platform" name="41222-base-command-platform"></a>
 
 In order to run the data preparation script on Base Command Platform, set the
-`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overriden
+`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overridden
 from the command line, using hydra. 
 By default, the data preparation script will download the data into the `bignlp-scripts/data/` directory.
 We recommend that the `data_dir` parameter is set to a workspace, so that the data 
@@ -835,7 +858,7 @@ python3 main.py
 <a id="markdown-41232-base-command-platform" name="41232-base-command-platform"></a>
 
 In order to run the data preparation script on Base Command Platform, set the
-`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overriden
+`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overridden
 from the command line, using hydra. 
 By default, the data preparation script will download the data into the `bignlp-scripts/data/` directory.
 We recommend that the `data_dir` parameter is set to a workspace, so that the data 
@@ -1365,7 +1388,7 @@ directories respectively. `$NGC_ARRAY_SIZE` is automatically set to the number o
 
 
 
-#### 5.2.4. Training Logs with TensorBoard and weights and biases
+#### 5.2.4. Training Logs with TensorBoard and Weights and Biases
 <a id="markdown-training-with-tb-wandb" name="training-with-tb-wandb"></a>
 The training code can log the model and system related metrics to both TensorBoard and 
 Weights & Biases (W&B). The local files will be stored in the directory specified in the 
@@ -1503,7 +1526,7 @@ bignlp_scripts_path: ${bignlp_hp_tool_path}/../bignlp-scripts  # Path to the loc
 data_dir: ${bignlp_scripts_path}/data
 base_results_dir: ${bignlp_hp_tool_path}/results
 
-training_container: nvcr.io/ea-bignlp/bignlp-training:22.08-py3
+training_container: nvcr.io/ea-bignlp/bignlp-training:22.08.01-py3
 container_mounts:
     - null
 
@@ -1716,7 +1739,7 @@ The training config files can be modified, or other files can be created to be
 used for training. They should follow the same structure and guidelines as the
 existing model configurations.
 
-#### 5.4.1. Example: Changing Embedding Type for T5 models
+#### 5.4.1. Example: Changing Embedding Type for T5 Models
 <a id="markdown-example-changing-embedding-time-for-t5-models" name="example-changing-embedding-time-for-t5-models"></a>
 
 Here we show an example to change the embedding type for T5 models. Let's assume a case you want to
@@ -1792,7 +1815,7 @@ python3 main.py
 <a id="markdown-452-base-command-platform" name="452-base-command-platform"></a>
 
 In order to run the data preparation script on Base Command Platform, set the
-`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overriden
+`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overridden
 from the command line, using hydra. 
 By default, the data preparation script will put the preprocessed data into the `bignlp-scripts/data/` directory.
 We recommend that the `data_dir` parameter is set to a workspace, so that the data 
@@ -2130,7 +2153,7 @@ python3 main.py
 ##### 5.8.1.3. Base Command Platform
 <a id="markdown-base-command-platform" name="base-command-platform"></a>
 In order to run the conversion script on Base Command Platform, set the
-`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overriden
+`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overridden
 from the command line, using hydra. The conversion script must be launched in a multi-node job.
 
 To run the conversion pipeline to convert a 126M checkpoint stored in 
@@ -2224,7 +2247,7 @@ python3 main.py
 ##### 5.8.2.3. Base Command Platform
 <a id="markdown-base-command-platform" name="base-command-platform"></a>
 In order to run the conversion script on Base Command Platform, set the
-`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overriden
+`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overridden
 from the command line, using hydra. The conversion script must be launched in a multi-node job.
 
 To run the conversion pipeline to convert a T5 220M checkpoint stored in 
@@ -2321,7 +2344,7 @@ python3 main.py
 ##### 5.8.3.3. Base Command Platform
 <a id="markdown-base-command-platform" name="base-command-platform"></a>
 In order to run the conversion script on Base Command Platform, set the
-`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overriden
+`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overridden
 from the command line, using hydra. The conversion script must be launched in a multi-node job.
 
 To run the conversion pipeline to convert a mT5 390M checkpoint stored in 
@@ -2419,7 +2442,7 @@ python3 main.py
 ##### 5.9.1.3. Base Command Platform
 <a id="markdown-base-command-platform" name="base-command-platform"></a>
 In order to run the fine-tuning script on Base Command Platform, set the
-`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overriden
+`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overridden
 from the command line, using hydra. The evaluation script must be launched in a multi-node job.
 
 To run the fine-tuning pipeline to fine-tune a 220M T5 model converted checkpoint stored in 
@@ -2509,7 +2532,7 @@ python3 main.py
 ##### 5.9.2.3. Base Command Platform
 <a id="markdown-base-command-platform" name="base-command-platform"></a>
 In order to run the fine-tuning script on Base Command Platform, set the
-`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overriden
+`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overridden
 from the command line, using hydra. The evaluation script must be launched in a multi-node job.
 
 To run the fine-tuning pipeline to fine-tune a 390M mT5 model converted checkpoint stored in 
@@ -2649,7 +2672,7 @@ python3 main.py
 ##### 5.10.1.3. Base Command Platform
 <a id="markdown-base-command-platform" name="base-command-platform"></a>
 In order to run the prompt learning script on Base Command Platform, set the
-`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overriden
+`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overridden
 from the command line, using hydra. The evaluation script must be launched in a multi-node job.
 
 To run the prompt learning pipeline to prompt-learn a 5B GPT-3 model converted checkpoint stored in 
@@ -2736,7 +2759,7 @@ python3 main.py
 ##### 5.10.2.3. Base Command Platform
 <a id="markdown-base-command-platform" name="base-command-platform"></a>
 In order to run the prompt learning script on Base Command Platform, set the
-`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overriden
+`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overridden
 from the command line, using hydra. The evaluation script must be launched in a multi-node job.
 
 To run the prompt learning pipeline to prompt-learn a 220M T5 model converted checkpoint stored in 
@@ -2789,7 +2812,7 @@ file to use for evaluation purposes. The `evaluation` parameter must be included
  to run the evaluation pipeline. The default value is set to
 `gpt3/evaluate_all`, which can be found in `conf/evaluation/gpt3/evaluate_all.yaml`. The
 parameters can be modified to adapt different evaluation tasks and checkpoints
-in evaluation runs. For Base Command Platform, all these parameters should be overriden from the command line.
+in evaluation runs. For Base Command Platform, all these parameters should be overridden from the command line.
 
 ##### 5.11.1.1. Common
 <a id="markdown-common" name="common"></a>
@@ -2859,7 +2882,7 @@ python3 main.py
 ##### 5.11.1.3. Base Command Platform
 <a id="markdown-base-command-platform" name="base-command-platform"></a>
 In order to run the evaluation script on Base Command Platform, set the
-`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overriden
+`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overridden
 from the command line, using hydra. The evaluation script must be launched in a multi-node job.
 
 To run the evaluation pipeline to evaluate a 126M GPT-3 model checkpoint stored in 
@@ -2893,7 +2916,7 @@ file to use for evaluation purposes. The `evaluation` parameter must be included
  to run the evaluation pipeline. The default value is set to
 `t5/squad`, which can be found in `conf/evaluation/t5/squad.yaml`. The
 parameters can be modified to adapt different evaluation tasks and checkpoints
-in evaluation runs. For Base Command Platform, all these parameters should be overriden from the command line.
+in evaluation runs. For Base Command Platform, all these parameters should be overridden from the command line.
 
 
 ##### 5.11.2.1. Common
@@ -2954,7 +2977,7 @@ python3 main.py
 ##### 5.11.2.3. Base Command Platform
 <a id="markdown-base-command-platform" name="base-command-platform"></a>
 In order to run the evaluation script on Base Command Platform for T5 models, set the
-`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overriden
+`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overridden
 from the command line, using hydra. The evaluation script must be launched in a multi-node job.
 
 To run the evaluation pipeline to evaluate a 220M T5 model which has been fine-tuned
@@ -2990,7 +3013,7 @@ file to use for evaluation purposes. The `evaluation` parameter must be included
  to run the evaluation pipeline. The default value is set to
 `mt5/xquad`, which can be found in `conf/evaluation/mt5/xquad.yaml`. The
 parameters can be modified to adapt different evaluation tasks and checkpoints
-in evaluation runs. For Base Command Platform, all these parameters should be overriden from the command line.
+in evaluation runs. For Base Command Platform, all these parameters should be overridden from the command line.
 
 
 ##### 5.11.3.1. Common
@@ -3069,11 +3092,11 @@ The stdout and stderr outputs will also be redirected to the `/results/eval_mt5_
 Any other parameter can also be added to the command to modify its behavior.
 
 
-#### 5.11.4. Prompt Learnt GPT-3 Evaluation
-<a id="markdown-prompt-learnt-gpt-3-evaluation" name="prompt-learnt-gpt-3-evaluation"></a>
+#### 5.11.4. Prompt Learned GPT-3 Evaluation
+<a id="markdown-prompt-learned-gpt-3-evaluation" name="prompt-learned-gpt-3-evaluation"></a>
 
-We also provide a simple tool to help evaluate the prompt learnt GPT-3 checkpoints. You can
-evaluate the capabilities of the prompt learnt GPT-3 model on a customized prompt learning test dataset.
+We also provide a simple tool to help evaluate the prompt learned GPT-3 checkpoints. You can
+evaluate the capabilities of the prompt learned GPT-3 model on a customized prompt learning test dataset.
 We provide an example to evaluate our checkpoint, which went through prompt learning on SQuAD v2.0,
 on the SQuAD v2.0 test dataset created in prompt learning step.
 
@@ -3152,10 +3175,10 @@ python3 main.py
 ##### 5.11.4.3. Base Command Platform
 <a id="markdown-base-command-platform" name="base-command-platform"></a>
 In order to run the evaluation script on Base Command Platform, set the
-`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overriden
+`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overridden
 from the command line, using hydra. The evaluation script must be launched in a multi-node job.
 
-To run the evaluation pipeline to evaluate a prompt learnt 5B GPT-3 model checkpoint stored in 
+To run the evaluation pipeline to evaluate a prompt learned 5B GPT-3 model checkpoint stored in 
 `/mount/results/gpt3_5b/checkpoints`, run:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py stages=[evaluation] \
@@ -3171,11 +3194,11 @@ The stdout and stderr outputs will also be redirected to the `/results/eval_prom
 Any other parameter can also be added to the command to modify its behavior.
 
 
-#### 5.11.5. Prompt Learnt T5 and mT5 Evaluation
-<a id="markdown-prompt-learnt-t5-and-mt5-evaluation" name="prompt-learnt-t5-and-mt5-evaluation"></a>
+#### 5.11.5. Prompt Learned T5 and mT5 Evaluation
+<a id="markdown-prompt-learned-t5-and-mt5-evaluation" name="prompt-learned-t5-and-mt5-evaluation"></a>
 
-We also provide a simple tool to help evaluate the prompt learnt T5 or mT5 checkpoints. You can
-evaluate the capabilities of the prompt learnt models on a customized prompt learning test dataset.
+We also provide a simple tool to help evaluate the prompt learned T5 or mT5 checkpoints. You can
+evaluate the capabilities of the prompt learned models on a customized prompt learning test dataset.
 We provide an example to evaluate our checkpoint, which went through prompt learning on SQuAD v2.0,
 on the SQuAD v2.0 test dataset created in prompt learning step.
 
@@ -3255,10 +3278,10 @@ python3 main.py
 ##### 5.11.5.3. Base Command Platform
 <a id="markdown-base-command-platform" name="base-command-platform"></a>
 In order to run the evaluation script on Base Command Platform, set the
-`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overriden
+`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overridden
 from the command line, using hydra. The evaluation script must be launched in a multi-node job.
 
-To run the evaluation pipeline to evaluate a prompt learnt 220M T5 model checkpoint stored in 
+To run the evaluation pipeline to evaluate a prompt learned 220M T5 model checkpoint stored in 
 `/mount/results/t5_220m/prompt_learning_squad`, run:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py stages=[evaluation] \
@@ -3271,7 +3294,7 @@ The command above assumes you mounted the data workspace in `/mount/data`, and t
 The stdout and stderr outputs will also be redirected to the `/results/eval_prompt_t5_log.txt` file, to be able to download the logs from NGC.
 Any other parameter can also be added to the command to modify its behavior.
 
-To run the evaluation pipeline to evaluate a prompt learnt 390M mT5 model checkpoint stored in 
+To run the evaluation pipeline to evaluate a prompt learned 390M mT5 model checkpoint stored in 
 `/mount/results/mt5_390m/prompt_learning_squad`, run:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py stages=[evaluation] \
@@ -3527,7 +3550,7 @@ If you notice warning about missing files, you should double check your model:
 [WARNING] file /triton-model-repository/model_name/1/1-gpu/model.final_layernorm.weight.bin cannot be opened, loading model fails!
 ```
 
-## 6.2. GPT-3 text generation with ensemble
+## 6.2. GPT-3 Text Generation with Ensemble
 
 FasterTransformer for GPT-3 implements a part of whole text generation application.
 
@@ -3587,7 +3610,7 @@ The `end_to_end_test.py` script contains a string examples, which you can replac
 
 
 
-## 6.3. UL2 checkpoints deployment
+## 6.3. UL2 Checkpoint Deployment
 
 You can deploy UL2 T5 checkpoints using
 [readme](https://github.com/NVIDIA/FasterTransformer/blob/main/docs/t5_guide.md#running-ul2-on-fastertransformer-pytorch-op)
@@ -3892,6 +3915,11 @@ Inference parameters:
 
 ## 8. Changelog
 <a id="markdown-changelog" name="changelog"></a>
+
+**NeMo Megatron 22.08.01**
+* Cloud service providers: support for Amazon Web Services (performance validated up to 20 `p4d.24xlarge` instances)
+* Cloud service providers: switched orchestration from Azure CycleCloud to NVIDIA Nephele for Microsoft Azure
+
 **NeMo Megatron 22.08**
 * Distributed Adam Optimizer for GPT-3
 * Asymmetric encoder-decoder configuration for T5 and mT5
