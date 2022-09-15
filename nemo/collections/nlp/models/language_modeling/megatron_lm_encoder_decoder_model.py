@@ -548,7 +548,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         return fwd_output_and_loss_func
 
-    @functools.cached_property
+    @functools.lru_cache(maxsize=None)
     def _kwargs_to_arg_idx(self):
         """
         Returns a dict {kwarg name: arg index} to be used when mapping
@@ -577,7 +577,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             raise ValueError(f"args_name = {args_name} cannot overlap kwargs = {list(kwargs.keys())}")
 
         # get mapping of kwarg names to arg index
-        kwargs_to_arg_idx = self._kwargs_to_arg_idx
+        kwargs_to_arg_idx = self._kwargs_to_arg_idx()
 
         # collect all arguments
         all_args_name = args_name[:]
@@ -720,8 +720,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         return loss_mean
 
     def validation_epoch_end(self, outputs):
-        if not outputs:
-            return
         if parallel_state.is_pipeline_last_stage():
             # only the last pipeline parallel stages return loss
             averaged_loss = torch.stack(outputs).mean()
@@ -744,8 +742,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         return self.validation_step(batch, batch_idx)
 
     def test_epoch_end(self, outputs):
-        if not outputs:
-            return
         if parallel_state.is_pipeline_last_stage():
             # only the last pipeline parallel stages return loss
             averaged_loss = torch.stack(outputs).mean()
@@ -867,7 +863,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     def build_train_valid_test_datasets(self):
         raise NotImplementedError("Please implement this method in child-class")
 
-    def build_pretraining_data_loader(self, dataset, consumed_samples):
+    def build_pretraining_data_loader(self, dataset, consumed_samples, num_workers):
         """Buld dataloader given an input dataset."""
 
         if dataset is None:
@@ -903,7 +899,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         # Torch dataloader.
         return torch.utils.data.DataLoader(
-            dataset, batch_sampler=batch_sampler, num_workers=self._cfg.data.num_workers, pin_memory=True,
+            dataset, batch_sampler=batch_sampler, num_workers=num_workers, pin_memory=True,
         )
 
     def setup(self, stage=None):
@@ -958,7 +954,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds'):
             consumed_samples = self.compute_consumed_samples(0)
-            self._train_dl = self.build_pretraining_data_loader(self._train_ds, consumed_samples)
+            self._train_dl = self.build_pretraining_data_loader(
+                self._train_ds, consumed_samples, num_workers=self._cfg.data.num_workers
+            )
 
     def on_pretrain_routine_start(self) -> None:
         # keep a copy of init_global_step
@@ -968,12 +966,14 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     def setup_validation_data(self, cfg):
         if hasattr(self, '_validation_ds'):
             consumed_samples = 0
-            self._validation_dl = self.build_pretraining_data_loader(self._validation_ds, consumed_samples)
+            self._validation_dl = self.build_pretraining_data_loader(
+                self._validation_ds, consumed_samples, num_workers=0
+            )
 
     def setup_test_data(self, cfg):
         if hasattr(self, '_test_ds'):
             consumed_samples = 0
-            self._test_dl = self.build_pretraining_data_loader(self._test_ds, consumed_samples)
+            self._test_dl = self.build_pretraining_data_loader(self._test_ds, consumed_samples, num_workers=0)
 
     def compute_consumed_samples(self, steps_since_resume=0):
         app_state = AppState()
