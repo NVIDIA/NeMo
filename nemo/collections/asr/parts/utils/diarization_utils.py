@@ -1370,9 +1370,8 @@ class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
         self.overlap_frames_count = int(self.n_frame_overlap/self.sample_rate)
 
         
-        self.launcher_end_time = None
-        self.streaming_reset_pause_sec = 3.0
         self.reset()
+        write_txt(f"{self.diar._out_dir}/reset.flag", self.string_out.strip())
 
     
     def get_audio_rttm_map(self, uniq_id):
@@ -1694,10 +1693,11 @@ class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
         Pass the audio stream to streaming ASR pipeline. If Audio variable is not provided, the system puts on hold until
         audio stream is resumed.
         """
-        if self.launcher_end_time is not None and time.time() - self.launcher_end_time > self.streaming_reset_pause_sec:
+        if not os.path.exists(f"{self.diar._out_dir}/reset.flag"):
             self.reset()
             self.diar.reset()
             logging.info("[Streaming Reset] Resetting ASR and Diarization.")
+            write_txt(f"{self.diar._out_dir}/reset.flag", "reset stopper")
         stt = time.time()
         logging.info(f"Streaming launcher took {(stt-self.launcher_end_time):.3f}s")
         audio_queue = process_audio_file(Audio)
