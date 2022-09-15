@@ -142,12 +142,7 @@ def write_truncated_subsegments(
                 offset_sec = subseg_array[chunk_index_stt, 0]
                 end_sec = subseg_array[chunk_index_end, 1]
                 dur = round(end_sec - offset_sec, deci)
-                try:
-                    meta = input_manifest_dict[uniq_id]
-                except:
-                    import ipdb
-
-                    ipdb.set_trace()
+                meta = input_manifest_dict[uniq_id]
                 meta['offset'] = offset_sec
                 meta['duration'] = dur
                 json.dump(meta, output_manifest_fp)

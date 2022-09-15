@@ -364,8 +364,8 @@ pipeline {
             model.validation_ds.emb_dir=examples/speaker_tasks/diarization/speaker_diarization_results \
             model.train_ds.manifest_filepath=/home/TestData/an4_diarizer/simulated_train/msdd_data.50step.json \
             model.validation_ds.manifest_filepath=/home/TestData/an4_diarizer/simulated_valid/msdd_data.50step.json \
-            +trainer.devices=[1] \
-            +trainer.accelerator="gpu" \
+            trainer.devices=[1] \
+            trainer.accelerator="gpu" \
             +trainer.fast_dev_run=True \
             exp_manager.exp_dir=examples/speaker_tasks/diarization/speaker_diarization_results'
             sh 'rm -rf examples/speaker_tasks/diarization/speaker_diarization_results'
@@ -431,7 +431,7 @@ pipeline {
             diarizer.msdd_model.model_path=/home/TestData/an4_diarizer/diar_msdd_telephonic.nemo \
             diarizer.speaker_embeddings.parameters.save_embeddings=True \
             diarizer.vad.model_path=/home/TestData/an4_diarizer/MatchboxNet_VAD_3x2.nemo \
-            diarizer.out_dir=examples/speaker_tasks/diarization/speaker_diarization_results
+            diarizer.out_dir=examples/speaker_tasks/diarization/speaker_diarization_results'
             sh 'rm -rf examples/speaker_tasks/diarization/speaker_diarization_results'
           }
         }
