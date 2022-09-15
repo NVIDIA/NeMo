@@ -165,7 +165,7 @@ model:
       name: exp_decay
       warmup_steps: 40000
       last_epoch: -1 
-      d_model: 1  # Disable scaling based on model dim 
+      d_model: 1  # Disable scaling based on model dime 
   trainerConfig:
     sigma: 1
     iters_per_checkpoint: 3000
