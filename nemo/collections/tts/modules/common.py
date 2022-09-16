@@ -177,6 +177,7 @@ class ConvLSTMLinear(BiLSTM):
         if out_dim is not None:
             self.dense = nn.Linear(n_channels, out_dim)
 
+    @torch.jit.script.export
     def conv_to_sequence(self, context: Tensor, lens: Tensor, enforce_sorted: bool = False) -> PackedSequence:
         context_embedded = []
         bs: int = context.shape[0]
@@ -188,7 +189,8 @@ class ConvLSTMLinear(BiLSTM):
             context_embedded.append(curr_context[0].transpose(0, 1))
         seq = torch.nn.utils.rnn.pack_sequence(context_embedded, enforce_sorted=enforce_sorted)
         return seq
-
+    
+    @torch.jit.script.export
     def masked_conv_to_sequence(self, context: Tensor, lens: Tensor, enforce_sorted: bool = False) -> PackedSequence:
         mask = get_mask_from_lengths_and_val(lens, context)
         mask = mask.unsqueeze(1)
@@ -365,13 +367,14 @@ class SimpleConvNet(torch.nn.Module):
             self.last_layer.weight.data *= 0
             self.last_layer.bias.data *= 0
 
-    def forward(self, z_w_context, seq_lens: Tensor = None):
+    def forward(self, z_w_context, seq_lens: Optional[Tensor] = None):
         # seq_lens: tensor array of sequence sequence lengths
         # output should be b x n_mel_channels x z_w_context.shape(2)
-        mask = None
-        if self.use_partial_padding:
-            mask = get_mask_from_lengths(seq_lens).unsqueeze(1).float()
-
+    
+        if seq_lens is not None:
+            mask = get_mask_from_lengths_and_val(seq_lens, z_w_context).unsqueeze(1).float()
+        else:
+            mask = torch.ones_like(z_w_context)
         for i in range(self.n_layers):
             z_w_context = self.layers[i](z_w_context, mask)
             z_w_context = torch.relu(z_w_context)
@@ -379,6 +382,20 @@ class SimpleConvNet(torch.nn.Module):
         z_w_context = self.last_layer(z_w_context)
         return z_w_context
 
+class ConvNormAndSkip(torch.nn.Module):
+    def __init__(
+            self,
+            in_layer,
+            skip_layer,
+            softplus):
+        super(ConvNormAndSkip, self).__init__()
+        self.softplus = softplus
+        self.in_layer = in_layer
+        self.skip_layer = skip_layer
+
+    def forward(self, z, mask):
+        z = self.softplus(self.in_layer(z, mask))
+        return self.softplus(self.skip_layer(z))
 
 class WN(torch.nn.Module):
     """
@@ -405,7 +422,11 @@ class WN(torch.nn.Module):
         start = torch.nn.Conv1d(n_in_channels + n_context_dim, n_channels, 1)
         start = torch.nn.utils.weight_norm(start, name='weight')
         self.start = start
-        self.softplus = torch.nn.Softplus()
+        if affine_activation == 'softplus':
+            self.softplus = torch.nn.Softplus()
+        else:
+            self.softplus = torch.nn.ReLU()
+            
         self.affine_activation = affine_activation
         self.use_partial_padding = use_partial_padding
         # Initializing last layer to 0 makes the affine coupling layers
@@ -434,24 +455,36 @@ class WN(torch.nn.Module):
             res_skip_layer = nn.Conv1d(n_channels, n_channels, 1)
             res_skip_layer = nn.utils.weight_norm(res_skip_layer)
             self.res_skip_layers.append(res_skip_layer)
+        self.scripted_layers = None
+        
+    def conv_norm_and_skip(self, z, mask):
+        output = torch.zeros_like(z)
+        if self.scripted_layers is None: 
+            for i, l in enumerate(self.in_layers):
+                z = self.softplus(l(z, mask))
+                res_skip_acts = self.softplus(self.res_skip_layers[i](z))
+                output = output + res_skip_acts
+        else:
+            for l in self.scripted_layers:
+                res_skip_acts = l(z, mask)
+                output = output + res_skip_acts
+        return output
 
-    def forward(self, forward_input: Tuple[Tensor, Tensor], seq_lens: Tensor = None):
+    def script_norm_and_skip(self):
+        self.scripted_layers = torch.nn.ModuleList()
+        for i, l in enumerate(self.in_layers):
+            self.scripted_layers.append(torch.jit.script(ConvNormAndSkip(l, self.res_skip_layers[i], self.softplus)))
+            
+    def forward(self, forward_input: Tuple[Tensor, Tensor], seq_lens: Optional[Tensor] = None):
         z, context = forward_input
         z = torch.cat((z, context), 1)  # append context to z as well
         z = self.start(z)
-        output = torch.zeros_like(z)
-        mask = None
-        if self.use_partial_padding:
-            mask = get_mask_from_lengths(seq_lens).unsqueeze(1).float()
-        non_linearity = torch.relu
-        if self.affine_activation == 'softplus':
-            non_linearity = self.softplus
 
-        for i in range(self.n_layers):
-            z = non_linearity(self.in_layers[i](z, mask))
-            res_skip_acts = non_linearity(self.res_skip_layers[i](z))
-            output = output + res_skip_acts
-
+        if seq_lens is not None:
+            mask = get_mask_from_lengths_and_val(seq_lens, z).unsqueeze(1).float()
+        else:
+            mask = torch.ones_like(z)
+        output = self.conv_norm_and_skip(z, mask)
         output = self.end(output)  # [B, dim, seq_len]
         return output
 

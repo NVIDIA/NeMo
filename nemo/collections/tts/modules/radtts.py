@@ -800,14 +800,18 @@ class RadTTSModule(NeuralModule, Exportable):
     def _prepare_for_export(self, **kwargs):
         PartialConv1d.forward = PartialConv1d.forward_no_cache
         self.remove_norms()
+        super()._prepare_for_export(**kwargs)
         self.encoder = torch.jit.script(self.encoder)
+        # for flow_step in self.flows:
+        #    flow_step.affine_tfn.affine_param_predictor.script_norm_and_skip()
         self.v_pred_module.feat_pred_fn = torch.jit.script(self.v_pred_module.feat_pred_fn)
         self.f0_pred_module.feat_pred_fn = torch.jit.script(self.f0_pred_module.feat_pred_fn)
         self.energy_pred_module.feat_pred_fn = torch.jit.script(self.energy_pred_module.feat_pred_fn)
         self.dur_pred_layer.feat_pred_fn = torch.jit.script(self.dur_pred_layer.feat_pred_fn)
+        
         if self.use_context_lstm:
             self.context_lstm = torch.jit.script(self.context_lstm)
-        super()._prepare_for_export(**kwargs)
+        
 
     def input_example(self, max_batch=1, max_dim=256):
         """
@@ -818,7 +822,7 @@ class RadTTSModule(NeuralModule, Exportable):
         par = next(self.parameters())
         sz = (max_batch, max_dim)
         inp = torch.randint(0, 16, sz, device=par.device, dtype=torch.int64)
-        lens = torch.randint(0, max_dim, (max_batch,), device=par.device, dtype=torch.int32)
+        lens = torch.randint(0, max_dim, (max_batch,), device=par.device, dtype=torch.int)
         speaker = torch.randint(0, 1, (max_batch,), device=par.device, dtype=torch.int64)
         inputs = {
             'text': inp,
