@@ -31,6 +31,7 @@ from nemo.collections.tts.modules.common import (
     Invertible1x1ConvLUS,
     LinearNorm,
     get_mask_from_lengths,
+    sort_tensor,
     getRadTTSEncoder,
 )
 from nemo.collections.tts.modules.submodules import PartialConv1d
@@ -350,7 +351,7 @@ class RadTTSModule(NeuralModule, Exportable):
                     context_w_spkvec = torch.cat((context_w_spkvec, energy_avg), 1)
 
             unfolded_out_lens = out_lens // self.n_group_size
-            context_lstm_padded_output, ret_lens = self.context_lstm.lstm_tensor(
+            context_lstm_padded_output, _  = self.context_lstm.lstm_tensor(
                 context_w_spkvec.transpose(1, 2), unfolded_out_lens
             )
             context_w_spkvec = context_lstm_padded_output.transpose(1, 2)
@@ -620,7 +621,8 @@ class RadTTSModule(NeuralModule, Exportable):
             speaker_id_attributes = speaker_id
         spk_vec_text = self.encode_speaker(speaker_id_text)
         spk_vec_attributes = self.encode_speaker(speaker_id_attributes)
-
+        # Pre-sort inputs for downstream LSTMs
+        # text, in_lens, unsort_ids = sort_tensor(text, in_lens)
         txt_enc, txt_emb = self.encode_text(text, in_lens)
         # print ("txt_enc: ", txt_enc.shape, txt_enc )
 
@@ -692,7 +694,7 @@ class RadTTSModule(NeuralModule, Exportable):
 
         #        return {'mel': txt_enc_time_expanded, 'out_lens': out_lens, 'dur': dur, 'f0': f0, 'energy_avg': energy_avg}
 
-        residual = torch.normal(txt_enc.new_zeros(batch_size, 80 * self.n_group_size, n_groups[0])) * sigma
+        residual = torch.normal(txt_enc.new_zeros(batch_size, 80 * self.n_group_size, torch.max(n_groups))) * sigma
 
         # map from z sample to data
         num_steps_to_exit = len(self.exit_steps)
@@ -802,8 +804,8 @@ class RadTTSModule(NeuralModule, Exportable):
         self.remove_norms()
         super()._prepare_for_export(**kwargs)
         self.encoder = torch.jit.script(self.encoder)
-        # for flow_step in self.flows:
-        #    flow_step.affine_tfn.affine_param_predictor.script_norm_and_skip()
+        for flow_step in self.flows:
+            flow_step.affine_tfn.affine_param_predictor.script_norm_and_skip()
         self.v_pred_module.feat_pred_fn = torch.jit.script(self.v_pred_module.feat_pred_fn)
         self.f0_pred_module.feat_pred_fn = torch.jit.script(self.f0_pred_module.feat_pred_fn)
         self.energy_pred_module.feat_pred_fn = torch.jit.script(self.energy_pred_module.feat_pred_fn)
