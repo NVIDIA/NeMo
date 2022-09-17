@@ -250,14 +250,14 @@ class TTSDataset(Dataset):
             'none': None,
         }.get(self.window, None)
 
-        # self.stft = lambda x: torch.stft(
-        #     input=x,
-        #     n_fft=self.n_fft,
-        #     hop_length=self.hop_len,
-        #     win_length=self.win_length,
-        #     window=window_fn(self.win_length, periodic=False).to(torch.float) if window_fn else None,
-        #     return_complex=True,
-        # )
+        self.stft = lambda x: torch.stft(
+            input=x,
+            n_fft=self.n_fft,
+            hop_length=self.hop_len,
+            win_length=self.win_length,
+            window=window_fn(self.win_length, periodic=False).to(torch.float) if window_fn else None,
+            return_complex=True,
+        )
 
         # Initialize sup_data_path, sup_data_types and run preprocessing methods for every supplementary data type
         if sup_data_path is not None:
@@ -385,12 +385,7 @@ class TTSDataset(Dataset):
 
     def get_spec(self, audio):
         with torch.cuda.amp.autocast(enabled=False):
-            spec = torch.stft(audio,
-            n_fft=self.n_fft,
-            hop_length=self.hop_len,
-            win_length=self.win_length,
-            window=torch.hann_window(self.win_length, periodic=False).to(torch.float),
-            return_complex=True)
+            spec = self.stft(audio)
             
             if spec.dtype in [torch.cfloat, torch.cdouble]:
                 spec = torch.view_as_real(spec)
@@ -923,3 +918,445 @@ class VocoderDataset(Dataset):
 
     def __len__(self):
         return len(self.data)
+
+class VitsDataset(Dataset):
+    def __init__(
+        self,
+        manifest_filepath: Union[str, Path, List[str], List[Path]],
+        sample_rate: int,
+        text_tokenizer: Union[BaseTokenizer, Callable[[str], List[int]]],
+        tokens: Optional[List[str]] = None,
+        text_normalizer: Optional[Union[Normalizer, Callable[[str], str]]] = None,
+        text_normalizer_call_kwargs: Optional[Dict] = None,
+        text_tokenizer_pad_id: Optional[int] = None,
+        sup_data_types: Optional[List[str]] = None,
+        sup_data_path: Optional[Union[Path, str]] = None,
+        max_duration: Optional[float] = None,
+        min_duration: Optional[float] = 0.1,
+        ignore_file: Optional[Union[str, Path]] = None,
+        trim: bool = False,
+        n_fft: int = 1024,
+        win_length: Optional[int] = 1024,
+        hop_length: Optional[int] = 256,
+        n_mels: int = 80,
+        add_blank=True,
+        **kwargs,
+    ):
+        """Dataset which can be used for training spectrogram generators and end-to-end TTS models.
+        It loads main data types (audio, text) and specified supplementary data types (log mel, durations, align prior matrix, pitch, energy, speaker id).
+        Some of supplementary data types will be computed on the fly and saved in the sup_data_path if they did not exist before.
+        Saved folder can be changed for some supplementary data types (see keyword args section).
+        Arguments for supplementary data should be also specified in this class and they will be used from kwargs (see keyword args section).
+        Args:
+            manifest_filepath (Union[str, Path, List[str], List[Path]]): Path(s) to the .json manifests containing information on the
+                dataset. Each line in the .json file should be valid json. Note: the .json file itself is not valid
+                json. Each line should contain the following:
+                    "audio_filepath": <PATH_TO_WAV>,
+                    "text": <THE_TRANSCRIPT>,
+                    "normalized_text": <NORMALIZED_TRANSCRIPT> (Optional),
+                    "mel_filepath": <PATH_TO_LOG_MEL_PT> (Optional),
+                    "duration": <Duration of audio clip in seconds> (Optional)
+            sample_rate (int): The sample rate of the audio. Or the sample rate that we will resample all files to.
+            text_tokenizer (Optional[Union[BaseTokenizer, Callable[[str], List[int]]]]): BaseTokenizer or callable which represents text tokenizer.
+            tokens (Optional[List[str]]): Tokens from text_tokenizer. Should be specified if text_tokenizer is not BaseTokenizer.
+            text_normalizer (Optional[Union[Normalizer, Callable[[str], str]]]): Normalizer or callable which represents text normalizer.
+            text_normalizer_call_kwargs (Optional[Dict]): Additional arguments for text_normalizer function.
+            text_tokenizer_pad_id (Optional[int]): Index of padding. Should be specified if text_tokenizer is not BaseTokenizer.
+            sup_data_types (Optional[List[str]]): List of supplementary data types.
+            sup_data_path (Optional[Union[Path, str]]): A folder that contains or will contain supplementary data (e.g. pitch).
+            max_duration (Optional[float]): Max duration of audio clips in seconds. All samples exceeding this will be
+                pruned prior to training. Note: Requires "duration" to be set in the manifest file. It does not load
+                audio to compute duration. Defaults to None which does not prune.
+            min_duration (Optional[float]): Min duration of audio clips in seconds. All samples lower than this will be
+                pruned prior to training. Note: Requires "duration" to be set in the manifest file. It does not load
+                audio to compute duration. Defaults to None which does not prune.
+            ignore_file (Optional[Union[str, Path]]): The location of a pickle-saved list of audio paths
+                that will be pruned prior to training. Defaults to None which does not prune.
+            trim (Optional[bool]): Whether to apply librosa.effects.trim to the audio file. Defaults to False.
+            n_fft (int): The number of fft samples. Defaults to 1024
+            win_length (Optional[int]): The length of the stft windows. Defaults to None which uses n_fft.
+            hop_length (Optional[int]): The hope length between fft computations. Defaults to None which uses n_fft//4.
+            window (str): One of 'hann', 'hamming', 'blackman','bartlett', 'none'. Which corresponds to the
+                equivalent torch window function.
+            n_mels (int): The number of mel filters. Defaults to 80.
+            lowfreq (int): The lowfreq input to the mel filter calculation. Defaults to 0.
+            highfreq (Optional[int]): The highfreq input to the mel filter calculation. Defaults to None.
+        Keyword Args:
+            log_mel_folder (Optional[Union[Path, str]]): The folder that contains or will contain log mel spectrograms.
+            align_prior_matrix_folder (Optional[Union[Path, str]]): The folder that contains or will contain align prior matrices.
+            pitch_folder (Optional[Union[Path, str]]): The folder that contains or will contain pitch.
+            energy_folder (Optional[Union[Path, str]]): The folder that contains or will contain energy.
+            durs_file (Optional[str]): String path to pickled durations location.
+            durs_type (Optional[str]): Type of durations. Currently supported only "aligner-based".
+            use_beta_binomial_interpolator (Optional[bool]): Whether to use beta-binomial interpolator for calculating alignment prior matrix. Defaults to False.
+            pitch_fmin (Optional[float]): The fmin input to librosa.pyin. Defaults to librosa.note_to_hz('C2').
+            pitch_fmax (Optional[float]): The fmax input to librosa.pyin. Defaults to librosa.note_to_hz('C7').
+            pitch_mean (Optional[float]): The mean that we use to normalize the pitch.
+            pitch_std (Optional[float]): The std that we use to normalize the pitch.
+            pitch_norm (Optional[bool]): Whether to normalize pitch (via pitch_mean and pitch_std) or not.
+        """
+        super().__init__()
+
+        # Initialize text tokenizer
+        self.text_tokenizer = text_tokenizer
+
+        self.phoneme_probability = None
+        if isinstance(self.text_tokenizer, IPAPhonemesTokenizer):
+            self.text_tokenizer_pad_id = text_tokenizer.pad
+            self.tokens = text_tokenizer.tokens
+            self.phoneme_probability = getattr(self.text_tokenizer, "phoneme_probability", None)
+        else:
+            if text_tokenizer_pad_id is None:
+                raise ValueError(f"text_tokenizer_pad_id must be specified if text_tokenizer is not BaseTokenizer")
+
+            if tokens is None:
+                raise ValueError(f"tokens must be specified if text_tokenizer is not BaseTokenizer")
+
+            self.text_tokenizer_pad_id = text_tokenizer_pad_id
+            self.tokens = tokens
+        self.cache_text = True if self.phoneme_probability is None else False
+
+        # Initialize text normalizer is specified
+        self.text_normalizer = text_normalizer
+        self.text_normalizer_call = (
+            self.text_normalizer.normalize if isinstance(self.text_normalizer, Normalizer) else self.text_normalizer
+        )
+        self.text_normalizer_call_kwargs = (
+            text_normalizer_call_kwargs if text_normalizer_call_kwargs is not None else {}
+        )
+
+        # Initialize and read manifest file(s), filter out data by duration and ignore_file, compute base dir
+        if isinstance(manifest_filepath, str):
+            manifest_filepath = [manifest_filepath]
+        self.manifest_filepath = manifest_filepath
+        self.lengths = []
+
+        data = []
+        total_duration = 0
+        for manifest_file in self.manifest_filepath:
+            with open(Path(manifest_file).expanduser(), 'r') as f:
+                logging.info(f"Loading dataset from {manifest_file}.")
+                for line in tqdm(f):
+                    item = json.loads(line)
+
+                    file_info = {
+                        "audio_filepath": item["audio_filepath"],
+                        "original_text": item["text"],
+                        "mel_filepath": item["mel_filepath"] if "mel_filepath" in item else None,
+                        "duration": item["duration"] if "duration" in item else None,
+                    }
+
+                    if "normalized_text" not in item:
+                        text = item["text"]
+                        if self.text_normalizer is not None:
+                            text = self.text_normalizer_call(text, **self.text_normalizer_call_kwargs)
+                        file_info["normalized_text"] = text
+                    else:
+                        file_info["normalized_text"] = item["normalized_text"]
+
+                    if self.cache_text:
+                        file_info["text_tokens"] = self.text_tokenizer(file_info["normalized_text"])
+
+                    if self.cache_text:
+                        file_info["text_tokens"] = self.text_tokenizer(file_info["normalized_text"])
+
+                    data.append(file_info)
+                    self.lengths.append(os.path.getsize(item["audio_filepath"]) // (2 * hop_length))
+                    if file_info["duration"] is None:
+                        logging.info(
+                            "Not all audio files have duration information. Duration logging will be disabled."
+                        )
+                        total_duration = None
+
+                    if total_duration is not None:
+                        total_duration += item["duration"]
+
+        logging.info(f"Loaded dataset with {len(data)} files.")
+        if total_duration is not None:
+            logging.info(f"Dataset contains {total_duration / 3600:.2f} hours.")
+
+        self.data = VitsDataset.filter_files(data, ignore_file, min_duration, max_duration, total_duration)
+        self.base_data_dir = get_base_dir([item["audio_filepath"] for item in self.data])
+
+        random.seed(1234)
+        random.shuffle(self.data)
+        
+        self.add_blank = add_blank
+        # Initialize audio and mel related parameters
+        self.sample_rate = sample_rate
+        self.featurizer = WaveformFeaturizer(sample_rate=self.sample_rate)
+        self.trim = trim
+
+        self.n_fft = n_fft
+        self.n_mels = n_mels
+
+
+
+    @staticmethod
+    def filter_files(data, ignore_file, min_duration, max_duration, total_duration):
+        if ignore_file:
+            logging.info(f"Using {ignore_file} to prune dataset.")
+            with open(Path(ignore_file).expanduser(), "rb") as f:
+                wavs_to_ignore = set(pickle.load(f))
+
+        filtered_data: List[Dict] = []
+        pruned_duration = 0 if total_duration is not None else None
+        pruned_items = 0
+        for item in data:
+            audio_path = item['audio_filepath']
+
+            # Prune data according to min/max_duration & the ignore file
+            if total_duration is not None:
+                if (min_duration and item["duration"] < min_duration) or (
+                    max_duration and item["duration"] > max_duration
+                ):
+                    pruned_duration += item["duration"]
+                    pruned_items += 1
+                    continue
+
+            if ignore_file and (audio_path in wavs_to_ignore):
+                pruned_items += 1
+                pruned_duration += item["duration"]
+                wavs_to_ignore.remove(audio_path)
+                continue
+
+            filtered_data.append(item)
+
+        logging.info(f"Pruned {pruned_items} files. Final dataset contains {len(filtered_data)} files")
+        if pruned_duration is not None:
+            logging.info(
+                f"Pruned {pruned_duration / 3600:.2f} hours. Final dataset contains "
+                f"{(total_duration - pruned_duration) / 3600:.2f} hours."
+            )
+
+        return filtered_data
+
+    def get_spec(self, audio):
+        with torch.cuda.amp.autocast(enabled=False):
+            spec = torch.stft(audio,
+            n_fft=self.n_fft,
+            hop_length=self.hop_len,
+            win_length=self.win_length,
+            window=torch.hann_window(self.win_length, periodic=False).to(torch.float),
+            return_complex=True)
+            
+            if spec.dtype in [torch.cfloat, torch.cdouble]:
+                spec = torch.view_as_real(spec)
+            spec = torch.sqrt(spec.pow(2).sum(-1) + 1e-9)
+        return spec
+
+    def intersperse(lst, item):
+        result = [item] * (len(lst) * 2 + 1)
+        result[1::2] = lst
+        return result
+
+    def __getitem__(self, index):
+        sample = self.data[index]
+
+        # Load audio
+        features = self.featurizer.process(sample["audio_filepath"], trim=self.trim)
+        audio, audio_length = features, torch.tensor(features.shape[0]).long()
+
+        tokenized = self.text_tokenizer(sample["normalized_text"])
+        tokenized = intersperse(tokenized, 0)
+        text = torch.tensor(tokenized).long()
+        text_length = torch.tensor(len(tokenized)).long()
+
+        return (
+            audio,
+            audio_length,
+            text,
+            text_length,
+        )
+
+    def __len__(self):
+        return len(self.data)
+
+    def join_data(self, data_dict):
+        result = []
+        for data_type in MAIN_DATA_TYPES:
+            result.append(data_dict[data_type.name])
+
+            if issubclass(data_type, TTSDataType) and issubclass(data_type, WithLens):
+                result.append(data_dict[f"{data_type.name}_lens"])
+
+        return tuple(result)
+
+    def general_collate_fn(self, batch):
+        (
+            _,
+            audio_lengths,
+            _,
+            tokens_lengths,
+        ) = zip(*batch)
+
+        max_audio_len = max(audio_lengths).item()
+        max_tokens_len = max(tokens_lengths).item()
+
+        audios, tokens = [], []
+
+        for i, sample_tuple in enumerate(batch):
+            (
+                audio,
+                audio_len,
+                token,
+                token_len,
+            ) = sample_tuple
+
+            audio = general_padding(audio, audio_len.item(), max_audio_len)
+            audios.append(audio)
+
+            token = general_padding(token, token_len.item(), max_tokens_len, pad_value=self.text_tokenizer_pad_id)
+            tokens.append(token)
+
+
+        data_dict = {
+            "audio": torch.stack(audios),
+            "audio_lens": torch.stack(audio_lengths),
+            "text": torch.stack(tokens),
+            "text_lens": torch.stack(tokens_lengths),
+        }
+
+        return data_dict
+
+    def _collate_fn(self, batch):
+        data_dict = self.general_collate_fn(batch)
+        joined_data = self.join_data(data_dict)
+        return joined_data
+
+
+class TextAudioLoader(torch.utils.data.Dataset):
+    """
+        1) loads audio, text pairs
+        2) normalizes text and converts them to sequences of integers
+        3) computes spectrograms from audio files.
+    """
+    def __init__(self, audiopaths_and_text, hparams):
+        self.audiopaths_and_text = load_filepaths_and_text(audiopaths_and_text)
+        self.text_cleaners  = hparams.text_cleaners
+        self.max_wav_value  = hparams.max_wav_value
+        self.sampling_rate  = hparams.sampling_rate
+        self.filter_length  = hparams.filter_length 
+        self.hop_length     = hparams.hop_length 
+        self.win_length     = hparams.win_length
+        self.sampling_rate  = hparams.sampling_rate 
+
+        self.cleaned_text = getattr(hparams, "cleaned_text", False)
+
+        self.add_blank = hparams.add_blank
+        self.min_text_len = getattr(hparams, "min_text_len", 1)
+        self.max_text_len = getattr(hparams, "max_text_len", 190)
+
+        random.seed(1234)
+        random.shuffle(self.audiopaths_and_text)
+        self._filter()
+
+
+    def _filter(self):
+        """
+        Filter text & store spec lengths
+        """
+        # Store spectrogram lengths for Bucketing
+        # wav_length ~= file_size / (wav_channels * Bytes per dim) = file_size / (1 * 2)
+        # spec_length = wav_length // hop_length
+
+        audiopaths_and_text_new = []
+        lengths = []
+        for audiopath, text in self.audiopaths_and_text:
+            if self.min_text_len <= len(text) and len(text) <= self.max_text_len:
+                audiopaths_and_text_new.append([audiopath, text])
+                lengths.append(os.path.getsize(audiopath) // (2 * self.hop_length))
+        self.audiopaths_and_text = audiopaths_and_text_new
+        self.lengths = lengths
+
+    def get_audio_text_pair(self, audiopath_and_text):
+        # separate filename and text
+        audiopath, text = audiopath_and_text[0], audiopath_and_text[1]
+        text = self.get_text(text)
+        spec, wav = self.get_audio(audiopath)
+        return (text, spec, wav)
+
+    def get_audio(self, filename):
+        audio, sampling_rate = load_wav_to_torch(filename)
+        if sampling_rate != self.sampling_rate:
+            raise ValueError("{} {} SR doesn't match target {} SR".format(
+                sampling_rate, self.sampling_rate))
+        audio_norm = audio / self.max_wav_value
+        audio_norm = audio_norm.unsqueeze(0)
+        spec_filename = filename.replace(".wav", ".spec.pt")
+        if os.path.exists(spec_filename):
+            spec = torch.load(spec_filename)
+        else:
+            spec = spectrogram_torch(audio_norm, self.filter_length,
+                self.sampling_rate, self.hop_length, self.win_length,
+                center=False)
+            spec = torch.squeeze(spec, 0)
+            torch.save(spec, spec_filename)
+        return spec, audio_norm
+
+    def get_text(self, text):
+        if self.cleaned_text:
+            text_norm = cleaned_text_to_sequence(text)
+        else:
+            text_norm = text_to_sequence(text, self.text_cleaners)
+        if self.add_blank:
+            text_norm = commons.intersperse(text_norm, 0)
+        text_norm = torch.LongTensor(text_norm)
+        return text_norm
+
+    def __getitem__(self, index):
+        return self.get_audio_text_pair(self.audiopaths_and_text[index])
+
+    def __len__(self):
+        return len(self.audiopaths_and_text)
+
+
+class TextAudioCollate():
+    """ Zero-pads model inputs and targets
+    """
+    def __init__(self, return_ids=False):
+        self.return_ids = return_ids
+
+    def __call__(self, batch):
+        """Collate's training batch from normalized text and aduio
+        PARAMS
+        ------
+        batch: [text_normalized, spec_normalized, wav_normalized]
+        """
+        # Right zero-pad all one-hot text sequences to max input length
+        _, ids_sorted_decreasing = torch.sort(
+            torch.LongTensor([x[1].size(1) for x in batch]),
+            dim=0, descending=True)
+
+        max_text_len = max([len(x[0]) for x in batch])
+        max_spec_len = max([x[1].size(1) for x in batch])
+        max_wav_len = max([x[2].size(1) for x in batch])
+
+        text_lengths = torch.LongTensor(len(batch))
+        spec_lengths = torch.LongTensor(len(batch))
+        wav_lengths = torch.LongTensor(len(batch))
+
+        text_padded = torch.LongTensor(len(batch), max_text_len)
+        spec_padded = torch.FloatTensor(len(batch), batch[0][1].size(0), max_spec_len)
+        wav_padded = torch.FloatTensor(len(batch), 1, max_wav_len)
+        text_padded.zero_()
+        spec_padded.zero_()
+        wav_padded.zero_()
+        for i in range(len(ids_sorted_decreasing)):
+            row = batch[ids_sorted_decreasing[i]]
+
+            text = row[0]
+            text_padded[i, :text.size(0)] = text
+            text_lengths[i] = text.size(0)
+
+            spec = row[1]
+            spec_padded[i, :, :spec.size(1)] = spec
+            spec_lengths[i] = spec.size(1)
+
+            wav = row[2]
+            wav_padded[i, :, :wav.size(1)] = wav
+            wav_lengths[i] = wav.size(1)
+
+        if self.return_ids:
+            return text_padded, text_lengths, spec_padded, spec_lengths, wav_padded, wav_lengths, ids_sorted_decreasing
+        return text_padded, text_lengths, spec_padded, spec_lengths, wav_padded, wav_lengths
