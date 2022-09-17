@@ -141,9 +141,9 @@ class FastPitchModule(NeuralModule):
         pitch_embedding_kernel_size: int,
         n_mel_channels: int = 80,
         max_token_duration: int = 75,
-        speaker_emb_condition_prosody: bool = True,
-        speaker_emb_condition_decoder: bool = True,
-        speaker_emb_condition_aligner: bool = True,
+        speaker_emb_condition_prosody: bool = False,
+        speaker_emb_condition_decoder: bool = False,
+        speaker_emb_condition_aligner: bool = False,
     ):
         super().__init__()
 
