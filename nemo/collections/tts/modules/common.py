@@ -232,7 +232,7 @@ class ConvLSTMLinear(BiLSTM):
             context, _ = self.bilstm(context)
         else:
             # borisf : does not match ADLR (values, lengths)
-            # seq = self.masked_conv_to_sequence(context, lens)
+            # seq = self.masked_conv_to_sequence(context, lens, enforce_sorted=False)
             # borisf : does match ADLR
             seq = self.conv_to_sequence(context, lens, enforce_sorted=False)
             context, _ = self.lstm_sequence(seq)
