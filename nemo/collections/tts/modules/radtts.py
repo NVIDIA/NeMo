@@ -49,12 +49,12 @@ def pad_dur(dur, txt_enc):
 
 
 @torch.jit.script
-def pad_energy_avg_and_f0(energy_avg, f0, max_out_len:int):
-    to_pad = max_out_len - energy_avg.shape[1]
+def pad_energy_avg_and_f0(energy_avg, f0, max_out_len):
+    to_pad = int(max_out_len - energy_avg.shape[1])
     if to_pad > 0:
         f0 = F.pad(f0[None], [0, to_pad])[0]
         energy_avg = F.pad(energy_avg[None], [0, to_pad])[0]
-    to_pad = max_out_len - f0.shape[1]
+    to_pad = int(max_out_len - f0.shape[1])
     if to_pad > 0:
         f0 = F.pad(f0[None], [0, to_pad])[0]
     return energy_avg, f0
