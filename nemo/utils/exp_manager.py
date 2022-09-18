@@ -129,6 +129,8 @@ class ExpManagerConfig:
     # todo (sean): might not be the best place to add this, but allows us to enable it fast
     enable_ema: Optional[bool] = False
     ema: Optional[float] = 0.999
+    apply_ema_every_n_steps: Optional[int] = 1
+    start_step: Optional[int] = 0
 
 
 class TimingCallback(Callback):
@@ -338,7 +340,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         trainer.callbacks.insert(0, timing_callback)
 
     if cfg.enable_ema:
-        ema_callback = EMA(ema=cfg.ema)
+        ema_callback = EMA(ema=cfg.ema, apply_ema_every_n_steps=cfg.apply_ema_every_n_steps, start_step=cfg.start_step)
         trainer.callbacks.append(ema_callback)
 
     if cfg.create_checkpoint_callback:
