@@ -443,11 +443,7 @@ class WN(torch.nn.Module):
         start = torch.nn.Conv1d(n_in_channels + n_context_dim, n_channels, 1)
         start = torch.nn.utils.weight_norm(start, name='weight')
         self.start = start
-        if affine_activation == 'softplus':
-            self.softplus = torch.nn.Softplus()
-        else:
-            self.softplus = torch.nn.ReLU()
-            
+        self.softplus = torch.nn.Softplus()
         self.affine_activation = affine_activation
         self.use_partial_padding = use_partial_padding
         # Initializing last layer to 0 makes the affine coupling layers
@@ -476,39 +472,26 @@ class WN(torch.nn.Module):
             res_skip_layer = nn.Conv1d(n_channels, n_channels, 1)
             res_skip_layer = nn.utils.weight_norm(res_skip_layer)
             self.res_skip_layers.append(res_skip_layer)
-        self.scripted_layers = None
-        
-    def conv_norm_and_skip(self, z, mask):
-        output = torch.zeros_like(z)
-        if self.scripted_layers is None: 
-            for i, l in enumerate(self.in_layers):
-                z = self.softplus(l(z, mask))
-                res_skip_acts = self.softplus(self.res_skip_layers[i](z))
-                output = output + res_skip_acts
-        else:
-            for l in self.scripted_layers:
-                res_skip_acts = l(z, mask)
-                output = output + res_skip_acts
-        return output
 
-    def script_norm_and_skip(self):
-        self.scripted_layers = torch.nn.ModuleList()
-        for i, l in enumerate(self.in_layers):
-            self.scripted_layers.append(torch.jit.script(ConvNormAndSkip(l, self.res_skip_layers[i], self.softplus)))
-            
-    def forward(self, forward_input: Tuple[Tensor, Tensor], seq_lens: Optional[Tensor] = None):
+    def forward(self, forward_input: Tuple[Tensor, Tensor], seq_lens: Tensor = None):
         z, context = forward_input
         z = torch.cat((z, context), 1)  # append context to z as well
         z = self.start(z)
+        output = torch.zeros_like(z)
+        mask = None
+        if self.use_partial_padding:
+            mask = get_mask_from_lengths(seq_lens).unsqueeze(1).float()
+        non_linearity = torch.relu
+        if self.affine_activation == 'softplus':
+            non_linearity = self.softplus
 
-        if seq_lens is not None:
-            mask = get_mask_from_lengths_and_val(seq_lens, z).unsqueeze(1).float()
-        else:
-            mask = torch.ones_like(z)
-        output = self.conv_norm_and_skip(z, mask)
+        for i in range(self.n_layers):
+            z = non_linearity(self.in_layers[i](z, mask))
+            res_skip_acts = non_linearity(self.res_skip_layers[i](z))
+            output = output + res_skip_acts
+
         output = self.end(output)  # [B, dim, seq_len]
         return output
-
 
 # Affine Coupling Layers
 class SplineTransformationLayerAR(torch.nn.Module):
