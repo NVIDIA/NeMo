@@ -2,7 +2,7 @@ numpy==1.21
 setuptools==59.5.0
 onnx>=1.7.0
 python-dateutil
-torch
+torch>=1.12
 wrapt
 ruamel.yaml
 scikit-learn
