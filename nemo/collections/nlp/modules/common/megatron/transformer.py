@@ -1953,6 +1953,8 @@ class ParallelTransformer(MegatronModule):
             else:
                 if get_key_value or return_memory:
                     presents = []
+                if cached_states is not None:
+                    cached_states = torch.transpose(cached_states, 0, 3)
                 for index in range(self.num_layers):
                     layer = self._get_layer(index)
                     past = None
