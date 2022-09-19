@@ -26,12 +26,10 @@ from nemo.collections.nlp.models.language_modeling.megatron_t5_model import Mega
 from nemo.collections.nlp.models.language_modeling.megatron_t5_prompt_learning_model import MegatronT5PromptLearningModel
 from nemo.collections.nlp.modules.common import VirtualPromptStyle
 from nemo.collections.nlp.modules.common.megatron.parallel_adapters import (
-    InfusedAdapter,
     InfusedAdapterConfig,
     ParallelLinearAdapterConfig,
 )
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
-from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes.mixins import adapter_mixins
 from nemo.utils import logging
 
