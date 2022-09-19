@@ -229,6 +229,8 @@ class CrossLingualMLMAndTranslationDataset(BinarizedMemmapSequenceToSequenceData
         tgt_dataset_prefix: str,
         src_tokenizer: TokenizerSpec,
         tgt_tokenizer: TokenizerSpec,
+        src_language: str,
+        tgt_language: str,
         max_src_seq_length: int,
         max_tgt_seq_length: int,
         max_seq_length_dec: int,
@@ -243,6 +245,7 @@ class CrossLingualMLMAndTranslationDataset(BinarizedMemmapSequenceToSequenceData
         extreme_mean_ngram_size: int = 64,
         extreme_min_ngram_size: int = 32,
         extreme_ngram_span_length_distribution: LengthDistribution = LengthDistribution.truncated_normal,
+        prefix_lm_pivot_mean: float = 0.25,  # This is represented as a percentage of the total length.
         geometric_dist: bool = True,
         permutation: bool = False,
         favor_long_ngrams: bool = False,
@@ -253,10 +256,12 @@ class CrossLingualMLMAndTranslationDataset(BinarizedMemmapSequenceToSequenceData
             tgt_dataset_prefix=tgt_dataset_prefix,
             src_tokenizer=src_tokenizer,
             tgt_tokenizer=tgt_tokenizer,
-            max_src_seq_length=max_src_seq_length,
-            max_tgt_seq_length=max_tgt_seq_length,
+            max_src_seq_length=max_src_seq_length - 1,
+            max_tgt_seq_length=max_tgt_seq_length - 1,
             seed=seed,
             max_num_samples=max_num_samples,
+            add_bos_to_enc=False,
+            add_eos_to_enc=False,
         )
         self.max_seq_length_dec = max_seq_length_dec
         self.max_ngram_size = max_ngram_size
@@ -270,7 +275,10 @@ class CrossLingualMLMAndTranslationDataset(BinarizedMemmapSequenceToSequenceData
         self.extreme_mean_ngram_size = extreme_mean_ngram_size
         self.extreme_min_ngram_size = extreme_min_ngram_size
         self.extreme_ngram_span_length_distribution = extreme_ngram_span_length_distribution
+        self.prefix_lm_pivot_mean = prefix_lm_pivot_mean
         self.sampling_ratios = sampling_ratios
+        self.src_language = src_language
+        self.tgt_language = tgt_language
 
         assert src_tokenizer == tgt_tokenizer
         # Vocab stuff.
@@ -282,7 +290,7 @@ class CrossLingualMLMAndTranslationDataset(BinarizedMemmapSequenceToSequenceData
         self.pad_id = src_tokenizer.pad_id
         self.bos_id = src_tokenizer.bos_id
         self.eos_id = src_tokenizer.eos_id
-        self.max_seq_length = max_src_seq_length + max_tgt_seq_length
+        self.max_seq_length = max_src_seq_length + max_tgt_seq_length - 1
         self.masked_lm_prob = masked_lm_prob
 
         self.tokenizer_type = T5Dataset._determine_tokenizer_type(src_tokenizer, whole_word_masking=False)
@@ -301,19 +309,31 @@ class CrossLingualMLMAndTranslationDataset(BinarizedMemmapSequenceToSequenceData
         # Determine which task to perform - NMT/T5/UL2 based on sampling ratios.
         task = np_rng.choice(list(self.sampling_ratios.keys()), p=list(self.sampling_ratios.values()))
 
-        # We can just use the parent's __getitem__ function for NMT.
-        if task == "nmt":
-            nmt_sample = super().__getitem__(idx)
-            return UL2Dataset._prepend_mask_type_token(self.src_tokenizer, nmt_sample, '<extra_id_m>')
+        # Potentially swap src, tgt with a 50% chance to avoid learning associations based on position in the sequence.
+        swap_src_tgt = np_rng.randint(0, 2)
         src, tgt = super()._get_sample(idx)
+
         if len(src) > self.max_src_seq_length:
             src = src[: self.max_src_seq_length]
 
-        if len(tgt) > self.max_tgt_seq_length - 1: # -1 here to account for the <sep> token that gets added.
-            tgt = tgt[: self.max_tgt_seq_length]
-        
-        # Potentially swap src, tgt with a 50% chance to avoid learning associations based on position in the sequence.
-        swap_src_tgt = np_rng.randint(0, 2)
+        # Tasks that are not NMT have a <sep> token so we need to account for this in the length, hence we truncate tgt to max_tgt_seq_length - 1.
+        max_tgt_seq_length = self.max_tgt_seq_length - 1 if task != "nmt" else self.max_tgt_seq_length
+        if len(tgt) > max_tgt_seq_length:
+            tgt = tgt[: max_tgt_seq_length]
+
+        if task == "nmt":
+            # If src/tgt are swapped, also swap the prepend language token ID.
+            if swap_src_tgt == 1:
+                src, tgt = tgt, src
+                prepend_id = f"<{self.src_language}>"
+            else:
+                prepend_id = f"<{self.tgt_language}>"
+            
+            text_dec = np.concatenate([[self.tgt_tokenizer.bos_id], tgt])
+            labels = np.concatenate([tgt, [self.tgt_tokenizer.eos_id]])
+            nmt_sample = {'text_enc': src, 'text_dec': text_dec, 'labels': labels}
+            return UL2Dataset._prepend_mask_type_token(self.src_tokenizer, nmt_sample, prepend_id)
+
         if swap_src_tgt == 0:
             sample = [np.concatenate((src, [self.sep_id], tgt))]
         elif swap_src_tgt == 1:
@@ -325,7 +345,7 @@ class CrossLingualMLMAndTranslationDataset(BinarizedMemmapSequenceToSequenceData
                 tokenizer=self.src_tokenizer,
                 np_rng=np_rng,
                 target_seq_length=sample[0].shape[0],
-                max_seq_length=self.max_seq_length,
+                max_seq_length=self.max_seq_length, # -1 to account for the <extra_id_x> token that gets added after the sample is created.
                 max_seq_length_dec=self.max_seq_length_dec,
                 masked_lm_prob=self.masked_lm_prob,
                 extreme_masked_lm_prob=self.extreme_masked_lm_prob,
@@ -343,25 +363,26 @@ class CrossLingualMLMAndTranslationDataset(BinarizedMemmapSequenceToSequenceData
             return UL2Dataset.get_s_masking_training_sample(
                 sample=sample,
                 np_rng=np_rng,
-                max_seq_length=self.max_seq_length,
+                max_seq_length=self.max_seq_length, # -1 to account for the <extra_id_s> token that gets added after the sample is created.
                 tokenizer=self.src_tokenizer,
                 prefix_lm_pivot_mean=self.prefix_lm_pivot_mean,
                 pivot_distribution=self.extreme_ngram_span_length_distribution,
+                add_eos=True # Most sentences are < max length in cross-lingual data, so we add an EOS to indicate to the model to stop.
             )
         elif task == "r-masking":
             return UL2Dataset.get_r_masking_training_sample(
                 sample=sample,
-                tokenizer=self.tokenizer,
+                tokenizer=self.src_tokenizer,
                 np_rng=np_rng,
                 target_seq_length=sample[0].shape[0],
-                max_seq_length=self.max_seq_length,
+                max_seq_length=self.max_seq_length, # -1 to account for the <extra_id_r> token that gets added after the sample is created.
                 max_seq_length_dec=self.max_seq_length_dec,
                 masked_lm_prob=self.masked_lm_prob,
                 vocab_id_list=self.vocab_id_list,
                 vocab_id_to_token_dict=self.vocab_id_to_token_dict,
                 max_ngram_size=self.max_ngram_size,
                 mean_ngram_size=self.mean_ngram_size,
-                whole_word_masking=self.whole_word_masking,
+                whole_word_masking=False,
                 favor_long_ngrams=self.favor_long_ngrams,
                 permutation=self.permutation,
                 geometric_dist=self.geometric_dist,

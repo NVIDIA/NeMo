@@ -78,10 +78,11 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         super().__init__(cfg, trainer=trainer)
 
     def _setup_multilingual_special_tokens(self):
+        # This is how to specify En -> xx and xx -> En in the same model.
         if isinstance(self.src_language, ListConfig) and isinstance(self.tgt_language, ListConfig):
-            raise ValueError(
-                "cfg.src_language and cfg.tgt_language cannot both be lists. We only support many-to-one or one-to-many multilingual models."
-            )
+            unique_langs = set(self.src_language + self.tgt_language)
+            for lng in unique_langs:
+                self.special_tokens["<" + lng + ">"] = "<" + lng + ">"
         elif isinstance(self.src_language, ListConfig):
             pass
         elif isinstance(self.tgt_language, ListConfig):

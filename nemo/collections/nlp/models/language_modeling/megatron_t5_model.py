@@ -99,7 +99,8 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
                 'additional_special_tokens': [f'<extra_id_{i}>' for i in range(num_sentinel_tokens)]
             }
             if dataset_type == "ul2":
-                for mask_type in ['r', 's', 'x']:
+                mask_types = ['r', 's', 'x']
+                for mask_type in mask_types:
                     additional_tokens['additional_special_tokens'].extend([f'<extra_id_{mask_type}>'])
             tokenizer.add_special_tokens(additional_tokens)
 
@@ -146,7 +147,8 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
                     tokenizer.add_special_tokens([f'<extra_id_{i}>'])
 
             if dataset_type == "ul2":
-                for mask_type in ['r', 's', 'x']:
+                mask_types = ['r', 's', 'x']
+                for mask_type in mask_types:
                     if f'▁<extra_id_{mask_type}>' in tokenizer.vocab:
                         tokenizer.special_token_to_id[f'<extra_id_{i}>'] = tokenizer.text_to_ids(f'<extra_id_{i}>')[0]
                     else:

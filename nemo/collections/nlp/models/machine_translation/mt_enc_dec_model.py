@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from distutils.command.install_egg_info import install_egg_info
 import itertools
 import json
 import os
@@ -259,19 +260,32 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         cls, src_language, tgt_language, encoder_tokenizer, encoder_tokenizer_library, decoder_tokenizer_library
     ):
         multilingual_ids = []
-        if isinstance(src_language, ListConfig):
+
+        # Determine all of the language IDs that need to be added as special tokens.
+        if isinstance(src_language, ListConfig) and isinstance(tgt_language, ListConfig):
+            assert len(src_language) == len(tgt_language)
+            all_languages = list(set(src_language + tgt_language))
+        elif isinstance(tgt_language, ListConfig):
+            all_languages = tgt_language
+
+        # If target is a list config, then add all language ID tokens to the tokenizer.
+        # When both src, tgt are lists, we concat and take a unique of all lang IDs.
+        # If only tgt lang is a list, then we only add those lang IDs to the tokenizer.
+        if isinstance(tgt_language, ListConfig):
+            for lng in all_languages:
+                if len(encoder_tokenizer.text_to_ids(f"<{lng}>")) != 1:
+                    encoder_tokenizer.add_special_tokens({f"<{lng}>": f"<{lng}>"})
+                multilingual_ids.append(encoder_tokenizer.text_to_ids(f"<{lng}>")[0])
+        else:
             for lng in src_language:
                 multilingual_ids.append(None)
-        else:
-            for lng in tgt_language:
-                if f"<{lng}>" not in encoder_tokenizer.vocab:
-                    encoder_tokenizer.add_special_tokens({f"<{lng}>": f"<{lng}>"})
-                multilingual_ids.append(encoder_tokenizer.token_to_id(f"<{lng}>"))
 
-        if isinstance(src_language, ListConfig):
+        if isinstance(src_language, ListConfig) and not isinstance(tgt_language, ListConfig):
             tgt_language = [tgt_language] * len(src_language)
-        else:
+        elif isinstance(tgt_language, ListConfig) and not isinstance(src_language, ListConfig):
             src_language = [src_language] * len(tgt_language)
+        else:
+            pass
 
         source_processor_list = []
         target_processor_list = []

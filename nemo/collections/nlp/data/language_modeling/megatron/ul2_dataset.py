@@ -144,7 +144,7 @@ class UL2Dataset(T5Dataset):
         )
         sample = UL2Dataset._prepend_mask_type_token(tokenizer, sample, '<extra_id_r>')
         return sample
-    
+
     @classmethod
     def get_s_masking_training_sample(
         cls,
@@ -154,6 +154,7 @@ class UL2Dataset(T5Dataset):
         tokenizer: TokenizerSpec,
         prefix_lm_pivot_mean: float,
         pivot_distribution: LengthDistribution,
+        add_eos: bool = False,
     ):
         sample = [token for sentence in sample for token in sentence]
         sample = T5LMAdaptedDataset.get_prefix_lm_sample(
@@ -164,6 +165,7 @@ class UL2Dataset(T5Dataset):
             tokenizer=tokenizer,
             pivot_mean=prefix_lm_pivot_mean,
             pivot_distribution=pivot_distribution,
+            add_eos=add_eos
         )
         sample = UL2Dataset._prepend_mask_type_token(tokenizer, sample, '<extra_id_s>')
         return sample

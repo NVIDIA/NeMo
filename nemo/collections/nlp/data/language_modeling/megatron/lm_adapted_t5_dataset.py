@@ -67,6 +67,7 @@ class T5LMAdaptedDataset(GPTDataset):
         tokenizer,
         pivot_mean=0.25,
         pivot_distribution=LengthDistribution.uniform,
+        add_eos=False,
     ):
         # get random split index
         if pivot_distribution == LengthDistribution.truncated_normal and (pivot_mean < 0.0 or pivot_mean > 1.0):
@@ -94,8 +95,12 @@ class T5LMAdaptedDataset(GPTDataset):
         tokens_dec = sample[split_idx : split_idx + max_seq_length_decoder + 1]
 
         # NOTE: Add bos only and not eos because the model will always generate till max seq length.
+        example = np.concatenate([[tokenizer.bos_id], tokens_dec])
+        if add_eos:
+            example = np.concatenate([example, [tokenizer.eos_id]])
+        assert len(example) <= max_seq_length_decoder + 1
         tokens_dec = np.concatenate(
-            [[tokenizer.bos_id], tokens_dec, [tokenizer.pad_id] * (max_seq_length_decoder - len(tokens_dec) + 1)]
+            [example, [tokenizer.pad_id] * (max_seq_length_decoder - len(example) + 1)]
         ).astype(np.int64)
 
         # Shift sequences for teacher forcing

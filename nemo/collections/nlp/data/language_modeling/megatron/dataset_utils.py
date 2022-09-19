@@ -431,7 +431,7 @@ def create_extreme_masked_lm_predictions(
     masked_lm_positions = []
     masked_lm_labels = []
 
-    num_to_predict = min(max_predictions_per_seq, max(1, int(round(len(tokens) * masked_lm_prob))))
+    num_to_predict = int(min(max_predictions_per_seq, max(1, int(round(len(tokens) * masked_lm_prob)))))
     # If the number of tokens to predict is less than the min ngram size, clam it to max predictions.
     min_ngram_size = int(min(num_to_predict, min_ngram_size))
 
@@ -1049,7 +1049,7 @@ def get_samples_mapping(
         logging.info(
             ' > elasped time to build and save samples mapping ' '(seconds): {:4f}'.format(time.time() - start_time)
         )
-
+    '''
     torch.distributed.barrier()
     counts = torch.cuda.LongTensor([1])
     torch.distributed.all_reduce(counts, group=parallel_state.get_data_parallel_group())
@@ -1058,6 +1058,7 @@ def get_samples_mapping(
         torch.distributed.get_world_size()
         // torch.distributed.get_world_size(group=parallel_state.get_tensor_model_parallel_group())
     )
+    '''
     # Load indexed dataset.
     logging.info(' > loading indexed mapping from {}'.format(indexmap_filename))
     start_time = time.time()

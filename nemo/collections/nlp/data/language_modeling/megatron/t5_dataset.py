@@ -394,7 +394,7 @@ class T5Dataset(Dataset):
         # Encoder-side padding mask.
         num_tokens = len(t5_input)
         padding_length = max_seq_length - num_tokens
-        assert padding_length >= 0
+        assert padding_length >= 0, (padding_length)
         assert len(masked_positions) == len(masked_labels)
 
         # Tokens..
@@ -404,7 +404,7 @@ class T5Dataset(Dataset):
         # Decoder-side padding mask.
         num_tokens_dec = len(t5_decoder_in)
         padding_length_dec = max_seq_length_dec - num_tokens_dec
-        assert padding_length_dec >= 0
+        assert padding_length_dec >= 0, (padding_length_dec, max_seq_length_dec, num_tokens_dec)
         filler_dec = [pad_id] * padding_length_dec
         tokens_dec_in = np.array(t5_decoder_in + filler_dec, dtype=np.int64)
 
@@ -413,7 +413,7 @@ class T5Dataset(Dataset):
         dec_mask = (tokens_dec_in != pad_id).astype(np.int64)
 
         # Labels mask.
-        labels = t5_decoder_out + ([-1] * padding_length_dec)
+        labels = t5_decoder_out + ([pad_id] * padding_length_dec)
         labels = np.array(labels, dtype=np.int64)
 
         # Loss mask
