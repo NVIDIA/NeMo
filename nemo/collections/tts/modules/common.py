@@ -121,11 +121,15 @@ class BiLSTM(nn.Module):
         seq = nn.utils.rnn.pack_padded_sequence(
             context, lens.long().cpu(), batch_first=True, enforce_sorted=enforce_sorted
         )
+        if not torch.jit.is_scripting():
+            self.bilstm.flatten_parameters()
         ret, _ = self.bilstm(seq)
         return nn.utils.rnn.pad_packed_sequence(ret, batch_first=True)
 
     @torch.jit.export
     def lstm_sequence(self, seq: PackedSequence) -> Tuple[Tensor, Tensor]:
+        if not torch.jit.is_scripting():
+            self.bilstm.flatten_parameters()
         ret, _ = self.bilstm(seq)
         return nn.utils.rnn.pad_packed_sequence(ret, batch_first=True)
 
