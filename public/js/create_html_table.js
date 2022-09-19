@@ -97,21 +97,17 @@ CreateHTMLTable = {
               success: function (trainMetrics) {
                 var trainTimeMetrics = trainMetrics["train_time_metrics"]
                 var latestKey = null;
-                if (Object.keys(trainTimeMetrics).length > 1){
+                if (Object.keys(trainTimeMetrics).length >= 1){
                   latestKey = getLatestExistingImage(trainTimeMetrics)
                   var latestTrainTimeResult = trainTimeMetrics[latestKey][1].toFixed(3);
                   var latestTimestamp = trainTimeMetrics[latestKey][0];
                   delete trainTimeMetrics[latestKey]
-                  
-                  var previousTrainTimeBest = getBestResultFromDict(trainTimeMetrics).toFixed(3);
-                  if (previousTrainTimeBest == undefined){
-                    previousTrainTimeBest = latestTrainTimeResult;
-                    var ratioTrainTime = "--"
+                  var previousTrainTimeBest = "--";
+                  var ratioTrainTime = "--";
+                  if (Object.keys(trainTimeMetrics).length > 0){
+                    previousTrainTimeBest = getBestResultFromDict(trainTimeMetrics).toFixed(3);
+                    ratioTrainTime = (previousTrainTimeBest/latestTrainTimeResult).toFixed(3);
                   }
-                  else {
-                    var ratioTrainTime = (previousTrainTimeBest/latestTrainTimeResult).toFixed(3);
-                  }
-
                   var colorTrainTime = ratioTrainTime < 1 ? "red" : "green";
                 }
                 else {
@@ -122,19 +118,18 @@ CreateHTMLTable = {
                   var colorTrainTime = ratioTrainTime < 1 ? "red" : "green";
                 }
                 var memoryUsedMetrics = trainMetrics["peak_memory_metrics"]
-                if (Object.keys(memoryUsedMetrics).length > 1){
+                if (Object.keys(memoryUsedMetrics).length >= 1){
                   if (latestKey == null){
                     latestKey = getLatestExistingImage(memoryUsedMetrics)
                     var latestTimestamp = memoryUsedMetrics[latestKey][0];
                   }
                   latestMemoryResult = memoryUsedMetrics[latestKey][1].toFixed(3);
                   delete memoryUsedMetrics[latestKey]
-                  var previousMemoryBest = getBestResultFromDict(memoryUsedMetrics).toFixed(3);
-                  if (previousMemoryBest == undefined){
-                    var ratioMemory = "--"
-                  }
-                  else {
-                    var ratioMemory = (previousMemoryBest/latestMemoryResult).toFixed(3);
+                  var previousMemoryBest = "--";
+                  var ratioMemory = "--";
+                  if (Object.keys(memoryUsedMetrics).length > 0){
+                    previousMemoryBest = getBestResultFromDict(memoryUsedMetrics).toFixed(3);
+                    ratioMemory = (previousMemoryBest/latestMemoryResult).toFixed(3);
                   }   
                   colorMemory = ratioMemory < 1 ? "red" : "green";
                 }
@@ -144,17 +139,16 @@ CreateHTMLTable = {
                   var ratioMemory = "--";
                   var colorMemory = "green";
                 }
-                
                 var $tableBodyRow = $("<tr></tr>");
                 $tableBodyRow.append("<td>" + latestKey.split("*")[0] + "</td>");
                 $tableBodyRow.append("<td>" + new Date(parseFloat(latestTimestamp)*1000).toDateString() + "</td>");
                 $tableBodyRow.append("<td>" + fileName.split("_")[1] + "</td>");
-                $tableBodyRow.append("<td>" + fileName.split("_")[2] + "</td>");
-                $tableBodyRow.append("<td>" + fileName.split("_")[3] + "</td>");
-                $tableBodyRow.append("<td>" + fileName.split("_")[4] + "</td>");
+                $tableBodyRow.append("<td>" + fileName.split("_")[2].split("tp")[1] + "</td>");
+                $tableBodyRow.append("<td>" + fileName.split("_")[3].split("pp")[1] + "</td>");
+                $tableBodyRow.append("<td>" + fileName.split("_")[4].split("nodes")[0] + "</td>");
                 $tableBodyRow.append("<td>" + fileName.split("_")[5] + "</td>");
                 $tableBodyRow.append("<td>" + fileName.split("_")[7] + "</td>");
-                $tableBodyRow.append("<td>" + fileName.split("_")[8].split(".")[0] + "</td>");
+                $tableBodyRow.append("<td>" + fileName.split("_")[8].split(".")[0].split("steps")[0] + "</td>");
                 $tableBodyRow.append("<td>" + latestTrainTimeResult + "</td>");
                 $tableBodyRow.append("<td>" + previousTrainTimeBest + "</td>");
                 $tableBodyRow.append("<td style=color:" + colorTrainTime + ">" + ratioTrainTime + "</td>");
