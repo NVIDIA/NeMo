@@ -12,6 +12,7 @@ hydra:
 run_training_hp_search: True
 run_inference_hp_search: True
 
+cluster_type: bcm  # bcm or bcp
 bignlp_hp_tool_path: ???  # Path to the location of bignlp-hp-tool codebase.
 bignlp_scripts_path: ${bignlp_hp_tool_path}/../bignlp-scripts
 base_results_dir: ${bignlp_hp_tool_path}/results
