@@ -82,6 +82,8 @@ class TranscriptionConfig:
     output_filename: Optional[str] = None
     batch_size: int = 32
     num_workers: int = 0
+    add_transcr: bool = False  # Sets mode of work, is set to True will add new transcriptions to existing .JSON file.
+    model_name_manual: Optional[str] = None  # If you need to use another model name, rather than standard one.
 
     # Set `cuda` to int to define CUDA device. If 'None', will look for CUDA
     # device anyway, and do inference on CPU only if CUDA device is not found.
@@ -89,8 +91,7 @@ class TranscriptionConfig:
     cuda: Optional[int] = None
     amp: bool = False
     audio_type: str = "wav"
-    plus_transcr: bool = False  # Sets mode of work, is set to True will add new transcriptions to existing .JSON file.
-    model_name_manual: Optional[str] = None  # If you need to use another model name, rather than standard one.
+    
 
 
     # Recompute model transcription, even if the output folder exists with scores.
@@ -160,12 +161,12 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         else:
             asr_model.change_decoding_strategy(cfg.ctc_decoding)
 
-    # get audio filenames (if plus_transcr is True -> require manifest)
-    if cfg.audio_dir is not None and cfg.plus_transcr:
-        logging.error(f'If you setting plus_transcr to True, than manifest must be provided')
+    # get audio filenames (if add_transcr is True -> require manifest)
+    if cfg.audio_dir is not None and cfg.add_transcr:
+        logging.error(f'If you setting add_transcr to True, than manifest must be provided')
         return None
 
-    if cfg.audio_dir is not None and not cfg.plus_transcr:
+    if cfg.audio_dir is not None and not cfg.add_transcr:
         filepaths = list(glob.glob(os.path.join(cfg.audio_dir, f"**/*.{cfg.audio_type}"), recursive=True))
     else:
         # get filenames from manifest
@@ -218,8 +219,8 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
 
         return cfg
 
-    if cfg.plus_transcr and cfg.overwrite_transcripts:
-        logging.warning(f"Nothing will be overwritten, as plus_transcr set to True")
+    if cfg.add_transcr and cfg.overwrite_transcripts:
+        logging.warning(f"Nothing will be overwritten, as add_transcr set to True")
 
     # transcribe audio
     with autocast():
@@ -253,7 +254,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         transcriptions = transcriptions[0]
     # write audio transcriptions
 
-    if cfg.plus_transcr:
+    if cfg.add_transcr:
         if cfg.model_name_manual is not None:
             pred_by_model_name = cfg.model_name_manual
         else:
