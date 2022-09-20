@@ -30,24 +30,25 @@ class PartialConv1d(torch.nn.Conv1d):
         super(PartialConv1d, self).__init__(*args, **kwargs)
         weight_maskUpdater = torch.ones(1, 1, self.kernel_size[0])
         self.register_buffer("weight_maskUpdater", weight_maskUpdater, persistent=False)
+        slide_winsize=torch.tensor(self.weight_maskUpdater.shape[1] * self.weight_maskUpdater.shape[2])
+        self.register_buffer("slide_winsize", slide_winsize, persistent=False)
+        
         if self.bias is not None:
             bias_view = self.bias.view(1, self.out_channels, 1)
             self.register_buffer('bias_view', bias_view, persistent=False)
         # caching part
-        last_size = torch.tensor((-1, -1, -1))
-        self.register_buffer('last_size', last_size, persistent=False)
+        self.last_size = (-1, -1, -1)
+
         update_mask = torch.ones(1, 1, 1)
         self.register_buffer('update_mask', update_mask, persistent=False)
         mask_ratio = torch.ones(1, 1, 1)
         self.register_buffer('mask_ratio', mask_ratio, persistent=False)
-        mask_tmpl = torch.ones(1, 1, 4096)
-        self.register_buffer('mask_tmpl', mask_tmpl, persistent=False)
         self.partial: bool = True
 
     def calculate_mask(self, input: torch.Tensor, mask_in: Optional[torch.Tensor]):
         with torch.no_grad():
             if mask_in is None:
-                mask = self.mask_tmpl[:, :, : input.shape[2]]
+                mask = torch.ones(1, 1, input.shape[2], dtype=input.dtype, device=input.device)
             else:
                 mask = mask_in
             update_mask = F.conv1d(
@@ -60,10 +61,9 @@ class PartialConv1d(torch.nn.Conv1d):
                 groups=1,
             )
             # for mixed precision training, change 1e-8 to 1e-6
-            slide_winsize = self.weight_maskUpdater.shape[1] * self.weight_maskUpdater.shape[2]
-            mask_ratio = slide_winsize / (update_mask + 1e-6)
+            mask_ratio = self.slide_winsize/(update_mask + 1e-6)
             update_mask = torch.clamp(update_mask, 0, 1)
-            mask_ratio = torch.mul(mask_ratio, update_mask)
+            mask_ratio = torch.mul(mask_ratio.to(update_mask), update_mask)
             return mask, mask_ratio, update_mask
 
     def forward_aux(
@@ -97,9 +97,7 @@ class PartialConv1d(torch.nn.Conv1d):
             mask, mask_ratio, update_mask = self.calculate_mask(input, mask_in)
             if use_cache:
                 # if a mask is input, or tensor shape changed, update mask ratio
-                self.last_size[0] = input.shape[0]
-                self.last_size[1] = input.shape[1]
-                self.last_size[2] = input.shape[2]
+                self.last_size = tuple(input.shape)
                 self.update_mask = update_mask
                 self.mask_ratio = mask_ratio
         return self.forward_aux(input, mask, mask_ratio, update_mask)
