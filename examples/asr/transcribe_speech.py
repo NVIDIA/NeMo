@@ -254,7 +254,11 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         transcriptions = transcriptions[0]
     # write audio transcriptions
 
+
+
     if cfg.add_transcr:
+        if cfg.dataset_manifest is not None:
+            logging.warning(f'Transcribtions will be written in dataset_manifets file')
         if cfg.model_name_manual is not None:
             pred_by_model_name = cfg.model_name_manual
         else:
@@ -270,6 +274,12 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                         item = json.loads(line)
                         item['pred_text_' + pred_by_model_name] = transcriptions[idx]
                         f.write(json.dumps(item) + "\n")
+        with open(cfg.output_filename, 'r', encoding='utf-8') as fo:
+            with open(cfg.dataset_manifest, 'w') as fd:
+                for idx, line in enumerate(fo):
+                    item = json.loads(line)
+                    fd.write(json.dumps(item) + "\n")
+
     else:
         with open(cfg.output_filename, 'w', encoding='utf-8') as f:
             if cfg.audio_dir is not None:
