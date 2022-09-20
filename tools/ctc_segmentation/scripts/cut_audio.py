@@ -39,6 +39,12 @@ parser.add_argument(
     default=0.05,
 )
 parser.add_argument("--sample_rate", type=int, help="Sample rate, Hz", default=16000)
+parser.add_argument(
+    "--max_duration",
+    type=int,
+    help="Maximum audio duration (seconds). Samples that are longer will be dropped",
+    default=60,
+)
 
 
 def process_alignment(alignment_file: str, manifest: str, clips_dir: str, args):

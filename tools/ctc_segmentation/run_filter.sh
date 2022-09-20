@@ -12,6 +12,7 @@ CER_THRESHOLD=30
 WER_THRESHOLD=75
 CER_EDGE_THRESHOLD=60
 LEN_DIFF_RATIO_THRESHOLD=0.3
+MAX_DURATION=20 # in seconds
 
 for ARG in "$@"
 do
@@ -46,6 +47,7 @@ python ${SCRIPTS_DIR}/../../../examples/asr/transcribe_speech.py \
 $ARG_MODEL=$MODEL_NAME_OR_PATH \
 dataset_manifest=$MANIFEST \
 output_filename=${OUT_MANIFEST} \
+batch_size=${BATCH_SIZE} \
 num_workers=0 || exit
 
 echo "--- Calculating metrics and filtering out samples based on thresholds ---"
@@ -60,4 +62,5 @@ python ${SCRIPTS_DIR}/get_metrics_and_filter.py \
 --max_cer=${CER_THRESHOLD} \
 --max_wer=${WER_THRESHOLD} \
 --max_len_diff_ratio=${LEN_DIFF_RATIO_THRESHOLD} \
---max_edge_cer=${CER_EDGE_THRESHOLD}
+--max_edge_cer=${CER_EDGE_THRESHOLD} \
+--max_duration=${MAX_DURATION}

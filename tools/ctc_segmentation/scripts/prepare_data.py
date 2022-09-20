@@ -88,7 +88,7 @@ def process_audio(in_file: str, wav_file: str = None, cut_prefix: int = 0, sampl
         sound = AudioSegment.from_file(in_file, start_second=cut_prefix)
         if info["sample_rate"] != str(sample_rate):
             sound = sound.set_frame_rate(sample_rate)
-        if info["channels"] != 1:
+        if info["channels"] != "1" or info["channels"] != 1:
             sound = sound.set_channels(1)
         sound.export(wav_file, format="wav")
     except Exception as e:
