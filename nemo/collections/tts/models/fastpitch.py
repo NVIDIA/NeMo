@@ -27,7 +27,7 @@ from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
 from nemo.collections.tts.losses.fastpitchloss import DurationLoss, MelLoss, PitchLoss, EnergyLoss
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.modules.fastpitch import FastPitchModule
-from nemo.collections.tts.torch.tts_data_types import SpeakerID
+from nemo.collections.tts.torch.tts_data_types import SpeakerID, Energy
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import (
@@ -146,7 +146,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         energy_embedding_kernel_size = 0
         energy_predictor = None
         if self._cfg.get("energy_predictor", None) is not None:
-            energy_predictor = instantiate(self._cfg.pitch_predictor)
+            energy_predictor = instantiate(self._cfg.energy_predictor)
             energy_embedding_kernel_size = cfg.get("energy_embedding_kernel_size", 0)
 
         self.fastpitch = FastPitchModule(
@@ -338,11 +338,15 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
     def training_step(self, batch, batch_idx):
         attn_prior, durs, speaker, energy = None, None, None, None
         if self.learn_alignment:
-            if self.ds_class_name == "TTSDataset":
-                if SpeakerID in self._train_dl.dataset.sup_data_types_set:
+            if self.ds_class_name == "TTSDataset": 
+                if SpeakerID in self._train_dl.dataset.sup_data_types_set and Energy in self._train_dl.dataset.sup_data_types_set:
                     audio, audio_lens, text, text_lens, attn_prior, pitch, _, energy, _, speaker = batch
-                else:
+                elif Energy in self._train_dl.dataset.sup_data_types_set:
                     audio, audio_lens, text, text_lens, attn_prior, pitch, _, energy, _ = batch
+                elif SpeakerID in self._train_dl.dataset.sup_data_types_set:
+                    audio, audio_lens, text, text_lens, attn_prior, pitch, _, speaker = batch
+                else:
+                    audio, audio_lens, text, text_lens, attn_prior, pitch, _ = batch
             else:
                 raise ValueError(f"Unknown vocab class: {self.vocab.__class__.__name__}")
         else:
@@ -430,13 +434,17 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        attn_prior, durs, speaker = None, None, None
+        attn_prior, durs, speaker, energy = None, None, None, None
         if self.learn_alignment:
             if self.ds_class_name == "TTSDataset":
-                if SpeakerID in self._train_dl.dataset.sup_data_types_set:
+                if SpeakerID in self._train_dl.dataset.sup_data_types_set and Energy in self._train_dl.dataset.sup_data_types_set:
                     audio, audio_lens, text, text_lens, attn_prior, pitch, _, energy, _, speaker = batch
-                else:
+                elif Energy in self._train_dl.dataset.sup_data_types_set:
                     audio, audio_lens, text, text_lens, attn_prior, pitch, _, energy, _ = batch
+                elif SpeakerID in self._train_dl.dataset.sup_data_types_set:
+                    audio, audio_lens, text, text_lens, attn_prior, pitch, _, speaker = batch
+                else:
+                    audio, audio_lens, text, text_lens, attn_prior, pitch, _ = batch
             else:
                 raise ValueError(f"Unknown vocab class: {self.vocab.__class__.__name__}")
         else:
@@ -477,7 +485,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         dur_loss = self.duration_loss(log_durs_predicted=log_durs_pred, durs_tgt=durs, len=text_lens)
         pitch_loss = self.pitch_loss(pitch_predicted=pitch_pred, pitch_tgt=pitch, len=text_lens)
         energy_loss = 0.0
-        if energy_pred is not None:
+        if energy_tgt is not None:
             energy_loss = self.energy_loss(energy_predicted=energy_pred, energy_tgt=energy_tgt, len=text_lens)
         loss = mel_loss + dur_loss + pitch_loss + energy_loss
 
@@ -486,7 +494,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             "mel_loss": mel_loss,
             "dur_loss": dur_loss,
             "pitch_loss": pitch_loss,
-            "energy_loss": energy_loss if energy_pred is not None else None,
+            "energy_loss": energy_loss if energy_tgt is not None else None,
             "mel_target": mels if batch_idx == 0 else None,
             "mel_pred": mels_pred if batch_idx == 0 else None,
         }
