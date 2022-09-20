@@ -20,6 +20,7 @@ class DataStage(BigNLPStage):
     """ Data Stage is for data preparations; it can have few sub_stages """
 
     def setup_stage_vars(self, cfg):
+        """Setup the stage vars, i.e. stage name and stage cfg"""
         self.stage_name = "data_preparation"
         self.stage_cfg = cfg.get("data_preparation")
 

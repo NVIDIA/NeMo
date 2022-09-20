@@ -26,6 +26,7 @@ FT_PATH = Path(os.environ.get("FT_PATH", FT_PATH))
 class Export(BigNLPStage):
 
     def setup_stage_vars(self, cfg):
+        """Setup the stage vars, i.e. stage name and stage cfg"""
         self.stage_name = "export"
         self.stage_cfg = cfg.get("export")
 

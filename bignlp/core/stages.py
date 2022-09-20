@@ -20,6 +20,7 @@ from bignlp.utils.data_utils.prepare_squad import prepare_squad_for_prompt_learn
 
 class BigNLPStage:
     """Base class for BigNLP stages. All stages should build on top of this class.
+    Call `run` function to run current stage.
 
     Arguments:
         cfg: configuration from hydra.
@@ -35,6 +36,7 @@ class BigNLPStage:
         self.job_name = self.stage_cfg.run.get("name")
 
     def setup_stage_vars(self, cfg):
+        """Setup the stage vars, i.e. stage name and stage cfg"""
         raise NotImplementedError
 
     def run(self) -> str:
@@ -318,7 +320,16 @@ class NeMoStage(BigNLPStage):
         command_string = " \\\n  ".join(command)
         return command_string
 
-    def _make_hydra_override(self):
+    def _make_hydra_override(self) -> List:
+        """Override some existing hydra configurations if necessary.
+        
+        Example use cases are:
+            1. For bcp cluster, `+rank=\${RANK}` is required running some NeMo scripts.
+                Existing hydra config doesn't have `rank` field, so we overwrite on the fly.
+            2. Auto blend training dataset by overwriting empty `model.data.data_prefix` as 
+                `model.data.data_prefix=\$({auto_blend_command})`. Existing `model.data.data_prefix`
+                could be None in cfg, so we overwrite it in this function.
+        """
         hydra_override = []
         if self.cluster == "bcp":
             hydra_override += ["+rank=\${RANK}"]
@@ -340,10 +351,20 @@ class NeMoStage(BigNLPStage):
 class Training(NeMoStage):
 
     def setup_stage_vars(self, cfg):
+        """Setup the stage vars, i.e. stage name and stage cfg"""
         self.stage_name = "training"
         self.stage_cfg = cfg.get("training")
 
-    def _make_hydra_override(self):
+    def _make_hydra_override(self) -> List:
+        """Override some existing hydra configurations if necessary.
+        
+        Example use cases are:
+            1. For bcp cluster, `+rank=\${RANK}` is required running some NeMo scripts.
+                Existing hydra config doesn't have `rank` field, so we overwrite on the fly.
+            2. Auto blend training dataset by overwriting empty `model.data.data_prefix` as 
+                `model.data.data_prefix=\$({auto_blend_command})`. Existing `model.data.data_prefix`
+                could be None in cfg, so we overwrite it in this function.
+        """
         hydra_override = []
         choice_model_type, choice_name = self.get_stage_config_choice()
         if self.cluster == "bcp":
@@ -360,7 +381,8 @@ class Training(NeMoStage):
             hydra_override += [f"model.data.data_prefix=\$({auto_blend_command})"]
         return hydra_override
 
-    def _get_nemo_code_path(self, model_type):
+    def _get_nemo_code_path(self, model_type: str) -> Path:
+        """Provide the essential nemo code path for running the stage"""
         model_type_to_code_path = {
             "t5": self._nemo_code_path / "examples/nlp/language_modeling/megatron_t5_pretraining.py",
             "mt5": self._nemo_code_path / "examples/nlp/language_modeling/megatron_t5_pretraining.py",
@@ -372,6 +394,7 @@ class Training(NeMoStage):
 class FineTuning(NeMoStage):
 
     def setup_stage_vars(self, cfg):
+        """Setup the stage vars, i.e. stage name and stage cfg"""
         self.stage_name = "fine_tuning"
         self.stage_cfg = cfg.get("fine_tuning")
 
@@ -394,7 +417,8 @@ class FineTuning(NeMoStage):
         if task_name in ["squad", "xquad"]:
             prepare_squad_for_fine_tuning(data_dir=os.path.join(data_dir, "squad_data"))
 
-    def _get_nemo_code_path(self, model_type):
+    def _get_nemo_code_path(self, model_type: str) -> Path:
+        """Provide the essential nemo code path for running the stage"""
         if model_type == "gpt3":
             raise NotImplementedError("Fine-tuning is not supported in NeMo Megatron GPT-3 models.")
         model_type_to_code_path = {
@@ -407,6 +431,7 @@ class FineTuning(NeMoStage):
 class PromptLearning(NeMoStage):
 
     def setup_stage_vars(self, cfg):
+        """Setup the stage vars, i.e. stage name and stage cfg"""
         self.stage_name = "prompt_learning"
         self.stage_cfg = cfg.get("prompt_learning")
 
@@ -425,7 +450,8 @@ class PromptLearning(NeMoStage):
             )
 
 
-    def _get_nemo_code_path(self, model_type):
+    def _get_nemo_code_path(self, model_type: str) -> Path:
+        """Provide the essential nemo code path for running the stage"""
         model_type_to_code_path = {
             "gpt3": self._nemo_code_path / "examples/nlp/language_modeling/megatron_gpt_prompt_learning.py",
             "t5": self._nemo_code_path / "examples/nlp/language_modeling/megatron_t5_prompt_learning.py",
@@ -437,6 +463,7 @@ class PromptLearning(NeMoStage):
 class Conversion(BigNLPStage):
 
     def setup_stage_vars(self, cfg):
+        """Setup the stage vars, i.e. stage name and stage cfg"""
         self.stage_name = "conversion"
         self.stage_cfg = cfg.get("conversion")
 
@@ -516,6 +543,7 @@ class Conversion(BigNLPStage):
 class NeMoEvaluation(NeMoStage):
     
     def setup_stage_vars(self, cfg):
+        """Setup the stage vars, i.e. stage name and stage cfg"""
         self.stage_name = "evaluation"
         self.stage_cfg = cfg.get("evaluation")
 
@@ -553,7 +581,8 @@ class NeMoEvaluation(NeMoStage):
             command_groups += [[calculation_command]]
         return command_groups
 
-    def _get_nemo_code_path(self, model_type):
+    def _get_nemo_code_path(self, model_type: str) -> Path:
+        """Provide the essential nemo code path for running the stage"""
         if "gpt3" in model_type:
             raise ValueError("Evaluating GPT-3 models needs `EvalHarnessEvaluation` class.")
         model_type_to_code_path = {
@@ -573,6 +602,7 @@ class EvalHarnessEvaluation(BigNLPStage):
         self.prompt_evaluation = (choice_model_type == "prompt_gpt3")
 
     def setup_stage_vars(self, cfg):
+        """Setup the stage vars, i.e. stage name and stage cfg"""
         self.stage_name = "evaluation"
         self.stage_cfg = cfg.get("evaluation")
 
