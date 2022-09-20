@@ -38,7 +38,10 @@ def search_config(cfg):
     assert (
         isinstance(gpu_count, int) and gpu_count > 0
     ), "nodes * gpus_per_node must be an int larger than zero."
-    assert isinstance(gpu_memory_gb, int) and gpu_memory_gb in (40, 80), "gpu_memory_gb can only be 40 or 80."
+    assert isinstance(gpu_memory_gb, int) and gpu_memory_gb in (
+        40,
+        80,
+    ), "gpu_memory_gb can only be 40 or 80."
     assert (
         isinstance(max_minutes_per_run, int) and max_minutes_per_run >= 10
     ), "max_minutes_per_run must be an int and be at least 10 minutes."

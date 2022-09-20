@@ -169,9 +169,9 @@ def _calculate_gbs_tp_pp(model_size_in_b, gpu_memory_gb=80, model_name="gpt3"):
     else:
         raise NotImplementedError("Only gpt3, t5 and mt5 are supported.")
 
+
 def _gbs_tp_pp_gpt3_80gb(model_size_in_b):
-    """Provides base GBS, TP and PP values for GPT-3 models for 80GB GPUs.
-    """
+    """Provides base GBS, TP and PP values for GPT-3 models for 80GB GPUs."""
     if model_size_in_b <= 1.0:
         gbs, tp, pp = 256, 1, 1
     elif model_size_in_b <= 4.0:
@@ -198,9 +198,9 @@ def _gbs_tp_pp_gpt3_80gb(model_size_in_b):
         raise ValueError("No GPT-3 model larger than 1.1T parameters is supported.")
     return gbs, tp, pp
 
+
 def _gbs_tp_pp_gpt3_40gb(model_size_in_b):
-    """Provides base GBS, TP and PP values for GPT-3 models for 40GB GPUs.
-    """
+    """Provides base GBS, TP and PP values for GPT-3 models for 40GB GPUs."""
     if model_size_in_b <= 1.0:
         gbs, tp, pp = 256, 1, 1
     elif model_size_in_b <= 4.0:
@@ -227,9 +227,9 @@ def _gbs_tp_pp_gpt3_40gb(model_size_in_b):
         raise ValueError("No GPT-3 model larger than 1.1T parameters is supported.")
     return gbs, tp, pp
 
+
 def _gbs_tp_pp_t5_80gb(model_size_in_b):
-    """Provides base GBS, TP and PP values for T5/mT5 models for 80GB GPUs.
-    """
+    """Provides base GBS, TP and PP values for T5/mT5 models for 80GB GPUs."""
     if model_size_in_b <= 1.0:
         gbs, tp, pp = 2048, 1, 1
     elif model_size_in_b <= 5.0:
@@ -246,9 +246,9 @@ def _gbs_tp_pp_t5_80gb(model_size_in_b):
         raise ValueError("No T5 model larger than 43B parameters is supported.")
     return gbs, tp, pp
 
+
 def _gbs_tp_pp_t5_40gb(model_size_in_b):
-    """Provides base GBS, TP and PP values for T5/mT5 models for 40GB GPUs.
-    """
+    """Provides base GBS, TP and PP values for T5/mT5 models for 40GB GPUs."""
     if model_size_in_b <= 0.5:
         gbs, tp, pp = 2048, 1, 1
     if model_size_in_b <= 1.0:
@@ -266,6 +266,7 @@ def _gbs_tp_pp_t5_40gb(model_size_in_b):
     else:
         raise ValueError("No T5 model larger than 43B parameters is supported.")
     return gbs, tp, pp
+
 
 def generate_base_config(
     model_size_in_b,
@@ -292,7 +293,9 @@ def generate_base_config(
         base_cfg: dict, base config object for the
     """
     # GBS: global batch size
-    gbs, tp, pp = _calculate_gbs_tp_pp(model_size_in_b=model_size_in_b, gpu_memory_gb=gpu_memory_gb, model_name=model_name)
+    gbs, tp, pp = _calculate_gbs_tp_pp(
+        model_size_in_b=model_size_in_b, gpu_memory_gb=gpu_memory_gb, model_name=model_name
+    )
 
     base_cfg = utils.generic_base_config(cfg, model_name=model_name)
 

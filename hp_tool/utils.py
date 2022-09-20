@@ -173,7 +173,7 @@ def calculate_model_size_params(
             if model_size_in_b * (1.0 - margin) < out_size < model_size_in_b * (1.0 + margin):
                 return layers, hs, att_h, ffn, kv, lr
         margin += 0.01  # Double margin of acceptable model sizes.
-    
+
     # Try multiples of 2
     margin = 0.01
     for attempt in range(0, 6):
@@ -367,6 +367,7 @@ def convert_to_null(val):
         return "null"
     return val
 
+
 def add_container_mounts(container_mounts):
     mounts_str = ""
     if container_mounts is not None:
@@ -377,4 +378,3 @@ def add_container_mounts(container_mounts):
             if mount is not None and isinstance(mount, str):
                 mounts_str += f",{mount}" if ":" in mount else f",{mount}:{mount}"
     return mounts_str
-

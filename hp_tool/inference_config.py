@@ -28,9 +28,7 @@ def search_inference_config(model_size_in_b, model_name, base_cfg, cfg):
         "bignlp/infer_scripts/profile_model_with_random_weights.py",
     )
     cluster_config_path = os.path.join(bignlp_hp_tool_path, "conf/cluster/bcm.yaml")
-    navigator_config_path = os.path.join(
-        bignlp_scripts_path, "conf/inference/profile_offline.yaml"
-    )
+    navigator_config_path = os.path.join(bignlp_scripts_path, "conf/inference/profile_offline.yaml")
 
     model_spec_dir = os.path.join(results_dir, "inference/model_spec.ft")
     os.makedirs(model_spec_dir, exist_ok=True)

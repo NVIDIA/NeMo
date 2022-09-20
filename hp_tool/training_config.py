@@ -12,7 +12,9 @@ from hp_tool import utils, train
 
 def search_training_config(base_cfg, model_size, model_name, cfg):
     # Generate candidate configs.
-    base_dir, results_cfgs, num_nodes = generate_grid_search_configs(base_cfg, model_size, model_name, cfg)
+    base_dir, results_cfgs, num_nodes = generate_grid_search_configs(
+        base_cfg, model_size, model_name, cfg
+    )
     # Launch candidate configs.
     job_ids = launch_grid_search_configs(base_dir, results_cfgs, model_name, cfg)
     # Measure and compare throughputs for each config.
@@ -29,7 +31,11 @@ def generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg):
     # 2 * num_layers is needed because of encoder/decoder architecture.
     multiplier = 1 if model_name == "gpt3" else 2
 
-    num_layers = base_cfg["model"]["num_layers"] if model_name == "gpt3" else base_cfg["model"]["encoder"]["num_layers"]
+    num_layers = (
+        base_cfg["model"]["num_layers"]
+        if model_name == "gpt3"
+        else base_cfg["model"]["encoder"]["num_layers"]
+    )
     act_granularity = base_cfg["model"].get("activations_checkpoint_granularity", "full")
 
     tp_list, pp_list, mbs_list = _calculate_tp_pp_mbs_grid(
@@ -122,10 +128,10 @@ def generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg):
 
     print("\nAll candidate configurations created correctly.\n")
     return base_dir, results_cfgs, num_nodes
-            
+
+
 def _tp_pp_mbs_grid_gpt3_80gb(model_size_in_b, valid_pp):
-    """Selects grid search space for TP, PP, MBS parameters for GPT-3 and 80GB GPUs.
-    """
+    """Selects grid search space for TP, PP, MBS parameters for GPT-3 and 80GB GPUs."""
     tp = [1, 2, 4, 8]
     pp = [1]
     mbs = [1, 2, 3, 4, 6, 8]
@@ -170,9 +176,9 @@ def _tp_pp_mbs_grid_gpt3_80gb(model_size_in_b, valid_pp):
         mbs = [1, 2, 4]
     return tp, pp, mbs
 
+
 def _tp_pp_mbs_grid_gpt3_40gb(model_size_in_b, valid_pp):
-    """Selects grid search space for TP, PP, MBS parameters for GPT-3 and 40GB GPUs.
-    """
+    """Selects grid search space for TP, PP, MBS parameters for GPT-3 and 40GB GPUs."""
     tp = [1, 2, 4, 8]
     pp = [1]
     mbs = [1, 2, 4, 6, 8, 10, 12, 16]
@@ -222,10 +228,10 @@ def _tp_pp_mbs_grid_gpt3_40gb(model_size_in_b, valid_pp):
         pp = [x for x in valid_pp if 8 <= x <= 192]
         mbs = [1, 2]
     return tp, pp, mbs
-    
+
+
 def _tp_pp_mbs_grid_t5_80gb(model_size_in_b, valid_pp):
-    """Selects grid search space for TP, PP, MBS parameters for T5/mT5 and 80GB GPUs.
-    """
+    """Selects grid search space for TP, PP, MBS parameters for T5/mT5 and 80GB GPUs."""
     tp = [1, 2, 4, 8]
     pp = [1]
     mbs = [1, 2, 4, 6, 8, 12, 16]
@@ -251,9 +257,9 @@ def _tp_pp_mbs_grid_t5_80gb(model_size_in_b, valid_pp):
         mbs = [1, 2, 4, 6, 8]
     return tp, pp, mbs
 
+
 def _tp_pp_mbs_grid_t5_40gb(model_size_in_b, valid_pp):
-    """Selects grid search space for TP, PP, MBS parameters for T5/mT5 and 40GB GPUs.
-    """
+    """Selects grid search space for TP, PP, MBS parameters for T5/mT5 and 40GB GPUs."""
     tp = [1, 2, 4, 8]
     pp = [1]
     mbs = [1, 2, 4, 6, 8, 12, 16]
@@ -280,6 +286,7 @@ def _tp_pp_mbs_grid_t5_40gb(model_size_in_b, valid_pp):
         mbs = [1, 2, 4, 6, 8]
     return tp, pp, mbs
 
+
 def _calculate_tp_pp_mbs_grid(model_size_in_b, num_layers, model_name, train_cfg):
     tp_sizes = train_cfg.get("tensor_parallel_sizes")
     pp_sizes = train_cfg.get("pipeline_parallel_sizes")
@@ -294,14 +301,22 @@ def _calculate_tp_pp_mbs_grid(model_size_in_b, num_layers, model_name, train_cfg
 
     if model_name == "gpt3":
         if gpu_memory_gb == 80:
-            tp, pp, mbs = _tp_pp_mbs_grid_gpt3_80gb(model_size_in_b=model_size_in_b, valid_pp=valid_pp)
+            tp, pp, mbs = _tp_pp_mbs_grid_gpt3_80gb(
+                model_size_in_b=model_size_in_b, valid_pp=valid_pp
+            )
         elif gpu_memory_gb == 40:
-            tp, pp, mbs = _tp_pp_mbs_grid_gpt3_40gb(model_size_in_b=model_size_in_b, valid_pp=valid_pp)
+            tp, pp, mbs = _tp_pp_mbs_grid_gpt3_40gb(
+                model_size_in_b=model_size_in_b, valid_pp=valid_pp
+            )
     elif model_name in ["t5", "mt5"]:
         if gpu_memory_gb == 80:
-            tp, pp, mbs = _tp_pp_mbs_grid_t5_80gb(model_size_in_b=model_size_in_b, valid_pp=valid_pp)
+            tp, pp, mbs = _tp_pp_mbs_grid_t5_80gb(
+                model_size_in_b=model_size_in_b, valid_pp=valid_pp
+            )
         elif gpu_memory_gb == 40:
-            tp, pp, mbs = _tp_pp_mbs_grid_t5_40gb(model_size_in_b=model_size_in_b, valid_pp=valid_pp)
+            tp, pp, mbs = _tp_pp_mbs_grid_t5_40gb(
+                model_size_in_b=model_size_in_b, valid_pp=valid_pp
+            )
     else:
         raise NotImplementedError("Model name not implemented.")
 
@@ -328,7 +343,7 @@ def launch_grid_search_configs(base_dir, results_cfgs, model_name, cfg):
     """
     bignlp_hp_tool_path = cfg.get("bignlp_hp_tool_path")
     bignlp_scripts_path = cfg.get("bignlp_scripts_path")
-    
+
     search_cfg = cfg.get("search_config")
     train_cfg = search_cfg.get("train_settings")
     limit = train_cfg.get("limit_search_runs")
@@ -340,9 +355,9 @@ def launch_grid_search_configs(base_dir, results_cfgs, model_name, cfg):
             src_file = os.path.join(base_dir, file_name)
             dst_dir = os.path.join(bignlp_scripts_path, "conf/training", model_name, file_name)
             shutil.copyfile(src_file, dst_dir)
-            job_id = train.run_training(file_name, bignlp_scripts_path, model_name, results_dir, cfg)
+            job_id = train.run_training(file_name, model_name, results_dir, cfg)
             os.remove(dst_dir)
-            
+
             if job_id is not None:
                 job_ids.append(job_id[:-1])
             if len(job_ids) == limit:
@@ -393,7 +408,9 @@ def launch_throughput_measure(dependency_list, model_name, model_size_in_b, num_
     os.makedirs(final_log_dir, exist_ok=True)
 
     # Process container-mounts.
-    mounts_str = f"{bignlp_hp_tool_path}:{bignlp_hp_tool_path},{base_results_dir}:{base_results_dir}"
+    mounts_str = (
+        f"{bignlp_hp_tool_path}:{bignlp_hp_tool_path},{base_results_dir}:{base_results_dir}"
+    )
     mounts_str += utils.add_container_mounts(container_mounts)
 
     flags = (
@@ -401,7 +418,7 @@ def launch_throughput_measure(dependency_list, model_name, model_size_in_b, num_
         f"--container-mounts {mounts_str} "
         f"--no-container-mount-home "
     )
-    if os.getenv('BIGNLP_CI'):  # Whether this job is running in CI or not.
+    if os.getenv("BIGNLP_CI"):  # Whether this job is running in CI or not.
         flags += f"-o {log_dir}/slurm_%j.log "
     else:
         flags += (
@@ -429,8 +446,10 @@ def launch_throughput_measure(dependency_list, model_name, model_size_in_b, num_
         partition=partition,
         account=account,
     )
-    if os.getenv('BIGNLP_CI'):
-        job_id = subprocess.check_output([f'sbatch {new_script_path} | tee "{log_dir}/launcher.log" '], shell=True)
+    if os.getenv("BIGNLP_CI"):
+        job_id = subprocess.check_output(
+            [f'sbatch {new_script_path} | tee "{log_dir}/launcher.log" '], shell=True
+        )
     else:
         job_id = subprocess.check_output([f"sbatch --parsable {new_script_path}"], shell=True)
     dependency = job_id.decode("utf-8")

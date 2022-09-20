@@ -22,11 +22,11 @@ def run_training(file_name: str, model_name: str, results_dir: str, cfg: OmegaCo
     bignlp_scripts_path = cfg.get("bignlp_scripts_path")
     cluster_cfg = cfg.get("cluster")
     dst = os.path.join(bignlp_scripts_path, "conf/cluster/bcm.yaml")
-    copy_cluster_config()
+    copy_config_to_file(cluster_cfg, dst)
     print(f"Copied cluster config to {dst}")
 
     # Generate string of hydra overrides for bignlp-scripts.
-    overrides_str = generate_overrides_str(cfg)
+    overrides_str = generate_overrides_str(file_name, model_name, results_dir, cfg)
 
     bignlp_ci = f"BIGNLP_CI=1" if bool(os.getenv("BIGNLP_CI")) else ""
     main_path = os.path.join(bignlp_scripts_path, "main.py")
@@ -39,7 +39,7 @@ def run_training(file_name: str, model_name: str, results_dir: str, cfg: OmegaCo
     return job_id
 
 
-def copy_config(cfg: OmegaConf, dst: str) -> None:
+def copy_config_to_file(cfg: OmegaConf, dst: str) -> None:
     """
     Copies OmegaConf configuration to a dst file.
 
@@ -70,8 +70,10 @@ def generate_overrides_str(
     container = cfg.get("training_container")
     bignlp_scripts_path = cfg.get("bignlp_scripts_path")
     data_dir = cfg.get("data_dir")
-    container_mounts = cfg.get("container_mounts")
+    container_mounts = cfg.get("container_mounts", "null")
     api_key_file = cfg.get("wandb").get("api_key_file")
+    if api_key_file is None:
+        api_key_file = "null"
 
     overrides_str = (
         f"training={training_model} "

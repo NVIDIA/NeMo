@@ -1,3 +1,5 @@
+"""Entry point, main file to run to launch jobs with the HP tool."""
+
 import sys
 import math
 
@@ -14,7 +16,13 @@ OmegaConf.register_new_resolver("divide_floor", lambda x, y: int(x // y), replac
 
 
 @hydra.main(config_path="conf", config_name="config")
-def main(cfg):
+def main(cfg: OmagaConf) -> None:
+    """
+    Main function in the entire pipeline, it reads the config using hydra and calls search_config.
+
+    :param OmegaConf cfg: OmegaConf object, read using the @hydra.main decorator.
+    :return: None
+    """
     hydra_args = " ".join(sys.argv[1:])
     search_config(cfg=cfg)
 
