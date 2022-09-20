@@ -28,7 +28,7 @@ pipeline {
 
     stage('Pin Transformers Version (Hotfix)') {
       steps{
-        sh 'pip install transformers==4.21.3'
+        sh 'pip install transformers==4.21.2'
       }
     }
 
