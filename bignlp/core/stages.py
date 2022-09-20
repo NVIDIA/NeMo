@@ -431,7 +431,7 @@ class Training(NeMoStage):
 
     def _get_nemo_code_path(self, model_type: str) -> Path:
         """Provide the essential nemo code path for running the stage
-        Usually different model types have different nemo scripts, e.g. pretraining
+           Usually different model types have different nemo scripts, e.g. pretraining
         """
         model_type_to_code_path = {
             "t5": self._nemo_code_path / "examples/nlp/language_modeling/megatron_t5_pretraining.py",
@@ -469,7 +469,7 @@ class FineTuning(NeMoStage):
 
     def _get_nemo_code_path(self, model_type: str) -> Path:
         """Provide the essential nemo code path for running the stage
-        Usually different model types have different nemo scripts, e.g. pretraining
+           Usually different model types have different nemo scripts, e.g. pretraining
         """
         if model_type == "gpt3":
             raise NotImplementedError("Fine-tuning is not supported in NeMo Megatron GPT-3 models.")
@@ -505,7 +505,7 @@ class PromptLearning(NeMoStage):
 
     def _get_nemo_code_path(self, model_type: str) -> Path:
         """Provide the essential nemo code path for running the stage
-        Usually different model types have different nemo scripts, e.g. pretraining
+           Usually different model types have different nemo scripts, e.g. pretraining
         """
         model_type_to_code_path = {
             "gpt3": self._nemo_code_path / "examples/nlp/language_modeling/megatron_gpt_prompt_learning.py",
@@ -660,7 +660,7 @@ class NeMoEvaluation(NeMoStage):
 
     def _get_nemo_code_path(self, model_type: str) -> Path:
         """Provide the essential nemo code path for running the stage
-        Usually different model types have different nemo scripts, e.g. pretraining
+           Usually different model types have different nemo scripts, e.g. pretraining
         """
         if "gpt3" in model_type:
             raise ValueError("Evaluating GPT-3 models needs `EvalHarnessEvaluation` class.")
