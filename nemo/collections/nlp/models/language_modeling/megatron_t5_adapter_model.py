@@ -17,11 +17,13 @@
 # Adapted by: @adithyare
 
 
+from typing import Any
 import torch
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.common.parts.adapter_modules import LinearAdapterConfig
+from nemo.collections.nlp.data.language_modeling.megatron.t5_prompt_learning_dataset import T5Sentinel
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.models.language_modeling.megatron_t5_prompt_learning_model import MegatronT5PromptLearningModel
 from nemo.collections.nlp.modules.common import VirtualPromptStyle
@@ -131,6 +133,71 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
             'predicted_token_ids': processed_preds,
             'labels': processed_labels,
             'enc_inputs': processed_inputs,
+        }
+
+    def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> Any:
+
+        enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids = batch
+
+
+
+        predicted_token_ids, log_probs = self.frozen_model.decode(
+            tokens_enc=enc_input,
+            enc_mask=enc_mask,
+            num_tokens_to_generate=self.decoder_seq_length,
+            encoder_input=None,
+        )
+
+        processed_preds = []
+        processed_labels = []
+        processed_inputs = []
+
+        preds = predicted_token_ids.cpu().numpy().tolist()
+        enc_inputs = enc_input.cpu().numpy().tolist()
+
+        if labels is not None:
+            labels = labels.cpu().numpy().tolist()
+        else:
+            labels = [None] * len(preds)
+
+        for i, (enc_input, pred, label) in enumerate(zip(enc_inputs, preds, labels)):
+            if self.tokenizer.eos_id in pred:
+                idx = pred.index(self.tokenizer.eos_id)
+                pred = pred[:idx]
+
+            pred = [
+                id
+                for id in pred
+                if id not in self.tokenizer.tokenizer.additional_special_tokens_ids
+                and id not in self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
+            ]  # delete the sentinel token at the beginning of prediction
+
+            pred = self.tokenizer.ids_to_text(pred)
+            processed_preds.append(pred)
+
+            enc_input = [
+                id for id in enc_input if id not in self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
+            ]  # delete the sentinel token added to the end of input
+
+            input = self.tokenizer.ids_to_text(enc_input)
+            processed_inputs.append(input)
+
+            if label:
+                label = [
+                    id
+                    for id in label
+                    if id not in self.tokenizer.tokenizer.additional_special_tokens_ids
+                    and id not in self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
+                ]  # delete the sentinel token at the beginning of label
+
+                label = self.tokenizer.ids_to_text(label)
+            processed_labels.append(label)
+
+        return {
+            'enc_input': processed_inputs,
+            'predicted_token_ids': processed_preds,
+            'log_probs': log_probs,
+            'labels': processed_labels,
         }
 
     def get_forward_output_only_func(self):
