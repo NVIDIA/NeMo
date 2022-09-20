@@ -27,6 +27,10 @@ list_url = "https://raw.githubusercontent.com/BUTSpeechFIT/AMI-diarization-setup
 
 audio_types = ['Mix-Headset', 'Array1-01']
 
+# these two IDs in the train set are missing download links for Array1-01.
+# We exclude them as a result.
+not_found_ids = ['IS1007d', 'IS1003b']
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Download the AMI Test Corpus Dataset for Speaker Diarization")
     parser.add_argument(
@@ -63,7 +67,7 @@ if __name__ == "__main__":
         os.system(f"wget -P {split_path} {list_url.format(split)}")
         with open(os.path.join(split_path, f"{split}.meetings.txt")) as f:
             ids = f.read().strip().split('\n')
-        for id in ids:
+        for id in [file_id for file_id in ids if file_id not in not_found_ids]:
             for audio_type in audio_types:
                 audio_type_path = os.path.join(audio_path, audio_type)
                 os.makedirs(audio_type_path, exist_ok=True)
@@ -79,7 +83,7 @@ if __name__ == "__main__":
         with open(rttm_files_path, 'w') as f:
             f.write('\n'.join(os.path.join(rttm_path, p) for p in os.listdir(rttm_path)))
         uem_files_path = os.path.join(split_path, 'uem_files.txt')
-        with open(rttm_files_path, 'w') as f:
+        with open(uem_files_path, 'w') as f:
             f.write('\n'.join(os.path.join(uem_path, p) for p in os.listdir(uem_path)))
         for audio_type in audio_types:
             audio_type_path = os.path.join(audio_path, audio_type)
