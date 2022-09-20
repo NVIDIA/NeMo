@@ -626,16 +626,16 @@ The error analysis showed several problems concerning the Kinyarwanda dataset:
 * Noisy multi-speaker records (e.g. common_voice_rw_19830859.wav)
 * Bad quality of record (e.g. common_voice_rw_24452415.wav)
 * Orthographic variability related to space/no space/apostrophe
-    *kugira ngo / kugirango*
-    *nkuko / nk'uko*
-    *n iyo / n'iyo*
+    * *kugira ngo / kugirango*
+    * *nkuko / nk'uko*
+    * *n iyo / n'iyo*
 * Multiple orthographic variants for foreign words
-    *telefoni / telephone*
-    *film / filime*
-    *isiraheli / israel*
-    *radio / radiyo*
-    *kongo / congo*
+    * *telefoni / telephone*
+    * *film / filime*
+    * *isiraheli / israel*
+    * *radio / radiyo*
+    * *kongo / congo*
 * l/r variability
-    *abamalayika / abamarayika*
+    * *abamalayika / abamarayika*
 
 
