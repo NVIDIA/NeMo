@@ -92,7 +92,7 @@ class MegatronRetrievalModel(MegatronBaseModel):
 
         if hasattr(self.cfg, "shape_file"):
             set_base_shapes(self, 
-                            self.register_artifact("model.shape_file", self.cfg.shape_file), 
+                            self.register_artifact("shape_file", self.cfg.shape_file), 
                             rescale_params=False)
 
             # here manually initialize all the named parameters with the muTranfer normal initializer
