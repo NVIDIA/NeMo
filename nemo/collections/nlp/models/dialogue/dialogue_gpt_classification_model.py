@@ -17,6 +17,7 @@ import collections
 import copy
 import os
 import random
+from collections import OrderedDict
 from typing import Dict, Optional, Union
 
 import numpy as np
@@ -36,6 +37,8 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_
     MegatronGPTPromptLearningModel,
 )
 from nemo.collections.nlp.models.nlp_model import NLPModel
+from nemo.collections.nlp.modules.common import VirtualPromptSource
+from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 
@@ -59,10 +62,18 @@ class DialogueGPTClassificationModel(NLPModel):
         elif self.cfg.library == "megatron":
             self.prompt_learning = self.cfg.prompt_learning
             if self.prompt_learning:
-                # removing tokenizer cfg as this triggers tokenizer construction which is not helpful here as we have a separate tokenizer
-                new_cfg = copy.copy(cfg)
-                del new_cfg.tokenizer
-                self.language_model = MegatronGPTPromptLearningModel(new_cfg, trainer)
+                if os.path.exists(cfg.prompt_learning_nemo_path):
+                    self.language_model = MegatronGPTPromptLearningModel.restore_from(
+                        cfg.prompt_learning_nemo_path,
+                        trainer=trainer,
+                        save_restore_connector=NLPSaveRestoreConnector(),
+                    )
+                else:
+                    # removing tokenizer cfg as this triggers tokenizer construction which is not helpful here as we have a separate tokenizer
+                    new_cfg = copy.copy(cfg)
+                    del new_cfg.tokenizer
+                    new_cfg.nemo_path = cfg.prompt_learning_nemo_path
+                    self.language_model = MegatronGPTPromptLearningModel(new_cfg, trainer)
             else:
                 self.language_model = MegatronGPTModel.restore_from(cfg.language_model.lm_checkpoint, trainer=trainer)
 
@@ -83,8 +94,36 @@ class DialogueGPTClassificationModel(NLPModel):
             num_classes=len(self.label_to_ids) + 1, mode='micro', label_ids=self.label_to_ids, dist_sync_on_step=True
         )
 
-    def training_step(self, batch, batch_idx):
+    def setup_optimizer_param_groups(self):
+        """
+        ModelPT override for prompt learning. 
+        Optimizer will get self._optimizer_param_groups. 
+        Makes two optimizer param groups, one for the frozen model params
+        and one for the prompt-table/prompt-encoder params. The learning 
+        rate for the frozen model's params will always be zero effectively
+        freezing the model's params but still allowing for the needed gradients
+        to be passed around in pipeline parallel models. The prompt-encoder 
+        and/or prompt table will use the learning rate set by the user. 
+        """
+        if not self.prompt_learning:
+            super().setup_optimizer_param_groups()
+            return
+        # Freeze frozen model
+        for param in self.language_model.frozen_model.parameters():
+            param.requires_grad = False
 
+        virtual_prompt_params = {'params': []}
+
+        if self.language_model.frozen_model.model.pre_process:
+            virtual_prompt_params['params'].extend([param for param in self.language_model.prompt_table.parameters()])
+
+            if self.language_model.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
+                virtual_prompt_params['params'].extend(
+                    [param for param in self.language_model.prompt_encoder.parameters()]
+                )
+        self._optimizer_param_groups = (virtual_prompt_params,)
+
+    def training_step(self, batch, batch_idx):
         (
             input_ids,
             attn_masks,
@@ -224,6 +263,10 @@ class DialogueGPTClassificationModel(NLPModel):
         # return self(batch)
         raise NotImplementedError()
 
+    def on_train_end(self):
+        if self.prompt_learning:
+            self.language_model.on_train_end()
+
     def forward(self, input_ids, attention_mask, labels, inference=True):
 
         if self.cfg.library == "huggingface":
@@ -248,7 +291,18 @@ class DialogueGPTClassificationModel(NLPModel):
 
             position_ids = position_ids.unsqueeze(0).repeat(input_ids.size(0), 1)
 
-            prompt_ids = torch.tensor([0] * input_ids.size(0)) if self.prompt_learning else None
+            if self.cfg.virtual_prompt_style == 'prompt-tuning' or not self.prompt_learning or self.trainer.testing:
+                prompt_ids = (
+                    torch.tensor([0] * input_ids.size(0)).to(input_ids.device) if self.prompt_learning else None
+                )
+            else:
+                total_virtual_tokens = self.cfg.task_templates[0].total_virtual_tokens
+                init_text = self.cfg.prompt_tuning.new_prompt_init_text[0]
+                init_text_ids = self.tokenizer.text_to_ids(init_text)
+                init_text_ids = torch.tensor(init_text_ids).to(input_ids.device)
+                # repeat text ids if n text ids < n total virtual tokens
+                n_repeats = total_virtual_tokens // init_text_ids.size(0) + 1
+                prompt_ids = init_text_ids.repeat(input_ids.size(0), n_repeats)[:, :total_virtual_tokens]
 
             attn_mask_add_on = torch.ones((attention_mask.size(0), num_prompt_tokens), device=attention_mask.device)
             full_attention_mask = torch.cat([attn_mask_add_on, attention_mask], axis=-1)
@@ -271,7 +325,7 @@ class DialogueGPTClassificationModel(NLPModel):
 
             prompt_token_labels = prompt_token_labels.to(input_ids.device)
 
-            input_ids_new = torch.cat([torch.zeros_like(prompt_token_labels), input_ids], axis=1)
+            input_ids_new = torch.cat([prompt_token_labels, input_ids], axis=1)
             make_up_last_column_input_ids = (
                 torch.ones_like(input_ids_new[:, -1:]) * self.tokenizer.tokenizer.pad_token_id
             )
@@ -283,7 +337,7 @@ class DialogueGPTClassificationModel(NLPModel):
                     attn_mask,
                     labels=left_shifted_input_ids,
                     taskname_ids=prompt_ids,
-                    inference=inference,
+                    inference=False if len(prompt_ids.size()) == 2 else True,
                 )
             else:
                 unmasked_unreduced_loss = self.language_model(
@@ -302,6 +356,7 @@ class DialogueGPTClassificationModel(NLPModel):
 
             loss = self.mask_and_reduce_loss(labels_mask, unmasked_unreduced_loss)
             loss_per_sample = self.mask_and_reduce_loss_per_sample(labels_mask, unmasked_unreduced_loss)
+
         return loss, loss_per_sample
 
     def mask_and_reduce_loss_per_sample(self, loss_mask, output_tensor):
@@ -658,7 +713,7 @@ class DialogueGPTClassificationModel(NLPModel):
 
     def setup(self, stage=None):
         super().setup()
-        if self.cfg.library == "megatron" and self.prompt_learning:
+        if self.cfg.library == "megatron" and self.prompt_learning and stage == "fit":
             if self.cfg.virtual_prompt_style == 'prompt-tuning':
                 self.language_model.init_new_prompts()
             else:

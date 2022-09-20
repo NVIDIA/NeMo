@@ -53,12 +53,7 @@ from nemo.collections.nlp.models.dialogue.dialogue_zero_shot_intent_model import
 from nemo.collections.nlp.models.dialogue.intent_slot_classification_model import IntentSlotClassificationModel
 from nemo.collections.nlp.models.dialogue.sgdqa_model import SGDQAModel
 from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
-from nemo.collections.nlp.parts.nlp_overrides import (
-    GradScaler,
-    NLPDDPStrategy,
-    NLPSaveRestoreConnector,
-    PipelineMixedPrecisionPlugin,
-)
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
@@ -75,19 +70,7 @@ def main(cfg: DictConfig) -> None:
     except (ImportError, ModuleNotFoundError):
         strategy = None
 
-    plugins = []
-    if cfg.trainer.precision == 16:
-        scaler = GradScaler(
-            init_scale=cfg.model.get('native_amp_init_scale', 2 ** 32),
-            growth_interval=cfg.model.get('native_amp_growth_interval', 1000),
-            hysteresis=cfg.model.get('hysteresis', 2),
-            enabled=False
-            if cfg.model.pipeline_model_parallel_size > 1
-            else True,  # turn off the grad scale for pipeline parallel LM model
-        )
-        plugins.append(PipelineMixedPrecisionPlugin(precision=cfg.trainer.precision, device='cuda', scaler=scaler))
-
-    trainer = pl.Trainer(**cfg.trainer, strategy=strategy, plugins=plugins)
+    trainer = pl.Trainer(**cfg.trainer, strategy=strategy)
 
     exp_manager(trainer, cfg.get("exp_manager", None))
 
@@ -128,7 +111,7 @@ def main(cfg: DictConfig) -> None:
             model = model_class.from_pretrained(cfg.pretrained_model)
         else:
             logging.info(f'Restoring model from {cfg.model.nemo_path}')
-            model = model_class.restore_from(cfg.model.nemo_path)
+            model = model_class.restore_from(cfg.model.nemo_path, trainer=trainer)
 
         if cfg.do_training:
             model.setup_training_data(train_data_config=cfg.model.train_ds)
@@ -139,8 +122,9 @@ def main(cfg: DictConfig) -> None:
 
     if cfg.do_training:
         trainer.fit(model)
-        if cfg.model.nemo_path:
+        if cfg.model.nemo_path and not os.path.exists(cfg.model.nemo_path):
             model.save_to(cfg.model.nemo_path)
+
     else:
         data_dir = cfg.model.dataset.get('data_dir', None)
         dialogues_example_dir = cfg.model.dataset.get('dialogues_example_dir', None)
@@ -155,13 +139,7 @@ def main(cfg: DictConfig) -> None:
                 model._cfg.dataset = cfg.model.dataset
 
     if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.ds_item is not None:
-        # eval_device = [cfg.trainer.devices[0]] if isinstance(cfg.trainer.devices, list) else 1
-        # del cfg.trainer.devices
-        # trainer = pl.Trainer(**cfg.trainer,
-        #     devices=eval_device, strategy=strategy,  #accelerator=cfg.trainer.accelerator#,
-        # )
         model.setup_multiple_test_data(test_data_config=cfg.model.test_ds)
-        # if model.prepare_test(trainer):
         trainer.test(model)
 
 
