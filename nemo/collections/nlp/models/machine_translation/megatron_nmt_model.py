@@ -579,13 +579,23 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         if self._cfg.validation_ds.get("dataset_type", "text") != "text":
             raise ValueError(f"Validation dataset type must be 'text', found {self._cfg.validation_ds.dataset_type}")
 
-        self._validation_ds = MTEncDecModel._setup_eval_dataset_from_config(
-            cfg=self._cfg.validation_ds,
-            multilingual=self.multilingual,
-            multilingual_ids=self.multilingual_ids,
-            encoder_tokenizer=self.encoder_tokenizer,
-            decoder_tokenizer=self.decoder_tokenizer,
-        )
+        # Set up prepend IDs for validation datasets even if not multingual.
+        if self._cfg.train_ds.get('objective', 'nmt') == 'nmt-xlm':
+            self._validation_ds = MTEncDecModel._setup_eval_dataset_from_config(
+                cfg=self._cfg.validation_ds,
+                multilingual=True,
+                multilingual_ids=self._cfg.validation_ds.tgt_lang,
+                encoder_tokenizer=self.encoder_tokenizer,
+                decoder_tokenizer=self.decoder_tokenizer,
+            )
+        else:
+            self._validation_ds = MTEncDecModel._setup_eval_dataset_from_config(
+                cfg=self._cfg.validation_ds,
+                multilingual=self.multilingual,
+                multilingual_ids=self.multilingual_ids,
+                encoder_tokenizer=self.encoder_tokenizer,
+                decoder_tokenizer=self.decoder_tokenizer,
+            )
         # Test data config is optional.
         if hasattr(self._cfg, 'test_ds'):
             if self._cfg.validation_ds.get("dataset_type", "text") != "text":
