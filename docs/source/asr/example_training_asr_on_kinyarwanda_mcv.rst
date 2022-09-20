@@ -3,6 +3,7 @@ Example ASR Pipeline: Kinyarwanda ASR using Mozilla Common Voice Dataset
 ########################################################################
 
 In this example pipeline, we describe essential steps of training an ASR model for a new language (Kinyarwanda). Namely,
+
 * Data preprocessing
 * Building tokenizers
 * Tarred datasets and bucketing
@@ -49,17 +50,19 @@ Let's look at the format of a .tsv file
     e2a04c0ecacf81302f4270a3dddaa7a131420f6b7319208473af17d4adf3724ad9a3b6cdee107e2f321495db86f114a50c396e0928464a58dfad472130e7514a        common_voice_rw_26273488.mp3    Grand Canyon ni ahantu hazwi cyane ba mukerarugendo.    2       0       twenties    male             rw
 
 Each line corresponds to one record (usually one sentence) and contains:
-#. name of the audio file
-#. corresponding transcription
-#. meta information: client_id, age, gender, etc.
+
+* name of the audio file
+* corresponding transcription
+* meta information: client_id, age, gender, etc.
 
 
 Resampling and creating manifests
 #################################
 
 To be able to use a dataset with NeMo Toolkit, we first need to
-#. convert .tsv files to .json manifests
-#. convert .mp3 files to .wav with sample rate of 16000
+
+* Convert .tsv files to .json manifests
+* Convert .mp3 files to .wav with sample rate of 16000
 
 To convert a .tsv file to .json manifest, we used the following script
 
@@ -106,10 +109,10 @@ This script will create a corresponding **train.json** manifest near the initial
 
 .. code-block:: bash
 
-{"audio_filepath": "cv-corpus-9.0-2022-04-27/rw/clips/common_voice_rw_26273273.mp3", "text": "kandi tuguwe neza kugira ngo twakire amagambo y\u2019ukuri,", "up_votes": 2, "down_votes": 0, "age": "twenties", "gender": "male", "accents": NaN, "client_id": "e2a04c0ecacf81302f4270a3dddaa7a131420f6b7319208473af17d4adf3724ad9a3b6cdee107e2f321495db86f114a50c396e0928464a58dfad472130e7514a"}
-{"audio_filepath": "cv-corpus-9.0-2022-04-27/rw/clips/common_voice_rw_26273478.mp3", "text": "Simbi na we akajya kwiga nubwo byari bigoye", "up_votes": 2, "down_votes": 0, "age": "twenties", "gender": "male", "accents": NaN, "client_id": "e2a04c0ecacf81302f4270a3dddaa7a131420f6b7319208473af17d4adf3724ad9a3b6cdee107e2f321495db86f114a50c396e0928464a58dfad472130e7514a"}
-{"audio_filepath": "cv-corpus-9.0-2022-04-27/rw/clips/common_voice_rw_26273483.mp3", "text": "Inshuti yanjye yaje kunsura ku biro byanjye.", "up_votes": 2, "down_votes": 0, "age": "twenties", "gender": "male", "accents": NaN, "client_id": "e2a04c0ecacf81302f4270a3dddaa7a131420f6b7319208473af17d4adf3724ad9a3b6cdee107e2f321495db86f114a50c396e0928464a58dfad472130e7514a"}
-{"audio_filepath": "cv-corpus-9.0-2022-04-27/rw/clips/common_voice_rw_26273488.mp3", "text": "Grand Canyon ni ahantu hazwi cyane ba mukerarugendo.", "up_votes": 2, "down_votes": 0, "age": "twenties", "gender": "male", "accents": NaN, "client_id": "e2a04c0ecacf81302f4270a3dddaa7a131420f6b7319208473af17d4adf3724ad9a3b6cdee107e2f321495db86f114a50c396e0928464a58dfad472130e7514a"}
+    {"audio_filepath": "cv-corpus-9.0-2022-04-27/rw/clips/common_voice_rw_26273273.mp3", "text": "kandi tuguwe neza kugira ngo twakire amagambo y\u2019ukuri,", "up_votes": 2, "down_votes": 0, "age": "twenties", "gender": "male", "accents": NaN, "client_id": "e2a04c0ecacf81302f4270a3dddaa7a131420f6b7319208473af17d4adf3724ad9a3b6cdee107e2f321495db86f114a50c396e0928464a58dfad472130e7514a"}
+    {"audio_filepath": "cv-corpus-9.0-2022-04-27/rw/clips/common_voice_rw_26273478.mp3", "text": "Simbi na we akajya kwiga nubwo byari bigoye", "up_votes": 2, "down_votes": 0, "age": "twenties", "gender": "male", "accents": NaN, "client_id": "e2a04c0ecacf81302f4270a3dddaa7a131420f6b7319208473af17d4adf3724ad9a3b6cdee107e2f321495db86f114a50c396e0928464a58dfad472130e7514a"}
+    {"audio_filepath": "cv-corpus-9.0-2022-04-27/rw/clips/common_voice_rw_26273483.mp3", "text": "Inshuti yanjye yaje kunsura ku biro byanjye.", "up_votes": 2, "down_votes": 0, "age": "twenties", "gender": "male", "accents": NaN, "client_id": "e2a04c0ecacf81302f4270a3dddaa7a131420f6b7319208473af17d4adf3724ad9a3b6cdee107e2f321495db86f114a50c396e0928464a58dfad472130e7514a"}
+    {"audio_filepath": "cv-corpus-9.0-2022-04-27/rw/clips/common_voice_rw_26273488.mp3", "text": "Grand Canyon ni ahantu hazwi cyane ba mukerarugendo.", "up_votes": 2, "down_votes": 0, "age": "twenties", "gender": "male", "accents": NaN, "client_id": "e2a04c0ecacf81302f4270a3dddaa7a131420f6b7319208473af17d4adf3724ad9a3b6cdee107e2f321495db86f114a50c396e0928464a58dfad472130e7514a"}
 
 For resampling we used the following script:
 
@@ -304,11 +307,12 @@ We used the following script
     test_manifest_cleaned = write_processed_manifest(test_data_processed, test_manifest)
 
 It performs the following operations:
-#. Remove all punctuation except for apostrophes
-#. Replace different kinds of apostrophes by one
-#. Lowercase
-#. Replace rare characters with diacritics (e.g. [éèëēê] => e)
-#. Delete all remaining out-of-vocabulary (OOV) characters
+
+* Remove all punctuation except for apostrophes
+* Replace different kinds of apostrophes by one
+* Lowercase
+* Replace rare characters with diacritics (e.g. [éèëēê] => e)
+* Delete all remaining out-of-vocabulary (OOV) characters
 
 The final Kinyarwanda alphabet in all trancripts consists of Latin letters, space and apostrophe.
 
@@ -466,13 +470,14 @@ This is an example of how we can run the training script:
     model.validation_ds.manifest_filepath=$VAL_MANIFEST \
     model.test_ds.manifest_filepath=$TEST_MANIFEST
 
-The option `exp_manager.resume_if_exists=true` allows to resume training. Actually you can stop training at any moment and then continue from the last checkpoint.
-When the training is finished, the final model will be saved as `.nemo` file inside the folder that we specified in `exp_manager.exp_dir`.
+The option *exp_manager.resume_if_exists=true* allows to resume training. Actually you can stop training at any moment and then continue from the last checkpoint.
+When the training is finished, the final model will be saved as *.nemo* file inside the folder that we specified in *exp_manager.exp_dir*.
 
 Training dynamics
 #################
 
 The figure below shows the training dynamics when we train Kinyarwanda models **from scratch**. In these experiments we used the hyperparameters from the default configs, the training was run on 2 nodes with 16 gpus per node, training batch size was 32. We see that Transducer model achieves better quality than CTC.
+
     .. image:: images/kinyarwanda_from_scratch.png
         :align: center
         :alt: Training dynamics of Kinyarwanda models trained from scratch
@@ -484,11 +489,12 @@ Finetuning from another model
 Often it's a good idea to initialize our ASR model with the weights of some other pretrained model, for example, a model for another language. It usually makes our model to converge faster and achieve better quality, especially if the dataset for our target language is small.
 
 Though Kinyarwanda dataset is rather large, we also tried finetuning Kinyarwanda Conformer-Transducer model from different pretrained checkpoints, namely:
-#. English Conformer-Transducer checkpoint
-#. Self-supervised Learning (SSL) checkpoint trained on English data
-#. SSL checkpoint trained on multilingual data
 
-To initialize from **non-SSL** checkpoint we should simply add the option `+init_from_pretrained_model`:
+* English Conformer-Transducer checkpoint
+* Self-supervised Learning (SSL) checkpoint trained on English data
+* SSL checkpoint trained on multilingual data
+
+To initialize from **non-SSL checkpoint** we should simply add the option `+init_from_pretrained_model`:
 
 .. code-block:: bash
 
@@ -515,9 +521,10 @@ To initialize from **SSL checkpoint** we should edit our training script like th
 
     del ssl_model
 
-When using finetuning you probably will need to change the some hyperparameters from the default config, especially the learning rate and learning rate policy. In the experiments below we used `model.optim.sched.name=CosineAnnealing` and `model.optim.lr=1e-3`
+When using finetuning you probably will need to change the some hyperparameters from the default config, especially the learning rate and learning rate policy. In the experiments below we used *model.optim.sched.name=CosineAnnealing* and *model.optim.lr=1e-3*.
 
 The figure below compares the training dynamics for three Conformer-Transducer models. They differ only by how they are initialized. We see that finetuning leads to faster convergence and better quality. Initializing from SSL gives lowest WER at earlier stages, but in a longer period it performs worse.
+
     .. image:: images/kinyarwanda_finetuning.png
         :align: center
         :alt: Training dynamics of Kinyarwanda models trained from scratch and finetuned from different pretrained checkpoints
@@ -615,19 +622,20 @@ it will start a local server, and provide a http address to open from the browse
 In the UI we can see the model predictions and their diff with the reference, and also we can listen to the corresponding audio. We also can sort the sentences by descending WER and look through the top of them.
 
 The error analysis showed several problems concerning the Kinyarwanda dataset:
+
 * Noisy multi-speaker records (e.g. common_voice_rw_19830859.wav)
 * Bad quality of record (e.g. common_voice_rw_24452415.wav)
 * Orthographic variability related to space/no space/apostrophe:
-    #. `kugira ngo / kugirango`
-    #. `nkuko / nk'uko`
-    #. `n iyo / n'iyo`
+    `kugira ngo / kugirango`
+    `nkuko / nk'uko`
+    `n iyo / n'iyo`
 * Multiple orthographic variants for foreign words
-    #. `telefoni / telephone`
-    #. `film / filime`
-    #. `isiraheli / israel`
-    #. `radio / radiyo`
-    #. `kongo / congo`
+    `telefoni / telephone`
+    `film / filime`
+    `isiraheli / israel`
+    `radio / radiyo`
+    `kongo / congo`
 * l/r variability
-    #. `abamalayika / abamarayika`
+    `abamalayika / abamarayika`
 
 
