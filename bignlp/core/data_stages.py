@@ -134,6 +134,7 @@ class PileDataPreparation(DataStage):
         return sub_stages
 
     def setup_folder_and_data(self) -> None:
+        """Setup job/data folders and fine-tuning/prompt-learning dataset"""
         job_path = self.get_job_path()
         job_path.folder.mkdir(parents=True, exist_ok=True)
 
@@ -226,6 +227,7 @@ class MC4DataPreparation(DataStage):
         return sub_stages
 
     def setup_folder_and_data(self) -> None:
+        """Setup job/data folders and fine-tuning/prompt-learning dataset"""
         job_path = self.get_job_path()
         job_path.folder.mkdir(parents=True, exist_ok=True)
 
@@ -359,6 +361,7 @@ class CustomDataPreparation(DataStage):
         return sub_stages
 
     def setup_folder_and_data(self) -> None:
+        """Setup job/data folders and fine-tuning/prompt-learning dataset"""
         job_path = self.get_job_path()
         job_path.folder.mkdir(parents=True, exist_ok=True)
 

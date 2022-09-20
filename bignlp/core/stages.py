@@ -63,7 +63,7 @@ class BigNLPStage:
         return job_id
 
     def setup_folder_and_data(self) -> None:
-        """Setup required folders and dataset"""
+        """Setup job/data folders and fine-tuning/prompt-learning dataset"""
         job_path = self.get_job_path()
         job_path.folder.mkdir(parents=True, exist_ok=True)
         results_folder = job_path.results_folder
@@ -71,14 +71,25 @@ class BigNLPStage:
 
     @staticmethod
     def save_stage_hydra_config(stage_cfg, job_path) -> Path:
-        """Save hydra config file for current stage"""
+        """Interpolate and save hydra config file for current stage"""
         _hydra_interpolation(stage_cfg)
 
         cfg_save_path = job_path.config_file
         omegaconf.OmegaConf.save(stage_cfg, cfg_save_path)
         return cfg_save_path
 
-    def make_stage_command_groups(self, stage_cfg_path) -> List[List[str]]:
+    def make_stage_command_groups(self, stage_cfg_path: Path) -> List[List[str]]:
+        """Make the command groups for current stage
+
+        Arguments:
+            stage_cfg_path: Path, the interpolated and saved configuration path
+        Output:
+            command_groups: List[List[str]], command groups is a list of command group.
+                A command group is defined as:
+                    0. Command group is a list of command strings
+                    1. Each command group occupies one bcprun, srun or bash
+                    2. Each command group eventually has multiple commands connected by ";"
+        """
         raise NotImplementedError
 
     def _make_wandb_login_command(self) -> List[str]:
@@ -224,6 +235,13 @@ class BigNLPStage:
         return cluster_parameters
 
     def get_env_vars(self) -> Dict:
+        """Set up dictionary for environment variables
+
+        The environment variables will be set inside the job scripts
+        For Example:
+            Set `env_vars.NVTE_BIAS_DROPOUT_FUSION=1` while calling bignlp-scripts,
+            `NVTE_BIAS_DROPOUT_FUSION=1` will be set while running the job.
+        """
         env_vars = {
             k: v for k, v in self.cfg.get("env_vars").items()
             if v is not None
@@ -275,8 +293,28 @@ class BigNLPStage:
 
 
 class NeMoStage(BigNLPStage):
+    """Stage is a nemo stage if it uses a nemo scripts
 
-    def make_stage_command_groups(self, stage_cfg_path):
+    Current nemo stage includes:
+        - pretraining
+        - fine-tuning
+        - prompt-learning
+        - t5/mt5 eval
+    GPT3 eval is not a NeMo stage because it uses eval-harness inside bignlp collections.
+    """
+
+    def make_stage_command_groups(self, stage_cfg_path: Path) -> List[List[str]]:
+        """Make the command groups for current stage
+
+        Arguments:
+            stage_cfg_path: Path, the interpolated and saved configuration path
+        Output:
+            command_groups: List[List[str]], command groups is a list of command group.
+                A command group is defined as:
+                    0. Command group is a list of command strings
+                    1. Each command group occupies one bcprun, srun or bash
+                    2. Each command group eventually has multiple commands connected by ";"
+        """
         # Training has one command group
         # Shared with fine-tuning and prompt learning
         command_groups = [[]]
@@ -306,6 +344,9 @@ class NeMoStage(BigNLPStage):
         return command_groups
 
     def _make_nemo_call_string(self, stage_cfg_path) -> str:
+        """Make nemo scripts calling command string
+           This is for the one essential nemo script call inside a nemo stage
+        """
         choice_model_type, choice_name = self.get_stage_config_choice()
         code_path = self._get_nemo_code_path(choice_model_type)
 
@@ -336,6 +377,13 @@ class NeMoStage(BigNLPStage):
         return hydra_override
 
     def get_env_vars(self) -> Dict:
+        """Set up dictionary for environment variables
+
+        The environment variables will be set inside the job scripts
+        For Example:
+            Set `env_vars.NVTE_BIAS_DROPOUT_FUSION=1` while calling bignlp-scripts,
+            `NVTE_BIAS_DROPOUT_FUSION=1` will be set while running the job.
+        """
         env_vars = super().get_env_vars()
         devices = self.stage_cfg.trainer.get("devices", 1)
         if self.cluster != "bcm":
@@ -382,7 +430,9 @@ class Training(NeMoStage):
         return hydra_override
 
     def _get_nemo_code_path(self, model_type: str) -> Path:
-        """Provide the essential nemo code path for running the stage"""
+        """Provide the essential nemo code path for running the stage
+        Usually different model types have different nemo scripts, e.g. pretraining
+        """
         model_type_to_code_path = {
             "t5": self._nemo_code_path / "examples/nlp/language_modeling/megatron_t5_pretraining.py",
             "mt5": self._nemo_code_path / "examples/nlp/language_modeling/megatron_t5_pretraining.py",
@@ -398,11 +448,11 @@ class FineTuning(NeMoStage):
         self.stage_name = "fine_tuning"
         self.stage_cfg = cfg.get("fine_tuning")
 
-    def setup_folder_and_data(self):
+    def setup_folder_and_data(self) -> None:
+        """Setup job/data folders and fine-tuning/prompt-learning dataset"""
         super().setup_folder_and_data()
 
         # Prepare fine-tuning dataset
-        # TODO: Update to squad
         data_dir = self.cfg.get("data_dir")
         task_name = self.stage_cfg.run.get("task_name")
 
@@ -418,7 +468,9 @@ class FineTuning(NeMoStage):
             prepare_squad_for_fine_tuning(data_dir=os.path.join(data_dir, "squad_data"))
 
     def _get_nemo_code_path(self, model_type: str) -> Path:
-        """Provide the essential nemo code path for running the stage"""
+        """Provide the essential nemo code path for running the stage
+        Usually different model types have different nemo scripts, e.g. pretraining
+        """
         if model_type == "gpt3":
             raise NotImplementedError("Fine-tuning is not supported in NeMo Megatron GPT-3 models.")
         model_type_to_code_path = {
@@ -435,7 +487,8 @@ class PromptLearning(NeMoStage):
         self.stage_name = "prompt_learning"
         self.stage_cfg = cfg.get("prompt_learning")
 
-    def setup_folder_and_data(self):
+    def setup_folder_and_data(self) -> None:
+        """Setup job/data folders and fine-tuning/prompt-learning dataset"""
         # Setup folders
         super().setup_folder_and_data()
 
@@ -451,7 +504,9 @@ class PromptLearning(NeMoStage):
 
 
     def _get_nemo_code_path(self, model_type: str) -> Path:
-        """Provide the essential nemo code path for running the stage"""
+        """Provide the essential nemo code path for running the stage
+        Usually different model types have different nemo scripts, e.g. pretraining
+        """
         model_type_to_code_path = {
             "gpt3": self._nemo_code_path / "examples/nlp/language_modeling/megatron_gpt_prompt_learning.py",
             "t5": self._nemo_code_path / "examples/nlp/language_modeling/megatron_t5_prompt_learning.py",
@@ -495,7 +550,18 @@ class Conversion(BigNLPStage):
             f"{' '.join(checkpoint_override)}"
         )
 
-    def make_stage_command_groups(self, stage_cfg_path) -> List[List[str]]:
+    def make_stage_command_groups(self, stage_cfg_path: Path) -> List[List[str]]:
+        """Make the command groups for current stage
+
+        Arguments:
+            stage_cfg_path: Path, the interpolated and saved configuration path
+        Output:
+            command_groups: List[List[str]], command groups is a list of command group.
+                A command group is defined as:
+                    0. Command group is a list of command strings
+                    1. Each command group occupies one bcprun, srun or bash
+                    2. Each command group eventually has multiple commands connected by ";"
+        """
         command_groups = [[], []]
         command_groups[0] += self._make_hparams_override_command()
 
@@ -547,7 +613,18 @@ class NeMoEvaluation(NeMoStage):
         self.stage_name = "evaluation"
         self.stage_cfg = cfg.get("evaluation")
 
-    def make_stage_command_groups(self, stage_cfg_path):
+    def make_stage_command_groups(self, stage_cfg_path: Path) -> List[List[str]]:
+        """Make the command groups for current stage
+
+        Arguments:
+            stage_cfg_path: Path, the interpolated and saved configuration path
+        Output:
+            command_groups: List[List[str]], command groups is a list of command group.
+                A command group is defined as:
+                    0. Command group is a list of command strings
+                    1. Each command group occupies one bcprun, srun or bash
+                    2. Each command group eventually has multiple commands connected by ";"
+        """
         command_groups = super().make_stage_command_groups(stage_cfg_path)
 
         choice_model_type, choice_name = self.get_stage_config_choice()
@@ -582,7 +659,9 @@ class NeMoEvaluation(NeMoStage):
         return command_groups
 
     def _get_nemo_code_path(self, model_type: str) -> Path:
-        """Provide the essential nemo code path for running the stage"""
+        """Provide the essential nemo code path for running the stage
+        Usually different model types have different nemo scripts, e.g. pretraining
+        """
         if "gpt3" in model_type:
             raise ValueError("Evaluating GPT-3 models needs `EvalHarnessEvaluation` class.")
         model_type_to_code_path = {
@@ -621,7 +700,18 @@ class EvalHarnessEvaluation(BigNLPStage):
         download_command_string = " \\\n  ".join(download_command)
         return download_command_string
 
-    def make_stage_command_groups(self, stage_cfg_path) -> List[List[str]]:
+    def make_stage_command_groups(self, stage_cfg_path: Path) -> List[List[str]]:
+        """Make the command groups for current stage
+
+        Arguments:
+            stage_cfg_path: Path, the interpolated and saved configuration path
+        Output:
+            command_groups: List[List[str]], command groups is a list of command group.
+                A command group is defined as:
+                    0. Command group is a list of command strings
+                    1. Each command group occupies one bcprun, srun or bash
+                    2. Each command group eventually has multiple commands connected by ";"
+        """
         if self.prompt_evaluation:
             command_groups = [[]]
         else:
