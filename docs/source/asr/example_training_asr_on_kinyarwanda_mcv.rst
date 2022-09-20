@@ -21,6 +21,7 @@ Mozilla distributes the dataset in tsv+mp3 format.
 After downloading and unpacking, the dataset has the following structure
 
 .. code-block:: bash
+
     ├── cv-corpus-9.0-2022-04-27
     │   └── rw
     │       ├── clips [here are all audio files, e.g. common_voice_rw_26260276.mp3]
@@ -36,9 +37,11 @@ Mozilla provides **train/dev/test** split of the data, so we can just use it.
 Let's look at the format of a .tsv file
 
 .. code-block:: bash
+
     head train.tsv
 
 .. code-block:: bash
+
     client_id       path    sentence        up_votes        down_votes      age     gender  accents locale  segment
     e2a04c0ecacf81302f4270a3dddaa7a131420f6b7319208473af17d4adf3724ad9a3b6cdee107e2f321495db86f114a50c396e0928464a58dfad472130e7514a        common_voice_rw_26273273.mp3    kandi tuguwe neza kugira ngo twakire amagambo y’ukuri,  2       0       twenties    male             rw
     e2a04c0ecacf81302f4270a3dddaa7a131420f6b7319208473af17d4adf3724ad9a3b6cdee107e2f321495db86f114a50c396e0928464a58dfad472130e7514a        common_voice_rw_26273478.mp3    Simbi na we akajya kwiga nubwo byari bigoye     2       0       twenties        male        rw
@@ -60,6 +63,7 @@ To be able to use a dataset with NeMo Toolkit, we first need to
 
 To convert a .tsv file to .json manifest, we used the following script
 .. code-block:: bash
+
     python tsv_to_json.py \
       --tsv=cv-corpus-9.0-2022-04-27/rw/train.tsv \
       --folder=cv-corpus-9.0-2022-04-27/rw/clips \
@@ -67,6 +71,7 @@ To convert a .tsv file to .json manifest, we used the following script
 
 **tsv_to_json.py**:
 .. code-block:: python
+
     import pandas as pd
     import json
     import tqdm
@@ -97,6 +102,7 @@ To convert a .tsv file to .json manifest, we used the following script
 
 This script will create a corresponding **train.json** manifest near the initial **train.tsv**. It will look like this:
 .. code-block:: bash
+
 {"audio_filepath": "cv-corpus-9.0-2022-04-27/rw/clips/common_voice_rw_26273273.mp3", "text": "kandi tuguwe neza kugira ngo twakire amagambo y\u2019ukuri,", "up_votes": 2, "down_votes": 0, "age": "twenties", "gender": "male", "accents": NaN, "client_id": "e2a04c0ecacf81302f4270a3dddaa7a131420f6b7319208473af17d4adf3724ad9a3b6cdee107e2f321495db86f114a50c396e0928464a58dfad472130e7514a"}
 {"audio_filepath": "cv-corpus-9.0-2022-04-27/rw/clips/common_voice_rw_26273478.mp3", "text": "Simbi na we akajya kwiga nubwo byari bigoye", "up_votes": 2, "down_votes": 0, "age": "twenties", "gender": "male", "accents": NaN, "client_id": "e2a04c0ecacf81302f4270a3dddaa7a131420f6b7319208473af17d4adf3724ad9a3b6cdee107e2f321495db86f114a50c396e0928464a58dfad472130e7514a"}
 {"audio_filepath": "cv-corpus-9.0-2022-04-27/rw/clips/common_voice_rw_26273483.mp3", "text": "Inshuti yanjye yaje kunsura ku biro byanjye.", "up_votes": 2, "down_votes": 0, "age": "twenties", "gender": "male", "accents": NaN, "client_id": "e2a04c0ecacf81302f4270a3dddaa7a131420f6b7319208473af17d4adf3724ad9a3b6cdee107e2f321495db86f114a50c396e0928464a58dfad472130e7514a"}
@@ -104,6 +110,7 @@ This script will create a corresponding **train.json** manifest near the initial
 
 For resampling we used the following script:
 .. code-block:: bash
+
     mkdir train
     python ../decode_resample.py \
       --manifest=cv-corpus-9.0-2022-04-27/rw/train.json \
@@ -111,6 +118,7 @@ For resampling we used the following script:
 
 **decode_resample.py**:
 .. code-block:: python
+
     import argparse
     import os
     import json
@@ -178,6 +186,7 @@ Before we start training the model on the above manifest files, we need to prepr
 We used the following script
 **prepare_dataset_kinyarwanda.py**:
 .. code-block:: python
+
     import json
     import os
     import re
@@ -307,6 +316,7 @@ For Kinyarwanda experiments we used 128 subtokens for the CTC model and 1024 sub
 We used the following script from NeMo toolkit to create `Sentencepiece <https://github.com/google/sentencepiece>`_ tokenizers with different vocabulary sizes (128 and 1024 subtokens)
 
 .. code-block:: bash
+
     python ${NEMO_ROOT}/scripts/tokenizers/process_asr_text_tokenizer.py \
       --manifest=dev_decoded_processed.json,train_decoded_processed.json \
       --vocab_size=2048 \
@@ -331,6 +341,7 @@ Most of the arguments are similar to those explained in the `ASR with Subword To
 
 The resulting tokenizer is a folder like that:
 .. code-block:: bash
+
     ├── tokenizer_spe_bpe_v1024_max_4
     │   ├── tokenizer.model
     │   ├── tokenizer.vocab
@@ -349,6 +360,7 @@ There are two useful techniques for training on large datasets.
 
 The NeMo toolkit provides a script to implement both of these techniques.
 .. code-block:: bash
+
     ## create tarred dataset with 1 bucket
     python ${NEMO_ROOT}/scripts/speech_recognition/convert_to_tarred_audio_dataset.py \
       --manifest_path=train_decoded_processed.json \
@@ -379,6 +391,7 @@ The NeMo toolkit provides a script to implement both of these techniques.
 
 Our final dataset folder looks like this:
 .. code-block:: bash
+
     ├── dev [15988 .wav files]
     ├── dev_decoded_processed.json   (dev manifest)
     ├── test [16213 .wav files]
@@ -390,6 +403,7 @@ Our final dataset folder looks like this:
 
 In case of 4 buckets it will look like:
 .. code-block:: bash
+
     └── train_tarred_4bk
         ├── bucket1
             ├── metadata.yaml
@@ -420,6 +434,7 @@ Usually we should provide the options related to the dataset and tokenizer.
 
 This is an example of how we can run the training script:
 .. code-block:: bash
+
     TOKENIZER=tokenizers/tokenizer_spe_bpe_v1024_max_4/
     TRAIN_MANIFEST=data/train_tarred_1bk/tarred_audio_manifest.json
     TRAIN_FILEPATHS=data/train_tarred_1bk/audio__OP_0..1023_CL_.tar
@@ -465,6 +480,7 @@ Though Kinyarwanda dataset is rather large, we also tried finetuning Kinyarwanda
 To initialize from **non-SSL** checkpoint we should simply add the option `+init_from_pretrained_model`:
 
 .. code-block:: bash
+
     INIT_MODEL='stt_en_conformer_ctc_large'
 
     python ${NEMO_ROOT}/examples/asr/asr_ctc/speech_to_text_ctc_bpe.py
@@ -475,6 +491,7 @@ In that case the pretrained model `stt_en_conformer_ctc_large <https://catalog.n
 
 To initialize from **SSL checkpoint** we should edit our training script like the following code:
 .. code-block:: python
+
     import nemo.collections.asr as nemo_asr
     ssl_model = nemo_asr.models.ssl_models.SpeechEncDecSelfSupervisedModel.from_pretrained(model_name='ssl_en_conformer_large')
 
@@ -505,6 +522,7 @@ To run the inference we need a pretrained model. This can be either a `.nemo` fi
 
 We run the inference using the following script:
 .. code-block:: bash
+
     python ${NEMO_ROOT}/examples/asr/transcribe_speech.py \
       model_path=<path_to_of_your_model>.nemo \
       dataset_manifest=./test_decoded_processed.json \
@@ -515,6 +533,7 @@ We run the inference using the following script:
 
 To run inference with Nvidia's Kinyarwanda checkpoints `STT Rw Conformer-CTC Large <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/stt_rw_conformer_ctc_large>`_ or `STT Rw Conformer-Transducer Large <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/stt_rw_conformer_transducer_large>`_ use:
 .. code-block:: bash
+
     python ${NEMO_ROOT}/examples/asr/transcribe_speech.py \
       pretrained_name="stt_rw_conformer_ctc_large" \
       dataset_manifest=test_decoded_processed.json \
@@ -527,6 +546,7 @@ To run inference with Nvidia's Kinyarwanda checkpoints `STT Rw Conformer-CTC Lar
 
 After the inference is finished the `output_filename` is a `.json` manifest augmented with a new field `pred_text` containing the resulting transcript. Example:
 .. code-block::
+
     {"audio_filepath": "test/common_voice_rw_19835615.wav", "text": "kw'ibumoso", "up_votes": 2, "down_votes": 0, "age": NaN, "gender": NaN, "accents": NaN, "client_id": "66675a7003e6baa3e7d4af01bff8324ac3c5f15e7f8918180799dd2928227c791f19e2811f9ec5779a2b06dac1b7a97fa7740dcfe98646ea1b5e106250c260be", "duration": 3.672, "pred_text": "n'ibumoso"}
     {"audio_filepath": "test/common_voice_rw_24795878.wav", "text": "ni ryari uheruka kurya urusenda", "up_votes": 2, "down_votes": 0, "age": NaN, "gender": NaN, "accents": NaN, "client_id": "90e0438947a75b6c0cf59a0444aee3b81a76c5f9459c4b22df2e14b4ce257aeacaed8ac6092bfcd75b8e831633d58a84287fd62190c21d70d75efe8d93ed74ed", "duration": 3.312, "pred_text": "ni ryari uheruka kurya urusenda"}
     {"audio_filepath": "test/common_voice_rw_24256935.wav", "text": "umunani", "up_votes": 2, "down_votes": 0, "age": NaN, "gender": NaN, "accents": NaN, "client_id": "974d4876e99e7437183c20f9107053acc9e514379d448bcf00aaaabc0927f5380128af86d39650867fa80a82525110dfc40784a5371c989de1a5bdf531f6d943", "duration": 3.24, "pred_text": "umunani"}
@@ -537,6 +557,7 @@ Word Error Rate (WER) and Character Error Rate (CER)
 As soon as we have a manifest file with `text` and `pred_text` we can measure the quality of predictions of our model.
 
 .. code-block:: bash
+
     # Calculate WER
     python ${NEMO_ROOT}/examples/asr/speech_to_text_eval.py \
       dataset_manifest=test_with_predictions.json \
@@ -572,6 +593,7 @@ We can use `Speech Data Explorer <https://docs.nvidia.com/deeplearning/nemo/user
 
 If we run
 .. code-block:: bash
+
     python ${NEMO_ROOT}/tools/speech_data_explorer/data_explorer.py <your manifest file>
 
 it will start a local server, and provide a http address to open from the browser.
