@@ -19,6 +19,12 @@ from bignlp.utils.data_utils.prepare_squad import prepare_squad_for_prompt_learn
 
 
 class BigNLPStage:
+    """Base class for BigNLP stages. All stages should build on top of this class.
+
+    Arguments:
+        cfg: configuration from hydra.
+    """
+
     def __init__(self, cfg):
         self.cfg = cfg
         self.cluster = cfg.get("cluster_type")
