@@ -22,6 +22,7 @@ from nemo.collections.nlp.modules.common.text_generation_utils import (
     get_computeprob_response,
 )
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
+from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.model_utils import inject_model_parallel_rank
 
@@ -104,7 +105,14 @@ def setup_trainer_and_model(args):
 
     if args.nemo_model is not None:
         logger.info(f"**** Loading checkpoint from {args.nemo_model}")
-        model = MegatronGPTModel.restore_from(restore_path=args.nemo_model, trainer=trainer)
+        connector = SaveRestoreConnector()
+        if os.path.isdir(args.nemo_model):
+            connector._model_extracted_dir = args.nemo_model
+        model = MegatronGPTModel.restore_from(
+            restore_path=args.nemo_model,
+            save_restore_connector=connector,
+            trainer=trainer
+        )
     else:
         if args.tensor_model_parallel_size > 1 or args.pipeline_model_parallel_size > 1:
             app_state.pipeline_model_parallel_size = args.pipeline_model_parallel_size
