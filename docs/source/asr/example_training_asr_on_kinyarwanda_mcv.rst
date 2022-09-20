@@ -62,6 +62,7 @@ To be able to use a dataset with NeMo Toolkit, we first need to
 #. convert .mp3 files to .wav with sample rate of 16000
 
 To convert a .tsv file to .json manifest, we used the following script
+
 .. code-block:: bash
 
     python tsv_to_json.py \
@@ -70,6 +71,7 @@ To convert a .tsv file to .json manifest, we used the following script
       --sampling_count=-1
 
 **tsv_to_json.py**:
+
 .. code-block:: python
 
     import pandas as pd
@@ -101,6 +103,7 @@ To convert a .tsv file to .json manifest, we used the following script
             fo.write(json.dumps(item) + "\n")
 
 This script will create a corresponding **train.json** manifest near the initial **train.tsv**. It will look like this:
+
 .. code-block:: bash
 
 {"audio_filepath": "cv-corpus-9.0-2022-04-27/rw/clips/common_voice_rw_26273273.mp3", "text": "kandi tuguwe neza kugira ngo twakire amagambo y\u2019ukuri,", "up_votes": 2, "down_votes": 0, "age": "twenties", "gender": "male", "accents": NaN, "client_id": "e2a04c0ecacf81302f4270a3dddaa7a131420f6b7319208473af17d4adf3724ad9a3b6cdee107e2f321495db86f114a50c396e0928464a58dfad472130e7514a"}
@@ -109,6 +112,7 @@ This script will create a corresponding **train.json** manifest near the initial
 {"audio_filepath": "cv-corpus-9.0-2022-04-27/rw/clips/common_voice_rw_26273488.mp3", "text": "Grand Canyon ni ahantu hazwi cyane ba mukerarugendo.", "up_votes": 2, "down_votes": 0, "age": "twenties", "gender": "male", "accents": NaN, "client_id": "e2a04c0ecacf81302f4270a3dddaa7a131420f6b7319208473af17d4adf3724ad9a3b6cdee107e2f321495db86f114a50c396e0928464a58dfad472130e7514a"}
 
 For resampling we used the following script:
+
 .. code-block:: bash
 
     mkdir train
@@ -117,6 +121,7 @@ For resampling we used the following script:
       --destination_folder=./train
 
 **decode_resample.py**:
+
 .. code-block:: python
 
     import argparse
@@ -185,6 +190,7 @@ Before we start training the model on the above manifest files, we need to prepr
 
 We used the following script
 **prepare_dataset_kinyarwanda.py**:
+
 .. code-block:: python
 
     import json
@@ -340,6 +346,7 @@ We used the following script from NeMo toolkit to create `Sentencepiece <https:/
 Most of the arguments are similar to those explained in the `ASR with Subword Tokenization tutorial <https://github.com/NVIDIA/NeMo/blob/main/tutorials/asr/ASR_with_Subword_Tokenization.ipynb>`_.
 
 The resulting tokenizer is a folder like that:
+
 .. code-block:: bash
 
     ├── tokenizer_spe_bpe_v1024_max_4
@@ -359,6 +366,7 @@ There are two useful techniques for training on large datasets.
 #. Bucketing groups utterances with similar duration. It reduces padding and speeds up the training.
 
 The NeMo toolkit provides a script to implement both of these techniques.
+
 .. code-block:: bash
 
     ## create tarred dataset with 1 bucket
@@ -390,6 +398,7 @@ The NeMo toolkit provides a script to implement both of these techniques.
 **Note**: we only need to process train data, dev and test are usually much smaller and can be used as is.
 
 Our final dataset folder looks like this:
+
 .. code-block:: bash
 
     ├── dev [15988 .wav files]
@@ -402,6 +411,7 @@ Our final dataset folder looks like this:
         └── [1024 .tar files]
 
 In case of 4 buckets it will look like:
+
 .. code-block:: bash
 
     └── train_tarred_4bk
@@ -433,6 +443,7 @@ Any options of default config can be overwritten from command line.
 Usually we should provide the options related to the dataset and tokenizer.
 
 This is an example of how we can run the training script:
+
 .. code-block:: bash
 
     TOKENIZER=tokenizers/tokenizer_spe_bpe_v1024_max_4/
@@ -490,6 +501,7 @@ To initialize from **non-SSL** checkpoint we should simply add the option `+init
 In that case the pretrained model `stt_en_conformer_ctc_large <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/stt_en_conformer_ctc_large>`_ will be automatically downloaded from Nvidia GPU Cloud(NGC) and used to initialize weights before training.
 
 To initialize from **SSL checkpoint** we should edit our training script like the following code:
+
 .. code-block:: python
 
     import nemo.collections.asr as nemo_asr
@@ -519,8 +531,8 @@ Running the inference
 #####################
 
 To run the inference we need a pretrained model. This can be either a `.nemo` file that we get after the training is finished, or any published model from `NGC <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models>`_.
-
 We run the inference using the following script:
+
 .. code-block:: bash
 
     python ${NEMO_ROOT}/examples/asr/transcribe_speech.py \
@@ -532,6 +544,7 @@ We run the inference using the following script:
       amp=True
 
 To run inference with Nvidia's Kinyarwanda checkpoints `STT Rw Conformer-CTC Large <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/stt_rw_conformer_ctc_large>`_ or `STT Rw Conformer-Transducer Large <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/stt_rw_conformer_transducer_large>`_ use:
+
 .. code-block:: bash
 
     python ${NEMO_ROOT}/examples/asr/transcribe_speech.py \
@@ -545,6 +558,7 @@ To run inference with Nvidia's Kinyarwanda checkpoints `STT Rw Conformer-CTC Lar
 **Note:** If you want to transcribe new audios, you can pass a folder with audio files using `audio_dir` parameter instead of `dataset_manifest`.
 
 After the inference is finished the `output_filename` is a `.json` manifest augmented with a new field `pred_text` containing the resulting transcript. Example:
+
 .. code-block::
 
     {"audio_filepath": "test/common_voice_rw_19835615.wav", "text": "kw'ibumoso", "up_votes": 2, "down_votes": 0, "age": NaN, "gender": NaN, "accents": NaN, "client_id": "66675a7003e6baa3e7d4af01bff8324ac3c5f15e7f8918180799dd2928227c791f19e2811f9ec5779a2b06dac1b7a97fa7740dcfe98646ea1b5e106250c260be", "duration": 3.672, "pred_text": "n'ibumoso"}
@@ -592,6 +606,7 @@ Still, even WER of 16% is not as good as we usually get for other languages trai
 We can use `Speech Data Explorer <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/tools/speech_data_explorer.html>`_ to analyze the errors.
 
 If we run
+
 .. code-block:: bash
 
     python ${NEMO_ROOT}/tools/speech_data_explorer/data_explorer.py <your manifest file>
