@@ -1049,7 +1049,6 @@ def get_samples_mapping(
         logging.info(
             ' > elasped time to build and save samples mapping ' '(seconds): {:4f}'.format(time.time() - start_time)
         )
-    '''
     torch.distributed.barrier()
     counts = torch.cuda.LongTensor([1])
     torch.distributed.all_reduce(counts, group=parallel_state.get_data_parallel_group())
@@ -1058,7 +1057,6 @@ def get_samples_mapping(
         torch.distributed.get_world_size()
         // torch.distributed.get_world_size(group=parallel_state.get_tensor_model_parallel_group())
     )
-    '''
     # Load indexed dataset.
     logging.info(' > loading indexed mapping from {}'.format(indexmap_filename))
     start_time = time.time()
