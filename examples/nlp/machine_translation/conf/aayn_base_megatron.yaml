@@ -128,6 +128,8 @@ model:
   validation_ds:
     src_file_name: ???
     tgt_file_name: ???
+    tgt_lang:
+      - null
     dataset_type: 'text' # Options: ['text']. Validation data needs to be raw text.
     tokens_in_batch: 512
     clean: false

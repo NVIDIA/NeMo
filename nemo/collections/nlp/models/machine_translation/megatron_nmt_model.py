@@ -581,10 +581,11 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
 
         # Set up prepend IDs for validation datasets even if not multingual.
         if self._cfg.train_ds.get('objective', 'nmt') == 'nmt-xlm':
+            multilingual_ids = [self.encoder_tokenizer.token_to_id('<' + lang + '>') for lang in self._cfg.validation_ds.tgt_lang]
             self._validation_ds = MTEncDecModel._setup_eval_dataset_from_config(
                 cfg=self._cfg.validation_ds,
                 multilingual=True,
-                multilingual_ids=self._cfg.validation_ds.tgt_lang,
+                multilingual_ids=multilingual_ids,
                 encoder_tokenizer=self.encoder_tokenizer,
                 decoder_tokenizer=self.decoder_tokenizer,
             )
@@ -765,6 +766,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         target_lang: str = None,
         return_beam_scores: bool = False,
         log_timing: bool = False,
+        prepend_tgt_lang_id: bool = False,
     ) -> List[str]:
         """
         Translates list of sentences from source language to target language.
@@ -787,15 +789,15 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
 
         mode = self.training
         prepend_ids = []
-        if self.multilingual:
+        if self.multilingual or prepend_tgt_lang_id:
             if source_lang is None or target_lang is None:
                 raise ValueError("Expect source_lang and target_lang to run inference for multilingual model.")
             src_symbol = self.encoder_tokenizer.token_to_id('<' + source_lang + '>')
             tgt_symbol = self.encoder_tokenizer.token_to_id('<' + target_lang + '>')
-            if src_symbol in self.multilingual_ids:
-                prepend_ids = [src_symbol]
-            elif tgt_symbol in self.multilingual_ids:
+            if tgt_symbol in self.multilingual_ids or prepend_tgt_lang_id:
                 prepend_ids = [tgt_symbol]
+            elif src_symbol in self.multilingual_ids:
+                prepend_ids = [src_symbol]
 
         if log_timing:
             timer = timers.NamedTimer()
@@ -863,6 +865,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         log_timing: bool = False,
         inverse_normalizer=None,
         normalizer=None,
+        prepend_tgt_lang_id: bool = False,
     ) -> List[str]:
         """
         Calls the translate() method with the option of running ITN (inverse text-normalization) on the input and TN (text-normalization) on the output.
@@ -881,7 +884,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         """
         if inverse_normalizer is not None:
             text = [inverse_normalizer.normalize(example) for example in text]
-        translations = self.translate(text, source_lang, target_lang, return_beam_scores, log_timing)
+        translations = self.translate(text, source_lang, target_lang, return_beam_scores, log_timing, prepend_tgt_lang_id)
         if normalizer is not None:
             translations = [normalizer.normalize(example) for example in translations]
         return translations
