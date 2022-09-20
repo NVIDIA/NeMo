@@ -88,7 +88,6 @@ class PartialConv1d(torch.nn.Conv1d):
             use_cache and mask_in is None and self.last_size == input.shape
         )
         if cache_hit:
-            print("Cache hit, size: ", input.shape)
             mask_ratio = self.mask_ratio
             update_mask = self.update_mask
         else:
