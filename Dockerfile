@@ -36,7 +36,7 @@ RUN apt-get update && \
 WORKDIR /tmp/
 RUN git clone https://github.com/NVIDIA/apex.git && \
     cd apex && \
-    git checkout 6f7d8ac3dfb279b314ac4ea23b9c2175b066f7ff && \
+    git checkout 2b0e8371113fe70758f1964c40bf7dbe304fd9e6 && \
     pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" --global-option="--distributed_adam" --global-option="--deprecated_fused_adam" ./
 
 # uninstall stuff from base container
