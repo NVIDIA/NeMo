@@ -29,6 +29,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_base_prompt_learning
     MegatronBasePromptLearningModel,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
+from nemo.collections.nlp.modules.common import VirtualPromptSource
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
@@ -77,18 +78,23 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         Special forward method for p-tuning/prompt-tuning pretrained
         T5 style models.
         """
-        # Get embeddings for text tokens and insert virtual token embeddings
-        if inference:
-            input_embeds = self.embed_input_inference(input_ids, taskname_ids)
-        else:
-            input_embeds = self.embed_input_train(input_ids, taskname_ids)
+        if self.frozen_model.enc_dec_model.pre_process:
+            # Get embeddings for text tokens and insert virtual token embeddings
+            if inference:
+                input_embeds = self.embed_input_inference(input_ids, taskname_ids)
+            else:
+                input_embeds = self.embed_input_train(input_ids, taskname_ids)
 
-        # TODO: This check needs to be revisited with PP support.
-        if hasattr(self.frozen_model.enc_dec_model.encoder_embedding, 'position_embeddings'):
-            position_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.position_embeddings(position_ids)
-            encoder_input = input_embeds + position_embeddings
+            # TODO: This check needs to be revisited with PP support.
+            if hasattr(self.frozen_model.enc_dec_model.encoder_embedding, 'position_embeddings'):
+                position_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.position_embeddings(
+                    position_ids
+                )
+                encoder_input = input_embeds + position_embeddings
+            else:
+                encoder_input = input_embeds
         else:
-            encoder_input = input_embeds
+            encoder_input = None
 
         # Call forward on T5 model with preprocessed embeddings
         if self.autocast_dtype == torch.float32:
@@ -146,6 +152,26 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         # Freeze all T5 model weights for prompt-tuning/p-tuning
         self.frozen_model.freeze()
 
+    def setup_optimizer_param_groups(self):
+        """
+        ModelPT override. Optimizer will get self._optimizer_param_groups. 
+        Only want virtual prompt params to be passed to the optimizer.
+        """
+        ## Freeze frozen model
+        for param in self.frozen_model.parameters():
+            param.requires_grad = False
+
+        if self.frozen_model.enc_dec_model.pre_process:
+            virtual_prompt_params = {'params': []}
+            virtual_prompt_params['params'].extend([param for param in self.prompt_table.parameters()])
+
+            if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
+                virtual_prompt_params['params'].extend([param for param in self.prompt_encoder.parameters()])
+
+            self._optimizer_param_groups = (virtual_prompt_params,)
+        else:
+            self._optimizer_param_groups = ({'params': []},)
+
     def fwd_bwd_step(self, batch, batch_idx, forward_only):
         """
             Dataloader produces a global batch which is turned into a list of microbatches.
@@ -156,7 +182,17 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         tensor_shape = [seq_length, self.cfg.micro_batch_size, self.hidden_size]
 
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
-            raise Exception("Pipeline parallelism is not supported yet")
+            losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
+                forward_step_func=self.get_forward_output_and_loss_func(),
+                batch=batch,
+                model=self,
+                forward_only=forward_only,
+                tensor_shape=tensor_shape,
+                dtype=self.autocast_dtype,
+                disable_autocast=True,
+                grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
+                sequence_parallel_enabled=False,
+            )
         else:
             losses_reduced_per_micro_batch = forward_backward_no_pipelining(
                 forward_step_func=self.get_forward_output_and_loss_func(),

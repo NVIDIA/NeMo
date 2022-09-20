@@ -73,8 +73,6 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         else:
             self.hidden_size = self.frozen_model.cfg.hidden_size
 
-        # TODO: Handle this when moving GPT prompt learning to the base class.
-        self.word_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.word_embeddings
         self.existing_tasks = list(self.cfg.get('existing_tasks', []))
         self.new_tasks = list(self.cfg.get('new_tasks', []))
         self.virtual_prompt_style = VirtualPromptStyle(cfg.virtual_prompt_style)
@@ -82,13 +80,23 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         # Load templates for assigning virtual prompt token positions
         self.load_task_templates(self.cfg.task_templates)
 
-        # Prompt table stores all task embeddings, p-tuning virtual prompts get added to the table after training
-        self.prompt_table = PromptTable(
-            existing_tasks=self.existing_tasks,
-            task_templates=self.task_templates,
-            task_id_num_to_name=self.task_id_num_to_name,
-            hidden_size=self.hidden_size,
-        )
+        if self.frozen_model.enc_dec_model.pre_process and self.virtual_prompt_style in [
+            VirtualPromptStyle.P_TUNING,
+            VirtualPromptStyle.PROMPT_TUNING,
+            VirtualPromptStyle.INFERENCE,
+        ]:
+
+            # TODO: Handle this when moving GPT prompt learning to the base class.
+            self.word_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.word_embeddings
+
+            # Prompt table stores all task embeddings, p-tuning virtual prompts get added to the table after training
+            self.prompt_table = PromptTable(
+                existing_tasks=self.existing_tasks,
+                task_templates=self.task_templates,
+                task_id_num_to_name=self.task_id_num_to_name,
+                hidden_size=self.hidden_size,
+            )
+
         self._prompt_table_key = VirtualPromptSource.PROMPT_TABLE.value
         self._prompt_encoder_key = VirtualPromptSource.PROMPT_ENCODER.value
 
@@ -267,10 +275,12 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         nemo checkpoints at the end of training will contain prompt table parameters only. 
         """
         state_dict_ = {}
-        state_dict_[self._prompt_table_key] = self.prompt_table.state_dict()
 
-        if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
-            state_dict_[self._prompt_encoder_key] = self.prompt_encoder.state_dict()
+        if self.frozen_model.enc_dec_model.pre_process:
+            state_dict_[self._prompt_table_key] = self.prompt_table.state_dict()
+
+            if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
+                state_dict_[self._prompt_encoder_key] = self.prompt_encoder.state_dict()
 
         return state_dict_
 
@@ -279,21 +289,25 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         Custom load state dict method that only loads prompt table and prompt encoder
         parameters. Matching load method for this class' custom state dict method. 
         """
-        if self._prompt_table_key in state_dict:
-            state_dict_ = state_dict[self._prompt_table_key]
-        else:
-            # Handle loading state dict before weight saving change for backward compatibility.
-            state_dict_ = OrderedDict()
-            for key in state_dict.keys():
-                if key.startswith(self._prompt_table_key):
-                    key_substring = ".".join(key.split(".")[1:])
-                    state_dict_[key_substring] = state_dict[key]
+        if self.frozen_model.enc_dec_model.pre_process:
+            if self._prompt_table_key in state_dict:
+                state_dict_ = state_dict[self._prompt_table_key]
+            else:
+                # Handle loading state dict before weight saving change for backward compatibility.
+                state_dict_ = OrderedDict()
+                for key in state_dict.keys():
+                    if key.startswith(self._prompt_table_key):
+                        key_substring = ".".join(key.split(".")[1:])
+                        state_dict_[key_substring] = state_dict[key]
 
-        self.prompt_table.load_state_dict(state_dict_, strict)
+            self.prompt_table.load_state_dict(state_dict_, strict)
 
-        if self._prompt_encoder_key in state_dict and self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
-            state_dict_ = state_dict[self._prompt_encoder_key]
-            self.prompt_encoder.load_state_dict(state_dict_, strict)
+            if (
+                self._prompt_encoder_key in state_dict
+                and self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER
+            ):
+                state_dict_ = state_dict[self._prompt_encoder_key]
+                self.prompt_encoder.load_state_dict(state_dict_, strict)
 
     def embed_input_train(self, input_ids: Tensor, taskname_ids: Tensor):
         """
@@ -393,7 +407,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
 
     def on_train_end(self):
         # Save p-tuned prompts to prompt table for inference or future task training
-        if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING:
+        if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING and self.frozen_model.enc_dec_model.pre_process:
             self.add_ptuned_prompts_to_prompt_table()
             logging.info(f"All p-tuned prompts where moved to the prompt table.")
 
@@ -411,7 +425,9 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         logging.info(f"The final model was saved to {self.cfg.nemo_path}")
 
     def setup(self, stage=None):
-        if stage == 'predict' or self.virtual_prompt_style == VirtualPromptStyle.INFERENCE:
+        if (
+            stage == 'predict' or self.virtual_prompt_style == VirtualPromptStyle.INFERENCE
+        ) and self.frozen_model.enc_dec_model.pre_process:
             self.freeze_existing_virtual_prompt_params()
             return
 
@@ -419,14 +435,15 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         if stage == 'test':
             return
 
-        if self.virtual_prompt_style == VirtualPromptStyle.PROMPT_TUNING:
-            self.init_new_prompts()
-        elif self.virtual_prompt_style == VirtualPromptStyle.P_TUNING:
-            self.init_prompt_encoder()
+        if self.frozen_model.enc_dec_model.pre_process:
+            if self.virtual_prompt_style == VirtualPromptStyle.PROMPT_TUNING:
+                self.init_new_prompts()
+            elif self.virtual_prompt_style == VirtualPromptStyle.P_TUNING:
+                self.init_prompt_encoder()
+            self.freeze_existing_virtual_prompt_params()
 
         self.setup_training_data()
         self.setup_validation_data()
-        self.freeze_existing_virtual_prompt_params()
 
     def setup_training_data(self, training_data_config=None):
         if self.cfg.data.get('train_ds', None):
