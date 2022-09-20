@@ -16,11 +16,11 @@ OmegaConf.register_new_resolver("divide_floor", lambda x, y: int(x // y), replac
 
 
 @hydra.main(config_path="conf", config_name="config")
-def main(cfg: OmegaConf) -> None:
+def main(cfg: omegaconf.dictconfig.DictConfig) -> None:
     """
     Main function in the entire pipeline, it reads the config using hydra and calls search_config.
 
-    :param OmegaConf cfg: OmegaConf object, read using the @hydra.main decorator.
+    :param omegaconf.dictconfig.DictConfig cfg: OmegaConf object, read using the @hydra.main decorator.
     :return: None
     """
     hydra_args = " ".join(sys.argv[1:])

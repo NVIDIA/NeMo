@@ -1,6 +1,9 @@
+"""Generate base YAML configuration for any model type and size."""
+
 import os
 import time
 import math
+from typing import Tuple
 
 import subprocess
 import yaml
@@ -10,13 +13,13 @@ from hp_tool import utils
 
 
 def calculate_model_size(
-    gpu_count,
-    max_training_days,
-    model_size_in_b=None,
-    tflops_per_gpu=140,
-    num_tokens_in_b=300,
-    model_name="gpt3",
-):
+        gpu_count: int,
+        max_training_days: float,
+        model_size_in_b: float = None,
+        tflops_per_gpu: int = 140,
+        num_tokens_in_b: int = 300,
+        model_name: str = "gpt3",
+) -> float:
     """
     Estimates a model size to be trained given the constraints. If the
     model_size is provided, it estimates the time to train it with the given
@@ -24,33 +27,15 @@ def calculate_model_size(
 
     Example: output 5B params to train for 7 days with 160 GPUs.
 
-    Arguments:
-        gpu_count: int, number of gpus to use (num_nodes * gpus_per_node).
-        max_training_days: float, number of days to train the model for.
-        model_size_in_b: float, number of parameters in the model, if known.
-        tflops_per_gpu: int, estimated number of TFLOPS/s per GPU.
-        num_tokens_in_b: int, number of tokens to train the model for.
-    Output:
-        model_size_in_b: int, number of parameters to use for training.
+    :param int gpu_count: number of gpus to use (num_nodes * gpus_per_node).
+    :param float max_training_days: number of days to train the model for.
+    :param float model_size_in_b: number of parameters in the model, if known.
+    :param int tflops_per_gpu: estimated number of TFLOPS/s per GPU.
+    :param int num_tokens_in_b: number of tokens to train the model for.
+    :return: number of parameters to use for training.
+    :rtype: float
     """
-    assert (
-        isinstance(gpu_count, int) and gpu_count > 0
-    ), "gpu_count must be an int larger than zero."
-    assert (
-        max_training_days is None
-        or isinstance(max_training_days, float)
-        or isinstance(max_training_days, int)
-    ), "max_training_days must be int or float."
-    assert (
-        max_training_days is None or max_training_days > 0
-    ), "max_training_days must be larger than zero."
-    assert (
-        isinstance(tflops_per_gpu, int) and tflops_per_gpu > 0
-    ), "tflops_per_gpu must be an int larger than zero."
-    assert (
-        isinstance(num_tokens_in_b, int) and num_tokens_in_b > 0
-    ), "num_tokens_in_b must be an int larger than zero."
-
+    # Model size is not known, must be estimated.
     if model_size_in_b is None:
         model_size_in_b = _estimate_model_size(
             max_training_days=max_training_days,
@@ -59,6 +44,7 @@ def calculate_model_size(
             num_tokens_in_b=num_tokens_in_b,
             model_name=model_name,
         )
+    # Model size is known, so only time to train estimate is needed.
     else:
         max_training_days = _estimate_training_time(
             model_size_in_b=model_size_in_b,
@@ -77,17 +63,25 @@ def calculate_model_size(
     return model_size_in_b
 
 
-def _estimate_model_size(max_training_days, gpu_count, tflops_per_gpu, num_tokens_in_b, model_name):
-    """Estimates model size given time and hardware constraints.
+def _estimate_model_size(
+        max_training_days: float,
+        gpu_count: int,
+        tflops_per_gpu: int,
+        num_tokens_in_b: int,
+        model_name: str
+) -> float:
+    """
+    Estimates model size given time and hardware constraints. It's only used if the model size is 
+    not provided by the user.
 
-    Arguments:
-        max_training_days: float, number of days to train the model for.
-        gpu_count: int, number of gpus to use (num_nodes * gpus_per_node).
-        tflops_per_gpu: int, estimated number of TFLOPS/s per GPU.
-        num_tokens_in_b: int, number of tokens to train the model for.
-        model_name: str, name of the model, such as gpt3, t5, mt5...
-    Output:
-        model_size_in_b: int, number of parameters to use for training.
+    :param float max_training_days: number of days to train the model for.
+    :param int gpu_count: number of gpus to use (num_nodes * gpus_per_node).
+    :param int tflops_per_gpu: estimated number of TFLOPS/s per GPU.
+    :param int num_tokens_in_b: number of tokens to train the model for.
+    :param str model_name: name of the model, such as gpt3, t5, mt5...
+    :return: number of parameters to use for training.
+    :rtype: float
+    :raises NotImplementedError: if the model_name is not one of the supported models.
     """
     model_penalty = 0.87 if model_name == "mt5" else 1.0
     try:
@@ -101,31 +95,34 @@ def _estimate_model_size(max_training_days, gpu_count, tflops_per_gpu, num_token
             )
         else:
             raise NotImplementedError
-    except ValueError:
-        print("Input values were not valid.")
-    except ZeroDivisionError:
-        print("Cannot divide by zero. This can happen if num_tokens_in_b is zero.")
+    except ValueError as err:
+        print(f"Input values were not valid: {err}")
+    except ZeroDivisionError as err:
+        print(f"Cannot divide by zero. This can happen if num_tokens_in_b is zero: {err}")
+    except BaseException as err:
+        print(f"Unexpected {err}")
 
 
 def _estimate_training_time(
-    model_size_in_b, gpu_count, tflops_per_gpu, num_tokens_in_b, model_name
-):
-    """Estimates training time for a given model size and hardware constraint.
-
-    Arguments:
-        model_size_in_b: int, number of parameters to use for training.
-        gpu_count: int, number of gpus to use (num_nodes * gpus_per_node).
-        tflops_per_gpu: int, estimated number of TFLOPS/s per GPU.
-        num_tokens_in_b: int, number of tokens to train the model for.
-        model_name: str, name of the model, such as gpt3, t5, mt5...
-    Output:
-        max_training_days: float, number of days it will take to train the model.
+        model_size_in_b: float,
+        gpu_count: int,
+        tflops_per_gpu: int,
+        num_tokens_in_b: int,
+        model_name: str,
+) -> float:
     """
-    assert isinstance(model_size_in_b, float) or isinstance(
-        model_size_in_b, int
-    ), "model_size_in_b must be int or float."
-    assert model_size_in_b > 0, "model_size_in_b must be larger than zero."
+    Estimates training time for a given model size and hardware constraint. To be used when 
+    a model size is provided by the user.
 
+    :param float model_size_in_b: number of parameters to use for training.
+    :param int gpu_count: number of gpus to use (num_nodes * gpus_per_node).
+    :param int tflops_per_gpu: estimated number of TFLOPS/s per GPU.
+    :param int num_tokens_in_b: number of tokens to train the model for.
+    :param str model_name: name of the model, such as gpt3, t5, mt5...
+    :return: number of days it will take to train the model.
+    :rtype: float
+    :raises NotImplementedError: if the model_name is not one of the supported models.
+    """
     model_penalty = 1.15 if model_name == "mt5" else 1.0
     try:
         if model_name in ["gpt3", "t5", "mt5"]:
@@ -137,24 +134,32 @@ def _estimate_training_time(
             )
         else:
             raise NotImplementedError
-    except ValueError:
-        print("Input values were not valid.")
-    except ZeroDivisionError:
-        print("Cannot divide by zero. This can happen if gpu_count or tflops_per_gpu are zero.")
+    except ValueError as err:
+        print(f"Input values were not valid: {err}")
+    except ZeroDivisionError as err:
+        print(f"Cannot divide by zero. This can happen if gpu_count or tflops_per_gpu are zero: {err}")
+    except BaseException as err:
+        print(f"Unexpected {err}")
 
 
-def _calculate_gbs_tp_pp(model_size_in_b, gpu_memory_gb=80, model_name="gpt3"):
+def _calculate_gbs_tp_pp(
+        model_size_in_b: float,
+        gpu_memory_gb: int = 80,
+        model_name: str = "gpt3",
+) -> Tuple[int]:
     """
     Calculates Global Batch Size (GBS), Tensor Parallelism (TP), and Pipeline
     Parallelism (PP) values, given a model size and model name.
 
-    Arguments:
-        model_size_in_b: float, the number of parameters in the model.
-        model_name: str, name of the model, such as gpt3, t5, mt5...
-    Output:
-        gbs: int, global batch size to use for training.
-        tp: int, tensor parallelism to use for training.
-        pp: int, pipeline parallelism to use for training.
+    :param float model_size_in_b: the number of parameters in the model.
+    :param int gpu_memory_gb: memory available per GPU, in GBs.
+    :param str model_name: name of the model, such as gpt3, t5, mt5...
+    :returns: tuple (gbs, tp, pp)
+        WHERE
+        int gbs is the Global Batch Size to use for training.
+        int tp is the Tensor Parallelism value to use for training.
+        int pp is the Pipeline Parallelism value to use for training.
+    :raises NotImplementedError: if the model_name is not one of the supported models.
     """
     if model_name == "gpt3":
         if gpu_memory_gb == 80:
@@ -170,8 +175,18 @@ def _calculate_gbs_tp_pp(model_size_in_b, gpu_memory_gb=80, model_name="gpt3"):
         raise NotImplementedError("Only gpt3, t5 and mt5 are supported.")
 
 
-def _gbs_tp_pp_gpt3_80gb(model_size_in_b):
-    """Provides base GBS, TP and PP values for GPT-3 models for 80GB GPUs."""
+def _gbs_tp_pp_gpt3_80gb(model_size_in_b: float) -> Tuple[int]:
+    """
+    Outputs GBS, TP and PP values for any GPT-3 model size for 80GB GPUs.
+
+    :param float model_size_in_b: the number of parameters in the model.
+    :returns: tuple (gbs, tp, pp)
+        WHERE
+        int gbs is the Global Batch Size to use for training.
+        int tp is the Tensor Parallelism value to use for training.
+        int pp is the Pipeline Parallelism value to use for training.
+    :raises ValueError: if the model_size_in_b is larger than the supported max model size.
+    """
     if model_size_in_b <= 1.0:
         gbs, tp, pp = 256, 1, 1
     elif model_size_in_b <= 4.0:
@@ -199,8 +214,18 @@ def _gbs_tp_pp_gpt3_80gb(model_size_in_b):
     return gbs, tp, pp
 
 
-def _gbs_tp_pp_gpt3_40gb(model_size_in_b):
-    """Provides base GBS, TP and PP values for GPT-3 models for 40GB GPUs."""
+def _gbs_tp_pp_gpt3_40gb(model_size_in_b: float) -> Tuple[int, int, int]:
+    """
+    Outputs GBS, TP and PP values for any GPT-3 model size for 40GB GPUs.
+
+    :param float model_size_in_b: the number of parameters in the model.
+    :returns: tuple (gbs, tp, pp)
+        WHERE
+        int gbs is the Global Batch Size to use for training.
+        int tp is the Tensor Parallelism value to use for training.
+        int pp is the Pipeline Parallelism value to use for training.
+    :raises ValueError: if the model_size_in_b is larger than the supported max model size.
+    """
     if model_size_in_b <= 1.0:
         gbs, tp, pp = 256, 1, 1
     elif model_size_in_b <= 4.0:
@@ -228,8 +253,18 @@ def _gbs_tp_pp_gpt3_40gb(model_size_in_b):
     return gbs, tp, pp
 
 
-def _gbs_tp_pp_t5_80gb(model_size_in_b):
-    """Provides base GBS, TP and PP values for T5/mT5 models for 80GB GPUs."""
+def _gbs_tp_pp_t5_80gb(model_size_in_b: float) -> Tuple[int, int, int]:
+    """
+    Outputs GBS, TP and PP values for any T5/mT5 model size for 80GB GPUs.
+
+    :param float model_size_in_b: the number of parameters in the model.
+    :returns: tuple (gbs, tp, pp)
+        WHERE
+        int gbs is the Global Batch Size to use for training.
+        int tp is the Tensor Parallelism value to use for training.
+        int pp is the Pipeline Parallelism value to use for training.
+    :raises ValueError: if the model_size_in_b is larger than the supported max model size.
+    """
     if model_size_in_b <= 1.0:
         gbs, tp, pp = 2048, 1, 1
     elif model_size_in_b <= 5.0:
@@ -247,8 +282,18 @@ def _gbs_tp_pp_t5_80gb(model_size_in_b):
     return gbs, tp, pp
 
 
-def _gbs_tp_pp_t5_40gb(model_size_in_b):
-    """Provides base GBS, TP and PP values for T5/mT5 models for 40GB GPUs."""
+def _gbs_tp_pp_t5_40gb(model_size_in_b: float) -> Tuple[int, int, int]:
+    """
+    Outputs GBS, TP and PP values for any T5/mT5 model size for 40GB GPUs.
+
+    :param float model_size_in_b: the number of parameters in the model.
+    :returns: tuple (gbs, tp, pp)
+        WHERE
+        int gbs is the Global Batch Size to use for training.
+        int tp is the Tensor Parallelism value to use for training.
+        int pp is the Pipeline Parallelism value to use for training.
+    :raises ValueError: if the model_size_in_b is larger than the supported max model size.
+    """
     if model_size_in_b <= 0.5:
         gbs, tp, pp = 2048, 1, 1
     if model_size_in_b <= 1.0:
@@ -269,28 +314,28 @@ def _gbs_tp_pp_t5_40gb(model_size_in_b):
 
 
 def generate_base_config(
-    model_size_in_b,
-    nodes,
-    gpus_per_node,
-    gpu_memory_gb,
-    max_training_days,
-    num_tokens_in_b,
-    vocab_size,
-    model_name,
-    cfg,
+        model_size_in_b: float,
+        nodes: int,
+        gpus_per_node: int,
+        gpu_memory_gb: int,
+        max_training_days: float,
+        num_tokens_in_b: int,
+        vocab_size: int,
+        model_name: str,
+        cfg: omegaconf.dictconfig.DictConfig,
 ):
-    """Generates base config for a given model name and size.
-
-    Arguments:
-        model_size_in_b: float, number of parameters in the model, if known.
-        nodes: int, number of nodes to use for training.
-        gpus_per_node: int, number of GPUs available in each node.
-        max_training_days: float, number of days to train the model for.
-        num_tokens_in_b: int, number of tokens to train the model for.
-        model_name: str, name of the model, such as gpt3, t5, mt5...
-        cfg: OmegaConf, full config object.
-    Output:
-        base_cfg: dict, base config object for the
+    """
+    Generates base config dictionary for a given model name and size.
+    
+    :param float model_size_in_b: number of parameters in the model, if known.
+    :param int nodes: number of nodes to use for training.
+    :param int gpus_per_node: number of GPUs available in each node.
+    :param float max_training_days: number of days to train the model for.
+    :param int num_tokens_in_b: number of tokens to train the model for.
+    :param str model_name: name of the model, such as gpt3, t5, mt5...
+    :param omegaconf.dictconfig.DictConfig cfg: full config object.
+    :return: base config object for the given model.
+    :rtype: dict
     """
     # GBS: global batch size
     gbs, tp, pp = _calculate_gbs_tp_pp(

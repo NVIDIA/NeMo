@@ -1,27 +1,64 @@
+"""Prepares and launches the training HP search using bignlp-scripts."""
+
 import os
 import shutil
 import math
 import yaml
 import subprocess
+from typing import Tuple, List
 
 import omegaconf
-from omegaconf import OmegaConf
 
 from hp_tool import utils, train
 
 
-def search_training_config(base_cfg, model_size, model_name, cfg):
+def search_training_config(
+        base_cfg: dict,
+        model_size_in_b: float,
+        model_name: str,
+        cfg: omegaconf.dictconfig.DictConfig,
+) -> None:
+    """
+    Entry point for the training HP search. This function calls other functions to perform three 
+    actions: generates the grid of possible configurations; launches those configurations using 
+    bignlp-scripts; and launches a final job to compare the results of all the training jobs.
+
+    :param dict base_cfg: base configuration of the model to be trained.
+    :param float model_size_in_b: number of parameters in the model, if known.
+    :param str model_name: name of the model to be trained: gpt3, t5, mt5...
+    :param omegaconf.dictconfig.DictConfig cfg: main hydra config object for the HP tool.
+    :return: None
+    """
     # Generate candidate configs.
     base_dir, results_cfgs, num_nodes = generate_grid_search_configs(
-        base_cfg, model_size, model_name, cfg
+        base_cfg, model_size_in_b, model_name, cfg
     )
     # Launch candidate configs.
     job_ids = launch_grid_search_configs(base_dir, results_cfgs, model_name, cfg)
     # Measure and compare throughputs for each config.
-    launch_throughput_measure(job_ids, model_name, model_size, num_nodes, cfg)
+    launch_throughput_measure(job_ids, model_name, model_size_in_b, num_nodes, cfg)
 
 
-def generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg):
+def generate_grid_search_configs(
+        base_cfg: dict,
+        model_size_in_b: float,
+        model_name: str,
+        cfg: omegaconf.dictconfig.DictConfig,
+) -> Tuple[str, List[int], int]:
+    """
+    Generates the grid of all possible configurations for the given model, and stores 
+    each different configuration in a yaml file.
+
+    :param dict base_cfg: base configuration of the model to be trained.
+    :param float model_size_in_b: number of parameters in the model.
+    :param str model_name: name of the model to be trained: gpt3, t5, mt5...
+    :param omegaconf.dictconfig.DictConfig cfg: main hydra config object for the HP tool.
+    :returns: tuple (base_dir, results_cfgs, num_nodes)
+        WHERE
+        str base_dir is the path to the directory where the results will be stored.
+        List[int] results_cfgs is a list of all the config names that were generated.
+        int num_nodes is the number of nodes used to run each config.
+    """
     search_cfg = cfg.get("search_config")
     train_cfg = search_cfg.get("train_settings")
     gpus_per_node = train_cfg.get("gpus_per_node")
@@ -130,8 +167,18 @@ def generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg):
     return base_dir, results_cfgs, num_nodes
 
 
-def _tp_pp_mbs_grid_gpt3_80gb(model_size_in_b, valid_pp):
-    """Selects grid search space for TP, PP, MBS parameters for GPT-3 and 80GB GPUs."""
+def _tp_pp_mbs_grid_gpt3_80gb(model_size_in_b: float, valid_pp: List[int]) -> Tuple[int, int, int]:
+    """
+    Selects grid search space for TP, PP, MBS parameters for GPT-3 and 80GB GPUs.
+
+    :param float model_size_in_b: number of parameters in the model.
+    :param List[int] valid_pp: list of valid Pipeline Parallelism (PP) values for this config.
+    :returns: tuple (tp, pp, mbs)
+        WHERE
+        int tp is the Tensor Parallelism value to use for training.
+        int pp is the Pipeline Parallelism value to use for training.
+        int mbs is the Micro Batch Size to use for training.
+    """
     tp = [1, 2, 4, 8]
     pp = [1]
     mbs = [1, 2, 3, 4, 6, 8]
@@ -177,8 +224,18 @@ def _tp_pp_mbs_grid_gpt3_80gb(model_size_in_b, valid_pp):
     return tp, pp, mbs
 
 
-def _tp_pp_mbs_grid_gpt3_40gb(model_size_in_b, valid_pp):
-    """Selects grid search space for TP, PP, MBS parameters for GPT-3 and 40GB GPUs."""
+def _tp_pp_mbs_grid_gpt3_40gb(model_size_in_b: float, valid_pp: List[int]) -> Tuple[int, int, int]:
+    """
+    Selects grid search space for TP, PP, MBS parameters for GPT-3 and 40GB GPUs.
+
+    :param float model_size_in_b: number of parameters in the model.
+    :param List[int] valid_pp: list of valid Pipeline Parallelism (PP) values for this config.
+    :returns: tuple (tp, pp, mbs)
+        WHERE
+        int tp is the Tensor Parallelism value to use for training.
+        int pp is the Pipeline Parallelism value to use for training.
+        int mbs is the Micro Batch Size to use for training.
+    """
     tp = [1, 2, 4, 8]
     pp = [1]
     mbs = [1, 2, 4, 6, 8, 10, 12, 16]
@@ -230,8 +287,18 @@ def _tp_pp_mbs_grid_gpt3_40gb(model_size_in_b, valid_pp):
     return tp, pp, mbs
 
 
-def _tp_pp_mbs_grid_t5_80gb(model_size_in_b, valid_pp):
-    """Selects grid search space for TP, PP, MBS parameters for T5/mT5 and 80GB GPUs."""
+def _tp_pp_mbs_grid_t5_80gb(model_size_in_b: float, valid_pp: List[int]) -> Tuple[int, int, int]:
+    """
+    Selects grid search space for TP, PP, MBS parameters for T5/mT5 and 80GB GPUs.
+
+    :param float model_size_in_b: number of parameters in the model.
+    :param List[int] valid_pp: list of valid Pipeline Parallelism (PP) values for this config.
+    :returns: tuple (tp, pp, mbs)
+        WHERE
+        int tp is the Tensor Parallelism value to use for training.
+        int pp is the Pipeline Parallelism value to use for training.
+        int mbs is the Micro Batch Size to use for training.
+    """
     tp = [1, 2, 4, 8]
     pp = [1]
     mbs = [1, 2, 4, 6, 8, 12, 16]
@@ -258,8 +325,18 @@ def _tp_pp_mbs_grid_t5_80gb(model_size_in_b, valid_pp):
     return tp, pp, mbs
 
 
-def _tp_pp_mbs_grid_t5_40gb(model_size_in_b, valid_pp):
-    """Selects grid search space for TP, PP, MBS parameters for T5/mT5 and 40GB GPUs."""
+def _tp_pp_mbs_grid_t5_40gb(model_size_in_b: float, valid_pp: List[int]) -> Tuple[int, int, int]:
+    """
+    Selects grid search space for TP, PP, MBS parameters for T5/mT5 and 40GB GPUs.
+
+    :param float model_size_in_b: number of parameters in the model.
+    :param List[int] valid_pp: list of valid Pipeline Parallelism (PP) values for this config.
+    :returns: tuple (tp, pp, mbs)
+        WHERE
+        int tp is the Tensor Parallelism value to use for training.
+        int pp is the Pipeline Parallelism value to use for training.
+        int mbs is the Micro Batch Size to use for training.
+    """
     tp = [1, 2, 4, 8]
     pp = [1]
     mbs = [1, 2, 4, 6, 8, 12, 16]
@@ -287,7 +364,22 @@ def _tp_pp_mbs_grid_t5_40gb(model_size_in_b, valid_pp):
     return tp, pp, mbs
 
 
-def _calculate_tp_pp_mbs_grid(model_size_in_b, num_layers, model_name, train_cfg):
+def _calculate_tp_pp_mbs_grid(model_size_in_b: float, num_layers: int, model_name: str, train_cfg: omegaconf.dictconfig.DictConfig) -> Tuple[int, int, int]:
+    """
+    Selects grid search space for TP, PP, MBS parameters for any model, and calls the necessary 
+    heuristics function accordingly.
+
+    :param float model_size_in_b: number of parameters in the model.
+    :param int num_layers: number of layers in the model config.
+    :param str model_name: name of the model to be used, such as gpt3, t5, mt5...
+    :param omegaconf.dictconfig.DictConfig train_cfg: config of the model that will be launched.
+    :returns: tuple (tp, pp, mbs)
+        WHERE
+        int tp is the Tensor Parallelism value to use for training.
+        int pp is the Pipeline Parallelism value to use for training.
+        int mbs is the Micro Batch Size to use for training.
+    :raises NotImplementedError: if the model_name is not one of the supported models.
+    """
     tp_sizes = train_cfg.get("tensor_parallel_sizes")
     pp_sizes = train_cfg.get("pipeline_parallel_sizes")
     mbs_sizes = train_cfg.get("micro_batch_sizes")
@@ -330,16 +422,17 @@ def _calculate_tp_pp_mbs_grid(model_size_in_b, num_layers, model_name, train_cfg
     return tp, pp, mbs
 
 
-def launch_grid_search_configs(base_dir, results_cfgs, model_name, cfg):
-    """Launches training jobs for the grid search in parallel. The limit of how many
+def launch_grid_search_configs(base_dir: str, results_cfgs: List[int], model_name: str, cfg: omegaconf.dictconfig.DictConfig) -> List[int]:
+    """
+    Launches training jobs for the grid search in parallel. The limit of how many
     jobs to launch is specified by limit_search_runs.
 
-    Arguments:
-        base_dir: str, location where the configs are stored.
-        results_cfgs: list, list of config names.
-        cfg: OmegaConf, the general config object.
-    Output
-        job_ids: list, list of job ids for all the training jobs.
+    :param str base_dir: location where the configs are stored.
+    :param list results_cfgs: list of config names.
+    :param str model_name: name of the model to be run.
+    :param omegaconf.dictconfig.DictConfig cfg: the general config object.
+    :return: job_ids, list of job ids for all the training jobs.
+    :rtype: list[int]
     """
     bignlp_hp_tool_path = cfg.get("bignlp_hp_tool_path")
     bignlp_scripts_path = cfg.get("bignlp_scripts_path")
@@ -365,18 +458,18 @@ def launch_grid_search_configs(base_dir, results_cfgs, model_name, cfg):
     return job_ids
 
 
-def launch_throughput_measure(dependency_list, model_name, model_size_in_b, num_nodes, cfg):
-    """Launch job that measures the throughput of each run in the grid search. This
+def launch_throughput_measure(dependency_list: List[str], model_name: str, model_size_in_b: float, num_nodes: int, cfg: omegaconf.dictconfig.DictConfig) -> str:
+    """
+    Launch job that measures the throughput of each run in the grid search. This
     job will get scheduled with dependencies on all the job ids in dependency_list,
     so it will only start running once all the jobs are finished.
 
-    Arguments:
-        dependency_list: list, list of all the job_ids this job will depend on.
-        model_name: str, name of the model, i.e. gpt3, t5, mt5.
-        model_size_in_b: float, model size in billions of parameters.
-        cfg: OmegaCOnf, general config object.
-    Output:
-        dependency: str, job_id of the current job.
+    :param list dependency_list: list of all the job_ids this job will depend on.
+    :param str model_name: name of the model, i.e. gpt3, t5, mt5.
+    :param float model_size_in_b: model size in billions of parameters.
+    :param omegaconf.dictconfig.DictConfig cfg: general config object for the HP tool.
+    :return: job_id of the current job.
+    :rtype: str
     """
     # Read config
     bignlp_hp_tool_path = cfg.get("bignlp_hp_tool_path")
