@@ -27,6 +27,10 @@ from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import (
     BinarizedMemmapSequenceToSequenceDataset,
     TextMemmapSequenceToSequenceDataset,
 )
+from nemo.collections.nlp.data.language_modeling.megatron.xlm_dataset import (
+    BinarizedMemmapCrossLingualMLMAndTranslationDataset,
+    TextMemmapCrossLingualMLMAndTranslationDataset
+)
 from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
     get_datasets_weights_and_num_samples,
 )
@@ -190,11 +194,37 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             if hasattr(self.cfg.data, "dataset_type"):
                 # This happens only when restoring a pre-trained model. We need to add all of the special tokens that were added while pre-training to avoid a checkpoint shape mismatch while restoring.
                 MegatronT5Model.add_special_tokens_to_tokenizer(
-                    self.encoder_tokenizer, self.cfg.encoder_tokenizer, self.cfg.data.dataset_type
+                    tokenizer=self.encoder_tokenizer,
+                    library=self.cfg.encoder_tokenizer.library,
+                    dataset_type=self.cfg.data.dataset_type,
                 )
                 MegatronT5Model.add_special_tokens_to_tokenizer(
-                    self.decoder_tokenizer, self.cfg.decoder_tokenizer, self.cfg.data.dataset_type
+                    tokenizer=self.decoder_tokenizer,
+                    library=self.cfg.decoder_tokenizer.library,
+                    dataset_type=self.cfg.data.dataset_type,
                 )
+        if self.cfg.train_ds.get('objective', 'nmt') == 'nmt-xlm':
+            if self.cfg.encoder_tokenizer.library != 'sentencepiece':
+                raise ValueError(f"NMT-XLM objective requires sentencepiece tokenizer, but got encoder tokenizer library : {self.cfg.encoder_tokenizer.library}")
+            if self.cfg.decoder_tokenizer.library != 'sentencepiece':
+                raise ValueError(f"NMT-XLM objective requires sentencepiece tokenizer, but got decoder tokenizer library : {self.cfg.decoder_tokenizer.library}")
+            MegatronT5Model.add_special_tokens_to_tokenizer(
+                tokenizer=self.encoder_tokenizer,
+                library=self.cfg.encoder_tokenizer.library,
+                dataset_type='ul2',
+            )
+            MegatronT5Model.add_special_tokens_to_tokenizer(
+                tokenizer=self.decoder_tokenizer,
+                library=self.cfg.encoder_tokenizer.library,
+                dataset_type='ul2',
+            )
+            _ = MTEncDecModel.setup_multilingual_ids_and_processors(
+                src_language=self.src_language,
+                tgt_language=self.tgt_language,
+                encoder_tokenizer=self.encoder_tokenizer,  # Multilingual training requires shared tokenizers.
+                encoder_tokenizer_library=self.encoder_tokenizer_library,
+                decoder_tokenizer_library=self.decoder_tokenizer_library,
+            )
         self.padded_vocab_size = self._vocab_size_with_padding(
             orig_vocab_size=self.encoder_tokenizer.vocab_size,
             make_vocab_size_divisible_by=self._cfg.get('make_vocab_size_divisible_by', 128),
@@ -568,6 +598,62 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                 decoder_tokenizer=self.decoder_tokenizer,
             )
 
+    def _instantiate_dataset(self, cfg, src_file, tgt_file, num_samples):
+        if cfg.dataset_type == 'bin_memmap':
+            if cfg.get("objective", "nmt") == "nmt":
+                dataset = BinarizedMemmapSequenceToSequenceDataset(
+                    src_dataset_prefix=src_file,
+                    tgt_dataset_prefix=tgt_file,
+                    src_tokenizer=self.encoder_tokenizer,
+                    tgt_tokenizer=self.decoder_tokenizer,
+                    max_src_seq_length=cfg.max_seq_length,
+                    max_tgt_seq_length=cfg.max_seq_length,
+                    max_num_samples=num_samples[0],
+                    seed=self._cfg.seed,
+                )
+            elif cfg.get("objective", "nmt") == "nmt-xlm":
+                dataset = BinarizedMemmapCrossLingualMLMAndTranslationDataset(
+                    src_dataset_prefix=src_file,
+                    tgt_dataset_prefix=tgt_file,
+                    src_tokenizer=self.encoder_tokenizer,
+                    tgt_tokenizer=self.decoder_tokenizer,
+                    src_language=self.src_language,
+                    tgt_language=self.tgt_language,
+                    max_src_seq_length=cfg.max_seq_length // 2,
+                    max_tgt_seq_length=cfg.max_seq_length // 2,
+                    max_seq_length_dec=cfg.max_seq_length,
+                    max_num_samples=num_samples[0],
+                    sampling_ratios=cfg.sampling_ratios,
+                )
+        elif cfg.dataset_type == 'text_memmap':
+            if cfg.get("objective", "nmt") == "nmt":
+                dataset = TextMemmapSequenceToSequenceDataset(
+                    src_file_name=src_file,
+                    tgt_file_name=tgt_file,
+                    src_tokenizer=self.encoder_tokenizer,
+                    tgt_tokenizer=self.decoder_tokenizer,
+                    max_src_seq_length=cfg.max_seq_length,
+                    max_tgt_seq_length=cfg.max_seq_length,
+                    max_num_samples=num_samples[0],
+                    seed=self._cfg.seed,
+                )
+            elif cfg.get("objective", "nmt") == "nmt-xlm":
+                dataset = TextMemmapCrossLingualMLMAndTranslationDataset(
+                    src_file_name=src_file,
+                    tgt_file_name=tgt_file,
+                    src_tokenizer=self.encoder_tokenizer,
+                    tgt_tokenizer=self.decoder_tokenizer,
+                    src_language=self.src_language,
+                    tgt_language=self.tgt_language,
+                    max_src_seq_length=cfg.max_seq_length // 2,
+                    max_tgt_seq_length=cfg.max_seq_length // 2,
+                    max_seq_length_dec=cfg.max_seq_length,
+                    max_num_samples=num_samples[0],
+                    sampling_ratios=cfg.sampling_ratios,
+                )
+        
+        return dataset
+
     def build_memmap_dataset_from_config(self, cfg: DictConfig):
         """Builds a memmap dataset from a existing binary based o nthe provided config."""
         is_src_listconfig = isinstance(cfg.src_file_name, ListConfig)
@@ -612,55 +698,18 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             for src_file, tgt_file, num_samples in zip(
                 cfg.src_file_name, cfg.tgt_file_name, num_train_samples_per_dataset
             ):
-                if cfg.dataset_type == 'bin_memmap':
-                    dataset = BinarizedMemmapSequenceToSequenceDataset(
-                        src_dataset_prefix=src_file,
-                        tgt_dataset_prefix=tgt_file,
-                        src_tokenizer=self.encoder_tokenizer,
-                        tgt_tokenizer=self.decoder_tokenizer,
-                        max_src_seq_length=cfg.max_seq_length,
-                        max_tgt_seq_length=cfg.max_seq_length,
-                        max_num_samples=num_samples[0],
-                        seed=self._cfg.seed,
-                    )
-                elif cfg.dataset_type == 'text_memmap':
-                    dataset = TextMemmapSequenceToSequenceDataset(
-                        src_file_name=src_file,
-                        tgt_file_name=tgt_file,
-                        src_tokenizer=self.encoder_tokenizer,
-                        tgt_tokenizer=self.decoder_tokenizer,
-                        max_src_seq_length=cfg.max_seq_length,
-                        max_tgt_seq_length=cfg.max_seq_length,
-                        max_num_samples=num_samples[0],
-                        seed=self._cfg.seed,
-                    )
+                dataset = self._instantiate_dataset(cfg, src_file, tgt_file, num_samples)
                 datasets.append(dataset)
             dataset = BlendableDataset(
                 datasets=datasets, weights=cfg.concat_sampling_probabilities, size=num_train_samples_after_blend
             )
         else:
-            if cfg.dataset_type == 'bin_memmap':
-                dataset = BinarizedMemmapSequenceToSequenceDataset(
-                    src_dataset_prefix=cfg.src_file_name,
-                    tgt_dataset_prefix=cfg.tgt_file_name,
-                    src_tokenizer=self.encoder_tokenizer,
-                    tgt_tokenizer=self.decoder_tokenizer,
-                    max_src_seq_length=cfg.max_seq_length,
-                    max_tgt_seq_length=cfg.max_seq_length,
-                    max_num_samples=self.trainer.max_steps * self._cfg.global_batch_size,
-                    seed=self._cfg.seed,
-                )
-            elif cfg.dataset_type == 'text_memmap':
-                dataset = TextMemmapSequenceToSequenceDataset(
-                    src_file_name=cfg.src_file_name,
-                    tgt_file_name=cfg.tgt_file_name,
-                    src_tokenizer=self.encoder_tokenizer,
-                    tgt_tokenizer=self.decoder_tokenizer,
-                    max_src_seq_length=cfg.max_seq_length,
-                    max_tgt_seq_length=cfg.max_seq_length,
-                    max_num_samples=self.trainer.max_steps * self._cfg.global_batch_size,
-                    seed=self._cfg.seed,
-                )
+            dataset = self._instantiate_dataset(
+                cfg=cfg,
+                src_file=cfg.src_file_name,
+                tgt_file=cfg.tgt_file_name,
+                num_samples=[self.trainer.max_steps * self._cfg.global_batch_size],
+            )
         return dataset
 
     def build_tarred_train_dataset(self):

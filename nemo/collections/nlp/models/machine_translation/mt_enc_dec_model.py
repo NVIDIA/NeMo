@@ -267,11 +267,15 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             all_languages = list(set(src_language + tgt_language))
         elif isinstance(tgt_language, ListConfig):
             all_languages = tgt_language
+        elif not isinstance(src_language, ListConfig) and not isinstance(tgt_language, ListConfig):
+            all_languages = [src_language, tgt_language]
+        else:
+            all_languages = []
 
         # If target is a list config, then add all language ID tokens to the tokenizer.
         # When both src, tgt are lists, we concat and take a unique of all lang IDs.
         # If only tgt lang is a list, then we only add those lang IDs to the tokenizer.
-        if isinstance(tgt_language, ListConfig):
+        if all_languages != []:
             for lng in all_languages:
                 if len(encoder_tokenizer.text_to_ids(f"<{lng}>")) != 1:
                     encoder_tokenizer.add_special_tokens({f"<{lng}>": f"<{lng}>"})

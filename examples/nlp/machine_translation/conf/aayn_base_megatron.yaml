@@ -95,6 +95,12 @@ model:
     tgt_file_name: null
     dataset_type: 'text_memmap' # Options ['tarred', 'text', 'bin_memmap', 'text_memmap']
     sampler: 'megatron' # Options ['distributed', 'megatron']. Note megatron samplers do not shuffle across epochs.
+    objective: 'nmt' # Options ['nmt', 'nmt-xlm']
+    sampling_ratios:
+      x-masking: 0.17 # Extreme span masking task selection probability (either large spans or large masking prob)
+      r-masking: 0.17 # T5-style random span masking task selection probability
+      s-masking: 0.16 # Prefix-LM task selection probability
+      nmt: 0.5 # NMT selection probability
     micro_batch_size: ${model.micro_batch_size}
     global_batch_size: ${model.global_batch_size}
     # config for preprocessing training data and creating a tarred datset automatically

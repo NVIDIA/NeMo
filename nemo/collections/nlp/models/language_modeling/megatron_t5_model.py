@@ -129,7 +129,8 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
                 else:
                     tokenizer.add_special_tokens({'bos_token': '<bos>'})
             else:
-                tokenizer.add_special_tokens({'bos_token': '<s>'})
+                if not hasattr(tokenizer, 'bos_id'):
+                    tokenizer.add_special_tokens({'bos_token': '<s>'})
 
             if not hasattr(tokenizer, 'eos_token'):
                 if hasattr(tokenizer.tokenizer, 'eos_id') and tokenizer.tokenizer.eos_id() > 0:
@@ -137,7 +138,8 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
                 else:
                     tokenizer.add_special_tokens({'eos_token': '<eos>'})
             else:
-                tokenizer.add_special_tokens({'eos_token': '</s>'})
+                if not hasattr(tokenizer, 'eos_id'):
+                    tokenizer.add_special_tokens({'eos_token': '</s>'})
 
             # Special check to see if <extra_id_{}> is already present in the tokenizer. If it is, only modify the additional_special_tokens function.
             for i in range(num_sentinel_tokens):

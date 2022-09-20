@@ -264,6 +264,8 @@ class TextMemmapSequenceToSequenceDataset(IndexedSequenceToSequenceDataset):
         max_tgt_seq_length: int,
         seed: int = 1234,
         max_num_samples: int = None,
+        add_bos_to_enc: bool = True,
+        add_eos_to_enc: bool = True,
     ):
         """
         src_file_name: Path to a single source file on disk. The file should contain one sentence per line and be raw text.
@@ -274,6 +276,8 @@ class TextMemmapSequenceToSequenceDataset(IndexedSequenceToSequenceDataset):
         max_tgt_seq_length: Maximum length of the target sequences. Lines above this length will be truncated.
         seed: Random seed for data shuffling.
         max_num_samples: Maximum number of samples to load. This can be > dataset length if you want to oversample data. If None, all samples will be loaded.
+        add_bos_to_enc: Add BOS token to the encoder input.
+        add_eos_to_enc: Add EOS token to the encoder input.
         """
         self.seed = seed
         self.max_num_samples = max_num_samples
@@ -286,6 +290,8 @@ class TextMemmapSequenceToSequenceDataset(IndexedSequenceToSequenceDataset):
             max_tgt_seq_length=max_tgt_seq_length,
             seed=seed,
             max_num_samples=max_num_samples,
+            add_bos_to_enc=add_bos_to_enc,
+            add_eos_to_enc=add_eos_to_enc,
         )
 
     def _get_examples(self):
