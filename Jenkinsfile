@@ -32,11 +32,11 @@ pipeline {
       }
     }
 
-    stage('Transformers Offline') {
-      steps{
-        sh 'echo "TRANSFORMERS_OFFLINE="${TRANSFORMERS_OFFLINE}'
-      }
-    }
+//     stage('Transformers Offline') {
+//       steps{
+//         sh 'echo "TRANSFORMERS_OFFLINE="${TRANSFORMERS_OFFLINE}'
+//       }
+//     }
 
     stage('PyTorch version') {
       steps {
