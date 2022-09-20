@@ -149,7 +149,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         energy_embedding_kernel_size = 0
         energy_predictor = None
         if self._cfg.get("energy_predictor", None) is not None:
-            energy_predictor = instantiate(self._cfg.pitch_predictor)
+            energy_predictor = instantiate(self._cfg.energy_predictor)
             energy_embedding_kernel_size = cfg.get("energy_embedding_kernel_size", 0)
 
         self.fastpitch = FastPitchModule(
@@ -441,7 +441,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        attn_prior, durs, speaker = None, None, None
+        attn_prior, durs, speaker, energy = None, None, None, None
         if self.learn_alignment:
             if self.ds_class_name == "TTSDataset":
                 if SpeakerID in self._train_dl.dataset.sup_data_types_set and Energy in self._train_dl.dataset.sup_data_types_set:
@@ -501,7 +501,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             "mel_loss": mel_loss,
             "dur_loss": dur_loss,
             "pitch_loss": pitch_loss,
-            "energy_loss": energy_loss if energy_pred is not None else None,
+            "energy_loss": energy_loss if energy_tgt is not None else None,
             "mel_target": mels if batch_idx == 0 else None,
             "mel_pred": mels_pred if batch_idx == 0 else None,
         }
