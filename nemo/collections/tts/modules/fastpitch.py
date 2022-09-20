@@ -312,7 +312,7 @@ class FastPitchModule(NeuralModule):
             energy_tgt,
         )
 
-    def infer(self, *, text, pitch=None, speaker=None, pace=1.0, volume=None):
+    def infer(self, *, text, pitch=None, speaker=None, energy=None, pace=1.0, volume=None):
         # Calculate speaker embedding
         if self.speaker_emb is None or speaker is None:
             spk_emb = 0
@@ -329,6 +329,10 @@ class FastPitchModule(NeuralModule):
         )
         pitch_predicted = self.pitch_predictor(enc_out, enc_mask) + pitch
         pitch_emb = self.pitch_emb(pitch_predicted.unsqueeze(1))
+        if self.energy_predictor is not None:
+            energy_pred = self.energy_predictor(enc_out, enc_mask).squeeze(-1)
+            energy_emb = self.energy_emb(energy_pred.unsqueeze(1))
+            enc_out = enc_out + energy_emb.transpose(1, 2)
         enc_out = enc_out + pitch_emb.transpose(1, 2)
 
         # Expand to decoder time dimension
