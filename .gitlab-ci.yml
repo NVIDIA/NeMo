@@ -1,4 +1,4 @@
-# Info on how to use the new CI system (https://docs.google.com/document/d/18uNblUvMvnN51Fda0itqsZzEXm9SJKQ-AcRMw6mGdCg/edit)
+# Info on how to use the new CI system (https://docs.google.com/document/d/1eU8cSLKdLmPdhoibswLhMtB_-kdD2rW6TKjv-yZbWBs/edit)
 
 variables: &VARS
   BIGNLP_REGISTRY: "gitlab-master.nvidia.com:5005/dl/joc/bignlp-scripts"
