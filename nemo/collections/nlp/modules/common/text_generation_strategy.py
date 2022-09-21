@@ -19,7 +19,6 @@ class TextGenerationStrategy:
     """
     def __init__(self, model):
         self.model = model
-        self.forward_model = self.model.model
 
     def forward_step(self, batch, tensor_shape):
 
@@ -88,7 +87,11 @@ class TextGenerationStrategy:
         """
         pass
 
+
 class GPTModelTextGenerationStrategy(TextGenerationStrategy):
+    def __init__(self, model):
+        super().__init__(model)
+        self.forward_model = self.model.model
 
     def clip_max_len(self, maxlen: int) -> int:
         """ clip the max len based on the LM model max sequence length"""
@@ -143,10 +146,11 @@ class GPTModelTextGenerationStrategy(TextGenerationStrategy):
         tensor_shape = [tokens2use.shape[1], micro_batch_size, self.model.cfg.hidden_size]
         return batch, tensor_shape
 
+
 class PromptLearningModelTextGenerationStrategy(GPTModelTextGenerationStrategy):
 
     def __init__(self, model, task_ids):
-        super(model)
+        self.model = model
         self.task_ids = task_ids
         self.forward_model = self.model
 
