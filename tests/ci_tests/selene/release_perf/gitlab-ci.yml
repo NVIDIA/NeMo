@@ -1,3 +1,5 @@
+# For info on release perf refer to this documentation (https://docs.google.com/document/d/1sBDFEk1kUnS2sxUTeT_-XAfoAhXw2nxGqO5hcFhK3xQ/edit)
+
 variables: &VARS
   BIGNLP_CI_PATH: "/lustre/fsw/joc/big_nlp/bignlp_ci"
   MEMORY_MEASURE_TEST: "False" # Set to true if you want to run memory test
