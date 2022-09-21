@@ -18,7 +18,7 @@ from pynini.lib import pynutil
 
 class Money(GraphFst):
     '''
-        tokens { money { integer_part: "一点五" fractional_part: "元" } } ->  一点五元
+    tokens { money { integer_part: "一点五" fractional_part: "元" } } ->  一点五元
     '''
 
     def __init__(self, deterministic: bool = True, lm: bool = False):

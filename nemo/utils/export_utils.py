@@ -230,9 +230,18 @@ try:
 
         dev = next(n.parameters()).device
         if isinstance(n, FusedLayerNorm) or isinstance(n, MixedFusedLayerNorm):
-            mod = nn.LayerNorm(n.normalized_shape, eps=n.eps, elementwise_affine=n.elementwise_affine,).to(dev)
+            mod = nn.LayerNorm(
+                n.normalized_shape,
+                eps=n.eps,
+                elementwise_affine=n.elementwise_affine,
+            ).to(dev)
         elif isinstance(n, FastLayerNorm):
-            mod = nn.LayerNorm(n.weight.shape, eps=n.epsilon, elementwise_affine=True, dtype=torch.float16,).to(dev)
+            mod = nn.LayerNorm(
+                n.weight.shape,
+                eps=n.epsilon,
+                elementwise_affine=True,
+                dtype=torch.float16,
+            ).to(dev)
 
         n_state = n.state_dict()
         mod.load_state_dict(n_state)
@@ -309,7 +318,7 @@ def simple_replace(BaseT: Type[nn.Module], DestT: Type[nn.Module]) -> Callable[[
 
 def wrap_module(BaseT: Type[nn.Module], DestT: Type[nn.Module]) -> Callable[[nn.Module], Optional[nn.Module]]:
     """
-    Generic function generator to replace BaseT module with DestT wrapper. 
+    Generic function generator to replace BaseT module with DestT wrapper.
     Args:
         BaseT : module type to replace
         DestT : destination module type

@@ -186,7 +186,17 @@ def get_indexed_dataset_(data_prefix, data_impl, skip_warmup):
 
 class GPTDataset(Dataset):
     def __init__(
-        self, cfg, trainer, tokenizer, name, data_prefix, documents, indexed_dataset, num_samples, seq_length, seed,
+        self,
+        cfg,
+        trainer,
+        tokenizer,
+        name,
+        data_prefix,
+        documents,
+        indexed_dataset,
+        num_samples,
+        seq_length,
+        seed,
     ):
         if not HAVE_APEX:
             raise ImportError(
@@ -263,7 +273,11 @@ class GPTDataset(Dataset):
         tokens = text[:-1].contiguous()
         labels = text[1:].contiguous()
         attention_mask, loss_mask, position_ids = _create_ltor_masks_and_position_ids(
-            tokens, self.eos_id, self.reset_position_ids, self.reset_attention_mask, self.eod_mask_loss,
+            tokens,
+            self.eos_id,
+            self.reset_position_ids,
+            self.reset_attention_mask,
+            self.eod_mask_loss,
         )
 
         return {
@@ -277,7 +291,11 @@ class GPTDataset(Dataset):
 
 @torch.no_grad()
 def _create_ltor_masks_and_position_ids(
-    tokens: torch.Tensor, eod_token: int, reset_position_ids: bool, reset_attention_mask: bool, eod_mask_loss: bool,
+    tokens: torch.Tensor,
+    eod_token: int,
+    reset_position_ids: bool,
+    reset_attention_mask: bool,
+    eod_mask_loss: bool,
 ):
     """Create `attention_mask`, `loss_mask`, and `position_ids`.
 

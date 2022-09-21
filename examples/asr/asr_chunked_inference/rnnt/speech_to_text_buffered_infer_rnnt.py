@@ -79,7 +79,10 @@ can_gpu = torch.cuda.is_available()
 # Common Arguments
 parser = ArgumentParser()
 parser.add_argument(
-    "--asr_model", type=str, required=True, help="Path to asr model .nemo file",
+    "--asr_model",
+    type=str,
+    required=True,
+    help="Path to asr model .nemo file",
 )
 parser.add_argument("--test_manifest", type=str, required=True, help="path to evaluation data")
 parser.add_argument("--batch_size", type=int, default=32)

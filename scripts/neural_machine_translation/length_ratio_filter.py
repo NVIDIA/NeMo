@@ -66,13 +66,23 @@ def get_args():
         type=Path,
     )
     parser.add_argument(
-        "--output-tgt", "-T", help="Path to the output target file", type=Path,
+        "--output-tgt",
+        "-T",
+        help="Path to the output target file",
+        type=Path,
     )
     parser.add_argument(
-        "--removed-src", "-r", required=True, help="Path to file where removed source lines will be saved", type=Path,
+        "--removed-src",
+        "-r",
+        required=True,
+        help="Path to file where removed source lines will be saved",
+        type=Path,
     )
     parser.add_argument(
-        "--removed-tgt", "-R", help="Path to file where removed target lines will be saved", type=Path,
+        "--removed-tgt",
+        "-R",
+        help="Path to file where removed target lines will be saved",
+        type=Path,
     )
     parser.add_argument(
         "--num-jobs",
@@ -81,10 +91,18 @@ def get_args():
         help="Number of jobs. By default, the number of jobs is equal to the number of CPU cores.",
     )
     parser.add_argument(
-        "--min-length", "-m", type=int, default=1, help="Minimum sequence length (after .split())",
+        "--min-length",
+        "-m",
+        type=int,
+        default=1,
+        help="Minimum sequence length (after .split())",
     )
     parser.add_argument(
-        "--max-length", "-M", type=int, default=512, help="Maximum sequence length (after .split())",
+        "--max-length",
+        "-M",
+        type=int,
+        default=512,
+        help="Maximum sequence length (after .split())",
     )
     parser.add_argument(
         "--ratio",

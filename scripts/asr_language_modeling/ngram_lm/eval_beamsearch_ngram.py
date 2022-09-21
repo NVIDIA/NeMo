@@ -99,7 +99,10 @@ def beam_search_eval(
         # disabling type checking
         with nemo.core.typecheck.disable_checks():
             probs_batch = all_probs[batch_idx * beam_batch_size : (batch_idx + 1) * beam_batch_size]
-            beams_batch = beam_search_lm.forward(log_probs=probs_batch, log_probs_length=None,)
+            beams_batch = beam_search_lm.forward(
+                log_probs=probs_batch,
+                log_probs_length=None,
+            )
 
         for beams_idx, beams in enumerate(beams_batch):
             target = target_transcripts[sample_idx + beams_idx]

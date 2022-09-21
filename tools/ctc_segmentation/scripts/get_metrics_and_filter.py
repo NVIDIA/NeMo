@@ -26,7 +26,9 @@ from nemo.utils import logging
 
 parser = argparse.ArgumentParser("Calculate metrics and filters out samples based on thresholds")
 parser.add_argument(
-    "--manifest", required=True, help="Path .json manifest file with ASR predictions saved at `pred_text` field.",
+    "--manifest",
+    required=True,
+    help="Path .json manifest file with ASR predictions saved at `pred_text` field.",
 )
 parser.add_argument(
     "--edge_len", type=int, help="Number of characters to use for CER calculation at the edges", default=5
@@ -110,7 +112,7 @@ def get_metrics(manifest, manifest_out):
 def _apply_filters(
     manifest, manifest_out, max_cer, max_wer, max_edge_cer, max_len_diff_ratio, max_dur=-1, original_duration=0
 ):
-    """ Filters out samples that do not satisfy specified threshold values and saves remaining samples to manifest_out"""
+    """Filters out samples that do not satisfy specified threshold values and saves remaining samples to manifest_out"""
     remaining_duration = 0
     segmented_duration = 0
     with open(manifest, "r") as f, open(manifest_out, "w") as f_out:

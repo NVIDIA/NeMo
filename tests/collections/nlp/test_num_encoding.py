@@ -150,7 +150,10 @@ class TestColumnCoder:
                 "code_type": "int",
                 "args": {"code_len": 3, "base": 12, "fillall": True, "hasnan": True},
             },
-            {"name": "col_d", "code_type": "category",},
+            {
+                "name": "col_d",
+                "code_type": "category",
+            },
         ]
 
         example_arrays = {}

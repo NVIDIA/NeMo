@@ -46,10 +46,13 @@ def main(cfg) -> None:
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
     plugins = []
-    strategy = NLPDDPStrategy(no_ddp_communication_hook=True, find_unused_parameters=False,)
+    strategy = NLPDDPStrategy(
+        no_ddp_communication_hook=True,
+        find_unused_parameters=False,
+    )
     if cfg.trainer.precision == 16:
         scaler = GradScaler(
-            init_scale=cfg.model.get('native_amp_init_scale', 2 ** 32),
+            init_scale=cfg.model.get('native_amp_init_scale', 2**32),
             growth_interval=cfg.model.get('native_amp_growth_interval', 1000),
             hysteresis=cfg.model.get('hysteresis', 2),
             enabled=False
@@ -67,7 +70,9 @@ def main(cfg) -> None:
     # Override timer callback to a stateless one
     for idx, callback in enumerate(trainer.callbacks):
         if isinstance(callback, Timer):
-            trainer.callbacks[idx] = StatelessTimer(cfg.trainer.max_time,)
+            trainer.callbacks[idx] = StatelessTimer(
+                cfg.trainer.max_time,
+            )
 
     # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
     with open_dict(cfg):

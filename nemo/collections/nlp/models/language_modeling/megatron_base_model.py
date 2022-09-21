@@ -199,7 +199,7 @@ class MegatronBaseModel(NLPModel):
 
     def configure_gradient_clipping(self, *args, **kwargs):
         """PTL hook to configure gradients.
-           We use gradient clipping implementation from megatron-lm.
+        We use gradient clipping implementation from megatron-lm.
         """
         clip_val = self.trainer.gradient_clip_val
         if clip_val is None:
@@ -227,7 +227,7 @@ class MegatronBaseModel(NLPModel):
 
     def allreduce_gradients(self):
         """Reduce gradients across data parallel ranks.
-           Modified from megatron-lm: https://github.com/NVIDIA/Megatron-LM/blob/d41696840ed0a7edb7e0499eb82a48ae112d9bb3/megatron/model/distributed.py#L188
+        Modified from megatron-lm: https://github.com/NVIDIA/Megatron-LM/blob/d41696840ed0a7edb7e0499eb82a48ae112d9bb3/megatron/model/distributed.py#L188
         """
         # Bucketize and all-reduce
         buckets = {}
@@ -346,7 +346,7 @@ class MegatronBaseModel(NLPModel):
             return [self._optimizer], [self._scheduler]
 
     def _validate_config(self):
-        """ Certain configurations might be incompatible or discouraged. We can check for them here."""
+        """Certain configurations might be incompatible or discouraged. We can check for them here."""
 
         if self.cfg.get('sequence_parallel', False) and self.cfg.get('tensor_model_parallel_size', 1) == 1:
             logging.info(

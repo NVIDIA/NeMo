@@ -112,12 +112,12 @@ def _speech_collate_fn(batch, pad_id):
 
 def _fixed_seq_collate_fn(self, batch):
     """collate batch of audio sig, audio len, tokens, tokens len
-        Args:
-            batch (Optional[FloatTensor], Optional[LongTensor], LongTensor,
-                LongTensor):  A tuple of tuples of signal, signal lengths,
-                encoded tokens, and encoded tokens length.  This collate func
-                assumes the signals are 1d torch tensors (i.e. mono audio).
-        """
+    Args:
+        batch (Optional[FloatTensor], Optional[LongTensor], LongTensor,
+            LongTensor):  A tuple of tuples of signal, signal lengths,
+            encoded tokens, and encoded tokens length.  This collate func
+            assumes the signals are 1d torch tensors (i.e. mono audio).
+    """
     _, audio_lengths, _, tokens_lengths = zip(*batch)
 
     has_audio = audio_lengths[0] is not None
@@ -230,8 +230,7 @@ target_label_n, "offset": offset_in_sec_n}
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
 
         output_types = {
             'audio_signal': NeuralType(
@@ -253,7 +252,10 @@ target_label_n, "offset": offset_in_sec_n}
         else:
 
             output_types.update(
-                {'label': NeuralType(tuple('B'), LabelsType()), 'label_length': NeuralType(tuple('B'), LengthsType()),}
+                {
+                    'label': NeuralType(tuple('B'), LabelsType()),
+                    'label_length': NeuralType(tuple('B'), LengthsType()),
+                }
             )
 
         return output_types
@@ -626,8 +628,7 @@ class _TarredAudioLabelDataset(IterableDataset):
         return TarredAudioFilter(self.collection, self.file_occurence)
 
     def _build_sample(self, tup):
-        """Builds the training sample by combining the data from the WebDataset with the manifest info.
-        """
+        """Builds the training sample by combining the data from the WebDataset with the manifest info."""
         audio_bytes, audio_filename = tup
         # Grab manifest entry from self.collection
         file_id, _ = os.path.splitext(os.path.basename(audio_filename))
@@ -642,7 +643,10 @@ class _TarredAudioLabelDataset(IterableDataset):
         # Convert audio bytes to IO stream for processing (for SoundFile to read)
         audio_filestream = io.BytesIO(audio_bytes)
         features = self.featurizer.process(
-            audio_filestream, offset=offset, duration=manifest_entry.duration, trim=self.trim,
+            audio_filestream,
+            offset=offset,
+            duration=manifest_entry.duration,
+            trim=self.trim,
         )
 
         audio_filestream.close()

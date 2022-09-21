@@ -141,7 +141,7 @@ class ASRModel(ModelPT, ABC):
 
 class ExportableEncDecModel(Exportable):
     """
-    Simple utiliy mix-in to export models that consist of encoder/decoder pair 
+    Simple utiliy mix-in to export models that consist of encoder/decoder pair
     plus pre/post processor, but have to be exported as encoder/decoder pair only
     (covers most ASR classes)
     """

@@ -135,13 +135,11 @@ class VoidType(ElementType):
 
 # TODO: Consider moving these files elsewhere
 class ChannelType(ElementType):
-    """Element to represent convolutional input/output channel.
-    """
+    """Element to represent convolutional input/output channel."""
 
 
 class EmbeddedTextType(ChannelType):
-    """Element to represent output on word/text embedding layers
-    """
+    """Element to represent output on word/text embedding layers"""
 
 
 class LogitsType(ElementType):
@@ -232,27 +230,27 @@ class Index(ElementType):
 
 class Target(ElementType):
     """
-        Type representing an element being a target value.
+    Type representing an element being a target value.
     """
 
 
 class ClassificationTarget(Target):
     """
-        Type representing an element being target value in the classification task, i.e. identifier of a desired class.
+    Type representing an element being target value in the classification task, i.e. identifier of a desired class.
     """
 
 
 class ImageValue(ElementType):
     """
-        Type representing an element/value of a single image channel,
-        e.g. a single element (R) of RGB image.
+    Type representing an element/value of a single image channel,
+    e.g. a single element (R) of RGB image.
     """
 
 
 class NormalizedImageValue(ImageValue):
     """
-        Type representing an element/value of a single image channel normalized to <0-1> range,
-        e.g. a single element (R) of normalized RGB image.
+    Type representing an element/value of a single image channel normalized to <0-1> range,
+    e.g. a single element (R) of normalized RGB image.
     """
 
 
@@ -266,7 +264,7 @@ class StringType(ElementType):
 
 class StringLabel(StringType):
     """
-        Type representing an label being a string with class name (e.g. the "hamster" class in CIFAR100).
+    Type representing an label being a string with class name (e.g. the "hamster" class in CIFAR100).
     """
 
 
@@ -291,13 +289,11 @@ class Length(IntType):
 
 
 class ProbabilityDistributionSamplesType(ElementType):
-    """Element to represent tensors that meant to be sampled from a valid probability distribution
-    """
+    """Element to represent tensors that meant to be sampled from a valid probability distribution"""
 
 
 class NormalDistributionSamplesType(ProbabilityDistributionSamplesType):
-    """Element to represent tensors that meant to be sampled from a valid normal distribution
-    """
+    """Element to represent tensors that meant to be sampled from a valid normal distribution"""
 
 
 class SequenceToSequenceAlignmentType(ElementType):

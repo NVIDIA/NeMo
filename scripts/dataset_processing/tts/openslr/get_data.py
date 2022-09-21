@@ -48,7 +48,10 @@ EXTRACTED_FOLDER = "thorsten-de"
 def __process_transcript(file_path: str):
     # Create normalizer
     text_normalizer = Normalizer(
-        lang="de", input_case="cased", overwrite_cache=True, cache_dir=str(file_path / "cache_dir"),
+        lang="de",
+        input_case="cased",
+        overwrite_cache=True,
+        cache_dir=str(file_path / "cache_dir"),
     )
     text_normalizer_call_kwargs = {"punct_pre_process": True, "punct_post_process": True}
     normalizer_call = lambda x: text_normalizer.normalize(x, **text_normalizer_call_kwargs)
@@ -97,7 +100,10 @@ def main():
     dataset_root = args.data_root
     dataset_root.mkdir(parents=True, exist_ok=True)
     __process_data(
-        dataset_root / EXTRACTED_FOLDER, args.val_size, args.test_size, args.seed_for_ds_split,
+        dataset_root / EXTRACTED_FOLDER,
+        args.val_size,
+        args.test_size,
+        args.seed_for_ds_split,
     )
 
 

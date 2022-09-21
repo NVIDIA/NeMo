@@ -24,7 +24,7 @@ class DialogueInputExample(object):
 
     {
         "utterance": <utterance>,
-        "labels": { 
+        "labels": {
             "intent": <intent>,
             "slots": { ... },
         }

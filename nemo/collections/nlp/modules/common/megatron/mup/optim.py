@@ -80,10 +80,10 @@ def MuAdam(params, impl=Adam, decoupled_wd=True, **kwargs):
 
     Note for this to work properly, your model needs to have its base shapes set
     already using `mup.set_base_shapes`.
-    
+
     Inputs:
         impl: the specific Adam-like optimizer implementation from torch.optim or
-            elsewhere 
+            elsewhere
         decoupled_wd: if True, skips the mup scaling for weight decay, which should
             be used for optimizer implementations that decouple weight decay from
             learning rate. See https://github.com/microsoft/mup/issues/1 for a use case.
@@ -137,10 +137,10 @@ def MuSGD(params, impl=SGD, decoupled_wd=False, **kwargs):
 
     Note for this to work properly, your model needs to have its base shapes set
     already using `mup.set_base_shapes`.
-     
+
     Inputs:
         impl: the specific SGD-like optimizer implementation from torch.optim or
-            elsewhere 
+            elsewhere
         decoupled_wd: if True, skips the mup scaling for weight decay, which should
             be used for optimizer implementations that decouple weight decay from
             learning rate. See https://github.com/microsoft/mup/issues/1 for a use case.

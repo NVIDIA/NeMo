@@ -398,7 +398,7 @@ def convert_model_config_to_dict_config(cfg: Union['DictConfig', 'NemoConfig']) 
 
 
 def _convert_config(cfg: 'OmegaConf'):
-    """ Recursive function convertint the configuration from old hydra format to the new one. """
+    """Recursive function convertint the configuration from old hydra format to the new one."""
     if not _HAS_HYDRA:
         logging.error("This function requires Hydra/Omegaconf and it was not installed.")
         exit(1)

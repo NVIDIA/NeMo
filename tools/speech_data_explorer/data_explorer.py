@@ -80,7 +80,8 @@ def split_filter_part(filter_part):
 def parse_args():
     parser = argparse.ArgumentParser(description='Speech Data Explorer')
     parser.add_argument(
-        'manifest', help='path to JSON manifest file',
+        'manifest',
+        help='path to JSON manifest file',
     )
     parser.add_argument('--vocab', help='optional vocabulary to highlight OOV words')
     parser.add_argument('--port', default='8050', help='serving port for establishing connection')
@@ -455,7 +456,9 @@ if metrics_available:
                     class_name='border-end',
                 ),
                 dbc.Col(
-                    html.Div('Word Match Rate (WMR), %', className='text-secondary'), width=3, class_name='border-end',
+                    html.Div('Word Match Rate (WMR), %', className='text-secondary'),
+                    width=3,
+                    class_name='border-end',
                 ),
                 dbc.Col(html.Div('Mean Word Accuracy, %', className='text-secondary'), width=3),
             ],
@@ -465,7 +468,9 @@ if metrics_available:
             [
                 dbc.Col(
                     html.H5(
-                        '{:.2f}'.format(wer), className='text-center p-1', style={'color': 'green', 'opacity': 0.7},
+                        '{:.2f}'.format(wer),
+                        className='text-center p-1',
+                        style={'color': 'green', 'opacity': 0.7},
                     ),
                     width=3,
                     class_name='border-end',
@@ -479,14 +484,18 @@ if metrics_available:
                 ),
                 dbc.Col(
                     html.H5(
-                        '{:.2f}'.format(wmr), className='text-center p-1', style={'color': 'green', 'opacity': 0.7},
+                        '{:.2f}'.format(wmr),
+                        className='text-center p-1',
+                        style={'color': 'green', 'opacity': 0.7},
                     ),
                     width=3,
                     class_name='border-end',
                 ),
                 dbc.Col(
                     html.H5(
-                        '{:.2f}'.format(mwa), className='text-center p-1', style={'color': 'green', 'opacity': 0.7},
+                        '{:.2f}'.format(mwa),
+                        className='text-center p-1',
+                        style={'color': 'green', 'opacity': 0.7},
                     ),
                     width=3,
                 ),
@@ -497,19 +506,30 @@ if metrics_available:
 stats_layout += [
     dbc.Row(dbc.Col(html.H5(children='Alphabet'), class_name='text-secondary'), class_name='mt-3'),
     dbc.Row(
-        dbc.Col(html.Div('{}'.format(sorted(alphabet))),), class_name='mt-2 bg-light font-monospace rounded border'
+        dbc.Col(
+            html.Div('{}'.format(sorted(alphabet))),
+        ),
+        class_name='mt-2 bg-light font-monospace rounded border',
     ),
 ]
 for k in figures_hist:
     stats_layout += [
         dbc.Row(dbc.Col(html.H5(figures_hist[k][0]), class_name='text-secondary'), class_name='mt-3'),
-        dbc.Row(dbc.Col(dcc.Graph(id='duration-graph', figure=figures_hist[k][1]),),),
+        dbc.Row(
+            dbc.Col(
+                dcc.Graph(id='duration-graph', figure=figures_hist[k][1]),
+            ),
+        ),
     ]
 
 if metrics_available:
     stats_layout += [
         dbc.Row(dbc.Col(html.H5('Word accuracy distribution'), class_name='text-secondary'), class_name='mt-3'),
-        dbc.Row(dbc.Col(dcc.Graph(id='word-acc-graph', figure=figure_word_acc),),),
+        dbc.Row(
+            dbc.Col(
+                dcc.Graph(id='word-acc-graph', figure=figure_word_acc),
+            ),
+        ),
     ]
 
 wordstable_columns = [{'name': 'Word', 'id': 'word'}, {'name': 'Count', 'id': 'count'}]
@@ -537,12 +557,21 @@ stats_layout += [
                 sort_by=[{'column_id': 'word', 'direction': 'asc'}],
                 style_cell={'maxWidth': 0, 'textAlign': 'left'},
                 style_header={'color': 'text-primary'},
-                css=[{'selector': '.dash-filter--case', 'rule': 'display: none'},],
+                css=[
+                    {'selector': '.dash-filter--case', 'rule': 'display: none'},
+                ],
             ),
         ),
         class_name='m-2',
     ),
-    dbc.Row(dbc.Col([html.Button('Download Vocabulary', id='btn_csv'), dcc.Download(id='download-vocab-csv'),]),),
+    dbc.Row(
+        dbc.Col(
+            [
+                html.Button('Download Vocabulary', id='btn_csv'),
+                dcc.Download(id='download-vocab-csv'),
+            ]
+        ),
+    ),
 ]
 
 
@@ -672,7 +701,12 @@ if metrics_available:
         )
     ]
 samples_layout += [
-    dbc.Row(dbc.Col(html.Audio(id='player', controls=True),), class_name='mt-3 '),
+    dbc.Row(
+        dbc.Col(
+            html.Audio(id='player', controls=True),
+        ),
+        class_name='mt-3 ',
+    ),
     dbc.Row(dbc.Col(dcc.Graph(id='signal-graph')), class_name='mt-3'),
 ]
 
@@ -799,7 +833,11 @@ def plot_signal(idx, data):
         figs.add_trace(
             go.Heatmap(
                 z=s_db,
-                colorscale=[[0, 'rgb(30,62,62)'], [0.5, 'rgb(30,128,128)'], [1, 'rgb(30,255,30)'],],
+                colorscale=[
+                    [0, 'rgb(30,62,62)'],
+                    [0.5, 'rgb(30,128,128)'],
+                    [1, 'rgb(30,255,30)'],
+                ],
                 colorbar=dict(yanchor='middle', lenmode='fraction', y=0.2, len=0.5, ticksuffix=' dB'),
                 dx=time_stride,
                 dy=fs / n_fft / 1000,

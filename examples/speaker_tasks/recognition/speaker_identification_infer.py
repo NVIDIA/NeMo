@@ -51,11 +51,19 @@ def main(cfg):
             speaker_model = EncDecSpeakerLabelModel.from_pretrained(model_path)
 
         enroll_embs, _, enroll_truelabels, enroll_id2label = EncDecSpeakerLabelModel.get_batch_embeddings(
-            speaker_model, enrollment_manifest, batch_size, sample_rate, device=device,
+            speaker_model,
+            enrollment_manifest,
+            batch_size,
+            sample_rate,
+            device=device,
         )
 
         test_embs, _, _, _ = EncDecSpeakerLabelModel.get_batch_embeddings(
-            speaker_model, test_manifest, batch_size, sample_rate, device=device,
+            speaker_model,
+            test_manifest,
+            batch_size,
+            sample_rate,
+            device=device,
         )
 
         # length normalize
@@ -94,7 +102,11 @@ def main(cfg):
             )
 
         _, test_logits, _, _ = EncDecSpeakerLabelModel.get_batch_embeddings(
-            speaker_model, test_manifest, batch_size, sample_rate, device=device,
+            speaker_model,
+            test_manifest,
+            batch_size,
+            sample_rate,
+            device=device,
         )
         matched_labels = test_logits.argmax(axis=-1)
 

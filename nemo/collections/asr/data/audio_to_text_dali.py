@@ -301,7 +301,7 @@ class _AudioTextDALIDataset(Iterator):
                 )
 
             self.log_zero_guard_value = (
-                params['log_zero_guard_value'] if 'log_zero_guard_value' in params else 2 ** -24
+                params['log_zero_guard_value'] if 'log_zero_guard_value' in params else 2**-24
             )
             if isinstance(self.log_zero_guard_value, str):
                 if self.log_zero_guard_value == "tiny":
@@ -374,7 +374,10 @@ class _AudioTextDALIDataset(Iterator):
                     pad_last_batch=True,
                 )
                 audio, _ = dali.fn.decoders.audio(
-                    tar_file, dtype=dali.types.FLOAT, downmix=True, sample_rate=float(self.sample_rate),
+                    tar_file,
+                    dtype=dali.types.FLOAT,
+                    downmix=True,
+                    sample_rate=float(self.sample_rate),
                 )
                 indices = dali.fn.get_property(tar_file, key="source_info")
                 indices = dali.fn.pad(indices)
@@ -446,7 +449,7 @@ class _AudioTextDALIDataset(Iterator):
                 )
 
                 # Normalization
-                spec = dali.fn.normalize(spec, axes=self.normalization_axes, epsilon=1e-5 ** 2, ddof=1)
+                spec = dali.fn.normalize(spec, axes=self.normalization_axes, epsilon=1e-5**2, ddof=1)
 
                 # Extracting the length of the spectrogram
                 spec_len = dali.fn.slice(dali.fn.shapes(spec), 1, 1, axes=(0,))

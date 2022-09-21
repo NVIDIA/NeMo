@@ -91,8 +91,14 @@ class UnivNetModel(Vocoder, Exportable):
         )
 
     def configure_optimizers(self):
-        optim_g = instantiate(self._cfg.optim, params=self.generator.parameters(),)
-        optim_d = instantiate(self._cfg.optim, params=itertools.chain(self.mrd.parameters(), self.mpd.parameters()),)
+        optim_g = instantiate(
+            self._cfg.optim,
+            params=self.generator.parameters(),
+        )
+        optim_d = instantiate(
+            self._cfg.optim,
+            params=itertools.chain(self.mrd.parameters(), self.mpd.parameters()),
+        )
 
         return [optim_g, optim_d]
 
@@ -239,7 +245,7 @@ class UnivNetModel(Vocoder, Exportable):
         def stft(x):
             comp = torch.stft(x.squeeze(1), n_fft=1024, hop_length=256, win_length=1024)
             real, imag = comp[..., 0], comp[..., 1]
-            mags = torch.sqrt(real ** 2 + imag ** 2)
+            mags = torch.sqrt(real**2 + imag**2)
             phase = torch.atan2(imag, real)
             return mags, phase
 

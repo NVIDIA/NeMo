@@ -39,7 +39,7 @@ __all__ = ['DialogueNearestNeighbourModel']
 
 
 class DialogueNearestNeighbourModel(NLPModel):
-    """Dialogue Nearest Neighbour Model identifies the intent of an utterance using the cosine similarity between sentence embeddings of the utterance and various label descriptions """
+    """Dialogue Nearest Neighbour Model identifies the intent of an utterance using the cosine similarity between sentence embeddings of the utterance and various label descriptions"""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         self.cfg = cfg
@@ -146,7 +146,10 @@ class DialogueNearestNeighbourModel(NLPModel):
         filename = os.path.join(self.cfg.dataset.dialogues_example_dir, "test_predictions.jsonl")
 
         DialogueGenerationMetrics.save_predictions(
-            filename, predicted_labels, ground_truth_labels, decoded_inputs,
+            filename,
+            predicted_labels,
+            ground_truth_labels,
+            decoded_inputs,
         )
 
         label_to_ids = {label: idx for idx, label in enumerate(list(set(predicted_labels + ground_truth_labels)))}

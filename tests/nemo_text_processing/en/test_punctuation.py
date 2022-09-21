@@ -27,7 +27,13 @@ except (ImportError, ModuleNotFoundError):
 
 class TestPunctuation:
     normalizer_en = (
-        Normalizer(input_case='cased', lang='en', cache_dir=CACHE_DIR, overwrite_cache=False, post_process=True,)
+        Normalizer(
+            input_case='cased',
+            lang='en',
+            cache_dir=CACHE_DIR,
+            overwrite_cache=False,
+            post_process=True,
+        )
         if PYNINI_AVAILABLE
         else None
     )

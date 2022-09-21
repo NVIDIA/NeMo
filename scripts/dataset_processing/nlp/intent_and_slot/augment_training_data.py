@@ -23,7 +23,7 @@ import pandas as pd
 
 def augment_nemo_data(source_dir: str, target_dir: str, link_string: str, num_mixed: int) -> None:
     """
-    Augments Training data to include more multi-label utterances by through utterance combining. 
+    Augments Training data to include more multi-label utterances by through utterance combining.
 
     Args:
         source_dir: directory that contains nemo-format files

@@ -103,7 +103,11 @@ def main():
 
             if args.p_augly > 0:
                 line = txtaugs.simulate_typos(
-                    [line], aug_char_p=args.p_augly, aug_word_p=args.p_augly, aug_char_min=0, aug_word_min=0,
+                    [line],
+                    aug_char_p=args.p_augly,
+                    aug_word_p=args.p_augly,
+                    aug_char_min=0,
+                    aug_word_min=0,
                 )[0]
 
             target_f.write(line + "\n")

@@ -39,7 +39,7 @@ class DialogueSGDInputExample(DialogueInputExample):
 
     Meant as a descriptor rather than to be instantiated
 
-    Please instantiate using the base class 'DialogueInputExample' 
+    Please instantiate using the base class 'DialogueInputExample'
 
     {
         "example_id": <example_id>,
@@ -67,7 +67,7 @@ class DialogueSGDInputExample(DialogueInputExample):
             "intent": <intent>,
             "slots": {
                 #only non-empty slots
-                #most slot values are list of length 1 
+                #most slot values are list of length 1
                 #but there are some of length 2 as both are accepted
                 #e.g. 1930 and 7:30 pm
                 "<slot-name1>": [<slot-value1>, <slot-value2>],
@@ -399,7 +399,7 @@ class SGDInputExample(object):
         Args:
             state_update: slot value pairs of state update
             system_span_boundaries: span boundaries of schema description
-            user_span_boundaries: span boundaries of utterance 
+            user_span_boundaries: span boundaries of utterance
         """
 
         noncategorical_slots = self.service_schema.non_categorical_slots

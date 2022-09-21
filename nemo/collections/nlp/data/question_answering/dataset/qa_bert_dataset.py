@@ -25,7 +25,7 @@ from nemo.utils import logging
 
 
 class BERTQADataset(QADataset):
-    """ Creates a Dataset for BERT architecture based Exractive QA """
+    """Creates a Dataset for BERT architecture based Exractive QA"""
 
     def __init__(
         self,
@@ -92,7 +92,7 @@ class BERTQADataset(QADataset):
             self.features[i] = BERTQAInputExample(**self.features[i])
 
     def _set_cached_features_filename(self):
-        """ Creates cache filename using dataset config parameters """
+        """Creates cache filename using dataset config parameters"""
 
         vocab_size = getattr(self.tokenizer, "vocab_size", 0)
         self.cached_features_file = (
@@ -110,7 +110,7 @@ class BERTQADataset(QADataset):
         )
 
     def _convert_examples_to_features(self):
-        """ Converts loaded examples to features """
+        """Converts loaded examples to features"""
 
         logging.info(f"Preprocessing data into features.")
 

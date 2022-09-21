@@ -38,13 +38,22 @@ def main():
         "--tokens_to_generate", type=int, default="16", required=False, help="How many tokens to add to prompt"
     )
     parser.add_argument(
-        "--tensor_model_parallel_size", type=int, default=1, required=False,
+        "--tensor_model_parallel_size",
+        type=int,
+        default=1,
+        required=False,
     )
     parser.add_argument(
-        "--pipeline_model_parallel_size", type=int, default=1, required=False,
+        "--pipeline_model_parallel_size",
+        type=int,
+        default=1,
+        required=False,
     )
     parser.add_argument(
-        "--pipeline_model_parallel_split_rank", type=int, default=0, required=False,
+        "--pipeline_model_parallel_split_rank",
+        type=int,
+        default=0,
+        required=False,
     )
     parser.add_argument("--precision", default="16", type=str, help="PyTorch Lightning Trainer precision flag")
     args = parser.parse_args()
@@ -79,7 +88,9 @@ def main():
         )
 
     model = MegatronT5Model.restore_from(
-        restore_path=args.model_file, trainer=trainer, save_restore_connector=NLPSaveRestoreConnector(),
+        restore_path=args.model_file,
+        trainer=trainer,
+        save_restore_connector=NLPSaveRestoreConnector(),
     )
     model.freeze()
 

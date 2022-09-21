@@ -253,8 +253,8 @@ class ConvSubsampling(torch.nn.Module):
             with torch.no_grad():
                 # init conv
                 scale = 1.0 / self._kernel_size
-                dw_max = (self._kernel_size ** 2) ** -0.5
-                pw_max = self._conv_channels ** -0.5
+                dw_max = (self._kernel_size**2) ** -0.5
+                pw_max = self._conv_channels**-0.5
 
                 torch.nn.init.uniform_(self.conv[0].weight, -scale, scale)
                 torch.nn.init.uniform_(self.conv[0].bias, -scale, scale)
@@ -272,7 +272,7 @@ class ConvSubsampling(torch.nn.Module):
 
 
 def calc_length(lengths, all_paddings, kernel_size, stride, ceil_mode, repeat_num=1):
-    """ Calculates the output length of a Tensor passed through a convolution or max pooling layer"""
+    """Calculates the output length of a Tensor passed through a convolution or max pooling layer"""
     add_pad: float = all_paddings - kernel_size
     one: float = 1.0
     for i in range(repeat_num):
@@ -314,7 +314,12 @@ class TimeReductionModule(nn.Module):
         )
 
         self.pw_conv = nn.Conv1d(
-            in_channels=d_model, out_channels=out_dim, kernel_size=1, stride=1, padding=0, groups=1,
+            in_channels=d_model,
+            out_channels=out_dim,
+            kernel_size=1,
+            stride=1,
+            padding=0,
+            groups=1,
         )
 
         self.reset_parameters()
@@ -339,8 +344,8 @@ class TimeReductionModule(nn.Module):
         return x, att_mask, pad_mask
 
     def reset_parameters(self):
-        dw_max = self.kernel_size ** -0.5
-        pw_max = self.d_model ** -0.5
+        dw_max = self.kernel_size**-0.5
+        pw_max = self.d_model**-0.5
 
         with torch.no_grad():
             torch.nn.init.uniform_(self.dw_conv.weight, -dw_max, dw_max)

@@ -43,7 +43,11 @@ class SGDEncoder(Classifier):
         }
 
     def __init__(
-        self, hidden_size: int, activation: str = 'tanh', dropout: float = 0.0, use_transformer_init: bool = True,
+        self,
+        hidden_size: int,
+        activation: str = 'tanh',
+        dropout: float = 0.0,
+        use_transformer_init: bool = True,
     ) -> None:
 
         """

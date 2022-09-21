@@ -47,7 +47,7 @@ def get_datasets_weights_and_num_samples(data_prefix, train_valid_test_num_sampl
 
 
 def get_train_valid_test_split_(splits_string, size):
-    """ Get dataset splits from comma or '/' separated string list."""
+    """Get dataset splits from comma or '/' separated string list."""
 
     splits = []
     if splits_string.find(',') != -1:

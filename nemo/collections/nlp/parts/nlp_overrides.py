@@ -53,7 +53,7 @@ except (ImportError, ModuleNotFoundError):
 
 
 class NLPDDPStrategy(DDPStrategy):
-    """ DDP plugin for Pytorch Lightning. Needed to customize DDP for model parallel models.
+    """DDP plugin for Pytorch Lightning. Needed to customize DDP for model parallel models.
 
     Args:
         no_ddp_communication_hook: Disable DDP communication hook when using AMP-O2
@@ -88,8 +88,8 @@ class NLPDDPStrategy(DDPStrategy):
                 self.init_model_parallel(app_state.global_rank, app_state.world_size)
 
     def configure_ddp(self):
-        """ Override LightningModule ddp if using model parallel.
-            Sets find_unused_parameters to False to use activation-checkpoint-recomputation.
+        """Override LightningModule ddp if using model parallel.
+        Sets find_unused_parameters to False to use activation-checkpoint-recomputation.
         """
 
         if hasattr(self.model, 'megatron_amp_o2') and self.model.megatron_amp_o2:
@@ -126,7 +126,7 @@ class NLPDDPStrategy(DDPStrategy):
                 super().configure_ddp()
 
     def init_model_parallel(self, global_rank: int, world_size: int) -> None:
-        """ Initializes Megatron-LM model parallel if using model parallelism.
+        """Initializes Megatron-LM model parallel if using model parallelism.
 
         Args:
             global_rank (int): the global process index.
@@ -190,7 +190,7 @@ class NLPDDPStrategy(DDPStrategy):
         self.lightning_module.load_state_dict(checkpoint["state_dict"])
 
     def load_checkpoint(self, checkpoint_path: _PATH) -> Dict[str, Any]:
-        """ PTL override to accomodate model parallel checkpoints """
+        """PTL override to accomodate model parallel checkpoints"""
         # TODO: move to CheckpointIO
         torch.cuda.empty_cache()
         checkpoint_path = inject_model_parallel_rank(checkpoint_path)
@@ -360,7 +360,13 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         # Get path where the command is executed - the artifacts will be "retrieved" there
         # (original .nemo behavior)
         loaded_params = super().load_config_and_state_dict(
-            calling_cls, restore_path, override_config_path, map_location, strict, return_config, trainer,
+            calling_cls,
+            restore_path,
+            override_config_path,
+            map_location,
+            strict,
+            return_config,
+            trainer,
         )
         if not isinstance(loaded_params, tuple):
             return loaded_params
@@ -372,12 +378,12 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
 
 
 class PipelineMixedPrecisionPlugin(NativeMixedPrecisionPlugin):
-    """ Overrides PTL autocasting to not wrap training/val/test_step.
-        We do this because we have the Apex fwd/bwd functions in training_step.
-        This means .backward is being called in training_step so we do not want the whole
-        step wrapped in autocast.
+    """Overrides PTL autocasting to not wrap training/val/test_step.
+    We do this because we have the Apex fwd/bwd functions in training_step.
+    This means .backward is being called in training_step so we do not want the whole
+    step wrapped in autocast.
 
-        We instead wrap the fwd_output_and_loss_func that is passed to the Apex fwd/bwd functions.
+    We instead wrap the fwd_output_and_loss_func that is passed to the Apex fwd/bwd functions.
     """
 
     def __init__(
@@ -400,7 +406,7 @@ class GradScaler(torch.cuda.amp.GradScaler):
 
     def __init__(
         self,
-        init_scale=2.0 ** 16,
+        init_scale=2.0**16,
         growth_factor=2.0,
         backoff_factor=0.5,
         growth_interval=2000,
@@ -621,7 +627,7 @@ class MegatronHalfPrecisionPlugin(NativeMixedPrecisionPlugin):
 
     @contextmanager
     def forward_context(self) -> Generator[None, None, None]:
-        """ No explicit precision casting. Inputs are supposed to be manually casted """
+        """No explicit precision casting. Inputs are supposed to be manually casted"""
         try:
             yield
         finally:
@@ -629,7 +635,7 @@ class MegatronHalfPrecisionPlugin(NativeMixedPrecisionPlugin):
 
 
 class GlobalBatchDataFetcher(DataFetcher):
-    """ Overrides PTL DataFetcher. Used to fetch global batches."""
+    """Overrides PTL DataFetcher. Used to fetch global batches."""
 
     def __init__(self, prefetch_batches: int = 0, store_on_device: bool = False) -> None:
 

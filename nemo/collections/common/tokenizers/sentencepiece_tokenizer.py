@@ -31,7 +31,7 @@ class SentencePieceTokenizer(TokenizerSpec):
         Args:
         model_path: path to sentence piece tokenizer model. To create the model use create_spt_model()
         special_tokens: either list of special tokens or dictionary of token name to token value
-        legacy: when set to True, the previous behavior of the SentecePiece wrapper will be restored, 
+        legacy: when set to True, the previous behavior of the SentecePiece wrapper will be restored,
             including the possibility to add special tokens inside wrapper.
     '''
 

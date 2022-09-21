@@ -37,7 +37,10 @@ class BaseInformationRetrievalDataset(Dataset):
     """
 
     def __init__(
-        self, tokenizer: TokenizerSpec, max_query_length: Optional[int] = 31, max_passage_length: Optional[int] = 190,
+        self,
+        tokenizer: TokenizerSpec,
+        max_query_length: Optional[int] = 31,
+        max_passage_length: Optional[int] = 190,
     ):
         self.tokenizer = tokenizer
         self.max_query_length = max_query_length
@@ -222,7 +225,7 @@ class BertInformationRetrievalDataset(BaseInformationRetrievalDataset):
     ):
         """
         Dataset for training information retrieval models.
-        
+
         Args:
             tokenizer: tokenizer
             passages: path to tsv with [psg_id, psg_text] entries

@@ -205,19 +205,19 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
 
     def batch_initialize_states(self, batch_states: List[torch.Tensor], decoder_states: List[List[torch.Tensor]]):
         """
-        Create batch of decoder states.
+         Create batch of decoder states.
 
-       Args:
-           batch_states (list): batch of decoder states
-              ([L x (B, H)], [L x (B, H)])
-
-           decoder_states (list of list): list of decoder states
-               [B x ([L x (1, H)], [L x (1, H)])]
-
-       Returns:
-           batch_states (tuple): batch of decoder states
+        Args:
+            batch_states (list): batch of decoder states
                ([L x (B, H)], [L x (B, H)])
-       """
+
+            decoder_states (list of list): list of decoder states
+                [B x ([L x (1, H)], [L x (1, H)])]
+
+        Returns:
+            batch_states (tuple): batch of decoder states
+                ([L x (B, H)], [L x (B, H)])
+        """
         raise NotImplementedError()
 
     def batch_select_state(self, batch_states: List[torch.Tensor], idx: int) -> List[List[torch.Tensor]]:
@@ -256,7 +256,7 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
         value: Optional[float] = None,
     ) -> List[torch.Tensor]:
         """Copy states from new state to old state at certain indices.
-        
+
         Args:
             old_states(list): packed decoder states
                 (L x B x H, L x B x H)

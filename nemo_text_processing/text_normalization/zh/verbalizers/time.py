@@ -19,8 +19,8 @@ from pynini.lib import pynutil
 
 class Time(GraphFst):
     '''
-        tokens { time { h: "1" m: "02" s: "36" } } -> 一点零二分三十六秒
-        tokens { time { suffix "am"  hours: "1" minutes: "02" seconds: "36" } } -> 上午一点零二分三十六秒
+    tokens { time { h: "1" m: "02" s: "36" } } -> 一点零二分三十六秒
+    tokens { time { suffix "am"  hours: "1" minutes: "02" seconds: "36" } } -> 上午一点零二分三十六秒
     '''
 
     def __init__(self, deterministic: bool = True, lm: bool = False):

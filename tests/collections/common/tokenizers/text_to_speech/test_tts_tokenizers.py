@@ -41,7 +41,8 @@ class TestTTSTokenizers:
                 self._create_tokenizer("en-us")
 
     @pytest.mark.skipif(
-        not ESPEAK_AVAILABLE, reason="eSpeak not installed",
+        not ESPEAK_AVAILABLE,
+        reason="eSpeak not installed",
     )
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
@@ -54,7 +55,8 @@ class TestTTSTokenizers:
         assert output == expected_output
 
     @pytest.mark.skipif(
-        not ESPEAK_AVAILABLE, reason="eSpeak not installed",
+        not ESPEAK_AVAILABLE,
+        reason="eSpeak not installed",
     )
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
@@ -67,7 +69,8 @@ class TestTTSTokenizers:
         assert output == expected_output
 
     @pytest.mark.skipif(
-        not ESPEAK_AVAILABLE, reason="eSpeak not installed",
+        not ESPEAK_AVAILABLE,
+        reason="eSpeak not installed",
     )
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
@@ -126,7 +129,8 @@ class TestTTSTokenizers:
         assert output == expected_output
 
     @pytest.mark.skipif(
-        not ESPEAK_AVAILABLE, reason="eSpeak not installed",
+        not ESPEAK_AVAILABLE,
+        reason="eSpeak not installed",
     )
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
@@ -140,7 +144,8 @@ class TestTTSTokenizers:
         assert len(output_tokens) == len(output_phonemes)
 
     @pytest.mark.skipif(
-        not ESPEAK_AVAILABLE, reason="eSpeak not installed",
+        not ESPEAK_AVAILABLE,
+        reason="eSpeak not installed",
     )
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
@@ -149,7 +154,8 @@ class TestTTSTokenizers:
             self._create_tokenizer("pt-BR")
 
     @pytest.mark.skipif(
-        not ESPEAK_AVAILABLE, reason="eSpeak not installed",
+        not ESPEAK_AVAILABLE,
+        reason="eSpeak not installed",
     )
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
@@ -162,7 +168,8 @@ class TestTTSTokenizers:
         assert output == expected_output
 
     @pytest.mark.skipif(
-        not ESPEAK_AVAILABLE, reason="eSpeak not installed",
+        not ESPEAK_AVAILABLE,
+        reason="eSpeak not installed",
     )
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
@@ -175,7 +182,8 @@ class TestTTSTokenizers:
         assert output == expected_output
 
     @pytest.mark.skipif(
-        not ESPEAK_AVAILABLE, reason="eSpeak not installed",
+        not ESPEAK_AVAILABLE,
+        reason="eSpeak not installed",
     )
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit

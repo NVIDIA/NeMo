@@ -40,8 +40,7 @@ __all__ = ["MegatronPerceiverEncoderModule"]
 
 
 class MegatronPerceiverEncoderModule(MegatronModule):
-    """Transformer encoder model.
-    """
+    """Transformer encoder model."""
 
     def __init__(
         self,
@@ -209,7 +208,7 @@ class MegatronPerceiverEncoderModule(MegatronModule):
         )
 
     def set_input_tensor(self, input_tensor):
-        """ See megatron.model.transformer.set_input_tensor()"""
+        """See megatron.model.transformer.set_input_tensor()"""
         # TODO: Fix this when adding support for Pipeline Parallel.
         pass
 
@@ -240,7 +239,9 @@ class MegatronPerceiverEncoderModule(MegatronModule):
         )
         enc_dec_attn_mask_4d = attn_mask_postprocess(
             build_attention_mask_3d(
-                source_mask=latent_attention_mask, target_mask=enc_attn_mask, attn_mask_type=AttnMaskType.padding,
+                source_mask=latent_attention_mask,
+                target_mask=enc_attn_mask,
+                attn_mask_type=AttnMaskType.padding,
             )
         )
 
@@ -257,7 +258,8 @@ class MegatronPerceiverEncoderModule(MegatronModule):
             )
             for j in range(self.num_self_attention_per_cross_attention):
                 hidden_states = self.self_attn_layers[i * self.num_self_attention_per_cross_attention + j](
-                    hidden_states=hidden_states, attention_mask=latent_attention_mask_4d,
+                    hidden_states=hidden_states,
+                    attention_mask=latent_attention_mask_4d,
                 )
 
             hidden_states += residual

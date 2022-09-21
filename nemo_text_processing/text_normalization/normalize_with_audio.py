@@ -105,7 +105,13 @@ class NormalizerWithAudio(Normalizer):
         )
         self.lm = lm
 
-    def normalize(self, text: str, n_tagged: int, punct_post_process: bool = True, verbose: bool = False,) -> str:
+    def normalize(
+        self,
+        text: str,
+        n_tagged: int,
+        punct_post_process: bool = True,
+        verbose: bool = False,
+    ) -> str:
         """
         Main function. Normalizes tokens from written to spoken form
             e.g. 12 kg -> twelve kilograms
@@ -382,7 +388,10 @@ def _normalize_line(
     pred_text = line["pred_text"]
 
     normalized_texts = normalizer.normalize(
-        text=line["text"], verbose=verbose, n_tagged=n_tagged, punct_post_process=punct_post_process,
+        text=line["text"],
+        verbose=verbose,
+        n_tagged=n_tagged,
+        punct_post_process=punct_post_process,
     )
 
     normalized_texts = set(normalized_texts)

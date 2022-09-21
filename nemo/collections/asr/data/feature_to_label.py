@@ -25,7 +25,7 @@ def _feature_collate_fn(batch):
     """collate batch of feat sig, feat len, tokens, tokens len
     Args:
         batch (FloatTensor, LongTensor, LongTensor, LongTensor):  A tuple of tuples of feature, feature lengths,
-               encoded tokens, and encoded tokens length. 
+               encoded tokens, and encoded tokens length.
     """
     _, feat_lengths, _, tokens_lengths = zip(*batch)
     feat_signal, tokens = [], []
@@ -60,8 +60,7 @@ class _FeatureSeqSpeakerLabelDataset(Dataset):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         # TODO output type for external features
         output_types = {
             'external_feat': NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
@@ -79,16 +78,26 @@ class _FeatureSeqSpeakerLabelDataset(Dataset):
             )
         else:
             output_types.update(
-                {'label': NeuralType(('B', 'T'), LabelsType()), 'label_length': NeuralType(tuple('B'), LengthsType()),}
+                {
+                    'label': NeuralType(('B', 'T'), LabelsType()),
+                    'label_length': NeuralType(tuple('B'), LengthsType()),
+                }
             )
 
         return output_types
 
     def __init__(
-        self, *, manifest_filepath: str, labels: List[str], feature_loader, is_speaker_emb: bool = False,
+        self,
+        *,
+        manifest_filepath: str,
+        labels: List[str],
+        feature_loader,
+        is_speaker_emb: bool = False,
     ):
         super().__init__()
-        self.collection = collections.ASRFeatureSequenceLabel(manifests_files=manifest_filepath.split(','),)
+        self.collection = collections.ASRFeatureSequenceLabel(
+            manifests_files=manifest_filepath.split(','),
+        )
 
         self.feature_loader = feature_loader
         self.labels = labels if labels else self.collection.uniq_labels

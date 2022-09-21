@@ -106,17 +106,17 @@ class FlowStep(nn.Module):
 
 class RadTTSModule(NeuralModule, Exportable):
     """
-    Takes model parameters (modelConfig) from config file to intialize radtts module. 
-    Specifiy the type of training in the include_modules parameter. "decatnvpred" for decoder training. and "decatnunvbiasdpmvpredapm" for feature training 
-    n_speakers (int): Number of speakers 
+    Takes model parameters (modelConfig) from config file to intialize radtts module.
+    Specifiy the type of training in the include_modules parameter. "decatnvpred" for decoder training. and "decatnunvbiasdpmvpredapm" for feature training
+    n_speakers (int): Number of speakers
     n_speaker_dim (int): number of speakers dimention
     n_text (int): Symbols embedding size
     n_text_dim (int):
     n_flows (int):
-    n_conv_layers_per_step (int): number of convultion layers per step 
-    dummy_speaker_embedding (bool): 
-    include_modules (string): A string that describes what to train. "decatnvpred" for decoder training. and "decatnunvbiasdpmvpredapm" for feature training. 
-    scaling_fn (string): scaling function 
+    n_conv_layers_per_step (int): number of convultion layers per step
+    dummy_speaker_embedding (bool):
+    include_modules (string): A string that describes what to train. "decatnvpred" for decoder training. and "decatnunvbiasdpmvpredapm" for feature training.
+    scaling_fn (string): scaling function
     decoder_use_partial_padding (Bool): Set this to True to add partial padding
     learn_alignments (Bool): set this to true to learn alignments
     attn_use_CTC (Bool): set True to use CTC
@@ -769,8 +769,7 @@ class RadTTSModule(NeuralModule, Exportable):
         return energy
 
     def remove_norms(self):
-        """Removes spectral and weightnorms from model. Call before inference
-        """
+        """Removes spectral and weightnorms from model. Call before inference"""
         dev = next(self.parameters()).device
         for name, module in self.named_modules():
             try:

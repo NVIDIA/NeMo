@@ -85,7 +85,7 @@ def process_url(o):
     """
 
     def flatten(l):
-        """ flatten a list of lists """
+        """flatten a list of lists"""
         return [item for sublist in l for item in sublist]
 
     if o != '<self>' and '_letter' in o:
@@ -288,7 +288,7 @@ def convert(example):
 def ignore(example):
     """
     This function makes sure specific class types like 'PLAIN', 'ELECTRONIC' etc. are left unchanged.
-    
+
     Args:
         example: data example
     """
@@ -300,7 +300,7 @@ def ignore(example):
 
 
 def process_file(fp):
-    """ Reading the raw data from a file of NeMo format and preprocesses it. Write is out to the output directory.
+    """Reading the raw data from a file of NeMo format and preprocesses it. Write is out to the output directory.
     For more info about the data format, refer to the
     `text_normalization doc <https://github.com/NVIDIA/NeMo/blob/main/docs/source/nlp/text_normalization.rst>`.
 

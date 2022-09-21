@@ -345,7 +345,8 @@ class MegatronRetrievalModel(MegatronBaseModel):
         averaged_loss = average_losses_across_data_parallel_group(outputs)
         logging.info(f'test_loss: {averaged_loss[0]}')
         self.log(
-            'consumed_samples', self.compute_consumed_samples(self.trainer.global_step - self.init_global_step),
+            'consumed_samples',
+            self.compute_consumed_samples(self.trainer.global_step - self.init_global_step),
         )
         return averaged_loss
 
@@ -426,7 +427,10 @@ class MegatronRetrievalModel(MegatronBaseModel):
 
         # Torch dataloader.
         return torch.utils.data.DataLoader(
-            dataset, batch_sampler=batch_sampler, num_workers=self.cfg.data.num_workers, pin_memory=True,
+            dataset,
+            batch_sampler=batch_sampler,
+            num_workers=self.cfg.data.num_workers,
+            pin_memory=True,
         )
 
     def setup(self, stage=None):

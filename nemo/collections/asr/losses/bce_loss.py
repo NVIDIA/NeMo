@@ -28,8 +28,7 @@ class BCELoss(Loss, Typing):
 
     @property
     def input_types(self):
-        """Input types definitions for AnguarLoss.
-        """
+        """Input types definitions for AnguarLoss."""
         return {
             "probs": NeuralType(('B', 'T', 'C'), ProbsType()),
             'labels': NeuralType(('B', 'T', 'C'), LabelsType()),
