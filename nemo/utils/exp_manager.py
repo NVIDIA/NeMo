@@ -345,7 +345,9 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         trainer.callbacks.insert(0, timing_callback)
 
     if cfg.ema.enable:
-        ema_callback = EMA(decay=cfg.ema.decay, apply_ema_every_n_steps=cfg.ema.apply_ema_every_n_steps, start_step=cfg.ema.start_step)
+        ema_callback = EMA(
+            decay=cfg.ema.decay, apply_ema_every_n_steps=cfg.ema.apply_ema_every_n_steps, start_step=cfg.ema.start_step
+        )
         trainer.callbacks.append(ema_callback)
 
     if cfg.create_checkpoint_callback:
