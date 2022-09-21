@@ -94,7 +94,7 @@ def main(cfg) -> None:
                                     retrieval_index=cfg.retrieval_index,
                                     tokenizer=model.tokenizer,
                                     sentence_bert=cfg.sentence_bert,
-                                    sentecne_bert_batch=cfg.sentecne_bert_batch
+                                    sentence_bert_batch=cfg.sentence_bert_batch
                                     )
     q = service.get_knn('Massachusetts taxpayers are slated to receive hundreds of dollars in direct relief starting this November', 4)
     print(q)

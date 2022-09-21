@@ -35,4 +35,4 @@ faiss_index_file: null  # the faiss index file that is used to find KNN
 nprobe: 100
 retrieval_index: null
 sentence_bert: 'all-mpnet-base-v2' 
-sentecne_bert_batch: 4
+sentence_bert_batch: 4
