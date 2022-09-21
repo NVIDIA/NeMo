@@ -241,6 +241,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             and self._cfg.train_ds.get("sampler", "distributed") == 'distributed'
         ):
             batch = self._process_global_batch_without_megatron_batch_sampler(batch, tokenizer=self.encoder_tokenizer)
+        import ipdb; ipdb.set_trace()
         if self._cfg.train_ds.dataset_type in ['tarred', 'text']:
             app_state = AppState()
             _reconfigure_microbatch_calculator(
@@ -810,6 +811,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
 
         try:
             self.eval()
+            self.training = False
             src, src_mask = MTEncDecModel.prepare_inference_batch(
                 text=text,
                 prepend_ids=prepend_ids,
@@ -820,13 +822,14 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                 decoder_tokenizer=self.decoder_tokenizer,
                 device=self.device,
             )
-            predicted_tokens_ids, _ = self.decode(
-                src,
-                src_mask,
-                src.size(1)
-                + self._cfg.max_generation_delta,  # Generate up to src-length + max generation delta. TODO: Implement better stopping when everything hits <EOS>.
-                tokenizer=self.decoder_tokenizer,
-            )
+            with torch.inference_mode():
+                predicted_tokens_ids, _ = self.decode(
+                    src,
+                    src_mask,
+                    src.size(1)
+                    + self._cfg.max_generation_delta,  # Generate up to src-length + max generation delta. TODO: Implement better stopping when everything hits <EOS>.
+                    tokenizer=self.decoder_tokenizer,
+                )
             best_translations = self.postprocess_outputs(
                 outputs=predicted_tokens_ids, tokenizer=self.decoder_tokenizer, processor=self.target_processor
             )
