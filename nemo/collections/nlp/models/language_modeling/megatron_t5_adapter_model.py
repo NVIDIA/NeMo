@@ -18,6 +18,7 @@
 
 
 from typing import Any
+
 import torch
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
@@ -25,7 +26,9 @@ from pytorch_lightning.trainer.trainer import Trainer
 from nemo.collections.common.parts.adapter_modules import LinearAdapterConfig
 from nemo.collections.nlp.data.language_modeling.megatron.t5_prompt_learning_dataset import T5Sentinel
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
-from nemo.collections.nlp.models.language_modeling.megatron_t5_prompt_learning_model import MegatronT5PromptLearningModel
+from nemo.collections.nlp.models.language_modeling.megatron_t5_prompt_learning_model import (
+    MegatronT5PromptLearningModel,
+)
 from nemo.collections.nlp.modules.common import VirtualPromptStyle
 from nemo.collections.nlp.modules.common.megatron.parallel_adapters import (
     InfusedAdapterConfig,
@@ -83,7 +86,7 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
         self.setup_training_data()
         self.setup_validation_data()
         logging.info(f'setup completed:\n{self.frozen_model.summarize()}')
-        
+
     def on_train_end(self):
         # Save the best nemo model
         self.save_to(save_path=self.cfg.nemo_path)
@@ -93,8 +96,6 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
 
         mode = self.training
         self.eval()
-
-
 
         loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=True)
 
@@ -138,8 +139,6 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> Any:
 
         enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids = batch
-
-
 
         predicted_token_ids, log_probs = self.frozen_model.decode(
             tokens_enc=enc_input,
@@ -276,7 +275,6 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
             return output_tensor, loss_func
 
         return fwd_output_and_loss_func
-
 
 
 class MegatronT5AdapterLearningModel(MegatronT5BaseAdapterModel):
