@@ -87,7 +87,7 @@ class TestEMAConfig:
     @pytest.mark.unit
     def test_ema_value(self):
         with pytest.raises(MisconfigurationException, match="between 0 and 1"):
-            EMA(ema=2)
+            EMA(decay=2)
 
     @pytest.mark.unit
     @pytest.mark.run_only_on('GPU')
@@ -102,7 +102,7 @@ class TestEMAConfig:
             enable_model_summary=False,
             accelerator='cpu',
             devices=1,
-            callbacks=EMA(ema=0.999),
+            callbacks=EMA(decay=0.999),
         )
         with pytest.raises(MisconfigurationException, match="Apex EMA Callback only works with CUDA"):
             trainer.fit(model=model)
@@ -110,7 +110,7 @@ class TestEMAConfig:
     @mock.patch('nemo.collections.common.callbacks.ema.apex_available', False)
     def test_ema_apex_unavailable(self):
         with pytest.raises(MisconfigurationException, match="EMA requires Apex to be installed"):
-            EMA(ema=0.999)
+            EMA(decay=0.999)
 
     @pytest.mark.unit
     @pytest.mark.run_only_on('GPU')
@@ -143,7 +143,7 @@ class TestEMAConfig:
         exp_manager(
             trainer,
             {
-                "enable_ema": True,
+                "ema": {"enable": True, "evaluate_ema_weights_instead": True},
                 "explicit_log_dir": str(temp_path),
                 "checkpoint_callback_params": {"filename": f"{{epoch}}-{{step}}"},
             },
@@ -177,7 +177,7 @@ class TestEMAConfig:
         exp_manager(
             trainer,
             {
-                "enable_ema": True,
+                "ema": {"enable": True, "evaluate_ema_weights_instead": True},
                 "explicit_log_dir": str(temp_path),
                 "checkpoint_callback_params": {"filename": f"{{epoch}}-{{step}}"},
             },
@@ -199,7 +199,7 @@ class TestEMAConfig:
         exp_manager(
             trainer,
             {
-                "enable_ema": True,
+                "ema": {"enable": True, "evaluate_ema_weights_instead": True},
                 "explicit_log_dir": str(temp_path),
                 "checkpoint_callback_params": {"filename": f"{{epoch}}-{{step}}"},
             },
@@ -221,7 +221,7 @@ class TestEMAConfig:
         exp_manager(
             trainer,
             {
-                "enable_ema": True,
+                "ema": {"enable": True, "evaluate_ema_weights_instead": True},
                 "explicit_log_dir": str(temp_path),
                 "checkpoint_callback_params": {"filename": f"{{epoch}}-{{step}}"},
             },
@@ -240,7 +240,7 @@ class TestEMAConfig:
         exp_manager(
             trainer,
             {
-                "enable_ema": True,
+                "ema": {"enable": True, "evaluate_ema_weights_instead": True},
                 "explicit_log_dir": str(tmp_path),
                 "checkpoint_callback_params": {"filename": f"{{epoch}}-{{step}}"},
             },
@@ -275,7 +275,7 @@ class TestEMAConfig:
             enable_checkpointing=False,
             accelerator='gpu',
             devices=1,
-            callbacks=[EMA(ema=0.999, save_ema_weights_in_callback_state=True)],
+            callbacks=[EMA(decay=0.999, save_ema_weights_in_callback_state=True, evaluate_ema_weights_instead=True)],
         )
         exp_manager(
             trainer,
@@ -284,7 +284,7 @@ class TestEMAConfig:
         trainer.fit(model=model)
 
         resume_path = os.path.join(temp_path, "checkpoints/epoch=0-step=8.ckpt")
-        callback = EMA(ema=0.999, save_ema_weights_in_callback_state=True)
+        callback = EMA(decay=0.999, save_ema_weights_in_callback_state=True)
 
         class AssertCallback(Callback):
             def on_train_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
@@ -328,7 +328,7 @@ class TestEMATrain:
             enable_model_summary=False,
             accelerator='gpu',
             devices=1,
-            callbacks=[EMA(ema=0.999), EMAAssertCallback()],
+            callbacks=[EMA(decay=0.999), EMAAssertCallback()],
         )
         trainer.fit(model=model, val_dataloaders=model.train_dataloader())
 
@@ -357,7 +357,7 @@ class EMAAssertCallback(Callback):
             # skip assertion as ema weights are not updated.
             return
         ema_callback = [x for x in trainer.callbacks if isinstance(x, EMA)][0]
-        ema = ema_callback.ema
+        ema = ema_callback.decay
         expected_ema_weights = []
         for orig_weight, ema_weight in zip(list(pl_module.state_dict().values()), self._before_calc_ema_weights):
             expected_ema_weight = orig_weight * (1 - ema) + ema_weight * ema

@@ -40,25 +40,28 @@ class EMA(Callback):
     When saving, we save an additional set of parameters with the prefix `ema`.
 
     Args:
-        ema: The exponential decay used when calculating the moving average. Has to be between 0-1.
+        decay: The exponential decay used when calculating the moving average. Has to be between 0-1.
         apply_ema_every_n_steps: Apply EMA every n global steps.
         start_step: Start applying EMA from ``start_step`` global step onwards.
+        evaluate_ema_weights_instead: Validate the EMA weights instead of the original weights.
+            Note this means that when saving the model, the validation metrics are calculated with the EMA weights.
         save_ema_weights_in_callback_state: Enable saving ema weights in callback state.
             This is not required when using NeMo as the experiment manager handles saving weights.
     """
 
     def __init__(
         self,
-        ema: float,
+        decay: float,
         apply_ema_every_n_steps: int = 1,
         start_step: int = 0,
         save_ema_weights_in_callback_state: bool = False,
+        evaluate_ema_weights_instead: bool = False,
     ):
         if not apex_available:
             raise MisconfigurationException(
                 "EMA requires Apex to be installed: https://github.com/NVIDIA/apex#installation."
             )
-        if not (0 <= ema <= 1):
+        if not (0 <= decay <= 1):
             raise MisconfigurationException("EMA decay value must be between 0 and 1")
         self._ema_model_weights: Optional[List[torch.Tensor]] = None
         self._overflow_buf: Optional[torch.Tensor] = None
@@ -67,7 +70,8 @@ class EMA(Callback):
         self.apply_ema_every_n_steps = apply_ema_every_n_steps
         self.start_step = start_step
         self.save_ema_weights_in_callback_state = save_ema_weights_in_callback_state
-        self.ema = ema
+        self.evaluate_ema_weights_instead = evaluate_ema_weights_instead
+        self.decay = decay
 
     def on_train_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
         if pl_module.device.type != "cuda":
@@ -85,8 +89,8 @@ class EMA(Callback):
             65536,  # todo (sean): chunk size, should we expose?
             self._overflow_buf,
             [self._ema_model_weights, model_weights, self._ema_model_weights],
-            self.ema,
-            1 - self.ema,
+            self.decay,
+            1 - self.decay,
             -1,
         )
 
@@ -158,17 +162,17 @@ class EMA(Callback):
         return self._ema_model_weights is not None
 
     def on_validation_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
-        if self.ema_initialized:
+        if self.ema_initialized and self.evaluate_ema_weights_instead:
             self.replace_model_weights(pl_module)
 
     def on_validation_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
-        if self.ema_initialized:
+        if self.ema_initialized and self.evaluate_ema_weights_instead:
             self.restore_model_weights(pl_module)
 
     def on_test_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
-        if self.ema_initialized:
+        if self.ema_initialized and self.evaluate_ema_weights_instead:
             self.replace_model_weights(pl_module)
 
     def on_test_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
-        if self.ema_initialized:
+        if self.ema_initialized and self.evaluate_ema_weights_instead:
             self.restore_model_weights(pl_module)

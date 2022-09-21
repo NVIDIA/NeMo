@@ -98,6 +98,15 @@ class StepTimingParams:
 
 
 @dataclass
+class EMAParams:
+    enable: Optional[bool] = False
+    evaluate_ema_weights_instead: Optional[bool] = False
+    decay: Optional[float] = 0.999
+    apply_ema_every_n_steps: Optional[int] = 1
+    start_step: Optional[int] = 0
+
+
+@dataclass
 class ExpManagerConfig:
     # Log dir creation parameters
     explicit_log_dir: Optional[str] = None
@@ -126,11 +135,7 @@ class ExpManagerConfig:
     log_global_rank_0_only: Optional[bool] = False
     # disable initial validation when resuming from a checkpoint saved during validation
     disable_validation_on_resume: Optional[bool] = True
-    # todo (sean): might not be the best place to add this, but allows us to enable it fast
-    enable_ema: Optional[bool] = False
-    ema: Optional[float] = 0.999
-    apply_ema_every_n_steps: Optional[int] = 1
-    start_step: Optional[int] = 0
+    ema: Optional[EMAParams] = EMAParams()
 
 
 class TimingCallback(Callback):
@@ -339,8 +344,8 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         timing_callback = TimingCallback(timer_kwargs=cfg.step_timing_kwargs or {})
         trainer.callbacks.insert(0, timing_callback)
 
-    if cfg.enable_ema:
-        ema_callback = EMA(ema=cfg.ema, apply_ema_every_n_steps=cfg.apply_ema_every_n_steps, start_step=cfg.start_step)
+    if cfg.ema.enable:
+        ema_callback = EMA(decay=cfg.ema.decay, apply_ema_every_n_steps=cfg.ema.apply_ema_every_n_steps, start_step=cfg.ema.start_step)
         trainer.callbacks.append(ema_callback)
 
     if cfg.create_checkpoint_callback:
