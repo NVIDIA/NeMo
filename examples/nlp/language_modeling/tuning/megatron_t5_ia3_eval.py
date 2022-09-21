@@ -73,8 +73,8 @@ def main(cfg) -> None:
         )
         with open_dict(ia3_tuning_cfg):
             ia3_tuning_cfg.pretrained_language_model_path = cfg.pretrained_language_model_file
-            ia3_tuning_cfg.micro_batch_size = cfg.get("micro_batch_size", 4)
-            ia3_tuning_cfg.global_batch_size = cfg.get("global_batch_size", 4)
+            ia3_tuning_cfg.micro_batch_size = cfg.data.micro_batch_size
+            ia3_tuning_cfg.global_batch_size = cfg.data.global_batch_size
 
         # Now load prompt learning model with frozen gpt model base
         model = MegatronT5InfusedAdapterModel.restore_from(
