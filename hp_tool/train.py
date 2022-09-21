@@ -16,7 +16,7 @@ def run_training(file_name: str, model_name: str, results_dir: str, cfg: OmegaCo
     :param str results_dir: path to the directory where the results will be stored.
     :param OmegaConf cfg: OmegaConf object with full configuration for the HP tool.
     :return: SLURM job_id of the training job that was launched.
-    :rtype: int
+    :rtype: str
     """
     # Copy cluster config to bignlp-scripts.
     bignlp_scripts_path = cfg.get("bignlp_scripts_path")

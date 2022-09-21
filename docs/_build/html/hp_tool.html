@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>hp_tool package &mdash; BigNLP HP Tool 22.09 documentation</title>
+      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+        <script src="_static/jquery.js"></script>
+        <script src="_static/underscore.js"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="_static/doctools.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="hp_tool" href="modules.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="index.html" class="icon icon-home"> BigNLP HP Tool
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="modules.html">hp_tool</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">hp_tool package</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#submodules">Submodules</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-hp_tool.base_config">hp_tool.base_config module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-hp_tool.inference_config">hp_tool.inference_config module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-hp_tool.inference_sweep">hp_tool.inference_sweep module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-hp_tool.search_config">hp_tool.search_config module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-hp_tool.train">hp_tool.train module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-hp_tool.training_config">hp_tool.training_config module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-hp_tool.utils">hp_tool.utils module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-hp_tool">Module contents</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">BigNLP HP Tool</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="modules.html">hp_tool</a> &raquo;</li>
+      <li>hp_tool package</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/hp_tool.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="hp-tool-package">
+<h1>hp_tool package<a class="headerlink" href="#hp-tool-package" title="Permalink to this heading"></a></h1>
+<section id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this heading"></a></h2>
+</section>
+<section id="module-hp_tool.base_config">
+<span id="hp-tool-base-config-module"></span><h2>hp_tool.base_config module<a class="headerlink" href="#module-hp_tool.base_config" title="Permalink to this heading"></a></h2>
+<p>Generate base YAML configuration for any model type and size.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="hp_tool.base_config.calculate_model_size">
+<span class="sig-prename descclassname"><span class="pre">hp_tool.base_config.</span></span><span class="sig-name descname"><span class="pre">calculate_model_size</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">gpu_count</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_training_days</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_size_in_b</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tflops_per_gpu</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">140</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_tokens_in_b</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">300</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'gpt3'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">float</span></span></span><a class="headerlink" href="#hp_tool.base_config.calculate_model_size" title="Permalink to this definition"></a></dt>
+<dd><p>Estimates a model size to be trained given the constraints. If the
+model_size is provided, it estimates the time to train it with the given
+constraints.</p>
+<p>Example: output 5B params to train for 7 days with 160 GPUs.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>gpu_count</strong> (<em>int</em>) – number of gpus to use (num_nodes * gpus_per_node).</p></li>
+<li><p><strong>max_training_days</strong> (<em>float</em>) – number of days to train the model for.</p></li>
+<li><p><strong>model_size_in_b</strong> (<em>float</em>) – number of parameters in the model, if known.</p></li>
+<li><p><strong>tflops_per_gpu</strong> (<em>int</em>) – estimated number of TFLOPS/s per GPU.</p></li>
+<li><p><strong>num_tokens_in_b</strong> (<em>int</em>) – number of tokens to train the model for.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>number of parameters to use for training.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>float</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="hp_tool.base_config.generate_base_config">
+<span class="sig-prename descclassname"><span class="pre">hp_tool.base_config.</span></span><span class="sig-name descname"><span class="pre">generate_base_config</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model_size_in_b</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nodes</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gpus_per_node</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gpu_memory_gb</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_training_days</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_tokens_in_b</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vocab_size</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DictConfig</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hp_tool.base_config.generate_base_config" title="Permalink to this definition"></a></dt>
+<dd><p>Generates base config dictionary for a given model name and size.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>model_size_in_b</strong> (<em>float</em>) – number of parameters in the model, if known.</p></li>
+<li><p><strong>nodes</strong> (<em>int</em>) – number of nodes to use for training.</p></li>
+<li><p><strong>gpus_per_node</strong> (<em>int</em>) – number of GPUs available in each node.</p></li>
+<li><p><strong>max_training_days</strong> (<em>float</em>) – number of days to train the model for.</p></li>
+<li><p><strong>num_tokens_in_b</strong> (<em>int</em>) – number of tokens to train the model for.</p></li>
+<li><p><strong>model_name</strong> (<em>str</em>) – name of the model, such as gpt3, t5, mt5…</p></li>
+<li><p><strong>cfg</strong> (<em>omegaconf.dictconfig.DictConfig</em>) – full config object.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>base config object for the given model.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+<section id="module-hp_tool.inference_config">
+<span id="hp-tool-inference-config-module"></span><h2>hp_tool.inference_config module<a class="headerlink" href="#module-hp_tool.inference_config" title="Permalink to this heading"></a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="hp_tool.inference_config.search_inference_config">
+<span class="sig-prename descclassname"><span class="pre">hp_tool.inference_config.</span></span><span class="sig-name descname"><span class="pre">search_inference_config</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model_size_in_b</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">base_cfg</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cfg</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hp_tool.inference_config.search_inference_config" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+</section>
+<section id="module-hp_tool.inference_sweep">
+<span id="hp-tool-inference-sweep-module"></span><h2>hp_tool.inference_sweep module<a class="headerlink" href="#module-hp_tool.inference_sweep" title="Permalink to this heading"></a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="hp_tool.inference_sweep.run_benchmark">
+<span class="sig-prename descclassname"><span class="pre">hp_tool.inference_sweep.</span></span><span class="sig-name descname"><span class="pre">run_benchmark</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">run_cfg</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">benchmark_cfg</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cluster_cfg</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dependency</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bignlp_scripts_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prepare_cmd</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">triton_model_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">flags</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tensor_parallel_size</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pipeline_parallel_size</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nodes</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">workspace_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hp_tool.inference_sweep.run_benchmark" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="hp_tool.inference_sweep.search_inference_config">
+<span class="sig-prename descclassname"><span class="pre">hp_tool.inference_sweep.</span></span><span class="sig-name descname"><span class="pre">search_inference_config</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">base_cfg</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cfg</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hp_tool.inference_sweep.search_inference_config" title="Permalink to this definition"></a></dt>
+<dd><p>Main function to launch a inference sweep job, with the config given in cfg.</p>
+</dd></dl>
+
+</section>
+<section id="module-hp_tool.search_config">
+<span id="hp-tool-search-config-module"></span><h2>hp_tool.search_config module<a class="headerlink" href="#module-hp_tool.search_config" title="Permalink to this heading"></a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="hp_tool.search_config.search_config">
+<span class="sig-prename descclassname"><span class="pre">hp_tool.search_config.</span></span><span class="sig-name descname"><span class="pre">search_config</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hp_tool.search_config.search_config" title="Permalink to this definition"></a></dt>
+<dd><p>Main function that implements the entire pipeline to search the optimal
+model config and launch the grid searches for both training and inference
+constraints.</p>
+</dd></dl>
+
+</section>
+<section id="module-hp_tool.train">
+<span id="hp-tool-train-module"></span><h2>hp_tool.train module<a class="headerlink" href="#module-hp_tool.train" title="Permalink to this heading"></a></h2>
+<p>Module to launch training jobs using bignlp-scripts.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="hp_tool.train.copy_config_to_file">
+<span class="sig-prename descclassname"><span class="pre">hp_tool.train.</span></span><span class="sig-name descname"><span class="pre">copy_config_to_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">OmegaConf</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dst</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#hp_tool.train.copy_config_to_file" title="Permalink to this definition"></a></dt>
+<dd><p>Copies OmegaConf configuration to a dst file.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>cfg</strong> (<em>OmegaConf</em>) – OmegaConfg object with the config to be stored in a file.</p></li>
+<li><p><strong>dst</strong> (<em>str</em>) – destination path to where the config will be stored. Must be a yaml file.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="hp_tool.train.generate_overrides_str">
+<span class="sig-prename descclassname"><span class="pre">hp_tool.train.</span></span><span class="sig-name descname"><span class="pre">generate_overrides_str</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">results_dir</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">OmegaConf</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#hp_tool.train.generate_overrides_str" title="Permalink to this definition"></a></dt>
+<dd><p>Generates string with hydra-like parameter overrides for bignlp-scripts.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>file_name</strong> (<em>str</em>) – name of the file configuration to be selected for training with bignlp-scripts.</p></li>
+<li><p><strong>model_name</strong> (<em>str</em>) – model type to be run, usually gpt3, t5 or mt5.</p></li>
+<li><p><strong>results_dir</strong> (<em>str</em>) – path to the directory where the results will be stored.</p></li>
+<li><p><strong>cfg</strong> (<em>OmegaConf</em>) – OmegaConf object with full configuration for the HP tool.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>string containing all the hydra-like overrides required for the training job.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="hp_tool.train.run_training">
+<span class="sig-prename descclassname"><span class="pre">hp_tool.train.</span></span><span class="sig-name descname"><span class="pre">run_training</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">results_dir</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">OmegaConf</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">int</span></span></span><a class="headerlink" href="#hp_tool.train.run_training" title="Permalink to this definition"></a></dt>
+<dd><p>Launch a training job for the given model name and config file, using bignlp-scripts.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>file_name</strong> (<em>str</em>) – name of the file configuration to be selected for training with bignlp-scripts.</p></li>
+<li><p><strong>model_name</strong> (<em>str</em>) – model type to be run, usually gpt3, t5 or mt5.</p></li>
+<li><p><strong>results_dir</strong> (<em>str</em>) – path to the directory where the results will be stored.</p></li>
+<li><p><strong>cfg</strong> (<em>OmegaConf</em>) – OmegaConf object with full configuration for the HP tool.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>SLURM job_id of the training job that was launched.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+<section id="module-hp_tool.training_config">
+<span id="hp-tool-training-config-module"></span><h2>hp_tool.training_config module<a class="headerlink" href="#module-hp_tool.training_config" title="Permalink to this heading"></a></h2>
+<p>Prepares and launches the training HP search using bignlp-scripts.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="hp_tool.training_config.generate_grid_search_configs">
+<span class="sig-prename descclassname"><span class="pre">hp_tool.training_config.</span></span><span class="sig-name descname"><span class="pre">generate_grid_search_configs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">base_cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_size_in_b</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DictConfig</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#hp_tool.training_config.generate_grid_search_configs" title="Permalink to this definition"></a></dt>
+<dd><p>Generates the grid of all possible configurations for the given model, and stores 
+each different configuration in a yaml file.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>base_cfg</strong> (<em>dict</em>) – base configuration of the model to be trained.</p></li>
+<li><p><strong>model_size_in_b</strong> (<em>float</em>) – number of parameters in the model.</p></li>
+<li><p><strong>model_name</strong> (<em>str</em>) – name of the model to be trained: gpt3, t5, mt5…</p></li>
+<li><p><strong>cfg</strong> (<em>omegaconf.dictconfig.DictConfig</em>) – main hydra config object for the HP tool.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>tuple (base_dir, results_cfgs, num_nodes)
+WHERE
+str base_dir is the path to the directory where the results will be stored.
+List[int] results_cfgs is a list of all the config names that were generated.
+int num_nodes is the number of nodes used to run each config.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="hp_tool.training_config.launch_grid_search_configs">
+<span class="sig-prename descclassname"><span class="pre">hp_tool.training_config.</span></span><span class="sig-name descname"><span class="pre">launch_grid_search_configs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">base_dir</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">results_cfgs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DictConfig</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#hp_tool.training_config.launch_grid_search_configs" title="Permalink to this definition"></a></dt>
+<dd><p>Launches training jobs for the grid search in parallel. The limit of how many
+jobs to launch is specified by limit_search_runs.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>base_dir</strong> (<em>str</em>) – location where the configs are stored.</p></li>
+<li><p><strong>results_cfgs</strong> (<em>list</em>) – list of config names.</p></li>
+<li><p><strong>model_name</strong> (<em>str</em>) – name of the model to be run.</p></li>
+<li><p><strong>cfg</strong> (<em>omegaconf.dictconfig.DictConfig</em>) – the general config object.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>job_ids, list of job ids for all the training jobs.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>list[int]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="hp_tool.training_config.launch_throughput_measure">
+<span class="sig-prename descclassname"><span class="pre">hp_tool.training_config.</span></span><span class="sig-name descname"><span class="pre">launch_throughput_measure</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dependency_list</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_size_in_b</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_nodes</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DictConfig</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#hp_tool.training_config.launch_throughput_measure" title="Permalink to this definition"></a></dt>
+<dd><p>Launch job that measures the throughput of each run in the grid search. This
+job will get scheduled with dependencies on all the job ids in dependency_list,
+so it will only start running once all the jobs are finished.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>dependency_list</strong> (<em>list</em>) – list of all the job_ids this job will depend on.</p></li>
+<li><p><strong>model_name</strong> (<em>str</em>) – name of the model, i.e. gpt3, t5, mt5.</p></li>
+<li><p><strong>model_size_in_b</strong> (<em>float</em>) – model size in billions of parameters.</p></li>
+<li><p><strong>cfg</strong> (<em>omegaconf.dictconfig.DictConfig</em>) – general config object for the HP tool.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>job_id of the current job.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="hp_tool.training_config.search_training_config">
+<span class="sig-prename descclassname"><span class="pre">hp_tool.training_config.</span></span><span class="sig-name descname"><span class="pre">search_training_config</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">base_cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_size_in_b</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DictConfig</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#hp_tool.training_config.search_training_config" title="Permalink to this definition"></a></dt>
+<dd><p>Entry point for the training HP search. This function calls other functions to perform three 
+actions: generates the grid of possible configurations; launches those configurations using 
+bignlp-scripts; and launches a final job to compare the results of all the training jobs.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>base_cfg</strong> (<em>dict</em>) – base configuration of the model to be trained.</p></li>
+<li><p><strong>model_size_in_b</strong> (<em>float</em>) – number of parameters in the model, if known.</p></li>
+<li><p><strong>model_name</strong> (<em>str</em>) – name of the model to be trained: gpt3, t5, mt5…</p></li>
+<li><p><strong>cfg</strong> (<em>omegaconf.dictconfig.DictConfig</em>) – main hydra config object for the HP tool.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+<section id="module-hp_tool.utils">
+<span id="hp-tool-utils-module"></span><h2>hp_tool.utils module<a class="headerlink" href="#module-hp_tool.utils" title="Permalink to this heading"></a></h2>
+<p>Utility functions for the HP tool.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="hp_tool.utils.add_container_mounts">
+<span class="sig-prename descclassname"><span class="pre">hp_tool.utils.</span></span><span class="sig-name descname"><span class="pre">add_container_mounts</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">container_mounts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#hp_tool.utils.add_container_mounts" title="Permalink to this definition"></a></dt>
+<dd><p>Converts the config container mounts to the right format for an srun command.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>container_mounts</strong> (<em>Optional</em><em>[</em><em>List</em><em>[</em><em>str</em><em>]</em><em>]</em>) – list of container mounts as in the config file.</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>the string that can be used in the srun command to add the container mounts.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="hp_tool.utils.calculate_model_size_params">
+<span class="sig-prename descclassname"><span class="pre">hp_tool.utils.</span></span><span class="sig-name descname"><span class="pre">calculate_model_size_params</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model_size_in_b</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vocab_size</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">51200</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seq_length</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">2048</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'gpt3'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#hp_tool.utils.calculate_model_size_params" title="Permalink to this definition"></a></dt>
+<dd><p>Calculates the parameters that affect model_size: hidden size, attention heads,
+KV channels, and FFN size. It also calculates the learning rate.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>model_size_in_b</strong> (<em>float</em>) – float, number of parameters in the desired model config, in billions.</p></li>
+<li><p><strong>seq_length</strong> (<em>int</em>) – int, sequence length to be used during training.</p></li>
+<li><p><strong>vocab_size</strong> (<em>int</em>) – int, size of the vocabulary to use for training.</p></li>
+<li><p><strong>model_name</strong> (<em>str</em>) – str, name of the model to be trained, i.e. gpt3, t5, mt5…</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>tuple (layers, hs, att_h, ffn, kv, lr)
+WHERE
+int layers is the number of layers in the model.
+int hs is the hidden size of the model.
+int att_h is the number of attention heads in the model.
+int ffn is the FFN hidden size of the model.
+int kv is the number of KV channels in the model.
+float lr is the learning rate used to train the model.</p>
+</dd>
+<dt class="field-odd">Raises</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>ValueError</strong> – if the model size is larger than the max supported model size.</p></li>
+<li><p><strong>NotImplementedError</strong> – if the model name is not supported.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="hp_tool.utils.convert_to_cli">
+<span class="sig-prename descclassname"><span class="pre">hp_tool.utils.</span></span><span class="sig-name descname"><span class="pre">convert_to_cli</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DictConfig</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#hp_tool.utils.convert_to_cli" title="Permalink to this definition"></a></dt>
+<dd><p>Converts hydra-like OmegaConf config dictionary object to a sring that can be used to override 
+hydra parameters using the CLI.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>cfg</strong> (<em>omegaconf.dictconfig.DictConfig</em>) – the config object to be converted to str format.</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>the string containing the overrides for hydra.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="hp_tool.utils.convert_to_null">
+<span class="sig-prename descclassname"><span class="pre">hp_tool.utils.</span></span><span class="sig-name descname"><span class="pre">convert_to_null</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">val</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#hp_tool.utils.convert_to_null" title="Permalink to this definition"></a></dt>
+<dd><p>Converts a value to the str null if None is provided, to be able to pass it to hydra.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>val</strong> (<em>Optional</em><em>[</em><em>str</em><em>]</em>) – value to be replaced with ‘null’ if the value is None.</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>either the input value itself or ‘null’.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="hp_tool.utils.create_slurm_file">
+<span class="sig-prename descclassname"><span class="pre">hp_tool.utils.</span></span><span class="sig-name descname"><span class="pre">create_slurm_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">new_script_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cmds</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">job_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">flags</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dependency</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'04:00:00'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exclusive</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mem</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">overcommit</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nodes</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ntasks</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ntasks_per_node</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gpus_per_task</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gpus_per_node</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">partition</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'batch'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">account</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exclude</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#hp_tool.utils.create_slurm_file" title="Permalink to this definition"></a></dt>
+<dd><p>Creates a slurm script file to launch a job on a slurm based cluster. Saves the script 
+to the local file system in the path specified on new_script_path.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>new_stript_path</strong> (<em>str</em>) – path where the SLURM script will be stored in the file system.</p></li>
+<li><p><strong>cmds</strong> (<em>List</em><em>[</em><em>str</em><em>]</em>) – list of commands to run, each one inside an srun line.</p></li>
+<li><p><strong>job_name</strong> (<em>str</em>) – name of the slurm job.</p></li>
+<li><p><strong>flags</strong> (<em>str</em>) – flags to be added to each of the srun commands.</p></li>
+<li><p><strong>dependency</strong> (<em>Optional</em><em>[</em><em>str</em><em>]</em>) – job_id(s) to the jobs that need to run before the current job.</p></li>
+<li><p><strong>time</strong> (<em>str</em>) – slurm style time-limit for the job.</p></li>
+<li><p><strong>exclusive</strong> (<em>bool</em>) – slurm exclusive parameter.</p></li>
+<li><p><strong>mem</strong> (<em>Optional</em><em>[</em><em>int</em><em>]</em>) – slurm mem parameter.</p></li>
+<li><p><strong>overcommit</strong> (<em>bool</em>) – slurm overcommit parameter.</p></li>
+<li><p><strong>nodes</strong> (<em>Optional</em><em>[</em><em>int</em><em>]</em>) – number of nodes to use to train the model.</p></li>
+<li><p><strong>ntasks</strong> (<em>Optional</em><em>[</em><em>int</em><em>]</em>) – slurm ntasks parameter.</p></li>
+<li><p><strong>ntasks_per_node</strong> (<em>Optional</em><em>[</em><em>int</em><em>]</em>) – slurm ntasks_per_node parameter.</p></li>
+<li><p><strong>gpus_per_task</strong> (<em>Optional</em><em>[</em><em>int</em><em>]</em>) – slurm gpus_per_task parameter.</p></li>
+<li><p><strong>gpus_per_node</strong> (<em>Optional</em><em>[</em><em>int</em><em>]</em>) – slurm gpus_per_node parameter.</p></li>
+<li><p><strong>partition</strong> (<em>str</em>) – slurm partition parameter.</p></li>
+<li><p><strong>account</strong> (<em>Optional</em><em>[</em><em>str</em><em>]</em>) – slurm account parameter.</p></li>
+<li><p><strong>exclude</strong> (<em>Optional</em><em>[</em><em>str</em><em>]</em>) – slurm exclude parameter.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="hp_tool.utils.generic_base_config">
+<span class="sig-prename descclassname"><span class="pre">hp_tool.utils.</span></span><span class="sig-name descname"><span class="pre">generic_base_config</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DictConfig</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'gpt3'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">dict</span></span></span><a class="headerlink" href="#hp_tool.utils.generic_base_config" title="Permalink to this definition"></a></dt>
+<dd><p>Generates a base config dictionary from a base config yaml file.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>cfg</strong> (<em>omegaconf.dictconfig.DictConfig</em>) – hydra-like config object for the HP tool.</p></li>
+<li><p><strong>model_name</strong> (<em>str</em>) – name of the model, i.e. gpt3, t5, mt5…</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>dictionary containing the base configuration for the model.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="hp_tool.utils.modify_cfg">
+<span class="sig-prename descclassname"><span class="pre">hp_tool.utils.</span></span><span class="sig-name descname"><span class="pre">modify_cfg</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">base_cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">act</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tp</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pp</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mbs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_minutes</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_steps</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_nodes</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">dict</span></span></span><a class="headerlink" href="#hp_tool.utils.modify_cfg" title="Permalink to this definition"></a></dt>
+<dd><p>Modify the base configuration for the model with the new parameters that are specific to the current model, which the HP tool heuristics selected.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>base_cfg</strong> (<em>dict</em>) – base configuration for the current model, which will be modified in this function.</p></li>
+<li><p><strong>act</strong> (<em>int</em>) – number of activation checkpointing layers to use for the model.</p></li>
+<li><p><strong>tp</strong> (<em>int</em>) – Tensor Parallelism (TP) value to be set for the model.</p></li>
+<li><p><strong>pp</strong> (<em>int</em>) – Pipeline Parallelism (PP) value to be set for the model.</p></li>
+<li><p><strong>mbs</strong> (<em>int</em>) – Micro Batch Size (MBS) value to be set for the model.</p></li>
+<li><p><strong>max_minutes</strong> (<em>int</em>) – maximum amount of time to run this model for.</p></li>
+<li><p><strong>max_steps</strong> (<em>int</em>) – maximum number of steps to run this model for.</p></li>
+<li><p><strong>num_nodes</strong> (<em>int</em>) – number of nodes to use for the training run.</p></li>
+<li><p><strong>model_name</strong> (<em>str</em>) – name of the model, i.e. gpt3, t5, mt5…</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>dictionary containing the updated model configuration parameters.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+<section id="module-hp_tool">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-hp_tool" title="Permalink to this heading"></a></h2>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="modules.html" class="btn btn-neutral float-left" title="hp_tool" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2022, Markel Ausin.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
