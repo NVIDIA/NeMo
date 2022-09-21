@@ -27,15 +27,15 @@ class DialogueGPTClassificationDataset(DialogueDataset):
     '''
     Designed for classification tasks such as intent/domain classification as well as slot tagging
 
-    Dataset Class 
+    Dataset Class
         1. Performs Model-dependent (but Data-independent) operations (tokenization etc)
         2. This can allow the same model preprocessing for multiple datasources
-        3. Users can configurate which labels to use for modelling 
+        3. Users can configurate which labels to use for modelling
             (e.g. intent classification, slot filling or both together etc)
     '''
 
     def __init__(self, dataset_split: str, dialogues_processor: object, tokenizer, cfg):
-        """ Constructor
+        """Constructor
         Args:
             dataset_split: dataset split
             dialogues_processor: Data generator for SGD dialogues
@@ -208,13 +208,13 @@ class DialogueGPTClassificationDataset(DialogueDataset):
 
         This template can be changed
 
-        Training example: 
+        Training example:
             e.g. <utterance> service: restaurant
             e.g. <task description> <utterance> service: restaurant
             e.g. <utterance>\nintent: set alarm\nslots: <slot_name1>(<slot_value1>), <slot_name1>(<slot_value1>)
 
         Generation example:
-            e.g. <utterance> service: 
+            e.g. <utterance> service:
 
         '''
         ex = self.features[idx].data

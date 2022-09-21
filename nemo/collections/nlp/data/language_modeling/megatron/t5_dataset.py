@@ -196,11 +196,18 @@ class T5Dataset(Dataset):
         # Note that this rng state should be numpy and not python since
         # python randint is inclusive whereas the numpy one is exclusive.
         np_rng = np.random.RandomState(seed=(self.seed + idx))
-        training_sample = self.build_training_sample(sample=sample, target_seq_length=seq_length, np_rng=np_rng,)
+        training_sample = self.build_training_sample(
+            sample=sample,
+            target_seq_length=seq_length,
+            np_rng=np_rng,
+        )
         return training_sample
 
     def build_training_sample(
-        self, sample, target_seq_length, np_rng,
+        self,
+        sample,
+        target_seq_length,
+        np_rng,
     ):
         """Build training sample.
         Arguments:
@@ -287,7 +294,13 @@ class T5Dataset(Dataset):
         return train_sample
 
     def pad_and_convert_to_numpy(
-        self, tokens, output_tokens, masked_positions, masked_labels, masked_spans=None, np_rng=None,
+        self,
+        tokens,
+        output_tokens,
+        masked_positions,
+        masked_labels,
+        masked_spans=None,
+        np_rng=None,
     ):
         """Pad sequences and convert them to numpy."""
         sentinel_tokens = collections.deque(self.sentinel_tokens)

@@ -464,7 +464,12 @@ class NoisePerturbation(Perturbation):
             data._samples += noise._samples
 
     def perturb_with_foreground_noise(
-        self, data, noise, data_rms=None, max_noise_dur=2, max_additions=1,
+        self,
+        data,
+        noise,
+        data_rms=None,
+        max_noise_dur=2,
+        max_additions=1,
     ):
         snr_db = self._rng.uniform(self._min_snr_db, self._max_snr_db)
         if not data_rms:
@@ -512,32 +517,32 @@ class WhiteNoisePerturbation(Perturbation):
 
 class RirAndNoisePerturbation(Perturbation):
     """
-        RIR augmentation with additive foreground and background noise.
-        In this implementation audio data is augmented by first convolving the audio with a Room Impulse Response
-        and then adding foreground noise and background noise at various SNRs. RIR, foreground and background noises
-        should either be supplied with a manifest file or as tarred audio files (faster).
+    RIR augmentation with additive foreground and background noise.
+    In this implementation audio data is augmented by first convolving the audio with a Room Impulse Response
+    and then adding foreground noise and background noise at various SNRs. RIR, foreground and background noises
+    should either be supplied with a manifest file or as tarred audio files (faster).
 
-        Different sets of noise audio files based on the original sampling rate of the noise. This is useful while
-        training a mixed sample rate model. For example, when training a mixed model with 8 kHz and 16 kHz audio with a
-        target sampling rate of 16 kHz, one would want to augment 8 kHz data with 8 kHz noise rather than 16 kHz noise.
+    Different sets of noise audio files based on the original sampling rate of the noise. This is useful while
+    training a mixed sample rate model. For example, when training a mixed model with 8 kHz and 16 kHz audio with a
+    target sampling rate of 16 kHz, one would want to augment 8 kHz data with 8 kHz noise rather than 16 kHz noise.
 
-        Args:
-            rir_manifest_path: Manifest file for RIRs
-            rir_tar_filepaths: Tar files, if RIR audio files are tarred
-            rir_prob: Probability of applying a RIR
-            noise_manifest_paths: Foreground noise manifest path
-            min_snr_db: Min SNR for foreground noise
-            max_snr_db: Max SNR for background noise,
-            noise_tar_filepaths: Tar files, if noise files are tarred
-            apply_noise_rir: Whether to convolve foreground noise with a a random RIR
-            orig_sample_rate: Original sampling rate of foreground noise audio
-            max_additions: Max number of times foreground noise is added to an utterance,
-            max_duration: Max duration of foreground noise
-            bg_noise_manifest_paths: Background noise manifest path
-            bg_min_snr_db: Min SNR for background noise
-            bg_max_snr_db: Max SNR for background noise
-            bg_noise_tar_filepaths: Tar files, if noise files are tarred
-            bg_orig_sample_rate: Original sampling rate of background noise audio
+    Args:
+        rir_manifest_path: Manifest file for RIRs
+        rir_tar_filepaths: Tar files, if RIR audio files are tarred
+        rir_prob: Probability of applying a RIR
+        noise_manifest_paths: Foreground noise manifest path
+        min_snr_db: Min SNR for foreground noise
+        max_snr_db: Max SNR for background noise,
+        noise_tar_filepaths: Tar files, if noise files are tarred
+        apply_noise_rir: Whether to convolve foreground noise with a a random RIR
+        orig_sample_rate: Original sampling rate of foreground noise audio
+        max_additions: Max number of times foreground noise is added to an utterance,
+        max_duration: Max duration of foreground noise
+        bg_noise_manifest_paths: Background noise manifest path
+        bg_min_snr_db: Min SNR for background noise
+        bg_max_snr_db: Max SNR for background noise
+        bg_noise_tar_filepaths: Tar files, if noise files are tarred
+        bg_orig_sample_rate: Original sampling rate of background noise audio
 
     """
 
@@ -633,11 +638,11 @@ class RirAndNoisePerturbation(Perturbation):
 
 class TranscodePerturbation(Perturbation):
     """
-        Audio codec augmentation. This implementation uses sox to transcode audio with low rate audio codecs,
-        so users need to make sure that the installed sox version supports the codecs used here (G711 and amr-nb).
+    Audio codec augmentation. This implementation uses sox to transcode audio with low rate audio codecs,
+    so users need to make sure that the installed sox version supports the codecs used here (G711 and amr-nb).
 
-        Args:
-            rng: Random number generator
+    Args:
+        rng: Random number generator
     """
 
     def __init__(self, codecs=None, rng=None):
@@ -692,9 +697,9 @@ class TranscodePerturbation(Perturbation):
 
 class RandomSegmentPerturbation(Perturbation):
     """
-    Returns a random segment from input of duration "duration_sec". 
+    Returns a random segment from input of duration "duration_sec".
     If duration_sec > input audio length, pad_to_duration determines the outcome.
-    
+
     RandomSegmentPerturbation is intended for self-supervised learning.
     Not for supervised, as extracting corresponding text is not facilitated.
 
@@ -904,24 +909,24 @@ def process_augmentations(augmenter) -> Optional[AudioAugmentor]:
 
 class AugmentationDataset(IterableDataset):
     """
-        A class that loads tarred audio files and cycles over the files in the dataset.
+    A class that loads tarred audio files and cycles over the files in the dataset.
 
-        Accepts a single comma-separated JSON manifest file (in the same style as for the AudioToCharDataset/AudioToBPEDataset),
-        as well as the path(s) to the tarball(s) containing the wav files. Each line of the manifest should
-        contain the information for one audio file, including at least the transcript and name of the audio
-        file within the tarball.
+    Accepts a single comma-separated JSON manifest file (in the same style as for the AudioToCharDataset/AudioToBPEDataset),
+    as well as the path(s) to the tarball(s) containing the wav files. Each line of the manifest should
+    contain the information for one audio file, including at least the transcript and name of the audio
+    file within the tarball.
 
-        Valid formats for the audio_tar_filepaths argument include:
-        (1) a single string that can be brace-expanded, e.g. 'path/to/audio.tar' or 'path/to/audio_{1..100}.tar.gz', or
-        (2) a list of file paths that will not be brace-expanded, e.g. ['audio_1.tar', 'audio_2.tar', ...].
+    Valid formats for the audio_tar_filepaths argument include:
+    (1) a single string that can be brace-expanded, e.g. 'path/to/audio.tar' or 'path/to/audio_{1..100}.tar.gz', or
+    (2) a list of file paths that will not be brace-expanded, e.g. ['audio_1.tar', 'audio_2.tar', ...].
 
-        Note: For brace expansion in (1), there may be cases where `{x..y}` syntax cannot be used due to shell interference.
-        This occurs most commonly inside SLURM scripts. Therefore we provide a few equivalent replacements.
-        Supported opening braces - { <=> (, [, < and the special tag _OP_.
-        Supported closing braces - } <=> ), ], > and the special tag _CL_.
-        For SLURM based tasks, we suggest the use of the special tags for ease of use.
+    Note: For brace expansion in (1), there may be cases where `{x..y}` syntax cannot be used due to shell interference.
+    This occurs most commonly inside SLURM scripts. Therefore we provide a few equivalent replacements.
+    Supported opening braces - { <=> (, [, < and the special tag _OP_.
+    Supported closing braces - } <=> ), ], > and the special tag _CL_.
+    For SLURM based tasks, we suggest the use of the special tags for ease of use.
 
-        See the WebDataset documentation for more information about accepted data and input formats.
+    See the WebDataset documentation for more information about accepted data and input formats.
     """
 
     def __init__(self, manifest_path: str, tar_filepaths: Union[str, List[str]], shuffle_n: int = 128):

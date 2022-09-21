@@ -318,7 +318,10 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
         decoding_cls = OmegaConf.create(OmegaConf.to_container(decoding_cls))
         decoding_cfg = OmegaConf.merge(decoding_cls, decoding_cfg)
 
-        self.decoding = CTCBPEDecoding(decoding_cfg=decoding_cfg, tokenizer=self.tokenizer,)
+        self.decoding = CTCBPEDecoding(
+            decoding_cfg=decoding_cfg,
+            tokenizer=self.tokenizer,
+        )
 
         self._wer = WERBPE(
             decoding=self.decoding,

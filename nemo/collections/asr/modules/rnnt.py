@@ -73,8 +73,7 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         return {
             "targets": NeuralType(('B', 'T'), LabelsType()),
             "target_length": NeuralType(tuple('B'), LengthsType()),
@@ -83,8 +82,7 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {
             "outputs": NeuralType(('B', 'D', 'T'), EmbeddedTextType()),
             "prednet_lengths": NeuralType(tuple('B'), LengthsType()),
@@ -306,19 +304,19 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
     def batch_initialize_states(self, batch_states: List[torch.Tensor], decoder_states: List[List[torch.Tensor]]):
         """
-        Create batch of decoder states.
+         Create batch of decoder states.
 
-       Args:
-           batch_states (list): batch of decoder states
-              ([(B, H)])
+        Args:
+            batch_states (list): batch of decoder states
+               ([(B, H)])
 
-           decoder_states (list of list): list of decoder states
-               [B x ([(1, C)]]
+            decoder_states (list of list): list of decoder states
+                [B x ([(1, C)]]
 
-       Returns:
-           batch_states (tuple): batch of decoder states
-               ([(B, C)])
-       """
+        Returns:
+            batch_states (tuple): batch of decoder states
+                ([(B, C)])
+        """
         new_state = torch.stack([s[0] for s in decoder_states])
 
         return [new_state]
@@ -526,8 +524,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         return {
             "targets": NeuralType(('B', 'T'), LabelsType()),
             "target_length": NeuralType(tuple('B'), LengthsType()),
@@ -536,8 +533,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {
             "outputs": NeuralType(('B', 'D', 'T'), EmbeddedTextType()),
             "prednet_lengths": NeuralType(tuple('B'), LengthsType()),
@@ -938,19 +934,19 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
 
     def batch_initialize_states(self, batch_states: List[torch.Tensor], decoder_states: List[List[torch.Tensor]]):
         """
-        Create batch of decoder states.
+         Create batch of decoder states.
 
-       Args:
-           batch_states (list): batch of decoder states
-              ([L x (B, H)], [L x (B, H)])
-
-           decoder_states (list of list): list of decoder states
-               [B x ([L x (1, H)], [L x (1, H)])]
-
-       Returns:
-           batch_states (tuple): batch of decoder states
+        Args:
+            batch_states (list): batch of decoder states
                ([L x (B, H)], [L x (B, H)])
-       """
+
+            decoder_states (list of list): list of decoder states
+                [B x ([L x (1, H)], [L x (1, H)])]
+
+        Returns:
+            batch_states (tuple): batch of decoder states
+                ([L x (B, H)], [L x (B, H)])
+        """
         # LSTM has 2 states
         new_states = [[] for _ in range(len(decoder_states[0]))]
         for layer in range(self.pred_rnn_layers):
@@ -1120,8 +1116,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         return {
             "encoder_outputs": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
             "decoder_outputs": NeuralType(('B', 'D', 'T'), EmbeddedTextType()),
@@ -1133,8 +1128,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         if not self._fuse_loss_wer:
             return {
                 "outputs": NeuralType(('B', 'T', 'T', 'D'), LogprobsType()),

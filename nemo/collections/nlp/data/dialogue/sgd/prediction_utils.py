@@ -39,7 +39,7 @@ __all__ = ['write_predictions_to_file']
 
 def set_cat_slot(predictions_status: dict, predictions_value: dict, cat_slot_values: Dict[str, List[str]]) -> dict:
     """
-    Extract predicted categorical slot information 
+    Extract predicted categorical slot information
     Args:
         predictions_status: predicted statuses
         predictions_value: predicted slot values
@@ -67,7 +67,7 @@ def set_noncat_slot(
     sys_slots_agg: Optional[dict] = None,
 ) -> dict:
     """
-    Extract predicted non categorical slot information 
+    Extract predicted non categorical slot information
     Args:
         predictions_status: predicted statuses
         predictions_value: predicted slot values
@@ -97,7 +97,7 @@ def set_noncat_slot(
 
 
 def get_predicted_dialog(dialog: dict, all_predictions: dict, schemas: object, state_tracker: str) -> dict:
-    """Overwrite the labels in the turn with the predictions from the model. For test set, these labels are missing from the data and hence they are added. 
+    """Overwrite the labels in the turn with the predictions from the model. For test set, these labels are missing from the data and hence they are added.
     Args:
         dialog: ground truth dialog
         all_predictions: predictions

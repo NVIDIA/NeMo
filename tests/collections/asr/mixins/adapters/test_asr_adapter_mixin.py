@@ -208,7 +208,8 @@ class TestASRAdapterMixin:
         assert new_num_params == original_num_params
 
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.unit
     def test_asr_model_constructor_joint_module_rnnt(self, rnnt_model):
@@ -284,7 +285,8 @@ class TestASRAdapterMixin:
         assert torch.mean(torch.abs(origial_output - new_output)) < 1e-5
 
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.parametrize('name1', ['decoder:adapter_0', 'joint:adapter_0'])
     @pytest.mark.parametrize('name2', ['decoder:adapter_1', 'joint:adapter_1'])
@@ -378,7 +380,8 @@ class TestASRAdapterMixin:
         assert model.num_weights < 1e5
 
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.with_downloads()
     @pytest.mark.unit

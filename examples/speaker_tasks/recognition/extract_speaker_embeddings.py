@@ -54,7 +54,13 @@ except ImportError:
 
 def get_embeddings(speaker_model, manifest_file, batch_size=1, embedding_dir='./', device='cuda'):
     test_config = OmegaConf.create(
-        dict(manifest_filepath=manifest_file, sample_rate=16000, labels=None, batch_size=batch_size, shuffle=False,)
+        dict(
+            manifest_filepath=manifest_file,
+            sample_rate=16000,
+            labels=None,
+            batch_size=batch_size,
+            shuffle=False,
+        )
     )
 
     speaker_model.setup_test_data(test_config)
@@ -98,7 +104,10 @@ def get_embeddings(speaker_model, manifest_file, batch_size=1, embedding_dir='./
 def main():
     parser = ArgumentParser()
     parser.add_argument(
-        "--manifest", type=str, required=True, help="Path to manifest file",
+        "--manifest",
+        type=str,
+        required=True,
+        help="Path to manifest file",
     )
     parser.add_argument(
         "--model_path",

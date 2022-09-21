@@ -47,7 +47,11 @@ except ImportError:
 def main():
     parser = ArgumentParser()
     parser.add_argument(
-        "--asr_model", type=str, default="QuartzNet15x5Base-En", required=True, help="Pass: 'QuartzNet15x5Base-En'",
+        "--asr_model",
+        type=str,
+        default="QuartzNet15x5Base-En",
+        required=True,
+        help="Pass: 'QuartzNet15x5Base-En'",
     )
     parser.add_argument(
         "--asr_onnx",

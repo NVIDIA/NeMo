@@ -231,7 +231,7 @@ class Exportable(ABC):
 
     def get_export_subnet(self, subnet=None):
         """
-        Returns Exportable subnet model/module to export 
+        Returns Exportable subnet model/module to export
         """
         if subnet is None or subnet == 'self':
             return self

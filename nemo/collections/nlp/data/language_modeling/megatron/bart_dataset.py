@@ -81,7 +81,13 @@ class BARTDataset(T5Dataset):
         pass
 
     def pad_and_convert_to_numpy(
-        self, tokens, output_tokens, masked_positions, masked_labels, masked_spans=None, np_rng=None,
+        self,
+        tokens,
+        output_tokens,
+        masked_positions,
+        masked_labels,
+        masked_spans=None,
+        np_rng=None,
     ):
         """Pad sequences and convert them to numpy."""
         bart_decoder_in = [self.bos_id] + tokens

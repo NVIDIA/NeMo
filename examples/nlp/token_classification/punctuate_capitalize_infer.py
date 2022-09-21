@@ -138,7 +138,11 @@ def get_args() -> argparse.Namespace:
         "'[SEP]'*], ['[CLS]'*, 'e'*, 'l', 'l'*, '[SEP]'*], ['[CLS]'*, 'l'*, 'l', 'o', '[SEP]'*]]`.",
     )
     parser.add_argument(
-        "--batch_size", "-b", type=int, default=128, help="Number of segments which are processed simultaneously.",
+        "--batch_size",
+        "-b",
+        type=int,
+        default=128,
+        help="Number of segments which are processed simultaneously.",
     )
     parser.add_argument(
         "--save_labels_instead_of_text",

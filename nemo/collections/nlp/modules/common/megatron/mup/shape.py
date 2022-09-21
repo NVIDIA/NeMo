@@ -212,7 +212,7 @@ def set_base_shapes(model, base, rescale_params=True, delta=None, savefile=None,
             assuming the model is initialized using the default pytorch init (or
             He initialization etc that scale the same way with fanin): If True
             (default), rescales parameters to have the correct (μP) variances.
-        do_assert: 
+        do_assert:
     Output:
         same object as `model`, after setting the `infshape` attribute of each parameter.
     '''

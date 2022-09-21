@@ -675,11 +675,11 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         logging.info(f'Finished building datasets ...')
 
     def on_train_start(self) -> None:
-        """PTL hook used to override DataFetcher with GlobalBatchDataFetcher """
+        """PTL hook used to override DataFetcher with GlobalBatchDataFetcher"""
         self.trainer.fit_loop._data_fetcher = GlobalBatchDataFetcher()
 
     def on_validation_start(self) -> None:
-        """PTL hook used to override DataFetcher with GlobalBatchDataFetcher """
+        """PTL hook used to override DataFetcher with GlobalBatchDataFetcher"""
         self.trainer.fit_loop.epoch_loop.val_loop._data_fetcher = GlobalBatchDataFetcher()
         self.trainer.validate_loop._data_fetcher = GlobalBatchDataFetcher()
 

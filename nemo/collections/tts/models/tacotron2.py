@@ -291,11 +291,21 @@ class Tacotron2Model(SpectrogramGenerator):
                         break
             if isinstance(logger, TensorBoardLogger):
                 tacotron2_log_to_tb_func(
-                    logger, outputs[0].values(), self.global_step, tag="val", log_images=True, add_audio=False,
+                    logger,
+                    outputs[0].values(),
+                    self.global_step,
+                    tag="val",
+                    log_images=True,
+                    add_audio=False,
                 )
             elif isinstance(logger, WandbLogger):
                 tacotron2_log_to_wandb_func(
-                    logger, outputs[0].values(), self.global_step, tag="val", log_images=True, add_audio=False,
+                    logger,
+                    outputs[0].values(),
+                    self.global_step,
+                    tag="val",
+                    log_images=True,
+                    add_audio=False,
                 )
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()  # This reduces across batches, not workers!
         self.log('val_loss', avg_loss)
@@ -328,12 +338,14 @@ class Tacotron2Model(SpectrogramGenerator):
 
             if "phoneme_dict" in cfg.text_tokenizer.g2p:
                 g2p_kwargs["phoneme_dict"] = self.register_artifact(
-                    'text_tokenizer.g2p.phoneme_dict', cfg.text_tokenizer.g2p.phoneme_dict,
+                    'text_tokenizer.g2p.phoneme_dict',
+                    cfg.text_tokenizer.g2p.phoneme_dict,
                 )
 
             if "heteronyms" in cfg.text_tokenizer.g2p:
                 g2p_kwargs["heteronyms"] = self.register_artifact(
-                    'text_tokenizer.g2p.heteronyms', cfg.text_tokenizer.g2p.heteronyms,
+                    'text_tokenizer.g2p.heteronyms',
+                    cfg.text_tokenizer.g2p.heteronyms,
                 )
 
             text_tokenizer_kwargs["g2p"] = instantiate(cfg.text_tokenizer.g2p, **g2p_kwargs)

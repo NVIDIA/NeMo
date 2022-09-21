@@ -44,7 +44,7 @@ class SGDQAModel(NLPModel):
     Dialogue State Tracking Model SGD-QA (https://arxiv.org/abs/2105.08049)
 
     The SGD-QA model is a fast multi-pass schema-guided state-tracking model, that is trained on the Google schema-guided state tracking dataset (https://arxiv.org/abs/1909.05855).
-    The model takes dialogue as input and outputs the dialogue state, which includes slot-value pairs. 
+    The model takes dialogue as input and outputs the dialogue state, which includes slot-value pairs.
     The model consists of two components: a neural natural language understanding model (NLU), and a rule-based state tracker.
     The NLU takes in a dialogue turn and different schema (entity) information options and outputs their match score. The state tracker takes the highest rated entities and composes
     the dialogue state across turns.
@@ -146,7 +146,7 @@ class SGDQAModel(NLPModel):
         Called at every validation step to aggregate and postprocess outputs on each GPU
         Args:
             batch: input batch at validation step
-            batch_idx: batch index 
+            batch_idx: batch index
             dataloader_idx: dataloader index
         """
         loss, tensors = self.eval_step_helper(batch=batch)
@@ -158,7 +158,7 @@ class SGDQAModel(NLPModel):
         Called at every test step to aggregate and postprocess outputs on each GPU
         Args:
             batch: input batch at test step
-            batch_idx: batch index 
+            batch_idx: batch index
             dataloader_idx: dataloader index
         """
         loss, tensors = self.eval_step_helper(batch=batch)
@@ -308,8 +308,8 @@ class SGDQAModel(NLPModel):
             torch.zeros(total_scores.size(), device=total_scores.get_device(), dtype=total_scores.dtype),
             total_scores,
         )
-        max_span_index = torch.argmax(total_scores.view(-1, max_num_tokens ** 2), axis=-1)
-        max_span_p = torch.max(total_scores.view(-1, max_num_tokens ** 2), axis=-1)[0]
+        max_span_index = torch.argmax(total_scores.view(-1, max_num_tokens**2), axis=-1)
+        max_span_p = torch.max(total_scores.view(-1, max_num_tokens**2), axis=-1)[0]
 
         span_start_index = torch.floor_divide(max_span_index, max_num_tokens)
         span_end_index = torch.fmod(max_span_index, max_num_tokens)
@@ -405,7 +405,7 @@ class SGDQAModel(NLPModel):
 
         def combine_predictions_in_example(predictions: dict, batch_size: int):
             '''
-            Combines predicted values to a single example. 
+            Combines predicted values to a single example.
             Args:
                 predictions: predictions ordered by keys then batch
                 batch_size: batch size

@@ -254,7 +254,13 @@ class AudioSegment(object):
 
     @classmethod
     def segment_from_file(
-        cls, audio_file, target_sr=None, n_segments=0, trim=False, orig_sr=None, channel_selector=None,
+        cls,
+        audio_file,
+        target_sr=None,
+        n_segments=0,
+        trim=False,
+        orig_sr=None,
+        channel_selector=None,
     ):
         """Grabs n_segments number of samples from audio_file randomly from the
         file as opposed to at a specified offset.
@@ -303,9 +309,8 @@ class AudioSegment(object):
 
     @property
     def rms_db(self):
-        """Return per-channel RMS value.
-        """
-        mean_square = np.mean(self._samples ** 2, axis=0)
+        """Return per-channel RMS value."""
+        mean_square = np.mean(self._samples**2, axis=0)
         return 10 * np.log10(mean_square)
 
     @property
@@ -333,7 +338,11 @@ class AudioSegment(object):
                 f"Padding not implemented for signals with more that 2 dimensions. Current samples dimension: {samples_ndim}."
             )
         # apply padding
-        self._samples = np.pad(self._samples, pad_width, mode='constant',)
+        self._samples = np.pad(
+            self._samples,
+            pad_width,
+            mode='constant',
+        )
 
     def subsegment(self, start_time=None, end_time=None):
         """Cut the AudioSegment between given boundaries.

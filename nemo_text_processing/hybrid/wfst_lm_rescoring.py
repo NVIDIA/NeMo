@@ -73,7 +73,7 @@ def threshold_weights(norm_texts_weights, delta: float = 0.2):
     delta: delta to add to minimum weight in options to compose upper limit for threshhold
 
     returns:
-        filter list of same format as input 
+        filter list of same format as input
     """
     # threshold value is factor applied to lowest/first weight of all normalization options for every input
     res = []

@@ -47,8 +47,7 @@ def build_topo(name: str, tokens: List[int], with_self_loops: bool = True) -> 'k
 
 
 def build_default_topo(tokens: List[int], with_self_loops: bool = True) -> 'k2.Fsa':
-    """Build the default CTC topology.
-    """
+    """Build the default CTC topology."""
     assert 0 in tokens, "We assume 0 is ID of the blank symbol"
 
     num_states = len(tokens)

@@ -133,7 +133,8 @@ class CardinalFst(GraphFst):
         )
 
         graph = graph @ pynini.union(
-            pynutil.delete(pynini.closure("0")) + pynini.difference(NEMO_DIGIT, "0") + pynini.closure(NEMO_DIGIT), "0",
+            pynutil.delete(pynini.closure("0")) + pynini.difference(NEMO_DIGIT, "0") + pynini.closure(NEMO_DIGIT),
+            "0",
         )
 
         # don't convert cardinals from zero to nine inclusive
@@ -144,7 +145,9 @@ class CardinalFst(GraphFst):
         self.graph = (pynini.project(graph, "input") - graph_exception.arcsort()) @ graph
 
         optional_minus_graph = pynini.closure(
-            pynutil.insert("negative: ") + pynini.cross(pynini.union("âm", "trừ"), '"-"') + NEMO_SPACE, 0, 1,
+            pynutil.insert("negative: ") + pynini.cross(pynini.union("âm", "trừ"), '"-"') + NEMO_SPACE,
+            0,
+            1,
         )
 
         final_graph = optional_minus_graph + pynutil.insert('integer: "') + self.graph + pynutil.insert('"')

@@ -97,8 +97,7 @@ class SqueezeformerEncoder(NeuralModule, Exportable):
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         return OrderedDict(
             {
                 "audio_signal": NeuralType(('B', 'D', 'T'), SpectrogramType()),
@@ -108,8 +107,7 @@ class SqueezeformerEncoder(NeuralModule, Exportable):
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return OrderedDict(
             {
                 "outputs": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
@@ -252,7 +250,11 @@ class SqueezeformerEncoder(NeuralModule, Exportable):
             # Chose same type of positional encoding as the originally determined above
             if self_attention_model == "rel_pos":
                 self.time_reduce_pos_enc = RelPositionalEncoding(
-                    d_model=d_model, dropout_rate=0.0, max_len=pos_emb_max_len, xscale=None, dropout_rate_emb=0.0,
+                    d_model=d_model,
+                    dropout_rate=0.0,
+                    max_len=pos_emb_max_len,
+                    xscale=None,
+                    dropout_rate_emb=0.0,
                 )
             else:
                 self.time_reduce_pos_enc = PositionalEncoding(
@@ -271,8 +273,8 @@ class SqueezeformerEncoder(NeuralModule, Exportable):
         self.use_pad_mask = True
 
     def set_max_audio_length(self, max_audio_length):
-        """ Sets maximum input length.
-            Pre-calculates internal seq_range mask.
+        """Sets maximum input length.
+        Pre-calculates internal seq_range mask.
         """
         self.max_audio_length = max_audio_length
         device = next(self.parameters()).device

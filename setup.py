@@ -18,15 +18,14 @@
 """Setup for pip package."""
 
 import codecs
+import importlib.util
 import os
 import subprocess
 from distutils import cmd as distutils_cmd
 from distutils import log as distutils_log
 from itertools import chain
-import importlib.util
 
 import setuptools
-
 
 spec = importlib.util.spec_from_file_location('package_info', 'nemo/package_info.py')
 package_info = importlib.util.module_from_spec(spec)
@@ -53,7 +52,9 @@ if os.path.exists('nemo/README.md'):
 elif os.path.exists('README.rst'):
     # codec is used for consistent encoding
     long_description = codecs.open(
-        os.path.join(os.path.abspath(os.path.dirname(__file__)), 'README.rst'), 'r', encoding='utf-8',
+        os.path.join(os.path.abspath(os.path.dirname(__file__)), 'README.rst'),
+        'r',
+        encoding='utf-8',
     ).read()
     long_description_content_type = "text/x-rst"
 
@@ -165,7 +166,8 @@ class StyleCommand(distutils_cmd.Command):
             command.extend(['--check', '--diff'])
 
         self.announce(
-            msg='Running command: %s' % str(' '.join(command)), level=distutils_log.INFO,
+            msg='Running command: %s' % str(' '.join(command)),
+            level=distutils_log.INFO,
         )
 
         return_code = subprocess.call(command)
@@ -173,10 +175,18 @@ class StyleCommand(distutils_cmd.Command):
         return return_code
 
     def _isort(self, scope, check):
-        return self.__call_checker(base_command=self.__ISORT_BASE.split(), scope=scope, check=check,)
+        return self.__call_checker(
+            base_command=self.__ISORT_BASE.split(),
+            scope=scope,
+            check=check,
+        )
 
     def _black(self, scope, check):
-        return self.__call_checker(base_command=self.__BLACK_BASE.split(), scope=scope, check=check,)
+        return self.__call_checker(
+            base_command=self.__BLACK_BASE.split(),
+            scope=scope,
+            check=check,
+        )
 
     def _pass(self):
         self.announce(msg='\033[32mPASS\x1b[0m', level=distutils_log.INFO)

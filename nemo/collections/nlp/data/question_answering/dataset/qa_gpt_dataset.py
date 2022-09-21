@@ -27,7 +27,7 @@ from nemo.utils import logging
 
 
 class GPTQADataset(QADataset):
-    """ Creates a Dataset for GPT architecture based Generative QA """
+    """Creates a Dataset for GPT architecture based Generative QA"""
 
     def __init__(
         self,
@@ -76,7 +76,7 @@ class GPTQADataset(QADataset):
             self.features[i] = GPTQAInputExample(**self.features[i])
 
     def _set_cached_features_filename(self):
-        """ Creates cache filename using dataset config parameters """
+        """Creates cache filename using dataset config parameters"""
 
         vocab_size = getattr(self.tokenizer, "vocab_size", 0)
         self.cached_features_file = (
@@ -120,7 +120,11 @@ class GPTQADataset(QADataset):
             formatted_query, query_tokens_length = self._prep_query(query_prefix, example)
             formatted_answer, answer_tokens_length = self._prep_answer(example)
             context_tokens, context_spans = self._prep_context(
-                example, query_tokens_length, answer_tokens_length, context_prefix_tokens, answer_prefix_tokens,
+                example,
+                query_tokens_length,
+                answer_tokens_length,
+                context_prefix_tokens,
+                answer_prefix_tokens,
             )
 
             unique_id = self._encode_all_context_spans(
@@ -170,7 +174,12 @@ class GPTQADataset(QADataset):
         return self._get_truncated_sentence_and_len(target, self.max_answer_length)
 
     def _prep_context(
-        self, example, query_tokens_length, answer_tokens_length, context_prefix_tokens, answer_prefix_tokens,
+        self,
+        example,
+        query_tokens_length,
+        answer_tokens_length,
+        context_prefix_tokens,
+        answer_prefix_tokens,
     ):
         """
         Calculates the maximum possible length for a given context given a question

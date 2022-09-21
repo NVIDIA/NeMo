@@ -34,7 +34,14 @@ def get_features_infer(
     step: Optional[int] = 8,
     margin: Optional[int] = 16,
 ) -> Tuple[
-    List[List[int]], List[List[int]], List[List[int]], List[List[int]], List[int], List[int], List[bool], List[bool],
+    List[List[int]],
+    List[List[int]],
+    List[List[int]],
+    List[List[int]],
+    List[int],
+    List[int],
+    List[bool],
+    List[bool],
 ]:
     """
     Processes the data and returns features.

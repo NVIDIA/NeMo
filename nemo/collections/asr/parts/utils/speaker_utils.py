@@ -1129,8 +1129,7 @@ def generate_speaker_timestamps(
 
 
 def get_uniq_id_list_from_manifest(manifest_file: str):
-    """Retrieve `uniq_id` values from the given manifest_file and save the IDs to a list.
-    """
+    """Retrieve `uniq_id` values from the given manifest_file and save the IDs to a list."""
     uniq_id_list = []
     with open(manifest_file, 'r', encoding='utf-8') as manifest:
         for i, line in enumerate(manifest.readlines()):
@@ -1226,7 +1225,7 @@ def prepare_split_data(manifest_filepath, _out_dir, multiscale_args_dict, global
 
 def extract_timestamps(manifest_file: str):
     """
-    This method extracts timestamps from segments passed through manifest_file. 
+    This method extracts timestamps from segments passed through manifest_file.
 
     Args:
         manifest_file (str):

@@ -19,7 +19,7 @@ from nemo.utils import logging
 
 
 def experimental(cls):
-    """ Decorator which indicates that module is experimental.
+    """Decorator which indicates that module is experimental.
     Use it to mark experimental or research modules.
     """
 

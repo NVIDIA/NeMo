@@ -176,8 +176,7 @@ class BeamRNNTInfer(Typing):
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         return {
             "encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
             "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
@@ -186,8 +185,7 @@ class BeamRNNTInfer(Typing):
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {"predictions": [NeuralType(elements_type=HypothesisType())]}
 
     def __init__(
@@ -580,7 +578,10 @@ class BeamRNNTInfer(Typing):
 
                 # keep those hypothesis that have scores greater than next search generation
                 hyps_max = float(max(hyps, key=lambda x: x.score).score)
-                kept_most_prob = sorted([hyp for hyp in kept_hyps if hyp.score > hyps_max], key=lambda x: x.score,)
+                kept_most_prob = sorted(
+                    [hyp for hyp in kept_hyps if hyp.score > hyps_max],
+                    key=lambda x: x.score,
+                )
 
                 # If enough hypothesis have scores greater than next search generation,
                 # stop beam search.
@@ -1007,7 +1008,8 @@ class BeamRNNTInfer(Typing):
 
                 # Extract the log probabilities
                 beam_logp, beam_idx = torch.log_softmax(
-                    self.joint.joint(beam_enc_out, beam_dec_out) / self.softmax_temperature, dim=-1,
+                    self.joint.joint(beam_enc_out, beam_dec_out) / self.softmax_temperature,
+                    dim=-1,
                 ).topk(self.max_candidates, dim=-1)
 
                 beam_logp = beam_logp[:, 0, 0, :]  # [B, V + 1]
@@ -1105,7 +1107,8 @@ class BeamRNNTInfer(Typing):
                     else:
                         # Extract the log probabilities
                         beam_logp = torch.log_softmax(
-                            self.joint.joint(beam_enc_out, beam_dec_out) / self.softmax_temperature, dim=-1,
+                            self.joint.joint(beam_enc_out, beam_dec_out) / self.softmax_temperature,
+                            dim=-1,
                         )
                         beam_logp = beam_logp[:, 0, 0, :]
 
@@ -1169,7 +1172,8 @@ class BeamRNNTInfer(Typing):
 
                 if is_prefix(hyp_j.y_sequence, hyp_i.y_sequence) and (curr_id - pref_id) <= prefix_alpha:
                     logp = torch.log_softmax(
-                        self.joint.joint(enc_out, hyp_i.dec_out[-1]) / self.softmax_temperature, dim=-1,
+                        self.joint.joint(enc_out, hyp_i.dec_out[-1]) / self.softmax_temperature,
+                        dim=-1,
                     )
                     logp = logp[0, 0, 0, :]
 
@@ -1177,7 +1181,8 @@ class BeamRNNTInfer(Typing):
 
                     for k in range(pref_id, (curr_id - 1)):
                         logp = torch.log_softmax(
-                            self.joint.joint(enc_out, hyp_j.dec_out[k]) / self.softmax_temperature, dim=-1,
+                            self.joint.joint(enc_out, hyp_j.dec_out[k]) / self.softmax_temperature,
+                            dim=-1,
                         )
                         logp = logp[0, 0, 0, :]
 

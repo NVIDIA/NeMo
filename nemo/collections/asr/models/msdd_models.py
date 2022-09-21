@@ -141,8 +141,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
             del cfg.speaker_model_cfg.validation_ds
 
     def _init_segmentation_info(self):
-        """Initialize segmentation settings: window, shift and multiscale weights.
-        """
+        """Initialize segmentation settings: window, shift and multiscale weights."""
         self._diarizer_params = self.cfg_msdd_model.diarizer
         self.multiscale_args_dict = parse_scale_configs(
             self._diarizer_params.speaker_embeddings.parameters.window_length_in_sec,
@@ -250,10 +249,14 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
         )
 
     def setup_training_data(self, train_data_config: Optional[Union[DictConfig, Dict]]):
-        self._train_dl = self.__setup_dataloader_from_config(config=train_data_config,)
+        self._train_dl = self.__setup_dataloader_from_config(
+            config=train_data_config,
+        )
 
     def setup_validation_data(self, val_data_layer_config: Optional[Union[DictConfig, Dict]]):
-        self._validation_dl = self.__setup_dataloader_from_config(config=val_data_layer_config,)
+        self._validation_dl = self.__setup_dataloader_from_config(
+            config=val_data_layer_config,
+        )
 
     def setup_test_data(self, test_data_config: Optional[Union[DictConfig, Dict]]):
         if self.pairwise_infer:
@@ -313,32 +316,32 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
                 Merged embeddings without zero-padding in the batch. See `ms_seg_counts` for details.
                 Shape: (Total number of segments in the batch, emb_dim)
             scale_mapping (Tensor):
-		The element at the m-th row and the n-th column of the scale mapping matrix indicates the (m+1)-th scale
-		segment index which has the closest center distance with (n+1)-th segment in the base scale.
-		Example:
-		    scale_mapping_argmat[2][101] = 85
-		In the above example, it means that 86-th segment in the 3rd scale (python index is 2) is mapped with
-		102-th segment in the base scale. Thus, the longer segments bound to have more repeating numbers since
-		multiple base scale segments (since the base scale has the shortest length) fall into the range of the
-		longer segments. At the same time, each row contains N numbers of indices where N is number of
-		segments in the base-scale (i.e., the finest scale).
+                The element at the m-th row and the n-th column of the scale mapping matrix indicates the (m+1)-th scale
+                segment index which has the closest center distance with (n+1)-th segment in the base scale.
+                Example:
+                    scale_mapping_argmat[2][101] = 85
+                In the above example, it means that 86-th segment in the 3rd scale (python index is 2) is mapped with
+                102-th segment in the base scale. Thus, the longer segments bound to have more repeating numbers since
+                multiple base scale segments (since the base scale has the shortest length) fall into the range of the
+                longer segments. At the same time, each row contains N numbers of indices where N is number of
+                segments in the base-scale (i.e., the finest scale).
                 Shape: (batch_size, scale_n, self.diar_window_length)
             ms_seg_counts (Tensor):
                 Cumulative sum of the number of segments in each scale. This information is needed to reconstruct
                 the multi-scale input matrix during forward propagating.
 
-		Example: `batch_size=3, scale_n=6, emb_dim=192`
+                Example: `batch_size=3, scale_n=6, emb_dim=192`
                     ms_seg_counts =
                      [[8,  9, 12, 16, 25, 51],
                       [11, 13, 14, 17, 25, 51],
                       [ 9,  9, 11, 16, 23, 50]]
 
-		In this function, `ms_seg_counts` is used to get the actual length of each embedding sequence without
-		zero-padding.
+                In this function, `ms_seg_counts` is used to get the actual length of each embedding sequence without
+                zero-padding.
 
         Returns:
             ms_emb_seq (Tensor):
-	        Multi-scale embedding sequence that is mapped, matched and repeated. The longer scales are less repeated,
+                Multi-scale embedding sequence that is mapped, matched and repeated. The longer scales are less repeated,
                 while shorter scales are more frequently repeated following the scale mapping tensor.
         """
         scale_n, batch_size = scale_mapping[0].shape[0], scale_mapping.shape[0]
@@ -1053,9 +1056,9 @@ class OverlapAwareDiarizer:
                     Examples: (0, 1, 2)
                 data[1]: Tensor containing estimaged sigmoid values.
                    [[0.0264, 0.9995],
-		    [0.0112, 1.0000],
-		    ...,
-		    [1.0000, 0.0512]]
+                    [0.0112, 1.0000],
+                    ...,
+                    [1.0000, 0.0512]]
 
         Returns:
             sum_pred (Tensor):
@@ -1107,8 +1110,7 @@ class OverlapAwareDiarizer:
         return output_list
 
     def get_emb_clus_infer(self, cluster_embeddings):
-        """Assign dictionaries containing the clustering results from the class instance `cluster_embeddings`.
-        """
+        """Assign dictionaries containing the clustering results from the class instance `cluster_embeddings`."""
         self.msdd_model.emb_sess_test_dict = cluster_embeddings.emb_sess_test_dict
         self.msdd_model.clus_test_label_dict = cluster_embeddings.clus_test_label_dict
         self.msdd_model.emb_seq_test = cluster_embeddings.emb_seq_test
@@ -1267,7 +1269,8 @@ class OverlapAwareDiarizer:
         if self._cfg.diarizer.msdd_model.parameters.split_infer:
             split_count = torch.ceil(torch.tensor(signals.shape[1] / self.diar_window_length)).int()
             sess_emb_vectors, sess_emb_seq, sess_sig_lengths = self.get_range_clus_avg_emb(
-                test_batch, test_data_collection,
+                test_batch,
+                test_data_collection,
             )
             with autocast():
                 _preds, scale_weights = self.msdd_model.forward_infer(
@@ -1358,6 +1361,10 @@ class OverlapAwareDiarizer:
                 out_rttm_dir=self.out_rttm_dir,
             )
             score_labels(
-                self.AUDIO_RTTM_MAP, all_reference, all_hypothesis, collar=collar, ignore_overlap=ignore_overlap,
+                self.AUDIO_RTTM_MAP,
+                all_reference,
+                all_hypothesis,
+                collar=collar,
+                ignore_overlap=ignore_overlap,
             )
         logging.info(f"  \n")

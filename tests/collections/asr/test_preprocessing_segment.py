@@ -38,8 +38,7 @@ class TestAudioSegment:
     @pytest.mark.parametrize("num_channels", [1, 4])
     @pytest.mark.parametrize("channel_selector", [None, 'average', 0, 1, [0, 1]])
     def test_init_single_channel(self, num_channels: int, channel_selector: Type[Union[str, int, List[int]]]):
-        """Test the constructor directly.
-        """
+        """Test the constructor directly."""
         if num_channels == 1:
             # samples is a one-dimensional vector for single-channel signal
             samples = np.random.rand(self.num_samples)
@@ -93,8 +92,7 @@ class TestAudioSegment:
     @pytest.mark.parametrize("num_channels", [1, 4])
     @pytest.mark.parametrize("channel_selector", [None, 'average', 0])
     def test_from_file(self, num_channels, channel_selector):
-        """Test loading a signal from a file.
-        """
+        """Test loading a signal from a file."""
         with tempfile.TemporaryDirectory() as test_dir:
             # Prepare a wav file
             audio_file = os.path.join(test_dir, 'audio.wav')

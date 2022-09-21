@@ -59,7 +59,7 @@ from nemo.core.neural_types.neural_type import NeuralType
 
 
 class KernelPredictor(torch.nn.Module):
-    ''' Kernel predictor for the location-variable convolutions'''
+    '''Kernel predictor for the location-variable convolutions'''
 
     def __init__(
         self,
@@ -136,9 +136,19 @@ class KernelPredictor(torch.nn.Module):
         k = self.kernel_conv(c)
         b = self.bias_conv(c)
         kernels = k.contiguous().view(
-            batch, self.conv_layers, self.conv_in_channels, self.conv_out_channels, self.conv_kernel_size, cond_length,
+            batch,
+            self.conv_layers,
+            self.conv_in_channels,
+            self.conv_out_channels,
+            self.conv_kernel_size,
+            cond_length,
         )
-        bias = b.contiguous().view(batch, self.conv_layers, self.conv_out_channels, cond_length,)
+        bias = b.contiguous().view(
+            batch,
+            self.conv_layers,
+            self.conv_out_channels,
+            cond_length,
+        )
 
         return kernels, bias
 
@@ -218,7 +228,7 @@ class LVCBlock(torch.nn.Module):
             )
 
     def forward(self, x, c):
-        ''' forward propagation of the location-variable convolutions.
+        '''forward propagation of the location-variable convolutions.
         Args:
             x (Tensor): the input sequence (batch, in_channels, in_length)
             c (Tensor): the conditioning sequence (batch, cond_channels, cond_length)
@@ -247,7 +257,7 @@ class LVCBlock(torch.nn.Module):
         return x
 
     def location_variable_convolution(self, x, kernel, bias, dilation=1, hop_size=256):
-        ''' perform location-variable convolution operation on the input sequence (x) using the local convolution kernel
+        '''perform location-variable convolution operation on the input sequence (x) using the local convolution kernel
         Args:
             x (Tensor): the input sequence (batch, in_channels, in_length).
             kernel (Tensor): the local convolution kernel (batch, in_channel, out_channels, kernel_size, kernel_length)

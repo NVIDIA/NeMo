@@ -104,5 +104,5 @@ def rescale_linear_bias(linear):
     if linear.bias is None:
         return
     fanin_mult = linear.weight.infshape[1].width_mult()
-    linear.bias.data *= fanin_mult ** 0.5
+    linear.bias.data *= fanin_mult**0.5
     linear._has_rescaled_params = True

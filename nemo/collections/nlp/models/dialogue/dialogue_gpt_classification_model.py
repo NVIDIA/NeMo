@@ -44,7 +44,9 @@ __all__ = ['DialogueGPTClassificationModel']
 
 class DialogueGPTClassificationModel(NLPModel):
     def __init__(
-        self, cfg: DictConfig, trainer: Trainer = None,
+        self,
+        cfg: DictConfig,
+        trainer: Trainer = None,
     ):
 
         self.cfg = cfg
@@ -236,7 +238,10 @@ class DialogueGPTClassificationModel(NLPModel):
             )
 
             position_ids = torch.arange(
-                start=0, end=num_prompt_tokens + input_ids.size(1), dtype=torch.long, device=input_ids.device,
+                start=0,
+                end=num_prompt_tokens + input_ids.size(1),
+                dtype=torch.long,
+                device=input_ids.device,
             )
 
             position_ids = position_ids.unsqueeze(0).repeat(input_ids.size(0), 1)
@@ -423,7 +428,7 @@ class DialogueGPTClassificationModel(NLPModel):
 
     def prepare_megatron_generation(self, labels, input_ids, template_length):
         """
-        # adapted from MegatronGPTModel._bucketize_gpt_inference 
+        # adapted from MegatronGPTModel._bucketize_gpt_inference
         """
         batch_size = labels.size(0)
         prompt_tags = [self.prompt_tags[0]] * batch_size if self.prompt_learning else None
@@ -604,7 +609,9 @@ class DialogueGPTClassificationModel(NLPModel):
             )
         elif self._cfg.dataset.task == 'design':
             self.dialogues_processor = DialogueDesignDataProcessor(
-                data_dir=self._cfg.dataset.data_dir, tokenizer=self.tokenizer, cfg=self._cfg.dataset,
+                data_dir=self._cfg.dataset.data_dir,
+                tokenizer=self.tokenizer,
+                cfg=self._cfg.dataset,
             )
         else:
             raise ValueError("Only sgd, assistant, zero_shot, design supported for Dialogue GPT Classification Model")

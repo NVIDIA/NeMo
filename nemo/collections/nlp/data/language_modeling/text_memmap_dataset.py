@@ -37,7 +37,13 @@ class TextMemMapDataset(Dataset):
 
     # FIXME: header_lines=0 by default
     def __init__(
-        self, dataset_paths, newline_int=10, header_lines=0, workers=None, tokenizer=None, sort_dataset_paths=True,
+        self,
+        dataset_paths,
+        newline_int=10,
+        header_lines=0,
+        workers=None,
+        tokenizer=None,
+        sort_dataset_paths=True,
     ):
         super().__init__()
         self.mdata_midx_list = []

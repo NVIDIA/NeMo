@@ -172,7 +172,10 @@ class EncEmb(torch.nn.Module, Exportable):
         enc_input = self.encoder_embedding(input_ids, position_ids, token_type_ids=None)
 
         # pass input through the encoder
-        return self.encoder(enc_input=enc_input, enc_attn_mask=encoder_mask,).type(torch.float32)
+        return self.encoder(
+            enc_input=enc_input,
+            enc_attn_mask=encoder_mask,
+        ).type(torch.float32)
 
     def input_example(self):
         seq_len = random.randint(0, 128)

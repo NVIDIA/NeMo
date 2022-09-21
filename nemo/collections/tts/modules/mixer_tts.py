@@ -115,10 +115,16 @@ class MixerTTSBlock(nn.Module):
         self.time_mix = PreNormResidual(
             fn=Mix(
                 first_mix_layer=create_time_mix_layer(
-                    in_feat=in_feat, out_feat=in_feat, kernel_size=kernel_size, conv_type=conv_type,
+                    in_feat=in_feat,
+                    out_feat=in_feat,
+                    kernel_size=kernel_size,
+                    conv_type=conv_type,
                 ),
                 second_mix_layer=create_time_mix_layer(
-                    in_feat=in_feat, out_feat=in_feat, kernel_size=kernel_size, conv_type=conv_type,
+                    in_feat=in_feat,
+                    out_feat=in_feat,
+                    kernel_size=kernel_size,
+                    conv_type=conv_type,
                 ),
                 dropout=dropout,
             ),
@@ -127,8 +133,14 @@ class MixerTTSBlock(nn.Module):
 
         self.channel_mix = PreNormResidual(
             fn=Mix(
-                first_mix_layer=create_channel_mix_layer(in_feat=in_feat, out_feat=expansion_factor * in_feat,),
-                second_mix_layer=create_channel_mix_layer(in_feat=expansion_factor * in_feat, out_feat=in_feat,),
+                first_mix_layer=create_channel_mix_layer(
+                    in_feat=in_feat,
+                    out_feat=expansion_factor * in_feat,
+                ),
+                second_mix_layer=create_channel_mix_layer(
+                    in_feat=expansion_factor * in_feat,
+                    out_feat=in_feat,
+                ),
                 dropout=dropout,
             ),
             feature_dim=in_feat,
@@ -183,7 +195,7 @@ class MixerTTSModule(nn.Module):
 
 
 class SelfAttentionModule(nn.Module):
-    """Self-attention for lm tokens and text. """
+    """Self-attention for lm tokens and text."""
 
     def __init__(self, n_text_channels=384, n_lm_tokens_channels=128):
         super().__init__()

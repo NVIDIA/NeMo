@@ -16,7 +16,7 @@ import torch
 
 
 class ExternalFeatureLoader(object):
-    """Feature loader that load external features store in certain format. 
+    """Feature loader that load external features store in certain format.
     Currently support pickle, npy and npz format.
     """
 

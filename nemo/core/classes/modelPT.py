@@ -173,33 +173,36 @@ class ModelPT(LightningModule, Model):
         return super().on_fit_start()
 
     def register_artifact(
-        self, config_path: str, src: str, verify_src_exists: bool = True,
+        self,
+        config_path: str,
+        src: str,
+        verify_src_exists: bool = True,
     ):
-        """ Register model artifacts with this function. These artifacts (files) will be included inside .nemo file
-            when model.save_to("mymodel.nemo") is called.
+        """Register model artifacts with this function. These artifacts (files) will be included inside .nemo file
+        when model.save_to("mymodel.nemo") is called.
 
-            How it works:
-            1. It always returns existing absolute path which can be used during Model constructor call
-                EXCEPTION: src is None or "" in which case nothing will be done and src will be returned
-            2. It will add (config_path, model_utils.ArtifactItem()) pair to self.artifacts
+        How it works:
+        1. It always returns existing absolute path which can be used during Model constructor call
+            EXCEPTION: src is None or "" in which case nothing will be done and src will be returned
+        2. It will add (config_path, model_utils.ArtifactItem()) pair to self.artifacts
 
-            If "src" is local existing path, then it will be returned in absolute path form.
-            elif "src" starts with "nemo_file:unique_artifact_name":
-                .nemo will be untarred to a temporary folder location and an actual existing path will be returned
-            else an error will be raised.
+        If "src" is local existing path, then it will be returned in absolute path form.
+        elif "src" starts with "nemo_file:unique_artifact_name":
+            .nemo will be untarred to a temporary folder location and an actual existing path will be returned
+        else an error will be raised.
 
-            WARNING: use .register_artifact calls in your models' constructors.
-            The returned path is not guaranteed to exist after you have exited your model's constuctor.
+        WARNING: use .register_artifact calls in your models' constructors.
+        The returned path is not guaranteed to exist after you have exited your model's constuctor.
 
-            Args:
-                config_path (str): Artifact key. Usually corresponds to the model config.
-                src (str): Path to artifact.
-                verify_src_exists (bool): If set to False, then the artifact is optional and register_artifact will return None even if
-                                          src is not found. Defaults to True.
-                save_restore_connector (SaveRestoreConnector): Can be overrided to add custom save and restore logic.
+        Args:
+            config_path (str): Artifact key. Usually corresponds to the model config.
+            src (str): Path to artifact.
+            verify_src_exists (bool): If set to False, then the artifact is optional and register_artifact will return None even if
+                                      src is not found. Defaults to True.
+            save_restore_connector (SaveRestoreConnector): Can be overrided to add custom save and restore logic.
 
-            Returns:
-                str: If src is not None or empty it always returns absolute path which is guaranteed to exists during model instnce life
+        Returns:
+            str: If src is not None or empty it always returns absolute path which is guaranteed to exists during model instnce life
         """
 
         app_state = AppState()
@@ -432,7 +435,9 @@ class ModelPT(LightningModule, Model):
                 self._test_names = ['test_{}_'.format(idx) for idx in range(len(self._test_dl))]
 
     def setup_optimization(
-        self, optim_config: Optional[Union[DictConfig, Dict]] = None, optim_kwargs: Optional[Dict[str, Any]] = None,
+        self,
+        optim_config: Optional[Union[DictConfig, Dict]] = None,
+        optim_kwargs: Optional[Dict[str, Any]] = None,
     ):
         """Prepares an optimizer from a string name and its optional config parameters.
 
@@ -609,27 +614,27 @@ class ModelPT(LightningModule, Model):
 
     def setup_optimizer_param_groups(self):
         """
-            Used to create param groups for the optimizer.
-            As an example, this can be used to specify per-layer learning rates:
-            optim.SGD([
-                        {'params': model.base.parameters()},
-                        {'params': model.classifier.parameters(), 'lr': 1e-3}
-                        ], lr=1e-2, momentum=0.9)
-            See https://pytorch.org/docs/stable/optim.html for more information.
-            By default, ModelPT will use self.parameters().
-            Override this method to add custom param groups.
-            In the config file, add 'optim_param_groups' to support different LRs
-            for different components (unspecified params will use the default LR):
-            model:
-                optim_param_groups:
-                    encoder:
-                        lr: 1e-4
-                        momentum: 0.8
-                    decoder:
-                        lr: 1e-3
-                optim:
-                    lr: 3e-3
-                    momentum: 0.9
+        Used to create param groups for the optimizer.
+        As an example, this can be used to specify per-layer learning rates:
+        optim.SGD([
+                    {'params': model.base.parameters()},
+                    {'params': model.classifier.parameters(), 'lr': 1e-3}
+                    ], lr=1e-2, momentum=0.9)
+        See https://pytorch.org/docs/stable/optim.html for more information.
+        By default, ModelPT will use self.parameters().
+        Override this method to add custom param groups.
+        In the config file, add 'optim_param_groups' to support different LRs
+        for different components (unspecified params will use the default LR):
+        model:
+            optim_param_groups:
+                encoder:
+                    lr: 1e-4
+                    momentum: 0.8
+                decoder:
+                    lr: 1e-3
+            optim:
+                lr: 3e-3
+                momentum: 0.9
         """
         if not hasattr(self, "parameters"):
             self._optimizer_param_groups = None
@@ -1424,17 +1429,17 @@ class ModelPT(LightningModule, Model):
             setattr(cls, '_save_restore_connector', save_restore_connector)
 
     def _setup_nsys_profiling(self):
-        """ Enables nsys profiling
-            To use, add the following optoins to the model config:
-            ## Nsys profiling options
-            nsys_profile: False
-                start_step: 10  # Global batch to start profiling
-                end_step: 10 # Global batch to end profiling
-                ranks: [0] # Global rank IDs to profile
-                gen_shape: False # Generate model and kernel details including input shapes
-            And then wrap the model training script with:
-            nsys profile -s none -o <profile filepath>  -t cuda,nvtx --force-overwrite true --capture-range=cudaProfilerApi --capture-range-end=stop python ./examples/...
-            See more options at: https://docs.nvidia.com/nsight-systems/UserGuide/index.html#cli-profiling
+        """Enables nsys profiling
+        To use, add the following optoins to the model config:
+        ## Nsys profiling options
+        nsys_profile: False
+            start_step: 10  # Global batch to start profiling
+            end_step: 10 # Global batch to end profiling
+            ranks: [0] # Global rank IDs to profile
+            gen_shape: False # Generate model and kernel details including input shapes
+        And then wrap the model training script with:
+        nsys profile -s none -o <profile filepath>  -t cuda,nvtx --force-overwrite true --capture-range=cudaProfilerApi --capture-range-end=stop python ./examples/...
+        See more options at: https://docs.nvidia.com/nsight-systems/UserGuide/index.html#cli-profiling
         """
         if self.cfg.get('nsys_profile', None) is not None:
             if self.cfg.nsys_profile.get('enabled', False):
@@ -1463,9 +1468,9 @@ class ModelPT(LightningModule, Model):
                     raise ValueError(f'Nsys end_step must be greater than or equal to nsys start_step')
 
     def on_train_batch_start(self, batch: Any, batch_idx: int, unused: int = 0) -> Optional[int]:
-        """ PyTorch Lightning hook:
-            https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-train-batch-start
-            We use it here to enable nsys profiling.
+        """PyTorch Lightning hook:
+        https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-train-batch-start
+        We use it here to enable nsys profiling.
         """
 
         if self.device.type == 'cuda':
@@ -1478,9 +1483,9 @@ class ModelPT(LightningModule, Model):
                             torch.autograd.profiler.emit_nvtx(record_shapes=True).__enter__()
 
     def on_train_batch_end(self, outputs, batch: Any, batch_idx: int, unused: int = 0) -> None:
-        """ PyTorch Lightning hook:
-            https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-train-batch-end
-            We use it here to enable nsys profiling.
+        """PyTorch Lightning hook:
+        https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-train-batch-end
+        We use it here to enable nsys profiling.
         """
 
         if self.device.type == 'cuda':
@@ -1492,13 +1497,13 @@ class ModelPT(LightningModule, Model):
 
     # TODO: Remove in PTL 1.7.2
     def cuda(self, device=None):
-        """ PTL is overriding this method and changing the pytorch behavior of a module.
+        """PTL is overriding this method and changing the pytorch behavior of a module.
             The PTL LightingModule override will move the module to device 0 if device is None.
             See the PTL method here: https://github.com/Lightning-AI/lightning/blob/master/src/pytorch_lightning/core/mixins/device_dtype_mixin.py#L113
 
             Here we are overriding this to maintain the default Pytorch nn.module behavior:
             https://github.com/pytorch/pytorch/blob/master/torch/nn/modules/module.py#L728
-        
+
         Moves all model parameters and buffers to the GPU.
 
         This also makes associated parameters and buffers different objects. So

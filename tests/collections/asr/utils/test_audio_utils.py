@@ -107,8 +107,7 @@ class TestGenerateApproximateNoiseField:
     def test_theoretical_coherence_matrix(
         self, num_mics: int, mic_spacing: float, fft_length: int, sample_rate: float, field: str
     ):
-        """Test calculation of a theoretical coherence matrix.
-        """
+        """Test calculation of a theoretical coherence matrix."""
         # test setup
         max_diff_tol = 1e-9
 
@@ -157,8 +156,7 @@ class TestGenerateApproximateNoiseField:
         field: str,
         save_figures: bool = False,
     ):
-        """Test approximate noise field with white noise as the input noise.
-        """
+        """Test approximate noise field with white noise as the input noise."""
         duration_in_sec = 20
         relative_mse_tol_dB = -30
         relative_mse_tol = 10 ** (relative_mse_tol_dB / 10)

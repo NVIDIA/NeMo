@@ -51,7 +51,10 @@ parser.add_argument(
     help='Add target language based on the num2words list of supported languages',
 )
 parser.add_argument(
-    "--cut_prefix", type=int, default=0, help="Number of seconds to cut from the beginning of the audio files.",
+    "--cut_prefix",
+    type=int,
+    default=0,
+    help="Number of seconds to cut from the beginning of the audio files.",
 )
 parser.add_argument(
     "--model", type=str, default="QuartzNet15x5Base-En", help="Pre-trained model name or path to model checkpoint"

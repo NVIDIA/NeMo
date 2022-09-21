@@ -61,10 +61,10 @@ except (ImportError, ModuleNotFoundError):
     ASR_AVAILABLE = False
 
 
-MAX_NUM_QUERIES_IN_SPLIT = 10 ** 4
-TOKENIZATION_PROGRESS_REPORT_PERIOD = 10 ** 3
-BATCH_MARK_UP_PROGRESS_REPORT_PERIOD = 10 ** 4
-BATCH_BUILDING_PROGRESS_REPORT_PERIOD = 10 ** 4
+MAX_NUM_QUERIES_IN_SPLIT = 10**4
+TOKENIZATION_PROGRESS_REPORT_PERIOD = 10**3
+BATCH_MARK_UP_PROGRESS_REPORT_PERIOD = 10**4
+BATCH_BUILDING_PROGRESS_REPORT_PERIOD = 10**4
 
 LABEL_ID_DIR_FOR_NEMO_CHECKPOINT = "label_id_files_for_nemo_checkpoint"
 
@@ -703,7 +703,13 @@ def _get_features(
         with mp.Pool(n_jobs) as pool:
             result = pool.starmap(
                 TokenizeCreateMasksClipWorker(
-                    max_seq_length, tokenizer, punct_label_ids, capit_label_ids, pad_label, verbose, progress_queue,
+                    max_seq_length,
+                    tokenizer,
+                    punct_label_ids,
+                    capit_label_ids,
+                    pad_label,
+                    verbose,
+                    progress_queue,
                 ),
                 args,
             )
@@ -712,7 +718,13 @@ def _get_features(
         for x in args:
             result.append(
                 TokenizeCreateMasksClipWorker(
-                    max_seq_length, tokenizer, punct_label_ids, capit_label_ids, pad_label, verbose, progress_queue,
+                    max_seq_length,
+                    tokenizer,
+                    punct_label_ids,
+                    capit_label_ids,
+                    pad_label,
+                    verbose,
+                    progress_queue,
                 )(*x)
             )
     if create_progress_process:
@@ -1005,7 +1017,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports. """
+        """Returns definitions of module output ports."""
         if self.use_audio:
             return {
                 'input_ids': NeuralType(('B', 'T'), ChannelType()),
@@ -1061,7 +1073,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         use_bucketing: Optional[bool] = True,
         preload_audios: Optional[bool] = True,
     ) -> None:
-        """ Initializes BertPunctuationCapitalizationDataset. """
+        """Initializes BertPunctuationCapitalizationDataset."""
         if isinstance(punct_label_ids, DictConfig):
             punct_label_ids = OmegaConf.to_container(punct_label_ids)
         if isinstance(capit_label_ids, DictConfig):

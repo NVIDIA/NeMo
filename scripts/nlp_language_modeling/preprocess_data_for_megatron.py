@@ -221,10 +221,16 @@ def get_args():
         help='What tokenizer library to use.',
     )
     group.add_argument(
-        '--tokenizer-type', type=str, default=None, help='What type of tokenizer to use.',
+        '--tokenizer-type',
+        type=str,
+        default=None,
+        help='What type of tokenizer to use.',
     )
     group.add_argument(
-        '--tokenizer-model', type=str, default=None, help='Path to tokenizer model.',
+        '--tokenizer-model',
+        type=str,
+        default=None,
+        help='Path to tokenizer model.',
     )
     group.add_argument('--vocab-file', type=str, default=None, help='Path to the vocab file')
     group.add_argument('--files-filter', type=str, default='**/*.json*', help='files filter str')
