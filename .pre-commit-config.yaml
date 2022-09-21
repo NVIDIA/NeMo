@@ -36,7 +36,7 @@ repos:
         args: [--multi-line=3, --trailing-comma, --force-grid-wrap=0, --use-parentheses, --line-width=119, -rc, -ws]
 
   - repo: https://github.com/psf/black
-    rev: 22.1.0
+    rev: 22.3.0
     hooks:
       - id: black
         name: Format code
