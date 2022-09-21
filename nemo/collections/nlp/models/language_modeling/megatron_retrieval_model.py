@@ -342,11 +342,10 @@ class MegatronRetrievalModel(MegatronBaseModel):
         return self.validation_step(batch, batch_idx)
 
     def test_epoch_end(self, outputs):
-        averaged_loss = average_losses_across_data_parallel_group(outputs)
-        logging.info(f'test_loss: {averaged_loss[0]}')
-        self.log(
-            'consumed_samples', self.compute_consumed_samples(self.trainer.global_step - self.init_global_step),
-        )
+        averaged_loss = torch.stack(outputs).mean()
+        self.log('test_loss', averaged_loss, prog_bar=True)
+        logging.info(f'test_loss: {averaged_loss} ')
+        self.log('perplexity', torch.exp(averaged_loss), prog_bar=True)
         return averaged_loss
 
     def build_train_valid_test_datasets(self):
