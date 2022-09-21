@@ -57,7 +57,11 @@ if __name__ == "__main__":
     data_path = os.path.abspath(args.data_root)
     os.makedirs(data_path, exist_ok=True)
 
-    for manifest_path, split in ((args.test_manifest_filepath, 'test'), (args.dev_manifest_filepath, 'dev'), (args.train_manifest_filepath, 'train')):
+    for manifest_path, split in (
+        (args.test_manifest_filepath, 'test'),
+        (args.dev_manifest_filepath, 'dev'),
+        (args.train_manifest_filepath, 'train'),
+    ):
         split_path = os.path.join(data_path, split)
         audio_path = os.path.join(split_path, "audio")
         os.makedirs(split_path, exist_ok=True)
