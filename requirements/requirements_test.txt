@@ -1,4 +1,5 @@
 black==19.10b0
+pre-commit>=1.0
 isort[requirements] < 5
 parameterized
 pytest
