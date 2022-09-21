@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from nemo.collections.nlp.models.language_modeling.bert_lm_model import BERTLMModel
+from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
     MegatronGPTPromptLearningModel,
 )

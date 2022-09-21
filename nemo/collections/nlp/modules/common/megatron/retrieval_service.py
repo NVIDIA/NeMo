@@ -74,12 +74,15 @@ class FaissRetrievalService(RetrievalService):
             device_list = ['cuda:' + str(device) for device in faiss_devices.split(',')]
 
         self.index = faiss.read_index(faiss_index)
+        beg = time.time()
         if has_gpu and device_list is not None:
             co = faiss.GpuMultipleClonerOptions()
             co.useFloat16 = True
             co.usePrecomputed = False
             co.shard = True
             self.index = faiss.index_cpu_to_all_gpus(self.index, co, ngpu=len(device_list))
+        end = time.time()
+        print('convert Faiss db to GPU takes', end - beg)
         self.index.nprobe = nprobe
 
         self.bert_model = SentenceTransformer(sentence_bert)

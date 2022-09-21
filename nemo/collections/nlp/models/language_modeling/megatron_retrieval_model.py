@@ -14,7 +14,22 @@
 
 import math
 import re
-from typing import Optional
+from typing import Optional, Union, List
+
+from nemo.collections.nlp.modules.common.transformer.text_generation import (
+    LengthParam,
+    OutputType,
+    SamplingParam,
+    TextGeneration,
+)
+
+from nemo.collections.nlp.modules.common.text_generation_utils import (
+    generate,
+    get_computeprob_response,
+    get_default_length_params,
+    get_default_sampling_params,
+    megatron_gpt_generate,
+)
 
 import torch
 from omegaconf import DictConfig
@@ -58,7 +73,7 @@ except (ImportError, ModuleNotFoundError):
 __all__ = ["MegatronRetrievalModel"]
 
 
-class MegatronRetrievalModel(MegatronBaseModel):
+class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
     """
     Megatron Retrieval enhanced language model
     """
@@ -451,6 +466,67 @@ class MegatronRetrievalModel(MegatronBaseModel):
         self.setup_training_data(self._cfg.data)
         self.setup_validation_data(self._cfg.data)
         self.setup_test_data(self._cfg.data)
+
+    def generate(
+        self,
+        inputs: Union[List[str], torch.Tensor, List[dict]],
+        length_params: LengthParam,
+        sampling_params: SamplingParam = None,
+    ) -> OutputType:
+
+        # check whether the DDP is initialized
+        if parallel_state.is_unitialized():
+
+            def dummy():
+                return
+
+            if self.trainer.strategy.launcher is not None:
+                self.trainer.strategy.launcher.launch(dummy, trainer=self.trainer)
+            self.trainer.strategy.setup_environment()
+
+        # set the default sampling params if it is None.
+        # default do greedy sampling
+        if sampling_params is None:
+            sampling_params = get_default_sampling_params()
+
+        # set the default length params if it is None.
+        # default do greedy sampling
+        if length_params is None:
+            length_params = get_default_length_params()
+
+        return megatron_gpt_generate(self.cuda(), inputs, self.tokenizer, length_params, sampling_params)
+
+    def get_forward_output_only_func(self):
+        """
+        Used for generate method only.
+        """
+
+        def fwd_output_only_func(batch, model):
+            extra_arg = {}
+            (
+                tokens,
+                attention_mask,
+                position_ids,
+                task_ids,
+                set_inference_key_value_memory,
+                inference_max_sequence_len,
+            ) = batch
+
+            tokens = tokens.cuda()
+            attention_mask = attention_mask.cuda()
+            position_ids = position_ids.cuda()
+            task_ids = task_ids.cuda()
+            extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
+            extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
+
+            output_tensor = model(tokens, position_ids, attention_mask, task_ids, **extra_arg)
+
+            def id_func(output_tensor):
+                return output_tensor, {'logits': output_tensor}
+
+            return output_tensor, id_func
+
+        return fwd_output_only_func
 
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds'):
