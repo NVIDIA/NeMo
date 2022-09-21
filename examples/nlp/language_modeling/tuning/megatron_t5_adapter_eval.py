@@ -68,17 +68,17 @@ def main(cfg) -> None:
     # Load an adapter model,  must be provided in config
     if cfg.get("adapter_model_file", None) is not None and cfg.get("pretrained_language_model_file", None) is not None:
         # Update frozen GPT model path in case it has changed
-        ia3_tuning_cfg = MegatronT5AdapterLearningModel.restore_from(
+        adapter_tuning_cfg = MegatronT5AdapterLearningModel.restore_from(
             cfg.adapter_model_file, trainer=trainer, return_config=True
         )
-        with open_dict(ia3_tuning_cfg):
-            ia3_tuning_cfg.pretrained_language_model_path = cfg.pretrained_language_model_file
-            ia3_tuning_cfg.micro_batch_size = cfg.get("micro_batch_size", 4)
-            ia3_tuning_cfg.global_batch_size = cfg.get("global_batch_size", 4)
+        with open_dict(adapter_tuning_cfg):
+            adapter_tuning_cfg.pretrained_language_model_path = cfg.pretrained_language_model_file
+            adapter_tuning_cfg.micro_batch_size = cfg.data.micro_batch_size
+            adapter_tuning_cfg.global_batch_size = cfg.data.global_batch_size
 
         # Now load prompt learning model with frozen gpt model base
         model = MegatronT5AdapterLearningModel.restore_from(
-            restore_path=cfg.adapter_model_file, trainer=trainer, override_config_path=ia3_tuning_cfg
+            restore_path=cfg.adapter_model_file, trainer=trainer, override_config_path=adapter_tuning_cfg
         )
 
     # Or load regular GPT model
