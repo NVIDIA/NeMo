@@ -17,7 +17,6 @@ import collections
 import copy
 import os
 import random
-from collections import OrderedDict
 from typing import Dict, Optional, Union
 
 import numpy as np
@@ -38,6 +37,11 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_
 )
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import VirtualPromptSource
+from nemo.collections.nlp.modules.common.text_generation_utils import (
+    get_default_sampling_params,
+    megatron_gpt_generate,
+)
+from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
@@ -267,6 +271,36 @@ class DialogueGPTClassificationModel(NLPModel):
         if self.prompt_learning:
             self.language_model.on_train_end()
 
+    def get_prompt_token_labels_for_megatron_gpt(self, input_ids, num_prompt_tokens):
+
+        prompt_token_labels = torch.full(
+            size=(input_ids.size(0), num_prompt_tokens),
+            fill_value=self.tokenizer.tokenizer.pad_token_id,
+            dtype=torch.long,
+        )
+
+        if self.prompt_learning:
+            prompt_token_labels.data = torch.LongTensor(
+                np.tile(np.array(self.language_model.pseudo_token_ids), (input_ids.size(0), 1))
+            )
+
+        prompt_token_labels = prompt_token_labels.to(input_ids.device)
+
+        return prompt_token_labels
+
+    def get_prompt_ids_for_megatron_gpt(self, input_ids):
+        if self.cfg.virtual_prompt_style == 'prompt-tuning' or not self.prompt_learning or self.trainer.testing:
+            prompt_ids = torch.tensor([0] * input_ids.size(0)).to(input_ids.device) if self.prompt_learning else None
+        else:
+            total_virtual_tokens = self.cfg.task_templates[0].total_virtual_tokens
+            init_text = self.cfg.prompt_tuning.new_prompt_init_text[0]
+            init_text_ids = self.tokenizer.text_to_ids(init_text)
+            init_text_ids = torch.tensor(init_text_ids).to(input_ids.device)
+            # repeat text ids if n text ids < n total virtual tokens
+            n_repeats = total_virtual_tokens // init_text_ids.size(0) + 1
+            prompt_ids = init_text_ids.repeat(input_ids.size(0), n_repeats)[:, :total_virtual_tokens]
+        return prompt_ids
+
     def forward(self, input_ids, attention_mask, labels, inference=True):
 
         if self.cfg.library == "huggingface":
@@ -284,25 +318,11 @@ class DialogueGPTClassificationModel(NLPModel):
             num_prompt_tokens = (
                 len(self.language_model.pseudo_token_ids) if hasattr(self.language_model, 'pseudo_token_ids') else 0
             )
-
             position_ids = torch.arange(
                 start=0, end=num_prompt_tokens + input_ids.size(1), dtype=torch.long, device=input_ids.device,
             )
 
-            position_ids = position_ids.unsqueeze(0).repeat(input_ids.size(0), 1)
-
-            if self.cfg.virtual_prompt_style == 'prompt-tuning' or not self.prompt_learning or self.trainer.testing:
-                prompt_ids = (
-                    torch.tensor([0] * input_ids.size(0)).to(input_ids.device) if self.prompt_learning else None
-                )
-            else:
-                total_virtual_tokens = self.cfg.task_templates[0].total_virtual_tokens
-                init_text = self.cfg.prompt_tuning.new_prompt_init_text[0]
-                init_text_ids = self.tokenizer.text_to_ids(init_text)
-                init_text_ids = torch.tensor(init_text_ids).to(input_ids.device)
-                # repeat text ids if n text ids < n total virtual tokens
-                n_repeats = total_virtual_tokens // init_text_ids.size(0) + 1
-                prompt_ids = init_text_ids.repeat(input_ids.size(0), n_repeats)[:, :total_virtual_tokens]
+            prompt_ids = self.get_prompt_ids_for_megatron_gpt(input_ids)
 
             attn_mask_add_on = torch.ones((attention_mask.size(0), num_prompt_tokens), device=attention_mask.device)
             full_attention_mask = torch.cat([attn_mask_add_on, attention_mask], axis=-1)
@@ -312,18 +332,7 @@ class DialogueGPTClassificationModel(NLPModel):
 
             attn_mask = full_attention_mask_expand > 0
 
-            prompt_token_labels = torch.full(
-                size=(input_ids.size(0), num_prompt_tokens),
-                fill_value=self.tokenizer.tokenizer.pad_token_id,
-                dtype=torch.long,
-            )
-
-            if self.prompt_learning:
-                prompt_token_labels.data = torch.LongTensor(
-                    np.tile(np.array(self.language_model.pseudo_token_ids), (input_ids.size(0), 1))
-                )
-
-            prompt_token_labels = prompt_token_labels.to(input_ids.device)
+            prompt_token_labels = self.get_prompt_token_labels_for_megatron_gpt(input_ids, num_prompt_tokens)
 
             input_ids_new = torch.cat([prompt_token_labels, input_ids], axis=1)
             make_up_last_column_input_ids = (
@@ -478,41 +487,6 @@ class DialogueGPTClassificationModel(NLPModel):
             else:
                 considered_loss = loss_per_sample
             best_j = torch.argmin(considered_loss)
-            '''
-            best_j = 0
-
-            lowest_loss = float("inf")
-            print('best_j new: ', best_j)
-
-            for j in range(candidate_input_ids.size(1)):
-
-                if 0 < j < candidate_input_ids.size(1) and torch.equal(
-                    candidate_input_ids[i, j, :], candidate_input_ids[i, 0, :]
-                ):
-                    break
-
-                cand_loss, _ = self(
-                    candidate_input_ids[i, j : j + 1, :],
-                    candidate_attn_masks[i, j : j + 1, :],
-                    candidate_input_ids[i, j : j + 1, :],
-                )
-
-                considered_loss = cand_loss.item()
-
-                if minus_prior:
-                    utterance_free_cand_loss, _ = self(
-                        candidate_input_ids[i, j : j + 1, utterance_end:],
-                        candidate_attn_masks[i, j : j + 1, utterance_end:],
-                        candidate_input_ids[i, j : j + 1, utterance_end:],
-                    )
-                    considered_loss -= utterance_free_cand_loss.item()
-
-                if considered_loss < lowest_loss:
-                    best_j = j
-                    lowest_loss = considered_loss
-            print('best j original: ', best_j)
-            raise ValueError
-            '''
             best_candidate_input_ids.append(candidate_input_ids[i, best_j, :])
 
         candidate_tokens = torch.stack(best_candidate_input_ids)
@@ -520,52 +494,6 @@ class DialogueGPTClassificationModel(NLPModel):
             candidate_tokens, labels, template_length=template_length
         )
         return generated_field, ground_truth_field
-
-    def prepare_megatron_generation(self, labels, input_ids, template_length):
-        """
-        # adapted from MegatronGPTModel._bucketize_gpt_inference 
-        """
-        batch_size = labels.size(0)
-        prompt_tags = [self.prompt_tags[0]] * batch_size if self.prompt_learning else None
-        batch_tokens = input_ids.tolist()
-
-        # unpad tokens
-        lens = template_length
-        indxs = [index for index in range(batch_size)]
-        for lenn, index in zip(lens, indxs):
-            batch_tokens[index] = batch_tokens[index][:lenn]
-
-        # chunk tokens by same length
-        pre_buckets, lens = [], list(set(lens.tolist()))
-        for lenn in lens:
-            pre_buckets.append([(tokens, index) for index, tokens in enumerate(batch_tokens) if len(tokens) == lenn])
-
-        buckets, positions, bucket_prompt_tags = [], [], []
-
-        # get buckets and prompts initial positions
-        for bucket in pre_buckets:
-            buckets.append(torch.tensor([item[0] for item in bucket]).to(device=labels.device))
-            positions.append([item[1] for item in bucket])
-
-            # bucket prompt tags identically to their corresponding examples
-            if prompt_tags:
-                bucket_prompt_tags.append([prompt_tags[item[1]] for item in bucket])
-
-        # Flatten position list
-        positions = [item for sublist in positions for item in sublist]
-
-        # Flatten buckets and bucket_prompt_tags # temp fix for megatron complete issue. However, this is also slower than bucketized inference
-        buckets = [item.unsqueeze(0) for sublist in buckets for item in sublist]
-        bucket_prompt_tags = [[item] for sublist in bucket_prompt_tags for item in sublist]
-
-        request = {"tokens": buckets, "prompt_tags": bucket_prompt_tags}
-
-        return positions, request
-
-    def post_process_megatron_generation(self, outputs):
-        text_outputs = [output[0] for output in outputs]
-        generated_tokens = self.tokenizer.tokenizer(text_outputs, padding=True, return_tensors="pt").data["input_ids"]
-        return generated_tokens
 
     def generate_candidates(self, labels, template_length, input_ids, attn_masks):
 
@@ -595,14 +523,34 @@ class DialogueGPTClassificationModel(NLPModel):
             generated_tokens = torch.cat(generated_tokens, axis=0)
 
         elif self.cfg.library == "megatron":
-            positions, request = self.prepare_megatron_generation(labels, input_ids, template_length)
-            outputs = self.language_model.complete(request, positions, tokens_to_generate)
-            generated_tokens = self.post_process_megatron_generation(outputs)
+
+            prompt_ids = self.get_prompt_ids_for_megatron_gpt(input_ids)
+
+            num_prompt_tokens = (
+                len(self.language_model.pseudo_token_ids) if hasattr(self.language_model, 'pseudo_token_ids') else 0
+            )
+
+            prompt_token_labels = self.get_prompt_token_labels_for_megatron_gpt(input_ids, num_prompt_tokens)
+
+            input_ids_new = torch.cat([prompt_token_labels, input_ids], axis=1)
+
+            tokens_for_generation = (input_ids_new, template_length + num_prompt_tokens)
+
+            length_param: LengthParam = {"min_length": 0, "max_length": tokens_to_generate}
+
+            generated_dict = megatron_gpt_generate(
+                self.language_model,
+                tokens_for_generation,
+                self.tokenizer,
+                length_param,
+                get_default_sampling_params(),
+                prompt_ids,
+            )
+            generated_tokens = torch.LongTensor(generated_dict['token_ids'])
 
         generated_field, ground_truth_field = self.process_into_structured_fields(
-            generated_tokens, labels, template_length=template_length
+            generated_tokens, labels, template_length=template_length + num_prompt_tokens
         )
-
         return generated_field, ground_truth_field
 
     def eval_step_helper(self, batch, mode='val'):
