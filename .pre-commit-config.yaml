@@ -28,7 +28,6 @@ repos:
       - id: check-case-conflict
       - id: detect-private-key
 
-
   - repo: https://github.com/PyCQA/isort
     rev: 4.3.21
     hooks:
