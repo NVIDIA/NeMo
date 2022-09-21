@@ -143,7 +143,6 @@ train.gpt3.126m_2node_100steps:
     RUN_MODEL_SIZE: 126m
     NUM_NODES: 2
     TIME_LIMIT: "20:00"
-    MEMORY_MEASURE_TEST: "True"
 
 train.gpt3.126m_8node_100steps:
   stage: gpt3_configs
