@@ -30,9 +30,9 @@ class PartialConv1d(torch.nn.Conv1d):
         super(PartialConv1d, self).__init__(*args, **kwargs)
         weight_maskUpdater = torch.ones(1, 1, self.kernel_size[0])
         self.register_buffer("weight_maskUpdater", weight_maskUpdater, persistent=False)
-        slide_winsize=torch.tensor(self.weight_maskUpdater.shape[1] * self.weight_maskUpdater.shape[2])
+        slide_winsize = torch.tensor(self.weight_maskUpdater.shape[1] * self.weight_maskUpdater.shape[2])
         self.register_buffer("slide_winsize", slide_winsize, persistent=False)
-        
+
         if self.bias is not None:
             bias_view = self.bias.view(1, self.out_channels, 1)
             self.register_buffer('bias_view', bias_view, persistent=False)
@@ -61,14 +61,12 @@ class PartialConv1d(torch.nn.Conv1d):
                 groups=1,
             )
             # for mixed precision training, change 1e-8 to 1e-6
-            mask_ratio = self.slide_winsize/(update_mask + 1e-6)
+            mask_ratio = self.slide_winsize / (update_mask + 1e-6)
             update_mask = torch.clamp(update_mask, 0, 1)
             mask_ratio = torch.mul(mask_ratio.to(update_mask), update_mask)
-            return torch.mul(input,mask), mask_ratio, update_mask
+            return torch.mul(input, mask), mask_ratio, update_mask
 
-    def forward_aux(
-        self, input: torch.Tensor, mask_ratio: torch.Tensor, update_mask: torch.Tensor
-    ) -> torch.Tensor:
+    def forward_aux(self, input: torch.Tensor, mask_ratio: torch.Tensor, update_mask: torch.Tensor) -> torch.Tensor:
         assert len(input.shape) == 3
 
         raw_out = self._conv_forward(input, self.weight, self.bias)
@@ -84,9 +82,7 @@ class PartialConv1d(torch.nn.Conv1d):
     @torch.jit.ignore
     def forward_with_cache(self, input: torch.Tensor, mask_in: Optional[torch.Tensor] = None) -> torch.Tensor:
         use_cache = not (torch.jit.is_tracing() or torch.onnx.is_in_onnx_export())
-        cache_hit = (
-            use_cache and mask_in is None and self.last_size == input.shape
-        )
+        cache_hit = use_cache and mask_in is None and self.last_size == input.shape
         if cache_hit:
             mask_ratio = self.mask_ratio
             update_mask = self.update_mask

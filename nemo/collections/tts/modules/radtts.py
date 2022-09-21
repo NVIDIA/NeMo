@@ -31,8 +31,8 @@ from nemo.collections.tts.modules.common import (
     Invertible1x1ConvLUS,
     LinearNorm,
     get_mask_from_lengths,
-    sort_tensor,
     getRadTTSEncoder,
+    sort_tensor,
 )
 from nemo.collections.tts.modules.submodules import PartialConv1d
 from nemo.core.classes import Exportable, NeuralModule
@@ -58,6 +58,7 @@ def pad_energy_avg_and_f0(energy_avg, f0, max_out_len):
     if to_pad > 0:
         f0 = F.pad(f0[None], [0, to_pad])[0]
     return energy_avg, f0
+
 
 def adjust_f0(f0, f0_mean, f0_std, vmask_bool):
     if f0_mean > 0.0:
@@ -357,7 +358,7 @@ class RadTTSModule(NeuralModule, Exportable):
                     context_w_spkvec = torch.cat((context_w_spkvec, energy_avg), 1)
 
             unfolded_out_lens = out_lens // self.n_group_size
-            context_lstm_padded_output, _  = self.context_lstm.lstm_tensor(
+            context_lstm_padded_output, _ = self.context_lstm.lstm_tensor(
                 context_w_spkvec.transpose(1, 2), unfolded_out_lens
             )
             context_w_spkvec = context_lstm_padded_output.transpose(1, 2)
@@ -378,11 +379,12 @@ class RadTTSModule(NeuralModule, Exportable):
          Args:
              mel: B x C x T tensor of temporal data
          """
-        
-        mel = nn.functional.fold(mel, output_size=(mel.shape[2] * self.n_group_size, 1),
-                                 **self.unfold_params).squeeze(-1)
+
+        mel = nn.functional.fold(mel, output_size=(mel.shape[2] * self.n_group_size, 1), **self.unfold_params).squeeze(
+            -1
+        )
         return mel
-    
+
     def binarize_attention(self, attn, in_lens, out_lens):
         """For training purposes only. Binarizes attention with MAS. These will
         no longer recieve a gradient
@@ -441,7 +443,7 @@ class RadTTSModule(NeuralModule, Exportable):
     ):
         speaker_vecs = self.encode_speaker(speaker_ids)
         text_enc, text_embeddings = self.encode_text(text, in_lens)
-            
+
         log_s_list, log_det_W_list, z_mel = [], [], []
         attn = None
         attn_soft = None
@@ -613,7 +615,7 @@ class RadTTSModule(NeuralModule, Exportable):
         spk_vec_text = self.encode_speaker(speaker_id_text)
         spk_vec_attributes = self.encode_speaker(speaker_id_attributes)
         txt_enc, _ = self.encode_text(text, in_lens)
-        print ("txt_enc: ", txt_enc.shape)
+        print("txt_enc: ", txt_enc.shape)
 
         if dur is None:
             # get token durations
@@ -629,7 +631,7 @@ class RadTTSModule(NeuralModule, Exportable):
         # print ("txt_enc_time_expanded, out_lens, dur: ", txt_enc_time_expanded.shape, out_lens, dur)
         n_groups = torch.div(out_lens, self.n_group_size, rounding_mode='floor')
         max_out_len = torch.max(out_lens)
-        
+
         txt_enc_time_expanded.transpose_(1, 2)
         if voiced_mask is None:
             if self.use_vpred_module:
@@ -637,7 +639,6 @@ class RadTTSModule(NeuralModule, Exportable):
                 voiced_mask = self.v_pred_module.infer(None, txt_enc_time_expanded, spk_vec_attributes, lens=out_lens)
                 voiced_mask = torch.sigmoid(voiced_mask[:, 0]) > 0.5
                 voiced_mask = voiced_mask.float()
-                
 
         ap_txt_enc_time_expanded = txt_enc_time_expanded
         # voice mask augmentation only used for attribute prediction
@@ -668,10 +669,10 @@ class RadTTSModule(NeuralModule, Exportable):
         # replication pad, because ungrouping with different group sizes
         # may lead to mismatched lengths
         # FIXME: use replication pad
-        print ("V mask, energy_avg, f0, f0_bias: ", voiced_mask.shape, energy_avg.shape, f0.shape, f0_bias.shape)
+        print("V mask, energy_avg, f0, f0_bias: ", voiced_mask.shape, energy_avg.shape, f0.shape, f0_bias.shape)
         (energy_avg, f0) = pad_energy_avg_and_f0(energy_avg, f0, max_out_len)
-        print ("V mask, energy_avg, f0, f0_bias: ", voiced_mask.shape, energy_avg.shape, f0.shape, f0_bias.shape)
-        
+        print("V mask, energy_avg, f0, f0_bias: ", voiced_mask.shape, energy_avg.shape, f0.shape, f0_bias.shape)
+
         context_w_spkvec = self.preprocess_context(
             txt_enc_time_expanded, spk_vec, out_lens, f0 * voiced_mask + f0_bias, energy_avg
         )
@@ -790,10 +791,9 @@ class RadTTSModule(NeuralModule, Exportable):
         self.f0_pred_module.feat_pred_fn = torch.jit.script(self.f0_pred_module.feat_pred_fn)
         self.energy_pred_module.feat_pred_fn = torch.jit.script(self.energy_pred_module.feat_pred_fn)
         self.dur_pred_layer.feat_pred_fn = torch.jit.script(self.dur_pred_layer.feat_pred_fn)
-        
+
         if self.use_context_lstm:
             self.context_lstm = torch.jit.script(self.context_lstm)
-        
 
     def input_example(self, max_batch=1, max_dim=256):
         """

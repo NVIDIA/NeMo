@@ -32,7 +32,8 @@ from nemo.collections.tts.helpers.splines import (
 )
 from nemo.collections.tts.modules.submodules import ConvNorm, LinearNorm
 
-@torch.jit.script 
+
+@torch.jit.script
 def get_mask_from_lengths_and_val(lengths, val):
     """Constructs binary mask from a 1D torch tensor of input lengths
 
@@ -91,6 +92,7 @@ class DenseLayer(nn.Module):
             x = torch.tanh(linear(x))
         return x
 
+
 @torch.jit.script
 def sort_tensor(context: Tensor, lens: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
     lens_sorted, ids_sorted = torch.sort(lens, descending=True)
@@ -99,6 +101,7 @@ def sort_tensor(context: Tensor, lens: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
         unsort_ids[ids_sorted[i]] = i
     context = context[ids_sorted]
     return context, lens_sorted, unsort_ids
+
 
 class BiLSTM(nn.Module):
     def __init__(self, input_size, hidden_size, num_layers=1, lstm_norm_fn="spectral"):
@@ -140,7 +143,9 @@ class BiLSTM(nn.Module):
         for i in range(ids_sorted.shape[0]):
             unsort_ids[ids_sorted[i]] = i
         context = context[ids_sorted]
-        seq = nn.utils.rnn.pack_padded_sequence(context, lens_sorted.long().cpu(), batch_first=True, enforce_sorted=True)
+        seq = nn.utils.rnn.pack_padded_sequence(
+            context, lens_sorted.long().cpu(), batch_first=True, enforce_sorted=True
+        )
         ret, _ = self.bilstm(seq)
         return nn.utils.rnn.pad_packed_sequence(ret, batch_first=True)[0][unsort_ids]
 
@@ -395,7 +400,7 @@ class SimpleConvNet(torch.nn.Module):
     def forward(self, z_w_context, seq_lens: Optional[Tensor] = None):
         # seq_lens: tensor array of sequence sequence lengths
         # output should be b x n_mel_channels x z_w_context.shape(2)
-    
+
         if seq_lens is not None:
             mask = get_mask_from_lengths_and_val(seq_lens, z_w_context).unsqueeze(1).float()
         else:
@@ -407,12 +412,9 @@ class SimpleConvNet(torch.nn.Module):
         z_w_context = self.last_layer(z_w_context)
         return z_w_context
 
+
 class ConvNormAndSkip(torch.nn.Module):
-    def __init__(
-            self,
-            in_layer,
-            skip_layer,
-            softplus):
+    def __init__(self, in_layer, skip_layer, softplus):
         super(ConvNormAndSkip, self).__init__()
         self.softplus = softplus
         self.in_layer = in_layer
@@ -421,6 +423,7 @@ class ConvNormAndSkip(torch.nn.Module):
     def forward(self, z, mask):
         z = self.softplus(self.in_layer(z, mask))
         return self.softplus(self.skip_layer(z))
+
 
 class WN(torch.nn.Module):
     """
@@ -496,6 +499,7 @@ class WN(torch.nn.Module):
 
         output = self.end(output)  # [B, dim, seq_len]
         return output
+
 
 # Affine Coupling Layers
 class SplineTransformationLayerAR(torch.nn.Module):
