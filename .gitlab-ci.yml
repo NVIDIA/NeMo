@@ -9,7 +9,7 @@ variables: &VARS
 
 stages:
   - build
-  - docs
+  - generate_docs
   - deploy_docs
   - test
   - cleanup
@@ -21,7 +21,7 @@ stages:
 docs:sphinx_generate_docs_html:
   tags:
     - V100
-  stage: docs
+  stage: generate_docs
   script:
     - python3 -m pip install sphinx
     - python3 -m pip install sphinx-rtd-theme
@@ -29,9 +29,12 @@ docs:sphinx_generate_docs_html:
     - cd docs
     - make clean
     - make html
+    - cd ..
+    - mkdir public
+    - mv docs/_build/html/ ./public/
   artifacts:
     paths:
-    - docs/_build
+    - public
   rules:
     - when: always
 
@@ -41,7 +44,7 @@ pages:
     - echo "The site will be deployed to $CI_PAGES_URL"
   artifacts:
     paths:
-      - docs/_build
+      - public
   rules:
     - if: '$CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH'
 
