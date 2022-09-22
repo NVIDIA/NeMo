@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -32,24 +32,24 @@ audio_types = ['Mix-Headset', 'Array1-01']
 not_found_ids = ['IS1007d', 'IS1003b']
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Download the AMI Test Corpus Dataset for Speaker Diarization")
+    parser = argparse.ArgumentParser(description="Download the AMI Corpus Dataset for Speaker Diarization")
     parser.add_argument(
         "--test_manifest_filepath",
         help="path to output test manifest file",
         type=str,
-        default='AMItest_input_manifest.json',
+        default='AMI_test_manifest.json',
     )
     parser.add_argument(
         "--dev_manifest_filepath",
-        help="path to output test manifest file",
+        help="path to output dev manifest file",
         type=str,
-        default='AMIdev_input_manifest.json',
+        default='AMI_dev_manifest.json',
     )
     parser.add_argument(
         "--train_manifest_filepath",
         help="path to output train manifest file",
         type=str,
-        default='AMItrain_input_manifest.json',
+        default='AMI_train_manifest.json',
     )
     parser.add_argument("--data_root", help="path to output data directory", type=str, default="ami_dataset")
     args = parser.parse_args()
