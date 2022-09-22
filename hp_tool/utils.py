@@ -398,7 +398,7 @@ def create_slurm_file(
             f.writelines(f"#SBATCH --exclude={','.join(exclude)}\n")
         f.writelines(f"#SBATCH --time={time}\n\n")
         for cmd in cmds:
-            assert "'" not in cmd
+            #assert "'" not in cmd
             f.writelines(f"srun {flags} sh -c '{cmd}'\n\n")
         f.writelines("set +x\n")
 
