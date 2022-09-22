@@ -683,8 +683,12 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
                 total number of speakers FastPitch was trained on (n_speakers = {n_speakers})."
             )
         
-        speaker_emb_1 = self.fastpitch.speaker_emb(torch.tensor(original_speaker_1, dtype=torch.int32).cuda()).clone().detach()
-        speaker_emb_2 = self.fastpitch.speaker_emb(torch.tensor(original_speaker_2, dtype=torch.int32).cuda()).clone().detach()
+        speaker_emb_1 = (
+            self.fastpitch.speaker_emb(torch.tensor(original_speaker_1, dtype=torch.int32).cuda()).clone().detach()
+        )
+        speaker_emb_2 = (
+            self.fastpitch.speaker_emb(torch.tensor(original_speaker_2, dtype=torch.int32).cuda()).clone().detach()
+        )
         new_speaker_emb = weight_speaker_1 * speaker_emb_1 + weight_speaker_2 * speaker_emb_2
         self.fastpitch.speaker_emb.weight.data[new_speaker_id] = new_speaker_emb
 
