@@ -17,8 +17,8 @@ import copy
 import torch
 import torch.nn as nn
 
+from nemo.collections.asr.modules.transformer.transformer_modules import MultiHeadAttention, PositionWiseFF
 from nemo.collections.common.parts import form_attention_mask
-from nemo.collections.common.parts.transformer.transformer_modules import MultiHeadAttention, PositionWiseFF
 
 __all__ = ["TransformerEncoder"]
 

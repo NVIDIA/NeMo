@@ -17,10 +17,8 @@ from typing import Optional, Union
 
 from omegaconf.dictconfig import DictConfig
 
-# from nemo.collections.common.parts.huggingface.huggingface_decoder import HuggingFaceDecoderModule
-# from nemo.collections.common.parts.huggingface.huggingface_encoder import HuggingFaceEncoderModule
-from nemo.collections.common.parts.transformer.transformer import TransformerDecoderNM, TransformerEncoderNM
-from nemo.collections.common.parts.transformer.transformer_bottleneck import TransformerBottleneckEncoderNM
+from nemo.collections.asr.modules.transformer.transformer import TransformerDecoderNM, TransformerEncoderNM
+from nemo.collections.asr.modules.transformer.transformer_bottleneck import TransformerBottleneckEncoderNM
 
 
 def get_nemo_transformer(

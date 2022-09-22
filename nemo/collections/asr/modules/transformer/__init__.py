@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.common.parts.transformer.bridge_encoders import *
-from nemo.collections.common.parts.transformer.perceiver_encoders import *
-from nemo.collections.common.parts.transformer.transformer_bottleneck import *
-from nemo.collections.common.parts.transformer.transformer_decoders import *
-from nemo.collections.common.parts.transformer.transformer_encoders import *
-from nemo.collections.common.parts.transformer.transformer_generators import *
-from nemo.collections.common.parts.transformer.transformer_modules import *
+from nemo.collections.asr.modules.transformer.bridge_encoders import *
+from nemo.collections.asr.modules.transformer.perceiver_encoders import *
+from nemo.collections.asr.modules.transformer.transformer_bottleneck import *
+from nemo.collections.asr.modules.transformer.transformer_decoders import *
+from nemo.collections.asr.modules.transformer.transformer_encoders import *
+from nemo.collections.asr.modules.transformer.transformer_generators import *
+from nemo.collections.asr.modules.transformer.transformer_modules import *

@@ -110,7 +110,7 @@ An example config for the model can be:
       dropout_att: 0.1 # The dropout for multi-headed attention modules
 
     embedding:
-      _target_: nemo.collections.common.parts.transformer.TransformerEmbedding
+      _target_: nemo.collections.asr.modules.transformer.TransformerEmbedding
       vocab_size: -1
       hidden_size: ${model.encoder.d_model}
       max_sequence_length: 512
@@ -119,7 +119,7 @@ An example config for the model can be:
       learn_positional_encodings: false
 
     decoder:
-      _target_: nemo.collections.common.parts.transformer.TransformerDecoder
+      _target_: nemo.collections.asr.modules.transformer.TransformerDecoder
       num_layers: 3
       hidden_size: ${model.encoder.d_model}
       inner_size: 2048
