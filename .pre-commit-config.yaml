@@ -34,3 +34,4 @@ repos:
       - id: isort
         name: Format imports
         args: [ --multi-line=3, --trailing-comma, --force-grid-wrap=0, --use-parentheses, --line-width=119, -rc, -ws ]
+        exclude: docs/
