@@ -22,7 +22,7 @@ docs:sphinx_generate_docs_html:
     - V100
   stage: docs
   script:
-    - python -m pip install sphinx
+    - python3 -m pip install sphinx
     - cd docs
     - make clean
     - make html
