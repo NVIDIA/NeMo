@@ -103,6 +103,13 @@ class BasePromptLearningDataset(Dataset):
             # Replace original text ids with truncated text ids
             field_start, field_end = find_subsequence_location(input_ids, field_text_ids)
             input_ids = input_ids[:field_start] + truncated_text_ids + input_ids[field_end + 1 :]
+        else:
+            if not self.for_train:
+                # Hack alert! Slash and burn
+                #  @TODO (@adithyare) need a more graceful truncation here, we should not skip examples in test
+                slash = len(input_ids) - self.max_seq_length
+                input_ids = input_ids[slash:]
+                print(len(input_ids))
 
         return input_ids
 
