@@ -120,7 +120,7 @@ build-BigNLP:
         if [[ "$MEMORY_MEASURE_TEST" == "True" ]]; then 
           python3 tests/ci_tests/utils/get_memory_metrics.py $RESULTS_DIR $GIT_RESULTS_DIR_PATH $BIGNLP_BASE_IMAGE
         else 
-          python3 tests/ci_tests/utils/get_train_time.py $RESULTS_DIR $GIT_RESULTS_DIR_PATH $BIGNLP_BASE_IMAGE; 
+          python3 tests/ci_tests/utils/get_train_tflops.py $RESULTS_DIR $GIT_RESULTS_DIR_PATH $BIGNLP_BASE_IMAGE $NUM_NODES; 
         fi
     # Replace first occurance of tests_to_run_on_this_commit with none. 
     - | 
