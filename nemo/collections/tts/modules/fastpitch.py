@@ -247,7 +247,9 @@ class FastPitchModule(NeuralModule):
         if self.learn_alignment and spec is not None:
             text_emb = self.encoder.word_emb(text)
             if self.speaker_emb_condition_aligner and not isinstance(spk_emb, int):
-                attn_soft, attn_logprob = self.aligner(spec, text_emb.permute(0, 2, 1), enc_mask == 0, attn_prior, conditioning=spk_emb)
+                attn_soft, attn_logprob = self.aligner(
+                    spec, text_emb.permute(0, 2, 1), enc_mask == 0, attn_prior, conditioning=spk_emb
+                )
             else:
                 attn_soft, attn_logprob = self.aligner(spec, text_emb.permute(0, 2, 1), enc_mask == 0, attn_prior)
             attn_hard = binarize_attention_parallel(attn_soft, input_lens, mel_lens)
