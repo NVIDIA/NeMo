@@ -425,8 +425,8 @@ pipeline {
             diarizer.speaker_embeddings.parameters.shift_length_in_sec=0.75 \
             diarizer.speaker_embeddings.parameters.multiscale_weights=null \
             diarizer.vad.model_path=/home/TestData/an4_diarizer/MatchboxNet_VAD_3x2.nemo \
-            diarizer.out_dir=examples/speaker_tasks/diarization/speaker_diarization_results'
-            sh 'rm -rf examples/speaker_tasks/diarization/speaker_diarization_results'
+            diarizer.out_dir=examples/speaker_tasks/diarization/clustering_diarizer_results'
+            sh 'rm -rf examples/speaker_tasks/diarization/clustering_diarizer_results'
           }
         }
 	
@@ -437,8 +437,8 @@ pipeline {
             diarizer.msdd_model.model_path=/home/TestData/an4_diarizer/diar_msdd_telephonic.nemo \
             diarizer.speaker_embeddings.parameters.save_embeddings=True \
             diarizer.vad.model_path=/home/TestData/an4_diarizer/MatchboxNet_VAD_3x2.nemo \
-            diarizer.out_dir=examples/speaker_tasks/diarization/speaker_diarization_results'
-            sh 'rm -rf examples/speaker_tasks/diarization/speaker_diarization_results'
+            diarizer.out_dir=examples/speaker_tasks/diarization/neural_diarizer_results'
+            sh 'rm -rf examples/speaker_tasks/diarization/neural_diarizer_results'
           }
         }
 	
