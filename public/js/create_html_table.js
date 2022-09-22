@@ -16,8 +16,9 @@ function getLatestExistingImage(resultsDict){
   return latestKey;
 }
 
-function getBestResultFromDict(resultsDict){
-  return Object.entries(resultsDict).reduce((minVal, entry) => minVal == undefined ? entry[1][1] : Math.min(minVal,entry[1][1]), undefined)
+function getBestResultFromDict(resultsDict, perf_type){
+  index = perf_type == "time" ? 2 : 1;
+  return Object.entries(resultsDict).reduce((minVal, entry) => minVal == undefined ? entry[1][index] : Math.min(minVal,entry[1][index]), undefined)
 }
 
 function checkVersion(a,b) {
@@ -59,9 +60,10 @@ CreateHTMLTable = {
             <th></th>
             <th></th>
             <th></th>
-            <th colspan=2 style=text-align:center;>TRAIN TIME (seconds)</th>
+            <th></th>
+            <th colspan=2 style=text-align:center;>TFLOPS PER GPU</th>
             <th>SPEEDUP(x)</th>
-            <th colspan=2 style=text-align:center;>PEAK MEMORY (MiB)</th>
+            <th colspan=2 style=text-align:center;>PEAK MEMORY (GiB)</th>
             <th>SPEEDUP(x)</th>
           </tr>
           <tr>
@@ -74,7 +76,8 @@ CreateHTMLTable = {
             <th>PRECISION</th>
             <th>AMP FLAG</th>
             <th>NUM STEPS</th>
-            <th >LATEST</th>
+            <th>TRAIN TIME(s)</th>
+            <th>LATEST</th>
             <th>PREV LOWEST</th>
             <th> PREV LOWEST / LATEST </th>
             <th>LATEST</th>
@@ -99,23 +102,25 @@ CreateHTMLTable = {
                 var latestKey = null;
                 if (Object.keys(trainTimeMetrics).length >= 1){
                   latestKey = getLatestExistingImage(trainTimeMetrics)
-                  var latestTrainTimeResult = trainTimeMetrics[latestKey][1].toFixed(3);
+                  var trainTimeLatest = trainTimeMetrics[latestKey][1].toFixed(3);
+                  var tflopsLatest = trainTimeMetrics[latestKey][2].toFixed(3);
                   var latestTimestamp = trainTimeMetrics[latestKey][0];
                   delete trainTimeMetrics[latestKey]
-                  var previousTrainTimeBest = "--";
-                  var ratioTrainTime = "--";
+                  var tflopsPreviousBest = "--";
+                  var tflopsRatio = "--";
                   if (Object.keys(trainTimeMetrics).length > 0){
-                    previousTrainTimeBest = getBestResultFromDict(trainTimeMetrics).toFixed(3);
-                    ratioTrainTime = (previousTrainTimeBest/latestTrainTimeResult).toFixed(3);
+                    tflopsPreviousBest = getBestResultFromDict(trainTimeMetrics, "time").toFixed(3);
+                    tflopsRatio = (tflopsPreviousBest/tflopsLatest).toFixed(3);
                   }
-                  var colorTrainTime = ratioTrainTime < 1 ? "red" : "green";
+                  var colorTrainTime = tflopsRatio < 1 ? "red" : "green";
                 }
                 else {
-                  var latestTrainTimeResult = "--"
+                  var trainTimeLatest = "--"
+                  var tflopsLatest = "--"
                   var latestTimestamp = "--"
-                  var previousTrainTimeBest = "--"
-                  var ratioTrainTime = "--"
-                  var colorTrainTime = ratioTrainTime < 1 ? "red" : "green";
+                  var tflopsPreviousBest = "--"
+                  var tflopsRatio = "--"
+                  var colorTrainTime = tflopsRatio < 1 ? "red" : "green";
                 }
                 var memoryUsedMetrics = trainMetrics["peak_memory_metrics"]
                 if (Object.keys(memoryUsedMetrics).length >= 1){
@@ -123,12 +128,12 @@ CreateHTMLTable = {
                     latestKey = getLatestExistingImage(memoryUsedMetrics)
                     var latestTimestamp = memoryUsedMetrics[latestKey][0];
                   }
-                  latestMemoryResult = memoryUsedMetrics[latestKey][1].toFixed(3);
+                  latestMemoryResult = (memoryUsedMetrics[latestKey][1]/1024).toFixed(3);
                   delete memoryUsedMetrics[latestKey]
                   var previousMemoryBest = "--";
                   var ratioMemory = "--";
                   if (Object.keys(memoryUsedMetrics).length > 0){
-                    previousMemoryBest = getBestResultFromDict(memoryUsedMetrics).toFixed(3);
+                    previousMemoryBest = (getBestResultFromDict(memoryUsedMetrics, "memory")/1024).toFixed(3);
                     ratioMemory = (previousMemoryBest/latestMemoryResult).toFixed(3);
                   }   
                   colorMemory = ratioMemory < 1 ? "red" : "green";
@@ -149,9 +154,10 @@ CreateHTMLTable = {
                 $tableBodyRow.append("<td>" + fileName.split("_")[5] + "</td>");
                 $tableBodyRow.append("<td>" + fileName.split("_")[7] + "</td>");
                 $tableBodyRow.append("<td>" + fileName.split("_")[8].split(".")[0].split("steps")[0] + "</td>");
-                $tableBodyRow.append("<td>" + latestTrainTimeResult + "</td>");
-                $tableBodyRow.append("<td>" + previousTrainTimeBest + "</td>");
-                $tableBodyRow.append("<td style=color:" + colorTrainTime + ">" + ratioTrainTime + "</td>");
+                $tableBodyRow.append("<td>" + trainTimeLatest + "</td>");
+                $tableBodyRow.append("<td>" + tflopsLatest + "</td>");
+                $tableBodyRow.append("<td>" + tflopsPreviousBest + "</td>");
+                $tableBodyRow.append("<td style=color:" + colorTrainTime + ">" + tflopsRatio + "</td>");
                 $tableBodyRow.append("<td>" + latestMemoryResult + "</td>");
                 $tableBodyRow.append("<td>" + previousMemoryBest + "</td>");
                 $tableBodyRow.append("<td style=color:" + colorMemory + ">" + ratioMemory + "</td>");
