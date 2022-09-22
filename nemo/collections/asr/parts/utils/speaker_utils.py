@@ -18,7 +18,7 @@ import os
 import shutil
 from copy import deepcopy
 from functools import reduce
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Tuple, Union, Optional
 
 import numpy as np
 import omegaconf
@@ -512,7 +512,7 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
     return all_reference, all_hypothesis
 
 
-def score_labels(AUDIO_RTTM_MAP, all_reference, all_hypothesis, collar=0.25, ignore_overlap=True):
+def score_labels(AUDIO_RTTM_MAP, all_reference, all_hypothesis, collar=0.25, ignore_overlap=True) -> Optional[Tuple[DiarizationErrorRate, Dict]]:
     """
     Calculates DER, CER, FA and MISS
 
@@ -531,7 +531,6 @@ def score_labels(AUDIO_RTTM_MAP, all_reference, all_hypothesis, collar=0.25, ign
     collar in md-eval.pl, 0.5s should be applied for pyannote.metrics.
 
     """
-    metric = None
     if len(all_reference) == len(all_hypothesis):
         metric = DiarizationErrorRate(collar=2 * collar, skip_overlap=ignore_overlap)
 
@@ -556,14 +555,11 @@ def score_labels(AUDIO_RTTM_MAP, all_reference, all_hypothesis, collar=0.25, ign
                 collar, ignore_overlap, FA, MISS, DER, CER
             )
         )
-
         return metric, mapping_dict
-    else:
-        logging.warning(
-            "check if each ground truth RTTMs were present in provided manifest file. Skipping calculation of Diariazation Error Rate"
-        )
-
-        return None
+    logging.warning(
+        "check if each ground truth RTTMs were present in provided manifest file. Skipping calculation of Diariazation Error Rate"
+    )
+    return
 
 
 def get_vad_out_from_rttm_line(rttm_line):
