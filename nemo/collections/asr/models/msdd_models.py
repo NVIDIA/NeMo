@@ -25,7 +25,6 @@ import numpy as np
 import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig, open_dict
-from pyannote.metrics.diarization import DiarizationErrorRate
 from pytorch_lightning import Trainer
 from pytorch_lightning.utilities import rank_zero_only
 from tqdm import tqdm
@@ -1160,7 +1159,7 @@ class NeuralDiarizer:
         self.msdd_model.clus_test_label_dict = cluster_embeddings.clus_test_label_dict
         self.msdd_model.emb_seq_test = cluster_embeddings.emb_seq_test
 
-    def diarize(self) -> List[Optional[List[Tuple[DiarizationErrorRate, Dict]]]]:
+    def diarize(self):
         """
         Launch diarization pipeline which starts from VAD (or a oracle VAD stamp generation), initialization clustering and multiscale diarization decoder (MSDD).
         Note that the result of MSDD can include multiple speakers at the same time. Therefore, RTTM output of MSDD needs to be based on `make_rttm_with_overlap()`
@@ -1171,9 +1170,8 @@ class NeuralDiarizer:
         self.msdd_model.pairwise_infer = True
         self.get_emb_clus_infer(self.clustering_embedding)
         preds_list, targets_list, signal_lengths_list = self.run_pairwise_diarization()
-        thresholds = list(self._cfg.diarizer.msdd_model.parameters.sigmoid_threshold)
-        outputs = [self.run_overlap_aware_eval(preds_list, threshold) for threshold in thresholds]
-        return outputs
+        for threshold in list(self._cfg.diarizer.msdd_model.parameters.sigmoid_threshold):
+            self.run_overlap_aware_eval(preds_list, threshold)
 
     def get_range_average(
         self, signals: torch.Tensor, emb_vectors: torch.Tensor, diar_window_index: int, test_data_collection: List[Any]
