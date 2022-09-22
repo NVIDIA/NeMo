@@ -31,7 +31,7 @@ docs:sphinx_generate_docs_html:
     - make html
     - cd ..
     - mkdir public
-    - mv docs/_build/html/ ./public/
+    - mv docs/_build/html/* ./public/
   artifacts:
     paths:
     - public
