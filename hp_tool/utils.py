@@ -403,7 +403,7 @@ def create_slurm_file(
         f.writelines("set +x\n")
 
 
-def convert_to_cli(cfg: omegaconf.dictconfig.DictConfig) -> str:
+def convert_to_cli(cfg: omegaconf.dictconfig.DictConfig, root: bool = True) -> str:
     """
     Converts hydra-like OmegaConf config dictionary object to a sring that can be used to override 
     hydra parameters using the CLI.
@@ -412,30 +412,24 @@ def convert_to_cli(cfg: omegaconf.dictconfig.DictConfig) -> str:
     :return: the string containing the overrides for hydra.
     :rtype: str
     """
-    result = ""
+    result = []
+    if cfg.get("search_config_value") is not None:
+        result.append(f"search_config={cfg['search_config_value']}")
+
     for k, v in cfg.items():
+        if k in ["training_container", "inference_container", "training_container_image", "inference_container_image", "ci_test"]:
+            continue
         if isinstance(v, omegaconf.dictconfig.DictConfig):
-            output = convert_to_cli(v).split(" ")
-            result += " ".join([f"{k}.{x}" for x in output if x != ""]) + " "
+            output = convert_to_cli(v, False)
+            result.extend([f"{k}.{x}" for x in output if x != ""])
         elif isinstance(v, omegaconf.listconfig.ListConfig):
-            if k == "data_prefix":
-                if v is None:
-                    v = "null"
-                else:
-                    v = [x for x in v]  # Needed because of lazy omegaconf interpolation.
-            result += f"{k}={str(v).replace(' ', '')} "
+            result.append(f"{k}={str(v).replace(' ', '')}")
         elif isinstance(v, str) and "{" in v:
             continue
-        elif k in ["splits_string", "file_numbers", "languages"]:
-            result += f"{k}=\\'{v}\\' "
-        elif k == "checkpoint_name":
-            v = v.replace("=", "\=")
-            result += f"{k}='{v}' "
-        elif k == "container":
-            continue
         else:
-            result += f"{k}={convert_to_null(v)} "
-    return result
+            result.append(f"{k}={convert_to_null(v)}")
+    return " \\\n  ".join(result) if root else result
+
 
 
 def convert_to_null(val: Optional[str]) -> str:
