@@ -666,7 +666,9 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
                 volume = volume_tensor
         return self.fastpitch.infer(text=text, pitch=pitch, pace=pace, volume=volume, speaker=speaker)
 
-    def interpolate_speaker(self, original_speaker_1, original_speaker_2, weight_speaker_1, weight_speaker_2, new_speaker_id):
+    def interpolate_speaker(
+        self, original_speaker_1, original_speaker_2, weight_speaker_1, weight_speaker_2, new_speaker_id
+    ):
         """
         This method performs speaker interpolation between two original speakers the model is trained on.
         Inputs:
@@ -677,12 +679,16 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             new_speaker_id: Integer speaker ID of new interpolated speaker in the model
         """
         if self.fastpitch.speaker_emb is None:
-            raise Exception("Current FastPitch model is not a multi-speaker FastPitch model. Speaker interpolation can only \
-                be performed with a multi-speaker model")
+            raise Exception(
+                "Current FastPitch model is not a multi-speaker FastPitch model. Speaker interpolation can only \
+                be performed with a multi-speaker model"
+            )
         n_speakers = self.fastpitch.speaker_emb.weight.data.size()[0]
         if original_speaker_1 >= n_speakers or original_speaker_2 >= n_speakers or new_speaker_id >= n_speakers:
-            raise Exception(f"Parameters original_speaker_1, original_speaker_2, new_speaker_id should be less than the total \
-                total number of speakers FastPitch was trained on (n_speakers = {n_speakers}).")
+            raise Exception(
+                f"Parameters original_speaker_1, original_speaker_2, new_speaker_id should be less than the total \
+                total number of speakers FastPitch was trained on (n_speakers = {n_speakers})."
+            )
         
         speaker_emb_1 = self.fastpitch.speaker_emb(torch.tensor(original_speaker_1, dtype=torch.int32).cuda()).clone().detach()
         speaker_emb_2 = self.fastpitch.speaker_emb(torch.tensor(original_speaker_2, dtype=torch.int32).cuda()).clone().detach()
