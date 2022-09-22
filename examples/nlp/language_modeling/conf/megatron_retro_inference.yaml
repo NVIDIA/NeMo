@@ -23,7 +23,9 @@ pipeline_model_parallel_size: 1
 pipeline_model_parallel_split_rank: 0 # used for encoder and decoder model
 retro_model_file: null  # RETRO nemo file path
 prompts: # prompts for GPT inference
-  - "The decline in earnings"
+  - "\"The decline in earnings could become more significant if the unemployment rate starts moving up materially and a protracted or deep recession takes place,\" Kolanovic said. But such a scenario doesn't mean investors should ditch stocks, because the Fed could return to its years-long practice of easing financial conditions, according to the note."
+  - "But interest rate hikes take time to flow through the economy, meaning there's an ongoing risk that the Fed overtightens as it focuses on lagging indicators while economic growth slows. None of this is lost on JPMorgan CEO Jamie Dimon, who is set to testify to Congress later today."
+  # - "The decline in earnings"
 server: False  # whether launch the inference server
 port: 5555 # the port number for the inference server
  

@@ -101,7 +101,7 @@ class GPTModelTextGenerationStrategy(TextGenerationStrategy):
         if maxlen > self.model.cfg.encoder_seq_length + 1:
             maxlen = self.model.cfg.encoder_seq_length + 1
         return maxlen
- 
+
     def init_batch(self, context_tokens: torch.Tensor, context_length: int):
         """initialize the batch data before the inference steps."""
         # Move to GPU.
@@ -242,9 +242,9 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
         tokenizer = self.model.tokenizer
         if context_length % 64 == 0:
             # added a new retrieval context
-                tokens = tokens[:, context_length-64:context_length]
-                chunks = self.service.get_knn(tokens)
-                self.retrieved.append(chunks)
+            token_context = tokens[:, context_length-64:context_length]
+            chunks = self.service.get_knn(token_context)
+            self.retrieved.append(chunks)
 
         # types2use = None
         if step == 0:
@@ -277,7 +277,7 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
         len_array = torch.tensor([maxlen] * micro_batch_size, device=torch.cuda.current_device())
         neighbors_array = torch.tensor([self.neighbors] * micro_batch_size, device=torch.cuda.current_device())
 
-        batch = [tokens2use, self.attention_mask, retrieved, retrieved_mask, setkey_value_array, len_array, neighbors_array]
+        batch = [tokens2use, self.attention_mask[:, :context_length], retrieved, retrieved_mask, setkey_value_array, len_array, neighbors_array]
         tensor_shape = [tokens2use.shape[1], micro_batch_size, self.model.cfg.hidden_size]
         return batch, tensor_shape
 
