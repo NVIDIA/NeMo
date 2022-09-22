@@ -9,12 +9,29 @@ variables: &VARS
 
 stages:
   - build
+  - docs
   - test
   - cleanup
 
 ################
 # JOB Templates
 ################
+
+docs:sphinx_generate_docs_html:
+  tags:
+    - V100
+  stage: docs
+  script:
+    - apt-get update && apt-get install make --no-install-recommends -y
+    - pip install sphinx
+    - cd docs
+    - make clean
+    - make html
+  artifacts:
+    paths:
+    - docs/_build
+  rules:
+    - when: always
 
 test:unit_tests:
   tags:
