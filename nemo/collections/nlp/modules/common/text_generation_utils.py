@@ -19,9 +19,9 @@ import torch.nn.functional as F
 
 from nemo.collections.common.tokenizers.tabular_tokenizer import TabularTokenizer
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
+from nemo.collections.nlp.modules.common.text_generation_strategy import model_inference_strategy_dispatcher
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, OutputType, SamplingParam
 from nemo.utils import AppState
-from nemo.collections.nlp.modules.common.text_generation_strategy import model_inference_strategy_dispatcher
 
 try:
     from apex.transformer import parallel_state, tensor_parallel
@@ -424,7 +424,7 @@ def generate(
             token_ids: List[Tensor], output sentence token ids
             offsets: List[List[int]]  # list of tokens start positions in text
     """
-    inference_strategy = model_inference_strategy_dispatcher(model, **strategy_args) 
+    inference_strategy = model_inference_strategy_dispatcher(model, **strategy_args)
     tokenizer = model.tokenizer
     if torch.distributed.get_rank() == 0:
         if isinstance(inputs, tuple):
@@ -548,7 +548,7 @@ def sample_sequence_batch(
     # initialize the batch
     with torch.no_grad():
         context_length = context_lengths.min().item()
-        inference_strategy.init_batch(context_tokens, context_length) 
+        inference_strategy.init_batch(context_tokens, context_length)
         # added eos_id to support the function generate_samples_eval that passes
         # eos_id as an argument and needs termination when that id id found.
         eod_id = tokenizer.eos_id
@@ -567,7 +567,9 @@ def sample_sequence_batch(
         lengths = torch.ones([batch_size]).long().cuda() * maxlen
 
         while context_length < maxlen:
-            batch, tensor_shape = inference_strategy.prepare_batch_at_step(tokens, maxlen, micro_batch_size, counter, context_length)
+            batch, tensor_shape = inference_strategy.prepare_batch_at_step(
+                tokens, maxlen, micro_batch_size, counter, context_length
+            )
             output = inference_strategy.forward_step(batch, tensor_shape)
 
             if parallel_state.is_pipeline_last_stage():
@@ -699,7 +701,7 @@ def tab_sample_sequence_batch(
     # initialize the batch
     with torch.no_grad():
         context_length = context_lengths.min().item()
-        inference_strategy.init_batch(context_tokens, context_length) 
+        inference_strategy.init_batch(context_tokens, context_length)
         context = context_tokens[:, :context_length]
         # the context may start in the middle of the row,
         # calculate the offset according to the position of '\n' or '<|endoftext|>'
@@ -732,7 +734,9 @@ def tab_sample_sequence_batch(
         lengths = torch.ones([batch_size]).long().cuda() * maxlen
 
         while context_length < maxlen:
-            batch, tensor_shape = inference_strategy.prepare_batch_at_step(tokens, maxlen, micro_batch_size, counter, context_length)
+            batch, tensor_shape = inference_strategy.prepare_batch_at_step(
+                tokens, maxlen, micro_batch_size, counter, context_length
+            )
             output = inference_strategy.forward_step(batch, tensor_shape)
 
             if parallel_state.is_pipeline_last_stage():

@@ -1,14 +1,17 @@
-from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
-import torch
 import abc
 from typing import List, Tuple
+
+import torch
+
 from nemo.collections.nlp.modules.common.megatron.retrieval_service import FaissRetrievalService
+from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 
 try:
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
         forward_backward_pipelining_without_interleaving,
     )
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
+
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
@@ -18,6 +21,7 @@ class TextGenerationStrategy:
     """
     Base class for TextGeneration Strategy
     """
+
     def __init__(self, model):
         self.model = model
         self.model.eval()
@@ -65,7 +69,9 @@ class TextGenerationStrategy:
         pass
 
     @abc.abstractclassmethod
-    def prepare_batch_at_step(self, tokens: torch.Tensor, maxlen: int, micro_batch_size: int, step: int, context_length: int)->Tuple[List[torch.Tensor], List[int]]:
+    def prepare_batch_at_step(
+        self, tokens: torch.Tensor, maxlen: int, micro_batch_size: int, step: int, context_length: int
+    ) -> Tuple[List[torch.Tensor], List[int]]:
         """
         generate the batch used in inference for each of the steps
         Args:
@@ -116,7 +122,9 @@ class GPTModelTextGenerationStrategy(TextGenerationStrategy):
             self.model.cfg.get('eod_mask_loss', False),
         )
 
-    def prepare_batch_at_step(self, tokens: torch.Tensor, maxlen: int, micro_batch_size: int, step: int, context_length: int)->Tuple[List[torch.Tensor], List[int]]:
+    def prepare_batch_at_step(
+        self, tokens: torch.Tensor, maxlen: int, micro_batch_size: int, step: int, context_length: int
+    ) -> Tuple[List[torch.Tensor], List[int]]:
         """
         generate the batch used in inference for each of the steps
         """
@@ -135,8 +143,8 @@ class GPTModelTextGenerationStrategy(TextGenerationStrategy):
             tokens2use = tokens[:, context_length - 1].view(micro_batch_size, -1)
             positions2use = self.position_ids[:, context_length - 1].view(micro_batch_size, -1)
             # not using type2use. uncomment it if it is used
-                # if type_ids is not None:
-                #     types2use = type_ids[:, context_length - 1].view(batch_size, -1)
+            # if type_ids is not None:
+            #     types2use = type_ids[:, context_length - 1].view(batch_size, -1)
 
         """Prepare batch for each of the inference steps"""
         attention_mask_repeat = torch.concat([self.attention_mask for _ in range(micro_batch_size)])
@@ -151,7 +159,6 @@ class GPTModelTextGenerationStrategy(TextGenerationStrategy):
 
 
 class PromptLearningModelTextGenerationStrategy(GPTModelTextGenerationStrategy):
-
     def __init__(self, model, task_ids):
         self.model = model
         self.model.eval()
@@ -163,8 +170,10 @@ class PromptLearningModelTextGenerationStrategy(GPTModelTextGenerationStrategy):
         if maxlen > self.model.frozen_model.cfg.encoder_seq_length + 1:
             maxlen = self.model.frozen_model.cfg.encoder_seq_length + 1
         return maxlen
- 
-    def prepare_batch_at_step(self, tokens: torch.Tensor, maxlen: int, micro_batch_size: int, step: int, context_length: int)->Tuple[List[torch.Tensor], List[int]]:
+
+    def prepare_batch_at_step(
+        self, tokens: torch.Tensor, maxlen: int, micro_batch_size: int, step: int, context_length: int
+    ) -> Tuple[List[torch.Tensor], List[int]]:
         # types2use = None
         if step == 0:
             # Allocate memory for the entire context.
@@ -180,8 +189,8 @@ class PromptLearningModelTextGenerationStrategy(GPTModelTextGenerationStrategy):
             tokens2use = tokens[:, context_length - 1].view(micro_batch_size, -1)
             positions2use = self.position_ids[:, context_length - 1].view(micro_batch_size, -1)
             # not using type2use. uncomment it if it is used
-                # if type_ids is not None:
-                #     types2use = type_ids[:, context_length - 1].view(batch_size, -1)
+            # if type_ids is not None:
+            #     types2use = type_ids[:, context_length - 1].view(batch_size, -1)
 
         """Prepare batch for each of the inference steps"""
         attention_mask_repeat = torch.concat([self.attention_mask for _ in range(micro_batch_size)])
@@ -205,13 +214,10 @@ class PromptLearningModelTextGenerationStrategy(GPTModelTextGenerationStrategy):
             tokenizer = self.model.tokenizer
             pseudo_token_ids_start = self.model.pseudo_token_ids_start
             new_tokens[(new_tokens >= pseudo_token_ids_start)] = tokenizer.unk_id
-            tokens[:, :context_length][
-                (tokens[:, :context_length] >= pseudo_token_ids_start)
-            ] = tokenizer.unk_id
+            tokens[:, :context_length][(tokens[:, :context_length] >= pseudo_token_ids_start)] = tokenizer.unk_id
 
 
 class RetroModelTextGenerationStrategy(TextGenerationStrategy):
-
     def __init__(self, model, **args):
         self.model = model
         self.model.eval()
@@ -234,15 +240,17 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
         self.attention_mask = tokens != tokenizer.pad_id
         for i in range(0, context_length, 64):
             if i > 0:
-                tokens = context_tokens[:, i-64:i]
+                tokens = context_tokens[:, i - 64 : i]
                 chunks = self.service.get_knn(tokens)
                 self.retrieved.append(chunks)
 
-    def prepare_batch_at_step(self, tokens: torch.Tensor, maxlen: int, micro_batch_size: int, step: int, context_length: int)->Tuple[List[torch.Tensor], List[int]]:
+    def prepare_batch_at_step(
+        self, tokens: torch.Tensor, maxlen: int, micro_batch_size: int, step: int, context_length: int
+    ) -> Tuple[List[torch.Tensor], List[int]]:
         tokenizer = self.model.tokenizer
         if context_length % 64 == 0:
             # added a new retrieval context
-            token_context = tokens[:, context_length-64:context_length]
+            token_context = tokens[:, context_length - 64 : context_length]
             chunks = self.service.get_knn(token_context)
             self.retrieved.append(chunks)
 
@@ -259,15 +267,15 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
             set_inference_key_value_memory = False
             tokens2use = tokens[:, context_length - 1].view(micro_batch_size, -1)
             # not using type2use. uncomment it if it is used
-                # if type_ids is not None:
-                #     types2use = type_ids[:, context_length - 1].view(batch_size, -1)
+            # if type_ids is not None:
+            #     types2use = type_ids[:, context_length - 1].view(batch_size, -1)
         retrieved = torch.tensor(self.retrieved, device=torch.cuda.current_device())
         if retrieved.numel() != 0:
             retrieved = retrieved.transpose(0, 1).contiguous()
         retrieved_mask = retrieved != tokenizer.pad_id
         if len(retrieved) == 0:
-            retrieved = torch.tensor([-1]*micro_batch_size)
-            retrieved_mask = torch.tensor([-1]*micro_batch_size)
+            retrieved = torch.tensor([-1] * micro_batch_size)
+            retrieved_mask = torch.tensor([-1] * micro_batch_size)
 
         """Prepare batch for each of the inference steps"""
         # attention_mask_repeat = torch.concat([self.attention_mask for _ in range(micro_batch_size)])
@@ -277,13 +285,23 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
         len_array = torch.tensor([maxlen] * micro_batch_size, device=torch.cuda.current_device())
         neighbors_array = torch.tensor([self.neighbors] * micro_batch_size, device=torch.cuda.current_device())
 
-        batch = [tokens2use, self.attention_mask[:, :context_length], retrieved, retrieved_mask, setkey_value_array, len_array, neighbors_array]
+        batch = [
+            tokens2use,
+            self.attention_mask[:, :context_length],
+            retrieved,
+            retrieved_mask,
+            setkey_value_array,
+            len_array,
+            neighbors_array,
+        ]
         tensor_shape = [tokens2use.shape[1], micro_batch_size, self.model.cfg.hidden_size]
         return batch, tensor_shape
 
 
 def model_inference_strategy_dispatcher(model, **args):
-    from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import MegatronGPTPromptLearningModel
+    from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
+        MegatronGPTPromptLearningModel,
+    )
     from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
     from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
 
@@ -297,4 +315,3 @@ def model_inference_strategy_dispatcher(model, **args):
         raise ValueError(f'{model} is not supported for inference')
 
     # Should call GPTModel or Megatron Retrieval Model's forward method
- 
