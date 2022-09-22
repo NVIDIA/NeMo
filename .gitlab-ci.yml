@@ -22,7 +22,6 @@ docs:sphinx_generate_docs_html:
     - V100
   stage: docs
   script:
-    - apt-get update && apt-get install make --no-install-recommends -y
     - python -m pip install sphinx
     - cd docs
     - make clean
