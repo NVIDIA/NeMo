@@ -20,7 +20,7 @@ from typing import List, Optional
 import torch
 from omegaconf import DictConfig
 
-from nemo.collections.common.parts.transformer import (
+from nemo.collections.asr.modules.transformer import (
     BeamSearchSequenceGenerator,
     GreedySequenceGenerator,
     TopKSequenceGenerator,
