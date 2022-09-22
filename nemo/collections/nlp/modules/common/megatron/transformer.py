@@ -1713,7 +1713,7 @@ class AutocastTransformerLayer(TransformerLayer):
             layer_type=layer_type,
             drop_path_rate=drop_path_rate,
             use_emha=use_emha,
-            set_parallel_mode=True,
+            set_parallel_mode=tp_size>1,
             fuse_qkv_params=True,
         )
 

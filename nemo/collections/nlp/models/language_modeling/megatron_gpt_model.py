@@ -789,7 +789,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             and only needs to be called when using Transformer Engine.
         """
         # TransformerEngine needs TP groups once they are created
-        if self.cfg.get('transformer_engine', False) and self.cfg.get('tensor_model_parallel_size', 1) > 1:
+        if self.cfg.get('transformer_engine', False):
             logging.info(f'Setting up transformer engine modules for tensor parallelism.')
             if self.cfg.get('megatron_amp_O2', 'False'):
                 # when using O2 additional module key is added that casts the weights
