@@ -99,8 +99,6 @@ def _estimate_model_size(
         print(f"Input values were not valid: {err}")
     except ZeroDivisionError as err:
         print(f"Cannot divide by zero. This can happen if num_tokens_in_b is zero: {err}")
-    except BaseException as err:
-        print(f"Unexpected {err}")
 
 
 def _estimate_training_time(
@@ -138,8 +136,6 @@ def _estimate_training_time(
         print(f"Input values were not valid: {err}")
     except ZeroDivisionError as err:
         print(f"Cannot divide by zero. This can happen if gpu_count or tflops_per_gpu are zero: {err}")
-    except BaseException as err:
-        print(f"Unexpected {err}")
 
 
 def _calculate_gbs_tp_pp(
