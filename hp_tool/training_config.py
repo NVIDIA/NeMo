@@ -16,6 +16,7 @@ def search_training_config(
         base_cfg: dict,
         model_size_in_b: float,
         model_name: str,
+        hydra_args: str,
         cfg: omegaconf.dictconfig.DictConfig,
 ) -> None:
     """
@@ -26,6 +27,7 @@ def search_training_config(
     :param dict base_cfg: base configuration of the model to be trained.
     :param float model_size_in_b: number of parameters in the model, if known.
     :param str model_name: name of the model to be trained: gpt3, t5, mt5...
+    :param str hydra_args: hydra override arguments in string format.
     :param omegaconf.dictconfig.DictConfig cfg: main hydra config object for the HP tool.
     :return: None
     """
@@ -36,7 +38,7 @@ def search_training_config(
     # Launch candidate configs.
     job_ids = launch_grid_search_configs(base_dir, results_cfgs, model_name, cfg)
     # Measure and compare throughputs for each config.
-    launch_throughput_measure(job_ids, model_name, model_size_in_b, num_nodes, cfg)
+    launch_throughput_measure(job_ids, model_name, model_size_in_b, num_nodes, hydra_args, cfg)
 
 
 def generate_grid_search_configs(
@@ -458,7 +460,7 @@ def launch_grid_search_configs(base_dir: str, results_cfgs: List[int], model_nam
     return job_ids
 
 
-def launch_throughput_measure(dependency_list: List[str], model_name: str, model_size_in_b: float, num_nodes: int, cfg: omegaconf.dictconfig.DictConfig) -> str:
+def launch_throughput_measure(dependency_list: List[str], model_name: str, model_size_in_b: float, num_nodes: int, hydra_args: str, cfg: omegaconf.dictconfig.DictConfig) -> str:
     """
     Launch job that measures the throughput of each run in the grid search. This
     job will get scheduled with dependencies on all the job ids in dependency_list,
@@ -521,7 +523,7 @@ def launch_throughput_measure(dependency_list: List[str], model_name: str, model
 
     new_script_path = os.path.join(bignlp_hp_tool_path, "hp_tool/scripts/compare_throughput.sh")
     code_path = os.path.join(bignlp_hp_tool_path, "hp_tool/scripts/compare_throughput_results.py")
-    train_cmd = f"HYDRA_FULL_ERROR=1 python3 -u {code_path} bignlp_hp_tool_path={bignlp_hp_tool_path} search_config.train_settings.model_size_in_b={model_size_in_b} search_config={model_name}/{model_size_in_b}b search_config_value={model_name}/{model_size_in_b}b +nodes={num_nodes} base_results_dir={base_results_dir} "
+    train_cmd = f"HYDRA_FULL_ERROR=1 python3 -u {code_path} bignlp_hp_tool_path={bignlp_hp_tool_path} search_config.train_settings.model_size_in_b={model_size_in_b} search_config={model_name}/{model_size_in_b}b search_config_value={model_name}/{model_size_in_b}b +nodes={num_nodes} base_results_dir={base_results_dir} {hydra_args} "
     utils.create_slurm_file(
         new_script_path=new_script_path,
         cmds=[train_cmd],

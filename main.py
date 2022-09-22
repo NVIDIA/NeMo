@@ -7,8 +7,8 @@ import hydra
 import omegaconf
 from omegaconf import OmegaConf
 
+from hp_tool.utils import convert_to_cli
 from hp_tool.search_config import search_config
-
 
 OmegaConf.register_new_resolver("multiply", lambda x, y: x * y, replace=True)
 OmegaConf.register_new_resolver("divide_ceil", lambda x, y: int(math.ceil(x / y)), replace=True)
@@ -24,7 +24,9 @@ def main(cfg: omegaconf.dictconfig.DictConfig) -> None:
     :return: None
     """
     hydra_args = " ".join(sys.argv[1:])
-    search_config(cfg=cfg)
+    hydra_args = convert_to_cli(cfg)
+    search_config(cfg=cfg, hydra_args=hydra_args)
+
 
 
 if __name__ == "__main__":
