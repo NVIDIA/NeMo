@@ -25,10 +25,11 @@ import numpy as np
 import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig, open_dict
+from pyannote.metrics.diarization import DiarizationErrorRate
 from pytorch_lightning import Trainer
 from pytorch_lightning.utilities import rank_zero_only
 from tqdm import tqdm
-from pyannote.metrics.diarization import DiarizationErrorRate
+
 from nemo.collections.asr.data.audio_to_diar_label import AudioToSpeechMSDDInferDataset, AudioToSpeechMSDDTrainDataset
 from nemo.collections.asr.metrics.multi_binary_acc import MultiBinaryAccuracy
 from nemo.collections.asr.models import ClusteringDiarizer

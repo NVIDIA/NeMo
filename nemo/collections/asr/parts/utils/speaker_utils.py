@@ -18,7 +18,7 @@ import os
 import shutil
 from copy import deepcopy
 from functools import reduce
-from typing import Dict, List, Tuple, Union, Optional
+from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import omegaconf
@@ -512,7 +512,9 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
     return all_reference, all_hypothesis
 
 
-def score_labels(AUDIO_RTTM_MAP, all_reference, all_hypothesis, collar=0.25, ignore_overlap=True) -> Optional[Tuple[DiarizationErrorRate, Dict]]:
+def score_labels(
+    AUDIO_RTTM_MAP, all_reference, all_hypothesis, collar=0.25, ignore_overlap=True
+) -> Optional[Tuple[DiarizationErrorRate, Dict]]:
     """
     Calculates DER, CER, FA and MISS
 
