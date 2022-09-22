@@ -31,7 +31,7 @@ import abc
 class RetrievalService:
 
     @abc.abstractmethod
-    def get_knn(self, query: Union[List[str], str], neighbors: int):
+    def get_knn(self, query: Union[List[str], str, torch.Tensor]):
         pass
 
 
@@ -44,7 +44,9 @@ class FaissRetrievalService(RetrievalService):
                  retrieval_index: str,
                  tokenizer: TokenizerSpec,
                  sentence_bert: str = 'all-mpnet-base-v2',
-                 sentence_bert_batch: int = 4):
+                 sentence_bert_batch: int = 4,
+                 neighbors: int = 4):
+        self.neighbors = neighbors
         has_gpu = torch.cuda.is_available() and hasattr(faiss, "index_gpu_to_cpu")
 
         if faiss_devices is None or not torch.cuda.is_available():
@@ -70,15 +72,21 @@ class FaissRetrievalService(RetrievalService):
         self.pool = self.bert_model.start_multi_process_pool(device_list)
         self.sentence_bert_batch = sentence_bert_batch
 
-    def get_knn(self, query: Union[List[str], str], neighbors: int):
+    def get_knn(self, query: Union[List[str], str, torch.Tensor]):
         single_sentence = False
         if isinstance(query, str):
             single_sentence = True
             query = [query]
+        elif isinstance(query, torch.Tensor):
+            sentence_list = []
+            for q in query:
+                text = self.tokenizer.ids_to_text(q)
+                sentence_list.append(text)
+            query = sentence_list
         emb = self.bert_model.encode_multi_process(sentences=query, pool=self.pool, batch_size=self.sentence_bert_batch)
-        D, I = self.index.search(emb, neighbors)
+        D, knn = self.index.search(emb, self.neighbors)
         results = []
-        for sentence_neighbors in I:
+        for sentence_neighbors in knn:
             chunks = []
             for neighbor_chunk_id in sentence_neighbors:
                 chunk_id = self.ds.get_chunk(neighbor_chunk_id)
@@ -87,5 +95,5 @@ class FaissRetrievalService(RetrievalService):
             results.append(chunks)
         if single_sentence:
             # unpack the single sentence input 
-            results = results[0]
-        return results
+            return results[0]
+        return np.stack(results, axis=0).astype(np.int64)

@@ -425,7 +425,6 @@ def generate(
             offsets: List[List[int]]  # list of tokens start positions in text
     """
     inference_strategy = model_inference_strategy_dispatcher(model, **strategy_args) 
-    model.eval()
     tokenizer = model.tokenizer
     if torch.distributed.get_rank() == 0:
         if isinstance(inputs, tuple):
@@ -547,11 +546,9 @@ def sample_sequence_batch(
     )
     tokenizer = model.tokenizer
     # initialize the batch
-    inference_strategy.init_batch(context_tokens) 
-    model.eval()
     with torch.no_grad():
         context_length = context_lengths.min().item()
-
+        inference_strategy.init_batch(context_tokens, context_length) 
         # added eos_id to support the function generate_samples_eval that passes
         # eos_id as an argument and needs termination when that id id found.
         eod_id = tokenizer.eos_id
@@ -700,10 +697,9 @@ def tab_sample_sequence_batch(
     for i in range(num_columns):
         tokenid_range.extend(tokenizer.code_column.get_range(i))
     # initialize the batch
-    inference_strategy.init_batch(context_tokens) 
-    model.eval()
     with torch.no_grad():
         context_length = context_lengths.min().item()
+        inference_strategy.init_batch(context_tokens, context_length) 
         context = context_tokens[:, :context_length]
         # the context may start in the middle of the row,
         # calculate the offset according to the position of '\n' or '<|endoftext|>'

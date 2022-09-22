@@ -472,6 +472,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         inputs: Union[List[str], torch.Tensor, List[dict]],
         length_params: LengthParam,
         sampling_params: SamplingParam = None,
+        **args,
     ) -> OutputType:
 
         # check whether the DDP is initialized
@@ -494,7 +495,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         if length_params is None:
             length_params = get_default_length_params()
 
-        return megatron_gpt_generate(self.cuda(), inputs, self.tokenizer, length_params, sampling_params)
+        return megatron_gpt_generate(self.cuda(), inputs, self.tokenizer, length_params, sampling_params, **args)
 
     def get_forward_output_only_func(self):
         """
@@ -506,20 +507,25 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             (
                 tokens,
                 attention_mask,
-                position_ids,
-                task_ids,
+                retrieved,
+                retrieved_mask,
                 set_inference_key_value_memory,
                 inference_max_sequence_len,
+                neighbors,
             ) = batch
 
-            tokens = tokens.cuda()
-            attention_mask = attention_mask.cuda()
-            position_ids = position_ids.cuda()
-            task_ids = task_ids.cuda()
+            if len(retrieved.shape) == 1:
+                retrieved = None
+                retrieved_mask = None
+            else:
+                retrieved = retrieved.cuda()
+                retrieved_mask = retrieved_mask.cuda()
+
             extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
             extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
+            extra_arg['neighbors'] = neighbors[0].item()
 
-            output_tensor = model(tokens, position_ids, attention_mask, task_ids, **extra_arg)
+            output_tensor = model(tokens, attention_mask, retrieved, retrieved_mask, **extra_arg)
 
             def id_func(output_tensor):
                 return output_tensor, {'logits': output_tensor}

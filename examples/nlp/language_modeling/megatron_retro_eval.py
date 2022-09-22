@@ -88,25 +88,28 @@ def main(cfg) -> None:
         "compute_logprob": cfg.inference.compute_logprob,
     }
 
-    service = FaissRetrievalService(faiss_index=cfg.faiss_index_file, 
-                                    faiss_devices=cfg.faiss_devices, 
-                                    nprobe=cfg.nprobe,
-                                    retrieval_index=cfg.retrieval_index,
-                                    tokenizer=model.tokenizer,
-                                    sentence_bert=cfg.sentence_bert,
-                                    sentence_bert_batch=cfg.sentence_bert_batch
-                                    )
-    q = service.get_knn('Massachusetts taxpayers are slated to receive hundreds of dollars in direct relief starting this November', 4)
-    print(q)
+#     service = FaissRetrievalService(faiss_index=cfg.faiss_index, 
+#                                     faiss_devices=cfg.faiss_devices, 
+#                                     nprobe=cfg.nprobe,
+#                                     retrieval_index=cfg.retrieval_index,
+#                                     tokenizer=model.tokenizer,
+#                                     sentence_bert=cfg.sentence_bert,
+#                                     sentence_bert_batch=cfg.sentence_bert_batch
+#                                     )
+    #service = FaissRetrievalService(tokenizer=model.tokenizer, **cfg.retrieval_service)
+
+    #q = service.get_knn('Massachusetts taxpayers are slated to receive hundreds of dollars in direct relief starting this November', 4)
+    #print(q)
 
     # # First method of running text generation, call model.generate method
-    # response = model.generate(
-    #     inputs=OmegaConf.to_container(cfg.prompts), length_params=length_params, sampling_params=sampling_params
-    # )
+    response = model.generate(
+        inputs=OmegaConf.to_container(cfg.prompts), length_params=length_params, sampling_params=sampling_params,
+        **cfg.retrieval_service,
+    )
 
-    # print("***************************")
-    # print(response)
-    # print("***************************")
+    print("***************************")
+    print(response)
+    print("***************************")
 
 
 if __name__ == '__main__':
