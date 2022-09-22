@@ -301,19 +301,17 @@ class FastPitchModule(NeuralModule):
 
         # Input FFT
         enc_out, enc_mask = self.encoder(input=text, conditioning=spk_emb)
+        if self.speaker_emb_condition_prosody:
+            prosody_input = enc_out + spk_emb
+        else:
+            prosody_input = enc_out
 
         # Predict duration and pitch
-        if self.speaker_emb_condition_prosody:
-            log_durs_predicted = self.duration_predictor(enc_out + spk_emb, enc_mask)
-        else:
-            log_durs_predicted = self.duration_predictor(enc_out, enc_mask) 
+        log_durs_predicted = self.duration_predictor(prosody_input, enc_mask)
         durs_predicted = torch.clamp(
             torch.exp(log_durs_predicted) - 1.0, self.min_token_duration, self.max_token_duration
         )
-        if self.speaker_emb_condition_prosody:
-            pitch_predicted = self.pitch_predictor(enc_out + spk_emb, enc_mask)
-        else:
-            pitch_predicted = self.pitch_predictor(enc_out, enc_mask)
+        pitch_predicted = self.pitch_predictor(prosody_input, enc_mask)
         pitch_predicted = pitch_predicted + pitch
         pitch_emb = self.pitch_emb(pitch_predicted.unsqueeze(1))
         enc_out = enc_out + pitch_emb.transpose(1, 2)
