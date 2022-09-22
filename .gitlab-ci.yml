@@ -10,6 +10,7 @@ variables: &VARS
 stages:
   - build
   - docs
+  - deploy_docs
   - test
   - cleanup
 
