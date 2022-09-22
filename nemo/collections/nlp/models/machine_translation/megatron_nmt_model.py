@@ -190,7 +190,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             self.multilingual_ids = [None]
 
     def _build_vocab(self):
-        if hasattr(self.cfg, "data"):
+        if hasattr(self.cfg, "data") and self.cfg.train_ds.get('objective', 'nmt') != 'nmt-xlm':
             if hasattr(self.cfg.data, "dataset_type"):
                 # This happens only when restoring a pre-trained model. We need to add all of the special tokens that were added while pre-training to avoid a checkpoint shape mismatch while restoring.
                 MegatronT5Model.add_special_tokens_to_tokenizer(
