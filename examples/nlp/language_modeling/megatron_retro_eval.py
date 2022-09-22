@@ -12,26 +12,38 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
-from omegaconf.omegaconf import OmegaConf, open_dict
+from examples.nlp.language_modeling.megatron_gpt_eval import RequestDataSet
+from omegaconf.omegaconf import OmegaConf
 from pytorch_lightning import Trainer
-from pytorch_lightning.callbacks.timer import Timer
-from pytorch_lightning.plugins.environments.torchelastic_environment import TorchElasticEnvironment
-from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
-from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
+from torch.utils.data import DataLoader
 
 from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
-from nemo.collections.nlp.modules.common.megatron.retrieval_service import FaissRetrievalService
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
-from nemo.collections.nlp.parts.nlp_overrides import (
-    GradScaler,
-    MegatronHalfPrecisionPlugin,
-    NLPDDPStrategy,
-    NLPSaveRestoreConnector,
-)
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.core.config import hydra_runner
-from nemo.utils import logging
-from nemo.utils.exp_manager import StatelessTimer, exp_manager
+
+
+"""
+This is the script to run RETRO Model text generation.
+
+Usage:
+    Assume the model has TP=1, PP=1
+    run greedy inference from a nemo file:
+        python megatron_gpt_eval.py \
+            trainer.devices=1 \
+            trainer.num_nodes=1 \
+            trainer.accelerator=gpu \
+            trainer.precision=16 \
+            inference.tokens_to_generate=128 \
+            inference.greedy=True \
+            retro_model_file=path_to_retro_nemo_file \
+            tensor_model_parallel_size=1 \
+            pipeline_model_parallel_size=1 \
+            retrieval_service.faiss_devices='0' \
+            retrieval_service.faiss_index=path_to_faiss_index \
+            retrieval_service.retrieval_index=path_to_retrieval_dataset \
+            retrieval_service.neighbors=20
+"""
 
 
 @hydra_runner(config_path="conf", config_name="megatron_retro_inference")
@@ -40,34 +52,12 @@ def main(cfg) -> None:
 
     model_path = cfg.retro_model_file
 
-    # model = MegatronRetrievalModel.restore_from(restore_path=model_path, trainer=trainer)
     save_restore_connector = NLPSaveRestoreConnector()
     if model_path:
         save_restore_connector.model_extracted_dir = model_path
 
-    model_cfg = MegatronRetrievalModel.restore_from(
-        model_path, trainer=trainer, return_config=True, save_restore_connector=save_restore_connector,
-    )
-
-    # Need to overwrite some params in frozen model's config before restoring
-    with open_dict(model_cfg):
-        pass
-        # model_cfg.data.data_prefix = cfg.model.data.data_prefix
-        # model_cfg.data.knn_index = cfg.model.data.knn_index
-        # model_cfg.data.retrieval_prefix = cfg.model.data.retrieval_prefix
-        # model_cfg.data.index_mapping_dir = cfg.model.data.index_mapping_dir
-
-    if trainer.precision == 32:
-        autocast_dtype = torch.float
-    elif trainer.precision == 16:
-        autocast_dtype = torch.half
-    elif trainer.precision == 'bf16':
-        autocast_dtype = torch.bfloat16
-    else:
-        raise ValueError('precision must be in [32, 16, "bf16"]')
-
     model = MegatronRetrievalModel.restore_from(
-        model_path, trainer=trainer, save_restore_connector=save_restore_connector, override_config_path=model_cfg,
+        model_path, trainer=trainer, save_restore_connector=save_restore_connector
     )
 
     length_params: LengthParam = {
@@ -86,19 +76,6 @@ def main(cfg) -> None:
         "compute_logprob": cfg.inference.compute_logprob,
     }
 
-    #     service = FaissRetrievalService(faiss_index=cfg.faiss_index,
-    #                                     faiss_devices=cfg.faiss_devices,
-    #                                     nprobe=cfg.nprobe,
-    #                                     retrieval_index=cfg.retrieval_index,
-    #                                     tokenizer=model.tokenizer,
-    #                                     sentence_bert=cfg.sentence_bert,
-    #                                     sentence_bert_batch=cfg.sentence_bert_batch
-    #                                     )
-    # service = FaissRetrievalService(tokenizer=model.tokenizer, **cfg.retrieval_service)
-
-    # q = service.get_knn('Massachusetts taxpayers are slated to receive hundreds of dollars in direct relief starting this November', 4)
-    # print(q)
-
     # # First method of running text generation, call model.generate method
     response = model.generate(
         inputs=OmegaConf.to_container(cfg.prompts),
@@ -106,6 +83,18 @@ def main(cfg) -> None:
         sampling_params=sampling_params,
         **cfg.retrieval_service,
     )
+
+    print("***************************")
+    print(response)
+    print("***************************")
+
+    # Second method of running text generation, call trainer.predict
+    ds = RequestDataSet(OmegaConf.to_container(cfg.prompts))
+    request_dl = DataLoader(dataset=ds, batch_size=2)
+    config = OmegaConf.to_container(cfg.inference)
+    retrieval_service = OmegaConf.to_container(cfg.retrieval_service)
+    model.set_inference_config(config, retrieval_service)
+    response = trainer.predict(model, request_dl)
 
     print("***************************")
     print(response)

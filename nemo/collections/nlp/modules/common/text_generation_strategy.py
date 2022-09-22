@@ -238,7 +238,6 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
         self.forward_model = self.model.model
         self.neighbors = args['neighbors']
         self.service = FaissRetrievalService(tokenizer=self.model.tokenizer, **args)
-        self.retrieved = []
 
     def clip_max_len(self, maxlen: int) -> int:
         """ clip the max len based on the LM model max sequence length"""
@@ -247,6 +246,7 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
         return maxlen
 
     def init_batch(self, context_tokens: torch.Tensor, context_length: int):
+        self.retrieved = []
         """initialize the batch data before the inference steps."""
         # Move to GPU.
         tokenizer = self.model.tokenizer

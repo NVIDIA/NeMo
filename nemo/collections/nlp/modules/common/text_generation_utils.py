@@ -424,7 +424,10 @@ def generate(
             token_ids: List[Tensor], output sentence token ids
             offsets: List[List[int]]  # list of tokens start positions in text
     """
-    inference_strategy = model_inference_strategy_dispatcher(model, **strategy_args)
+    if 'strategy' in strategy_args:
+        inference_strategy = strategy_args['strategy']
+    else:
+        inference_strategy = model_inference_strategy_dispatcher(model, **strategy_args)
     tokenizer = model.tokenizer
     if torch.distributed.get_rank() == 0:
         if isinstance(inputs, tuple):

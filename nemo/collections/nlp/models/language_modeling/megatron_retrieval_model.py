@@ -14,7 +14,7 @@
 
 import math
 import re
-from typing import List, Optional, Union
+from typing import Any, List, Optional, Union
 
 import torch
 from omegaconf import DictConfig
@@ -41,6 +41,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_params_for_weight_decay_optimization,
 )
+from nemo.collections.nlp.modules.common.text_generation_strategy import model_inference_strategy_dispatcher
 from nemo.collections.nlp.modules.common.text_generation_utils import (
     generate,
     get_computeprob_response,
@@ -462,6 +463,33 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         self.setup_training_data(self._cfg.data)
         self.setup_validation_data(self._cfg.data)
         self.setup_test_data(self._cfg.data)
+
+    def set_inference_config(self, inference_config, retrieval_config):
+        self._inference_config = inference_config
+        self._inference_strategy = model_inference_strategy_dispatcher(self, **retrieval_config)
+
+    def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
+        inference_config = self._inference_config
+        if inference_config is None:
+            return None
+        else:
+            # need to overwrite some configuration, make it immutable
+            inference_config = inference_config.copy()
+            compute_logprob = inference_config['compute_logprob']
+            if compute_logprob:
+                del inference_config['compute_logprob']
+                inference_config['inputs'] = batch
+                inference_config['tokens_to_generate'] = 1
+                inference_config['all_probs'] = True
+                inference_config["add_BOS"] = False
+                inference_config['greedy'] = True
+                response = generate(self, **inference_config, strategy=self._inference_strategy)
+                compute_prob_response = get_computeprob_response(self.tokenizer, response, batch)
+                return compute_prob_response
+            else:
+                del inference_config['compute_logprob']
+                inference_config['inputs'] = batch
+                return generate(self, **inference_config, strategy=self._inference_strategy)
 
     def generate(
         self,

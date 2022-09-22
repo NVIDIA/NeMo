@@ -25,6 +25,8 @@ retro_model_file: null  # RETRO nemo file path
 prompts: # prompts for GPT inference
   - "hello,"
   - "good morning,"
+  - "good afternoon,"
+  - "good evening,"
 server: False  # whether launch the inference server
 port: 5555 # the port number for the inference server
  
