@@ -34,6 +34,17 @@ docs:sphinx_generate_docs_html:
   rules:
     - when: always
 
+pages:
+  stage: deploy_docs
+  script:
+    - echo "The site will be deployed to $CI_PAGES_URL"
+  artifacts:
+    paths:
+      - docs/_build
+  rules:
+    - if: '$CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH'
+
+
 test:unit_tests:
   tags:
     - V100
