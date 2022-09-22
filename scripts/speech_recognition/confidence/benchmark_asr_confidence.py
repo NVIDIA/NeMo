@@ -98,7 +98,9 @@ def get_word_targets_with_confidence(hyp):
     return [[y, c] for y, c in zip(hyp.words, hyp.word_confidence)]
 
 
-def run_benchmark(model, batch_size, num_workers, is_rnnt, target_level, filepaths, reference_texts, plot_dir):
+def run_benchmark(
+    model, batch_size, num_workers, is_rnnt, target_level, filepaths, reference_texts, plot_dir, autocast
+):
     """Run benchmark and plot histograms and curves.
 
     Returns:
@@ -384,6 +386,7 @@ def main(cfg: ConfidenceBenchmarkingConfig):
                     filepaths,
                     reference_texts,
                     plot_dir,
+                    autocast,
                 )
                 for level, result in results.items():
                     f.write(f"{model_typename},{','.join(param_list)},{level},{','.join([str(r) for r in result])}\n")
@@ -413,6 +416,7 @@ def main(cfg: ConfidenceBenchmarkingConfig):
                 filepaths,
                 reference_texts,
                 plot_dir,
+                autocast,
             )
             for level, result in results.items():
                 f.write(f"{model_typename},{','.join(param_list)},{level},{','.join([str(r) for r in result])}\n")

@@ -110,11 +110,13 @@ class Hypothesis:
             List with confidence scores. The length of the list is the same as `timestep`.
         """
         non_blank_frame_confidence = []
+        # self.timestep can be a dict for RNNT
+        timestep = self.timestep['timestep'] if isinstance(self.timestep, dict) else self.timestep
         if len(self.timestep) != 0 and self.frame_confidence is not None:
             if any(isinstance(i, list) for i in self.frame_confidence):  # rnnt
                 t_prev = -1
                 offset = 0
-                for t in self.timestep:
+                for t in timestep:
                     if t != t_prev:
                         t_prev = t
                         offset = 0
@@ -122,7 +124,7 @@ class Hypothesis:
                         offset += 1
                     non_blank_frame_confidence.append(self.frame_confidence[t][offset])
             else:  # ctc
-                non_blank_frame_confidence = [self.frame_confidence[t] for t in self.timestep]
+                non_blank_frame_confidence = [self.frame_confidence[t] for t in timestep]
         return non_blank_frame_confidence
 
     @property
