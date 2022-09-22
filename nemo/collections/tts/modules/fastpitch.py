@@ -237,9 +237,10 @@ class FastPitchModule(NeuralModule):
         # Input FFT
         enc_out, enc_mask = self.encoder(input=text, conditioning=spk_emb)
         if self.speaker_emb_condition_prosody:
-            log_durs_predicted = self.duration_predictor(enc_out + spk_emb, enc_mask)
+            prosody_input = enc_out + spk_emb
         else:
-            log_durs_predicted = self.duration_predictor(enc_out, enc_mask) 
+            prosody_input = enc_out
+        log_durs_predicted = self.duration_predictor(prosody_input, enc_mask)
         durs_predicted = torch.clamp(torch.exp(log_durs_predicted) - 1, 0, self.max_token_duration)
 
         attn_soft, attn_hard, attn_hard_dur, attn_logprob = None, None, None, None
@@ -253,10 +254,7 @@ class FastPitchModule(NeuralModule):
             attn_hard_dur = attn_hard.sum(2)[:, 0, :]
 
         # Predict pitch
-        if self.speaker_emb_condition_prosody:
-            pitch_predicted = self.pitch_predictor(enc_out + spk_emb, enc_mask)
-        else:
-            pitch_predicted = self.pitch_predictor(enc_out, enc_mask)
+        pitch_predicted = self.pitch_predictor(prosody_input, enc_mask)
         if pitch is not None:
             if self.learn_alignment and pitch.shape[-1] != pitch_predicted.shape[-1]:
                 # Pitch during training is per spectrogram frame, but during inference, it should be per character
