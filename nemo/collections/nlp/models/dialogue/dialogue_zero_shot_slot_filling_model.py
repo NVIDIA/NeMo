@@ -13,6 +13,7 @@
 # limitations under the License.
 import csv
 import os
+from collections import defaultdict
 from typing import Dict, List, Optional, Tuple, Union
 
 import torch
@@ -67,6 +68,8 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
 
         # Initialize slot description
         self._set_slot_descriptions(cfg.dataset.data_dir)
+
+        self._description_embeddings_model = None
 
         # Initialize description embeddings
         self.description_embeddings = self.get_description_embeddings(self.slot_descriptions)
@@ -212,15 +215,16 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
             description embedding by taking final layer embedding for the [CLS] token,
             which is then projected to shared embedding space
         """
-
-        model = BertModel.from_pretrained("bert-base-uncased")
+        if not self._description_embeddings_model:
+            self._description_embeddings_model = BertModel.from_pretrained("bert-base-uncased")
         reader = csv.reader(types_descriptions, delimiter="\t")
         types, descriptions = zip(*reader)
         inputs = self.tokenizer.tokenizer(
             types, descriptions, return_tensors="pt", max_length=128, truncation="only_second", padding="max_length"
         )
+        inputs = {key: value.to(self.device) for key, value in inputs.items()}
         with torch.no_grad():
-            output = model(**inputs)
+            output = self._description_embeddings_model(**inputs)
             return output.last_hidden_state[:, 0, :].to(self.device)
 
     @staticmethod
@@ -293,13 +297,13 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         return bio_slot_logits, dot_product_score_log_softmax, predicted_dot_product_score_log_softmax
 
     def predict(
-        self, texts: Union[str, List[str]], slot_descriptions: List[str] = None
-    ) -> Tuple[torch.tensor, List[List[str]], torch.tensor]:
+        self, texts: Union[str, List[str]], entity_types_descriptions: List[str] = None
+    ) -> Tuple[torch.tensor, torch.tensor]:
         """
         Method for performing inference on text given a list of slot types and descriptions
         Args:
             texts: A single string or a list of strings on which inference needs to be performed
-            slot_descriptions: A list of slot types and descriptions separated by a tab.
+            entity_types_descriptions: A list of entity types and descriptions separated by a tab.
                 e.g. drink type\tThe type of drink
         """
         if isinstance(texts, str):
@@ -325,29 +329,44 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         attention_masks = torch.tensor(attention_masks, dtype=torch.int32, device=self.device)
         subtokens_masks = torch.tensor(subtokens_masks, dtype=torch.int32, device=self.device)
 
-        hidden_states = self.bert_model(
-            input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_masks
-        )
-        bio_slot_logits = self.bio_mlp(hidden_states)
-        predicted_bio_slot = torch.argmax(bio_slot_logits, dim=-1)
-        predicted_mention_hidden_states_pad = DialogueZeroShotSlotFillingModel.get_entity_embedding_from_hidden_states(
-            predicted_bio_slot, hidden_states
-        )
-        predicted_dot_product_score = self.get_entity_description_score(
-            predicted_mention_hidden_states_pad, slot_descriptions
-        )
-        predicted_slot_similarity_preds = torch.argmax(predicted_dot_product_score, dim=-1)
+        with torch.no_grad():
+            hidden_states = self.bert_model(
+                input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_masks
+            )
+            iob_class_logits = self.bio_mlp(hidden_states)
+            predicted_iob_class_batch = torch.argmax(iob_class_logits, dim=-1)
+            predicted_mention_hidden_states_pad = self.get_entity_embedding_from_hidden_states(
+                predicted_iob_class_batch, hidden_states
+            )
+            if not entity_types_descriptions:
+                self.description_embeddings = self.description_embeddings.to(self.device)
+            predicted_dot_product_score = self.get_entity_description_score(
+                predicted_mention_hidden_states_pad, entity_types_descriptions
+            )
+            predicted_slot_similarity_preds = torch.argmax(predicted_dot_product_score, dim=-1)
 
-        predicted_slot_class_batch = DialogueZeroShotSlotFillingModel.align_mention_to_tokens(
-            predicted_bio_slot, predicted_slot_similarity_preds, label_id_for_empty_slot=self.label_id_for_empty_slot
-        )
+            predicted_slot_class_batch = self.align_mention_to_tokens(
+                predicted_iob_class_batch,
+                predicted_slot_similarity_preds,
+                label_id_for_empty_slot=self.label_id_for_empty_slot,
+            )
 
-        utterance_tokens = [
-            self.get_utterance_tokens(single_input_ids, single_subtokens_masks)
-            for single_input_ids, single_subtokens_masks in zip(input_ids, subtokens_masks)
-        ]
+            return predicted_slot_class_batch, predicted_iob_class_batch
 
-        return predicted_slot_class_batch, utterance_tokens, predicted_bio_slot
+    def merge_subword_tokens_and_slots(self, text, slot_class, iob_slot_class) -> Tuple[List[str], torch.Tensor, torch.Tensor]:
+        tokens = self.tokenizer.tokenizer.tokenize(text)
+        subtokens_masks = torch.tensor([not token.startswith("##") for token in tokens], dtype=torch.bool, device=self.device)
+        slot_class = torch.masked_select(slot_class, subtokens_masks)
+        iob_slot_class = torch.masked_select(iob_slot_class, subtokens_masks)
+
+        merged_tokens = []
+        for i, token in enumerate(tokens):
+            if token.startswith("##"):
+                merged_tokens[-1] += token[2:]
+            else:
+                merged_tokens.append(token)
+
+        return merged_tokens, slot_class, iob_slot_class
 
     def calculate_loss(
         self,
@@ -542,7 +561,7 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
                 while i < len(one_bio_labels) and one_bio_labels[i] == 2:
                     i += 1
                 exclusive_end = i
-                start_and_end.append([start, exclusive_end])
+                start_and_end.append((start, exclusive_end))
             # if encounter O (with label 0) or I (with label 2) without a preceding B (with label 1)
             # increment counter
             elif one_bio_labels[i] in [0, 2]:
@@ -571,8 +590,7 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
 
         return dot_product_score
 
-    @staticmethod
-    def get_continuous_slots(slot_ids, utterance_tokens):
+    def get_continuous_slots(self, slot_ids, utterance_tokens):
         """
         Extract continuous spans of slot_ids
         Args:
@@ -593,20 +611,21 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
                 position_stack.append([])
             position_stack[-1].append(i)
 
-        slot_id_to_start_and_exclusive_end = {
-            slot_id_stack[i]: [position_stack[i][0], position_stack[i][-1] + 1]
-            for i in range(len(position_stack))
-            if slot_id_stack[i] != 'O'
-        }
+        slot_id_to_start_and_exclusive_end = defaultdict(list)
+        for i in range(len(position_stack)):
+            if slot_id_stack[i].item() != self.label_id_for_empty_slot:
+                slot_id_to_start_and_exclusive_end[slot_id_stack[i].item()].append(
+                    (position_stack[i][0], position_stack[i][-1] + 1))
 
-        slot_to_words = {
-            slot: ' '.join(utterance_tokens[position[0] : position[1]])
-            for slot, position in slot_id_to_start_and_exclusive_end.items()
-        }
-
-        slot_name_and_values = ["{}({})".format(slot, value) for slot, value in slot_to_words.items()]
-
-        return slot_name_and_values
+        return slot_id_to_start_and_exclusive_end
+        # slot_to_words = {
+        #     slot_id: utterance_tokens[position[0]: position[1]]
+        #     for slot_id, position in slot_id_to_start_and_exclusive_end.items()
+        # }
+        #
+        # slot_name_and_values = ["{}({})".format(slot_id, value) for slot_id, value in slot_to_words.items()]
+        #
+        # return slot_name_and_values
 
     def get_unified_metrics(self, outputs):
         slot_preds = []
@@ -632,10 +651,10 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
             ground_truth_slot_names = ground_truth_slots[i].split()
             predicted_slot_names = predicted_slots[i].split()
 
-            processed_ground_truth_slots = DialogueZeroShotSlotFillingModel.get_continuous_slots(
+            processed_ground_truth_slots = self.get_continuous_slots(
                 ground_truth_slot_names, utterance_tokens
             )
-            processed_predicted_slots = DialogueZeroShotSlotFillingModel.get_continuous_slots(
+            processed_predicted_slots = self.get_continuous_slots(
                 predicted_slot_names, utterance_tokens
             )
 
@@ -815,7 +834,10 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         instance: DialogueZeroShotSlotFillingModel = super().restore_from(
             restore_path, override_config_path, map_location, strict, return_config, save_restore_connector, trainer
         )
-        instance.description_embeddings = instance.description_embeddings.to(instance.device)
+        instance.description_embeddings = instance.get_description_embeddings(instance.slot_descriptions).to(
+            instance.device
+        )
+        # instance.description_embeddings = instance.description_embeddings.to(instance.device)
         return instance
 
     def update_data_dirs(self, data_dir: str, dialogues_example_dir: str):
