@@ -469,6 +469,7 @@ def launch_throughput_measure(dependency_list: List[str], model_name: str, model
     :param list dependency_list: list of all the job_ids this job will depend on.
     :param str model_name: name of the model, i.e. gpt3, t5, mt5.
     :param float model_size_in_b: model size in billions of parameters.
+    :param str hydra_args: hydra override arguments in string format.
     :param omegaconf.dictconfig.DictConfig cfg: general config object for the HP tool.
     :return: job_id of the current job.
     :rtype: str

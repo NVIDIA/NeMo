@@ -1,4 +1,7 @@
 import os
+from typing import Optional
+
+import omegaconf
 
 from hp_tool import utils
 from hp_tool.base_config import calculate_model_size, generate_base_config
@@ -9,11 +12,15 @@ from hp_tool.inference_sweep import search_inference_config
 SUPPORTED_MODELS = ["gpt3", "t5", "mt5"]
 
 
-def search_config(cfg, hydra_args=None):
+def search_config(cfg: omegaconf.dictconfig.DictConfig, hydra_args: Optional[str] = None):
     """
     Main function that implements the entire pipeline to search the optimal
     model config and launch the grid searches for both training and inference
     constraints.
+
+    :param omegaconf.dictconfig.DictConfig cfg: main hydra config object for the HP tool.
+    :param Optional[str] hydra_args: hydra override arguments in string format.
+    :return: None
     """
     model_type = cfg.get("search_config_value")
     model_name, model_size = model_type.split("/")
