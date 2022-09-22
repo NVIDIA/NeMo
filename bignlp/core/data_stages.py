@@ -370,6 +370,8 @@ class CustomDataPreparation(DataStage):
         raw_dataset_files = data_cfg.get("raw_dataset_files")
         preprocess_worker_mapping = data_cfg.get("preprocess_worker_mapping")
         if data_cfg.get("preprocess_data", False):
+            if not isinstance(raw_dataset_files, omegaconf.listconfig.ListConfig):
+                raw_dataset_files = os.listdir(raw_dataset_files)
             # Sort list of files in directory by size
             sorted_files = sorted(raw_dataset_files, key=lambda x: os.stat(x).st_size)
             file_sizes = [os.stat(x).st_size for x in sorted_files]

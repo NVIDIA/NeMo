@@ -24,7 +24,7 @@ train_tokenizer_args: # For all options please check: https://github.com/google/
 bpe_save_dir: ${.custom_dataset_dir}/bpe # Dir to save sentence piece tokenizer model and vocab files
 # ----------------------------------------------------------------------------------------------
 preprocess_data: True  # True to preprocess the data from json, jsonl or json.gz files, False otherwise.
-raw_dataset_files:
+raw_dataset_files: # Either a string (path to dataset folder) or a list (of files)
   - null # Each file should be input json, jsonl or json.gz file
 tokenizer_model: ${.bpe_save_dir}/${data_preparation.train_tokenizer_args.model_prefix}.model # trained SentencePiece tokenizer model
 preprocess_worker_mapping: ${.custom_dataset_dir}/preprocess_mapping
