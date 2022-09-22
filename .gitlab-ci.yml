@@ -92,6 +92,13 @@ before_script:
     - export RUN_NAME=${RUN_TASK}_${RUN_MODEL}_${RUN_JOB_NAME}
     - export RESULTS_DIR=${BASE_RESULTS_DIR}/${RUN_MODEL}/${RUN_SIZE}_${GPU_MEM}gb
     - env
+    # Emulate "enroot login" since enroot is not available on the head node
+    - export CONFIG_DIR="${HP_CI_PATH}/.config/${CI_JOB_ID}" && echo "CONFIG_DIR=${CONFIG_DIR}"
+    - mkdir -p "${CONFIG_DIR}" && chmod 755 "${CONFIG_DIR}"
+    - export ENROOT_CONFIG_PATH="${CONFIG_DIR}/.enroot" && mkdir -p "${ENROOT_CONFIG_PATH}"
+    - echo "machine ${CI_REGISTRY/:5005/} login gitlab-ci-token password ${CI_BUILD_TOKEN}"
+    - echo "machine ${CI_REGISTRY/:5005/} login gitlab-ci-token password ${CI_BUILD_TOKEN}" > $ENROOT_CONFIG_PATH/.credentials  
+    # Clone bignlp-scripts
     - cd ..
     - git clone ssh://git@gitlab-master.nvidia.com:12051/dl/JoC/bignlp-scripts.git
     - cd bignlp-hp-tool
