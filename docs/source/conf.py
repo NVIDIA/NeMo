@@ -15,13 +15,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import glob
 import os
 import re
 import sys
+import glob
 
 import sphinx_book_theme
-from package_info import __version__
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
@@ -31,6 +30,7 @@ sys.path.insert(0, os.path.abspath("../.."))
 sys.path.insert(0, os.path.abspath("../../nemo"))
 sys.path.insert(0, os.path.abspath("../../nemo_text_processing"))
 
+from package_info import __version__
 
 templates_path = ["_templates"]
 
