@@ -1,8 +1,8 @@
 pipeline {
   agent {
         docker {
-      //image 'nvcr.io/nvidia/pytorch:22.05-py3'
-      image 'gitlab-master.nvidia.com:5005/eharper/nemo_containers:nemo_ci_pytorch_22.07_apex_3c19f1061879394f28272a99a7ea26d58f72dace'
+      //image 'gitlab-master.nvidia.com:5005/eharper/nemo_containers:nemo_ci_pytorch_22.07_apex_3c19f1061879394f28272a99a7ea26d58f72dace'
+      image 'nvcr.io/nvidia/pytorch:22.08-py3'
       args '--device=/dev/nvidia0 --gpus all -e TRANSFORMERS_OFFLINE=1 --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache:/root/.cache --shm-size=8g'
         }
   }
@@ -23,6 +23,12 @@ pipeline {
     stage('nvidia-smi'){
       steps{
         sh 'nvidia-smi'
+      }
+    }
+
+    stage('Pin Transformers Version (Hotfix)') {
+      steps{
+        sh 'pip install transformers==4.21.2'
       }
     }
 
@@ -3146,8 +3152,10 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
                 inference.add_BOS=False \
                 trainer.devices=2 \
                 tensor_model_parallel_size=2 \
+                pred_file_path=/home/TestData/nlp/prompt_learning/p_tuning_test_tp_preds.txt \
                 data_paths=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl']"
             sh "rm -rf /home/TestData/nlp/prompt_learning/p_tuning_test_tp.nemo"
+            sh "rm -rf /home/TestData/nlp/prompt_learning/p_tuning_test_tp_preds.txt"
           }
         }
         stage('GPT Prompt Learning TP=1 PP=2') {
@@ -3173,8 +3181,10 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
                 inference.add_BOS=False \
                 trainer.devices=2 \
                 pipeline_model_parallel_size=2 \
+                pred_file_path=/home/TestData/nlp/prompt_learning/p_tuning_test_pp_preds.txt \
                 data_paths=['/home/TestData/nlp/prompt_learning/boolq_CI_test.jsonl']"
             sh "rm -rf /home/TestData/nlp/prompt_learning/p_tuning_test_pp.nemo"
+            sh "rm -rf /home/TestData/nlp/prompt_learning/p_tuning_test_pp_preds.txt"
           }
         }
       }
@@ -3433,7 +3443,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
                 trainer.max_steps=6 \
                 trainer.max_epochs=null \
                 model.tensor_model_parallel_size=1 \
-                model.pretrained_language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m-refactor.nemo' \
+                model.language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m-refactor.nemo' \
                 model.existing_tasks=[] \
                 model.new_tasks=['squad'] \
                 model.data.train_ds=['/home/TestData/nlp/prompt_learning/squad_CI_test.jsonl'] \
@@ -3443,11 +3453,13 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             sh "rm -rf /home/TestData/nlp/prompt_learning/t5_p_tuning_test"
             sh "python examples/nlp/language_modeling/megatron_t5_prompt_learning_eval.py \
                 virtual_prompt_model_file='/home/TestData/nlp/prompt_learning/t5_p_tuning_test.nemo' \
-                pretrained_language_model_file='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m-refactor.nemo' \
+                language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m-refactor.nemo' \
                 data.test_ds=['/home/TestData/nlp/prompt_learning/squad_CI_test.jsonl'] \
+                pred_file_path='/home/TestData/nlp/prompt_learning/t5_p_tuning_test_preds.txt' \
                 data.global_batch_size=4 \
                 data.micro_batch_size=4"
             sh "rm -rf /home/TestData/nlp/prompt_learning/t5_p_tuning_test.nemo"
+            sh "rm -rf /home/TestData/nlp/prompt_learning/t5_p_tuning_test_preds.txt"
           }
         }
         stage('T5 Prompt Learning TP=2 PP=1') {
@@ -3459,7 +3471,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
                 trainer.max_steps=6 \
                 trainer.max_epochs=null \
                 model.tensor_model_parallel_size=2 \
-                model.pretrained_language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp2.nemo' \
+                model.language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp2.nemo' \
                 model.existing_tasks=[] \
                 model.new_tasks=['squad'] \
                 model.data.train_ds=['/home/TestData/nlp/prompt_learning/squad_CI_test.jsonl'] \
@@ -3469,13 +3481,15 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             sh "rm -rf /home/TestData/nlp/prompt_learning/t5_p_tuning_test_tp2"
             sh "python examples/nlp/language_modeling/megatron_t5_prompt_learning_eval.py \
                 virtual_prompt_model_file='/home/TestData/nlp/prompt_learning/t5_p_tuning_test_tp2.nemo' \
-                pretrained_language_model_file='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp2.nemo' \
+                language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp2.nemo' \
                 data.test_ds=['/home/TestData/nlp/prompt_learning/squad_CI_test.jsonl'] \
+                pred_file_path='/home/TestData/nlp/prompt_learning/t5_p_tuning_test_tp2_preds.txt' \
                 tensor_model_parallel_size=2 \
                 trainer.devices=2 \
                 data.global_batch_size=8 \
                 data.micro_batch_size=8"
             sh "rm -rf /home/TestData/nlp/prompt_learning/t5_p_tuning_test_tp2.nemo"
+            sh "rm -rf /home/TestData/nlp/prompt_learning/t5_p_tuning_test_tp2_preds.txt"
           }
         }
       }
@@ -3590,10 +3604,10 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         trainer.devices=2 \
         trainer.accelerator=gpu \
         trainer.log_every_n_steps=1 \
-        trainer.val_check_interval=10 \
+        trainer.val_check_interval=2 \
         trainer.limit_val_batches=2 \
         trainer.accumulate_grad_batches=1 \
-        trainer.max_steps=10 \
+        trainer.max_steps=3 \
         trainer.precision=16 \
         trainer.gradient_clip_val=1.0 \
         exp_manager.exp_dir=examples/nlp/language_modeling/bart_pretrain_results \
@@ -3613,15 +3627,15 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.decoder.bias_activation_fusion=False \
         model.decoder.activations_checkpoint_method='block' \
         model.decoder.activations_checkpoint_num_layers=1 \
-        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document,.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document]"
+        model.data.data_prefix='{train:[1.0,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document],test:[/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document], validation:[/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document]}'"
         sh "python examples/nlp/language_modeling/megatron_bart_pretraining.py \
         trainer.devices=2 \
         trainer.accelerator=gpu \
         trainer.log_every_n_steps=1 \
-        trainer.val_check_interval=10 \
-        trainer.limit_val_batches=2 \
+        trainer.val_check_interval=2 \
+        trainer.limit_val_batches=1 \
         trainer.accumulate_grad_batches=1 \
-        trainer.max_steps=10 \
+        trainer.max_steps=6 \
         trainer.precision=16 \
         trainer.gradient_clip_val=1.0 \
         exp_manager.exp_dir=examples/nlp/language_modeling/bart_pretrain_results \
@@ -3642,7 +3656,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.decoder.bias_activation_fusion=False \
         model.decoder.activations_checkpoint_method='block' \
         model.decoder.activations_checkpoint_num_layers=1 \
-        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document,.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document]"
+        model.data.data_prefix='{train:[1.0,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document],test:[/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document], validation:[/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document]}'"
         sh "rm -rf examples/nlp/language_modeling/bart_pretrain_results"
       }
     }
@@ -3814,9 +3828,9 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             model.decoder.prenet_dim=128 \
             model.postnet.postnet_n_convolutions=3 \
             model.train_ds.dataloader_params.batch_size=4 \
-            model.train_ds.dataloader_params.num_workers=1 \
+            model.train_ds.dataloader_params.num_workers=0 \
             model.validation_ds.dataloader_params.batch_size=4 \
-            model.validation_ds.dataloader_params.num_workers=1 \
+            model.validation_ds.dataloader_params.num_workers=0 \
             ~model.text_normalizer \
             ~model.text_normalizer_call_kwargs \
             ~trainer.check_val_every_n_epoch \
@@ -3832,7 +3846,9 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             +trainer.limit_train_batches=1 +trainer.limit_val_batches=1 trainer.max_epochs=1 \
             trainer.strategy=null \
             model.train_ds.dataloader_params.batch_size=4 \
+            model.train_ds.dataloader_params.num_workers=0 \
             model.validation_ds.dataloader_params.batch_size=4 \
+            model.validation_ds.dataloader_params.num_workers=0 \
             model.waveglow.n_flows=4 \
             model.waveglow.n_wn_layers=2 \
             model.waveglow.n_wn_channels=32 \
@@ -3890,9 +3906,9 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             +trainer.limit_train_batches=1 +trainer.limit_val_batches=1 +trainer.max_epochs=1 \
             trainer.strategy=null \
             model.train_ds.dataloader_params.batch_size=4 \
-            model.train_ds.dataloader_params.num_workers=1 \
+            model.train_ds.dataloader_params.num_workers=0 \
             model.validation_ds.dataloader_params.batch_size=4 \
-            model.validation_ds.dataloader_params.num_workers=1 \
+            model.validation_ds.dataloader_params.num_workers=0 \
             model.generator.upsample_initial_channel=64 \
             +model.debug=true \
             ~trainer.check_val_every_n_epoch'
