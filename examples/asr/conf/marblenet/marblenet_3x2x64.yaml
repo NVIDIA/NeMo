@@ -167,7 +167,7 @@ trainer:
   max_epochs: 150
   max_steps: -1 # computed at runtime if not set
   num_nodes: 1
-  accelerator: gpu
+  accelerator: cuda
   strategy: ddp
   accumulate_grad_batches: 1
   enable_checkpointing: False  # Provided by exp_manager
