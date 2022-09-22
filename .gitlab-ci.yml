@@ -23,7 +23,7 @@ docs:sphinx_generate_docs_html:
   stage: docs
   script:
     - apt-get update && apt-get install make --no-install-recommends -y
-    - pip install sphinx
+    - python -m pip install sphinx
     - cd docs
     - make clean
     - make html
