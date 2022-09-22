@@ -23,6 +23,7 @@ docs:sphinx_generate_docs_html:
   stage: docs
   script:
     - python3 -m pip install sphinx
+    - python3 -m pip install sphinx-rtd-theme
     - export PATH="/home/gitlab-runner/.local/bin:$PATH"
     - cd docs
     - make clean
