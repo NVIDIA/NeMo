@@ -124,7 +124,7 @@ if __name__ == '__main__':
     elif model_name == "mt5":
         enc_seq_len = 512
         dec_seq_len = 128
-        vcoab = 250000
+        vocab = 250000
     elif model_name == "t5":
         enc_seq_len = 512
         dec_seq_len = 128
