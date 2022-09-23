@@ -28,7 +28,6 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_
 )
 from nemo.collections.nlp.modules.common import VirtualPromptStyle
 from nemo.collections.nlp.modules.common.megatron.parallel_adapters import (
-    InfusedAdapter,
     InfusedAdapterConfig,
     ParallelLinearAdapterConfig,
 )
