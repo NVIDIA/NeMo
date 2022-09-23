@@ -476,6 +476,7 @@ def launch_throughput_measure(dependency_list: List[str], model_name: str, model
     """
     # Read config
     bignlp_hp_tool_path = cfg.get("bignlp_hp_tool_path")
+    cluster_type = cfg.get("cluster_type")
     container_mounts = cfg.get("container_mounts")
     container = cfg.get("training_container")
     hp_cfg = cfg.get("search_config")
@@ -522,32 +523,40 @@ def launch_throughput_measure(dependency_list: List[str], model_name: str, model
             f"-e {final_log_dir}/compare_throughput_{model_size_in_b}b_{num_nodes}nodes-%j.error "
         )
 
-    new_script_path = os.path.join(bignlp_hp_tool_path, "hp_tool/scripts/compare_throughput.sh")
-    code_path = os.path.join(bignlp_hp_tool_path, "hp_tool/scripts/compare_throughput_results.py")
-    train_cmd = f"HYDRA_FULL_ERROR=1 python3 -u {code_path} bignlp_hp_tool_path={bignlp_hp_tool_path} search_config.train_settings.model_size_in_b={model_size_in_b} search_config={model_name}/{model_size_in_b}b search_config_value={model_name}/{model_size_in_b}b +nodes={num_nodes} base_results_dir={base_results_dir} {hydra_args} "
-    utils.create_slurm_file(
-        new_script_path=new_script_path,
-        cmds=[train_cmd],
-        job_name=job_name,
-        flags=flags,
-        dependency=dependency,
-        exclusive=exclusive,
-        mem=mem,
-        overcommit=overcommit,
-        time=time_limit,
-        nodes=1,
-        ntasks_per_node=ntasks_per_node,
-        gpus_per_task=gpus_per_task,
-        gpus_per_node=gpus_per_node,
-        partition=partition,
-        account=account,
-    )
-    if os.getenv("BIGNLP_CI"):
-        job_id = subprocess.check_output(
-            [f'sbatch {new_script_path} | tee "{log_dir}/launcher.log" '], shell=True
+    if cluster_type == "bcm":
+        new_script_path = os.path.join(bignlp_hp_tool_path, "hp_tool/scripts/compare_throughput.sh")
+        code_path = os.path.join(bignlp_hp_tool_path, "hp_tool/scripts/compare_throughput_results.py")
+        train_cmd = f"HYDRA_FULL_ERROR=1 python3 -u {code_path} bignlp_hp_tool_path={bignlp_hp_tool_path} search_config.train_settings.model_size_in_b={model_size_in_b} search_config={model_name}/{model_size_in_b}b search_config_value={model_name}/{model_size_in_b}b +nodes={num_nodes} base_results_dir={base_results_dir} {hydra_args} "
+        utils.create_slurm_file(
+            new_script_path=new_script_path,
+            cmds=[train_cmd],
+            job_name=job_name,
+            flags=flags,
+            dependency=dependency,
+            exclusive=exclusive,
+            mem=mem,
+            overcommit=overcommit,
+            time=time_limit,
+            nodes=1,
+            ntasks_per_node=ntasks_per_node,
+            gpus_per_task=gpus_per_task,
+            gpus_per_node=gpus_per_node,
+            partition=partition,
+            account=account,
         )
-    else:
-        job_id = subprocess.check_output([f"sbatch --parsable {new_script_path}"], shell=True)
-    dependency = job_id.decode("utf-8")
-    print(f"Submitted job to select optimal throughput with job id: {dependency}")
-    return dependency
+        if os.getenv("BIGNLP_CI"):
+            job_id = subprocess.check_output(
+                [f'sbatch {new_script_path} | tee "{log_dir}/launcher.log" '], shell=True
+            )
+        else:
+            job_id = subprocess.check_output([f"sbatch --parsable {new_script_path}"], shell=True)
+        dependency = job_id.decode("utf-8")
+        print(f"Submitted job to select optimal throughput with job id: {dependency}")
+        return dependency
+    elif cluster_type == "bcp":
+        code_path = os.path.join(bignlp_hp_tool_path, "hp_tool/scripts/compare_throughput_results.py")
+        train_cmd = f"HYDRA_FULL_ERROR=1 python3 -u {code_path} bignlp_hp_tool_path={bignlp_hp_tool_path} search_config.train_settings.model_size_in_b={model_size_in_b} search_config={model_name}/{model_size_in_b}b search_config_value={model_name}/{model_size_in_b}b +nodes={num_nodes} base_results_dir={base_results_dir} {hydra_args} "
+        job_id = subprocess.check_output([train_cmd], shell=True)
+        dependency = job_id.decode("utf-8")
+        print(f"Submitted job to select optimal throughput with job id: {dependency}")
+        return dependency
