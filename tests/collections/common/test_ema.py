@@ -181,7 +181,7 @@ class TestEMAConfig:
                 "checkpoint_callback_params": {"filename": f"{{epoch}}-{{step}}"},
             },
         )
-        # add the assert callback after the exp manager has made modifications.
+        # add the callback after the exp manager has made modifications.
         trainer.callbacks.append(CheckStateCallback())
         trainer.fit(model, ckpt_path=resume_path)
 
@@ -309,11 +309,14 @@ class TestEMAConfig:
 
 @pytest.mark.parametrize("precision", [16, "bf16", 32])
 @pytest.mark.parametrize("accumulate_grad_batches", [1, 2])
+@pytest.mark.parametrize("evaluate_ema_weights_instead", [True, False])
 @pytest.mark.run_only_on('GPU')
 @pytest.mark.skipif(not apex_available, reason="apex is not installed")
 class TestEMATrain:
     @pytest.mark.unit
-    def test_example_run(self, test_data_dir, precision, accumulate_grad_batches, tmpdir):
+    def test_example_run(
+        self, test_data_dir, precision, accumulate_grad_batches, evaluate_ema_weights_instead, tmpdir
+    ):
         pl.seed_everything(123)
 
         model = ExampleModel()
@@ -334,12 +337,12 @@ class TestEMATrain:
         exp_manager(
             trainer,
             {
-                "ema": {"enable": True, "evaluate_ema_weights_instead": True},
+                "ema": {"enable": True, "evaluate_ema_weights_instead": evaluate_ema_weights_instead},
                 "explicit_log_dir": str(tmpdir),
                 "checkpoint_callback_params": {"filename": f"{{epoch}}-{{step}}"},
             },
         )
-        # add the assert callback after the exp manager has made modifications.
+        # add the check callback after the exp manager has made modifications.
         trainer.callbacks.append(EMAAssertCallback())
         trainer.fit(model=model, val_dataloaders=model.train_dataloader())
 
@@ -379,16 +382,19 @@ class EMAAssertCallback(Callback):
 
     def on_validation_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
         ema_callback = [x for x in trainer.callbacks if isinstance(x, EMA)][0]
-        # todo (sean): shouldn't use the weights buffer to check original weights
-        self._original_weights = list(x.detach().clone() for x in ema_callback._weights_buffer)
-        if ema_callback.ema_initialized:
-            for ema_weights, module_weights in zip(ema_callback._ema_model_weights, pl_module.state_dict().values()):
-                torch.allclose(ema_weights, module_weights)
+        if ema_callback.evaluate_ema_weights_instead:
+            # todo (sean): shouldn't use the weights buffer to check original weights
+            self._original_weights = list(x.detach().clone() for x in ema_callback._weights_buffer)
+            if ema_callback.ema_initialized:
+                for ema_weights, module_weights in zip(
+                    ema_callback._ema_model_weights, pl_module.state_dict().values()
+                ):
+                    torch.allclose(ema_weights, module_weights)
 
     def on_validation_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
         ema_callback = [x for x in trainer.callbacks if isinstance(x, EMA)][0]
-        model_weights = list(pl_module.state_dict().values())
-        if ema_callback.ema_initialized:
-            for orig_weights, module_weights in zip(self._original_weights, model_weights):
-                # original weights are stored on cpu to reduce mem overhead
-                torch.allclose(orig_weights, module_weights.cpu())
+        if ema_callback.evaluate_ema_weights_instead:
+            model_weights = list(pl_module.state_dict().values())
+            if ema_callback.ema_initialized:
+                for orig_weights, module_weights in zip(self._original_weights, model_weights):
+                    torch.allclose(orig_weights, module_weights.cpu())

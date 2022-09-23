@@ -112,7 +112,8 @@ class EMA(Callback):
     def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
         self._cur_step = state_dict['cur_step']
         # when loading using NeMo, ema weights will be loaded by the experiment manager separately.
-        self._ema_model_weights = state_dict.get('ema_weights')
+        if self._ema_model_weights is None:
+            self._ema_model_weights = state_dict.get('ema_weights')
 
     def on_load_checkpoint(
         self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", checkpoint: Dict[str, Any]
