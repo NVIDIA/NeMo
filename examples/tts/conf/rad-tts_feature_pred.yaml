@@ -69,7 +69,7 @@ model:
           phoneme_dict: ${phoneme_dict_path}
           heteronyms: ${heteronyms_path}
           phoneme_probability: 0.5
-	  mapping_file: ${mapping_file_path}
+          mapping_file: ${mapping_file_path}
           
   train_ds:
     dataset:
