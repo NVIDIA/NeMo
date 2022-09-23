@@ -359,3 +359,59 @@ benchmark.gpt3.126m_80gb_100runs_8node:
     RUN_JOB_NAME: gpt3_training_search
   rules:
     - when: manual
+
+benchmark.gpt3.5b_80gb_100runs_16node:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: gpt3
+    RUN_SIZE: 5b
+    RUNS: 100
+    GPU_MEM: 80
+    NODES: 16
+    RUN_JOB_NAME: gpt3_training_search
+  rules:
+    - when: manual
+
+benchmark.gpt3.20b_80gb_100runs_64node:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: gpt3
+    RUN_SIZE: 20b
+    RUNS: 100
+    GPU_MEM: 80
+    NODES: 64
+    RUN_JOB_NAME: gpt3_training_search
+  rules:
+    - when: manual
+
+benchmark.gpt3.40b_80gb_100runs_128node:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: gpt3
+    RUN_SIZE: 40b
+    RUNS: 100
+    GPU_MEM: 80
+    NODES: 128
+    RUN_JOB_NAME: gpt3_training_search
+  rules:
+    - when: manual
+
+benchmark.gpt3.175b_80gb_100runs_128node:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: gpt3
+    RUN_SIZE: 175b
+    RUNS: 100
+    GPU_MEM: 80
+    NODES: 128
+    RUN_JOB_NAME: gpt3_training_search
+  rules:
+    - when: manual
