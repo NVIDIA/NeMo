@@ -1216,12 +1216,13 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         response['prompt'] = request['prompt'][0]
         response['completion'] = {}
+        bos_id = request['bos_id']
         tokens_enc = request['masked_sample']
 
         response['masked_input'] = ' '.join(self.tokenizer.ids_to_tokens(tokens_enc[0].cpu().numpy().tolist()))
         enc_mask = tokens_enc != self.tokenizer.pad_id
 
-        predicted_tokens_ids, log_probs = self.decode(tokens_enc, enc_mask, int(request['tokens_to_generate']))
+        predicted_tokens_ids, log_probs = self.decode(tokens_enc, enc_mask, int(request['tokens_to_generate']), bos_id=bos_id)
         predicted_tokens_ids = predicted_tokens_ids.cpu().numpy()[0].tolist()
         log_probs = log_probs.cpu().numpy()[0].tolist()
         if self.tokenizer.eos_id in predicted_tokens_ids:

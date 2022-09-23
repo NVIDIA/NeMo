@@ -48,6 +48,8 @@ def main():
         "--pipeline_model_parallel_split_rank", type=int, default=0, required=False,
     )
     parser.add_argument("--precision", default="16", type=str, help="PyTorch Lightning Trainer precision flag")
+    parser.add_argument("--decoder_starts_with_pad", action="store_true", help="Decoder starts with pad token")
+    parser.add_argument("--add_eos_to_encoder_input", action="store_true", help="Encoder input ends with EOS token")
     args = parser.parse_args()
 
     # cast precision to int if 32 or 16
@@ -101,6 +103,8 @@ def main():
     request = {
         "prompt": args.prompt,
         "tokens_to_generate": args.tokens_to_generate,
+        "bos_id": model.tokenizer.pad_id if args.decoder_starts_with_pad else model.tokenizer.bos_id,
+        "add_eos_to_encoder_input": args.add_eos_to_encoder_input,
     }
 
     dataset = T5RequestDataset(request, model.tokenizer)
