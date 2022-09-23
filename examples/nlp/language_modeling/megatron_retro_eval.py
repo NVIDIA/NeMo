@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from examples.nlp.language_modeling.megatron_gpt_eval import RequestDataSet
-from omegaconf.omegaconf import OmegaConf
+from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 
@@ -56,8 +56,16 @@ def main(cfg) -> None:
     if model_path:
         save_restore_connector.model_extracted_dir = model_path
 
+    model_cfg = MegatronRetrievalModel.restore_from(
+        model_path, trainer=trainer, return_config=True, save_restore_connector=save_restore_connector,
+    )
+
+    with open_dict(model_cfg):
+        # work around for the fused softmax bug
+        model_cfg.masked_softmax_fusion = False
+
     model = MegatronRetrievalModel.restore_from(
-        model_path, trainer=trainer, save_restore_connector=save_restore_connector
+        model_path, trainer=trainer, save_restore_connector=save_restore_connector, override_config_path=model_cfg,
     )
 
     length_params: LengthParam = {
@@ -90,7 +98,7 @@ def main(cfg) -> None:
 
     # Second method of running text generation, call trainer.predict
     ds = RequestDataSet(OmegaConf.to_container(cfg.prompts))
-    request_dl = DataLoader(dataset=ds, batch_size=2)
+    request_dl = DataLoader(dataset=ds, batch_size=cfg.inference_batch_size)
     config = OmegaConf.to_container(cfg.inference)
     retrieval_service = OmegaConf.to_container(cfg.retrieval_service)
     model.set_inference_config(config, retrieval_service)

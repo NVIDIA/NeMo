@@ -172,12 +172,25 @@ class GPTModelTextGenerationStrategy(TextGenerationStrategy):
         return batch, tensor_shape
 
 
-class PromptLearningModelTextGenerationStrategy(GPTModelTextGenerationStrategy):
+class PromptLearningModelTextGenerationStrategy(TextGenerationStrategy):
     def __init__(self, model, task_ids):
-        self.model = model
-        self.model.eval()
+        super().__init__(model)
         self.task_ids = task_ids
         self.forward_model = self.model
+
+    def init_batch(self, context_tokens: torch.Tensor, context_length: int):
+        """initialize the batch data before the inference steps."""
+        # Move to GPU.
+        tokenizer = self.model.tokenizer
+        tokens = context_tokens.contiguous().cuda()
+        # Get the attention mask and postition ids.
+        self.attention_mask, _, self.position_ids = get_ltor_masks_and_position_ids(
+            tokens,
+            tokenizer.eos_id,
+            self.model.cfg.get('reset_position_ids', False),
+            self.model.cfg.get('reset_attention_mask', False),
+            self.model.cfg.get('eod_mask_loss', False),
+        )
 
     def clip_max_len(self, maxlen: int) -> int:
         """ clip the max len based on the LM model max sequence length"""
@@ -233,8 +246,7 @@ class PromptLearningModelTextGenerationStrategy(GPTModelTextGenerationStrategy):
 
 class RetroModelTextGenerationStrategy(TextGenerationStrategy):
     def __init__(self, model, **args):
-        self.model = model
-        self.model.eval()
+        super().__init__(model)
         self.forward_model = self.model.model
         self.neighbors = args['neighbors']
         self.service = FaissRetrievalService(tokenizer=self.model.tokenizer, **args)
