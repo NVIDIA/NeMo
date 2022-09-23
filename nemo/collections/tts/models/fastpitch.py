@@ -689,7 +689,6 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
                 f"Parameters original_speaker_1, original_speaker_2, new_speaker_id should be less than the total \
                 total number of speakers FastPitch was trained on (n_speakers = {n_speakers})."
             )
-        
         speaker_emb_1 = (
             self.fastpitch.speaker_emb(torch.tensor(original_speaker_1, dtype=torch.int32).cuda()).clone().detach()
         )
