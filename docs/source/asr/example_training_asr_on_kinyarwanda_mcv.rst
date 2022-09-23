@@ -366,8 +366,9 @@ Tarred datasets and bucketing
 *****************************
 
 There are two useful techniques for training on large datasets.
-#. Tarred dataset allows to store the dataset as large .tar files instead of small separate audio files. It speeds up the training and minimizes the load on the network in the cluster.
-#. Bucketing groups utterances with similar duration. It reduces padding and speeds up the training.
+
+* Tarred dataset allows to store the dataset as large .tar files instead of small separate audio files. It speeds up the training and minimizes the load on the network in the cluster.
+* Bucketing groups utterances with similar duration. It reduces padding and speeds up the training.
 
 The NeMo toolkit provides a script to implement both of these techniques.
 
