@@ -171,7 +171,7 @@ build-BigNLP-inference:
   rules:
     - when: always
 
-train.gpt3.126m_80gb_3runs_8node:
+train.gpt3.126m_80gb_2runs_8nodes:
   <<: *hp-tool-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
@@ -179,11 +179,12 @@ train.gpt3.126m_80gb_3runs_8node:
     RUN_MODEL: gpt3
     RUN_SIZE: 0.126b
     GPU_MEM: 80
-    RUN_JOB_NAME: 126m_80gb_3runs_8node
+    RUNS: 2
+    RUN_JOB_NAME: gpt3_training_search
   rules:
     - when: always
 
-train.gpt3.126m_40gb_3runs_8node:
+train.gpt3.126m_40gb_2runs_8nodes:
   <<: *hp-tool-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
@@ -191,11 +192,12 @@ train.gpt3.126m_40gb_3runs_8node:
     RUN_MODEL: gpt3
     RUN_SIZE: 0.126b
     GPU_MEM: 40
-    RUN_JOB_NAME: 126m_40gb_3runs_8node
+    RUNS: 2
+    RUN_JOB_NAME: gpt3_training_search
   rules:
     - when: always
 
-train.gpt3.5b_80gb_3runs_16node:
+train.gpt3.5b_80gb_2runs_16nodes:
   <<: *hp-tool-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
@@ -203,11 +205,12 @@ train.gpt3.5b_80gb_3runs_16node:
     RUN_MODEL: gpt3
     RUN_SIZE: 5b
     GPU_MEM: 80
-    RUN_JOB_NAME: 5b_80gb_3runs_16node
+    RUNS: 2
+    RUN_JOB_NAME: gpt3_training_search
   rules:
     - when: always
 
-train.gpt3.5b_40gb_3runs_16node:
+train.gpt3.5b_40gb_2runs_16nodes:
   <<: *hp-tool-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
@@ -215,7 +218,21 @@ train.gpt3.5b_40gb_3runs_16node:
     RUN_MODEL: gpt3
     RUN_SIZE: 5b
     GPU_MEM: 40
-    RUN_JOB_NAME: 5b_40gb_3runs_16node
+    RUNS: 2
+    RUN_JOB_NAME: gpt3_training_search
+  rules:
+    - when: always
+
+train.gpt3.20b_80gb_2runs_64nodes:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: gpt3
+    RUN_SIZE: 20b
+    GPU_MEM: 80
+    RUNS: 2
+    RUN_JOB_NAME: gpt3_training_search
   rules:
     - when: always
 
@@ -324,5 +341,21 @@ cleanup.selene:
     - rm -rf ${CI_BUILDS_DIR}/${SLURM_ACCOUNT}/big_nlp/hp_tool_ci/*
     - echo "Finished cleaning everything on Selene"
   allow_failure: true
+  rules:
+    - when: manual
+
+
+###### BENCHMARKS ######
+benchmark.gpt3.126m_80gb_100runs_8node:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: gpt3
+    RUN_SIZE: 0.126b
+    RUNS: 100
+    GPU_MEM: 80
+    NODES: 8
+    RUN_JOB_NAME: gpt3_training_search
   rules:
     - when: manual

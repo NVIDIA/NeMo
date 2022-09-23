@@ -1,5 +1,5 @@
 HYDRA_FULL_ERROR=1 BIGNLP_CI=1 python3 main.py \
-    search_config=gpt3/0.126b \
+    search_config=gpt3/${RUN_SIZE} \
     run_training_hp_search=True \
     run_inference_hp_search=False \
     bignlp_hp_tool_path=${GIT_CLONE_PATH} \
@@ -11,5 +11,5 @@ HYDRA_FULL_ERROR=1 BIGNLP_CI=1 python3 main.py \
     cluster.job_name_prefix="${SLURM_ACCOUNT}-bignlp_hp_tool:" \
     cluster.gpus_per_task=null \
     cluster.gpus_per_node=null \
-    search_config.train_settings.gpu_memory_gb=40 \
-    search_config.train_settings.limit_search_runs=3
+    search_config.train_settings.gpu_memory_gb=${GPU_MEM} \
+    search_config.train_settings.limit_search_runs=${RUNS}
