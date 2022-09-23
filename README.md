@@ -1,4 +1,5 @@
-# BigNLP-Scripts
+# NeMo Megatron
+## Open Beta
 
 Scripts and code to provide end-to-end data preparation and training for
 NeMo-Megatron.
@@ -247,7 +248,7 @@ Figure 1: The GPT-3 family architecture. The 5B variant includes 24 transformer 
 ### 3.1. Support Matrix
 <a id="markdown-support-matrix" name="support-matrix"></a>
 
-| Software                | EA               |
+| Software                | Version          |
 |-------------------------|------------------|
 | NVIDIA Triton           | 2.24.0           |
 | FasterTransformer       | v5.1+d3ca094     |
