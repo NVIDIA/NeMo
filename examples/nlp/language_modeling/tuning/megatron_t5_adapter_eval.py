@@ -66,13 +66,13 @@ def main(cfg) -> None:
         )
 
     # Load an adapter model,  must be provided in config
-    if cfg.get("adapter_model_file", None) is not None and cfg.get("pretrained_language_model_file", None) is not None:
+    if cfg.get("adapter_model_file", None) is not None and cfg.get("language_model_path", None) is not None:
         # Update frozen GPT model path in case it has changed
         adapter_tuning_cfg = MegatronT5AdapterLearningModel.restore_from(
             cfg.adapter_model_file, trainer=trainer, return_config=True
         )
         with open_dict(adapter_tuning_cfg):
-            adapter_tuning_cfg.pretrained_language_model_path = cfg.pretrained_language_model_file
+            adapter_tuning_cfg.language_model_path = cfg.language_model_path
             adapter_tuning_cfg.micro_batch_size = cfg.data.micro_batch_size
             adapter_tuning_cfg.global_batch_size = cfg.data.global_batch_size
 
@@ -84,7 +84,7 @@ def main(cfg) -> None:
     # Or load regular GPT model
     else:
         raise NotImplementedError(
-            "This script is meant for inference from an Infused Adapter Tuned T5 Model, config should contain an adapter_model_file and a pretrained_lanugage_model_file"
+            "This script is meant for inference from an Infused Adapter Tuned T5 Model, config should contain an adapter_model_file and a language_model_path"
         )
 
     # check whether the DDP is initialized
