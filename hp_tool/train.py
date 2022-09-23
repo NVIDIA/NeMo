@@ -52,6 +52,13 @@ def copy_config_to_file(cfg: OmegaConf, dst: str) -> None:
 
 
 def convert_to_absolute_path(path: str) -> str:
+    """
+    Removes the /../ part from relative paths to convert them to absolute paths.
+
+    :param str path: the path that will be converted.
+    :return: the converted path with no /../ elements in it.
+    :rtype: str
+    """
     path_split = path.split("/")
     result = []
     for index, elem in enumerate(path_split):
