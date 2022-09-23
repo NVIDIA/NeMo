@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:22.07-py3
+ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:22.08-py3
 
 
 # build an image that includes only the nemo dependencies, ensures that dependencies
@@ -28,7 +28,6 @@ RUN apt-get update && \
     apt-get install -y \
     libsndfile1 sox \
     libfreetype6 \
-    espeak-ng \
     python-setuptools swig \
     python-dev ffmpeg && \
     rm -rf /var/lib/apt/lists/*
