@@ -44,6 +44,8 @@ class MegatronLMAdapterEncoderDecoderModel(MegatronLMEncoderDecoderModel):
         if hasattr(cfg, 'adapter_tuning'):
             logging.info('Using Adapters')
 
+            assert cfg.encoder.hidden_size == cfg.decoder.hidden_size, "Encoder and Decoder hidden_size must be the same to use adapters!"
+
             # validate and add adapters
             self._validate_adapters_cfg(cfg.adapter_tuning)
 
@@ -53,7 +55,7 @@ class MegatronLMAdapterEncoderDecoderModel(MegatronLMEncoderDecoderModel):
             self.freeze()
             if cfg.adapter_tuning.type == "parallel_adapter":
                 self.adapter_cfg = ParallelLinearAdapterConfig(
-                    in_features=cfg.hidden_size,
+                    in_features=cfg.encoder.hidden_size,
                     dim=cfg.adapter_tuning.adapter_dim,
                     norm_position=cfg.adapter_tuning.get('norm_position', 'pre'),
                     norm_type=cfg.adapter_tuning.get('norm_type', 'mixedfusedlayernorm'),
@@ -89,12 +91,14 @@ class MegatronLMAdapterEncoderDecoderModel(MegatronLMEncoderDecoderModel):
 
         # load adapters weights if provided
         if hasattr(self.cfg, 'adapters_file'):
+            self.loading_base_model = False
             with tempfile.TemporaryDirectory() as tmpdir:
                 adapters_state_dict = self.extract_state_dict_from(
                     self.cfg.adapters_file, tmpdir, save_restore_connector=NLPSaveRestoreConnector()
                 )
                 self._load_adapters_weights(adapters_state_dict)
                 logging.info(f'Adapters weights loaded successfully from {self.cfg.adapters_file}')
+            self.loading_base_model = True
 
     def _validate_adapters_cfg(self, cfg):
         assert cfg.type in ['parallel_adapter', 'linear_adapter']

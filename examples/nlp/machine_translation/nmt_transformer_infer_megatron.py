@@ -95,7 +95,6 @@ def main(cfg) -> None:
             override_config_path=pretrained_cfg,
             save_restore_connector=NLPSaveRestoreConnector(),
         )
-        # model.add_enable_adapters()
     else:
         # load NMT model without adapters
         if cfg.model_file is not None:
