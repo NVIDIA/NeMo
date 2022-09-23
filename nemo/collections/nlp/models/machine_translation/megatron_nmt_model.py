@@ -241,7 +241,6 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             and self._cfg.train_ds.get("sampler", "distributed") == 'distributed'
         ):
             batch = self._process_global_batch_without_megatron_batch_sampler(batch, tokenizer=self.encoder_tokenizer)
-        import ipdb; ipdb.set_trace()
         if self._cfg.train_ds.dataset_type in ['tarred', 'text']:
             app_state = AppState()
             _reconfigure_microbatch_calculator(
