@@ -109,7 +109,7 @@ if __name__ == '__main__':
     ci_job_results_dir = args[0] # eg. '/home/shanmugamr/bignlp-scripts/results/train_gpt3_126m_tp1_pp1_1node_100steps'
     git_results_dir_path = args[1]
     base_image = args[2]
-    nodes = args[3]
+    nodes = int(args[3])
     current_timestamp = time.time()
 
     train_time_list = CITestHelper.read_tb_logs_as_list(ci_job_results_dir, "train_step_timing")
