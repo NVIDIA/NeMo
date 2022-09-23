@@ -346,7 +346,10 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
 
     if cfg.ema.enable:
         ema_callback = EMA(
-            decay=cfg.ema.decay, apply_ema_every_n_steps=cfg.ema.apply_ema_every_n_steps, start_step=cfg.ema.start_step
+            decay=cfg.ema.decay,
+            apply_ema_every_n_steps=cfg.ema.apply_ema_every_n_steps,
+            start_step=cfg.ema.start_step,
+            evaluate_ema_weights_instead=cfg.ema.evaluate_ema_weights_instead,
         )
         trainer.callbacks.append(ema_callback)
 

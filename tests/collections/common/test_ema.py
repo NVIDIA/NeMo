@@ -172,7 +172,6 @@ class TestEMAConfig:
             enable_checkpointing=False,
             accelerator='gpu',
             devices=1,
-            callbacks=[CheckStateCallback()],
         )
         exp_manager(
             trainer,
@@ -182,6 +181,8 @@ class TestEMAConfig:
                 "checkpoint_callback_params": {"filename": f"{{epoch}}-{{step}}"},
             },
         )
+        # add the assert callback after the exp manager has made modifications.
+        trainer.callbacks.append(CheckStateCallback())
         trainer.fit(model, ckpt_path=resume_path)
 
         # ensure we can resume from the EMA weights
@@ -312,8 +313,8 @@ class TestEMAConfig:
 @pytest.mark.skipif(not apex_available, reason="apex is not installed")
 class TestEMATrain:
     @pytest.mark.unit
-    def test_example_run(self, test_data_dir, precision, accumulate_grad_batches):
-        pl.seed_everything(1234)
+    def test_example_run(self, test_data_dir, precision, accumulate_grad_batches, tmpdir):
+        pl.seed_everything(123)
 
         model = ExampleModel()
 
@@ -326,10 +327,20 @@ class TestEMATrain:
             accumulate_grad_batches=accumulate_grad_batches,
             num_sanity_val_steps=0,
             enable_model_summary=False,
+            enable_checkpointing=False,
             accelerator='gpu',
             devices=1,
-            callbacks=[EMA(decay=0.999), EMAAssertCallback()],
         )
+        exp_manager(
+            trainer,
+            {
+                "ema": {"enable": True, "evaluate_ema_weights_instead": True},
+                "explicit_log_dir": str(tmpdir),
+                "checkpoint_callback_params": {"filename": f"{{epoch}}-{{step}}"},
+            },
+        )
+        # add the assert callback after the exp manager has made modifications.
+        trainer.callbacks.append(EMAAssertCallback())
         trainer.fit(model=model, val_dataloaders=model.train_dataloader())
 
 
