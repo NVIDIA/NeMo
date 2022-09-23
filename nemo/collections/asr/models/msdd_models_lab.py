@@ -184,13 +184,11 @@ class ClusterEmbeddingTest(ClusterEmbedding):
         )
         return None
 
-    def set_optuna_trial(self, trial):
-        stt = 1.0
-        end = 0.5
+    def set_optuna_trial_scale(self, trial):
+        stt = trial.suggest_float("window_stt", 0.9, 2.5, step=0.05)
+        end = trial.suggest_float("window_end", 0.25, 0.75, step=0.05)
         scale_n = trial.suggest_int("scale_n", 2, 11)
-        # stt, end = 1.5, 0.5
         _step = -1 * (stt - end) / (scale_n - 1)
-        # shift_ratio = trial.suggest_float("shift_ratio", 0.1, 0.5, step=0.1)
         shift_ratio = 0.5
         window_mat = np.arange(stt, end - 0.01, _step).round(5)
         self.cfg_base.diarizer.speaker_embeddings.parameters.window_length_in_sec = window_mat.tolist()
@@ -198,7 +196,6 @@ class ClusterEmbeddingTest(ClusterEmbedding):
             shift_ratio * window_mat / 2
         ).tolist()
         self.cfg_base.diarizer.speaker_embeddings.parameters.multiscale_weights = [1] * scale_n
-        # import ipdb; ipdb.set_trace()
         print(
             f"=========== Sampler picked stt: {stt} end: {end}, shift_ratio: {shift_ratio} step:{_step}, scale_n:{scale_n}"
         )
@@ -208,7 +205,7 @@ class ClusterEmbeddingTest(ClusterEmbedding):
         """
         Launch clustering diarizer to prepare embedding vectors and clustering results.
         """
-        self.set_optuna_trial(trial)
+        self.set_optuna_trial_scale(trial)
         try:
             metric = self._run_clustering_diarizer_opt(
                 self._cfg_msdd.test_ds.manifest_filepath, self._cfg_msdd.test_ds.emb_dir
