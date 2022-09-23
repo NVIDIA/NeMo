@@ -44,7 +44,9 @@ class MegatronLMAdapterEncoderDecoderModel(MegatronLMEncoderDecoderModel):
         if hasattr(cfg, 'adapter_tuning'):
             logging.info('Using Adapters')
 
-            assert cfg.encoder.hidden_size == cfg.decoder.hidden_size, "Encoder and Decoder hidden_size must be the same to use adapters!"
+            assert (
+                cfg.encoder.hidden_size == cfg.decoder.hidden_size
+            ), "Encoder and Decoder hidden_size must be the same to use adapters!"
 
             # validate and add adapters
             self._validate_adapters_cfg(cfg.adapter_tuning)
