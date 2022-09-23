@@ -13,8 +13,6 @@
 # limitations under the License.
 
 import os
-import re
-from collections import OrderedDict
 from functools import partial
 from typing import Any, List, Optional, Union
 
@@ -22,14 +20,13 @@ import torch
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
-from torch import Tensor
 
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_dataset import GPTPromptLearningDataset
 from nemo.collections.nlp.models.language_modeling.megatron_base_prompt_learning_model import (
     MegatronBasePromptLearningModel,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.modules.common import PromptTable, VirtualPromptSource, VirtualPromptStyle
+from nemo.collections.nlp.modules.common import PromptTable, VirtualPromptStyle
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.modules.common.text_generation_utils import (
     get_default_length_params,
@@ -410,7 +407,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         return dataset, dataloader
 
     def validation_step(self, batch, batch_idx):
-        loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=True)
+        loss_mean = self.fwd_bwd_step(batch, forward_only=True)
         if loss_mean.item == 0.0:
             loss_mean = []
 

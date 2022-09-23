@@ -28,7 +28,6 @@ from nemo.collections.nlp.modules.common import (
     PromptEncoder,
     PromptEncoderMLP,
     PromptEncoderType,
-    PromptTable,
     VirtualPromptPlaceholderToken,
     VirtualPromptSource,
     VirtualPromptStyle,

@@ -386,7 +386,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         else:
             encoder_input = input_embeds
 
-        loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=True)
+        loss_mean = self.fwd_bwd_step(batch, forward_only=True, disable_autocast=True)
 
         predicted_token_ids, log_probs = self.frozen_model.decode(
             tokens_enc=enc_input,
