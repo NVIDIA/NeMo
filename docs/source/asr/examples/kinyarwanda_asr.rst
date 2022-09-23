@@ -1,8 +1,8 @@
 ########################################################################
-Example ASR Pipeline: Kinyarwanda ASR using Mozilla Common Voice Dataset
+Example: Kinyarwanda ASR using Mozilla Common Voice Dataset
 ########################################################################
 
-In this example pipeline, we describe essential steps of training an ASR model for a new language (Kinyarwanda). Namely,
+In this example, we describe essential steps of training an ASR model for a new language (Kinyarwanda). Namely,
 
 * Data preprocessing
 * Building tokenizers
@@ -478,7 +478,7 @@ Training dynamics
 
 The figure below shows the training dynamics when we train Kinyarwanda models **from scratch**. In these experiments we used the hyperparameters from the default configs, the training was run on 2 nodes with 16 gpus per node, training batch size was 32. We see that Transducer model achieves better quality than CTC.
 
-    .. image:: images/kinyarwanda_from_scratch.png
+    .. image:: ../images/kinyarwanda_from_scratch.png
         :align: center
         :alt: Training dynamics of Kinyarwanda models trained from scratch
         :scale: 50%
@@ -504,7 +504,7 @@ To initialize from **non-SSL checkpoint** we should simply add the option `+init
     ...[same options as in the previous example]...
     +init_from_pretrained_model=${INIT_MODEL}
 
-In that case the pretrained model `stt_en_conformer_ctc_large <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/stt_en_conformer_ctc_large>`_ will be automatically downloaded from Nvidia GPU Cloud(NGC) and used to initialize weights before training.
+In that case the pretrained model `stt_en_conformer_ctc_large <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/stt_en_conformer_ctc_large>`_ will be automatically downloaded from NVIDIA GPU Cloud(NGC) and used to initialize weights before training.
 
 To initialize from **SSL checkpoint** we should edit our training script like the following code:
 
@@ -525,7 +525,7 @@ When using finetuning you probably will need to change the some hyperparameters 
 
 The figure below compares the training dynamics for three Conformer-Transducer models. They differ only by how they are initialized. We see that finetuning leads to faster convergence and better quality. Initializing from SSL gives lowest WER at earlier stages, but in a longer period it performs worse.
 
-    .. image:: images/kinyarwanda_finetuning.png
+    .. image:: ../images/kinyarwanda_finetuning.png
         :align: center
         :alt: Training dynamics of Kinyarwanda models trained from scratch and finetuned from different pretrained checkpoints
         :scale: 50%
@@ -550,7 +550,7 @@ We run the inference using the following script:
       cuda=1 \
       amp=True
 
-To run inference with Nvidia's Kinyarwanda checkpoints `STT Rw Conformer-CTC Large <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/stt_rw_conformer_ctc_large>`_ or `STT Rw Conformer-Transducer Large <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/stt_rw_conformer_transducer_large>`_ use:
+To run inference with NVIDIA's Kinyarwanda checkpoints `STT Rw Conformer-CTC Large <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/stt_rw_conformer_ctc_large>`_ or `STT Rw Conformer-Transducer Large <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/stt_rw_conformer_transducer_large>`_ use:
 
 .. code-block:: bash
 
@@ -595,7 +595,7 @@ As soon as we have a manifest file with `text` and `pred_text` we can measure th
 Evaluation of NVIDIA's Kinyarwanda checkpoints
 ##############################################
 
-If you run inference and evaluation of Nvidia's published Kinyarwanda models, you should get metrics like these:
+If you run inference and evaluation of NVIDIA's published Kinyarwanda models, you should get metrics like these:
 
 +----------------------------------+-------+-------+
 | Model                            | WER % | CER % |
