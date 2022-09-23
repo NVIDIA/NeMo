@@ -51,6 +51,16 @@ def copy_config_to_file(cfg: OmegaConf, dst: str) -> None:
         OmegaConf.save(config=cfg, f=f)
 
 
+def convert_to_absolute_path(path: str) -> str:
+    path_split = path.split("/")
+    result = []
+    for index, elem in enumerate(path_split):
+        if elem == "..":
+            result.pop(-1)
+        else:
+            result.append(elem)
+    return "/".join(result)
+
 def generate_overrides_str(
     file_name: str, model_name: str, results_dir: str, cfg: OmegaConf
 ) -> str:
@@ -69,6 +79,7 @@ def generate_overrides_str(
     cluster_type = cfg.get("cluster_type")
     container = cfg.get("training_container")
     bignlp_scripts_path = cfg.get("bignlp_scripts_path")
+    bignlp_scripts_path = convert_to_absolute_path(bignlp_scripts_path)
     data_dir = cfg.get("data_dir")
     container_mounts = cfg.get("container_mounts", "null")
     api_key_file = cfg.get("wandb").get("api_key_file")
