@@ -236,7 +236,7 @@ train.gpt3.20b_80gb_2runs_64nodes:
   rules:
     - when: always
 
-train.t5.220m_80gb_3runs_4node:
+train.t5.220m_80gb_2runs_4nodes:
   <<: *hp-tool-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
@@ -244,11 +244,13 @@ train.t5.220m_80gb_3runs_4node:
     RUN_MODEL: t5
     RUN_SIZE: 0.22b
     GPU_MEM: 80
-    RUN_JOB_NAME: 220m_80gb_3runs_4node
+    RUNS: 2
+    NODES: 4
+    RUN_JOB_NAME: t5_training_search
   rules:
     - when: always
 
-train.t5.220m_40gb_3runs_4node:
+train.t5.220m_40gb_2runs_4nodes:
   <<: *hp-tool-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
@@ -256,11 +258,13 @@ train.t5.220m_40gb_3runs_4node:
     RUN_MODEL: t5
     RUN_SIZE: 0.22b
     GPU_MEM: 40
-    RUN_JOB_NAME: 220m_40gb_3runs_4node
+    RUNS: 2
+    NODES: 4
+    RUN_JOB_NAME: t5_training_search
   rules:
     - when: always
 
-train.t5.2p8b_80gb_3runs_20node:
+train.t5.2p8b_80gb_2runs_20nodes:
   <<: *hp-tool-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
@@ -268,11 +272,13 @@ train.t5.2p8b_80gb_3runs_20node:
     RUN_MODEL: t5
     RUN_SIZE: 2.8b
     GPU_MEM: 80
-    RUN_JOB_NAME: 2p8b_80gb_3runs_20node
+    RUNS: 2
+    NODES: 20
+    RUN_JOB_NAME: t5_training_search
   rules:
     - when: always
 
-train.t5.2p8b_40gb_3runs_20node:
+train.t5.2p8b_40gb_2runs_20nodes:
   <<: *hp-tool-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
@@ -280,11 +286,13 @@ train.t5.2p8b_40gb_3runs_20node:
     RUN_MODEL: t5
     RUN_SIZE: 2.8b
     GPU_MEM: 40
-    RUN_JOB_NAME: 2p8b_40gb_3runs_20node
+    RUNS: 2
+    NODES: 20
+    RUN_JOB_NAME: t5_training_search
   rules:
     - when: always
 
-train.mt5.170m_80gb_3runs_4node:
+train.mt5.170m_80gb_2runs_4nodes:
   <<: *hp-tool-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
@@ -292,11 +300,13 @@ train.mt5.170m_80gb_3runs_4node:
     RUN_MODEL: mt5
     RUN_SIZE: 0.17b
     GPU_MEM: 80
-    RUN_JOB_NAME: 170m_80gb_3runs_4node
+    RUNS: 2
+    NODES: 4
+    RUN_JOB_NAME: mt5_training_search
   rules:
     - when: always
 
-train.mt5.170m_40gb_3runs_4node:
+train.mt5.170m_40gb_2runs_4nodes:
   <<: *hp-tool-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
@@ -304,11 +314,13 @@ train.mt5.170m_40gb_3runs_4node:
     RUN_MODEL: mt5
     RUN_SIZE: 0.17b
     GPU_MEM: 40
-    RUN_JOB_NAME: 170m_40gb_3runs_4node
+    RUNS: 2
+    NODES: 4
+    RUN_JOB_NAME: mt5_training_search
   rules:
     - when: always
 
-train.mt5.3p2b_80gb_3runs_20node:
+train.mt5.3p2b_80gb_2runs_20nodes:
   <<: *hp-tool-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
@@ -316,11 +328,13 @@ train.mt5.3p2b_80gb_3runs_20node:
     RUN_MODEL: mt5
     RUN_SIZE: 3.2b
     GPU_MEM: 80
-    RUN_JOB_NAME: 3p2b_80gb_3runs_20node
+    RUNS: 2
+    NODES: 20
+    RUN_JOB_NAME: mt5_training_search
   rules:
     - when: always
 
-train.mt5.3p2b_40gb_3runs_20node:
+train.mt5.3p2b_40gb_2runs_20nodes:
   <<: *hp-tool-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
@@ -328,7 +342,9 @@ train.mt5.3p2b_40gb_3runs_20node:
     RUN_MODEL: mt5
     RUN_SIZE: 3.2b
     GPU_MEM: 40
-    RUN_JOB_NAME: 3p2b_40gb_3runs_20node
+    RUNS: 2
+    NODES: 20
+    RUN_JOB_NAME: mt5_training_search
   rules:
     - when: always
 

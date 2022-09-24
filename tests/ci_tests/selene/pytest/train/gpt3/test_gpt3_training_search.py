@@ -6,9 +6,9 @@ RUN_SIZE = os.environ.get("RUN_SIZE")
 GPU_MEM = os.environ.get("GPU_MEM")
 NODES = os.environ.get("NODES")
 
-class TestCIGPT126m:
+class TestCIGPT:
 
-    def test_ci_train_gpt3_126m_40gb_3runs(self):
+    def test_ci_train_gpt3(self):
         base_cfg = os.path.join(BASE_RESULTS_DIR, f"gpt3/{RUN_SIZE}_{GPU_MEM}gb/base_cfg_{RUN_SIZE}.yaml")
         candidate_configs_dir = os.path.join(BASE_RESULTS_DIR, f"gpt3/{RUN_SIZE}_{GPU_MEM}gb/candidate_configs")
         training_logs_dir = os.path.join(BASE_RESULTS_DIR, f"gpt3/{RUN_SIZE}_{GPU_MEM}gb/training_logs")
