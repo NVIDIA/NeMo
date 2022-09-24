@@ -158,6 +158,7 @@ def generate_grid_search_configs(
                         max_minutes=max_minutes,
                         max_steps=max_steps,
                         num_nodes=num_nodes,
+                        model_name=model_name,
                     )
                     if new_cfg:  # Save candidate cfg.
                         file_name = f"{model_name}_{model_size_in_b}b_{num_nodes}nodes_tp_{tp}_pp_{pp}_mbs_{mbs}_act_ckpt_selective.yaml"
