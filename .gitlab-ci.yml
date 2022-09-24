@@ -180,6 +180,7 @@ train.gpt3.126m_80gb_2runs_8nodes:
     RUN_SIZE: 0.126b
     GPU_MEM: 80
     RUNS: 2
+    NODES: 8
     RUN_JOB_NAME: gpt3_training_search
   rules:
     - when: always
@@ -193,6 +194,7 @@ train.gpt3.126m_40gb_2runs_8nodes:
     RUN_SIZE: 0.126b
     GPU_MEM: 40
     RUNS: 2
+    NODES: 8
     RUN_JOB_NAME: gpt3_training_search
   rules:
     - when: always
@@ -206,6 +208,7 @@ train.gpt3.5b_80gb_2runs_16nodes:
     RUN_SIZE: 5b
     GPU_MEM: 80
     RUNS: 2
+    NODES: 16
     RUN_JOB_NAME: gpt3_training_search
   rules:
     - when: always
@@ -219,6 +222,7 @@ train.gpt3.5b_40gb_2runs_16nodes:
     RUN_SIZE: 5b
     GPU_MEM: 40
     RUNS: 2
+    NODES: 16
     RUN_JOB_NAME: gpt3_training_search
   rules:
     - when: always
@@ -232,6 +236,7 @@ train.gpt3.20b_80gb_2runs_64nodes:
     RUN_SIZE: 20b
     GPU_MEM: 80
     RUNS: 2
+    NODES: 64
     RUN_JOB_NAME: gpt3_training_search
   rules:
     - when: always
