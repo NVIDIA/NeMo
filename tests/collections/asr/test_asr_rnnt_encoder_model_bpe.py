@@ -328,7 +328,7 @@ class TestEncDecRNNTBPEModel:
         assert isinstance(asr_model.decoding.decoding, beam_decode.BeamRNNTInfer)
         assert asr_model.decoding.decoding.search_type == "alsd"
 
-    # @pytest.mark.with_downloads()
+    @pytest.mark.with_downloads()
     @pytest.mark.unit
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
