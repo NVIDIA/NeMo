@@ -14,7 +14,7 @@ trainer:
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
   replace_sampler_ddp: False
-  max_epochs: 1000 # PTL default. In practice we don't usually train for more than 1 epoch.
+  max_epochs: -1 # PTL default. In practice we don't usually train for more than 1 epoch.
   max_steps: 100000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10
   val_check_interval: 100
@@ -160,6 +160,15 @@ model:
 
   megatron_amp_O2: False # use AMP with O2 style mixed precision instead of native amp on-the-fly weight autocasting.
   grad_allreduce_chunk_size_mb: 125
+
+  activations_checkpoint_granularity: null # 'selective' or 'full' 
+  activations_checkpoint_method: null # 'uniform', 'block', not used with 'selective'
+  # 'uniform' divides the total number of transformer layers and checkpoints the input activation
+  # of each chunk at the specified granularity
+  # 'block' checkpoints the specified number of layers per pipeline stage at the specified granularity
+  activations_checkpoint_num_layers: null # not used with 'selective'
+  # when using 'uniform' this creates groups of transformer layers to checkpoint. Usually set to 1. Increase to save more memory.
+  # when using 'block' this this will checkpoint the first activations_checkpoint_num_layers per pipeline stage.
 
   tokenizer:
     library: 'megatron'
