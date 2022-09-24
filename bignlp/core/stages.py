@@ -204,7 +204,7 @@ class BigNLPStage:
             {'job_name': 'some_name', 'nodes': 2, 'ntasks_per_node': 8, ...}
 
         :param str cluster: i.e. `bcm`, `bcp`, `interactive`, etc.
-        :return: a dictionary of env vars while running the job.
+        :return: a dictionary of cluster parameters, e.g. `ntasks_per_node`
         :rtype: Dict
         """
         cfg = self.cfg

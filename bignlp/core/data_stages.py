@@ -17,7 +17,11 @@ from bignlp.utils.file_utils import download_single_file
 
 
 class DataStage(BigNLPStage):
-    """ Data Stage is for data preparations; it can have few sub_stages """
+    """
+    DataStage is base class for data preprocessing stages.
+    It can hold multiple sub-stages. For example, preparing the Pile dataset includes data downloading,
+        extraction and data preprocessing. They have dependencies on each other and will be launched one by one.
+    """
 
     def setup_stage_vars(self, cfg):
         """Setup the stage vars, i.e. stage name and stage cfg"""
@@ -28,6 +32,12 @@ class DataStage(BigNLPStage):
         raise NotImplementedError
 
     def run(self) -> str:
+        """
+        Run current stage including all of the substages, returns job id on slurm based system otherwise empty string
+
+        :return: job id on slurm based system otherwise empty string
+        :rtype: str
+        """
         # Setup folders and datasets
         self.setup_folder_and_data()
 
@@ -61,8 +71,21 @@ class DataStage(BigNLPStage):
         return job_id
 
     def make_stage_command_groups(
-            self, stage_cfg_path, sub_stage=None,
+            self, stage_cfg_path: Path, sub_stage: Optional = None,
     ) -> List[List[str]]:
+        """
+        Make the command groups for current stage
+        Command groups is a list of command group. A command group is defined as:
+              0. Command group is a list of command strings
+              1. Each command group occupies one bcprun, srun or bash
+              2. Each command group eventually has multiple commands connected by ";"
+
+        :param Path stage_cfg_path: path to interpolated and saved configuration
+        :param Optional sub_stage: current sub_stage name
+        :return: command groups for current stage
+        :rtype: List[List[str]]
+        """
+
         command_groups = [[]]
 
         command_groups[0] += self._make_sub_stage_command(sub_stage)
@@ -73,8 +96,19 @@ class DataStage(BigNLPStage):
         raise NotImplementedError
 
     def _make_cluster_parameters(
-            self, cluster: str, sub_stage=None,
+            self, cluster: str, sub_stage:Optional = None,
     ) -> Dict:
+        """
+        Make a cluster-specific parameters for jobs on different clusters.
+        Current clusters include bcm(slurm), bcp and interactive.
+        For example for bcm, it will return slurm parameters:
+            {'job_name': 'some_name', 'nodes': 2, 'ntasks_per_node': 8, ...}
+
+        :param str cluster: i.e. `bcm`, `bcp`, `interactive`, etc.
+        :param Optional sub_stage: current sub_stage name
+        :return: a dictionary of cluster parameters, e.g. `ntasks_per_node`
+        :rtype: Dict
+        """
         cfg = self.cfg
         stage_cfg = self.stage_cfg
 
@@ -124,8 +158,16 @@ class DataStage(BigNLPStage):
 
 
 class PileDataPreparation(DataStage):
+    """DataStage for preparing the Pile dataset for gpt3 and t5"""
 
-    def _make_sub_stages(self):
+    def _make_sub_stages(self) -> List[str]:
+        """
+        Create a list of sub-stage names which are required to run in current data stage.
+        Based on the input config, some of sub stages may not need to run.
+
+        :return: a list of sub-stage names which are required to run
+        :rtype: List[str]
+        """
         sub_stages = []
         if self.stage_cfg.get("download_the_pile", False):
             sub_stages += ["download", "extract"]
@@ -160,7 +202,19 @@ class PileDataPreparation(DataStage):
                 file_name="merges.txt",
             )
 
-    def _make_private_cluster_parameters(self, cluster, sub_stage):
+    def _make_private_cluster_parameters(self, cluster: str, sub_stage: str) -> Dict:
+        """
+        A simplifying function to make cluster parameters specific to each cluster type.
+        Shared cluster parameters are handled in _make_cluster_parameters.
+        This is function is introduced because for different dataset preparation the required slurm params are different,
+            but the shared parameters are always the same. As a result, one only needs to override private parameters
+            for different DataStage.
+
+        :param str cluster: cluster type
+        :param str sub_stage: current sub_stage name
+        :return: a dictionary of private cluster parameters, e.g. `bcp_preproc_npernode`
+        :rtype: Dict
+        """
         cfg = self.cfg
         stage_cfg = self.stage_cfg
         run_cfg = stage_cfg.get("run")
@@ -187,7 +241,9 @@ class PileDataPreparation(DataStage):
             }
         return {}
 
-    def _make_sub_stage_command(self, sub_stage):
+    def _make_sub_stage_command(self, sub_stage: str) -> List[str]:
+        """Make a command of the specified sub-stage"""
+
         pile_prep_path = self._bignlp_path / "bignlp/collections/dataprep_scripts/pile_dataprep"
         stage_to_code_path = {
             "download": pile_prep_path / "download.py",
@@ -217,8 +273,16 @@ class PileDataPreparation(DataStage):
 
 
 class MC4DataPreparation(DataStage):
+    """DataStage for preparing the mC4 dataset for mt5"""
 
-    def _make_sub_stages(self):
+    def _make_sub_stages(self) -> List[str]:
+        """
+        Create a list of sub-stage names which are required to run in current data stage.
+        Based on the input config, some of sub stages may not need to run.
+
+        :return: a list of sub-stage names which are required to run
+        :rtype: List[str]
+        """
         sub_stages = []
         if self.stage_cfg.get("download_mc4", False):
             sub_stages += ["prepare", "download"]
@@ -252,7 +316,19 @@ class MC4DataPreparation(DataStage):
                 file_name="mt5_tokenizer.model",
             )
 
-    def _make_private_cluster_parameters(self, cluster, sub_stage):
+    def _make_private_cluster_parameters(self, cluster: str, sub_stage: str) -> Dict:
+        """
+        A simplifying function to make cluster parameters specific to each cluster type.
+        Shared cluster parameters are handled in _make_cluster_parameters.
+        This is function is introduced because for different dataset preparation the required slurm params are different,
+            but the shared parameters are always the same. As a result, one only needs to override private parameters
+            for different DataStage.
+
+        :param str cluster: cluster type
+        :param str sub_stage: current sub_stage name
+        :return: a dictionary of private cluster parameters, e.g. `bcp_preproc_npernode`
+        :rtype: Dict
+        """
         cfg = self.cfg
         stage_cfg = self.stage_cfg
         run_cfg = stage_cfg.get("run")
@@ -287,7 +363,8 @@ class MC4DataPreparation(DataStage):
             }
         return {}
 
-    def _make_sub_stage_command(self, sub_stage):
+    def _make_sub_stage_command(self, sub_stage: str) -> List[str]:
+        """Make a command of the specified sub-stage"""
         mc4_prep_path = self._bignlp_path / "bignlp/collections/dataprep_scripts/mc4_dataprep"
         stage_to_code_path = {
             "prepare": mc4_prep_path / "prepare.py",
@@ -351,8 +428,16 @@ class MC4DataPreparation(DataStage):
 
 
 class CustomDataPreparation(DataStage):
+    """DataStage for preparing a customized dataset"""
 
-    def _make_sub_stages(self):
+    def _make_sub_stages(self) -> List[str]:
+        """
+        Create a list of sub-stage names which are required to run in current data stage.
+        Based on the input config, some of sub stages may not need to run.
+
+        :return: a list of sub-stage names which are required to run
+        :rtype: List[str]
+        """
         sub_stages = []
         if self.stage_cfg.get("train_tokenizer", False):
             sub_stages += ["train_tokenizer"]
@@ -394,7 +479,19 @@ class CustomDataPreparation(DataStage):
                     f"{','.join([os.path.basename(file) for file in distributed_files[i]]):s}"
                 )
 
-    def _make_private_cluster_parameters(self, cluster, sub_stage):
+    def _make_private_cluster_parameters(self, cluster: str, sub_stage: str) -> Dict:
+        """
+        A simplifying function to make cluster parameters specific to each cluster type.
+        Shared cluster parameters are handled in _make_cluster_parameters.
+        This is function is introduced because for different dataset preparation the required slurm params are different,
+            but the shared parameters are always the same. As a result, one only needs to override private parameters
+            for different DataStage.
+
+        :param str cluster: cluster type
+        :param str sub_stage: current sub_stage name
+        :return: a dictionary of private cluster parameters, e.g. `bcp_preproc_npernode`
+        :rtype: Dict
+        """
         cfg = self.cfg
         stage_cfg = self.stage_cfg
         run_cfg = stage_cfg.get("run")
@@ -429,7 +526,8 @@ class CustomDataPreparation(DataStage):
             }
         return {}
 
-    def _make_sub_stage_command(self, sub_stage):
+    def _make_sub_stage_command(self, sub_stage: str) -> List[str]:
+        """Make a command of the specified sub-stage"""
         data_cfg = self.stage_cfg
         if sub_stage == "train_tokenizer":
             bpe_save_dir = Path(data_cfg.get("bpe_save_dir"))
