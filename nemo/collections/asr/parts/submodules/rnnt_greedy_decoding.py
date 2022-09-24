@@ -237,7 +237,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
         self,
         encoder_output: torch.Tensor,
         encoded_lengths: torch.Tensor,
-        duration: int,
+        duration,
         partial_hypotheses: Optional[List[rnnt_utils.Hypothesis]] = None,
     ):
         """Returns a list of hypotheses given an input batch of the encoder hidden embedding.
@@ -283,7 +283,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
 
     @torch.no_grad()
     def _greedy_decode(
-        self, x: torch.Tensor, out_len: torch.Tensor, duration: int, partial_hypotheses: Optional[rnnt_utils.Hypothesis] = None
+        self, x: torch.Tensor, out_len: torch.Tensor, duration, partial_hypotheses: Optional[rnnt_utils.Hypothesis] = None
     ):
         # x: [T, 1, D]
         # out_len: [seq_len]
@@ -312,8 +312,6 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
 
         big_blank_durations = [int(i) for i in duration.split(",")]
         big_blank_indices = [self._blank_index + 1 + i for i in range(len(big_blank_durations))]
-
-        print("HERE", big_blank_durations)
 
         for time_idx in range(out_len):
             if blank_optimization and big_blank_duration > 1:
@@ -449,7 +447,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         self,
         encoder_output: torch.Tensor,
         encoded_lengths: torch.Tensor,
-        duration: int,
+        duration,
         partial_hypotheses: Optional[List[rnnt_utils.Hypothesis]] = None,
     ):
         """Returns a list of hypotheses given an input batch of the encoder hidden embedding.
@@ -478,7 +476,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             with self.decoder.as_frozen(), self.joint.as_frozen():
                 inseq = encoder_output  # [B, T, D]
                 hypotheses = self._greedy_decode(
-                    inseq, logitlen, device=inseq.device, partial_hypotheses=partial_hypotheses
+                    inseq, logitlen, duration, device=inseq.device, partial_hypotheses=partial_hypotheses
                 )
 
             # Pack the hypotheses results
@@ -493,6 +491,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         self,
         x: torch.Tensor,
         out_len: torch.Tensor,
+        duration,
         device: torch.device,
         partial_hypotheses: Optional[List[rnnt_utils.Hypothesis]] = None,
     ):
@@ -525,11 +524,22 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
             # Mask buffers
             blank_mask = torch.full([batchsize], fill_value=0, dtype=torch.bool, device=device)
-            big_blank_mask = torch.full([batchsize], fill_value=0, dtype=torch.bool, device=device)
 
             # Get max sequence length
             max_out_len = out_len.max()
+
+            big_blank_durations = [int(i) for i in duration.split(",")]
+            big_blank_indices = [self._blank_index + 1 + i for i in range(len(big_blank_durations))]
+
+            big_blank_masks = [torch.full([batchsize], fill_value=0, dtype=torch.bool, device=device)] * len(big_blank_indices)
+
+            blank_optimization = True
+            big_blank_duration = 1
+
             for time_idx in range(max_out_len):
+                if blank_optimization and big_blank_duration > 1:
+                    big_blank_duration -= 1
+                    continue
                 f = x.narrow(dim=1, start=time_idx, length=1)  # [B, 1, D]
 
                 # Prepare t timestamp batch variables
@@ -538,17 +548,19 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
                 # Reset blank mask
                 blank_mask.mul_(False)
-                big_blank_mask.mul_(False)
+                for i in range(len(big_blank_masks)):
+                    big_blank_masks[i].mul_(False)
 
                 # Update blank mask with time mask
                 # Batch: [B, T, D], but Bi may have seq len < max(seq_lens_in_batch)
                 # Forcibly mask with "blank" tokens, for all sample where current time step T > seq_len
                 blank_mask = time_idx >= out_len
-                big_blank_mask = time_idx >= out_len
-                huge_blank_mask = time_idx >= out_len
+                for i in range(len(big_blank_masks)):
+                    big_blank_masks[i] = time_idx >= out_len
 
                 # Start inner loop
                 while not_blank and (self.max_symbols is None or symbols_added < self.max_symbols):
+#                    print("HERE", big_blank_masks)
                     # Batch prediction and joint network steps
                     # If very first prediction step, submit SOS tag (blank) to pred_step.
                     # This feeds a zero tensor as input to AbstractRNNTDecoder to prime the state
@@ -571,15 +583,13 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     # Update blank mask with current predicted blanks
                     # This is accumulating blanks over all time steps T and all target steps min(max_symbols, U)
                     k_is_blank = k >= self._blank_index
-                    k_is_big_blank = k > self._blank_index
-
-
                     blank_mask.bitwise_or_(k_is_blank)
 
-                    big_blank_mask.bitwise_or_(k_is_big_blank)
+                    for i in range(len(big_blank_masks)):
+                        k_is_big_blank = k >= self._blank_index + 1 + i
+                        big_blank_masks[i].bitwise_or_(k_is_big_blank)
 
                     del k_is_blank
-                    del k_is_big_blank
 
 #                    print("blank mask is", blank_mask)
 
@@ -601,6 +611,12 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     # This is equivalent to if single sample predicted k
                     if blank_mask.all():
                         not_blank = False
+
+                        for i in range(len(big_blank_masks) + 1):
+                            if i == len(big_blank_masks) or not big_blank_masks[i].all():
+                                big_blank_duration = big_blank_durations[i - 1] if i > 0 else 1
+#                                print("setting duration", big_blank_duration)
+                                break
 
                         # If preserving alignments, convert the current Uj alignments into a torch.Tensor
                         # Then preserve U at current timestep Ti
