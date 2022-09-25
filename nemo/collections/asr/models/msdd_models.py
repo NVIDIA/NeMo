@@ -25,6 +25,7 @@ import numpy as np
 import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig, open_dict
+from pyannote.metrics.diarization import DiarizationErrorRate
 from pytorch_lightning import Trainer
 from pytorch_lightning.utilities import rank_zero_only
 from tqdm import tqdm
@@ -1159,7 +1160,7 @@ class NeuralDiarizer:
         self.msdd_model.clus_test_label_dict = cluster_embeddings.clus_test_label_dict
         self.msdd_model.emb_seq_test = cluster_embeddings.emb_seq_test
 
-    def diarize(self):
+    def diarize(self) -> List[Optional[List[Tuple[DiarizationErrorRate, Dict]]]]:
         """
         Launch diarization pipeline which starts from VAD (or a oracle VAD stamp generation), initialization clustering and multiscale diarization decoder (MSDD).
         Note that the result of MSDD can include multiple speakers at the same time. Therefore, RTTM output of MSDD needs to be based on `make_rttm_with_overlap()`
@@ -1170,8 +1171,8 @@ class NeuralDiarizer:
         self.msdd_model.pairwise_infer = True
         self.get_emb_clus_infer(self.clustering_embedding)
         preds_list, targets_list, signal_lengths_list = self.run_pairwise_diarization()
-        for threshold in list(self._cfg.diarizer.msdd_model.parameters.sigmoid_threshold):
-            self.run_overlap_aware_eval(preds_list, threshold)
+        thresholds = list(self._cfg.diarizer.msdd_model.parameters.sigmoid_threshold)
+        return [self.run_overlap_aware_eval(preds_list, threshold) for threshold in thresholds]
 
     def get_range_average(
         self, signals: torch.Tensor, emb_vectors: torch.Tensor, diar_window_index: int, test_data_collection: List[Any]
@@ -1375,7 +1376,9 @@ class NeuralDiarizer:
         integrated_preds_list = self.get_integrated_preds_list(uniq_id_list, test_data_collection, preds_list)
         return integrated_preds_list, targets_list, signal_lengths_list
 
-    def run_overlap_aware_eval(self, preds_list: List[torch.Tensor], threshold: float):
+    def run_overlap_aware_eval(
+        self, preds_list: List[torch.Tensor], threshold: float
+    ) -> List[Optional[Tuple[DiarizationErrorRate, Dict]]]:
         """
         Based on the predicted sigmoid values, render RTTM files then evaluate the overlap-aware diarization results.
 
@@ -1390,6 +1393,7 @@ class NeuralDiarizer:
         logging.info(
             f"     [Threshold: {threshold:.4f}] [use_clus_as_main={self.use_clus_as_main}] [diar_window={self.diar_window_length}]"
         )
+        outputs = []
         for k, (collar, ignore_overlap) in enumerate(self.diar_eval_settings):
             all_reference, all_hypothesis = make_rttm_with_overlap(
                 self.manifest_filepath,
@@ -1403,7 +1407,9 @@ class NeuralDiarizer:
                 max_overlap_spks=self.max_overlap_spks,
                 out_rttm_dir=self.out_rttm_dir,
             )
-            score_labels(
+            output = score_labels(
                 self.AUDIO_RTTM_MAP, all_reference, all_hypothesis, collar=collar, ignore_overlap=ignore_overlap,
             )
+            outputs.append(output)
         logging.info(f"  \n")
+        return outputs
