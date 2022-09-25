@@ -66,7 +66,7 @@ model:
   new_tasks: ['intent_and_slot']
   prompt_tuning:
     new_prompt_init_methods: ['text']
-    new_prompt_init_text: ['intent classification and slot filling']
+    new_prompt_init_text: ['intent_and_slot']
   p_tuning: # P-tuning specific params
     dropout: 0.0
     num_layers: 2

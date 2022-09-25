@@ -296,9 +296,7 @@ class DialogueGPTClassificationModel(NLPModel):
             init_text = self.cfg.prompt_tuning.new_prompt_init_text[0]
             init_text_ids = self.tokenizer.text_to_ids(init_text)
             init_text_ids = torch.tensor(init_text_ids).to(input_ids.device)
-            # repeat text ids if n text ids < n total virtual tokens
-            n_repeats = total_virtual_tokens // init_text_ids.size(0) + 1
-            prompt_ids = init_text_ids.repeat(input_ids.size(0), n_repeats)[:, :total_virtual_tokens]
+            prompt_ids = init_text_ids.repeat(input_ids.size(0), 1)[:, :total_virtual_tokens]
         return prompt_ids
 
     def forward(self, input_ids, attention_mask, labels, inference=True):
@@ -330,7 +328,7 @@ class DialogueGPTClassificationModel(NLPModel):
                 full_attention_mask.unsqueeze(2).tile(full_attention_mask.size(1))
             ).unsqueeze(1)
 
-            attn_mask = full_attention_mask_expand > 0
+            attn_mask = full_attention_mask_expand <= 0
 
             prompt_token_labels = self.get_prompt_token_labels_for_megatron_gpt(input_ids, num_prompt_tokens)
 
