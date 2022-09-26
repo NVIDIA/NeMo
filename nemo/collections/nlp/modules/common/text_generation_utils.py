@@ -211,28 +211,6 @@ def repetition_penalty(logits, repetition_penalty, used_tokens):
     return logits
 
 
-def pad_batch(batch, pad_id, max_len):
-    context_lengths = []
-    max_context_length = max([len(tokens) for tokens in batch])
-    for tokens in batch:
-        context_length = len(tokens)
-        if context_length < max_context_length + max_len:
-            tokens.extend([pad_id] * (max_context_length + max_len - context_length))
-        context_lengths.append(context_length)
-    return batch, context_lengths
-
-
-def tokenize_batch(tokenizer, sentences, max_len, add_BOS):
-    if add_BOS:
-        context_tokens = [[tokenizer.eos_id] + tokenizer.text_to_ids(s) for s in sentences]
-    else:
-        context_tokens = [tokenizer.text_to_ids(s) for s in sentences]
-    context_tokens, context_lengths = pad_batch(context_tokens, tokenizer.eos_id, max_len)
-    context_tokens_tensor = torch.cuda.LongTensor(context_tokens)
-    context_length_tensor = torch.cuda.LongTensor(context_lengths)
-    return context_tokens_tensor, context_length_tensor
-
-
 def send_generate_info(
     context_tokens_tensor,
     context_length_tensor,
@@ -433,8 +411,8 @@ def generate(
         if isinstance(inputs, tuple):
             context_tokens_tensor, context_length_tensor = inputs
         else:
-            context_tokens_tensor, context_length_tensor = tokenize_batch(
-                tokenizer, inputs, tokens_to_generate, add_BOS
+            context_tokens_tensor, context_length_tensor = inference_strategy.tokenize_batch(
+                inputs, tokens_to_generate, add_BOS
             )
 
         send_generate_info(
