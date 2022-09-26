@@ -201,6 +201,30 @@ class DialogueGPTClassificationDataset(DialogueDataset):
             )
         return base_template
 
+    def collate_fn(self, batch):
+        _, _, _, _, candidate_attn_masks, _, _, _ = zip(*batch)
+        # determine max length in batch
+        batch_max_length = 0
+        for candidate_attn_mask in candidate_attn_masks:
+            for one_attn_mask in candidate_attn_mask:
+                batch_max_length = max(batch_max_length, torch.sum(one_attn_mask).item())
+        # padding for tp=2 situation
+        if batch_max_length % 2:
+            batch_max_length += 1
+
+        all_items = []
+        for item in zip(*batch):
+            if isinstance(item[0], int):
+                item = [torch.tensor(i) for i in item]
+            item_stack = torch.stack(item)
+            if len(item_stack.size()) == 1:
+                all_items.append(item_stack)
+            elif len(item_stack.size()) == 2:
+                all_items.append(item_stack[:, :batch_max_length])
+            elif len(item_stack.size()) == 3:
+                all_items.append(item_stack[:, :, :batch_max_length])
+        return all_items
+
     def __getitem__(self, idx: int):
 
         '''
