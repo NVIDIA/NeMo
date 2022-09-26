@@ -26,7 +26,7 @@ retro_model_file: null  # RETRO nemo file path
 
 use_predict_method: False  # whether to use the predict method
 
-prompts: # prompts for GPT inference
+prompts: # prompts for RETRO model inference
   - "hello,"
   - "good morning,"
   - "good afternoon,"
