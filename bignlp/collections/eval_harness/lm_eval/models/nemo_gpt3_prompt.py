@@ -24,7 +24,7 @@ from nemo.collections.nlp.modules.common.text_generation_utils import (
     generate,
     get_computeprob_response,
 )
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.model_utils import inject_model_parallel_rank
 
@@ -81,7 +81,7 @@ def setup_trainer_and_model(args):
     num_nodes = max(model_parallel_size // 8, 1)
     num_gpus = min(model_parallel_size, 8)
     trainer = Trainer(
-        plugins=NLPDDPPlugin(),
+        strategy=NLPDDPStrategy(),
         devices=num_gpus,
         num_nodes=num_nodes,
         precision=args.precision,
