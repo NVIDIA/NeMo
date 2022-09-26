@@ -8,6 +8,7 @@ import omegaconf
 import functools
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, Union, Iterable
+from omegaconf import OmegaConf
 
 from bignlp.core.launchers import AutoLauncher
 from bignlp.core.logger import logger
@@ -19,11 +20,9 @@ from bignlp.utils.data_utils.prepare_squad import prepare_squad_for_prompt_learn
 
 
 class BigNLPStage:
-    """Base class for BigNLP stages. All stages should build on top of this class.
+    """
+    Base class for BigNLP stages. All stages should build on top of this class.
     Call `run` function to run current stage.
-
-    Arguments:
-        cfg: configuration from hydra.
     """
 
     def __init__(self, cfg):
@@ -35,12 +34,17 @@ class BigNLPStage:
         self.setup_stage_vars(cfg)
         self.job_name = self.stage_cfg.run.get("name")
 
-    def setup_stage_vars(self, cfg):
+    def setup_stage_vars(self, cfg: OmegaConf):
         """Setup the stage vars, i.e. stage name and stage cfg"""
         raise NotImplementedError
 
     def run(self) -> str:
-        """Run current stage; returns job id"""
+        """
+        Run current stage returns job id on slurm based system otherwise empty string
+
+        :return: job id on slurm based system otherwise empty string
+        :rtype: str
+        """
         # Setup folders and datasets
         self.setup_folder_and_data()
         # Save stage hydra config
@@ -70,8 +74,15 @@ class BigNLPStage:
         results_folder.mkdir(parents=True, exist_ok=True)
 
     @staticmethod
-    def save_stage_hydra_config(stage_cfg, job_path) -> Path:
-        """Interpolate and save hydra config file for current stage"""
+    def save_stage_hydra_config(stage_cfg: OmegaConf, job_path: JobPaths) -> Path:
+        """
+        Interpolate and save hydra config file for current stage
+
+        :param OmegaConf stage_cfg: current stage's hydra configuration
+        :param JobPaths job_path: JobPaths object
+        :return: path current stage's essential nemo scripts code
+        :rtype: Path
+        """
         _hydra_interpolation(stage_cfg)
 
         cfg_save_path = job_path.config_file
@@ -79,21 +90,21 @@ class BigNLPStage:
         return cfg_save_path
 
     def make_stage_command_groups(self, stage_cfg_path: Path) -> List[List[str]]:
-        """Make the command groups for current stage
+        """
+        Make the command groups for current stage
+        Command groups is a list of command group. A command group is defined as:
+              0. Command group is a list of command strings
+              1. Each command group occupies one bcprun, srun or bash
+              2. Each command group eventually has multiple commands connected by ";"
 
-        Arguments:
-            stage_cfg_path: Path, the interpolated and saved configuration path
-        Output:
-            command_groups: List[List[str]], command groups is a list of command group.
-                A command group is defined as:
-                    0. Command group is a list of command strings
-                    1. Each command group occupies one bcprun, srun or bash
-                    2. Each command group eventually has multiple commands connected by ";"
+        :param Path stage_cfg_path: path to interpolated and saved configuration
+        :return: command groups for current stage
+        :rtype: List[List[str]]
         """
         raise NotImplementedError
 
     def _make_wandb_login_command(self) -> List[str]:
-        """Login with w&b api key"""
+        """Make a command of login with w&b api key"""
         cfg = self.cfg
         wandb_cmd = ""
         if cfg.wandb_api_key_file is not None:
@@ -111,6 +122,7 @@ class BigNLPStage:
         ]
 
     def _make_numa_mapping_command(self) -> List[str]:
+        """Make a command of numa mapping call"""
         cfg = self.cfg
         numa_cfg = cfg.get("numa_mapping")
         if not numa_cfg.get("enable"):
@@ -121,7 +133,8 @@ class BigNLPStage:
         numa_command = " \\\n  ".join(numa_command)
         return [numa_command]
 
-    def _make_api_log_command_prefix(self, results_dir) -> str:
+    def _make_api_log_command_prefix(self, results_dir: str) -> str:
+        """Make a command prefix of api logging"""
         choice_model_type, choice_name = self.get_stage_config_choice()
         api_log = self.cfg.get("api_log", False)
         api_log_prefix = ""
@@ -134,7 +147,8 @@ class BigNLPStage:
             )
         return api_log_prefix
 
-    def _make_nsys_command_prefix(self, results_dir) -> str:
+    def _make_nsys_command_prefix(self, results_dir: str) -> str:
+        """Make a command prefix of nsys profiling"""
         model_cfg = self.stage_cfg.get("model")
         if not model_cfg:
             return ""
@@ -156,7 +170,12 @@ class BigNLPStage:
         return nsys_prefix
 
     def _make_container_mounts_string(self) -> str:
+        """
+        Make container mounting string based on hydra configurations
 
+        :return: container mounting string, e.g. "/path/to/A:/path/to/A,/path/to/B:/path/to/B,..."
+        :rtype: str
+        """
         def add_container_mounts(container_mounts):
             mounts_str = ""
             if container_mounts is not None:
@@ -178,6 +197,16 @@ class BigNLPStage:
         return mounts_string
 
     def _make_cluster_parameters(self, cluster: str) -> Dict:
+        """
+        Make a cluster-specific parameters for jobs on different clusters.
+        Current clusters include bcm(slurm), bcp and interactive.
+        For example for bcm, it will return slurm parameters:
+            {'job_name': 'some_name', 'nodes': 2, 'ntasks_per_node': 8, ...}
+
+        :param str cluster: i.e. `bcm`, `bcp`, `interactive`, etc.
+        :return: a dictionary of cluster parameters, e.g. `ntasks_per_node`
+        :rtype: Dict
+        """
         cfg = self.cfg
         stage_cfg = self.stage_cfg
 
@@ -235,12 +264,15 @@ class BigNLPStage:
         return cluster_parameters
 
     def get_env_vars(self) -> Dict:
-        """Set up dictionary for environment variables
-
-        The environment variables will be set inside the job scripts
+        """
+        Set up dictionary for environment variables
+        The environment variables from hydra config will be set inside the job scripts.
         For Example:
             Set `env_vars.NVTE_BIAS_DROPOUT_FUSION=1` while calling bignlp-scripts,
             `NVTE_BIAS_DROPOUT_FUSION=1` will be set while running the job.
+
+        :return: a dictionary of env vars while running the job.
+        :rtype: Dict
         """
         env_vars = {
             k: v for k, v in self.cfg.get("env_vars").items()
@@ -249,6 +281,10 @@ class BigNLPStage:
         return env_vars
 
     def get_stage_config_choice(self):
+        """
+        Return current stages config's corresponding `choice_model_type` and `choice_name`
+        For example, if `training=gpt3/5b`, then `choice_model_type=gpt3` and `choice_name=5b`
+        """
         stage_config_choice = self.cfg.get(f"{self.stage_name}_config")
         choice_model_type = stage_config_choice.rsplit("/", 1)[0]
         choice_name = stage_config_choice.rsplit("/", 1)[1]
@@ -284,7 +320,8 @@ class BigNLPStage:
             if tensor_model_parallel_size > 1 else ""
 
     @functools.lru_cache()
-    def get_job_path(self, sub_stage=None) -> JobPaths:
+    def get_job_path(self, sub_stage:Optional = None) -> JobPaths:
+        """Fetch a JobPaths object for current stage"""
         run_cfg = self.stage_cfg.get("run")
         results_dir = Path(run_cfg.get("results_dir")) # TODO: rename this to job dir in config
         if sub_stage is not None:
@@ -293,8 +330,8 @@ class BigNLPStage:
 
 
 class NeMoStage(BigNLPStage):
-    """Stage is a nemo stage if it uses a nemo scripts
-
+    """
+    Stage is a nemo stage if it uses a nemo scripts
     Current nemo stage includes:
         - pretraining
         - fine-tuning
@@ -304,16 +341,16 @@ class NeMoStage(BigNLPStage):
     """
 
     def make_stage_command_groups(self, stage_cfg_path: Path) -> List[List[str]]:
-        """Make the command groups for current stage
+        """
+        Make the command groups for current stage
+        Command groups is a list of command group. A command group is defined as:
+              0. Command group is a list of command strings
+              1. Each command group occupies one bcprun, srun or bash
+              2. Each command group eventually has multiple commands connected by ";"
 
-        Arguments:
-            stage_cfg_path: Path, the interpolated and saved configuration path
-        Output:
-            command_groups: List[List[str]], command groups is a list of command group.
-                A command group is defined as:
-                    0. Command group is a list of command strings
-                    1. Each command group occupies one bcprun, srun or bash
-                    2. Each command group eventually has multiple commands connected by ";"
+        :param Path stage_cfg_path: path to interpolated and saved configuration
+        :return: command groups for current stage
+        :rtype: List[List[str]]
         """
         # Training has one command group
         # Shared with fine-tuning and prompt learning
@@ -343,9 +380,14 @@ class NeMoStage(BigNLPStage):
 
         return command_groups
 
-    def _make_nemo_call_string(self, stage_cfg_path) -> str:
-        """Make nemo scripts calling command string
-           This is for the one essential nemo script call inside a nemo stage
+    def _make_nemo_call_string(self, stage_cfg_path: Path) -> str:
+        """
+        Make nemo scripts calling command string
+        This is for current nemo stage's essential nemo script calling.
+
+        :param Path stage_cfg_path: path to interpolated and saved configuration
+        :return: command string of nemo script calling
+        :rtype: str
         """
         choice_model_type, choice_name = self.get_stage_config_choice()
         code_path = self._get_nemo_code_path(choice_model_type)
@@ -362,7 +404,8 @@ class NeMoStage(BigNLPStage):
         return command_string
 
     def _make_hydra_override(self) -> List:
-        """Override some existing hydra configurations if necessary.
+        """
+        Override some existing hydra configurations if necessary.
         
         Example use cases are:
             1. For bcp cluster, `+rank=\${RANK}` is required running some NeMo scripts.
@@ -377,12 +420,15 @@ class NeMoStage(BigNLPStage):
         return hydra_override
 
     def get_env_vars(self) -> Dict:
-        """Set up dictionary for environment variables
-
-        The environment variables will be set inside the job scripts
+        """
+        Set up dictionary for environment variables
+        The environment variables from hydra config will be set inside the job scripts.
         For Example:
             Set `env_vars.NVTE_BIAS_DROPOUT_FUSION=1` while calling bignlp-scripts,
             `NVTE_BIAS_DROPOUT_FUSION=1` will be set while running the job.
+
+        :return: a dictionary of env vars while running the job.
+        :rtype: Dict
         """
         env_vars = super().get_env_vars()
         devices = self.stage_cfg.trainer.get("devices", 1)
@@ -397,6 +443,7 @@ class NeMoStage(BigNLPStage):
 
 
 class Training(NeMoStage):
+    """Stage class of pretraining with NeMo scripts"""
 
     def setup_stage_vars(self, cfg):
         """Setup the stage vars, i.e. stage name and stage cfg"""
@@ -404,14 +451,17 @@ class Training(NeMoStage):
         self.stage_cfg = cfg.get("training")
 
     def _make_hydra_override(self) -> List:
-        """Override some existing hydra configurations if necessary.
-        
+        """
+        Override some existing hydra configurations if necessary.
         Example use cases are:
             1. For bcp cluster, `+rank=\${RANK}` is required running some NeMo scripts.
                 Existing hydra config doesn't have `rank` field, so we overwrite on the fly.
             2. Auto blend training dataset by overwriting empty `model.data.data_prefix` as 
                 `model.data.data_prefix=\$({auto_blend_command})`. Existing `model.data.data_prefix`
                 could be None in cfg, so we overwrite it in this function.
+
+        :return: hydra override string added in nemo script calling
+        :rtype: str
         """
         hydra_override = []
         choice_model_type, choice_name = self.get_stage_config_choice()
@@ -430,8 +480,13 @@ class Training(NeMoStage):
         return hydra_override
 
     def _get_nemo_code_path(self, model_type: str) -> Path:
-        """Provide the essential nemo code path for running the stage
-           Usually different model types have different nemo scripts, e.g. pretraining
+        """
+        Provide the essential nemo code path for running the stage, usually different model types use different nemo scripts.
+        For example, `megatron_t5_pretraining.py` for t5 and `megatron_gpt_pretraining.py` for gpt3.
+
+        :param str model_type: i.e. `gpt3`, `t5`, `mt5`, etc.
+        :return: path current stage's essential nemo scripts code 
+        :rtype: Path
         """
         model_type_to_code_path = {
             "t5": self._nemo_code_path / "examples/nlp/language_modeling/megatron_t5_pretraining.py",
@@ -442,6 +497,7 @@ class Training(NeMoStage):
 
 
 class FineTuning(NeMoStage):
+    """Stage class of fine-tuning with NeMo scripts"""
 
     def setup_stage_vars(self, cfg):
         """Setup the stage vars, i.e. stage name and stage cfg"""
@@ -468,8 +524,13 @@ class FineTuning(NeMoStage):
             prepare_squad_for_fine_tuning(data_dir=os.path.join(data_dir, "squad_data"))
 
     def _get_nemo_code_path(self, model_type: str) -> Path:
-        """Provide the essential nemo code path for running the stage
-           Usually different model types have different nemo scripts, e.g. pretraining
+        """
+        Provide the essential nemo code path for running the stage, usually different model types use different nemo scripts.
+        For example, `megatron_t5_pretraining.py` for t5 and `megatron_gpt_pretraining.py` for gpt3.
+        
+        :param str model_type: i.e. `gpt3`, `t5`, `mt5`, etc.
+        :return: path current stage's essential nemo scripts code 
+        :rtype: Path
         """
         if model_type == "gpt3":
             raise NotImplementedError("Fine-tuning is not supported in NeMo Megatron GPT-3 models.")
@@ -481,6 +542,7 @@ class FineTuning(NeMoStage):
 
 
 class PromptLearning(NeMoStage):
+    """Stage class of prompt-learning with NeMo scripts"""
 
     def setup_stage_vars(self, cfg):
         """Setup the stage vars, i.e. stage name and stage cfg"""
@@ -504,8 +566,13 @@ class PromptLearning(NeMoStage):
 
 
     def _get_nemo_code_path(self, model_type: str) -> Path:
-        """Provide the essential nemo code path for running the stage
-           Usually different model types have different nemo scripts, e.g. pretraining
+        """
+        Provide the essential nemo code path for running the stage, usually different model types use different nemo scripts.
+        For example, `megatron_t5_pretraining.py` for t5 and `megatron_gpt_pretraining.py` for gpt3.
+        
+        :param str model_type: i.e. `gpt3`, `t5`, `mt5`, etc.
+        :return: path current stage's essential nemo scripts code 
+        :rtype: Path
         """
         model_type_to_code_path = {
             "gpt3": self._nemo_code_path / "examples/nlp/language_modeling/megatron_gpt_prompt_learning.py",
@@ -516,13 +583,20 @@ class PromptLearning(NeMoStage):
 
 
 class Conversion(BigNLPStage):
+    """Stage class of converting training checkpoints to .nemo format"""
 
-    def setup_stage_vars(self, cfg):
+    def setup_stage_vars(self, cfg: OmegaConf):
         """Setup the stage vars, i.e. stage name and stage cfg"""
         self.stage_name = "conversion"
         self.stage_cfg = cfg.get("conversion")
 
     def _make_hparams_override_command(self):
+        """
+        Make the command string to override some fields in hparams.yaml file while converting checkpoint into .nemo format
+
+        :return: command string for hparams override with the script in collections
+        :rtype: str
+        """
         model_cfg = self.stage_cfg.get("model")
         hparams_file = model_cfg.get("hparams_file")
         vocab_file = model_cfg.get("vocab_file")
@@ -543,7 +617,14 @@ class Conversion(BigNLPStage):
         override_command = " \\\n  ".join(override_command)
         return [override_command]
 
-    def _make_checkpoint_search_command(self, **kwargs):
+    def _make_checkpoint_search_command(self, **kwargs: Any) -> str:
+        """
+        Make the command string to search for the latest checkpoint inside checkpoint folder
+
+        :param Path **kwargs: checkpoint search script's argument override
+        :return: command string for searching for latest checkpoint with the script in collections
+        :rtype: str
+        """
         checkpoint_override = [f"{k}={v}" for k, v in kwargs.items()]
         return (
             f"python3 {self._bignlp_path / 'bignlp/collections/checkpoint_search.py'} "
@@ -551,16 +632,16 @@ class Conversion(BigNLPStage):
         )
 
     def make_stage_command_groups(self, stage_cfg_path: Path) -> List[List[str]]:
-        """Make the command groups for current stage
+        """
+        Make the command groups for current stage
+        Command groups is a list of command group. A command group is defined as:
+              0. Command group is a list of command strings
+              1. Each command group occupies one bcprun, srun or bash
+              2. Each command group eventually has multiple commands connected by ";"
 
-        Arguments:
-            stage_cfg_path: Path, the interpolated and saved configuration path
-        Output:
-            command_groups: List[List[str]], command groups is a list of command group.
-                A command group is defined as:
-                    0. Command group is a list of command strings
-                    1. Each command group occupies one bcprun, srun or bash
-                    2. Each command group eventually has multiple commands connected by ";"
+        :param Path stage_cfg_path: path to interpolated and saved configuration
+        :return: command groups for current stage
+        :rtype: List[List[str]]
         """
         command_groups = [[], []]
         command_groups[0] += self._make_hparams_override_command()
@@ -607,6 +688,7 @@ class Conversion(BigNLPStage):
 
 
 class NeMoEvaluation(NeMoStage):
+    """Stage class of t5/mt5 evaluation with NeMo scripts"""
     
     def setup_stage_vars(self, cfg):
         """Setup the stage vars, i.e. stage name and stage cfg"""
@@ -614,16 +696,16 @@ class NeMoEvaluation(NeMoStage):
         self.stage_cfg = cfg.get("evaluation")
 
     def make_stage_command_groups(self, stage_cfg_path: Path) -> List[List[str]]:
-        """Make the command groups for current stage
+        """
+        Make the command groups for current stage
+        Command groups is a list of command group. A command group is defined as:
+              0. Command group is a list of command strings
+              1. Each command group occupies one bcprun, srun or bash
+              2. Each command group eventually has multiple commands connected by ";"
 
-        Arguments:
-            stage_cfg_path: Path, the interpolated and saved configuration path
-        Output:
-            command_groups: List[List[str]], command groups is a list of command group.
-                A command group is defined as:
-                    0. Command group is a list of command strings
-                    1. Each command group occupies one bcprun, srun or bash
-                    2. Each command group eventually has multiple commands connected by ";"
+        :param Path stage_cfg_path: path to interpolated and saved configuration
+        :return: command groups for current stage
+        :rtype: List[List[str]]
         """
         command_groups = super().make_stage_command_groups(stage_cfg_path)
 
@@ -659,8 +741,13 @@ class NeMoEvaluation(NeMoStage):
         return command_groups
 
     def _get_nemo_code_path(self, model_type: str) -> Path:
-        """Provide the essential nemo code path for running the stage
-           Usually different model types have different nemo scripts, e.g. pretraining
+        """
+        Provide the essential nemo code path for running the stage, usually different model types use different nemo scripts.
+        For example, `megatron_t5_pretraining.py` for t5 and `megatron_gpt_pretraining.py` for gpt3.
+        
+        :param str model_type: i.e. `gpt3`, `t5`, `mt5`, etc.
+        :return: path current stage's essential nemo scripts code 
+        :rtype: Path
         """
         if "gpt3" in model_type:
             raise ValueError("Evaluating GPT-3 models needs `EvalHarnessEvaluation` class.")
@@ -674,6 +761,7 @@ class NeMoEvaluation(NeMoStage):
 
 
 class EvalHarnessEvaluation(BigNLPStage):
+    """Stage class of gpt-3 evaluation harness"""
 
     def __init__(self, cfg):
         super().__init__(cfg)
@@ -686,6 +774,12 @@ class EvalHarnessEvaluation(BigNLPStage):
         self.stage_cfg = cfg.get("evaluation")
 
     def _make_download_command_string(self) -> str:
+        """
+        Make dataset download command for evaluation harness.
+
+        :return: command string of downloading evaluation data
+        :rtype: str
+        """
         data_dir = self.cfg.get("data_dir")
         cache_dir = os.path.join(data_dir, "eval_harness_data")
         run_cfg = self.stage_cfg.get("run")
@@ -701,16 +795,16 @@ class EvalHarnessEvaluation(BigNLPStage):
         return download_command_string
 
     def make_stage_command_groups(self, stage_cfg_path: Path) -> List[List[str]]:
-        """Make the command groups for current stage
+        """
+        Make the command groups for current stage
+        Command groups is a list of command group. A command group is defined as:
+              0. Command group is a list of command strings
+              1. Each command group occupies one bcprun, srun or bash
+              2. Each command group eventually has multiple commands connected by ";"
 
-        Arguments:
-            stage_cfg_path: Path, the interpolated and saved configuration path
-        Output:
-            command_groups: List[List[str]], command groups is a list of command group.
-                A command group is defined as:
-                    0. Command group is a list of command strings
-                    1. Each command group occupies one bcprun, srun or bash
-                    2. Each command group eventually has multiple commands connected by ";"
+        :param Path stage_cfg_path: path to interpolated and saved configuration
+        :return: command groups for current stage
+        :rtype: List[List[str]]
         """
         if self.prompt_evaluation:
             command_groups = [[]]
@@ -761,15 +855,27 @@ class EvalHarnessEvaluation(BigNLPStage):
         return command_groups
 
 
-def clean_command_groups(command_groups):
+def clean_command_groups(command_groups: List[List[str]]) -> List[List[str]]:
+    """
+    Remove empty command group in command groups
+
+    :param List[List[str]] command_groups: command groups is a list of command group
+    :return: cleaned command groups
+    :rtype: List[List[str]]
+    """
     for ind, command_group in enumerate(command_groups):
         command_groups[ind] = [c for c in command_group if c]
     return command_groups
 
 
-def _hydra_interpolation(cfg) -> None:
-    """Interpolate hydra config values, bypassing lazy interpolation"""
-    def interpolate(cfg):
+def _hydra_interpolation(cfg: OmegaConf) -> None:
+    """
+    Interpolate hydra config values in cfg object, bypassing lazy interpolation
+
+    :param OmegaConf cfg: OmegaConf object with the config to be interpolated
+    :return: None
+    """
+    def interpolate(cfg: OmegaConf):
         if isinstance(cfg, omegaconf.dictconfig.DictConfig):
             for k, v in cfg.items():
                 cfg[k] = interpolate(v)
@@ -780,7 +886,22 @@ def _hydra_interpolation(cfg) -> None:
     interpolate(cfg)
 
 
-def create_args_list(hydra=False, replace_underscore=True, **kwargs):
+def create_args_list(
+        hydra:bool = False,
+        replace_underscore:bool = True,
+        **kwargs:Any,
+    ) -> List[str]:
+    """
+    An easy tool function to convert arguments into a list of argument strings.
+    For example, `create_args_list(a=123, b=456)` will generate `['--a=123', '--b=456']`.
+
+    :param bool hydra: Either a hydra argument or regular argument, `--` will be added to regular arguments
+    :param bool replace_underscore: Whether to replace `_` with `-` in arguments' names.
+    :params Any **kwargs: argument name and their value
+    :return: A list of argument strings, e.g. `['--a=123', '--b=456', ...]`
+    :rtype: List[str]
+    """
+
     args = []
     for k, v in kwargs.items():
         if hydra:

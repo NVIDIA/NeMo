@@ -21,6 +21,9 @@ BIGNLP_DEBUG = os.getenv("BIGNLP_DEBUG", "False").lower() in ("true", "t", "1")
 BIGNLP_MEMORY_MEASURE = os.getenv("BIGNLP_MEMORY_MEASURE", "False").lower() in ("true", "t", "1")
 
 class AutoLauncher:
+    """
+    Automatic launcher class. It will create a launcher based on input cluster name.
+    """
     def __init__(
             self, folder: Union[str, Path], job_name: str, cluster: Optional[str] = None, **kwargs: Any
     ) -> None:
@@ -36,16 +39,24 @@ class AutoLauncher:
     def launch(
             self, command_groups: List[List[str]]
     ) -> str:
+        """
+        Use the launcher to launch the command groups.
+
+        :param List[List[str]] command_groups: Command groups to launch with
+        :return: job id on slurm based system otherwise empty string
+        :rtype: str
+        """
         job_id = self._launcher.launch(command_groups)
         return job_id
 
     @staticmethod
     def which() -> str:
-        """Returns what is the detected cluster."""
+        """Returns what the detected cluster is"""
         raise NotImplementedError
 
     @staticmethod
     def get_launchers():
+        """Returns supported launchers as a dictionary from launcher name to launcher class"""
         return {
             "bcm": SlurmLauncher,
             "bcp": BCPLauncher,
@@ -54,6 +65,8 @@ class AutoLauncher:
 
 
 class Launcher:
+    """Base launcher class"""
+
     def __init__(self, folder: Union[Path, str], job_name: str):
         self.folder = folder
         self.job_name = job_name
@@ -61,6 +74,13 @@ class Launcher:
     def launch(
             self, command_groups: List[List[str]]
     ) -> str:
+        """
+        Use the launcher to launch the command groups.
+
+        :param List[List[str]] command_groups: Command groups to launch with
+        :return: job id on slurm based system otherwise empty string
+        :rtype: str
+        """
         submission_file_path = self._make_submission_file(
             command_groups
         )
@@ -88,6 +108,16 @@ class Launcher:
     def _make_submission_file(
             self, command_groups: List[List[str]]
     ) -> Path:
+        """
+        Make a submission script file, as following
+            on interactive cluster, it's a bash file, trigger with bash.
+            on slurm cluster, it's a slurm script file, trigger with sbatch.
+            on BCP cluster, it's a BCP script file, trigger with bash.
+
+        :param List[List[str]] command_groups: Command groups to launch with
+        :return: job id on slurm based system otherwise empty string
+        :rtype: str
+        """
         job_paths = job_utils.JobPaths(folder=self.folder, job_name=self.job_name)
         folder = job_paths.folder
         folder.mkdir(parents=True, exist_ok=True)
@@ -99,6 +129,16 @@ class Launcher:
 
 
 class InteractiveLauncher(Launcher):
+    """
+    Interactive job launcher
+    This class is used to hold the parameters to run a job on an interactive node (single node only).
+    In practice, it will create a batch file in the specified directory for the job and
+    trigger the job with `bash` command.
+
+    :param Union[Path, str] folder: folder for storing job submission/output and logs.
+    :param str job_name: Name of the job, used as job folder name
+    :param Any **kwargs: Parse other cluster parameters required for interactive running
+    """
     def __init__(
             self, folder: Union[Path, str], job_name: str, **kwargs: Any
     ) -> None:
@@ -108,7 +148,7 @@ class InteractiveLauncher(Launcher):
     def _submit_command(
         self, submission_file_path: Path
     ) -> str:
-        """Submits a set of command groups to the cluster"""
+        """Launch the submission command"""
         command_list = self._make_submission_command(submission_file_path)
         # run
         job_utils.CommandFunction(command_list, ret_stdout=False, verbose=False)()  # explicit errors
@@ -116,9 +156,22 @@ class InteractiveLauncher(Launcher):
 
     @staticmethod
     def _make_submission_command(submission_file_path: Path) -> List[str]:
+        """Make a command to trigger submission script. On interactive cluster, the script is triggerred with bash"""
         return ["bash", str(submission_file_path)]
 
     def _make_submission_file_text(self, command_groups: List[List[str]]) -> str:
+        """
+        Given the command groups, generate submission script file's text.
+        Command groups is a list of command group. A command group is defined as:
+              0. Command group is a list of command strings
+              1. Each command group occupies one bcprun, srun or bash
+              2. Each command group eventually has multiple commands connected by ";"
+        On interactive cluster, multi-gpu python scripts are launched with `torchrun --nproc_per_node=??`
+
+        :param List[List[str]] command_groups: Command groups to launch with
+        :return: submission script file's text
+        :rtype: str
+        """
         nodes = self.parameters.get("nodes", 1)
         ntasks_per_node = self.parameters.get("ntasks_per_node", 1)
         assert nodes == 1, "Multi-node is not supported in interactive mode."
@@ -152,7 +205,17 @@ class InteractiveLauncher(Launcher):
 
 
 class BCPLauncher(Launcher):
-    """BCP Job launcher"""
+    """
+    BCP job launcher
+    This class is used to hold the parameters to run a job on BCP platform.
+    In practice, it will create a batch file in the specified directory for the job
+    and trigger the job with `bash` command.
+
+    :param Union[Path, str] folder: folder for storing job submission/output and logs.
+    :param str job_name: Name of the job, used as job folder name
+    :param Any **kwargs: Parse other cluster parameters required for BCP running,
+        including `nodes`, `ntasks_pernode`, `bcp_launcher`, etc.
+    """
     def __init__(
             self, folder: Union[Path, str], job_name: str, **kwargs: Any
     ) -> None:
@@ -171,6 +234,7 @@ class BCPLauncher(Launcher):
         }
 
     def _convert_parameters(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """translate bcp parameter names"""
         # replace type in some cases
         eq_dict = self._equivalence_dict()
         if eq_dict is not None:
@@ -180,7 +244,7 @@ class BCPLauncher(Launcher):
     def _submit_command(
         self, submission_file_path: Path
     ) -> str:
-        """Submits a set of command groups to the cluster"""
+        """Launch the submission command"""
         command_list = self._make_submission_command(submission_file_path)
         # run
         job_utils.CommandFunction(command_list, ret_stdout=False, verbose=False)()  # explicit errors
@@ -188,9 +252,22 @@ class BCPLauncher(Launcher):
 
     @staticmethod
     def _make_submission_command(submission_file_path: Path) -> List[str]:
+        """Make a command to trigger submission script. On BCP cluster, the script is triggerred with bash"""
         return ["bash", str(submission_file_path)]
 
     def _make_submission_file_text(self, command_groups: List[List[str]]) -> str:
+        """
+        Given the command groups, generate submission script file's text.
+        Command groups is a list of command group. A command group is defined as:
+              0. Command group is a list of command strings
+              1. Each command group occupies one bcprun, srun or bash
+              2. Each command group eventually has multiple commands connected by ";"
+        On BCP cluster, multi-gpu python scripts are launched with `bcprun --nnodes ? --npernode ?`
+
+        :param List[List[str]] command_groups: Command groups to launch with
+        :return: submission script file's text
+        :rtype: str
+        """
         paths = job_utils.JobPaths(folder=self.folder, job_name=self.job_name)
         time_tag = datetime.datetime.now().strftime("%m%d_%H%M%S")
         stdout = str(paths.stdout).replace("_%j", f"_{time_tag}")
@@ -244,23 +321,18 @@ class BCPLauncher(Launcher):
 
 
 class SlurmLauncher(Launcher):
-    """Slurm job launcher
+    """
+    Slurm job launcher
     This class is used to hold the parameters to run a job on slurm.
-    In practice, it will create a batch file in the specified directory for each job,
-    ...
+    In practice, it will create a batch file in the specified directory for the job,
+    trigger the job with `sbatch` command and return a job id.
 
-    Parameters
-    ----------
-    folder: Path/str
-        folder for storing job submission/output and logs.
-
-    **kwargs: Any
-            See slurm documentation for most parameters.
+    :param Union[Path, str] folder: folder for storing job submission/output and logs.
+    :param str job_name: Name of the job, used as job folder name
+    :param Any **kwargs: See slurm documentation for most parameters.
             Most useful parameters are: time, mem, gpus_per_node, cpus_per_task, partition
             Below are the parameters that differ from slurm documentation:
-
-            setup: list
-                a list of command to run in sbatch before running srun
+                setup: a list of command to run in sbatch before running srun
     """
 
     def __init__(
@@ -291,6 +363,7 @@ class SlurmLauncher(Launcher):
         return set(_get_default_parameters())
 
     def _convert_parameters(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """translate slurm parameter names"""
         # replace type in some cases
         eq_dict = self._equivalence_dict()
         if eq_dict is not None:
@@ -300,23 +373,16 @@ class SlurmLauncher(Launcher):
         return params
 
     def _update_parameters(self, **kwargs: Any) -> None:
-        """Updates sbatch submission file parameters
-
-        Parameters
-        ----------
-        See slurm documentation for most parameters.
-        Most useful parameters are: time, mem, gpus_per_node, cpus_per_task, partition
-        Below are the parameters that differ from slurm documentation:
-
-        setup: list
-            a list of command to run in sbatch before running srun
-
-        Raises
-        ------
-        ValueError
+        """
+        Updates sbatch submission file parameters
+        Raises ValueError:
             In case an erroneous keyword argument is added, a list of all eligible parameters
             is printed, with their default values
 
+        :param Any **kwargs: See slurm documentation for most parameters.
+            Most useful parameters are: time, mem, gpus_per_node, cpus_per_task, partition
+            Below are the parameters that differ from slurm documentation:
+                setup: a list of command to run in sbatch before running srun
         """
         defaults = _get_default_parameters()
         in_valid_parameters = sorted(set(kwargs) - set(defaults))
@@ -332,7 +398,7 @@ class SlurmLauncher(Launcher):
     def _submit_command(
         self, submission_file_path: Path
     ) -> str:
-        """Submits a set of command groups to the cluster"""
+        """Launch the submission command"""
         command_list = self._make_submission_command(submission_file_path)
         # run
         output = job_utils.CommandFunction(command_list, verbose=False)()  # explicit errors
@@ -343,6 +409,17 @@ class SlurmLauncher(Launcher):
         return job_id
 
     def _make_submission_file_text(self, command_groups: List[List[str]]) -> str:
+        """
+        Given the command groups, generate submission script file's text.
+        Command groups is a list of command group. A command group is defined as:
+              0. Command group is a list of command strings
+              1. Each command group occupies one bcprun, srun or bash
+              2. Each command group eventually has multiple commands connected by ";"
+
+        :param List[List[str]] command_groups: Command groups to launch with
+        :return: submission script file's text
+        :rtype: str
+        """
         return _make_sbatch_string(
             command_groups=command_groups,
             folder=self.folder,
@@ -351,6 +428,7 @@ class SlurmLauncher(Launcher):
 
     @staticmethod
     def _make_submission_command(submission_file_path: Path) -> List[str]:
+        """Make a command to trigger submission script. On slurm cluster, the script is triggerred with sbatch"""
         return ["sbatch", str(submission_file_path)]
 
     @staticmethod
@@ -533,6 +611,7 @@ def _convert_mem(mem_gb: float) -> str:
 
 
 def _as_sbatch_flag(key: str, value: Any) -> str:
+    """Convert key value pairs to `#SBATCH --{key}={value}` flags"""
     key = key.replace("_", "-")
     if value is True:
         return f"#SBATCH --{key}"
