@@ -2088,10 +2088,11 @@ class ParallelTransformer(MegatronModule):
                         hidden_states = layer(
                             hidden_states,
                             attention_mask,
-                            encoder_output,
-                            enc_dec_attn_mask,
-                            None,
-                            self.is_first_microbatch,
+                            encoder_output=encoder_output,
+                            enc_dec_attn_mask=enc_dec_attn_mask,
+                            inference_params=None,
+                            is_first_microbatch=self.is_first_microbatch,
+                            checkpoint_core_attention=False,
                         )
 
                     return hidden_states
@@ -2100,7 +2101,7 @@ class ParallelTransformer(MegatronModule):
 
                 def custom_forward(*inputs):
                     if len(inputs) == 9:
-                        x_ = inputs[0]
+                        hidden_states = inputs[0]
                         attention_mask = inputs[1]
                         encoder_output = inputs[2]
                         enc_dec_attn_mask = inputs[3]
@@ -2108,7 +2109,7 @@ class ParallelTransformer(MegatronModule):
                         self_attention_relative_position_bias = inputs[7]
                         cross_attention_relative_position_bias = inputs[8]
                     elif len(inputs) == 10:
-                        x_ = (inputs[0], inputs[1])
+                        hidden_states = (inputs[0], inputs[1])
                         attention_mask = inputs[2]
                         encoder_output = inputs[3]
                         enc_dec_attn_mask = inputs[4]
@@ -2116,7 +2117,7 @@ class ParallelTransformer(MegatronModule):
                         self_attention_relative_position_bias = inputs[8]
                         cross_attention_relative_position_bias = inputs[9]
                     else:
-                        x_ = inputs[0]
+                        hidden_states = inputs[0]
                         attention_mask = inputs[1]
                         encoder_output = inputs[2]
                         enc_dec_attn_mask = inputs[3]
@@ -2125,8 +2126,8 @@ class ParallelTransformer(MegatronModule):
                         cross_attention_relative_position_bias = inputs[6]
                     for index in range(start, end):
                         layer = self._get_layer(index)
-                        x_ = layer(
-                            x_,
+                        hidden_states = layer(
+                            hidden_states,
                             attention_mask,
                             encoder_output,
                             enc_dec_attn_mask,
@@ -2134,11 +2135,11 @@ class ParallelTransformer(MegatronModule):
                             self_attention_relative_position_bias,
                             cross_attention_relative_position_bias,
                         )
-                        if isinstance(x_, tuple):
+                        if isinstance(hidden_states, tuple):
                             pass
                         else:
-                            x_ = x_.contiguous()
-                    return x_
+                            hidden_states = hidden_states.contiguous()
+                    return hidden_states
 
             return custom_forward
 
