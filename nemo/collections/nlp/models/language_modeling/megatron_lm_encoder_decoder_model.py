@@ -16,6 +16,7 @@ import copy
 import functools
 import inspect
 import re
+from tracemalloc import start
 from typing import Any, Dict, Optional
 
 import torch
@@ -539,9 +540,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 return output_tensor, {output_name: output_tensor}
 
             def id_func_memory(output_tensor):
-                return output_tensor[0], {
-                    output_name: output_tensor[0], 'memory': output_tensor[1]
-                }
+                return output_tensor[0], {output_name: output_tensor[0], 'memory': output_tensor[1]}
 
             if 'return_memory' in arg_names:
                 return output, id_func_memory
@@ -549,7 +548,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             return output, id_func
 
         return fwd_output_only_func
-
 
     def validation_step_logits(self, batch, batch_idx):
         """
@@ -1052,7 +1050,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         if use_memory and return_cache:
             raise ValueError('Cannot use both memory and cache at the same time!')
         if return_cache:
-            assert self.cfg.get('pipeline_model_parallel_size', 1) == 1, "Cannot use pipeline parallel with return cache!"
+            assert (
+                self.cfg.get('pipeline_model_parallel_size', 1) == 1
+            ), "Cannot use pipeline parallel with return cache!"
 
         # Check whether the DDP is initialized. This is needed when running inference outside of training loop.
         if parallel_state.is_unitialized():
@@ -1112,7 +1112,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         if use_memory:
             inference_key_first = torch.tensor([[True] for _ in range(enc_output.shape[0])])
             inference_key_then = torch.tensor([[False] for _ in range(enc_output.shape[0])])
-            inference_mem_size = torch.tensor([[256] for _ in range(enc_output.shape[0])])
+            inference_mem_size = torch.tensor([[num_tokens_to_generate + 1] for _ in range(enc_output.shape[0])])
 
             # cache memory index
             memory_ids = [
@@ -1120,7 +1120,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 for i in range(num_tokens_to_generate)
             ]
         elif return_cache:
-            cache = torch.zeros((enc_output.shape[0], 2, num_tokens_to_generate, 16, 16, 64))
+            import time
+
+            start_time = time.time()
+            key_cache = torch.zeros((enc_output.shape[0], 16, 1, 16, 64))
+            val_cache = torch.zeros((enc_output.shape[0], 16, 1, 16, 64))
             return_memory_arr = torch.tensor([[True] for _ in range(enc_output.shape[0])])
 
             # cache memory index
@@ -1129,7 +1133,12 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 for i in range(num_tokens_to_generate)
             ]
 
+        import time
+
+        start_time = time.time()
+        total_cache_time = 0.0
         for i in range(num_tokens_to_generate):
+            s = time.time()
             # No microbatches in decoding. Just the global batch.
             decoder_seq_length = predicted_tokens_dec.size(1)
             dec_mask = predicted_tokens_dec != tokenizer.pad_id
@@ -1142,7 +1151,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     dec_mask[..., i : i + 1],
                     memory_ids[i],
                     return_memory_arr,
-                    cache[:, :, :i+1, :, :, :],
+                    key_cache,
+                    val_cache,
                 ]
                 arg_names = [
                     'enc_output',
@@ -1151,7 +1161,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     'dec_attn_mask',
                     'memory_index',
                     'return_memory',
-                    'cached_states',
+                    'cached_keys',
+                    'cached_values',
                 ]
             elif use_memory:
                 batch_for_pipeline = [
@@ -1198,17 +1209,14 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     decoder_sequence_length=decoder_seq_length,
                     dtype=self.autocast_dtype,
                 )
-            
 
             # get output tensor
             if parallel_state.is_pipeline_last_stage():
-
                 # update cache is using memory
                 if return_cache:
                     new_cache = output_tensor[0]['memory']
-                    for index_attn in range(16):
-                        new_cache[index_attn] = torch.stack(new_cache[index_attn], dim=0)
-                    cache[:, :, i, :, :, :] = torch.stack(new_cache, dim=0).transpose(0, 3).squeeze(2)
+                    key_cache = torch.cat((key_cache, new_cache[:, 0].transpose(0, 1).unsqueeze(2)), dim=2)
+                    val_cache = torch.cat((val_cache, new_cache[:, 1].transpose(0, 1).unsqueeze(2)), dim=2)
 
                 output_tensor = output_tensor[0]['logits']
                 output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
@@ -1245,7 +1253,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     parallel_state.get_pipeline_model_parallel_last_rank(),
                     group=parallel_state.get_pipeline_model_parallel_group(),
                 )
-
+            total_cache_time += time.time() - s
+        inference_time = time.time() - start_time
         # Reset microbatch calculator to what it was before decoding.
         _reconfigure_microbatch_calculator(
             rank=app_state.global_rank,
@@ -1254,6 +1263,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             micro_batch_size=global_batch_per_gpu // num_micro_batches_before_decode,
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
+
         return predicted_tokens_dec, log_probs
 
     def complete(self, request: Dict):

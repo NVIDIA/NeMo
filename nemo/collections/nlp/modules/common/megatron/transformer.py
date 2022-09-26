@@ -723,7 +723,8 @@ class ParallelAttention(MegatronModule):
         rotary_pos_emb=None,  # rotary positional embedding
         relative_position_bias=None,
         return_memory=False,
-        cached_states=None,
+        cached_keys=None,
+        cached_values=None,
     ):
         # hidden_states: [sq, b, h]
 
@@ -830,13 +831,13 @@ class ParallelAttention(MegatronModule):
 
         # check if need to return (key_layer, value_layer) as memory
         if return_memory:
-            present = (key_layer, value_layer)
+            # present = (key_layer, value_layer)
+            present = torch.cat((key_layer, value_layer), dim=0)
 
         # use memory if needed
-        if cached_states is not None:
-            cached_key, cached_value = cached_states
-            key_layer = torch.cat((cached_key.type_as(key_layer), key_layer), dim=0)
-            value_layer = torch.cat((cached_value.type_as(value_layer), value_layer), dim=0)
+        if cached_keys is not None:
+            key_layer = torch.cat((cached_keys.type_as(key_layer), key_layer), dim=0)
+            value_layer = torch.cat((cached_values.type_as(value_layer), value_layer), dim=0)
 
         if layer_past is not None:
             past_key, past_value = layer_past
@@ -1354,7 +1355,8 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         self_attention_relative_position_bias=None,
         cross_attention_relative_position_bias=None,
         return_memory=False,
-        cached_states=None,
+        cached_keys=None,
+        cached_values=None,
     ):
         # Self attention.
         if rotary_pos_emb is not None:
@@ -1387,7 +1389,8 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 rotary_pos_emb=self_attention_pos_emb,
                 relative_position_bias=self_attention_relative_position_bias,
                 return_memory=return_memory,
-                cached_states=cached_states,
+                cached_keys=cached_keys,
+                cached_values=cached_values,
             )
 
             if get_key_value or return_memory:
@@ -1535,7 +1538,8 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
         self_attention_relative_position_bias=None,
         cross_attention_relative_position_bias=None,
         return_memory=False,
-        cached_states=None,
+        cached_keys=None,
+        cached_values=None,
     ):
         if self.dtype == torch.float32:
             return super().forward(
@@ -1551,7 +1555,8 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
                 self_attention_relative_position_bias,
                 cross_attention_relative_position_bias,
                 return_memory,
-                cached_states,
+                cached_keys,
+                cached_values,
             )
         with torch.autocast(device_type="cuda", dtype=self.dtype):
             return super().forward(
@@ -1567,7 +1572,8 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
                 self_attention_relative_position_bias,
                 cross_attention_relative_position_bias,
                 return_memory,
-                cached_states,
+                cached_keys,
+                cached_values,
             )
 
 
@@ -1910,7 +1916,8 @@ class ParallelTransformer(MegatronModule):
         self_attention_relative_position_bias=None,
         cross_attention_relative_position_bias=None,
         return_memory=False,
-        cached_states=None,
+        cached_keys=None,
+        cached_values=None,
     ):
         # Checks.
         if inference_max_sequence_len is not None:
@@ -1952,17 +1959,17 @@ class ParallelTransformer(MegatronModule):
 
             else:
                 if get_key_value or return_memory:
-                    presents = []
-                if cached_states is not None:
-                    cached_states = torch.transpose(cached_states, 0, 3)
+                    presents = torch.empty((self.num_layers, 2, 32, 16, 64))
                 for index in range(self.num_layers):
                     layer = self._get_layer(index)
                     past = None
-                    cache = None
+                    key_cache = None
+                    val_cache = None
                     if layer_past is not None:
                         past = layer_past[index]
-                    if cached_states is not None:
-                        cache = cached_states[index]
+                    if cached_keys is not None:
+                        key_cache = cached_keys[:, index].transpose(0, 1)
+                        val_cache = cached_values[:, index].transpose(0, 1)
                     hidden_states = layer(
                         hidden_states,
                         attention_mask,
@@ -1976,11 +1983,12 @@ class ParallelTransformer(MegatronModule):
                         self_attention_relative_position_bias=self_attention_relative_position_bias,
                         cross_attention_relative_position_bias=cross_attention_relative_position_bias,
                         return_memory=return_memory,
-                        cached_states=cache,
+                        cached_keys=key_cache,
+                        cached_values=val_cache,
                     )
                     if get_key_value or return_memory:
                         hidden_states, present = hidden_states
-                        presents.append(present)
+                        presents[index] = present  # torch.cat(present, dim=0)
 
         output = hidden_states
         # Final layer norm.
