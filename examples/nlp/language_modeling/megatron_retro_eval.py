@@ -84,25 +84,22 @@ def main(cfg) -> None:
         "compute_logprob": cfg.inference.compute_logprob,
     }
 
-    # # First method of running text generation, call model.generate method
-    response = model.generate(
-        inputs=OmegaConf.to_container(cfg.prompts),
-        length_params=length_params,
-        sampling_params=sampling_params,
-        **cfg.retrieval_service,
-    )
-
-    print("***************************")
-    print(response)
-    print("***************************")
-
-    # Second method of running text generation, call trainer.predict
-    ds = RequestDataSet(OmegaConf.to_container(cfg.prompts))
-    request_dl = DataLoader(dataset=ds, batch_size=cfg.inference_batch_size)
-    config = OmegaConf.to_container(cfg.inference)
-    retrieval_service = OmegaConf.to_container(cfg.retrieval_service)
-    model.set_inference_config(config, retrieval_service)
-    response = trainer.predict(model, request_dl)
+    if not cfg.use_predict_method:
+        # First method of running text generation, call model.generate method
+        response = model.generate(
+            inputs=OmegaConf.to_container(cfg.prompts),
+            length_params=length_params,
+            sampling_params=sampling_params,
+            **cfg.retrieval_service,
+        )
+    else:
+        # Second method of running text generation, call trainer.predict
+        ds = RequestDataSet(OmegaConf.to_container(cfg.prompts))
+        request_dl = DataLoader(dataset=ds, batch_size=cfg.inference_batch_size)
+        config = OmegaConf.to_container(cfg.inference)
+        retrieval_service = OmegaConf.to_container(cfg.retrieval_service)
+        model.set_inference_config(config, retrieval_service)
+        response = trainer.predict(model, request_dl)
 
     print("***************************")
     print(response)

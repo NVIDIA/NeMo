@@ -248,6 +248,8 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
     def __init__(self, model, **args):
         super().__init__(model)
         self.forward_model = self.model.model
+        self.frequent_query = args['frequent_query']
+        del args['frequent_query']
         self.neighbors = args['neighbors']
         self.service = FaissRetrievalService(tokenizer=self.model.tokenizer, **args)
 
@@ -274,11 +276,16 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
         self, tokens: torch.Tensor, maxlen: int, micro_batch_size: int, step: int, context_length: int
     ) -> Tuple[List[torch.Tensor], List[int]]:
         tokenizer = self.model.tokenizer
+
         if context_length % 64 == 0:
             # added a new retrieval context
             token_context = tokens[:, context_length - 64 : context_length]
             chunks = self.service.get_knn(token_context)
             self.retrieved.append(chunks)
+        elif self.frequent_query and len(self.retrieved) > 0:
+            token_context = tokens[:, context_length - 64 : context_length]
+            chunks = self.service.get_knn(token_context)
+            self.retrieved[-1] = chunks
 
         # types2use = None
         if step == 0:

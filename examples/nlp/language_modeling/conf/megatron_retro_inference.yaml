@@ -23,6 +23,9 @@ tensor_model_parallel_size: 1
 pipeline_model_parallel_size: 1
 pipeline_model_parallel_split_rank: 0 # used for encoder and decoder model
 retro_model_file: null  # RETRO nemo file path
+
+use_predict_method: False  # whether to use the predict method
+
 prompts: # prompts for GPT inference
   - "hello,"
   - "good morning,"
@@ -40,3 +43,4 @@ retrieval_service:
   sentence_bert: 'all-mpnet-base-v2' 
   sentence_bert_batch: 4
   neighbors: 4
+  frequent_query: True  # for the current token generation, frequently update the retrieval context. If false, update it every 64 tokens 
