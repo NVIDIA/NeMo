@@ -71,6 +71,11 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
 
+    def first_stage_of_pipeline(self):
+        if self.frozen_model.enc_dec_model.pre_process and parallel_state.get_pipeline_model_parallel_rank() == 0:
+            return True
+        return False
+
     def forward(
         self, input_ids, dec_input, enc_mask, dec_mask, position_ids, taskname_ids, labels=None, inference=False,
     ):
@@ -78,7 +83,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         Special forward method for p-tuning/prompt-tuning pretrained
         T5 style models.
         """
-        if self.frozen_model.enc_dec_model.pre_process:
+        if self.first_stage_of_pipeline():
             # Get embeddings for text tokens and insert virtual token embeddings
             if inference:
                 input_embeds = self.embed_input_inference(input_ids, taskname_ids)
@@ -161,7 +166,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         for param in self.frozen_model.parameters():
             param.requires_grad = False
 
-        if self.frozen_model.enc_dec_model.pre_process:
+        if self.first_stage_of_pipeline():
             virtual_prompt_params = {'params': []}
             virtual_prompt_params['params'].extend([param for param in self.prompt_table.parameters()])
 

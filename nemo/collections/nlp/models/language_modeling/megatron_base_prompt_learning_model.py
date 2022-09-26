@@ -80,7 +80,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         # Load templates for assigning virtual prompt token positions
         self.load_task_templates(self.cfg.task_templates)
 
-        if self.frozen_model.enc_dec_model.pre_process and self.virtual_prompt_style in [
+        if self.first_stage_of_pipeline() and self.virtual_prompt_style in [
             VirtualPromptStyle.P_TUNING,
             VirtualPromptStyle.PROMPT_TUNING,
             VirtualPromptStyle.INFERENCE,
@@ -276,7 +276,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         """
         state_dict_ = {}
 
-        if self.frozen_model.enc_dec_model.pre_process:
+        if self.first_stage_of_pipeline():
             state_dict_[self._prompt_table_key] = self.prompt_table.state_dict()
 
             if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
@@ -289,7 +289,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         Custom load state dict method that only loads prompt table and prompt encoder
         parameters. Matching load method for this class' custom state dict method. 
         """
-        if self.frozen_model.enc_dec_model.pre_process:
+        if self.first_stage_of_pipeline():
             if self._prompt_table_key in state_dict:
                 state_dict_ = state_dict[self._prompt_table_key]
             else:
@@ -405,9 +405,14 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         input_embeds = torch.where(virtual_token_locations, virtual_token_embeds, discrete_token_embeds)
         return input_embeds
 
+    def first_stage_of_pipeline(self):
+        if self.frozen_model.enc_dec_model.pre_process and parallel_state.get_pipeline_model_parallel_rank() == 0:
+            return True
+        return False
+
     def on_train_end(self):
         # Save p-tuned prompts to prompt table for inference or future task training
-        if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING and self.frozen_model.enc_dec_model.pre_process:
+        if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING and self.first_stage_of_pipeline():
             self.add_ptuned_prompts_to_prompt_table()
             logging.info(f"All p-tuned prompts where moved to the prompt table.")
 
@@ -427,7 +432,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
     def setup(self, stage=None):
         if (
             stage == 'predict' or self.virtual_prompt_style == VirtualPromptStyle.INFERENCE
-        ) and self.frozen_model.enc_dec_model.pre_process:
+        ) and self.first_stage_of_pipeline():
             self.freeze_existing_virtual_prompt_params()
             return
 
@@ -435,7 +440,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         if stage == 'test':
             return
 
-        if self.frozen_model.enc_dec_model.pre_process:
+        if self.first_stage_of_pipeline():
             if self.virtual_prompt_style == VirtualPromptStyle.PROMPT_TUNING:
                 self.init_new_prompts()
             elif self.virtual_prompt_style == VirtualPromptStyle.P_TUNING:
