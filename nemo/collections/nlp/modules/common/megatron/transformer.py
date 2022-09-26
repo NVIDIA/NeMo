@@ -2073,7 +2073,7 @@ class ParallelTransformer(MegatronModule):
         """Forward method with activation checkpointing."""
 
         def custom(start, end):
-            if getattr(self, 'transformer_engine', False):
+            if getattr(self, 'transformer_engine', True):
 
                 def custom_forward(*inputs):
                     hidden_states = inputs[0]
