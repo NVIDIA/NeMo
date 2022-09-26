@@ -371,6 +371,11 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
         self.update_config_for_inference_and_save()
 
+    def first_stage_of_pipeline(self):
+        if self.frozen_model.enc_dec_model.pre_process and parallel_state.get_pipeline_model_parallel_rank() == 0:
+            return True
+        return False
+
     def inference_step(self, batch, batch_idx, inference=False):
         enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids = batch
 
