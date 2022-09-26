@@ -40,6 +40,7 @@ class Exportable(ABC):
     It gives these entities ability to be exported for deployment to formats such as ONNX.
     """
 
+
     @property
     def input_module(self):
         return self
