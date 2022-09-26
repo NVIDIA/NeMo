@@ -2211,7 +2211,7 @@ class ParallelTransformer(MegatronModule):
                 final_tuple = (self_attention_relative_position_bias, cross_attention_relative_position_bias)
                 arg_tuple = hidden_tuple + middle_tuple + rot_tuple + final_tuple
 
-                if l < self.activations_checkpoint_num_layers:
+                if l < activations_checkpoint_num_layers:
                     hidden_states = tensor_parallel.checkpoint(custom(l, l + 1), False, *arg_tuple)
                 else:
                     hidden_states = custom(l, l + 1)(*arg_tuple)
