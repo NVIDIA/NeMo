@@ -364,7 +364,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
                 audio_signal.size(0), max_audio_length, dtype=torch.int32, device=audio_signal.device
             )
 
-        if cache_last_channel is not None:
+        if cache_last_time is not None:
             cache_last_time_next = torch.zeros_like(cache_last_time)
         else:
             cache_last_time_next = None
