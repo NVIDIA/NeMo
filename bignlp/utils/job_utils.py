@@ -45,25 +45,19 @@ class JobPaths:
 
 
 class CommandFunction:
-    """Wraps a command as a function in order to make sure it goes through the
+    """
+    Wraps a command as a function in order to make sure it goes through the
     pipeline and notify when it is finished.
     The output is a string containing everything that has been sent to stdout.
     WARNING: use CommandFunction only if you know the output won't be too big !
     Otherwise use subprocess.run() that also streams the outputto stdout/stderr.
 
-    Parameters
-    ----------
-    command: list
-        command to run, as a list
-    verbose: bool
-        prints the command and stdout at runtime
-    cwd: Path/str
-        path to the location where the command must run from
-
-    Returns
-    -------
-    str
-       Everything that has been sent to stdout
+    :param list command: command to run, as a list
+    :param bool verbose: prints the command and stdout at runtime
+    :param bool ret_stdout: whether to return entire stdout
+    :param Path/str cwd: path to the location where the command must run from
+    :return: Everything that has been sent to stdout if `ret_stdout == True`
+    :rtype: str
     """
 
     def __init__(
