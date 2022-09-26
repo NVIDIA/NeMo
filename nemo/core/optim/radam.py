@@ -31,6 +31,7 @@ Copyright 2019 Liyuan Liu
 import math
 
 import torch
+
 # pylint: disable=no-name-in-module
 from torch.optim.optimizer import Optimizer
 
