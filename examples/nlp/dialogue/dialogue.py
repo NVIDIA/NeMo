@@ -78,7 +78,9 @@ def main(cfg: DictConfig) -> None:
     app_state.data_parallel_size = cfg.model.data_parallel_size
     if cfg.model.tensor_model_parallel_size > 1:
         app_state.model_parallel_size = cfg.model.tensor_model_parallel_size
-        app_state.model_parallel_rank = compute_model_parallel_rank(trainer.local_rank, app_state.model_parallel_size)
+        app_state.tensor_model_parallel_rank = compute_model_parallel_rank(
+            trainer.local_rank, app_state.model_parallel_size
+        )
 
     if 'bert' in cfg.model.language_model.pretrained_model_name:
         if cfg.model.dataset.task == 'sgd':
