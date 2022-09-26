@@ -23,7 +23,8 @@ from huggingface_hub.hf_api import ModelFilter, ModelInfo
 from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.asr.models import EncDecCTCModel, EncDecCTCModelBPE
-from nemo.collections.nlp.models import PunctuationCapitalizationModel, TransformerLMModel
+from nemo.collections.nlp.models import PunctuationCapitalizationModel, TransformerLMModel, \
+    PunctuationCapitalizationLexicalAudioModel
 from nemo.core.classes import ModelPT
 from nemo.core.connectors import save_restore_connector
 from nemo.utils.app_state import AppState
@@ -180,6 +181,15 @@ class TestSaveRestore:
     def test_PunctuationCapitalization(self):
         # TODO: Switch to using named configs because here we don't really care about weights
         pn = PunctuationCapitalizationModel.from_pretrained(model_name='punctuation_en_distilbert')
+        self.__test_restore_elsewhere(
+            model=pn, attr_for_eq_check=set(["punct_classifier.log_softmax", "punct_classifier.log_softmax"])
+        )
+
+    @pytest.mark.with_downloads()
+    @pytest.mark.unit
+    def test_PunctuationCapitalizationLexicalAudio(self):
+        # TODO: Switch to using named configs because here we don't really care about weights
+        pn = PunctuationCapitalizationLexicalAudioModel.from_pretrained(model_name='PLACEHOLDER')
         self.__test_restore_elsewhere(
             model=pn, attr_for_eq_check=set(["punct_classifier.log_softmax", "punct_classifier.log_softmax"])
         )
