@@ -24,6 +24,7 @@ import math
 import operator
 import os
 import pickle
+from ast import Compare
 from collections import defaultdict
 from os.path import expanduser
 from pathlib import Path
@@ -35,6 +36,7 @@ import editdistance
 import jiwer
 import librosa
 import numpy as np
+import pandas as pd
 import soundfile as sf
 import tqdm
 from dash import dash_table, dcc, html
@@ -43,7 +45,6 @@ from dash.exceptions import PreventUpdate
 from plotly import express as px
 from plotly import graph_objects as go
 from plotly.subplots import make_subplots
-import pandas as pd
 
 # number of items in a table per page
 DATA_PAGE_SIZE = 10
