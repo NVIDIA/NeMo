@@ -94,8 +94,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 "Distributed optimizers require O2. Please set megatron_amp_O2 to True in the model config."
             )
 
-        # TODO: add unwrap model functionality
-        # self.model = build_model(model_provider_func=self.model_provider_func, wrap_with_ddp=False)[0]
         self.model = build_model(
             model_provider_func=self.model_provider_func,
             wrap_with_ddp=False,
