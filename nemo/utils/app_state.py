@@ -68,6 +68,7 @@ class AppState(metaclass=Singleton):
         # Save and Restore (.nemo)
         self._tmpdir_name = None
         self._is_model_being_restored = False
+        self._restore_attr_is_model_being_restored = False
         self._nemo_file_folder = None
         self._model_restore_path = None
         self._all_model_restore_paths = []
@@ -479,3 +480,12 @@ class AppState(metaclass=Singleton):
     @nemo_file_folder.setter
     def nemo_file_folder(self, path: str):
         self._nemo_file_folder = path
+    
+    @property
+    def restore_attr_is_model_being_restored(self) -> bool:
+        return self._restore_attr_is_model_being_restored
+
+    @restore_attr_is_model_being_restored.setter
+    def restore_attr_is_model_being_restored(self, restore: bool):
+        self._restore_attr_is_model_being_restored = restore
+
