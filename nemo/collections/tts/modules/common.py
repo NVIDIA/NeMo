@@ -412,19 +412,6 @@ class SimpleConvNet(torch.nn.Module):
         z_w_context = self.last_layer(z_w_context)
         return z_w_context
 
-
-class ConvNormAndSkip(torch.nn.Module):
-    def __init__(self, in_layer, skip_layer, softplus):
-        super(ConvNormAndSkip, self).__init__()
-        self.softplus = softplus
-        self.in_layer = in_layer
-        self.skip_layer = skip_layer
-
-    def forward(self, z, mask):
-        z = self.softplus(self.in_layer(z, mask))
-        return self.softplus(self.skip_layer(z))
-
-
 class WN(torch.nn.Module):
     """
     Adapted from WN() module in WaveGlow with modififcations to variable names
@@ -472,9 +459,6 @@ class WN(torch.nn.Module):
                 use_partial_padding=use_partial_padding,
                 use_weight_norm=True,
             )
-            # in_layer = nn.Conv1d(n_channels, n_channels, kernel_size,
-            #                      dilation=dilation, padding=padding)
-            # in_layer = nn.utils.weight_norm(in_layer)
             self.in_layers.append(in_layer)
             res_skip_layer = nn.Conv1d(n_channels, n_channels, 1)
             res_skip_layer = nn.utils.weight_norm(res_skip_layer)
