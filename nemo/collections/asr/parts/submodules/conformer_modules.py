@@ -193,6 +193,9 @@ class ConformerConvolution(nn.Module):
         self.kernel_size = kernel_size
         self.norm_type = norm_type
 
+        if conv_context_size is None:
+            conv_context_size = (kernel_size - 1) // 2
+
         if pointwise_activation in activation_registry:
             self.pointwise_activation = activation_registry[pointwise_activation]()
             dw_conv_input_dim = d_model * 2
