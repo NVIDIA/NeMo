@@ -406,6 +406,23 @@ cleanup.selene:
 
 
 ###### BENCHMARKS ######
+benchmark.gpt3.126m_80gb_100runs_1nodes:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: gpt3
+    RUN_SIZE: 0.126b
+    RUNS: 100
+    GPU_MEM: 80
+    NODES: 1
+    TP_SIZES: auto
+    PP_SIZES: auto
+    MBS_SIZES: auto
+    RUN_JOB_NAME: gpt3_training_search
+  rules:
+    - when: manual
+
 benchmark.gpt3.126m_80gb_100runs_8nodes:
   <<: *hp-tool-LUNA-test-LAUNCHER
   variables:
@@ -484,6 +501,23 @@ benchmark.gpt3.175b_80gb_100runs_128nodes:
     RUNS: 100
     GPU_MEM: 80
     NODES: 128
+    TP_SIZES: auto
+    PP_SIZES: auto
+    MBS_SIZES: auto
+    RUN_JOB_NAME: gpt3_training_search
+  rules:
+    - when: manual
+
+benchmark.gpt3.175b_80gb_100runs_256nodes:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: gpt3
+    RUN_SIZE: 175b
+    RUNS: 100
+    GPU_MEM: 80
+    NODES: 256
     TP_SIZES: auto
     PP_SIZES: auto
     MBS_SIZES: auto
