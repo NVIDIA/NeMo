@@ -463,7 +463,7 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
         logging.warning("cuda=False, using CPU for Eigen decomposition. This might slow down the clustering process.")
         cuda = False
 
-    for uniq_id, value in tqdm(AUDIO_RTTM_MAP.items()):
+    for uniq_id, value in tqdm(AUDIO_RTTM_MAP.items(), desc='clustering', leave=False):
         if clustering_params.oracle_num_speakers:
             num_speakers = value.get('num_speakers', None)
             if num_speakers is None:
