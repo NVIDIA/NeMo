@@ -415,6 +415,11 @@ def generate_base_config(
     base_cfg["model"]["optim"]["lr"] = lr
     base_cfg["model"]["optim"]["sched"]["min_lr"] = round(lr * 0.1, 8)
 
+    if cfg.get("cluster_type") == "bcp":
+        index_map_dir = os.path.join(cfg.get("base_results_dir"), "data_index_files")
+        os.makedirs(index_map_dir, exist_ok=True)
+        base_cfg["model"]["data"]["index_mapping_dir"] = index_map_dir
+
     with open(
         f"{cfg.search_config.train_settings.logs}/base_cfg_{model_size_in_b}b.yaml", "w"
     ) as f:
