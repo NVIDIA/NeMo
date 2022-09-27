@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import argparse
-from ast import Compare
 import base64
 import csv
 import datetime
@@ -104,7 +103,7 @@ def parse_args():
     )
     parser.add_argument('--debug', '-d', action='store_true', help='enable debug mode')
 
-    parser.add_argument('--compare', '-c', help='True or False, if True - manifest should contain two or more trancripts')
+    parser.add_argument('--compare', '-c', help='True or False, if True - manifest should contain two or more trancripts, automaticly sets to True if names_compared is not None')
     parser.add_argument('--names_compared', '-nc', nargs=2, type=str, help='names of two fiels that will be compared, exaple: pred_text_conf_med pred_text_conf_large')
     args = parser.parse_args()
 
@@ -188,9 +187,7 @@ def load_data(data_filename, disable_caching=False, estimate_audio=False, vocab=
                 return data, wer, cer, wmr, mwa, num_hours, vocabulary_data, alphabet, metrics_available
 
     data = []
-    wer_dist = 0.0
     wer_count = 0
-    cer_dist = 0.0
     cer_count = 0
     wmr_count = 0
     wer = 0
@@ -199,14 +196,9 @@ def load_data(data_filename, disable_caching=False, estimate_audio=False, vocab=
     mwa = 0
     num_hours = 0
     vocabulary = defaultdict(lambda: 0)
-    vocabulary_nm_1 = defaultdict(lambda: 0)
-    vocabulary_nm_2 = defaultdict(lambda: 0)
-    alphabet = set()
     match_vocab = defaultdict(lambda: 0)
     match_vocab_1 = defaultdict(lambda: 0)
     match_vocab_2 = defaultdict(lambda: 0)
-
-    sm = difflib.SequenceMatcher()
     
     def append_data(data_filename, estimate_audio, field_name='pred_text', ):
         data = []
@@ -358,10 +350,7 @@ def load_data(data_filename, disable_caching=False, estimate_audio=False, vocab=
                         item['accuracy_2'] = round(word_accuracy_2, 1) #Check
                     mwa_2 = acc_sum_2 / len(vocabulary_data_2)
 
-        acc_sum = 0
-        acc_sum_1 = 0
-        acc_sum_2 = 0
-        
+        acc_sum = 0 
         for item in vocabulary_data:
             w = item['word']
             word_accuracy = match_vocab[w] / vocabulary[w] * 100.0
