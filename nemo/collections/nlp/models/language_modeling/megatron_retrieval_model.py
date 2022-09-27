@@ -224,10 +224,10 @@ class MegatronRetrievalModel(MegatronBaseModel):
         )
         return output_tensor
 
-    def on_pretrain_routine_start(self) -> None:
+    def on_fit_start(self) -> None:
         # keep a copy of init_global_step
         self.init_global_step = self.trainer.global_step
-        return super().on_pretrain_routine_start()
+        return super().on_fit_start()
 
     def training_step(self, batch, batch_idx):
         input_tokens_id = batch['tokens']
@@ -330,8 +330,6 @@ class MegatronRetrievalModel(MegatronBaseModel):
         return reduced_loss
 
     def validation_epoch_end(self, outputs):
-        if not outputs:
-            return
         averaged_loss = torch.stack(outputs).mean()
         self.log('val_loss', averaged_loss, prog_bar=True)
         # formula to compute the perplexity
