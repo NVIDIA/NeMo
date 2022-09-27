@@ -711,7 +711,13 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             for idx, (src_file, tgt_file, num_samples) in enumerate(zip(
                 cfg.src_file_name, cfg.tgt_file_name, num_train_samples_per_dataset
             )):
-                dataset = self._instantiate_dataset(cfg, src_file, tgt_file, num_samples, self.multilingual_ids[idx])
+                dataset = self._instantiate_dataset(
+                    cfg=cfg,
+                    src_file=src_file,
+                    tgt_file=tgt_file,
+                    num_samples=num_samples,
+                    prepend_id=self.multilingual_ids[idx]
+                )
                 datasets.append(dataset)
             dataset = BlendableDataset(
                 datasets=datasets, weights=cfg.concat_sampling_probabilities, size=num_train_samples_after_blend
