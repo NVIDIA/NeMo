@@ -214,12 +214,9 @@ def load_data(data_filename, disable_caching=False, estimate_audio=False, vocab=
         mwa = 0
         num_hours = 0
         vocabulary = defaultdict(lambda: 0)
-        #vocabulary_nm_1 = defaultdict(lambda: 0)
-        #vocabulary_nm_2 = defaultdict(lambda: 0)
         alphabet = set()
         match_vocab = defaultdict(lambda: 0)
-        #match_vocab_1 = defaultdict(lambda: 0)
-        #match_vocab_2 = defaultdict(lambda: 0)
+
 
         sm = difflib.SequenceMatcher()
         metrics_available = False
@@ -233,9 +230,6 @@ def load_data(data_filename, disable_caching=False, estimate_audio=False, vocab=
                 num_words = len(orig)
                 for word in orig:
                     vocabulary[word] += 1
-                    #if compare:
-                    #    vocabulary_name_1[word] += 1
-                    #    vocabulary_name_2[word] += 1
                 for char in item['text']:
                     alphabet.add(char)
                 num_hours += item['duration']
@@ -295,17 +289,6 @@ def load_data(data_filename, disable_caching=False, estimate_audio=False, vocab=
             return vocabulary_data, metrics_available, data, wer_dist, wer_count, cer_dist, cer_count, wmr_count, wer, cer, wmr, mwa, num_hours, vocabulary, alphabet, match_vocab
             
         
-
-
-
-    
-    #match_vocab_1 = defaultdict(lambda: 0)
-    #match_vocab_2 = defaultdict(lambda: 0)
-    #vocabulary_nm_1 = defaultdict(lambda: 0)
-    #vocabulary_nm_2 = defaultdict(lambda: 0)
-    #vocabulary_data = [{'word': word, 'count': vocabulary[word]} for word in vocabulary]
-    #vocabulary_data_1 = [{'word': word, 'count': vocabulary_nm_1[word]} for word in vocabulary_nm_1]
-    #vocabulary_data_2 = [{'word': word, 'count': vocabulary_nm_2[word]} for word in vocabulary_nm_2]
     
     vocabulary_data, metrics_available, data, wer_dist, wer_count, cer_dist, cer_count, wmr_count, wer, cer, wmr, mwa, num_hours, vocabulary, alphabet, match_vocab = append_data(data_filename, estimate_audio, field_name='pred_text')
     if compare:
