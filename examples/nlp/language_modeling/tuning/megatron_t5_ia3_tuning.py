@@ -95,6 +95,7 @@ def main(cfg) -> None:
     # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
     with open_dict(cfg):
         cfg.model.precision = cfg.trainer.precision
+        cfg.model.pretrained_language_model_path = cfg.model.language_model_path
 
     # load existing or init new soft prompt GPT model
     if cfg.model.get("restore_path", None):
