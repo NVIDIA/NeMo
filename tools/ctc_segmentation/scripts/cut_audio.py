@@ -17,8 +17,9 @@ import json
 import os
 from glob import glob
 
+import librosa
 import numpy as np
-from scipy.io import wavfile
+import soundfile as sf
 from tqdm import tqdm
 
 parser = argparse.ArgumentParser(description="Cut audio on the segments based on segments")
@@ -66,6 +67,7 @@ def process_alignment(alignment_file: str, manifest: str, clips_dir: str, args):
     segments = []
     ref_text_processed = []
     ref_text_no_preprocessing = []
+    ref_text_normalized = []
     with open(alignment_file, "r") as f:
         for line in f:
             line = line.split("|")
@@ -75,28 +77,36 @@ def process_alignment(alignment_file: str, manifest: str, clips_dir: str, args):
                 continue
             ref_text_processed.append(line[1].strip())
             ref_text_no_preprocessing.append(line[2].strip())
+            ref_text_normalized.append(line[3].strip())
             line = line[0].split()
             segments.append((float(line[0]) + args.offset / 1000, float(line[1]) + args.offset / 1000, float(line[2])))
 
     # cut the audio into segments and save the final manifests at output_dir
-    sampling_rate, signal = wavfile.read(audio_file)
+    signal, sampling_rate = librosa.load(audio_file, sr=None)
     original_duration = len(signal) / sampling_rate
 
     num_samples = int(args.edge_duration * args.sample_rate)
     low_score_dur = 0
     high_score_dur = 0
+    corrupted_samples_dur = 0
     with open(manifest, "a", encoding="utf8") as f:
         for i, (st, end, score) in enumerate(segments):
             segment = signal[round(st * sampling_rate) : round(end * sampling_rate)]
             duration = len(segment) / sampling_rate
+
+            # check that the segment doesn't have artifacts, this might happen during .mp3 to .wav convertion
+            if -1 in segment:
+                corrupted_samples_dur += duration
+                continue
             if duration > 0:
                 text_processed = ref_text_processed[i].strip()
                 text_no_preprocessing = ref_text_no_preprocessing[i].strip()
+                text_normalized = ref_text_normalized[i].strip()
+
                 if score >= args.threshold:
                     high_score_dur += duration
                     audio_filepath = os.path.join(clips_dir, f"{base_name}_{i:04}.wav")
-                    wavfile.write(audio_filepath, sampling_rate, segment)
-
+                    sf.write(audio_filepath, segment, sampling_rate, "PCM_16")
                     assert len(signal.shape) == 1 and sampling_rate == args.sample_rate, "check sampling rate"
 
                     info = {
@@ -104,6 +114,7 @@ def process_alignment(alignment_file: str, manifest: str, clips_dir: str, args):
                         "duration": duration,
                         "text": text_processed,
                         "text_no_preprocessing": text_no_preprocessing,
+                        "text_normalized": text_normalized,
                         "score": round(score, 2),
                         "start_abs": float(np.mean(np.abs(segment[:num_samples]))),
                         "end_abs": float(np.mean(np.abs(segment[-num_samples:]))),
@@ -135,6 +146,7 @@ def process_alignment(alignment_file: str, manifest: str, clips_dir: str, args):
         round(high_score_dur),
         round(low_score_dur),
         round(del_duration),
+        round(corrupted_samples_dur),
     )
     return stats
 
@@ -167,13 +179,15 @@ if __name__ == "__main__":
         low_score_dur = 0
         del_duration = 0
         original_dur = 0
+        corrupted_dur = 0
 
         for alignment_file in tqdm(alignment_files):
             stats = process_alignment(alignment_file, manifest, clips_dir, args)
-            original_dur += stats[-4]
-            high_score_dur += stats[-3]
-            low_score_dur += stats[-2]
-            del_duration += stats[-1]
+            original_dur += stats[2]
+            high_score_dur += stats[3]
+            low_score_dur += stats[4]
+            del_duration += stats[5]
+            corrupted_dur += stats[6]
             stats = "\t".join([str(t) for t in stats]) + "\n"
             f.write(stats)
 
@@ -183,5 +197,6 @@ if __name__ == "__main__":
     print(f"High score segments: {round(high_score_dur / 60)}min ({round(high_score_dur/original_dur*100)}%)")
     print(f"Low score segments : {round(low_score_dur / 60)}min ({round(low_score_dur/original_dur*100)}%)")
     print(f"Deleted segments   : {round(del_duration / 60)}min ({round(del_duration/original_dur*100)}%)")
+    print(f"Corrupted segments   : {round(corrupted_dur / 60)}min ({round(corrupted_dur / original_dur * 100)}%)")
     print(f"Stats saved at {stats_file}")
     print(f"Manifest saved at {manifest}")
