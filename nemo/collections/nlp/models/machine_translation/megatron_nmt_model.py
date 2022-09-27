@@ -77,6 +77,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         self.multilingual_ids = []
 
         self.validate_input_ids = cfg.get("validate_input_ids", True)
+        self.objective = cfg.train_ds.get("objective", "nmt")
         if self.multilingual:
             self._setup_multilingual_special_tokens()
 
@@ -85,7 +86,11 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
     def _setup_multilingual_special_tokens(self):
         # This is how to specify En -> xx and xx -> En in the same model.
         if isinstance(self.src_language, ListConfig) and isinstance(self.tgt_language, ListConfig):
-            unique_langs = set(self.src_language + self.tgt_language)
+            if self.objective == 'nmt-xlm':
+               unique_langs = set(self.src_language + self.tgt_language)
+            else:
+                # We don't take a set() for tgt_language here because the same lang can appear multiple times.
+                unique_langs = self.tgt_language
             for lng in unique_langs:
                 self.special_tokens["<" + lng + ">"] = "<" + lng + ">"
         elif isinstance(self.src_language, ListConfig):

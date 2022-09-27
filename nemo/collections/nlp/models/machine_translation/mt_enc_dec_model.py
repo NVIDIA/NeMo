@@ -264,7 +264,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         # Determine all of the language IDs that need to be added as special tokens.
         if isinstance(src_language, ListConfig) and isinstance(tgt_language, ListConfig):
             assert len(src_language) == len(tgt_language)
-            all_languages = list(set(src_language + tgt_language))
+            all_languages = tgt_language
         elif isinstance(tgt_language, ListConfig):
             all_languages = tgt_language
         elif not isinstance(src_language, ListConfig) and not isinstance(tgt_language, ListConfig):
