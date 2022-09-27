@@ -95,7 +95,7 @@ if __name__ == "__main__":
                     text = lines[0]
                     text = re.sub(r"[^a-zA-Z\d,?!.']", ' ', text)
                     text = re.sub(' +', ' ', text)
-                shutil.copy(file.strip(), (f'{data_dir}/audio/{split}/' + file.split('/')[-1]).strip() + "\n")
+                shutil.copy(file.strip(), (f'{data_dir}/audio/{split}/' + file.split('/')[-1]).strip())
                 text_data.write(text.strip() + "\n")
                 audio_data.write((f'{data_dir}/audio/{split}/' + file.split('/')[-1]).strip() + "\n")
         create_text_and_labels(f'{data_dir}/', f'{data_dir}/{split}.txt')
