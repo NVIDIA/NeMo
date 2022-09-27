@@ -415,12 +415,12 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                 else:
                     sacre_bleu = corpus_bleu(_translations, [_ground_truths], tokenize="13a")
 
-                bleu_score = sacre_bleu.score * parallel_state.get_data_parallel_world_size()
+                bleu_score = sacre_bleu.score
 
                 dataset_name = "Validation" if mode == 'val' else "Test"
                 logging.info(f"{dataset_name}, Dataloader index: {dataloader_idx}, Set size: {len(_translations)}")
                 logging.info(
-                    f"{dataset_name}, Dataloader index: {dataloader_idx}, SacreBLEU = {bleu_score / parallel_state.get_data_parallel_world_size()}"
+                    f"{dataset_name}, Dataloader index: {dataloader_idx}, SacreBLEU = {bleu_score}"
                 )
                 logging.info(f"{dataset_name}, Dataloader index: {dataloader_idx}, Translation Examples:")
                 logging.info('============================================================')
@@ -441,18 +441,18 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                 if self.multilingual:
                     self._log_multilingual_bleu_and_loss(dataloader_idx, bleu_score, averaged_loss, mode)
                 else:
-                    self.log(f'{mode}_sacreBLEU', bleu_score, sync_dist=True)
+                    self.log(f'{mode}_sacreBLEU', bleu_score)
                     self.log(f'{mode}_loss', averaged_loss, prog_bar=True)
             else:
                 if self.multilingual:
                     self._log_multilingual_bleu_and_loss(dataloader_idx, bleu_score, averaged_loss, mode)
                 else:
-                    self.log(f'{mode}_sacreBLEU_dl_index_{dataloader_idx}', bleu_score, sync_dist=True)
+                    self.log(f'{mode}_sacreBLEU_dl_index_{dataloader_idx}', bleu_score)
                     self.log(f'{mode}_loss_dl_index_{dataloader_idx}', averaged_loss, prog_bar=False)
 
         if len(loss_list) > 1:
             self.log(f"{mode}_loss_avg", np.mean(loss_list), sync_dist=True)
-            self.log(f"{mode}_sacreBLEU_avg", np.mean(bleu_score_list), sync_dist=True)
+            self.log(f"{mode}_sacreBLEU_avg", np.mean(bleu_score_list))
 
     def _log_multilingual_bleu_and_loss(self, dataloader_idx, bleu_score, loss, mode):
         """
@@ -609,7 +609,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                 decoder_tokenizer=self.decoder_tokenizer,
             )
 
-    def _instantiate_dataset(self, cfg, src_file, tgt_file, num_samples):
+    def _instantiate_dataset(self, cfg, src_file, tgt_file, num_samples, prepend_id=None):
         if cfg.dataset_type == 'bin_memmap':
             if cfg.get("objective", "nmt") == "nmt":
                 dataset = BinarizedMemmapSequenceToSequenceDataset(
@@ -621,6 +621,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                     max_tgt_seq_length=cfg.max_seq_length,
                     max_num_samples=num_samples[0],
                     seed=self._cfg.seed,
+                    prepend_id=prepend_id,
                 )
             elif cfg.get("objective", "nmt") == "nmt-xlm":
                 dataset = BinarizedMemmapCrossLingualMLMAndTranslationDataset(
@@ -647,6 +648,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                     max_tgt_seq_length=cfg.max_seq_length,
                     max_num_samples=num_samples[0],
                     seed=self._cfg.seed,
+                    prepend_id=prepend_id,
                 )
             elif cfg.get("objective", "nmt") == "nmt-xlm":
                 dataset = TextMemmapCrossLingualMLMAndTranslationDataset(
@@ -706,10 +708,10 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             num_train_samples_after_blend = sum([x[0] for x in num_train_samples_per_dataset])
 
             datasets = []
-            for src_file, tgt_file, num_samples in zip(
+            for idx, (src_file, tgt_file, num_samples) in enumerate(zip(
                 cfg.src_file_name, cfg.tgt_file_name, num_train_samples_per_dataset
-            ):
-                dataset = self._instantiate_dataset(cfg, src_file, tgt_file, num_samples)
+            )):
+                dataset = self._instantiate_dataset(cfg, src_file, tgt_file, num_samples, self.multilingual_ids[idx])
                 datasets.append(dataset)
             dataset = BlendableDataset(
                 datasets=datasets, weights=cfg.concat_sampling_probabilities, size=num_train_samples_after_blend

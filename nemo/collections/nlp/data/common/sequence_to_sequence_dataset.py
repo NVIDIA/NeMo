@@ -153,6 +153,7 @@ class IndexedSequenceToSequenceDataset(SequenceToSequenceDataset):
         add_bos_to_enc: bool = True,
         add_eos_to_enc: bool = True,
         max_num_samples: int = None,
+        prepend_id: int = None,
     ):
         """
         src_file_name: Path to a single source file on disk. This is either the path to a raw text file or the prefix to the processed src_file_name.bin/idx files.
@@ -163,6 +164,7 @@ class IndexedSequenceToSequenceDataset(SequenceToSequenceDataset):
         max_tgt_seq_length: Maximum length of the target sequences. Lines above this length will be truncated.
         seed: Random seed for data shuffling.
         max_num_samples: Maximum number of samples to load. This can be > dataset length if you want to oversample data. If None, all samples will be loaded.
+        prepend_id: If not None, prepend this id to the encoder input.
         """
         super().__init__(
             src_file_name=src_file_name,
@@ -176,6 +178,7 @@ class IndexedSequenceToSequenceDataset(SequenceToSequenceDataset):
         self.max_num_samples = max_num_samples
         self.add_bos_to_enc = add_bos_to_enc
         self.add_eos_to_enc = add_eos_to_enc
+        self.prepend_id = prepend_id
 
         logging.info(f'Desired number of samples : {self.max_num_samples}')
         logging.info(f'Source Dataset Length : {len(self.src_indexed_dataset)}')
@@ -205,18 +208,23 @@ class IndexedSequenceToSequenceDataset(SequenceToSequenceDataset):
 
     def __getitem__(self, idx):
         src, tgt = self._get_sample(idx)
+        offset = 0
+        if self.add_bos_to_enc:
+            offset += 1
+        if self.add_eos_to_enc:
+            offset += 1
+        if self.prepend_id is not None:
+            offset += 1
 
-        if self.add_bos_to_enc and self.add_eos_to_enc:
-            offset = 2
-        elif self.add_eos_to_enc or self.add_bos_to_enc:
-            offset = 1
-        else:
-            offset = 0
         if len(src) > self.max_src_seq_length - offset:
             src = src[: self.max_src_seq_length - offset]
 
         if self.add_bos_to_enc:
             src = np.concatenate([[self.src_tokenizer.bos_id], src])
+        
+        if self.prepend_id is not None:
+            src = np.concatenate([[self.prepend_id], src])
+
         if self.add_eos_to_enc:
             src = np.concatenate([src, [self.src_tokenizer.eos_id]])
 
@@ -266,6 +274,7 @@ class TextMemmapSequenceToSequenceDataset(IndexedSequenceToSequenceDataset):
         max_num_samples: int = None,
         add_bos_to_enc: bool = True,
         add_eos_to_enc: bool = True,
+        prepend_id: int = None,
     ):
         """
         src_file_name: Path to a single source file on disk. The file should contain one sentence per line and be raw text.
@@ -278,6 +287,7 @@ class TextMemmapSequenceToSequenceDataset(IndexedSequenceToSequenceDataset):
         max_num_samples: Maximum number of samples to load. This can be > dataset length if you want to oversample data. If None, all samples will be loaded.
         add_bos_to_enc: Add BOS token to the encoder input.
         add_eos_to_enc: Add EOS token to the encoder input.
+        prepend_id: If not None, prepend this id to the encoder input.
         """
         self.seed = seed
         self.max_num_samples = max_num_samples
@@ -292,6 +302,7 @@ class TextMemmapSequenceToSequenceDataset(IndexedSequenceToSequenceDataset):
             max_num_samples=max_num_samples,
             add_bos_to_enc=add_bos_to_enc,
             add_eos_to_enc=add_eos_to_enc,
+            prepend_id=prepend_id,
         )
 
     def _get_examples(self):
@@ -324,6 +335,7 @@ class BinarizedMemmapSequenceToSequenceDataset(IndexedSequenceToSequenceDataset)
         max_num_samples: int = None,
         add_bos_to_enc: bool = True,
         add_eos_to_enc: bool = True,
+        prepend_id: int = None
     ):
         """
         src_dataset_prefix: Path to the *prefix* of a single source bin/idx file on disk. This necessitates the existance src_file_prefix.bin and src_file_prefix.idx.
@@ -336,6 +348,7 @@ class BinarizedMemmapSequenceToSequenceDataset(IndexedSequenceToSequenceDataset)
         max_num_samples: Maximum number of samples to load. This can be > dataset length if you want to oversample data. If None, all samples will be loaded.
         add_bos_to_enc: Add BOS token to the encoder input.
         add_eos_to_enc: Add EOS token to the encoder input.
+        prepend_id: If not None, prepend this id to the encoder input.
         """
         self.src_dataset_prefix = src_dataset_prefix
         self.tgt_dataset_prefix = tgt_dataset_prefix
@@ -352,6 +365,7 @@ class BinarizedMemmapSequenceToSequenceDataset(IndexedSequenceToSequenceDataset)
             max_num_samples=max_num_samples,
             add_bos_to_enc=add_bos_to_enc,
             add_eos_to_enc=add_eos_to_enc,
+            prepend_id=prepend_id,
         )
 
     def _check_files_exist(self):
