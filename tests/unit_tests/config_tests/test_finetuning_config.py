@@ -24,7 +24,7 @@ class TestFinetuningmT5Config:
           enable_checkpointing: False
           replace_sampler_ddp: False
           max_epochs: 5
-          max_steps: null # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+          max_steps: -1 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
           log_every_n_steps: 10
           val_check_interval: 300
           accumulate_grad_batches: 1
@@ -149,7 +149,7 @@ class TestFinetuningT5Config:
           enable_checkpointing: False
           replace_sampler_ddp: False
           max_epochs: 5
-          max_steps: null # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+          max_steps: -1 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
           log_every_n_steps: 10
           val_check_interval: 300
           accumulate_grad_batches: 1
