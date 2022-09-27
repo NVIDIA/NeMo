@@ -2073,7 +2073,7 @@ class ParallelTransformer(MegatronModule):
         """Forward method with activation checkpointing."""
 
         def custom(start, end):
-            if getattr(self, 'transformer_engine', False):
+            if self.transformer_engine:
 
                 def custom_forward(*inputs):
                     hidden_states = inputs[0]
@@ -2283,25 +2283,25 @@ class ParallelTransformer(MegatronModule):
             rng_context = nullcontext()
 
         with rng_context:
-            if self.activations_checkpoint_granularity == 'full':
-                hidden_states = self._checkpointed_forward(
-                    hidden_states,
-                    attention_mask,
-                    encoder_output,
-                    enc_dec_attn_mask,
-                    rotary_pos_emb,
-                    self_attention_relative_position_bias,
-                    cross_attention_relative_position_bias,
-                    checkpoint_activations_all_layers,
-                )
-            else:
-                if get_key_value:
-                    presents = []
+            # fp8_autocast will not do anything if TE or FP8 isn't used
+            with fp8_autocast(
+                enabled=self.fp8, fp8_recipe=self.fp8_recipe, fp8_group=parallel_state.get_data_parallel_group(),
+            ):
+                if self.activations_checkpoint_granularity == 'full':
+                    hidden_states = self._checkpointed_forward(
+                        hidden_states,
+                        attention_mask,
+                        encoder_output,
+                        enc_dec_attn_mask,
+                        rotary_pos_emb,
+                        self_attention_relative_position_bias,
+                        cross_attention_relative_position_bias,
+                        checkpoint_activations_all_layers,
+                    )
+                else:
+                    if get_key_value:
+                        presents = []
 
-                # fp8_autocast will not do anything if TE or FP8 isn't used
-                with fp8_autocast(
-                    enabled=self.fp8, fp8_recipe=self.fp8_recipe, fp8_group=parallel_state.get_data_parallel_group(),
-                ):
                     for index in range(self.num_layers):
                         layer = self._get_layer(index)
                         past = None
