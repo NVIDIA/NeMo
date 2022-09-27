@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+
 from examples.nlp.language_modeling.megatron_gpt_eval import RequestDataSet
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
@@ -53,7 +55,8 @@ def main(cfg) -> None:
     model_path = cfg.retro_model_file
 
     save_restore_connector = NLPSaveRestoreConnector()
-    if model_path:
+
+    if os.path.isdir(model_path):
         save_restore_connector.model_extracted_dir = model_path
 
     model_cfg = MegatronRetrievalModel.restore_from(
