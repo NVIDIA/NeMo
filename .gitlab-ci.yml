@@ -249,9 +249,9 @@ train.gpt3.20b_80gb_2runs_64nodes:
     GPU_MEM: 80
     RUNS: 2
     NODES: 64
-    TP_SIZES: [2,4]
-    PP_SIZES: [1]
-    MBS_SIZES: [1]
+    TP_SIZES: "[2,4]"
+    PP_SIZES: "[1]"
+    MBS_SIZES: "[1]"
     RUN_JOB_NAME: gpt3_training_search
   rules:
     - when: always
