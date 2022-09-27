@@ -181,6 +181,9 @@ train.gpt3.126m_80gb_2runs_8nodes:
     GPU_MEM: 80
     RUNS: 2
     NODES: 8
+    TP_SIZES: auto
+    PP_SIZES: auto
+    MBS_SIZES: auto
     RUN_JOB_NAME: gpt3_training_search
   rules:
     - when: always
@@ -195,6 +198,9 @@ train.gpt3.126m_40gb_2runs_8nodes:
     GPU_MEM: 40
     RUNS: 2
     NODES: 8
+    TP_SIZES: auto
+    PP_SIZES: auto
+    MBS_SIZES: auto
     RUN_JOB_NAME: gpt3_training_search
   rules:
     - when: always
@@ -209,6 +215,9 @@ train.gpt3.5b_80gb_2runs_16nodes:
     GPU_MEM: 80
     RUNS: 2
     NODES: 16
+    TP_SIZES: auto
+    PP_SIZES: auto
+    MBS_SIZES: auto
     RUN_JOB_NAME: gpt3_training_search
   rules:
     - when: always
@@ -223,6 +232,9 @@ train.gpt3.5b_40gb_2runs_16nodes:
     GPU_MEM: 40
     RUNS: 2
     NODES: 16
+    TP_SIZES: auto
+    PP_SIZES: auto
+    MBS_SIZES: auto
     RUN_JOB_NAME: gpt3_training_search
   rules:
     - when: always
@@ -237,6 +249,9 @@ train.gpt3.20b_80gb_2runs_64nodes:
     GPU_MEM: 80
     RUNS: 2
     NODES: 64
+    TP_SIZES: [2,4]
+    PP_SIZES: [1]
+    MBS_SIZES: [1]
     RUN_JOB_NAME: gpt3_training_search
   rules:
     - when: always
@@ -251,6 +266,9 @@ train.t5.220m_80gb_2runs_4nodes:
     GPU_MEM: 80
     RUNS: 2
     NODES: 4
+    TP_SIZES: auto
+    PP_SIZES: auto
+    MBS_SIZES: auto
     RUN_JOB_NAME: t5_training_search
   rules:
     - when: always
@@ -265,6 +283,9 @@ train.t5.220m_40gb_2runs_4nodes:
     GPU_MEM: 40
     RUNS: 2
     NODES: 4
+    TP_SIZES: auto
+    PP_SIZES: auto
+    MBS_SIZES: auto
     RUN_JOB_NAME: t5_training_search
   rules:
     - when: always
@@ -279,6 +300,9 @@ train.t5.2p8b_80gb_2runs_20nodes:
     GPU_MEM: 80
     RUNS: 2
     NODES: 20
+    TP_SIZES: auto
+    PP_SIZES: auto
+    MBS_SIZES: auto
     RUN_JOB_NAME: t5_training_search
   rules:
     - when: always
@@ -293,6 +317,9 @@ train.t5.2p8b_40gb_2runs_20nodes:
     GPU_MEM: 40
     RUNS: 2
     NODES: 20
+    TP_SIZES: auto
+    PP_SIZES: auto
+    MBS_SIZES: auto
     RUN_JOB_NAME: t5_training_search
   rules:
     - when: always
@@ -307,6 +334,9 @@ train.mt5.170m_80gb_2runs_4nodes:
     GPU_MEM: 80
     RUNS: 2
     NODES: 4
+    TP_SIZES: auto
+    PP_SIZES: auto
+    MBS_SIZES: auto
     RUN_JOB_NAME: mt5_training_search
   rules:
     - when: always
@@ -321,6 +351,9 @@ train.mt5.170m_40gb_2runs_4nodes:
     GPU_MEM: 40
     RUNS: 2
     NODES: 4
+    TP_SIZES: auto
+    PP_SIZES: auto
+    MBS_SIZES: auto
     RUN_JOB_NAME: mt5_training_search
   rules:
     - when: always
@@ -335,6 +368,9 @@ train.mt5.3p2b_80gb_2runs_20nodes:
     GPU_MEM: 80
     RUNS: 2
     NODES: 20
+    TP_SIZES: auto
+    PP_SIZES: auto
+    MBS_SIZES: auto
     RUN_JOB_NAME: mt5_training_search
   rules:
     - when: always
@@ -349,6 +385,9 @@ train.mt5.3p2b_40gb_2runs_20nodes:
     GPU_MEM: 40
     RUNS: 2
     NODES: 20
+    TP_SIZES: auto
+    PP_SIZES: auto
+    MBS_SIZES: auto
     RUN_JOB_NAME: mt5_training_search
   rules:
     - when: always
@@ -377,6 +416,9 @@ benchmark.gpt3.126m_80gb_100runs_8node:
     RUNS: 100
     GPU_MEM: 80
     NODES: 8
+    TP_SIZES: auto
+    PP_SIZES: auto
+    MBS_SIZES: auto
     RUN_JOB_NAME: gpt3_training_search
   rules:
     - when: manual
@@ -391,6 +433,9 @@ benchmark.gpt3.5b_80gb_100runs_16node:
     RUNS: 100
     GPU_MEM: 80
     NODES: 16
+    TP_SIZES: auto
+    PP_SIZES: auto
+    MBS_SIZES: auto
     RUN_JOB_NAME: gpt3_training_search
   rules:
     - when: manual
@@ -405,6 +450,9 @@ benchmark.gpt3.20b_80gb_100runs_64node:
     RUNS: 100
     GPU_MEM: 80
     NODES: 64
+    TP_SIZES: auto
+    PP_SIZES: auto
+    MBS_SIZES: auto
     RUN_JOB_NAME: gpt3_training_search
   rules:
     - when: manual
@@ -419,6 +467,9 @@ benchmark.gpt3.40b_80gb_100runs_128node:
     RUNS: 100
     GPU_MEM: 80
     NODES: 128
+    TP_SIZES: auto
+    PP_SIZES: auto
+    MBS_SIZES: auto
     RUN_JOB_NAME: gpt3_training_search
   rules:
     - when: manual
@@ -433,6 +484,9 @@ benchmark.gpt3.175b_80gb_100runs_128node:
     RUNS: 100
     GPU_MEM: 80
     NODES: 128
+    TP_SIZES: auto
+    PP_SIZES: auto
+    MBS_SIZES: auto
     RUN_JOB_NAME: gpt3_training_search
   rules:
     - when: manual
