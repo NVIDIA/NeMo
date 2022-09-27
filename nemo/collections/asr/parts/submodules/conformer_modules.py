@@ -213,7 +213,7 @@ class ConformerConvolution(nn.Module):
             kernel_size=kernel_size,
             stride=1,
             padding=conv_context_size,
-            groups=d_model,
+            groups=dw_conv_input_dim,
             bias=True,
         )
 
