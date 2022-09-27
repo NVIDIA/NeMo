@@ -406,7 +406,7 @@ cleanup.selene:
 
 
 ###### BENCHMARKS ######
-benchmark.gpt3.126m_80gb_100runs_8node:
+benchmark.gpt3.126m_80gb_100runs_8nodes:
   <<: *hp-tool-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
@@ -423,7 +423,7 @@ benchmark.gpt3.126m_80gb_100runs_8node:
   rules:
     - when: manual
 
-benchmark.gpt3.5b_80gb_100runs_16node:
+benchmark.gpt3.5b_80gb_100runs_16nodes:
   <<: *hp-tool-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
@@ -440,7 +440,7 @@ benchmark.gpt3.5b_80gb_100runs_16node:
   rules:
     - when: manual
 
-benchmark.gpt3.20b_80gb_100runs_64node:
+benchmark.gpt3.20b_80gb_100runs_64nodes:
   <<: *hp-tool-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
@@ -457,7 +457,7 @@ benchmark.gpt3.20b_80gb_100runs_64node:
   rules:
     - when: manual
 
-benchmark.gpt3.40b_80gb_100runs_128node:
+benchmark.gpt3.40b_80gb_100runs_128nodes:
   <<: *hp-tool-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
@@ -474,7 +474,7 @@ benchmark.gpt3.40b_80gb_100runs_128node:
   rules:
     - when: manual
 
-benchmark.gpt3.175b_80gb_100runs_128node:
+benchmark.gpt3.175b_80gb_100runs_128nodes:
   <<: *hp-tool-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
@@ -488,5 +488,192 @@ benchmark.gpt3.175b_80gb_100runs_128node:
     PP_SIZES: auto
     MBS_SIZES: auto
     RUN_JOB_NAME: gpt3_training_search
+  rules:
+    - when: manual
+
+benchmark.t5.220m_80gb_100runs_4nodes:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: t5
+    RUN_SIZE: 0.22b
+    RUNS: 100
+    GPU_MEM: 80
+    NODES: 4
+    TP_SIZES: auto
+    PP_SIZES: auto
+    MBS_SIZES: auto
+    RUN_JOB_NAME: t5_training_search
+  rules:
+    - when: manual
+    
+benchmark.t5.2.8b_80gb_100runs_20nodes:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: t5
+    RUN_SIZE: 2.8b
+    RUNS: 100
+    GPU_MEM: 80
+    NODES: 20
+    TP_SIZES: auto
+    PP_SIZES: auto
+    MBS_SIZES: auto
+    RUN_JOB_NAME: t5_training_search
+  rules:
+    - when: manual
+
+benchmark.t5.11b_80gb_100runs_20nodes:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: t5
+    RUN_SIZE: 11b
+    RUNS: 100
+    GPU_MEM: 80
+    NODES: 20
+    TP_SIZES: auto
+    PP_SIZES: auto
+    MBS_SIZES: auto
+    RUN_JOB_NAME: t5_training_search
+  rules:
+    - when: manual
+
+benchmark.t5.23.5b_80gb_100runs_40nodes:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: t5
+    RUN_SIZE: 23.5b
+    RUNS: 100
+    GPU_MEM: 80
+    NODES: 40
+    TP_SIZES: auto
+    PP_SIZES: auto
+    MBS_SIZES: auto
+    RUN_JOB_NAME: t5_training_search
+  rules:
+    - when: manual
+
+benchmark.t5.41.2b_80gb_100runs_40nodes:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: t5
+    RUN_SIZE: 41.2b
+    RUNS: 100
+    GPU_MEM: 80
+    NODES: 40
+    TP_SIZES: auto
+    PP_SIZES: auto
+    MBS_SIZES: auto
+    RUN_JOB_NAME: t5_training_search
+  rules:
+    - when: manual
+
+benchmark.mt5.170m_80gb_100runs_4nodes:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: mt5
+    RUN_SIZE: 0.17b
+    RUNS: 100
+    GPU_MEM: 80
+    NODES: 4
+    TP_SIZES: auto
+    PP_SIZES: auto
+    MBS_SIZES: auto
+    RUN_JOB_NAME: mt5_training_search
+  rules:
+    - when: manual
+
+benchmark.mt5.390m_80gb_100runs_8nodes:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: mt5
+    RUN_SIZE: 0.39b
+    RUNS: 100
+    GPU_MEM: 80
+    NODES: 8
+    TP_SIZES: auto
+    PP_SIZES: auto
+    MBS_SIZES: auto
+    RUN_JOB_NAME: mt5_training_search
+  rules:
+    - when: manual
+
+benchmark.mt5.3.2b_80gb_100runs_20nodes:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: mt5
+    RUN_SIZE: 3.2b
+    RUNS: 100
+    GPU_MEM: 80
+    NODES: 20
+    TP_SIZES: auto
+    PP_SIZES: auto
+    MBS_SIZES: auto
+    RUN_JOB_NAME: mt5_training_search
+  rules:
+    - when: manual
+
+benchmark.mt5.11.9b_80gb_100runs_20nodes:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: mt5
+    RUN_SIZE: 11.9b
+    RUNS: 100
+    GPU_MEM: 80
+    NODES: 20
+    TP_SIZES: auto
+    PP_SIZES: auto
+    MBS_SIZES: auto
+    RUN_JOB_NAME: mt5_training_search
+  rules:
+    - when: manual
+
+benchmark.mt5.24.65b_80gb_100runs_40nodes:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: mt5
+    RUN_SIZE: 24.65b
+    RUNS: 100
+    GPU_MEM: 80
+    NODES: 40
+    TP_SIZES: auto
+    PP_SIZES: auto
+    MBS_SIZES: auto
+    RUN_JOB_NAME: mt5_training_search
+  rules:
+    - when: manual
+
+benchmark.mt5.42.54b_80gb_100runs_40nodes:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: mt5
+    RUN_SIZE: 42.54b
+    RUNS: 100
+    GPU_MEM: 80
+    NODES: 40
+    TP_SIZES: auto
+    PP_SIZES: auto
+    MBS_SIZES: auto
+    RUN_JOB_NAME: mt5_training_search
   rules:
     - when: manual
