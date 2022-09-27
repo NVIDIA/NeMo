@@ -271,6 +271,8 @@ class TestEncDecCTCModel:
             'use_start_end_token',
             'bucketing_batch_size',
             'bucketing_strategy',
+            'bucketing_weights',
+            'channel_selector',
         ]
 
         REMAP_ARGS = {'trim_silence': 'trim'}
@@ -299,6 +301,7 @@ class TestEncDecCTCModel:
             'use_start_end_token',
             'bucketing_batch_size',
             'bucketing_strategy',
+            'bucketing_weights',
         ]
 
         REMAP_ARGS = {

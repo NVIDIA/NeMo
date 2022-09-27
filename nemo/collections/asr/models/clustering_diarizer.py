@@ -37,6 +37,7 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
     perform_clustering,
     score_labels,
     segments_manifest_to_subsegments_manifest,
+    validate_vad_manifest,
     write_rttm2manifest,
 )
 from nemo.collections.asr.parts.utils.vad_utils import (
@@ -236,6 +237,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         if not self._vad_params.smoothing:
             # Shift the window by 10ms to generate the frame and use the prediction of the window to represent the label for the frame;
             self.vad_pred_dir = self._vad_dir
+            frame_length_in_sec = self._vad_shift_length_in_sec
         else:
             # Generate predictions with overlapping input segments. Then a smoothing filter is applied to decide the label for a frame spanned by multiple segments.
             # smoothing_method would be either in majority vote (median) or average (mean)
@@ -249,18 +251,24 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 num_workers=self._cfg.num_workers,
             )
             self.vad_pred_dir = smoothing_pred_dir
+            frame_length_in_sec = 0.01
 
         logging.info("Converting frame level prediction to speech/no-speech segment in start and end times format.")
 
         table_out_dir = generate_vad_segment_table(
             vad_pred_dir=self.vad_pred_dir,
             postprocessing_params=self._vad_params,
-            shift_length_in_sec=self._vad_shift_length_in_sec,
+            frame_length_in_sec=frame_length_in_sec,
             num_workers=self._cfg.num_workers,
         )
-        AUDIO_VAD_RTTM_MAP = deepcopy(self.AUDIO_RTTM_MAP.copy())
-        for key in AUDIO_VAD_RTTM_MAP:
-            AUDIO_VAD_RTTM_MAP[key]['rttm_filepath'] = os.path.join(table_out_dir, key + ".txt")
+
+        AUDIO_VAD_RTTM_MAP = {}
+        for key in self.AUDIO_RTTM_MAP:
+            if os.path.exists(os.path.join(table_out_dir, key + ".txt")):
+                AUDIO_VAD_RTTM_MAP[key] = deepcopy(self.AUDIO_RTTM_MAP[key])
+                AUDIO_VAD_RTTM_MAP[key]['rttm_filepath'] = os.path.join(table_out_dir, key + ".txt")
+            else:
+                logging.warning(f"no vad file found for {key} due to zero or negative duration")
 
         write_rttm2manifest(AUDIO_VAD_RTTM_MAP, self._vad_out_file)
         self._speaker_manifest_path = self._vad_out_file
@@ -314,8 +322,9 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             self._speaker_manifest_path = write_rttm2manifest(self.AUDIO_RTTM_MAP, self._speaker_manifest_path)
         else:
             raise ValueError(
-                "Only one of diarizer.oracle_vad, vad.model_path or vad.external_vad_manifest must be passed"
+                "Only one of diarizer.oracle_vad, vad.model_path or vad.external_vad_manifest must be passed from config"
             )
+        validate_vad_manifest(self.AUDIO_RTTM_MAP, vad_manifest=self._speaker_manifest_path)
 
     def _extract_embeddings(self, manifest_file: str):
         """

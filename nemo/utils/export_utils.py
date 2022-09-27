@@ -19,6 +19,7 @@ from typing import Callable, Dict, Optional, Type
 import onnx
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from nemo.utils import logging
 
@@ -44,6 +45,23 @@ _EXT_DICT = {
 }
 
 
+def cast_tensor(x, from_dtype=torch.float16, to_dtype=torch.float32):
+    return x.to(dtype=to_dtype) if x.dtype == from_dtype else x
+
+
+def cast_all(x, from_dtype=torch.float16, to_dtype=torch.float32):
+    if isinstance(x, torch.Tensor):
+        return cast_tensor(x, from_dtype=from_dtype, to_dtype=to_dtype)
+    else:
+        if isinstance(x, dict):
+            new_dict = {}
+            for k in x.keys():
+                new_dict[k] = cast_all(x[k], from_dtype=from_dtype, to_dtype=to_dtype)
+            return new_dict
+        elif isinstance(x, tuple):
+            return tuple(cast_all(y, from_dtype=from_dtype, to_dtype=to_dtype) for y in x)
+
+
 class CastToFloat(nn.Module):
     def __init__(self, mod):
         super(CastToFloat, self).__init__()
@@ -51,10 +69,40 @@ class CastToFloat(nn.Module):
 
     def forward(self, x):
         if torch.is_autocast_enabled():
-            ret = self.mod.forward(x.to(torch.float)).to(x.dtype)
+            ret = self.mod.forward(x.to(torch.float32)).to(x.dtype)
         else:
             ret = self.mod.forward(x)
         return ret
+
+
+class LinearWithBiasSkip(nn.Module):
+    def __init__(self, weight, bias, skip_bias_add):
+        super(LinearWithBiasSkip, self).__init__()
+        self.bias = bias
+        self.weight = weight
+        self.skip_bias_add = skip_bias_add
+
+    def forward(self, x):
+        if self.skip_bias_add:
+            return F.linear(x, self.weight), self.bias
+        return F.linear(x, self.weight, self.bias), None
+
+
+# ScaledMaskedSoftmax replacement
+def mask_func(attention_scores, attention_mask):
+    attention_scores.masked_fill_(attention_mask, -10000.0)
+    return attention_scores
+
+
+def exportable_ScaledMaskedSoftmax(input, mask, scale):
+    if scale is not None:
+        input = input * scale
+
+    mask_output = mask_func(input, mask) if mask is not None else input
+    probs = torch.nn.Softmax(dim=-1)(mask_output)
+
+    probs = probs.half()
+    return probs
 
 
 def get_export_format(filename: str):
@@ -68,6 +116,7 @@ def get_export_format(filename: str):
 def augment_filename(output: str, prepend: str):
     if prepend == 'self':
         return output
+
     path, filename = os.path.split(output)
     filename = f"{prepend}-{filename}"
     return os.path.join(path, filename)
@@ -102,23 +151,21 @@ def parse_input_example(input_example):
     return input_list, input_dict
 
 
-def to_onnxrt_input(input_names, input_dict, input_list):
+def to_onnxrt_input(ort_input_names, input_names, input_dict, input_list):
     odict = {}
     for k in reversed(input_names):
         if k in input_dict:
-            odict[k] = input_dict[k].cpu().numpy()
+            val = input_dict[k].cpu().numpy()
         else:
-            odict[k] = input_list.pop().cpu().numpy()
+            val = input_list.pop().cpu().numpy()
+        if k in ort_input_names:
+            odict[k] = val
     return odict
 
 
-def verify_runtime(
-    output, input_list, input_dict, input_names, output_names, output_example, check_tolerance=0.01,
-):
-    # Verify the model can be read, and is valid
-
+def verify_runtime(model, output, input_examples, input_names, check_tolerance=0.01):
     onnx_model = onnx.load(output)
-    input_names = [node.name for node in onnx_model.graph.input]
+    ort_input_names = [node.name for node in onnx_model.graph.input]
 
     global ort_available
     if not ort_available:
@@ -131,18 +178,30 @@ def verify_runtime(
     sess = onnxruntime.InferenceSession(
         onnx_model.SerializeToString(), sess_options=onnx_session_opt, providers=['CUDAExecutionProvider']
     )
-    ort_out = sess.run(output_names, to_onnxrt_input(input_names, input_dict, input_list))
     all_good = True
+    for input_example in input_examples:
+        input_list, input_dict = parse_input_example(input_example)
+        output_example = model.forward(*input_list, **input_dict)
+        ort_input = to_onnxrt_input(ort_input_names, input_names, input_dict, input_list)
+        all_good = all_good and run_ort_and_compare(sess, ort_input, output_example, check_tolerance)
+    status = "SUCCESS" if all_good else "FAIL"
+    logging.info(f"ONNX generated at {output} verified with onnxruntime : " + status)
+    return all_good
 
-    for i, out in enumerate(ort_out[0]):
+
+def run_ort_and_compare(sess, ort_input, output_example, check_tolerance=0.01):
+    # Verify the model can be read, and is valid
+    ort_out = sess.run(None, ort_input)
+    all_good = True
+    for i, out in enumerate(ort_out):
         expected = output_example[i]
+
         if torch.is_tensor(expected):
             tout = torch.from_numpy(out)
+            logging.info(f"Checking output {i}, shape: {expected.shape}:\n{expected}\n{tout}")
             if not torch.allclose(tout, expected.cpu(), rtol=check_tolerance, atol=100 * check_tolerance):
                 all_good = False
                 logging.info(f"onnxruntime results mismatch! PyTorch(expected):\n{expected}\nONNXruntime:\n{tout}")
-    status = "SUCCESS" if all_good else "FAIL"
-    logging.info(f"ONNX generated at {output} verified with onnxruntime : " + status)
     return all_good
 
 
@@ -151,6 +210,8 @@ apex_available = True
 try:
     from apex.normalization.fused_layer_norm import FusedLayerNorm, MixedFusedLayerNorm
     from apex.contrib.layer_norm.layer_norm import FastLayerNorm
+    from apex.transformer.tensor_parallel.layers import RowParallelLinear
+    from apex.transformer.functional.fused_softmax import FusedScaleMaskSoftmax
 
     def replace_FusedLayerNorm(n: nn.Module) -> Optional[nn.BatchNorm2d]:
         """
@@ -168,16 +229,57 @@ try:
             return None
 
         dev = next(n.parameters()).device
-        mod = nn.LayerNorm(n.normalized_shape, eps=n.eps, elementwise_affine=n.elementwise_affine,).to(dev)
+        if isinstance(n, FusedLayerNorm) or isinstance(n, MixedFusedLayerNorm):
+            mod = nn.LayerNorm(n.normalized_shape, eps=n.eps, elementwise_affine=n.elementwise_affine,).to(dev)
+        elif isinstance(n, FastLayerNorm):
+            mod = nn.LayerNorm(n.weight.shape, eps=n.epsilon, elementwise_affine=True, dtype=torch.float16,).to(dev)
 
         n_state = n.state_dict()
         mod.load_state_dict(n_state)
+        return mod
+
+    def replace_RowParallelLinear(n: nn.Module) -> Optional[nn.Linear]:
+        """
+        Replaces Apex's FusedLayerNorm with nn.LayerNorm. This is required for ONNX export.
+        Args:
+           n: the FusedLayerNorm pytorch module to replace
+        Returns:
+           Equivalent LayerNorm module
+        """
+        if not isinstance(n, RowParallelLinear):
+            raise ValueError("This function can only change the RowParallelLinear module.")
+
+        dev = next(n.parameters()).device
+        mod = LinearWithBiasSkip(n.weight, n.bias, n.skip_bias_add).to(dev)
+
+        n_state = n.state_dict()
+        mod.load_state_dict(n_state)
+        return mod
+
+    def replace_FusedScaleMaskSoftmax(n: nn.Module) -> Optional[nn.Linear]:
+        """
+        Replaces Apex's FusedScaleMaskSoftmax with nn.LayerNorm. This is required for ONNX export.
+        Args:
+           n: the FusedScaleMaskSoftmax module to replace
+        Returns:
+           Equivalent LayerNorm module
+        """
+        if not isinstance(n, FusedScaleMaskSoftmax):
+            raise ValueError("This function can only change the FusedScaleMaskSoftmax module.")
+
+        # disable the fusion only
+        mod = FusedScaleMaskSoftmax(
+            n.input_in_fp16, n.input_in_bf16, n.attn_mask_type, False, n.mask_func, n.softmax_in_fp32, n.scale
+        )
+
         return mod
 
     default_Apex_replacements = {
         "FusedLayerNorm": replace_FusedLayerNorm,
         "MixedFusedLayerNorm": replace_FusedLayerNorm,
         "FastLayerNorm": replace_FusedLayerNorm,
+        "RowParallelLinear": replace_RowParallelLinear,
+        "FusedScaleMaskSoftmax": replace_FusedScaleMaskSoftmax,
     }
 
 except Exception as e:

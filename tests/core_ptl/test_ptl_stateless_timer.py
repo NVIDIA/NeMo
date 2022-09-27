@@ -47,15 +47,15 @@ class ExampleModel(ModelPT):
 
     def train_dataloader(self):
         dataset = OnesDataset(10000)
-        return torch.utils.data.DataLoader(dataset, batch_size=2)
+        return torch.utils.data.DataLoader(dataset, batch_size=2, num_workers=4)
 
     def val_dataloader(self):
         dataset = OnesDataset(10)
-        return torch.utils.data.DataLoader(dataset, batch_size=2)
+        return torch.utils.data.DataLoader(dataset, batch_size=2, num_workers=4)
 
     def predict_dataloader(self):
         dataset = OnesDataset(10)
-        return torch.utils.data.DataLoader(dataset, batch_size=2)
+        return torch.utils.data.DataLoader(dataset, batch_size=2, num_workers=4)
 
     def forward(self, batch):
         return (self.l1(batch) - batch.mean(dim=1)).mean()
@@ -78,7 +78,7 @@ class ExampleModel(ModelPT):
     def validation_epoch_end(self, loss):
         if not loss:
             return
-        self.log("val_loss", torch.stack(loss).mean())
+        self.log("val_loss", torch.stack(loss).mean(), sync_dist=True)
 
 
 class TestStatelessTimer:
@@ -96,8 +96,8 @@ class TestStatelessTimer:
             accelerator='gpu',
             strategy='ddp',
             logger=None,
+            enable_checkpointing=False,
             callbacks=[StatelessTimer('00:00:00:03')],
-            checkpoint_callback=False,
         )
         exp_manager_cfg = ExpManagerConfig(
             explicit_log_dir='./ptl_stateless_timer_check/',

@@ -52,6 +52,13 @@ CA
     
 --------------------
 
+.. csv-table::
+    :header-rows: 1
+    :align: left
+    :file: data/scores/ca/conformer_ca.csv
+    
+--------------------
+
 DE
 ^^
 
@@ -159,6 +166,16 @@ FR
     :header-rows: 1
     :align: left
     :file: data/scores/fr/quartznet15x5_fr.csv
+    
+--------------------
+
+HR
+^^
+
+.. csv-table::
+    :header-rows: 1
+    :align: left
+    :file: data/scores/hr/conformer_hr.csv
     
 --------------------
 

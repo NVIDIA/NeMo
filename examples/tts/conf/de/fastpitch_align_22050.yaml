@@ -66,7 +66,7 @@ model:
     punct_post_process: true
 
   text_tokenizer:
-    _target_: nemo.collections.tts.torch.tts_tokenizers.GermanCharsTokenizer
+    _target_: nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.GermanCharsTokenizer
     punct: true
     apostrophe: true
     pad_with_space: true
@@ -202,7 +202,7 @@ model:
 
   optim:
     name: adamw
-    lr: 1e-1
+    lr: 1e-3
     # optimizer arguments
     betas: [0.9, 0.999]
     weight_decay: 1e-6

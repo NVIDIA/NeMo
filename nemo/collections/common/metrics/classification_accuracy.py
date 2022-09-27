@@ -59,6 +59,8 @@ class TopKClassificationAccuracy(Metric):
         accuracy, compute acc=correct_count/total_count
     """
 
+    full_state_update = True
+
     def __init__(self, top_k=None, dist_sync_on_step=False):
         super().__init__(dist_sync_on_step=dist_sync_on_step)
 
@@ -154,7 +156,7 @@ def compute_topk_accuracy(correct_counts_k, total_counts_k):
 
 
 class ExactStringPerCategoryMatchMetric(Metric):
-    def __init__(self, categories=[], dist_sync_on_step=False):
+    def __init__(self, categories=[], dist_sync_on_step=False, *args, **kwargs):
         super().__init__(dist_sync_on_step=dist_sync_on_step)
         self.categories = set(categories)
 
@@ -190,7 +192,7 @@ class ExactStringPerCategoryMatchMetric(Metric):
 
 
 class ExactStringMatchMetric(Metric):
-    def __init__(self, dist_sync_on_step=False):
+    def __init__(self, dist_sync_on_step=False, *args, **kwargs):
         super().__init__(dist_sync_on_step=dist_sync_on_step)
 
         self.add_state("correct", default=torch.tensor(0), dist_reduce_fx="sum")

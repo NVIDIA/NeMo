@@ -24,6 +24,7 @@ model:
     # bucketing params
     bucketing_strategy: "synced_randomized"
     bucketing_batch_size: null
+    bucketing_weights: null
     augmentor:
       shift:
         prob: 1.0
@@ -164,7 +165,7 @@ model:
 trainer:
   devices: 1 # number of gpus
   max_epochs: 150
-  max_steps: null # computed at runtime if not set
+  max_steps: -1 # computed at runtime if not set
   num_nodes: 1
   accelerator: gpu
   strategy: ddp

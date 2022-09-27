@@ -27,7 +27,7 @@ from nemo.collections.nlp.models.machine_translation.megatron_nmt_model import M
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
     MegatronHalfPrecisionPlugin,
-    NLPDDPPlugin,
+    NLPDDPStrategy,
     NLPSaveRestoreConnector,
     PipelineMixedPrecisionPlugin,
 )
@@ -42,13 +42,12 @@ def main(cfg) -> None:
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
     megatron_amp_o2 = cfg.model.get('megatron_amp_O2', False)
-    plugins = [
-        NLPDDPPlugin(
-            no_ddp_communication_hook=True,
-            gradient_as_bucket_view=cfg.model.gradient_as_bucket_view,
-            find_unused_parameters=False,
-        )
-    ]
+    plugins = []
+    strategy = NLPDDPStrategy(
+        no_ddp_communication_hook=True,
+        gradient_as_bucket_view=cfg.model.gradient_as_bucket_view,
+        find_unused_parameters=False,
+    )
     if cfg.trainer.precision in [16, 'bf16']:
         scaler = None
         if cfg.trainer.precision == 16:
@@ -65,7 +64,7 @@ def main(cfg) -> None:
     if cfg.get('cluster_type', None) == 'BCP':
         plugins.append(TorchElasticEnvironment())
 
-    trainer = Trainer(plugins=plugins, **cfg.trainer, callbacks=[ModelSummary(max_depth=3)])
+    trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer, callbacks=[ModelSummary(max_depth=3)])
 
     # tokenizers will be trained and and tarred training data will be created if needed
     # model config is then updated
@@ -128,8 +127,21 @@ def main(cfg) -> None:
             pretrained_cfg.decoder_tokenizer.sentencepiece_legacy = True
 
             # Override dropout
-            pretrained_cfg.hidden_dropout = cfg.model.hidden_dropout
-            pretrained_cfg.attention_dropout = cfg.model.attention_dropout
+
+            # Old pre-trained checkpoints do not have separate encoder/decoder configurations, so replicate the config to encoder/decoder.
+            if not hasattr(pretrained_cfg, 'encoder'):
+                assert not hasattr(pretrained_cfg, 'decoder')
+                logging.warning(
+                    "No separate configuration for encoder, found in pretrained model, using encoder dropout settings everywhere."
+                )
+                pretrained_cfg.hidden_dropout = cfg.model.encoder.hidden_dropout
+                pretrained_cfg.attention_dropout = cfg.model.encoder.attention_dropout
+            else:
+                assert hasattr(pretrained_cfg, 'decoder') and hasattr(pretrained_cfg, 'encoder')
+                pretrained_cfg.encoder.hidden_dropout = cfg.model.encoder.hidden_dropout
+                pretrained_cfg.encoder.attention_dropout = cfg.model.encoder.attention_dropout
+                pretrained_cfg.decoder.hidden_dropout = cfg.model.decoder.hidden_dropout
+                pretrained_cfg.decoder.attention_dropout = cfg.model.decoder.attention_dropout
 
             # Override precision
             pretrained_cfg.precision = trainer.precision  # Set above from trainer.precision
@@ -145,8 +157,12 @@ def main(cfg) -> None:
             pretrained_cfg.train_ds = cfg.model.train_ds
             pretrained_cfg.train_ds.micro_batch_size = cfg.model.micro_batch_size
             pretrained_cfg.train_ds.global_batch_size = cfg.model.global_batch_size
-            pretrained_cfg.validation_ds = cfg.model.validation_ds
-            pretrained_cfg.test_ds = cfg.model.test_ds
+            if hasattr(cfg.model, 'validation_ds'):
+                pretrained_cfg.validation_ds = cfg.model.validation_ds
+            else:
+                raise AttributeError(f"No validation dataset found in config.")
+            if hasattr(cfg.model, 'test_ds'):
+                pretrained_cfg.test_ds = cfg.model.test_ds
 
             # Class target for the new class being restored.
             pretrained_cfg.target = (
@@ -164,11 +180,9 @@ def main(cfg) -> None:
         )
     else:
         model = MegatronNMTModel(cfg.model, trainer)
-    if cfg.do_training:
-        trainer.fit(model)
 
-    if cfg.do_testing:
-        trainer.test(model)
+    trainer.fit(model)
+    trainer.validate(model)
 
 
 if __name__ == '__main__':

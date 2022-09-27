@@ -40,6 +40,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_data
     MMapRetrievalIndexedDataset,
     MMapRetrievalIndexedDatasetBuilder,
 )
+from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import CSVMemMapDataset, TextMemMapDataset
 from nemo.utils import logging
 
 
@@ -87,7 +88,14 @@ def make_builder(out_file, impl, vocab_size=None, chunk_size=64, pad_id=0, retri
         return IndexedDatasetBuilder(out_file)
 
 
-def make_dataset(path, impl, skip_warmup=False):
+def make_dataset(path, impl, skip_warmup=False, impl_kwargs={}):
+    # first handle text memap
+    if impl == 'text_mmap':
+        return TextMemMapDataset(path, **impl_kwargs)
+    elif impl == 'csv_mmap':
+        return CSVMemMapDataset(path, **impl_kwargs)
+
+    # now handle bin memap
     if not IndexedDataset.exists(path):
         print(f"Dataset does not exist: {path}")
         print("Path should be a basename that both .idx and .bin can be appended to get full filenames.")
@@ -124,7 +132,7 @@ def write_longs(f, a):
     f.write(np.array(a, dtype=np.int64))
 
 
-dtypes = {1: np.uint8, 2: np.int8, 3: np.int16, 4: np.int32, 5: np.int64, 6: np.float, 7: np.double, 8: np.uint16}
+dtypes = {1: np.uint8, 2: np.int8, 3: np.int16, 4: np.int32, 5: np.int64, 6: np.float64, 7: np.double, 8: np.uint16}
 
 
 def code(dtype):
@@ -285,7 +293,7 @@ class IndexedCachedDataset(IndexedDataset):
 
 
 class IndexedDatasetBuilder(object):
-    element_sizes = {np.uint8: 1, np.int8: 1, np.int16: 2, np.int32: 4, np.int64: 8, np.float: 4, np.double: 8}
+    element_sizes = {np.uint8: 1, np.int8: 1, np.int16: 2, np.int32: 4, np.int64: 8, np.float64: 4, np.double: 8}
 
     def __init__(self, out_file, dtype=np.int32):
         self.out_file = open(out_file, 'wb')

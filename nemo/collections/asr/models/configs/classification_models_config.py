@@ -45,6 +45,7 @@ class EncDecClassificationDatasetConfig(nemo.core.classes.dataset.DatasetConfig)
     augmentor: Optional[Dict[str, Any]] = None
     max_duration: Optional[float] = None
     min_duration: Optional[float] = None
+    cal_labels_occurrence: Optional[bool] = False
 
     # VAD Optional
     vad_stream: Optional[bool] = None
@@ -52,6 +53,11 @@ class EncDecClassificationDatasetConfig(nemo.core.classes.dataset.DatasetConfig)
     shift_length_in_sec: float = 0.01
     normalize_audio: bool = False
     is_regression_task: bool = False
+
+    # bucketing params
+    bucketing_strategy: str = "synced_randomized"
+    bucketing_batch_size: Optional[Any] = None
+    bucketing_weights: Optional[List[int]] = None
 
 
 @dataclass
