@@ -33,8 +33,12 @@ def run_training(file_name: str, model_name: str, results_dir: str, cfg: OmegaCo
     cmd = f"HYDRA_FULL_ERROR=1 {bignlp_ci} python3 {main_path} {overrides_str} "
 
     # Launch job with command cmd.
-    job_output = subprocess.check_output([cmd], shell=True).decode("utf-8")
-    job_id = job_output.split(" ")[-1]
+    try:
+        job_output = subprocess.check_output([cmd], shell=True).decode("utf-8")
+        job_id = job_output.split(" ")[-1]
+    except Exception as err:
+        job_id = None
+        print(err)
     print(f"Submitted Training script with job id: {job_id}")
     return job_id
 
