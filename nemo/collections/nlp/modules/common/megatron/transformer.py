@@ -1104,7 +1104,6 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         activations_checkpoint_granularity=None,
         sequence_parallel=False,
         gradient_accumulation_fusion=False,
-        ia3=False,
     ):
         super(ParallelTransformerLayer_, self).__init__()
 
