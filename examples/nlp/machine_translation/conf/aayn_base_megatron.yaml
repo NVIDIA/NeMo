@@ -120,8 +120,6 @@ model:
     drop_last: false
     pin_memory: false
     num_workers: 8
-    concat_sampling_technique: temperature # only used with ConcatTranslationDataset 
-    concat_sampling_temperature: 5 # only used with ConcatTranslationDataset 
     concat_sampling_probabilities: null # only used with ConcatTranslationDataset 
     reverse_lang_direction: false
 

@@ -713,6 +713,14 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             num_train_samples_after_blend = sum([x[0] for x in num_train_samples_per_dataset])
 
             datasets = []
+            if len(self.multilingual_ids) == 0:
+                self.multilingual_ids = [None] * len(cfg.src_file_name)
+
+            if len(self.multilingual_ids) != len(cfg.src_file_name):
+                raise ValueError(
+                    f"multilingual_ids must be of the same size as src_file_name and tgt_file_name. Multilingual ID size : {len(self.multilingual_ids)}, number of datasets : {len(cfg.src_file_name)}"
+                )
+
             for idx, (src_file, tgt_file, num_samples) in enumerate(zip(
                 cfg.src_file_name, cfg.tgt_file_name, num_train_samples_per_dataset
             )):
