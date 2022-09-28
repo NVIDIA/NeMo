@@ -810,4 +810,3 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             for i in range(len(self.model)):
                 parallel_state.set_virtual_pipeline_model_parallel_rank(i)
                 self.model[i].module.load_state_dict(checkpoint[f'model{i}'], strict=True)
-
