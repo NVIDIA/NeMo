@@ -295,7 +295,7 @@ class MegatronT5AdapterLearningModel(MegatronT5BaseAdapterModel):
 
         self.adapter_name_keys = ['adapter_1', 'adapter_2']
         frozen_model_cfg = MegatronT5Model.restore_from(
-            cfg.get('pretrained_language_model_path'), trainer=trainer, return_config=True
+            cfg.get('language_model_path'), trainer=trainer, return_config=True
         )
         for _, layer in self.frozen_model.named_modules():
             if hasattr(layer, 'activations_checkpoint_method'):
