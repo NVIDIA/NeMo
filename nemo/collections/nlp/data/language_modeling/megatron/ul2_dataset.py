@@ -13,9 +13,9 @@
 # limitations under the License.
 
 """UL2 Style dataset from https://arxiv.org/abs/2205.05131"""
-from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 import numpy as np
 
+from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import create_extreme_masked_lm_predictions
 from nemo.collections.nlp.data.language_modeling.megatron.length_distribution_type import LengthDistribution
 from nemo.collections.nlp.data.language_modeling.megatron.lm_adapted_t5_dataset import T5LMAdaptedDataset
@@ -165,7 +165,7 @@ class UL2Dataset(T5Dataset):
             tokenizer=tokenizer,
             pivot_mean=prefix_lm_pivot_mean,
             pivot_distribution=pivot_distribution,
-            add_eos=add_eos
+            add_eos=add_eos,
         )
         sample = UL2Dataset._prepend_mask_type_token(tokenizer, sample, '<extra_id_s>')
         return sample
@@ -242,7 +242,7 @@ class UL2Dataset(T5Dataset):
                 geometric_dist=self.geometric_dist,
                 tokenizer_type=self.tokenizer_type,
                 sentinel_tokens=self.sentinel_tokens,
-                skip_masking_id=None
+                skip_masking_id=None,
             )
         elif masking_type == 1:
             return UL2Dataset.get_x_masking_training_sample(
@@ -262,7 +262,7 @@ class UL2Dataset(T5Dataset):
                 extreme_mean_ngram_size=self.extreme_mean_ngram_size,
                 extreme_ngram_span_length_distribution=self.extreme_ngram_span_length_distribution,
                 sentinel_tokens=self.sentinel_tokens,
-                skip_masking_id=None
+                skip_masking_id=None,
             )
         elif masking_type == 2:
             return UL2Dataset.get_s_masking_training_sample(
@@ -389,7 +389,7 @@ class UL2Dataset(T5Dataset):
             min_ngram_size=min_ngram_size,
             mean_ngram_size=mean_ngram_size,
             span_length_distribution=extreme_ngram_span_length_distribution,
-            skip_masking_id=skip_masking_id
+            skip_masking_id=skip_masking_id,
         )
 
         if masked_lm_prob == 0:

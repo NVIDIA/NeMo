@@ -129,7 +129,7 @@ def build_training_sample(
     np_rng,
     binary_head,
     whole_word_masking=True,
-    skip_masking_id=None
+    skip_masking_id=None,
 ):
     """Biuld training sample.
 

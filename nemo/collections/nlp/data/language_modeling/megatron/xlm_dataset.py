@@ -13,15 +13,19 @@
 # limitations under the License.
 
 """XLM-Style datasets"""
-from typing import List, Dict
+from typing import Dict, List
+
 import numpy as np
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.collections.nlp.data.language_modeling.megatron.length_distribution_type import LengthDistribution
-from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import BinarizedMemmapSequenceToSequenceDataset, TextMemmapSequenceToSequenceDataset
-from nemo.collections.nlp.data.language_modeling.megatron.bert_dataset import (
-    build_training_sample as build_training_sample_bert
+from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import (
+    BinarizedMemmapSequenceToSequenceDataset,
+    TextMemmapSequenceToSequenceDataset,
 )
+from nemo.collections.nlp.data.language_modeling.megatron.bert_dataset import (
+    build_training_sample as build_training_sample_bert,
+)
+from nemo.collections.nlp.data.language_modeling.megatron.length_distribution_type import LengthDistribution
 from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import T5Dataset
 from nemo.collections.nlp.data.language_modeling.megatron.ul2_dataset import UL2Dataset
 
@@ -70,7 +74,7 @@ class CrossLingualBERTDataset(BinarizedMemmapSequenceToSequenceDataset):
         if len(src) > self.max_src_seq_length:
             src = src[: self.max_src_seq_length]
 
-        if len(tgt) > self.max_tgt_seq_length - 1: # -1 here to account for the <sep> token that gets added.
+        if len(tgt) > self.max_tgt_seq_length - 1:  # -1 here to account for the <sep> token that gets added.
             tgt = tgt[: self.max_tgt_seq_length]
 
         np_rng = np.random.RandomState(seed=((self.seed + idx) % 2 ** 32))
@@ -95,7 +99,7 @@ class CrossLingualBERTDataset(BinarizedMemmapSequenceToSequenceDataset):
             np_rng=np_rng,
             binary_head=False,
             whole_word_masking=False,
-            skip_masking_id=self.sep_id
+            skip_masking_id=self.sep_id,
         )
 
     # Skip the parent collate function, since we don't need it for this dataset.
@@ -175,13 +179,13 @@ class CrossLingualMakedSequenceToSequenceDataset(BinarizedMemmapSequenceToSequen
         """
         self.sentinel_tokens = self.src_tokenizer.additional_special_tokens_ids
         assert len(self.sentinel_tokens) > 0
-    
+
     def __getitem__(self, idx):
         src, tgt = super()._get_sample(idx)
         if len(src) > self.max_src_seq_length:
             src = src[: self.max_src_seq_length]
 
-        if len(tgt) > self.max_tgt_seq_length - 1: # -1 here to account for the <sep> token that gets added.
+        if len(tgt) > self.max_tgt_seq_length - 1:  # -1 here to account for the <sep> token that gets added.
             tgt = tgt[: self.max_tgt_seq_length]
 
         np_rng = np.random.RandomState(seed=(self.seed + idx))
@@ -214,7 +218,7 @@ class CrossLingualMakedSequenceToSequenceDataset(BinarizedMemmapSequenceToSequen
             permutation=self.permutation,
             geometric_dist=self.geometric_dist,
             tokenizer_type=self.tokenizer_type,
-            masking_type=self.masking_type
+            masking_type=self.masking_type,
         )
 
     # Skip the parent collate function, since we don't need it for this dataset.
@@ -256,8 +260,10 @@ class BinarizedMemmapCrossLingualMLMAndTranslationDataset(BinarizedMemmapSequenc
             tgt_dataset_prefix=tgt_dataset_prefix,
             src_tokenizer=src_tokenizer,
             tgt_tokenizer=tgt_tokenizer,
-            max_src_seq_length=max_src_seq_length - 1, # -1 here to account for <sep> tokens and special prefix tokens to the encoder like <extra_id_x>, <extra_id_r>, etc.
-            max_tgt_seq_length=max_tgt_seq_length - 1, # -1 here to account for <sep> tokens and special prefix tokens to the encoder like <extra_id_x>, <extra_id_r>, etc.
+            max_src_seq_length=max_src_seq_length
+            - 1,  # -1 here to account for <sep> tokens and special prefix tokens to the encoder like <extra_id_x>, <extra_id_r>, etc.
+            max_tgt_seq_length=max_tgt_seq_length
+            - 1,  # -1 here to account for <sep> tokens and special prefix tokens to the encoder like <extra_id_x>, <extra_id_r>, etc.
             seed=seed,
             max_num_samples=max_num_samples,
             add_bos_to_enc=False,
@@ -343,12 +349,12 @@ class BinarizedMemmapCrossLingualMLMAndTranslationDataset(BinarizedMemmapSequenc
         swap_src_tgt = np_rng.randint(0, 2)
 
         if len(src) > max_src_seq_length:
-            src = src[: max_src_seq_length]
+            src = src[:max_src_seq_length]
 
         # Tasks that are not NMT have a <sep> token so we need to account for this in the length, hence we truncate tgt to max_tgt_seq_length - 1.
         max_tgt_seq_length = max_tgt_seq_length - 1 if task != "nmt" else max_tgt_seq_length
         if len(tgt) > max_tgt_seq_length:
-            tgt = tgt[: max_tgt_seq_length]
+            tgt = tgt[:max_tgt_seq_length]
 
         if task == "nmt":
             # If src/tgt are swapped, also swap the prepend language token ID.
@@ -357,7 +363,7 @@ class BinarizedMemmapCrossLingualMLMAndTranslationDataset(BinarizedMemmapSequenc
                 prepend_id = f"<{src_language}>"
             else:
                 prepend_id = f"<{tgt_language}>"
-            
+
             text_dec = np.concatenate([[tgt_tokenizer.bos_id], tgt])
             labels = np.concatenate([tgt, [tgt_tokenizer.eos_id]])
             nmt_sample = {'text_enc': src, 'text_dec': text_dec, 'labels': labels}
@@ -374,7 +380,7 @@ class BinarizedMemmapCrossLingualMLMAndTranslationDataset(BinarizedMemmapSequenc
                 tokenizer=src_tokenizer,
                 np_rng=np_rng,
                 target_seq_length=sample[0].shape[0],
-                max_seq_length=max_seq_length, # -1 to account for the <extra_id_x> token that gets added after the sample is created.
+                max_seq_length=max_seq_length,  # -1 to account for the <extra_id_x> token that gets added after the sample is created.
                 max_seq_length_dec=max_seq_length_dec,
                 masked_lm_prob=masked_lm_prob,
                 extreme_masked_lm_prob=extreme_masked_lm_prob,
@@ -386,17 +392,17 @@ class BinarizedMemmapCrossLingualMLMAndTranslationDataset(BinarizedMemmapSequenc
                 extreme_mean_ngram_size=extreme_mean_ngram_size,
                 extreme_ngram_span_length_distribution=extreme_ngram_span_length_distribution,
                 sentinel_tokens=sentinel_tokens,
-                skip_masking_id=sep_id
+                skip_masking_id=sep_id,
             )
         elif task == "s-masking":
             return UL2Dataset.get_s_masking_training_sample(
                 sample=sample,
                 np_rng=np_rng,
-                max_seq_length=max_seq_length, # -1 to account for the <extra_id_s> token that gets added after the sample is created.
+                max_seq_length=max_seq_length,  # -1 to account for the <extra_id_s> token that gets added after the sample is created.
                 tokenizer=src_tokenizer,
                 prefix_lm_pivot_mean=prefix_lm_pivot_mean,
                 pivot_distribution=extreme_ngram_span_length_distribution,
-                add_eos=True # Most sentences are < max length in cross-lingual data, so we add an EOS to indicate to the model to stop.
+                add_eos=True,  # Most sentences are < max length in cross-lingual data, so we add an EOS to indicate to the model to stop.
             )
         elif task == "r-masking":
             return UL2Dataset.get_r_masking_training_sample(
@@ -404,7 +410,7 @@ class BinarizedMemmapCrossLingualMLMAndTranslationDataset(BinarizedMemmapSequenc
                 tokenizer=src_tokenizer,
                 np_rng=np_rng,
                 target_seq_length=sample[0].shape[0],
-                max_seq_length=max_seq_length, # -1 to account for the <extra_id_r> token that gets added after the sample is created.
+                max_seq_length=max_seq_length,  # -1 to account for the <extra_id_r> token that gets added after the sample is created.
                 max_seq_length_dec=max_seq_length_dec,
                 masked_lm_prob=masked_lm_prob,
                 vocab_id_list=vocab_id_list,
@@ -417,7 +423,7 @@ class BinarizedMemmapCrossLingualMLMAndTranslationDataset(BinarizedMemmapSequenc
                 geometric_dist=geometric_dist,
                 tokenizer_type=tokenizer_type,
                 sentinel_tokens=sentinel_tokens,
-                skip_masking_id=sep_id
+                skip_masking_id=sep_id,
             )
 
     def __getitem__(self, idx):
@@ -458,6 +464,7 @@ class BinarizedMemmapCrossLingualMLMAndTranslationDataset(BinarizedMemmapSequenc
 
     # NOTE: We want the parent's collate_fn to be used here since NMT examples are not padded even though the other task are.
 
+
 class TextMemmapCrossLingualMLMAndTranslationDataset(TextMemmapSequenceToSequenceDataset):
     def __init__(
         self,
@@ -492,8 +499,10 @@ class TextMemmapCrossLingualMLMAndTranslationDataset(TextMemmapSequenceToSequenc
             tgt_file_name=tgt_file_name,
             src_tokenizer=src_tokenizer,
             tgt_tokenizer=tgt_tokenizer,
-            max_src_seq_length=max_src_seq_length - 1, # -1 here to account for <sep> tokens and special prefix tokens to the encoder like <extra_id_x>, <extra_id_r>, etc.
-            max_tgt_seq_length=max_tgt_seq_length - 1, # -1 here to account for <sep> tokens and special prefix tokens to the encoder like <extra_id_x>, <extra_id_r>, etc.
+            max_src_seq_length=max_src_seq_length
+            - 1,  # -1 here to account for <sep> tokens and special prefix tokens to the encoder like <extra_id_x>, <extra_id_r>, etc.
+            max_tgt_seq_length=max_tgt_seq_length
+            - 1,  # -1 here to account for <sep> tokens and special prefix tokens to the encoder like <extra_id_x>, <extra_id_r>, etc.
             seed=seed,
             max_num_samples=max_num_samples,
             add_bos_to_enc=False,

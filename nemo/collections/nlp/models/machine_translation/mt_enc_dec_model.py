@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from distutils.command.install_egg_info import install_egg_info
 import itertools
 import json
 import os
 import random
+from distutils.command.install_egg_info import install_egg_info
 from math import ceil
 from pathlib import Path
 from typing import Dict, List, Optional, Union

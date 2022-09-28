@@ -205,7 +205,7 @@ def create_masked_lm_predictions(
     # the starting piece of current token, where 1 means true, so that
     # on-the-fly whole word masking is possible.
     token_boundary = [0] * len(tokens)
-    skip_mask_idx = None # Store the index of token that cannot be masked.
+    skip_mask_idx = None  # Store the index of token that cannot be masked.
     for (i, token) in enumerate(tokens):
         if token == skip_masking_id:
             skip_mask_idx = i
@@ -275,10 +275,7 @@ def create_masked_lm_predictions(
             # Not all ngrams are available because of skip_masking_id that prevents a certain ID from being masked.
             available_ngrams = list(cand_index_set.keys())
             pvals_current = np.array([pvals[n] for n in available_ngrams])
-            n = np_rng.choice(
-                available_ngrams,
-                p=pvals_current / pvals_current.sum(keepdims=True),
-            )
+            n = np_rng.choice(available_ngrams, p=pvals_current / pvals_current.sum(keepdims=True),)
         else:
             # Sampling "n" from the geometric distribution and clipping it to
             # the max_ngrams. Using p=0.2 default from the SpanBERT paper
@@ -403,14 +400,16 @@ def create_masked_lm_predictions(
         masked_lm_labels.append(p.label)
     return (output_tokens, masked_lm_positions, masked_lm_labels, token_boundary, masked_spans)
 
+
 def _truncate_to_nearest(cand_index_set, n):
     min_dist = 9999
     for key in cand_index_set:
         if abs(key - n) < min_dist:
             n = key
             min_dist = abs(key - n)
-    
+
     return n
+
 
 def create_extreme_masked_lm_predictions(
     tokens,
@@ -479,10 +478,7 @@ def create_extreme_masked_lm_predictions(
         if span_length_distribution == LengthDistribution.uniform:
             available_ngrams = list(cand_index_set.keys())
             pvals_current = np.array([pvals[n] for n in available_ngrams])
-            n = np_rng.choice(
-                available_ngrams,
-                p=pvals_current / pvals_current.sum(keepdims=True),
-            )
+            n = np_rng.choice(available_ngrams, p=pvals_current / pvals_current.sum(keepdims=True),)
         elif span_length_distribution == LengthDistribution.geometric:
             # Sampling "n" from the geometric distribution and clipping it to
             # the max_ngrams. Using p=0.2 default from the SpanBERT paper

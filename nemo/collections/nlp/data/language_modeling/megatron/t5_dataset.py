@@ -252,7 +252,7 @@ class T5Dataset(Dataset):
         bos_id,
         eos_id,
         pad_id,
-        skip_masking_id=None
+        skip_masking_id=None,
     ):
         """Build training sample.
         Arguments:
@@ -311,7 +311,7 @@ class T5Dataset(Dataset):
             geometric_dist=geometric_dist,
             masking_style="t5",
             tokenizer_type=tokenizer_type,
-            skip_masking_id=skip_masking_id
+            skip_masking_id=skip_masking_id,
         )
 
         if masked_lm_prob == 0:
@@ -394,7 +394,7 @@ class T5Dataset(Dataset):
         # Encoder-side padding mask.
         num_tokens = len(t5_input)
         padding_length = max_seq_length - num_tokens
-        assert padding_length >= 0, (padding_length)
+        assert padding_length >= 0, padding_length
         assert len(masked_positions) == len(masked_labels)
 
         # Tokens..

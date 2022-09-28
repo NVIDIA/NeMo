@@ -81,23 +81,15 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
             tokenizer=self.tokenizer,
             library=self._cfg.tokenizer.library,
             num_sentinel_tokens=self.num_sentinel_tokens,
-            dataset_type=self._cfg.data.get("dataset_type", "t5")
+            dataset_type=self._cfg.data.get("dataset_type", "t5"),
         )
         super()._build_vocab()
 
     @classmethod
-    def add_special_tokens_to_tokenizer(
-        cls,
-        tokenizer,
-        library,
-        num_sentinel_tokens=100,
-        dataset_type="t5"
-    ):
+    def add_special_tokens_to_tokenizer(cls, tokenizer, library, num_sentinel_tokens=100, dataset_type="t5"):
         # T5-related construction
         if library == 'huggingface' or library == 'megatron':
-            additional_tokens = {
-                'additional_special_tokens': [f'<extra_id_{i}>' for i in range(num_sentinel_tokens)]
-            }
+            additional_tokens = {'additional_special_tokens': [f'<extra_id_{i}>' for i in range(num_sentinel_tokens)]}
             if dataset_type == "ul2":
                 mask_types = ['r', 's', 'x']
                 for mask_type in mask_types:

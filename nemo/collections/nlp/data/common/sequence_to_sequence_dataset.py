@@ -221,7 +221,7 @@ class IndexedSequenceToSequenceDataset(SequenceToSequenceDataset):
 
         if self.add_bos_to_enc:
             src = np.concatenate([[self.src_tokenizer.bos_id], src])
-        
+
         if self.prepend_id is not None:
             src = np.concatenate([[self.prepend_id], src])
 
@@ -335,7 +335,7 @@ class BinarizedMemmapSequenceToSequenceDataset(IndexedSequenceToSequenceDataset)
         max_num_samples: int = None,
         add_bos_to_enc: bool = True,
         add_eos_to_enc: bool = True,
-        prepend_id: int = None
+        prepend_id: int = None,
     ):
         """
         src_dataset_prefix: Path to the *prefix* of a single source bin/idx file on disk. This necessitates the existance src_file_prefix.bin and src_file_prefix.idx.
