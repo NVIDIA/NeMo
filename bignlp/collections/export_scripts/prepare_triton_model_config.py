@@ -26,6 +26,13 @@ LOGGER = logging.getLogger(__name__)
 
 
 def _get_model_parameters(config_ini):
+    """
+    Read model parameters from FasterTransformer INI format.
+    Input:
+        config_ini: configparser.ConfigParser configuratio objects
+    Returns:
+        list of model parameters
+    """
     excluded_section_names = ["ft_instance_hyperparameter", "structure"]
     sections_names_with_model_parameters = [s for s in config_ini.sections() if s not in excluded_section_names]
 
@@ -66,6 +73,17 @@ def _get_model_parameters(config_ini):
 def _update_template(
     config, model_name, default_model_filename, max_batch_size, parameters, just_update_parameters: bool = True
 ):
+    """
+    Update config.pbtxt decoded from file.
+    Input:
+        config: Triton config
+        model_name: model name
+        default_model_filename: model file name
+        max_batch_size: maximum batch size for Triton configuration
+        just_update_parameters: replace or overwrite selector
+    Returns:
+        updated config
+    """
     config["name"] = model_name
     config["default_model_filename"] = default_model_filename
     config["max_batch_size"] = max_batch_size

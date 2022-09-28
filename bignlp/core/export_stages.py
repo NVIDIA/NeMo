@@ -24,6 +24,12 @@ FT_PATH_WITH_BUILD = FT_PATH
 FT_PATH = Path(os.environ.get("FT_PATH", FT_PATH))
 
 class Export(BigNLPStage):
+    """
+    Stage is a FasterTransformer export stage.
+    It includes two steps:
+        - NeMo to FasterTransformer checkpoint export.
+        - Triton model configuration.
+    """
 
     def setup_stage_vars(self, cfg):
         """Setup the stage vars, i.e. stage name and stage cfg"""
@@ -40,6 +46,17 @@ class Export(BigNLPStage):
     def make_stage_command_groups(
             self, stage_cfg_path, sub_stage=None,
     ) -> List[List[str]]:
+        """
+        Make the command groups for current stage
+        Command groups is a list of command group. A command group is defined as:
+              0. Command group is a list of command strings
+              1. Each command group occupies one bcprun, srun or bash
+              2. Each command group eventually has multiple commands connected by ";"
+
+        :param Path stage_cfg_path: path to interpolated and saved configuration
+        :return: command groups for current stage
+        :rtype: List[List[str]]
+        """
         command_groups = [[]]
 
         command_groups[0] += self._make_sub_stage_command(sub_stage)
@@ -47,6 +64,13 @@ class Export(BigNLPStage):
         return command_groups
     
     def _make_sub_stage_command(self, sub_stage):
+        """
+        Make the command group for current stage
+        It occupies one bcprun, srun or bash.
+
+        :return: command group for current stage
+        :rtype: List[List[str]]
+        """
         choice_model_type, choice_name = self.get_stage_config_choice()
         cmds_fn = {
             "convert": {
@@ -70,6 +94,7 @@ class Export(BigNLPStage):
         results_folder.mkdir(parents=True, exist_ok=True)
 
     def run(self) -> str:
+        """Execute export stage"""
         # Setup folders and datasets
         self.setup_folder_and_data()
 
@@ -105,6 +130,7 @@ class Export(BigNLPStage):
     def _make_cluster_parameters(
         self, cluster: str, sub_stage=None,
     ) -> Dict:
+        """Prepare cluster configuration"""
         cfg = self.cfg
         stage_cfg = self.stage_cfg
 
@@ -163,6 +189,7 @@ class Export(BigNLPStage):
         return cluster_parameters
 
     def _get_gpt_conversion_cmds(self, cfg):
+        """ Generate export commands for GPT-3 models"""
         run_cfg = cfg.export.run
         ft_model_cfg = cfg.export.model
         triton_cfg = cfg.export.triton_deployment
@@ -214,6 +241,7 @@ class Export(BigNLPStage):
         ]
 
     def _get_t5_conversion_cmds(self, cfg):
+        """ Generate export commands for T5/mT5 models"""
         run_cfg = cfg.export.run
         ft_model_cfg = cfg.export.model
         triton_cfg = cfg.export.triton_deployment
