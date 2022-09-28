@@ -103,7 +103,6 @@ class EMA(Callback):
             diff = ema_weight.data - orig_weight.data
             diff.mul_(1.0 - self.decay)
             ema_weight.sub_(diff)
-        print("BOOM")
 
     def should_apply_ema(self, step: int) -> bool:
         return step != self._cur_step and step >= self.start_step and step % self.apply_ema_every_n_steps == 0
