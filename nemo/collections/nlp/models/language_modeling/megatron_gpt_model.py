@@ -510,15 +510,17 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         max_train_steps = self.trainer.max_steps
         eval_iters = (max_train_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
         test_iters = self.trainer.limit_test_batches
-        
+
         train_valid_test_num_samples = [
             max_train_steps * global_batch_size,
             eval_iters * global_batch_size,
             test_iters * global_batch_size,
         ]
         if self.trainer.limit_val_batches == 1.0 and type(self.trainer.limit_val_batches) == float:
-            train_valid_test_num_samples[1] = 1 # This is to make sure we only have one epoch on every validation iteration
-            
+            train_valid_test_num_samples[
+                1
+            ] = 1  # This is to make sure we only have one epoch on every validation iteration
+
         self._train_ds, self._validation_ds, self._test_ds = build_train_valid_test_datasets(
             cfg=self.cfg,
             trainer=self.trainer,
