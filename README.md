@@ -16,7 +16,8 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
 - [4. Cloud Service Providers](#4-cloud-service-providers)
   * [4.1. Cluster Bring-Up](#41-cluster-bring-up)
     + [4.1.1. Common](#411-common)
-    + [4.1.2. AWS](#412-aws)
+    + [4.1.2. OCI](#412-oci)
+    + [4.1.3. AWS](#412-aws)
   * [4.2. Cluster Validation](#42-cluster-validation)
     + [4.2.1. Validation Script Usage](#421-validation-script-usage)
   * [4.3. Config Modifications](#43-config-modifications)
@@ -276,20 +277,51 @@ Figure 1: The GPT-3 family architecture. The 5B variant includes 24 transformer 
 #### 4.1.1 Common
 <a id="markdown-common" name="common"></a>
 
-To set up a Slurm cluster for Nemo Megatron, we recommend using [Nephele](https://github.com/nvidia/nephele). This cluster deployment tool has been tested on Azure and AWS.
+To set up a Slurm cluster for Nemo Megatron, we recommend using [Nephele](https://github.com/nvidia/nephele). This cluster deployment tool has been tested on Azure, AWS, and Oracle Cloud.
 We recommend hosting Nephele on a new VM instance in the CSP of your choice. To get started:
 - Clone the Nephele repo
+    - Checkout the `oci` branch for Oracle
 - Install the dependencies
 - Modify `nephele.conf`
     - Add your CSP credentials
     - Change `REPLICAS_x8a100` to the number of nodes in your desired cluster
 
+You can then run `./nephele init` and `./nephele create`.
+
 We also recommend mounting an external persistent NFS once the cluster is up and running (ensure it is mounted on all nodes) and using this to configure and run Nemo Megatron.
 
-The above steps apply to all CSPs, including Azure and AWS.
-Some modifications are necessary for AWS and are detailed below.
+The above steps apply to all CSPs, including Azure, AWS, and OCI.
+Some modifications are necessary for OCI and AWS and are detailed below.
+Note that for OCI, a custom image must be imported, which should be done before running `./nephele create`.
 
-#### 4.1.2 AWS
+#### 4.1.2 OCI
+<a id="markdown-oci" name="oci"></a>
+To bring up a cluster to run Nemo Megatron in Oracle Cloud, a custom image with OFED drivers pre-installed is needed.
+
+Please refer to [this guide](https://docs.oracle.com/en-us/iaas/Content/Compute/Tasks/imageimportexport.htm#Importing)
+to import the image into your tenancy in the region in which you will deploy your cluster using the following object storage URL (use the OCI format):
+
+```
+https://objectstorage.ap-osaka-1.oraclecloud.com/p/ermbwK2ukYxTpMxGjS7x__zAofoEx3UjKtKLLDWJiMg8Xj4VUwQfugpekBQ-WI3d/n/axmkfrghtfeo/b/Nephele-OFED-Image/o/Ubuntu-2004-OFED-Nephele-v2
+```
+
+After the image has been imported, specify the image ID in Nephele in `nephele/terraform/oci/variables.tf`
+using the imported image's OCID and your cluster's region. Make sure you are on the `oci` branch.
+Modify the 'ubuntu_2004' block:
+
+```
+variable "ubuntu_2004" {
+  description = "OCID for Ubuntu 2004 image in different regions"
+  type        = map(string)
+  default     = {
+    "<your cluster region>": "<your imported image OCID>"
+  }  
+}
+```
+
+Once complete, you can proceed to run `./nephele create`.
+
+#### 4.1.3 AWS
 <a id="markdown-aws" name="aws"></a>
 To launch jobs on AWS, the EFA driver and NCCL plugin first need to be installed on top of the training container.
 We recommend building a new container image with Docker, then creating an Enroot image.
@@ -303,6 +335,10 @@ On the scheduler node:
     enroot import --output bignlp_training.sqsh dockerd://<image name>:<tag>
 ```
 - Move the `.sqsh` file to the root of bignlp-scripts
+- Set the container path in `conf/config.yaml` to the new Enroot image:
+```
+container: /path/to/bignlp-scripts/bignlp_training.sqsh
+```
 
 ### 4.2 Cluster Validation
 <a id="markdown-cluster-validation" name="cluster-validation"></a>
