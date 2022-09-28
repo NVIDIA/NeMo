@@ -287,7 +287,11 @@ def modify_cfg(base_cfg: dict, act: int, tp: int, pp: int, mbs: int, max_minutes
     """
     new_cfg = copy.deepcopy(base_cfg)
     if act is not None:
-        new_cfg["model"]["activations_checkpoint_num_layers"] = act
+        if model_name == "gpt3":
+            new_cfg["model"]["activations_checkpoint_num_layers"] = act
+        else: 
+            new_cfg["model"]["encoder"]["activations_checkpoint_num_layers"] = act // 2
+            new_cfg["model"]["decoder"]["activations_checkpoint_num_layers"] = act // 2
     else:
         act = "selective"
     new_cfg["model"]["tensor_model_parallel_size"] = tp
