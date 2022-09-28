@@ -412,6 +412,7 @@ class SimpleConvNet(torch.nn.Module):
         z_w_context = self.last_layer(z_w_context)
         return z_w_context
 
+
 class WN(torch.nn.Module):
     """
     Adapted from WN() module in WaveGlow with modififcations to variable names
