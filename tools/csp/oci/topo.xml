@@ -1,0 +1,34 @@
+<system version="1">
+  <cpu numaid="3" affinity="00000000,ff000000,00000000,ff000000" arch="x86_64" vendor="AuthenticAMD" familyid="143" modelid="49">
+    <pci busid="0000:01:00.0" class="0x060400" link_speed="16 GT/s" link_width="16">
+      <pci busid="0000:0f:00.0" class="0x030200" link_speed="16 GT/s" link_width="16"/>
+      <pci busid="0000:0c:00.0" class="0x020000" link_speed="16 GT/s" link_width="16"/>
+      <pci busid="0000:15:00.0" class="0x030200" link_speed="16 GT/s" link_width="16"/>
+      <pci busid="0000:16:00.0" class="0x020000" link_speed="16 GT/s" link_width="16"/>
+    </pci>
+  </cpu>
+  <cpu numaid="1" affinity="00000000,0000ff00,00000000,0000ff00" arch="x86_64" vendor="AuthenticAMD" familyid="143" modelid="49">
+    <pci busid="0000:40:00.0" class="0x060400" link_speed="16 GT/s" link_width="16">
+      <pci busid="0000:51:00.0" class="0x030200" link_speed="16 GT/s" link_width="16"/>
+      <pci busid="0000:54:00.0" class="0x030200" link_speed="16 GT/s" link_width="16"/>
+      <pci busid="0000:48:00.0" class="0x020000" link_speed="16 GT/s" link_width="16"/>
+      <pci busid="0000:4c:00.0" class="0x020000" link_speed="16 GT/s" link_width="16"/>
+    </pci>
+  </cpu>
+  <cpu numaid="7" affinity="ff000000,00000000,ff000000,00000000" arch="x86_64" vendor="AuthenticAMD" familyid="143" modelid="49">
+    <pci busid="0000:7f:00.0" class="0x060400" link_speed="16 GT/s" link_width="16">
+      <pci busid="0000:8d:00.0" class="0x030200" link_speed="16 GT/s" link_width="16"/>
+      <pci busid="0000:8a:00.0" class="0x020000" link_speed="16 GT/s" link_width="16"/>
+      <pci busid="0000:92:00.0" class="0x030200" link_speed="16 GT/s" link_width="16"/>
+      <pci busid="0000:94:00.0" class="0x020000" link_speed="16 GT/s" link_width="16"/>
+    </pci>
+  </cpu>
+  <cpu numaid="5" affinity="0000ff00,00000000,0000ff00,00000000" arch="x86_64" vendor="AuthenticAMD" familyid="143" modelid="49">
+    <pci busid="0000:bb:00.0" class="0x060400" link_speed="16 GT/s" link_width="16">
+      <pci busid="0000:d6:00.0" class="0x030200" link_speed="16 GT/s" link_width="16"/>
+      <pci busid="0000:da:00.0" class="0x030200" link_speed="16 GT/s" link_width="16"/>
+      <pci busid="0000:c3:00.0" class="0x020000" link_speed="16 GT/s" link_width="16"/>
+      <pci busid="0000:d1:00.0" class="0x020000" link_speed="16 GT/s" link_width="16"/>
+    </pci>
+  </cpu>
+</system>
