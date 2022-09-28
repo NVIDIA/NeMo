@@ -1242,7 +1242,7 @@ def get_samples_mapping(
     indexmap_filename += '.npy'
 
     # Build the indexed mapping if not exist.
-    if not os.path.isfile(indexmap_filename):
+    if torch.distributed.get_rank() == 0 and not os.path.isfile(indexmap_filename):
         print(
             ' > WARNING: could not find index map file {}, building '
             'the indices on rank 0 ...'.format(indexmap_filename)
@@ -1253,8 +1253,7 @@ def get_samples_mapping(
         assert indexed_dataset.sizes.dtype == np.int32
 
         # Build samples mapping
-        # verbose = torch.distributed.get_rank() == 0
-        verbose = True
+        verbose = torch.distributed.get_rank() == 0
         start_time = time.time()
         logging.info(' > building samples index mapping for {} ...'.format(name))
         # First compile and then import.
