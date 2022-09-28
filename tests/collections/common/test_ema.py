@@ -26,7 +26,6 @@ from pytorch_lightning.utilities.exceptions import MisconfigurationException
 from pytorch_lightning.utilities.types import STEP_OUTPUT
 
 from nemo.collections.common.callbacks import EMA
-from nemo.collections.common.callbacks.ema import apex_available
 from nemo.core import ModelPT
 from nemo.utils.exp_manager import exp_manager
 
@@ -89,32 +88,13 @@ class TestEMAConfig:
         with pytest.raises(MisconfigurationException, match="between 0 and 1"):
             EMA(decay=2)
 
-    @pytest.mark.unit
-    @pytest.mark.run_only_on('GPU')
-    @pytest.mark.skipif(not apex_available, reason="apex is not installed")
-    def test_ema_cuda(self):
-        model = ExampleModel()
-
-        trainer = Trainer(
-            max_epochs=1,
-            fast_dev_run=True,
-            logger=False,
-            enable_model_summary=False,
-            accelerator='cpu',
-            devices=1,
-            callbacks=EMA(decay=0.999),
-        )
-        with pytest.raises(MisconfigurationException, match="Apex EMA Callback only works with CUDA"):
-            trainer.fit(model=model)
-
     @mock.patch('nemo.collections.common.callbacks.ema.apex_available', False)
     def test_ema_apex_unavailable(self):
-        with pytest.raises(MisconfigurationException, match="EMA requires Apex to be installed"):
+        with pytest.warns(UserWarning, match="EMA has better performance when Apex is installed"):
             EMA(decay=0.999)
 
     @pytest.mark.unit
     @pytest.mark.run_only_on('GPU')
-    @pytest.mark.skipif(not apex_available, reason="apex is not installed")
     def test_ema_saved_state(self, tmpdir, caplog):
         """Test to ensure that when we re-load the EMA callback, it loads the EMA weights correctly."""
         temp_path = os.path.join(tmpdir, 'saved_state')
@@ -232,7 +212,6 @@ class TestEMAConfig:
 
     @pytest.mark.unit
     @pytest.mark.run_only_on('GPU')
-    @pytest.mark.skipif(not apex_available, reason="apex is not installed")
     def test_exp_manager_ema_weights(self, tmpdir):
         """Test to ensure that the exp manager adds the EMA callback, and we save an additional EMA checkpoint."""
         tmp_path = tmpdir / "exp_manager_test"
@@ -260,7 +239,6 @@ class TestEMAConfig:
 
     @pytest.mark.unit
     @pytest.mark.run_only_on('GPU')
-    @pytest.mark.skipif(not apex_available, reason="apex is not installed")
     def test_ema_save_in_callback(self, tmpdir):
         """Test to ensure when `save_ema_weights_in_callback_state` is enabled, we save to the callback state."""
         temp_path = os.path.join(tmpdir, 'saved_state')
@@ -307,20 +285,44 @@ class TestEMAConfig:
         trainer.fit(model, ckpt_path=resume_path)
 
 
-@pytest.mark.parametrize("precision", [16, "bf16", 32])
-@pytest.mark.parametrize("accumulate_grad_batches", [1, 2])
-@pytest.mark.parametrize("evaluate_ema_weights_instead", [True, False])
-@pytest.mark.run_only_on('GPU')
-@pytest.mark.skipif(not apex_available, reason="apex is not installed")
 class TestEMATrain:
+
     @pytest.mark.unit
-    def test_example_run(
-        self, test_data_dir, precision, accumulate_grad_batches, evaluate_ema_weights_instead, tmpdir
+    @pytest.mark.parametrize("precision", [16, "bf16", 32])
+    @pytest.mark.parametrize("accumulate_grad_batches", [1, 2])
+    @pytest.mark.parametrize("evaluate_ema_weights_instead", [True, False])
+    @pytest.mark.parametrize("apex_available_mock", [True, False])
+    @pytest.mark.run_only_on('GPU')
+    def test_ema_run_cuda(
+        self, test_data_dir, precision, accumulate_grad_batches, evaluate_ema_weights_instead, apex_available_mock, tmpdir
     ):
+        with mock.patch('nemo.collections.common.callbacks.ema.apex_available', apex_available_mock):
+            self.run_training_test(
+                accumulate_grad_batches=accumulate_grad_batches,
+                evaluate_ema_weights_instead=evaluate_ema_weights_instead,
+                accelerator='gpu',
+                precision=precision,
+                tmpdir=tmpdir
+            )
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize("accumulate_grad_batches", [1, 2])
+    @pytest.mark.parametrize("evaluate_ema_weights_instead", [True, False])
+    @pytest.mark.run_only_on('GPU')
+    def test_ema_run_cpu(
+            self, test_data_dir, accumulate_grad_batches, evaluate_ema_weights_instead, tmpdir
+    ):
+        self.run_training_test(
+            accumulate_grad_batches=accumulate_grad_batches,
+            evaluate_ema_weights_instead=evaluate_ema_weights_instead,
+            accelerator='cpu',
+            precision=32,
+            tmpdir=tmpdir
+        )
+
+    def run_training_test(self, accumulate_grad_batches, evaluate_ema_weights_instead, accelerator, precision, tmpdir):
         pl.seed_everything(123)
-
         model = ExampleModel()
-
         trainer = Trainer(
             max_epochs=1,
             precision=precision,
@@ -331,7 +333,7 @@ class TestEMATrain:
             num_sanity_val_steps=0,
             enable_model_summary=False,
             enable_checkpointing=False,
-            accelerator='gpu',
+            accelerator=accelerator,
             devices=1,
         )
         exp_manager(
@@ -371,10 +373,10 @@ class EMAAssertCallback(Callback):
             # skip assertion as ema weights are not updated.
             return
         ema_callback = [x for x in trainer.callbacks if isinstance(x, EMA)][0]
-        ema = ema_callback.decay
+        decay = ema_callback.decay
         expected_ema_weights = []
         for orig_weight, ema_weight in zip(list(pl_module.state_dict().values()), self._before_calc_ema_weights):
-            expected_ema_weight = orig_weight * (1 - ema) + ema_weight * ema
+            expected_ema_weight = orig_weight * (1 - decay) + ema_weight * decay
             expected_ema_weights.append(expected_ema_weight)
 
         for actual_ema_weight, expected_ema_weight in zip(ema_callback._ema_model_weights, expected_ema_weights):

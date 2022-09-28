@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional
 import pytorch_lightning as pl
 import torch
 from pytorch_lightning import Callback
+from pytorch_lightning.utilities import rank_zero_warn
 from pytorch_lightning.utilities.exceptions import MisconfigurationException
 from pytorch_lightning.utilities.types import STEP_OUTPUT
 
@@ -58,8 +59,8 @@ class EMA(Callback):
         evaluate_ema_weights_instead: bool = False,
     ):
         if not apex_available:
-            raise MisconfigurationException(
-                "EMA requires Apex to be installed: https://github.com/NVIDIA/apex#installation."
+            rank_zero_warn(
+                "EMA has better performance when Apex is installed: https://github.com/NVIDIA/apex#installation."
             )
         if not (0 <= decay <= 1):
             raise MisconfigurationException("EMA decay value must be between 0 and 1")
@@ -74,14 +75,17 @@ class EMA(Callback):
         self.decay = decay
 
     def on_train_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
-        if pl_module.device.type != "cuda":
-            raise MisconfigurationException("Apex EMA Callback only works with CUDA. Ensure to set accelerator='gpu'.")
         logging.info('Creating EMA weights copy.')
         if self._ema_model_weights is None:
             self._ema_model_weights = [p.detach().clone() for p in pl_module.state_dict().values()]
         # ensure that all the weights are on the correct device
         self._ema_model_weights = [p.to(pl_module.device) for p in self._ema_model_weights]
         self._overflow_buf = torch.IntTensor([0]).to(pl_module.device)
+
+    def ema(self, pl_module: "pl.LightningModule") -> None:
+        if apex_available and pl_module.device.type == "cuda":
+            return self.apply_multi_tensor_ema(pl_module)
+        return self.apply_ema(pl_module)
 
     def apply_multi_tensor_ema(self, pl_module: "pl.LightningModule") -> None:
         model_weights = list(pl_module.state_dict().values())
@@ -94,6 +98,12 @@ class EMA(Callback):
             -1,
         )
 
+    def apply_ema(self, pl_module: "pl.LightningModule") -> None:
+        new_ema_weights = []
+        for orig_weight, ema_weight in zip(list(pl_module.state_dict().values()), self._ema_model_weights):
+            new_ema_weights.append(orig_weight * (1 - self.decay) + ema_weight * self.decay)
+        self._ema_model_weights = new_ema_weights
+
     def should_apply_ema(self, step: int) -> bool:
         return step != self._cur_step and step >= self.start_step and step % self.apply_ema_every_n_steps == 0
 
@@ -102,7 +112,7 @@ class EMA(Callback):
     ) -> None:
         if self.should_apply_ema(trainer.global_step):
             self._cur_step = trainer.global_step
-            self.apply_multi_tensor_ema(pl_module)
+            self.ema(pl_module)
 
     def state_dict(self) -> Dict[str, Any]:
         if self.save_ema_weights_in_callback_state:
