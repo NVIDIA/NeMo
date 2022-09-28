@@ -99,10 +99,11 @@ class EMA(Callback):
         )
 
     def apply_ema(self, pl_module: "pl.LightningModule") -> None:
-        new_ema_weights = []
         for orig_weight, ema_weight in zip(list(pl_module.state_dict().values()), self._ema_model_weights):
-            new_ema_weights.append(orig_weight * (1 - self.decay) + ema_weight * self.decay)
-        self._ema_model_weights = new_ema_weights
+            diff = ema_weight.data - orig_weight.data
+            diff.mul_(1.0 - self.decay)
+            ema_weight.sub_(diff)
+        print("BOOM")
 
     def should_apply_ema(self, step: int) -> bool:
         return step != self._cur_step and step >= self.start_step and step % self.apply_ema_every_n_steps == 0
@@ -129,13 +130,8 @@ class EMA(Callback):
         self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", checkpoint: Dict[str, Any]
     ) -> None:
         checkpoint_callback = trainer.checkpoint_callback
-        from nemo.utils.exp_manager import NeMoModelCheckpoint
 
-        if (
-            trainer.ckpt_path
-            and checkpoint_callback is not None
-            and isinstance(checkpoint_callback, NeMoModelCheckpoint)
-        ):
+        if trainer.ckpt_path and checkpoint_callback is not None and 'NeMo' in type(checkpoint_callback).__name__:
             ext = checkpoint_callback.FILE_EXTENSION
             if trainer.ckpt_path.endswith(f'-EMA{ext}'):
                 logging.info(
