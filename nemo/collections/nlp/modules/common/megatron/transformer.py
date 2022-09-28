@@ -59,6 +59,7 @@ except (ImportError, ModuleNotFoundError):
 try:
     from transformer_engine.pytorch import TransformerLayer, fp8_autocast
     from transformer_engine.common import recipe
+    from transformer_engine.pytorch.distributed import checkpoint as te_checkpoint
 
     HAVE_TE = True
 
@@ -1712,10 +1713,10 @@ class AutocastTransformerLayer(TransformerLayer):
             output_layernorm=output_layernorm,
             layer_type=layer_type,
             drop_path_rate=drop_path_rate,
-            use_emha=use_emha,
             set_parallel_mode=tp_size>1,
             fuse_qkv_params=True,
         )
+            #use_emha=use_emha,
 
         if autocast_dtype == 32:
             self.dtype = torch.float32
@@ -2170,9 +2171,18 @@ class ParallelTransformer(MegatronModule):
                 final_tuple = (self_attention_relative_position_bias, cross_attention_relative_position_bias)
                 arg_tuple = hidden_tuple + middle_tuple + rot_tuple + final_tuple
 
-                hidden_states = tensor_parallel.checkpoint(
-                    custom(l, l + self.activations_checkpoint_num_layers), False, *arg_tuple
-                )
+                if self.transformer_engine:
+                    hidden_states = te_checkpoint(
+                        custom(l, l+self.activations_checkpoint_num_layers),
+                        False,
+                        tensor_parallel.random.get_rng_tracker,
+                        parallel_state.get_tensor_model_parallel_group(),
+                        *arg_tuple
+                        )
+                else:
+                    hidden_states = tensor_parallel.checkpoint(
+                        custom(l, l + self.activations_checkpoint_num_layers), False, *arg_tuple
+                    )
                 l += self.activations_checkpoint_num_layers
         elif self.activations_checkpoint_method == 'block':
             # When pipeline-parallel size > 1 and 'num_micro_batches_with_partial_activation_checkpoints' = int,
@@ -2213,7 +2223,16 @@ class ParallelTransformer(MegatronModule):
                 arg_tuple = hidden_tuple + middle_tuple + rot_tuple + final_tuple
 
                 if l < activations_checkpoint_num_layers:
-                    hidden_states = tensor_parallel.checkpoint(custom(l, l + 1), False, *arg_tuple)
+                    if self.transformer_engine:
+                        hidden_states = te_checkpoint(
+                            custom(l, l + 1),
+                            False,
+                            tensor_parallel.random.get_cuda_rng_tracker,
+                            parallel_state.get_tensor_model_parallel_group(),
+                            *arg_tuple
+                            )
+                    else:
+                        hidden_states = tensor_parallel.checkpoint(custom(l, l + 1), False, *arg_tuple)
                 else:
                     hidden_states = custom(l, l + 1)(*arg_tuple)
         else:
