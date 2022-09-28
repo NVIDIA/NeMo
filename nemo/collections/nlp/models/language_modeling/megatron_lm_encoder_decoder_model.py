@@ -480,7 +480,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         Computed on first call, and then cached.
         """
         # build mapping of kwargs to arg index at first run
-        args_name = inspect.getfullargspec(self.enc_dec_model.forward)[0][1:]
+        module = self.enc_dec_model.forward if not self.megatron_amp_o2 else self.enc_dec_model.module.forward
+        args_name = inspect.getfullargspec(module)[0][1:]
         kwargs_to_arg_idx = {k: v for k, v in zip(args_name, range(len(args_name)))}
 
         return kwargs_to_arg_idx
@@ -881,10 +882,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 self._train_ds, consumed_samples, num_workers=self._cfg.data.num_workers
             )
 
-    def on_pretrain_routine_start(self) -> None:
+    def on_fit_start(self) -> None:
         # keep a copy of init_global_step
         self.init_global_step = self.trainer.global_step
-        return super().on_pretrain_routine_start()
+        return super().on_fit_start()
 
     def setup_validation_data(self, cfg):
         if hasattr(self, '_validation_ds'):
