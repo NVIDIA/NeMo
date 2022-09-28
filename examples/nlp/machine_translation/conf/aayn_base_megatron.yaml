@@ -62,7 +62,7 @@ model:
   # model architecture
   make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
 
-  megatron_amp_O2: True # use AMP with O2 style mixed precision instead of native amp on-the-fly weight autocasting.
+  megatron_amp_O2: False # use AMP with O2 style mixed precision instead of native amp on-the-fly weight autocasting.
   grad_allreduce_chunk_size_mb: 125
   grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce
   gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
