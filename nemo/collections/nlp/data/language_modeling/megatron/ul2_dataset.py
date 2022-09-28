@@ -13,9 +13,9 @@
 # limitations under the License.
 
 """UL2 Style dataset from https://arxiv.org/abs/2205.05131"""
-from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 import numpy as np
 
+from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import create_extreme_masked_lm_predictions
 from nemo.collections.nlp.data.language_modeling.megatron.length_distribution_type import LengthDistribution
 from nemo.collections.nlp.data.language_modeling.megatron.lm_adapted_t5_dataset import T5LMAdaptedDataset

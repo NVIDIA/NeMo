@@ -27,16 +27,16 @@ from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import (
     BinarizedMemmapSequenceToSequenceDataset,
     TextMemmapSequenceToSequenceDataset,
 )
-from nemo.collections.nlp.data.language_modeling.megatron.xlm_dataset import (
-    BinarizedMemmapCrossLingualMLMAndTranslationDataset,
-    TextMemmapCrossLingualMLMAndTranslationDataset
-)
 from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
     get_datasets_weights_and_num_samples,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
     MegatronPretrainingBatchSampler,
+)
+from nemo.collections.nlp.data.language_modeling.megatron.xlm_dataset import (
+    BinarizedMemmapCrossLingualMLMAndTranslationDataset,
+    TextMemmapCrossLingualMLMAndTranslationDataset,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_model import (
     MegatronLMEncoderDecoderModel,
