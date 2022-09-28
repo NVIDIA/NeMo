@@ -49,6 +49,7 @@ from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import AppState, logging
+from nemo.utils.get_rank import is_global_rank_zero
 
 try:
     from apex.transformer import parallel_state
@@ -612,6 +613,18 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         Args:
             stage (str, optional): Can be 'fit', 'validate', 'test' or 'predict'. Defaults to None.
         """
+
+        # log number of parameters
+        if self.is_data_parallel_rank_zero():
+            num_parameters = sum(
+                [sum([p.nelement() for p in model_module.parameters()]) for model_module in self.model]
+            )
+            logging.info(
+                f'Pipeline model parallel rank: {parallel_state.get_pipeline_model_parallel_rank()}, '
+                f'Tensor model parallel rank: {parallel_state.get_tensor_model_parallel_rank()}, '
+                f'Number of parameters: {num_parameters:.2e}.'
+            )
+
         resume_checkpoint_path = self.trainer._checkpoint_connector.resume_from_checkpoint_fit_path
         if resume_checkpoint_path:
             try:

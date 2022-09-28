@@ -19,6 +19,7 @@ trainer:
   accumulate_grad_batches: 1 # do not modify, grad acc is automatic for training megatron models
   gradient_clip_val: 1.0
   benchmark: False
+  enable_model_summary: False # default PTL callback for this does not support model parallelism, instead we log manually
 
 exp_manager:
   explicit_log_dir: null
