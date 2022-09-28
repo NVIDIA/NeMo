@@ -106,37 +106,6 @@ class TestPretrainedModelPerformance:
             ['what can i do for you today'], max_seq_length=6, margin=1, step=1
         )[0]
         assert preds_6_step_1_margin_6 == 'What can I do for you today.'
-    @pytest.mark.with_downloads()
-    @pytest.mark.unit
-    @pytest.mark.run_only_on('GPU')
-    @pytest.mark.skipif(
-        not data_exists('/home/TestData/nlp/token_classification_punctuation_lexical_audio/fisher'), reason='Not a Jenkins machine'
-    )
-    def test_punct_capit_lexical_audio(self):
-        data_dir = '/home/TestData/nlp/token_classification_punctuation_lexical_audio/fisher'
-        model = models.PunctuationCapitalizationLexicalAudioModel.from_pretrained("PLACEHOLEDER")
-        metrics = get_metrics_new_format(data_dir, model)
-
-        assert abs(metrics['test_punct_precision'] - 52.3024) < 0.001
-        assert abs(metrics['test_punct_recall'] - 58.9220) < 0.001
-        assert abs(metrics['test_punct_f1'] - 53.2976) < 0.001
-        assert abs(metrics['test_capit_precision'] - 87.0707) < 0.001
-        assert abs(metrics['test_capit_recall'] - 87.0707) < 0.001
-        assert abs(metrics['test_capit_f1'] - 87.0707) < 0.001
-        assert int(model.metrics['test']['punct_class_report'][0].total_examples) == 128
-
-        preds_512 = model.add_punctuation_capitalization(['what can i do for you today'], max_seq_length=512)[0]
-        assert preds_512 == 'What can I do for you today?'
-        preds_5 = model.add_punctuation_capitalization(['what can i do for you today'], max_seq_length=5, margin=0)[0]
-        assert preds_5 == 'What can I? Do for you. Today.'
-        preds_5_step_1 = model.add_punctuation_capitalization(
-            ['what can i do for you today'], max_seq_length=5, margin=0, step=1
-        )[0]
-        assert preds_5_step_1 == 'What Can I do for you today.'
-        preds_6_step_1_margin_6 = model.add_punctuation_capitalization(
-            ['what can i do for you today'], max_seq_length=6, margin=1, step=1
-        )[0]
-        assert preds_6_step_1_margin_6 == 'What can I do for you today.'
 
     @pytest.mark.with_downloads()
     @pytest.mark.unit

@@ -75,7 +75,6 @@ for refresh_cache in [True, False]:
         refresh_cache,
         ['Punctuation_Capitalization_with_BERT', 'Punctuation_Capitalization_with_DistilBERT'],
     )
-    testclass_downloads(nemo_nlp.models.PunctuationCapitalizationLexicalAudioModel, refresh_cache,['PLACEHOLDER'])
     testclass_downloads(
         nemo_nlp.models.QAModel,
         refresh_cache,
