@@ -72,7 +72,7 @@ model:
 
   p_tuning: # P-tuning specific params
     dropout: 0.0
-    num_layers: 1
+    num_layers: 2
 
   data:
     train_ds:
