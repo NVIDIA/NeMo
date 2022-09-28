@@ -25,7 +25,7 @@ try:
     from apex.transformer.enums import AttnMaskType
     from apex.transformer.pipeline_parallel.schedules.common import listify_model
     from apex.transformer.tensor_parallel.layers import linear_with_grad_accumulation_and_async_allreduce
-    from apex.contrib.layer_norm.layer_norm import FastLayerNorm
+    from apex.transformer.layers.layer_norm import FastLayerNorm
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -102,6 +102,13 @@ def init_method_normal(sigma):
 
     def init_(tensor):
         return torch.nn.init.normal_(tensor, mean=0.0, std=sigma)
+
+    return init_
+
+
+def init_method_const(val):
+    def init_(tensor):
+        return torch.nn.init.constant_(tensor, val)
 
     return init_
 
