@@ -352,7 +352,6 @@ class MegatronT5InfusedAdapterModel(MegatronT5BaseAdapterModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
-        self.adapter_name_keys = ['mlp_infused_adapter', 'key_infused_adapter', 'value_infused_adapter']
         frozen_model_cfg = MegatronT5Model.restore_from(
             cfg.get('pretrained_language_model_path'), trainer=trainer, return_config=True
         )
@@ -362,23 +361,82 @@ class MegatronT5InfusedAdapterModel(MegatronT5BaseAdapterModel):
                     None  # (@adithyare) adapter learning does not support activations checkpointing atm.
                 )
 
-        logging.info(f'Before adding adapters:\n{self.frozen_model.summarize()}')
-
+        self.encoder_adapter_name_keys = ['mlp_infused_adapter', 'key_infused_adapter', 'value_infused_adapter']
+        self.decoder_adapter_name_keys = self.encoder_adapter_name_keys + [
+            'inter_key_infused_adapter',
+            'inter_value_infused_adapter',
+        ]
         self.frozen_model.freeze()
-        for _, module in self.frozen_model.named_modules():
+        logging.info(f'Before adding adapters:\n{self.frozen_model.summarize()}')
+        encoder = self.frozen_model.enc_dec_model.enc_dec_model.encoder
+        self._add_adapters_to_component(encoder, frozen_model_cfg, self.encoder_adapter_name_keys)
+        logging.info(f'After adding encoder adapters:\n{self.frozen_model.summarize()}')
+        decoder = self.frozen_model.enc_dec_model.enc_dec_model.decoder
+        self._add_adapters_to_component(decoder, frozen_model_cfg, self.decoder_adapter_name_keys)
+        logging.info(f'After adding all adapters:\n{self.frozen_model.summarize()}')
+
+    def _add_adapters_to_component(self, component, layer_cfg, adapter_name_keys):
+        for _, module in component.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin):
-                for adapter_key in self.adapter_name_keys:
+                for adapter_key in adapter_name_keys:
                     if adapter_key == 'mlp_infused_adapter':
                         cfg = InfusedAdapterConfig(
-                            in_features=frozen_model_cfg.ffn_hidden_size // frozen_model_cfg.tensor_model_parallel_size
+                            in_features=layer_cfg.ffn_hidden_size // layer_cfg.tensor_model_parallel_size
                         )
                     else:
                         cfg = InfusedAdapterConfig(
-                            in_features=frozen_model_cfg.hidden_size // frozen_model_cfg.tensor_model_parallel_size
+                            in_features=layer_cfg.hidden_size // layer_cfg.tensor_model_parallel_size
                         )
                     module.add_adapter(name=adapter_key, cfg=cfg)
 
-        logging.info(f'After adding adapters:\n{self.frozen_model.summarize()}')
+    def _component_state_dict(self, component_name, component, adapter_name_keys):
+        state_dict_ = {}
+        for name, module in component.named_modules():
+            if isinstance(module, adapter_mixins.AdapterModuleMixin):
+                for adapter_key in adapter_name_keys:
+                    adapter_module = module.adapter_layer[adapter_key]
+                    state_adapter_key = ':'.join([component_name, name, adapter_key])
+                    state_dict_[state_adapter_key] = adapter_module.state_dict()
+
+                module.set_enabled_adapters(enabled=True)
+        return state_dict_
+
+    def _load_component_state_dict(
+        self, component_name, component, adapter_name_keys, state_dict, strict: bool = True
+    ):
+        for name, module in component.named_modules():
+            if isinstance(module, adapter_mixins.AdapterModuleMixin):
+                for adapter_key in adapter_name_keys:
+                    adapter_module = module.adapter_layer[adapter_key]
+                    state_adapter_key = ':'.join([component_name, name, adapter_key])
+                    adapter_module.load_state_dict(state_dict[state_adapter_key], strict)
+                module.set_enabled_adapters(enabled=True)
+
+    def state_dict(self, destination=None, prefix=None, keep_vars=False):
+        """
+        Creates a state_dict using only the adapter parameters.
+        This ensures that this wrapper class will only checkpoint the adapter
+        weights and not the rest of the base GPT Model.
+        """
+        encoder = self.frozen_model.enc_dec_model.enc_dec_model.encoder
+        encoder_state_dict = self._component_state_dict('encoder', encoder, self.encoder_adapter_name_keys)
+        decoder = self.frozen_model.enc_dec_model.enc_dec_model.decoder
+        decoder_state_dict = self._component_state_dict('decoder', decoder, self.decoder_adapter_name_keys)
+        state_dict_ = {
+            **encoder_state_dict,
+            **decoder_state_dict,
+        }  # merge the two state dicts (does not check for collisions in keys)
+        return state_dict_
+
+    def load_state_dict(self, state_dict, strict: bool = True):
+        """
+        Loads a state_dict expecting the state_dict to contain key,values 
+        only for the adapter parameters.
+        """
+        encoder = self.frozen_model.enc_dec_model.enc_dec_model.encoder
+        self._load_component_state_dict('encoder', encoder, self.encoder_adapter_name_keys, state_dict, strict)
+        decoder = self.frozen_model.enc_dec_model.enc_dec_model.decoder
+        self._load_component_state_dict('decoder', decoder, self.decoder_adapter_name_keys, state_dict, strict)
 
     @classmethod
     def list_available_models(cls):

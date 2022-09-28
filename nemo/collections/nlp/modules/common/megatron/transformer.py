@@ -1479,12 +1479,28 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                     inference_max_sequence_len=inference_max_sequence_len,
                 )
             else:
+                if self.is_adapter_available():
+                    inter_key_infused_adapter = (
+                        self.adapter_layer['inter_key_infused_adapter']
+                        if 'inter_key_infused_adapter' in self.adapter_layer
+                        else None
+                    )
+                    inter_value_infused_adapter = (
+                        self.adapter_layer['inter_value_infused_adapter']
+                        if 'inter_value_infused_adapter' in self.adapter_layer
+                        else None
+                    )
+                else:
+                    inter_key_infused_adapter, inter_value_infused_adapter = None, None
+
                 attention_output, attention_bias = self.inter_attention(
                     normalization_output,
                     enc_dec_attn_mask,
                     encoder_output=encoder_output,
                     rotary_pos_emb=cross_attention_pos_emb,
                     relative_position_bias=cross_attention_relative_position_bias,
+                    key_infused_adapter=inter_key_infused_adapter,
+                    value_infused_adapter=inter_value_infused_adapter,
                 )
 
             # If normformer, apply norm on the output of the self attention.
