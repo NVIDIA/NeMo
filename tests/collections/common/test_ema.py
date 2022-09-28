@@ -286,7 +286,6 @@ class TestEMAConfig:
 
 
 class TestEMATrain:
-
     @pytest.mark.unit
     @pytest.mark.parametrize("precision", [16, "bf16", 32])
     @pytest.mark.parametrize("accumulate_grad_batches", [1, 2])
@@ -294,7 +293,13 @@ class TestEMATrain:
     @pytest.mark.parametrize("apex_available_mock", [True, False])
     @pytest.mark.run_only_on('GPU')
     def test_ema_run_cuda(
-        self, test_data_dir, precision, accumulate_grad_batches, evaluate_ema_weights_instead, apex_available_mock, tmpdir
+        self,
+        test_data_dir,
+        precision,
+        accumulate_grad_batches,
+        evaluate_ema_weights_instead,
+        apex_available_mock,
+        tmpdir,
     ):
         with mock.patch('nemo.collections.common.callbacks.ema.apex_available', apex_available_mock):
             self.run_training_test(
@@ -302,22 +307,20 @@ class TestEMATrain:
                 evaluate_ema_weights_instead=evaluate_ema_weights_instead,
                 accelerator='gpu',
                 precision=precision,
-                tmpdir=tmpdir
+                tmpdir=tmpdir,
             )
 
     @pytest.mark.unit
     @pytest.mark.parametrize("accumulate_grad_batches", [1, 2])
     @pytest.mark.parametrize("evaluate_ema_weights_instead", [True, False])
     @pytest.mark.run_only_on('GPU')
-    def test_ema_run_cpu(
-            self, test_data_dir, accumulate_grad_batches, evaluate_ema_weights_instead, tmpdir
-    ):
+    def test_ema_run_cpu(self, test_data_dir, accumulate_grad_batches, evaluate_ema_weights_instead, tmpdir):
         self.run_training_test(
             accumulate_grad_batches=accumulate_grad_batches,
             evaluate_ema_weights_instead=evaluate_ema_weights_instead,
             accelerator='cpu',
             precision=32,
-            tmpdir=tmpdir
+            tmpdir=tmpdir,
         )
 
     def run_training_test(self, accumulate_grad_batches, evaluate_ema_weights_instead, accelerator, precision, tmpdir):
