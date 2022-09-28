@@ -162,7 +162,7 @@ class EMA(Callback):
         new_state_dict = {k: v for k, v in zip(pl_module.state_dict().keys(), self._ema_model_weights)}
         pl_module.load_state_dict(new_state_dict)
 
-    def restore_model_weights(self, pl_module: "pl.LightningModule") -> None:
+    def restore_original_weights(self, pl_module: "pl.LightningModule") -> None:
         state_dict = pl_module.state_dict()
         new_state_dict = {k: v for k, v in zip(state_dict.keys(), self._weights_buffer)}
         pl_module.load_state_dict(new_state_dict)
@@ -178,7 +178,7 @@ class EMA(Callback):
 
     def on_validation_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
         if self.ema_initialized and self.evaluate_ema_weights_instead:
-            self.restore_model_weights(pl_module)
+            self.restore_original_weights(pl_module)
 
     def on_test_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
         if self.ema_initialized and self.evaluate_ema_weights_instead:
@@ -186,4 +186,4 @@ class EMA(Callback):
 
     def on_test_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
         if self.ema_initialized and self.evaluate_ema_weights_instead:
-            self.restore_model_weights(pl_module)
+            self.restore_original_weights(pl_module)

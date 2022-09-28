@@ -900,7 +900,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             if self.verbose:
                 rank_zero_info(f"Saving EMA weights to separate checkpoint {filepath}")
             super()._save_checkpoint(trainer, filepath)
-            ema_callback.restore_model_weights(trainer.lightning_module)
+            ema_callback.restore_original_weights(trainer.lightning_module)
 
     def _ema_format_filepath(self, filepath: str) -> str:
         return filepath.replace(self.FILE_EXTENSION, f'-EMA{self.FILE_EXTENSION}')
