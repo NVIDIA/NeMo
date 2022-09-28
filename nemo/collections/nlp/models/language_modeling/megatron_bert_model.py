@@ -244,7 +244,7 @@ class MegatronBertModel(MegatronBaseModel):
         if self.trainer.limit_val_batches <= 1.0 and isinstance(self.trainer.limit_val_batches, float):
             train_valid_test_num_samples[
                 1
-            ] = 1  # This is to make sure we only have one epoch on every validation iteration    
+            ] = 1  # This is to make sure we only have one epoch on every validation iteration
 
         self._train_ds, self._validation_ds, self._test_ds = build_train_valid_test_datasets(
             cfg=self.cfg,
