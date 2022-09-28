@@ -46,7 +46,7 @@ from nemo.utils import logging, model_utils
 
 @dataclass
 class G2PConfig:
-    _target_: str = "nemo.collections.common.tokenizers.text_to_speech.g2ps.EnglishG2p"
+    _target_: str = "nemo_text_processing.g2p.modules.EnglishG2p"
     phoneme_dict: str = "scripts/tts_dataset_files/cmudict-0.7b_nv22.08"
     heteronyms: str = "scripts/tts_dataset_files/heteronyms-052722"
     phoneme_probability: float = 0.5
@@ -139,6 +139,9 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         output_fft = instantiate(self._cfg.output_fft)
         duration_predictor = instantiate(self._cfg.duration_predictor)
         pitch_predictor = instantiate(self._cfg.pitch_predictor)
+        speaker_emb_condition_prosody = cfg.get("speaker_emb_condition_prosody", False)
+        speaker_emb_condition_decoder = cfg.get("speaker_emb_condition_decoder", False)
+        speaker_emb_condition_aligner = cfg.get("speaker_emb_condition_aligner", False)
 
         self.fastpitch = FastPitchModule(
             input_fft,
@@ -150,6 +153,10 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             cfg.symbols_embedding_dim,
             cfg.pitch_embedding_kernel_size,
             cfg.n_mel_channels,
+            cfg.max_token_duration,
+            speaker_emb_condition_prosody,
+            speaker_emb_condition_decoder,
+            speaker_emb_condition_aligner,
         )
         self._input_types = self._output_types = None
         self.export_config = {"enable_volume": False, "enable_ragged_batches": False}
@@ -181,6 +188,16 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
 
     def _setup_tokenizer(self, cfg):
         text_tokenizer_kwargs = {}
+
+        if "phoneme_dict" in cfg.text_tokenizer:
+            text_tokenizer_kwargs["phoneme_dict"] = self.register_artifact(
+                "text_tokenizer.phoneme_dict", cfg.text_tokenizer.phoneme_dict,
+            )
+        if "heteronyms" in cfg.text_tokenizer:
+            text_tokenizer_kwargs["heteronyms"] = self.register_artifact(
+                "text_tokenizer.heteronyms", cfg.text_tokenizer.heteronyms,
+            )
+
         if "g2p" in cfg.text_tokenizer:
             g2p_kwargs = {}
 
@@ -648,6 +665,38 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             if volume is not None:
                 volume = volume_tensor
         return self.fastpitch.infer(text=text, pitch=pitch, pace=pace, volume=volume, speaker=speaker)
+
+    def interpolate_speaker(
+        self, original_speaker_1, original_speaker_2, weight_speaker_1, weight_speaker_2, new_speaker_id
+    ):
+        """
+        This method performs speaker interpolation between two original speakers the model is trained on.
+        Inputs:
+            original_speaker_1: Integer speaker ID of first existing speaker in the model
+            original_speaker_2: Integer speaker ID of second existing speaker in the model
+            weight_speaker_1: Floating point weight associated in to first speaker during weight combination
+            weight_speaker_2: Floating point weight associated in to second speaker during weight combination
+            new_speaker_id: Integer speaker ID of new interpolated speaker in the model
+        """
+        if self.fastpitch.speaker_emb is None:
+            raise Exception(
+                "Current FastPitch model is not a multi-speaker FastPitch model. Speaker interpolation can only \
+                be performed with a multi-speaker model"
+            )
+        n_speakers = self.fastpitch.speaker_emb.weight.data.size()[0]
+        if original_speaker_1 >= n_speakers or original_speaker_2 >= n_speakers or new_speaker_id >= n_speakers:
+            raise Exception(
+                f"Parameters original_speaker_1, original_speaker_2, new_speaker_id should be less than the total \
+                total number of speakers FastPitch was trained on (n_speakers = {n_speakers})."
+            )
+        speaker_emb_1 = (
+            self.fastpitch.speaker_emb(torch.tensor(original_speaker_1, dtype=torch.int32).cuda()).clone().detach()
+        )
+        speaker_emb_2 = (
+            self.fastpitch.speaker_emb(torch.tensor(original_speaker_2, dtype=torch.int32).cuda()).clone().detach()
+        )
+        new_speaker_emb = weight_speaker_1 * speaker_emb_1 + weight_speaker_2 * speaker_emb_2
+        self.fastpitch.speaker_emb.weight.data[new_speaker_id] = new_speaker_emb
 
 
 @torch.jit.script
