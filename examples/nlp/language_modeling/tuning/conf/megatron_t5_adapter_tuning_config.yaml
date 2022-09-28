@@ -49,7 +49,7 @@ model:
   micro_batch_size: 4
   
   restore_path: null # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
-  pretrained_language_model_path: ??? # Path to the pretrained T5 language model .nemo file, always required
+  language_model_path: ??? # Path to the pretrained T5 language model .nemo file, always required
   existing_tasks: []
   new_tasks: ["squad"] 
 
