@@ -91,8 +91,6 @@ class TranscriptionConfig:
     cuda: Optional[int] = None
     amp: bool = False
     audio_type: str = "wav"
-    
-
 
     # Recompute model transcription, even if the output folder exists with scores.
     overwrite_transcripts: bool = True
@@ -253,8 +251,6 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     if type(transcriptions) == tuple and len(transcriptions) == 2:
         transcriptions = transcriptions[0]
     # write audio transcriptions
-
-
 
     if cfg.add_transcr:
         if cfg.dataset_manifest is not None:
