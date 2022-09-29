@@ -143,7 +143,7 @@ class TextMemMapDataset(Dataset):
         # create data map
         mdata = np.memmap(fn, dtype=np.uint8, mode='r')
 
-        if os.path.exists(idx_fn):
+        if os.path.exists(idx_fn + ".npy"):
             # load index file into memory map
             midx = np.load(idx_fn + ".npy", allow_pickle=True, mmap_mode='r')
             # test for header
