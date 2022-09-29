@@ -2175,7 +2175,7 @@ class ParallelTransformer(MegatronModule):
                     hidden_states = te_checkpoint(
                         custom(l, l+self.activations_checkpoint_num_layers),
                         False,
-                        tensor_parallel.random.get_rng_tracker,
+                        tensor_parallel.random.get_cuda_rng_tracker,
                         parallel_state.get_tensor_model_parallel_group(),
                         *arg_tuple
                         )
