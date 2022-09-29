@@ -156,6 +156,9 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     asr_model = asr_model.eval()
     partial_audio = False
 
+    # we will adjust this flag is the model does not support it
+    compute_langs = cfg.compute_langs
+
     # Setup decoding strategy
     if hasattr(asr_model, 'change_decoding_strategy'):
         # Check if ctc or rnnt model
@@ -165,10 +168,12 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 asr_model.change_decoding_strategy(rnnt_decoding)
             else:
                 logging.warning("compute_langs flag turned on but model tokenizer is not Aggregate. Ignoring")
+                compute_langs = False
                 asr_model.change_decoding_strategy(cfg.rnnt_decoding)
         else:
             if cfg.compute_langs:
                 logging.warning("CTC models do not support compute_langs flag for now. Ignoring.")
+                compute_langs = False
             asr_model.change_decoding_strategy(cfg.ctc_decoding)
 
     # get audio filenames
@@ -270,16 +275,30 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     # write audio transcriptions
     with open(cfg.output_filename, 'w', encoding='utf-8') as f:
         if cfg.audio_dir is not None:
-            for idx, text in enumerate(transcriptions):
+            for idx, transcription in enumerate(transcriptions):
+                text = transcription
+                if return_hypotheses:
+                    text = transcription.text
+
                 item = {'audio_filepath': filepaths[idx], 'pred_text': text}
+                if compute_langs:
+                    item['pred_lang'] = transcription.langs
+                    item['pred_lang_words'] = transcription.langs_words
+
                 f.write(json.dumps(item) + "\n")
         else:
             with open(cfg.dataset_manifest, 'r') as fr:
                 for idx, line in enumerate(fr):
                     item = json.loads(line)
-                    item['pred_text'] = transcriptions[idx].text
-                    item['pred_lang'] = transcriptions[idx].langs
-                    item['pred_lang_words'] = transcriptions[idx].langs_words
+                    if return_hypotheses:
+                        item['pred_text'] = transcriptions[idx].text
+                    else:
+                        item['pred_text'] = transcriptions[idx]
+
+                    if compute_langs:
+                        item['pred_lang'] = transcriptions[idx].langs
+                        item['pred_lang_words'] = transcriptions[idx].langs_words
+
                     f.write(json.dumps(item) + "\n")
 
     logging.info("Finished writing predictions !")
