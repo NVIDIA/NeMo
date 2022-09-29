@@ -58,13 +58,13 @@ class DialogueGPTClassificationModel(NLPModel):
         self.eval_mode = cfg.dataset.eval_mode
         self.data_prepared = False
         self.epoch_number = 0
+        self.prompt_learning = self.cfg.prompt_learning
         super().__init__(cfg=cfg, trainer=trainer, no_lm_init=True)
 
         if self.cfg.library == "huggingface":
             self.language_model = AutoModelWithLMHead.from_pretrained(cfg.language_model.pretrained_model_name)
             self.language_model.resize_token_embeddings(len(self.tokenizer.tokenizer))
         elif self.cfg.library == "megatron":
-            self.prompt_learning = self.cfg.prompt_learning
             if self.prompt_learning:
                 if os.path.exists(cfg.prompt_learning_nemo_path):
                     self.language_model = MegatronGPTPromptLearningModel.restore_from(
