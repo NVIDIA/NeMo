@@ -12,8 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# downloads the training/eval set for AISHELL Diarization.
-# the training dataset is around 170GiB, to skip pass the --skip_train flag.
+# downloads the training/eval set for VoxConverse.
 
 import argparse
 import logging
