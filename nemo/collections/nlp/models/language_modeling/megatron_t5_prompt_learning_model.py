@@ -346,37 +346,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         print('build success', len(dataloader), dataset_paths)
         return dataset, dataloader
 
-    def validation_step(self, batch, batch_idx, inference=False):
-        outcome = self.inference_step(batch, batch_idx, inference=inference)
-        return outcome
-
-    def validation_epoch_end(self, outputs):
-        self.inference_epoch_end(outputs)
-
-    def test_step(self, batch, batch_idx):
-        return self.validation_step(batch, batch_idx)
-
-    def test_epoch_end(self, outputs):
-        self.validation_epoch_end(outputs)
-
-    def on_train_end(self):
-        # Save p-tuned prompts to prompt table for inference or future task training
-        if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING and self.first_stage_of_pipeline():
-            self.add_ptuned_prompts_to_prompt_table()
-            logging.info(f"All p-tuned prompts where moved to the prompt table.")
-
-            # Remove prompt encoder from model
-            self.prompt_encoder = None
-            logging.info(f"Prompt encoder deleted")
-
-        self.update_config_for_inference_and_save()
-
-    def first_stage_of_pipeline(self):
-        if self.frozen_model.enc_dec_model.pre_process and parallel_state.get_pipeline_model_parallel_rank() == 0:
-            return True
-        return False
-
-    def inference_step(self, batch, batch_idx, inference=False):
+    def validation_step(self, batch, batch_idx):
         enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids = batch
 
         mode = self.training
@@ -402,8 +372,8 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
         processed_inputs, processed_preds, processed_labels = [], [], []
         preds = predicted_token_ids.cpu().numpy().tolist()
-        labels = labels.cpu().numpy().tolist()
         enc_inputs = enc_input.cpu().numpy().tolist()
+        labels = labels.cpu().numpy().tolist()
 
         for i, (enc_input, pred, label) in enumerate(zip(enc_inputs, preds, labels)):
             if self.tokenizer.eos_id in pred:
@@ -433,14 +403,14 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
         self.train(mode=mode)
         return {
-            'loss': loss_mean,
-            'predicted_token_ids': processed_preds,
-            'labels': processed_labels,
             'enc_inputs': processed_inputs,
+            'predicted_token_ids': processed_preds,
+            'loss': loss_mean,
+            'labels': processed_labels,
+            
         }
 
-    def inference_epoch_end(self, outputs):
-
+    def validation_epoch_end(self, outputs):
         gather_results = [None for _ in range(parallel_state.get_data_parallel_world_size())]
 
         all_preds = list(itertools.chain(*[item['predicted_token_ids'] for item in outputs]))
@@ -486,6 +456,29 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
                 self.save_checkpoint_as_nemo_file()
                 self.lowest_val_loss = averaged_loss
 
+    def test_step(self, batch, batch_idx):
+        return self.validation_step(batch, batch_idx)
+
+    def test_epoch_end(self, outputs):
+        self.validation_epoch_end(outputs)
+
+    def on_train_end(self):
+        # Save p-tuned prompts to prompt table for inference or future task training
+        if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING and self.first_stage_of_pipeline():
+            self.add_ptuned_prompts_to_prompt_table()
+            logging.info(f"All p-tuned prompts where moved to the prompt table.")
+
+            # Remove prompt encoder from model
+            self.prompt_encoder = None
+            logging.info(f"Prompt encoder deleted")
+
+        self.update_config_for_inference_and_save()
+
+    def first_stage_of_pipeline(self):
+        if self.frozen_model.enc_dec_model.pre_process and parallel_state.get_pipeline_model_parallel_rank() == 0:
+            return True
+        return False
+
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> Any:
 
         enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids = batch
@@ -506,10 +499,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             encoder_input=encoder_input,
         )
 
-        processed_preds = []
-        processed_labels = []
-        processed_inputs = []
-
+        processed_inputs, processed_preds, processed_labels = [], [], []
         preds = predicted_token_ids.cpu().numpy().tolist()
         enc_inputs = enc_input.cpu().numpy().tolist()
 
@@ -523,33 +513,41 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
                 idx = pred.index(self.tokenizer.eos_id)
                 pred = pred[:idx]
 
-            pred = [
-                id
-                for id in pred
-                if id not in self.tokenizer.tokenizer.additional_special_tokens_ids
-                and id not in self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
-            ]  # delete the sentinel token at the beginning of prediction
-
-            pred = self.tokenizer.ids_to_text(pred)
-            processed_preds.append(pred)
+            # Sentencepiece case
+            if hasattr(self.tokenizer, 'special_token_to_id'):
+                pred = [
+                    id for id in pred if id not in self.tokenizer.special_token_to_id.values()
+                    and id not in self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
+                ] # delete the sentinel token at the beginning of prediction
+            else:
+                pred = [
+                    id for id in pred if id not in self.tokenizer.tokenizer.additional_special_tokens_ids
+                    and id not in self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
+                ] # delete the sentinel token at the beginning of prediction
 
             enc_input = [
                 id for id in enc_input if id not in self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
             ]  # delete the sentinel token added to the end of input
 
+            pred = self.tokenizer.ids_to_text(pred)
             input = self.tokenizer.ids_to_text(enc_input)
+            processed_preds.append(pred)
             processed_inputs.append(input)
 
             if label:
-                label = [
-                    id
-                    for id in label
-                    if id not in self.tokenizer.tokenizer.additional_special_tokens_ids
-                    and id not in self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
-                ]  # delete the sentinel token at the beginning of label
+                if hasattr(self.tokenizer, 'special_token_to_id'):
+                    label = [
+                        id for id in label if id not in self.tokenizer.special_token_to_id.values()
+                        and id not in self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
+                    ]
+                else:
+                    label = [
+                        id for id in label if id not in self.tokenizer.tokenizer.additional_special_tokens_ids
+                        and id not in self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
+                    ]  # delete the sentinel token at the beginning of label
 
                 label = self.tokenizer.ids_to_text(label)
-            processed_labels.append(label)
+                processed_labels.append(label)
 
         return {
             'enc_input': processed_inputs,
