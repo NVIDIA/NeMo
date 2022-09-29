@@ -93,8 +93,6 @@ class TranscriptionConfig:
     cuda: Optional[int] = None
     amp: bool = False
     audio_type: str = "wav"
-    
-
 
     # Recompute model transcription, even if the output folder exists with scores.
     overwrite_transcripts: bool = True
@@ -166,9 +164,8 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     # get audio filenames (if append_pred is True -> require manifest)
     # if cfg.audio_dir is not None and cfg.append_pred:
     #     logging.info(f'If you setting append_pred to True, then manifest be provided')
-    #todo
+    # todo
 
-    
     if cfg.audio_dir is not None and not cfg.append_pred:
         filepaths = list(glob.glob(os.path.join(cfg.audio_dir, f"**/*.{cfg.audio_type}"), recursive=True))
     else:
@@ -259,8 +256,6 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         transcriptions = transcriptions[0]
     # write audio transcriptions
 
-
-
     if cfg.append_pred:
         logging.info(f'Transcripts will be written in "{cfg.output_filename}" file')
         if cfg.pred_name_postfix is not None:
@@ -281,12 +276,12 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                     item = json.loads(line)
                     item[pred_text_attr_name] = transcriptions[idx]
                     f.write(json.dumps(item) + "\n")
-        #with open(cfg.output_filename, 'r', encoding='utf-8') as fo:
-            # with open(cfg.dataset_manifest, 'w') as fd:
-            #     for idx, line in enumerate(fo):
-            #         item = json.loads(line)
-            #         fd.write(json.dumps(item) + "\n")
-         #test it please, and if it safe then uncomment (this section is for convenient bash-script using)   
+        # with open(cfg.output_filename, 'r', encoding='utf-8') as fo:
+        # with open(cfg.dataset_manifest, 'w') as fd:
+        #     for idx, line in enumerate(fo):
+        #         item = json.loads(line)
+        #         fd.write(json.dumps(item) + "\n")
+        # test it please, and if it safe then uncomment (this section is for convenient bash-script using)
 
     # else:
     #     with open(cfg.output_filename, 'w', encoding='utf-8') as f:

@@ -104,7 +104,6 @@ def parse_args(comparison_mode):
     )
     parser.add_argument('--debug', '-d', action='store_true', help='enable debug mode')
 
-
     parser.add_argument(
         '--names_compared',
         '-nc',
@@ -121,7 +120,7 @@ def parse_args(comparison_mode):
     # automaticly going in comparison mode, if there is names_compared argument
     if args.names_compared is not None:
         comparison_mode = True
-        #check
+        # check
     print(args)
     return args, comparison_mode
 
