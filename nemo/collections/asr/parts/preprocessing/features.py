@@ -36,6 +36,7 @@ import math
 import random
 
 import librosa
+import numpy as np
 import torch
 import torch.nn as nn
 
@@ -47,6 +48,8 @@ CONSTANT = 1e-5
 
 
 def normalize_batch(x, seq_len, normalize_type):
+    x_mean = None
+    x_std = None
     if normalize_type == "per_feature":
         x_mean = torch.zeros((seq_len.shape[0], x.shape[1]), dtype=x.dtype, device=x.device)
         x_std = torch.zeros((seq_len.shape[0], x.shape[1]), dtype=x.dtype, device=x.device)
@@ -54,13 +57,14 @@ def normalize_batch(x, seq_len, normalize_type):
             if x[i, :, : seq_len[i]].shape[1] == 1:
                 raise ValueError(
                     "normalize_batch with `per_feature` normalize_type received a tensor of length 1. This will result "
-                    "in torch.std() returning nan"
+                    "in torch.std() returning nan. Make sure your audio length has enough samples for a single "
+                    "feature (ex. at least `hop_length` for Mel Spectrograms)."
                 )
             x_mean[i, :] = x[i, :, : seq_len[i]].mean(dim=1)
             x_std[i, :] = x[i, :, : seq_len[i]].std(dim=1)
         # make sure x_std is not zero
         x_std += CONSTANT
-        return (x - x_mean.unsqueeze(2)) / x_std.unsqueeze(2)
+        return (x - x_mean.unsqueeze(2)) / x_std.unsqueeze(2), x_mean, x_std
     elif normalize_type == "all_features":
         x_mean = torch.zeros(seq_len.shape, dtype=x.dtype, device=x.device)
         x_std = torch.zeros(seq_len.shape, dtype=x.dtype, device=x.device)
@@ -69,13 +73,17 @@ def normalize_batch(x, seq_len, normalize_type):
             x_std[i] = x[i, :, : seq_len[i].item()].std()
         # make sure x_std is not zero
         x_std += CONSTANT
-        return (x - x_mean.view(-1, 1, 1)) / x_std.view(-1, 1, 1)
+        return (x - x_mean.view(-1, 1, 1)) / x_std.view(-1, 1, 1), x_mean, x_std
     elif "fixed_mean" in normalize_type and "fixed_std" in normalize_type:
         x_mean = torch.tensor(normalize_type["fixed_mean"], device=x.device)
         x_std = torch.tensor(normalize_type["fixed_std"], device=x.device)
-        return (x - x_mean.view(x.shape[0], x.shape[1]).unsqueeze(2)) / x_std.view(x.shape[0], x.shape[1]).unsqueeze(2)
+        return (
+            (x - x_mean.view(x.shape[0], x.shape[1]).unsqueeze(2)) / x_std.view(x.shape[0], x.shape[1]).unsqueeze(2),
+            x_mean,
+            x_std,
+        )
     else:
-        return x
+        return x, x_mean, x_std
 
 
 def splice_frames(x, frame_splicing):
@@ -100,20 +108,54 @@ class WaveformFeaturizer(object):
     def max_augmentation_length(self, length):
         return self.augmentor.max_augmentation_length(length)
 
-    def process(self, file_path, offset=0, duration=0, trim=False, orig_sr=None):
-        audio = AudioSegment.from_file(
-            file_path,
-            target_sr=self.sample_rate,
-            int_values=self.int_values,
-            offset=offset,
-            duration=duration,
-            trim=trim,
-            orig_sr=orig_sr,
-        )
+    def process(
+        self,
+        file_path,
+        offset=0,
+        duration=0,
+        trim=False,
+        trim_ref=np.max,
+        trim_top_db=60,
+        trim_frame_length=2048,
+        trim_hop_length=512,
+        orig_sr=None,
+    ):
+
+        if isinstance(file_path, str):
+            audio = AudioSegment.from_file(
+                file_path,
+                target_sr=self.sample_rate,
+                int_values=self.int_values,
+                offset=offset,
+                duration=duration,
+                trim=trim,
+                trim_ref=trim_ref,
+                trim_top_db=trim_top_db,
+                trim_frame_length=trim_frame_length,
+                trim_hop_length=trim_hop_length,
+                orig_sr=orig_sr,
+            )
+        elif isinstance(file_path, list):
+            
+            audio = [AudioSegment.from_file(
+                x,
+                target_sr=self.sample_rate,
+                int_values=self.int_values,
+                offset=offset,
+                duration=duration,
+                trim=trim,
+                trim_ref=trim_ref,
+                trim_top_db=trim_top_db,
+                trim_frame_length=trim_frame_length,
+                trim_hop_length=trim_hop_length,
+                orig_sr=orig_sr,
+            ) for x in file_path]
         return self.process_segment(audio)
 
     def process_segment(self, audio_segment):
         self.augmentor.perturb(audio_segment)
+        if isinstance(audio_segment, list):
+            return [torch.tensor(x.samples, dtype=torch.float) for x in audio_segment]
         return torch.tensor(audio_segment.samples, dtype=torch.float)
 
     @classmethod
@@ -127,6 +169,7 @@ class WaveformFeaturizer(object):
         int_values = input_config.get("int_values", False)
 
         return cls(sample_rate=sample_rate, int_values=int_values, augmentor=aa)
+
 
 
 class FeaturizerFactory(object):
@@ -360,7 +403,7 @@ class FilterbankFeatures(nn.Module):
 
         # normalize if required
         if self.normalize:
-            x = normalize_batch(x, seq_len, normalize_type=self.normalize)
+            x, _, _ = normalize_batch(x, seq_len, normalize_type=self.normalize)
 
         # mask to zero any values beyond seq_len in batch, pad to multiple of `pad_to` (for efficiency)
         max_len = x.size(-1)
@@ -375,5 +418,4 @@ class FilterbankFeatures(nn.Module):
             pad_amt = x.size(-1) % pad_to
             if pad_amt != 0:
                 x = nn.functional.pad(x, (0, pad_to - pad_amt), value=self.pad_value)
-
         return x, seq_len

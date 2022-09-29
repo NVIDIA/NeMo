@@ -97,6 +97,7 @@ class ConformerEncoder(NeuralModule, Exportable):
             {
                 "audio_signal": NeuralType(('B', 'D', 'T'), SpectrogramType()),
                 "length": NeuralType(tuple('B'), LengthsType()),
+                "emb": NeuralType(('B', 'D'), AcousticEncodedRepresentation(), optional=True),
             }
         )
 
@@ -107,6 +108,8 @@ class ConformerEncoder(NeuralModule, Exportable):
             {
                 "outputs": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
                 "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
+                "pre_encoded_outputs": NeuralType(('D', 'B', 'D'), AcousticEncodedRepresentation(), optional=True),
+                "pre_encoded_output_lengths": NeuralType(tuple('B'), LengthsType(), optional=True),
             }
         )
 
@@ -131,9 +134,13 @@ class ConformerEncoder(NeuralModule, Exportable):
         dropout=0.1,
         dropout_emb=0.1,
         dropout_att=0.0,
+        use_target_embed=False,
+        emb_dim=256,
+        fusion_type='add'
     ):
         super().__init__()
 
+        self.use_target_embed = use_target_embed
         d_ff = d_model * ff_expansion_factor
         self.d_model = d_model
         self._feat_in = feat_in
@@ -198,6 +205,8 @@ class ConformerEncoder(NeuralModule, Exportable):
             raise ValueError(f"Not valid self_attention_model: '{self_attention_model}'!")
 
         self.layers = nn.ModuleList()
+        if self.use_target_embed:
+            self.fusion_mdl = nn.ModuleList([])
         for i in range(n_layers):
             layer = ConformerLayer(
                 d_model=d_model,
@@ -212,6 +221,8 @@ class ConformerEncoder(NeuralModule, Exportable):
                 pos_bias_v=pos_bias_v,
             )
             self.layers.append(layer)
+            if use_target_embed:
+                self.fusion_mdl.append(FusionLayer(d_model, emb_dim, fusion_type))
 
         if feat_out > 0 and feat_out != self._feat_out:
             self.out_proj = nn.Linear(self._feat_out, feat_out)
@@ -237,12 +248,12 @@ class ConformerEncoder(NeuralModule, Exportable):
         self.pos_enc.extend_pe(max_audio_length, device)
 
     @typecheck()
-    def forward(self, audio_signal, length=None):
+    def forward(self, audio_signal, length=None, emb=None):
         self.update_max_seq_length(seq_length=audio_signal.size(2), device=audio_signal.device)
-        return self.forward_for_export(audio_signal=audio_signal, length=length)
+        return self.forward_for_export(audio_signal=audio_signal, length=length, emb = emb)
 
     @typecheck()
-    def forward_for_export(self, audio_signal, length):
+    def forward_for_export(self, audio_signal, length, emb=None,):
         max_audio_length: int = audio_signal.size(-1)
 
         if max_audio_length > self.max_audio_length:
@@ -260,6 +271,8 @@ class ConformerEncoder(NeuralModule, Exportable):
         else:
             audio_signal, length = self.pre_encode(audio_signal, length)
 
+        pre_encoded_audio = audio_signal
+        pre_encoded_audio_length = length
         audio_signal, pos_emb = self.pos_enc(audio_signal)
         # adjust size
         max_audio_length = audio_signal.size(1)
@@ -280,13 +293,15 @@ class ConformerEncoder(NeuralModule, Exportable):
             pad_mask = None
 
         for lth, layer in enumerate(self.layers):
+            if self.use_target_embed:
+                audio_signal = self.fusion_mdl[lth](audio_signal, emb)
             audio_signal = layer(x=audio_signal, att_mask=att_mask, pos_emb=pos_emb, pad_mask=pad_mask)
 
         if self.out_proj is not None:
             audio_signal = self.out_proj(audio_signal)
 
         audio_signal = torch.transpose(audio_signal, 1, 2)
-        return audio_signal, length
+        return audio_signal, length, pre_encoded_audio, pre_encoded_audio_length
 
     def update_max_seq_length(self, seq_length: int, device):
         # Find global max audio length across all nodes
@@ -341,6 +356,31 @@ class ConformerEncoderAdapter(ConformerEncoder, adapter_mixins.AdapterModuleMixi
         return cfg
 
 
+class FusionLayer(nn.Module):
+    def __init__(self, in_dim, emb_dim, fusion_type='cat'):
+        super().__init__()
+        assert fusion_type in ['cat', 'add', 'mult']
+        self.fusion_type = fusion_type
+        if fusion_type == 'cat':
+            self.layer = nn.Linear(in_dim + emb_dim, in_dim)
+        elif fusion_type in ['add', 'mult']:
+            self.layer = nn.Linear(emb_dim, in_dim)
+
+    def forward(self, x, emb):
+        '''
+            args:
+                x: Tensor with shape [B, T, D],
+                emb: Tensor with shape [B, D']
+        '''
+        emb = emb.unsqueeze(1).expand(-1, x.shape[1], -1)
+        if self.fusion_type == 'cat':
+            raise NotImplementedError("not implemented")
+        elif self.fusion_type == 'add':
+            out = self.layer(emb)
+            out = x + out
+        elif self.fusion_type == 'mult':
+            raise NotImplementedError("not implemented")
+        return out
 """
 Register any additional information
 """

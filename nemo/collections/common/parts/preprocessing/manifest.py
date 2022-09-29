@@ -89,17 +89,19 @@ def __parse_item(line: str, manifest_file: str) -> Dict[str, Any]:
             f"Manifest file {manifest_file} has invalid json line structure: {line} without proper audio file key."
         )
 
-    # If the audio path is relative, and not using tarred dataset,
-    # attach the parent directory of manifest to the audio path.
-    # Assume "audio_file" starts with a dir, such as "wavs/xxxxx.wav".
-    # If using a tarred dataset, the "audio_path" is like "_home_data_tarred_wavs_xxxx.wav",
-    # so we will just ignore it.
+    # If the audio path is a relative path and does not exist,
+    # try to attach the parent directory of manifest to the audio path.
+    # Revert to the original path if the new path still doesn't exist.
+    # Assume that the audio path is like "wavs/xxxxxx.wav".
     manifest_dir = Path(manifest_file).parent
     audio_file = Path(item['audio_file'])
-    if not audio_file.is_file() and not audio_file.is_absolute() and audio_file.parent != Path("."):
-        # assume the wavs/ dir and manifest are under the same parent dir
+    if (len(str(audio_file)) < 255) and not audio_file.is_file() and not audio_file.is_absolute():
+        # assume the "wavs/" dir and manifest are under the same parent dir
         audio_file = manifest_dir / audio_file
-        item['audio_file'] = str(audio_file.absolute())
+        if audio_file.is_file():
+            item['audio_file'] = str(audio_file.absolute())
+        else:
+            item['audio_file'] = expanduser(item['audio_file'])
     else:
         item['audio_file'] = expanduser(item['audio_file'])
 
@@ -118,6 +120,9 @@ def __parse_item(line: str, manifest_file: str) -> Dict[str, Any]:
     elif 'normalized_text' in item:
         item['text'] = item['normalized_text']
 
+    if 'other_audio_filepaths' in item:
+        item['other_audio_files'] = [expanduser(x) for x in item['other_audio_filepaths']]
+        
     item = dict(
         audio_file=item['audio_file'],
         duration=item['duration'],
@@ -127,6 +132,10 @@ def __parse_item(line: str, manifest_file: str) -> Dict[str, Any]:
         orig_sr=item.get('orig_sample_rate', None),
         token_labels=item.get('token_labels', None),
         lang=item.get('lang', None),
+        other_audio_files=item.get('other_audio_files', None),
+        other_durations=item.get('other_durations', None),
+        scale_factors=item.get('scale_factors', None),
     )
+    
 
     return item

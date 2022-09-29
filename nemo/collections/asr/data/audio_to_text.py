@@ -12,17 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import io
+import json
+import librosa
 import math
 import os
 from typing import Callable, Dict, Iterable, List, Optional, Union
-
+import random
 import braceexpand
 import numpy as np
+import soundfile as sf
 import torch
 import webdataset as wd
 from torch.utils.data import ChainDataset
+from transformers import IBERT_PRETRAINED_MODEL_ARCHIVE_LIST
 
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
+from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 from nemo.collections.common import tokenizers
 from nemo.collections.common.parts.preprocessing import collections, parsers
 from nemo.core.classes import Dataset, IterableDataset
@@ -91,6 +96,69 @@ def _speech_collate_fn(batch, pad_id):
         return audio_signal, audio_lengths, tokens, tokens_lengths, sample_ids
 
 
+def _speech_embedding_collate_fn(batch, pad_id):
+    """collate batch of audio sig, audio len, tokens, tokens len
+    Args:
+        batch (Optional[FloatTensor], Optional[LongTensor], LongTensor,
+               LongTensor):  A tuple of tuples of signal, signal lengths,
+               encoded tokens, and encoded tokens length.  This collate func
+               assumes the signals are 1d torch tensors (i.e. mono audio).
+    """
+    packed_batch = list(zip(*batch))
+    if len(packed_batch) == 7:
+        _, audio_lengths, _, tokens_lengths, embeddings, embedding_lengths, sample_ids = packed_batch
+    elif len(packed_batch) == 6:
+        sample_ids = None
+        _, audio_lengths, _, tokens_lengths, embeddings, embedding_lengths = packed_batch
+    else:
+        raise ValueError("Expects 4 or 5 tensors in the batch!")
+    max_audio_len = 0
+    max_embedding_len = 0
+    has_audio = audio_lengths[0] is not None
+    if has_audio:
+        max_audio_len = max(audio_lengths).item()
+        max_embedding_len = max(embedding_lengths).item()
+    max_tokens_len = max(tokens_lengths).item()
+
+    audio_signal, tokens, all_embeddings = [], [], []
+    for b in batch:
+        if len(b) == 7:
+            sig, sig_len, tokens_i, tokens_i_len, embedding, embedding_len, _ = b
+        else:
+            sig, sig_len, tokens_i, tokens_i_len, embedding, embedding_len = b
+        if has_audio:
+            sig_len = sig_len.item()
+            if sig_len < max_audio_len:
+                pad = (0, max_audio_len - sig_len)
+                sig = torch.nn.functional.pad(sig, pad)
+            embed_len = embedding_len.item()
+            if embed_len < max_embedding_len:
+                pad = (0, max_embedding_len - embed_len)
+                embedding = torch.nn.functional.pad(embedding, pad)
+            audio_signal.append(sig)
+            all_embeddings.append(embedding)
+        tokens_i_len = tokens_i_len.item()
+        if tokens_i_len < max_tokens_len:
+            pad = (0, max_tokens_len - tokens_i_len)
+            tokens_i = torch.nn.functional.pad(tokens_i, pad, value=pad_id)
+        tokens.append(tokens_i)
+
+    if has_audio:
+        audio_signal = torch.stack(audio_signal)
+        audio_lengths = torch.stack(audio_lengths)
+        all_embeddings = torch.stack(all_embeddings)
+        embedding_lengths = torch.stack(embedding_lengths)
+    else:
+        audio_signal, audio_lengths, all_embeddings = None, None
+    tokens = torch.stack(tokens)
+    tokens_lengths = torch.stack(tokens_lengths)
+    if sample_ids is None:
+        return audio_signal, audio_lengths, tokens, tokens_lengths, all_embeddings, embedding_lengths
+    else:
+        sample_ids = torch.tensor(sample_ids, dtype=torch.int32)
+        return audio_signal, audio_lengths, tokens, tokens_lengths, all_embeddings, embedding_lengths, sample_ids
+
+
 class ASRManifestProcessor:
     """
     Class that processes a manifest json file containing paths to audio files, transcripts, and durations (in seconds).
@@ -121,9 +189,10 @@ class ASRManifestProcessor:
         eos_id: Optional[int] = None,
         pad_id: int = 0,
         index_by_file_id: bool = False,
+        *args,
+        **kwargs,
     ):
         self.parser = parser
-
         self.collection = collections.ASRAudioText(
             manifests_files=manifest_filepath,
             parser=parser,
@@ -131,8 +200,9 @@ class ASRManifestProcessor:
             max_duration=max_duration,
             max_number=max_utts,
             index_by_file_id=index_by_file_id,
+            *args,
+            **kwargs,
         )
-
         self.eos_id = eos_id
         self.bos_id = bos_id
         self.pad_id = pad_id
@@ -259,6 +329,8 @@ class _AudioTextDataset(Dataset):
         eos_id: Optional[int] = None,
         pad_id: int = 0,
         return_sample_id: bool = False,
+        *args,
+        **kwargs,
     ):
         if type(manifest_filepath) == str:
             manifest_filepath = manifest_filepath.split(",")
@@ -272,6 +344,8 @@ class _AudioTextDataset(Dataset):
             bos_id=bos_id,
             eos_id=eos_id,
             pad_id=pad_id,
+            *args,
+            **kwargs,
         )
         self.featurizer = WaveformFeaturizer(sample_rate=sample_rate, int_values=int_values, augmentor=augmentor)
         self.trim = trim
@@ -455,6 +529,8 @@ class AudioToBPEDataset(_AudioTextDataset):
         trim: bool = False,
         use_start_end_token: bool = True,
         return_sample_id: bool = False,
+        *args,
+        **kwargs,
     ):
         if use_start_end_token and hasattr(tokenizer, 'bos_token'):
             bos_id = tokenizer.bos_id
@@ -497,7 +573,351 @@ class AudioToBPEDataset(_AudioTextDataset):
             pad_id=pad_id,
             trim=trim,
             return_sample_id=return_sample_id,
+            *args,
+            **kwargs,
         )
+
+
+class DynamicTargetAudioToBPEDataset(AudioToBPEDataset):
+    """
+    """
+
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        """Returns definitions of module output ports.
+               """
+        output = super().output_types
+        sample_id = output.pop('sample_id')
+        output['speaker_features'] = NeuralType(('B', 'T'), AudioSignal())
+        output['features_lengths'] = NeuralType(tuple('B'), LengthsType())
+        output['sample_id'] = sample_id
+        return output
+
+    def __init__(
+        self,
+        manifest_filepath: str,
+        tokenizer: 'nemo.collections.common.tokenizers.TokenizerSpec',
+        sample_rate: int,
+        int_values: bool = False,
+        augmentor: 'nemo.collections.asr.parts.perturb.AudioAugmentor' = None,
+        max_duration: Optional[int] = None,
+        min_duration: Optional[int] = None,
+        max_utts: int = 0,
+        trim: bool = False,
+        num_sources=2, 
+        mixing_portion=1.0,
+        use_start_end_token: bool = True,
+        return_sample_id: bool = False,
+    ):
+
+        super().__init__(
+            manifest_filepath=manifest_filepath,
+            tokenizer=tokenizer,
+            sample_rate=sample_rate,
+            int_values=int_values,
+            augmentor=augmentor,
+            max_duration=max_duration,
+            min_duration=min_duration,
+            max_utts=max_utts,
+            trim=trim,
+            use_start_end_token=use_start_end_token,
+            return_sample_id=return_sample_id,
+            index_by_speaker_id=True,
+        )  # inits  ASRManifestProcessor
+
+
+        # self.tmp_dir= '/home/yangzhang/code/ts_asr/data/train_mixed'
+        # self.manifest_tmp= self.tmp_dir + '/manifest.json'
+        # os.makedirs(self.tmp_dir, exist_ok=True)
+        # with open(self.manifest_tmp, 'w') as fp:
+        #     pass
+
+        
+        self.manifest_filepath = manifest_filepath
+        self.num_sources = num_sources
+        self.mixing_portion = mixing_portion
+
+    def __getitem__(self, index):
+
+        target_pt, target_pt_len, text, text_len = super().__getitem__(index)[:4]
+        sample = self.manifest_processor.collection[index]
+
+        target_speaker = sample.speaker
+        if len(self.manifest_processor.collection.speaker_mapping[target_speaker]) == 1:
+            raise ValueError(f"target speaker {target_speaker} only has one utterance")
+
+        enrollment_index = np.random.choice(
+            self.manifest_processor.collection.speaker_mapping[target_speaker]
+        )
+        i = 0
+        while enrollment_index == index and i < 100:
+            enrollment_index = np.random.choice(
+                self.manifest_processor.collection.speaker_mapping[target_speaker]
+            )
+            i += 1
+
+
+        enroll_pt, enroll_pt_len = super().__getitem__(enrollment_index)[:2]
+
+
+        target_pt *= np.random.uniform(0.125, 2.0) # volumne scaling
+        if np.random.rand() < (1/self.num_sources): # no mixing, just clean data
+            
+            # max_amp = torch.abs(target_pt).max().item()
+            # target_pt *= (1 / max_amp * 0.9)
+            if self.return_sample_id:
+                output = target_pt, target_pt_len, text, text_len, enroll_pt, enroll_pt_len, index
+            else:
+                output = target_pt, target_pt_len, text, text_len, enroll_pt, enroll_pt_len
+            return output
+
+
+        i = 0
+
+
+        num_overlapping_sources = np.random.randint(1,self.num_sources ) # if overlap then at least one at most num_sources - 1 other sources
+        overlapping_speakers = np.random.choice(
+            list(self.manifest_processor.collection.speaker_mapping.keys()), num_overlapping_sources, replace=False
+        )
+        while target_speaker in overlapping_speakers and i < 100:
+            overlapping_speakers = np.random.choice(
+                list(self.manifest_processor.collection.speaker_mapping.keys()), num_overlapping_sources, replace=False
+            )
+            i += 0
+        overlapping_speakers = overlapping_speakers.tolist()
+
+        overlapping_pts = []
+        for overlapping_speaker in overlapping_speakers:
+            overlapping_speaker_index = np.random.choice(self.manifest_processor.collection.speaker_mapping[overlapping_speaker])
+            overlapping_pt = super().__getitem__(overlapping_speaker_index)[0]
+            overlapping_pts.append(overlapping_pt)
+
+
+
+        for i in range(len(overlapping_pts)):
+            scale = np.random.uniform(0.125, 2.0) # volume scaling 
+            overlapping_pts[i] *=scale
+        
+
+
+        features_list = [target_pt] + overlapping_pts
+
+        def get_delayed_audio(audio, delay): # delay in samples
+            if delay != 0:
+                audio = np.append(np.zeros(delay), audio)
+            return audio
+        
+        def pad_audio_to_length(audio, target_len): # target_len in samples 
+            if target_len <= len(audio):
+                return audio
+            audio = np.append(audio, np.zeros(target_len - len(audio)))
+            return audio
+
+
+        # shuffle so target speaker appears at random position in mixed speech
+        random.shuffle(features_list)
+
+        mix = features_list[0].numpy()
+        last_start = 0
+        for i, x in enumerate(features_list[1:]):
+            
+            delay = int(np.random.uniform(0.5*16000 + last_start, len(mix)))
+            last_start = delay
+            next_audio = x.numpy()
+            next_audio = get_delayed_audio(next_audio, delay)
+            target_length = max(len(mix), len(next_audio))
+            mix = pad_audio_to_length(mix, target_length)
+            next_audio = pad_audio_to_length(next_audio, target_length)
+            mix = mix + next_audio
+
+
+
+        # mix = pad_audio_to_length(mix, 46 * 16000)
+        
+        mix = torch.tensor(mix, dtype=torch.float)
+        mix_len = torch.tensor(len(mix)).long()
+
+        max_amp = torch.abs(mix).max().item()
+
+        # mix_scaling = 1 / max_amp * 0.9
+        # mix = mix_scaling * mix
+
+
+
+        # f = f"{self.tmp_dir}/{index}.wav"
+        # sf.write(f, mix, 16000)
+        # with open(self.manifest_tmp, 'a') as fp:
+        #     tmp = {"audio_filepath": f, "speaker": target_speaker, "duration": mix_len.item()/16000, "text": sample.text_raw, "enrollment": self.manifest_processor.collection[enrollment_index].audio_file}
+        #     print(tmp)
+        #     fp.write(json.dumps(tmp) + "\n")
+
+
+        if self.return_sample_id:
+            output = mix, mix_len, text, text_len, enroll_pt, enroll_pt_len, index
+        else:
+            output = mix, mix_len, text, text_len, enroll_pt, enroll_pt_len
+
+        return output
+
+    def _collate_fn(self, batch):
+        # to change
+        return _speech_embedding_collate_fn(batch, pad_id=self.manifest_processor.pad_id)
+
+def _rescale(x, gain):
+    x = x.unsqueeze(0)
+    EPS = 1e-14
+    avg_amplitude = torch.mean(torch.abs(x), dim=1, keepdim=True)
+    normalized = x / (avg_amplitude + EPS)
+    out = 10 ** (gain / 20) * normalized
+    out = out.squeeze(0)
+    return out
+
+class StaticTargetAudioToBPEDataset(AudioToBPEDataset):
+    """
+    """
+
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        """Returns definitions of module output ports.
+               """
+        output = super().output_types
+        sample_id = output.pop('sample_id')
+        output['speaker_features'] = NeuralType(('B', 'T'), AudioSignal())
+        output['features_lengths'] = NeuralType(tuple('B'), LengthsType())
+        output['sample_id'] = sample_id
+        return output
+
+    def __init__(
+        self,
+        manifest_filepath: str,
+        tokenizer: 'nemo.collections.common.tokenizers.TokenizerSpec',
+        sample_rate: int,
+        int_values: bool = False,
+        augmentor: 'nemo.collections.asr.parts.perturb.AudioAugmentor' = None,
+        max_duration: Optional[int] = None,
+        min_duration: Optional[int] = None,
+        max_utts: int = 0,
+        trim: bool = False,
+        use_start_end_token: bool = True,
+        return_sample_id: bool = False,
+        num_sources: int = 2,
+    ):
+        keep_fields = [
+            "other_audio_files",
+            "other_durations",
+            "scale_factors",
+        ]
+        
+        super().__init__(
+            manifest_filepath=manifest_filepath,
+            tokenizer=tokenizer,
+            sample_rate=sample_rate,
+            int_values=int_values,
+            augmentor=augmentor,
+            max_duration=max_duration,
+            min_duration=min_duration,
+            max_utts=max_utts,
+            trim=trim,
+            use_start_end_token=use_start_end_token,
+            return_sample_id=return_sample_id,
+            index_by_speaker_id=False,
+            keep_fields=keep_fields,
+        )  # inits  ASRManifestProcessor
+
+
+        # self.tmp_dir= '/home/yangzhang/code/ts_asr/data/'
+        # if "train" in manifest_filepath:
+        #     self.tmp_dir += "train/"
+        # else:
+        #     self.tmp_dir += "eval/"
+        # self.manifest_tmp= self.tmp_dir + '/manifest.json'
+        # os.makedirs(self.tmp_dir, exist_ok=True)
+        # with open(self.manifest_tmp, 'w') as fp:
+        #     pass
+        
+        self.manifest_filepath = manifest_filepath
+        self.num_sources = num_sources
+
+
+    def __getitem__(self, index):
+        sample = self.manifest_processor.collection[index]
+
+        
+        other_audio_files = sample.other_audio_files
+        other_durations = sample.other_durations
+        scale_factors = sample.scale_factors
+        
+
+        target_pt, target_pt_len, text, text_len = super().__getitem__(index)[:4]
+
+        overlap_audio_files = other_audio_files[:-1]
+        enrollment_audio_file = other_audio_files[-1]
+        overlap_durations = other_durations[:-1]
+        enrollment_duration = other_durations[-1]
+
+        overlapping_pts = [self.featurizer.process(
+            x, duration=y, trim=self.trim, orig_sr=sample.orig_sr) for x, y in zip(overlap_audio_files, overlap_durations)]
+        
+        enroll_pt = self.featurizer.process(
+            enrollment_audio_file, duration=enrollment_duration, trim=self.trim, orig_sr=sample.orig_sr)
+
+        enroll_pt_len = torch.tensor(enroll_pt.shape[0]).long()
+
+        target_pt *= scale_factors[0]
+        for i in range(len(overlapping_pts)):
+            overlapping_pts[i] *= scale_factors[1:][i]
+        
+
+
+        features_list = [target_pt] + overlapping_pts
+        features_lengths = [torch.tensor(x.shape[0]).long() for x in features_list]
+        ll = torch.max(torch.stack(features_lengths)).item()
+        mix_len = torch.tensor(ll).long()
+
+
+        mix = torch.zeros(ll, device=features_list[0].device)
+        rand_idx = random.randint(0, ll - features_list[0].shape[0])
+        mix[rand_idx: rand_idx + features_list[0].shape[0]] = features_list[0]
+
+        for x in features_list[1:]:
+            rand_idx = random.randint(0, ll - x.shape[0])
+            mix[rand_idx: rand_idx + x.shape[0]] += x
+
+
+        def pad_audio_to_length(audio, target_len): # target_len in samples 
+            if target_len <= len(audio):
+                return audio
+            audio = np.append(audio, np.zeros(target_len - len(audio)))
+            return audio
+
+        
+        # mix = pad_audio_to_length(mix.numpy(), 46 * 16000)
+        # mix = torch.tensor(mix, dtype=torch.float)
+        # mix_len = torch.tensor(len(mix)).long()
+        max_amp = torch.abs(mix).max().item()
+
+        # mix_scaling = 1 / max_amp * 0.9
+        # mix = mix_scaling * mix
+
+
+        # for generating eval data
+        # f = f"{self.tmp_dir}/{index}.wav"
+        # sf.write(f, mix, 16000)
+        # with open(self.manifest_tmp, 'a') as fp:
+        #     tmp = {"audio_filepath": f, "duration": len(mix)/16000, "text": sample.text_raw, "enroll": enrollment_audio_file}
+        #     print(tmp)
+        #     fp.write(json.dumps(tmp) + "\n")
+
+        if self.return_sample_id:
+            output = mix, mix_len, text, text_len, enroll_pt, enroll_pt_len, index
+        else:
+            output = mix, mix_len, text, text_len, enroll_pt, enroll_pt_len 
+
+        return output
+
+    def _collate_fn(self, batch):
+        # to change
+        return _speech_embedding_collate_fn(batch, pad_id=self.manifest_processor.pad_id)
 
 
 class _TarredAudioToTextDataset(IterableDataset):
@@ -579,10 +999,14 @@ class _TarredAudioToTextDataset(IterableDataset):
                 The benefit of replication is that it allows each node to sample data points from the entire
                 dataset independently of other nodes, and reduces dependence on value of `shuffle_n`.
 
-                Note: Replicated strategy allows every node to sample the entire set of available tarfiles,
-                and therefore more than one node may sample the same tarfile, and even sample the same
-                data points! As such, there is no assured guarantee that all samples in the dataset will be
-                sampled at least once during 1 epoch.
+                .. warning::
+                    Replicated strategy allows every node to sample the entire set of available tarfiles,
+                    and therefore more than one node may sample the same tarfile, and even sample the same
+                    data points! As such, there is no assured guarantee that all samples in the dataset will be
+                    sampled at least once during 1 epoch. Scattered strategy, on the other hand, on specific
+                    occasions (when the number of shards is not divisible with ``world_size``), will not sample
+                    the entire dataset. For these reasons it is not advisable to use tarred datasets as validation
+                    or test datasets.
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
         return_sample_id (bool): whether to return the sample_id as a part of each sample
@@ -840,10 +1264,14 @@ class TarredAudioToCharDataset(_TarredAudioToTextDataset):
                 The benefit of replication is that it allows each node to sample data points from the entire
                 dataset independently of other nodes, and reduces dependence on value of `shuffle_n`.
 
-                Note: Replicated strategy allows every node to sample the entire set of available tarfiles,
-                and therefore more than one node may sample the same tarfile, and even sample the same
-                data points! As such, there is no assured guarantee that all samples in the dataset will be
-                sampled at least once during 1 epoch.
+                .. warning::
+                    Replicated strategy allows every node to sample the entire set of available tarfiles,
+                    and therefore more than one node may sample the same tarfile, and even sample the same
+                    data points! As such, there is no assured guarantee that all samples in the dataset will be
+                    sampled at least once during 1 epoch. Scattered strategy, on the other hand, on specific
+                    occasions (when the number of shards is not divisible with ``world_size``), will not sample
+                    the entire dataset. For these reasons it is not advisable to use tarred datasets as validation
+                    or test datasets.
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
         return_sample_id (bool): whether to return the sample_id as a part of each sample
@@ -967,10 +1395,13 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
                 The benefit of replication is that it allows each node to sample data points from the entire
                 dataset independently of other nodes, and reduces dependence on value of `shuffle_n`.
 
-                Note: Replicated strategy allows every node to sample the entire set of available tarfiles,
-                and therefore more than one node may sample the same tarfile, and even sample the same
-                data points! As such, there is no assured guarantee that all samples in the dataset will be
-                sampled at least once during 1 epoch.
+                .. warning:: Replicated strategy allows every node to sample the entire set of available tarfiles,
+                    and therefore more than one node may sample the same tarfile, and even sample the same
+                    data points! As such, there is no assured guarantee that all samples in the dataset will be
+                    sampled at least once during 1 epoch. Scattered strategy, on the other hand, on specific
+                    occasions (when the number of shards is not divisible with ``world_size``), will not sample
+                    the entire dataset. For these reasons it is not advisable to use tarred datasets as validation
+                    or test datasets.
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
         return_sample_id (bool): whether to return the sample_id as a part of each sample

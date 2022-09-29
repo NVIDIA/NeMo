@@ -132,6 +132,74 @@ def get_bpe_dataset(
     return dataset
 
 
+def get_dynamic_target_audio_bpe_dataset(
+    config: dict,
+    tokenizer: 'TokenizerSpec',
+    augmentor: Optional['AudioAugmentor'] = None
+) -> audio_to_text.AudioToBPEDataset:
+    """
+    Instantiates a Byte Pair Encoding / Word Piece Encoding based AudioToBPEDataset.
+
+    Args:
+        config: Config of the AudioToBPEDataset.
+        tokenizer: An instance of a TokenizerSpec object.
+        augmentor: Optional AudioAugmentor object for augmentations on audio data.
+
+    Returns:
+        An instance of AudioToBPEDataset.
+    """
+    dataset = audio_to_text.DynamicTargetAudioToBPEDataset(
+        manifest_filepath=config['manifest_filepath'],
+        tokenizer=tokenizer,
+        sample_rate=config['sample_rate'],
+        int_values=config.get('int_values', False),
+        augmentor=augmentor,
+        max_duration=config.get('max_duration', None),
+        min_duration=config.get('min_duration', None),
+        max_utts=config.get('max_utts', 0),
+        trim=config.get('trim_silence', False),
+        use_start_end_token=config.get('use_start_end_token', True),
+        return_sample_id=config.get('return_sample_id', False),
+        num_sources=config.get('num_sources', 2),
+        mixing_portion=config.get('mixing_portion', 1.0),
+    )
+    return dataset
+
+
+
+def get_static_target_audio_bpe_dataset(
+    config: dict,
+    tokenizer: 'TokenizerSpec',
+    augmentor: Optional['AudioAugmentor'] = None,
+) -> audio_to_text.AudioToBPEDataset:
+    """
+    Instantiates a Byte Pair Encoding / Word Piece Encoding based AudioToBPEDataset.
+
+    Args:
+        config: Config of the AudioToBPEDataset.
+        tokenizer: An instance of a TokenizerSpec object.
+        augmentor: Optional AudioAugmentor object for augmentations on audio data.
+
+    Returns:
+        An instance of AudioToBPEDataset.
+    """
+    dataset = audio_to_text.StaticTargetAudioToBPEDataset(
+        manifest_filepath=config['manifest_filepath'],
+        tokenizer=tokenizer,
+        sample_rate=config['sample_rate'],
+        int_values=config.get('int_values', False),
+        augmentor=augmentor,
+        max_duration=config.get('max_duration', None),
+        min_duration=config.get('min_duration', None),
+        max_utts=config.get('max_utts', 0),
+        trim=config.get('trim_silence', False),
+        num_sources = config['num_sources'],
+        use_start_end_token=config.get('use_start_end_token', True),
+        return_sample_id=config.get('return_sample_id', False),
+    )
+    return dataset
+
+
 def get_tarred_dataset(
     config: dict,
     shuffle_n: int,
@@ -161,6 +229,12 @@ def get_tarred_dataset(
     datasets = []
     tarred_audio_filepaths = convert_to_config_list(tarred_audio_filepaths)
     manifest_filepaths = convert_to_config_list(manifest_filepaths)
+
+    bucketing_weights = config.get('bucketing_weights', None)  # For upsampling buckets
+    if bucketing_weights:
+        for idx, weight in enumerate(bucketing_weights):
+            if not isinstance(weight, int) or weight <= 0:
+                raise ValueError(f"bucket weights must be positive integers")
 
     if len(manifest_filepaths) != len(tarred_audio_filepaths):
         raise ValueError(
@@ -216,8 +290,10 @@ def get_tarred_dataset(
                 world_size=world_size,
                 return_sample_id=config.get('return_sample_id', False),
             )
-
-        datasets.append(dataset)
+        if bucketing_weights:
+            [datasets.append(dataset) for _ in range(bucketing_weights[dataset_idx])]
+        else:
+            datasets.append(dataset)
 
     return get_chain_dataset(datasets=datasets, ds_config=config)
 
@@ -404,17 +480,31 @@ def get_chain_dataset(datasets, ds_config):
 
 def calc_bucketing_batch_sizes(ds_config, datasets_len):
     bucketing_batch_size = ds_config['bucketing_batch_size']
+    bucketing_weights = ds_config.get('bucketing_weights', None)  # To adjust for upsampled buckets
+
+    bucketing_batch_sizes = []
+
     if ds_config['batch_size'] != 1:
         raise ValueError(
             f"batch_size should be set to one when bucketing_batch_size is set and adaptive bucketing is enabled (batch_size={ds_config['batch_size']}!"
         )
-    if type(bucketing_batch_size) == int:
-        bucketing_batch_sizes = []
-        for idx in range(datasets_len):
-            scale_factor = datasets_len - idx
-            bucketing_batch_sizes.append(scale_factor * bucketing_batch_size)
-    elif isinstance(bucketing_batch_size, ListConfig) or isinstance(bucketing_batch_size, list):
-        bucketing_batch_sizes = bucketing_batch_size
+    if type(bucketing_batch_size) == int:  # linear scaling
+        if bucketing_weights:  # Want same batchsize for the same duplicated bucket
+            for idx, weight in enumerate(bucketing_weights):
+                scale_factor = datasets_len - idx
+                [bucketing_batch_sizes.append(scale_factor * bucketing_batch_size) for _ in range(weight)]
+        else:
+            for idx in range(datasets_len):
+                scale_factor = datasets_len - idx
+                bucketing_batch_sizes.append(scale_factor * bucketing_batch_size)
+    elif isinstance(bucketing_batch_size, ListConfig) or isinstance(
+        bucketing_batch_size, list
+    ):  # assigned bucket sizes
+        if bucketing_weights:  # Want same batchsize for same duplicated bucket
+            for idx, weight in enumerate(bucketing_weights):
+                [bucketing_batch_sizes.append(bucketing_batch_size[idx]) for _ in range(weight)]
+        else:
+            bucketing_batch_sizes = bucketing_batch_size
     else:
         raise ValueError(
             f"bucketing_batch_size should be an integer or a list (bucketing_batch_size={bucketing_batch_size})!"

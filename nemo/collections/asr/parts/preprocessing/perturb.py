@@ -322,16 +322,26 @@ class ImpulsePerturbation(Perturbation):
         self._rng = random.Random() if rng is None else rng
 
     def perturb(self, data):
+
+        if isinstance(data, list):
+            data_l = data
+        else:
+            data_l = [data]
         impulse = read_one_audiosegment(
             self._manifest,
-            data.sample_rate,
+            data_l[0].sample_rate,
             self._rng,
             tarred_audio=self._tarred_audio,
             audio_dataset=self._data_iterator,
         )
         if not self._shift_impulse:
             impulse_norm = (impulse.samples - min(impulse.samples)) / (max(impulse.samples) - min(impulse.samples))
-            data._samples = signal.fftconvolve(data._samples, impulse_norm, "same")
+
+            for i in range(len(data_l)):
+                data_l[i]._samples = signal.fftconvolve(data_l[i]._samples, impulse_norm, "same")
+                data_l[i]._samples = data_l[i]._samples / max(
+                    abs(data_l[i]._samples)
+                )  # normalize data samples to [-1,1] after rir convolution to avoid nans with fp16 training
         else:
             # Find peak and shift peak to left
             impulse_norm = (impulse.samples - min(impulse.samples)) / (max(impulse.samples) - min(impulse.samples))
@@ -339,7 +349,12 @@ class ImpulsePerturbation(Perturbation):
 
             impulse_resp = impulse_norm[max_ind:]
             delay_after = len(impulse_resp)
-            data._samples = signal.fftconvolve(data._samples, impulse_resp, "full")[:-delay_after]
+
+            for i in range(len(data_l)):
+                data_l[i]._samples = signal.fftconvolve(data_l[i]._samples, impulse_resp, "full")[:-delay_after]
+                data_l[i]._samples = data_l[i]._samples / max(
+                    abs(data_l[i]._samples)
+                )  # normalize data samples to [-1,1] after rir convolution to avoid nans with fp16 training
 
 
 class ShiftPerturbation(Perturbation):
@@ -458,13 +473,15 @@ class NoisePerturbation(Perturbation):
             data._samples += noise._samples
 
     def perturb_with_foreground_noise(
-        self, data, noise, data_rms=None, max_noise_dur=2, max_additions=1,
+        self, data, noise, data_rms=None, max_noise_dur=2, max_additions=1, max_gain_db=None
     ):
         snr_db = self._rng.uniform(self._min_snr_db, self._max_snr_db)
         if not data_rms:
             data_rms = data.rms_db
 
-        noise_gain_db = min(data_rms - noise.rms_db - snr_db, self._max_gain_db)
+        noise_gain_db = min(
+            data_rms - noise.rms_db - snr_db, self._max_gain_db if max_gain_db is None else max_gain_db
+        )
         n_additions = self._rng.randint(1, max_additions)
 
         for i in range(n_additions):
@@ -625,6 +642,7 @@ class RirAndNoisePerturbation(Perturbation):
         bg_perturber.perturb_with_input_noise(data, noise, data_rms=data_rms)
 
 
+
 class TranscodePerturbation(Perturbation):
     """
         Audio codec augmentation. This implementation uses sox to transcode audio with low rate audio codecs,
@@ -749,10 +767,10 @@ class AudioAugmentor(object):
         self._rng = random.Random() if rng is None else rng
         self._pipeline = perturbations if perturbations is not None else []
 
-    def perturb(self, segment):
+    def perturb(self, segment, *args, **kwargs):
         for (prob, p) in self._pipeline:
             if self._rng.random() < prob:
-                p.perturb(segment)
+                p.perturb(segment, *args, **kwargs)
         return
 
     def max_augmentation_length(self, length):
