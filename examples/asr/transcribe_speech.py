@@ -66,7 +66,9 @@ python transcribe_speech.py \
     output_filename="" \
     batch_size=32 \
     cuda=0 \
-    amp=True
+    amp=True \
+    append_pred=False \
+    pred_name_postfix=conformer
 """
 
 
@@ -82,6 +84,8 @@ class TranscriptionConfig:
     output_filename: Optional[str] = None
     batch_size: int = 32
     num_workers: int = 0
+    append_pred: bool = False  # Sets mode of work, is set to True will add new transcriptions to existing .JSON file.
+    pred_name_postfix: Optional[str] = None  # If you need to use another model name, rather than standard one.
 
     # Set `cuda` to int to define CUDA device. If 'None', will look for CUDA
     # device anyway, and do inference on CPU only if CUDA device is not found.
@@ -89,6 +93,8 @@ class TranscriptionConfig:
     cuda: Optional[int] = None
     amp: bool = False
     audio_type: str = "wav"
+    
+
 
     # Recompute model transcription, even if the output folder exists with scores.
     overwrite_transcripts: bool = True
@@ -157,8 +163,13 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         else:
             asr_model.change_decoding_strategy(cfg.ctc_decoding)
 
-    # get audio filenames
-    if cfg.audio_dir is not None:
+    # get audio filenames (if append_pred is True -> require manifest)
+    # if cfg.audio_dir is not None and cfg.append_pred:
+    #     logging.info(f'If you setting append_pred to True, then manifest be provided')
+    #todo
+
+    
+    if cfg.audio_dir is not None and not cfg.append_pred:
         filepaths = list(glob.glob(os.path.join(cfg.audio_dir, f"**/*.{cfg.audio_type}"), recursive=True))
     else:
         # get filenames from manifest
@@ -199,6 +210,8 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         # create default output filename
         if cfg.audio_dir is not None:
             cfg.output_filename = os.path.dirname(os.path.join(cfg.audio_dir, '.')) + '.json'
+        elif cfg.pred_name_postfix is None:
+            cfg.output_filename = cfg.dataset_manifest.replace('.json', f'_{cfg.pred_name_postfix}.json')
         else:
             cfg.output_filename = cfg.dataset_manifest.replace('.json', f'_{model_name}.json')
 
@@ -210,6 +223,9 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         )
 
         return cfg
+
+    if cfg.append_pred and cfg.overwrite_transcripts:
+        logging.warning(f"Nothing will be overwritten, as append_pred set to True")
 
     # transcribe audio
     with autocast():
@@ -242,17 +258,48 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     if type(transcriptions) == tuple and len(transcriptions) == 2:
         transcriptions = transcriptions[0]
     # write audio transcriptions
+
+
+
+    if cfg.append_pred:
+        logging.info(f'Transcripts will be written in "{cfg.output_filename}" file')
+        if cfg.pred_name_postfix is not None:
+            pred_by_model_name = cfg.pred_name_postfix
+        else:
+            pred_by_model_name = model_name
+        pred_text_attr_name = 'pred_text_' + pred_by_model_name
+    else:
+        pred_text_attr_name = 'pred_text'
     with open(cfg.output_filename, 'w', encoding='utf-8') as f:
         if cfg.audio_dir is not None:
             for idx, text in enumerate(transcriptions):
-                item = {'audio_filepath': filepaths[idx], 'pred_text': text}
+                item = {'audio_filepath': filepaths[idx], pred_text_attr_name: text}
                 f.write(json.dumps(item) + "\n")
         else:
             with open(cfg.dataset_manifest, 'r') as fr:
                 for idx, line in enumerate(fr):
                     item = json.loads(line)
-                    item['pred_text'] = transcriptions[idx]
+                    item[pred_text_attr_name] = transcriptions[idx]
                     f.write(json.dumps(item) + "\n")
+        #with open(cfg.output_filename, 'r', encoding='utf-8') as fo:
+            # with open(cfg.dataset_manifest, 'w') as fd:
+            #     for idx, line in enumerate(fo):
+            #         item = json.loads(line)
+            #         fd.write(json.dumps(item) + "\n")
+         #test it please, and if it safe then uncomment (this section is for convenient bash-script using)   
+
+    # else:
+    #     with open(cfg.output_filename, 'w', encoding='utf-8') as f:
+    #         if cfg.audio_dir is not None:
+    #             for idx, text in enumerate(transcriptions):
+    #                 item = {'audio_filepath': filepaths[idx], 'pred_text': text}
+    #                 f.write(json.dumps(item) + "\n")
+    #         else:
+    #             with open(cfg.dataset_manifest, 'r') as fr:
+    #                 for idx, line in enumerate(fr):
+    #                     item = json.loads(line)
+    #                     item['pred_text'] = transcriptions[idx]
+    #                     f.write(json.dumps(item) + "\n")
 
     logging.info("Finished writing predictions !")
     return cfg
