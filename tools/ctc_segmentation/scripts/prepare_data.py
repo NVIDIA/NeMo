@@ -41,7 +41,7 @@ parser.add_argument("--in_text", type=str, default=None, help="Path to a text fi
 parser.add_argument("--output_dir", type=str, required=True, help="Path to output directory")
 parser.add_argument("--audio_dir", type=str, help="Path to folder with .mp3 or .wav audio files")
 parser.add_argument("--sample_rate", type=int, default=16000, help="Sampling rate used during ASR model training, Hz")
-parser.add_argument("--bit_depth", type=int, default=16, help="Sampling rate used during ASR model training, Hz")
+parser.add_argument("--bit_depth", type=int, default=16, help="Bit depth to use for processed audio files")
 parser.add_argument("--n_jobs", default=-2, type=int, help="The maximum number of concurrently running jobs")
 parser.add_argument(
     "--language",
@@ -65,7 +65,7 @@ parser.add_argument(
     default="",
     help="Additional symbols to use for \
     sentence split if eos sentence split resulted in sequence longer than --max_length. "
-    "Use '|' as a separator between symbols, for example: ';|:' ",
+    "Use '|' as a separator between symbols, for example: ';|:'. Use '\s' to split by space.",
 )
 parser.add_argument(
     "--use_nemo_normalization",
@@ -131,6 +131,10 @@ def split_text(
         use_nemo_normalization: Set to True to use NeMo normalization tool to convert numbers from written to spoken
             format. Normalization using num2words will be applied afterwards to make sure there are no numbers present
             in the text, otherwise they will be replaced with a space and that could deteriorate segmentation results.
+        n_jobs (if use_nemo_normalization=True): the maximum number of concurrently running jobs. If -1 all CPUs are used. If 1 is given,
+                no parallel computing code is used at all, which is useful for debugging. For n_jobs below -1,
+                (n_cpus + 1 + n_jobs) are used. Thus for n_jobs = -2, all CPUs but one are used.
+        batch_size (if use_nemo_normalization=True): Number of examples for each process
     """
     print(f"Splitting text in {in_file} into sentences.")
     with open(in_file, "r") as f:

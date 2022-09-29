@@ -136,7 +136,8 @@ def _apply_filters(
                 and len_diff_ratio <= max_len_diff_ratio
                 and item["end_CER"] <= max_edge_cer
                 and item["start_CER"] <= max_edge_cer
-                and (max_dur == -1 or (max_dur > -1 and duration < max_dur and duration > min_dur))
+                and (max_dur == -1 or (max_dur > -1 and duration < max_dur))
+                and duration > min_dur
             ):
                 remaining_duration += duration
                 f_out.write(json.dumps(item) + "\n")

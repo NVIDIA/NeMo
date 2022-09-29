@@ -104,4 +104,5 @@ python $SCRIPTS_DIR/cut_audio.py \
 --alignment=$OUTPUT_DIR/verified_segments \
 --threshold=$MIN_SCORE \
 --offset=$OFFSET \
---sample_rate=$SAMPLE_RATE || exit
+--sample_rate=$SAMPLE_RATE \
+--max_duration=$MAX_DURATION || exit
