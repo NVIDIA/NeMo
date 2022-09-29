@@ -439,8 +439,10 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             else:
                 bleu_score = 0.0
 
+            bleu_score = torch.FloatTensor([bleu_score]).to(self.device)
             # BLEU score is computed on global rank 0 only and then broadcasted to other ranks.
             torch.distributed.all_reduce(bleu_score, op=torch.distributed.ReduceOp.SUM)
+            bleu_score = bleu_score.cpu().item()
             loss_list.append(averaged_loss.cpu().numpy())
             bleu_score_list.append(bleu_score)
             if dataloader_idx == 0:
