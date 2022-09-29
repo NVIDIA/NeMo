@@ -480,7 +480,7 @@ class AppState(metaclass=Singleton):
     @nemo_file_folder.setter
     def nemo_file_folder(self, path: str):
         self._nemo_file_folder = path
-    
+
     @property
     def restore_attr_is_model_being_restored(self) -> bool:
         return self._restore_attr_is_model_being_restored
@@ -488,4 +488,3 @@ class AppState(metaclass=Singleton):
     @restore_attr_is_model_being_restored.setter
     def restore_attr_is_model_being_restored(self, restore: bool):
         self._restore_attr_is_model_being_restored = restore
-
