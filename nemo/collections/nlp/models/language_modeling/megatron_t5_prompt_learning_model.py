@@ -407,7 +407,6 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             'predicted_token_ids': processed_preds,
             'loss': loss_mean,
             'labels': processed_labels,
-            
         }
 
     def validation_epoch_end(self, outputs):
@@ -516,14 +515,18 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             # Sentencepiece case
             if hasattr(self.tokenizer, 'special_token_to_id'):
                 pred = [
-                    id for id in pred if id not in self.tokenizer.special_token_to_id.values()
+                    id
+                    for id in pred
+                    if id not in self.tokenizer.special_token_to_id.values()
                     and id not in self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
-                ] # delete the sentinel token at the beginning of prediction
+                ]  # delete the sentinel token at the beginning of prediction
             else:
                 pred = [
-                    id for id in pred if id not in self.tokenizer.tokenizer.additional_special_tokens_ids
+                    id
+                    for id in pred
+                    if id not in self.tokenizer.tokenizer.additional_special_tokens_ids
                     and id not in self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
-                ] # delete the sentinel token at the beginning of prediction
+                ]  # delete the sentinel token at the beginning of prediction
 
             enc_input = [
                 id for id in enc_input if id not in self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
@@ -537,12 +540,16 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             if label:
                 if hasattr(self.tokenizer, 'special_token_to_id'):
                     label = [
-                        id for id in label if id not in self.tokenizer.special_token_to_id.values()
+                        id
+                        for id in label
+                        if id not in self.tokenizer.special_token_to_id.values()
                         and id not in self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
                     ]
                 else:
                     label = [
-                        id for id in label if id not in self.tokenizer.tokenizer.additional_special_tokens_ids
+                        id
+                        for id in label
+                        if id not in self.tokenizer.tokenizer.additional_special_tokens_ids
                         and id not in self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
                     ]  # delete the sentinel token at the beginning of label
 
