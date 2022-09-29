@@ -8,7 +8,7 @@ pipeline {
   }
   options {
     timeout(time: 2, unit: 'HOURS')
-    disableConcurrentBuilds()
+    disableConcurrentBuilds(abortPrevious: true)
   }
 
   stages {
@@ -23,6 +23,12 @@ pipeline {
     stage('nvidia-smi'){
       steps{
         sh 'nvidia-smi'
+      }
+    }
+
+    stage('Pin Transformers Version (Hotfix)') {
+      steps{
+        sh 'pip install transformers==4.21.2'
       }
     }
 
@@ -41,7 +47,7 @@ pipeline {
 
     stage('Install test requirements') {
       steps {
-        sh 'apt-get update && apt-get install -y bc && apt-get install -y espeak-ng && pip install -r requirements/requirements_test.txt'
+        sh 'apt-get update && apt-get install -y bc && pip install -r requirements/requirements_test.txt'
       }
     }
 
@@ -353,6 +359,24 @@ pipeline {
             sh 'rm -rf examples/speaker_tasks/recognition/speaker_recognition_results'
           }
         }
+        
+        stage('Speaker Diarization') {
+          steps {
+            sh 'python examples/speaker_tasks/diarization/neural_diarizer/multiscale_diar_decoder.py \
+            model.diarizer.speaker_embeddings.model_path=titanet_large \
+            model.train_ds.batch_size=5 \
+            model.validation_ds.batch_size=5 \
+            model.train_ds.emb_dir=examples/speaker_tasks/diarization/speaker_diarization_results \
+            model.validation_ds.emb_dir=examples/speaker_tasks/diarization/speaker_diarization_results \
+            model.train_ds.manifest_filepath=/home/TestData/an4_diarizer/simulated_train/msdd_data.50step.json \
+            model.validation_ds.manifest_filepath=/home/TestData/an4_diarizer/simulated_valid/msdd_data.50step.json \
+            trainer.devices=[1] \
+            trainer.accelerator="gpu" \
+            +trainer.fast_dev_run=True \
+            exp_manager.exp_dir=examples/speaker_tasks/diarization/speaker_diarization_results'
+            sh 'rm -rf examples/speaker_tasks/diarization/speaker_diarization_results'
+          }
+        }
 
         stage('Speech to Label') {
           steps {
@@ -375,11 +399,10 @@ pipeline {
           }
         }
 
-
         stage('Speaker Diarization with ASR Inference') {
           steps {
             sh 'python examples/speaker_tasks/diarization/clustering_diarizer/offline_diar_with_asr_infer.py \
-	    diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
+	        diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
             diarizer.speaker_embeddings.model_path=/home/TestData/an4_diarizer/spkr.nemo \
             diarizer.speaker_embeddings.parameters.save_embeddings=True \
             diarizer.speaker_embeddings.parameters.window_length_in_sec=[1.5] \
@@ -392,18 +415,30 @@ pipeline {
           }
         }
 
-        stage('Speaker Diarization Inference') {
+        stage('Clustering Diarizer Inference') {
           steps {
             sh 'python examples/speaker_tasks/diarization/clustering_diarizer/offline_diar_infer.py \
-	    diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
+	        diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
             diarizer.speaker_embeddings.model_path=/home/TestData/an4_diarizer/spkr.nemo \
             diarizer.speaker_embeddings.parameters.save_embeddings=True \
             diarizer.speaker_embeddings.parameters.window_length_in_sec=1.5 \
             diarizer.speaker_embeddings.parameters.shift_length_in_sec=0.75 \
             diarizer.speaker_embeddings.parameters.multiscale_weights=null \
             diarizer.vad.model_path=/home/TestData/an4_diarizer/MatchboxNet_VAD_3x2.nemo \
-            diarizer.out_dir=examples/speaker_tasks/diarization/speaker_diarization_results'
-            sh 'rm -rf examples/speaker_tasks/diarization/speaker_diarization_results'
+            diarizer.out_dir=examples/speaker_tasks/diarization/clustering_diarizer_results'
+            sh 'rm -rf examples/speaker_tasks/diarization/clustering_diarizer_results'
+          }
+        }
+	
+        stage('Neural Diarizer Inference') {
+          steps {
+            sh 'python examples/speaker_tasks/diarization/neural_diarizer/multiscale_diar_decoder_infer.py \
+            diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
+            diarizer.msdd_model.model_path=/home/TestData/an4_diarizer/diar_msdd_telephonic.nemo \
+            diarizer.speaker_embeddings.parameters.save_embeddings=True \
+            diarizer.vad.model_path=/home/TestData/an4_diarizer/MatchboxNet_VAD_3x2.nemo \
+            diarizer.out_dir=examples/speaker_tasks/diarization/neural_diarizer_results'
+            sh 'rm -rf examples/speaker_tasks/diarization/neural_diarizer_results'
           }
         }
 	
@@ -3598,10 +3633,10 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         trainer.devices=2 \
         trainer.accelerator=gpu \
         trainer.log_every_n_steps=1 \
-        trainer.val_check_interval=10 \
+        trainer.val_check_interval=2 \
         trainer.limit_val_batches=2 \
         trainer.accumulate_grad_batches=1 \
-        trainer.max_steps=10 \
+        trainer.max_steps=3 \
         trainer.precision=16 \
         trainer.gradient_clip_val=1.0 \
         exp_manager.exp_dir=examples/nlp/language_modeling/bart_pretrain_results \
@@ -3621,15 +3656,15 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.decoder.bias_activation_fusion=False \
         model.decoder.activations_checkpoint_method='block' \
         model.decoder.activations_checkpoint_num_layers=1 \
-        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document,.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document]"
+        model.data.data_prefix='{train:[1.0,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document],test:[/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document], validation:[/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document]}'"
         sh "python examples/nlp/language_modeling/megatron_bart_pretraining.py \
         trainer.devices=2 \
         trainer.accelerator=gpu \
         trainer.log_every_n_steps=1 \
-        trainer.val_check_interval=10 \
-        trainer.limit_val_batches=2 \
+        trainer.val_check_interval=2 \
+        trainer.limit_val_batches=1 \
         trainer.accumulate_grad_batches=1 \
-        trainer.max_steps=10 \
+        trainer.max_steps=6 \
         trainer.precision=16 \
         trainer.gradient_clip_val=1.0 \
         exp_manager.exp_dir=examples/nlp/language_modeling/bart_pretrain_results \
@@ -3650,7 +3685,7 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         model.decoder.bias_activation_fusion=False \
         model.decoder.activations_checkpoint_method='block' \
         model.decoder.activations_checkpoint_num_layers=1 \
-        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document,.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document]"
+        model.data.data_prefix='{train:[1.0,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document],test:[/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document], validation:[/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document]}'"
         sh "rm -rf examples/nlp/language_modeling/bart_pretrain_results"
       }
     }
