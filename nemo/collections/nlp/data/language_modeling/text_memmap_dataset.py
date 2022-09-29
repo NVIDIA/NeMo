@@ -145,7 +145,7 @@ class TextMemMapDataset(Dataset):
 
         if os.path.exists(idx_fn):
             # load index file into memory map
-            midx = np.load(idx_fn, allow_pickle=True, mmap_mode='r')
+            midx = np.load(idx_fn + ".npy", allow_pickle=True, mmap_mode='r')
             # test for header
             if len(midx) < self._header_lines:
                 raise RuntimeError(f"Missing header, expected {self._header_lines} header lines")
@@ -231,7 +231,7 @@ def _build_memmap_index_files(newline_int, fn):
 
         data = dict(newline_int=newline_int, version=__idx_version__)
         # save index as numpy array to enable memmap reading
-        np.save(idx_fn, midx, allow_pickle=True)
+        np.save(idx_fn + ".npy", midx, allow_pickle=True)
         pickle.dump(data, open(idx_fn + ".info", "wb"))
         mdata._mmap.close()
         del mdata
