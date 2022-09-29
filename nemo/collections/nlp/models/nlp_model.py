@@ -86,6 +86,8 @@ class NLPModel(ModelPT, Exportable):
                 )
                 # explicitly setting the is_model_being_restored to true becuase in above model
                 # initialization in get_lm_model function these states are being set to false
+                # and to reinitialize the model below at line super().__init__(cfg, trainer)
+                # the state is_model_being_restored needs to be true
                 AppState().is_model_being_restored = True
                 # set the tokenizer if it is not initialized explicitly
                 if (
