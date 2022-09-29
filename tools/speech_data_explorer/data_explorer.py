@@ -24,7 +24,6 @@ import math
 import operator
 import os
 import pickle
-from ast import Compare
 from collections import defaultdict
 from os.path import expanduser
 from pathlib import Path
@@ -80,7 +79,7 @@ def split_filter_part(filter_part):
 
 
 # standard command-line arguments parser
-def parse_args(comparison_mode):
+def parse_args():
     parser = argparse.ArgumentParser(description='Speech Data Explorer')
     parser.add_argument(
         'manifest', help='path to JSON manifest file',
@@ -122,7 +121,7 @@ def parse_args(comparison_mode):
     if args.names_compared is not None:
         comparison_mode = True
         #check
-    print(args)
+    print(args, comparison_mode)
     return args, comparison_mode
 
 
@@ -150,15 +149,15 @@ def load_data(
     estimate_audio=False,
     vocab=None,
     audio_base_path=None,
-    compare=False,
+    comparison_moode=False,
     names=None,
 ):
-    if compare:
+    if comparison_moode:
         if names is None:
             logging.error(f'Please, specify names of compared models')
         name_1, name_2 = names
 
-    if not compare:
+    if not comparison_moode:
         if vocab is not None:
             # load external vocab
             vocabulary_ext = {}
@@ -335,7 +334,7 @@ def load_data(
         alphabet,
         match_vocab,
     ) = append_data(data_filename, estimate_audio, field_name='pred_text')
-    if compare:
+    if comparison_moode:
         (
             vocabulary_data_1,
             metrics_available_1,
@@ -372,8 +371,9 @@ def load_data(
             alphabet_2,
             match_vocab_2,
         ) = append_data(data_filename, estimate_audio, field_name=name_2)
+        
 
-    if not compare:
+    if not comparison_moode:
         if vocab is not None:
             for item in vocabulary_data:
                 item['OOV'] = item['word'] not in vocabulary_ext
@@ -420,7 +420,7 @@ def load_data(
 
     num_hours /= 3600.0
 
-    if not compare:
+    if not comparison_moode:
         if not disable_caching:
             with open(pickle_filename, 'wb') as f:
                 pickle.dump(
@@ -428,7 +428,7 @@ def load_data(
                     f,
                     pickle.HIGHEST_PROTOCOL,
                 )
-    if compare:
+    if comparison_moode:
         return (
             data,
             wer,
@@ -583,7 +583,6 @@ else:
         comparison_mode,
         args.names_compared,
     )
-
 print('Starting server...')
 app = dash.Dash(
     __name__,
@@ -922,7 +921,7 @@ if comparison_mode:
 
     for i in range(len(vocabulary_1)):
         vocabulary_1[i].update(vocabulary_2[i])
-
+        
     def prepare_data(df, name1=model_name_1, name2=model_name_2):
         res = pd.DataFrame()
         tmp = df['word']
@@ -945,21 +944,43 @@ if comparison_mode:
     @app.callback(
         Output('voc_graph', 'figure'),
         [
-            Input('datatable-advanced-filtering', 'filter_query'),
             Input('xaxis-column', 'value'),
             Input('yaxis-column', 'value'),
             Input('color-column', 'value'),
             Input('size-column', 'value'),
             Input("datatable-advanced-filtering", "derived_virtual_data"),
+            Input("dot_spacing", 'value'),
+            Input("radius", 'value'),
         ],
         prevent_initial_call=False,
     )
-    def draw_vocab(filter_query, Ox, Oy, color, size, data, value=None):  # fix ox draw
+    def draw_vocab(Ox, Oy, color, size, data, dot_spacing='no', rad=0.01):
         import pandas as pd
+        import random
+        import math
 
+        #logging.error(data)
         df = pd.DataFrame.from_records(data)
-
+    
+        
         res = prepare_data(df)
+        res_spacing = res.copy(deep=True)
+
+        if dot_spacing == 'yes':
+            rad = float(rad)
+            if Ox[0] == 'a' or 'c':
+                tmp = []
+                for i in range(len(res[Ox])):
+                    tmp.append(res[Ox][i] + rad * random.randrange(1, 10) * math.cos(random.randrange(1, len(res[Ox])) * 2 * math.pi/len(res[Ox]))) 
+                res_spacing[Ox] = tmp
+            if Ox[0] == 'a' or 'c':
+                tmp = []
+                for i in range(len(res[Oy])):
+                    tmp.append(res[Oy][i] + rad * random.randrange(1, 10) * math.sin(random.randrange(1, len(res[Oy])) * 2 * math.pi/len(res[Oy]))) 
+                res_spacing[Oy] = tmp
+
+            res = res_spacing
+            
 
         fig = px.scatter(
             res,
@@ -1037,6 +1058,9 @@ if comparison_mode:
                     placeholder='Select what will encode size of points',
                     id='size-column',
                 ),
+                dcc.Dropdown(['yes', 'no'], placeholder='if you want to enable dot spacing', id='dot_spacing'), 
+                dcc.Input(id='radius', placeholder='Enter radius of spacing (std is 0.01)'),
+                html.Hr(),
                 dcc.Input(id='filter-query-input', placeholder='Enter filter query'),
             ],
             style={'width': '50%', 'display': 'inline-block', 'float': 'middle'},
