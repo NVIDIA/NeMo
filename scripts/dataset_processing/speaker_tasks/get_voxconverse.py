@@ -50,10 +50,8 @@ def _generate_manifest(data_root: Path, audio_path: Path, rttm_path: Path, manif
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Aishell Data download")
+    parser = argparse.ArgumentParser(description="VoxConverse Data download")
     parser.add_argument("--data_root", default='./', type=str)
-    parser.add_argument("--output_manifest_path", default='aishell_diar_manifest.json', type=str)
-    parser.add_argument("--skip_train", help="skip downloading the training dataset", action="store_true")
     args = parser.parse_args()
     data_root = Path(args.data_root)
     data_root.mkdir(exist_ok=True, parents=True)
