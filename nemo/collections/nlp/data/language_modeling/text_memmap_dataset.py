@@ -151,7 +151,7 @@ class TextMemMapDataset(Dataset):
                 raise RuntimeError(f"Missing header, expected {self._header_lines} header lines")
 
             # load meta info
-            idx_info_dict = pickle.load(open(idx_fn+".info", 'rb'))
+            idx_info_dict = pickle.load(open(idx_fn + ".info", 'rb'))
             # test for mismatch in expected newline_int
             if 'newline_int' in idx_info_dict:
                 newline_int = idx_info_dict['newline_int']
@@ -232,7 +232,7 @@ def _build_memmap_index_files(newline_int, fn):
         data = dict(newline_int=newline_int, version=__idx_version__)
         # save index as numpy array to enable memmap reading
         np.save(idx_fn, midx, allow_pickle=True)
-        pickle.dump(data, open(idx_fn+".info", "wb"))
+        pickle.dump(data, open(idx_fn + ".info", "wb"))
         mdata._mmap.close()
         del mdata
 
