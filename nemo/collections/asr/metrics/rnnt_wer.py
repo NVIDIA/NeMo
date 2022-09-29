@@ -936,6 +936,9 @@ class RNNTDecodingConfig:
     # compute RNNT time stamps
     compute_timestamps: Optional[bool] = None
 
+    # compute language IDs
+    compute_langs: Optional[bool] = None
+
     # token representing word seperator
     word_seperator: str = " "
 
