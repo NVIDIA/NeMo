@@ -84,6 +84,8 @@ class NLPModel(ModelPT, Exportable):
                     trainer=trainer,
                     cfg=copy_cfg,
                 )
+                # explicitly setting the is_model_being_restored to true
+                AppState().is_model_being_restored = True
                 # set the tokenizer if it is not initialized explicitly
                 if (
                     (hasattr(self, 'tokenizer') and self.tokenizer is None) or not hasattr(self, 'tokenizer')
@@ -95,8 +97,6 @@ class NLPModel(ModelPT, Exportable):
                 and cfg.get('tokenizer').get('vocab_file')
             ):
                 vocab_file = self.register_artifact('tokenizer.vocab_file', cfg.tokenizer.vocab_file)
-        if not AppState().is_model_being_restored and AppState().restore_attr_is_model_being_restored:
-            AppState().is_model_being_restored = True
 
         super().__init__(cfg, trainer)
 

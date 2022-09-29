@@ -1393,14 +1393,10 @@ class ModelPT(LightningModule, Model):
         return app_state.is_model_being_restored
 
     @staticmethod
-    def _set_model_restore_state(
-        is_being_restored: bool, folder: str = None, restore_attr_is_model_being_restored: bool = False
-    ):
+    def _set_model_restore_state(is_being_restored: bool, folder: str = None):
         app_state = AppState()
         app_state.is_model_being_restored = is_being_restored
         app_state.nemo_file_folder = folder
-        if not app_state.restore_attr_is_model_being_restored:
-            app_state.restore_attr_is_model_being_restored = restore_attr_is_model_being_restored
 
     def _set_model_guid(self):
         if not hasattr(self, 'model_guid'):
