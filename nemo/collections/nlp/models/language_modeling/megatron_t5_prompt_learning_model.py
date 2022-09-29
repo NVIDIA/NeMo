@@ -73,7 +73,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         # Encoder and decoder need to have the same hidden size and we check for this in the frozen enc-dec model.
         self.hidden_size = self.frozen_model.cfg.encoder.hidden_size
 
-        if self.frozen_model.enc_dec_model.pre_process and self.virtual_prompt_style in [
+        if self.first_stage_of_pipeline() and self.virtual_prompt_style in [
             VirtualPromptStyle.P_TUNING,
             VirtualPromptStyle.PROMPT_TUNING,
             VirtualPromptStyle.INFERENCE,
@@ -137,7 +137,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         nemo checkpoints at the end of training will contain prompt table parameters only. 
         """
 
-        if self.frozen_model.enc_dec_model.pre_process:
+        if self.first_stage_of_pipeline():
             super().state_dict(destination, prefix, keep_vars)
         else:
             state_dict_ = {}
@@ -149,7 +149,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         Custom load state dict method that only loads prompt table and prompt encoder
         parameters. Matching load method for this class' custom state dict method. 
         """
-        if self.frozen_model.enc_dec_model.pre_process:
+        if self.first_stage_of_pipeline():
             super().load_state_dict(state_dict, strict)
 
     def setup_optimizer_param_groups(self):
@@ -161,7 +161,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         for param in self.frozen_model.parameters():
             param.requires_grad = False
 
-        if self.frozen_model.enc_dec_model.pre_process:
+        if self.first_stage_of_pipeline():
             self.add_virtual_prompt_params_to_param_group()
         else:
             self._optimizer_param_groups = ({'params': []},)
@@ -184,7 +184,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         T5 style models.
         """
         # Get embeddings for text tokens and insert virtual token embeddings
-        if self.frozen_model.enc_dec_model.pre_process:
+        if self.first_stage_of_pipeline():
             if inference:
                 input_embeds = self.embed_input_inference(input_ids, taskname_ids)
             else:
@@ -256,7 +256,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
     def setup(self, stage=None):
         if (
             stage == 'predict' or self.virtual_prompt_style == VirtualPromptStyle.INFERENCE
-        ) and self.frozen_model.enc_dec_model.pre_process:
+        ) and self.first_stage_of_pipeline():
             self.freeze_existing_virtual_prompt_params()
             return
 
@@ -264,7 +264,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         if stage == 'test':
             return
 
-        if self.frozen_model.enc_dec_model.pre_process:
+        if self.first_stage_of_pipeline():
             if self.virtual_prompt_style == VirtualPromptStyle.PROMPT_TUNING:
                 self.init_new_prompts()
             elif self.virtual_prompt_style == VirtualPromptStyle.P_TUNING:
@@ -361,7 +361,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
     def on_train_end(self):
         # Save p-tuned prompts to prompt table for inference or future task training
-        if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING and self.frozen_model.enc_dec_model.pre_process:
+        if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING and self.first_stage_of_pipeline():
             self.add_ptuned_prompts_to_prompt_table()
             logging.info(f"All p-tuned prompts where moved to the prompt table.")
 
