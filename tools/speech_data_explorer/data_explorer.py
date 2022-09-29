@@ -103,7 +103,6 @@ def parse_args():
     )
     parser.add_argument('--debug', '-d', action='store_true', help='enable debug mode')
 
-
     parser.add_argument(
         '--names_compared',
         '-nc',
