@@ -24,6 +24,7 @@ from normalization_helpers import LATIN_TO_RU, RU_ABBREVIATIONS
 from num2words import num2words
 from sox import Transformer
 from tqdm import tqdm
+from tqdm.contrib.concurrent import process_map
 
 from nemo.collections.asr.models import ASRModel
 from nemo.utils import model_utils
@@ -95,6 +96,18 @@ def process_audio(
         tfm = Transformer()
         tfm.convert(samplerate=sample_rate, n_channels=1, bitdepth=bit_depth)
         tfm.trim(cut_prefix)
+        tfm.build(input_filepath=in_file, output_filepath=wav_file)
+    except Exception as e:
+        print(f'{in_file} skipped - {e}')
+
+
+def process_sox(in_file, wav_file, sample_rate: int = 44100):
+    try:
+        if not os.path.exists(in_file):
+            raise ValueError(f'{in_file} not found')
+        tfm = Transformer()
+        tfm.convert(samplerate=sample_rate, n_channels=1, bitdepth=args.bit_depth)
+        tfm.trim(args.cut_prefix)
         tfm.build(input_filepath=in_file, output_filepath=wav_file)
     except Exception as e:
         print(f'{in_file} skipped - {e}')
@@ -375,15 +388,21 @@ if __name__ == "__main__":
 
         audio_paths = glob(f"{args.audio_dir}/*")
 
-        Parallel(n_jobs=args.n_jobs)(
-            delayed(process_audio)(
-                audio_paths[i],
-                os.path.join(args.output_dir, os.path.splitext(os.path.basename(audio_paths[i]))[0] + ".wav"),
-                args.cut_prefix,
-                args.sample_rate,
-                args.bit_depth,
-            )
-            for i in tqdm(range(len(audio_paths)))
-        )
+        # Parallel(n_jobs=args.n_jobs)(
+        #     delayed(process_audio)(
+        #         audio_paths[i],
+        #         os.path.join(args.output_dir, os.path.splitext(os.path.basename(audio_paths[i]))[0] + ".wav"),
+        #         args.cut_prefix,
+        #         args.sample_rate,
+        #         args.bit_depth,
+        #     )
+        #     for i in tqdm(range(len(audio_paths)))
+        # )
+
+        audio_paths_wav = [
+            os.path.join(args.output_dir, os.path.splitext(os.path.basename(audio))[0] + ".wav")
+            for audio in audio_paths
+        ]
+        process_map(process_sox, audio_paths, audio_paths_wav, max_workers=16)
 
     print("Data preparation is complete.")

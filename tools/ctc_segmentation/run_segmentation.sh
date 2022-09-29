@@ -76,7 +76,8 @@ python $SCRIPTS_DIR/prepare_data.py \
 --additional_split_symbols=$ADDITIONAL_SPLIT_SYMBOLS $NEMO_NORMALIZATION || exit
 
 # STEP #2
-# Run CTC-segmentation. One might want to perform alignment with various window sizes
+# Run CTC-segmentation. One might want to perform alignment with various window size
+# s
 # Note, if the alignment with the initial window size isn't found, the window size will be double to re-attempt alignment
 echo "SEGMENTATION STEP..."
 for WINDOW in 8000 12000

@@ -12,6 +12,7 @@ CER_THRESHOLD=30
 WER_THRESHOLD=75
 CER_EDGE_THRESHOLD=60
 LEN_DIFF_RATIO_THRESHOLD=0.3
+MIN_DURATION=1 # in seconds
 MAX_DURATION=20 # in seconds
 
 for ARG in "$@"
@@ -63,4 +64,5 @@ python ${SCRIPTS_DIR}/get_metrics_and_filter.py \
 --max_wer=${WER_THRESHOLD} \
 --max_len_diff_ratio=${LEN_DIFF_RATIO_THRESHOLD} \
 --max_edge_cer=${CER_EDGE_THRESHOLD} \
+--min_duration=${MIN_DURATION}
 --max_duration=${MAX_DURATION}
