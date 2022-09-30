@@ -261,20 +261,6 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
                     adapter_module.load_state_dict(state_dict[state_adapter_key], strict)
                 module.set_enabled_adapters(enabled=True)
 
-    def get_forward_output_and_loss_func_delete_me(self):
-        def fwd_output_and_loss_func(batch, model):
-            batch = [x.cuda(non_blocking=True) for x in batch]
-            input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids = batch
-            output_tensor = model(input_ids, position_ids, attention_mask, taskname_ids, labels, inference=False)
-
-            def loss_func(output_tensor):
-                loss = self.frozen_model.loss_func(loss_mask, output_tensor)
-                reduced_loss = average_losses_across_data_parallel_group([loss])
-                return loss, {'avg': reduced_loss}
-
-            return output_tensor, loss_func
-
-        return fwd_output_and_loss_func
 
 
 class MegatronT5AdapterLearningModel(MegatronT5BaseAdapterModel):
