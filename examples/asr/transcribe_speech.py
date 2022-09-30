@@ -166,19 +166,9 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     if hasattr(asr_model, 'change_decoding_strategy'):
         # Check if ctc or rnnt model
         if hasattr(asr_model, 'joint'):  # RNNT model
-            if hasattr(asr_model.decoding, 'tokenizer') and isinstance(
-                asr_model.decoding.tokenizer, AggregateTokenizer
-            ):
-                rnnt_decoding = RNNTDecodingConfig(fused_batch_size=-1, compute_langs=cfg.compute_langs)
-                asr_model.change_decoding_strategy(rnnt_decoding)
-            else:
-                logging.warning("compute_langs flag turned on but model tokenizer is not Aggregate. Ignoring")
-                compute_langs = False
-                asr_model.change_decoding_strategy(cfg.rnnt_decoding)
+            rnnt_decoding = RNNTDecodingConfig(fused_batch_size=-1, compute_langs=cfg.compute_langs)
+            asr_model.change_decoding_strategy(rnnt_decoding)
         else:
-            if cfg.compute_langs:
-                logging.warning("CTC models do not support compute_langs flag for now. Ignoring.")
-                compute_langs = False
             asr_model.change_decoding_strategy(cfg.ctc_decoding)
 
     # get audio filenames
@@ -277,9 +267,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     with open(cfg.output_filename, 'w', encoding='utf-8') as f:
         if cfg.audio_dir is not None:
             for idx, transcription in enumerate(transcriptions):
-                text = transcription.text
-
-                item = {'audio_filepath': filepaths[idx], 'pred_text': text}
+                item = {'audio_filepath': filepaths[idx], 'pred_text': transcription.text}
                 if compute_langs:
                     item['pred_lang'] = transcription.langs
                     item['pred_lang_chars'] = transcription.langs_chars
