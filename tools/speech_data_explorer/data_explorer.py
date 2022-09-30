@@ -396,7 +396,7 @@ def load_data(
                     w = item['word']
                     word_accuracy_1 = match_vocab_1[w] / vocabulary_1[w] * 100.0
                     acc_sum_1 += word_accuracy_1
-                    item['accuracy_1'] = round(word_accuracy_1, 1) 
+                    item['accuracy_1'] = round(word_accuracy_1, 1)
                 mwa_1 = acc_sum_1 / len(vocabulary_data_1)
 
                 for item in vocabulary_data_2:
