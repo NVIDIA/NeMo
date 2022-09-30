@@ -730,7 +730,8 @@ pipeline {
         stage('Install ctc_segmentation requirements') {
             steps {
             sh 'cd tools/ctc_segmentation && \
-            pip install -r requirements.txt'
+            pip install -r requirements.txt && \
+            apt-get update && apt-get install libsox-fmt-all -y'
             }
         }
 
