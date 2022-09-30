@@ -68,11 +68,6 @@ def ece(y_true, y_score, n_bins=100):
         a, b = m / n_bins, (m + 1) / n_bins
         threshold = (a + b) / 2
         py_index = (py.T[1] >= threshold).astype(int)
-        # py_value = []
-        # for i in range(py.shape[0]):
-        # py_value.append(py[i, py_index[i]])
-        # py_value = np.array(py_value)
-        # memory leak
         py_value = py[np.arange(len(py_index)), py_index]
         bin_range = ((py_value > a) & (py_value <= b)).nonzero()[0]
         Bm[m] = len(bin_range)

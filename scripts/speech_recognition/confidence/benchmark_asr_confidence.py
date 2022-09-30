@@ -45,7 +45,7 @@ Get confidence metrics and curve plots for a given model, dataset, and confidenc
   model_path: Path to .nemo ASR checkpoint
   pretrained_name: Name of pretrained ASR model (from NGC registry)
   dataset_manifest: Path to dataset JSON manifest file (in NeMo format)
-  output_dir: Output directopy to store a report and curve plot directories
+  output_dir: Output directory to store a report and curve plot directories
   
   batch_size: batch size during inference
   num_workers: number of workers during inference
@@ -55,13 +55,13 @@ Get confidence metrics and curve plots for a given model, dataset, and confidenc
   audio_type: Str filetype of the audio. Supported = wav, flac, mp3
   
   target_level: Word- or token-level confidence. Supported = word, token, auto (for computing both word and token)
-  confidence_cfg: Config with confidence paraneters
+  confidence_cfg: Config with confidence parameters
   grid_params: Dictionary with lists of parameters to iteratively benchmark on
 
 # Usage
 ASR model can be specified by either "model_path" or "pretrained_name".
 Data for transcription are defined with "dataset_manifest".
-Results are returned as a betchmark report and curve plots.
+Results are returned as a benchmark report and curve plots.
 
 python benchmark_asr_confidence.py \
     model_path=null \
@@ -326,7 +326,7 @@ def main(cfg: ConfidenceBenchmarkingConfig):
         def autocast():
             yield
 
-    # do grig-based benchmarking if grid_params is provided, otherwise a regular one
+    # do grid-based benchmarking if grid_params is provided, otherwise a regular one
     work_dir = Path(cfg.output_dir)
     os.makedirs(work_dir, exist_ok=True)
     report_legend = (
@@ -353,8 +353,8 @@ def main(cfg: ConfidenceBenchmarkingConfig):
         + "\n"
     )
     model_typename = "RNNT" if is_rnnt else "CTC"
+    report_file = work_dir / Path("report.csv")
     if cfg.grid_params:
-        report_file = work_dir / Path("report.csv")
         asr_model.change_decoding_strategy(
             RNNTDecodingConfig(fused_batch_size=-1, strategy="greedy_batch", confidence_cfg=cfg.confidence_cfg)
             if is_rnnt
@@ -369,7 +369,7 @@ def main(cfg: ConfidenceBenchmarkingConfig):
         logging.info(f"Results will be written to:\nreport file `{report_file}`\nand plot directories near the file")
         logging.info(f"==============================================================================================")
 
-        with open(work_dir / Path("report.csv"), "tw", encoding="utf-8") as f:
+        with open(report_file, "tw", encoding="utf-8") as f:
             f.write(report_legend)
             f.flush()
             for i, hp in enumerate(hp_grid):
@@ -392,7 +392,6 @@ def main(cfg: ConfidenceBenchmarkingConfig):
                     f.write(f"{model_typename},{','.join(param_list)},{level},{','.join([str(r) for r in result])}\n")
                     f.flush()
     else:
-        report_file = work_dir / Path("report.csv")
         asr_model.change_decoding_strategy(
             RNNTDecodingConfig(fused_batch_size=-1, strategy="greedy_batch", confidence_cfg=cfg.confidence_cfg)
             if is_rnnt
@@ -404,7 +403,7 @@ def main(cfg: ConfidenceBenchmarkingConfig):
         logging.info(f"==============================Running a single benchmarking===================================")
         logging.info(f"Results will be written to:\nreport file `{report_file}`\nand plot directory `{plot_dir}`")
 
-        with open(work_dir / Path("report.csv"), "tw", encoding="utf-8") as f:
+        with open(report_file, "tw", encoding="utf-8") as f:
             f.write(report_legend)
             f.flush()
             results = run_benchmark(
