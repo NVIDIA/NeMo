@@ -130,6 +130,7 @@ class AbstractRNNTDecoding(ABC):
         self.cfg = decoding_cfg
         self.blank_id = blank_id
         self.compute_hypothesis_token_set = self.cfg.get("compute_hypothesis_token_set", False)
+        self.compute_langs = decoding_cfg.get('compute_langs', False)
         self.preserve_alignments = self.cfg.get('preserve_alignments', None)
         self.joint_fused_batch_size = self.cfg.get('fused_batch_size', None)
         self.compute_timestamps = self.cfg.get('compute_timestamps', None)
@@ -990,7 +991,7 @@ class RNNTDecodingConfig:
     compute_timestamps: Optional[bool] = None
 
     # compute language IDs
-    compute_langs: Optional[bool] = None
+    compute_langs: bool = False
 
     # token representing word seperator
     word_seperator: str = " "
