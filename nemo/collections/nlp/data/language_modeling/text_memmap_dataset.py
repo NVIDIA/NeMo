@@ -213,10 +213,10 @@ def _build_memmap_index_files(newline_int, fn):
 
     # create data map
     mdata = np.memmap(fn, dtype=np.uint8, mode='r')
-    if os.path.exists(idx_fn):
+    if os.path.exists(idx_fn + ".npy"):
         return False
     else:
-        logging.info(f"Building idx file = {idx_fn}")
+        logging.info(f"Building idx file = {idx_fn}.npy")
         midx = np.where(mdata == newline_int)[0]
         midx_dtype = midx.dtype
         # add last item in case there is no new-line
