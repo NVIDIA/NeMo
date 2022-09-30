@@ -156,6 +156,9 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     asr_model = asr_model.eval()
     partial_audio = False
 
+    # collect additional transcription information
+    return_hypotheses = True
+
     # we will adjust this flag is the model does not support it
     compute_langs = cfg.compute_langs
 
@@ -232,10 +235,6 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
 
     # transcribe audio
 
-    return_hypotheses = False
-    if cfg.compute_langs:
-        return_hypotheses = True
-
     with autocast():
         with torch.no_grad():
             if partial_audio:
@@ -276,9 +275,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     with open(cfg.output_filename, 'w', encoding='utf-8') as f:
         if cfg.audio_dir is not None:
             for idx, transcription in enumerate(transcriptions):
-                text = transcription
-                if return_hypotheses:
-                    text = transcription.text
+                text = transcription.text
 
                 item = {'audio_filepath': filepaths[idx], 'pred_text': text}
                 if compute_langs:
@@ -290,10 +287,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
             with open(cfg.dataset_manifest, 'r') as fr:
                 for idx, line in enumerate(fr):
                     item = json.loads(line)
-                    if return_hypotheses:
-                        item['pred_text'] = transcriptions[idx].text
-                    else:
-                        item['pred_text'] = transcriptions[idx]
+                    item['pred_text'] = transcriptions[idx].text
 
                     if compute_langs:
                         item['pred_lang'] = transcriptions[idx].langs
