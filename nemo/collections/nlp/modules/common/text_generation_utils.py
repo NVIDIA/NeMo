@@ -300,7 +300,6 @@ def synced_generate(
 ):
     context_length = context_length_tensor.min().item()
     tokenizer = model.tokenizer
-    # tokens, attention_mask, position_ids = get_batch(model, tokenizer, context_tokens_tensor)
     if isinstance(tokenizer, TabularTokenizer):
         batch_token_iterator = tab_sample_sequence_batch(
             model,

@@ -31,8 +31,6 @@ prompts: # prompts for RETRO model inference
   - "good morning,"
   - "good afternoon,"
   - "good evening,"
-server: False  # whether launch the inference server
-port: 5555 # the port number for the inference server
  
 ########### Faiss service parameters ########
 retrieval_service:
