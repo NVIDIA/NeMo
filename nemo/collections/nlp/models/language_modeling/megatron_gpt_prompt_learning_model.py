@@ -670,7 +670,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         logging.info(f'val_loss: {averaged_loss}')
 
         # Save inference ready .nemo checkpoint version
-        if self.cfg.get("save_intermediate_nemo_file", True):
+        if self.cfg.get("save_nemo_on_validation_end", True):
             if self.lowest_val_loss is None or averaged_loss < self.lowest_val_loss:
                 self.save_checkpoint_as_nemo_file()
                 self.lowest_val_loss = averaged_loss
