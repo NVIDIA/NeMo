@@ -119,7 +119,7 @@ def parse_args():
     # automaticly going in comparison mode, if there is names_compared argument
     if args.names_compared is not None:
         comparison_mode = True
-        # check
+
     print(args, comparison_mode)
     return args, comparison_mode
 
@@ -398,14 +398,14 @@ def load_data(
                     w = item['word']
                     word_accuracy_1 = match_vocab_1[w] / vocabulary_1[w] * 100.0
                     acc_sum_1 += word_accuracy_1
-                    item['accuracy_1'] = round(word_accuracy_1, 1)  # Check
+                    item['accuracy_1'] = round(word_accuracy_1, 1) 
                 mwa_1 = acc_sum_1 / len(vocabulary_data_1)
 
                 for item in vocabulary_data_2:
                     w = item['word']
                     word_accuracy_2 = match_vocab_2[w] / vocabulary_2[w] * 100.0
                     acc_sum_2 += word_accuracy_2
-                    item['accuracy_2'] = round(word_accuracy_2, 1)  # Check
+                    item['accuracy_2'] = round(word_accuracy_2, 1)
                 mwa_2 = acc_sum_2 / len(vocabulary_data_2)
 
         acc_sum = 0
@@ -903,7 +903,6 @@ samples_layout += [
     dbc.Row(dbc.Col(html.Audio(id='player', controls=True),), class_name='mt-3 '),
     dbc.Row(dbc.Col(dcc.Graph(id='signal-graph')), class_name='mt-3'),
 ]
-#############################################################################################CMP_TOOL
 
 
 # updating vocabulary to show
@@ -957,7 +956,6 @@ if comparison_mode:
         import random
         import math
 
-        # logging.error(data)
         df = pd.DataFrame.from_records(data)
 
         res = prepare_data(df)

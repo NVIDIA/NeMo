@@ -163,10 +163,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         else:
             asr_model.change_decoding_strategy(cfg.ctc_decoding)
 
-    # get audio filenames (if append_pred is True -> require manifest)
-    # if cfg.audio_dir is not None and cfg.append_pred:
-    #     logging.info(f'If you setting append_pred to True, then manifest be provided')
-    # todo
+
 
     if cfg.audio_dir is not None and not cfg.append_pred:
         filepaths = list(glob.glob(os.path.join(cfg.audio_dir, f"**/*.{cfg.audio_type}"), recursive=True))
@@ -278,25 +275,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                     item = json.loads(line)
                     item[pred_text_attr_name] = transcriptions[idx]
                     f.write(json.dumps(item) + "\n")
-        # with open(cfg.output_filename, 'r', encoding='utf-8') as fo:
-        # with open(cfg.dataset_manifest, 'w') as fd:
-        #     for idx, line in enumerate(fo):
-        #         item = json.loads(line)
-        #         fd.write(json.dumps(item) + "\n")
-        # test it please, and if it safe then uncomment (this section is for convenient bash-script using)
-
-    # else:
-    #     with open(cfg.output_filename, 'w', encoding='utf-8') as f:
-    #         if cfg.audio_dir is not None:
-    #             for idx, text in enumerate(transcriptions):
-    #                 item = {'audio_filepath': filepaths[idx], 'pred_text': text}
-    #                 f.write(json.dumps(item) + "\n")
-    #         else:
-    #             with open(cfg.dataset_manifest, 'r') as fr:
-    #                 for idx, line in enumerate(fr):
-    #                     item = json.loads(line)
-    #                     item['pred_text'] = transcriptions[idx]
-    #                     f.write(json.dumps(item) + "\n")
+       
 
     logging.info("Finished writing predictions !")
     return cfg
