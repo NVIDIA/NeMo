@@ -528,8 +528,27 @@ class DialogueGPTClassificationModel(NLPModel):
             )
 
             prompt_token_labels = self.get_prompt_token_labels_for_megatron_gpt(input_ids, num_prompt_tokens)
-
-            input_ids_new = torch.cat([prompt_token_labels, input_ids], axis=1)
+            input_ids_without_answers = [
+                torch.cat(
+                    [
+                        input_ids[i, : template_length[i]],
+                        torch.ones((input_ids.size(1) - template_length[i].item(),)).to(input_ids.device)
+                        * self.tokenizer.tokenizer.pad_token_id,
+                    ],
+                    axis=-1,
+                ).type(input_ids.dtype)
+                for i in range(input_ids.size(0))
+            ]
+            input_ids_without_answers = torch.stack(input_ids_without_answers)
+            input_ids_new = torch.cat(
+                [
+                    prompt_token_labels,
+                    input_ids_without_answers,
+                    torch.ones((input_ids.size(0), tokens_to_generate)).to(input_ids.device)
+                    * self.tokenizer.tokenizer.pad_token_id,
+                ],
+                axis=1,
+            ).type(input_ids.dtype)
 
             tokens_for_generation = (input_ids_new, template_length + num_prompt_tokens)
 
