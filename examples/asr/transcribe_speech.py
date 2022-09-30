@@ -56,6 +56,8 @@ Transcribe audio file on a single CPU/GPU. Useful for transcription of moderate 
 # Usage
 ASR model can be specified by either "model_path" or "pretrained_name".
 Data for transcription can be defined with either "audio_dir" or "dataset_manifest".
+append_pred - optional. Allows you to add more than one prediction to an existing .json
+pred_name_postfix - optional. The name you want to be written for the current model 
 Results are returned in a JSON manifest file.
 
 python transcribe_speech.py \
@@ -68,7 +70,7 @@ python transcribe_speech.py \
     cuda=0 \
     amp=True \
     append_pred=False \
-    pred_name_postfix=conformer
+    pred_name_postfix=""
 """
 
 
