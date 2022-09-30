@@ -23,6 +23,7 @@ from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_dataset import GPTPromptLearningDataset
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_universal_prompt_learning_dataset import GPTUniversalPromptLearningDataset
 from nemo.collections.nlp.models.language_modeling.megatron_base_prompt_learning_model import (
     MegatronBasePromptLearningModel,
 )
@@ -61,10 +62,39 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBasePromptLearningModel):
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
-        super().__init__(cfg, trainer)
+        super(MegatronBasePromptLearningModel, self).__init__(cfg, trainer)
 
+        if self.trainer.precision == 32:
+            self.autocast_dtype = torch.float
+        elif self.trainer.precision == 16:
+            self.autocast_dtype = torch.half
+        elif self.trainer.precision == 'bf16':
+            self.autocast_dtype = torch.bfloat16
+        else:
+            raise ValueError('precision must be in [32, 16, "bf16"]')
+
+        self.cfg = cfg
+        # TODO: Enable amp_o2 training
+        self.megatron_amp_o2 = False
+        self.load_frozen_model(self.cfg, trainer)
+
+        self.pipeline_parallel = self.cfg.get('pipeline_model_parallel_size', 1) > 1
+        self.tokenizer = self.frozen_model.tokenizer
+
+        # Load templates for assigning virtual prompt token positions
+        self.load_task_templates(self.cfg.task_templates)
+
+        # make sure the default pytorch lightning gradient clipping in the basemodel
+        self.grad_clip_pl_default = True
+        self.lowest_val_loss = None
+
+        self._reduced_loss_buffer = []
+        self._inference_config = None
         self.hidden_size = self.frozen_model.cfg.hidden_size
         self.padded_vocab_size = self.frozen_model.padded_vocab_size
+
+    def load_task_templates(self, task_templates):
+        self.task_templates = OmegaConf.to_container(self.cfg.task_templates)
 
     def load_frozen_model(self, cfg, trainer):
         save_restore_connector = NLPSaveRestoreConnector()
@@ -330,12 +360,10 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBasePromptLearningModel):
         cache_data_path=None,
         load_cache=False,
     ):
-        dataset = GPTPromptLearningDataset(
+        dataset = GPTUniversalPromptLearningDataset(
             data=data,
             tokenizer=self.tokenizer,
-            virtual_prompt_source=self.virtual_prompt_source,
             task_templates=self.task_templates,
-            pseudo_tokens=self.pseudo_tokens,
             pad_token_id=self.pad_token_id,
             max_seq_length=max_seq_length,
             min_seq_length=min_seq_length,

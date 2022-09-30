@@ -64,9 +64,7 @@ model:
 
   task_templates: # Add more/replace tasks as needed, these are just examples
     prompt_template: "{text}{answer}" # Prompt template for task, specify virtual prompt positions with <|VIRTUAL_PROMPT_#|>
-    total_virtual_tokens: 30 # Sum of tokens in virtual_token_splits must add to this number. Can differ between new and existing tasks, but must match across all new tasks being tuned at the same time.
-    virtual_token_splits: [20, 10] # number of virtual tokens to be inserted at each VIRTUAL PROMPT location, must add to total_virtual_tokens
-    truncate_field: "passage" # The {field} in the prompt template whose text will be truncated if the input is too long, if null, inputs that are too long will just be skipped.
+    truncate_field: "text" # The {field} in the prompt template whose text will be truncated if the input is too long, if null, inputs that are too long will just be skipped.
     answer_only_loss: True 
     answer_field: "answer"
 
@@ -75,7 +73,7 @@ model:
     validation_ds: [data/rte_val.jsonl,]
     add_eos: True
     shuffle: True
-    num_workers: 8
+    num_workers: 2
     pin_memory: True
     train_cache_data_path: null  # the path to the train cache data 
     validation_cache_data_path: null  # the path to the validation cache data 
@@ -87,7 +85,7 @@ model:
 
     hidden_size: 768
     ffn_hidden_size: 3072 # Transformer FFN hidden size. Usually 4 * hidden_size.
-    num_layers: 12 #
+    num_layers: 4 #
     num_attention_heads: 12
     apply_query_key_layer_scaling: False # scale Q * K^T by 1 / layer-number.
     kv_channels: null # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
@@ -112,8 +110,6 @@ model:
     normalization: 'rmsnorm' # Normalization layer to use. Options are 'layernorm', 'rmsnorm'
     headscale: False # Whether to learn extra parameters that scale the output of the each self-attention head.
     transformer_block_type: 'pre_ln' # Options ['pre_ln', 'post_ln', 'normformer']
-    normalization: 'layernorm' # Normalization layer to use. Options are 'layernorm', 'rmsnorm'
-
     hidden_steps: 32
 
   optim:
