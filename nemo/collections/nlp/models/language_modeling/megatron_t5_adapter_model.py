@@ -262,7 +262,6 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
                 module.set_enabled_adapters(enabled=True)
 
 
-
 class MegatronT5AdapterLearningModel(MegatronT5BaseAdapterModel):
     """
     TODO  (@adithyare)
