@@ -119,7 +119,7 @@ def parse_args():
     # automaticly going in comparison mode, if there is names_compared argument
     if args.names_compared is not None:
         comparison_mode = True
-        #check
+        # check
     print(args, comparison_mode)
     return args, comparison_mode
 
@@ -370,7 +370,6 @@ def load_data(
             alphabet_2,
             match_vocab_2,
         ) = append_data(data_filename, estimate_audio, field_name=name_2)
-        
 
     if not comparison_moode:
         if vocab is not None:
@@ -920,7 +919,7 @@ if comparison_mode:
 
     for i in range(len(vocabulary_1)):
         vocabulary_1[i].update(vocabulary_2[i])
-        
+
     def prepare_data(df, name1=model_name_1, name2=model_name_2):
         res = pd.DataFrame()
         tmp = df['word']
@@ -958,10 +957,9 @@ if comparison_mode:
         import random
         import math
 
-        #logging.error(data)
+        # logging.error(data)
         df = pd.DataFrame.from_records(data)
-    
-        
+
         res = prepare_data(df)
         res_spacing = res.copy(deep=True)
 
@@ -970,16 +968,25 @@ if comparison_mode:
             if Ox[0] == 'a' or 'c':
                 tmp = []
                 for i in range(len(res[Ox])):
-                    tmp.append(res[Ox][i] + rad * random.randrange(1, 10) * math.cos(random.randrange(1, len(res[Ox])) * 2 * math.pi/len(res[Ox]))) 
+                    tmp.append(
+                        res[Ox][i]
+                        + rad
+                        * random.randrange(1, 10)
+                        * math.cos(random.randrange(1, len(res[Ox])) * 2 * math.pi / len(res[Ox]))
+                    )
                 res_spacing[Ox] = tmp
             if Ox[0] == 'a' or 'c':
                 tmp = []
                 for i in range(len(res[Oy])):
-                    tmp.append(res[Oy][i] + rad * random.randrange(1, 10) * math.sin(random.randrange(1, len(res[Oy])) * 2 * math.pi/len(res[Oy]))) 
+                    tmp.append(
+                        res[Oy][i]
+                        + rad
+                        * random.randrange(1, 10)
+                        * math.sin(random.randrange(1, len(res[Oy])) * 2 * math.pi / len(res[Oy]))
+                    )
                 res_spacing[Oy] = tmp
 
             res = res_spacing
-            
 
         fig = px.scatter(
             res,
@@ -1057,7 +1064,7 @@ if comparison_mode:
                     placeholder='Select what will encode size of points',
                     id='size-column',
                 ),
-                dcc.Dropdown(['yes', 'no'], placeholder='if you want to enable dot spacing', id='dot_spacing'), 
+                dcc.Dropdown(['yes', 'no'], placeholder='if you want to enable dot spacing', id='dot_spacing'),
                 dcc.Input(id='radius', placeholder='Enter radius of spacing (std is 0.01)'),
                 html.Hr(),
                 dcc.Input(id='filter-query-input', placeholder='Enter filter query'),
