@@ -129,10 +129,9 @@ class GPTUniversalPromptLearningDataset(Dataset):
             if result is None:
                 break
             start = result.end()
-            sentence = prompt_template[: result.start()]
+            sentence = prompt_template[: start]
             if len(sentence) != 0:
                 pieces.append(sentence)
-            pieces.append(int(prompt_template[result.start() + 2 : start - 1]))
             prompt_template = prompt_template[start:]
 
         for json_line in tqdm(dataset):
@@ -170,7 +169,7 @@ class GPTUniversalPromptLearningDataset(Dataset):
                     varname = var[1:-1]
                     if varname == limit_length_field:
                         limit_length = True
-                text = piece.format(doc)
+                text = piece.format(**doc)
                 text_ids = tokenizer.text_to_ids(text)
                 all_ids.append(text_ids)
                 limits.append(limit_length)

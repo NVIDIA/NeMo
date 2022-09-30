@@ -91,7 +91,7 @@ model:
     kv_channels: null # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
     hidden_dropout: 0.1 # Dropout probability for hidden state transformer.
     attention_dropout: 0.1 # Dropout probability in the attention layer.
-    precision: ${trainer.precision}
+    precision: 16
     fp32_residual_connection: False # Use FP32 for residual connections.
     activations_checkpoint_method: null # 'uniform', 'block'
     activations_checkpoint_num_layers: 1 
@@ -99,7 +99,6 @@ model:
     layernorm_epsilon: 1e-5
     persist_layer_norm: True # Use of persistent fused layer norm kernel.
     bias_activation_fusion: True # Use a kernel that fuses the bias addition from weight matrices with the subsequent activation function.
-    grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce
     masked_softmax_fusion: True # Use a kernel that fuses the attention softmax with it's mask.
     bias_dropout_add_fusion: True # Use a kernel that fuses the bias addition, dropout and residual connection addition.
     bias: True # Whether to use bias terms in all weight matrices.

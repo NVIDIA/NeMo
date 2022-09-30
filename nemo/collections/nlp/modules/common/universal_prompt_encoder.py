@@ -40,7 +40,7 @@ except (ImportError, ModuleNotFoundError):
 class UniversalPromptEncoder(NeuralModule, Exportable):
 
     def __init__(
-        self, cfg, output_size
+        self, cfg
     ):
         """
         """

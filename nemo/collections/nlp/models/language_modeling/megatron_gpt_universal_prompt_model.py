@@ -80,6 +80,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBasePromptLearningModel):
 
         self.pipeline_parallel = self.cfg.get('pipeline_model_parallel_size', 1) > 1
         self.tokenizer = self.frozen_model.tokenizer
+        self.pad_token_id = self.tokenizer.pad_id if self.tokenizer.pad_id is not None else self.tokenizer.unk_id
 
         # Load templates for assigning virtual prompt token positions
         self.load_task_templates(self.cfg.task_templates)
