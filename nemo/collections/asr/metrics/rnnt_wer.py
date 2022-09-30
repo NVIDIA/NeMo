@@ -874,6 +874,7 @@ class RNNTDecoding(AbstractRNNTDecoding):
         lang_list = self.tokenizer.ids_to_text_and_langs(tokens)
         return lang_list
 
+
 class RNNTWER(Metric):
     """
     This metric computes numerator and denominator for Overall Word Error Rate (WER) between prediction and reference texts.
