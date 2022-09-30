@@ -72,30 +72,6 @@ The ``source_data_dir`` structure should look similar to the following:
 
 .. _nemo-data-format-label:
 
-The Punctuation and Capitalization Lexical Audio model also requires audio data corresponding to content of ``train.txt/dev.txt/test.txt``. 
-Audio data should be stored in ``audio_train.txt`` and ``audio_dev.txt`` (and optionally ``test.txt```). Each line in the ``audio_train.txt/audio_dev.txt/audio_test.txt`` should represent one calid path to audio file.
-
-Example of the ``audio_train.txt`` / ``dev.txt`` file:
-
-.. code::
-
-  /path/to/files/1.wav
-  /path/to/files/2.wav
-  ....
-
-In this case ``source_data_dir`` structure should look similar to the following:
-
-.. code::
-
-   .
-   |--sourced_data_dir
-     |-- dev.txt
-     |-- train.txt
-     |-- audio_train.txt
-     |-- audio_dev.txt
-
-.. _nemo-data-format-label:
-
 NeMo Data Format
 ----------------
 
