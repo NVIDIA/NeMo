@@ -163,8 +163,6 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         else:
             asr_model.change_decoding_strategy(cfg.ctc_decoding)
 
-
-
     if cfg.audio_dir is not None and not cfg.append_pred:
         filepaths = list(glob.glob(os.path.join(cfg.audio_dir, f"**/*.{cfg.audio_type}"), recursive=True))
     else:
@@ -275,7 +273,6 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                     item = json.loads(line)
                     item[pred_text_attr_name] = transcriptions[idx]
                     f.write(json.dumps(item) + "\n")
-       
 
     logging.info("Finished writing predictions !")
     return cfg
