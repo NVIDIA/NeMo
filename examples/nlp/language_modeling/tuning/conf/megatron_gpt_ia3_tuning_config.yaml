@@ -66,7 +66,7 @@ model:
   - taskname: "intent_and_slot"
     prompt_template: "intent options: {intent_options} slot options: {slot_options} {utterance} \nintent: {intent} \nslot: {slot}"
     total_virtual_tokens: 0 
-    answer_only_loss: False 
+    answer_only_loss: True 
     virtual_token_splits: []
     truncate_field: null
 

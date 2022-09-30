@@ -57,14 +57,6 @@ model:
     truncate_field: context
     answer_field: answer
 
-  - taskname: "rte" 
-    prompt_template: "<|VIRTUAL_PROMPT_0|> sentence1: {premise} sentence2: {hypothesis} Answer: {answer}" 
-    total_virtual_tokens: 10
-    virtual_token_splits: [10]
-    truncate_field: null
-    answer_only_loss: True
-    answer_field: "answer"
-
   p_tuning: # P-tuning specific params
       encoder_type: "mlp" # Either "mlp" or "lstm", mlp is default
       num_layers: 2 # 2 recommended for MLP, 1 recommended for LSTM, must be at least 2 for mlp
