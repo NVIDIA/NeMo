@@ -94,7 +94,7 @@ class T5PromptLearningDataset(BasePromptLearningDataset):
 
             # Try to truncate input text to fit into the max sequence length
             if len(input_ids) > self.max_seq_length:
-                input_ids = self._truncate_input(truncation_field, input_ids, taskname, doc)
+                input_ids = self._truncate_input(truncation_field, input_ids, taskname, doc, total_virtual_tokens)
 
             # get answer ids
             if answer_field in doc.keys():  # training and validation

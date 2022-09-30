@@ -84,7 +84,7 @@ class BasePromptLearningDataset(Dataset):
 
         return input_example
 
-    def _truncate_input(self, truncation_field, input_ids, taskname, doc):
+    def _truncate_input(self, truncation_field, input_ids, taskname, doc, total_virtual_tokens=0):
         """ Try to truncate input text to fit into the max sequence length """
         logging.info(
             f"Input greater than max sequence length. Attempting to truncate: '{truncation_field}' in task: '{taskname}'"
@@ -107,9 +107,10 @@ class BasePromptLearningDataset(Dataset):
             if not self.for_train:
                 # Hack alert! Slash and burn
                 #  @TODO (@adithyare) need a more graceful truncation here, we should not skip examples in test
-                slash = len(input_ids) - self.max_seq_length
-                input_ids = input_ids[slash:]
-                print(len(input_ids))
+                input_ids = (
+                    input_ids[:total_virtual_tokens]
+                    + input_ids[total_virtual_tokens:][-self.max_seq_length + total_virtual_tokens :]
+                )
 
         return input_ids
 
