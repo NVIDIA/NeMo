@@ -3,8 +3,6 @@
 Punctuation And Capitalization Models
 ==============================================
 
-NeMo provides two types of Punctuation And Capitalization Models:
-
 Automatic Speech Recognition (ASR) systems typically generate text with no punctuation and capitalization of the words.
 There are two issues with non-punctuated ASR output:
 
@@ -13,6 +11,8 @@ There are two issues with non-punctuated ASR output:
   usually trained on punctuated datasets and using raw ASR output as the input to these models could deteriorate their
   performance
 
+
+NeMo provides two types of Punctuation And Capitalization Models:
 
 Lexical only model:
 
