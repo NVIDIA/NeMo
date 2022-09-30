@@ -15,6 +15,7 @@
 import os
 from functools import partial
 from typing import Any, List, Optional, Union
+from omegaconf import OmegaConf
 
 import torch
 from omegaconf.dictconfig import DictConfig
@@ -26,17 +27,22 @@ from nemo.collections.nlp.models.language_modeling.megatron_base_prompt_learning
     MegatronBasePromptLearningModel,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.modules.common import PromptTable, VirtualPromptStyle
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.modules.common.text_generation_utils import (
     get_default_length_params,
     get_default_sampling_params,
     megatron_gpt_generate,
 )
+from nemo.collections.nlp.modules.common.megatron.utils import (
+    init_method_normal,
+    scaled_init_method_normal,
+)
+
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import logging
+from nemo.collections.nlp.modules.common.universal_prompt_encoder import UniversalPromptEncoder
 
 try:
     from apex.transformer import parallel_state, tensor_parallel
@@ -232,7 +238,14 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBasePromptLearningModel):
         """
         Init the prompt encoder needed for universal prompt encoder
         """
-        pass
+        perceiver_conf = OmegaConf.to_container(self.cfg.perceiver)
+        init_method_std = self.cfg.perceiver.init_method_std
+        del perceiver_conf['init_method_std']
+        encoder_init = init_method_normal(init_method_std)
+        output_init = scaled_init_method_normal(init_method_std, self.cfg.perceiver.num_layers)
+        perceiver_conf['init_method'] = encoder_init
+        perceiver_conf['output_layer_init_method'] = output_init
+        self.prompt_encoder = UniversalPromptEncoder(perceiver_conf)
 
     def setup(self, stage=None):
         self.setup_test_data()
@@ -402,16 +415,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBasePromptLearningModel):
         logging.info(f'test_loss: {averaged_loss[0]}')
 
     def on_train_end(self):
-        # Save p-tuned prompts to prompt table for inference or future task training
-        if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING and self.frozen_model.model.pre_process:
-            self.add_ptuned_prompts_to_prompt_table()
-            logging.info(f"All p-tuned prompts where moved to the prompt table.")
-
-            # Remove prompt encoder from model
-            self.prompt_encoder = None
-            logging.info(f"Prompt encoder deleted")
-
-        self.update_config_for_inference_and_save()
+        pass
 
     def generate(
         self,

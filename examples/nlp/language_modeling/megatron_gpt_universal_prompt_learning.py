@@ -17,9 +17,7 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks.timer import Timer
 from pytorch_lightning.plugins.environments.torchelastic_environment import TorchElasticEnvironment
 
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
-    MegatronGPTPromptLearningModel,
-)
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_universal_prompt_model import MegatronGPTUniversalPromptLearningModel
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
     NLPDDPStrategy,
@@ -31,16 +29,8 @@ from nemo.utils import logging
 from nemo.utils.exp_manager import StatelessTimer, exp_manager
 
 
-"""
-This is an example of how to ptune/prompt-tune a pretrained GPT model.
-Be sure to use a .nemo gpt model with this code. If you've downloaded 
-a model from NGC or are otherwise using a MegatronLM model, please use
-either megatron_ckpt_to_nemo.py or megatron_lm_ckpt_to_nemo.py found
-withing this examples directory to convert your model to .nemo format.
-"""
 
-
-@hydra_runner(config_path="conf", config_name="megatron_gpt_prompt_learning_config")
+@hydra_runner(config_path="conf", config_name="megatron_gpt_universal_prompt_config")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
@@ -75,11 +65,11 @@ def main(cfg) -> None:
 
     # load existing or init new soft prompt GPT model
     if cfg.model.get("restore_path", None):
-        model = MegatronGPTPromptLearningModel.restore_from(
+        model = MegatronGPTUniversalPromptLearningModel.restore_from(
             cfg.model.restore_path, cfg.model, trainer=trainer, save_restore_connector=NLPSaveRestoreConnector()
         )
     else:
-        model = MegatronGPTPromptLearningModel(cfg.model, trainer=trainer)
+        model = MegatronGPTUniversalPromptLearningModel(cfg.model, trainer=trainer)
 
     trainer.fit(model)
 
