@@ -346,7 +346,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             if self.lowest_val_loss is None or averaged_loss < self.lowest_val_loss:
                 self.save_checkpoint_as_nemo_file()
                 self.lowest_val_loss = averaged_loss
-                
+
     def validation_step(self, batch, batch_idx, inference=False):
         outcome = self.inference_step(batch, batch_idx, inference=inference)
         return outcome

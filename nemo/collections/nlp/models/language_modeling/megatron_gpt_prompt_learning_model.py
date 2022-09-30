@@ -675,7 +675,6 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 self.save_checkpoint_as_nemo_file()
                 self.lowest_val_loss = averaged_loss
 
-
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
 
