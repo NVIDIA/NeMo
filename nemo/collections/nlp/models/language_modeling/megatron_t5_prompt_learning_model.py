@@ -339,6 +339,14 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
         self.log('val_acc', val_acc, prog_bar=True, rank_zero_only=True)
 
+        logging.info(f'val_loss: {averaged_loss}')
+
+        # Save inference ready .nemo checkpoint version
+        if self.cfg.get("save_intermediate_nemo_file", True):
+            if self.lowest_val_loss is None or averaged_loss < self.lowest_val_loss:
+                self.save_checkpoint_as_nemo_file()
+                self.lowest_val_loss = averaged_loss
+                
     def validation_step(self, batch, batch_idx, inference=False):
         outcome = self.inference_step(batch, batch_idx, inference=inference)
         return outcome
