@@ -166,7 +166,9 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     if hasattr(asr_model, 'change_decoding_strategy'):
         # Check if ctc or rnnt model
         if hasattr(asr_model, 'joint'):  # RNNT model
-            if isinstance(asr_model.decoding.tokenizer, AggregateTokenizer):
+            if hasattr(asr_model.decoding, 'tokenizer') and isinstance(
+                asr_model.decoding.tokenizer, AggregateTokenizer
+            ):
                 rnnt_decoding = RNNTDecodingConfig(fused_batch_size=-1, compute_langs=cfg.compute_langs)
                 asr_model.change_decoding_strategy(rnnt_decoding)
             else:
