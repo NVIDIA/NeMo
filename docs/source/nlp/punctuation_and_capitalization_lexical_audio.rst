@@ -15,7 +15,7 @@ Like in these examples:
 
   Yeah, they make you work. Yeah, over there you walk a lot? or Yeah, they make you work. Yeah, over there you walk a lot.
 
-You can find more details on text only P&C in `Punctuation And Capitalization's page <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/punctuation_and_capitalization.html>`_. In this document, we focus on model changes needed to use acoustic features.
+You can find more details on text only punctuation and capitalization in `Punctuation And Capitalization's page <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/punctuation_and_capitalization.html>`_. In this document, we focus on model changes needed to use acoustic features.
 
 Quick Start Guide
 -----------------
@@ -27,7 +27,7 @@ Quick Start Guide
     # to get the list of pre-trained models
     PunctuationCapitalizationLexicalAudioModel.list_available_models()
 
-    # Download and load the pre-trained BERT-based model
+    # Download and load the pre-trained model
     model = PunctuationCapitalizationLexicalAudioModel.from_pretrained("<PATH to .nemo file>")
 
     # try the model on a few examples
@@ -35,7 +35,7 @@ Quick Start Guide
 
 Model Description
 -----------------
-In the addition to Punctuation and Capitalization model we add audio encoder (e.g. Conformer's encoder) and attention based fusion of lexical and audio features.
+In addition to `Punctuation And Capitalization model <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/punctuation_and_capitalization.html>`_ we add audio encoder (e.g. Conformer's encoder) and attention based fusion of lexical and audio features.
 This model architecture is based on `Multimodal Semi-supervised Learning Framework for Punctuation Prediction in Conversational Speech <https://arxiv.org/pdf/2008.00702.pdf>`__ :cite:`nlp-punct-sunkara2020multimodal`.
 
 .. note::
@@ -349,7 +349,7 @@ Inference is performed by a script `examples/nlp/token_classification/punctuate_
         --step 8 \
         --use_audio
 
-Long audios are split into corresponding sequences of :code:`4000 * max_seq_length`.
+Long audios are split just like in text only case, audio sequences treated the same as text seqences except :code:`max_seq_length` for audio equals :code:`max_seq_length*4000`.
 
 Model Evaluation
 ----------------
