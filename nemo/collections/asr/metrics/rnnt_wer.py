@@ -397,6 +397,34 @@ class AbstractRNNTDecoding(ABC):
         """
         raise NotImplementedError()
 
+    @abstractmethod
+    def decode_tokens_to_lang(self, tokens: List[int]) -> str:
+        """
+        Implemented by subclass in order to
+        compute the most likely language ID (LID) string given the tokens.
+
+        Args:
+            tokens: List of int representing the token ids.
+
+        Returns:
+            A decoded LID string.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def decode_ids_to_langs(self, tokens: List[int]) -> List[str]:
+        """
+        Implemented by subclass in order to
+        decode a token id list into language ID (LID) list.
+
+        Args:
+            tokens: List of int representing the token ids.
+
+        Returns:
+            A list of decoded LIDS.
+        """
+        raise NotImplementedError()
+
     def update_joint_fused_batch_size(self):
         if self.joint_fused_batch_size is None:
             # do nothing and let the Joint itself handle setting up of the fused batch
@@ -820,6 +848,31 @@ class RNNTDecoding(AbstractRNNTDecoding):
         token_list = [self.labels_map[c] for c in tokens if c != self.blank_id]
         return token_list
 
+    def decode_tokens_to_lang(self, tokens: List[int]) -> str:
+        """
+        Compute the most likely language ID (LID) string given the tokens.
+
+        Args:
+            tokens: List of int representing the token ids.
+
+        Returns:
+            A decoded LID string.
+        """
+        lang = self.tokenizer.ids_to_lang(tokens)
+        return lang
+
+    def decode_ids_to_langs(self, tokens: List[int]) -> List[str]:
+        """
+        Decode a token id list into language ID (LID) list.
+
+        Args:
+            tokens: List of int representing the token ids.
+
+        Returns:
+            A list of decoded LIDS.
+        """
+        lang_list = self.tokenizer.ids_to_text_and_langs(tokens)
+        return lang_list
 
 class RNNTWER(Metric):
     """

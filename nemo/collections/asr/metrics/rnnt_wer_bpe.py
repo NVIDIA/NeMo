@@ -190,19 +190,6 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
         lang_list = self.tokenizer.ids_to_text_and_langs(tokens)
         return lang_list
 
-    def decode_ids_to_words_and_langs(self, tokens: List[int]) -> List[str]:
-        """
-        Decode a token id list into word / language ID (LID) list.
-
-        Args:
-            tokens: List of int representing the token ids.
-
-        Returns:
-            A list of decoded words / LIDS.
-        """
-        words_and_langs = self.tokenizer.ids_to_words_and_langs(tokens)
-        return words_and_langs
-
     def decode_hypothesis(self, hypotheses_list: List[Hypothesis]) -> List[Union[Hypothesis, NBestHypotheses]]:
         """
         Decode a list of hypotheses into a list of strings.
@@ -230,7 +217,6 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
 
                     hypotheses[ind].langs = self.decode_tokens_to_lang(prediction)
                     hypotheses[ind].langs_chars = self.decode_ids_to_langs(prediction)
-                    hypotheses[ind].langs_words = self.decode_ids_to_words_and_langs(prediction)
             else:
                 logging.warning(
                     "Ignoring request for lang output in hypotheses since the model does not use an aggregate tokenizer"

@@ -283,7 +283,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 item = {'audio_filepath': filepaths[idx], 'pred_text': text}
                 if compute_langs:
                     item['pred_lang'] = transcription.langs
-                    item['pred_lang_words'] = transcription.langs_words
+                    item['pred_lang_chars'] = transcription.langs_chars
 
                 f.write(json.dumps(item) + "\n")
         else:
@@ -297,7 +297,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
 
                     if compute_langs:
                         item['pred_lang'] = transcriptions[idx].langs
-                        item['pred_lang_words'] = transcriptions[idx].langs_words
+                        item['pred_lang_chars'] = transcriptions[idx].langs_chars
 
                     f.write(json.dumps(item) + "\n")
 
