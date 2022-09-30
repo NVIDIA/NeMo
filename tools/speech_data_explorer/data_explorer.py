@@ -205,8 +205,6 @@ def load_data(
     wmr = 0
     mwa = 0
     num_hours = 0
-    vocabulary = defaultdict(lambda: 0)
-    match_vocab = defaultdict(lambda: 0)
     match_vocab_1 = defaultdict(lambda: 0)
     match_vocab_2 = defaultdict(lambda: 0)
 
