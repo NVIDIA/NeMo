@@ -32,6 +32,7 @@ __idx_suffix__ = 'idx'  # index file suffix
 # FIXME: have a method to return all needed file extensions (npy, info)
 # FIXME: have a method to check existence of all reuiqred files (given as dict)
 
+
 class TextMemMapDataset(Dataset):
     """
     Allow per-line lazy access to multiple text files using numpy memmap.
