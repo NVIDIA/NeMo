@@ -18,6 +18,7 @@ from typing import Any, List, Optional, Union
 from omegaconf import OmegaConf
 
 import torch
+from torch import Tensor
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
@@ -93,6 +94,15 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBasePromptLearningModel):
         self._inference_config = None
         self.hidden_size = self.frozen_model.cfg.hidden_size
         self.padded_vocab_size = self.frozen_model.padded_vocab_size
+        self.word_embeddings = self.frozen_model.model.language_model.embedding.word_embeddings
+
+    def add_virtual_prompt_params_to_param_group(self):
+        """
+        Passes only prompt table and prompt encoder params to the optimizer.
+        """
+        virtual_prompt_params = {'params': []}
+        virtual_prompt_params['params'].extend([param for param in self.prompt_encoder.parameters()])
+        self._optimizer_param_groups = (virtual_prompt_params,)
 
     def load_task_templates(self, task_templates):
         self.task_templates = OmegaConf.to_container(self.cfg.task_templates)
@@ -182,12 +192,21 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBasePromptLearningModel):
 
         self.frozen_model.model.set_input_tensor(input_tensor)
 
+    def embed_input_train(self, input_ids: Tensor, prompt_input_mask):
+        # Replace virtual token ids with padding for forward pass through vocab embeddings
+        discrete_token_ids = input_ids.clone()
+        discrete_token_embeds = self.word_embeddings(discrete_token_ids).clone()
+        # [b, s, d] -> [s, b, d] 
+        prompt_input_emb = discrete_token_embeds.transpose(0, 1).contiguous()
+        virtual_token_embeds = self.prompt_encoder(prompt_input_emb, prompt_input_mask)
+        return virtual_token_embeds
+
     def forward(
         self,
         input_ids,
         position_ids,
         attention_mask,
-        taskname_ids,
+        prompt_input_mask,
         labels=None,
         inference=True,
         set_inference_key_value_memory=False,
@@ -201,9 +220,9 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBasePromptLearningModel):
         # Get embeddings for text tokens and insert virtual token embeddings
         if self.frozen_model.model.pre_process:
             if inference:
-                input_embeds = self.embed_input_inference(input_ids, taskname_ids)
+                input_embeds = self.embed_input_inference(input_ids)
             else:
-                input_embeds = self.embed_input_train(input_ids, taskname_ids)
+                input_embeds = self.embed_input_train(input_ids, prompt_input_mask)
 
             position_embeddings = self.frozen_model.model.language_model.embedding.position_embeddings(position_ids)
             encoder_input = input_embeds + position_embeddings
@@ -250,8 +269,8 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBasePromptLearningModel):
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(batch, model):
             batch = [x.cuda(non_blocking=True) for x in batch]
-            input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids = batch
-            output_tensor = model(input_ids, position_ids, attention_mask, taskname_ids, labels, inference=False)
+            input_ids, labels, loss_mask, position_ids, attention_mask, prompt_input_mask = batch
+            output_tensor = model(input_ids, position_ids, attention_mask, prompt_input_mask, labels, inference=False)
 
             if isinstance(output_tensor, tuple):
                 output_tensor, _ = output_tensor

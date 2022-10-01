@@ -49,8 +49,8 @@ class UniversalPromptEncoder(NeuralModule, Exportable):
         self.hidden = self.encoder.hidden_size
         # input_adaptor = nn.Linear(self.hidden_size, output_size)
         
-    def forward(self, input_prompt) -> torch.Tensor:
-        hidden = self.encoder.forward(input_prompt)
+    def forward(self, input_prompt, mask) -> torch.Tensor:
+        hidden = self.encoder.forward(input_prompt, mask)
         return hidden
 
 

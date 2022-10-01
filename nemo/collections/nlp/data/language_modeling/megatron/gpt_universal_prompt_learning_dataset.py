@@ -232,7 +232,7 @@ class GPTUniversalPromptLearningDataset(Dataset):
         else:
             resi_padding = 0
         batch_max += resi_padding
-        input_ids, loss_mask = self.pad_batch_and_build_loss_mask(input_ids, batch_max, answer_starts)
+        input_ids, loss_mask, prompt_input_mask = self.pad_batch_and_build_loss_mask(input_ids, batch_max, answer_starts)
         # Should be a label for every token in batch, label is the next token
         labels = input_ids[:, 1:].contiguous()
         input_ids = input_ids[:, :-1].contiguous()
@@ -240,6 +240,7 @@ class GPTUniversalPromptLearningDataset(Dataset):
 
         # Loss mask should align with labels
         loss_mask = loss_mask[:, 1:].contiguous()
+        prompt_input_mask = prompt_input_mask[:, 1:].contiguous()
 
         # Using causal attention mask for whole input
         batch_size = len(input_ids)
@@ -251,11 +252,12 @@ class GPTUniversalPromptLearningDataset(Dataset):
         attention_mask = attention_mask < 0.5
         position_ids = build_position_ids(input_ids)
 
-        return input_ids, labels, loss_mask, position_ids, attention_mask
+        return input_ids, labels, loss_mask, position_ids, attention_mask, prompt_input_mask
 
     def pad_batch_and_build_loss_mask(self, input_ids, batch_max, answer_starts):
         """ Pad input_ids in batch to max batch length while building loss mask """
         batch_loss_masks = []
+        prompt_input_masks = []
         for ids, answer_start_idx in zip(input_ids, answer_starts):
             if answer_start_idx is not None:
                 # Loss mask where answer tokens are 1.0 and all other tokens are 0.0
@@ -263,7 +265,8 @@ class GPTUniversalPromptLearningDataset(Dataset):
             else:
                 # Loss mask where virtual tokens are 0.0 and all other tokens are 1.0
                 loss_mask = [1.0] * len(ids)
-
+            prompt_input_mask = [True] * answer_start_idx + [False] * (batch_max - answer_start_idx)
+            prompt_input_masks.append(prompt_input_mask)
             # Pad to max length
             input_length = len(ids)
             padding_length = batch_max - input_length
@@ -276,8 +279,9 @@ class GPTUniversalPromptLearningDataset(Dataset):
         # Make into torch tensors
         input_ids = torch.tensor(input_ids, dtype=torch.long)
         batch_loss_masks = torch.stack(batch_loss_masks)
+        prompt_input_masks = torch.tensor(prompt_input_masks, dtype=torch.bool)
 
-        return input_ids, batch_loss_masks
+        return input_ids, batch_loss_masks, prompt_input_masks
 
     def inference_collate_fn(self, batch):
         """
