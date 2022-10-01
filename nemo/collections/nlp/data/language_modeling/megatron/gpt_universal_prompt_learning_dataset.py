@@ -52,6 +52,7 @@ class GPTUniversalPromptLearningDataset(Dataset):
         tokenizer,
         task_templates: dict,
         pad_token_id: int,
+        virtual_token_len: int,
         max_seq_length: int,
         min_seq_length: int = 1,
         add_bos: bool = False,
@@ -62,6 +63,7 @@ class GPTUniversalPromptLearningDataset(Dataset):
         load_cache: bool = True,  # whether to load from the cache if it is available
     ):
         self.tokenizer = tokenizer
+        self.virtual_token_len = virtual_token_len
         self.task_templates = task_templates
         self.pad_token_id = pad_token_id
         self.max_seq_length = max_seq_length
@@ -142,9 +144,9 @@ class GPTUniversalPromptLearningDataset(Dataset):
             else:
                 doc = json.loads(json_line)
 
-            input_ids = self.tokenize_input(doc, truncation_field, pieces, self.max_seq_length, self.tokenizer)
+            input_ids = self.tokenize_input(doc, truncation_field, pieces, self.max_seq_length - self.virtual_token_len, self.tokenizer)
             # Skip example if the final length doesn't fit length requirements even after truncation
-            if self.min_seq_length <= len(input_ids) <= self.max_seq_length:
+            if self.min_seq_length <= len(input_ids) <= self.max_seq_length - self.virtual_token_len:
                 # Find answer field indices if training and answer_only_loss is True
                 answer_start_idx = None
                 if answer_only_loss and self.for_train:
@@ -244,8 +246,8 @@ class GPTUniversalPromptLearningDataset(Dataset):
 
         # Using causal attention mask for whole input
         batch_size = len(input_ids)
-        attention_mask = torch.tril(torch.ones((batch_size, batch_max, batch_max))).view(
-            batch_size, 1, batch_max, batch_max
+        attention_mask = torch.tril(torch.ones((batch_size, batch_max+self.virtual_token_len, batch_max+self.virtual_token_len))).view(
+            batch_size, 1, batch_max+self.virtual_token_len, batch_max+self.virtual_token_len
         )
 
         # Convert attention mask from float to bool

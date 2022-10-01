@@ -16,7 +16,7 @@ import os
 from functools import partial
 from typing import Any, List, Optional, Union
 from omegaconf import OmegaConf
-
+import torch.nn.functional as F
 import torch
 from torch import Tensor
 from omegaconf.dictconfig import DictConfig
@@ -199,7 +199,9 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBasePromptLearningModel):
         # [b, s, d] -> [s, b, d] 
         prompt_input_emb = discrete_token_embeds.transpose(0, 1).contiguous()
         virtual_token_embeds = self.prompt_encoder(prompt_input_emb, prompt_input_mask)
-        return virtual_token_embeds
+        # [b, s, d] -> [s, b, d] 
+        virtual_token_embeds = virtual_token_embeds.transpose(0, 1).contiguous()
+        return virtual_token_embeds, discrete_token_embeds
 
     def forward(
         self,
@@ -222,12 +224,12 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBasePromptLearningModel):
             if inference:
                 input_embeds = self.embed_input_inference(input_ids)
             else:
-                input_embeds = self.embed_input_train(input_ids, prompt_input_mask)
+                virtual_token, input_embeds = self.embed_input_train(input_ids, prompt_input_mask)
 
             position_embeddings = self.frozen_model.model.language_model.embedding.position_embeddings(position_ids)
             encoder_input = input_embeds + position_embeddings
+            encoder_input = torch.concat([virtual_token, encoder_input], axis=1)
             encoder_input = encoder_input.transpose(0, 1).contiguous()
-
             if self.cfg.get("sequence_parallel", False):
                 encoder_input = tensor_parallel.mappings.scatter_to_sequence_parallel_region(encoder_input)
         else:
@@ -264,12 +266,14 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBasePromptLearningModel):
             The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
         sequence_parallel_enabled = (self.cfg.get("sequence_parallel", False),)
-        super().fwd_bwd_step(batch, forward_only, sequence_parallel_enabled=sequence_parallel_enabled)
+        return super().fwd_bwd_step(batch, forward_only, sequence_parallel_enabled=sequence_parallel_enabled)
 
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(batch, model):
             batch = [x.cuda(non_blocking=True) for x in batch]
             input_ids, labels, loss_mask, position_ids, attention_mask, prompt_input_mask = batch
+            labels = F.pad(labels, (self.cfg.perceiver.hidden_steps, 0, 0, 0), value=0)
+            loss_mask = F.pad(loss_mask, (self.cfg.perceiver.hidden_steps, 0, 0, 0), value=0)
             output_tensor = model(input_ids, position_ids, attention_mask, prompt_input_mask, labels, inference=False)
 
             if isinstance(output_tensor, tuple):
@@ -295,7 +299,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBasePromptLearningModel):
         output_init = scaled_init_method_normal(init_method_std, self.cfg.perceiver.num_layers)
         perceiver_conf['init_method'] = encoder_init
         perceiver_conf['output_layer_init_method'] = output_init
-        self.prompt_encoder = UniversalPromptEncoder(perceiver_conf)
+        self.prompt_encoder = UniversalPromptEncoder(perceiver_conf, output_dim=self.frozen_model.cfg.hidden_size)
 
     def setup(self, stage=None):
         self.setup_test_data()
@@ -383,6 +387,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBasePromptLearningModel):
         dataset = GPTUniversalPromptLearningDataset(
             data=data,
             tokenizer=self.tokenizer,
+            virtual_token_len=self.cfg.perceiver.hidden_steps,
             task_templates=self.task_templates,
             pad_token_id=self.pad_token_id,
             max_seq_length=max_seq_length,
@@ -450,10 +455,10 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBasePromptLearningModel):
         logging.info(f'val_loss: {averaged_loss}')
 
         # Save inference ready .nemo checkpoint version
-        if self.cfg.get("save_intermediate_nemo_file", True):
-            if self.lowest_val_loss is None or averaged_loss < self.lowest_val_loss:
-                self.save_checkpoint_as_nemo_file()
-                self.lowest_val_loss = averaged_loss
+        # if self.cfg.get("save_intermediate_nemo_file", True):
+        #     if self.lowest_val_loss is None or averaged_loss < self.lowest_val_loss:
+        #         self.save_checkpoint_as_nemo_file()
+        #         self.lowest_val_loss = averaged_loss
 
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)

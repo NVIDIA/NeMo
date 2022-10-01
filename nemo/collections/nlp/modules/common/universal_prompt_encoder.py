@@ -40,17 +40,21 @@ except (ImportError, ModuleNotFoundError):
 class UniversalPromptEncoder(NeuralModule, Exportable):
 
     def __init__(
-        self, cfg
+        self, cfg, output_dim,
     ):
         """
         """
         super().__init__()
         self.encoder = MegatronPerceiverEncoderModule(**cfg)
         self.hidden = self.encoder.hidden_size
+        self.input_linear = nn.Linear(output_dim, self.hidden)
+        self.output_linear = nn.Linear(self.hidden, output_dim)
         # input_adaptor = nn.Linear(self.hidden_size, output_size)
         
     def forward(self, input_prompt, mask) -> torch.Tensor:
+        input_prompt = self.input_linear(input_prompt)
         hidden = self.encoder.forward(input_prompt, mask)
+        hidden = self.output_linear(hidden)
         return hidden
 
 
