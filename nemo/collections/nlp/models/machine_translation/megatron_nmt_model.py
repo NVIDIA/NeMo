@@ -132,13 +132,28 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
 
         # when using pipeline model parallel the final stage need to initialize word embeddings
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
+            assert (
+                self.cfg.share_token_embeddings
+            ), "share_word_embedding must be True when using pipeline model parallel > 1"
+            assert (
+                self.cfg.share_decoder_tokens_head_embeddings
+            ), "share_decoder_tokens_head_embeddings must be True when using pipeline model parallel > 1"
             self.enc_dec_model.sync_initial_word_embeddings()
-            # Only synchronize position embeddings if using absolute position embeddings in both the encoder and decoder.
             if (
-                self.cfg.encoder.get("position_embedding_type", "learned_absolute") == "learned_absolute"
-                and self.cfg.decoder.get("position_embedding_type", "learned_absolute") == "learned_absolute"
+                self.cfg.encoder.get('position_embedding_type') != 'relative'
+                and self.cfg.decoder.get('position_embedding_type') != 'relative'
             ):
                 self.enc_dec_model.sync_initial_position_embeddings()
+            # Synchronize RPE embeddings across pipeline parallel ranks.
+            else:
+                if self.cfg.encoder.get('position_embedding_type', 'learned_absolute') == 'relative':
+                    self.enc_dec_model.sync_initial_encoder_relative_position_embeddings()
+                if self.cfg.decoder.get('position_embedding_type', 'learned_absolute') == 'relative':
+                    self.enc_dec_model.sync_initial_decoder_relative_position_embeddings()
+                if self.cfg.decoder.get(
+                    'position_embedding_type', 'learned_absolute'
+                ) == 'relative' and not self.cfg.decoder.get('relative_position_bias_self_attention_only', True):
+                    self.enc_dec_model.sync_initial_decoder_cross_attention_relative_position_embeddings()
 
     def _build_tokenizer(self):
         # Instantiates tokenizers and register to be saved with NeMo Model archive
