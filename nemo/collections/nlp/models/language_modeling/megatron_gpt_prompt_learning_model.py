@@ -309,7 +309,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         weights during inference or future p-tuning/prompt-tuning.
         """
         # Save p-tuned prompts to prompt table
-        if self.frozen_model.model.pre_process:
+        if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING and self.frozen_model.model.pre_process:
             for taskname in self.new_tasks:
                 device = next(self.word_embeddings.parameters()).device
                 tokenized_taskname = torch.tensor(self.tokenizer.text_to_ids(taskname)).to(device)

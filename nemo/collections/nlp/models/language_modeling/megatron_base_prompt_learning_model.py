@@ -220,15 +220,16 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         weights during inference or future p-tuning/prompt-tuning.
         """
         # Save p-tuned prompts to prompt table
-        for taskname in self.new_tasks:
-            device = next(self.word_embeddings.parameters()).device
-            tokenized_taskname = torch.tensor(self.tokenizer.text_to_ids(taskname)).to(device)
-            taskname_embeddings = self.word_embeddings(tokenized_taskname).unsqueeze(0)
-            virtual_prompt_embeddings = self.prompt_encoder(taskname_embeddings=taskname_embeddings).squeeze(0)
-            total_virtual_tokens = self.task_templates[taskname]["total_virtual_tokens"]
-            self.prompt_table.add_prompt_from_p_tuning_encoder(
-                taskname, virtual_prompt_embeddings, total_virtual_tokens
-            )
+        if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING:
+            for taskname in self.new_tasks:
+                device = next(self.word_embeddings.parameters()).device
+                tokenized_taskname = torch.tensor(self.tokenizer.text_to_ids(taskname)).to(device)
+                taskname_embeddings = self.word_embeddings(tokenized_taskname).unsqueeze(0)
+                virtual_prompt_embeddings = self.prompt_encoder(taskname_embeddings=taskname_embeddings).squeeze(0)
+                total_virtual_tokens = self.task_templates[taskname]["total_virtual_tokens"]
+                self.prompt_table.add_prompt_from_p_tuning_encoder(
+                    taskname, virtual_prompt_embeddings, total_virtual_tokens
+                )
 
     def freeze_existing_virtual_prompt_params(self):
         """Freeze params of existing virtual prompts that should not be tuned further
