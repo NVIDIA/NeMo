@@ -131,6 +131,7 @@ class AbstractRNNTDecoding(ABC):
         self.blank_id = blank_id
         self.big_blank_durations = self.cfg.get("big_blank_durations", None)
         self.compute_hypothesis_token_set = self.cfg.get("compute_hypothesis_token_set", False)
+        self.compute_langs = decoding_cfg.get('compute_langs', False)
         self.preserve_alignments = self.cfg.get('preserve_alignments', None)
         self.joint_fused_batch_size = self.cfg.get('fused_batch_size', None)
         self.compute_timestamps = self.cfg.get('compute_timestamps', None)
@@ -417,6 +418,34 @@ class AbstractRNNTDecoding(ABC):
 
         Returns:
             A list of decoded tokens.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def decode_tokens_to_lang(self, tokens: List[int]) -> str:
+        """
+        Implemented by subclass in order to
+        compute the most likely language ID (LID) string given the tokens.
+
+        Args:
+            tokens: List of int representing the token ids.
+
+        Returns:
+            A decoded LID string.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def decode_ids_to_langs(self, tokens: List[int]) -> List[str]:
+        """
+        Implemented by subclass in order to
+        decode a token id list into language ID (LID) list.
+
+        Args:
+            tokens: List of int representing the token ids.
+
+        Returns:
+            A list of decoded LIDS.
         """
         raise NotImplementedError()
 
@@ -843,6 +872,32 @@ class RNNTDecoding(AbstractRNNTDecoding):
         token_list = [self.labels_map[c] for c in tokens if c < self.blank_id]
         return token_list
 
+    def decode_tokens_to_lang(self, tokens: List[int]) -> str:
+        """
+        Compute the most likely language ID (LID) string given the tokens.
+
+        Args:
+            tokens: List of int representing the token ids.
+
+        Returns:
+            A decoded LID string.
+        """
+        lang = self.tokenizer.ids_to_lang(tokens)
+        return lang
+
+    def decode_ids_to_langs(self, tokens: List[int]) -> List[str]:
+        """
+        Decode a token id list into language ID (LID) list.
+
+        Args:
+            tokens: List of int representing the token ids.
+
+        Returns:
+            A list of decoded LIDS.
+        """
+        lang_list = self.tokenizer.ids_to_text_and_langs(tokens)
+        return lang_list
+
 
 class RNNTWER(Metric):
     """
@@ -958,6 +1013,9 @@ class RNNTDecodingConfig:
 
     # compute RNNT time stamps
     compute_timestamps: Optional[bool] = None
+
+    # compute language IDs
+    compute_langs: bool = False
 
     # token representing word seperator
     word_seperator: str = " "
