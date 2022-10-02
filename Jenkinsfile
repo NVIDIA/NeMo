@@ -673,7 +673,7 @@ pipeline {
             sh "python examples/nlp/language_modeling/tuning/megatron_t5_ia3_eval.py \
                 --config-name=megatron_t5_ia3_inference \
                 adapter_model_file='/home/TestData/nlp/ia3_tuning/test_tp2_pp1.nemo' \
-                language_model_path='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp2_pp1.nemo' \
+                language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp2.nemo' \
                 trainer.devices=2 \
                 tensor_model_parallel_size=2 \
                 data.global_batch_size=2 \
