@@ -1,4 +1,5 @@
 """
+Multi-worker mC4 data downloading.
 Example usage:
  python download.py \
     --c4-path=<path/to/c4> \

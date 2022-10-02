@@ -1,3 +1,7 @@
+"""
+This script is used to `pause_and_prime_dns_connections` in BCP platform.
+"""
+
 import os
 import re
 import time

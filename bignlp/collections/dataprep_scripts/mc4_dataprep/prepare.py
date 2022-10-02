@@ -1,4 +1,5 @@
 """
+Prepare mapping file to do multi-worker mC4 data downloading.
 Example usage:
  python prepare.py \
     --data-path=<path/to/data/folder> \

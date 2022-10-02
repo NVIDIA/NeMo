@@ -25,6 +25,11 @@ def _inject_model_parallel_rank(
 
 @hydra.main(config_path="conf", config_name="checkpoint_search")
 def checkpoint_search(cfg):
+    """
+    Search in the checkpoint folder for the latest checkpoint or a regex name.
+    The checkpoint path are injected based on model parallelism.
+    """
+
     # Checkpoint search
     checkpoint_folder = cfg.checkpoint_folder
     checkpoint_name = cfg.checkpoint_name

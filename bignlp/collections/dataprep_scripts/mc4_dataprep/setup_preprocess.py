@@ -1,4 +1,5 @@
 """
+Setup multi-worker mapping file for mC4 preprocessing.
 Example usage:
  python setup_preprocess.py \
     --c4-path=<path/to/c4> \
