@@ -202,6 +202,9 @@ class DialogueGPTClassificationDataset(DialogueDataset):
         return base_template
 
     def collate_fn(self, batch):
+        """
+        Truncates elements to max length in batch
+        """
         _, _, _, _, candidate_attn_masks, _, _, _ = zip(*batch)
         # determine max length in batch
         batch_max_length = 0
@@ -217,12 +220,12 @@ class DialogueGPTClassificationDataset(DialogueDataset):
             if isinstance(item[0], int):
                 item = [torch.tensor(i) for i in item]
             item_stack = torch.stack(item)
+            # if item_stack is 1d, elements refers to indexes and there is no need to truncate
             if len(item_stack.size()) == 1:
                 all_items.append(item_stack)
-            elif len(item_stack.size()) == 2:
-                all_items.append(item_stack[:, :batch_max_length])
-            elif len(item_stack.size()) == 3:
-                all_items.append(item_stack[:, :, :batch_max_length])
+            # otherwise, truncate last dimension to max length in batch
+            else:
+                all_items.append(item_stack[..., :batch_max_length])
         return all_items
 
     def __getitem__(self, idx: int):

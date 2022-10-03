@@ -36,7 +36,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_
     MegatronGPTPromptLearningModel,
 )
 from nemo.collections.nlp.models.nlp_model import NLPModel
-from nemo.collections.nlp.modules.common import VirtualPromptSource
+from nemo.collections.nlp.modules.common import VirtualPromptSource, VirtualPromptStyle
 from nemo.collections.nlp.modules.common.text_generation_utils import (
     get_default_sampling_params,
     megatron_gpt_generate,
@@ -64,6 +64,7 @@ class DialogueGPTClassificationModel(NLPModel):
         if self.cfg.library == "huggingface":
             self.language_model = AutoModelWithLMHead.from_pretrained(cfg.language_model.pretrained_model_name)
             self.language_model.resize_token_embeddings(len(self.tokenizer.tokenizer))
+            self.unreduced_loss_fct = torch.nn.CrossEntropyLoss(reduction='none')
         elif self.cfg.library == "megatron":
             if self.prompt_learning:
                 if os.path.exists(cfg.prompt_learning_nemo_path):
@@ -288,12 +289,16 @@ class DialogueGPTClassificationModel(NLPModel):
 
         return prompt_token_labels
 
-    def get_prompt_ids_for_megatron_gpt(self, input_ids):
-        if self.cfg.virtual_prompt_style == 'prompt-tuning' or not self.prompt_learning or self.trainer.testing:
+    def get_virtual_prompt_ids_for_megatron_gpt(self, input_ids):
+        if (
+            self.cfg.virtual_prompt_style == VirtualPromptStyle.PROMPT_TUNING
+            or not self.prompt_learning
+            or self.trainer.testing
+        ):
             prompt_ids = torch.tensor([0] * input_ids.size(0)).to(input_ids.device) if self.prompt_learning else None
         else:
             total_virtual_tokens = self.cfg.task_templates[0].total_virtual_tokens
-            init_text = self.cfg.prompt_tuning.new_prompt_init_text[0]
+            init_text = self.cfg.task_templates[0].taskname
             init_text_ids = self.tokenizer.text_to_ids(init_text)
             init_text_ids = torch.tensor(init_text_ids).to(input_ids.device)
             prompt_ids = init_text_ids.repeat(input_ids.size(0), 1)[:, :total_virtual_tokens]
@@ -304,14 +309,14 @@ class DialogueGPTClassificationModel(NLPModel):
         if self.cfg.library == "huggingface":
             output = self.language_model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
             loss = output['loss']
-
+            # calculate loss per sample
             b_logits = output['logits']
-            # Shift so that tokens < n predict n
             shift_logits = b_logits[..., :-1, :].contiguous()
             shift_labels = labels[..., 1:].contiguous()
-            loss_fct = torch.nn.CrossEntropyLoss(reduction='none')
-            new_loss = loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
-            loss_per_sample = torch.mean(new_loss.view(shift_labels.size()), dim=-1)
+            unreduced_loss = self.unreduced_loss_fct(
+                shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1)
+            )
+            loss_per_sample = torch.mean(unreduced_loss.view(shift_labels.size()), dim=-1)
         elif self.cfg.library == "megatron":
             num_prompt_tokens = (
                 len(self.language_model.pseudo_token_ids) if hasattr(self.language_model, 'pseudo_token_ids') else 0
@@ -320,7 +325,7 @@ class DialogueGPTClassificationModel(NLPModel):
                 start=0, end=num_prompt_tokens + input_ids.size(1), dtype=torch.long, device=input_ids.device,
             )
 
-            prompt_ids = self.get_prompt_ids_for_megatron_gpt(input_ids)
+            prompt_ids = self.get_virtual_prompt_ids_for_megatron_gpt(input_ids)
 
             attn_mask_add_on = torch.ones((attention_mask.size(0), num_prompt_tokens), device=attention_mask.device)
             full_attention_mask = torch.cat([attn_mask_add_on, attention_mask], axis=-1)
@@ -344,7 +349,7 @@ class DialogueGPTClassificationModel(NLPModel):
                     attn_mask,
                     labels=left_shifted_input_ids,
                     taskname_ids=prompt_ids,
-                    inference=False if len(prompt_ids.size()) == 2 else True,
+                    inference=inference,
                 )
             else:
                 unmasked_unreduced_loss = self.language_model(
@@ -366,11 +371,15 @@ class DialogueGPTClassificationModel(NLPModel):
 
         return loss, loss_per_sample
 
-    def mask_and_reduce_loss_per_sample(self, loss_mask, output_tensor):
-        losses = output_tensor.float()
+    def mask_and_reduce_loss_per_sample(self, loss_mask, unmasked_unreduced_loss):
+        """
+        Mask and reduce loss based on each sample in batch
+        Useful for ranking candidates with the same prompt in batch based on loss
+        """
+        losses = unmasked_unreduced_loss.float()
         loss_mask = loss_mask.view(-1).float()
         masked_loss = losses.view(-1) * loss_mask
-        loss_per_sample = torch.mean(masked_loss.view(output_tensor.size()), dim=-1)
+        loss_per_sample = torch.mean(masked_loss.view(unmasked_unreduced_loss.size()), dim=-1)
         return loss_per_sample
 
     def mask_and_reduce_loss(self, loss_mask, output_tensor):
@@ -393,6 +402,7 @@ class DialogueGPTClassificationModel(NLPModel):
         template_length,
         correct_candidate,
         minus_negative=True,
+        inference=False,
     ):
         best_candidate_input_ids = []
 
@@ -412,6 +422,7 @@ class DialogueGPTClassificationModel(NLPModel):
                     candidate_input_ids[i, start_yes : start_yes + 1, :],
                     candidate_attn_masks[i, start_yes : start_yes + 1, :],
                     self.get_binary_score_labels(candidate_input_ids[i, start_yes : start_yes + 1, :]),
+                    inference=inference,
                 )
 
                 considered_loss = cand_loss.item()
@@ -423,6 +434,7 @@ class DialogueGPTClassificationModel(NLPModel):
                         candidate_input_ids[i, start_no : start_no + 1, :],
                         candidate_attn_masks[i, start_no : start_no + 1, :],
                         self.get_binary_score_labels(candidate_input_ids[i, start_no : start_no + 1, :]),
+                        inference=inference,
                     )
                     considered_loss -= negative_cand_loss.item()
 
@@ -453,7 +465,14 @@ class DialogueGPTClassificationModel(NLPModel):
         return labels
 
     def rank_candidates(
-        self, candidate_input_ids, candidate_attn_masks, utterance_length, labels, template_length, minus_prior=True
+        self,
+        candidate_input_ids,
+        candidate_attn_masks,
+        utterance_length,
+        labels,
+        template_length,
+        minus_prior=True,
+        inference=False,
     ):
         best_candidate_input_ids = []
 
@@ -473,6 +492,7 @@ class DialogueGPTClassificationModel(NLPModel):
                 candidate_input_ids[i, :last_j, :],
                 candidate_attn_masks[i, :last_j, :],
                 candidate_input_ids[i, :last_j, :],
+                inference=inference,
             )
 
             if minus_prior:
@@ -480,6 +500,7 @@ class DialogueGPTClassificationModel(NLPModel):
                     candidate_input_ids[i, :last_j, utterance_end:],
                     candidate_attn_masks[i, :last_j, utterance_end:],
                     candidate_input_ids[i, :last_j, utterance_end:],
+                    inference=inference,
                 )
                 considered_loss = loss_per_sample - utterance_free_cand_loss_per_sample
             else:
@@ -521,7 +542,7 @@ class DialogueGPTClassificationModel(NLPModel):
 
         elif self.cfg.library == "megatron":
 
-            prompt_ids = self.get_prompt_ids_for_megatron_gpt(input_ids)
+            prompt_ids = self.get_virtual_prompt_ids_for_megatron_gpt(input_ids)
 
             num_prompt_tokens = (
                 len(self.language_model.pseudo_token_ids) if hasattr(self.language_model, 'pseudo_token_ids') else 0
@@ -581,13 +602,19 @@ class DialogueGPTClassificationModel(NLPModel):
             correct_candidate,
         ) = batch
 
-        loss, _ = self(input_ids, attn_masks, labels)
+        inference = mode == 'test'
+        loss, _ = self(input_ids, attn_masks, labels, inference=inference)
         self.log("{}_loss".format(mode), loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
 
         # ranking using perplexity of candidates following the "<utterance> <label_type>:"
         if self.eval_mode == "ranking":
             generated_field, ground_truth_field = self.rank_candidates(
-                candidate_input_ids, candidate_attn_masks, utterance_length, labels, template_length
+                candidate_input_ids,
+                candidate_attn_masks,
+                utterance_length,
+                labels,
+                template_length,
+                inference=inference,
             )
         # autoregressively generate candidates (possibly with constraint)
         elif self.eval_mode == "generation":
@@ -598,7 +625,13 @@ class DialogueGPTClassificationModel(NLPModel):
         # (optionally, the difference of that with " Answer: no" using the flag minus_negative=True)
         elif self.eval_mode == "binary_score":
             generated_field, ground_truth_field = self.binary_score_candidates(
-                candidate_input_ids, candidate_attn_masks, utterance_length, labels, template_length, correct_candidate
+                candidate_input_ids,
+                candidate_attn_masks,
+                utterance_length,
+                labels,
+                template_length,
+                correct_candidate,
+                inference=inference,
             )
 
         else:
@@ -678,7 +711,7 @@ class DialogueGPTClassificationModel(NLPModel):
     def setup(self, stage=None):
         super().setup()
         if self.cfg.library == "megatron" and self.prompt_learning and stage == "fit":
-            if self.cfg.virtual_prompt_style == 'prompt-tuning':
+            if self.cfg.virtual_prompt_style == VirtualPromptStyle.PROMPT_TUNING:
                 self.language_model.init_new_prompts()
             else:
                 self.language_model.init_prompt_encoder()

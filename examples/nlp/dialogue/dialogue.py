@@ -124,8 +124,13 @@ def main(cfg: DictConfig) -> None:
 
     if cfg.do_training:
         trainer.fit(model)
-        if cfg.model.nemo_path and not os.path.exists(cfg.model.nemo_path):
-            model.save_to(cfg.model.nemo_path)
+        if cfg.model.nemo_path:
+            if not os.path.exists(cfg.model.nemo_path):
+                model.save_to(cfg.model.nemo_path)
+            else:
+                updated_nemo_path = cfg.model.nemo_path.replace(".nemo", "_new.nemo")
+                logging.warning("nemo path exists, saving at {} instead".format(updated_nemo_path))
+                model.save_to(updated_nemo_path)
 
     else:
         data_dir = cfg.model.dataset.get('data_dir', None)
