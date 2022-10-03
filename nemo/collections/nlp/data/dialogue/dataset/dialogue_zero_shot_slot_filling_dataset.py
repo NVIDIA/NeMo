@@ -250,7 +250,7 @@ class DialogueZeroShotSlotFillingDataset(DialogueDataset):
 
             all_segment_ids.append([0] * max_seq_length)
 
-        logging.info(f'{too_long_count} are longer than {max_seq_length}')
+        # logging.info(f'{too_long_count} are longer than {max_seq_length}')
         return (
             all_slots,
             all_subtokens,
@@ -325,8 +325,8 @@ class DialogueZeroShotSlotFillingDataset(DialogueDataset):
                 all_slots.append(slots)
         max_seq_length_data = max(sent_lengths)
         max_seq_length = min(max_seq_length, max_seq_length_data) if max_seq_length > 0 else max_seq_length_data
-        logging.info(f'Setting max length to: {max_seq_length}')
-        get_stats(sent_lengths)
+        # logging.info(f'Setting max length to: {max_seq_length}')
+        # get_stats(sent_lengths)
 
         # truncate and pad samples
         (
