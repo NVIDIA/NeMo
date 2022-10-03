@@ -40,10 +40,6 @@ This model architecture is based on `Multimodal Semi-supervised Learning Framewo
 
 .. note::
 
-    We recommend you try this model in a Jupyter notebook (run on `Google's Colab <https://colab.research.google.com/notebooks/intro.ipynb>`_.): `NeMo/tutorials/nlp/Punctuation_and_Capitalization_Lexical_Audio.ipynb <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/nlp/Punctuation_and_Capitalization_Lexical_Audio.ipynb>`__.
-
-    Connect to an instance with a GPU (**Runtime** -> **Change runtime type** -> select **GPU** for the hardware accelerator).
-
     An example script on how to train and evaluate the model can be found at: `NeMo/examples/nlp/token_classification/punctuation_capitalization_lexical_audio_train_evaluate.py <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/punctuation_capitalization_lexical_audio_train_evaluate.py>`__.
 
     The default configuration file for the model can be found at: `NeMo/examples/nlp/token_classification/conf/punctuation_capitalization_lexical_audio_config.yaml <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/conf/punctuation_capitalization_lexical_audio_config.yaml>`__.
