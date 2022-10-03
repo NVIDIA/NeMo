@@ -95,6 +95,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBasePromptLearningModel):
         self.hidden_size = self.frozen_model.cfg.hidden_size
         self.padded_vocab_size = self.frozen_model.padded_vocab_size
         self.word_embeddings = self.frozen_model.model.language_model.embedding.word_embeddings
+        self._prompt_encoder_key = 'prompt_encoder'
 
     def add_virtual_prompt_params_to_param_group(self):
         """
@@ -152,9 +153,11 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBasePromptLearningModel):
         are only in state dict for intermediate checkpoints saved during training. Final
         nemo checkpoints at the end of training will contain prompt table parameters only. 
         """
-
         if self.frozen_model.model.pre_process:
-            super().state_dict(destination, prefix, keep_vars)
+            state_dict_ = {}
+            state_dict_[
+                self._prompt_encoder_key] = self.prompt_encoder.state_dict()
+            return state_dict_
         else:
             state_dict_ = {}
 
@@ -165,8 +168,12 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBasePromptLearningModel):
         Custom load state dict method that only loads prompt table and prompt encoder
         parameters. Matching load method for this class' custom state dict method. 
         """
-        if self.frozen_model.model.pre_process:
-            super().load_state_dict(state_dict, strict)
+        if self.frozen_model.model.pre_process and self._prompt_encoder_key in state_dict:
+            state_dict_ = state_dict[self._prompt_encoder_key]
+
+            if not hasattr(self, "prompt_encoder"):
+                self.init_prompt_encoder()
+            self.prompt_encoder.load_state_dict(state_dict_, strict)
 
     def setup_optimizer_param_groups(self):
         """
