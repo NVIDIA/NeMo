@@ -34,7 +34,7 @@ from nemo.utils import logging
 
 
 class BERTQAModel(BaseQAModel):
-    """ BERT model with a QA (token classification) head """
+    """BERT model with a QA (token classification) head"""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
 
@@ -175,7 +175,7 @@ class BERTQAModel(BaseQAModel):
             num_samples: number of samples to use of inference data. Default: -1 if all data should be used.
             output_nbest_file: optional output file for writing out nbest list
             output_prediction_file: optional output file for writing out predictions
-            
+
         Returns:
             model predictions, model nbest list
         """
@@ -194,7 +194,10 @@ class BERTQAModel(BaseQAModel):
             logging.set_verbosity(logging.WARNING)
 
             infer_datalayer = self.setup_inference_data(
-                file, batch_size=batch_size, num_samples=num_samples, num_workers=2,
+                file,
+                batch_size=batch_size,
+                num_samples=num_samples,
+                num_workers=2,
             )
 
             all_logits = []
@@ -229,7 +232,9 @@ class BERTQAModel(BaseQAModel):
 
             if output_prediction_file:
                 QAMetrics.dump_predicted_answers_to_file(
-                    output_prediction_file, infer_datalayer.dataset.examples, all_predictions,
+                    output_prediction_file,
+                    infer_datalayer.dataset.examples,
+                    all_predictions,
                 )
 
             if output_nbest_file:
@@ -516,7 +521,7 @@ class BERTQAModel(BaseQAModel):
         return data_loader
 
     def _get_best_indexes(self, logits, n_best_size):
-        """ Get the n-best logits from a list """
+        """Get the n-best logits from a list"""
 
         best_indices = np.argsort(logits)[::-1]
 
@@ -584,7 +589,9 @@ class BERTQAModel(BaseQAModel):
         if len(orig_ns_text) != len(tok_ns_text):
             if verbose_logging:
                 logging.warning(
-                    "Length not equal after stripping spaces: '%s' vs '%s'", orig_ns_text, tok_ns_text,
+                    "Length not equal after stripping spaces: '%s' vs '%s'",
+                    orig_ns_text,
+                    tok_ns_text,
                 )
             return orig_text
 

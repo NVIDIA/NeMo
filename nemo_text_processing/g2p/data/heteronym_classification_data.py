@@ -165,7 +165,7 @@ class HeteronymClassificationDataset(Dataset):
         return self.data[index]
 
     def map(self, text: str) -> List[int]:
-        """ Creates a mapping from target labels to ids."""
+        """Creates a mapping from target labels to ids."""
         tokens = []
         for word_id, word in enumerate(text.split()):
             tokens.append(self.labels_tkn2id[word])
@@ -175,7 +175,11 @@ class HeteronymClassificationDataset(Dataset):
         # Encode inputs (graphemes)
         input_batch = [entry["input"] for entry in batch]
         input_encoding = self.tokenizer.tokenizer(
-            input_batch, padding='longest', max_length=self.max_seq_len, truncation=True, return_tensors='pt',
+            input_batch,
+            padding='longest',
+            max_length=self.max_seq_len,
+            truncation=True,
+            return_tensors='pt',
         )
 
         input_ids, attention_mask = input_encoding.input_ids, input_encoding.attention_mask

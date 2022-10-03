@@ -45,7 +45,15 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
         self.adapter_name_keys = []
 
     def forward(
-        self, input_ids, dec_input, enc_mask, dec_mask, position_ids, taskname_ids, labels=None, inference=False,
+        self,
+        input_ids,
+        dec_input,
+        enc_mask,
+        dec_mask,
+        position_ids,
+        taskname_ids,
+        labels=None,
+        inference=False,
     ):
         # Call forward on T5 model with preprocessed embeddings
         if self.autocast_dtype == torch.float32:
@@ -250,7 +258,7 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
 
     def load_state_dict(self, state_dict, strict: bool = True):
         """
-        Loads a state_dict expecting the state_dict to contain key,values 
+        Loads a state_dict expecting the state_dict to contain key,values
         only for the adapter parameters.
         """
         for name, module in self.frozen_model.named_modules():
@@ -313,7 +321,8 @@ class MegatronT5AdapterLearningModel(MegatronT5BaseAdapterModel):
             if isinstance(module, adapter_mixins.AdapterModuleMixin):
                 for adapter_key in self.adapter_name_keys:
                     module.add_adapter(
-                        name=adapter_key, cfg=adapter_cfg,
+                        name=adapter_key,
+                        cfg=adapter_cfg,
                     )
 
         logging.info(f'After adding adapters:\n{self.frozen_model.summarize()}')
@@ -331,8 +340,8 @@ class MegatronT5InfusedAdapterModel(MegatronT5BaseAdapterModel):
     Three adapter's are inserted into each Transformer layer in the base GPT Model. Each adapter is basically a vector that simply scales the key, value or ffn hidden representations.
 
     It is assumed that these set of adapters will then be trained for a specific task.
-    Once trained, the adapter weights will be saved and can be re-loaded 
-    and infused into the same GPT Model for inference. 
+    Once trained, the adapter weights will be saved and can be re-loaded
+    and infused into the same GPT Model for inference.
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
@@ -415,7 +424,7 @@ class MegatronT5InfusedAdapterModel(MegatronT5BaseAdapterModel):
 
     def load_state_dict(self, state_dict, strict: bool = True):
         """
-        Loads a state_dict expecting the state_dict to contain key,values 
+        Loads a state_dict expecting the state_dict to contain key,values
         only for the adapter parameters.
         """
         encoder = self.frozen_model.enc_dec_model.enc_dec_model.encoder

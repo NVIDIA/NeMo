@@ -72,10 +72,10 @@ class TabularTokenizer(TokenizerSpec):
         return self.special_tokens[NEW_LINE]
 
     def add_special_tokens(self, special_tokens):
-        """ Add a list of additional tokens to the encoder.
-            The additional tokens are indexed starting from the last
-            index of the
-            current vocabulary in the order of the `special_tokens` list.
+        """Add a list of additional tokens to the encoder.
+        The additional tokens are indexed starting from the last
+        index of the
+        current vocabulary in the order of the `special_tokens` list.
         """
         if not special_tokens:
             self.special_tokens = {}
@@ -90,7 +90,7 @@ class TabularTokenizer(TokenizerSpec):
         self.special_tokens_decoder = {v: k for k, v in self.special_tokens.items()}
 
     def text_to_tokens(self, text):
-        """ Tokenize a string. """
+        """Tokenize a string."""
         tokens = []
         rows = text.split(NEW_LINE)
         num_rows = len(rows)
@@ -116,7 +116,7 @@ class TabularTokenizer(TokenizerSpec):
         return tokens
 
     def tokens_to_ids(self, tokens: List[str]):
-        """ Converts a sequence of tokens into ids using the vocab. """
+        """Converts a sequence of tokens into ids using the vocab."""
         ids = []
         cindex = 0
         if NEW_LINE in tokens:

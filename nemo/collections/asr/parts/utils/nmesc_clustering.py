@@ -151,7 +151,13 @@ def kmeans_plusplus_torch(
 
     centers = torch.zeros(n_clusters, n_features, dtype=X.dtype)
     center_id = torch.randint(0, n_samples, (1,)).long()
-    indices = torch.full([n_clusters,], -1, dtype=torch.int)
+    indices = torch.full(
+        [
+            n_clusters,
+        ],
+        -1,
+        dtype=torch.int,
+    )
 
     centers[0] = X[center_id].squeeze(0)
     indices[0] = center_id.squeeze(0)
@@ -932,10 +938,10 @@ class NMESC:
 
     def getEigRatio(self, p_neighbors: int):
         """
-        For a given p_neighbors value, calculate g_p, which is a ratio between p_neighbors and the 
+        For a given p_neighbors value, calculate g_p, which is a ratio between p_neighbors and the
         maximum eigengap values.
         References:
-            Tae Jin Park et al., Auto-Tuning Spectral Clustering for Speaker Diarization Using 
+            Tae Jin Park et al., Auto-Tuning Spectral Clustering for Speaker Diarization Using
             Normalized Maximum Eigengap, IEEE Signal Processing Letters 27 (2019),
             https://arxiv.org/abs/2003.02405
 

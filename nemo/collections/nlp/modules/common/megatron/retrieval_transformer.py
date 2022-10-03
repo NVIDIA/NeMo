@@ -37,8 +37,7 @@ MIN_DIM_HEAD = 32
 
 
 class MegatronRetrievalTransformerEncoderModule(MegatronModule):
-    """Transformer encoder model.
-    """
+    """Transformer encoder model."""
 
     def __init__(
         self,
@@ -144,7 +143,7 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
         self._model_key = 'model'
 
     def set_input_tensor(self, input_tensor):
-        """ See megatron.model.transformer.set_input_tensor()"""
+        """See megatron.model.transformer.set_input_tensor()"""
         self.model.set_input_tensor(input_tensor)
 
     def _allocate_memory(self, *shape, dtype):
@@ -259,12 +258,16 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
 
         # # convert to Megatron mask
         enc_attn_mask_3d = build_attention_mask_3d(
-            source_mask=enc_attn_mask, target_mask=enc_attn_mask, attn_mask_type=AttnMaskType.padding,
+            source_mask=enc_attn_mask,
+            target_mask=enc_attn_mask,
+            attn_mask_type=AttnMaskType.padding,
         )
         enc_attn_mask_3d = enc_attn_mask_3d[:, None, :, :]
 
         enc_dec_attn_mask_3d = build_attention_mask_3d(
-            source_mask=enc_attn_mask, target_mask=context_attn_mask, attn_mask_type=AttnMaskType.padding,
+            source_mask=enc_attn_mask,
+            target_mask=context_attn_mask,
+            attn_mask_type=AttnMaskType.padding,
         )
         enc_dec_attn_mask_3d = enc_dec_attn_mask_3d[:, None, :, :]
 
@@ -307,8 +310,7 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
 
 
 class MegatronRetrievalTransformerDecoderModule(MegatronModule):
-    """Transformer decoder model.
-    """
+    """Transformer decoder model."""
 
     def __init__(
         self,
@@ -413,7 +415,7 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
         self._model_key = 'model'
 
     def set_input_tensor(self, input_tensor):
-        """ See megatron.model.transformer.set_input_tensor()"""
+        """See megatron.model.transformer.set_input_tensor()"""
         self.model.set_input_tensor(input_tensor)
 
     def _calculate_dec_att_mask(self, dec_attn_mask, eod_positions):
@@ -421,7 +423,9 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
 
         # customized attention mask, starts with causal attention mask
         dec_attn_mask_3d = build_attention_mask_3d(
-            source_mask=dec_attn_mask, target_mask=dec_attn_mask, attn_mask_type=AttnMaskType.causal,
+            source_mask=dec_attn_mask,
+            target_mask=dec_attn_mask,
+            attn_mask_type=AttnMaskType.causal,
         )
         # add the attention mask reset
         if eod_positions is not None:
@@ -506,7 +510,9 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
             retrieved_attn_mask = rearrange(retrieved_attn_mask, 'b k r n -> (b k) (r n)')
 
             enc_dec_attn_mask_3d = build_attention_mask_3d(
-                source_mask=dec_attn_mask, target_mask=retrieved_attn_mask, attn_mask_type=AttnMaskType.padding,
+                source_mask=dec_attn_mask,
+                target_mask=retrieved_attn_mask,
+                attn_mask_type=AttnMaskType.padding,
             )
             enc_dec_attn_mask_3d = enc_dec_attn_mask_3d[:, None, :, :]
         else:

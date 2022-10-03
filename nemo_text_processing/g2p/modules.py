@@ -276,7 +276,7 @@ class IPAG2P(BaseG2p):
         """Generic IPA G2P module. This module converts words from grapheme to International Phonetic Alphabet representations.
         Optionally, it can ignore heteronyms, ambiguous words, or words marked as unchangeable by word_tokenize_func (see code for details).
         Ignored words are left unchanged or passed through apply_to_oov_word for handling.
-        
+
         Args:
             phoneme_dict (str, Path, Dict): Path to file in CMUdict format or dictionary of CMUdict-like entries.
                 Must be given for IPA G2P. (Consider using scripts/tts_dataset_files/ipa_cmudict-0.7b_nv22.06.txt.)
@@ -346,7 +346,10 @@ class IPAG2P(BaseG2p):
             # Update dict keys if graphemes should be set to uppercase
             if set_graphemes_upper:
                 updated_phoneme_dict = {}
-                for k, vs, in self.phoneme_dict.items():
+                for (
+                    k,
+                    vs,
+                ) in self.phoneme_dict.items():
                     updated_phoneme_dict[k.upper()] = vs
                 self.phoneme_dict = updated_phoneme_dict
 
@@ -417,8 +420,7 @@ class IPAG2P(BaseG2p):
         return len(self.phoneme_dict[word]) == 1
 
     def parse_one_word(self, word: str):
-        """Returns parsed `word` and `status` (bool: False if word wasn't handled, True otherwise).
-        """
+        """Returns parsed `word` and `status` (bool: False if word wasn't handled, True otherwise)."""
         if self.set_graphemes_upper:
             word = word.upper()
 

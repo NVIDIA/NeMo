@@ -123,11 +123,11 @@ def binarize_attention(attn, in_len, out_len):
 
 def binarize_attention_parallel(attn, in_lens, out_lens):
     """For training purposes only. Binarizes attention with MAS.
-           These will no longer receive a gradient.
+       These will no longer receive a gradient.
 
-        Args:
-            attn: B x 1 x max_mel_len x max_text_len
-        """
+    Args:
+        attn: B x 1 x max_mel_len x max_text_len
+    """
     with torch.no_grad():
         attn_cpu = attn.data.cpu().numpy()
         attn_out = b_mas(attn_cpu, in_lens.cpu().numpy(), out_lens.cpu().numpy(), width=1)
@@ -250,7 +250,7 @@ def log_audio_to_tb(
     log_mel = spect.data.cpu().numpy().T
     mel = np.exp(log_mel)
     magnitude = np.dot(mel, filterbank) * griffin_lim_mag_scale
-    audio = griffin_lim(magnitude.T ** griffin_lim_power)
+    audio = griffin_lim(magnitude.T**griffin_lim_power)
     swriter.add_audio(name, audio / max(np.abs(audio)), step, sample_rate=sr)
 
 
@@ -273,10 +273,16 @@ def tacotron2_log_to_tb_func(
     _, spec_target, mel_postnet, gate, gate_target, alignments = tensors
     if log_images and step % log_images_freq == 0:
         swriter.add_image(
-            f"{tag}_alignment", plot_alignment_to_numpy(alignments[0].data.cpu().numpy().T), step, dataformats="HWC",
+            f"{tag}_alignment",
+            plot_alignment_to_numpy(alignments[0].data.cpu().numpy().T),
+            step,
+            dataformats="HWC",
         )
         swriter.add_image(
-            f"{tag}_mel_target", plot_spectrogram_to_numpy(spec_target[0].data.cpu().numpy()), step, dataformats="HWC",
+            f"{tag}_mel_target",
+            plot_spectrogram_to_numpy(spec_target[0].data.cpu().numpy()),
+            step,
+            dataformats="HWC",
         )
         swriter.add_image(
             f"{tag}_mel_predicted",
@@ -286,7 +292,10 @@ def tacotron2_log_to_tb_func(
         )
         swriter.add_image(
             f"{tag}_gate",
-            plot_gate_outputs_to_numpy(gate_target[0].data.cpu().numpy(), torch.sigmoid(gate[0]).data.cpu().numpy(),),
+            plot_gate_outputs_to_numpy(
+                gate_target[0].data.cpu().numpy(),
+                torch.sigmoid(gate[0]).data.cpu().numpy(),
+            ),
             step,
             dataformats="HWC",
         )
@@ -296,13 +305,13 @@ def tacotron2_log_to_tb_func(
             log_mel = mel_postnet[0].data.cpu().numpy().T
             mel = np.exp(log_mel)
             magnitude = np.dot(mel, filterbank) * griffin_lim_mag_scale
-            audio = griffin_lim(magnitude.T ** griffin_lim_power)
+            audio = griffin_lim(magnitude.T**griffin_lim_power)
             swriter.add_audio(f"audio/{tag}_predicted", audio / max(np.abs(audio)), step, sample_rate=sr)
 
             log_mel = spec_target[0].data.cpu().numpy().T
             mel = np.exp(log_mel)
             magnitude = np.dot(mel, filterbank) * griffin_lim_mag_scale
-            audio = griffin_lim(magnitude.T ** griffin_lim_power)
+            audio = griffin_lim(magnitude.T**griffin_lim_power)
             swriter.add_audio(f"audio/{tag}_target", audio / max(np.abs(audio)), step, sample_rate=sr)
 
 
@@ -329,16 +338,26 @@ def tacotron2_log_to_wandb_func(
         specs = []
         gates = []
         alignments += [
-            wandb.Image(plot_alignment_to_numpy(alignments[0].data.cpu().numpy().T), caption=f"{tag}_alignment",)
+            wandb.Image(
+                plot_alignment_to_numpy(alignments[0].data.cpu().numpy().T),
+                caption=f"{tag}_alignment",
+            )
         ]
         alignments += [
-            wandb.Image(plot_spectrogram_to_numpy(spec_target[0].data.cpu().numpy()), caption=f"{tag}_mel_target",),
-            wandb.Image(plot_spectrogram_to_numpy(mel_postnet[0].data.cpu().numpy()), caption=f"{tag}_mel_predicted",),
+            wandb.Image(
+                plot_spectrogram_to_numpy(spec_target[0].data.cpu().numpy()),
+                caption=f"{tag}_mel_target",
+            ),
+            wandb.Image(
+                plot_spectrogram_to_numpy(mel_postnet[0].data.cpu().numpy()),
+                caption=f"{tag}_mel_predicted",
+            ),
         ]
         gates += [
             wandb.Image(
                 plot_gate_outputs_to_numpy(
-                    gate_target[0].data.cpu().numpy(), torch.sigmoid(gate[0]).data.cpu().numpy(),
+                    gate_target[0].data.cpu().numpy(),
+                    torch.sigmoid(gate[0]).data.cpu().numpy(),
                 ),
                 caption=f"{tag}_gate",
             )
@@ -352,16 +371,24 @@ def tacotron2_log_to_wandb_func(
             log_mel = mel_postnet[0].data.cpu().numpy().T
             mel = np.exp(log_mel)
             magnitude = np.dot(mel, filterbank) * griffin_lim_mag_scale
-            audio_pred = griffin_lim(magnitude.T ** griffin_lim_power)
+            audio_pred = griffin_lim(magnitude.T**griffin_lim_power)
 
             log_mel = spec_target[0].data.cpu().numpy().T
             mel = np.exp(log_mel)
             magnitude = np.dot(mel, filterbank) * griffin_lim_mag_scale
-            audio_true = griffin_lim(magnitude.T ** griffin_lim_power)
+            audio_true = griffin_lim(magnitude.T**griffin_lim_power)
 
             audios += [
-                wandb.Audio(audio_true / max(np.abs(audio_true)), caption=f"{tag}_wav_target", sample_rate=sr,),
-                wandb.Audio(audio_pred / max(np.abs(audio_pred)), caption=f"{tag}_wav_predicted", sample_rate=sr,),
+                wandb.Audio(
+                    audio_true / max(np.abs(audio_true)),
+                    caption=f"{tag}_wav_target",
+                    sample_rate=sr,
+                ),
+                wandb.Audio(
+                    audio_pred / max(np.abs(audio_pred)),
+                    caption=f"{tag}_wav_predicted",
+                    sample_rate=sr,
+                ),
             ]
 
             swriter.log({"audios": audios})
@@ -427,10 +454,22 @@ def plot_spectrogram_to_numpy(spectrogram):
 def plot_gate_outputs_to_numpy(gate_targets, gate_outputs):
     fig, ax = plt.subplots(figsize=(12, 3))
     ax.scatter(
-        range(len(gate_targets)), gate_targets, alpha=0.5, color='green', marker='+', s=1, label='target',
+        range(len(gate_targets)),
+        gate_targets,
+        alpha=0.5,
+        color='green',
+        marker='+',
+        s=1,
+        label='target',
     )
     ax.scatter(
-        range(len(gate_outputs)), gate_outputs, alpha=0.5, color='red', marker='.', s=1, label='predicted',
+        range(len(gate_outputs)),
+        gate_outputs,
+        alpha=0.5,
+        color='red',
+        marker='.',
+        s=1,
+        label='predicted',
     )
 
     plt.xlabel("Frames (Green target, Red predicted)")
@@ -452,24 +491,40 @@ def save_figure_to_numpy(fig):
 
 @rank_zero_only
 def waveglow_log_to_tb_func(
-    swriter, tensors, step, tag="train", n_fft=1024, hop_length=256, window="hann", mel_fb=None,
+    swriter,
+    tensors,
+    step,
+    tag="train",
+    n_fft=1024,
+    hop_length=256,
+    window="hann",
+    mel_fb=None,
 ):
     _, audio_pred, spec_target, mel_length = tensors
     mel_length = mel_length[0]
     spec_target = spec_target[0].data.cpu().numpy()[:, :mel_length]
     swriter.add_image(
-        f"{tag}_mel_target", plot_spectrogram_to_numpy(spec_target), step, dataformats="HWC",
+        f"{tag}_mel_target",
+        plot_spectrogram_to_numpy(spec_target),
+        step,
+        dataformats="HWC",
     )
     if mel_fb is not None:
         mag, _ = librosa.core.magphase(
             librosa.core.stft(
-                np.nan_to_num(audio_pred[0].cpu().detach().numpy()), n_fft=n_fft, hop_length=hop_length, window=window,
+                np.nan_to_num(audio_pred[0].cpu().detach().numpy()),
+                n_fft=n_fft,
+                hop_length=hop_length,
+                window=window,
             )
         )
         mel_pred = np.matmul(mel_fb.cpu().numpy(), mag).squeeze()
         log_mel_pred = np.log(np.clip(mel_pred, a_min=1e-5, a_max=None))
         swriter.add_image(
-            f"{tag}_mel_predicted", plot_spectrogram_to_numpy(log_mel_pred[:, :mel_length]), step, dataformats="HWC",
+            f"{tag}_mel_predicted",
+            plot_spectrogram_to_numpy(log_mel_pred[:, :mel_length]),
+            step,
+            dataformats="HWC",
         )
 
 

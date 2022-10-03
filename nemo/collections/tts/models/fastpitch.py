@@ -191,11 +191,13 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
 
         if "phoneme_dict" in cfg.text_tokenizer:
             text_tokenizer_kwargs["phoneme_dict"] = self.register_artifact(
-                "text_tokenizer.phoneme_dict", cfg.text_tokenizer.phoneme_dict,
+                "text_tokenizer.phoneme_dict",
+                cfg.text_tokenizer.phoneme_dict,
             )
         if "heteronyms" in cfg.text_tokenizer:
             text_tokenizer_kwargs["heteronyms"] = self.register_artifact(
-                "text_tokenizer.heteronyms", cfg.text_tokenizer.heteronyms,
+                "text_tokenizer.heteronyms",
+                cfg.text_tokenizer.heteronyms,
             )
 
         if "g2p" in cfg.text_tokenizer:
@@ -203,12 +205,14 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
 
             if "phoneme_dict" in cfg.text_tokenizer.g2p:
                 g2p_kwargs["phoneme_dict"] = self.register_artifact(
-                    'text_tokenizer.g2p.phoneme_dict', cfg.text_tokenizer.g2p.phoneme_dict,
+                    'text_tokenizer.g2p.phoneme_dict',
+                    cfg.text_tokenizer.g2p.phoneme_dict,
                 )
 
             if "heteronyms" in cfg.text_tokenizer.g2p:
                 g2p_kwargs["heteronyms"] = self.register_artifact(
-                    'text_tokenizer.g2p.heteronyms', cfg.text_tokenizer.g2p.heteronyms,
+                    'text_tokenizer.g2p.heteronyms',
+                    cfg.text_tokenizer.g2p.heteronyms,
                 )
 
             text_tokenizer_kwargs["g2p"] = instantiate(cfg.text_tokenizer.g2p, **g2p_kwargs)
@@ -389,16 +393,25 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             )
             spec_predict = mels_pred[0].data.cpu().float().numpy()
             self.tb_logger.add_image(
-                "train_mel_predicted", plot_spectrogram_to_numpy(spec_predict), self.global_step, dataformats="HWC",
+                "train_mel_predicted",
+                plot_spectrogram_to_numpy(spec_predict),
+                self.global_step,
+                dataformats="HWC",
             )
             if self.learn_alignment:
                 attn = attn_hard[0].data.cpu().float().numpy().squeeze()
                 self.tb_logger.add_image(
-                    "train_attn", plot_alignment_to_numpy(attn.T), self.global_step, dataformats="HWC",
+                    "train_attn",
+                    plot_alignment_to_numpy(attn.T),
+                    self.global_step,
+                    dataformats="HWC",
                 )
                 soft_attn = attn_soft[0].data.cpu().float().numpy().squeeze()
                 self.tb_logger.add_image(
-                    "train_soft_attn", plot_alignment_to_numpy(soft_attn.T), self.global_step, dataformats="HWC",
+                    "train_soft_attn",
+                    plot_alignment_to_numpy(soft_attn.T),
+                    self.global_step,
+                    dataformats="HWC",
                 )
 
         return loss
@@ -469,7 +482,10 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             )
             spec_predict = spec_predict[0].data.cpu().float().numpy()
             self.tb_logger.add_image(
-                "val_mel_predicted", plot_spectrogram_to_numpy(spec_predict), self.global_step, dataformats="HWC",
+                "val_mel_predicted",
+                plot_spectrogram_to_numpy(spec_predict),
+                self.global_step,
+                dataformats="HWC",
             )
             self.log_train_images = True
 

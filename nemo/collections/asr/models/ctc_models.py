@@ -194,7 +194,9 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
                             hypotheses.append(lg.cpu().numpy())
                     else:
                         current_hypotheses, all_hyp = self.decoding.ctc_decoder_predictions_tensor(
-                            logits, decoder_lengths=logits_len, return_hypotheses=return_hypotheses,
+                            logits,
+                            decoder_lengths=logits_len,
+                            return_hypotheses=return_hypotheses,
                         )
 
                         if return_hypotheses:
@@ -538,13 +540,17 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
 
         if not has_processed_signal:
             processed_signal, processed_signal_length = self.preprocessor(
-                input_signal=input_signal, length=input_signal_length,
+                input_signal=input_signal,
+                length=input_signal_length,
             )
 
         if self.spec_augmentation is not None and self.training:
             processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
 
-        encoder_output = self.encoder(audio_signal=processed_signal, length=processed_signal_length,)
+        encoder_output = self.encoder(
+            audio_signal=processed_signal,
+            length=processed_signal_length,
+        )
         encoded = encoder_output[0]
         encoded_len = encoder_output[1]
         log_probs = self.decoder(encoder_output=encoded)
@@ -614,7 +620,9 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             log_probs, encoded_len, predictions = self.forward(input_signal=signal, input_signal_length=signal_len)
 
         transcribed_texts, _ = self._wer.decoding.ctc_decoder_predictions_tensor(
-            decoder_outputs=log_probs, decoder_lengths=encoded_len, return_hypotheses=False,
+            decoder_outputs=log_probs,
+            decoder_lengths=encoded_len,
+            return_hypotheses=False,
         )
 
         sample_id = sample_id.cpu().detach().numpy()

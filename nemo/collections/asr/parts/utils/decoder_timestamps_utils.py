@@ -183,7 +183,9 @@ class WER_TS(WER):
         return token_list, timestamp_list
 
     def ctc_decoder_predictions_tensor_with_ts(
-        self, predictions: torch.Tensor, predictions_len: torch.Tensor = None,
+        self,
+        predictions: torch.Tensor,
+        predictions_len: torch.Tensor = None,
     ) -> List[str]:
         """
         A shortened version of the original function ctc_decoder_predictions_tensor().
@@ -286,7 +288,9 @@ class FrameBatchASR_Logits(FrameBatchASR):
             del predictions
 
     def transcribe_with_ts(
-        self, tokens_per_chunk: int, delay: int,
+        self,
+        tokens_per_chunk: int,
+        delay: int,
     ):
         self.infer_logits()
         self.unmerged = []
@@ -717,7 +721,10 @@ class ASR_TIMESTAMPS:
         elif len(spaces_in_sec) > 0:
             # word_timetamps_middle should be an empty list if len(spaces_in_sec) == 1.
             word_timetamps_middle = [
-                [round(spaces_in_sec[k][1], 2), round(spaces_in_sec[k + 1][0], 2),]
+                [
+                    round(spaces_in_sec[k][1], 2),
+                    round(spaces_in_sec[k + 1][0], 2),
+                ]
                 for k in range(len(spaces_in_sec) - 1)
             ]
             word_timestamps = (

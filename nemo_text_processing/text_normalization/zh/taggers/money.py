@@ -20,7 +20,7 @@ from pynini.lib import pynutil
 
 class Money(GraphFst):
     '''
-        ￥1.25 -> tokens { money { fractional_part: "元" integer_part: "一点五" } }
+    ￥1.25 -> tokens { money { fractional_part: "元" integer_part: "一点五" } }
     '''
 
     def __init__(self, deterministic: bool = True, lm: bool = False):

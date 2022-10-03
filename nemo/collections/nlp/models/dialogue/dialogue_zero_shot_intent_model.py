@@ -273,7 +273,10 @@ class DialogueZeroShotIntentModel(TextClassificationModel):
         filename = os.path.join(self.cfg.dataset.dialogues_example_dir, "test_predictions.jsonl")
 
         DialogueGenerationMetrics.save_predictions(
-            filename, predicted_labels, ground_truth_labels, utterances,
+            filename,
+            predicted_labels,
+            ground_truth_labels,
+            utterances,
         )
 
         label_to_ids = {label: idx for idx, label in enumerate(list(set(predicted_labels + ground_truth_labels)))}

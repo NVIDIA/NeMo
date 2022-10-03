@@ -373,7 +373,7 @@ class SimpleConvNet(torch.nn.Module):
         out_channels = -1
         self.use_partial_padding = use_partial_padding
         for i in range(n_layers):
-            dilation = 2 ** i if with_dilation else 1
+            dilation = 2**i if with_dilation else 1
             padding = int((kernel_size * dilation - dilation) / 2)
             out_channels = min(max_channels, in_channels * 2)
             self.layers.append(
@@ -449,7 +449,7 @@ class WN(torch.nn.Module):
         self.end = end
 
         for i in range(n_layers):
-            dilation = 2 ** i
+            dilation = 2**i
             padding = int((kernel_size * dilation - dilation) / 2)
             in_layer = ConvNorm(
                 n_channels,

@@ -815,7 +815,11 @@ class RNNTDecoding(AbstractRNNTDecoding):
     """
 
     def __init__(
-        self, decoding_cfg, decoder, joint, vocabulary,
+        self,
+        decoding_cfg,
+        decoder,
+        joint,
+        vocabulary,
     ):
         blank_id = len(vocabulary)
         self.labels_map = dict([(i, vocabulary[i]) for i in range(len(vocabulary))])

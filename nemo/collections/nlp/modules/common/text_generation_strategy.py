@@ -95,7 +95,7 @@ class TextGenerationStrategy:
 
     @abc.abstractclassmethod
     def clip_max_len(self, maxlen: int) -> int:
-        """ clip the max len based on the LM model max sequence length
+        """clip the max len based on the LM model max sequence length
         Args:
             maxlen (int): the max len computed from the context and number of tokens to generate
         returns (int):
@@ -109,7 +109,7 @@ class TextGenerationStrategy:
            It will save the intermediate results as object attributes
            context_length (int): the context token length
         Args:
-            context_tokens (torch.Tensor):  The padded context tokens including the space for tokens to be generated 
+            context_tokens (torch.Tensor):  The padded context tokens including the space for tokens to be generated
         """
         pass
 
@@ -148,7 +148,7 @@ class GPTModelTextGenerationStrategy(TextGenerationStrategy):
         self.forward_model = self.model.model
 
     def clip_max_len(self, maxlen: int) -> int:
-        """ clip the max len based on the LM model max sequence length"""
+        """clip the max len based on the LM model max sequence length"""
         if maxlen > self.model.cfg.encoder_seq_length + 1:
             maxlen = self.model.cfg.encoder_seq_length + 1
         return maxlen
@@ -224,7 +224,7 @@ class PromptLearningModelTextGenerationStrategy(TextGenerationStrategy):
         )
 
     def clip_max_len(self, maxlen: int) -> int:
-        """ clip the max len based on the LM model max sequence length"""
+        """clip the max len based on the LM model max sequence length"""
         if maxlen > self.model.frozen_model.cfg.encoder_seq_length + 1:
             maxlen = self.model.frozen_model.cfg.encoder_seq_length + 1
         return maxlen
@@ -285,7 +285,7 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
         self.service = FaissRetrievalService(tokenizer=self.model.tokenizer, **args)
 
     def clip_max_len(self, maxlen: int) -> int:
-        """ clip the max len based on the LM model max sequence length"""
+        """clip the max len based on the LM model max sequence length"""
         if maxlen > self.model.cfg.encoder_seq_length + 1:
             maxlen = self.model.cfg.encoder_seq_length + 1
         return maxlen

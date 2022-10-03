@@ -292,7 +292,9 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
             )
 
         self.enc_dec_model = MegatronTransformerEncoderDecoderModule(
-            encoder=encoder, decoder=decoder, hidden_steps=encoder_cfg.get('hidden_steps', -1),
+            encoder=encoder,
+            decoder=decoder,
+            hidden_steps=encoder_cfg.get('hidden_steps', -1),
         )
         self._enc_dec_model_key = "enc_dec_model"
 
@@ -358,7 +360,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         return encoder_kv_channels, decoder_kv_channels
 
     def set_input_tensor(self, input_tensor):
-        """ See megatron.model.transformer.set_input_tensor()"""
+        """See megatron.model.transformer.set_input_tensor()"""
         # This is usually handled in schedules.py but some inference code still
         # gives us non-lists or None
 
@@ -439,7 +441,8 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
 
         if self.encoder_cfg.get("position_embedding_type", "learned_absolute") == 'relative' and self.add_encoder:
             encoder_self_attention_relative_position_bias = self.encoder_relative_position_embedding(
-                query_seq_length=enc_seq_length, key_seq_length=enc_seq_length,
+                query_seq_length=enc_seq_length,
+                key_seq_length=enc_seq_length,
             )
 
         if output_enc_hidden_only:
@@ -471,8 +474,11 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     query_seq_length=dec_input_ids.size(1), key_seq_length=dec_input_ids.size(1)
                 )
                 if not self.decoder_cfg.relative_position_bias_self_attention_only:
-                    decoder_cross_attention_relative_position_bias = self.decoder_cross_attention_relative_position_embedding(
-                        query_seq_length=dec_input_ids.size(1), key_seq_length=enc_seq_length,
+                    decoder_cross_attention_relative_position_bias = (
+                        self.decoder_cross_attention_relative_position_embedding(
+                            query_seq_length=dec_input_ids.size(1),
+                            key_seq_length=enc_seq_length,
+                        )
                     )
                 else:
                     decoder_cross_attention_relative_position_bias = None

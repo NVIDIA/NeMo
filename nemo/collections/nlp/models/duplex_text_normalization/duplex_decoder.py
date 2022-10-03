@@ -305,7 +305,7 @@ class DuplexDecoderModel(NLPModel):
         span_ends: List[List[int]],
         inst_directions: List[str],
     ):
-        """ Main function for Inference
+        """Main function for Inference
         Args:
             sents: A list of inputs tokenized by a basic tokenizer.
             nb_spans: A list of ints where each int indicates the number of semiotic spans in each input.

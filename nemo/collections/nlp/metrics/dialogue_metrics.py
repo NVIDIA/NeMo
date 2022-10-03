@@ -23,7 +23,10 @@ from sacrebleu import corpus_bleu
 class DialogueGenerationMetrics(object):
     @staticmethod
     def save_predictions(
-        filename, generated_field, ground_truth_field, inputs,
+        filename,
+        generated_field,
+        ground_truth_field,
+        inputs,
     ):
         """
         Save predictions as a jsonl file
@@ -34,7 +37,11 @@ class DialogueGenerationMetrics(object):
         docs = []
         for i in range(len(inputs)):
             docs.append(
-                {"input": inputs[i], "ground_truth": ground_truth_field[i], "generated": generated_field[i],}
+                {
+                    "input": inputs[i],
+                    "ground_truth": ground_truth_field[i],
+                    "generated": generated_field[i],
+                }
             )
         with open(filename, 'w', encoding="UTF-8") as f:
             for item in docs:
@@ -73,7 +80,7 @@ class DialogueGenerationMetrics(object):
         """
         Referenced from NMT evaluation
         Note 13a is the default tokenizer for English for WMT
-        Known issue that it doesn't hand edge case of None or '' 
+        Known issue that it doesn't hand edge case of None or ''
         https://github.com/mjpost/sacrebleu/issues/161
         """
         valid_indices = [i for i in range(len(generated_field)) if generated_field[i] and ground_truth_field[i]]
@@ -123,10 +130,10 @@ class DialogueClassificationMetrics(object):
         """
         Split target into label and slots when doing joint label (i.e. intent) classificaiton and slot filling
 
-        For instance, split "reserve_restaurant\nslots: time_of_day(7pm), number_of_people(3)" into 
+        For instance, split "reserve_restaurant\nslots: time_of_day(7pm), number_of_people(3)" into
         label = "reserve_restaurant" and slots = ["time_of_day(7pm)", "number_of_people(3)"]
         Args:
-            fields: list of strings 
+            fields: list of strings
         """
         labels = []
         slots_list = []
@@ -158,7 +165,7 @@ class DialogueClassificationMetrics(object):
     def get_slot_filling_metrics(generated_slots, ground_truth_slots):
         """
         Args:
-            generated_slots: list of list of strings. 
+            generated_slots: list of list of strings.
                 Each string is slot-name and slot-value pair e.g. location(Seattle)
             ground_truth_slots: list of list of strings
         """

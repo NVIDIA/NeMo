@@ -27,19 +27,19 @@ def get_io_names(types, disabled_names):
 
 def extract_dynamic_axes(name: str, ntype: NeuralType):
     """
-        This method will extract BATCH and TIME dimension ids from each provided input/output name argument.
-    
-        For example, if module/model accepts argument named "input_signal" with type corresponding to [Batch, Time, Dim]
-        shape, then the returned result should contain "input_signal" -> [0, 1] because Batch and Time are dynamic axes
-        as they can change from call to call during inference.
-    
-        Args:
-            name: Name of input or output parameter
-            ntype: Corresponding Neural Type
-    
-        Returns:
+    This method will extract BATCH and TIME dimension ids from each provided input/output name argument.
 
-        """
+    For example, if module/model accepts argument named "input_signal" with type corresponding to [Batch, Time, Dim]
+    shape, then the returned result should contain "input_signal" -> [0, 1] because Batch and Time are dynamic axes
+    as they can change from call to call during inference.
+
+    Args:
+        name: Name of input or output parameter
+        ntype: Corresponding Neural Type
+
+    Returns:
+
+    """
 
     def unpack_nested_neural_type(neural_type):
         if type(neural_type) in (list, tuple):

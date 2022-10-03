@@ -20,7 +20,7 @@ from pynini.lib import pynutil
 
 class MathSymbol(GraphFst):
     '''
-        + -> tokens { sign: "加" }
+    + -> tokens { sign: "加" }
     '''
 
     def __init__(self, deterministic: bool = True, lm: bool = False):

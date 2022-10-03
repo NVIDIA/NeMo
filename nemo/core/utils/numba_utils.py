@@ -106,7 +106,7 @@ def numba_cuda_is_supported(min_version: str) -> bool:
     """
     Tests if an appropriate version of numba is installed, and if it is,
     if cuda is supported properly within it.
-    
+
     Args:
         min_version: The minimum version of numba that is required.
 
@@ -151,7 +151,7 @@ def numba_cuda_is_supported(min_version: str) -> bool:
 def skip_numba_cuda_test_if_unsupported(min_version: str):
     """
     Helper method to skip pytest test case if numba cuda is not supported.
-    
+
     Args:
         min_version: The minimum version of numba that is required.
     """

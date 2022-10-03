@@ -202,9 +202,9 @@ def get_multi_label_stats(labels, outfile="stats.tsv", verbose=True):
     """
     Args:
         labels: list of tuples containing labels for each utterance
-            Example: If there are 5 intents in total, then (0,1,1,1,0) represents the labels 
+            Example: If there are 5 intents in total, then (0,1,1,1,0) represents the labels
                      for an individual utterance. (0,1,1,1,0) indicates that the utterance has labels
-                     at index/line 1,2, and 3 in dict.intents. The list of tuples contain labels for 
+                     at index/line 1,2, and 3 in dict.intents. The list of tuples contain labels for
                      all utterances.
 
         outfile: path to the file where to save label stats
@@ -460,7 +460,12 @@ def remove_punctuation_from_sentence(sentence):
 
 
 def dataset_to_ids(
-    dataset, tokenizer, cache_ids=False, add_bos_eos=True, cache_data_per_node=False, use_cache=False,
+    dataset,
+    tokenizer,
+    cache_ids=False,
+    add_bos_eos=True,
+    cache_data_per_node=False,
+    use_cache=False,
 ):
     """
     Reads dataset from file line by line, tokenizes each line with tokenizer,
@@ -518,7 +523,7 @@ def get_freq_weights_bce_with_logits_loss(label_freq):
     Calculate positive class weights to be passed to BCEWithLogitsLoss
     https://pytorch.org/docs/1.9.1/generated/torch.nn.BCEWithLogitsLoss.html
 
-    Args: 
+    Args:
         label_freq: dictionary of tuples where keys represents class id, and tuple represents counts of positive and negative classes,
                     positive classes are at index 1 and negative at index 0
     Returns:

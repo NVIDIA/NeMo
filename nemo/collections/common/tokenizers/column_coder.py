@@ -37,10 +37,10 @@ class Code(object):
         @params:
             col_name: name of the column
             code_len: number of tokens used to code the column.
-            start_id: offset for token_id. 
+            start_id: offset for token_id.
             fillall: if True, reserve space for digit number even the digit number is
             not present in the data_series. Otherwise, only reserve space for the numbers
-            in the data_series. 
+            in the data_series.
             hasnan: if True, reserve space for nan
         """
         self.name = col_name
@@ -81,7 +81,7 @@ class IntCode(Code):
         for i in range(self.code_len):
             id_to_item = digits_id_to_item[i]
             item_to_id = digits_item_to_id[i]
-            v = (significant_val // self.base ** i) % self.base
+            v = (significant_val // self.base**i) % self.base
             if self.fillall:
                 uniq_items = range(0, self.base)
             else:
@@ -143,9 +143,9 @@ class IntCode(Code):
         val_int = self.convert_to_int(val)
         digits = []
         for i in range(self.code_len):
-            digit = (val_int // self.base ** i) % self.base
+            digit = (val_int // self.base**i) % self.base
             digits.append(str(digit))
-        if (val_int // self.base ** self.code_len) != 0:
+        if (val_int // self.base**self.code_len) != 0:
             raise ValueError("not right length")
         codes = []
         for i in reversed(range(self.code_len)):
@@ -167,7 +167,7 @@ class IntCode(Code):
         v = 0
         for i in reversed(range(self.code_len)):
             digit = int(self.digits_id_to_item[i][ids[self.code_len - i - 1]])
-            v += digit * self.base ** i
+            v += digit * self.base**i
         v = self.reverse_convert_to_int(v)
         return str(v)
 
@@ -196,7 +196,7 @@ class FloatCode(IntCode):
     def convert_to_int(self, val: float) -> int:
         val = np.expand_dims(np.array(val), axis=0)
         values = self.scaler.transform(val[:, None])[:, 0] - self.mval
-        values = (values * self.base ** self.extra_digits).astype(int)
+        values = (values * self.base**self.extra_digits).astype(int)
         output = values[0]
         return output
 
@@ -210,11 +210,11 @@ class FloatCode(IntCode):
         if extra_digits < 0:
             raise ValueError("need large length to code the nummber")
         self.extra_digits = extra_digits
-        values = (values * self.base ** self.extra_digits).astype(int)
+        values = (values * self.base**self.extra_digits).astype(int)
         return values
 
     def reverse_convert_to_int(self, val: int) -> float:
-        val = val / self.base ** self.extra_digits
+        val = val / self.base**self.extra_digits
         val = np.expand_dims(np.array(val), axis=0)
         v = self.scaler.inverse_transform(val[:, None] + self.mval)[0, 0]
         return v
@@ -225,9 +225,9 @@ class FloatCode(IntCode):
         v = 0
         for i in reversed(range(self.code_len)):
             digit = int(self.digits_id_to_item[i][ids[self.code_len - i - 1]])
-            v += digit * self.base ** i
+            v += digit * self.base**i
         v = self.reverse_convert_to_int(v)
-        accuracy = max(int(abs(np.log10(0.1 / self.base ** self.extra_digits))), 1)
+        accuracy = max(int(abs(np.log10(0.1 / self.base**self.extra_digits))), 1)
         return f"{v:.{accuracy}f}"
 
 

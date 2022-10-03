@@ -40,7 +40,9 @@ except (ImportError, ModuleNotFoundError):
 
 class InfusedAdapter(AbstractAdapterModule):
     def __init__(
-        self, in_features: int, adapter_strategy: adapter_mixin_strategies.ResidualAddAdapterStrategyConfig = None,
+        self,
+        in_features: int,
+        adapter_strategy: adapter_mixin_strategies.ResidualAddAdapterStrategyConfig = None,
     ) -> None:
         super().__init__()
         self.scalers = nn.Parameter(torch.ones(in_features))

@@ -27,7 +27,7 @@ from nemo.utils import logging, logging_mode
 
 
 class DefaultModule(NeuralModule):
-    """ Define a default neural module (without adapter support)"""
+    """Define a default neural module (without adapter support)"""
 
     def __init__(self):
         super().__init__()
@@ -50,7 +50,7 @@ class DefaultModule(NeuralModule):
 
 
 class DefaultModuleAdapter(DefaultModule, AdapterModuleMixin):
-    """ Subclass the DefaultModule, adding adapter module support"""
+    """Subclass the DefaultModule, adding adapter module support"""
 
     def forward(self, x):
         x = super(DefaultModuleAdapter, self).forward(x)
@@ -65,7 +65,7 @@ class DefaultModuleAdapter(DefaultModule, AdapterModuleMixin):
 
 
 class DefaultModelAdapterMixin(AdapterModelPTMixin):
-    """ Mixin class that implements this model's specific overrides to AdapterModelPTMixin
+    """Mixin class that implements this model's specific overrides to AdapterModelPTMixin
     It will container two modules, an encoder and a decoder, and both can have adapters.
     By default, encoder adapters are enabled, and decoder adapters are diabled. Decoder adapters
     can be enabled via the global_cfg in model.cfg.adapters.

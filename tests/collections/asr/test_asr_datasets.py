@@ -388,7 +388,9 @@ class TestASRDatasets:
                 world_size=1,
                 preprocessor_cfg=preprocessor_cfg,
             )
-            ref_dataset = audio_to_text_dataset.get_char_dataset(config=dataset_cfg,)
+            ref_dataset = audio_to_text_dataset.get_char_dataset(
+                config=dataset_cfg,
+            )
             ref_dataloader = DataLoader(
                 dataset=ref_dataset,
                 batch_size=batch_size,

@@ -87,7 +87,7 @@ def normalize_batch(x, seq_len, normalize_type):
 
 
 def splice_frames(x, frame_splicing):
-    """ Stacks frames together across feature dim
+    """Stacks frames together across feature dim
 
     input is batch_size, feature_dim, num_frames
     output is batch_size, feature_dim*frame_splicing, num_frames
@@ -182,7 +182,7 @@ class FilterbankFeatures(nn.Module):
         highfreq=None,
         log=True,
         log_zero_guard_type="add",
-        log_zero_guard_value=2 ** -24,
+        log_zero_guard_value=2**-24,
         dither=CONSTANT,
         pad_to=16,
         max_duration=16.7,

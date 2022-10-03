@@ -107,10 +107,10 @@ class TestSaveRestore:
         return_config: bool = False,
     ):
         """Test's logic:
-            1. Save model into temporary folder (save_folder)
-            2. Copy .nemo file from save_folder to restore_folder
-            3. Delete save_folder
-            4. Attempt to restore from .nemo file in restore_folder and compare to original instance
+        1. Save model into temporary folder (save_folder)
+        2. Copy .nemo file from save_folder to restore_folder
+        3. Delete save_folder
+        4. Attempt to restore from .nemo file in restore_folder and compare to original instance
         """
         # Create a new temporary directory
         with tempfile.TemporaryDirectory() as restore_folder:

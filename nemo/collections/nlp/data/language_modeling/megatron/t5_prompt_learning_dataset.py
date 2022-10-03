@@ -41,9 +41,9 @@ class T5PromptLearningDataset(BasePromptLearningDataset):
     def load_data(self, dataset):
         """
         Loads a dataset by filling in the task templates specified in the config file
-        with the information from each training/inference example. Converts all input 
-        text into token ids. Also replaces the <|VIRTUAL_PROMPT_#|> placeholders in 
-        the task templates with the actual virtual prompt token ids. 
+        with the information from each training/inference example. Converts all input
+        text into token ids. Also replaces the <|VIRTUAL_PROMPT_#|> placeholders in
+        the task templates with the actual virtual prompt token ids.
 
         params:
             dataset: A list of json objects or a dictionary objects each
@@ -136,7 +136,7 @@ class T5PromptLearningDataset(BasePromptLearningDataset):
         logging.info(f'Skipped {skipped} sentences, sequence length too short or too long even after truncation')
 
     def _insert_text_in_template(self, input_example, prompt_template_fields, doc, answer_field):
-        """ Format the input example according to the template """
+        """Format the input example according to the template"""
         for field in prompt_template_fields:
             # discard the last one, {label} / {answer}
             # Or if some fields from the template aren't present, e.g. {answer} during inference
@@ -152,7 +152,7 @@ class T5PromptLearningDataset(BasePromptLearningDataset):
         return input_example
 
     def collate_fn(self, batch):
-        """ Prepares enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids for global batch """
+        """Prepares enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids for global batch"""
 
         taskname_ids, enc_input, dec_input, dec_labels = zip(*batch)
 
@@ -167,7 +167,7 @@ class T5PromptLearningDataset(BasePromptLearningDataset):
         return enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids
 
     def pad_batch_and_build_loss_mask(self, enc_input, dec_input, dec_labels):
-        """ Pad enc_input, dec_input, labels in batch to max batch length while building loss_mask, enc_mask, and dec_mask """
+        """Pad enc_input, dec_input, labels in batch to max batch length while building loss_mask, enc_mask, and dec_mask"""
 
         # have labels (during training and validation)
         if dec_input[0] and dec_labels[0]:

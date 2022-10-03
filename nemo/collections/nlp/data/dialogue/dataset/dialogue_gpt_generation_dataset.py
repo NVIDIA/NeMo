@@ -22,8 +22,8 @@ from nemo.collections.nlp.data.dialogue.dataset.dialogue_dataset import Dialogue
 
 class DialogueGPTGenerationDataset(DialogueDataset):
     def __init__(self, dataset_split: str, dialogues_processor: object, tokenizer, cfg):
-        """ Constructor
-        Designed for free form generation tasks such as Dialogue Response Generation 
+        """Constructor
+        Designed for free form generation tasks such as Dialogue Response Generation
 
         Args:
             dataset_split: dataset split
@@ -80,7 +80,7 @@ class DialogueGPTGenerationDataset(DialogueDataset):
         '''
         Formats training prompt based on self.input_field_type
 
-        Training example: 
+        Training example:
             e.g. response: <response> # input_label_type = response
             e.g. utterance: <utterance> # input_label_type = utterance
             e.g. passage: <passage> utterance: <utterance> # input_label_type = passage+utterance
@@ -99,9 +99,9 @@ class DialogueGPTGenerationDataset(DialogueDataset):
             If model.dataset.input_field == response and model.dataset.output_field == fluent_response:
                 Input = "response: <response>" and output = "response: <response> fluent_response: <fluent_response>" (with loss calculated from <fluent_response> only)
             If model.dataset.input_field == utterance and model.dataset.output_field == response:
-                Input = "utterance: <utterance>" and output = "utterance: <utterance> response: <response>" (with loss calculated from <response> only) 
+                Input = "utterance: <utterance>" and output = "utterance: <utterance> response: <response>" (with loss calculated from <response> only)
             If model.dataset.input_field == passage+utterance and model.dataset.output_field == response:
-                Input = "passage: <passage> utterance: <utterance>" and output="passage: <passage> utterance: <utterance> response: <response>" (with loss calculated from <response> only) 
+                Input = "passage: <passage> utterance: <utterance>" and output="passage: <passage> utterance: <utterance> response: <response>" (with loss calculated from <response> only)
         '''
         ex = self.features[idx].data
 

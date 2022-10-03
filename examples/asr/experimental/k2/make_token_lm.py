@@ -29,7 +29,10 @@ def main():
         description="""Create token LM for input manifest and tokenizer.""",
     )
     parser.add_argument(
-        "--manifest", required=True, type=str, help="Comma separated list of manifest files",
+        "--manifest",
+        required=True,
+        type=str,
+        help="Comma separated list of manifest files",
     )
     parser.add_argument(
         "--tokenizer_dir",
@@ -54,13 +57,22 @@ def main():
         ),
     )
     parser.add_argument(
-        "--ngram_order", type=int, default=2, choices=[2, 3, 4, 5], help="Order of n-gram to use",
+        "--ngram_order",
+        type=int,
+        default=2,
+        choices=[2, 3, 4, 5],
+        help="Order of n-gram to use",
     )
     parser.add_argument(
-        "--output_file", required=True, type=str, help="The path to store the token LM",
+        "--output_file",
+        required=True,
+        type=str,
+        help="The path to store the token LM",
     )
     parser.add_argument(
-        "--do_lowercase", action="store_true", help="Whether to apply lower case conversion on the text",
+        "--do_lowercase",
+        action="store_true",
+        help="Whether to apply lower case conversion on the text",
     )
     args = parser.parse_args()
 

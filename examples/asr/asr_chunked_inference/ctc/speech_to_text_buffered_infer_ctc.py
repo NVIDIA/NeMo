@@ -74,7 +74,10 @@ def get_wer_feat(mfst, asr, frame_len, tokens_per_chunk, delay, preprocessor_cfg
 def main():
     parser = ArgumentParser()
     parser.add_argument(
-        "--asr_model", type=str, required=True, help="Path to asr model .nemo file",
+        "--asr_model",
+        type=str,
+        required=True,
+        help="Path to asr model .nemo file",
     )
     parser.add_argument("--test_manifest", type=str, required=True, help="path to evaluation data")
     parser.add_argument("--batch_size", type=int, default=32)
@@ -128,7 +131,10 @@ def main():
     print(tokens_per_chunk, mid_delay)
 
     frame_asr = FrameBatchASR(
-        asr_model=asr_model, frame_len=chunk_len, total_buffer=args.total_buffer_in_secs, batch_size=args.batch_size,
+        asr_model=asr_model,
+        frame_len=chunk_len,
+        total_buffer=args.total_buffer_in_secs,
+        batch_size=args.batch_size,
     )
 
     hyps, refs, wer = get_wer_feat(

@@ -284,7 +284,9 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
             text_tokenizer=self.tokenizer,
         )
         return torch.utils.data.DataLoader(  # noqa
-            dataset=dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params,
+            dataset=dataset,
+            collate_fn=dataset.collate_fn,
+            **cfg.dataloader_params,
         )
 
     def setup_training_data(self, cfg):
@@ -303,7 +305,9 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
             "speaker": NeuralType(('B'), Index(), optional=True),
             "sigma": NeuralType(optional=True),
         },
-        output_types={"spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType()),},
+        output_types={
+            "spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType()),
+        },
     )
     def generate_spectrogram(self, tokens: 'torch.tensor', speaker: int = 0, sigma: float = 1.0) -> torch.tensor:
         self.eval()
@@ -328,12 +332,14 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
 
             if "phoneme_dict" in cfg.text_tokenizer.g2p:
                 g2p_kwargs["phoneme_dict"] = self.register_artifact(
-                    'text_tokenizer.g2p.phoneme_dict', cfg.text_tokenizer.g2p.phoneme_dict,
+                    'text_tokenizer.g2p.phoneme_dict',
+                    cfg.text_tokenizer.g2p.phoneme_dict,
                 )
 
             if "heteronyms" in cfg.text_tokenizer.g2p:
                 g2p_kwargs["heteronyms"] = self.register_artifact(
-                    'text_tokenizer.g2p.heteronyms', cfg.text_tokenizer.g2p.heteronyms,
+                    'text_tokenizer.g2p.heteronyms',
+                    cfg.text_tokenizer.g2p.heteronyms,
                 )
 
             text_tokenizer_kwargs["g2p"] = instantiate(cfg.text_tokenizer.g2p, **g2p_kwargs)

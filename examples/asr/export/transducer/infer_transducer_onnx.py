@@ -56,7 +56,11 @@ python infer_transducer_onnx.py \
 def parse_arguments():
     parser = ArgumentParser()
     parser.add_argument(
-        "--nemo_model", type=str, default=None, required=True, help="Path to .nemo file",
+        "--nemo_model",
+        type=str,
+        default=None,
+        required=True,
+        help="Path to .nemo file",
     )
     parser.add_argument('--onnx_encoder', type=str, default=None, required=False, help="Path to onnx encoder model")
     parser.add_argument(

@@ -176,8 +176,7 @@ def resolve_rnnt_loss(loss_name: str, blank_idx: int, loss_kwargs: dict = None) 
 class RNNTLoss(Loss):
     @property
     def input_types(self):
-        """Input types definitions for CTCLoss.
-        """
+        """Input types definitions for CTCLoss."""
         return {
             "log_probs": NeuralType(('B', 'T', 'T', 'D'), LogprobsType()),
             "targets": NeuralType(('B', 'T'), LabelsType()),

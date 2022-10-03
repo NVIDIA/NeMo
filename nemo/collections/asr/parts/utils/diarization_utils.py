@@ -210,7 +210,9 @@ class ASR_DIAR_OFFLINE(object):
         return word_ts
 
     def run_diarization(
-        self, diar_model_config, word_timestamps,
+        self,
+        diar_model_config,
+        word_timestamps,
     ):
         """
         Launch the diarization process using the given VAD timestamp (oracle_manifest).

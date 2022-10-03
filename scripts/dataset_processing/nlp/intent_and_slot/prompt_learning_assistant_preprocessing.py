@@ -74,7 +74,12 @@ def main():
     train_save_path = f"{args.output_dir}/{args.save_name_base}_train.jsonl"
 
     process_data_for_prompt_learning(
-        train_utterance_lines, train_slot_lines, intent_dict, slot_dict, train_save_path, args.include_options,
+        train_utterance_lines,
+        train_slot_lines,
+        intent_dict,
+        slot_dict,
+        train_save_path,
+        args.include_options,
     )
 
     # Split test set into validation and test sets
@@ -92,7 +97,12 @@ def main():
     val_save_path = f"{args.output_dir}/{args.save_name_base}_val.jsonl"
 
     process_data_for_prompt_learning(
-        val_utterance_lines, val_slot_lines, intent_dict, slot_dict, val_save_path, args.include_options,
+        val_utterance_lines,
+        val_slot_lines,
+        intent_dict,
+        slot_dict,
+        val_save_path,
+        args.include_options,
     )
 
     # Convert test set to prompt learning format
@@ -115,7 +125,7 @@ def process_data_for_prompt_learning(
     utterance_lines, slot_lines, intent_dict, slot_dict, save_path, include_options, make_ground_truth=False
 ):
     """
-    Formats each line in the utterance file as a json object 
+    Formats each line in the utterance file as a json object
     with intent and slot labels.
 
     """
@@ -160,9 +170,9 @@ def process_data_for_prompt_learning(
 
 def get_slots(slot_line, utterance, slot_dict):
     """
-    Formats slot labels for an utterance. Ensures the multiword 
+    Formats slot labels for an utterance. Ensures the multiword
     slot labels are grouped together. For example the words
-    'birthday party' should be grouped together under the 
+    'birthday party' should be grouped together under the
     same event_name label like event_name(birthday party)
     instead of event_name(birthday), event_name(party).
 

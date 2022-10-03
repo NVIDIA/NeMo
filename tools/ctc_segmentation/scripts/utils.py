@@ -127,7 +127,7 @@ def get_segments(
 
 
 def _prepare_tokenized_text_for_bpe_model(text: List[str], tokenizer, vocabulary: List[str], blank_idx: int = 0):
-    """ Creates a transition matrix for BPE-based models"""
+    """Creates a transition matrix for BPE-based models"""
     space_idx = vocabulary.index("▁")
     ground_truth_mat = [[-1, -1]]
     utt_begin_indices = []

@@ -22,7 +22,7 @@ from torch.nn import functional as F
 class PartialConv1d(torch.nn.Conv1d):
     """
     Zero padding creates a unique identifier for where the edge of the data is, such that the model can almost always identify
-    exactly where it is relative to either edge given a sufficient receptive field. Partial padding goes to some lengths to remove 
+    exactly where it is relative to either edge given a sufficient receptive field. Partial padding goes to some lengths to remove
     this affect.
     """
 
@@ -206,7 +206,9 @@ class Attention(torch.nn.Module):
         self.memory_layer = LinearNorm(embedding_dim, attention_dim, bias=False, w_init_gain='tanh')
         self.v = LinearNorm(attention_dim, 1, bias=False)
         self.location_layer = LocationLayer(
-            attention_location_n_filters, attention_location_kernel_size, attention_dim,
+            attention_location_n_filters,
+            attention_location_kernel_size,
+            attention_dim,
         )
         self.score_mask_value = -float("inf")
 
@@ -230,7 +232,12 @@ class Attention(torch.nn.Module):
         return energies
 
     def forward(
-        self, attention_hidden_state, memory, processed_memory, attention_weights_cat, mask,
+        self,
+        attention_hidden_state,
+        memory,
+        processed_memory,
+        attention_weights_cat,
+        mask,
     ):
         """
         PARAMS
@@ -363,9 +370,15 @@ class WaveNet(torch.nn.Module):
         self.cond_layer = torch.nn.utils.weight_norm(cond_layer, name='weight')
 
         for i in range(n_layers):
-            dilation = 2 ** i
+            dilation = 2**i
             padding = int((kernel_size * dilation - dilation) / 2)
-            in_layer = torch.nn.Conv1d(n_channels, 2 * n_channels, kernel_size, dilation=dilation, padding=padding,)
+            in_layer = torch.nn.Conv1d(
+                n_channels,
+                2 * n_channels,
+                kernel_size,
+                dilation=dilation,
+                padding=padding,
+            )
             in_layer = torch.nn.utils.weight_norm(in_layer, name='weight')
             self.in_layers.append(in_layer)
 

@@ -199,8 +199,7 @@ def __tokenize_text(
 
 
 def __create_chunk(data_root, chunk_path, shard_id, compute_metrics=False):
-    """Creates a tarball containing the tokenized text chunks.
-       """
+    """Creates a tarball containing the tokenized text chunks."""
     tar = tarfile.open(os.path.join(data_root, f'text_{shard_id}.tar'), mode='a', encoding='utf-8')
 
     # We squash the filename since we do not preserve directory structure of tokenized text in the tarball.

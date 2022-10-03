@@ -29,7 +29,7 @@ def select_channels(signal: npt.NDArray, channel_selector: Optional[ChannelSelec
     """
     Convert a multi-channel signal to a single-channel signal by averaging over channels or selecting a single channel,
     or pass-through multi-channel signal when channel_selector is `None`.
-    
+
     Args:
         signal: numpy array with shape (..., num_channels)
         channel selector: string denoting the downmix mode, an integer denoting the channel to be selected, or an iterable
@@ -88,12 +88,12 @@ def select_channels(signal: npt.NDArray, channel_selector: Optional[ChannelSelec
 
 def sinc_unnormalized(x: float) -> float:
     """Unnormalized sinc.
-    
+
     Args:
         x: input value
-        
+
     Returns:
-        Calculates sin(x)/x 
+        Calculates sin(x)/x
     """
     return np.sinc(x / np.pi)
 
@@ -106,14 +106,14 @@ def theoretical_coherence(
     sound_velocity: float = SOUND_VELOCITY,
 ) -> npt.NDArray:
     """Calculate a theoretical coherence matrix for given mic positions and field type.
-    
+
     Args:
         mic_positions: 3D Cartesian coordinates of microphone positions, shape (num_mics, 3)
         field: string denoting the type of the soundfield
         sample_rate: sampling rate of the input signal in Hz
         fft_length: length of the fft in samples
         sound_velocity: speed of sound in m/s
-    
+
     Returns:
         Calculated coherence with shape (num_subbands, num_mics, num_mics)
     """
@@ -145,11 +145,11 @@ def theoretical_coherence(
 
 def estimated_coherence(S: npt.NDArray, eps: float = 1e-16) -> npt.NDArray:
     """Estimate complex-valued coherence for the input STFT-domain signal.
-    
+
     Args:
         S: STFT of the signal with shape (num_subbands, num_frames, num_channels)
         eps: small regularization constant
-        
+
     Returns:
         Estimated coherence with shape (num_subbands, num_channels, num_channels)
     """
@@ -194,10 +194,10 @@ def generate_approximate_noise_field(
         fft_length: length of the fft in samples
         method: coherence decomposition method
         sound_velocity: speed of sound in m/s
-        
+
     Returns:
         Signal with coherence approximately matching the desired coherence, shape (num_samples, num_channels)
-        
+
     References:
         E.A.P. Habets, I. Cohen and S. Gannot, 'Generating nonstationary multisensor
         signals under a spatial coherence constraint', Journal of the Acoustical Society
@@ -228,16 +228,16 @@ def transform_to_match_coherence(
     corrcoef_threshold: float = 0.05,
 ) -> npt.NDArray:
     """Transform the input multichannel signal to match the desired coherence.
-    
+
     Note: It's assumed that channels are independent.
-    
+
     Args:
         signal: independent noise signals with shape (num_samples, num_channels)
         desired_coherence: desired coherence with shape (num_subbands, num_channels, num_channels)
         method: decomposition method used to construct the transformation matrix
         ref_channel: reference channel for power normalization of the input signal
         corrcoef_threshold: used to detect input signals with high correlation between channels
-        
+
     Returns:
         Signal with coherence approximately matching the desired coherence, shape (num_samples, num_channels)
 
