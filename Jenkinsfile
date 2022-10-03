@@ -3,7 +3,8 @@ pipeline {
         docker {
       //image 'gitlab-master.nvidia.com:5005/eharper/nemo_containers:nemo_ci_pytorch_22.07_apex_3c19f1061879394f28272a99a7ea26d58f72dace'
       image 'nvcr.io/nvidia/pytorch:22.08-py3'
-      args '--device=/dev/nvidia0 --gpus all -e TRANSFORMERS_OFFLINE=1 --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache:/root/.cache --shm-size=8g'
+      //args '--device=/dev/nvidia0 --gpus all -e TRANSFORMERS_OFFLINE=1 --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache:/root/.cache --shm-size=8g'
+      args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache:/root/.cache --shm-size=8g'
         }
   }
   options {
@@ -26,11 +27,11 @@ pipeline {
       }
     }
 
-    stage('Pin Transformers Version (Hotfix)') {
-      steps{
-        sh 'pip install transformers==4.21.2'
-      }
-    }
+    // stage('Pin Transformers Version (Hotfix)') {
+    //   steps{
+    //     sh 'pip install transformers==4.21.2'
+    //   }
+    // }
 
     stage('Transformers Offline') {
       steps{
