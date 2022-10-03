@@ -94,11 +94,16 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 "Distributed optimizers require O2. Please set megatron_amp_O2 to True in the model config."
             )
 
+        # build_model returns a list of modules which are used for interleaved pipeline parallelism
         self.model = build_model(
             model_provider_func=self.model_provider_func,
             wrap_with_ddp=False,
             virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
         )
+
+        # if we're not using interleaved, then self.model is a module.
+        if self.cfg.get('virtual_pipeline_model_parallel_size', None) is None:
+            self.model = self.model[0]
 
         if self.megatron_amp_o2:
 
@@ -108,10 +113,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     module.cuda(torch.cuda.current_device())
 
             # Model wrapper to convert both model and inputs to half precision
-            converted_model = []
-            for module in self.model:
-                converted_model.append(Float16Module(module=module, precision=cfg.precision))
-                self.model = converted_model
+            if isinstance(self.model, list):
+                converted_model = []
+                for module in self.model:
+                    converted_model.append(Float16Module(module=module, precision=cfg.precision))
+                    self.model = converted_model
+            else:
+                self.model = Float16Module(module=self.model, precision=cfg.precision)
 
         if self.trainer.precision == 32:
             self.autocast_dtype = torch.float
@@ -169,9 +177,16 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
     def setup_optimizer_param_groups(self):
         """ModelPT override. Optimizer will get self._optimizer_param_groups"""
         if self.cfg.get('do_layer_norm_weight_decay', False):
-            self._optimizer_param_groups = get_all_params_for_weight_decay_optimization(self.model)
+            if isinstance(self.model, list):
+                self._optimizer_param_groups = get_all_params_for_weight_decay_optimization(self.model)
+            else:
+                self._optimizer_param_groups = get_all_params_for_weight_decay_optimization([self.model])
+
         else:
-            self._optimizer_param_groups = get_params_for_weight_decay_optimization(self.model)
+            if isinstance(self.model, list):
+                self._optimizer_param_groups = get_params_for_weight_decay_optimization(self.model)
+            else:
+                self._optimizer_param_groups = get_params_for_weight_decay_optimization([self.model])
 
     def setup_optimization(
         self, optim_config: Optional[Union[DictConfig, Dict]] = None, optim_kwargs: Optional[Dict[str, Any]] = None,
@@ -323,20 +338,28 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         """
         return
 
+    def _append_module_grads(self, module, grads):
+        for param in module.parameters():
+            if getattr(param, 'sequence_parallel_enabled', False):
+                if self.megatron_amp_o2:
+                    grad = param.main_grad
+                else:
+                    grad = param.grad
+                grads.append(grad.data)
+
     def allreduce_sequence_parallel_gradients(self):
         """ All-reduce layernorm parameters across model parallel nodes when sequence parallelism is used.
             Modified from megatron-lm:
             https://gitlab-master.nvidia.com/ADLR/megatron-lm/-/blob/3f91f09bb2ab32f9904b47f46f19d2fc3f518ed8/megatron/training.py#L425
         """
+
         grads = []
-        for module in self.model:
-            for param in module.parameters():
-                if getattr(param, 'sequence_parallel_enabled', False):
-                    if self.megatron_amp_o2:
-                        grad = param.main_grad
-                    else:
-                        grad = param.grad
-                    grads.append(grad.data)
+        if isinstance(self.model, list):
+            for module in self.model:
+                self._append_module_grads(module, grads)
+            else:
+                self._append_module_grads(self.model, grads)
+
         coalesced = torch._utils._flatten_dense_tensors(grads)
         torch.distributed.all_reduce(coalesced, group=parallel_state.get_tensor_model_parallel_group())
         for buf, synced in zip(grads, torch._utils._unflatten_dense_tensors(coalesced, grads)):
@@ -354,9 +377,15 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             or parallel_state.is_pipeline_last_stage(ignore_virtual=True)
         ):
             if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
-                module = self.model[0]  # only the first virtual rank has the embeddings
+                if isinstance(self.model, list):
+                    module = self.model[0]  # only the first virtual rank has the embeddings
+                else:
+                    module = self.model
             if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
-                module = self.model[-1]  # only the last virtual rank has the embeddings
+                if isinstance(self.model, list):
+                    module = self.model[-1]  # only the last virtual rank has the embeddings
+                else:
+                    module = self.model
             if module.share_token_embeddings:
                 word_embeddings_weight = module.word_embeddings_weight()
                 if self.megatron_amp_o2:
@@ -614,9 +643,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         # log number of parameters
         if self.is_data_parallel_rank_zero():
-            num_parameters = sum(
-                [sum([p.nelement() for p in model_module.parameters()]) for model_module in self.model]
-            )
+            if isinstance(self.model, list):
+                num_parameters = sum(
+                    [sum([p.nelement() for p in model_module.parameters()]) for model_module in self.model]
+                )
+            else:
+                num_parameters = sum([p.nelement() for p in self.model.parameters()])
+
             logging.info(
                 f'Pipeline model parallel rank: {parallel_state.get_pipeline_model_parallel_rank()}, '
                 f'Tensor model parallel rank: {parallel_state.get_tensor_model_parallel_rank()}, '
@@ -648,12 +681,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         # when using pipeline model parallel the final stage need to initialize word embeddings
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
-            for i, module in enumerate(self.model):
-                parallel_state.set_virtual_pipeline_model_parallel_rank(i)
-                module.sync_initial_word_embeddings()
-            parallel_state.set_virtual_pipeline_model_parallel_rank(0)
-            # for module in self.model:
-            #     module.sync_initial_word_embeddings()
+            if isinstance(self.model, list):
+                for i, module in enumerate(self.model):
+                    parallel_state.set_virtual_pipeline_model_parallel_rank(i)
+                    module.sync_initial_word_embeddings()
+                parallel_state.set_virtual_pipeline_model_parallel_rank(0)
+            else:
+                self.model.sync_initial_word_embeddings()
 
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds'):
@@ -797,16 +831,18 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         """LightningModule hook:
         https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-save-checkpoint
         """
-        if len(self.model) is not None:
+        if isinstance(self.model, list):
             for i in range(len(self.model)):
                 parallel_state.set_virtual_pipeline_model_parallel_rank(i)
                 checkpoint[f'model{i}'] = self.model[i].module.state_dict_for_save_checkpoint()
+            parallel_state.set_virtual_pipeline_model_parallel_rank(0)
 
     def on_load_checkpoint(self, checkpoint) -> None:
         """LightningModule hook:
         https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-load-checkpoint
         """
-        if len(self.model) is not None:
+        if isinstance(self.model, list):
             for i in range(len(self.model)):
                 parallel_state.set_virtual_pipeline_model_parallel_rank(i)
                 self.model[i].module.load_state_dict(checkpoint[f'model{i}'], strict=True)
+            parallel_state.set_virtual_pipeline_model_parallel_rank(0)
