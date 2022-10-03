@@ -29,6 +29,7 @@ from nemo.collections.asr.metrics.wer import CTCDecodingConfig
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
 from nemo.collections.asr.parts.utils.transcribe_utils import transcribe_partial_audio
+from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
 from nemo.core.config import hydra_runner
 from nemo.utils import logging, model_utils
 
@@ -41,6 +42,8 @@ Transcribe audio file on a single CPU/GPU. Useful for transcription of moderate 
   pretrained_name: name of pretrained ASR model (from NGC registry)
   audio_dir: path to directory with audio files
   dataset_manifest: path to dataset JSON manifest file (in NeMo format)
+
+  compute_langs: Bool to request language ID information (if the model supports it)
   
   output_filename: Output filename where the transcriptions will be written
   batch_size: batch size during inference
@@ -67,6 +70,7 @@ python transcribe_speech.py \
     dataset_manifest="" \
     output_filename="" \
     batch_size=32 \
+    compute_langs=False \
     cuda=0 \
     amp=True \
     append_pred=False \
@@ -88,6 +92,9 @@ class TranscriptionConfig:
     num_workers: int = 0
     append_pred: bool = False  # Sets mode of work, is set to True will add new transcriptions to existing .JSON file.
     pred_name_postfix: Optional[str] = None  # If you need to use another model name, rather than standard one.
+
+    # Set to True to output language ID information
+    compute_langs: bool = False
 
     # Set `cuda` to int to define CUDA device. If 'None', will look for CUDA
     # device anyway, and do inference on CPU only if CUDA device is not found.
@@ -155,11 +162,18 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     asr_model = asr_model.eval()
     partial_audio = False
 
+    # collect additional transcription information
+    return_hypotheses = True
+
+    # we will adjust this flag is the model does not support it
+    compute_langs = cfg.compute_langs
+
     # Setup decoding strategy
     if hasattr(asr_model, 'change_decoding_strategy'):
         # Check if ctc or rnnt model
         if hasattr(asr_model, 'joint'):  # RNNT model
-            asr_model.change_decoding_strategy(cfg.rnnt_decoding)
+            rnnt_decoding = RNNTDecodingConfig(fused_batch_size=-1, compute_langs=cfg.compute_langs)
+            asr_model.change_decoding_strategy(rnnt_decoding)
         else:
             asr_model.change_decoding_strategy(cfg.ctc_decoding)
 
@@ -222,6 +236,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         logging.warning(f"Nothing will be overwritten, as append_pred set to True")
 
     # transcribe audio
+
     with autocast():
         with torch.no_grad():
             if partial_audio:
@@ -237,11 +252,17 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                         "RNNT models do not support transcribe partial audio for now. Transcribing full audio."
                     )
                     transcriptions = asr_model.transcribe(
-                        paths2audio_files=filepaths, batch_size=cfg.batch_size, num_workers=cfg.num_workers,
+                        paths2audio_files=filepaths,
+                        batch_size=cfg.batch_size,
+                        num_workers=cfg.num_workers,
+                        return_hypotheses=return_hypotheses,
                     )
             else:
                 transcriptions = asr_model.transcribe(
-                    paths2audio_files=filepaths, batch_size=cfg.batch_size, num_workers=cfg.num_workers,
+                    paths2audio_files=filepaths,
+                    batch_size=cfg.batch_size,
+                    num_workers=cfg.num_workers,
+                    return_hypotheses=return_hypotheses,
                 )
 
     logging.info(f"Finished transcribing {len(filepaths)} files !")
@@ -251,6 +272,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     # if transcriptions form a tuple (from RNNT), extract just "best" hypothesis
     if type(transcriptions) == tuple and len(transcriptions) == 2:
         transcriptions = transcriptions[0]
+
     # write audio transcriptions
 
     if cfg.append_pred:
@@ -264,14 +286,21 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         pred_text_attr_name = 'pred_text'
     with open(cfg.output_filename, 'w', encoding='utf-8') as f:
         if cfg.audio_dir is not None:
-            for idx, text in enumerate(transcriptions):
-                item = {'audio_filepath': filepaths[idx], pred_text_attr_name: text}
+            for idx, transcription in enumerate(transcriptions):
+                item = {'audio_filepath': filepaths[idx], pred_text_attr_name: transcription.text}
+                if compute_langs:
+                    item['pred_lang'] = transcription.langs
+                    item['pred_lang_chars'] = transcription.langs_chars
                 f.write(json.dumps(item) + "\n")
         else:
             with open(cfg.dataset_manifest, 'r') as fr:
                 for idx, line in enumerate(fr):
                     item = json.loads(line)
                     item[pred_text_attr_name] = transcriptions[idx]
+
+                    if compute_langs:
+                        item['pred_lang'] = transcriptions[idx].langs
+                        item['pred_lang_chars'] = transcriptions[idx].langs_chars
                     f.write(json.dumps(item) + "\n")
 
     logging.info("Finished writing predictions !")
