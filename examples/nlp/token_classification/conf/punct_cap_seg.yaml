@@ -1,5 +1,5 @@
 
-init_from_nemo_model: nemo_exp/token/test_tokens_2/2022-08-20_18-01-14/checkpoints/test_tokens_2.nemo
+init_from_nemo_model: nemo_exp/token/two_pass/2022-09-27_17-54-32/checkpoints/two_pass.nemo
 #init_from_nemo_model:
 #  model0:
 #    path: nemo_exp/token/test_tokens_1/2022-08-19_20-10-19/checkpoints/test_tokens_1.nemo
@@ -7,13 +7,15 @@ init_from_nemo_model: nemo_exp/token/test_tokens_2/2022-08-20_18-01-14/checkpoin
 #      "_punct_post_loss.weight",
 #      "_punct_head_post"
 #    ]
-name: "test_tokens_2"
+name: "two_pass"
 
 model:
   # For reference only
   supported_languages: [
-      "ar", "de", "es", "en", "fr", "hi", "it", "ja", "ru", "uk", "zh"
+      "ar", "de", "es", "en", "fr", "hi", "it", "ja", "ru", "uk", "zh",
+      "bs", "cs", "et", "fi", "is", "lt", "lv", "pl", "pt", "ro", "tr"
   ]
+  multipass: true  # train with two passes
 
   tokenizer:
     special_tokens: null
@@ -44,7 +46,10 @@ model:
       "？", "，", "。", # Chinese, no enum comma
       "、", "・",  # Japanese comma, middle dot
       "।", # Hindi
-      "؟"  # Arabic
+      "؟",  # Arabic
+      "՞", # Armenian (placeholder for fine-tuning later; currently not trained with Armenian)
+      ";",  # Greek question mark (placeholder; remove from all other languages during training)
+      "።",  # Amharic full stop (placeholder)
   ]
   loss:
     # Loss weights for punct_post_labels
@@ -57,10 +62,11 @@ model:
           3, 5,
           3,
           4,
+          1, 1, 1 # 3 placeholder punctuation tokens
       ]
     # Loss weights for punct_pre_labels
     punct_pre:
-      weight: [0.5, 3.0]
+      weight: [0.5, 4.0]
     # Loss weights for [lower_case, upper_case]
     cap:
       weight: [0.5, 5.0]
@@ -70,162 +76,112 @@ model:
   # Target padding value. No need to change.
   pad_value: -100
 
-  # Common values used by the data loaders, to avoid needing to change in many places.
-  max_training_eg_length: 72
-  max_dev_eg_length: 72
-  min_lines_per_eg: 2
-  max_lines_per_eg: 3
-  min_input_length_words: 1
-  max_input_length_words: 20
-  # For char-based languages, filter by char count
-  min_input_length_chars: 1
-  max_input_length_chars: 32
-
   train_ds:
-    batch_size: 40
+    batch_size: 32
     num_workers: 6
     # A list of datasets will be used to create a ConcatDataset.
     sampling_technique: "temperature"
     sampling_temperature: 5
+    # "common" key/value pairs will be added to every data set, unless that dataset already specifies the key.
+    common:
+      max_lines_per_input_file: 200000
+      punct_pre_labels: ${model.punct_pre_labels}
+      punct_post_labels: ${model.punct_post_labels}
+      unused_punctuation: ${model.unused_punctuation}
+      min_lines_per_eg: 2
+      max_lines_per_eg: 6
+      max_length: 128
+      truncate_max_tokens: 0
+    # Same as "common", but only for continuous-script languages
+    common_continuous_script:
+      min_input_length_chars: 2  # Need at least 2 to have char + punctuation
+      max_input_length_chars: 64
+    # Same as "common", but only for non continuous-script languages
+    common_noncontinuous_script:
+      min_input_length_words: 1
+      max_input_length_words: 40
     # Typically, set up one data set per language.
     datasets:
-      # targets can be any implementation of a PunctCapSegDataset; currently, only TextPunctCapSegDataset is fully
-      #  implemented.
+      # targets can be any implementation of a PunctCapSegDataset; only TextPunctCapSegDataset is fully implemented.
       - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
         # One or more unprocessed, plain-text files containing one sentence per line
         text_files:
-#          - "/home/shane/corpora/tatoeba/en/train.txt"
           - "/home/shane/corpora/wmt_nc/news.2021.en.shuffled.deduped"
-        # Read in only the first N lines from each text file.
-        max_lines_per_input_file: 400000
+          - "/home/shane/corpora/tatoeba/en/train.txt"
+#          - "/home/shane/corpora/opensub/en/train.txt"
         # Will be used to select the punctuation targets generator, which is language-specific.
         language: "en"
-        # Punctuation labels that can appear before tokens.
-        punct_pre_labels: ${model.punct_pre_labels}
-        # Punctuation labels that can appear after tokens.
-        punct_post_labels: ${model.punct_post_labels}
-        # Any unused punctuation. Typically, we filter out input lines that do not end in punctuation as a simple
-        # cleaning rule. By specifying unused punctuation, e.g., '!', we can retain lines that end in these tokens and
-        # let the model see them during training, even if they aren't targets, so the model handles them correctly at
-        # inference time.
-        unused_punctuation: ${model.unused_punctuation}
-        # Filter out input lines longer than this many words, as a cleaning method (a perfect data set has only one
-        # sentence per line; we use heuristics to achieve this from arbitrary data).
-        min_input_length_words: ${model.min_input_length_words}
-        max_input_length_words: ${model.max_input_length_words}
-        # Generate examples by concatenating multiple lines together, determined by the following min/max counts.
-        min_lines_per_eg: ${model.min_lines_per_eg}
-        max_lines_per_eg: ${model.max_lines_per_eg}
-        # Limit examples to this many tokens. This is enforced by a simple truncation the examples after generation.
-        max_length: ${model.max_training_eg_length}
-        # Truncate up to this many tokens from the end of examples, so the model doesn't learn to always put punctuation
-        # at the end of each example. With moderate max_length this probably isn't needed.
-        truncate_max_tokens: 0
         # List of zero or more implementations of nlp.data.token_classification.punct_cap_seg_dataset.TextCleaner
         cleaners:
+          # Remove ';' because it has a special meaning for greek punctuation, not used in other languages
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
+            chars_to_remove: [";", '"']
           - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
             punct_tokens: ${model.punct_post_labels}
       - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
         text_files:
-#          - "/home/shane/corpora/tatoeba/ru/train.txt"
           - "/home/shane/corpora/wmt_nc/news.2021.ru.shuffled.deduped"
-        max_lines_per_input_file: 400000
+          - "/home/shane/corpora/tatoeba/ru/train.txt"
+#          - "/home/shane/corpora/opensub/ru/train.txt"
         language: "ru"
-        punct_pre_labels: ${model.punct_pre_labels}
-        punct_post_labels: ${model.punct_post_labels}
-        unused_punctuation: ${model.unused_punctuation}
-        min_input_length_words: ${model.min_input_length_words}
-        max_input_length_words: ${model.max_input_length_words}
-        min_lines_per_eg: ${model.min_lines_per_eg}
-        max_lines_per_eg: ${model.max_lines_per_eg}
-        max_length: ${model.max_training_eg_length}
-        truncate_max_tokens: 0
         cleaners:
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
+            chars_to_remove: [";", '"']
           - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
             punct_tokens: ${model.punct_post_labels}
       - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
         text_files:
           - "/home/shane/corpora/wmt_nc/news.2021.de.shuffled.deduped"
-        max_lines_per_input_file: 400000
+          - "/home/shane/corpora/tatoeba/de/train.txt"
+#          - "/home/shane/corpora/opensub/de/train.txt"
         language: "de"
-        punct_pre_labels: ${model.punct_pre_labels}
-        punct_post_labels: ${model.punct_post_labels}
-        unused_punctuation: ${model.unused_punctuation}
-        min_input_length_words: ${model.min_input_length_words}
-        max_input_length_words: ${model.max_input_length_words}
-        min_lines_per_eg: ${model.min_lines_per_eg}
-        max_lines_per_eg: ${model.max_lines_per_eg}
-        max_length: ${model.max_training_eg_length}
-        truncate_max_tokens: 0
         cleaners:
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
+            chars_to_remove: [";", '"']
           - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
             punct_tokens: ${model.punct_post_labels}
       - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
         text_files:
           - "/home/shane/corpora/wmt_nc/news.2021.it.shuffled.deduped"
-        max_lines_per_input_file: 400000
+          - "/home/shane/corpora/tatoeba/it/train.txt"
+#          - "/home/shane/corpora/opensub/it/train.txt"
         language: "it"
-        punct_pre_labels: ${model.punct_pre_labels}
-        punct_post_labels: ${model.punct_post_labels}
-        unused_punctuation: ${model.unused_punctuation}
-        min_input_length_words: ${model.min_input_length_words}
-        max_input_length_words: ${model.max_input_length_words}
-        min_lines_per_eg: ${model.min_lines_per_eg}
-        max_lines_per_eg: ${model.max_lines_per_eg}
-        max_length: ${model.max_training_eg_length}
-        truncate_max_tokens: 0
         cleaners:
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
+            chars_to_remove: [";", '"']
           - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
             punct_tokens: ${model.punct_post_labels}
       - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
         text_files:
           - "/home/shane/corpora/wmt_nc/news.2021.fr.shuffled.deduped"
-        max_lines_per_input_file: 400000
+          - "/home/shane/corpora/tatoeba/fr/train.txt"
+#          - "/home/shane/corpora/opensub/fr/train.txt"
         language: "fr"
-        punct_pre_labels: ${model.punct_pre_labels}
-        punct_post_labels: ${model.punct_post_labels}
-        unused_punctuation: ${model.unused_punctuation}
-        min_input_length_words: ${model.min_input_length_words}
-        max_input_length_words: ${model.max_input_length_words}
-        min_lines_per_eg: ${model.min_lines_per_eg}
-        max_lines_per_eg: ${model.max_lines_per_eg}
-        max_length: ${model.max_training_eg_length}
-        truncate_max_tokens: 0
         cleaners:
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
+            chars_to_remove: [";", '"']
           - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
             punct_tokens: ${model.punct_post_labels}
       - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
         text_files:
           - "/home/shane/corpora/wmt_nc/news.2021.uk.shuffled.deduped"
-        max_lines_per_input_file: 400000
+          - "/home/shane/corpora/tatoeba/uk/train.txt"
+#          - "/home/shane/corpora/opensub/uk/train.txt"
         language: "uk"
-        punct_pre_labels: ${model.punct_pre_labels}
-        punct_post_labels: ${model.punct_post_labels}
-        unused_punctuation: ${model.unused_punctuation}
-        min_input_length_words: ${model.min_input_length_words}
-        max_input_length_words: ${model.max_input_length_words}
-        min_lines_per_eg: ${model.min_lines_per_eg}
-        max_lines_per_eg: ${model.max_lines_per_eg}
-        max_length: ${model.max_training_eg_length}
-        truncate_max_tokens: 0
         cleaners:
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
+            chars_to_remove: [";", '"']
           - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
             punct_tokens: ${model.punct_post_labels}
       - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
         text_files:
           - "/home/shane/corpora/wmt_nc/news.2021.ar.shuffled.deduped"
-        max_lines_per_input_file: 400000
+          - "/home/shane/corpora/tatoeba/ar/train.txt"
+#          - "/home/shane/corpora/opensub/ar/train.txt"
         language: "ar"
-        punct_pre_labels: ${model.punct_pre_labels}
-        punct_post_labels: ${model.punct_post_labels}
-        unused_punctuation: ${model.unused_punctuation}
-        min_input_length_words: ${model.min_input_length_words}
-        max_input_length_words: ${model.max_input_length_words}
-        min_lines_per_eg: ${model.min_lines_per_eg}
-        max_lines_per_eg: ${model.max_lines_per_eg}
-        max_length: ${model.max_training_eg_length}
-        truncate_max_tokens: 0
         cleaners:
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
+            chars_to_remove: [";", '"']
           - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
             punct_tokens: ${model.punct_post_labels}
           - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.ArabicTextCleaner
@@ -233,18 +189,12 @@ model:
       - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
         text_files:
           - "/home/shane/corpora/wmt_nc/news.2021.hi.shuffled.deduped"
-        max_lines_per_input_file: 400000
+          - "/home/shane/corpora/tatoeba/hi/hi.txt"
+#          - "/home/shane/corpora/opensub/hi/train.txt"
         language: "hi"
-        punct_pre_labels: ${model.punct_pre_labels}
-        punct_post_labels: ${model.punct_post_labels}
-        unused_punctuation: ${model.unused_punctuation}
-        min_input_length_words: ${model.min_input_length_words}
-        max_input_length_words: ${model.max_input_length_words}
-        min_lines_per_eg: ${model.min_lines_per_eg}
-        max_lines_per_eg: ${model.max_lines_per_eg}
-        max_length: ${model.max_training_eg_length}
-        truncate_max_tokens: 0
         cleaners:
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
+            chars_to_remove: [";", '"']
           - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
             punct_tokens: ${model.punct_post_labels}
           - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.HindiTextCleaner
@@ -252,41 +202,27 @@ model:
             replace_latin: true
       - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
         text_files:
-#          - "/home/shane/corpora/tatoeba/es/train.txt"
           - "/home/shane/corpora/wmt_nc/news.2021.es.shuffled.deduped"
-        max_lines_per_input_file: 400000
+          - "/home/shane/corpora/tatoeba/es/train.txt"
+#          - "/home/shane/corpora/opensub/es/train.txt"
         language: "es"
-        punct_pre_labels: ${model.punct_pre_labels}
-        punct_post_labels: ${model.punct_post_labels}
-        unused_punctuation: ${model.unused_punctuation}
-        min_input_length_words: ${model.min_input_length_words}
-        max_input_length_words: ${model.max_input_length_words}
-        min_lines_per_eg: ${model.min_lines_per_eg}
-        max_lines_per_eg: ${model.max_lines_per_eg}
-        max_length: ${model.max_training_eg_length}
-        truncate_max_tokens: 0
         cleaners:
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
+            chars_to_remove: [";", '"']
           - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.SpanishPunctNormalizer
             pre_punct_tokens: ${model.punct_pre_labels}
             post_punct_tokens: ${model.punct_post_labels}
       - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
         text_files:
-#          - "/home/shane/corpora/tatoeba/zh/train.txt"
           - "/home/shane/corpora/wmt_nc/news.2021.zh.shuffled.deduped"
-        max_lines_per_input_file: 400000
+          - "/home/shane/corpora/tatoeba/zh/train.txt"
+#          - "/home/shane/corpora/opensub/zh/train.txt"
         language: "zh"
         # Let dataset know this is a continuous-script language
         is_continuous: true
-        punct_pre_labels: ${model.punct_pre_labels}
-        punct_post_labels: ${model.punct_post_labels}
-        unused_punctuation: ${model.unused_punctuation}
-        min_input_length_chars: ${model.min_input_length_chars}
-        max_input_length_chars: ${model.max_input_length_chars}
-        min_lines_per_eg: ${model.min_lines_per_eg}
-        max_lines_per_eg: ${model.max_lines_per_eg}
-        max_length: ${model.max_training_eg_length}
-        truncate_max_tokens: 0
         cleaners:
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
+            chars_to_remove: [";", '"']
           - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.ChineseTextCleaner
             remove_spaces: true
             replace_latin: true
@@ -296,165 +232,233 @@ model:
       - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
         text_files:
           - "/home/shane/corpora/wmt_nc/news.2021.ja.shuffled.deduped"
-        max_lines_per_input_file: 400000
+          - "/home/shane/corpora/tatoeba/ja/train.txt"
+#          - "/home/shane/corpora/opensub/ja/train.txt"
         language: "ja"
         is_continuous: true
-        punct_pre_labels: ${model.punct_pre_labels}
-        punct_post_labels: ${model.punct_post_labels}
-        unused_punctuation: ${model.unused_punctuation}
-        min_input_length_chars: ${model.min_input_length_chars}
-        max_input_length_chars: ${model.max_input_length_chars}
-        min_lines_per_eg: ${model.min_lines_per_eg}
-        max_lines_per_eg: ${model.max_lines_per_eg}
-        max_length: ${model.max_training_eg_length}
-        truncate_max_tokens: 0
         cleaners:
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
+            chars_to_remove: [";", '"']
           - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.JapaneseTextCleaner
             replace_latin: true
             remove_spaces: true
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
+            punct_tokens: ${model.punct_post_labels}
+      # "bs", "cs", "et", "fi", "is", "lt", "lv", "pl", "pt", "ro", "tr"
+      - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
+        text_files:
+          - "/home/shane/corpora/wmt_nc/news.2021.bs.shuffled.deduped"
+          - "/home/shane/corpora/tatoeba/bs/bs.txt"
+#          - "/home/shane/corpora/opensub/bs/train.txt"
+        language: "bs"
+        cleaners:
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
+            chars_to_remove: [";", '"']
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
+            punct_tokens: ${model.punct_post_labels}
+      - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
+        text_files:
+          - "/home/shane/corpora/wmt_nc/news.2021.cs.shuffled.deduped"
+          - "/home/shane/corpora/tatoeba/cs/train.txt"
+#          - "/home/shane/corpora/opensub/cs/train.txt"
+        language: "cs"
+        cleaners:
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
+            chars_to_remove: [";", '"']
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
+            punct_tokens: ${model.punct_post_labels}
+      - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
+        text_files:
+          - "/home/shane/corpora/wmt_nc/news.2021.et.shuffled.deduped"
+          - "/home/shane/corpora/tatoeba/et/et.txt"
+#          - "/home/shane/corpora/opensub/et/train.txt"
+        language: "et"
+        cleaners:
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
+            chars_to_remove: [";", '"']
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
+            punct_tokens: ${model.punct_post_labels}
+      - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
+        text_files:
+          - "/home/shane/corpora/wmt_nc/news.2021.fi.shuffled.deduped"
+          - "/home/shane/corpora/tatoeba/fi/train.txt"
+#          - "/home/shane/corpora/opensub/fi/train.txt"
+        language: "fi"
+        cleaners:
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
+            chars_to_remove: [";", '"']
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
+            punct_tokens: ${model.punct_post_labels}
+      - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
+        text_files:
+          - "/home/shane/corpora/wmt_nc/news.2021.is.shuffled.deduped"
+          - "/home/shane/corpora/tatoeba/is/is.txt"
+#          - "/home/shane/corpora/opensub/is/train.txt"
+        language: "is"
+        cleaners:
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
+            chars_to_remove: [";", '"']
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
+            punct_tokens: ${model.punct_post_labels}
+      - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
+        text_files:
+          - "/home/shane/corpora/wmt_nc/news.2021.lt.shuffled.deduped"
+          - "/home/shane/corpora/tatoeba/lt/train.txt"
+#          - "/home/shane/corpora/opensub/lt/train.txt"
+        language: "lt"
+        cleaners:
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
+            chars_to_remove: [";", '"']
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
+            punct_tokens: ${model.punct_post_labels}
+      - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
+        text_files:
+          - "/home/shane/corpora/wmt_nc/news.2021.lv.shuffled.deduped"
+          - "/home/shane/corpora/tatoeba/lv/lv.txt"
+#          - "/home/shane/corpora/opensub/lv/train.txt"
+        language: "lv"
+        cleaners:
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
+            chars_to_remove: [";", '"']
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
+            punct_tokens: ${model.punct_post_labels}
+      - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
+        text_files:
+          - "/home/shane/corpora/wmt_nc/news.2021.pl.shuffled.deduped"
+          - "/home/shane/corpora/tatoeba/pl/train.txt"
+#          - "/home/shane/corpora/opensub/pl/train.txt"
+        language: "pl"
+        cleaners:
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
+            chars_to_remove: [";", '"']
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
+            punct_tokens: ${model.punct_post_labels}
+      - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
+        text_files:
+          - "/home/shane/corpora/wmt_nc/news.2021.pt.shuffled.deduped"
+          - "/home/shane/corpora/tatoeba/pt/pt.txt"
+#          - "/home/shane/corpora/opensub/pt/train.txt"
+        language: "pt"
+        cleaners:
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
+            chars_to_remove: [";", '"']
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
+            punct_tokens: ${model.punct_post_labels}
+      - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
+        text_files:
+          - "/home/shane/corpora/wmt_nc/news.2021.ro.shuffled.deduped"
+          - "/home/shane/corpora/tatoeba/ro/ro.txt"
+#          - "/home/shane/corpora/opensub/ro/train.txt"
+        language: "ro"
+        cleaners:
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
+            chars_to_remove: [";", '"']
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
+            punct_tokens: ${model.punct_post_labels}
+      - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
+        text_files:
+          - "/home/shane/corpora/wmt_nc/news.2021.tr.shuffled.deduped"
+          - "/home/shane/corpora/tatoeba/tr/train.txt"
+#          - "/home/shane/corpora/opensub/tr/train.txt"
+        language: "tr"
+        cleaners:
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
+            chars_to_remove: [";", '"']
           - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
             punct_tokens: ${model.punct_post_labels}
 
   validation_ds:
     batch_size: 40
     num_workers: 6
+    common:
+      max_lines_per_input_file: 400000
+      punct_pre_labels: ${model.punct_pre_labels}
+      punct_post_labels: ${model.punct_post_labels}
+      unused_punctuation: ${model.unused_punctuation}
+      min_lines_per_eg: 2
+      max_lines_per_eg: 6
+      max_length: 128
+      truncate_max_tokens: 0
+      rng_seed: 12345
+    common_continuous_script:
+      min_input_length_chars: 2
+      max_input_length_chars: 64
+    common_noncontinuous_script:
+      min_input_length_words: 1
+      max_input_length_words: 40
     datasets:
       - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
         text_files:
           - "/home/shane/corpora/wmt_nc/news.2021.en.shuffled.deduped.tail2k"
         language: "en"
-        punct_pre_labels: ${model.punct_pre_labels}
-        punct_post_labels: ${model.punct_post_labels}
-        unused_punctuation: ${model.unused_punctuation}
-        min_input_length_words: ${model.min_input_length_words}
-        max_input_length_words: ${model.max_input_length_words}
-        min_lines_per_eg: ${model.min_lines_per_eg}
-        max_lines_per_eg: ${model.max_lines_per_eg}
-        max_length: ${model.max_dev_eg_length}
-        truncate_max_tokens: 0
-        rng_seed: 12345
         cleaners:
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
+            chars_to_remove: [";", '"']
           - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
             punct_tokens: ${model.punct_post_labels}
       - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
         text_files:
           - "/home/shane/corpora/wmt_nc/news.2021.ru.shuffled.deduped.tail2k"
         language: "ru"
-        punct_pre_labels: ${model.punct_pre_labels}
-        punct_post_labels: ${model.punct_post_labels}
-        unused_punctuation: ${model.unused_punctuation}
-        min_input_length_words: ${model.min_input_length_words}
-        max_input_length_words: ${model.max_input_length_words}
-        min_lines_per_eg: ${model.min_lines_per_eg}
-        max_lines_per_eg: ${model.max_lines_per_eg}
-        max_length: ${model.max_dev_eg_length}
-        truncate_max_tokens: 0
-        rng_seed: 12345
         cleaners:
-          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
-            punct_tokens: ${model.punct_post_labels}
-      - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
-        text_files:
-          - "/home/shane/corpora/wmt_nc/news.2021.it.shuffled.deduped.tail2k"
-        language: "it"
-        punct_pre_labels: ${model.punct_pre_labels}
-        punct_post_labels: ${model.punct_post_labels}
-        unused_punctuation: ${model.unused_punctuation}
-        min_input_length_words: ${model.min_input_length_words}
-        max_input_length_words: ${model.max_input_length_words}
-        min_lines_per_eg: ${model.min_lines_per_eg}
-        max_lines_per_eg: ${model.max_lines_per_eg}
-        max_length: ${model.max_dev_eg_length}
-        truncate_max_tokens: 0
-        rng_seed: 12345
-        cleaners:
-          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
-            punct_tokens: ${model.punct_post_labels}
-      - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
-        text_files:
-          - "/home/shane/corpora/wmt_nc/news.2021.fr.shuffled.deduped.tail2k"
-        language: "fr"
-        punct_pre_labels: ${model.punct_pre_labels}
-        punct_post_labels: ${model.punct_post_labels}
-        unused_punctuation: ${model.unused_punctuation}
-        min_input_length_words: ${model.min_input_length_words}
-        max_input_length_words: ${model.max_input_length_words}
-        min_lines_per_eg: ${model.min_lines_per_eg}
-        max_lines_per_eg: ${model.max_lines_per_eg}
-        max_length: ${model.max_dev_eg_length}
-        truncate_max_tokens: 0
-        rng_seed: 12345
-        cleaners:
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
+            chars_to_remove: [";", '"']
           - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
             punct_tokens: ${model.punct_post_labels}
       - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
         text_files:
           - "/home/shane/corpora/wmt_nc/news.2021.de.shuffled.deduped.tail2k"
         language: "de"
-        punct_pre_labels: ${model.punct_pre_labels}
-        punct_post_labels: ${model.punct_post_labels}
-        unused_punctuation: ${model.unused_punctuation}
-        min_input_length_words: ${model.min_input_length_words}
-        max_input_length_words: ${model.max_input_length_words}
-        min_lines_per_eg: ${model.min_lines_per_eg}
-        max_lines_per_eg: ${model.max_lines_per_eg}
-        max_length: ${model.max_dev_eg_length}
-        truncate_max_tokens: 0
-        rng_seed: 12345
         cleaners:
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
+            chars_to_remove: [";", '"']
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
+            punct_tokens: ${model.punct_post_labels}
+      - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
+        text_files:
+          - "/home/shane/corpora/wmt_nc/news.2021.it.shuffled.deduped.tail2k"
+        language: "it"
+        cleaners:
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
+            chars_to_remove: [";", '"']
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
+            punct_tokens: ${model.punct_post_labels}
+      - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
+        text_files:
+          - "/home/shane/corpora/wmt_nc/news.2021.fr.shuffled.deduped.tail2k"
+        language: "fr"
+        cleaners:
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
+            chars_to_remove: [";", '"']
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
+            punct_tokens: ${model.punct_post_labels}
+      - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
+        text_files:
+          - "/home/shane/corpora/wmt_nc/news.2021.uk.shuffled.deduped.tail2k"
+        language: "uk"
+        cleaners:
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
+            chars_to_remove: [";", '"']
           - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
             punct_tokens: ${model.punct_post_labels}
       - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
         text_files:
           - "/home/shane/corpora/wmt_nc/news.2021.ar.shuffled.deduped.tail2k"
         language: "ar"
-        punct_pre_labels: ${model.punct_pre_labels}
-        punct_post_labels: ${model.punct_post_labels}
-        unused_punctuation: ${model.unused_punctuation}
-        min_input_length_words: ${model.min_input_length_words}
-        max_input_length_words: ${model.max_input_length_words}
-        min_lines_per_eg: ${model.min_lines_per_eg}
-        max_lines_per_eg: ${model.max_lines_per_eg}
-        max_length: ${model.max_dev_eg_length}
-        truncate_max_tokens: 0
-        rng_seed: 12345
         cleaners:
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
+            chars_to_remove: [";", '"']
           - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
             punct_tokens: ${model.punct_post_labels}
           - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.ArabicTextCleaner
             replace_latin: true
       - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
         text_files:
-          - "/home/shane/corpora/wmt_nc/news.2021.uk.shuffled.deduped.tail2k"
-        language: "uk"
-        punct_pre_labels: ${model.punct_pre_labels}
-        punct_post_labels: ${model.punct_post_labels}
-        unused_punctuation: ${model.unused_punctuation}
-        min_input_length_words: ${model.min_input_length_words}
-        max_input_length_words: ${model.max_input_length_words}
-        min_lines_per_eg: ${model.min_lines_per_eg}
-        max_lines_per_eg: ${model.max_lines_per_eg}
-        max_length: ${model.max_dev_eg_length}
-        truncate_max_tokens: 0
-        rng_seed: 12345
-        cleaners:
-          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
-            punct_tokens: ${model.punct_post_labels}
-      - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
-        text_files:
           - "/home/shane/corpora/wmt_nc/news.2021.hi.shuffled.deduped.tail2k"
         language: "hi"
-        punct_pre_labels: ${model.punct_pre_labels}
-        punct_post_labels: ${model.punct_post_labels}
-        unused_punctuation: ${model.unused_punctuation}
-        min_input_length_words: ${model.min_input_length_words}
-        max_input_length_words: ${model.max_input_length_words}
-        min_lines_per_eg: ${model.min_lines_per_eg}
-        max_lines_per_eg: ${model.max_lines_per_eg}
-        max_length: ${model.max_dev_eg_length}
-        truncate_max_tokens: 0
-        rng_seed: 12345
         cleaners:
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
+            chars_to_remove: [";", '"']
           - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
             punct_tokens: ${model.punct_post_labels}
           - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.HindiTextCleaner
@@ -464,17 +468,9 @@ model:
         text_files:
           - "/home/shane/corpora/wmt_nc/news.2021.es.shuffled.deduped.tail2k"
         language: "es"
-        punct_pre_labels: ${model.punct_pre_labels}
-        punct_post_labels: ${model.punct_post_labels}
-        unused_punctuation: ${model.unused_punctuation}
-        min_input_length_words: ${model.min_input_length_words}
-        max_input_length_words: ${model.max_input_length_words}
-        min_lines_per_eg: ${model.min_lines_per_eg}
-        max_lines_per_eg: ${model.max_lines_per_eg}
-        max_length: ${model.max_dev_eg_length}
-        truncate_max_tokens: 0
-        rng_seed: 12345
         cleaners:
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
+            chars_to_remove: [";", '"']
           - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.SpanishPunctNormalizer
             pre_punct_tokens: ${model.punct_pre_labels}
             post_punct_tokens: ${model.punct_post_labels}
@@ -482,18 +478,11 @@ model:
         text_files:
           - "/home/shane/corpora/wmt_nc/news.2021.zh.shuffled.deduped.tail2k"
         language: "zh"
-        punct_pre_labels: ${model.punct_pre_labels}
-        punct_post_labels: ${model.punct_post_labels}
-        unused_punctuation: ${model.unused_punctuation}
-        min_input_length_chars: ${model.min_input_length_chars}
-        max_input_length_chars: ${model.max_input_length_chars}
-        min_lines_per_eg: ${model.min_lines_per_eg}
-        max_lines_per_eg: ${model.max_lines_per_eg}
-        max_length: ${model.max_dev_eg_length}
-        truncate_max_tokens: 0
-        rng_seed: 12345
+        # Let dataset know this is a continuous-script language
+        is_continuous: true
         cleaners:
-          # Use a Chinese text cleaner to remove any spaces from inputs
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
+            chars_to_remove: [";", '"']
           - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.ChineseTextCleaner
             remove_spaces: true
             replace_latin: true
@@ -504,22 +493,115 @@ model:
         text_files:
           - "/home/shane/corpora/wmt_nc/news.2021.ja.shuffled.deduped.tail2k"
         language: "ja"
-        punct_pre_labels: ${model.punct_pre_labels}
-        punct_post_labels: ${model.punct_post_labels}
-        unused_punctuation: ${model.unused_punctuation}
-        min_input_length_chars: ${model.min_input_length_chars}
-        max_input_length_chars: ${model.max_input_length_chars}
-        min_lines_per_eg: ${model.min_lines_per_eg}
-        max_lines_per_eg: ${model.max_lines_per_eg}
-        max_length: ${model.max_dev_eg_length}
-        truncate_max_tokens: 0
-        rng_seed: 12345
+        is_continuous: true
         cleaners:
+          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
+            chars_to_remove: [";", '"']
           - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.JapaneseTextCleaner
             replace_latin: true
             remove_spaces: true
           - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
             punct_tokens: ${model.punct_post_labels}
+      # "bs", "cs", "et", "fi", "is", "lt", "lv", "pl", "pt", "ro", "tr"
+#      - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
+#        text_files:
+#          - "/home/shane/corpora/opensub/bs/dev.txt"
+#        language: "bs"
+#        cleaners:
+#          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
+#            chars_to_remove: [";", '"']
+#          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
+#            punct_tokens: ${model.punct_post_labels}
+#      - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
+#        text_files:
+#          - "/home/shane/corpora/opensub/cs/dev.txt"
+#        language: "cs"
+#        cleaners:
+#          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
+#            chars_to_remove: [";", '"']
+#          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
+#            punct_tokens: ${model.punct_post_labels}
+#      - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
+#        text_files:
+#          - "/home/shane/corpora/opensub/et/dev.txt"
+#        language: "et"
+#        cleaners:
+#          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
+#            chars_to_remove: [";", '"']
+#          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
+#            punct_tokens: ${model.punct_post_labels}
+#      - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
+#        text_files:
+#          - "/home/shane/corpora/opensub/fi/dev.txt"
+#        language: "fi"
+#        cleaners:
+#          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
+#            chars_to_remove: [";", '"']
+#          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
+#            punct_tokens: ${model.punct_post_labels}
+#      - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
+#        text_files:
+#          - "/home/shane/corpora/opensub/is/dev.txt"
+#        language: "is"
+#        cleaners:
+#          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
+#            chars_to_remove: [";", '"']
+#          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
+#            punct_tokens: ${model.punct_post_labels}
+#      - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
+#        text_files:
+#          - "/home/shane/corpora/opensub/lt/dev.txt"
+#        language: "lt"
+#        cleaners:
+#          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
+#            chars_to_remove: [";", '"']
+#          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
+#            punct_tokens: ${model.punct_post_labels}
+#      - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
+#        text_files:
+#          - "/home/shane/corpora/opensub/lv/dev.txt"
+#        language: "lv"
+#        cleaners:
+#          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
+#            chars_to_remove: [";", '"']
+#          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
+#            punct_tokens: ${model.punct_post_labels}
+#      - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
+#        text_files:
+#          - "/home/shane/corpora/opensub/pl/dev.txt"
+#        language: "pl"
+#        cleaners:
+#          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
+#            chars_to_remove: [";", '"']
+#          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
+#            punct_tokens: ${model.punct_post_labels}
+#      - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
+#        text_files:
+#          - "/home/shane/corpora/opensub/pt/dev.txt"
+#        language: "pt"
+#        cleaners:
+#          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
+#            chars_to_remove: [";", '"']
+#          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
+#            punct_tokens: ${model.punct_post_labels}
+#      - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
+#        text_files:
+#          - "/home/shane/corpora/opensub/ro/dev.txt"
+#        language: "ro"
+#        cleaners:
+#          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
+#            chars_to_remove: [";", '"']
+#          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
+#            punct_tokens: ${model.punct_post_labels}
+#      - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
+#        text_files:
+#          - "/home/shane/corpora/opensub/tr/dev.txt"
+#        language: "tr"
+#        cleaners:
+#          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
+#            chars_to_remove: [";", '"']
+#          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
+#            punct_tokens: ${model.punct_post_labels}
 
   punct_head_pre:
     num_layers: 1
@@ -547,7 +629,7 @@ model:
 
   optim:
     name: adam
-    lr: 2e-5  # 1e-4  # 2e-5
+    lr: 2e-5  #
     weight_decay: 0  # 5e-4
     sched:
       name: WarmupAnnealing
@@ -560,13 +642,13 @@ trainer:
   devices: -1
   num_nodes: 1
   max_epochs: 1
-  max_steps: 100000
+  max_steps: 50000
   accumulate_grad_batches: 1
   gradient_clip_val: 0.0
   precision: 16 # Should be set to 16 for O1 and O2, default is 16 as PT ignores it when am_level is O0
   accelerator: auto
   log_every_n_steps: 250  # Interval of logging.
-  val_check_interval: 2000  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
+  val_check_interval: 5000  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
   resume_from_checkpoint: null
   logger: false
   enable_checkpointing: false
@@ -585,7 +667,7 @@ exp_manager:
     mode: "max"
     save_top_k: 2
     always_save_nemo: true
-  # for continuing
-  version: 2022-08-20_18-01-14
-  resume_if_exists: true
-  resume_ignore_no_checkpoint: false
+#  # for continuing
+#  version: 2022-10-03_16-56-33
+#  resume_if_exists: true
+#  resume_ignore_no_checkpoint: false
