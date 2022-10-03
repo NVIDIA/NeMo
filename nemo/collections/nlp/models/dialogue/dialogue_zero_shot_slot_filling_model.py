@@ -584,8 +584,8 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         for i in range(len(position_stack)):
             if slot_id_stack[i] != self.label_id_for_empty_slot:
                 position = position_stack[i][0], position_stack[i][-1] + 1
-                slot_id_to_start_and_exclusive_end[slot_id_stack[i].item()].append(position)
-                slot_to_words[slot_id_stack[i]].append(utterance_tokens[position[0]: position[1]])
+                slot_id_to_start_and_exclusive_end[slot_id_stack[i]].append(position)
+                slot_to_words[slot_id_stack[i]].append(utterance_tokens[position[0] : position[1]])
 
         return slot_id_to_start_and_exclusive_end
 
@@ -604,15 +604,14 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         """
         slot_id_to_start_and_exclusive_end = self.get_entities_start_and_end_dict(slot_ids, utterance_tokens)
         slot_to_words = {
-            slot_id: utterance_tokens[position[0]: position[1]]
+            slot_id: utterance_tokens[position[0] : position[1]]
             for slot_id, position_list in slot_id_to_start_and_exclusive_end.items()
             for position in position_list
         }
 
-        slot_name_and_values = ["{}({})".format(slot_id, value)
-                                for slot_id, value_list in slot_to_words.items()
-                                for value in value_list]
-
+        slot_name_and_values = [
+            "{}({})".format(slot_id, value) for slot_id, value_list in slot_to_words.items() for value in value_list
+        ]
 
         return slot_name_and_values
 
