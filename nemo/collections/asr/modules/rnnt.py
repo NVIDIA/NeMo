@@ -1365,6 +1365,8 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
                     losses = losses.mean()  # global batch size average
                 elif loss_reduction == 'mean':
                     losses = torch.div(losses, target_lengths).mean()
+                elif loss_reduction == 'sum':
+                    losses = losses.sum()
                 elif loss_reduction == 'mean_volume':
                     losses = losses.sum() / target_lengths.sum()  # same as above but longer samples weigh more
             else:
