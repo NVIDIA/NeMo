@@ -47,7 +47,7 @@ def initialize_model_parallel_for_nemo(
     local_rank,
     tensor_model_parallel_size=1,
     pipeline_model_parallel_size=1,
-    virtual_pipeline_model_parallel_size=1,
+    virtual_pipeline_model_parallel_size=None,
     pipeline_model_parallel_split_rank=None,
     micro_batch_size=None,
     global_batch_size=None,
