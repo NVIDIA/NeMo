@@ -8,7 +8,7 @@ pipeline {
   }
   options {
     timeout(time: 2, unit: 'HOURS')
-    disableConcurrentBuilds()
+    disableConcurrentBuilds(abortPrevious: true)
   }
 
   stages {
@@ -359,6 +359,24 @@ pipeline {
             sh 'rm -rf examples/speaker_tasks/recognition/speaker_recognition_results'
           }
         }
+        
+        stage('Speaker Diarization') {
+          steps {
+            sh 'python examples/speaker_tasks/diarization/neural_diarizer/multiscale_diar_decoder.py \
+            model.diarizer.speaker_embeddings.model_path=titanet_large \
+            model.train_ds.batch_size=5 \
+            model.validation_ds.batch_size=5 \
+            model.train_ds.emb_dir=examples/speaker_tasks/diarization/speaker_diarization_results \
+            model.validation_ds.emb_dir=examples/speaker_tasks/diarization/speaker_diarization_results \
+            model.train_ds.manifest_filepath=/home/TestData/an4_diarizer/simulated_train/msdd_data.50step.json \
+            model.validation_ds.manifest_filepath=/home/TestData/an4_diarizer/simulated_valid/msdd_data.50step.json \
+            trainer.devices=[1] \
+            trainer.accelerator="gpu" \
+            +trainer.fast_dev_run=True \
+            exp_manager.exp_dir=examples/speaker_tasks/diarization/speaker_diarization_results'
+            sh 'rm -rf examples/speaker_tasks/diarization/speaker_diarization_results'
+          }
+        }
 
         stage('Speech to Label') {
           steps {
@@ -381,11 +399,10 @@ pipeline {
           }
         }
 
-
         stage('Speaker Diarization with ASR Inference') {
           steps {
             sh 'python examples/speaker_tasks/diarization/clustering_diarizer/offline_diar_with_asr_infer.py \
-	    diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
+	        diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
             diarizer.speaker_embeddings.model_path=/home/TestData/an4_diarizer/spkr.nemo \
             diarizer.speaker_embeddings.parameters.save_embeddings=True \
             diarizer.speaker_embeddings.parameters.window_length_in_sec=[1.5] \
@@ -398,18 +415,30 @@ pipeline {
           }
         }
 
-        stage('Speaker Diarization Inference') {
+        stage('Clustering Diarizer Inference') {
           steps {
             sh 'python examples/speaker_tasks/diarization/clustering_diarizer/offline_diar_infer.py \
-	    diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
+	        diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
             diarizer.speaker_embeddings.model_path=/home/TestData/an4_diarizer/spkr.nemo \
             diarizer.speaker_embeddings.parameters.save_embeddings=True \
             diarizer.speaker_embeddings.parameters.window_length_in_sec=1.5 \
             diarizer.speaker_embeddings.parameters.shift_length_in_sec=0.75 \
             diarizer.speaker_embeddings.parameters.multiscale_weights=null \
             diarizer.vad.model_path=/home/TestData/an4_diarizer/MatchboxNet_VAD_3x2.nemo \
-            diarizer.out_dir=examples/speaker_tasks/diarization/speaker_diarization_results'
-            sh 'rm -rf examples/speaker_tasks/diarization/speaker_diarization_results'
+            diarizer.out_dir=examples/speaker_tasks/diarization/clustering_diarizer_results'
+            sh 'rm -rf examples/speaker_tasks/diarization/clustering_diarizer_results'
+          }
+        }
+	
+        stage('Neural Diarizer Inference') {
+          steps {
+            sh 'python examples/speaker_tasks/diarization/neural_diarizer/multiscale_diar_decoder_infer.py \
+            diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
+            diarizer.msdd_model.model_path=/home/TestData/an4_diarizer/diar_msdd_telephonic.nemo \
+            diarizer.speaker_embeddings.parameters.save_embeddings=True \
+            diarizer.vad.model_path=/home/TestData/an4_diarizer/MatchboxNet_VAD_3x2.nemo \
+            diarizer.out_dir=examples/speaker_tasks/diarization/neural_diarizer_results'
+            sh 'rm -rf examples/speaker_tasks/diarization/neural_diarizer_results'
           }
         }
 	
@@ -616,6 +645,46 @@ pipeline {
 
       }
     }
+    stage('L2: Megatron T5 IA3 TP=2') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel{
+        stage('T5 IA3 tuning & inference TP=2 PP=1') {
+          steps {
+            sh "python examples/nlp/language_modeling/tuning/megatron_t5_ia3_tuning.py \
+                --config-name=megatron_t5_ia3_tuning_config \
+                name='/home/TestData/nlp/ia3_tuning/test_tp2_pp1' \
+                trainer.devices=2 \
+                trainer.max_steps=6 \
+                trainer.val_check_interval=2 \
+                trainer.max_epochs=null \
+                model.tensor_model_parallel_size=2 \
+                model.language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp2.nemo' \
+                model.existing_tasks=[] \
+                model.new_tasks=['rte'] \
+                model.data.train_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+                model.data.validation_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+                model.global_batch_size=4"
+            sh "python examples/nlp/language_modeling/tuning/megatron_t5_ia3_eval.py \
+                --config-name=megatron_t5_ia3_inference \
+                adapter_model_file='/home/TestData/nlp/ia3_tuning/test_tp2_pp1.nemo' \
+                language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp2.nemo' \
+                trainer.devices=2 \
+                tensor_model_parallel_size=2 \
+                data.global_batch_size=2 \
+                data.micro_batch_size=2 \
+                data.test_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl']"
+            sh "rm -rf /home/TestData/nlp/ia3_tuning/test_tp2_pp1.nemo"
+            sh "rm -rf /home/TestData/nlp/ia3_tuning/test_tp2_pp1"
+          }
+        }
+      }
+    }
     stage('L2: Megatron GPT Adapter TP=2') {
       when {
         anyOf {
@@ -731,7 +800,7 @@ pipeline {
             steps {
             sh 'cd tools/ctc_segmentation && \
             pip install -r requirements.txt && \
-            DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ffmpeg'
+            apt-get update && apt-get install libsox-fmt-all -y'
             }
         }
 
