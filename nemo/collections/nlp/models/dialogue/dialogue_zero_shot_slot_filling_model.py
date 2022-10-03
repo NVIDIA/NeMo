@@ -329,9 +329,13 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
 
             return predicted_slot_class_batch, predicted_iob_class_batch
 
-    def merge_subword_tokens_and_slots(self, text, slot_class, iob_slot_class) -> Tuple[List[str], torch.Tensor, torch.Tensor]:
+    def merge_subword_tokens_and_slots(
+        self, text, slot_class, iob_slot_class
+    ) -> Tuple[List[str], torch.Tensor, torch.Tensor]:
         tokens = self.tokenizer.tokenizer.tokenize(text)
-        subtokens_masks = torch.tensor([not token.startswith("##") for token in tokens], dtype=torch.bool, device=self.device)
+        subtokens_masks = torch.tensor(
+            [not token.startswith("##") for token in tokens], dtype=torch.bool, device=self.device
+        )
         slot_class = torch.masked_select(slot_class, subtokens_masks)
         iob_slot_class = torch.masked_select(iob_slot_class, subtokens_masks)
 
@@ -609,6 +613,7 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
                                 for slot_id, value_list in slot_to_words.items()
                                 for value in value_list]
 
+
         return slot_name_and_values
 
     def get_unified_metrics(self, outputs):
@@ -635,12 +640,8 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
             ground_truth_slot_names = ground_truth_slots[i].split()
             predicted_slot_names = predicted_slots[i].split()
 
-            processed_ground_truth_slots = self.get_continuous_slots(
-                ground_truth_slot_names, utterance_tokens
-            )
-            processed_predicted_slots = self.get_continuous_slots(
-                predicted_slot_names, utterance_tokens
-            )
+            processed_ground_truth_slots = self.get_continuous_slots(ground_truth_slot_names, utterance_tokens)
+            processed_predicted_slots = self.get_continuous_slots(predicted_slot_names, utterance_tokens)
 
             all_generated_slots.append(processed_predicted_slots)
             all_ground_truth_slots.append(processed_ground_truth_slots)
