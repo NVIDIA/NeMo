@@ -46,7 +46,7 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         https://aclanthology.org/2022.naacl-industry.24.pdf
         """
         self.max_seq_length = cfg.dataset.max_seq_length
-        self.cfg = cfg
+        # self.cfg = cfg
         # Check the presence of data_dir.
         if not cfg.dataset.data_dir or not os.path.exists(cfg.dataset.data_dir):
             # Set default values of data_desc.
@@ -75,7 +75,7 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         self.description_embeddings = self.get_description_embeddings(self.slot_descriptions)
 
         # Set-up losses and classification report
-        self._setup_losses_and_classfication_report()
+        self._setup_losses_and_classification_report()
 
         # Set-up label ID for empty slot
         self._set_label_id_for_empty_slot(cfg.dataset.data_dir)
@@ -152,18 +152,18 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
             logging.info(f'Labels: {label_ids}')
             logging.info(f'Labels mapping saved to : {out.name}')
 
-    def _setup_losses_and_classfication_report(self):
+    def _setup_losses_and_classification_report(self):
         """Method reconfigures the classifier depending on the settings of model cfg.data_desc"""
 
         self.bio_slot_loss = CrossEntropyLoss(logits_ndim=3)
         self.slot_loss = CrossEntropyLoss(logits_ndim=3)
         self.total_loss = AggregatorLoss(
-            num_inputs=2, weights=[self.cfg.bio_slot_loss_weight, 1 - self.cfg.bio_slot_loss_weight]
+            num_inputs=2, weights=[self._cfg.bio_slot_loss_weight, 1 - self._cfg.bio_slot_loss_weight]
         )
 
         # setup to track metrics
         self.bio_slot_classification_report = ClassificationReport(
-            num_classes=len([0, 1, 2]), label_ids={0: 0, 1: 1, 2: 2}, dist_sync_on_step=True, mode='micro',
+            num_classes=len([0, 1, 2]), label_ids={'O': 0, 'B': 1, 'I': 2}, dist_sync_on_step=True, mode='micro',
         )
 
         self.slot_similarity_classification_report = ClassificationReport(
@@ -179,30 +179,6 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
             dist_sync_on_step=True,
             mode='micro',
         )
-
-    def update_data_dir_for_training(self, data_dir: str, train_ds, validation_ds) -> None:
-        """
-        Update data directory and get data stats with Data Descriptor.
-        Also, reconfigures the classifier - to cope with data with e.g. different number of slots.
-
-        Args:
-            data_dir: path to data directory
-        """
-        logging.info(f'Setting data_dir to {data_dir}.')
-        self.data_dir = data_dir
-        # Update configuration with new data.
-        self._set_data_desc_to_cfg(self.cfg, data_dir, train_ds, validation_ds)
-        self._setup_losses_and_classfication_report()
-
-    def update_data_dir_for_testing(self, data_dir) -> None:
-        """
-        Update data directory.
-
-        Args:
-            data_dir: path to data directory
-        """
-        logging.info(f'Setting data_dir to {data_dir}.')
-        self.data_dir = data_dir
 
     def get_description_embeddings(self, types_descriptions):
         """
@@ -319,7 +295,7 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
             texts,
             self.max_seq_length,
             self.tokenizer,
-            pad_label=self.cfg.data_desc.pad_label,
+            pad_label=self._cfg.data_desc.pad_label,
             word_level_slots=None,
             ignore_extra_tokens=True,
             ignore_start_end=True,
@@ -590,6 +566,25 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
 
         return dot_product_score
 
+    def get_entities_start_and_end_dict(self, slot_ids, utterance_tokens):
+        slot_id_stack = []
+        position_stack = []
+        for i, slot_id in enumerate(slot_ids):
+            if not slot_id_stack or slot_id != slot_id_stack[-1]:
+                slot_id_stack.append(slot_id)
+                position_stack.append([])
+            position_stack[-1].append(i)
+
+        slot_id_to_start_and_exclusive_end = defaultdict(list)
+        slot_to_words = defaultdict(list)
+        for i in range(len(position_stack)):
+            if slot_id_stack[i] != self.label_id_for_empty_slot:
+                position = position_stack[i][0], position_stack[i][-1] + 1
+                slot_id_to_start_and_exclusive_end[slot_id_stack[i]].append(position)
+                slot_to_words[slot_id_stack[i]].append(utterance_tokens[position[0]: position[1]])
+
+        return slot_id_to_start_and_exclusive_end
+
     def get_continuous_slots(self, slot_ids, utterance_tokens):
         """
         Extract continuous spans of slot_ids
@@ -603,29 +598,18 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
             e.g. ['email_address(atdfd@yahoo dot com)']
 
         """
-        slot_id_stack = []
-        position_stack = []
-        for i, slot_id in enumerate(slot_ids):
-            if not slot_id_stack or slot_id != slot_id_stack[-1]:
-                slot_id_stack.append(slot_id)
-                position_stack.append([])
-            position_stack[-1].append(i)
+        slot_id_to_start_and_exclusive_end = self.get_entities_start_and_end_dict(slot_ids, utterance_tokens)
+        slot_to_words = {
+            slot_id: utterance_tokens[position[0]: position[1]]
+            for slot_id, position_list in slot_id_to_start_and_exclusive_end.items()
+            for position in position_list
+        }
 
-        slot_id_to_start_and_exclusive_end = defaultdict(list)
-        for i in range(len(position_stack)):
-            if slot_id_stack[i].item() != self.label_id_for_empty_slot:
-                slot_id_to_start_and_exclusive_end[slot_id_stack[i].item()].append(
-                    (position_stack[i][0], position_stack[i][-1] + 1))
+        slot_name_and_values = ["{}({})".format(slot_id, value)
+                                for slot_id, value_list in slot_to_words.items()
+                                for value in value_list]
 
-        return slot_id_to_start_and_exclusive_end
-        # slot_to_words = {
-        #     slot_id: utterance_tokens[position[0]: position[1]]
-        #     for slot_id, position in slot_id_to_start_and_exclusive_end.items()
-        # }
-        #
-        # slot_name_and_values = ["{}({})".format(slot_id, value) for slot_id, value in slot_to_words.items()]
-        #
-        # return slot_name_and_values
+        return slot_name_and_values
 
     def get_unified_metrics(self, outputs):
         slot_preds = []
@@ -662,8 +646,8 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
             all_ground_truth_slots.append(processed_ground_truth_slots)
             all_utterances.append(' '.join(utterance_tokens))
 
-        os.makedirs(self.cfg.dataset.dialogues_example_dir, exist_ok=True)
-        filename = os.path.join(self.cfg.dataset.dialogues_example_dir, "predictions.jsonl")
+        os.makedirs(self._cfg.dataset.dialogues_example_dir, exist_ok=True)
+        filename = os.path.join(self._cfg.dataset.dialogues_example_dir, "predictions.jsonl")
 
         DialogueClassificationMetrics.save_slot_predictions(
             filename, all_generated_slots, all_ground_truth_slots, all_utterances,
@@ -801,13 +785,13 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config, dataset_split='test')
 
     def _setup_dataloader_from_config(self, cfg: DictConfig, dataset_split: str):
-        data_processor = DialogueAssistantDataProcessor(self.data_dir, self.tokenizer, cfg=self.cfg.dataset)
+        data_processor = DialogueAssistantDataProcessor(self.data_dir, self.tokenizer, cfg=self._cfg.dataset)
 
         dataset = DialogueZeroShotSlotFillingDataset(
             dataset_split,
             data_processor,
             self.tokenizer,
-            self.cfg.dataset,  # this is the model.dataset cfg, which is diff from train_ds cfg etc
+            self._cfg.dataset,  # this is the model.dataset cfg, which is diff from train_ds cfg etc
         )
 
         return DataLoader(
@@ -837,7 +821,6 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         instance.description_embeddings = instance.get_description_embeddings(instance.slot_descriptions).to(
             instance.device
         )
-        # instance.description_embeddings = instance.description_embeddings.to(instance.device)
         return instance
 
     def update_data_dirs(self, data_dir: str, dialogues_example_dir: str):
@@ -850,13 +833,43 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         """
         if not os.path.exists(data_dir):
             raise ValueError(f"{data_dir} is not found")
-        self.cfg.dataset.data_dir = data_dir
-        self.cfg.dataset.dialogues_example_dir = dialogues_example_dir
+        self._cfg.dataset.data_dir = data_dir
+        self._cfg.dataset.dialogues_example_dir = dialogues_example_dir
+        self.data_dir = data_dir
         logging.info(f'Setting model.dataset.data_dir to {data_dir}.')
         logging.info(f'Setting model.dataset.dialogues_example_dir to {dialogues_example_dir}.')
 
+    def update_data_dir_for_training(self, data_dir: str, train_ds_cfg, validation_ds_cfg) -> None:
+        """
+        Update data directory and get data stats with Data Descriptor.
+        Also, reconfigures the classifier - to cope with data with e.g. different number of slots.
+
+        Args:
+            data_dir: path to data directory
+            train_ds_cfg: training dataset config
+            validation_ds_cfg: validation dataset config
+        """
+        logging.info(f'Setting data_dir to {data_dir}.')
+        self.data_dir = data_dir
+        # Update configuration with new data.
+        self._set_data_desc_to_cfg(self._cfg, data_dir, train_ds_cfg, validation_ds_cfg)
+        self._set_slot_descriptions(data_dir)
+        self.setup_training_data(train_ds_cfg)
+        self.setup_validation_data(validation_ds_cfg)
+        self._setup_losses_and_classification_report()
+
+    def update_data_dir_for_testing(self, data_dir) -> None:
+        """
+        Update data directory.
+
+        Args:
+            data_dir: path to data directory
+        """
+        logging.info(f'Setting data_dir to {data_dir}.')
+        self.data_dir = data_dir
+
     def mask_unused_subword_slots(self, slots, subtokens_mask):
-        slot_labels = self.cfg.data_desc.slot_labels
+        slot_labels = self._cfg.data_desc.slot_labels
 
         if 'B-' in slot_labels[1] or 'I-' in slot_labels[1]:
             inference_slot_labels = []
