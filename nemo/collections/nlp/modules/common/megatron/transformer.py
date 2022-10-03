@@ -1096,7 +1096,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         persist_layer_norm=False,
         use_cpu_initialization=False,
         bias_activation_fusion=True,
-        bias_dropout_fusion=True,
+        bias_dropout_add_fusion=True,
         masked_softmax_fusion=True,
         gradient_accumulation_fusion=False,
         openai_gelu=False,
@@ -1125,9 +1125,9 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         self.bias = bias
         self.transformer_block_type = transformer_block_type
 
-        if not bias and bias_dropout_fusion:
+        if not bias and bias_dropout_add_fusion:
             raise ValueError(
-                'bias_dropout_fusion=True requires bias=True, found bias=False. Either set both to True or both to False.'
+                'bias_dropout_add_fusion=True requires bias=True, found bias=False. Either set both to True or both to False.'
             )
 
         if normalization not in ['layernorm', 'layernorm1p', 'rmsnorm']:
@@ -1141,7 +1141,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         self.fp32_residual_connection = fp32_residual_connection  # if true move residual connections to fp32
         self.hidden_dropout = hidden_dropout
         self.attention_dropout = attention_dropout
-        self.bias_dropout_fusion = bias_dropout_fusion  # if true, enable bias dropout fusion
+        self.bias_dropout_add_fusion = bias_dropout_add_fusion  # if true, enable bias dropout fusion
 
         # Self attention.
         # retrieval_decoder_after_self_attn skips the self attention
@@ -1344,13 +1344,13 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         if transformer_block_type == 'normformer' and position_after == 'attention':
             bias_dropout_add_func = get_dropout_add(self.training)
         # Bias dropout add fused kernel
-        elif self.bias and self.bias_dropout_fusion:
+        elif self.bias and self.bias_dropout_add_fusion:
             if self.training:
                 bias_dropout_add_func = bias_dropout_add_fused_train
             else:
                 bias_dropout_add_func = bias_dropout_add_fused_inference
         # Bias dropout add non-fused kernel
-        elif self.bias and not self.bias_dropout_fusion:
+        elif self.bias and not self.bias_dropout_add_fusion:
             bias_dropout_add_func = get_bias_dropout_add(self.training)
         # Dropout add non-fused kernel for a model without bias terms.
         else:
@@ -1546,7 +1546,7 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
         kv_channels=None,
         layernorm_epsilon=1e-5,
         hidden_dropout=0.1,
-        bias_dropout_fusion=True,
+        bias_dropout_add_fusion=True,
         persist_layer_norm=False,
         use_cpu_initialization=False,
         bias_activation_fusion=True,
@@ -1580,7 +1580,7 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
             kv_channels=kv_channels,
             layernorm_epsilon=layernorm_epsilon,
             hidden_dropout=hidden_dropout,
-            bias_dropout_fusion=bias_dropout_fusion,
+            bias_dropout_add_fusion=bias_dropout_add_fusion,
             persist_layer_norm=persist_layer_norm,
             use_cpu_initialization=use_cpu_initialization,
             bias_activation_fusion=bias_activation_fusion,
@@ -1961,7 +1961,7 @@ class ParallelTransformer(MegatronModule):
                     attention_dropout=attention_dropout,
                     use_cpu_initialization=use_cpu_initialization,
                     bias_activation_fusion=bias_activation_fusion,
-                    bias_dropout_fusion=bias_dropout_add_fusion,
+                    bias_dropout_add_fusion=bias_dropout_add_fusion,
                     masked_softmax_fusion=masked_softmax_fusion,
                     gradient_accumulation_fusion=gradient_accumulation_fusion,
                     persist_layer_norm=persist_layer_norm,
