@@ -96,7 +96,7 @@ For creating of tarred dataset with audio you will need data in NeMo format:
         --sample_rate 16000 
 
 .. note::
-  You can change sample rate to any positive integer. It will be used in constructor of :class:`~nemo.collections.asr.parts.preprocessing.AudioSegment`.
+  You can change sample rate to any positive integer. It will be used in constructor of :class:`~nemo.collections.asr.parts.preprocessing.AudioSegment`. It is recomended to set ``sample_rate`` to the same value as data which was used during training of ASR model.
 
 
 Training Punctuation and Capitalization Model
@@ -110,7 +110,7 @@ An example of a model configuration file for training the model can be found at:
 Configs
 ^^^^^^^^^^^^
 .. note::
-  This page contains only paraemters specific to lexical and audio model. Others parameters can be found in `Punctuation And Capitalization's page <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/punctuation_and_capitalization.html>`_.
+  This page contains only parameters specific to lexical and audio model. Others parameters can be found in `Punctuation And Capitalization's page <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/punctuation_and_capitalization.html>`_.
 
 Model config
 ^^^^^^^^^^^^
@@ -343,7 +343,7 @@ Inference is performed by a script `examples/nlp/token_classification/punctuate_
     python punctuate_capitalize_infer.py \
         --input_manifest <PATH/TO/INPUT/MANIFEST> \
         --output_manifest <PATH/TO/OUTPUT/MANIFEST> \
-        --pretrained_name PLACEHOLDER \
+        --pretrained_name <PATH to .nemo file> \
         --max_seq_length 64 \
         --margin 16 \
         --step 8 \
@@ -371,7 +371,7 @@ To start evaluation of the pre-trained model, run:
            +model.do_training=false \
            +model.to_testing=true \
            model.test_ds.ds_item=<PATH/TO/TEST/DATA/DIR>  \
-           pretrained_model=PLACEHOLDER \
+           pretrained_model=<PATH to .nemo file> \
            model.test_ds.text_file=<NAME_OF_TEST_INPUT_TEXT_FILE> \
            model.test_ds.labels_file=<NAME_OF_TEST_LABELS_FILE> \
            model.test_ds.audio_file=<NAME_OF_TEST_AUDIO_FILE>
@@ -381,7 +381,7 @@ Required Arguments
 ^^^^^^^^^^^^^^^^^^
 
 - :code:`pretrained_model`: pretrained Punctuation and Capitalization Lexical Audio model from ``list_available_models()`` or path to a ``.nemo``
-  file. For example: ``PLACEHOLDER`` or ``your_model.nemo``.
+  file. For example: ``your_model.nemo``.
 - :code:`model.test_ds.ds_item`: path to the directory that contains :code:`model.test_ds.text_file`, :code:`model.test_ds.labels_file` and :code:`model.test_ds.audio_file`
 
 References
