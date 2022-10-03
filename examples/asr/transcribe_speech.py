@@ -296,7 +296,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
             with open(cfg.dataset_manifest, 'r') as fr:
                 for idx, line in enumerate(fr):
                     item = json.loads(line)
-                    item[pred_text_attr_name] = transcriptions[idx]
+                    item[pred_text_attr_name] = transcriptions[idx].text
 
                     if compute_langs:
                         item['pred_lang'] = transcriptions[idx].langs
