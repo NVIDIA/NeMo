@@ -29,7 +29,7 @@ repos:
       - id: detect-private-key
 
   - repo: https://github.com/PyCQA/isort
-    rev: 4.3.21
+    rev: 5.10.1
     hooks:
       - id: isort
         name: Format imports
@@ -37,7 +37,7 @@ repos:
         exclude: docs/
 
   - repo: https://github.com/psf/black
-    rev: 19.10b0
+    rev: 22.8.0
     hooks:
       - id: black
         name: Format code
