@@ -478,9 +478,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         }
 
         # Parent function will pad microbatches to the same length.
-        return self._process_global_batch_without_megatron_batch_sampler(
-            [batch], tokenizer=self.encoder_tokenizer
-        )
+        return self._process_global_batch_without_megatron_batch_sampler([batch], tokenizer=self.encoder_tokenizer)
 
     def build_train_valid_test_datasets(self):
         """Builds the train, validation, and test datasets."""
