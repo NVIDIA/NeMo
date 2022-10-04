@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from nemo.collections.nlp.models.token_classification.punct_cap_seg_model import PunctCapSegModel
 from nemo.collections.nlp.models.token_classification.punctuation_capitalization_config import (
     PunctuationCapitalizationModelConfig,
 )
@@ -21,4 +22,3 @@ from nemo.collections.nlp.models.token_classification.punctuation_capitalization
     PunctuationCapitalizationModel,
 )
 from nemo.collections.nlp.models.token_classification.token_classification_model import TokenClassificationModel
-from nemo.collections.nlp.models.token_classification.punct_cap_seg_model import PunctCapSegModel

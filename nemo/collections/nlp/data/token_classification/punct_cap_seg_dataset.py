@@ -1,15 +1,14 @@
-
 import abc
 import re
-from typing import Optional, Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
-import torch
 import numpy as np
+import torch
 
+from nemo.collections.common.tokenizers import AutoTokenizer, TokenizerSpec
 from nemo.core import Dataset, typecheck
+from nemo.core.neural_types import IntType, LengthsType, NeuralType, StringType, TokenIndex
 from nemo.utils import logging
-from nemo.collections.common.tokenizers import TokenizerSpec, AutoTokenizer
-from nemo.core.neural_types import NeuralType, TokenIndex, LengthsType, IntType, StringType
 
 
 class InferencePunctCapSegDataset(Dataset):
@@ -23,13 +22,14 @@ class InferencePunctCapSegDataset(Dataset):
         fold_overlap: When folding long sequences, repeat this many tokens from the end of the previous split into the
             beginning of the next split.
     """
+
     def __init__(
-            self,
-            tokenizer: TokenizerSpec,
-            input_texts: Optional[List[str]] = None,
-            input_file: Optional[str] = None,
-            max_length: int = 512,
-            fold_overlap: int = 16
+        self,
+        tokenizer: TokenizerSpec,
+        input_texts: Optional[List[str]] = None,
+        input_file: Optional[str] = None,
+        max_length: int = 512,
+        fold_overlap: int = 16,
     ):
         super().__init__()
         if not ((input_texts is None) ^ (input_file is None)):
@@ -87,12 +87,10 @@ class InferencePunctCapSegDataset(Dataset):
         batch_ids = torch.tensor(out_batch_ids)
         lengths = torch.tensor(out_lengths)
         ids_tensor = torch.full(
-            size=[lengths.shape[0], lengths.max()],
-            dtype=torch.long,
-            fill_value=self._tokenizer.pad_id
+            size=[lengths.shape[0], lengths.max()], dtype=torch.long, fill_value=self._tokenizer.pad_id
         )
         for i, ids in enumerate(out_input_ids):
-            ids_tensor[i, :len(ids)] = torch.tensor(ids)
+            ids_tensor[i, : len(ids)] = torch.tensor(ids)
 
         return ids_tensor, lengths, batch_ids
 
@@ -130,14 +128,15 @@ class PunctCapSegDataset(Dataset):
         multipass: Whether this model runs two passes (punctuation followed by truecasing/sentence boundary) or one pass
             (predict all in parallel)
     """
+
     def __init__(
-            self,
-            language: str = "unk",
-            is_continuous: bool = None,
-            tokenizer: Optional[TokenizerSpec] = None,
-            target_pad_value: int = -100,
-            rng_seed: Optional[int] = None,
-            multipass: bool = True
+        self,
+        language: str = "unk",
+        is_continuous: bool = None,
+        tokenizer: Optional[TokenizerSpec] = None,
+        target_pad_value: int = -100,
+        rng_seed: Optional[int] = None,
+        multipass: bool = True,
     ) -> None:
         super().__init__()
         self._language = language
@@ -211,38 +210,28 @@ class PunctCapSegDataset(Dataset):
         batch_size = len(inputs)  # should be all the same size
 
         # Create empty input ID tensors and fill non-padded regions
-        input_ids = torch.full(
-            size=(batch_size, lengths.max()),
-            fill_value=self._tokenizer.pad_id
-        )
+        input_ids = torch.full(size=(batch_size, lengths.max()), fill_value=self._tokenizer.pad_id)
         for i in range(batch_size):
-            input_ids[i, :lengths[i]] = inputs[i]
+            input_ids[i, : lengths[i]] = inputs[i]
 
         # Create empty target tensors and fill non-padded regions
         punct_pre_targets = torch.full(
-            size=[batch_size, lengths.max(), self._max_token_len],
-            fill_value=self._target_pad_value
+            size=[batch_size, lengths.max(), self._max_token_len], fill_value=self._target_pad_value
         )
         punct_post_targets = torch.full(
-            size=[batch_size, lengths.max(), self._max_token_len],
-            fill_value=self._target_pad_value
+            size=[batch_size, lengths.max(), self._max_token_len], fill_value=self._target_pad_value
         )
         cap_targets = torch.full(
-            size=[batch_size, lengths.max(), self._max_token_len],
-            fill_value=self._target_pad_value
+            size=[batch_size, lengths.max(), self._max_token_len], fill_value=self._target_pad_value
         )
         seg_targets = torch.full(size=[batch_size, lengths.max()], fill_value=self._target_pad_value)
         for i in range(batch_size):
-            cap_targets[i, :lengths[i], :] = cap_targets_list[i]
-            seg_targets[i, :lengths[i]] = seg_targets_list[i]
-            punct_post_targets[i, :lengths[i], :] = punct_post_targets_list[i]
-            punct_pre_targets[i, :lengths[i], :] = punct_pre_targets_list[i]
+            cap_targets[i, : lengths[i], :] = cap_targets_list[i]
+            seg_targets[i, : lengths[i]] = seg_targets_list[i]
+            punct_post_targets[i, : lengths[i], :] = punct_post_targets_list[i]
+            punct_pre_targets[i, : lengths[i], :] = punct_pre_targets_list[i]
 
-        return (
-            input_ids,
-            punct_pre_targets, punct_post_targets, cap_targets, seg_targets,
-            lengths
-        )
+        return (input_ids, punct_pre_targets, punct_post_targets, cap_targets, seg_targets, lengths)
 
     def _collate_fn_multipass(self, batch):
         punct_inputs = [x[0] for x in batch]
@@ -257,42 +246,38 @@ class PunctCapSegDataset(Dataset):
 
         # Create empty input ID tensors and fill non-padded regions
         # TODO currently all implementations have tokenizer but tarred dataset may not. Need to know pad id
-        punct_input_ids = torch.full(
-            size=(batch_size, punct_lengths.max()),
-            fill_value=self._tokenizer.pad_id
-        )
-        cap_seg_input_ids = torch.full(
-            size=(batch_size, cap_seg_lengths.max()),
-            fill_value=self._tokenizer.pad_id
-        )
+        punct_input_ids = torch.full(size=(batch_size, punct_lengths.max()), fill_value=self._tokenizer.pad_id)
+        cap_seg_input_ids = torch.full(size=(batch_size, cap_seg_lengths.max()), fill_value=self._tokenizer.pad_id)
         for i in range(batch_size):
-            punct_input_ids[i, :punct_lengths[i]] = punct_inputs[i]
-            cap_seg_input_ids[i, :cap_seg_lengths[i]] = cap_seg_inputs[i]
+            punct_input_ids[i, : punct_lengths[i]] = punct_inputs[i]
+            cap_seg_input_ids[i, : cap_seg_lengths[i]] = cap_seg_inputs[i]
 
         # Create empty target tensors and fill non-padded regions
         punct_pre_targets = torch.full(
-            size=[batch_size, punct_lengths.max(), self._max_token_len],
-            fill_value=self._target_pad_value
+            size=[batch_size, punct_lengths.max(), self._max_token_len], fill_value=self._target_pad_value
         )
         punct_post_targets = torch.full(
-            size=[batch_size, punct_lengths.max(), self._max_token_len],
-            fill_value=self._target_pad_value
+            size=[batch_size, punct_lengths.max(), self._max_token_len], fill_value=self._target_pad_value
         )
         cap_targets = torch.full(
-            size=[batch_size, cap_seg_lengths.max(), self._max_token_len],
-            fill_value=self._target_pad_value
+            size=[batch_size, cap_seg_lengths.max(), self._max_token_len], fill_value=self._target_pad_value
         )
         seg_targets = torch.full(size=[batch_size, cap_seg_lengths.max()], fill_value=self._target_pad_value)
         for i in range(batch_size):
-            punct_pre_targets[i, :punct_lengths[i], :] = punct_pre_targets_list[i]
-            punct_post_targets[i, :punct_lengths[i], :] = punct_post_targets_list[i]
-            cap_targets[i, :cap_seg_lengths[i], :] = cap_targets_list[i]
-            seg_targets[i, :cap_seg_lengths[i]] = seg_targets_list[i]
+            punct_pre_targets[i, : punct_lengths[i], :] = punct_pre_targets_list[i]
+            punct_post_targets[i, : punct_lengths[i], :] = punct_post_targets_list[i]
+            cap_targets[i, : cap_seg_lengths[i], :] = cap_targets_list[i]
+            seg_targets[i, : cap_seg_lengths[i]] = seg_targets_list[i]
 
         return (
-            punct_input_ids, cap_seg_input_ids,
-            punct_pre_targets, punct_post_targets, cap_targets, seg_targets,
-            punct_lengths, cap_seg_lengths
+            punct_input_ids,
+            cap_seg_input_ids,
+            punct_pre_targets,
+            punct_post_targets,
+            cap_targets,
+            seg_targets,
+            punct_lengths,
+            cap_seg_lengths,
         )
 
 
@@ -315,6 +300,7 @@ class CharFilter(TextCleaner):
     """Removes all instances of specified chars from inputs.
 
     """
+
     def __init__(self, chars_to_remove: List[str]):
         all_chars_str = "".join([re.escape(x) for x in chars_to_remove])
         self._remove_char_ptn = re.compile(f"[{all_chars_str}]+")
@@ -343,6 +329,7 @@ class StandardPunctNormalizer(TextCleaner):
         punct_tokens: List of punctuation tokens.
 
     """
+
     def __init__(self, punct_tokens: List[str]) -> None:
         punct_tokens = [x for x in punct_tokens if x != "<NULL>"]  # TODO don't assume null token
         # This assumes all punctuation tokens are single characters, which should be true
@@ -380,6 +367,7 @@ class SpanishPunctNormalizer(TextCleaner):
         post_punct_tokens: List of punctuation tokens that can appear after a subword.
 
     """
+
     def __init__(self, pre_punct_tokens: List[str], post_punct_tokens: List[str]) -> None:
         pre_punct_tokens = [x for x in pre_punct_tokens if x != "<NULL>"]  # TODO don't assume null token
         post_punct_tokens = [x for x in post_punct_tokens if x != "<NULL>"]
@@ -428,12 +416,8 @@ class ChineseTextCleaner(TextCleaner):
             the messy data.
 
     """
-    def __init__(
-            self,
-            remove_spaces: bool = True,
-            replace_latin: bool = True,
-            no_enum_comma: bool = True
-    ) -> None:
+
+    def __init__(self, remove_spaces: bool = True, replace_latin: bool = True, no_enum_comma: bool = True) -> None:
         self._remove_spaces = remove_spaces
         self._replace_latin = replace_latin
         self._no_enum_comma = no_enum_comma
@@ -466,11 +450,8 @@ class JapaneseTextCleaner(TextCleaner):
             replace all instances of '.' with '。'
 
     """
-    def __init__(
-            self,
-            remove_spaces: bool = True,
-            replace_latin: bool = True,
-    ) -> None:
+
+    def __init__(self, remove_spaces: bool = True, replace_latin: bool = True,) -> None:
         self._remove_spaces = remove_spaces
         self._replace_latin = replace_latin
 
@@ -496,10 +477,8 @@ class ArabicTextCleaner(TextCleaner):
             replace all instances of '?' with '؟'
 
     """
-    def __init__(
-            self,
-            replace_latin: bool = True,
-    ) -> None:
+
+    def __init__(self, replace_latin: bool = True,) -> None:
         self._replace_latin = replace_latin
 
     def clean(self, text: str) -> str:
@@ -511,11 +490,7 @@ class ArabicTextCleaner(TextCleaner):
 
 
 class HindiTextCleaner(TextCleaner):
-    def __init__(
-            self,
-            no_double_danda: bool = True,
-            replace_latin: bool = True,
-    ) -> None:
+    def __init__(self, no_double_danda: bool = True, replace_latin: bool = True,) -> None:
         self._no_double_danda = no_double_danda
         self._replace_latin = replace_latin
 
@@ -529,10 +504,7 @@ class HindiTextCleaner(TextCleaner):
 
 
 class GreekTextCleaner(TextCleaner):
-    def __init__(
-            self,
-            remove_non_eos_semi_colon: bool = True,
-    ) -> None:
+    def __init__(self, remove_non_eos_semi_colon: bool = True,) -> None:
         self._remove_non_eos_semi_colon = remove_non_eos_semi_colon
         # Match a semi-colon, following by 0+ spaces, then end of line.
         self._non_eos_semi_colon_ptn = re.compile(r";\s*[^$]")
@@ -544,9 +516,7 @@ class GreekTextCleaner(TextCleaner):
 
 
 class AmharicTextCleaner(TextCleaner):
-    def __init__(
-            self,
-    ) -> None:
+    def __init__(self,) -> None:
         # If a sentence ends with a period, change it to a four dots
         self._period_ptn = re.compile(r"\.")
         # Sometimes two colons ("::") are used instead of the four dots
@@ -574,14 +544,15 @@ class PuncTargetsGenerator(abc.ABC):
         rng_seed: Seed for the PRNG, used for choosing whether to drop a punctuation token. Can help with consistency
             in the validation datasets.
     """
+
     def __init__(
-            self,
-            post_labels: List[str],
-            pre_labels: List[str],
-            null_label: str = "<NULL>",
-            ignore_index: int = -100,
-            p_drop: float = 0.9,
-            rng_seed: Optional[int] = None
+        self,
+        post_labels: List[str],
+        pre_labels: List[str],
+        null_label: str = "<NULL>",
+        ignore_index: int = -100,
+        p_drop: float = 0.9,
+        rng_seed: Optional[int] = None,
     ) -> None:
         self._p_drop = p_drop
         self._null_label = null_label
@@ -617,12 +588,7 @@ class PuncTargetsGenerator(abc.ABC):
 
     @classmethod
     def from_lang_code(
-            cls,
-            lang_code: str,
-            pre_labels: List[str],
-            post_labels: List[str],
-            p_drop: float,
-            rng_seed: int
+        cls, lang_code: str, pre_labels: List[str], post_labels: List[str], p_drop: float, rng_seed: int
     ):
         """Instantiates a derived class which is applicable to the given language.
 
@@ -694,6 +660,7 @@ class SpanishPuncTargetsGenerator(PuncTargetsGenerator):
     """Punctuation example generator for Spanish and Asturian.
 
     """
+
     def generate_targets(self, input_text: str) -> Tuple[str, List[int], List[int]]:
         # Normalize whitespaces
         input_text = re.sub(r"\s+", " ", input_text)
@@ -727,12 +694,8 @@ class CapTargetsGenerator:
 
     Args:
     """
-    def __init__(
-            self,
-            p_lower: float = 0.9,
-            ignore_idx: int = -100,
-            rng_seed: int = 12345
-    ) -> None:
+
+    def __init__(self, p_lower: float = 0.9, ignore_idx: int = -100, rng_seed: int = 12345) -> None:
         self._ignore_idx = ignore_idx
         self._p_lower = p_lower
         self._rng_seed = rng_seed
@@ -790,19 +753,17 @@ class TarredPunctCapSegDataset(PunctCapSegDataset):
     now.
 
     """
+
     def __init__(
-            self,
-            tarred_dataset_dir: str,
-            language: str = "unk",
-            is_continuous: bool = None,
-            tokenizer: Optional[TokenizerSpec] = None,
-            target_pad_value: int = -100,
+        self,
+        tarred_dataset_dir: str,
+        language: str = "unk",
+        is_continuous: bool = None,
+        tokenizer: Optional[TokenizerSpec] = None,
+        target_pad_value: int = -100,
     ):
         super().__init__(
-            language=language,
-            is_continuous=is_continuous,
-            tokenizer=tokenizer,
-            target_pad_value=target_pad_value
+            language=language, is_continuous=is_continuous, tokenizer=tokenizer, target_pad_value=target_pad_value
         )
         raise NotImplementedError("Implement TextPunctCapSegDataset.create_tarred_dataset() then implement me.")
 
@@ -852,44 +813,44 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
         rng_seed: Seed for the PRNG. For training, keep at None to prevent the data loader works from using the same
             extra indices each step.
     """
+
     def __init__(
-            self,
-            text_files: List[str],
-            language: str,
-            punct_pre_labels: List[str],
-            punct_post_labels: List[str],
-            is_continuous: Optional[bool] = None,
-            tokenizer: Optional[TokenizerSpec] = None,
-            cleaners: Optional[List[TextCleaner]] = None,
-            multipass: bool = True,
-            null_label: str = "<NULL>",
-            max_length: int = 512,
-            prob_drop_punct: float = 0.9,
-            prob_lower_case: float = 0.9,
-            min_lines_per_eg: int = 1,
-            max_lines_per_eg: int = 4,
-            prob_truncate: float = 0.2,
-            truncate_max_tokens: int = 5,
-            truncate_percentage: float = 0.25,
-            target_pad_value: int = -100,
-            drop_if_first_char_lower: bool = True,
-            drop_if_no_end_punct: bool = True,
-            drop_if_all_caps: bool = True,
-            min_input_length_words: int = None,
-            max_input_length_words: int = None,
-            max_input_length_chars: int = None,
-            min_input_length_chars: int = None,
-            max_lines_per_input_file: Optional[int] = None,
-            unused_punctuation: Optional[List[str]] = None,
-            rng_seed: Optional[int] = None
+        self,
+        text_files: List[str],
+        language: str,
+        punct_pre_labels: List[str],
+        punct_post_labels: List[str],
+        is_continuous: Optional[bool] = None,
+        tokenizer: Optional[TokenizerSpec] = None,
+        cleaners: Optional[List[TextCleaner]] = None,
+        multipass: bool = True,
+        null_label: str = "<NULL>",
+        max_length: int = 512,
+        prob_drop_punct: float = 0.9,
+        prob_lower_case: float = 0.9,
+        min_lines_per_eg: int = 1,
+        max_lines_per_eg: int = 4,
+        prob_truncate: float = 0.2,
+        truncate_max_tokens: int = 5,
+        truncate_percentage: float = 0.25,
+        target_pad_value: int = -100,
+        drop_if_first_char_lower: bool = True,
+        drop_if_no_end_punct: bool = True,
+        drop_if_all_caps: bool = True,
+        min_input_length_words: int = None,
+        max_input_length_words: int = None,
+        max_input_length_chars: int = None,
+        min_input_length_chars: int = None,
+        max_lines_per_input_file: Optional[int] = None,
+        unused_punctuation: Optional[List[str]] = None,
+        rng_seed: Optional[int] = None,
     ):
         super().__init__(
             language=language,
             tokenizer=tokenizer,
             target_pad_value=target_pad_value,
             is_continuous=is_continuous,
-            multipass=multipass
-
+            multipass=multipass,
         )
         self._text_files = text_files
         self._null_label = null_label
@@ -927,7 +888,7 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
             pre_labels=self._punct_pre_labels,
             post_labels=self._punct_post_labels,
             p_drop=self._prob_drop_punct,
-            rng_seed=self._rng_seed
+            rng_seed=self._rng_seed,
         )
 
         # TODO expose options for probability of lower- or upper-casing examples. Currently all lower-cased.
@@ -967,8 +928,8 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
                 num_lines_from_file = 0
                 for line in f:
                     if (
-                            self._max_line_per_input_file is not None and
-                            num_lines_from_file >= self._max_line_per_input_file
+                        self._max_line_per_input_file is not None
+                        and num_lines_from_file >= self._max_line_per_input_file
                     ):
                         break
                     lines_scanned += 1
@@ -1027,10 +988,7 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
 
     def _find_oov_lengths(self, input_text: str) -> List[int]:
         # Need to do mimic tokenizer's behavior
-        if (
-                isinstance(self.tokenizer, AutoTokenizer) and
-                self.tokenizer.tokenizer.do_basic_tokenize
-        ):
+        if isinstance(self.tokenizer, AutoTokenizer) and self.tokenizer.tokenizer.do_basic_tokenize:
             input_text = " ".join(self.tokenizer.tokenizer.basic_tokenizer.tokenize(input_text))
         tokens = self.tokenizer.text_to_tokens(input_text)
         oov_lengths = []
@@ -1044,7 +1002,7 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
         return oov_lengths
 
     def _fold_indices_to_targets(
-            self, tokens: List[str], target_indices: List[int], oov_lengths: List[int]
+        self, tokens: List[str], target_indices: List[int], oov_lengths: List[int]
     ) -> List[List[int]]:
         all_targets: List[List[int]] = []
         # For each token, make one output list
@@ -1129,15 +1087,13 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
 
         # Finalize the truecase/sentence boundary inputs and targets
         # Fold true-case targets into subword-based
-        cap_targets = self._fold_indices_to_targets(
-            cap_seg_tokens, cap_target_indices, cap_seg_oov_lengths
-        )
+        cap_targets = self._fold_indices_to_targets(cap_seg_tokens, cap_target_indices, cap_seg_oov_lengths)
         # Trim if too long
         cap_seg_ids = self.tokenizer.tokens_to_ids(cap_seg_tokens)
         if len(cap_seg_ids) + 2 > self._max_length:
-            cap_seg_ids = cap_seg_ids[:self._max_length - 2]
-            seg_targets = seg_targets[:self._max_length - 2]
-            cap_targets = cap_targets[:self._max_length - 2]
+            cap_seg_ids = cap_seg_ids[: self._max_length - 2]
+            seg_targets = seg_targets[: self._max_length - 2]
+            cap_targets = cap_targets[: self._max_length - 2]
         # Add BOS/EOS and target padding for those tokens.
         cap_seg_ids = [bos] + cap_seg_ids + [eos]
         seg_targets = [pad] + seg_targets + [pad]
@@ -1155,20 +1111,16 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
             punct_tokens = self.tokenizer.text_to_tokens(punct_input_text)
             punct_ids = self.tokenizer.tokens_to_ids(punct_tokens)
             if len(punct_ids) + 2 > self._max_length:
-                punct_ids = punct_ids[:self._max_length - 2]
-                punct_tokens = punct_tokens[:self._max_length - 2]
+                punct_ids = punct_ids[: self._max_length - 2]
+                punct_tokens = punct_tokens[: self._max_length - 2]
             punct_ids = [bos] + punct_ids + [eos]
         else:
             # One pass: all use the same inputs
             punct_tokens = cap_seg_tokens
             punct_input_text = recased_cap_seg_text
         punct_oov_lengths = self._find_oov_lengths(punct_input_text)
-        punct_pre_targets = self._fold_indices_to_targets(
-            punct_tokens, punct_pre_target_indices, punct_oov_lengths
-        )
-        punct_post_targets = self._fold_indices_to_targets(
-            punct_tokens, punct_post_target_indices, punct_oov_lengths
-        )
+        punct_pre_targets = self._fold_indices_to_targets(punct_tokens, punct_pre_target_indices, punct_oov_lengths)
+        punct_post_targets = self._fold_indices_to_targets(punct_tokens, punct_post_target_indices, punct_oov_lengths)
         punct_pre_targets = pad_list + punct_pre_targets + pad_list
         punct_post_targets = pad_list + punct_post_targets + pad_list
 
@@ -1181,12 +1133,19 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
             punct_input_tensor = torch.tensor(punct_ids, dtype=torch.long)
             cap_seg_input_tensor = torch.tensor(cap_seg_ids, dtype=torch.long)
             return (
-                punct_input_tensor, cap_seg_input_tensor,
-                punct_pre_targets_tensor, punct_post_targets_tensor, cap_targets_tensor, seg_targets_tensor
+                punct_input_tensor,
+                cap_seg_input_tensor,
+                punct_pre_targets_tensor,
+                punct_post_targets_tensor,
+                cap_targets_tensor,
+                seg_targets_tensor,
             )
         else:
             input_ids = torch.tensor(cap_seg_ids)
             return (
                 input_ids,
-                punct_pre_targets_tensor, punct_post_targets_tensor, cap_targets_tensor, seg_targets_tensor
+                punct_pre_targets_tensor,
+                punct_post_targets_tensor,
+                cap_targets_tensor,
+                seg_targets_tensor,
             )
