@@ -581,7 +581,49 @@ class PromptLearning(NeMoStage):
         }
         return model_type_to_code_path[model_type]
 
+class AdapterLearning(PromptLearning):
 
+    def setup_stage_vars(self, cfg):
+        """Setup the stage vars, i.e. stage name and stage cfg"""
+        self.stage_name = "adapter_learning"
+        self.stage_cfg = cfg.get("adapter_learning")
+    
+    def _get_nemo_code_path(self, model_type: str) -> Path:
+        """
+        Provide the essential nemo code path for running the stage, usually different model types use different nemo scripts.
+        For example, `megatron_t5_pretraining.py` for t5 and `megatron_gpt_pretraining.py` for gpt3.
+        
+        :param str model_type: i.e. `gpt3`, `t5`, `mt5`, etc.
+        :return: path current stage's essential nemo scripts code 
+        :rtype: Path
+        """
+        model_type_to_code_path = {
+            "gpt3": self._nemo_code_path / "examples/nlp/language_modeling/tuning/megatron_gpt_adapter_tuning.py",
+            "t5": self._nemo_code_path / "examples/nlp/language_modeling/tuning/megatron_t5_adapter_tuning.py",
+        }
+        return model_type_to_code_path[model_type]
+
+class IA3Learning(PromptLearning):
+
+    def setup_stage_vars(self, cfg):
+        """Setup the stage vars, i.e. stage name and stage cfg"""
+        self.stage_name = "ia3_learning"
+        self.stage_cfg = cfg.get("ia3_learning")
+    
+    def _get_nemo_code_path(self, model_type: str) -> Path:
+        """
+        Provide the essential nemo code path for running the stage, usually different model types use different nemo scripts.
+        For example, `megatron_t5_pretraining.py` for t5 and `megatron_gpt_pretraining.py` for gpt3.
+        
+        :param str model_type: i.e. `gpt3`, `t5`, `mt5`, etc.
+        :return: path current stage's essential nemo scripts code 
+        :rtype: Path
+        """
+        model_type_to_code_path = {
+            "gpt3": self._nemo_code_path / "examples/nlp/language_modeling/tuning/megatron_gpt_ia3_tuning.py",
+            "t5": self._nemo_code_path / "examples/nlp/language_modeling/tuning/megatron_t5_ia3_tuning.py",
+        }
+        return model_type_to_code_path[model_type]
 class Conversion(BigNLPStage):
     """Stage class of converting training checkpoints to .nemo format"""
 
