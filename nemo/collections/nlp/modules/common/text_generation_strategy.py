@@ -328,7 +328,7 @@ class UniversalPromptLearningModelTextGenerationStrategy(TextGenerationStrategy)
         )
         len_array = torch.tensor([maxlen] * micro_batch_size, device=torch.cuda.current_device())
 
-        batch = [tokens2use, attention_mask_repeat, positions2use, self.task_ids, setkey_value_array, len_array]
+        batch = [tokens2use, attention_mask_repeat, positions2use, setkey_value_array, len_array]
         tensor_shape = [tokens2use.shape[1], micro_batch_size, self.model.frozen_model.cfg.hidden_size]
         return batch, tensor_shape
 

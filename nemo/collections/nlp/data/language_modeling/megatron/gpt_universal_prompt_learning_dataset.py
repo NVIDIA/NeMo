@@ -172,10 +172,11 @@ class GPTUniversalPromptLearningDataset(Dataset):
                     varname = var[1:-1]
                     if varname == limit_length_field:
                         limit_length = True
-                text = piece.format(**doc)
-                text_ids = tokenizer.text_to_ids(text)
-                all_ids.append(text_ids)
-                limits.append(limit_length)
+                if varname in doc:
+                    text = piece.format(**doc)
+                    text_ids = tokenizer.text_to_ids(text)
+                    all_ids.append(text_ids)
+                    limits.append(limit_length)
 
         # Add BOS/EOS if desired, adds EOS by default
         if self.add_bos:
@@ -268,7 +269,10 @@ class GPTUniversalPromptLearningDataset(Dataset):
             else:
                 # Loss mask where virtual tokens are 0.0 and all other tokens are 1.0
                 loss_mask = [1.0] * len(ids)
-            prompt_input_mask = [True] * answer_start_idx + [False] * (batch_max - answer_start_idx)
+            if answer_start_idx is not None:
+                prompt_input_mask = [True] * answer_start_idx + [False] * (batch_max - answer_start_idx)
+            else:
+                prompt_input_mask = [False] * batch_max
             prompt_input_masks.append(prompt_input_mask)
             # Pad to max length
             input_length = len(ids)

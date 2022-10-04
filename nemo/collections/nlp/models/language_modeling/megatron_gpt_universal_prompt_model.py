@@ -229,13 +229,13 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBasePromptLearningModel):
         # Get embeddings for text tokens and insert virtual token embeddings
         if self.frozen_model.model.pre_process:
             if inference:
-                input_embeds = self.embed_input_inference(input_ids)
+                input_embeds = self.embed_input_inference(input_ids, prompt_input_mask)
             else:
-                virtual_token, input_embeds = self.embed_input_train(input_ids, prompt_input_mask)
+                virtual_token_emb, input_embeds = self.embed_input_train(input_ids, prompt_input_mask)
 
             position_embeddings = self.frozen_model.model.language_model.embedding.position_embeddings(position_ids)
             encoder_input = input_embeds + position_embeddings
-            encoder_input = torch.concat([virtual_token, encoder_input], axis=1)
+            encoder_input = torch.concat([virtual_token_emb, encoder_input], axis=1)
             encoder_input = encoder_input.transpose(0, 1).contiguous()
             if self.cfg.get("sequence_parallel", False):
                 encoder_input = tensor_parallel.mappings.scatter_to_sequence_parallel_region(encoder_input)
@@ -310,7 +310,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBasePromptLearningModel):
 
     def setup(self, stage=None):
         self.setup_test_data()
-        if stage == 'test':
+        if stage == 'test' or stage == 'predict':
             return
 
         if self.frozen_model.model.pre_process:
