@@ -1045,7 +1045,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         enc_output=None,
         enc_output_attn_mask=None,
         ignore_ids=[],
-        bos_id=None, # If bos=None, will use tokenizer.bos_id unless explicitly set to something else.
+        bos_id=None,  # If bos=None, will use tokenizer.bos_id unless explicitly set to something else.
     ):
         # Check whether the DDP is initialized. This is needed when running inference outside of training loop.
         if parallel_state.is_unitialized():
@@ -1107,8 +1107,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         for i in range(num_tokens_to_generate):
             # No microbatches in decoding. Just the global batch.
             decoder_seq_length = predicted_tokens_dec.size(1)
-            dec_mask = (predicted_tokens_dec != tokenizer.pad_id)
-            dec_mask[:, 0] = 1 # Make sure you never mask the first token even if it is <pad>.
+            dec_mask = predicted_tokens_dec != tokenizer.pad_id
+            dec_mask[:, 0] = 1  # Make sure you never mask the first token even if it is <pad>.
 
             batch_for_pipeline = [enc_output, enc_output_attn_mask, predicted_tokens_dec, dec_mask]
             arg_names = ['enc_output', 'enc_output_attn_mask', 'dec_input_ids', 'dec_attn_mask']
@@ -1223,7 +1223,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         response['masked_input'] = ' '.join(self.tokenizer.ids_to_tokens(tokens_enc[0].cpu().numpy().tolist()))
         enc_mask = tokens_enc != self.tokenizer.pad_id
 
-        predicted_tokens_ids, log_probs = self.decode(tokens_enc, enc_mask, int(request['tokens_to_generate']), bos_id=bos_id)
+        predicted_tokens_ids, log_probs = self.decode(
+            tokens_enc, enc_mask, int(request['tokens_to_generate']), bos_id=bos_id
+        )
         predicted_tokens_ids = predicted_tokens_ids.cpu().numpy()[0].tolist()
         log_probs = log_probs.cpu().numpy()[0].tolist()
         if self.tokenizer.eos_id in predicted_tokens_ids:

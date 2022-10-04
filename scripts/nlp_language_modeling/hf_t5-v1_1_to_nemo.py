@@ -287,7 +287,9 @@ def convert_weights(hf_model, nemo_state_dict_path):
     return hf_model_config
 
 
-def package_into_nemo_file(state_dict_path, base_yaml_config, hf_model_config, nemo_file_path, hf_model_name, megatron_amp_O2):
+def package_into_nemo_file(
+    state_dict_path, base_yaml_config, hf_model_config, nemo_file_path, hf_model_name, megatron_amp_O2
+):
     """
     Packages the state dict, config file and tokenizer into a `.nemo` file.
     """

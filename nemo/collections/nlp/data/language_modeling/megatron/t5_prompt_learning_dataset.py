@@ -73,7 +73,6 @@ class T5PromptLearningDataset(BasePromptLearningDataset):
             for_train=for_train,
         )
 
-
     def load_data(self, dataset):
         """
         Loads a dataset by filling in the task templates specified in the config file
