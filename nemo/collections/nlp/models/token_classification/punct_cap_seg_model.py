@@ -1,33 +1,33 @@
-
 import enum
 import itertools
 from collections import defaultdict
-from typing import Optional, Union, Dict, Tuple, List, Iterable, DefaultDict
+from typing import DefaultDict, Dict, Iterable, List, Optional, Tuple, Union
 
-from hydra.utils import instantiate
 import torch
 import torch.nn as nn
+from hydra.utils import instantiate
 from omegaconf import DictConfig, open_dict
 from pytorch_lightning import Trainer
 
+from nemo.collections.common.data import ConcatMapDataset
 from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss
-from nemo.core.neural_types import NeuralType, LogitsType, LengthsType, TokenIndex
+from nemo.collections.common.metrics import GlobalAverageLossMetric
+from nemo.collections.common.tokenizers import AutoTokenizer
+from nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset import (
+    InferencePunctCapSegDataset,
+    PunctCapSegDataset,
+)
+from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import TokenClassifier
-from nemo.collections.common.tokenizers import AutoTokenizer
-from nemo.collections.common.data import ConcatMapDataset
 from nemo.core import PretrainedModelInfo, typecheck
+from nemo.core.neural_types import LengthsType, LogitsType, NeuralType, TokenIndex
 from nemo.utils import logging
-from nemo.collections.common.metrics import GlobalAverageLossMetric
-from nemo.collections.nlp.metrics.classification_report import ClassificationReport
-from nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset import (
-    PunctCapSegDataset,
-    InferencePunctCapSegDataset
-)
 
 
 class Mode(enum.Enum):
     """Value used in many places. Prefer over passing strings."""
+
     VAL = "val"
     TEST = "test"
 
@@ -55,20 +55,14 @@ class PunctCapSegModel(NLPModel):
 
         # All logits are shape [B, T, D]
         self._punct_pre_loss: CrossEntropyLoss = CrossEntropyLoss(
-            weight=cfg.loss.punct_pre.get("weight"),
-            ignore_index=self._ignore_idx,
-            logits_ndim=4
+            weight=cfg.loss.punct_pre.get("weight"), ignore_index=self._ignore_idx, logits_ndim=4
         )
         self._punct_post_loss: CrossEntropyLoss = CrossEntropyLoss(
-            weight=cfg.loss.punct_post.get("weight"),
-            ignore_index=self._ignore_idx,
-            logits_ndim=4
+            weight=cfg.loss.punct_post.get("weight"), ignore_index=self._ignore_idx, logits_ndim=4
         )
         # TODO why not BCE for a 2-class problem?
         self._seg_loss: CrossEntropyLoss = CrossEntropyLoss(
-            weight=cfg.loss.seg.get("weight"),
-            ignore_index=self._ignore_idx,
-            logits_ndim=3
+            weight=cfg.loss.seg.get("weight"), ignore_index=self._ignore_idx, logits_ndim=3
         )
         # For true-casing, we use multi-label classification to predict for each char in a subword
         self._cap_loss: nn.BCEWithLogitsLoss = nn.BCEWithLogitsLoss(
@@ -85,7 +79,7 @@ class PunctCapSegModel(NLPModel):
             dropout=cfg.punct_head_pre.get("dropout", 0.1),
             activation="relu",
             log_softmax=False,
-            num_classes=len(self._punct_pre_labels) * self._max_token_len
+            num_classes=len(self._punct_pre_labels) * self._max_token_len,
         )
         self._punct_head_post: TokenClassifier = TokenClassifier(
             hidden_size=self.hidden_size,
@@ -94,7 +88,7 @@ class PunctCapSegModel(NLPModel):
             dropout=cfg.punct_head_post.get("dropout", 0.1),
             activation="relu",
             log_softmax=False,
-            num_classes=len(self._punct_post_labels) * self._max_token_len
+            num_classes=len(self._punct_post_labels) * self._max_token_len,
         )
         self._seg_head: TokenClassifier = TokenClassifier(
             hidden_size=self.hidden_size,
@@ -103,7 +97,7 @@ class PunctCapSegModel(NLPModel):
             dropout=cfg.seg_head.get("dropout", 0.1),
             activation="relu",
             log_softmax=False,
-            num_classes=2
+            num_classes=2,
         )
         self._cap_head: TokenClassifier = TokenClassifier(
             hidden_size=self.hidden_size,
@@ -112,7 +106,7 @@ class PunctCapSegModel(NLPModel):
             dropout=cfg.cap_head.get("dropout", 0.1),
             activation="relu",
             log_softmax=False,
-            num_classes=self._max_token_len
+            num_classes=self._max_token_len,
         )
 
         # Set each dataset's tokenizer. Model's tokenizer doesn't exist until we initialize BertModule, but datasets are
@@ -154,9 +148,7 @@ class PunctCapSegModel(NLPModel):
 
     def setup_validation_data(self, val_data_config: Union[DictConfig, Dict]):
         self._validation_dl = self._setup_eval_dataloaders_from_config(cfg=val_data_config)
-        self._validation_names = [
-            f"val_{dl.dataset.language}" for dl in self._validation_dl
-        ]
+        self._validation_names = [f"val_{dl.dataset.language}" for dl in self._validation_dl]
         # TODO if self._dev_metrics already exists, overwrite it?
         # self._setup_metrics(len(self._validation_dl), self._dev_metrics)
 
@@ -175,33 +167,29 @@ class PunctCapSegModel(NLPModel):
         """
         module_list: nn.ModuleList = nn.ModuleList()
         for _ in range(num_dl):
-            metrics: nn.ModuleDict = nn.ModuleDict({
-                "loss": GlobalAverageLossMetric(dist_sync_on_step=False, take_avg_loss=True),
-                "punct_pre_report": ClassificationReport(
-                    num_classes=len(self._punct_pre_labels),
-                    label_ids=self._punct_pre_token_to_index,
-                    mode="macro",
-                    dist_sync_on_step=False
-                ),
-                "punct_post_report": ClassificationReport(
-                    num_classes=len(self._punct_post_labels),
-                    label_ids=self._punct_post_token_to_index,
-                    mode="macro",
-                    dist_sync_on_step=False
-                ),
-                "cap_report": ClassificationReport(
-                    num_classes=2,
-                    label_ids={"LOWER": 0, "UPPER": 1},
-                    mode="macro",
-                    dist_sync_on_step=False
-                ),
-                "seg_report": ClassificationReport(
-                    num_classes=2,
-                    label_ids={"NOSTOP": 0, "FULLSTOP": 1},
-                    mode="macro",
-                    dist_sync_on_step=False
-                )
-            })
+            metrics: nn.ModuleDict = nn.ModuleDict(
+                {
+                    "loss": GlobalAverageLossMetric(dist_sync_on_step=False, take_avg_loss=True),
+                    "punct_pre_report": ClassificationReport(
+                        num_classes=len(self._punct_pre_labels),
+                        label_ids=self._punct_pre_token_to_index,
+                        mode="macro",
+                        dist_sync_on_step=False,
+                    ),
+                    "punct_post_report": ClassificationReport(
+                        num_classes=len(self._punct_post_labels),
+                        label_ids=self._punct_post_token_to_index,
+                        mode="macro",
+                        dist_sync_on_step=False,
+                    ),
+                    "cap_report": ClassificationReport(
+                        num_classes=2, label_ids={"LOWER": 0, "UPPER": 1}, mode="macro", dist_sync_on_step=False
+                    ),
+                    "seg_report": ClassificationReport(
+                        num_classes=2, label_ids={"NOSTOP": 0, "FULLSTOP": 1}, mode="macro", dist_sync_on_step=False
+                    ),
+                }
+            )
             module_list.append(metrics)
         return module_list
 
@@ -267,7 +255,7 @@ class PunctCapSegModel(NLPModel):
             datasets=datasets,
             sampling_technique=cfg.get("sampling_technique", "temperature"),
             sampling_temperature=cfg.get("sampling_temperature", 5),
-            sampling_probabilities=cfg.get("sampling_probabilities", None)
+            sampling_probabilities=cfg.get("sampling_probabilities", None),
         )
         dataloader = torch.utils.data.DataLoader(
             dataset=dataset,
@@ -275,16 +263,13 @@ class PunctCapSegModel(NLPModel):
             batch_size=cfg.get("batch_size", 32),
             num_workers=cfg.get("num_workers", 8),
             pin_memory=cfg.get("pin_memory", False),
-            drop_last=cfg.get("drop_last", False)
+            drop_last=cfg.get("drop_last", False),
         )
         return dataloader
 
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
-        return {
-            "input_ids": NeuralType(("B", "T"), TokenIndex()),
-            "lengths": NeuralType(("B",), LengthsType())
-        }
+        return {"input_ids": NeuralType(("B", "T"), TokenIndex()), "lengths": NeuralType(("B",), LengthsType())}
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -292,16 +277,21 @@ class PunctCapSegModel(NLPModel):
             "punct_pre_logits": NeuralType(("B", "D", "T"), LogitsType()),
             "punct_post_logits": NeuralType(("B", "D", "T"), LogitsType()),
             "cap_logits": NeuralType(("B", "D", "T"), LogitsType()),
-            "seg_logits": NeuralType(("B", "D", "T"), LogitsType())
+            "seg_logits": NeuralType(("B", "D", "T"), LogitsType()),
         }
 
     def _run_step(self, batch: Tuple) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         # All inputs and targets are shape [B, T]
         if self._multipass:
             (
-                punct_inputs, cap_seg_inputs,
-                punct_pre_targets, punct_post_targets, cap_targets, seg_targets,
-                _, _
+                punct_inputs,
+                cap_seg_inputs,
+                punct_pre_targets,
+                punct_post_targets,
+                cap_targets,
+                seg_targets,
+                _,
+                _,
             ) = batch
             # Mask sequence mask
             punct_mask = punct_inputs.ne(self.tokenizer.pad_id)
@@ -309,7 +299,7 @@ class PunctCapSegModel(NLPModel):
 
             # Encoded output is [B, T, D]
             punct_encoded = self.bert_model(
-                input_ids=punct_inputs,  attention_mask=punct_mask, token_type_ids=torch.zeros_like(punct_inputs)
+                input_ids=punct_inputs, attention_mask=punct_mask, token_type_ids=torch.zeros_like(punct_inputs)
             )
             cap_seg_encoded = self.bert_model(
                 input_ids=cap_seg_inputs, attention_mask=cap_seg_mask, token_type_ids=torch.zeros_like(cap_seg_inputs)
@@ -329,9 +319,7 @@ class PunctCapSegModel(NLPModel):
             inputs, punct_pre_targets, punct_post_targets, cap_targets, seg_targets, _ = batch
             mask = inputs.ne(self.tokenizer.pad_id)
             # Encoded output is [B, T, D]
-            encoded = self.bert_model(
-                input_ids=inputs, attention_mask=mask, token_type_ids=torch.zeros_like(inputs)
-            )
+            encoded = self.bert_model(input_ids=inputs, attention_mask=mask, token_type_ids=torch.zeros_like(inputs))
             if isinstance(encoded, tuple):
                 encoded = encoded[0]
             # [B, T, D * max_token_len]
@@ -357,12 +345,7 @@ class PunctCapSegModel(NLPModel):
             # Dimensionless 0.0 like cap_logits
             cap_loss = cap_logits.new_zeros(1).squeeze()
 
-        loss = self._agg_loss.forward(
-            loss_1=punct_pre_loss,
-            loss_2=punct_post_loss,
-            loss_3=cap_loss,
-            loss_4=seg_loss
-        )
+        loss = self._agg_loss.forward(loss_1=punct_pre_loss, loss_2=punct_post_loss, loss_3=cap_loss, loss_4=seg_loss)
 
         return loss, punct_pre_logits, punct_post_logits, cap_logits, seg_logits
 
@@ -377,9 +360,14 @@ class PunctCapSegModel(NLPModel):
         loss, punct_pre_logits, punct_post_logits, cap_logits, seg_logits = self._run_step(batch)
         if self._multipass:
             (
-                _, _,  # punct, cap/seg inputs (don't need because we ran step)
-                punct_pre_targets, punct_post_targets, cap_targets, seg_targets,
-                _, _  # punct, cap/seg lengths (don't need because we use pad_id)
+                _,
+                _,  # punct, cap/seg inputs (don't need because we ran step)
+                punct_pre_targets,
+                punct_post_targets,
+                cap_targets,
+                seg_targets,
+                _,
+                _,  # punct, cap/seg lengths (don't need because we use pad_id)
             ) = batch
         else:
             _, punct_pre_targets, punct_post_targets, cap_targets, seg_targets, _ = batch
@@ -471,7 +459,7 @@ class PunctCapSegModel(NLPModel):
             input_file=config.get("input_file"),
             input_texts=config.get("texts"),
             max_length=config.get("max_length", self.max_length),
-            fold_overlap=config.get("fold_overlap", 16)
+            fold_overlap=config.get("fold_overlap", 16),
         )
         dataloader = torch.utils.data.DataLoader(
             dataset=dataset,
@@ -484,12 +472,12 @@ class PunctCapSegModel(NLPModel):
         return dataloader
 
     def _unfold_tensors(
-            self,
-            folded_tensor: torch.Tensor,
-            lengths: torch.Tensor,
-            batch_ids: torch.Tensor,
-            overlap: int,
-            time_dim: int = 1
+        self,
+        folded_tensor: torch.Tensor,
+        lengths: torch.Tensor,
+        batch_ids: torch.Tensor,
+        overlap: int,
+        time_dim: int = 1,
     ) -> List[List]:
         # Move everything to CPU
         folded_tensor = folded_tensor.cpu()
@@ -513,8 +501,10 @@ class PunctCapSegModel(NLPModel):
                 else:
                     unfolded_tensor = torch.cat(
                         (
-                            unfolded_tensor.narrow(time_dim - 1, 0, unfolded_tensor.shape[time_dim - 1] - overlap//2),
-                            subsegment_tensor.narrow(time_dim - 1, overlap//2, length - 2 - overlap//2)
+                            unfolded_tensor.narrow(
+                                time_dim - 1, 0, unfolded_tensor.shape[time_dim - 1] - overlap // 2
+                            ),
+                            subsegment_tensor.narrow(time_dim - 1, overlap // 2, length - 2 - overlap // 2),
                         )
                     )
             # Always return lists, because this function is used after running model
@@ -522,11 +512,7 @@ class PunctCapSegModel(NLPModel):
         return unfolded_outputs
 
     def _get_char_cap_preds(
-            self,
-            tokens: List[str],
-            probs: List[List[float]],
-            oov_lens: List[int],
-            threshold: float
+        self, tokens: List[str], probs: List[List[float]], oov_lens: List[int], threshold: float
     ) -> List[int]:
         """Gathers character-level truecase predictions from subword predictions"""
         preds: List[int] = []
@@ -545,11 +531,7 @@ class PunctCapSegModel(NLPModel):
         return preds
 
     def _get_char_seg_preds(
-            self,
-            tokens: List[str],
-            probs: List[float],
-            oov_lens: List[int],
-            threshold: float
+        self, tokens: List[str], probs: List[float], oov_lens: List[int], threshold: float
     ) -> List[int]:
         """Gathers character-level sentence boundary predictions from subword predictions"""
         preds: List[int] = []
@@ -572,13 +554,13 @@ class PunctCapSegModel(NLPModel):
         return preds
 
     def _get_char_punct_preds(
-            self,
-            tokens: List[str],
-            probs: List[List[float]],
-            preds: List[List[int]],
-            oov_lens: List[int],
-            threshold: float,
-            is_post: bool
+        self,
+        tokens: List[str],
+        probs: List[List[float]],
+        preds: List[List[int]],
+        oov_lens: List[int],
+        threshold: float,
+        is_post: bool,
     ) -> List[str]:
         """Gathers character-level punctuation predictions from subword predictions"""
         char_preds: List[str] = []
@@ -604,23 +586,18 @@ class PunctCapSegModel(NLPModel):
 
     @torch.inference_mode()
     def infer_punctuation(
-            self,
-            texts: List[str],
-            threshold: float = 0.0,
-            fold_overlap: int = 16,
-            batch_size: int = 32,
-            max_length: Optional[int] = None
+        self,
+        texts: List[str],
+        threshold: float = 0.0,
+        fold_overlap: int = 16,
+        batch_size: int = 32,
+        max_length: Optional[int] = None,
     ) -> List[str]:
         if max_length is None:
             # Default to how the model was trained, if possible. Else use the "hard" max length of the LM.
             max_length = self._cfg.train_ds.get("max_length", self.max_length)
         dataloader = self.predict_dataloader(
-            {
-                "texts": texts,
-                "max_length": max_length,
-                "fold_overlap": fold_overlap,
-                "batch_size": batch_size
-            }
+            {"texts": texts, "max_length": max_length, "fold_overlap": fold_overlap, "batch_size": batch_size}
         )
 
         output_texts: List[str] = []
@@ -630,7 +607,7 @@ class PunctCapSegModel(NLPModel):
             encoded: torch.Tensor = self.bert_model(
                 input_ids=folded_input_ids,
                 attention_mask=folded_input_ids.ne(self.tokenizer.pad_id),
-                token_type_ids=torch.zeros_like(folded_input_ids)
+                token_type_ids=torch.zeros_like(folded_input_ids),
             )
             # [B, T, D * max_token_len]
             pre_logits = self._punct_head_pre(hidden_states=encoded)
@@ -645,34 +622,19 @@ class PunctCapSegModel(NLPModel):
             all_post_scores, all_post_preds = post_logits.softmax(dim=-1).max(dim=-1)
             # TODO find a way to reduce the number of calls to the unfold function
             all_pre_scores = self._unfold_tensors(
-                folded_tensor=all_pre_scores,
-                lengths=lengths,
-                overlap=fold_overlap,
-                batch_ids=folded_batch_indices
+                folded_tensor=all_pre_scores, lengths=lengths, overlap=fold_overlap, batch_ids=folded_batch_indices
             )
             all_pre_preds = self._unfold_tensors(
-                folded_tensor=all_pre_preds,
-                lengths=lengths,
-                overlap=fold_overlap,
-                batch_ids=folded_batch_indices
+                folded_tensor=all_pre_preds, lengths=lengths, overlap=fold_overlap, batch_ids=folded_batch_indices
             )
             all_post_scores = self._unfold_tensors(
-                folded_tensor=all_post_scores,
-                lengths=lengths,
-                overlap=fold_overlap,
-                batch_ids=folded_batch_indices
+                folded_tensor=all_post_scores, lengths=lengths, overlap=fold_overlap, batch_ids=folded_batch_indices
             )
             all_post_preds = self._unfold_tensors(
-                folded_tensor=all_post_preds,
-                lengths=lengths,
-                overlap=fold_overlap,
-                batch_ids=folded_batch_indices
+                folded_tensor=all_post_preds, lengths=lengths, overlap=fold_overlap, batch_ids=folded_batch_indices
             )
             unfolded_input_ids = self._unfold_tensors(
-                folded_tensor=folded_input_ids,
-                lengths=lengths,
-                overlap=fold_overlap,
-                batch_ids=folded_batch_indices
+                folded_tensor=folded_input_ids, lengths=lengths, overlap=fold_overlap, batch_ids=folded_batch_indices
             )
 
             for batch_idx in range(len(all_pre_scores)):
@@ -687,7 +649,7 @@ class PunctCapSegModel(NLPModel):
                     preds=all_post_preds[batch_idx],
                     oov_lens=oov_lens,
                     threshold=threshold,
-                    is_post=True
+                    is_post=True,
                 )
                 pre_tokens = self._get_char_punct_preds(
                     tokens=tokens,
@@ -695,7 +657,7 @@ class PunctCapSegModel(NLPModel):
                     preds=all_pre_preds[batch_idx],
                     oov_lens=oov_lens,
                     threshold=threshold,
-                    is_post=False
+                    is_post=False,
                 )
                 output_chars: List[str] = []
                 non_whitespace_index = 0
@@ -716,22 +678,17 @@ class PunctCapSegModel(NLPModel):
 
     @torch.inference_mode()
     def infer_segmentation(
-            self,
-            texts: List[str],
-            threshold: float = 0.5,
-            batch_size: int = 32,
-            fold_overlap: int = 16,
-            max_length: Optional[int] = None
+        self,
+        texts: List[str],
+        threshold: float = 0.5,
+        batch_size: int = 32,
+        fold_overlap: int = 16,
+        max_length: Optional[int] = None,
     ) -> List[List[str]]:
         if max_length is None:
             max_length = self.max_length
         dataloader = self.predict_dataloader(
-            {
-                "texts": texts,
-                "max_length": max_length,
-                "fold_overlap": fold_overlap,
-                "batch_size": batch_size
-            }
+            {"texts": texts, "max_length": max_length, "fold_overlap": fold_overlap, "batch_size": batch_size}
         )
 
         output_texts: List[List[str]] = []
@@ -741,22 +698,16 @@ class PunctCapSegModel(NLPModel):
             encoded: torch.Tensor = self.bert_model(
                 input_ids=folded_input_ids,
                 attention_mask=folded_input_ids.ne(self.tokenizer.pad_id),
-                token_type_ids=torch.zeros_like(folded_input_ids)
+                token_type_ids=torch.zeros_like(folded_input_ids),
             )
             logits = self._seg_head(hidden_states=encoded)
             # Keep p(full_stop)
             all_scores = logits.softmax(dim=-1)[..., 1]
             all_scores = self._unfold_tensors(
-                folded_tensor=all_scores,
-                lengths=lengths,
-                overlap=fold_overlap,
-                batch_ids=folded_batch_indices
+                folded_tensor=all_scores, lengths=lengths, overlap=fold_overlap, batch_ids=folded_batch_indices
             )
             unfolded_input_ids = self._unfold_tensors(
-                folded_tensor=folded_input_ids,
-                lengths=lengths,
-                overlap=fold_overlap,
-                batch_ids=folded_batch_indices
+                folded_tensor=folded_input_ids, lengths=lengths, overlap=fold_overlap, batch_ids=folded_batch_indices
             )
             for batch_idx, scores in enumerate(all_scores):
                 ids = unfolded_input_ids[batch_idx]
@@ -769,7 +720,7 @@ class PunctCapSegModel(NLPModel):
                 )
                 start = 0
                 for stop in break_points:
-                    segmented_texts.append(input_text[start:stop+1].strip())
+                    segmented_texts.append(input_text[start : stop + 1].strip())
                     start = stop
                 if start < len(input_text):
                     segmented_texts.append(input_text[start:])
@@ -778,24 +729,19 @@ class PunctCapSegModel(NLPModel):
 
     @torch.inference_mode()
     def infer_capitalization(
-            self,
-            texts: List[List[str]],
-            threshold: float = 0.5,
-            batch_size: int = 32,
-            fold_overlap: int = 16,
-            max_length: Optional[int] = None
+        self,
+        texts: List[List[str]],
+        threshold: float = 0.5,
+        batch_size: int = 32,
+        fold_overlap: int = 16,
+        max_length: Optional[int] = None,
     ) -> List[List[str]]:
         if max_length is None:
             max_length = self.max_length
         # Flatten list of lists into one list
         flat_texts = list(itertools.chain(*texts))
         dataloader = self.predict_dataloader(
-            {
-                "texts": flat_texts,
-                "max_length": max_length,
-                "fold_overlap": fold_overlap,
-                "batch_size": batch_size
-            }
+            {"texts": flat_texts, "max_length": max_length, "fold_overlap": fold_overlap, "batch_size": batch_size}
         )
 
         flat_out_texts: List[str] = []
@@ -805,22 +751,16 @@ class PunctCapSegModel(NLPModel):
             encoded: torch.Tensor = self.bert_model(
                 input_ids=folded_input_ids,
                 attention_mask=folded_input_ids.ne(self.tokenizer.pad_id),
-                token_type_ids=torch.zeros_like(folded_input_ids)
+                token_type_ids=torch.zeros_like(folded_input_ids),
             )
             logits = self._cap_head(hidden_states=encoded)
             # [B, T, max_token_len]
             all_probs_upper = logits.sigmoid()
             all_probs_upper = self._unfold_tensors(
-                folded_tensor=all_probs_upper,
-                lengths=lengths,
-                overlap=fold_overlap,
-                batch_ids=folded_batch_indices
+                folded_tensor=all_probs_upper, lengths=lengths, overlap=fold_overlap, batch_ids=folded_batch_indices
             )
             unfolded_input_ids = self._unfold_tensors(
-                folded_tensor=folded_input_ids,
-                lengths=lengths,
-                overlap=fold_overlap,
-                batch_ids=folded_batch_indices
+                folded_tensor=folded_input_ids, lengths=lengths, overlap=fold_overlap, batch_ids=folded_batch_indices
             )
 
             for batch_idx, probs_upper in enumerate(all_probs_upper):
@@ -857,23 +797,18 @@ class PunctCapSegModel(NLPModel):
 
     @torch.inference_mode()
     def infer_cap_seg(
-            self,
-            texts: List[str],
-            cap_threshold: float = 0.5,
-            seg_threshold: float = 0.5,
-            fold_overlap: int = 16,
-            batch_size: int = 32,
-            max_length: Optional[int] = None
+        self,
+        texts: List[str],
+        cap_threshold: float = 0.5,
+        seg_threshold: float = 0.5,
+        fold_overlap: int = 16,
+        batch_size: int = 32,
+        max_length: Optional[int] = None,
     ) -> List[List[str]]:
         if max_length is None:
             max_length = self.max_length
         dataloader = self.predict_dataloader(
-            {
-                "texts": texts,
-                "max_length": max_length,
-                "fold_overlap": fold_overlap,
-                "batch_size": batch_size
-            }
+            {"texts": texts, "max_length": max_length, "fold_overlap": fold_overlap, "batch_size": batch_size}
         )
         out_texts: List[List[str]] = []
         for batch in dataloader:
@@ -882,7 +817,7 @@ class PunctCapSegModel(NLPModel):
             encoded: torch.Tensor = self.bert_model(
                 input_ids=folded_input_ids,
                 attention_mask=folded_input_ids.ne(self.tokenizer.pad_id),
-                token_type_ids=torch.zeros_like(folded_input_ids)
+                token_type_ids=torch.zeros_like(folded_input_ids),
             )
 
             cap_logits = self._cap_head(hidden_states=encoded)
@@ -892,22 +827,13 @@ class PunctCapSegModel(NLPModel):
             # [B, T, 2]
             all_seg_scores = seg_logits.softmax(dim=-1)[..., 1]
             all_cap_scores = self._unfold_tensors(
-                folded_tensor=all_cap_scores,
-                lengths=lengths,
-                overlap=fold_overlap,
-                batch_ids=folded_batch_indices
+                folded_tensor=all_cap_scores, lengths=lengths, overlap=fold_overlap, batch_ids=folded_batch_indices
             )
             all_seg_scores = self._unfold_tensors(
-                folded_tensor=all_seg_scores,
-                lengths=lengths,
-                overlap=fold_overlap,
-                batch_ids=folded_batch_indices
+                folded_tensor=all_seg_scores, lengths=lengths, overlap=fold_overlap, batch_ids=folded_batch_indices
             )
             unfolded_input_ids = self._unfold_tensors(
-                folded_tensor=folded_input_ids,
-                lengths=lengths,
-                overlap=fold_overlap,
-                batch_ids=folded_batch_indices
+                folded_tensor=folded_input_ids, lengths=lengths, overlap=fold_overlap, batch_ids=folded_batch_indices
             )
             for batch_idx, ids in enumerate(unfolded_input_ids):
                 input_text = input_strings[batch_idx]
@@ -944,10 +870,7 @@ class PunctCapSegModel(NLPModel):
 
     # TODO just copied from data set
     def _find_oov_lengths(self, input_text: str) -> List[int]:
-        if (
-                isinstance(self.tokenizer, AutoTokenizer) and
-                self.tokenizer.tokenizer.do_basic_tokenize
-        ):
+        if isinstance(self.tokenizer, AutoTokenizer) and self.tokenizer.tokenizer.do_basic_tokenize:
             input_text = " ".join(self.tokenizer.tokenizer.basic_tokenizer.tokenize(input_text))
         tokens = self.tokenizer.text_to_tokens(input_text)
         oov_lengths = []
@@ -962,26 +885,21 @@ class PunctCapSegModel(NLPModel):
 
     @torch.inference_mode()
     def infer_one_pass(
-            self,
-            texts: List[str],
-            cap_threshold: float = 0.5,
-            seg_threshold: float = 0.5,
-            punct_threshold: float = 0.5,
-            fold_overlap: int = 16,
-            batch_size: int = 32,
-            max_length: Optional[int] = None
+        self,
+        texts: List[str],
+        cap_threshold: float = 0.5,
+        seg_threshold: float = 0.5,
+        punct_threshold: float = 0.5,
+        fold_overlap: int = 16,
+        batch_size: int = 32,
+        max_length: Optional[int] = None,
     ) -> List[List[str]]:
         if self._multipass:
             raise ValueError(f"Models trained with multi-pass cannot do one-pass inference")
         if max_length is None:
             max_length = self.max_length
         dataloader = self.predict_dataloader(
-            {
-                "texts": texts,
-                "max_length": max_length,
-                "fold_overlap": fold_overlap,
-                "batch_size": batch_size
-            }
+            {"texts": texts, "max_length": max_length, "fold_overlap": fold_overlap, "batch_size": batch_size}
         )
         out_texts: List[List[str]] = []
         for batch in dataloader:
@@ -991,7 +909,7 @@ class PunctCapSegModel(NLPModel):
             encoded: torch.Tensor = self.bert_model(
                 input_ids=folded_input_ids,
                 attention_mask=folded_input_ids.ne(self.tokenizer.pad_id),
-                token_type_ids=torch.zeros_like(folded_input_ids)
+                token_type_ids=torch.zeros_like(folded_input_ids),
             )
             # [B, T, D * max_token_len]
             pre_logits = self._punct_head_pre(hidden_states=encoded)
@@ -1012,46 +930,25 @@ class PunctCapSegModel(NLPModel):
 
             # TODO modify _unfold_tensors to accept list of inputs to reduce these calls
             all_cap_scores = self._unfold_tensors(
-                folded_tensor=all_cap_scores,
-                lengths=lengths,
-                overlap=fold_overlap,
-                batch_ids=folded_batch_indices
+                folded_tensor=all_cap_scores, lengths=lengths, overlap=fold_overlap, batch_ids=folded_batch_indices
             )
             all_seg_scores = self._unfold_tensors(
-                folded_tensor=all_seg_scores,
-                lengths=lengths,
-                overlap=fold_overlap,
-                batch_ids=folded_batch_indices
+                folded_tensor=all_seg_scores, lengths=lengths, overlap=fold_overlap, batch_ids=folded_batch_indices
             )
             unfolded_input_ids = self._unfold_tensors(
-                folded_tensor=folded_input_ids,
-                lengths=lengths,
-                overlap=fold_overlap,
-                batch_ids=folded_batch_indices
+                folded_tensor=folded_input_ids, lengths=lengths, overlap=fold_overlap, batch_ids=folded_batch_indices
             )
             all_pre_scores = self._unfold_tensors(
-                folded_tensor=all_pre_scores,
-                lengths=lengths,
-                overlap=fold_overlap,
-                batch_ids=folded_batch_indices
+                folded_tensor=all_pre_scores, lengths=lengths, overlap=fold_overlap, batch_ids=folded_batch_indices
             )
             all_pre_preds = self._unfold_tensors(
-                folded_tensor=all_pre_preds,
-                lengths=lengths,
-                overlap=fold_overlap,
-                batch_ids=folded_batch_indices
+                folded_tensor=all_pre_preds, lengths=lengths, overlap=fold_overlap, batch_ids=folded_batch_indices
             )
             all_post_scores = self._unfold_tensors(
-                folded_tensor=all_post_scores,
-                lengths=lengths,
-                overlap=fold_overlap,
-                batch_ids=folded_batch_indices
+                folded_tensor=all_post_scores, lengths=lengths, overlap=fold_overlap, batch_ids=folded_batch_indices
             )
             all_post_preds = self._unfold_tensors(
-                folded_tensor=all_post_preds,
-                lengths=lengths,
-                overlap=fold_overlap,
-                batch_ids=folded_batch_indices
+                folded_tensor=all_post_preds, lengths=lengths, overlap=fold_overlap, batch_ids=folded_batch_indices
             )
 
             for batch_idx, ids in enumerate(unfolded_input_ids):
@@ -1070,7 +967,7 @@ class PunctCapSegModel(NLPModel):
                     preds=all_post_preds[batch_idx],
                     oov_lens=oov_lens,
                     threshold=punct_threshold,
-                    is_post=True
+                    is_post=True,
                 )
                 pre_tokens = self._get_char_punct_preds(
                     tokens=tokens,
@@ -1078,7 +975,7 @@ class PunctCapSegModel(NLPModel):
                     preds=all_pre_preds[batch_idx],
                     oov_lens=oov_lens,
                     threshold=punct_threshold,
-                    is_post=False
+                    is_post=False,
                 )
 
                 segmented_texts: List[str] = []
@@ -1116,15 +1013,15 @@ class PunctCapSegModel(NLPModel):
 
     @torch.inference_mode()
     def infer(
-            self,
-            texts: List[str],
-            punct_threshold: float = 0.5,
-            seg_threshold: float = 0.5,
-            truecase_threshold: float = 0.5,
-            batch_size: int = 32,
-            fold_overlap: int = 16,
-            max_length: Optional[int] = None,
-            two_pass: bool = True
+        self,
+        texts: List[str],
+        punct_threshold: float = 0.5,
+        seg_threshold: float = 0.5,
+        truecase_threshold: float = 0.5,
+        batch_size: int = 32,
+        fold_overlap: int = 16,
+        max_length: Optional[int] = None,
+        two_pass: bool = True,
     ) -> List[List[str]]:
         """
 
@@ -1145,11 +1042,7 @@ class PunctCapSegModel(NLPModel):
         in_mode = self.training
         self.eval()
         punctuated_texts: List[str] = self.infer_punctuation(
-            texts,
-            threshold=punct_threshold,
-            batch_size=batch_size,
-            fold_overlap=fold_overlap,
-            max_length=max_length
+            texts, threshold=punct_threshold, batch_size=batch_size, fold_overlap=fold_overlap, max_length=max_length
         )
         if not two_pass:
             segmented_texts: List[List[str]] = self.infer_segmentation(
@@ -1157,14 +1050,14 @@ class PunctCapSegModel(NLPModel):
                 threshold=seg_threshold,
                 batch_size=batch_size,
                 fold_overlap=fold_overlap,
-                max_length=max_length
+                max_length=max_length,
             )
             output_texts: List[List[str]] = self.infer_capitalization(
                 segmented_texts,
                 threshold=truecase_threshold,
                 batch_size=batch_size,
                 fold_overlap=fold_overlap,
-                max_length=max_length
+                max_length=max_length,
             )
         else:
             output_texts: List[List[str]] = self.infer_cap_seg(
@@ -1173,7 +1066,7 @@ class PunctCapSegModel(NLPModel):
                 seg_threshold=seg_threshold,
                 fold_overlap=fold_overlap,
                 batch_size=batch_size,
-                max_length=max_length
+                max_length=max_length,
             )
         self.train(in_mode)
         return output_texts

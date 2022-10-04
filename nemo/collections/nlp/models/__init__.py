@@ -34,9 +34,9 @@ from nemo.collections.nlp.models.text2sparql.text2sparql_model import Text2Sparq
 from nemo.collections.nlp.models.text_classification import TextClassificationModel
 from nemo.collections.nlp.models.text_normalization_as_tagging import ThutmoseTaggerModel
 from nemo.collections.nlp.models.token_classification import (
+    PunctCapSegModel,
     PunctuationCapitalizationLexicalAudioModel,
     PunctuationCapitalizationModel,
     TokenClassificationModel,
-    PunctCapSegModel
 )
 from nemo.collections.nlp.models.zero_shot_intent_recognition import ZeroShotIntentModel

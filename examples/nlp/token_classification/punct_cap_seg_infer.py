@@ -1,4 +1,3 @@
-
 import argparse
 from typing import List
 
@@ -43,7 +42,7 @@ def main() -> None:
         punct_threshold=args.punctuation_threshold,
         seg_threshold=args.segmentation_threshold,
         truecase_threshold=args.truecase_threshold,
-        max_length=args.max_length
+        max_length=args.max_length,
     )
     for i, text in enumerate(texts):
         print(f"Input {i}: {text}")
