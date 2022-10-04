@@ -275,6 +275,77 @@ class PromptLearningModelTextGenerationStrategy(TextGenerationStrategy):
             tokens[:, :context_length][(tokens[:, :context_length] >= pseudo_token_ids_start)] = tokenizer.unk_id
 
 
+class UniversalPromptLearningModelTextGenerationStrategy(TextGenerationStrategy):
+    def __init__(self, model, task_ids):
+        super().__init__(model)
+        self.forward_model = self.model
+
+    def init_batch(self, context_tokens: torch.Tensor, context_length: int):
+        """initialize the batch data before the inference steps."""
+        # Move to GPU.
+        tokenizer = self.model.tokenizer
+        tokens = context_tokens.contiguous().cuda()
+        # Get the attention mask and postition ids.
+        self.attention_mask, _, self.position_ids = get_ltor_masks_and_position_ids(
+            tokens,
+            tokenizer.eos_id,
+            self.model.cfg.get('reset_position_ids', False),
+            self.model.cfg.get('reset_attention_mask', False),
+            self.model.cfg.get('eod_mask_loss', False),
+        )
+
+    def clip_max_len(self, maxlen: int) -> int:
+        """ clip the max len based on the LM model max sequence length"""
+        if maxlen > self.model.frozen_model.cfg.encoder_seq_length + 1:
+            maxlen = self.model.frozen_model.cfg.encoder_seq_length + 1
+        return maxlen
+
+    def prepare_batch_at_step(
+        self, tokens: torch.Tensor, maxlen: int, micro_batch_size: int, step: int, context_length: int
+    ) -> Tuple[List[torch.Tensor], List[int]]:
+        # types2use = None
+        if step == 0:
+            # Allocate memory for the entire context.
+            set_inference_key_value_memory = True
+            tokens2use = tokens[:, :context_length]
+            positions2use = self.position_ids[:, :context_length]
+            # not using type2use. uncomment it if it is used
+            # if type_ids is not None:
+            #     types2use = type_ids[:, :context_length]
+        else:
+            # Set this to false so the memory is not reallocated.
+            set_inference_key_value_memory = False
+            tokens2use = tokens[:, context_length - 1].view(micro_batch_size, -1)
+            positions2use = self.position_ids[:, context_length - 1].view(micro_batch_size, -1)
+            # not using type2use. uncomment it if it is used
+            # if type_ids is not None:
+            #     types2use = type_ids[:, context_length - 1].view(batch_size, -1)
+
+        """Prepare batch for each of the inference steps"""
+        attention_mask_repeat = torch.concat([self.attention_mask for _ in range(micro_batch_size)])
+        setkey_value_array = torch.tensor(
+            [set_inference_key_value_memory] * micro_batch_size, device=torch.cuda.current_device()
+        )
+        len_array = torch.tensor([maxlen] * micro_batch_size, device=torch.cuda.current_device())
+
+        batch = [tokens2use, attention_mask_repeat, positions2use, self.task_ids, setkey_value_array, len_array]
+        tensor_shape = [tokens2use.shape[1], micro_batch_size, self.model.frozen_model.cfg.hidden_size]
+        return batch, tensor_shape
+
+    def post_process(self, tokens: torch.Tensor, new_tokens: torch.Tensor, context_length: int):
+        """
+        At the end of the inference, post process the inference results
+        """
+        # Replace special soft prompt token ids with unk token ids
+        if (
+            self.model.pseudo_token_ids_start is not None
+        ):  # TODO: (@adithyare) prompt learning logic can be greatly simplified by removing data preparation logic from model logic.
+            tokenizer = self.model.tokenizer
+            pseudo_token_ids_start = self.model.pseudo_token_ids_start
+            new_tokens[(new_tokens >= pseudo_token_ids_start)] = tokenizer.unk_id
+            tokens[:, :context_length][(tokens[:, :context_length] >= pseudo_token_ids_start)] = tokenizer.unk_id
+
+
 class RetroModelTextGenerationStrategy(TextGenerationStrategy):
     def __init__(self, model, **args):
         super().__init__(model)
@@ -367,14 +438,17 @@ def model_inference_strategy_dispatcher(model, **args):
         MegatronGPTPromptLearningModel,
     )
     from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+    from nemo.collections.nlp.models.language_modeling.megatron_gpt_universal_prompt_model import MegatronGPTUniversalPromptLearningModel
     from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
 
     if isinstance(model, MegatronGPTPromptLearningModel):
         return PromptLearningModelTextGenerationStrategy(model, **args)
-    if isinstance(model, MegatronGPTModel):
+    elif isinstance(model, MegatronGPTModel):
         return GPTModelTextGenerationStrategy(model)
     elif isinstance(model, MegatronRetrievalModel):
         return RetroModelTextGenerationStrategy(model, **args)
+    elif isinstance(model, MegatronGPTUniversalPromptLearningModel):
+        return UniversalPromptLearningModelTextGenerationStrategy(model, **args)
     else:
         raise ValueError(f'{model} is not supported for inference')
 
