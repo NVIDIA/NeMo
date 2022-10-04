@@ -72,7 +72,7 @@ model:
 
   adapter_tuning:
     type: 'parallel_adapter' # this should be either 'parallel_adapter' or 'linear_adapter'
-    adapter_dim: 50
+    adapter_dim: 16
     adapter_dropout: 0.1
     norm_position: 'pre' # This can be set to 'pre' or 'post', 'pre' is normally what is used.
     column_init_method: 'xavier' # IGNORED if linear_adapter is used, options: xavier, zero or normal
