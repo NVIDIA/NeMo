@@ -371,7 +371,9 @@ class MegatronT5InfusedAdapterModel(MegatronT5BaseAdapterModel):
                     else:
                         if layer_cfg.get('kv_channels', None):
                             cfg = InfusedAdapterConfig(
-                                in_features=layer_cfg.kv_channels * layer_cfg.num_attention_heads // layer_cfg.tensor_model_parallel_size
+                                in_features=layer_cfg.kv_channels
+                                * layer_cfg.num_attention_heads
+                                // layer_cfg.tensor_model_parallel_size
                             )
                         else:
                             cfg = InfusedAdapterConfig(
