@@ -767,11 +767,9 @@ class NeMoEvaluation(NeMoStage):
                 pred=pred_file_path,
                 ground_truth=ground_truth_file_path,
             )
-            if any([choice_model_type.startswith(type) for type in ["ia3", "adapter"]]):
-                # TODO: check for mT5 prediction results
-                args += create_args_list(
-                    split_string="answer:" if "gpt3" in choice_model_type else "answer :",
-                )
+            split_string = self.stage_cfg.get("split_string", None)
+            if split_string:
+                args += create_args_list(split_string=split_string)
             calculation_command = [f"python3 {code_path}", *args]
             calculation_command = " \\\n  ".join(calculation_command)
         elif choice_name == "squad":
