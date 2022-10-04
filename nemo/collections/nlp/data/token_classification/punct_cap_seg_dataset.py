@@ -147,7 +147,8 @@ class PunctCapSegDataset(Dataset):
         self._rng_seed = rng_seed
         self._max_token_len = 0
         self._multipass = multipass
-        self._tokenizer = tokenizer
+        # Call setter
+        self.tokenizer = tokenizer
 
     @property
     def tokenizer(self) -> TokenizerSpec:
@@ -914,7 +915,7 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
         self._max_line_per_input_file = max_lines_per_input_file
 
         self._rng_seed = rng_seed
-        self._rng = np.random.default_rng(seed=self._rng_seed)
+        self._rng = np.random.default_rng(seed=self._rng_seed) if rng_seed is not None else None
         self._unused_punctuation = unused_punctuation if unused_punctuation is not None else []
 
         if self._max_lines_per_eg < 2:
@@ -932,9 +933,6 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
 
         # TODO expose options for probability of lower- or upper-casing examples. Currently all lower-cased.
         self._cap_targets_gen: CapTargetsGenerator = CapTargetsGenerator()
-
-        if self._tokenizer is not None:
-            self._on_tokenizer_set()
 
     def create_tarred_dataset(self, output_dir: str):
         raise NotImplementedError(
@@ -1068,7 +1066,9 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
     def __getitem__(self, idx):
         # Important not to let every worker use the same RNG because we randomly concat indices, and that would result
         # in the 2nd+ sentences being the same in every worker.
-        rng = self._rng if self._rng is not None else np.random.default_rng()
+        # TODO belongs in worker_init_fn
+        if self._rng is None:
+            self.reseed_rng()
         # Each sequence starts with BOS and targets ignore first index
         bos = self._tokenizer.bos_id
         eos = self._tokenizer.eos_id
@@ -1076,9 +1076,9 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
         pad_list = [[pad] * self._max_token_len]
 
         # Randomly choose how many additional lines to use
-        num_lines_to_concat = rng.integers(self._min_lines_per_eg - 1, self._max_lines_per_eg)
+        num_lines_to_concat = self._rng.integers(self._min_lines_per_eg - 1, self._max_lines_per_eg)
         # Randomly select additional indices to use
-        indices_to_use = [idx] + list(rng.integers(0, len(self), num_lines_to_concat))
+        indices_to_use = [idx] + list(self._rng.integers(0, len(self), num_lines_to_concat))
         punctuated_texts: List[str] = [self._data[x] for x in indices_to_use]
 
         unpunctuated_texts = []
