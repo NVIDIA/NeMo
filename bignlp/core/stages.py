@@ -581,6 +581,7 @@ class PromptLearning(NeMoStage):
         }
         return model_type_to_code_path[model_type]
 
+
 class AdapterLearning(PromptLearning):
 
     def setup_stage_vars(self, cfg):
@@ -603,6 +604,7 @@ class AdapterLearning(PromptLearning):
         }
         return model_type_to_code_path[model_type]
 
+
 class IA3Learning(PromptLearning):
 
     def setup_stage_vars(self, cfg):
@@ -624,6 +626,8 @@ class IA3Learning(PromptLearning):
             "t5": self._nemo_code_path / "examples/nlp/language_modeling/tuning/megatron_t5_ia3_tuning.py",
         }
         return model_type_to_code_path[model_type]
+
+
 class Conversion(BigNLPStage):
     """Stage class of converting training checkpoints to .nemo format"""
 
