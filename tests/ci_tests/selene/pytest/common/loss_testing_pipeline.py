@@ -44,6 +44,7 @@ class LossTestingPipeline:
             else:
                 assert actual_loss_list[step] == expected_loss_list[i], f"{self.job_name} : The loss at step {step} should be {expected_loss_list[i]} but it is {actual_loss_list[step]}."
 
+    @pytest.mark.xfail
     def test_train_loss_deterministic(self):
         # Expected training loss curve at different global steps.
         self._test_loss_helper("reduced_train_loss", TypeOfTest.DETERMINISTIC)
@@ -52,6 +53,7 @@ class LossTestingPipeline:
         # Expected training loss curve at different global steps.
         self._test_loss_helper("reduced_train_loss", TypeOfTest.APPROX)
 
+    @pytest.mark.xfail
     def test_val_loss_deterministic(self):
         # Expected validation loss curve at different global steps.
         self._test_loss_helper("val_loss", TypeOfTest.DETERMINISTIC)
