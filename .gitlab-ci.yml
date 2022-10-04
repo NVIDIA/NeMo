@@ -39,7 +39,6 @@ test:unit_tests:
     paths:
       - coverage
     expire_in: 30 days
-
   rules:
     - when: always
 
