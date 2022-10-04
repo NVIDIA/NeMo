@@ -356,13 +356,11 @@ class MegatronBaseModel(NLPModel):
 
     def _extract_consumed_samples_from_ckpt(self, ckpt_path):
         try:
-            init_consumed_samples = int(
-                float(re.findall(r"consumed_samples\=([0-9]+.[0-9]+)", ckpt_path)[0])
-            )
+            init_consumed_samples = int(float(re.findall(r"consumed_samples\=([0-9]+.[0-9]+)", ckpt_path)[0]))
         except (ValueError, TypeError, IndexError):
             logging.warning("Cannot parse the checkpoint file to get the consumed samples. assume it is zero.")
             init_consumed_samples = 0
-        
+
         return init_consumed_samples
 
     def _validate_config(self):
