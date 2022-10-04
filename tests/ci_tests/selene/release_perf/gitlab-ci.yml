@@ -2,7 +2,7 @@
 
 variables: &VARS
   BIGNLP_CI_PATH: "/lustre/fsw/joc/big_nlp/bignlp_ci"
-  MEMORY_MEASURE_TEST: "False" # Set to true if you want to run memory test
+  MEMORY_MEASURE_TEST: "True" # Set to true if you want to run memory test
 
 stages:
   - build
