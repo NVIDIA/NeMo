@@ -156,7 +156,7 @@ class Normalizer:
 
         try:
             normalized_texts = Parallel(n_jobs=n_jobs)(
-                delayed(self.__process_batch)(texts[i : i + batch], verbose, punct_pre_process, punct_post_process)
+                delayed(self.process_batch)(texts[i : i + batch], verbose, punct_pre_process, punct_post_process)
                 for i in range(0, len(texts), batch)
             )
         except BaseException as e:
@@ -165,7 +165,7 @@ class Normalizer:
         normalized_texts = list(itertools.chain(*normalized_texts))
         return normalized_texts
 
-    def __process_batch(self, batch, verbose, punct_pre_process, punct_post_process):
+    def process_batch(self, batch, verbose, punct_pre_process, punct_post_process):
         """
         Normalizes batch of text sequences
         Args:
@@ -330,7 +330,7 @@ class Normalizer:
             upper_case_unicode = '\u0410-\u042F'
 
         # Read and split transcript by utterance (roughly, sentences)
-        split_pattern = f"(?<!\w\.\w.)(?<![A-Z{upper_case_unicode}][a-z{lower_case_unicode}]+\.)(?<![A-Z{upper_case_unicode}]\.)(?<=\.|\?|\!|\.”|\?”\!”)\s(?![0-9]+[a-z]*\.)"
+        split_pattern = rf"(?<!\w\.\w.)(?<![A-Z{upper_case_unicode}][a-z{lower_case_unicode}]+\.)(?<![A-Z{upper_case_unicode}]\.)(?<=\.|\?|\!|\.”|\?”\!”)\s(?![0-9]+[a-z]*\.)"
 
         sentences = regex.split(split_pattern, text)
         return sentences
