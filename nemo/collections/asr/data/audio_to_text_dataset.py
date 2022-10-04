@@ -23,6 +23,7 @@ from pytorch_lightning.callbacks import BasePredictionWriter
 from torch.utils.data import ChainDataset
 
 from nemo.collections.asr.data import audio_to_text, audio_to_text_dali
+from nemo.collections.common import ConcatDataset
 from nemo.utils import logging
 
 
@@ -102,6 +103,53 @@ def get_char_dataset(config: dict, augmentor: Optional['AudioAugmentor'] = None)
     return dataset
 
 
+def get_concat_bpe_dataset(
+    config: dict, 
+    tokenizer: 'TokenizerSpec', 
+    global_rank: int,
+    world_size: int,
+    augmentor: Optional['AudioAugmentor'] = None
+) -> ConcatDataset:
+    """
+    Instantiates a ContactDataset based on several Byte Pair Encoding / Word Piece Encoding based AudioToBPEDatasets.
+
+    Args:
+        config: Config of the AudioToBPEDataset.
+        tokenizer: An instance of a TokenizerSpec object.
+        global_rank: Global rank of this device.
+        world_size: Global world size in the training method.
+        augmentor: Optional AudioAugmentor object for augmentations on audio data.
+
+    Returns:
+        An instance of ConcatDataset containing several instances of AudioToBPEDataset.
+    """
+    manifest_filepaths = config['manifest_filepath']
+    datasets = []
+    for manifest_filepath in manifest_filepaths:
+        dataset = audio_to_text.AudioToBPEDataset(
+            manifest_filepath=manifest_filepath,
+            tokenizer=tokenizer,
+            sample_rate=config['sample_rate'],
+            int_values=config.get('int_values', False),
+            augmentor=augmentor,
+            max_duration=config.get('max_duration', None),
+            min_duration=config.get('min_duration', None),
+            max_utts=config.get('max_utts', 0),
+            trim=config.get('trim_silence', False),
+            use_start_end_token=config.get('use_start_end_token', True),
+            return_sample_id=config.get('return_sample_id', False),
+        )
+        datasets.append(dataset)
+
+    dataset = ConcatDataset(datasets, shuffle = True, 
+        sampling_technique = config['concat_sampling'],
+        sampling_probabilities = config['concat_probabilities'],
+        global_rank = global_rank,
+        world_size = world_size,
+        shuffle = config['shuffle']
+    )
+    return dataset
+
 def get_bpe_dataset(
     config: dict, tokenizer: 'TokenizerSpec', augmentor: Optional['AudioAugmentor'] = None
 ) -> audio_to_text.AudioToBPEDataset:
@@ -128,6 +176,56 @@ def get_bpe_dataset(
         trim=config.get('trim_silence', False),
         use_start_end_token=config.get('use_start_end_token', True),
         return_sample_id=config.get('return_sample_id', False),
+    )
+    return dataset
+
+
+def get_concat_tarred_dataset(
+    config: dict,
+    shuffle_n: int,
+    global_rank: int,
+    world_size: int,
+    tokenizer: Optional['TokenizerSpec'] = None,
+    augmentor: Optional['AudioAugmentor'] = None,
+) -> ConcatDataset:
+    """
+    Instantiates a ConcatDataset containing multiple Word Piece/BPE Encoding based TarredAudioToBPEDataset or a char based TarredAudioToCharDataset.
+
+    Args:
+        config: Config of the TarredAudioToBPEDataset or TarredAudioToCharDataset.
+        shuffle_n: How many samples to look ahead and load to be shuffled.
+            See WebDataset documentation for more details.
+        tokenizer: An instance of a TokenizerSpec object if BPE dataset is needed.
+        global_rank: Global rank of this device.
+        world_size: Global world size in the training method.
+            Passsing None would return a char-based dataset.
+        augmentor: Optional AudioAugmentor object for augmentations on audio data.
+
+    Returns:
+        An instance of ConcatDataset containing one or more TarredAudioToBPEDatasets or TarredAudioToCharDatasets.
+    """
+
+    manifest_filepaths = config['manifest_filepath']
+    datasets = []
+    for manifest_filepath in manifest_filepaths:
+        conf = copy.deepcopy(config)
+        conf['manifest_filepath'] = manifest_filepath
+        dataset = audio_to_text_dataset.get_tarred_dataset(
+            config=conf,
+            tokenizer=tokenizer,
+            shuffle_n=shuffle_n,
+            global_rank=global_rank,
+            world_size=world_size,
+            augmentor=augmentor,
+        )
+        datasets.append(dataset)
+
+    dataset = ConcatDataset(datasets, shuffle = True, 
+        sampling_technique = config['concat_sampling'],
+        sampling_probabilities = config['concat_probabilities'],
+        global_rank = global_rank,
+        world_size = world_size,
+        shuffle = config['shuffle']
     )
     return dataset
 
