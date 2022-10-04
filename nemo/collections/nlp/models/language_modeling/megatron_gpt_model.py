@@ -414,11 +414,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         return fwd_output_only_func
 
-    def on_fit_start(self) -> None:
-        # keep a copy of init_global_step
-        self.init_global_step = self.trainer.global_step
-        return super().on_fit_start()
-
     def validation_step(self, batch, batch_idx):
         """
             Our dataloaders produce a micro-batch and then we fetch
@@ -593,16 +588,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         """
         resume_checkpoint_path = self.trainer._checkpoint_connector.resume_from_checkpoint_fit_path
         if resume_checkpoint_path:
-            try:
-                init_consumed_samples = int(
-                    float(re.findall(r"consumed_samples\=([0-9]+.[0-9]+)", resume_checkpoint_path)[0])
-                )
-            except (ValueError, TypeError):
-                logging.warning("Cannot parse the checkpoint file to get the consumed samples. assume it is zero.")
-                init_consumed_samples = 0
+            init_consumed_samples = self._extract_consumed_samples(resume_checkpoint_path)
         else:
             init_consumed_samples = 0
         self.init_consumed_samples = init_consumed_samples
+        self.init_global_step = self.trainer.global_step
 
         if stage == 'predict':
             return
@@ -658,14 +648,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 self._optimizer.overlap_grad_sync = False
 
         return retval
-
-    def compute_consumed_samples(self, steps_since_resume=0):
-        app_state = AppState()
-        consumed_samples = (
-            self.init_consumed_samples
-            + steps_since_resume * app_state.data_parallel_size * self.cfg.micro_batch_size * get_num_microbatches()
-        )
-        return int(consumed_samples)
 
     def generate(
         self,
