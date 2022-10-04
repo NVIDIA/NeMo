@@ -15,7 +15,7 @@ from nemo.core.neural_types import NeuralType, LogitsType, LengthsType, TokenInd
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.common.tokenizers import AutoTokenizer
-from nemo.collections.common.data import ConcatDataset
+from nemo.collections.common.data import ConcatMapDataset
 from nemo.core import PretrainedModelInfo, typecheck
 from nemo.utils import logging
 from nemo.collections.common.metrics import GlobalAverageLossMetric
@@ -118,7 +118,7 @@ class PunctCapSegModel(NLPModel):
         # Set each dataset's tokenizer. Model's tokenizer doesn't exist until we initialize BertModule, but datasets are
         # instantiated prior to the LM.
         if self._train_dl is not None:
-            # Train DL has one ConcatDataset
+            # Train DL has one ConcatMapDataset
             for dataset in self._train_dl.dataset.datasets:
                 dataset.tokenizer = self.tokenizer
         if self._validation_dl is not None:
@@ -262,14 +262,12 @@ class PunctCapSegModel(NLPModel):
             if hasattr(self, "tokenizer"):
                 dataset.tokenizer = self.tokenizer
             datasets.append(dataset)
-        dataset: ConcatDataset = ConcatDataset(
+        # Currently only one type of dataset is implemented; ok to always use a map data set
+        dataset: ConcatMapDataset = ConcatMapDataset(
             datasets=datasets,
-            shuffle=cfg.get("shuffle", True),
             sampling_technique=cfg.get("sampling_technique", "temperature"),
             sampling_temperature=cfg.get("sampling_temperature", 5),
-            sampling_probabilities=cfg.get("sampling_probabilities", None),
-            global_rank=self._trainer.global_rank,
-            world_size=self._trainer.world_size
+            sampling_probabilities=cfg.get("sampling_probabilities", None)
         )
         dataloader = torch.utils.data.DataLoader(
             dataset=dataset,
