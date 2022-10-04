@@ -2071,7 +2071,6 @@ class ParallelTransformer(MegatronModule):
                         self_attention_relative_position_bias=self_attention_relative_position_bias,
                         cross_attention_relative_position_bias=cross_attention_relative_position_bias,
                     )
-                    # print(f'Layer {index + 1} checksum : {hidden_states.sum().item()}')
 
         output = hidden_states
         # Final layer norm.
