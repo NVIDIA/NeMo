@@ -563,7 +563,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
 
             # Call same generate code as in MegatronGPT
             return megatron_gpt_generate(
-                self.cuda(), processed_inputs, self.tokenizer, length_params, sampling_params, task_ids
+                self.cuda(), processed_inputs, self.tokenizer, length_params, sampling_params, task_ids=task_ids
             )
 
     @classmethod
