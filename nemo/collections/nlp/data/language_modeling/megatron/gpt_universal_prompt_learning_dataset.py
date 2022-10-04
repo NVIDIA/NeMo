@@ -86,6 +86,7 @@ class GPTUniversalPromptLearningDataset(Dataset):
             logging.info(f'load the data from the cache file {cache_data_path}')
             with open(cache_data_path, 'rb') as f:
                 self.examples = pickle.load(f)
+            torch.distributed.barrier()
         else:
             # Data is just a list of dicts already loaded from a json file or passed in directly as a dict
             if isinstance(data[0], dict):
