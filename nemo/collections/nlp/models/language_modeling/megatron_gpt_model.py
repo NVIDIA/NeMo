@@ -496,15 +496,15 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         """ Prepares the global batch for apex fwd/bwd functions.
             Global batch is a list of micro batches.
         """
-  
-        if (global_batch_size is not None and global_batch_size > tokens.shape[0]):
+
+        if global_batch_size is not None and global_batch_size > tokens.shape[0]:
             pad_length = global_batch_size - tokens.shape[0]
-            tokens = torch.cat((tokens, tokens[0:pad_length])) 
-            labels = torch.cat((labels, labels[0:pad_length]))  
-            attention_mask = torch.cat((attention_mask, attention_mask[0:pad_length])) 
+            tokens = torch.cat((tokens, tokens[0:pad_length]))
+            labels = torch.cat((labels, labels[0:pad_length]))
+            attention_mask = torch.cat((attention_mask, attention_mask[0:pad_length]))
             position_ids = torch.cat((position_ids, position_ids[0:pad_length]))
             loss_mask = torch.cat((loss_mask, torch.zeros(loss_mask[0:pad_length].shape)))
-        
+
         return [
             global_batch["tokens"],
             global_batch["labels"],
