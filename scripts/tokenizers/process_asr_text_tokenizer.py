@@ -129,10 +129,10 @@ parser.add_argument(
     'Must be a positive integer > 0. By default places no limit on subword length.',
 )
 parser.add_argument(
-    '--spe_no_split_by_unicode_script', 
-    dest='spe_split_by_unicode_script', 
-    action='store_false', 
-    help="Don't use Unicode script to split sentence pieces."
+    '--spe_no_split_by_unicode_script',
+    dest='spe_split_by_unicode_script',
+    action='store_false',
+    help="Don't use Unicode script to split sentence pieces.",
 )
 parser.add_argument('--no_lower_case', dest='lower_case', action='store_false')
 parser.add_argument("--log", action='store_true')

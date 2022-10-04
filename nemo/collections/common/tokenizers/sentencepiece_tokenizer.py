@@ -364,7 +364,7 @@ def create_spt_model(
 
     if not split_by_whitespace:
         cmd += " --split_by_whitespace=false"
-    
+
     if not split_by_unicode_script:
         cmd += " --split_by_unicode_script=false"
 
