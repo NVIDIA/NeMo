@@ -1,4 +1,4 @@
-name: Close inactive issues
+name: Stale-Close-Inactive-Issues-PRs
 on:
   schedule:
     - cron: "30 1 * * *"
@@ -12,11 +12,14 @@ jobs:
     steps:
       - uses: actions/stale@v6
         with:
+          operations-per-run: 100
           days-before-issue-stale: 60
           days-before-issue-close: 14
           stale-issue-label: "stale"
-          stale-issue-message: "This issue is stale because it has been open for 60 days with no activity."
+          stale-issue-message: "This issue is stale because it has been open for 60 days with no activity. Remove stale label or comment or this will be closed in 14 days."
           close-issue-message: "This issue was closed because it has been inactive for 14 days since being marked as stale."
           days-before-pr-stale: 60
-          days-before-pr-close: -1
+          days-before-pr-close: 30
+          stale-pr-message: "This PR is stale because it has been open for 60 days with no activity. Remove stale label or comment or update or this will be closed in 30 days."
+          close-pr-message: "This PR was closed because it has been inactive for 30 days since being marked as stale."
           repo-token: ${{ secrets.GITHUB_TOKEN }}
