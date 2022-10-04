@@ -27,7 +27,6 @@
 # limitations under the License.
 
 import argparse
-import os
 import sys
 
 import torch
@@ -57,6 +56,9 @@ def get_args(argv):
     parser.add_argument("--max-batch", type=int, default=None, help="Max batch size for model export")
     parser.add_argument("--max-dim", type=int, default=None, help="Max dimension(s) for model export")
     parser.add_argument("--onnx-opset", type=int, default=None, help="ONNX opset for model export")
+    parser.add_argument(
+        "--cache_support", action="store_true", help="enables caching inputs for the models support it."
+    )
     parser.add_argument("--device", default="cuda", help="Device to export for")
     args = parser.parse_args(argv)
     return args
@@ -82,12 +84,13 @@ def nemo_export(argv):
 
     # Create a PL trainer object which is required for restoring Megatron models
     cfg_trainer = TrainerConfig(
-        gpus=1,
-        accelerator="ddp",
+        accelerator='gpu',
+        strategy="ddp",
         num_nodes=1,
+        devices=1,
         # Need to set the following two to False as ExpManager will take care of them differently.
         logger=False,
-        checkpoint_callback=False,
+        enable_checkpointing=False,
     )
     trainer = Trainer(cfg_trainer)
 
@@ -124,6 +127,10 @@ def nemo_export(argv):
     if args.max_dim is not None:
         in_args["max_dim"] = args.max_dim
         max_dim = args.max_dim
+
+    if args.cache_support and hasattr(model, "encoder") and hasattr(model.encoder, "export_cache_support"):
+        model.encoder.export_cache_support = True
+        logging.info("Caching support is enabled.")
 
     autocast = nullcontext
     model.to(device=args.device).freeze()

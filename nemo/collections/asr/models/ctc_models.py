@@ -30,6 +30,7 @@ from nemo.collections.asr.metrics.wer import WER, CTCDecoding, CTCDecodingConfig
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
 from nemo.collections.asr.parts.mixins import ASRModuleMixin
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
+from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.mixins import AccessMixin
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, LogprobsType, NeuralType, SpectrogramType
@@ -114,6 +115,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         logprobs: bool = False,
         return_hypotheses: bool = False,
         num_workers: int = 0,
+        channel_selector: Optional[ChannelSelectorType] = None,
     ) -> List[str]:
         """
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
@@ -128,6 +130,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             return_hypotheses: (bool) Either return hypotheses or text
                 With hypotheses can do some postprocessing like getting timestamp or rescoring
             num_workers: (int) number of workers for DataLoader
+            channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`.
 
         Returns:
             A list of transcriptions (or raw log probabilities if logprobs is True) in the same order as paths2audio_files
@@ -176,6 +179,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
                     'batch_size': batch_size,
                     'temp_dir': tmpdir,
                     'num_workers': num_workers,
+                    'channel_selector': channel_selector,
                 }
 
                 temporary_datalayer = self._setup_transcribe_dataloader(config)
@@ -540,11 +544,16 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         if self.spec_augmentation is not None and self.training:
             processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
 
-        encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
+        encoder_output = self.encoder(audio_signal=processed_signal, length=processed_signal_length,)
+        encoded = encoder_output[0]
+        encoded_len = encoder_output[1]
         log_probs = self.decoder(encoder_output=encoded)
         greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
-
-        return log_probs, encoded_len, greedy_predictions
+        return (
+            log_probs,
+            encoded_len,
+            greedy_predictions,
+        )
 
     # PTL-specific methods
     def training_step(self, batch, batch_nb):
@@ -629,7 +638,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         wer, wer_num, wer_denom = self._wer.compute()
         self._wer.reset()
 
-        self.log_dict({'global_step': torch.tensor(self.trainer.global_step, dtype=torch.float32)})
+        self.log('global_step', torch.tensor(self.trainer.global_step, dtype=torch.float32))
 
         return {
             'val_loss': loss_value,

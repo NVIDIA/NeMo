@@ -186,7 +186,9 @@ class AbstractCTCDecoding(ABC):
             Either a list of str which represent the CTC decoded strings per sample,
             or a list of Hypothesis objects containing additional information.
         """
-        decoder_outputs = move_dimension_to_the_front(decoder_outputs, self.batch_dim_index)
+
+        if isinstance(decoder_outputs, torch.Tensor):
+            decoder_outputs = move_dimension_to_the_front(decoder_outputs, self.batch_dim_index)
 
         with torch.inference_mode():
             # Resolve the forward step of the decoding strategy
@@ -740,8 +742,8 @@ class WER(Metric):
             target_lengths: an integer torch.Tensor of shape ``[Batch]``
             predictions_lengths: an integer torch.Tensor of shape ``[Batch]``
         """
-        words = 0.0
-        scores = 0.0
+        words = 0
+        scores = 0
         references = []
         with torch.no_grad():
             # prediction_cpu_tensor = tensors[0].long().cpu()
