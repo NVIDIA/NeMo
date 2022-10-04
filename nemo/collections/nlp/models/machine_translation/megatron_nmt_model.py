@@ -197,9 +197,9 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             tensor_model_parallel_size=self._cfg.get('tensor_model_parallel_size', 1),
         )
 
-    def eval_step(self, batch, batch_idx, dataloader_idx, data_cfg):
+    def eval_step(self, batch, batch_idx, dataloader_idx):
         # Need to squeze dim 0 for tarred datasets since things are pre-batched and we ask the dataloader for batch size 1.
-        batch = [[x.squeeze(dim=0) if x.ndim == 3 else x for x in microbatch] for microbatch in batch]
+        batch = [x.squeeze(dim=0) if x.ndim == 3 else x for x in batch]
         batch = self.process_global_batch_for_tarred_datasets(batch)
 
         # Eval step requires tarred/text datasets so we need to reconfigure MBS on each batch.
@@ -276,7 +276,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
         """
-        return self.eval_step(batch, batch_idx, dataloader_idx, self._cfg.validation_ds)
+        return self.eval_step(batch, batch_idx, dataloader_idx)
 
     def _setup_eval_dataloader_from_config(self, cfg: DictConfig, dataset):
 
@@ -466,23 +466,20 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
 
     def process_global_batch_for_tarred_datasets(self, batch):
         """Override parent process_batch since TranslationDataset does not return dictionaries."""
-        global_batch = []
-        for microbatch in batch:
-            # Convert each microbatch into a dictionary.
-            src_ids, src_mask, tgt_ids, tgt_mask, labels = microbatch
-            batch = {
-                'text_enc': src_ids,
-                'text_dec': tgt_ids,
-                'labels': labels,
-                'enc_mask': src_mask.long(),  # super().process_batch() expects torch.int64
-                'dec_mask': tgt_mask.long(),  # super().process_batch() expects torch.int64
-                'loss_mask': tgt_mask.long(),  # super().process_batch() expects torch.int64
-            }
-            global_batch.append(batch)
+        # Convert each microbatch into a dictionary.
+        src_ids, src_mask, tgt_ids, tgt_mask, labels = batch
+        batch = {
+            'text_enc': src_ids,
+            'text_dec': tgt_ids,
+            'labels': labels,
+            'enc_mask': src_mask.long(),  # super().process_batch() expects torch.int64
+            'dec_mask': tgt_mask.long(),  # super().process_batch() expects torch.int64
+            'loss_mask': tgt_mask.long(),  # super().process_batch() expects torch.int64
+        }
 
         # Parent function will pad microbatches to the same length.
         return self._process_global_batch_without_megatron_batch_sampler(
-            global_batch, tokenizer=self.encoder_tokenizer
+            [batch], tokenizer=self.encoder_tokenizer
         )
 
     def build_train_valid_test_datasets(self):
