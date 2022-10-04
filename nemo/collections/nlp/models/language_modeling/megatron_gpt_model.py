@@ -427,7 +427,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
 
-        batch_for_pipeline = self.process_global_batch(batch)
+        batch_for_pipeline = self.process_global_batch(batch, self.cfg.global_batch_size)
         tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
 
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
@@ -492,10 +492,19 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()  # sequence level nll
         return loss
 
-    def process_global_batch(self, global_batch):
+    def process_global_batch(self, global_batch, global_batch_size=None):
         """ Prepares the global batch for apex fwd/bwd functions.
             Global batch is a list of micro batches.
         """
+  
+        if (global_batch_size is not None and global_batch_size > tokens.shape[0]):
+            pad_length = global_batch_size - tokens.shape[0]
+            tokens = torch.cat((tokens, tokens[0:pad_length])) 
+            labels = torch.cat((labels, labels[0:pad_length]))  
+            attention_mask = torch.cat((attention_mask, attention_mask[0:pad_length])) 
+            position_ids = torch.cat((position_ids, position_ids[0:pad_length]))
+            loss_mask = torch.cat((loss_mask, torch.zeros(loss_mask[0:pad_length].shape)))
+        
         return [
             global_batch["tokens"],
             global_batch["labels"],
