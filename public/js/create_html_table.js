@@ -123,7 +123,7 @@ CreateHTMLTable = {
                   var colorTrainTime = tflopsRatio < 1 ? "red" : "green";
                 }
                 var memoryUsedMetrics = trainMetrics["peak_memory_metrics"]
-                if (Object.keys(memoryUsedMetrics).length >= 1){
+                if ((latestKey && memoryUsedMetrics[latestKey]) || (latestKey == null && Object.keys(memoryUsedMetrics).length >= 1)){
                   if (latestKey == null){
                     latestKey = getLatestExistingImage(memoryUsedMetrics)
                     var latestTimestamp = memoryUsedMetrics[latestKey][0];
