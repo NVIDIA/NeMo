@@ -93,24 +93,6 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         self.new_tasks = list(self.cfg.get('new_tasks', []))
         self.virtual_prompt_style = VirtualPromptStyle(cfg.virtual_prompt_style)
 
-        # Load templates for assigning virtual prompt token positions
-        self.load_task_templates(self.cfg.task_templates)
-
-        if self.virtual_prompt_style in [
-            VirtualPromptStyle.P_TUNING,
-            VirtualPromptStyle.PROMPT_TUNING,
-            VirtualPromptStyle.INFERENCE,
-        ]:
-            # Prompt table stores all task embeddings, p-tuning virtual prompts get added to the table after training
-            self.prompt_table = PromptTable(
-                existing_tasks=self.existing_tasks,
-                task_templates=self.task_templates,
-                task_id_num_to_name=self.task_id_num_to_name,
-                hidden_size=self.hidden_size,
-            )
-        self._prompt_table_key = VirtualPromptSource.PROMPT_TABLE.value
-        self._prompt_encoder_key = VirtualPromptSource.PROMPT_ENCODER.value
-
         # Prompt tuning stores virtual prompts in the prompt table and tunes their weight directly
         if self.virtual_prompt_style in [VirtualPromptStyle.PROMPT_TUNING, VirtualPromptStyle.INFERENCE]:
             self.virtual_prompt_source = VirtualPromptSource.PROMPT_TABLE
