@@ -13,6 +13,8 @@ class TestConfig:
           - conversion: gpt3/convert_gpt3
           - fine_tuning: null
           - prompt_learning: null
+          - adapter_learning: null
+          - ia3_learning: null
           - evaluation: gpt3/evaluate_all
           - export: gpt3/export_gpt3
           - override hydra/job_logging: stdout
