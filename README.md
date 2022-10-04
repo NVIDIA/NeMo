@@ -3218,7 +3218,7 @@ from the command line, using hydra. The evaluation script must be launched in a 
 To run the evaluation pipeline to evaluate a prompt learned 5B GPT-3 model checkpoint stored in 
 `/mount/results/gpt3_5b/checkpoints`, run:
 ```
-python3 /opt/bignlp/bignlp-scripts/main.py stages=[evaluation] \
+python3 /opt/bignlp/bignlp-scripts/main.py stages=[evaluation] evaluation=prompt_gpt3/squad \
  cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
 base_results_dir=/mount/results evaluation.run.results_dir=/mount/results/gpt3_5b/eval_prompt_squad \
 evaluation.model.nemo_model=/mount/results/gpt3_5b/prompt_learning_squad/results/megatron_gpt_prompt.nemo \
@@ -3321,7 +3321,7 @@ from the command line, using hydra. The evaluation script must be launched in a 
 To run the evaluation pipeline to evaluate a prompt learned 220M T5 model checkpoint stored in 
 `/mount/results/t5_220m/prompt_learning_squad`, run:
 ```
-python3 /opt/bignlp/bignlp-scripts/main.py stages=[evaluation] \
+python3 /opt/bignlp/bignlp-scripts/main.py stages=[evaluation] evaluation=prompt_t5/squad \
  cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
 base_results_dir=/mount/results evaluation.run.results_dir=/mount/results/t5_220m/eval_prompt_squad \
 evaluation.model.virtual_prompt_model_file=/mount/results/t5_220m/prompt_learning_squad/results/megatron_t5_prompt.nemo \
@@ -3334,7 +3334,7 @@ Any other parameter can also be added to the command to modify its behavior.
 To run the evaluation pipeline to evaluate a prompt learned 390M mT5 model checkpoint stored in 
 `/mount/results/mt5_390m/prompt_learning_squad`, run:
 ```
-python3 /opt/bignlp/bignlp-scripts/main.py stages=[evaluation] \
+python3 /opt/bignlp/bignlp-scripts/main.py stages=[evaluation] evaluation=prompt_mt5/squad \
  cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
 base_results_dir=/mount/results evaluation.run.results_dir=/mount/results/mt5_390m/eval_prompt_squad \
 evaluation.model.virtual_prompt_model_file=/mount/results/mt5_390m/prompt_learning_squad/results/megatron_mt5_prompt.nemo \
