@@ -581,7 +581,7 @@ class DialogueGPTClassificationModel(NLPModel):
                 self.tokenizer,
                 length_param,
                 get_default_sampling_params(),
-                prompt_ids,
+                task_ids=prompt_ids,
             )
             generated_tokens = torch.LongTensor(generated_dict['token_ids'])
 
