@@ -108,8 +108,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
             if not self.with_distributed_adam:
                 # Pre-allocate the model on GPU to have master parameters allocated on the same device with matching data type
-                for module in self.model:
-                    module.cuda(torch.cuda.current_device())
+                if isinstance(self.model, list):
+                    for module in self.model:
+                        module.cuda(torch.cuda.current_device())
+                else:
+                    self.model.cuda(torch.cuda.current_device())
 
             # Model wrapper to convert both model and inputs to half precision
             if isinstance(self.model, list):
