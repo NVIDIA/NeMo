@@ -49,6 +49,7 @@ def main(cfg) -> None:
     if cfg.get("gpt_model_file"):
         with open_dict(prompt_learning_cfg):
             prompt_learning_cfg.language_model_path = cfg.gpt_model_file
+            prompt_learning_cfg.sequence_parallel = False
 
     # Load prompt tuned model, virtual_prompt_model_file must be provided in config
     # Now load prompt learning model with frozen gpt model base

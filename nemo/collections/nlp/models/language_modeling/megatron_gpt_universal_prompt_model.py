@@ -228,14 +228,24 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBasePromptLearningModel):
         """
         # Get embeddings for text tokens and insert virtual token embeddings
         if self.frozen_model.model.pre_process:
-            if inference:
-                input_embeds = self.embed_input_inference(input_ids, prompt_input_mask)
+            if inference and set_inference_key_value_memory:
+                all_input_ids = input_ids[0]
+                input_ids = input_ids[1]
+                virtual_token_emb, _ = self.embed_input_train(all_input_ids, prompt_input_mask)
+                input_embeds = self.word_embeddings(input_ids).clone()
+            elif inference and not set_inference_key_value_memory:
+                all_input_ids = input_ids[0]
+                input_ids = input_ids[1]
+                discrete_token_ids = input_ids.clone()
+                input_embeds = self.word_embeddings(discrete_token_ids).clone()
+                virtual_token_emb = None
             else:
                 virtual_token_emb, input_embeds = self.embed_input_train(input_ids, prompt_input_mask)
 
             position_embeddings = self.frozen_model.model.language_model.embedding.position_embeddings(position_ids)
             encoder_input = input_embeds + position_embeddings
-            encoder_input = torch.concat([virtual_token_emb, encoder_input], axis=1)
+            if virtual_token_emb is not None:
+                encoder_input = torch.concat([virtual_token_emb, encoder_input], axis=1)
             encoder_input = encoder_input.transpose(0, 1).contiguous()
             if self.cfg.get("sequence_parallel", False):
                 encoder_input = tensor_parallel.mappings.scatter_to_sequence_parallel_region(encoder_input)
@@ -539,22 +549,24 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBasePromptLearningModel):
         def fwd_output_only_func(batch, model):
             extra_arg = {}
             (
+                all_tokens,
                 tokens,
-                attention_mask,
                 position_ids,
-                task_ids,
+                attention_mask,
+                prompt_input_mask,
                 set_inference_key_value_memory,
                 inference_max_sequence_len,
             ) = batch
 
+            all_tokens = all_tokens.cuda()
             tokens = tokens.cuda()
-            attention_mask = attention_mask.cuda()
             position_ids = position_ids.cuda()
-            task_ids = task_ids.cuda()
+            attention_mask = attention_mask.cuda()
+            prompt_input_mask = prompt_input_mask.cuda()
             extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
             extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
 
-            output_tensor = model(tokens, position_ids, attention_mask, task_ids, **extra_arg)
+            output_tensor = model((all_tokens, tokens), position_ids, attention_mask, prompt_input_mask, **extra_arg)
 
             def id_func(output_tensor):
                 return output_tensor, {'logits': output_tensor}
@@ -584,12 +596,12 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBasePromptLearningModel):
                 "compute_logprob": inference_config["compute_logprob"],
             }
 
-            task_ids, processed_inputs = batch
+            input_tokens, length_tensor = batch
             self.frozen_model.model.parallel_output = False
 
             # Call same generate code as in MegatronGPT
             return megatron_gpt_generate(
-                self.cuda(), processed_inputs, self.tokenizer, length_params, sampling_params, task_ids
+                self.cuda(), (input_tokens, length_tensor), self.tokenizer, length_params, sampling_params
             )
 
     @classmethod
