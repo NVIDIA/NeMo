@@ -386,11 +386,20 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
 
         is_concat = config.get('is_concat', False)
         if is_concat:
-            if ('concat_sampling' in config and config['concat_sampling'] is None) or (
-                'concat_probabilities' in config and config['concat_probabilities'] is None
-            ):
+            if 'concat_sampling' in config and config['concat_sampling'] is None:
                 logging.warning(
-                    f"Concat dataset requires `contact_probabilities` and `contact_sampling` but one of them was not provided. Config: {config}"
+                    f"Concat dataset requires `contact_sampling` but it was not provided. Config: {config}"
+                )
+                return None
+
+            if 'concat_probabilities' in config and config['concat_probabilities'] is None:
+                logging.warning(
+                    f"Concat dataset requires `contact_probabilities` but was not provided. Config: {config}"
+                )
+                return None
+            if sum(config['concat_probabilities']) != 1:
+                logging.warning(
+                    f"`contact_probabilities` need to sum to 1. Config: {config}"
                 )
                 return None
 
