@@ -33,7 +33,7 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning.callbacks import Callback, ModelCheckpoint
 from pytorch_lightning.callbacks.timer import Interval, Timer
 from pytorch_lightning.loggers import LoggerCollection as _LoggerCollection
-from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger, MLFlowLogger
+from pytorch_lightning.loggers import MLFlowLogger, TensorBoardLogger, WandbLogger
 from pytorch_lightning.loops import TrainingEpochLoop
 from pytorch_lightning.strategies.ddp import DDPStrategy
 from pytorch_lightning.utilities import rank_zero_info
@@ -307,9 +307,10 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     # Set mlflow name if it's not set, before the main name is erased
     if cfg.create_mlflow_logger and (not cfg.mlflow_logger_kwargs.get("experiment_name", None)):
         cfg.mlflow_logger_kwargs.experiment_name = cfg.name
-        logging.warning('mlflow logger specified but no experiment name set. '
-                        'Using the same as Tensorboard: %s', 
-                        cfg.mlflow_logger_kwargs.experiment_name)
+        logging.warning(
+            'mlflow logger specified but no experiment name set. ' 'Using the same as Tensorboard: %s',
+            cfg.mlflow_logger_kwargs.experiment_name,
+        )
 
     cfg.name = name  # Used for configure_loggers so that the log_dir is properly set even if name is ""
     cfg.version = version
@@ -364,7 +365,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             cfg.create_wandb_logger,
             cfg.wandb_logger_kwargs,
             cfg.create_mlflow_logger,
-            cfg.mlflow_logger_kwargs
+            cfg.mlflow_logger_kwargs,
         )
 
     # add loggers timing callbacks
@@ -428,7 +429,9 @@ def error_checks(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictC
             "Hydra changed the working directory. This interferes with ExpManger's functionality. Please pass "
             "hydra.run.dir=. to your python script."
         )
-    if trainer.logger is not None and (cfg.create_tensorboard_logger or cfg.create_wandb_logger or cfg.create_mlflow_logger):
+    if trainer.logger is not None and (
+        cfg.create_tensorboard_logger or cfg.create_wandb_logger or cfg.create_mlflow_logger
+    ):
         raise LoggerMisconfigurationError(
             "The pytorch lightning trainer that was passed to exp_manager contained a logger, and either "
             f"create_tensorboard_logger: {cfg.create_tensorboard_logger} or create_wandb_logger: "
