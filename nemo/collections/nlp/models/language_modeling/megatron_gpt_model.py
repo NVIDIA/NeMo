@@ -185,10 +185,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 self._optimizer_param_groups = get_all_params_for_weight_decay_optimization([self.model])
 
         else:
-            if isinstance(self.model, list):
-                self._optimizer_param_groups = get_params_for_weight_decay_optimization(self.model)
-            else:
-                self._optimizer_param_groups = get_params_for_weight_decay_optimization([self.model])
+            self._optimizer_param_groups = get_params_for_weight_decay_optimization(self.model)
 
     def setup_optimization(
         self, optim_config: Optional[Union[DictConfig, Dict]] = None, optim_kwargs: Optional[Dict[str, Any]] = None,
