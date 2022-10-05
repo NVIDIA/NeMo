@@ -1,13 +1,13 @@
+import argparse
 import csv
 import logging
-from typing import List, Tuple, Dict
-import argparse
+from typing import Dict, List, Tuple
 
 import uvicorn
 from fastapi import FastAPI
+from model_utils import load_model
 from pydantic import BaseModel
 
-from model_utils import load_model
 from nemo.collections.nlp.models.dialogue.dialogue_zero_shot_slot_filling_model import DialogueZeroShotSlotFillingModel
 
 logging.basicConfig(level=logging.INFO)
@@ -30,12 +30,15 @@ app = FastAPI()
 
 @app.post("/label/")
 def predict(query: Query):
-    types_descriptions = [_type + '\t' + _description
-                          for _type, _description in zip(query.entity_types, query.entity_descriptions)]
+    types_descriptions = [
+        _type + '\t' + _description for _type, _description in zip(query.entity_types, query.entity_descriptions)
+    ]
 
     slot_class, iob_slot_class = model.predict(query.text, types_descriptions)
     slot_class, iob_slot_class = slot_class[0][1:-1], iob_slot_class[0][1:-1]
-    utterance_tokens, slot_class, iob_slot_class = model.merge_subword_tokens_and_slots(query.text, slot_class, iob_slot_class)
+    utterance_tokens, slot_class, iob_slot_class = model.merge_subword_tokens_and_slots(
+        query.text, slot_class, iob_slot_class
+    )
     entities_dict = model.get_entities_start_and_end_dict(slot_class, utterance_tokens)
     print(entities_dict)
 
