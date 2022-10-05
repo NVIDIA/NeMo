@@ -233,6 +233,77 @@ class GermanCharsTokenizer(BaseCharsTokenizer):
         )
 
 
+class GermanPhonemesTokenizer(BaseCharsTokenizer):
+    # fmt: off
+    PUNCT_LIST = (  # Derived from LJSpeech and "/" additionally
+        ',', '.', '!', '?', '-',
+        ':', ';', '/', '"', '(',
+        ')', '[', ']', '{', '}',
+    )
+    # fmt: on
+
+    def __init__(
+        self,
+        punct=True,
+        apostrophe=True,
+        add_blank_at=None,
+        pad_with_space=False,
+        non_default_punct_list=None,
+        text_preprocessing_func=german_text_preprocessing,
+    ):
+        """Deutsch phoneme-based tokenizer.
+        Args:
+            punct: Whether to reserve grapheme for basic punctuation or not.
+            apostrophe: Whether to use apostrophe or not.
+            add_blank_at: Add blank to labels in the specified order ("last") or after tokens (any non None),
+             if None then no blank in labels.
+            pad_with_space: Whether to pad text with spaces at the beginning and at the end or not.
+            non_default_punct_list: List of punctuation marks which will be used instead default.
+            text_preprocessing_func: Text preprocessing function for correct execution of the tokenizer.
+             Currently, it only applies lower() function.
+        """
+
+        de_ipa = "abdefhijklmnoprstuvwxyzçðøŋœɐɑɒɔəɛɜɡɪɹɾʃʊʌʒː̃"
+        de_suprasegmentals = "12"
+        super().__init__(
+            chars=de_ipa + de_suprasegmentals,
+            punct=punct,
+            apostrophe=apostrophe,
+            add_blank_at=add_blank_at,
+            pad_with_space=pad_with_space,
+            non_default_punct_list=non_default_punct_list,
+            text_preprocessing_func=text_preprocessing_func,
+        )
+
+    def encode(self, text):
+        """See base class."""
+        cs, space, tokens = [], self.tokens[self.space], set(self.tokens)
+
+        text = self.text_preprocessing_func(text)
+        for c in text:
+            # Add space if last one isn't one
+            if c == space and len(cs) > 0 and cs[-1] != space:
+                cs.append(c)
+            # Add next char
+            elif (c.isalnum() or c == "'" or c == "\u0303") and c in tokens:
+                cs.append(c)
+            # Add punct
+            elif (c in self.PUNCT_LIST) and self.punct:
+                cs.append(c)
+            # Warn about unknown char
+            elif c != space:
+                logging.warning(f"Text: [{text}] contains unknown char: [{c}]. Symbol will be skipped.")
+
+        # Remove trailing spaces
+        while cs[-1] == space:
+            cs.pop()
+
+        if self.pad_with_space:
+            cs = [space] + cs + [space]
+
+        return [self._token2id[p] for p in cs]
+
+
 class EnglishPhonemesTokenizer(BaseTokenizer):
     # fmt: off
     PUNCT_LIST = (  # Derived from LJSpeech and "/" additionally
@@ -333,12 +404,23 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
         self.g2p = g2p
 
     def encode(self, text):
-        """See base class."""
-        ps, space, tokens = [], self.tokens[self.space], set(self.tokens)
+        """See base class for more information."""
 
         text = self.text_preprocessing_func(text)
         g2p_text = self.g2p(text)  # TODO: handle infer
+        return self.encode_from_g2p(g2p_text, text)
 
+    def encode_from_g2p(self, g2p_text: List[str], raw_text: Optional[str] = None):
+        """
+        Encodes text that has already been run through G2P.
+        Called for encoding to tokens after text preprocessing and G2P.
+
+        Args:
+            g2p_text: G2P's output, could be a mixture of phonemes and graphemes,
+                e.g. "see OOV" -> ['S', 'IY1', ' ', 'O', 'O', 'V']
+            raw_text: original raw input
+        """
+        ps, space, tokens = [], self.tokens[self.space], set(self.tokens)
         for p in g2p_text:  # noqa
             # Remove stress
             if p.isalnum() and len(p) == 3 and not self.stresses:
@@ -355,9 +437,10 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
                 ps.append(p)
             # Warn about unknown char/phoneme
             elif p != space:
-                logging.warning(
-                    f"Text: [{''.join(g2p_text)}] contains unknown char/phoneme: [{p}]. Original text: [{text}]. Symbol will be skipped."
-                )
+                message = f"Text: [{''.join(g2p_text)}] contains unknown char/phoneme: [{p}]."
+                if raw_text is not None:
+                    message += f"Original text: [{raw_text}]. Symbol will be skipped."
+                logging.warning(message)
 
         # Remove trailing spaces
         if ps:
