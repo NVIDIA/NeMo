@@ -31,15 +31,17 @@ from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_data
 from nemo.collections.nlp.data.language_modeling.megatron.retro_dataset import RETRODataset
 
 try:
-    from apex.transformer import parallel_state
+    from megatron.core import parallel_state
 
-    HAVE_APEX = True
+    HAVE_MEGATRON_CORE = True
+
 except (ImportError, ModuleNotFoundError):
-    HAVE_APEX = False
+
+    HAVE_MEGATRON_CORE = False
 
 
 @pytest.mark.run_only_on('GPU')
-@pytest.mark.skipif(not HAVE_APEX, reason="apex is not installed")
+@pytest.mark.skipif(not HAVE_MEGATRON_CORE, reason="megatron-core is not installed")
 class TestRetrievalIndexFiles:
     @pytest.mark.unit
     def test_index(self):
@@ -259,7 +261,7 @@ class TestRetrievalIndexFiles:
             os.remove(merged_file)
 
     @pytest.mark.unit
-    @pytest.mark.skipif(not HAVE_APEX, reason="apex is not installed")
+    @pytest.mark.skipif(not HAVE_MEGATRON_CORE, reason="megatron-core is not installed")
     def test_retro_dataset(self):
 
         init_method = 'tcp://'
@@ -419,7 +421,7 @@ class TestRetrievalIndexFiles:
             os.remove(shuffle_idx_filename)
 
     @pytest.mark.unit
-    @pytest.mark.skipif(not HAVE_APEX, reason="apex is not installed")
+    @pytest.mark.skipif(not HAVE_MEGATRON_CORE, reason="megatron-core is not installed")
     def test_dedup(self):
         total = 1000
         id_start = np.array([0, 100, 200, 300, 500, 900])

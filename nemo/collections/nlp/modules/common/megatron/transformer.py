@@ -39,11 +39,9 @@ from nemo.core import adapter_mixins
 from nemo.utils import logging
 
 try:
-    from apex.transformer import parallel_state, tensor_parallel
     from apex.transformer.enums import AttnMaskType, AttnType, ModelType
     from apex.transformer.functional.fused_softmax import FusedScaleMaskSoftmax
     from apex.transformer.utils import divide as safe_divide
-    from apex.transformer.parallel_state import get_tensor_model_parallel_world_size
     from apex.normalization import MixedFusedRMSNorm
 
     HAVE_APEX = True
@@ -55,6 +53,15 @@ except (ImportError, ModuleNotFoundError):
     # fake missing classes with None attributes
     ModelType = AttnMaskType = AttnType = LayerType = ApexGuardDefaults()
 
+try:
+    from megatron.core import tensor_parallel, parallel_state
+    from megatron.core.parallel_state import get_tensor_model_parallel_world_size
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
 
 """ We use the following notation throughout this file:
      h: hidden size

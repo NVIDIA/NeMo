@@ -26,14 +26,25 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 )
 
 try:
-    from apex.transformer import tensor_parallel, parallel_state
     from apex.transformer.enums import AttnMaskType
 
     HAVE_APEX = True
+
 except (ImportError, ModuleNotFoundError):
-    HAVE_APEX = False
+
     # fake missing classes with None attributes
     AttnMaskType = ApexGuardDefaults()
+
+    HAVE_APEX = False
+
+try:
+    from megatron.core import tensor_parallel, parallel_state
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
 
 
 def post_language_model_processing(

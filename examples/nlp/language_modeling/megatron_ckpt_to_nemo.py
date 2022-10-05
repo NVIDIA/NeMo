@@ -28,7 +28,7 @@ import os
 from argparse import ArgumentParser
 
 import torch
-from apex.transformer import parallel_state
+from megatron.core import parallel_state
 from pytorch_lightning.plugins.environments.torchelastic_environment import TorchElasticEnvironment
 from pytorch_lightning.trainer.trainer import Trainer
 

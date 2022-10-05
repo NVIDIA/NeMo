@@ -42,7 +42,7 @@ from collections import OrderedDict
 from typing import Any, Optional
 
 import torch
-from apex.transformer import parallel_state
+from megatron.core import parallel_state
 from pytorch_lightning.core.saving import load_hparams_from_tags_csv, load_hparams_from_yaml
 from pytorch_lightning.trainer.trainer import Trainer
 from pytorch_lightning.utilities.cloud_io import load as pl_load

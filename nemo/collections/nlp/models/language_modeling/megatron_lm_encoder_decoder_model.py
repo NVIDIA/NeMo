@@ -41,9 +41,7 @@ from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
 
 try:
-    from apex.transformer import parallel_state, tensor_parallel
     from apex.transformer.enums import ModelType
-    from apex.transformer import parallel_state, tensor_parallel
     from apex.transformer.pipeline_parallel.schedules.common import build_model
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
@@ -56,10 +54,20 @@ try:
     )
 
     HAVE_APEX = True
+
 except (ImportError, ModuleNotFoundError):
     ModelType = ApexGuardDefaults()
+
     HAVE_APEX = False
 
+try:
+    from megatron.core import parallel_state, tensor_parallel
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
 
 __all__ = ["MegatronLMEncoderDecoderModel"]
 

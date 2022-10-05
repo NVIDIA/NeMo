@@ -14,7 +14,7 @@
 
 
 import torch
-from apex.transformer import parallel_state
+from megatron.core import parallel_state
 from omegaconf import OmegaConf
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer

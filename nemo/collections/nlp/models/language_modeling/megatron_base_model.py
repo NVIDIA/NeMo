@@ -35,11 +35,13 @@ from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
 from nemo.utils import logging
 
 try:
-    from apex.transformer import parallel_state
+    from megatron.core import parallel_state
 
-    HAVE_APEX = True
+    HAVE_MEGATRON_CORE = True
+
 except (ImportError, ModuleNotFoundError):
-    HAVE_APEX = False
+
+    HAVE_MEGATRON_CORE = False
 
 __all__ = ["MegatronBaseModel"]
 
@@ -57,13 +59,15 @@ class MegatronBaseModel(NLPModel):
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer, no_lm_init=True):
-        # FIXME: switch to self._cfg
-        if not HAVE_APEX:
+
+        if not HAVE_MEGATRON_CORE:
             raise ImportError(
-                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+                "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
+
         if trainer is None:
             raise ValueError(f"Trainer cannot be None for Megatron-based models. Please provide a PTL trainer object.")
+
         # this prevents base constructor from initializing tokenizer
         self.tokenizer = None
 

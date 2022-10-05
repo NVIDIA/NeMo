@@ -34,15 +34,26 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 from nemo.collections.nlp.modules.common.megatron.vocab_parallel_cross_entropy import vocab_parallel_cross_entropy
 
 try:
-    from apex.transformer import tensor_parallel, parallel_state
     from apex.transformer.enums import AttnMaskType, ModelType
 
     HAVE_APEX = True
+
 except (ImportError, ModuleNotFoundError):
-    HAVE_APEX = False
+
     # fake missing classes with None attributes
     AttnMaskType = ApexGuardDefaults()
     ModelType = ApexGuardDefaults()
+
+    HAVE_APEX = False
+
+try:
+    from megatron.core import tensor_parallel, parallel_state
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
 
 __all__ = ["MegatronTokenLevelHead", "MegatronTokenLevelEncoderDecoderModule"]
 

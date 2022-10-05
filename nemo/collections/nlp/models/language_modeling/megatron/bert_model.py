@@ -37,9 +37,20 @@ try:
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
+
     HAVE_APEX = False
+
     # fake missing classes with None attributes
     AttnMaskType = ApexGuardDefaults()
+
+try:
+    from megatron.core import parallel_state, tensor_parallel
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_MEGATRON_CORE = False
 
 
 def bert_extended_attention_mask(attention_mask):

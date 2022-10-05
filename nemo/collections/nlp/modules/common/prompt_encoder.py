@@ -24,16 +24,17 @@ from nemo.core.classes import Exportable, NeuralModule
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import ChannelType, NeuralType
 
-try:
-    from apex.transformer import tensor_parallel, parallel_state
+# fake missing classes with None attributes
+ModelType = AttnMaskType = AttnType = LayerType = ApexGuardDefaults()
 
-    HAVE_APEX = True
+try:
+    from megatron.core import tensor_parallel, parallel_state
+
+    HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
-    HAVE_APEX = False
 
-    # fake missing classes with None attributes
-    ModelType = AttnMaskType = AttnType = LayerType = ApexGuardDefaults()
+    HAVE_MEGATRON_CORE = False
 
 
 __all__ = ["PromptEncoder", "BIGLSTMPromptEncoder", "PromptEncoderType", "PromptEncoderMLP"]
