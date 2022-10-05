@@ -461,6 +461,8 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBasePromptLearningModel):
     def validation_epoch_end(self, outputs):
         if parallel_state.is_pipeline_last_stage():
             # only the last pipeline parallel stages return loss
+            if len(outputs) == 0:
+                return
             averaged_loss = torch.stack(outputs).mean()
         else:
             averaged_loss = torch.tensor(0.0).cuda()
