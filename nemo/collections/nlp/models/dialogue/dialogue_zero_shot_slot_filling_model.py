@@ -584,7 +584,7 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         for i in range(len(position_stack)):
             if slot_id_stack[i] != self.label_id_for_empty_slot:
                 position = position_stack[i][0], position_stack[i][-1] + 1
-                slot_id_to_start_and_exclusive_end[slot_id_stack[i]].append(position)
+                slot_id_to_start_and_exclusive_end[slot_id_stack[i].item()].append(position)
                 slot_to_words[slot_id_stack[i]].append(utterance_tokens[position[0]: position[1]])
 
         return slot_id_to_start_and_exclusive_end
