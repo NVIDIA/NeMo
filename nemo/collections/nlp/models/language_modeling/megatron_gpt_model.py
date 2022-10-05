@@ -429,7 +429,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         batch_for_pipeline = self.process_global_batch(batch, self.cfg.global_batch_size)
         tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
-        
+
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
             losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
                 forward_step_func=self.get_forward_output_and_loss_func(),
