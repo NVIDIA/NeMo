@@ -70,6 +70,59 @@ def inject_dataloader_value_from_model_config(model_cfg: dict, dataloader_cfg: D
             dataloader_cfg[key] = model_cfg[key]
 
 
+def get_concat_char_dataset(
+    config: dict, 
+    global_rank: int,
+    world_size: int,
+    augmentor: Optional['AudioAugmentor'] = None) -> ConcatDataset:
+    """
+    Instantiates an instance of ConcatDataset containing one or more intances of
+    Character Encoding based AudioToCharDataset.
+
+    Args:
+        config: Config of the AudioToCharDataset.
+        global_rank: Global rank of this device.
+        world_size: Global world size in the training method.
+        augmentor: Optional AudioAugmentor object for augmentations on audio data.
+
+    Returns:
+        An instance of ConcatDataset containing one or more instances of AudioToCharDataset.
+    """
+    if 'labels' not in config:
+        logging.warning(f"dataset does not have explicitly defined labels")
+
+    manifest_filepaths = config['manifest_filepath']
+    datasets = []
+    for manifest_filepath in manifest_filepaths:
+        dataset = audio_to_text.AudioToCharDataset(
+            manifest_filepath=manifest_filepath,
+            labels=config.get('labels', None),
+            sample_rate=config['sample_rate'],
+            int_values=config.get('int_values', False),
+            augmentor=augmentor,
+            max_duration=config.get('max_duration', None),
+            min_duration=config.get('min_duration', None),
+            max_utts=config.get('max_utts', 0),
+            blank_index=config.get('blank_index', -1),
+            unk_index=config.get('unk_index', -1),
+            normalize=config.get('normalize_transcripts', False),
+            trim=config.get('trim_silence', False),
+            parser=config.get('parser', 'en'),
+            return_sample_id=config.get('return_sample_id', False),
+       )
+        datasets.append(dataset)
+
+    dataset = ConcatDataset(
+        datasets,
+        sampling_technique=config['concat_sampling'],
+        sampling_probabilities=config['concat_probabilities'],
+        global_rank=global_rank,
+        world_size=world_size,
+        shuffle=config['shuffle'],
+    )
+    return dataset
+
+
 def get_char_dataset(config: dict, augmentor: Optional['AudioAugmentor'] = None) -> audio_to_text.AudioToCharDataset:
     """
     Instantiates a Character Encoding based AudioToCharDataset.

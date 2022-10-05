@@ -265,6 +265,24 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         else:
             augmentor = None
 
+        is_concat = config.get('is_concat', False)
+        if is_concat:
+            if 'concat_sampling' in config and config['concat_sampling'] is None:
+                logging.warning(
+                    f"Concat dataset requires `contact_sampling` but it was not provided. Config: {config}"
+                )
+                return None
+            if 'concat_probabilities' in config and config['concat_probabilities'] is None:
+                logging.warning(
+                    f"Concat dataset requires `contact_probabilities` but was not provided. Config: {config}"
+                )
+                return None
+            if sum(config['concat_probabilities']) != 1:
+                logging.warning(
+                    f"`contact_probabilities` need to sum to 1. Config: {config}"
+                )
+                return None
+
         # Automatically inject args from model config to dataloader config
         audio_to_text_dataset.inject_dataloader_value_from_model_config(self.cfg, config, key='sample_rate')
         audio_to_text_dataset.inject_dataloader_value_from_model_config(self.cfg, config, key='labels')
@@ -295,20 +313,37 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
                 return None
 
             shuffle_n = config.get('shuffle_n', 4 * config['batch_size']) if shuffle else 0
-            dataset = audio_to_text_dataset.get_tarred_dataset(
-                config=config,
-                shuffle_n=shuffle_n,
-                global_rank=self.global_rank,
-                world_size=self.world_size,
-                augmentor=augmentor,
-            )
+            if is_concat:
+                dataset = audio_to_text_dataset.get_concat_tarred_dataset(
+                    config=config,
+                    tokenizer=self.tokenizer,
+                    shuffle_n=shuffle_n,
+                    global_rank=self.global_rank,
+                    world_size=self.world_size,
+                    augmentor=augmentor,
+                )
+            else:
+                dataset = audio_to_text_dataset.get_tarred_dataset(
+                    config=config,
+                    tokenizer=self.tokenizer,
+                    shuffle_n=shuffle_n,
+                    global_rank=self.global_rank,
+                    world_size=self.world_size,
+                    augmentor=augmentor,
+                )
             shuffle = False
         else:
             if 'manifest_filepath' in config and config['manifest_filepath'] is None:
                 logging.warning(f"Could not load dataset as `manifest_filepath` was None. Provided config : {config}")
                 return None
-
-            dataset = audio_to_text_dataset.get_char_dataset(config=config, augmentor=augmentor)
+            if is_concat:
+                dataset = audio_to_text_dataset.get_concat_char_dataset(
+                    config=config, 
+                    global_rank=self.global_rank, 
+                    world_size=self.world_size,
+                    augmentor=augmentor)
+            else:
+                dataset = audio_to_text_dataset.get_char_dataset(config=config, augmentor=augmentor)
 
         if hasattr(dataset, 'collate_fn'):
             collate_fn = dataset.collate_fn
