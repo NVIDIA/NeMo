@@ -48,7 +48,6 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import (
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import AppState, logging
-from nemo.utils.get_rank import is_global_rank_zero
 
 try:
     from apex.transformer import parallel_state
@@ -357,8 +356,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if isinstance(self.model, list):
             for module in self.model:
                 self._append_module_grads(module, grads)
-            else:
-                self._append_module_grads(self.model, grads)
+        else:
+            self._append_module_grads(self.model, grads)
 
         coalesced = torch._utils._flatten_dense_tensors(grads)
         torch.distributed.all_reduce(coalesced, group=parallel_state.get_tensor_model_parallel_group())
