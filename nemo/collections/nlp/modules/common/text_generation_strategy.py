@@ -19,6 +19,7 @@ import torch
 
 from nemo.collections.nlp.modules.common.megatron.retrieval_service import FaissRetrievalService
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
+from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
 
 try:
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
@@ -276,23 +277,49 @@ class PromptLearningModelTextGenerationStrategy(TextGenerationStrategy):
 
 
 class UniversalPromptLearningModelTextGenerationStrategy(TextGenerationStrategy):
-    def __init__(self, model, task_ids):
+    def __init__(self, model):
         super().__init__(model)
         self.forward_model = self.model
+        self.vlen = self.model.cfg.perceiver.hidden_steps 
+
+    def forward_step(self, batch, tensor_shape):
+
+        if self.model.cfg.get('pipeline_model_parallel_size', 1) > 1:
+            output_tensor = forward_backward_pipelining_without_interleaving(
+                forward_step_func=self.model.get_forward_output_only_func(),
+                batch=batch,
+                model=self.forward_model,
+                forward_only=True,
+                tensor_shape=tensor_shape,
+                dtype=self.model.autocast_dtype,
+            )
+        else:
+            output_tensor = forward_backward_no_pipelining(
+                forward_step_func=self.model.get_forward_output_only_func(),
+                batch=batch,
+                model=self.forward_model,
+                forward_only=True,
+                tensor_shape=tensor_shape,
+                dtype=self.model.autocast_dtype,
+            )
+        
+        if batch[-2].all():
+            output_tensor[0]['logits'] = output_tensor[0]['logits'][:, self.vlen:]
+        return output_tensor
 
     def init_batch(self, context_tokens: torch.Tensor, context_length: int):
         """initialize the batch data before the inference steps."""
         # Move to GPU.
         tokenizer = self.model.tokenizer
         tokens = context_tokens.contiguous().cuda()
-        # Get the attention mask and postition ids.
-        self.attention_mask, _, self.position_ids = get_ltor_masks_and_position_ids(
-            tokens,
-            tokenizer.eos_id,
-            self.model.cfg.get('reset_position_ids', False),
-            self.model.cfg.get('reset_attention_mask', False),
-            self.model.cfg.get('eod_mask_loss', False),
+        batch_size, batch_max = context_tokens.shape
+        attention_mask = torch.tril(torch.ones((batch_size, batch_max+self.vlen, batch_max+self.vlen))).view(
+            batch_size, 1, batch_max+self.vlen, batch_max+self.vlen
         )
+         # Convert attention mask from float to bool
+        self.attention_mask = attention_mask < 0.5
+        self.position_ids = build_position_ids(tokens)
+        self.prompt_input_mask = tokens != tokenizer.unk_id
 
     def clip_max_len(self, maxlen: int) -> int:
         """ clip the max len based on the LM model max sequence length"""
@@ -322,13 +349,13 @@ class UniversalPromptLearningModelTextGenerationStrategy(TextGenerationStrategy)
             #     types2use = type_ids[:, context_length - 1].view(batch_size, -1)
 
         """Prepare batch for each of the inference steps"""
-        attention_mask_repeat = torch.concat([self.attention_mask for _ in range(micro_batch_size)])
+        attention_mask_repeat = self.attention_mask
         setkey_value_array = torch.tensor(
             [set_inference_key_value_memory] * micro_batch_size, device=torch.cuda.current_device()
         )
-        len_array = torch.tensor([maxlen] * micro_batch_size, device=torch.cuda.current_device())
+        len_array = torch.tensor([maxlen + self.vlen] * micro_batch_size, device=torch.cuda.current_device())
 
-        batch = [tokens2use, attention_mask_repeat, positions2use, self.task_ids, setkey_value_array, len_array]
+        batch = [tokens, tokens2use, positions2use, attention_mask_repeat,  self.prompt_input_mask, setkey_value_array, len_array]
         tensor_shape = [tokens2use.shape[1], micro_batch_size, self.model.frozen_model.cfg.hidden_size]
         return batch, tensor_shape
 
@@ -336,14 +363,7 @@ class UniversalPromptLearningModelTextGenerationStrategy(TextGenerationStrategy)
         """
         At the end of the inference, post process the inference results
         """
-        # Replace special soft prompt token ids with unk token ids
-        if (
-            self.model.pseudo_token_ids_start is not None
-        ):  # TODO: (@adithyare) prompt learning logic can be greatly simplified by removing data preparation logic from model logic.
-            tokenizer = self.model.tokenizer
-            pseudo_token_ids_start = self.model.pseudo_token_ids_start
-            new_tokens[(new_tokens >= pseudo_token_ids_start)] = tokenizer.unk_id
-            tokens[:, :context_length][(tokens[:, :context_length] >= pseudo_token_ids_start)] = tokenizer.unk_id
+        pass
 
 
 class RetroModelTextGenerationStrategy(TextGenerationStrategy):
