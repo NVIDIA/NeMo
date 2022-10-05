@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import math
-import re
 from typing import Any, List, Optional, Union
 
 import torch
