@@ -192,7 +192,11 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     directory. exp_manager also allows for explicit folder creation via explicit_log_dir.
 
     The version can be a datetime string or an integer. Datestime version can be disabled if use_datetime_version is set
+<<<<<<< HEAD
     to False. It optionally creates TensorBoardLogger, WandBLogger, ModelCheckpoint objects from pytorch lightning.
+=======
+     to False. It optionally creates TensorBoardLogger, WandBLogger, MLFlowLogger, ModelCheckpoint objects from pytorch lightning.
+>>>>>>> 4745d33b... Add doc lines.
     It copies sys.argv, and git information if available to the logging directory. It creates a log file for each
     process to log their output into.
 
@@ -421,7 +425,7 @@ def error_checks(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictC
     """
     Checks that the passed trainer is compliant with NeMo and exp_manager's passed configuration. Checks that:
         - Throws error when hydra has changed the working directory. This causes issues with lightning's DDP
-        - Throws error when trainer has loggers defined but create_tensorboard_logger or create_WandB_logger is True
+        - Throws error when trainer has loggers defined but create_tensorboard_logger or create_WandB_logger  or create_mlflow_logger is True
         - Prints error messages when 1) run on multi-node and not Slurm, and 2) run on multi-gpu without DDP
     """
     if HydraConfig.initialized() and get_original_cwd() != os.getcwd():
@@ -707,10 +711,10 @@ def configure_loggers(
     create_mlflow_logger: bool,
     mlflow_kwargs: dict,
 ):
-    """ Creates TensorboardLogger and/or WandBLogger and attach them to trainer. Raises ValueError if
+    """ Creates TensorboardLogger and/or WandBLogger / MLFlowLogger and attach them to trainer. Raises ValueError if
     summary_writer_kwargs or wandb_kwargs are misconfigured.
     """
-    # Potentially create tensorboard logger and/or WandBLogger
+    # Potentially create tensorboard logger and/or WandBLogger / MLFlowLogger
     logger_list = []
     if create_tensorboard_logger:
         if summary_writer_kwargs is None:
