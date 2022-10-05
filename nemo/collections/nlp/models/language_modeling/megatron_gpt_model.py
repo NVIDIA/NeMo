@@ -439,7 +439,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 tensor_shape=tensor_shape,
                 dtype=self.autocast_dtype,
                 sequence_parallel_enabled=self.cfg.get('sequence_parallel', False),
-                batch_idx=batch_idx
+                batch_idx=batch_idx,
             )
         else:
             losses_reduced_per_micro_batch = forward_backward_no_pipelining(
@@ -454,7 +454,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if losses_reduced_per_micro_batch:
             # average loss across micro batches
             current_batch_size = batch['tokens'].shape[0]
-            loss_tensors_list_sum = [loss_reduced['avg'] * current_batch_size for loss_reduced in losses_reduced_per_micro_batch]
+            loss_tensors_list_sum = [
+                loss_reduced['avg'] * current_batch_size for loss_reduced in losses_reduced_per_micro_batch
+            ]
             loss_tensor = torch.concat(loss_tensors_list_sum)
             loss_mean = loss_tensor.sum()
         else:
@@ -467,7 +469,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if parallel_state.is_pipeline_last_stage():
             # only the last pipeline parallel stages return loss
             total_loss_sum = torch.stack(outputs).sum()
-            averaged_loss = total_loss_sum/(len(self._validation_ds)*2)
+            averaged_loss = total_loss_sum / (len(self._validation_ds) * 2)
         else:
             averaged_loss = torch.tensor(0.0).cuda()
 
@@ -506,17 +508,23 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         position_ids = global_batch["position_ids"]
         expected_batch_size = None
         if global_batch_size:
-            expected_batch_size = global_batch_size/parallel_state.get_data_parallel_world_size()
-        current_batch_size = tokens.shape[0]       
+            expected_batch_size = global_batch_size / parallel_state.get_data_parallel_world_size()
+        current_batch_size = tokens.shape[0]
         if expected_batch_size and expected_batch_size > current_batch_size:
-            logging.info('Got batch size of ' + str(current_batch_size) + ' , expected batch size :' + str(expected_batch_size) + '. Appending dummy data.')
+            logging.info(
+                'Got batch size of '
+                + str(current_batch_size)
+                + ' , expected batch size :'
+                + str(expected_batch_size)
+                + '. Appending dummy data.'
+            )
             pad_length = expected_batch_size - current_batch_size
             pad_dim = (int(pad_length), tokens.shape[1])
             attention_mask_shape = list(attention_mask.shape)
             attention_mask_shape[0] = int(pad_length)
             tokens = torch.cat((tokens, torch.ones(pad_dim, dtype=tokens.dtype)))
-            labels = torch.cat((labels, torch.ones(pad_dim, dtype=labels.dtype)))  
-            attention_mask = torch.cat((attention_mask, torch.zeros(attention_mask_shape, dtype=attention_mask.dtype))) 
+            labels = torch.cat((labels, torch.ones(pad_dim, dtype=labels.dtype)))
+            attention_mask = torch.cat((attention_mask, torch.zeros(attention_mask_shape, dtype=attention_mask.dtype)))
             position_ids = torch.cat((position_ids, torch.ones(pad_dim, dtype=position_ids.dtype)))
             loss_mask = torch.cat((loss_mask, torch.zeros(pad_dim, dtype=loss_mask.dtype)))
 
@@ -654,10 +662,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 f'Setting up validation dataloader with len(len(self._validation_ds)): {len(self._validation_ds)} and consumed samples: {consumed_samples}'
             )
             drop_last = True
-            if not self.cfg.data.get('validation_drop_last',True):
+            if not self.cfg.data.get('validation_drop_last', True):
                 logging.info(f'Drop last in validation dataset is set to False')
                 drop_last = False
-            self._validation_dl = self.build_pretraining_data_loader(self._validation_ds, consumed_samples, "validation", drop_last)
+            self._validation_dl = self.build_pretraining_data_loader(
+                self._validation_ds, consumed_samples, "validation", drop_last
+            )
 
     def setup_test_data(self, cfg):
         if hasattr(self, '_test_ds'):
