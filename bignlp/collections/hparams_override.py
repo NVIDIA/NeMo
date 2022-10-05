@@ -8,6 +8,12 @@ from nemo.utils.get_rank import is_global_rank_zero
 
 @hydra.main(config_path="conf", config_name="hparams_override")
 def hparams_override(cfg):
+    """
+    This script verrides hyper-parameters inside NeMo's `hparams.yaml` and will generate
+    a new yaml file called `hparams_override.yaml`. The new yaml file will be
+    fed into NeMo conversion scripts to convert training checkpoints to a .nemo
+    checkpoint.
+    """
     hparams_file = cfg.get("hparams_file")
     if hparams_file is not None:
         output_path = cfg.get("output_path")

@@ -1,3 +1,11 @@
+"""
+Example usage:
+ python3 auto_blend.py \
+    model_type=<mt5/t5/gpt3> \
+    preprocessed_dir=<path/to/preprocessed_dir> \
+    blending_alpha=<blending_alpha>
+"""
+
 import os
 import math
 import hydra
@@ -5,6 +13,10 @@ from collections import defaultdict
 
 @hydra.main(config_path="conf", config_name="auto_blend")
 def generate_data_blend(cfg):
+    """
+    Generate data blend as NeMo input `model.data.data_prefix` for binary dataset files
+    within the dataset folder based on the file sizes.
+    """
     model_type = cfg.get("model_type")
     data_dir = cfg.get("preprocessed_dir")
     alpha = cfg.get("blending_alpha")

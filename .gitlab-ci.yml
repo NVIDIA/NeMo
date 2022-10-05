@@ -31,10 +31,14 @@ test:unit_tests:
   stage: test
   script:
     - pip install -r requirements.txt
-    - pip install pytest
+    - pip install pytest pytest-cov
     - pip install requests-mock
     - export PATH="/home/gitlab-runner/.local/bin:$PATH"
-    - pytest tests/unit_tests
+    - pytest --cov-report=term --cov-report=html --cov=bignlp tests/unit_tests
+  artifacts:
+    paths:
+      - coverage
+    expire_in: 30 days
   rules:
     - when: always
 
