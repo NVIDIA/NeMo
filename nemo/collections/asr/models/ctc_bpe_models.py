@@ -155,7 +155,7 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
                 logging.warning(f"Could not load dataset as `manifest_filepath` was None. Provided config : {config}")
                 return None
             if is_concat:
-                dataset = audio_to_text_dataset.get_bpe_dataset(
+                dataset = audio_to_text_dataset.get_concat_bpe_dataset(
                     config=config, 
                     global_rank=self.global_rank,
                     world_size=self.world_size,
