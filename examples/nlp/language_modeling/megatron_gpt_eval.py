@@ -28,6 +28,8 @@ from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.core.config import hydra_runner
 from nemo.utils.app_state import AppState
 from nemo.utils.model_utils import inject_model_parallel_rank
+from nemo.collections.nlp.modules.common.megatron_web_server import get_demo
+import threading 
 
 try:
     from apex.transformer import parallel_state
@@ -230,6 +232,9 @@ def main(cfg) -> None:
     # Third method of running text generation, use inference server
     if cfg.server:
         if parallel_state.is_pipeline_first_stage() and parallel_state.get_tensor_model_parallel_rank() == 0:
+            if cfg.web_server:
+                thread = threading.Thread(target=get_demo, daemon=True, args=(cfg.username, cfg.password))
+                thread.start()
             server = MegatronServer(model.cuda())
             server.run("0.0.0.0", port=cfg.port)
 
