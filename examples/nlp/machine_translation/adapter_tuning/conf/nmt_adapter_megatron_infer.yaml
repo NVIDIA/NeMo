@@ -12,6 +12,3 @@ tgtout: ???
 batch_size: 128
 source_lang: null
 target_lang: null
-tensor_model_parallel_size: 1
-pipeline_model_parallel_size: 1
-pipeline_model_parallel_split_rank: 0
