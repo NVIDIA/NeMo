@@ -12,8 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import math
+import os
 from collections import OrderedDict
+from contextlib import nullcontext
 from typing import List, Optional
 
 import torch
@@ -28,11 +31,6 @@ from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.mixins import adapter_mixins
 from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types import AcousticEncodedRepresentation, LengthsType, NeuralType, SpectrogramType
-
-import os
-import logging
-from contextlib import nullcontext
-
 
 FORCE_PRECISION = False
 ac_context = nullcontext()

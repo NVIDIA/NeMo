@@ -23,7 +23,7 @@ from pytorch_lightning.callbacks import BasePredictionWriter
 from torch.utils.data import ChainDataset
 
 from nemo.collections.asr.data import audio_to_text, audio_to_text_dali
-from nemo.collections.common import ConcatDataset
+from nemo.collections.common.data.dataset import ConcatDataset
 from nemo.utils import logging
 
 
@@ -104,11 +104,11 @@ def get_char_dataset(config: dict, augmentor: Optional['AudioAugmentor'] = None)
 
 
 def get_concat_bpe_dataset(
-    config: dict, 
-    tokenizer: 'TokenizerSpec', 
+    config: dict,
+    tokenizer: 'TokenizerSpec',
     global_rank: int,
     world_size: int,
-    augmentor: Optional['AudioAugmentor'] = None
+    augmentor: Optional['AudioAugmentor'] = None,
 ) -> ConcatDataset:
     """
     Instantiates a ContactDataset based on several Byte Pair Encoding / Word Piece Encoding based AudioToBPEDatasets.
@@ -141,14 +141,16 @@ def get_concat_bpe_dataset(
         )
         datasets.append(dataset)
 
-    dataset = ConcatDataset(datasets, shuffle = True, 
-        sampling_technique = config['concat_sampling'],
-        sampling_probabilities = config['concat_probabilities'],
-        global_rank = global_rank,
-        world_size = world_size,
-        shuffle = config['shuffle']
+    dataset = ConcatDataset(
+        datasets,
+        sampling_technique=config['concat_sampling'],
+        sampling_probabilities=config['concat_probabilities'],
+        global_rank=global_rank,
+        world_size=world_size,
+        shuffle=config['shuffle'],
     )
     return dataset
+
 
 def get_bpe_dataset(
     config: dict, tokenizer: 'TokenizerSpec', augmentor: Optional['AudioAugmentor'] = None
@@ -220,12 +222,13 @@ def get_concat_tarred_dataset(
         )
         datasets.append(dataset)
 
-    dataset = ConcatDataset(datasets, shuffle = True, 
-        sampling_technique = config['concat_sampling'],
-        sampling_probabilities = config['concat_probabilities'],
-        global_rank = global_rank,
-        world_size = world_size,
-        shuffle = config['shuffle']
+    dataset = ConcatDataset(
+        datasets,
+        sampling_technique=config['concat_sampling'],
+        sampling_probabilities=config['concat_probabilities'],
+        global_rank=global_rank,
+        world_size=world_size,
+        shuffle=config['shuffle'],
     )
     return dataset
 

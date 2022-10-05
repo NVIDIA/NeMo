@@ -385,12 +385,12 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         shuffle = config['shuffle']
 
         is_concat = config.get('is_concat', False)
-        # validation
         if is_concat:
-            if ('concat_sampling' in config and config['concat_sampling'] is None) or 
-            ('concat_probabilities' in config and config['concat_probabilities'] is None):
-                logging warning(f"Concat dataset requires `contact_probabilities`"
-                    f" and `contact_sampling` but one of them was not provided. Config: {config}"
+            if ('concat_sampling' in config and config['concat_sampling'] is None) or (
+                'concat_probabilities' in config and config['concat_probabilities'] is None
+            ):
+                logging.warning(
+                    f"Concat dataset requires `contact_probabilities` and `contact_sampling` but one of them was not provided. Config: {config}"
                 )
                 return None
 
@@ -433,11 +433,11 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
 
             if is_concat:
                 dataset = audio_to_text_dataset.get_concat_bpe_dataset(
-                    config=config, 
-                    tokenizer=self.tokenizer, 
+                    config=config,
+                    tokenizer=self.tokenizer,
                     global_rank=self.global_rank,
                     world_size=self.world_size,
-                    augmentor=augmentor
+                    augmentor=augmentor,
                 )
             else:
                 dataset = audio_to_text_dataset.get_bpe_dataset(
