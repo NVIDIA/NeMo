@@ -251,7 +251,7 @@ def float16_to_fp32(val):
 
 class Float16Module(MegatronModule):
     def __init__(self, module, precision):
-        if not HAVE_APEX:
+        if not HAVE_MEGATRON_CORE:
             raise ImportError(
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
