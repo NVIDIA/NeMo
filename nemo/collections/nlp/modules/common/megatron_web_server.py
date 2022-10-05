@@ -45,7 +45,7 @@ def get_generation(prompt, greedy, add_BOS, token_to_gen, min_tokens, temp, top_
     return sentences[0]
 
 
-def get_demo(username, password):
+def get_demo(share, username, password):
     with gr.Blocks() as demo:
         with gr.Row():
             with gr.Column(scale=2, width=200):
@@ -62,4 +62,4 @@ def get_demo(username, password):
                 output_box = gr.Textbox(value="", label="Output")
                 btn = gr.Button(value="Submit")
                 btn.click(get_generation, inputs=[input_prompt, greedy_flag, add_BOS, token_to_gen, min_token_to_gen, temperature, top_p, top_k, repetition_penality], outputs=[output_box])
-    demo.launch(share=True, server_port=13570, server_name='0.0.0.0', auth=(username, password))
+    demo.launch(share=share, server_port=13570, server_name='0.0.0.0', auth=(username, password))

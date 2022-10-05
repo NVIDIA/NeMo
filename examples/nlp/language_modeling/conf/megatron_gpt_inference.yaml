@@ -31,5 +31,6 @@ prompts: # prompts for GPT inference
 server: False  # whether launch the API server
 port: 5555 # the port number for the inference server
 web_server: False # whether launch the web inference server
+share: False  # whether create a public URL
 username: test # user name for web client
 password: test2  # password for web client
