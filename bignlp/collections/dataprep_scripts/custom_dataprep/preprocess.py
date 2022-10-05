@@ -1,4 +1,5 @@
 """
+Multi-worker data preprocessing.
 Example usage:
  python preprocess.py \
     --worker-mapping-file=<path/to/preprocess_mapping_file> \

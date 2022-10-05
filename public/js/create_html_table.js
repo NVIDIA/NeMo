@@ -64,7 +64,7 @@ CreateHTMLTable = {
             <th colspan=2 style=text-align:center;>TFLOPS PER GPU</th>
             <th>SPEEDUP(x)</th>
             <th colspan=2 style=text-align:center;>PEAK MEMORY (GiB)</th>
-            <th>SPEEDUP(x)</th>
+            <th>Mem_reduce(x)</th>
           </tr>
           <tr>
             <th>IMAGE USED</th>
@@ -79,7 +79,7 @@ CreateHTMLTable = {
             <th>TRAIN TIME(s)</th>
             <th>LATEST</th>
             <th>PREV LOWEST</th>
-            <th> PREV LOWEST / LATEST </th>
+            <th> LATEST / PREV LOWEST </th>
             <th>LATEST</th>
             <th>PREV LOWEST</th>
             <th> PREV LOWEST / LATEST </th>
@@ -110,7 +110,7 @@ CreateHTMLTable = {
                   var tflopsRatio = "--";
                   if (Object.keys(trainTimeMetrics).length > 0){
                     tflopsPreviousBest = getBestResultFromDict(trainTimeMetrics, "time").toFixed(3);
-                    tflopsRatio = (tflopsPreviousBest/tflopsLatest).toFixed(3);
+                    tflopsRatio = (tflopsLatest/tflopsPreviousBest).toFixed(3);
                   }
                   var colorTrainTime = tflopsRatio < 1 ? "red" : "green";
                 }
@@ -123,7 +123,7 @@ CreateHTMLTable = {
                   var colorTrainTime = tflopsRatio < 1 ? "red" : "green";
                 }
                 var memoryUsedMetrics = trainMetrics["peak_memory_metrics"]
-                if (Object.keys(memoryUsedMetrics).length >= 1){
+                if ((latestKey && memoryUsedMetrics[latestKey]) || (latestKey == null && Object.keys(memoryUsedMetrics).length >= 1)){
                   if (latestKey == null){
                     latestKey = getLatestExistingImage(memoryUsedMetrics)
                     var latestTimestamp = memoryUsedMetrics[latestKey][0];

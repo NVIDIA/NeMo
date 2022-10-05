@@ -1,8 +1,8 @@
 {
-        "lambada": {
-            "ppl": 934206,
-            "ppl_stderr": 68483,
-            "acc": 0.0,
-            "acc_stderr": 0.0
-        }
-    }
+  "lambada": {
+    "ppl": 902810.738813527,
+    "ppl_stderr": 66511.23469765866,
+    "acc": 0.0,
+    "acc_stderr": 0.0
+  }
+}
