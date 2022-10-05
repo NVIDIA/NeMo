@@ -186,18 +186,16 @@ def fake_initialize_model_parallel(
     pipeline_model_parallel_size = min(pipeline_model_parallel_size_, world_size)
     model_parallel_size = tensor_model_parallel_size * pipeline_model_parallel_size
 
-    ensure_divisibility(world_size, tensor_model_parallel_size * pipeline_model_parallel_size)
+    assert (
+        world_size % tensor_model_parallel_size * pipeline_model_parallel_size == 0
+    ), f'world_size: {world_size} must be divisible by tensor_model_parallel_size: {tensor_model_parallel_size} times pipeline_model_parallel_size {pipeline_model_parallel_size}'
     data_parallel_size = world_size // (tensor_model_parallel_size * pipeline_model_parallel_size)
 
     num_tensor_model_parallel_groups = world_size // tensor_model_parallel_size
     num_pipeline_model_parallel_groups = world_size // pipeline_model_parallel_size
 
-    # if virtual_pipeline_model_parallel_size_ is not None:
-    #     global _VIRTUAL_PIPELINE_MODEL_PARALLEL_RANK
-    #     global _VIRTUAL_PIPELINE_MODEL_PARALLEL_WORLD_SIZE
-    #     _VIRTUAL_PIPELINE_MODEL_PARALLEL_RANK = 0
-    #     _VIRTUAL_PIPELINE_MODEL_PARALLEL_WORLD_SIZE = virtual_pipeline_model_parallel_size_
-    virtual_pipeline_model_parallel_rank = 0
+    if virtual_pipeline_model_parallel_size_ is not None:
+        virtual_pipeline_model_parallel_rank = 0
 
     # Build the data-parallel groups.
     all_data_parallel_group_ranks = []
