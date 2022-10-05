@@ -30,7 +30,6 @@ import os
 import tarfile
 from pathlib import Path
 
-import jsonlines
 import librosa
 import pandas as pd
 import soundfile as sf
@@ -140,8 +139,12 @@ def process_raw_annotations(anno_dir: str, text_key: str = "semantics", suffix: 
 
         jsonl_path = os.path.join(anno_dir, split + ".jsonl")
 
-        with jsonlines.open(jsonl_path) as reader:
-            for obj in reader:
+        with open(jsonl_path, "r") as fin:
+            for line in fin.readlines():
+                line = line.strip()
+                if len(line) == 0:
+                    continue
+                obj = json.loads(line)
                 sid = obj["slurp_id"]
                 scenario = obj["scenario"]
                 action = obj["action"]
