@@ -90,6 +90,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
         dec_cross_attention=[3, 5],  # layer numbers for chunked cross attention
         add_position_embedding=False,
         tokenizer=None,  # tokenizer
+        activations_checkpoint_granularity=None,
     ):
         super(MegatronRetrievalTokenLevelEncoderDecoderModule, self).__init__()
 
@@ -161,6 +162,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 fp32_residual_connection=fp32_residual_connection,
                 activations_checkpoint_method=activations_checkpoint_method,
                 activations_checkpoint_num_layers=activations_checkpoint_num_layers,
+                activations_checkpoint_granularity=activations_checkpoint_granularity,
                 layernorm_epsilon=layernorm_epsilon,
                 bias_activation_fusion=bias_gelu_fusion,
                 bias_dropout_add_fusion=bias_dropout_add_fusion,
@@ -221,6 +223,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 fp32_residual_connection=fp32_residual_connection,
                 activations_checkpoint_method=activations_checkpoint_method,
                 activations_checkpoint_num_layers=activations_checkpoint_num_layers,
+                activations_checkpoint_granularity=activations_checkpoint_granularity,
                 layernorm_epsilon=layernorm_epsilon,
                 bias_activation_fusion=bias_gelu_fusion,
                 bias_dropout_add_fusion=bias_dropout_add_fusion,
@@ -261,6 +264,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 fp32_residual_connection=fp32_residual_connection,
                 activations_checkpoint_method=activations_checkpoint_method,
                 activations_checkpoint_num_layers=activations_checkpoint_num_layers,
+                activations_checkpoint_granularity=activations_checkpoint_granularity,
                 layernorm_epsilon=layernorm_epsilon,
                 bias_activation_fusion=bias_gelu_fusion,
                 bias_dropout_add_fusion=bias_dropout_add_fusion,
@@ -289,6 +293,16 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
         if add_decoder and post_process:
             self.tokens_head = MuReadout(self.word_embeddings_weight().size(0), parallel_output)
             self._tokens_head_key = 'tokens_head'
+
+    def set_input_tensor(self, input_tensor):
+        """Set input tensor to be used instead of forward()'s input.
+
+        When doing pipeline parallelism the input from the previous
+        stage comes from communication, not from the input, so the
+        model's forward_step_func won't have it. This function is thus
+        used by internal code to bypass the input provided by the
+        forward_step_func"""
+        self.input_tensor = input_tensor
 
     def forward(
         self,
