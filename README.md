@@ -17,7 +17,7 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
   * [4.1. Cluster Bring-Up](#41-cluster-bring-up)
     + [4.1.1. Common](#411-common)
     + [4.1.2. OCI](#412-oci)
-    + [4.1.3. AWS](#412-aws)
+    + [4.1.3. AWS](#413-aws)
   * [4.2. Cluster Validation](#42-cluster-validation)
     + [4.2.1. Validation Script Usage](#421-validation-script-usage)
   * [4.3. Config Modifications](#43-config-modifications)
@@ -56,16 +56,17 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
       - [5.3.1.3. Training HP Search](#5313-training-hp-search)
     + [5.3.2. Usage](#532-usage)
       - [5.3.2.1. General Configuration](#5321-general-configuration)
+        * [5.3.2.1.1. Slurm](#53211-slurm)
+        * [5.3.2.1.2. Base Command Platform](#53212-base-command-platform)
       - [5.3.2.2. Running Predefined Configs](#5322-running-predefined-configs)
         * [5.3.2.2.1. Model Config](#53221-model-config)
         * [5.3.2.2.2. Base Config Generation](#53222-base-config-generation)
         * [5.3.2.2.3. Training HP Search](#53223-training-hp-search)
-        * [5.3.2.2.4. Inference HP Search](#53224-inference-hp-search)
       - [5.3.2.3. Running Custom Model Size Configs](#5323-running-custom-model-size-configs)
       - [5.3.2.4. Interpreting the Results](#5324-interpreting-the-results)
       - [5.3.2.5. Logging Runs with Weights and Biases](#5325-logging-runs-with-weights-and-biases)
   * [5.4. Training with Custom Configurations](#54-training-with-custom-configurations)
-    + [5.4.1. Example: Changing Embedding Type for T5 Models](#541-example-changing-embedding-type-for-t5-models)
+    + [5.4.1. Example: Changing Embedding Type for T5 Models](#541-example--changing-embedding-type-for-t5-models)
   * [5.5. Bring Your Own Dataset](#55-bring-your-own-dataset)
     + [5.5.1. Slurm](#551-slurm)
     + [5.5.2. Base Command Platform](#552-base-command-platform)
@@ -113,32 +114,49 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
       - [5.10.2.1. Common](#51021-common)
       - [5.10.2.2. Slurm](#51022-slurm)
       - [5.10.2.3. Base Command Platform](#51023-base-command-platform)
-  * [5.12. Model Evaluation](#511-model-evaluation)
-    + [5.12.1. GPT-3 Evaluation](#5111-gpt-3-evaluation)
-      - [5.12.1.1. Common](#51111-common)
-      - [5.12.1.2. Slurm](#51112-slurm)
-      - [5.12.1.3. Base Command Platform](#51113-base-command-platform)
-    + [5.12.2. T5 Evaluation](#5112-t5-evaluation)
-      - [5.12.2.1. Common](#51121-common)
-      - [5.12.2.2. Slurm](#51122-slurm)
-      - [5.12.2.3. Base Command Platform](#51123-base-command-platform)
-    + [5.12.3. mT5 Evaluation](#5113-mt5-evaluation)
-      - [5.12.3.1. Common](#51131-common)
-      - [5.12.3.2. Slurm](#51132-slurm)
-      - [5.12.3.3. Base Command Platform](#51133-base-command-platform)
-    + [5.12.4. Prompt Learned GPT-3 Evaluation](#5114-prompt-learned-gpt-3-evaluation)
-      - [5.12.4.1. Common](#51141-common)
-      - [5.12.4.2. Slurm](#51142-slurm)
-      - [5.12.4.3. Base Command Platform](#51143-base-command-platform)
-    + [5.12.5. Prompt Learned T5 and mT5 Evaluation](#5115-prompt-learned-t5-and-mt5-evaluation)
-      - [5.12.5.1. Common](#51151-common)
-      - [5.12.5.2. Slurm](#51152-slurm)
-      - [5.12.5.3. Base Command Platform](#51153-base-command-platform)
-  * [5.13. Model Export](#512-model-export)
-    + [5.13.1. GPT-3 Export](#5121-gpt-3-export)
-      - [5.13.1.1. Common](#51211-common)
-      - [5.13.1.2. Slurm](#51212-slurm)
-      - [5.13.1.3. Base Command Platform](#51213-base-command-platform)
+  * [5.11. Model Adapter Learning and IA3 Learning](#511-model-adapter-learning-and-ia3-learning)
+    + [5.11.1. GPT-3 Adapter Learning and IA3 Learning](#5111-gpt-3-adapter-learning-and-ia3-learning)
+      - [5.11.1.1. Common](#51111-common)
+      - [5.11.1.2. Slurm](#51112-slurm)
+      - [5.11.1.3. Base Command Platform](#51113-base-command-platform)
+    + [5.11.2. T5 Adapter Learning and IA3 Learning](#5112-t5-adapter-learning-and-ia3-learning)
+      - [5.11.2.1. Common](#51121-common)
+      - [5.11.2.2. Slurm](#51122-slurm)
+      - [5.11.2.3. Base Command Platform](#51123-base-command-platform)
+  * [5.12. Model Evaluation](#512-model-evaluation)
+    + [5.12.1. GPT-3 Evaluation](#5121-gpt-3-evaluation)
+      - [5.12.1.1. Common](#51211-common)
+      - [5.12.1.2. Slurm](#51212-slurm)
+      - [5.12.1.3. Base Command Platform](#51213-base-command-platform)
+    + [5.12.2. T5 Evaluation](#5122-t5-evaluation)
+      - [5.12.2.1. Common](#51221-common)
+      - [5.12.2.2. Slurm](#51222-slurm)
+      - [5.12.2.3. Base Command Platform](#51223-base-command-platform)
+    + [5.12.3. mT5 Evaluation](#5123-mt5-evaluation)
+      - [5.12.3.1. Common](#51231-common)
+      - [5.12.3.2. Slurm](#51232-slurm)
+      - [5.12.3.3. Base Command Platform](#51233-base-command-platform)
+    + [5.12.4. Prompt Learned GPT-3 Evaluation](#5124-prompt-learned-gpt-3-evaluation)
+      - [5.12.4.1. Common](#51241-common)
+      - [5.12.4.2. Slurm](#51242-slurm)
+      - [5.12.4.3. Base Command Platform](#51243-base-command-platform)
+    + [5.12.5. Prompt Learned T5 and mT5 Evaluation](#5125-prompt-learned-t5-and-mt5-evaluation)
+      - [5.12.5.1. Common](#51251-common)
+      - [5.12.5.2. Slurm](#51252-slurm)
+      - [5.12.5.3. Base Command Platform](#51253-base-command-platform)
+    + [5.12.6. Adapter Learned and IA3 Learned GPT-3 Evaluation](#5126-adapter-learned-and-ia3-learned-gpt-3-evaluation)
+      - [5.12.6.1. Common](#51261-common)
+      - [5.12.6.2. Slurm](#51262-slurm)
+      - [5.12.6.3. Base Command Platform](#51263-base-command-platform)
+    + [5.12.7. Adapter Learned and IA3 Learned T5 Evaluation](#5127-adapter-learned-and-ia3-learned-t5-evaluation)
+      - [5.12.7.1. Common](#51271-common)
+      - [5.12.7.2. Slurm](#51272-slurm)
+      - [5.12.7.3. Base Command Platform](#51273-base-command-platform)
+  * [5.13. Model Export](#513-model-export)
+    + [5.13.1. GPT-3 Export](#5131-gpt-3-export)
+      - [5.13.1.1. Common](#51311-common)
+      - [5.13.1.2. Slurm](#51312-slurm)
+      - [5.13.1.3. Base Command Platform](#51313-base-command-platform)
 - [6. Deploying the BigNLP Model](#6-deploying-the-bignlp-model)
   * [6.1. Run NVIDIA Triton Server with Generated Model Repository](#61-run-nvidia-triton-server-with-generated-model-repository)
 - [6.2. GPT-3 Text Generation with Ensemble](#62-gpt-3-text-generation-with-ensemble)
@@ -271,10 +289,10 @@ Figure 1: The GPT-3 family architecture. The 5B variant includes 24 transformer 
 ## 4. Cloud Service Providers
 <a id="markdown-cloud-service-providers" name="cloud-service-providers"></a>
 
-### 4.1 Cluster Bring-Up
+### 4.1. Cluster Bring-Up
 <a id="markdown-cluster-bring-up" name="cluster-bring-up"></a>
 
-#### 4.1.1 Common
+#### 4.1.1. Common
 <a id="markdown-common" name="common"></a>
 
 To set up a Slurm cluster for Nemo Megatron, we recommend using [Nephele](https://github.com/nvidia/nephele). This cluster deployment tool has been tested on Azure, AWS, and Oracle Cloud.
@@ -294,7 +312,7 @@ The above steps apply to all CSPs, including Azure, AWS, and OCI.
 Some modifications are necessary for OCI and AWS and are detailed below.
 Note that for OCI, a custom image must be imported, which should be done before running `./nephele create`.
 
-#### 4.1.2 OCI
+#### 4.1.2. OCI
 <a id="markdown-oci" name="oci"></a>
 To bring up a cluster to run Nemo Megatron in Oracle Cloud, a custom image with OFED drivers pre-installed is needed.
 
@@ -321,7 +339,7 @@ variable "ubuntu_2004" {
 
 Once complete, you can proceed to run `./nephele create`.
 
-#### 4.1.3 AWS
+#### 4.1.3. AWS
 <a id="markdown-aws" name="aws"></a>
 To launch jobs on AWS, the EFA driver and NCCL plugin first need to be installed on top of the training container.
 We recommend building a new container image with Docker, then creating an Enroot image.
@@ -340,7 +358,7 @@ On the scheduler node:
 container: /path/to/bignlp-scripts/bignlp_training.sqsh
 ```
 
-### 4.2 Cluster Validation
+### 4.2. Cluster Validation
 <a id="markdown-cluster-validation" name="cluster-validation"></a>
 
 Before running the cluster validation script, ensure your NGC credentials have been added to `~/.config/enroot/.credentials` on all nodes.
@@ -349,7 +367,7 @@ The cluster validation script at `csp/<csp>/cluster_validation.sh` will run GPU 
 The logs from these tests will be stored at `results/cluster_validation`. The script will list any nodes that fail these tests.
 These nodes should be replaced or restarted through the CSP UI.
 
-#### 4.2.1 Validation Script Usage
+#### 4.2.1. Validation Script Usage
 <a id="markdown-validation-script-usage" name="validation-script-usage"></a>
 
 The script has 3 required parameters:
@@ -374,7 +392,7 @@ By default, the script will run both the GPU diagnostics and the NCCL test. You 
 
 See `bash cluster_validation.sh -h` for more information.
 
-#### 4.3 Config Modifications
+### 4.3. Config Modifications
 <a id="markdown-config-modifications" name="config-modifications"></a>
 Before launching jobs some changes to the config must be made.
 
@@ -397,7 +415,7 @@ env_vars:
 #### 4.3.2 Environment Variables
 <a id="markdown-environment-variables" name="environment-variables"></a>
 
-#### 4.3.2.1 Azure Variables
+##### 4.3.2.1 Azure Variables
 <a id="markdown-azure-variables" name="azure-variables"></a>
 Set these environment variables in `config.yaml` (these are only needed for Azure):
 ```
@@ -408,7 +426,7 @@ env_vars:
   NCCL_DEBUG: INFO
 ```
 
-#### 4.3.2.2 AWS Variables
+##### 4.3.2.2 AWS Variables
 <a id="markdown-aws-variables" name="aws-variables"></a>
 AWS recommends setting the following flag to avoid data corruption:
 ```
@@ -1524,7 +1542,7 @@ In this section, we will explain how to run each of the stages described above.
 ##### 5.3.2.1. General Configuration
 <a id="markdown-general-configuration" name="general-configuration"></a>
 
-##### 5.3.2.1.1. Slurm
+###### 5.3.2.1.1. Slurm
 <a id="markdown-slurm" name="slurm"></a>
 
 First, our configuration setup assumes that the `/opt/bignlp/bignlp-hp-tool` and `/opt/bignlp/bignlp-scripts`
@@ -1576,7 +1594,7 @@ wandb:  # Weights and Biases (W&B) logging.
   project: bignlp-hp-tool  # Name of the W&B project to store the logs in. The name of the run will be populated automatically.
 ```
 
-##### 5.3.2.1.2. Base Command Platform
+###### 5.3.2.1.2. Base Command Platform
 <a id="markdown-base-command-platform" name="base-command-platform"></a>
 
 In Base Command Platform, the dataset, vocabulary, and merge files used for the training HP search must be available as a 
@@ -1679,7 +1697,7 @@ optimization will take place in the next step (Training HP Search).
 <a id="markdown-training-hp-search" name="training-hp-search"></a>
 
 
-##### 5.3.2.2.3.1. Slurm
+####### 5.3.2.2.3.1. Slurm
 <a id="markdown-slurm" name="slurm"></a>
 
 To run the training HP search pipeline, the parameter `run_training_hp_search` must be set to `True` 
@@ -1691,7 +1709,7 @@ To configure the behavior of the HP search, the following parameters can be modi
 correspoinding YAML file. To run the training HP tool, after all the parameters are set, you should call 
 `python3 main.py`.
 
-##### 5.3.2.2.3.2. Base Command Platform
+####### 5.3.2.2.3.2. Base Command Platform
 <a id="markdown-base-command-platform" name="base-command-platform"></a>
 
 To run the HP Tool in BCP, the `cluster_type` parameter must be set to `bcp`. All the parameters can be configured 
