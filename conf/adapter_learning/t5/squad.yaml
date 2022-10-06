@@ -55,7 +55,7 @@ model:
   model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
   global_batch_size: 128
   micro_batch_size: 16
-  gradient_as_bucket_view: false
+  gradient_as_bucket_view: False
 
   restore_path: null # Path to an existing adapter .nemo model you wish to add new tasks to or run inference with
   language_model_path: ${adapter_learning.run.convert_dir}/results/megatron_t5.nemo # Path to the GPT language model .nemo file, always required
