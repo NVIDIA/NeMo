@@ -75,6 +75,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             )
         # this prevents base constructor from initializing tokenizer
         self.tokenizer = None
+        self.validation_samples_consumed = 0
         super().__init__(cfg, trainer=trainer, no_lm_init=True)
 
         self._validate_trainer()
@@ -429,7 +430,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         batch_for_pipeline = self.process_global_batch(batch, self.cfg.global_batch_size)
         tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
-        
+        self.validation_samples_consumed += batch['tokens'].shape[0]
+
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
             losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
                 forward_step_func=self.get_forward_output_and_loss_func(),
@@ -453,23 +455,32 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         if losses_reduced_per_micro_batch:
             # average loss across micro batches
-            current_batch_size = batch['tokens'].shape[0]
-            loss_tensors_list_sum = [
-                loss_reduced['avg'] * current_batch_size for loss_reduced in losses_reduced_per_micro_batch
-            ]
-            loss_tensor = torch.concat(loss_tensors_list_sum)
-            loss_mean = loss_tensor.sum()
+            if batch['tokens'].shape[0] == batch_for_pipeline[0].shape[0]:
+                loss_tensors_multiplied_by_batch_list = [loss_reduced['avg'] * self.cfg.micro_batch_size  for loss_reduced in losses_reduced_per_micro_batch]
+            else : 
+                loss_tensors_multiplied_by_batch_list = []
+                total_samples_remaining = batch['tokens'].shape[0]
+                for loss_reduced in losses_reduced_per_micro_batch:
+                    if total_samples_remaining <= 0:
+                        break
+                    if total_samples_remaining//self.cfg.micro_batch_size >= 1 :
+                        loss_tensors_multiplied_by_batch_list.append(loss_reduced['avg']*self.cfg.micro_batch_size)
+                    else :
+                        loss_tensors_multiplied_by_batch_list.append(loss_reduced['avg']*total_samples_remaining) 
+                    total_samples_remaining = total_samples_remaining - self.cfg.micro_batch_size                  
+
+            loss_total_batch = torch.concat(loss_tensors_multiplied_by_batch_list).sum()
         else:
             # we're not on the last pipeline stage so no losses
-            loss_mean = []
+            loss_total_batch = []
 
-        return loss_mean
+        return loss_total_batch
 
     def validation_epoch_end(self, outputs):
         if parallel_state.is_pipeline_last_stage():
             # only the last pipeline parallel stages return loss
             total_loss_sum = torch.stack(outputs).sum()
-            averaged_loss = total_loss_sum / (len(self._validation_ds) * 2)
+            averaged_loss = total_loss_sum / self.validation_samples_consumed
         else:
             averaged_loss = torch.tensor(0.0).cuda()
 
