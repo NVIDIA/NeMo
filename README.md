@@ -1462,16 +1462,16 @@ The Hyper-Parameter (HP) tool is intended to quickly iterate over different mode
 to find the best configuration with minimal time and money spending. To achieve that, our 
 tool provides several different capabilities, as shown in the table below:
 
-| Feature                              | GPT-3 | T5  | mT5 |
-| ------------------------------------ | ----- | --- | --- |
-| Model Size Recommendation            | Yes   | Yes | Yes |
-| Base Config Generation               | Yes   | Yes | Yes |
-| Training HP Search                   | Yes   | Yes | Yes |
-| Parallel Training HP Search          | Yes   | Yes | Yes |
-| Inference HP Search                  | No    | No  | No  |
-| Parallel Inference HP Search         | No    | No  | No  |
-| SLURM Based Clusters                 | Yes   | Yes | Yes |
-| Base Command Platform Based Clusters | No    | No  | No  |
+| Feature                              | GPT-3    | T5       | mT5      |
+| ------------------------------------ | -------- | -------- | -------- |
+| Model Size Recommendation            | Yes      | Yes      | Yes      |
+| Base Config Generation               | Yes      | Yes      | Yes      |
+| Training HP Search                   | Yes      | Yes      | Yes      |
+| Parallel Training HP Search          | BCM Only | BCM Only | BCM Only |
+| Inference HP Search                  | No       | No       | No       |
+| Parallel Inference HP Search         | No       | No       | No       |
+| SLURM Based Clusters                 | Yes      | Yes      | Yes      |
+| Base Command Platform Based Clusters | Yes      | Yes      | Yes      |
 
 ##### 5.3.1.1. Model Size Recommendation
 <a id="markdown-model-size-recommendation" name="model-size-recommendation"></a>
@@ -1524,6 +1524,9 @@ In this section, we will explain how to run each of the stages described above.
 ##### 5.3.2.1. General Configuration
 <a id="markdown-general-configuration" name="general-configuration"></a>
 
+##### 5.3.2.1.1. SLURM
+<a id="markdown-slurm" name="slurm"></a>
+
 First, our configuration setup assumes that the `/opt/bignlp/bignlp-hp-tool` and `/opt/bignlp/bignlp-scripts`
 directories have been copied from the container to the local file system.
 
@@ -1573,6 +1576,18 @@ wandb:  # Weights and Biases (W&B) logging.
   project: bignlp-hp-tool  # Name of the W&B project to store the logs in. The name of the run will be populated automatically.
 ```
 
+##### 5.3.2.1.2. Base Command Platform
+<a id="markdown-base-command-platform" name="base-command-platform"></a>
+
+In Base Command Platform, the dataset, vocab and merge files used for the training HP search must be available as a 
+dataset and mounted accordingly. This guide assumes the dataset will be mounted to `/mount/data`. 
+The results of running the HP tool will be stored in `/mount/results/hp_tool`, so we recommend to mount a workspace 
+to `/mount/results`.
+
+The main configuration file can be found in `conf/config.yaml`. All the parameters can be overriden from the 
+CLI, as we will show in the next section.
+
+
 ##### 5.3.2.2. Running Predefined Configs
 <a id="markdown-running-predefined-configs" name="running-predefined-configs"></a>
 
@@ -1588,57 +1603,10 @@ parameters for T5 and mT5). To run the desired config, we will need to modify th
 parameter in the `conf/config.yaml` file. For example, if we wish to run a 5B GPT-3 model, we can 
 set this value to `gpt3/5b` (the .yaml ending should not be included). 
 
-The tool will always generate the base configuration for the given model first. Then, the 
-`run_training_hp_search` parameter can be set to `True` to run the training HP searches. 
-If this parameter is set to `False`, the training pipeline will not be executed. Once this 
-parameter is set, we can run the tool by calling `python3 main.py`. 
-
 ###### 5.3.2.2.1. Model Config
 <a id="markdown-model-config" name="model-config"></a>
 
 To run the `gpt3/5b` config, we need to set up the `conf/search_config/gpt3/5b.yaml` file correctly.
-
-```yaml
-train_settings:
-  model_size_in_b: 5 # unit in billion parameters
-  num_nodes: 16
-  gpus_per_node: 8
-  gpu_memory_gb: 80  # Memory per GPU, in GB. Currently 40GB and 80GB A100s supported.
-  max_training_days: 5 # unit in days
-  limit_search_runs: 100 # Max number of runs to be launched in parallel for grid search.
-  output_top_n: 10  # The result will print the top N fastest training configs.
-  max_steps_per_run: 50 # Max steps per run for the grid search.
-  max_minutes_per_run: 10 # minutes per run for the grid search.
-  tflops_per_gpu: 140  # Estimated tflops per GPU.
-  num_tokens_in_b: 300  # Unit in billions, typically 300B for GPT3 models.
-  vocab_size: 51200
-  logs: ${base_results_dir}/${search_config_value}_${.gpu_memory_gb}gb  # Example base_results_dir/gpt3/126m
-  tensor_parallel_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8]
-  pipeline_parallel_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8, 10]
-  micro_batch_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8, 16]
-  act_ckpt_layers: auto  # auto to use our recommendation, or a list, such as [0, 1, 2, 3]
-```
-
-###### 5.3.2.2.2. Base Config Generation
-<a id="markdown-base-config-generation" name="base-config-generation"></a>
-
-Every time we call `python3 main.py`, a base configuration will be generated for the given model, 
-and it will be saved to the `logs` directory indicated in your config files. The base configuration 
-consists of a YAML file that can be run using the NeMo-Megatron training container. However, this 
-base configuration has not yet been optimized to achieve the highest possible throughput, the 
-optimization will take place in the next step (Training HP Search).
-
-
-###### 5.3.2.2.3. Training HP Search
-<a id="markdown-training-hp-search" name="training-hp-search"></a>
-
-To run the training HP search pipeline, the parameter `run_training_hp_search` must be set to `True` 
-in the `conf/config.yaml` file. The model used to search the best training HPs must be selected 
-using the `search_config` parameter in `conf/config.yaml`. For example, by default, this parameter 
-will be set to `gpt3/5b`, so our tool will search the optimal training HPs for a 5B parameter GPT-3 
-model. The configuration for this model can be found in the `conf/search_config/gpt3/5b.yaml` file. 
-To configure the behavior of the HP search, the following parameters can be modified in the 
-correspoinding YAML file: 
 
 ```yaml
 train_settings:
@@ -1697,6 +1665,67 @@ if you wish to override them, you can use these parameters. For example, if you 
 for configurations with Tensor Parallelism (TP) values of 1 and 2, you can set 
 `tensor_parallel_sizes: [1, 2]` and leave the other parameters as `auto`.
 
+###### 5.3.2.2.2. Base Config Generation
+<a id="markdown-base-config-generation" name="base-config-generation"></a>
+
+Every time we call `python3 main.py`, a base configuration will be generated for the given model, 
+and it will be saved to the `logs` directory indicated in your config files. The base configuration 
+consists of a YAML file that can be run using the NeMo-Megatron training container. However, this 
+base configuration has not yet been optimized to achieve the highest possible throughput, the 
+optimization will take place in the next step (Training HP Search).
+
+
+###### 5.3.2.2.3. Training HP Search
+<a id="markdown-training-hp-search" name="training-hp-search"></a>
+
+
+##### 5.3.2.2.3.1. Slurm
+<a id="markdown-slurm" name="slurm"></a>
+
+To run the training HP search pipeline, the parameter `run_training_hp_search` must be set to `True` 
+in the `conf/config.yaml` file. The model used to search the best training HPs must be selected 
+using the `search_config` parameter in `conf/config.yaml`. For example, by default, this parameter 
+will be set to `gpt3/5b`, so our tool will search the optimal training HPs for a 5B parameter GPT-3 
+model. The configuration for this model can be found in the `conf/search_config/gpt3/5b.yaml` file. 
+To configure the behavior of the HP search, the following parameters can be modified in the 
+correspoinding YAML file. To run the training HP tool, after all the parameters are set, you should call 
+`python3 main.py`.
+
+##### 5.3.2.2.3.2. Base Command Platform
+<a id="markdown-base-command-platform" name="base-command-platform"></a>
+
+To run the HP Tool in BCP, the `cluster_type` parameter must be set to `bcp`. All the parameters can be configured 
+through CLI overides. For example, to launch a training HP search for the 126m GPT-3 model, we can run this command:
+```
+python3 /opt/bignlp/bignlp-hp-tool/main.py search_config=gpt3/0.126b run_inference_hp_search=False bignlp_hp_tool_path=/opt/bignlp/bignlp-hp-tool data_dir=/mount/data/the_pile_gpt3 base_results_dir=/mount/results/hp_tool search_config.train_settings.num_nodes=$NGC_ARRAY_SIZE cluster_type=bcp
+```
+
+This command assumes that the dataset directory and the results directory are datasets and workspaces mounted corectly. 
+The user can also override any training parameters, by overriding any parameter in the search_config dictionary with the 
+`search_config.train_settings.*` parameter, using hydra overrides. The values that can be overriden are shown below:
+
+
+```yaml
+train_settings:
+  model_size_in_b: 5 # unit in billion parameters
+  num_nodes: 16
+  gpus_per_node: 8
+  gpu_memory_gb: 80  # Memory per GPU, in GB. Currently 40GB and 80GB A100s supported.
+  max_training_days: 5 # unit in days
+  limit_search_runs: 100 # Max number of runs to be launched in parallel for grid search.
+  output_top_n: 10  # The result will print the top N fastest training configs.
+  max_steps_per_run: 50 # Max steps per run for the grid search.
+  max_minutes_per_run: 10 # minutes per run for the grid search.
+  tflops_per_gpu: 140  # Estimated tflops per GPU.
+  num_tokens_in_b: 300  # Unit in billions, typically 300B for GPT3 models.
+  vocab_size: 51200
+  logs: ${base_results_dir}/${search_config_value}_${.gpu_memory_gb}gb  # Example base_results_dir/gpt3/126m
+  tensor_parallel_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8]
+  pipeline_parallel_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8, 10]
+  micro_batch_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8, 16]
+  act_ckpt_layers: auto  # auto to use our recommendation, or a list, such as [0, 1, 2, 3]
+```
+
 
 ##### 5.3.2.3. Running Custom Model Size Configs
 <a id="markdown-running-custom-model-size-configs" name="running-custom-model-size-configs"></a>
@@ -1725,9 +1754,9 @@ behave the same way as when using a predefined config.
 
 When the tool generates the base configuration for a model, it will be saved inside the directory 
 specified in the `logs` parameter in your config files. By default, this will be 
-`.../bignlp-hp-tool/results/<model_name>/<model_size>_<gpu_mem_size>/`. As the default 
+`.../results/<model_name>/<model_size>_<gpu_mem_size>/`. As the default 
 `search_config` value is set to `gpt3/5b` and the default `gpu_memory_gb` is set to 80, the results 
-can be found in the `.../bignlp-hp-tool/results/gpt3/5b_80gb/` directory. The base config will be 
+can be found in the `.../results/gpt3/5b_80gb/` directory. The base config will be 
 available inside that directory, with the name `base_cfg_<model_size>.yaml`. 
 
 If the training HP search pipeline is run, the results will be in three different directories inside 
