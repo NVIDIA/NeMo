@@ -3417,33 +3417,6 @@ triton_deployment:
   data_type: fp16  # fp32|fp16|bf16
 ```
 
-To configure accuracy test performed locally on converted FasterTransformer model use `accuracy` parameter:
-
-```yaml
-accuracy:
-  enabled: True  # enable accuracy test
-  ntasks_per_node: 8  # usually should be number of available gpus per node
-  runtime_config_ini_path: ${export.run.results_dir}/ft_runtime.ini
-  test_data: ${export.run.results_dir}/lambada_test.jsonl
-  output_path: ${export.run.results_dir}/eval_output.json
-  batch_size: 64
-  runtime:
-    max_seq_len: 512
-    beam_width: 1
-    sampling_top_k: 1
-    sampling_top_p: 0
-```
-
-To configure benchmark test performed on model deployed on NVIDIA Triton Inference Server use `benchmark` parameter:
-
-```yaml
-benchmark:
-  enabled: True
-  input_len: 60
-  output_len: 20
-  batch_sizes: [1, 2, 4, 8, 16, 32, 64, 128, 256]
-  triton_wait_time: 300
-```
 
 ##### 5.12.1.2. Slurm
 <a id="markdown-slurm" name="slurm"></a>
@@ -3549,34 +3522,6 @@ triton_deployment:
   int8_mode: False
   enable_custom_all_reduce: False
   data_type: fp16  # fp32|fp16|bf16
-```
-
-To configure accuracy test performed locally on converted FasterTransformer model use `accuracy` parameter:
-
-```yaml
-accuracy:
-  enabled: True  # enable accuracy test
-  ntasks_per_node: 8  # usually should be number of available gpus per node
-  runtime_config_ini_path: ${export.run.results_dir}/ft_runtime.ini
-  test_data: ${export.run.results_dir}/lambada_test.jsonl
-  output_path: ${export.run.results_dir}/eval_output.json
-  batch_size: 64
-  runtime:
-    max_seq_len: 512
-    beam_width: 1
-    sampling_top_k: 1
-    sampling_top_p: 0
-```
-
-To configure benchmark test performed on model deployed on NVIDIA Triton Inference Server use `benchmark` parameter:
-
-```yaml
-benchmark:
-  enabled: True
-  input_len: 60
-  output_len: 20
-  batch_sizes: [1, 2, 4, 8, 16, 32, 64, 128, 256]
-  triton_wait_time: 300
 ```
 
 ##### 5.12.2.2. Slurm
@@ -3687,33 +3632,6 @@ triton_deployment:
   data_type: fp16  # fp32|fp16|bf16
 ```
 
-To configure accuracy test performed locally on converted FasterTransformer model use `accuracy` parameter:
-
-```yaml
-accuracy:
-  enabled: True  # enable accuracy test
-  ntasks_per_node: 8  # usually should be number of available gpus per node
-  runtime_config_ini_path: ${export.run.results_dir}/ft_runtime.ini
-  test_data: ${export.run.results_dir}/lambada_test.jsonl
-  output_path: ${export.run.results_dir}/eval_output.json
-  batch_size: 64
-  runtime:
-    max_seq_len: 512
-    beam_width: 1
-    sampling_top_k: 1
-    sampling_top_p: 0
-```
-
-To configure benchmark test performed on model deployed on NVIDIA Triton Inference Server use `benchmark` parameter:
-
-```yaml
-benchmark:
-  enabled: True
-  input_len: 60
-  output_len: 20
-  batch_sizes: [1, 2, 4, 8, 16, 32, 64, 128, 256]
-  triton_wait_time: 300
-```
 
 ##### 5.12.3.2. Slurm
 <a id="markdown-slurm" name="slurm"></a>
