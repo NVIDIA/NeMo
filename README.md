@@ -2870,7 +2870,7 @@ Unlike prompt-learning and p-tuning, Adapter learning and IA3 do not insert virt
 
 - Our Adapter learning implementation for GPT3 and T5 is based of "[Parameter-Efficient Transfer Learning for NLP](https://arxiv.org/pdf/1902.00751.pdf)"
 - Our IA3 implementation is based of "[Few-Shot Parameter-Efficient Fine-Tuning is Better
-and Cheaper than In-Context Learning](https://arxiv.org/pdf/2205.05638.pdf)".
+and Cheaper than In-Context Learning](https://arxiv.org/pdf/2205.05638.pdf)". Note that the paper proposes a recipe called *t-few* which also introduces an unlikelihood loss function and a continued training procedure. Our IA3 implementation does not support these additions and only focuses on the core architectural change.
 
 
 #### 5.11.1. GPT-3 Adapter Learning and IA3 Learning
