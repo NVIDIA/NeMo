@@ -359,7 +359,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             'loss': loss_mean,
             'predicted_token_ids': processed_preds,
             'labels': processed_labels,
-            'input_idss': processed_inputs,
+            'enc_inputs': processed_inputs,
         }
 
     def validation_epoch_end(self, outputs):
