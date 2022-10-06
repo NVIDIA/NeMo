@@ -110,6 +110,12 @@ def parse_args():
         type=str,
         help='names of the two fields that will be compared, example: pred_text_contextnet pred_text_conformer. "pred_text_" prefix IS IMPORTANT!',
     )
+    parser.add_argument(
+        '--show_statistics',
+        '-shst',
+        type=str,
+        help='field name for which you want to see statistics (optional). Example: pred_text_contextnet.'
+    )
     args = parser.parse_args()
 
     # assume audio_filepath is relative to the directory where the manifest is stored
@@ -119,9 +125,12 @@ def parse_args():
     # automaticly going in comparison mode, if there is names_compared argument
     if args.names_compared is not None:
         comparison_mode = True
+    else:
+        comparison_mode = False
 
     print(args, comparison_mode)
     return args, comparison_mode
+
 
 
 # estimate frequency bandwidth of signal
@@ -148,15 +157,15 @@ def load_data(
     estimate_audio=False,
     vocab=None,
     audio_base_path=None,
-    comparison_moode=False,
+    comparison_mode=False,
     names=None,
 ):
-    if comparison_moode:
+    if comparison_mode:
         if names is None:
             logging.error(f'Please, specify names of compared models')
         name_1, name_2 = names
 
-    if not comparison_moode:
+    if not comparison_mode:
         if vocab is not None:
             # load external vocab
             vocabulary_ext = {}
@@ -209,8 +218,7 @@ def load_data(
     match_vocab_2 = defaultdict(lambda: 0)
 
     def append_data(
-        data_filename, estimate_audio, field_name='pred_text',
-    ):
+        data_filename, estimate_audio, field_name='pred_text',):
         data = []
         wer_dist = 0.0
         wer_count = 0
@@ -241,6 +249,7 @@ def load_data(
                 for char in item['text']:
                     alphabet.add(char)
                 num_hours += item['duration']
+                
 
                 if field_name in item:
                     metrics_available = True
@@ -282,7 +291,10 @@ def load_data(
                     data[-1]['I'] = measures['insertions']
                     data[-1]['D'] = measures['deletions']
                     data[-1]['D-I'] = measures['deletions'] - measures['insertions']
-
+                else:
+                    for k in item:
+                        if k not in data[-1]:
+                            data[-1][k] = item[k]
             if estimate_audio:
                 filepath = absolute_audio_filepath(item['audio_filepath'], data_filename)
                 signal, sr = librosa.load(path=filepath, sr=None)
@@ -330,8 +342,8 @@ def load_data(
         vocabulary,
         alphabet,
         match_vocab,
-    ) = append_data(data_filename, estimate_audio, field_name='pred_text')
-    if comparison_moode:
+    ) = append_data(data_filename, estimate_audio, field_name=fld_nm)
+    if comparison_mode:
         (
             vocabulary_data_1,
             metrics_available_1,
@@ -369,7 +381,7 @@ def load_data(
             match_vocab_2,
         ) = append_data(data_filename, estimate_audio, field_name=name_2)
 
-    if not comparison_moode:
+    if not comparison_mode:
         if vocab is not None:
             for item in vocabulary_data:
                 item['OOV'] = item['word'] not in vocabulary_ext
@@ -416,7 +428,7 @@ def load_data(
 
     num_hours /= 3600.0
 
-    if not comparison_moode:
+    if not comparison_mode:
         if not disable_caching:
             with open(pickle_filename, 'wb') as f:
                 pickle.dump(
@@ -424,7 +436,7 @@ def load_data(
                     f,
                     pickle.HIGHEST_PROTOCOL,
                 )
-    if comparison_moode:
+    if comparison_mode:
         return (
             data,
             wer,
@@ -525,6 +537,10 @@ def absolute_audio_filepath(audio_filepath, audio_base_path):
 
 # parse the CLI arguments
 args, comparison_mode = parse_args()
+if args.show_statistics is not None:
+    fld_nm = args.show_statistics 
+else:
+    fld_nm = 'pred_text'
 # parse names of compared models, if any
 if comparison_mode:
     name_1, name_2 = args.names_compared
@@ -579,6 +595,13 @@ else:
         comparison_mode,
         args.names_compared,
     )
+if 'D' in data[0]:
+    data[0].pop('D')
+if 'I' in data[0]:
+    data[0].pop('I')
+if 'D-I' in data[0]:
+    data[0].pop('D-I')
+
 print('Starting server...')
 app = dash.Dash(
     __name__,
@@ -830,6 +853,7 @@ def update_wordstable(page_current, sort_by, filter_query):
 
 samples_layout = [
     dbc.Row(dbc.Col(html.H5('Data'), class_name='text-secondary'), class_name='mt-3'),
+    html.Hr(),
     dbc.Row(
         dbc.Col(
             dash_table.DataTable(
@@ -1121,7 +1145,7 @@ if comparison_mode:
                 children=[
                     dbc.NavItem(dbc.NavLink('Statistics', id='stats_link', href='/', active=True)),
                     dbc.NavItem(dbc.NavLink('Samples', id='samples_link', href='/samples')),
-                    dbc.NavItem(dbc.NavLink('Comparative tool', id='comp_tool', href='/comparison')),
+                    dbc.NavItem(dbc.NavLink('Comparison tool', id='comp_tool', href='/comparison')),
                 ],
                 brand='Speech Data Explorer',
                 sticky='top',
@@ -1192,15 +1216,14 @@ def show_item(idx, data):
     return [data[idx[0]][k] for k in data[0]]
 
 
-@app.callback(Output('_diff', 'srcDoc'), [Input('datatable', 'selected_rows'), Input('datatable', 'data')])
-def show_diff(idx, data):
+@app.callback(Output('_diff', 'srcDoc'), [Input('datatable', 'selected_rows'), Input('datatable', 'data'), ])
+def show_diff(idx, data,):
     if len(idx) == 0:
         raise PreventUpdate
-
     orig_words = data[idx[0]]['text']
     orig_words = '\n'.join(orig_words.split()) + '\n'
 
-    pred_words = data[idx[0]]['pred_text']
+    pred_words = data[idx[0]][fld_nm]
     pred_words = '\n'.join(pred_words.split()) + '\n'
 
     diff = diff_match_patch.diff_match_patch()
