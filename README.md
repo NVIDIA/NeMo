@@ -2864,21 +2864,16 @@ Any other parameter can also be added to the command to modify its behavior.
 
 
 AI: Adi
-Within NeMo Megatron we refer to **p-tuning** and **adapter tuning** methods collectively as adapter
-learning. Both methods are parameter efficient alternatives to fine-tuning pretrained language
-models. Our NeMo implementation makes it possible to use one pretrained GPT-3, T5 or mT5 models on many downstream
-tasks without needing to tune the model's full set of parameters. It also allows for adding new tasks
-to your model without overwriting or disrupting previous tasks for which the model has already been
-p-tuned/adapter-tuned. Because the original model parameters are frozen and never altered by either
-method, p-tuning/adapter-tuning also avoid cartographic forgetting issues often encountered when
-fine-tuning models. 
+NeMo Megatron supports Adapter Learning and Infused Adapter by Inhibiting and Amplifying Inner Activations (IA3) learning. Both methods are parameter-efficient alternatives to fine-tuning pretrained language
+models. Our NeMo implementation makes it possible to use one pretrained GPT-3 or T5 models on many downstream
+tasks without tuning the model's full set of parameters. Because the original model parameters are frozen and never altered by either
+method, these also avoid cartographic forgetting issues often encountered when fine-tuning models. 
 
-Instead of selecting discrete text adapters in a manual or automated fashion, adapter tuning and p-tuning utilize virtual adapter embeddings that can be optimized via gradient decent. The only difference between adapter tuning and p-tuning within NeMo-Megatron is the architecture used to tune the soft adapter tokens during training.
+Unlike prompt-learning and p-tuning, adapter learning and IA3 do not insert virtual prompts into the input. Adapter learning introduces Feedforward layers within the core transformer architecture which are updated for specific downstream tasks. IA3 adds even fewer parameters that simply scale the hidden representations in the transformer layer, these scaling parameters can be trained for specific downstream tasks.
 
-- Our adapter tuning implementation is based off Lester et. al’s EMNLP 2021 paper "[The Power of Scale for Parameter-Efficient Prompt Tuning](https://arxiv.org/abs/2104.08691)"
-- Our p-tuning implementation is based off Liu et al's paper "[GPT Understands, Too](https://arxiv.org/abs/2103.10385)"
-
-For more details of our implementation, please check [Prompt Learning](https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/nlp/nemo_megatron/adapter_learning.html) in NeMo.
+- Our Adapter learning implementation for GPT3 and T5 is based of "[Parameter-Efficient Transfer Learning for NLP](https://arxiv.org/pdf/1902.00751.pdf)"
+- Our IA3 implementation is based of "[Few-Shot Parameter-Efficient Fine-Tuning is Better
+and Cheaper than In-Context Learning](https://arxiv.org/pdf/2205.05638.pdf)".
 
 
 #### 5.11.1. GPT-3 Adapter Learning and IA3 Learning
