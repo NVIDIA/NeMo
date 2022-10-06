@@ -2852,7 +2852,7 @@ Instead of selecting discrete text adapters in a manual or automated fashion, ad
 For more details of our implementation, please check [Prompt Learning](https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/nlp/nemo_megatron/adapter_learning.html) in NeMo.
 
 
-#### 5.10.1. GPT-3 Adapter Learning and IA3 Learning
+#### 5.11.1. GPT-3 Adapter Learning and IA3 Learning
 <a id="markdown-gpt-3-adapter-learning" name="gpt-3-adapter-learning"></a>
 
 SQuAD v1.1 benchmark is supported for adapter learning and ia3. With default adapter learning and ia3 config file, 
@@ -2874,7 +2874,7 @@ in `stages` to run the IA3 learning pipeline. To ia3 learning on `squad` task, s
 `ia3_learning` parameter to `gpt3/squad`, which can be found in `conf/ia3_learning/gpt3/squad.yaml`.
 The tool currently supports P-tuning technique only.
 
-##### 5.10.1.1. Common
+##### 5.11.1.1. Common
 <a id="markdown-common" name="common"></a>
 To specify the configuration for adapter learning or IA3 learning, 
 use all the `run` parameters to define the job specific config:
@@ -2898,7 +2898,7 @@ model:
   pipeline_model_parallel_size: 1
 ```
 
-##### 5.10.1.2. Slurm
+##### 5.11.1.2. Slurm
 <a id="markdown-slurm" name="slurm"></a>
 
 Set configuration for a Slurm cluster in the `conf/cluster/bcm.yaml` file:
@@ -2929,7 +2929,7 @@ then run:
 python3 main.py
 ```
 
-##### 5.10.1.3. Base Command Platform
+##### 5.11.1.3. Base Command Platform
 <a id="markdown-base-command-platform" name="base-command-platform"></a>
 In order to run the adapter learning script on Base Command Platform, set the
 `cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overridden
@@ -2965,7 +2965,7 @@ The command above assumes you mounted the data workspace in `/mount/data`, and t
 The stdout and stderr outputs will also be redirected to the `/results/ia3_learning_gpt3_log.txt` file, to be able to download the logs from NGC.
 Any other parameter can also be added to the command to modify its behavior.
 
-#### 5.10.2. T5 Adapter Learning and IA3 Learning
+#### 5.11.2. T5 Adapter Learning and IA3 Learning
 <a id="markdown-t5-and-mt5-adapter-learning" name="t5-and-mt5-adapter-learning"></a>
 
 The configuration used for the adapter learning needs to be defined in the
@@ -2980,7 +2980,7 @@ file to use for IA3 learning purposes. The `ia3_learning` parameter must be incl
 in `stages` to run the IA3 learning pipeline. To ia3 learning on `squad` task, set
 `ia3_learning` parameter to `t5/squad`, which can be found in `conf/adapter_learning/t5/squad.yaml` for T5 models.
 
-##### 5.10.2.1. Common
+##### 5.11.2.1. Common
 <a id="markdown-common" name="common"></a>
 To specify the configuration for adapter learning, 
 use all the `run` parameters to define the job specific config:
@@ -3004,7 +3004,7 @@ model:
   pipeline_model_parallel_size: 1
 ```
 
-##### 5.10.2.2. Slurm
+##### 5.11.2.2. Slurm
 <a id="markdown-slurm" name="slurm"></a>
 
 Set configuration for a Slurm cluster in the `conf/cluster/bcm.yaml` file:
@@ -3035,7 +3035,7 @@ then run:
 python3 main.py
 ```
 
-##### 5.10.2.3. Base Command Platform
+##### 5.11.2.3. Base Command Platform
 <a id="markdown-base-command-platform" name="base-command-platform"></a>
 In order to run the adapter learning script on Base Command Platform, set the
 `cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overridden
@@ -3587,7 +3587,7 @@ The command above assumes you mounted the data workspace in `/mount/data`, and t
 The stdout and stderr outputs will also be redirected to the `/results/eval_prompt_mt5_log.txt` file, to be able to download the logs from NGC.
 Any other parameter can also be added to the command to modify its behavior.
 
-#### 5.12.4. Adapter Learned and IA3 Learned GPT-3 Evaluation
+#### 5.12.6. Adapter Learned and IA3 Learned GPT-3 Evaluation
 <a id="markdown-prompt-learned-and-ia3-learned-gpt-3-evaluation" name="prompt-learned-and-ia3-learned-gpt-3-evaluation"></a>
 
 We also provide a simple tool to help evaluate the adapter learned and IA3 GPT-3 checkpoints. You can
@@ -3603,7 +3603,7 @@ file to be used for evaluation purposes. The `evaluation` parameter must be incl
 The parameters can be modified to adapt different evaluation tasks and checkpoints
 in evaluation runs. For Base Command Platform, all these parameters should be overridden from the command line.
 
-##### 5.12.4.1. Common
+##### 5.12.6.1. Common
 <a id="markdown-common" name="common"></a>
 To specify the configuration, use all the `run` parameters to define the job specific config. (
 `run.tasks` has to be set to `adapter` to run evaluation on adapter learning test tasks):
@@ -3638,7 +3638,7 @@ pretrained_language_model_file: ${base_results_dir}/${evaluation.run.model_train
 virtual_adapter_model_file: ${evaluation.run.adapter_learning_dir}/results/megatron_gpt_adapter.nemo # or megatron_gpt_ia3.nemo
 ```
 
-##### 5.12.4.2. Slurm
+##### 5.12.6.2. Slurm
 <a id="markdown-slurm" name="slurm"></a>
 
 Set configuration for a Slurm cluster in the `conf/cluster/bcm.yaml` file:
@@ -3669,7 +3669,7 @@ then run:
 python3 main.py
 ```
 
-##### 5.12.4.3. Base Command Platform
+##### 5.12.6.3. Base Command Platform
 <a id="markdown-base-command-platform" name="base-command-platform"></a>
 In order to run the evaluation script on Base Command Platform, set the
 `cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overridden
@@ -3703,7 +3703,7 @@ The stdout and stderr outputs will also be redirected to the `/results/eval_ia3_
 Any other parameter can also be added to the command to modify its behavior.
 
 
-#### 5.12.5. Adapter Learned and IA3 Learned T5 Evaluation
+#### 5.12.7. Adapter Learned and IA3 Learned T5 Evaluation
 <a id="markdown-adapter-learned-and-ia3-t5-evaluation" name="adapter-learned-and-ia3-t5-evaluation"></a>
 
 The configuration used for the evaluation needs to be defined in the
@@ -3715,7 +3715,7 @@ file to use for evaluation purposes. The `evaluation` parameter must be included
 parameters can be modified to adapt different evaluation tasks and checkpoints
 in evaluation runs. For Base Command Platform, all these parameters should be overridden from the command line.
 
-##### 5.12.5.1. Common
+##### 5.12.7.1. Common
 <a id="markdown-common" name="common"></a>
 To specify the configuration, use all the `run` parameters to define the job specific config:
 ```yaml
@@ -3747,7 +3747,7 @@ pretrained_language_model_file: ${base_results_dir}/${evaluation.run.model_train
 virtual_adapter_model_file: ${evaluation.run.adapter_learning_dir}/results/megatron_t5_adapter.nemo # or megatron_t5_ia3.nemo
 ```
 
-##### 5.12.5.2. Slurm
+##### 5.12.7.2. Slurm
 <a id="markdown-slurm" name="slurm"></a>
 
 Set configuration for a Slurm cluster in the `conf/cluster/bcm.yaml` file:
@@ -3778,7 +3778,7 @@ then run:
 python3 main.py
 ```
 
-##### 5.12.5.3. Base Command Platform
+##### 5.12.7.3. Base Command Platform
 <a id="markdown-base-command-platform" name="base-command-platform"></a>
 In order to run the evaluation script on Base Command Platform, set the
 `cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overridden
