@@ -295,7 +295,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         return loss_mean
 
     def validation_step(self, batch, batch_idx, inference=False):
-        enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids = batch
+        input_ids, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids = batch
 
         mode = self.training
         self.eval()
@@ -309,7 +309,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
                 loss_mean = []
             return loss_mean
 
-        input_embeds = self.embed_input_train(enc_input, taskname_ids)
+        input_embeds = self.embed_input_train(input_ids, taskname_ids)
 
         # TODO: This check needs to be revisited with PP support.
         if hasattr(self.frozen_model.enc_dec_model.encoder_embedding, 'position_embeddings'):
@@ -319,7 +319,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             encoder_input = input_embeds
 
         predicted_token_ids, log_probs = self.frozen_model.decode(
-            tokens_enc=enc_input,
+            tokens_enc=input_ids,
             enc_mask=enc_mask,
             num_tokens_to_generate=self.decoder_seq_length,
             encoder_input=encoder_input,
@@ -328,9 +328,9 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         processed_inputs, processed_preds, processed_labels = [], [], []
         preds = predicted_token_ids.cpu().numpy().tolist()
         labels = labels.cpu().numpy().tolist()
-        enc_inputs = enc_input.cpu().numpy().tolist()
+        input_ids = input_ids.cpu().numpy().tolist()
 
-        for i, (enc_input, pred, label) in enumerate(zip(enc_inputs, preds, labels)):
+        for i, (input_id, pred, label) in enumerate(zip(input_ids, preds, labels)):
             if self.tokenizer.eos_id in pred:
                 idx = pred.index(self.tokenizer.eos_id)
                 pred = pred[:idx]
@@ -339,29 +339,27 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             if hasattr(self.tokenizer, 'special_token_to_id'):
                 pred = [id for id in pred if id not in self.tokenizer.special_token_to_id.values()]
                 label = [id for id in label if id not in self.tokenizer.special_token_to_id.values()]
-                enc_input = [id for id in enc_input if id not in self.tokenizer.special_token_to_id.values()]
+                input_id = [id for id in input_id if id not in self.tokenizer.special_token_to_id.values()]
             # HF Autotokenizer case.
             else:
                 pred = [id for id in pred if id not in self.tokenizer.tokenizer.additional_special_tokens_ids]
                 label = [id for id in label if id not in self.tokenizer.tokenizer.additional_special_tokens_ids]
-                enc_input = [
-                    id for id in enc_input if id not in self.tokenizer.tokenizer.additional_special_tokens_ids
-                ]
+                input_id = [id for id in input_id if id not in self.tokenizer.tokenizer.additional_special_tokens_ids]
 
             pred = self.tokenizer.ids_to_text(pred)
             label = self.tokenizer.ids_to_text(label)
-            enc_input = self.tokenizer.ids_to_text(enc_input)
+            input_id = self.tokenizer.ids_to_text(input_id)
 
             processed_preds.append(pred)
             processed_labels.append(label)
-            processed_inputs.append(enc_input)
+            processed_inputs.append(input_id)
 
         self.train(mode=mode)
         return {
             'loss': loss_mean,
             'predicted_token_ids': processed_preds,
             'labels': processed_labels,
-            'enc_inputs': processed_inputs,
+            'input_idss': processed_inputs,
         }
 
     def validation_epoch_end(self, outputs):
