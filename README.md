@@ -2863,7 +2863,6 @@ Any other parameter can also be added to the command to modify its behavior.
 <a id="markdown-model-adapter-learning" name="model-adapter-learning"></a>
 
 
-AI: Adi
 NeMo Megatron supports Adapter Learning and Infused Adapter by Inhibiting and Amplifying Inner Activations (IA3) learning. Both methods are parameter-efficient alternatives to fine-tuning pretrained language
 models. Our NeMo implementation makes it possible to use one pretrained GPT-3 or T5 models on many downstream
 tasks without tuning the model's full set of parameters. Because the original model parameters are frozen and never altered by either
