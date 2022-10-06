@@ -17,13 +17,7 @@ We present the main results of our models in the following table.
 Note: LL60kh refers to the Libri-Light dataset [7].  
 
 ## Usage
-Please install [NeMo](https://github.com/NVIDIA/NeMo) [1] before proceeding. 
-
-### Install Dependencies
-Under the current directory, run
-```bash
-pip install -r requirements.txt
-```
+Please install [NeMo](https://github.com/NVIDIA/NeMo) [1] before proceeding. **All following scripts are run under the current directory of this README.md file**.
 
 ### Data Preparation
 1. Under the current directory, run the following script to download and process data.
@@ -60,7 +54,7 @@ python ../../../scripts/tokenizers/process_asr_text_tokenizer.py \
 
 
 ### Training
-Run with the default config that uses ASR-pretrained encoder on NeMo ASR-set 3.0. The default batch size is set to 16 for a GPU with 32GB memory, please adjust it to your own case. Training for 100 epochs takes around 18 hours on a single RTX A6000 GPU with 49GB memory.
+Run with the default config that uses ASR-pretrained encoder on NeMo ASR-set 3.0. The default batch size is set to 16 for a GPU with 32GB memory, please adjust it to your own case.
 
 ```bash
 DATA_DIR="./slurp_data"

@@ -71,9 +71,9 @@ An example config for the model can be:
 .. code-block:: yaml
 
   pretrained_encoder:
-  name: ssl_en_conformer_large  # which model use to initialize the encoder, set to null if not using any.
-  freeze: false  # whether to freeze the encoder during training.
-  
+    name: stt_en_conformer_ctc_large  # which model use to initialize the encoder, set to null if not using any. Only used to initialize training, not used in resuming from checkpoint.
+    freeze: false  # whether to freeze the encoder during training.
+    
   model:
     sample_rate: 16000
     encoder:

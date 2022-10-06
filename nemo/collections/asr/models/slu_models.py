@@ -31,7 +31,7 @@ from nemo.collections.asr.parts.mixins import ASRBPEMixin, ASRModuleMixin
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.collections.asr.parts.utils.slu_utils import SequenceGenerator, SequenceGeneratorConfig, get_seq_mask
 from nemo.collections.common.losses import SmoothedNLLLoss
-from nemo.core.classes.common import PretrainedModelInfo, Serialization, typecheck
+from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, LogprobsType, NeuralType, SpectrogramType
 from nemo.utils import logging, model_utils
 
@@ -54,12 +54,12 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
 
         super().__init__(cfg=cfg, trainer=trainer)
 
-        self.preprocessor = Serialization.from_config_dict(self.cfg.preprocessor)
-        self.encoder = Serialization.from_config_dict(self.cfg.encoder)
-        self.decoder = Serialization.from_config_dict(self.cfg.decoder)
+        self.preprocessor = self.from_config_dict(self.cfg.preprocessor)
+        self.encoder = self.from_config_dict(self.cfg.encoder)
+        self.decoder = self.from_config_dict(self.cfg.decoder)
 
         if hasattr(self._cfg, 'spec_augment') and self._cfg.spec_augment is not None:
-            self.spec_augmentation = Serialization.from_config_dict(self._cfg.spec_augment)
+            self.spec_augmentation = self.from_config_dict(self._cfg.spec_augment)
         else:
             self.spec_augmentation = None
 
@@ -74,11 +74,11 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
 
         # Create embedding layer
         self.cfg.embedding["vocab_size"] = vocab_size
-        self.embedding = Serialization.from_config_dict(self.cfg.embedding)
+        self.embedding = self.from_config_dict(self.cfg.embedding)
 
         # Create token classifier
         self.cfg.classifier["num_classes"] = vocab_size
-        self.classifier = Serialization.from_config_dict(self.cfg.classifier)
+        self.classifier = self.from_config_dict(self.cfg.classifier)
 
         self.loss = SmoothedNLLLoss(label_smoothing=self.cfg.loss.label_smoothing)
 

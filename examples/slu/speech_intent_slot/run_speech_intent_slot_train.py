@@ -70,12 +70,7 @@ import pytorch_lightning as pl
 import torch
 from omegaconf import OmegaConf
 
-from nemo.collections.asr.models import (
-    EncDecCTCModelBPE,
-    EncDecRNNTBPEModel,
-    SLUIntentSlotBPEModel,
-    SpeechEncDecSelfSupervisedModel,
-)
+from nemo.collections.asr.models import ASRModel, SLUIntentSlotBPEModel, SpeechEncDecSelfSupervisedModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
@@ -94,7 +89,7 @@ def main(cfg):
     if pretrained_encoder_name is not None:
         if Path(pretrained_encoder_name).is_file():
             logging.info(f"Loading pretrained encoder from local: {pretrained_encoder_name}")
-            pretraind_model = EncDecCTCModelBPE.restore_from(
+            pretraind_model = ASRModel.restore_from(
                 restore_path=pretrained_encoder_name, map_location=torch.device("cpu")
             )
             model.encoder.load_state_dict(pretraind_model.encoder.state_dict(), strict=False)
@@ -103,10 +98,8 @@ def main(cfg):
             logging.info(f"Loading pretrained encoder from NGC: {pretrained_encoder_name}")
             if pretrained_encoder_name.startswith("ssl_"):
                 model_cls = SpeechEncDecSelfSupervisedModel
-            elif pretrained_encoder_name.startswith("stt_") and "_ctc_" in pretrained_encoder_name:
-                model_cls = EncDecCTCModelBPE
-            elif pretrained_encoder_name.startswith("stt_") and "_transducer_" in pretrained_encoder_name:
-                model_cls = EncDecRNNTBPEModel
+            elif pretrained_encoder_name.startswith("stt_"):
+                model_cls = ASRModel
             else:
                 raise ValueError(f"Unknown pretrained encoder: {pretrained_encoder_name}")
             pretraind_model = model_cls.from_pretrained(
