@@ -33,9 +33,9 @@ from nemo.utils import logging
 # prevent issues with other modules that rely on the primary
 # device context.
 try:
-    import pycuda.autoprimaryctx
+    import pycuda.autoprimaryctx  # noqa
 except ModuleNotFoundError:
-    import pycuda.autoinit
+    import pycuda.autoinit  # noqa
 
 TRT_LOGGER = trt.Logger()
 

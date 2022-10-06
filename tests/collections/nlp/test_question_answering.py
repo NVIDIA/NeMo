@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import collections
-from pydoc import doc
 
 import pytest
 

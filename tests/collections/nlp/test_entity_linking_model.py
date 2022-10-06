@@ -17,7 +17,6 @@ import shutil
 import tempfile
 
 import pytest
-import wget
 from omegaconf import OmegaConf
 
 from nemo.collections.nlp.models import EntityLinkingModel

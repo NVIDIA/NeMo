@@ -211,7 +211,7 @@ class MegatronPerceiverEncoderModule(MegatronModule):
     def set_input_tensor(self, input_tensor):
         """ See megatron.model.transformer.set_input_tensor()"""
         # TODO: Fix this when adding support for Pipeline Parallel.
-        pass
+        pass  # noqa
 
     def forward(
         self,

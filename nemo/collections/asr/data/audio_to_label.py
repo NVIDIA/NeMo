@@ -15,7 +15,6 @@ import io
 import os
 from typing import Dict, List, Optional, Union
 
-import braceexpand
 import torch
 import webdataset as wd
 

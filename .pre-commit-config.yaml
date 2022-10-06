@@ -43,3 +43,17 @@ repos:
         name: Format code
         args: [--skip-string-normalization, --line-length=119]
         additional_dependencies: ['click==8.0.2']
+
+  - repo: https://github.com/PyCQA/autoflake
+    rev: v1.6.1
+    hooks:
+      - id: autoflake
+        name: remove unused imports and unused variables
+        args: [
+          --in-place,
+          --expand-star-imports,
+          --remove-all-unused-imports,
+          --ignore-init-module-imports,
+          --ignore-pass-after-docstring
+        ]
+        exclude: docs/

@@ -12,11 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
 
 import pytest
 import torch
-from omegaconf import DictConfig, ListConfig
+from omegaconf import DictConfig
 
 from nemo.collections.asr.models import SpeechEncDecSelfSupervisedModel
 

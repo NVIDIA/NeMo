@@ -36,7 +36,7 @@ from nemo.utils.app_state import AppState
 from nemo.utils.model_utils import inject_model_parallel_rank
 
 try:
-    from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
+    from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator  # noqa
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):

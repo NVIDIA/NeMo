@@ -13,7 +13,7 @@
 # limitations under the License.
 import logging
 from abc import ABC, abstractmethod
-from typing import List, Optional, Union
+from typing import List
 
 import torch
 

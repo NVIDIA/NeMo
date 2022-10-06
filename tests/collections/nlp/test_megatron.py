@@ -13,7 +13,7 @@
 # limitations under the License.
 
 try:
-    import apex
+    import apex  # noqa
 
     apex_available = True
 except Exception:
@@ -22,7 +22,6 @@ except Exception:
 import os
 import tempfile
 
-import onnx
 import pytest
 import torch
 from omegaconf import OmegaConf

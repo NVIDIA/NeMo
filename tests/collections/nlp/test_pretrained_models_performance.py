@@ -13,9 +13,6 @@
 # limitations under the License.
 
 import os
-from pathlib import Path
-from shutil import rmtree
-from unittest import TestCase
 
 import pytest
 import pytorch_lightning as pl

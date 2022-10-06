@@ -18,7 +18,16 @@ import pytest
 import torch
 
 from nemo.core import Typing, typecheck
-from nemo.core.neural_types import *
+from nemo.core.neural_types import (
+    CategoricalValuesType,
+    ChannelType,
+    ElementType,
+    LabelsType,
+    LogitsType,
+    LogprobsType,
+    NeuralType,
+    NeuralTypeComparisonResult,
+)
 
 
 # Perform recursive shape assert

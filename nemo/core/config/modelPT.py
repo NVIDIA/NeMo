@@ -19,7 +19,7 @@ from omegaconf import MISSING
 
 from nemo.core import config
 from nemo.core.classes.dataset import DatasetConfig
-from nemo.utils import exp_manager
+from nemo.utils import exp_manager  # noqa
 
 
 @dataclass

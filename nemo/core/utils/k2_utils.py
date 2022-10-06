@@ -31,7 +31,7 @@ K2_IMPORT_SUCCESS = "Successfully imported k2."
 
 def k2_is_available() -> Tuple[bool, str]:
     try:
-        import k2
+        import k2  # noqa
 
         return True, K2_IMPORT_SUCCESS
     except (ImportError, ModuleNotFoundError):

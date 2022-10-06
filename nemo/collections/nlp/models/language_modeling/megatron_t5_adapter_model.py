@@ -34,7 +34,6 @@ from nemo.collections.nlp.modules.common.megatron.parallel_adapters import (
     InfusedAdapterConfig,
     ParallelLinearAdapterConfig,
 )
-from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.core.classes.mixins import adapter_mixins
 from nemo.utils import logging
 

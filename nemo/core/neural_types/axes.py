@@ -24,7 +24,7 @@ class AxisKindAbstract(Enum):
     your OWN Enum if you aren't satisfied with AxisKind. Then your own Enum can be used
     instead of AxisKind."""
 
-    pass
+    pass  # noqa
 
 
 class AxisKind(AxisKindAbstract):
