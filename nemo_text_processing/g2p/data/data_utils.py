@@ -146,6 +146,10 @@ def ipa_word_tokenize(text):
     return _word_tokenize(words)
 
 
+def ipa_text_preprocessing(text):
+    return text.lower()
+
+
 def german_text_preprocessing(text):
     return text.lower()
 

@@ -20,11 +20,15 @@ from nemo_text_processing.g2p.modules import IPAG2P
 
 class TestModules:
 
-    PHONEME_DICT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "phoneme_dict", "test_dict.txt")
+    PHONEME_DICT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "phoneme_dict")
+    PHONEME_DICT_PATH_EN = os.path.join(PHONEME_DICT_DIR, "test_dict.txt")
+    PHONEME_DICT_PATH_ES = os.path.join(PHONEME_DICT_DIR, "test_dict_es.txt")
+    PHONEME_DICT_PATH_DE = os.path.join(PHONEME_DICT_DIR, "test_dict_de.txt")
 
     @staticmethod
     def _create_g2p(
-        phoneme_dict=PHONEME_DICT_PATH,
+        phoneme_dict=PHONEME_DICT_PATH_EN,
+        locale="en-US",
         apply_to_oov_word=lambda x: x,
         use_chars=False,
         phoneme_probability=None,
@@ -32,6 +36,7 @@ class TestModules:
     ):
         return IPAG2P(
             phoneme_dict,
+            locale=locale,
             apply_to_oov_word=apply_to_oov_word,
             use_chars=use_chars,
             phoneme_probability=phoneme_probability,
@@ -120,6 +125,26 @@ class TestModules:
         input_text = "Hello world."
         expected_output = [char for char in input_text.lower()]
         g2p = self._create_g2p(use_chars=True, phoneme_probability=0.0, set_graphemes_upper=False)
+
+        phonemes = g2p(input_text)
+        assert phonemes == expected_output
+
+    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.unit
+    def test_ipa_g2p_es_ES(self):
+        input_text = "¿Hola mundo, amigo?"
+        expected_output = [char for char in "¿ˈola mˈundo, AMIGO?"]
+        g2p = self._create_g2p(phoneme_dict=self.PHONEME_DICT_PATH_ES, locale="es-ES")
+
+        phonemes = g2p(input_text)
+        assert phonemes == expected_output
+
+    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.unit
+    def test_ipa_g2p_de_DE(self):
+        input_text = "Hallo „welt“!"
+        expected_output = [char for char in "hˈaloː „vˈɛlt“!"]
+        g2p = self._create_g2p(phoneme_dict=self.PHONEME_DICT_PATH_DE, locale="de-DE")
 
         phonemes = g2p(input_text)
         assert phonemes == expected_output

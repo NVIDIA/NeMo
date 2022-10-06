@@ -23,7 +23,7 @@ from typing import Callable, DefaultDict, List, Optional, Set, Tuple, Union
 
 import nltk
 import torch
-from nemo_text_processing.g2p.data.data_utils import english_word_tokenize
+from nemo_text_processing.g2p.data.data_utils import english_word_tokenize, ipa_word_tokenize
 
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
@@ -263,7 +263,7 @@ class IPAG2P(BaseG2p):
     def __init__(
         self,
         phoneme_dict: Union[str, pathlib.Path, dict],
-        word_tokenize_func: Callable[[str], List[Tuple[Union[str, List[str]], bool]]] = english_word_tokenize,
+        locale: str = "en-US",
         apply_to_oov_word: Optional[Callable[[str], str]] = None,
         ignore_ambiguous_words: bool = True,
         heteronyms: Optional[Union[str, pathlib.Path, List[str]]] = None,
@@ -288,6 +288,7 @@ class IPAG2P(BaseG2p):
                 cases are represented as str.
                 It is useful to mark word as unchangeable which is already in phoneme representation.
                 Defaults to the English word tokenizer.
+            locale: Locale used to determine tokenization logic.
             apply_to_oov_word: Function that will be applied to out of phoneme_dict word.
             ignore_ambiguous_words: Whether to not handle word via phoneme_dict with ambiguous phoneme sequences.
                 Defaults to True.
@@ -347,6 +348,11 @@ class IPAG2P(BaseG2p):
                 "This may be intended if phonemes and chars are both valid inputs, otherwise, "
                 "you may see unexpected deletions in your input."
             )
+
+        if locale == "en-US":
+            word_tokenize_func = english_word_tokenize
+        else:
+            word_tokenize_func = ipa_word_tokenize
 
         super().__init__(
             phoneme_dict=self.phoneme_dict,
