@@ -2969,7 +2969,7 @@ The command above assumes you mounted the data workspace in `/mount/data`, and t
 The stdout and stderr outputs will also be redirected to the `/results/adapter_learning_gpt3_log.txt` file, to be able to download the logs from NGC.
 Any other parameter can also be added to the command to modify its behavior.
 
-To run the adapter learning pipeline or the  IA3 learning pipeline on a 5B GPT-3 model converted checkpoint stored in 
+To run the IA3 learning pipeline ro IA3-learn a 5B GPT-3 model converted checkpoint stored in 
 `/mount/results/gpt3_5b/convert_nemo`, run:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py ia3_learning=gpt3/squad \
