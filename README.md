@@ -264,7 +264,7 @@ Figure 1: The GPT-3 family architecture. The 5B variant includes 24 transformer 
 | Container OS            | Ubuntu 20.04     |
 | rdma-core               | 36.0             |
 | GDRcopy                 | 2.3              |
-| HPC-X                   | v2.10            |
+| HPC-X                   | 2.10.0           |
 | Base Command Manager    | 1.0.0            |
 | DeepOps                 | 21.06            |
 
