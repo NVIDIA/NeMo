@@ -437,7 +437,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
     def setup(self, stage=None):
         resume_checkpoint_path = self.trainer._checkpoint_connector.resume_from_checkpoint_fit_path
         if resume_checkpoint_path:
-            init_consumed_samples = self._extract_consumed_samples(resume_checkpoint_path)
+            init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
         else:
             init_consumed_samples = 0
         self.init_consumed_samples = init_consumed_samples
