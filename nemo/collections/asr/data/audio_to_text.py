@@ -470,17 +470,17 @@ class AudioToBPEDataset(_AudioTextDataset):
         return_sample_id: bool = False,
         channel_selector: Optional[ChannelSelectorType] = None,
     ):
-        if use_start_end_token and hasattr(tokenizer, 'bos_token'):
+        if use_start_end_token and hasattr(tokenizer, "bos_id") and tokenizer.bos_id > 0:
             bos_id = tokenizer.bos_id
         else:
             bos_id = None
 
-        if use_start_end_token and hasattr(tokenizer, 'eos_token'):
+        if use_start_end_token and hasattr(tokenizer, "eos_id") and tokenizer.eos_id > 0:
             eos_id = tokenizer.eos_id
         else:
             eos_id = None
 
-        if hasattr(tokenizer, 'pad_token'):
+        if hasattr(tokenizer, "pad_id") and tokenizer.pad_id > 0:
             pad_id = tokenizer.pad_id
         else:
             pad_id = 0
@@ -494,6 +494,12 @@ class AudioToBPEDataset(_AudioTextDataset):
                 self._tokenizer = tokenizer
 
             def __call__(self, *args):
+                if isinstance(args[0], List) and self.is_aggregate:
+                    t = []
+                    for span in args[0]:
+                        t.extend(self._tokenizer.text_to_ids(span['str'], span['lang']))
+                    return t
+
                 t = self._tokenizer.text_to_ids(*args)
                 return t
 
@@ -1021,17 +1027,17 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
         world_size: int = 0,
         return_sample_id: bool = False,
     ):
-        if use_start_end_token and hasattr(tokenizer, 'bos_token'):
+        if use_start_end_token and hasattr(tokenizer, "bos_id") and tokenizer.bos_id > 0:
             bos_id = tokenizer.bos_id
         else:
             bos_id = None
 
-        if use_start_end_token and hasattr(tokenizer, 'eos_token'):
+        if use_start_end_token and hasattr(tokenizer, "eos_id") and tokenizer.eos_id > 0:
             eos_id = tokenizer.eos_id
         else:
             eos_id = None
 
-        if hasattr(tokenizer, 'pad_token'):
+        if hasattr(tokenizer, "pad_id") and tokenizer.pad_id > 0:
             pad_id = tokenizer.pad_id
         else:
             pad_id = 0
@@ -1045,6 +1051,12 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
                 self._tokenizer = tokenizer
 
             def __call__(self, *args):
+                if isinstance(args[0], Iterable) and self.is_aggregate:
+                    t = []
+                    for span in args[0]:
+                        t.extend(self._tokenizer.text_to_ids(span['str'], span['lang']))
+                    return t
+
                 t = self._tokenizer.text_to_ids(*args)
                 return t
 
