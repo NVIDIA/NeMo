@@ -253,18 +253,18 @@ Figure 1: The GPT-3 family architecture. The 5B variant includes 24 transformer 
 |-------------------------|------------------|
 | NVIDIA Triton           | 2.24.0           |
 | FasterTransformer       | v5.1+d3ca094     |
-| PyTorch                 | 1.13.0a0+08820cb |
+| PyTorch                 | 1.13.0a0+d321be6 |
 | NeMo                    | 1.11.0+718d5d2   |
-| PyTorch Lightning       | 1.6.5            |
+| PyTorch Lightning       | 1.7.6            |
 | Hydra                   | 1.1.1            |
 | CUDA                    | NVIDIA CUDA 11.7 |
 | cuBLAS                  | 11.10.3.66       |
-| cuDNN                   | 8.4.1.67         |
+| cuDNN                   | 8.5.0.96         |
 | NCCL                    | 2.12.12          |
 | Container OS            | Ubuntu 20.04     |
 | rdma-core               | 36.0             |
 | GDRcopy                 | 2.3              |
-| HPC-X                   | 2.10.0           |
+| HPC-X                   | v2.10            |
 | Base Command Manager    | 1.0.0            |
 | DeepOps                 | 21.06            |
 
