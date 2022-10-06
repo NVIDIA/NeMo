@@ -87,9 +87,6 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
         self.setup_validation_data()
         logging.info(f'setup completed:\n{self.frozen_model.summarize()}')
 
-    def setup_optimizer_param_groups(self):
-        super(MegatronT5PromptLearningModel, self).setup_optimizer_param_groups()
-
     def on_train_end(self):
         # Save the best nemo model
         self.save_to(save_path=self.cfg.nemo_path)
