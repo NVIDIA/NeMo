@@ -13,6 +13,8 @@ class TestConfig:
           - conversion: gpt3/convert_gpt3
           - fine_tuning: null
           - prompt_learning: null
+          - adapter_learning: null
+          - ia3_learning: null
           - evaluation: gpt3/evaluate_all
           - export: gpt3/export_gpt3
           - override hydra/job_logging: stdout
@@ -63,6 +65,8 @@ class TestConfig:
         training_config: ${hydra:runtime.choices.training}
         fine_tuning_config: ${hydra:runtime.choices.fine_tuning}
         prompt_learning_config: ${hydra:runtime.choices.prompt_learning}
+        adapter_learning_config: ${hydra:runtime.choices.adapter_learning}
+        ia3_learning_config: ${hydra:runtime.choices.ia3_learning}
         evaluation_config: ${hydra:runtime.choices.evaluation}
         conversion_config: ${hydra:runtime.choices.conversion}
         export_config: ${hydra:runtime.choices.export}

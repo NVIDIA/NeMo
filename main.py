@@ -7,7 +7,7 @@ import omegaconf
 import subprocess
 
 from bignlp.core.stages import BigNLPStage
-from bignlp.core.stages import Training, FineTuning, PromptLearning
+from bignlp.core.stages import Training, FineTuning, PromptLearning, AdapterLearning, IA3Learning
 from bignlp.core.stages import Conversion
 from bignlp.core.stages import EvalHarnessEvaluation, NeMoEvaluation
 from bignlp.core.data_stages import PileDataPreparation, MC4DataPreparation, CustomDataPreparation
@@ -22,11 +22,13 @@ STR2STAGECLASS = {
     "training": Training,
     "fine_tuning": FineTuning,
     "prompt_learning": PromptLearning,
+    "adapter_learning": AdapterLearning,
+    "ia3_learning": IA3Learning,
     "conversion": Conversion,
     "export": Export,
     "evaluation": {
         EvalHarnessEvaluation: ["gpt3", "prompt_gpt3"],
-        NeMoEvaluation: ["t5", "mt5", "prompt_t5", "prompt_mt5"]
+        NeMoEvaluation: ["t5", "mt5", "prompt_t5", "prompt_mt5", "adapter_t5", "adapter_gpt3", "ia3_t5", "ia3_gpt3"]
     },
     "data_preparation": {
         PileDataPreparation: ["gpt3", "t5"],
