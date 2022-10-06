@@ -405,7 +405,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         # Put virtual and discrete token embs in their correct locations for final output
         input_embeds = torch.where(virtual_token_locations, virtual_token_embeds, discrete_token_embeds)
         return input_embeds
-        
+
     def update_config_for_inference_and_save(self):
         self.virtual_prompt_style = VirtualPromptStyle.INFERENCE
         self.virtual_prompt_source = VirtualPromptSource.PROMPT_TABLE
