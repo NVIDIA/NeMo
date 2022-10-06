@@ -441,7 +441,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 tensor_shape=tensor_shape,
                 dtype=self.autocast_dtype,
                 sequence_parallel_enabled=self.cfg.get('sequence_parallel', False),
-                batch_idx=batch_idx,
             )
         else:
             losses_reduced_per_micro_batch = forward_backward_no_pipelining(
