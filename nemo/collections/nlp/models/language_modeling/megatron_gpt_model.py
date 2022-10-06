@@ -455,18 +455,20 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if losses_reduced_per_micro_batch:
             # average loss across micro batches
             if batch['tokens'].shape[0] == batch_for_pipeline[0].shape[0]:
-                loss_tensors_multiplied_by_batch_list = [loss_reduced['avg'] * self.cfg.micro_batch_size  for loss_reduced in losses_reduced_per_micro_batch]
-            else : 
+                loss_tensors_multiplied_by_batch_list = [
+                    loss_reduced['avg'] * self.cfg.micro_batch_size for loss_reduced in losses_reduced_per_micro_batch
+                ]
+            else:
                 loss_tensors_multiplied_by_batch_list = []
                 total_samples_remaining = batch['tokens'].shape[0]
                 for loss_reduced in losses_reduced_per_micro_batch:
                     if total_samples_remaining <= 0:
                         break
-                    if total_samples_remaining//self.cfg.micro_batch_size >= 1 :
-                        loss_tensors_multiplied_by_batch_list.append(loss_reduced['avg']*self.cfg.micro_batch_size)
-                    else :
-                        loss_tensors_multiplied_by_batch_list.append(loss_reduced['avg']*total_samples_remaining) 
-                    total_samples_remaining = total_samples_remaining - self.cfg.micro_batch_size                  
+                    if total_samples_remaining // self.cfg.micro_batch_size >= 1:
+                        loss_tensors_multiplied_by_batch_list.append(loss_reduced['avg'] * self.cfg.micro_batch_size)
+                    else:
+                        loss_tensors_multiplied_by_batch_list.append(loss_reduced['avg'] * total_samples_remaining)
+                    total_samples_remaining = total_samples_remaining - self.cfg.micro_batch_size
 
             loss_total_batch = torch.concat(loss_tensors_multiplied_by_batch_list).sum()
         else:
