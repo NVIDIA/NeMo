@@ -1470,7 +1470,7 @@ tool provides several different capabilities, as shown in the table below:
 | Parallel Training HP Search          | BCM Only | BCM Only | BCM Only |
 | Inference HP Search                  | No       | No       | No       |
 | Parallel Inference HP Search         | No       | No       | No       |
-| SLURM Based Clusters                 | Yes      | Yes      | Yes      |
+| Slurm Based Clusters                 | Yes      | Yes      | Yes      |
 | Base Command Platform Based Clusters | Yes      | Yes      | Yes      |
 
 ##### 5.3.1.1. Model Size Recommendation
@@ -1524,7 +1524,7 @@ In this section, we will explain how to run each of the stages described above.
 ##### 5.3.2.1. General Configuration
 <a id="markdown-general-configuration" name="general-configuration"></a>
 
-##### 5.3.2.1.1. SLURM
+##### 5.3.2.1.1. Slurm
 <a id="markdown-slurm" name="slurm"></a>
 
 First, our configuration setup assumes that the `/opt/bignlp/bignlp-hp-tool` and `/opt/bignlp/bignlp-scripts`
@@ -1579,12 +1579,12 @@ wandb:  # Weights and Biases (W&B) logging.
 ##### 5.3.2.1.2. Base Command Platform
 <a id="markdown-base-command-platform" name="base-command-platform"></a>
 
-In Base Command Platform, the dataset, vocab and merge files used for the training HP search must be available as a 
+In Base Command Platform, the dataset, vocabulary, and merge files used for the training HP search must be available as a 
 dataset and mounted accordingly. This guide assumes the dataset will be mounted to `/mount/data`. 
 The results of running the HP tool will be stored in `/mount/results/hp_tool`, so we recommend to mount a workspace 
 to `/mount/results`.
 
-The main configuration file can be found in `conf/config.yaml`. All the parameters can be overriden from the 
+The main configuration file can be found in `conf/config.yaml`. All the parameters can be overridden from the 
 CLI, as we will show in the next section.
 
 
@@ -1629,11 +1629,11 @@ train_settings:
   act_ckpt_layers: auto  # auto to use our recommendation, or a list, such as [0, 1, 2, 3]
 ```
 
-The `model_size_in_b` parameter indicates how many billion parameters the model should contain, and 
+The `model_size_in_b` parameter indicates how many billions of parameters the model should contain, and 
 the tool will provide a config and HPs for a model of that size. The `num_nodes` parameter indicates 
 how many nodes the HP tool should use to run each training job. The `gpus_per_node` parameter 
 indicates how many GPUs are available in each 
-node. To modify the behavior of the heuristics depending on whether 40gb or 80gb A100 GPUs are 
+node. To modify the behavior of the heuristics depending on whether 40GB or 80GB A100 GPUs are 
 available, the `gpu_memory_gb` can be set to 40 or 80, respectively, and the HP tool will recommend 
 candidate configs that are more suitable to each setting. 
 The `max_training_days` parameter shows how many days this model will be trained for, when 
@@ -1642,16 +1642,16 @@ also be used when `model_size_in_b` is set to `null`. The
 `limit_search_runs` parameter can be used to limit the number of configs that will be searched 
 during the HP search stage. We recommend selecting a value between 30 and 100 for this parameter. 
 The tool will probably need to search at least 30 different configs to find the optimal one. However, 
-if the compute is available in your cluster, we recommend increasing this parameter to a value close 
-to 100. The `output_top_n` parameter can be used to configure how much detail the output summary file 
+if the computing resources are available in your cluster, we recommend increasing this parameter to a value close 
+to 100. The `output_top_n` parameter can be used to configure how much details the output summary file 
 will include. By default, when set to 10, it will output the top 10 configurations. The 
 `max_steps_per_run` parameter indicates how many steps to train each configuration for. The 
 `max_minutes_per_run` parameter indicates how long to run each configuration for, in minutes. We 
 recommend using at least 20 minutes per run for the smaller models, and increasing it to over 60 
 minutes for the larger models. The training run will be stopped when either `max_steps_per_run` or 
 `max_minutes_per_run` is reached. The `tflops_per_gpu` parameter provides an estimate of the TFLOPs 
-each GPU can achieve when training LLMs with NeMo-Megatron. This value is only used to provide an 
-estimate of how long the model will take to train for full convergence, so you can know the time to 
+each GPU can achieve when training large language models with NeMo Megatron. This value is only used to provide an 
+estimate of how long the model will take to train to full convergence, so you can know the time to 
 train before you even begin training your model. The `num_tokens_in_b` parameter indicates how many 
 billions of tokens you will train your model for, when training to full convergence. It will be used 
 when estimating how long it will take to train the model, to the desired number of tokens. The 
@@ -1660,7 +1660,7 @@ parameter can be used to configure where the result logs will be saved. By defau
 will be created inside the `base_results_dir` indicated in the `conf/config.yaml` file. Finally, 
 the `tensor_parallel_sizes`, `pipeline_parallel_sizes`, `micro_batch_sizes`, and `act_ckpt_layers` 
 parameters can be used to override the heuristics that choose the grid search space for these 
-four parameters. If these are left as `auto`, our tool will select appropriate values. However, 
+four parameters. If these are left as `auto`, the tool will select appropriate values. However, 
 if you wish to override them, you can use these parameters. For example, if you only wish to search 
 for configurations with Tensor Parallelism (TP) values of 1 and 2, you can set 
 `tensor_parallel_sizes: [1, 2]` and leave the other parameters as `auto`.
@@ -1695,14 +1695,14 @@ correspoinding YAML file. To run the training HP tool, after all the parameters 
 <a id="markdown-base-command-platform" name="base-command-platform"></a>
 
 To run the HP Tool in BCP, the `cluster_type` parameter must be set to `bcp`. All the parameters can be configured 
-through CLI overides. For example, to launch a training HP search for the 126m GPT-3 model, we can run this command:
+through CLI overrides. For example, to launch a training HP search for the 126m GPT-3 model, run this command:
 ```
 python3 /opt/bignlp/bignlp-hp-tool/main.py search_config=gpt3/0.126b run_inference_hp_search=False bignlp_hp_tool_path=/opt/bignlp/bignlp-hp-tool data_dir=/mount/data/the_pile_gpt3 base_results_dir=/mount/results/hp_tool search_config.train_settings.num_nodes=$NGC_ARRAY_SIZE cluster_type=bcp
 ```
 
-This command assumes that the dataset directory and the results directory are datasets and workspaces mounted corectly. 
-The user can also override any training parameters, by overriding any parameter in the search_config dictionary with the 
-`search_config.train_settings.*` parameter, using hydra overrides. The values that can be overriden are shown below:
+This command assumes that the dataset directory and the results directory are datasets and workspaces mounted correctly. 
+The user can also override any training parameters, by overriding any parameter in the `search_config` dictionary with the 
+`search_config.train_settings.*` parameter, using hydra overrides. The values that can be overridden are shown below:
 
 
 ```yaml
