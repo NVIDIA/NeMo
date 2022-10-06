@@ -42,8 +42,8 @@ python heteronym_classification_inference.py \
 class TranscriptionConfig:
     # Required configs
     pretrained_model: str  # Path to a .nemo file or Name of a pretrained model
-    output_file: str  # Path to .json manifest to save prediction, will be saved in "pred_text" field
     manifest: str  # Path to .json manifest
+    output_file: str = "predictions.json"  # Path to .json manifest to save prediction, will be saved in "pred_text" field
     grapheme_field: str = "text_graphemes"  # name of the field in .json manifest for input grapheme text
 
     # if "word_id" targets are present in the manifest, evaluation will be performed and errors will be saved in errors_file
@@ -98,27 +98,27 @@ def main(cfg):
         raise ValueError(f"{cfg.manifest} is not found")
 
     with torch.no_grad():
-        # TODO add s forms handling with this model
-        preds = model.disambiguate(
-            sentences=[
-                "I live in California. I read a book. Only people who have already gained something are willing to protest, because they see scholarship and contemporary art as a resource for personal emancipation, and have a personal stake in taking it over.",
-                "Yesterday, I read a book.",
-                "He read a book last night.",
-            ],
-            start_end=[[(2, 6), (24, 28), (98, 105)], [(13, 17)], [(3, 7)]],
-            homographs=[["live", "read", "protest"], ["read"], ["read"]],
-            # grapheme_field=cfg.grapheme_field,
-            batch_size=cfg.batch_size,
-            num_workers=cfg.num_workers,
-        )
-        print(preds)
-
-        # preds = model.disambiguate_manifest(
-        #     manifest=cfg.manifest,
-        #     grapheme_field=cfg.grapheme_field,
+        # # TODO add s forms handling with this model
+        # preds = model.disambiguate(
+        #     sentences=[
+        #         "I live in California. I read a book. Only people who have already gained something are willing to protest, because they see scholarship and contemporary art as a resource for personal emancipation, and have a personal stake in taking it over.",
+        #         "Yesterday, I read a book.",
+        #         "He read a book last night.",
+        #     ],
+        #     start_end=[[(2, 6), (24, 28), (98, 105)], [(13, 17)], [(3, 7)]],
+        #     homographs=[["live", "read", "protest"], ["read"], ["read"]],
+        #     # grapheme_field=cfg.grapheme_field,
         #     batch_size=cfg.batch_size,
         #     num_workers=cfg.num_workers,
         # )
+        # print(preds)
+
+        preds = model.disambiguate_manifest(
+            manifest=cfg.manifest,
+            grapheme_field=cfg.grapheme_field,
+            batch_size=cfg.batch_size,
+            num_workers=cfg.num_workers,
+        )
 
     # save predictions to a file
     if cfg.errors_file is None:

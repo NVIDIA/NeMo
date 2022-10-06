@@ -123,11 +123,14 @@ class HeteronymClassificationDataset(Dataset):
         # drop example where sequence length exceeds max sequence length, +2 for special tokens
         length = len(self.tokenizer.text_to_tokens(sentence)) + 2
         if length > self.max_seq_len:
+            logging.error(f"length {length} > {self.max_seq_len}, skipping this example")
             return None
 
         # check the correctness on start-end indices
         for homograph_, start_end_ in zip(homographs, start_end):
             if homograph_.lower() != sentence[start_end_[0] : start_end_[1]].lower():
+                import pdb; pdb.set_trace()
+                logging.error("Incorrect span, skipping this example")
                 return None
 
         # add bos token
@@ -175,7 +178,7 @@ class HeteronymClassificationDataset(Dataset):
 
                 heteronym = sentence.lower()[heteronym_start_end[0] : heteronym_start_end[1]]
                 if heteronym not in self.wiki_homograph_dict:
-                    logging.debug(f"{heteronym} is not supported. Skipping example.")
+                    logging.error(f"{heteronym} is not supported, skipping this example.")
                     return None
 
                 grapheme_ipa_forms = self.wiki_homograph_dict[heteronym]
