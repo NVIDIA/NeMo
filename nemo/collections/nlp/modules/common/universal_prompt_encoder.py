@@ -45,7 +45,7 @@ class UniversalPromptEncoder(NeuralModule, Exportable):
         """
         """
         super().__init__()
-        self.encoder = MegatronPerceiverEncoderModule(**cfg)
+        self.encoder = MegatronPerceiverEncoderModule(**cfg, parent_model_type=None)
         self.hidden = self.encoder.hidden_size
         self.input_linear = nn.Linear(output_dim, self.hidden)
         self.output_linear = nn.Linear(self.hidden, output_dim)
