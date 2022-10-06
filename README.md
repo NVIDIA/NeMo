@@ -2678,7 +2678,6 @@ The configuration used for the prompt learning needs to be defined in the
 file to use for prompt learning purposes. The `prompt_learning` parameter must be included
 in `stages` to run the prompt learning pipeline. To prompt learning on `squad` task, set
 `prompt_learning` parameter to `gpt3/squad`, which can be found in `conf/prompt_learning/gpt3/squad.yaml`.
-The tool currently supports P-tuning technique only.
 
 ##### 5.10.1.1. Common
 <a id="markdown-common" name="common"></a>
@@ -2765,7 +2764,6 @@ file to use for prompt learning purposes. The `prompt_learning` parameter must b
 in `stages` to run the prompt learning pipeline. To prompt learning on `squad` task, set
 `prompt_learning` parameter to `t5/squad`, which can be found in `conf/prompt_learning/t5/squad.yaml` for T5 models
 (or `mt5/squad`, which can be found in `conf/prompt_learning/mt5/squad.yaml` for mT5 models). 
-The tool currently supports P-tuning technique only.
 
 ##### 5.10.2.1. Common
 <a id="markdown-common" name="common"></a>
@@ -2868,7 +2866,7 @@ models. Our NeMo implementation makes it possible to use one pretrained GPT-3 or
 tasks without tuning the model's full set of parameters. Because the original model parameters are frozen and never altered by either
 method, these also avoid cartographic forgetting issues often encountered when fine-tuning models. 
 
-Unlike prompt-learning and p-tuning, adapter learning and IA3 do not insert virtual prompts into the input. Adapter learning introduces Feedforward layers within the core transformer architecture which are updated for specific downstream tasks. IA3 adds even fewer parameters that simply scale the hidden representations in the transformer layer, these scaling parameters can be trained for specific downstream tasks.
+Unlike prompt-learning and p-tuning, Adapter learning and IA3 do not insert virtual prompts into the input. Adapter learning introduces feedforward layers within the core transformer architecture which are updated for specific downstream tasks. IA3 adds even fewer parameters that simply scale the hidden representations in the transformer layer, these scaling parameters can be trained for specific downstream tasks.
 
 - Our Adapter learning implementation for GPT3 and T5 is based of "[Parameter-Efficient Transfer Learning for NLP](https://arxiv.org/pdf/1902.00751.pdf)"
 - Our IA3 implementation is based of "[Few-Shot Parameter-Efficient Fine-Tuning is Better
@@ -2878,8 +2876,8 @@ and Cheaper than In-Context Learning](https://arxiv.org/pdf/2205.05638.pdf)".
 #### 5.11.1. GPT-3 Adapter Learning and IA3 Learning
 <a id="markdown-gpt-3-adapter-learning" name="gpt-3-adapter-learning"></a>
 
-SQuAD v1.1 benchmark is supported for adapter learning and ia3. With default adapter learning and ia3 config file, 
-our scripts will download and preprocess original SQuAD v1.1 dataset to adapter learning and ia3 dataset format 
+SQuAD v1.1 benchmark is supported for Adapter learning and IA3. With default adapter learning and IA3 config file, 
+our scripts will download and preprocess original SQuAD v1.1 dataset to adapter learning and IA3 dataset format 
 (the same format as prompt learning).
 You can also bring your own task dataset as well.
 
@@ -2888,14 +2886,12 @@ The configuration used for the adapter learning needs to be defined in the
 file to use for adapter learning purposes. The `adapter_learning` parameter must be included
 in `stages` to run the adapter learning pipeline. To adapter learning on `squad` task, set
 `adapter_learning` parameter to `gpt3/squad`, which can be found in `conf/adapter_learning/gpt3/squad.yaml`.
-The tool currently supports P-tuning technique only.
 
 IA3 learning can be defined in the same way inside
 `conf/config.yaml` file by modifying the `ia3_learning` parameter, which specifies the
 file to use for IA3 learning purposes. The `ia3_learning` parameter must be included
-in `stages` to run the IA3 learning pipeline. To ia3 learning on `squad` task, set
+in `stages` to run the IA3 learning pipeline. To IA3 learning on `squad` task, set
 `ia3_learning` parameter to `gpt3/squad`, which can be found in `conf/ia3_learning/gpt3/squad.yaml`.
-The tool currently supports P-tuning technique only.
 
 ##### 5.11.1.1. Common
 <a id="markdown-common" name="common"></a>
@@ -2973,7 +2969,7 @@ The command above assumes you mounted the data workspace in `/mount/data`, and t
 The stdout and stderr outputs will also be redirected to the `/results/adapter_learning_gpt3_log.txt` file, to be able to download the logs from NGC.
 Any other parameter can also be added to the command to modify its behavior.
 
-To run the adapter learning pipeline to IA3-learn a 5B GPT-3 model converted checkpoint stored in 
+To run the adapter learning pipeline or the  IA3 learning pipeline on a 5B GPT-3 model converted checkpoint stored in 
 `/mount/results/gpt3_5b/convert_nemo`, run:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py ia3_learning=gpt3/squad \
