@@ -2895,7 +2895,7 @@ in `stages` to run the IA3 learning pipeline. To IA3 learning on `squad` task, s
 
 ##### 5.11.1.1. Common
 <a id="markdown-common" name="common"></a>
-To specify the configuration for adapter learning or IA3 learning, 
+To specify the configuration for adapter learning (or IA3 learning), 
 use all the `run` parameters to define the job specific config:
 ```yaml
 run:
@@ -3001,7 +3001,7 @@ in `stages` to run the IA3 learning pipeline. To IA3 learning on `squad` task, s
 
 ##### 5.11.2.1. Common
 <a id="markdown-common" name="common"></a>
-To specify the configuration for adapter learning, 
+To specify the configuration for adapter learning (or IA3 learning), 
 use all the `run` parameters to define the job specific config:
 ```yaml
 run:
@@ -3009,7 +3009,7 @@ run:
   time_limit: "04:00:00"
   dependency: "singleton"
   convert_name: convert_nemo
-  model_train_name: t5_220m # or mt5_390m
+  model_train_name: t5_220m
   task_name: "squad"
   results_dir: ${base_results_dir}/${.model_train_name}/adapter_learning_${.task_name} # or ia3_learning
 ```
@@ -3396,8 +3396,8 @@ Any other parameter can also be added to the command to modify its behavior.
 
 We also provide a simple tool to help evaluate the prompt learned GPT-3 checkpoints. You can
 evaluate the capabilities of the prompt learned GPT-3 model on a customized prompt learning test dataset.
-We provide an example to evaluate our checkpoint, which went through prompt learning on SQuAD v2.0,
-on the SQuAD v2.0 test dataset created in prompt learning step.
+We provide an example to evaluate our checkpoint, which went through prompt learning on SQuAD v1.1,
+on the SQuAD v1.1 test dataset created in prompt learning step.
 
 The configuration used for the evaluation needs to be defined in the
 `conf/config.yaml` file by modifying the `evaluation` parameter, which specifies the
@@ -3436,7 +3436,7 @@ model:
   model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
   precision: bf16 # must match training precision - 32, 16 or bf16
   eval_batch_size: 4
-  prompt_dataset_paths: ${data_dir}/prompt_data/squad-v2.0/squad_test.jsonl
+  prompt_dataset_paths: ${data_dir}/prompt_data/v1.1/squad_test.jsonl
   disable_special_tokens: False # Whether to disable virtual tokens in prompt model evaluation. This is equivalent to evaluate without prompt-/p-tuning.
 ```
 
@@ -3498,8 +3498,8 @@ Any other parameter can also be added to the command to modify its behavior.
 
 We also provide a simple tool to help evaluate the prompt learned T5 or mT5 checkpoints. You can
 evaluate the capabilities of the prompt learned models on a customized prompt learning test dataset.
-We provide an example to evaluate our checkpoint, which went through prompt learning on SQuAD v2.0,
-on the SQuAD v2.0 test dataset created in prompt learning step.
+We provide an example to evaluate our checkpoint, which went through prompt learning on SQuAD v1.1,
+on the SQuAD v1.1 test dataset created in prompt learning step.
 
 The configuration used for the evaluation needs to be defined in the
 `conf/config.yaml` file by modifying the `evaluation` parameter, which specifies the
@@ -3531,7 +3531,7 @@ use the following parameters:
 ```yaml
 data:
   test_ds:
-    - ${data_dir}/prompt_data/squad-v2.0/squad_test.jsonl
+    - ${data_dir}/prompt_data/v1.1/squad_test.jsonl
   num_workers: 4
   global_batch_size: 16
   micro_batch_size: 16
@@ -3539,7 +3539,7 @@ tensor_model_parallel_size: 1
 pipeline_model_parallel_size: 1
 pipeline_model_parallel_split_rank: ${divide_floor:${.pipeline_model_parallel_size}, 2}
 model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
-pretrained_language_model_file: ${base_results_dir}/${evaluation.run.model_train_name}/convert_nemo/results/megatron_t5.nemo  # or megatron_mt5.nemo
+language_model_path: ${base_results_dir}/${evaluation.run.model_train_name}/convert_nemo/results/megatron_t5.nemo  # or megatron_mt5.nemo
 virtual_prompt_model_file: ${evaluation.run.prompt_learning_dir}/results/megatron_t5_prompt.nemo # or megatron_mt5_prompt.nemo
 ```
 
@@ -3609,9 +3609,9 @@ Any other parameter can also be added to the command to modify its behavior.
 #### 5.12.6. Adapter Learned and IA3 Learned GPT-3 Evaluation
 <a id="markdown-prompt-learned-and-ia3-learned-gpt-3-evaluation" name="prompt-learned-and-ia3-learned-gpt-3-evaluation"></a>
 
-We also provide a simple tool to help evaluate the adapter learned and IA3 GPT-3 checkpoints. You can
+We also provide a simple tool to help evaluate the adapter and IA3 learned GPT-3 checkpoints. You can
 evaluate the capabilities of the adapter learned GPT-3 model on a customized adapter learning test dataset.
-We provide an example to evaluate our checkpoint, which went through adapter learning or IA3 learning on SQuAD v2.0.
+We provide an example to evaluate our checkpoint, which went through adapter learning or IA3 learning on SQuAD v1.1.
 
 The configuration used for the evaluation needs to be defined in the
 `conf/config.yaml` file by modifying the `evaluation` parameter, which specifies the
@@ -3645,7 +3645,7 @@ use the `model` parameter:
 ```yaml
 data:
   test_ds:
-    - ${data_dir}/prompt_data/squad-v2.0/squad_test.jsonl
+    - ${data_dir}/prompt_data/v1.1/squad_test.jsonl
   num_workers: 4
   global_batch_size: 16
   micro_batch_size: 16
@@ -3653,8 +3653,8 @@ tensor_model_parallel_size: 1
 pipeline_model_parallel_size: 1
 pipeline_model_parallel_split_rank: ${divide_floor:${.pipeline_model_parallel_size}, 2}
 model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
-pretrained_language_model_file: ${base_results_dir}/${evaluation.run.model_train_name}/convert_nemo/results/megatron_gpt.nemo 
-virtual_adapter_model_file: ${evaluation.run.adapter_learning_dir}/results/megatron_gpt_adapter.nemo # or megatron_gpt_ia3.nemo
+language_model_path: ${base_results_dir}/${evaluation.run.model_train_name}/convert_nemo/results/megatron_gpt.nemo 
+adapter_model_file: ${evaluation.run.adapter_learning_dir}/results/megatron_gpt_adapter.nemo # or megatron_gpt_ia3.nemo
 ```
 
 ##### 5.12.6.2. Slurm
@@ -3701,7 +3701,7 @@ To run the evaluation pipeline to evaluate an adapter learned 220M T5 model chec
 python3 /opt/bignlp/bignlp-scripts/main.py stages=[evaluation] evaluation=adapter_gpt3/squad \
  cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
 base_results_dir=/mount/results evaluation.run.results_dir=/mount/results/gpt3_5b/eval_adapter_squad \
-evaluation.model.virtual_adapter_model_file=/mount/results/gpt3_5b/adapter_learning_squad/results/megatron_gpt3_adapter.nemo \
+evaluation.model.adapter_model_file=/mount/results/gpt3_5b/adapter_learning_squad/results/megatron_gpt3_adapter.nemo \
 >> /results/eval_adapter_gpt3_log.txt 2>&1
 ```
 The command above assumes you mounted the data workspace in `/mount/data`, and the results workspace in `/mount/results`. 
@@ -3714,7 +3714,7 @@ To run the evaluation pipeline to evaluate an IA3 learned 220M T5 model checkpoi
 python3 /opt/bignlp/bignlp-scripts/main.py stages=[evaluation] evaluation=ia3_gpt3/squad \
  cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
 base_results_dir=/mount/results evaluation.run.results_dir=/mount/results/gpt3_5b/eval_ia3_squad \
-evaluation.model.virtual_adapter_model_file=/mount/results/gpt3_5b/ia3_learning_squad/results/megatron_t5_ia3.nemo \
+evaluation.model.adapter_model_file=/mount/results/gpt3_5b/ia3_learning_squad/results/megatron_t5_ia3.nemo \
 >> /results/eval_ia3_t5_log.txt 2>&1
 ```
 The command above assumes you mounted the data workspace in `/mount/data`, and the results workspace in `/mount/results`. 
@@ -3754,7 +3754,7 @@ use the following parameters:
 ```yaml
 data:
   test_ds:
-    - ${data_dir}/prompt_data/squad-v2.0/squad_test.jsonl
+    - ${data_dir}/prompt_data/v1.1/squad_test.jsonl
   num_workers: 4
   global_batch_size: 16
   micro_batch_size: 16
@@ -3762,8 +3762,8 @@ tensor_model_parallel_size: 1
 pipeline_model_parallel_size: 1
 pipeline_model_parallel_split_rank: ${divide_floor:${.pipeline_model_parallel_size}, 2}
 model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
-pretrained_language_model_file: ${base_results_dir}/${evaluation.run.model_train_name}/convert_nemo/results/megatron_t5.nemo 
-virtual_adapter_model_file: ${evaluation.run.adapter_learning_dir}/results/megatron_t5_adapter.nemo # or megatron_t5_ia3.nemo
+language_model_path: ${base_results_dir}/${evaluation.run.model_train_name}/convert_nemo/results/megatron_t5.nemo 
+adapter_model_file: ${evaluation.run.adapter_learning_dir}/results/megatron_t5_adapter.nemo # or megatron_t5_ia3.nemo
 ```
 
 ##### 5.12.7.2. Slurm
@@ -3809,7 +3809,7 @@ To run the evaluation pipeline to evaluate an adapter learned 220M T5 model chec
 python3 /opt/bignlp/bignlp-scripts/main.py stages=[evaluation] evaluation=adapter_t5/squad \
  cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
 base_results_dir=/mount/results evaluation.run.results_dir=/mount/results/t5_220m/eval_adapter_squad \
-evaluation.model.virtual_adapter_model_file=/mount/results/t5_220m/adapter_learning_squad/results/megatron_t5_adapter.nemo \
+evaluation.model.adapter_model_file=/mount/results/t5_220m/adapter_learning_squad/results/megatron_t5_adapter.nemo \
 >> /results/eval_adapter_t5_log.txt 2>&1
 ```
 The command above assumes you mounted the data workspace in `/mount/data`, and the results workspace in `/mount/results`. 
@@ -3822,7 +3822,7 @@ To run the evaluation pipeline to evaluate an IA3 learned 220M T5 model checkpoi
 python3 /opt/bignlp/bignlp-scripts/main.py stages=[evaluation] evaluation=ia3_t5/squad \
  cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
 base_results_dir=/mount/results evaluation.run.results_dir=/mount/results/t5_220m/eval_ia3_squad \
-evaluation.model.virtual_adapter_model_file=/mount/results/t5_220m/ia3_learning_squad/results/megatron_t5_ia3.nemo \
+evaluation.model.adapter_model_file=/mount/results/t5_220m/ia3_learning_squad/results/megatron_t5_ia3.nemo \
 >> /results/eval_ia3_t5_log.txt 2>&1
 ```
 The command above assumes you mounted the data workspace in `/mount/data`, and the results workspace in `/mount/results`. 
