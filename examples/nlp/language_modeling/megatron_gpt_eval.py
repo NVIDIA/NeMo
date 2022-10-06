@@ -160,13 +160,17 @@ def main(cfg) -> None:
     ), "devices * num_nodes should equal tensor_model_parallel_size * pipeline_model_parallel_size"
 
     if cfg.gpt_model_file:
-        pretrained_cfg = MegatronGPTModel.restore_from(restore_path=cfg.gpt_model_file, trainer=trainer, return_config=True)
+        pretrained_cfg = MegatronGPTModel.restore_from(
+            restore_path=cfg.gpt_model_file, trainer=trainer, return_config=True
+        )
         OmegaConf.set_struct(pretrained_cfg, True)
         with open_dict(pretrained_cfg):
-            pretrained_cfg.sequence_parallel=False
-            pretrained_cfg.activations_checkpoint_granularity=None
-            pretrained_cfg.activations_checkpoint_method=None
-        model = MegatronGPTModel.restore_from(restore_path=cfg.gpt_model_file, trainer=trainer, override_config_path=pretrained_cfg)
+            pretrained_cfg.sequence_parallel = False
+            pretrained_cfg.activations_checkpoint_granularity = None
+            pretrained_cfg.activations_checkpoint_method = None
+        model = MegatronGPTModel.restore_from(
+            restore_path=cfg.gpt_model_file, trainer=trainer, override_config_path=pretrained_cfg
+        )
     elif cfg.checkpoint_dir:
         app_state = AppState()
         if cfg.tensor_model_parallel_size > 1 or cfg.pipeline_model_parallel_size > 1:
@@ -190,7 +194,6 @@ def main(cfg) -> None:
         model = MegatronGPTModel.load_from_checkpoint(checkpoint_path, hparams_file=cfg.hparams_file, trainer=trainer)
     else:
         raise ValueError("need at least a nemo file or checkpoint dir")
-
 
     model.freeze()
 

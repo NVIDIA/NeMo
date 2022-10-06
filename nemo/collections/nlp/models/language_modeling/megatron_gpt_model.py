@@ -171,7 +171,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             activations_checkpoint_granularity=self.cfg.get('activations_checkpoint_granularity', None),
             activations_checkpoint_method=self.cfg.get('activations_checkpoint_method', None),
             activations_checkpoint_num_layers=self.cfg.get('activations_checkpoint_num_layers', 1),
-            activations_checkpoint_layers_per_pipeline=self.cfg.get('activations_checkpoint_layers_per_pipeline', None),
+            activations_checkpoint_layers_per_pipeline=self.cfg.get(
+                'activations_checkpoint_layers_per_pipeline', None
+            ),
             normalization=self.cfg.get('normalization', 'layernorm'),
             layernorm_epsilon=self.cfg.get('layernorm_epsilon', 1e-5),
             onnx_safe=self.cfg.get('onnx_safe', False),
@@ -248,7 +250,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
                 sequence_parallel_enabled=self.cfg.get('sequence_parallel', False),
                 sync_batch_comm=self.cfg.get('sync_batch_comm', True),
-                num_micro_batches_with_partial_activation_checkpoints=self.cfg.get('num_micro_batches_with_partial_activation_checkpoints', None),
+                num_micro_batches_with_partial_activation_checkpoints=self.cfg.get(
+                    'num_micro_batches_with_partial_activation_checkpoints', None
+                ),
             )
         else:
             # no pipeline parallelism so we reduce grads asynchronously if not using sequence parallelism
@@ -402,8 +406,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     tokens, attention_mask, position_ids = None, None, None
                 else:
                     assert False
-            output_tensor = model(tokens, position_ids, attention_mask, labels,
-                checkpoint_activations_all_layers=checkpoint_activations_all_layers)
+            output_tensor = model(
+                tokens,
+                position_ids,
+                attention_mask,
+                labels,
+                checkpoint_activations_all_layers=checkpoint_activations_all_layers,
+            )
 
             def loss_func(output_tensor):
                 loss = self.loss_func(loss_mask, output_tensor)
@@ -717,7 +726,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             if self.trainer.strategy.launcher is not None:
                 self.trainer.strategy.launcher.launch(dummy, trainer=self.trainer)
             self.trainer.strategy.setup_environment()
-        
+
             self.setup_transformer_engine_tp_groups()
 
         # set the default sampling params if it is None.
@@ -791,7 +800,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             )
         )
         return result
-    
+
     def setup_transformer_engine_tp_groups(self):
         """ This should be called after model parallel groups have been initialized
             and only needs to be called when using Transformer Engine.

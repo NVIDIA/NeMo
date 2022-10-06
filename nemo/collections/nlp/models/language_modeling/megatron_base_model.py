@@ -69,7 +69,6 @@ class MegatronBaseModel(NLPModel):
 
         super().__init__(cfg, trainer=trainer, no_lm_init=no_lm_init)
 
-
         # used in NVIDIA NGC PyTorch containers
         self._enable_nvidia_optimizations()
 
@@ -362,8 +361,8 @@ class MegatronBaseModel(NLPModel):
             with open_dict(self.cfg):
                 self.cfg.sequence_parallel = False
 
-        # Gradient accumulation fusion does not work with our baseline implementaiton of 
-        # async grad allreduce. This should be fixed! 
+        # Gradient accumulation fusion does not work with our baseline implementaiton of
+        # async grad allreduce. This should be fixed!
         # For now we must disable it whenever using the baseline implementaion.
         # The distributed adam from apex does work with gradient accumulation fusion.
         distributed_fused_adam = self.cfg.optim.get('name', 'fused_adam') == 'distributed_fused_adam'
@@ -372,7 +371,9 @@ class MegatronBaseModel(NLPModel):
 
         if self.cfg.get('gradient_accumulation_fusion', False):
             if data_parallel_size > 1 and pipeline_model_parallel_size == 1 and not distributed_fused_adam:
-                logging.info("When not using pipeline model parallel, gradient accumulation fusion can only be used with distributed_fused_adam.")
+                logging.info(
+                    "When not using pipeline model parallel, gradient accumulation fusion can only be used with distributed_fused_adam."
+                )
                 with open_dict(self.cfg):
                     self.cfg.gradient_accumulation_fusion = False
 
