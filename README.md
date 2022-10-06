@@ -2996,7 +2996,7 @@ in `stages` to run the adapter learning pipeline. To adapter learning on `squad`
 IA3 learning can be defined in the same way inside
 `conf/config.yaml` file by modifying the `ia3_learning` parameter, which specifies the
 file to use for IA3 learning purposes. The `ia3_learning` parameter must be included
-in `stages` to run the IA3 learning pipeline. To ia3 learning on `squad` task, set
+in `stages` to run the IA3 learning pipeline. To IA3 learning on `squad` task, set
 `ia3_learning` parameter to `t5/squad`, which can be found in `conf/adapter_learning/t5/squad.yaml` for T5 models.
 
 ##### 5.11.2.1. Common
