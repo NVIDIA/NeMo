@@ -32,3 +32,4 @@ language_model_path: ${base_results_dir}/${evaluation.run.model_train_name}/conv
 adapter_model_file: ${evaluation.run.adapter_learning_dir}/results/megatron_t5_adapter.nemo # path to a Megatront5PromptLearningModel nemo file
 pred_file_path: ${evaluation.run.results_dir}/results/predictions.txt # Path will model predictions will be written
 ground_truth_file_path: ${data_dir}/prompt_data/v1.1/squad_test_ground_truth.jsonl
+split_string: "answer:"
