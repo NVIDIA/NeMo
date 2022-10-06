@@ -159,4 +159,6 @@ def skip_numba_cuda_test_if_unsupported(min_version: str):
     if not numba_cuda_support:
         import pytest
 
-        pytest.skip(f"Numba cuda test is being skipped. Minimum version required : {min_version}")
+        pytest.skip(
+            f"Numba cuda test is being skipped. Minimum version required : {min_version}"
+        )
