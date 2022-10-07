@@ -278,14 +278,14 @@ Figure 1: The GPT-3 family architecture. The 5B variant includes 24 transformer 
 | Software                | Version          |
 |-------------------------|------------------|
 | NVIDIA Triton           | 2.24.0           |
-| FasterTransformer       | v5.1+d3ca094     |
-| PyTorch                 | 1.13.0a0+08820cb |
-| NeMo                    | 1.11.0+718d5d2   |
-| PyTorch Lightning       | 1.6.5            |
+| FasterTransformer       | v5.1+1c70b45c    |
+| PyTorch                 | 1.13.0a0+d321be6 |
+| NeMo                    | 1.12.0+b51ab59   |
+| PyTorch Lightning       | 1.7.6            |
 | Hydra                   | 1.1.1            |
 | CUDA                    | NVIDIA CUDA 11.7 |
 | cuBLAS                  | 11.10.3.66       |
-| cuDNN                   | 8.4.1.67         |
+| cuDNN                   | 8.5.0.96         |
 | NCCL                    | 2.12.12          |
 | Container OS            | Ubuntu 20.04     |
 | rdma-core               | 36.0             |
@@ -1592,7 +1592,7 @@ bignlp_scripts_path: ${bignlp_hp_tool_path}/../bignlp-scripts  # Path to the loc
 data_dir: ${bignlp_scripts_path}/data
 base_results_dir: ${bignlp_hp_tool_path}/results
 
-training_container: nvcr.io/ea-bignlp/bignlp-training:22.08.01-py3
+training_container: nvcr.io/ea-bignlp/ea-participants-kt/bignlp-training:22.09.rc1-py3
 container_mounts:
     - null
 
