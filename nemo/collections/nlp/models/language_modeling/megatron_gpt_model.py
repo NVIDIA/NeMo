@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional, Union
 import torch
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
+import numpy as np
 
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import build_train_valid_test_datasets
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
@@ -73,7 +74,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             )
         # this prevents base constructor from initializing tokenizer
         self.tokenizer = None
-        self.validation_samples_consumed = 0
         super().__init__(cfg, trainer=trainer, no_lm_init=True)
 
         self._validate_trainer()
@@ -423,7 +423,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         batch_for_pipeline = self.process_global_batch(batch, self.cfg.global_batch_size)
         tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
-        self.validation_samples_consumed += batch['tokens'].shape[0]
 
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
             losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
@@ -446,35 +445,38 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             )
 
         if losses_reduced_per_micro_batch:
-            # average loss across micro batches
             if batch['tokens'].shape[0] == batch_for_pipeline[0].shape[0]:
-                loss_tensors_multiplied_by_batch_list = [
-                    loss_reduced['avg'] * self.cfg.micro_batch_size for loss_reduced in losses_reduced_per_micro_batch
-                ]
+                loss_with_batch_size_list=[[loss_reduced['avg'].item(), self.cfg.micro_batch_size] for loss_reduced in losses_reduced_per_micro_batch]
             else:
-                loss_tensors_multiplied_by_batch_list = []
+                loss_with_batch_size_list = []
                 total_samples_remaining = batch['tokens'].shape[0]
                 for loss_reduced in losses_reduced_per_micro_batch:
                     if total_samples_remaining <= 0:
                         break
                     if total_samples_remaining // self.cfg.micro_batch_size >= 1:
-                        loss_tensors_multiplied_by_batch_list.append(loss_reduced['avg'] * self.cfg.micro_batch_size)
+                        loss_with_batch_size_list.append([loss_reduced['avg'].item(),self.cfg.micro_batch_size])
                     else:
-                        loss_tensors_multiplied_by_batch_list.append(loss_reduced['avg'] * total_samples_remaining)
-                    total_samples_remaining = total_samples_remaining - self.cfg.micro_batch_size
-
-            loss_total_batch = torch.concat(loss_tensors_multiplied_by_batch_list).sum()
+                        loss_with_batch_size_list.append([loss_reduced['avg'].item(),total_samples_remaining])
+                    total_samples_remaining = total_samples_remaining - self.cfg.micro_batch_size    
         else:
             # we're not on the last pipeline stage so no losses
-            loss_total_batch = []
+            loss_with_batch_size_list = []
 
-        return loss_total_batch
+        return loss_with_batch_size_list
 
     def validation_epoch_end(self, outputs):
         if parallel_state.is_pipeline_last_stage():
-            # only the last pipeline parallel stages return loss
-            total_loss_sum = torch.stack(outputs).sum()
-            averaged_loss = total_loss_sum / self.validation_samples_consumed
+            # only the last pipeline parallel stages return loss with their batch size
+            total_num_samples = 0
+            total_loss = 0
+            for loss_with_batch_size in outputs:
+                loss_with_batch_size_array = np.array(loss_with_batch_size).flatten()
+                batch_losses = loss_with_batch_size_array[0::2]
+                batch_sizes = loss_with_batch_size_array[1::2]
+                total_num_samples += sum(batch_sizes)
+                total_loss += np.dot(batch_losses, batch_sizes)
+            
+            averaged_loss = torch.tensor(total_loss / total_num_samples).cuda()
         else:
             averaged_loss = torch.tensor(0.0).cuda()
 
