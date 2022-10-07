@@ -415,8 +415,8 @@ class TSEncDecCTCModelBPE(EncDecCTCModelBPE):
                         lg = logits[idx][: logits_len[idx]]
                         hypotheses.append(lg.cpu().numpy())
                 else:
-                    current_hypotheses , all_hyp = self.decoding.ctc_decoder_predictions_tensor(
-                            logits, decoder_lengths=logits_len, return_hypotheses=return_hypotheses,
+                    current_hypotheses = self._wer.ctc_decoder_predictions_tensor(
+                            greedy_predictions, predictions_len=logits_len,  return_hypotheses=return_hypotheses,
                         )
 
                     if return_hypotheses:
