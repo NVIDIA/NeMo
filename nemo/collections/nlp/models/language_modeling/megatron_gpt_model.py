@@ -14,10 +14,10 @@
 
 from typing import Any, Dict, List, Optional, Union
 
+import numpy as np
 import torch
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
-import numpy as np
 
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import build_train_valid_test_datasets
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
@@ -446,7 +446,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         if losses_reduced_per_micro_batch:
             if batch['tokens'].shape[0] == batch_for_pipeline[0].shape[0]:
-                loss_with_batch_size_list=[[loss_reduced['avg'].item(), self.cfg.micro_batch_size] for loss_reduced in losses_reduced_per_micro_batch]
+                loss_with_batch_size_list = [
+                    [loss_reduced['avg'].item(), self.cfg.micro_batch_size]
+                    for loss_reduced in losses_reduced_per_micro_batch
+                ]
             else:
                 loss_with_batch_size_list = []
                 total_samples_remaining = batch['tokens'].shape[0]
@@ -454,10 +457,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     if total_samples_remaining <= 0:
                         break
                     if total_samples_remaining // self.cfg.micro_batch_size >= 1:
-                        loss_with_batch_size_list.append([loss_reduced['avg'].item(),self.cfg.micro_batch_size])
+                        loss_with_batch_size_list.append([loss_reduced['avg'].item(), self.cfg.micro_batch_size])
                     else:
-                        loss_with_batch_size_list.append([loss_reduced['avg'].item(),total_samples_remaining])
-                    total_samples_remaining = total_samples_remaining - self.cfg.micro_batch_size    
+                        loss_with_batch_size_list.append([loss_reduced['avg'].item(), total_samples_remaining])
+                    total_samples_remaining = total_samples_remaining - self.cfg.micro_batch_size
         else:
             # we're not on the last pipeline stage so no losses
             loss_with_batch_size_list = []
@@ -475,7 +478,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 batch_sizes = loss_with_batch_size_array[1::2]
                 total_num_samples += sum(batch_sizes)
                 total_loss += np.dot(batch_losses, batch_sizes)
-            
+
             averaged_loss = torch.tensor(total_loss / total_num_samples).cuda()
         else:
             averaged_loss = torch.tensor(0.0).cuda()
