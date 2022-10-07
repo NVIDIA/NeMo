@@ -44,10 +44,12 @@ from nemo.utils import logging
 
 try:
     from apex.transformer import parallel_state
+
     HAVE_APEX = True
 
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
+
 
 class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
@@ -344,8 +346,8 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
         else:
             val_acc = torch.tensor(0.0).cuda()
 
-        
         self.log('val_acc', val_acc, prog_bar=True, rank_zero_only=True)
+
 
 class MegatronT5AdapterLearningModel(MegatronT5BaseAdapterModel):
     """
@@ -402,7 +404,7 @@ class MegatronT5AdapterLearningModel(MegatronT5BaseAdapterModel):
                     )
 
         logging.info(f'After adding adapters:\n{self.frozen_model.summarize()}')
-    
+
     @classmethod
     def list_available_models(cls):
         pass
