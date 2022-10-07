@@ -306,7 +306,7 @@ Figure 1: The GPT-3 family architecture. The 5B variant includes 24 transformer 
 To set up a Slurm cluster for Nemo Megatron, we recommend using [Nephele](https://github.com/nvidia/nephele). This cluster deployment tool has been tested on Azure, AWS, and Oracle Cloud.
 We recommend hosting Nephele on a new VM instance in the CSP of your choice. To get started:
 - Clone the Nephele repo
-    - Checkout the `oci` branch for Oracle
+    - For OCI, use the fork here: https://github.com/eweill-nv/nephele/tree/oci-nephele (make sure to checkout the `oci-nephele` branch)
 - Install the dependencies
 - Modify `nephele.conf`
     - Add your CSP credentials
@@ -328,7 +328,7 @@ Please refer to [this guide](https://docs.oracle.com/en-us/iaas/Content/Compute/
 to import the image into your tenancy in the region in which you will deploy your cluster using the following object storage URL (use the OCI format):
 
 ```
-https://objectstorage.ap-osaka-1.oraclecloud.com/p/ermbwK2ukYxTpMxGjS7x__zAofoEx3UjKtKLLDWJiMg8Xj4VUwQfugpekBQ-WI3d/n/axmkfrghtfeo/b/Nephele-OFED-Image/o/Ubuntu-2004-OFED-Nephele-v2
+https://objectstorage.ap-osaka-1.oraclecloud.com/p/JJiZ9PxZWiUUfLDd2hOB91cfBrfFIutTClzwyJuQt6GK5e-CdzKR5P28xxBWKSqg/n/axmkfrghtfeo/b/Nephele-OFED-Image/o/Ubuntu-2004-OFED-Nephele-v1
 ```
 
 After the image has been imported, specify the image ID in Nephele in `nephele/terraform/oci/variables.tf`
@@ -346,6 +346,10 @@ variable "ubuntu_2004" {
 ```
 
 Once complete, you can proceed to run `./nephele create`.
+Please note that, due to a bug that causes interfaces to be renamed,
+using this image requires rebooting the nodes once. You should reboot
+from the OCI console, and select 'Force reboot'. Please re-run `./nephele create`
+afterwards to repeat the configuration.
 
 #### 4.1.3. AWS
 <a id="markdown-aws" name="aws"></a>
