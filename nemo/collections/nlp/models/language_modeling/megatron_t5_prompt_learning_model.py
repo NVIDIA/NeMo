@@ -37,6 +37,7 @@ from nemo.utils import logging
 
 try:
     from apex.transformer import parallel_state
+    from apex.transformer.enums import ModelType
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
         forward_backward_pipelining_without_interleaving,
@@ -73,6 +74,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
+        self.model_type = ModelType.encoder_and_decoder
 
     def first_stage_of_pipeline(self):
         if self.frozen_model.enc_dec_model.pre_process and parallel_state.get_pipeline_model_parallel_rank() == 0:
@@ -104,16 +106,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             else:
                 encoder_input = input_embeds
         else:
-            encoder_input = torch.zeros((batch_size, seq_length, self.hidden_size), dtype=self.autocast_dtype).cuda()
-
-        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
-            # Broadcasting encoder inputs to all ranks for now, but this is inefficent.
-            # TODO: Make Enc-Dec improvement to only boardcast encoder_ids/embeddings when needed
-            torch.distributed.broadcast(
-                encoder_input,
-                parallel_state.get_pipeline_model_parallel_first_rank(),
-                group=parallel_state.get_pipeline_model_parallel_group(),
-            )
+            encoder_input = None
 
         # Call forward on T5 model with preprocessed embeddings
         if self.autocast_dtype == torch.float32:
@@ -194,6 +187,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         """
         # Get seq length of batch
         _, seq_length = batch[0].shape
+        _, dec_seq_length = batch[1].shape
         tensor_shape = [seq_length, self.cfg.micro_batch_size, self.hidden_size]
 
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
@@ -203,8 +197,8 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
                 model=self,
                 forward_only=forward_only,
                 tensor_shape=tensor_shape,
+                decoder_sequence_length=dec_seq_length,
                 dtype=self.autocast_dtype,
-                disable_autocast=True,
                 grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
                 sequence_parallel_enabled=False,
             )
@@ -215,8 +209,8 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
                 model=self,
                 forward_only=forward_only,
                 tensor_shape=tensor_shape,
+                decoder_sequence_length=dec_seq_length,
                 dtype=self.autocast_dtype,
-                disable_autocast=True,
                 grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
             )
 
@@ -240,6 +234,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             output_tensor, encoder_input = model(
                 enc_input, dec_input, enc_mask, dec_mask, position_ids, taskname_ids, labels, inference=False
             )
+            output_tensor = output_tensor.contiguous()
 
             def loss_func(output_tensor):
                 loss = self.frozen_model.loss_func(loss_mask, output_tensor)
