@@ -152,6 +152,11 @@ class HeteronymClassificationModel(NLPModel):
         self.log(f"{split}_f1", f1)
         self.log(f"{split}_recall", recall)
 
+        f1_macro = report[report.index("macro"):].split("\n")[0].replace("macro avg", "").strip().split()[-2]
+        f1_micro = report[report.index("micro"):].split("\n")[0].replace("micro avg", "").strip().split()[-2]
+
+        self.log(f"{split}_f1_macro", torch.Tensor([float(f1_macro)]))
+        self.log(f"{split}_f1_micro", torch.Tensor([float(f1_micro)]))
         self.classification_report.reset()
 
     def test_step(self, batch, batch_idx):
