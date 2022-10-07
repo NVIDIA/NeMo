@@ -17,7 +17,7 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
   * [4.1. Cluster Bring-Up](#41-cluster-bring-up)
     + [4.1.1. Common](#411-common)
     + [4.1.2. OCI](#412-oci)
-    + [4.1.3. AWS](#412-aws)
+    + [4.1.3. AWS](#413-aws)
   * [4.2. Cluster Validation](#42-cluster-validation)
     + [4.2.1. Validation Script Usage](#421-validation-script-usage)
   * [4.3. Config Modifications](#43-config-modifications)
@@ -56,11 +56,12 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
       - [5.3.1.3. Training HP Search](#5313-training-hp-search)
     + [5.3.2. Usage](#532-usage)
       - [5.3.2.1. General Configuration](#5321-general-configuration)
+        * [5.3.2.1.1. Slurm](#53211-slurm)
+        * [5.3.2.1.2. Base Command Platform](#53212-base-command-platform)
       - [5.3.2.2. Running Predefined Configs](#5322-running-predefined-configs)
         * [5.3.2.2.1. Model Config](#53221-model-config)
         * [5.3.2.2.2. Base Config Generation](#53222-base-config-generation)
         * [5.3.2.2.3. Training HP Search](#53223-training-hp-search)
-        * [5.3.2.2.4. Inference HP Search](#53224-inference-hp-search)
       - [5.3.2.3. Running Custom Model Size Configs](#5323-running-custom-model-size-configs)
       - [5.3.2.4. Interpreting the Results](#5324-interpreting-the-results)
       - [5.3.2.5. Logging Runs with Weights and Biases](#5325-logging-runs-with-weights-and-biases)
@@ -113,40 +114,57 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
       - [5.10.2.1. Common](#51021-common)
       - [5.10.2.2. Slurm](#51022-slurm)
       - [5.10.2.3. Base Command Platform](#51023-base-command-platform)
-  * [5.11. Model Evaluation](#511-model-evaluation)
-    + [5.11.1. GPT-3 Evaluation](#5111-gpt-3-evaluation)
+  * [5.11. Model Adapter Learning and IA3 Learning](#511-model-adapter-learning-and-ia3-learning)
+    + [5.11.1. GPT-3 Adapter Learning and IA3 Learning](#5111-gpt-3-adapter-learning-and-ia3-learning)
       - [5.11.1.1. Common](#51111-common)
       - [5.11.1.2. Slurm](#51112-slurm)
       - [5.11.1.3. Base Command Platform](#51113-base-command-platform)
-    + [5.11.2. T5 Evaluation](#5112-t5-evaluation)
+    + [5.11.2. T5 Adapter Learning and IA3 Learning](#5112-t5-adapter-learning-and-ia3-learning)
       - [5.11.2.1. Common](#51121-common)
       - [5.11.2.2. Slurm](#51122-slurm)
       - [5.11.2.3. Base Command Platform](#51123-base-command-platform)
-    + [5.11.3. mT5 Evaluation](#5113-mt5-evaluation)
-      - [5.11.3.1. Common](#51131-common)
-      - [5.11.3.2. Slurm](#51132-slurm)
-      - [5.11.3.3. Base Command Platform](#51133-base-command-platform)
-    + [5.11.4. Prompt Learned GPT-3 Evaluation](#5114-prompt-learned-gpt-3-evaluation)
-      - [5.11.4.1. Common](#51141-common)
-      - [5.11.4.2. Slurm](#51142-slurm)
-      - [5.11.4.3. Base Command Platform](#51143-base-command-platform)
-    + [5.11.5. Prompt Learned T5 and mT5 Evaluation](#5115-prompt-learned-t5-and-mt5-evaluation)
-      - [5.11.5.1. Common](#51151-common)
-      - [5.11.5.2. Slurm](#51152-slurm)
-      - [5.11.5.3. Base Command Platform](#51153-base-command-platform)
-  * [5.12. Model Export](#512-model-export)
-    + [5.12.1. GPT-3 Export](#5121-gpt-3-export)
+  * [5.12. Model Evaluation](#512-model-evaluation)
+    + [5.12.1. GPT-3 Evaluation](#5121-gpt-3-evaluation)
       - [5.12.1.1. Common](#51211-common)
       - [5.12.1.2. Slurm](#51212-slurm)
       - [5.12.1.3. Base Command Platform](#51213-base-command-platform)
-    + [5.12.2. T5 Export](#5122-t5-export)
+    + [5.12.2. T5 Evaluation](#5122-t5-evaluation)
       - [5.12.2.1. Common](#51221-common)
       - [5.12.2.2. Slurm](#51222-slurm)
       - [5.12.2.3. Base Command Platform](#51223-base-command-platform)
-    + [5.12.3. mT5 Export](#5123-mt5-export)
+    + [5.12.3. mT5 Evaluation](#5123-mt5-evaluation)
       - [5.12.3.1. Common](#51231-common)
       - [5.12.3.2. Slurm](#51232-slurm)
       - [5.12.3.3. Base Command Platform](#51233-base-command-platform)
+    + [5.12.4. Prompt Learned GPT-3 Evaluation](#5124-prompt-learned-gpt-3-evaluation)
+      - [5.12.4.1. Common](#51241-common)
+      - [5.12.4.2. Slurm](#51242-slurm)
+      - [5.12.4.3. Base Command Platform](#51243-base-command-platform)
+    + [5.12.5. Prompt Learned T5 and mT5 Evaluation](#5125-prompt-learned-t5-and-mt5-evaluation)
+      - [5.12.5.1. Common](#51251-common)
+      - [5.12.5.2. Slurm](#51252-slurm)
+      - [5.12.5.3. Base Command Platform](#51253-base-command-platform)
+    + [5.12.6. Adapter Learned and IA3 Learned GPT-3 Evaluation](#5126-adapter-learned-and-ia3-learned-gpt-3-evaluation)
+      - [5.12.6.1. Common](#51261-common)
+      - [5.12.6.2. Slurm](#51262-slurm)
+      - [5.12.6.3. Base Command Platform](#51263-base-command-platform)
+    + [5.12.7. Adapter Learned and IA3 Learned T5 Evaluation](#5127-adapter-learned-and-ia3-learned-t5-evaluation)
+      - [5.12.7.1. Common](#51271-common)
+      - [5.12.7.2. Slurm](#51272-slurm)
+      - [5.12.7.3. Base Command Platform](#51273-base-command-platform)
+  * [5.13. Model Export](#513-model-export)
+    + [5.13.1. GPT-3 Export](#5131-gpt-3-export)
+      - [5.13.1.1. Common](#51311-common)
+      - [5.13.1.2. Slurm](#51312-slurm)
+      - [5.13.1.3. Base Command Platform](#51313-base-command-platform)
+    + [5.13.2. T5 Export](#5132-t5-export)
+      - [5.13.2.1. Common](#51321-common)
+      - [5.13.2.2. Slurm](#51322-slurm)
+      - [5.13.2.3. Base Command Platform](#51323-base-command-platform)
+    + [5.13.3. mT5 Export](#5133-mt5-export)
+      - [5.13.3.1. Common](#51331-common)
+      - [5.13.3.2. Slurm](#51332-slurm)
+      - [5.13.3.3. Base Command Platform](#51333-base-command-platform)
 - [6. Deploying the BigNLP Model](#6-deploying-the-bignlp-model)
   * [6.1. Run NVIDIA Triton Server with Generated Model Repository](#61-run-nvidia-triton-server-with-generated-model-repository)
 - [6.2. GPT-3 Text Generation with Ensemble](#62-gpt-3-text-generation-with-ensemble)
@@ -279,10 +297,10 @@ Figure 1: The GPT-3 family architecture. The 5B variant includes 24 transformer 
 ## 4. Cloud Service Providers
 <a id="markdown-cloud-service-providers" name="cloud-service-providers"></a>
 
-### 4.1 Cluster Bring-Up
+### 4.1. Cluster Bring-Up
 <a id="markdown-cluster-bring-up" name="cluster-bring-up"></a>
 
-#### 4.1.1 Common
+#### 4.1.1. Common
 <a id="markdown-common" name="common"></a>
 
 To set up a Slurm cluster for Nemo Megatron, we recommend using [Nephele](https://github.com/nvidia/nephele). This cluster deployment tool has been tested on Azure, AWS, and Oracle Cloud.
@@ -302,7 +320,7 @@ The above steps apply to all CSPs, including Azure, AWS, and OCI.
 Some modifications are necessary for OCI and AWS and are detailed below.
 Note that for OCI, a custom image must be imported, which should be done before running `./nephele create`.
 
-#### 4.1.2 OCI
+#### 4.1.2. OCI
 <a id="markdown-oci" name="oci"></a>
 To bring up a cluster to run Nemo Megatron in Oracle Cloud, a custom image with OFED drivers pre-installed is needed.
 
@@ -329,7 +347,7 @@ variable "ubuntu_2004" {
 
 Once complete, you can proceed to run `./nephele create`.
 
-#### 4.1.3 AWS
+#### 4.1.3. AWS
 <a id="markdown-aws" name="aws"></a>
 To launch jobs on AWS, the EFA driver and NCCL plugin first need to be installed on top of the training container.
 We recommend building a new container image with Docker, then creating an Enroot image.
@@ -348,7 +366,7 @@ On the scheduler node:
 container: /path/to/bignlp-scripts/bignlp_training.sqsh
 ```
 
-### 4.2 Cluster Validation
+### 4.2. Cluster Validation
 <a id="markdown-cluster-validation" name="cluster-validation"></a>
 
 Before running the cluster validation script, ensure your NGC credentials have been added to `~/.config/enroot/.credentials` on all nodes.
@@ -357,7 +375,7 @@ The cluster validation script at `csp/<csp>/cluster_validation.sh` will run GPU 
 The logs from these tests will be stored at `results/cluster_validation`. The script will list any nodes that fail these tests.
 These nodes should be replaced or restarted through the CSP UI.
 
-#### 4.2.1 Validation Script Usage
+#### 4.2.1. Validation Script Usage
 <a id="markdown-validation-script-usage" name="validation-script-usage"></a>
 
 The script has 3 required parameters:
@@ -382,7 +400,7 @@ By default, the script will run both the GPU diagnostics and the NCCL test. You 
 
 See `bash cluster_validation.sh -h` for more information.
 
-#### 4.3 Config Modifications
+### 4.3. Config Modifications
 <a id="markdown-config-modifications" name="config-modifications"></a>
 Before launching jobs some changes to the config must be made.
 
@@ -405,7 +423,7 @@ env_vars:
 #### 4.3.2 Environment Variables
 <a id="markdown-environment-variables" name="environment-variables"></a>
 
-#### 4.3.2.1 Azure Variables
+##### 4.3.2.1 Azure Variables
 <a id="markdown-azure-variables" name="azure-variables"></a>
 Set these environment variables in `config.yaml` (these are only needed for Azure):
 ```
@@ -416,7 +434,7 @@ env_vars:
   NCCL_DEBUG: INFO
 ```
 
-#### 4.3.2.2 AWS Variables
+##### 4.3.2.2 AWS Variables
 <a id="markdown-aws-variables" name="aws-variables"></a>
 AWS recommends setting the following flag to avoid data corruption:
 ```
@@ -1470,16 +1488,16 @@ The Hyper-Parameter (HP) tool is intended to quickly iterate over different mode
 to find the best configuration with minimal time and money spending. To achieve that, our 
 tool provides several different capabilities, as shown in the table below:
 
-| Feature                              | GPT-3 | T5  | mT5 |
-| ------------------------------------ | ----- | --- | --- |
-| Model Size Recommendation            | Yes   | Yes | Yes |
-| Base Config Generation               | Yes   | Yes | Yes |
-| Training HP Search                   | Yes   | Yes | Yes |
-| Parallel Training HP Search          | Yes   | Yes | Yes |
-| Inference HP Search                  | No    | No  | No  |
-| Parallel Inference HP Search         | No    | No  | No  |
-| SLURM Based Clusters                 | Yes   | Yes | Yes |
-| Base Command Platform Based Clusters | No    | No  | No  |
+| Feature                              | GPT-3    | T5       | mT5      |
+| ------------------------------------ | -------- | -------- | -------- |
+| Model Size Recommendation            | Yes      | Yes      | Yes      |
+| Base Config Generation               | Yes      | Yes      | Yes      |
+| Training HP Search                   | Yes      | Yes      | Yes      |
+| Parallel Training HP Search          | BCM Only | BCM Only | BCM Only |
+| Inference HP Search                  | No       | No       | No       |
+| Parallel Inference HP Search         | No       | No       | No       |
+| Slurm Based Clusters                 | Yes      | Yes      | Yes      |
+| Base Command Platform Based Clusters | Yes      | Yes      | Yes      |
 
 ##### 5.3.1.1. Model Size Recommendation
 <a id="markdown-model-size-recommendation" name="model-size-recommendation"></a>
@@ -1532,6 +1550,9 @@ In this section, we will explain how to run each of the stages described above.
 ##### 5.3.2.1. General Configuration
 <a id="markdown-general-configuration" name="general-configuration"></a>
 
+###### 5.3.2.1.1. Slurm
+<a id="markdown-slurm" name="slurm"></a>
+
 First, our configuration setup assumes that the `/opt/bignlp/bignlp-hp-tool` and `/opt/bignlp/bignlp-scripts`
 directories have been copied from the container to the local file system.
 
@@ -1581,6 +1602,18 @@ wandb:  # Weights and Biases (W&B) logging.
   project: bignlp-hp-tool  # Name of the W&B project to store the logs in. The name of the run will be populated automatically.
 ```
 
+###### 5.3.2.1.2. Base Command Platform
+<a id="markdown-base-command-platform" name="base-command-platform"></a>
+
+In Base Command Platform, the dataset, vocabulary, and merge files used for the training HP search must be available as a 
+dataset and mounted accordingly. This guide assumes the dataset will be mounted to `/mount/data`. 
+The results of running the HP tool will be stored in `/mount/results/hp_tool`, so we recommend to mount a workspace 
+to `/mount/results`.
+
+The main configuration file can be found in `conf/config.yaml`. All the parameters can be overridden from the 
+CLI, as we will show in the next section.
+
+
 ##### 5.3.2.2. Running Predefined Configs
 <a id="markdown-running-predefined-configs" name="running-predefined-configs"></a>
 
@@ -1595,11 +1628,6 @@ model type (GPT-3, T5 or mT5) and one model size (up to 175B parameters for GPT-
 parameters for T5 and mT5). To run the desired config, we will need to modify the `search_config` 
 parameter in the `conf/config.yaml` file. For example, if we wish to run a 5B GPT-3 model, we can 
 set this value to `gpt3/5b` (the .yaml ending should not be included). 
-
-The tool will always generate the base configuration for the given model first. Then, the 
-`run_training_hp_search` parameter can be set to `True` to run the training HP searches. 
-If this parameter is set to `False`, the training pipeline will not be executed. Once this 
-parameter is set, we can run the tool by calling `python3 main.py`. 
 
 ###### 5.3.2.2.1. Model Config
 <a id="markdown-model-config" name="model-config"></a>
@@ -1627,6 +1655,42 @@ train_settings:
   act_ckpt_layers: auto  # auto to use our recommendation, or a list, such as [0, 1, 2, 3]
 ```
 
+The `model_size_in_b` parameter indicates how many billions of parameters the model should contain, and 
+the tool will provide a config and HPs for a model of that size. The `num_nodes` parameter indicates 
+how many nodes the HP tool should use to run each training job. The `gpus_per_node` parameter 
+indicates how many GPUs are available in each 
+node. To modify the behavior of the heuristics depending on whether 40GB or 80GB A100 GPUs are 
+available, the `gpu_memory_gb` can be set to 40 or 80, respectively, and the HP tool will recommend 
+candidate configs that are more suitable to each setting. 
+The `max_training_days` parameter shows how many days this model will be trained for, when 
+training to full convergence. It will be written to the final config YAML files. This parameter can 
+also be used when `model_size_in_b` is set to `null`. The 
+`limit_search_runs` parameter can be used to limit the number of configs that will be searched 
+during the HP search stage. We recommend selecting a value between 30 and 100 for this parameter. 
+The tool will probably need to search at least 30 different configs to find the optimal one. However, 
+if the computing resources are available in your cluster, we recommend increasing this parameter to a value close 
+to 100. The `output_top_n` parameter can be used to configure how much details the output summary file 
+will include. By default, when set to 10, it will output the top 10 configurations. The 
+`max_steps_per_run` parameter indicates how many steps to train each configuration for. The 
+`max_minutes_per_run` parameter indicates how long to run each configuration for, in minutes. We 
+recommend using at least 20 minutes per run for the smaller models, and increasing it to over 60 
+minutes for the larger models. The training run will be stopped when either `max_steps_per_run` or 
+`max_minutes_per_run` is reached. The `tflops_per_gpu` parameter provides an estimate of the TFLOPs 
+each GPU can achieve when training large language models with NeMo Megatron. This value is only used to provide an 
+estimate of how long the model will take to train to full convergence, so you can know the time to 
+train before you even begin training your model. The `num_tokens_in_b` parameter indicates how many 
+billions of tokens you will train your model for, when training to full convergence. It will be used 
+when estimating how long it will take to train the model, to the desired number of tokens. The 
+`vocab_size` parameter must show the vocabulary size that will be used during training. The `logs` 
+parameter can be used to configure where the result logs will be saved. By default, this directory 
+will be created inside the `base_results_dir` indicated in the `conf/config.yaml` file. Finally, 
+the `tensor_parallel_sizes`, `pipeline_parallel_sizes`, `micro_batch_sizes`, and `act_ckpt_layers` 
+parameters can be used to override the heuristics that choose the grid search space for these 
+four parameters. If these are left as `auto`, the tool will select appropriate values. However, 
+if you wish to override them, you can use these parameters. For example, if you only wish to search 
+for configurations with Tensor Parallelism (TP) values of 1 and 2, you can set 
+`tensor_parallel_sizes: [1, 2]` and leave the other parameters as `auto`.
+
 ###### 5.3.2.2.2. Base Config Generation
 <a id="markdown-base-config-generation" name="base-config-generation"></a>
 
@@ -1640,13 +1704,32 @@ optimization will take place in the next step (Training HP Search).
 ###### 5.3.2.2.3. Training HP Search
 <a id="markdown-training-hp-search" name="training-hp-search"></a>
 
+
+####### 5.3.2.2.3.1. Slurm
+<a id="markdown-slurm" name="slurm"></a>
+
 To run the training HP search pipeline, the parameter `run_training_hp_search` must be set to `True` 
 in the `conf/config.yaml` file. The model used to search the best training HPs must be selected 
 using the `search_config` parameter in `conf/config.yaml`. For example, by default, this parameter 
 will be set to `gpt3/5b`, so our tool will search the optimal training HPs for a 5B parameter GPT-3 
 model. The configuration for this model can be found in the `conf/search_config/gpt3/5b.yaml` file. 
 To configure the behavior of the HP search, the following parameters can be modified in the 
-correspoinding YAML file: 
+correspoinding YAML file. To run the training HP tool, after all the parameters are set, you should call 
+`python3 main.py`.
+
+####### 5.3.2.2.3.2. Base Command Platform
+<a id="markdown-base-command-platform" name="base-command-platform"></a>
+
+To run the HP Tool in BCP, the `cluster_type` parameter must be set to `bcp`. All the parameters can be configured 
+through CLI overrides. For example, to launch a training HP search for the 126m GPT-3 model, run this command:
+```
+python3 /opt/bignlp/bignlp-hp-tool/main.py search_config=gpt3/0.126b run_inference_hp_search=False bignlp_hp_tool_path=/opt/bignlp/bignlp-hp-tool data_dir=/mount/data/the_pile_gpt3 base_results_dir=/mount/results/hp_tool search_config.train_settings.num_nodes=$NGC_ARRAY_SIZE cluster_type=bcp
+```
+
+This command assumes that the dataset directory and the results directory are datasets and workspaces mounted correctly. 
+The user can also override any training parameters, by overriding any parameter in the `search_config` dictionary with the 
+`search_config.train_settings.*` parameter, using hydra overrides. The values that can be overridden are shown below:
+
 
 ```yaml
 train_settings:
@@ -1668,42 +1751,6 @@ train_settings:
   micro_batch_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8, 16]
   act_ckpt_layers: auto  # auto to use our recommendation, or a list, such as [0, 1, 2, 3]
 ```
-
-The `model_size_in_b` parameter indicates how many billion parameters the model should contain, and 
-the tool will provide a config and HPs for a model of that size. The `num_nodes` parameter indicates 
-how many nodes the HP tool should use to run each training job. The `gpus_per_node` parameter 
-indicates how many GPUs are available in each 
-node. To modify the behavior of the heuristics depending on whether 40gb or 80gb A100 GPUs are 
-available, the `gpu_memory_gb` can be set to 40 or 80, respectively, and the HP tool will recommend 
-candidate configs that are more suitable to each setting. 
-The `max_training_days` parameter shows how many days this model will be trained for, when 
-training to full convergence. It will be written to the final config YAML files. This parameter can 
-also be used when `model_size_in_b` is set to `null`. The 
-`limit_search_runs` parameter can be used to limit the number of configs that will be searched 
-during the HP search stage. We recommend selecting a value between 30 and 100 for this parameter. 
-The tool will probably need to search at least 30 different configs to find the optimal one. However, 
-if the compute is available in your cluster, we recommend increasing this parameter to a value close 
-to 100. The `output_top_n` parameter can be used to configure how much detail the output summary file 
-will include. By default, when set to 10, it will output the top 10 configurations. The 
-`max_steps_per_run` parameter indicates how many steps to train each configuration for. The 
-`max_minutes_per_run` parameter indicates how long to run each configuration for, in minutes. We 
-recommend using at least 20 minutes per run for the smaller models, and increasing it to over 60 
-minutes for the larger models. The training run will be stopped when either `max_steps_per_run` or 
-`max_minutes_per_run` is reached. The `tflops_per_gpu` parameter provides an estimate of the TFLOPs 
-each GPU can achieve when training LLMs with NeMo-Megatron. This value is only used to provide an 
-estimate of how long the model will take to train for full convergence, so you can know the time to 
-train before you even begin training your model. The `num_tokens_in_b` parameter indicates how many 
-billions of tokens you will train your model for, when training to full convergence. It will be used 
-when estimating how long it will take to train the model, to the desired number of tokens. The 
-`vocab_size` parameter must show the vocabulary size that will be used during training. The `logs` 
-parameter can be used to configure where the result logs will be saved. By default, this directory 
-will be created inside the `base_results_dir` indicated in the `conf/config.yaml` file. Finally, 
-the `tensor_parallel_sizes`, `pipeline_parallel_sizes`, `micro_batch_sizes`, and `act_ckpt_layers` 
-parameters can be used to override the heuristics that choose the grid search space for these 
-four parameters. If these are left as `auto`, our tool will select appropriate values. However, 
-if you wish to override them, you can use these parameters. For example, if you only wish to search 
-for configurations with Tensor Parallelism (TP) values of 1 and 2, you can set 
-`tensor_parallel_sizes: [1, 2]` and leave the other parameters as `auto`.
 
 
 ##### 5.3.2.3. Running Custom Model Size Configs
@@ -1733,9 +1780,9 @@ behave the same way as when using a predefined config.
 
 When the tool generates the base configuration for a model, it will be saved inside the directory 
 specified in the `logs` parameter in your config files. By default, this will be 
-`.../bignlp-hp-tool/results/<model_name>/<model_size>_<gpu_mem_size>/`. As the default 
+`.../results/<model_name>/<model_size>_<gpu_mem_size>/`. As the default 
 `search_config` value is set to `gpt3/5b` and the default `gpu_memory_gb` is set to 80, the results 
-can be found in the `.../bignlp-hp-tool/results/gpt3/5b_80gb/` directory. The base config will be 
+can be found in the `.../results/gpt3/5b_80gb/` directory. The base config will be 
 available inside that directory, with the name `base_cfg_<model_size>.yaml`. 
 
 If the training HP search pipeline is run, the results will be in three different directories inside 
@@ -2657,7 +2704,6 @@ The configuration used for the prompt learning needs to be defined in the
 file to use for prompt learning purposes. The `prompt_learning` parameter must be included
 in `stages` to run the prompt learning pipeline. To prompt learning on `squad` task, set
 `prompt_learning` parameter to `gpt3/squad`, which can be found in `conf/prompt_learning/gpt3/squad.yaml`.
-The tool currently supports P-tuning technique only.
 
 ##### 5.10.1.1. Common
 <a id="markdown-common" name="common"></a>
@@ -2744,7 +2790,6 @@ file to use for prompt learning purposes. The `prompt_learning` parameter must b
 in `stages` to run the prompt learning pipeline. To prompt learning on `squad` task, set
 `prompt_learning` parameter to `t5/squad`, which can be found in `conf/prompt_learning/t5/squad.yaml` for T5 models
 (or `mt5/squad`, which can be found in `conf/prompt_learning/mt5/squad.yaml` for mT5 models). 
-The tool currently supports P-tuning technique only.
 
 ##### 5.10.2.1. Common
 <a id="markdown-common" name="common"></a>
@@ -2837,10 +2882,245 @@ The command above assumes you mounted the data workspace in `/mount/data`, and t
 The stdout and stderr outputs will also be redirected to the `/results/prompt_learning_mt5_log.txt` file, to be able to download the logs from NGC.
 Any other parameter can also be added to the command to modify its behavior.
 
-### 5.11. Model Evaluation
+
+### 5.11. Model Adapter Learning and IA3 Learning
+<a id="markdown-model-adapter-learning" name="model-adapter-learning"></a>
+
+
+NeMo Megatron supports Adapter Learning and Infused Adapter by Inhibiting and Amplifying Inner Activations (IA3) learning. Both methods are parameter-efficient alternatives to fine-tuning pretrained language
+models. Our NeMo implementation makes it possible to use one pretrained GPT-3 or T5 models on many downstream
+tasks without tuning the model's full set of parameters. Because the original model parameters are frozen and never altered by either
+method, these also avoid cartographic forgetting issues often encountered when fine-tuning models. 
+
+Unlike prompt-learning and p-tuning, Adapter learning and IA3 do not insert virtual prompts into the input. Adapter learning introduces feedforward layers within the core transformer architecture which are updated for specific downstream tasks. IA3 adds even fewer parameters that simply scale the hidden representations in the transformer layer, these scaling parameters can be trained for specific downstream tasks.
+
+- Our Adapter learning implementation for GPT3 and T5 is based of "[Parameter-Efficient Transfer Learning for NLP](https://arxiv.org/pdf/1902.00751.pdf)"
+- Our IA3 implementation is based of "[Few-Shot Parameter-Efficient Fine-Tuning is Better
+and Cheaper than In-Context Learning](https://arxiv.org/pdf/2205.05638.pdf)". Note that the paper proposes a recipe called *t-few* which also introduces an unlikelihood loss function and a continued training procedure. Our IA3 implementation does not support these additions and only focuses on the core architectural change.
+
+
+#### 5.11.1. GPT-3 Adapter Learning and IA3 Learning
+<a id="markdown-gpt-3-adapter-learning" name="gpt-3-adapter-learning"></a>
+
+SQuAD v1.1 benchmark is supported for Adapter learning and IA3. With default adapter learning and IA3 config file, 
+our scripts will download and preprocess original SQuAD v1.1 dataset to adapter learning and IA3 dataset format 
+(the same format as prompt learning).
+You can also bring your own task dataset as well.
+
+The configuration used for the adapter learning needs to be defined in the
+`conf/config.yaml` file by modifying the `adapter_learning` parameter, which specifies the
+file to use for adapter learning purposes. The `adapter_learning` parameter must be included
+in `stages` to run the adapter learning pipeline. To adapter learning on `squad` task, set
+`adapter_learning` parameter to `gpt3/squad`, which can be found in `conf/adapter_learning/gpt3/squad.yaml`.
+
+IA3 learning can be defined in the same way inside
+`conf/config.yaml` file by modifying the `ia3_learning` parameter, which specifies the
+file to use for IA3 learning purposes. The `ia3_learning` parameter must be included
+in `stages` to run the IA3 learning pipeline. To IA3 learning on `squad` task, set
+`ia3_learning` parameter to `gpt3/squad`, which can be found in `conf/ia3_learning/gpt3/squad.yaml`.
+
+##### 5.11.1.1. Common
+<a id="markdown-common" name="common"></a>
+To specify the configuration for adapter learning (or IA3 learning), 
+use all the `run` parameters to define the job specific config:
+```yaml
+run:
+  name: ${.task_name}_${.model_train_name}
+  time_limit: "04:00:00"
+  dependency: "singleton"
+  convert_name: convert_nemo
+  model_train_name: gpt3_5b
+  task_name: "squad"
+  results_dir: ${base_results_dir}/${.model_train_name}/adapter_learning_${.task_name} # or ia3_learning
+```
+
+To specify which language model checkpoint to load and its definition, use the `model` parameter:
+
+```yaml
+model:
+  language_model_path: ${base_results_dir}/${adapter_learning.run.model_train_name}/${adapter_learning.run.convert_name}/megatron_gpt.nemo # # or ia3_learning
+  tensor_model_parallel_size: 1
+  pipeline_model_parallel_size: 1
+```
+
+##### 5.11.1.2. Slurm
+<a id="markdown-slurm" name="slurm"></a>
+
+Set configuration for a Slurm cluster in the `conf/cluster/bcm.yaml` file:
+
+```yaml
+partition: null
+account: null
+exclusive: True
+gpus_per_task: 1
+gpus_per_node: null
+mem: 0
+overcommit: False
+job_name_prefix: "bignlp-"
+```
+
+**Example:**
+
+To run only the adapter learning pipeline and not the data preparation, training, 
+conversion or other pipelines set the `conf/config.yaml` file to:
+
+```yaml
+stages:
+  - adapter_learning # or ia3_learning
+```
+
+then run:
+```
+python3 main.py
+```
+
+##### 5.11.1.3. Base Command Platform
+<a id="markdown-base-command-platform" name="base-command-platform"></a>
+In order to run the adapter learning script on Base Command Platform, set the
+`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overridden
+from the command line, using hydra. The evaluation script must be launched in a multi-node job.
+
+To run the adapter learning pipeline to adapter-learn a 5B GPT-3 model converted checkpoint stored in 
+`/mount/results/gpt3_5b/convert_nemo`, run:
+```
+python3 /opt/bignlp/bignlp-scripts/main.py adapter_learning=gpt3/squad \
+stages=[adapter_learning] cluster_type=bcp \
+bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data base_results_dir=/mount/results \
+adapter_learning.run.model_train_name=gpt3_5b \
+adapter_learning.model.language_model_path=/mount/results/gpt3_5b/convert_nemo/results/megatron_gpt.nemo \
+>> /results/adapter_learning_gpt3_log.txt 2>&1
+```
+
+The command above assumes you mounted the data workspace in `/mount/data`, and the results workspace in `/mount/results`. 
+The stdout and stderr outputs will also be redirected to the `/results/adapter_learning_gpt3_log.txt` file, to be able to download the logs from NGC.
+Any other parameter can also be added to the command to modify its behavior.
+
+To run the IA3 learning pipeline ro IA3-learn a 5B GPT-3 model converted checkpoint stored in 
+`/mount/results/gpt3_5b/convert_nemo`, run:
+```
+python3 /opt/bignlp/bignlp-scripts/main.py ia3_learning=gpt3/squad \
+stages=[ia3_learning] cluster_type=bcp \
+bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data base_results_dir=/mount/results \
+ia3_learning.run.model_train_name=gpt3_5b \
+ia3_learning.model.language_model_path=/mount/results/gpt3_5b/convert_nemo/results/megatron_gpt.nemo \
+>> /results/ia3_learning_gpt3_log.txt 2>&1
+```
+
+The command above assumes you mounted the data workspace in `/mount/data`, and the results workspace in `/mount/results`. 
+The stdout and stderr outputs will also be redirected to the `/results/ia3_learning_gpt3_log.txt` file, to be able to download the logs from NGC.
+Any other parameter can also be added to the command to modify its behavior.
+
+#### 5.11.2. T5 Adapter Learning and IA3 Learning
+<a id="markdown-t5-and-mt5-adapter-learning" name="t5-and-mt5-adapter-learning"></a>
+
+The configuration used for the adapter learning needs to be defined in the
+`conf/config.yaml` file by modifying the `adapter_learning` parameter, which specifies the
+file to use for adapter learning purposes. The `adapter_learning` parameter must be included
+in `stages` to run the adapter learning pipeline. To adapter learning on `squad` task, set
+`adapter_learning` parameter to `t5/squad`, which can be found in `conf/adapter_learning/t5/squad.yaml` for T5 models.
+
+IA3 learning can be defined in the same way inside
+`conf/config.yaml` file by modifying the `ia3_learning` parameter, which specifies the
+file to use for IA3 learning purposes. The `ia3_learning` parameter must be included
+in `stages` to run the IA3 learning pipeline. To IA3 learning on `squad` task, set
+`ia3_learning` parameter to `t5/squad`, which can be found in `conf/adapter_learning/t5/squad.yaml` for T5 models.
+
+##### 5.11.2.1. Common
+<a id="markdown-common" name="common"></a>
+To specify the configuration for adapter learning (or IA3 learning), 
+use all the `run` parameters to define the job specific config:
+```yaml
+run:
+  name: ${.task_name}_${.model_train_name}
+  time_limit: "04:00:00"
+  dependency: "singleton"
+  convert_name: convert_nemo
+  model_train_name: t5_220m
+  task_name: "squad"
+  results_dir: ${base_results_dir}/${.model_train_name}/adapter_learning_${.task_name} # or ia3_learning
+```
+
+To specify which language model checkpoint to load and its definition, use the `model` parameter:
+
+```yaml
+model:
+  language_model_path: ${base_results_dir}/${adapter_learning.run.model_train_name}/${adapter_learning.run.convert_name}/megatron_t5.nemo # or ia3_learning
+  tensor_model_parallel_size: 1
+  pipeline_model_parallel_size: 1
+```
+
+##### 5.11.2.2. Slurm
+<a id="markdown-slurm" name="slurm"></a>
+
+Set configuration for a Slurm cluster in the `conf/cluster/bcm.yaml` file:
+
+```yaml
+partition: null
+account: null
+exclusive: True
+gpus_per_task: 1
+gpus_per_node: null
+mem: 0
+overcommit: False
+job_name_prefix: "bignlp-"
+```
+
+**Example:**
+
+To run only the adapter learning pipeline and not the data preparation, training, 
+conversion or other pipelines set the `conf/config.yaml` file to:
+
+```yaml
+stages:
+  - adapter_learning # or ia3_learning
+```
+
+then run:
+```
+python3 main.py
+```
+
+##### 5.11.2.3. Base Command Platform
+<a id="markdown-base-command-platform" name="base-command-platform"></a>
+In order to run the adapter learning script on Base Command Platform, set the
+`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overridden
+from the command line, using hydra. The evaluation script must be launched in a multi-node job.
+
+To run the adapter learning pipeline to adapter-learn a 220M T5 model converted checkpoint stored in 
+`/mount/results/t5_220m/convert_nemo`, run:
+```
+python3 /opt/bignlp/bignlp-scripts/main.py adapter_learning=t5/squad \
+stages=[adapter_learning] cluster_type=bcp \
+bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data base_results_dir=/mount/results \
+adapter_learning.run.model_train_name=t5_220m \
+adapter_learning.model.language_model_path=/mount/results/t5_220m/convert_nemo/results/megatron_t5.nemo \
+>> /results/adapter_learning_t5_log.txt 2>&1
+```
+
+The command above assumes you mounted the data workspace in `/mount/data`, and the results workspace in `/mount/results`. 
+The stdout and stderr outputs will also be redirected to the `/results/adapter_learning_t5_log.txt` file, to be able to download the logs from NGC.
+Any other parameter can also be added to the command to modify its behavior.
+
+To run the IA3 learning pipeline to IA3-learn a 220M T5 model converted checkpoint stored in 
+`/mount/results/t5_220m/convert_nemo`, run:
+```
+python3 /opt/bignlp/bignlp-scripts/main.py ia3_learning=t5/squad \
+stages=[ia3_learning] cluster_type=bcp \
+bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data base_results_dir=/mount/results \
+ia3_learning.run.model_train_name=t5_220m \
+ia3_learning.model.language_model_path=/mount/results/t5_220m/convert_nemo/results/megatron_t5.nemo \
+>> /results/ia3_learning_t5_log.txt 2>&1
+```
+
+The command above assumes you mounted the data workspace in `/mount/data`, and the results workspace in `/mount/results`. 
+The stdout and stderr outputs will also be redirected to the `/results/ia3_learning_t5_log.txt` file, to be able to download the logs from NGC.
+Any other parameter can also be added to the command to modify its behavior.
+
+
+### 5.12. Model Evaluation
 <a id="markdown-model-evaluation" name="model-evaluation"></a>
 
-#### 5.11.1. GPT-3 Evaluation
+#### 5.12.1. GPT-3 Evaluation
 <a id="markdown-gpt-3-evaluation" name="gpt-3-evaluation"></a>
 
 We also provide a simple tool to help evaluate the trained checkpoints. You can
@@ -2859,7 +3139,7 @@ file to use for evaluation purposes. The `evaluation` parameter must be included
 parameters can be modified to adapt different evaluation tasks and checkpoints
 in evaluation runs. For Base Command Platform, all these parameters should be overridden from the command line.
 
-##### 5.11.1.1. Common
+##### 5.12.1.1. Common
 <a id="markdown-common" name="common"></a>
 To specify the configuration for what tasks to run for evaluation, use the `run.tasks` parameter. 
 And use all the `run` parameters to define the job specific config:
@@ -2893,7 +3173,7 @@ model:
     merge_file: ${data_dir}/bpe/merges.txt
 ```
 
-##### 5.11.1.2. Slurm
+##### 5.12.1.2. Slurm
 <a id="markdown-slurm" name="slurm"></a>
 
 Set configuration for a Slurm cluster in the `conf/cluster/bcm.yaml` file:
@@ -2924,7 +3204,7 @@ then run:
 python3 main.py
 ```
 
-##### 5.11.1.3. Base Command Platform
+##### 5.12.1.3. Base Command Platform
 <a id="markdown-base-command-platform" name="base-command-platform"></a>
 In order to run the evaluation script on Base Command Platform, set the
 `cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overridden
@@ -2947,7 +3227,7 @@ The stdout and stderr outputs will also be redirected to the `/results/eval_gpt3
 Any other parameter can also be added to the command to modify its behavior.
 
 
-#### 5.11.2. T5 Evaluation
+#### 5.12.2. T5 Evaluation
 <a id="markdown-t5-evaluation" name="gpt-3-evaluation"></a>
 
 
@@ -2964,7 +3244,7 @@ parameters can be modified to adapt different evaluation tasks and checkpoints
 in evaluation runs. For Base Command Platform, all these parameters should be overridden from the command line.
 
 
-##### 5.11.2.1. Common
+##### 5.12.2.1. Common
 <a id="markdown-common" name="common"></a>
 To specify the configuration for what tasks to run for evaluation, use the `run.task_name` parameter. 
 And use all the `run` parameters to define the job specific config: 
@@ -2988,7 +3268,7 @@ model:
     pipeline_model_parallel_size: 1
 ```
 
-##### 5.11.2.2. Slurm
+##### 5.12.2.2. Slurm
 <a id="markdown-slurm" name="slurm"></a>
 
 Set configuration for a Slurm cluster in the `conf/cluster/bcm.yaml` file:
@@ -3019,7 +3299,7 @@ then run:
 python3 main.py
 ```
 
-##### 5.11.2.3. Base Command Platform
+##### 5.12.2.3. Base Command Platform
 <a id="markdown-base-command-platform" name="base-command-platform"></a>
 In order to run the evaluation script on Base Command Platform for T5 models, set the
 `cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overridden
@@ -3041,7 +3321,7 @@ The stdout and stderr outputs will also be redirected to the `/results/eval_t5_l
 Any other parameter can also be added to the command to modify its behavior.
 
 
-#### 5.11.3. mT5 Evaluation
+#### 5.12.3. mT5 Evaluation
 <a id="markdown-mt5-evaluation" name="mt5-evaluation"></a>
 
 
@@ -3061,7 +3341,7 @@ parameters can be modified to adapt different evaluation tasks and checkpoints
 in evaluation runs. For Base Command Platform, all these parameters should be overridden from the command line.
 
 
-##### 5.11.3.1. Common
+##### 5.12.3.1. Common
 <a id="markdown-common" name="common"></a>
 To specify the configuration for what tasks to run for evaluation, use the `run.task_name` parameter. 
 And use all the `run` parameters to define the job specific config: 
@@ -3085,7 +3365,7 @@ model:
     pipeline_model_parallel_size: 1
 ```
 
-##### 5.11.3.2. Slurm
+##### 5.12.3.2. Slurm
 <a id="markdown-slurm" name="slurm"></a>
 
 Set configuration for a Slurm cluster in the `conf/cluster/bcm.yaml` file:
@@ -3116,7 +3396,7 @@ then run:
 python3 main.py
 ```
 
-##### 5.11.3.3. Base Command Platform
+##### 5.12.3.3. Base Command Platform
 <a id="markdown-base-command-platform" name="base-command-platform"></a>
 In order to run the evaluation script on Base Command Platform for mT5 models, set the
 `cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overridden
@@ -3137,13 +3417,13 @@ The stdout and stderr outputs will also be redirected to the `/results/eval_mt5_
 Any other parameter can also be added to the command to modify its behavior.
 
 
-#### 5.11.4. Prompt Learned GPT-3 Evaluation
+#### 5.12.4. Prompt Learned GPT-3 Evaluation
 <a id="markdown-prompt-learned-gpt-3-evaluation" name="prompt-learned-gpt-3-evaluation"></a>
 
 We also provide a simple tool to help evaluate the prompt learned GPT-3 checkpoints. You can
 evaluate the capabilities of the prompt learned GPT-3 model on a customized prompt learning test dataset.
-We provide an example to evaluate our checkpoint, which went through prompt learning on SQuAD v2.0,
-on the SQuAD v2.0 test dataset created in prompt learning step.
+We provide an example to evaluate our checkpoint, which went through prompt learning on SQuAD v1.1,
+on the SQuAD v1.1 test dataset created in prompt learning step.
 
 The configuration used for the evaluation needs to be defined in the
 `conf/config.yaml` file by modifying the `evaluation` parameter, which specifies the
@@ -3153,7 +3433,7 @@ file to be used for evaluation purposes. The `evaluation` parameter must be incl
 parameters can be modified to adapt different evaluation tasks and checkpoints
 in evaluation runs. For Base Command Platform, all these parameters should be overridden from the command line.
 
-##### 5.11.4.1. Common
+##### 5.12.4.1. Common
 <a id="markdown-common" name="common"></a>
 To specify the configuration, use all the `run` parameters to define the job specific config. (
 `run.tasks` has to be set to `prompt` to run evaluation on prompt learning test tasks):
@@ -3182,11 +3462,11 @@ model:
   model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
   precision: bf16 # must match training precision - 32, 16 or bf16
   eval_batch_size: 4
-  prompt_dataset_paths: ${data_dir}/prompt_data/squad-v2.0/squad_test.jsonl
+  prompt_dataset_paths: ${data_dir}/prompt_data/v1.1/squad_test.jsonl
   disable_special_tokens: False # Whether to disable virtual tokens in prompt model evaluation. This is equivalent to evaluate without prompt-/p-tuning.
 ```
 
-##### 5.11.4.2. Slurm
+##### 5.12.4.2. Slurm
 <a id="markdown-slurm" name="slurm"></a>
 
 Set configuration for a Slurm cluster in the `conf/cluster/bcm.yaml` file:
@@ -3217,7 +3497,7 @@ then run:
 python3 main.py
 ```
 
-##### 5.11.4.3. Base Command Platform
+##### 5.12.4.3. Base Command Platform
 <a id="markdown-base-command-platform" name="base-command-platform"></a>
 In order to run the evaluation script on Base Command Platform, set the
 `cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overridden
@@ -3239,13 +3519,13 @@ The stdout and stderr outputs will also be redirected to the `/results/eval_prom
 Any other parameter can also be added to the command to modify its behavior.
 
 
-#### 5.11.5. Prompt Learned T5 and mT5 Evaluation
+#### 5.12.5. Prompt Learned T5 and mT5 Evaluation
 <a id="markdown-prompt-learned-t5-and-mt5-evaluation" name="prompt-learned-t5-and-mt5-evaluation"></a>
 
 We also provide a simple tool to help evaluate the prompt learned T5 or mT5 checkpoints. You can
 evaluate the capabilities of the prompt learned models on a customized prompt learning test dataset.
-We provide an example to evaluate our checkpoint, which went through prompt learning on SQuAD v2.0,
-on the SQuAD v2.0 test dataset created in prompt learning step.
+We provide an example to evaluate our checkpoint, which went through prompt learning on SQuAD v1.1,
+on the SQuAD v1.1 test dataset created in prompt learning step.
 
 The configuration used for the evaluation needs to be defined in the
 `conf/config.yaml` file by modifying the `evaluation` parameter, which specifies the
@@ -3256,7 +3536,7 @@ file to use for evaluation purposes. The `evaluation` parameter must be included
 parameters can be modified to adapt different evaluation tasks and checkpoints
 in evaluation runs. For Base Command Platform, all these parameters should be overridden from the command line.
 
-##### 5.11.5.1. Common
+##### 5.12.5.1. Common
 <a id="markdown-common" name="common"></a>
 To specify the configuration, use all the `run` parameters to define the job specific config (
 `run.tasks` has to be set to `prompt` to run evaluation on prompt learning test tasks):
@@ -3277,7 +3557,7 @@ use the following parameters:
 ```yaml
 data:
   test_ds:
-    - ${data_dir}/prompt_data/squad-v2.0/squad_test.jsonl
+    - ${data_dir}/prompt_data/v1.1/squad_test.jsonl
   num_workers: 4
   global_batch_size: 16
   micro_batch_size: 16
@@ -3285,11 +3565,11 @@ tensor_model_parallel_size: 1
 pipeline_model_parallel_size: 1
 pipeline_model_parallel_split_rank: ${divide_floor:${.pipeline_model_parallel_size}, 2}
 model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
-pretrained_language_model_file: ${base_results_dir}/${evaluation.run.model_train_name}/convert_nemo/results/megatron_t5.nemo  # or megatron_mt5.nemo
+language_model_path: ${base_results_dir}/${evaluation.run.model_train_name}/convert_nemo/results/megatron_t5.nemo  # or megatron_mt5.nemo
 virtual_prompt_model_file: ${evaluation.run.prompt_learning_dir}/results/megatron_t5_prompt.nemo # or megatron_mt5_prompt.nemo
 ```
 
-##### 5.11.5.2. Slurm
+##### 5.12.5.2. Slurm
 <a id="markdown-slurm" name="slurm"></a>
 
 Set configuration for a Slurm cluster in the `conf/cluster/bcm.yaml` file:
@@ -3320,7 +3600,7 @@ then run:
 python3 main.py
 ```
 
-##### 5.11.5.3. Base Command Platform
+##### 5.12.5.3. Base Command Platform
 <a id="markdown-base-command-platform" name="base-command-platform"></a>
 In order to run the evaluation script on Base Command Platform, set the
 `cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overridden
@@ -3352,7 +3632,230 @@ The command above assumes you mounted the data workspace in `/mount/data`, and t
 The stdout and stderr outputs will also be redirected to the `/results/eval_prompt_mt5_log.txt` file, to be able to download the logs from NGC.
 Any other parameter can also be added to the command to modify its behavior.
 
-### 5.12. Model Export
+#### 5.12.6. Adapter Learned and IA3 Learned GPT-3 Evaluation
+<a id="markdown-prompt-learned-and-ia3-learned-gpt-3-evaluation" name="prompt-learned-and-ia3-learned-gpt-3-evaluation"></a>
+
+We also provide a simple tool to help evaluate the adapter and IA3 learned GPT-3 checkpoints. You can
+evaluate the capabilities of the adapter learned GPT-3 model on a customized adapter learning test dataset.
+We provide an example to evaluate our checkpoint, which went through adapter learning or IA3 learning on SQuAD v1.1.
+
+The configuration used for the evaluation needs to be defined in the
+`conf/config.yaml` file by modifying the `evaluation` parameter, which specifies the
+file to be used for evaluation purposes. The `evaluation` parameter must be included in `stages`
+ to run the evaluation pipeline. The value should be set to
+`adapter_gpt3/squad.yaml` for adapter learning, which can be found in `conf/evaluation/adapter_gpt3/squad.yaml`. 
+ The value should be set to `ia3_gpt3/squad.yaml` for IA3 learning, which can be found in `conf/evaluation/ia3_gpt3/squad.yaml`.
+The parameters can be modified to adapt different evaluation tasks and checkpoints
+in evaluation runs. For Base Command Platform, all these parameters should be overridden from the command line.
+
+##### 5.12.6.1. Common
+<a id="markdown-common" name="common"></a>
+To specify the configuration, use all the `run` parameters to define the job specific config. (
+`run.tasks` has to be set to `adapter` to run evaluation on adapter learning test tasks):
+```yaml
+run:
+  name: ${.eval_name}_${.model_train_name}
+  time_limit: "4:00:00"
+  nodes: ${divide_ceil:${evaluation.model.model_parallel_size}, 8} # 8 gpus per node
+  ntasks_per_node: ${divide_ceil:${evaluation.model.model_parallel_size}, ${.nodes}}
+  eval_name: eval_adapter_squad # or eval_ia3_squad
+  model_train_name: gpt3_5b
+  tasks: "adapter" # general adapter task
+  adapter_learn_dir: ${base_results_dir}/${.model_train_name}/adapter_learning_squad # or ia3_learning_squad
+  results_dir: ${base_results_dir}/${.model_train_name}/${.eval_name}
+```
+
+To specify which model checkpoint to load and which adapter learning test dataset to evaluate, 
+use the `model` parameter:
+
+```yaml
+data:
+  test_ds:
+    - ${data_dir}/prompt_data/v1.1/squad_test.jsonl
+  num_workers: 4
+  global_batch_size: 16
+  micro_batch_size: 16
+tensor_model_parallel_size: 1
+pipeline_model_parallel_size: 1
+pipeline_model_parallel_split_rank: ${divide_floor:${.pipeline_model_parallel_size}, 2}
+model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
+language_model_path: ${base_results_dir}/${evaluation.run.model_train_name}/convert_nemo/results/megatron_gpt.nemo 
+adapter_model_file: ${evaluation.run.adapter_learning_dir}/results/megatron_gpt_adapter.nemo # or megatron_gpt_ia3.nemo
+```
+
+##### 5.12.6.2. Slurm
+<a id="markdown-slurm" name="slurm"></a>
+
+Set configuration for a Slurm cluster in the `conf/cluster/bcm.yaml` file:
+
+```yaml
+partition: null
+account: null
+exclusive: True
+gpus_per_task: 1
+gpus_per_node: null
+mem: 0
+overcommit: False
+job_name_prefix: "bignlp-"
+```
+
+**Example:**
+
+To run only the evaluation pipeline and not the data preparation, training, 
+conversion or inference pipelines set the `conf/config.yaml` file to:
+
+```yaml
+stages:
+  - evaluation
+```
+
+then run:
+```
+python3 main.py
+```
+
+##### 5.12.6.3. Base Command Platform
+<a id="markdown-base-command-platform" name="base-command-platform"></a>
+In order to run the evaluation script on Base Command Platform, set the
+`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overridden
+from the command line, using hydra. The evaluation script must be launched in a multi-node job.
+
+
+To run the evaluation pipeline to evaluate an adapter learned 220M T5 model checkpoint stored in 
+`/mount/results/gpt3_5b/adapter_learning_squad`, run:
+```
+python3 /opt/bignlp/bignlp-scripts/main.py stages=[evaluation] evaluation=adapter_gpt3/squad \
+ cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
+base_results_dir=/mount/results evaluation.run.results_dir=/mount/results/gpt3_5b/eval_adapter_squad \
+evaluation.model.adapter_model_file=/mount/results/gpt3_5b/adapter_learning_squad/results/megatron_gpt3_adapter.nemo \
+>> /results/eval_adapter_gpt3_log.txt 2>&1
+```
+The command above assumes you mounted the data workspace in `/mount/data`, and the results workspace in `/mount/results`. 
+The stdout and stderr outputs will also be redirected to the `/results/eval_adapter_gpt3_log.txt` file, to be able to download the logs from NGC.
+Any other parameter can also be added to the command to modify its behavior.
+
+To run the evaluation pipeline to evaluate an IA3 learned 220M T5 model checkpoint stored in 
+`/mount/results/gpt3_5b/ia3_learning_squad`, run:
+```
+python3 /opt/bignlp/bignlp-scripts/main.py stages=[evaluation] evaluation=ia3_gpt3/squad \
+ cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
+base_results_dir=/mount/results evaluation.run.results_dir=/mount/results/gpt3_5b/eval_ia3_squad \
+evaluation.model.adapter_model_file=/mount/results/gpt3_5b/ia3_learning_squad/results/megatron_t5_ia3.nemo \
+>> /results/eval_ia3_t5_log.txt 2>&1
+```
+The command above assumes you mounted the data workspace in `/mount/data`, and the results workspace in `/mount/results`. 
+The stdout and stderr outputs will also be redirected to the `/results/eval_ia3_t5_log.txt` file, to be able to download the logs from NGC.
+Any other parameter can also be added to the command to modify its behavior.
+
+
+#### 5.12.7. Adapter Learned and IA3 Learned T5 Evaluation
+<a id="markdown-adapter-learned-and-ia3-t5-evaluation" name="adapter-learned-and-ia3-t5-evaluation"></a>
+
+The configuration used for the evaluation needs to be defined in the
+`conf/config.yaml` file by modifying the `evaluation` parameter, which specifies the
+file to use for evaluation purposes. The `evaluation` parameter must be included in `stages`
+ to run the evaluation pipeline. The value should be set to
+`adapter_t5/squad.yaml`, which can be found in `conf/evaluation/adapter_t5/squad.yaml` for adapter learned T5 models (or 
+`ia3_t5/squad.yaml`, which can be found in `conf/evaluation/ia3_t5/squad.yaml` for IA3 learned models). The
+parameters can be modified to adapt different evaluation tasks and checkpoints
+in evaluation runs. For Base Command Platform, all these parameters should be overridden from the command line.
+
+##### 5.12.7.1. Common
+<a id="markdown-common" name="common"></a>
+To specify the configuration, use all the `run` parameters to define the job specific config:
+```yaml
+run:
+  name: eval_${.task_name}_${.model_train_name}
+  time_limit: "04:00:00"
+  dependency: "singleton"
+  model_train_name: t5_220m
+  task_name: "squad"
+  adapter_learning_dir: ${base_results_dir}/${.model_train_name}/adapter_learning_squad # or ia3_learning_squad
+  results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}_eval
+```
+
+To specify which model checkpoint to load and which test dataset to evaluate, 
+use the following parameters:
+
+```yaml
+data:
+  test_ds:
+    - ${data_dir}/prompt_data/v1.1/squad_test.jsonl
+  num_workers: 4
+  global_batch_size: 16
+  micro_batch_size: 16
+tensor_model_parallel_size: 1
+pipeline_model_parallel_size: 1
+pipeline_model_parallel_split_rank: ${divide_floor:${.pipeline_model_parallel_size}, 2}
+model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
+language_model_path: ${base_results_dir}/${evaluation.run.model_train_name}/convert_nemo/results/megatron_t5.nemo 
+adapter_model_file: ${evaluation.run.adapter_learning_dir}/results/megatron_t5_adapter.nemo # or megatron_t5_ia3.nemo
+```
+
+##### 5.12.7.2. Slurm
+<a id="markdown-slurm" name="slurm"></a>
+
+Set configuration for a Slurm cluster in the `conf/cluster/bcm.yaml` file:
+
+```yaml
+partition: null
+account: null
+exclusive: True
+gpus_per_task: 1
+gpus_per_node: null
+mem: 0
+overcommit: False
+job_name_prefix: "bignlp-"
+```
+
+**Example:**
+
+To run only the evaluation pipeline and not the data preparation, training, 
+conversion or inference pipelines set the `conf/config.yaml` file to:
+
+```yaml
+stages:
+  - evaluation
+```
+
+then run:
+```
+python3 main.py
+```
+
+##### 5.12.7.3. Base Command Platform
+<a id="markdown-base-command-platform" name="base-command-platform"></a>
+In order to run the evaluation script on Base Command Platform, set the
+`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overridden
+from the command line, using hydra. The evaluation script must be launched in a multi-node job.
+
+To run the evaluation pipeline to evaluate an adapter learned 220M T5 model checkpoint stored in 
+`/mount/results/t5_220m/adapter_learning_squad`, run:
+```
+python3 /opt/bignlp/bignlp-scripts/main.py stages=[evaluation] evaluation=adapter_t5/squad \
+ cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
+base_results_dir=/mount/results evaluation.run.results_dir=/mount/results/t5_220m/eval_adapter_squad \
+evaluation.model.adapter_model_file=/mount/results/t5_220m/adapter_learning_squad/results/megatron_t5_adapter.nemo \
+>> /results/eval_adapter_t5_log.txt 2>&1
+```
+The command above assumes you mounted the data workspace in `/mount/data`, and the results workspace in `/mount/results`. 
+The stdout and stderr outputs will also be redirected to the `/results/eval_adapter_t5_log.txt` file, to be able to download the logs from NGC.
+Any other parameter can also be added to the command to modify its behavior.
+
+To run the evaluation pipeline to evaluate an IA3 learned 220M T5 model checkpoint stored in 
+`/mount/results/t5_220m/ia3_learning_squad`, run:
+```
+python3 /opt/bignlp/bignlp-scripts/main.py stages=[evaluation] evaluation=ia3_t5/squad \
+ cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
+base_results_dir=/mount/results evaluation.run.results_dir=/mount/results/t5_220m/eval_ia3_squad \
+evaluation.model.adapter_model_file=/mount/results/t5_220m/ia3_learning_squad/results/megatron_t5_ia3.nemo \
+>> /results/eval_ia3_t5_log.txt 2>&1
+```
+The command above assumes you mounted the data workspace in `/mount/data`, and the results workspace in `/mount/results`. 
+The stdout and stderr outputs will also be redirected to the `/results/eval_ia3_t5_log.txt` file, to be able to download the logs from NGC.
+Any other parameter can also be added to the command to modify its behavior.
+
+### 5.13. Model Export
 <a id="markdown-model-export" name="model-export"></a>
 
 We also provide a tool to enable deployment of the BigNLP model on the NVIDIA Triton
@@ -3362,7 +3865,7 @@ The export supports only GPT-3. You can checkout T5 and mT5 support
 in FasterTransformer repository but it is limited to older versions of
 NeMo and Megatron-LM.
 
-#### 5.12.1. GPT-3 Export
+#### 5.13.1. GPT-3 Export
 <a id="markdown-gpt-3-export" name="gpt-3-export"></a>
 
 GPT-3 model is evaluated with `lambada` task which results can be compared with results from evaluation stage.
@@ -3375,7 +3878,7 @@ to run the training pipeline export stage. The default value is set to
 parameters can be modified to adapt different export and set of tests run on prepared Triton Model Repository.
 For Base Command Platform, all these parameters should be overridden from the command line.
 
-##### 5.12.1.1. Common
+##### 5.13.1.1. Common
 <a id="markdown-common" name="common"></a>
 Also the other `run` parameters might be used to define the job specific config:
 ```yaml
@@ -3418,7 +3921,7 @@ triton_deployment:
 ```
 
 
-##### 5.12.1.2. Slurm
+##### 5.13.1.2. Slurm
 <a id="markdown-slurm" name="slurm"></a>
 
 Set configuration for a Slurm cluster in the `conf/cluster/bcm.yaml` file:
@@ -3448,7 +3951,7 @@ then run:
 python3 main.py
 ```
 
-##### 5.12.1.3. Base Command Platform
+##### 5.13.1.3. Base Command Platform
 <a id="markdown-base-command-platform" name="base-command-platform"></a>
 In order to run the export stage on Base Command Platform, set the
 `cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overridden
@@ -3471,7 +3974,7 @@ The command above assumes you mounted the data workspace in `/mount/data`, and t
 The stdout and stderr outputs will also be redirected to the `/results/export_gpt3_log.txt` file, to be able to download the logs from NGC.
 Any other parameter can also be added to the command to modify its behavior.
 
-#### 5.12.2. T5 Export
+#### 5.13.2. T5 Export
 <a id="markdown-t5-export" name="t5-export"></a>
 
 T5 models are evaluated with `lambada` task which results can be compared with results from evaluation stage.
@@ -3482,7 +3985,7 @@ file to use for export purposes. The `export` parameter must be inclueded in `st
 to run the training pipeline export stage. The value can be set to `t5/export_t5`, which can be found in `conf/export/t5/export_t5.yaml`. The parameters can be modified to adapt different export and set of tests run on prepared Triton Model Repository.
 For Base Command Platform, all these parameters should be overridden from the command line.
 
-##### 5.12.2.1. Common
+##### 5.13.2.1. Common
 <a id="markdown-common" name="common"></a>
 Also the other `run` parameters might be used to define the job specific config:
 ```yaml
@@ -3524,7 +4027,7 @@ triton_deployment:
   data_type: fp16  # fp32|fp16|bf16
 ```
 
-##### 5.12.2.2. Slurm
+##### 5.13.2.2. Slurm
 <a id="markdown-slurm" name="slurm"></a>
 
 Set configuration for a Slurm cluster in the `conf/cluster/bcm.yaml` file:
@@ -3554,7 +4057,7 @@ then run:
 python3 main.py
 ```
 
-##### 5.12.2.3. Base Command Platform
+##### 5.13.2.3. Base Command Platform
 <a id="markdown-base-command-platform" name="base-command-platform"></a>
 In order to run the export stage on Base Command Platform, set the
 `cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overridden
@@ -3579,7 +4082,7 @@ Any other parameter can also be added to the command to modify its behavior.
 
 
 
-#### 5.12.3. mT5 Export
+#### 5.13.3. mT5 Export
 <a id="markdown-mt5-export" name="mt5-export"></a>
 
 T5 models are evaluated with `lambada` task which results can be compared with results from evaluation stage.
@@ -3590,7 +4093,7 @@ file to use for export purposes. The `export` parameter must be inclueded in `st
 to run the training pipeline export stage. The value can be set to `mt5/export_mt5`, which can be found in `conf/export/mt5/export_mt5.yaml`. The parameters can be modified to adapt different export and set of tests run on prepared Triton Model Repository.
 For Base Command Platform, all these parameters should be overridden from the command line.
 
-##### 5.12.3.1. Common
+##### 5.13.3.1. Common
 <a id="markdown-common" name="common"></a>
 Also the other `run` parameters might be used to define the job specific config:
 ```yaml
@@ -3633,7 +4136,7 @@ triton_deployment:
 ```
 
 
-##### 5.12.3.2. Slurm
+##### 5.13.3.2. Slurm
 <a id="markdown-slurm" name="slurm"></a>
 
 Set configuration for a Slurm cluster in the `conf/cluster/bcm.yaml` file:
@@ -3663,7 +4166,7 @@ then run:
 python3 main.py
 ```
 
-##### 5.12.3.3. Base Command Platform
+##### 5.13.3.3. Base Command Platform
 <a id="markdown-base-command-platform" name="base-command-platform"></a>
 In order to run the export stage on Base Command Platform, set the
 `cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overridden
@@ -4148,6 +4651,15 @@ Inference parameters:
 ## 8. Changelog
 <a id="markdown-changelog" name="changelog"></a>
 
+**NeMo Megatron 22.09**
+* Cloud service providers: support for Oracle Cloud Infrastructure (performance validated up to 32 `8x NVIDIA A100` instances)
+* P-Tuning and Prompt Tuning for T5 and mT5 with pipeline parallelism (training only)
+* Adapter learning for GPT-3 with tensor parallelism and pipeline parallelism (training only)
+* Adapter learning and T5 with tensor parallelism (training only)
+* IA3 learning for GPT-3 with tensor parallelism and pipeline parallelism (training only)
+* IA3 learning for T5 with tensor parallelism (training only)
+* Hyperparameter tool to find the highest throughput configs for training on Base Command Platform
+
 **NeMo Megatron 22.08.01**
 * Cloud service providers: support for Amazon Web Services (performance validated up to 20 `p4d.24xlarge` instances)
 * Cloud service providers: switched orchestration from Azure CycleCloud to NVIDIA Nephele for Microsoft Azure
@@ -4221,3 +4733,4 @@ Fixes for the following issues will be released shortly:
 * Accuracy and performance measurement for GPT-3 is currently not supported. Please use the NeMo Megatron 22.05 inference container to use this feature
 * For running inference on BCP please use the NeMo Megatron 22.03 inference container
 * The fine-tuning SQuAD results for T5 are lower than expected
+* The external server that is hosting the Pile dataset is currently not available. NeMo Megatron stack has been tested with the following version of the Pile: https://the-eye.eu/public/AI/pile/SHA256SUMS.txt
