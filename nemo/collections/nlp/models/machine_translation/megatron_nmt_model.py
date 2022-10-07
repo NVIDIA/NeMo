@@ -192,11 +192,11 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         )
 
     def eval_step(self, batch, batch_idx, dataloader_idx):
-        # Need to squeze dim 0 for tarred datasets since things are pre-batched and we ask the dataloader for batch size 1.
+        # Need to squeze dim 0 for old NMT datasets since things are pre-batched and we ask the dataloader for batch size 1.
         batch = [x.squeeze(dim=0) if x.ndim == 3 else x for x in batch]
-        batch = self.process_global_batch_for_tarred_datasets(batch)
+        batch = self.process_global_batch_for_text_translation_datasets(batch)
 
-        # Eval step requires tarred/text datasets so we need to reconfigure MBS on each batch.
+        # Eval step requires text datasets so we need to reconfigure MBS on each batch.
         app_state = AppState()
         _reconfigure_microbatch_calculator(
             rank=app_state.global_rank,
@@ -458,7 +458,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             pin_memory=cfg.pin_memory,
         )
 
-    def process_global_batch_for_tarred_datasets(self, batch):
+    def process_global_batch_for_text_translation_datasets(self, batch):
         """Override parent process_batch since TranslationDataset does not return dictionaries."""
         # Convert each microbatch into a dictionary.
         src_ids, src_mask, tgt_ids, tgt_mask, labels = batch
@@ -477,7 +477,6 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
     def build_train_valid_test_datasets(self):
         """Builds the train, validation, and test datasets."""
 
-        # Builds datasets if the type is tarred or from raw text without memmap.
         self._train_ds = self.build_memmap_dataset_from_config(self._cfg.train_ds)
 
         if self._cfg.validation_ds.get("dataset_type", "text") != "text":
@@ -596,17 +595,6 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                     seed=self._cfg.seed,
                 )
         return dataset
-
-    def build_tarred_train_dataset(self):
-        return MTEncDecModel._setup_dataset_from_config(
-            cfg=self._cfg.train_ds,
-            encoder_tokenizer=self.encoder_tokenizer,
-            decoder_tokenizer=self.decoder_tokenizer,
-            global_rank=parallel_state.get_data_parallel_rank(),
-            world_size=parallel_state.get_data_parallel_world_size(),
-            multilingual=self.multilingual,
-            multilingual_ids=self.multilingual_ids,
-        )
 
     def list_available_models(self):
         pass
