@@ -1355,22 +1355,8 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
 
                 del sub_enc, sub_transcripts, sub_enc_lens, sub_transcript_lens
 
-            # Collect sub batch loss results
-            if losses is not None:
-                losses = torch.cat(losses, 0)
-                target_lengths = torch.cat(target_lengths, 0)
-
-                # now apply the loss reductions that we previously overrode
-                if loss_reduction == 'mean_batch':
-                    losses = losses.mean()  # global batch size average
-                elif loss_reduction == 'mean':
-                    losses = torch.div(losses, target_lengths).mean()
-                elif loss_reduction == 'sum':
-                    losses = losses.sum()
-                elif loss_reduction == 'mean_volume':
-                    losses = losses.sum() / target_lengths.sum()  # same as above but longer samples weigh more
-            else:
-                losses = None
+            # Reduce over sub batches
+            losses = self.loss.reduce(losses, target_lengths)
 
             # Collect sub batch wer results
             if compute_wer:

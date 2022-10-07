@@ -29,7 +29,7 @@
 
 import operator
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, List
 
 import torch
 from omegaconf import DictConfig, OmegaConf
@@ -254,6 +254,25 @@ class RNNTLoss(Loss):
         self.reduction = reduction
         self._loss = resolve_rnnt_loss(loss_name, blank_idx=self._blank, loss_kwargs=loss_kwargs)
 
+    def reduce(self, losses, target_lengths):
+        if losses is None:
+            return None
+
+        if isinstance(losses, List):
+            losses = torch.cat(losses, 0)
+            target_lengths = torch.cat(target_lengths, 0)
+
+        if self.reduction == 'mean_batch':
+            losses = losses.mean()  # global batch size average
+        elif self.reduction == 'mean':
+            losses = torch.div(losses, target_lengths).mean()
+        elif self.reduction == 'sum':
+            losses = losses.sum()
+        elif self.reduction == 'mean_volume':
+            losses = losses.sum() / target_lengths.sum()  # same as above but longer samples weigh more
+
+        return losses
+
     @typecheck()
     def forward(self, log_probs, targets, input_lengths, target_lengths):
         # Cast to int 32
@@ -284,22 +303,20 @@ class RNNTLoss(Loss):
         if targets.shape[1] != max_targets_len:
             targets = targets.narrow(dim=1, start=0, length=max_targets_len)
 
-        # Loss reduction can be dynamic, so set it prior to call
-        if self.reduction in ['mean', 'sum']:  # underlying losses can do mean or sum
-            self._loss.reduction = self.reduction
+        # Temporarily override loss reduction
+        loss_reduction = self._loss.reduction
+        self._loss.reduction = None
 
         # Compute RNNT loss
         loss = self._loss(acts=log_probs, labels=targets, act_lens=input_lengths, label_lens=target_lengths)
 
         # Loss reduction can be dynamic, so reset it after call
-        if self.reduction in ['mean', 'sum']:
-            self._loss.reduction = 'none'
+        self._loss.reduction = loss_reduction
 
-        # Loss reduction only for mean_batch and mean_volume modes
-        if self.reduction == 'mean_batch':
-            loss = torch.mean(loss)
-        elif self.reduction == 'mean_volume':
-            loss = torch.sum(loss) / torch.sum(target_lengths)
+        # reduce here using our own reduction function
+        if self.reduction is not None:
+            loss = self.reduce(loss, target_lengths)
+
 
         # del new variables that may have been created
         del (
