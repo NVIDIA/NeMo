@@ -585,12 +585,12 @@ class TokenizeCreateMasksClipWorker:
             elif audio_query:
                 audio_filepaths.append(audio_query.strip())
 
-            progress_made += 1
-            if progress_made >= TOKENIZATION_PROGRESS_REPORT_PERIOD:
-                self.progress_queue.put(progress_made)
-                progress_made = 0
-
-        self.progress_queue.put(progress_made)
+        #     progress_made += 1
+        #     if progress_made >= TOKENIZATION_PROGRESS_REPORT_PERIOD:
+        #         self.progress_queue.put(progress_made)
+        #         progress_made = 0
+        #
+        # self.progress_queue.put(progress_made)
         if self.verbose:
             logging.info(f"Finished processing data split number {split_i}")
 
@@ -660,9 +660,10 @@ def _get_features(
     """
     if verbose:
         logging.info("Start initial tokenization.")
-    create_progress_process = progress_queue is None
-    if n_jobs is None:
-        n_jobs = min(mp.cpu_count(), len(queries))
+    create_progress_process = False # progress_queue is None
+    # if n_jobs is None:
+    #     n_jobs = min(mp.cpu_count(), len(queries))
+    n_jobs = 0
     if verbose:
         logging.info(f"Running tokenization with {n_jobs} jobs.")
 
@@ -1101,8 +1102,8 @@ class BertPunctuationCapitalizationDataset(Dataset):
         self.ignore_start_end = ignore_start_end
         self.add_masks_and_segment_ids_to_batch = add_masks_and_segment_ids_to_batch
         self.verbose = verbose
-        self.batch_mark_up_progress_queue = batch_mark_up_progress_queue
-        self.batch_building_progress_queue = batch_building_progress_queue
+        self.batch_mark_up_progress_queue = None # batch_mark_up_progress_queue
+        self.batch_building_progress_queue = None # batch_building_progress_queue
         self.use_audio = use_audio
         self.audio_file = audio_file
         self.sample_rate = sample_rate
@@ -1151,7 +1152,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 punct_label_ids=punct_label_ids,
                 capit_label_ids=capit_label_ids,
                 verbose=self.verbose,
-                progress_queue=tokenization_progress_queue,
+                progress_queue=None, # tokenization_progress_queue,
                 n_jobs=n_jobs,
                 audio_queries=audio_lines if self.use_audio else None,
                 sample_rate=self.sample_rate,
