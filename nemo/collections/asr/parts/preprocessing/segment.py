@@ -40,6 +40,7 @@ import librosa
 import numpy as np
 import soundfile as sf
 
+from nemo.collections.asr.parts.utils.audio_utils import select_channels
 from nemo.utils import logging
 
 # TODO @blisc: Perhaps refactor instead of import guarding
@@ -64,21 +65,49 @@ class AudioSegment(object):
     :raises TypeError: If the sample data type is not float or int.
     """
 
-    def __init__(self, samples, sample_rate, target_sr=None, trim=False, trim_db=60, orig_sr=None):
+    def __init__(
+        self,
+        samples,
+        sample_rate,
+        target_sr=None,
+        trim=False,
+        trim_ref=np.max,
+        trim_top_db=60,
+        trim_frame_length=2048,
+        trim_hop_length=512,
+        orig_sr=None,
+        channel_selector=None,
+    ):
         """Create audio segment from samples.
         Samples are convert float32 internally, with int scaled to [-1, 1].
         """
         samples = self._convert_samples_to_float32(samples)
+
+        # Check if channel selector is necessary
+        if samples.ndim == 1 and channel_selector not in [None, 0, 'average']:
+            raise ValueError(
+                'Input signal is one-dimensional, channel selector (%s) cannot not be used.', str(channel_selector)
+            )
+        elif samples.ndim == 2:
+            samples = select_channels(samples, channel_selector)
+        elif samples.ndim >= 3:
+            raise NotImplementedError(
+                'Signals with more than two dimensions (sample, channel) are currently not supported.'
+            )
+
         if target_sr is not None and target_sr != sample_rate:
-            samples = librosa.core.resample(samples, orig_sr=sample_rate, target_sr=target_sr)
+            # resample along the temporal dimension (axis=0)
+            samples = librosa.core.resample(samples, orig_sr=sample_rate, target_sr=target_sr, axis=0)
             sample_rate = target_sr
         if trim:
-            samples, _ = librosa.effects.trim(samples, top_db=trim_db)
+            # librosa is using channels-first layout (num_channels, num_samples), which is transpose of AudioSegment's layout
+            samples = samples.transpose()
+            samples, _ = librosa.effects.trim(
+                samples, top_db=trim_top_db, ref=trim_ref, frame_length=trim_frame_length, hop_length=trim_hop_length
+            )
+            samples = samples.transpose()
         self._samples = samples
         self._sample_rate = sample_rate
-        if self._samples.ndim >= 2:
-            self._samples = np.mean(self._samples, 1)
-
         self._orig_sr = orig_sr if orig_sr is not None else sample_rate
 
     def __eq__(self, other):
@@ -99,13 +128,24 @@ class AudioSegment(object):
 
     def __str__(self):
         """Return human-readable representation of segment."""
-        return "%s: num_samples=%d, sample_rate=%d, duration=%.2fsec, rms=%.2fdB" % (
-            type(self),
-            self.num_samples,
-            self.sample_rate,
-            self.duration,
-            self.rms_db,
-        )
+        if self.num_channels == 1:
+            return "%s: num_samples=%d, sample_rate=%d, duration=%.2fsec, rms=%.2fdB" % (
+                type(self),
+                self.num_samples,
+                self.sample_rate,
+                self.duration,
+                self.rms_db,
+            )
+        else:
+            rms_db_str = ', '.join([f'{rms:.2f}dB' for rms in self.rms_db])
+            return "%s: num_samples=%d, sample_rate=%d, duration=%.2fsec, num_channels=%d, rms=[%s]" % (
+                type(self),
+                self.num_samples,
+                self.sample_rate,
+                self.duration,
+                self.num_channels,
+                rms_db_str,
+            )
 
     @staticmethod
     def _convert_samples_to_float32(samples):
@@ -125,7 +165,19 @@ class AudioSegment(object):
 
     @classmethod
     def from_file(
-        cls, audio_file, target_sr=None, int_values=False, offset=0, duration=0, trim=False, orig_sr=None,
+        cls,
+        audio_file,
+        target_sr=None,
+        int_values=False,
+        offset=0,
+        duration=0,
+        trim=False,
+        trim_ref=np.max,
+        trim_top_db=60,
+        trim_frame_length=2048,
+        trim_hop_length=512,
+        orig_sr=None,
+        channel_selector=None,
     ):
         """
         Load a file supported by librosa and return as an AudioSegment.
@@ -134,6 +186,16 @@ class AudioSegment(object):
         :param int_values: if true, load samples as 32-bit integers
         :param offset: offset in seconds when loading audio
         :param duration: duration in seconds when loading audio
+        :param trim: if true, trim leading and trailing silence from an audio signal
+        :param trim_ref: the reference amplitude. By default, it uses `np.max` and compares to the peak amplitude in
+                         the signal
+        :param trim_top_db: the threshold (in decibels) below reference to consider as silence
+        :param trim_frame_length: the number of samples per analysis frame
+        :param trim_hop_length: the number of samples between analysis frames
+        :param orig_sr: the original sample rate
+        :param channel selector: string denoting the downmix mode, an integer denoting the channel to be selected, or an iterable
+                                 of integers denoting a subset of channels. Channel selector is using zero-based indexing.
+                                 If set to `None`, the original signal will be used.
         :return: numpy array of samples
         """
         samples = None
@@ -148,7 +210,6 @@ class AudioSegment(object):
                         samples = f.read(int(duration * sample_rate), dtype=dtype)
                     else:
                         samples = f.read(dtype=dtype)
-                samples = samples.transpose()
             except RuntimeError as e:
                 logging.error(
                     f"Loading {audio_file} via SoundFile raised RuntimeError: `{e}`. "
@@ -159,6 +220,7 @@ class AudioSegment(object):
             try:
                 samples = Audio.from_file(audio_file)
                 sample_rate = samples.frame_rate
+                num_channels = samples.channels
                 if offset > 0:
                     # pydub does things in milliseconds
                     seconds = offset * 1000
@@ -167,6 +229,9 @@ class AudioSegment(object):
                     seconds = duration * 1000
                     samples = samples[: int(seconds)]
                 samples = np.array(samples.get_array_of_samples())
+                # For multi-channel signals, channels are stacked in a one-dimensional vector
+                if num_channels > 1:
+                    samples = np.reshape(samples, (-1, num_channels))
             except CouldntDecodeError as err:
                 logging.error(f"Loading {audio_file} via pydub raised CouldntDecodeError: `{err}`.")
 
@@ -174,10 +239,23 @@ class AudioSegment(object):
             libs = "soundfile, and pydub" if HAVE_PYDUB else "soundfile"
             raise Exception(f"Your audio file {audio_file} could not be decoded. We tried using {libs}.")
 
-        return cls(samples, sample_rate, target_sr=target_sr, trim=trim, orig_sr=orig_sr)
+        return cls(
+            samples,
+            sample_rate,
+            target_sr=target_sr,
+            trim=trim,
+            trim_ref=trim_ref,
+            trim_top_db=trim_top_db,
+            trim_frame_length=trim_frame_length,
+            trim_hop_length=trim_hop_length,
+            orig_sr=orig_sr,
+            channel_selector=channel_selector,
+        )
 
     @classmethod
-    def segment_from_file(cls, audio_file, target_sr=None, n_segments=0, trim=False, orig_sr=None):
+    def segment_from_file(
+        cls, audio_file, target_sr=None, n_segments=0, trim=False, orig_sr=None, channel_selector=None,
+    ):
         """Grabs n_segments number of samples from audio_file randomly from the
         file as opposed to at a specified offset.
 
@@ -186,19 +264,19 @@ class AudioSegment(object):
         try:
             with sf.SoundFile(audio_file, 'r') as f:
                 sample_rate = f.samplerate
-                if n_segments > 0 and len(f) > n_segments:
+                if 0 < n_segments < len(f):
                     max_audio_start = len(f) - n_segments
                     audio_start = random.randint(0, max_audio_start)
                     f.seek(audio_start)
                     samples = f.read(n_segments, dtype='float32')
                 else:
                     samples = f.read(dtype='float32')
-            samples = samples.transpose()
         except RuntimeError as e:
             logging.error(f"Loading {audio_file} via SoundFile raised RuntimeError: `{e}`.")
 
-        samples = samples.transpose()
-        return cls(samples, sample_rate, target_sr=target_sr, trim=trim, orig_sr=orig_sr)
+        return cls(
+            samples, sample_rate, target_sr=target_sr, trim=trim, orig_sr=orig_sr, channel_selector=channel_selector
+        )
 
     @property
     def samples(self):
@@ -209,16 +287,25 @@ class AudioSegment(object):
         return self._sample_rate
 
     @property
+    def num_channels(self):
+        if self._samples.ndim == 1:
+            return 1
+        else:
+            return self._samples.shape[-1]
+
+    @property
     def num_samples(self):
         return self._samples.shape[0]
 
     @property
     def duration(self):
-        return self._samples.shape[0] / float(self._sample_rate)
+        return self.num_samples / float(self._sample_rate)
 
     @property
     def rms_db(self):
-        mean_square = np.mean(self._samples ** 2)
+        """Return per-channel RMS value.
+        """
+        mean_square = np.mean(self._samples ** 2, axis=0)
         return 10 * np.log10(mean_square)
 
     @property
@@ -235,7 +322,18 @@ class AudioSegment(object):
         `pad_size`
         zeros will be added only to the end.
         """
-        self._samples = np.pad(self._samples, (pad_size if symmetric else 0, pad_size), mode='constant',)
+        samples_ndim = self._samples.ndim
+        if samples_ndim == 1:
+            pad_width = pad_size if symmetric else (0, pad_size)
+        elif samples_ndim == 2:
+            # pad samples, keep channels
+            pad_width = ((pad_size, pad_size), (0, 0)) if symmetric else ((0, pad_size), (0, 0))
+        else:
+            raise NotImplementedError(
+                f"Padding not implemented for signals with more that 2 dimensions. Current samples dimension: {samples_ndim}."
+            )
+        # apply padding
+        self._samples = np.pad(self._samples, pad_width, mode='constant',)
 
     def subsegment(self, start_time=None, end_time=None):
         """Cut the AudioSegment between given boundaries.

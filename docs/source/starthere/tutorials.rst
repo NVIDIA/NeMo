@@ -31,6 +31,12 @@ To run a tutorial:
    * - General
      - Exploring NeMo Model Construction
      - `NeMo Models <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/01_NeMo_Models.ipynb>`_
+   * - General
+     - Exploring NeMo Adapters
+     - `NeMo Adapters <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/02_NeMo_Adapters.ipynb>`_
+   * - General
+     - Publishing NeMo models on Hugging Face Hub
+     - `NeMo Models on HF Hub <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/Publish_NeMo_Model_On_Hugging_Face_Hub.ipynb>`_
    * - ASR
      - ASR with NeMo
      - `ASR with NeMo <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/ASR_with_NeMo.ipynb>`_
@@ -107,8 +113,8 @@ To run a tutorial:
      - Text Classification (Sentiment Analysis) with BERT
      - `Text Classification (Sentiment Analysis) <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/nlp/Text_Classification_Sentiment_Analysis.ipynb>`_
    * - NLP
-     - Question Answering with SQuAD
-     - `Question Answering Squad <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/nlp/Question_Answering_Squad.ipynb>`_
+     - Question Answering
+     - `Question Answering <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/nlp/Question_Answering.ipynb>`_
    * - NLP
      - Token Classification (Named Entity Recognition)
      - `Token Classification: Named Entity Recognition <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/nlp/Token_Classification_Named_Entity_Recognition.ipynb>`_
@@ -123,13 +129,16 @@ To run a tutorial:
      - `Punctuation and Capitalization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/nlp/Punctuation_and_Capitalization.ipynb>`_
    * - NLP
      - Entity Linking
-     - `Entity Linking <https://colab.research.google.com/github/NVIDIA/NeMo/blob/v1.0.2/tutorials/nlp/Entity_Linking_Medical.ipynb>`_
+     - `Entity Linking <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/nlp/Entity_Linking_Medical.ipynb>`_
    * - NLP
      - Named Entity Recognition - BioMegatron
      - `Named Entity Recognition - BioMegatron <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/nlp/Token_Classification-BioMegatron.ipynb>`_
    * - NLP
      - Relation Extraction - BioMegatron
      - `Relation Extraction - BioMegatron <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/nlp/Relation_Extraction-BioMegatron.ipynb>`_
+   * - NLP
+     - P-Tuning/Prompt-Tuning
+     - `P-Tuning/Prompt-Tuning <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/nlp/Multitask_Prompt_and_PTuning.ipynb>`_
    * - TTS
      - Speech Synthesis
      - `TTS Inference <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tts/Inference_ModelSelect.ipynb>`_

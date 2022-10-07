@@ -35,11 +35,13 @@ class VirtualPromptStyle(enum.Enum):
     P_TUNING = 'p-tuning'
     PROMPT_TUNING = 'prompt-tuning'
     INFERENCE = 'inference'
+    NO_PROMPT = 'no-prompts'
 
 
 class VirtualPromptSource(enum.Enum):
     PROMPT_TABLE = 'prompt_table'
     PROMPT_ENCODER = 'prompt_encoder'
+    NO_PROMPT = 'no-prompts'
 
 
 class VirtualPromptPlaceholderToken(enum.Enum):
@@ -121,6 +123,7 @@ class PromptTable(NeuralModule, Exportable):
         init_token_ids_b = tensor_parallel.broadcast_data(keys, init_token_ids, datatype)
         init_token_ids = init_token_ids_b['text'].long()
 
+        word_embeddings = word_embeddings.to(init_token_ids.device)
         # Use a copy of token embedding weights to initalize the prompt embeddings
         word_embedding_weights = word_embeddings(init_token_ids).detach().clone()
 

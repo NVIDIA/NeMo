@@ -89,9 +89,6 @@ class T5RequestDataset(Dataset):
         self.mask_prompt(self.request['prompt'])
 
     def mask_prompt(self, sample):
-        if '<mask>' not in sample:
-            raise ValueError(f"Did not find any <mask> tokens in prompt {sample}.")
-
         sample = sample.split()
         sentinel_idx = 0
         for i, word in enumerate(sample):

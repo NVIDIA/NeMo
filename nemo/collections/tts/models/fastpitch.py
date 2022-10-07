@@ -46,15 +46,15 @@ from nemo.utils import logging, model_utils
 
 @dataclass
 class G2PConfig:
-    _target_: str = "nemo.collections.tts.torch.g2ps.EnglishG2p"
-    phoneme_dict: str = "scripts/tts_dataset_files/cmudict-0.7b_nv22.01"
-    heteronyms: str = "scripts/tts_dataset_files/heteronyms-030921"
+    _target_: str = "nemo_text_processing.g2p.modules.EnglishG2p"
+    phoneme_dict: str = "scripts/tts_dataset_files/cmudict-0.7b_nv22.08"
+    heteronyms: str = "scripts/tts_dataset_files/heteronyms-052722"
     phoneme_probability: float = 0.5
 
 
 @dataclass
 class TextTokenizer:
-    _target_: str = "nemo.collections.tts.torch.tts_tokenizers.EnglishPhonemesTokenizer"
+    _target_: str = "nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.EnglishPhonemesTokenizer"
     punct: bool = True
     stresses: bool = True
     chars: bool = True
@@ -139,6 +139,9 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         output_fft = instantiate(self._cfg.output_fft)
         duration_predictor = instantiate(self._cfg.duration_predictor)
         pitch_predictor = instantiate(self._cfg.pitch_predictor)
+        speaker_emb_condition_prosody = cfg.get("speaker_emb_condition_prosody", False)
+        speaker_emb_condition_decoder = cfg.get("speaker_emb_condition_decoder", False)
+        speaker_emb_condition_aligner = cfg.get("speaker_emb_condition_aligner", False)
 
         self.fastpitch = FastPitchModule(
             input_fft,
@@ -150,8 +153,13 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             cfg.symbols_embedding_dim,
             cfg.pitch_embedding_kernel_size,
             cfg.n_mel_channels,
+            cfg.max_token_duration,
+            speaker_emb_condition_prosody,
+            speaker_emb_condition_decoder,
+            speaker_emb_condition_aligner,
         )
         self._input_types = self._output_types = None
+        self.export_config = {"enable_volume": False, "enable_ragged_batches": False}
 
     def _get_default_text_tokenizer_conf(self):
         text_tokenizer: TextTokenizerConfig = TextTokenizerConfig()
@@ -166,13 +174,30 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
                     'text_normalizer.whitelist', cfg.text_normalizer.whitelist
                 )
 
-            self.normalizer = instantiate(cfg.text_normalizer, **normalizer_kwargs)
+            try:
+                self.normalizer = instantiate(cfg.text_normalizer, **normalizer_kwargs)
+            except Exception as e:
+                logging.error(e)
+                raise ImportError(
+                    "`pynini` not installed, please install via NeMo/nemo_text_processing/pynini_install.sh"
+                )
+
             self.text_normalizer_call = self.normalizer.normalize
             if "text_normalizer_call_kwargs" in cfg:
                 self.text_normalizer_call_kwargs = cfg.text_normalizer_call_kwargs
 
     def _setup_tokenizer(self, cfg):
         text_tokenizer_kwargs = {}
+
+        if "phoneme_dict" in cfg.text_tokenizer:
+            text_tokenizer_kwargs["phoneme_dict"] = self.register_artifact(
+                "text_tokenizer.phoneme_dict", cfg.text_tokenizer.phoneme_dict,
+            )
+        if "heteronyms" in cfg.text_tokenizer:
+            text_tokenizer_kwargs["heteronyms"] = self.register_artifact(
+                "text_tokenizer.heteronyms", cfg.text_tokenizer.heteronyms,
+            )
+
         if "g2p" in cfg.text_tokenizer:
             g2p_kwargs = {}
 
@@ -428,10 +453,10 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         mel_loss = collect("mel_loss")
         dur_loss = collect("dur_loss")
         pitch_loss = collect("pitch_loss")
-        self.log("v_loss", val_loss)
-        self.log("v_mel_loss", mel_loss)
-        self.log("v_dur_loss", dur_loss)
-        self.log("v_pitch_loss", pitch_loss)
+        self.log("val_loss", val_loss)
+        self.log("val_mel_loss", mel_loss)
+        self.log("val_dur_loss", dur_loss)
+        self.log("val_pitch_loss", pitch_loss)
 
         _, _, _, _, spec_target, spec_predict = outputs[0].values()
 
@@ -463,7 +488,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
                     cfg.dataloader_params.shuffle = True
             elif not cfg.dataloader_params.shuffle:
                 logging.error(f"The {name} dataloader for {self} has shuffle set to False!!!")
-        elif not shuffle_should_be and cfg.dataloader_params.shuffle:
+        elif cfg.dataloader_params.shuffle:
             logging.error(f"The {name} dataloader for {self} has shuffle set to True!!!")
 
         if cfg.dataset._target_ == "nemo.collections.tts.torch.data.TTSDataset":
@@ -501,10 +526,39 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             List of available pre-trained models.
         """
         list_of_models = []
+
+        # en-US, single speaker, 22050Hz, LJSpeech.
         model = PretrainedModelInfo(
             pretrained_model_name="tts_en_fastpitch",
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_fastpitch/versions/1.8.1/files/tts_en_fastpitch_align.nemo",
             description="This model is trained on LJSpeech sampled at 22050Hz with and can be used to generate female English voices with an American accent.",
+            class_=cls,
+        )
+        list_of_models.append(model)
+
+        # en-US, multi-speaker, 44100Hz, HiFiTTS.
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_en_fastpitch_multispeaker",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_multispeaker_fastpitchhifigan/versions/1.10.0/files/tts_en_fastpitch_multispeaker.nemo",
+            description="This model is trained on HiFITTS sampled at 44100Hz with and can be used to generate male and female English voices with an American accent.",
+            class_=cls,
+        )
+        list_of_models.append(model)
+
+        # de-DE, single speaker, 22050 Hz, OpenSLR Neutral German Dataset.
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_de_fastpitch_singlespeaker",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_de_fastpitchhifigan/versions/1.10.0/files/tts_de_fastpitch_align.nemo",
+            description="This model is trained on a single male speaker data in OpenSLR Neutral German Dataset sampled at 22050Hz and can be used to generate male German voices.",
+            class_=cls,
+        )
+        list_of_models.append(model)
+
+        # de-DE, multi-speaker, 5 speakers, 44100 Hz, HUI-Audio-Corpus-German Clean.
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_de_fastpitch_multispeaker_5",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_de_fastpitch_multispeaker_5/versions/1.11.0/files/tts_de_fastpitch_multispeaker_5.nemo",
+            description="This model is trained on 5 speakers in HUI-Audio-Corpus-German clean subset sampled at 44100Hz with and can be used to generate male and female German voices.",
             class_=cls,
         )
         list_of_models.append(model)
@@ -515,22 +569,26 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
     def _prepare_for_export(self, **kwargs):
         super()._prepare_for_export(**kwargs)
 
+        tensor_shape = ('T') if self.export_config["enable_ragged_batches"] else ('B', 'T')
+
         # Define input_types and output_types as required by export()
         self._input_types = {
-            "text": NeuralType(('B', 'T_text'), TokenIndex()),
-            "pitch": NeuralType(('B', 'T_text'), RegressionValuesType()),
-            "pace": NeuralType(('B', 'T_text'), optional=True),
-            "volume": NeuralType(('B', 'T_text')),
-            "speaker": NeuralType(('B'), Index()),
+            "text": NeuralType(tensor_shape, TokenIndex()),
+            "pitch": NeuralType(tensor_shape, RegressionValuesType()),
+            "pace": NeuralType(tensor_shape),
+            "volume": NeuralType(tensor_shape, optional=True),
+            "batch_lengths": NeuralType(('B'), optional=True),
+            "speaker": NeuralType(('B'), Index(), optional=True),
         }
         self._output_types = {
-            "spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType()),
+            "spect": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
             "num_frames": NeuralType(('B'), TokenDurationType()),
-            "durs_predicted": NeuralType(('B', 'T_text'), TokenDurationType()),
-            "log_durs_predicted": NeuralType(('B', 'T_text'), TokenLogDurationType()),
-            "pitch_predicted": NeuralType(('B', 'T_text'), RegressionValuesType()),
-            "volume_aligned": NeuralType(('B', 'T_spec'), RegressionValuesType()),
+            "durs_predicted": NeuralType(('B', 'T'), TokenDurationType()),
+            "log_durs_predicted": NeuralType(('B', 'T'), TokenLogDurationType()),
+            "pitch_predicted": NeuralType(('B', 'T'), RegressionValuesType()),
         }
+        if self.export_config["enable_volume"]:
+            self._output_types["volume_aligned"] = NeuralType(('B', 'T'), RegressionValuesType())
 
     def _export_teardown(self):
         self._input_types = self._output_types = None
@@ -541,6 +599,10 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         disabled_inputs = set()
         if self.fastpitch.speaker_emb is None:
             disabled_inputs.add("speaker")
+        if not self.export_config["enable_ragged_batches"]:
+            disabled_inputs.add("batch_lengths")
+        if not self.export_config["enable_volume"]:
+            disabled_inputs.add("volume")
         return disabled_inputs
 
     @property
@@ -558,15 +620,35 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             A tuple of input examples.
         """
         par = next(self.fastpitch.parameters())
-        sz = (max_batch, max_dim)
+        sz = (max_batch * max_dim,) if self.export_config["enable_ragged_batches"] else (max_batch, max_dim)
         inp = torch.randint(
             0, self.fastpitch.encoder.word_emb.num_embeddings, sz, device=par.device, dtype=torch.int64
         )
         pitch = torch.randn(sz, device=par.device, dtype=torch.float32) * 0.5
-        pace = torch.clamp((torch.randn(sz, device=par.device, dtype=torch.float32) + 1) * 0.1, min=0.01)
-        volume = torch.clamp((torch.randn(sz, device=par.device, dtype=torch.float32) + 1) * 0.1, min=0.01)
+        pace = torch.clamp(torch.randn(sz, device=par.device, dtype=torch.float32) * 0.1 + 1, min=0.01)
 
-        inputs = {'text': inp, 'pitch': pitch, 'pace': pace, 'volume': volume}
+        inputs = {'text': inp, 'pitch': pitch, 'pace': pace}
+
+        if self.export_config["enable_volume"]:
+            volume = torch.clamp(torch.randn(sz, device=par.device, dtype=torch.float32) * 0.1 + 1, min=0.01)
+            inputs['volume'] = volume
+        if self.export_config["enable_ragged_batches"]:
+            batch_lengths = torch.zeros((max_batch + 1), device=par.device, dtype=torch.int32)
+            left_over_size = sz[0]
+            batch_lengths[0] = 0
+            for i in range(1, max_batch):
+                length = torch.randint(1, left_over_size - (max_batch - i), (1,), device=par.device)
+                batch_lengths[i] = length + batch_lengths[i - 1]
+                left_over_size -= length.detach().cpu().numpy()[0]
+            batch_lengths[-1] = left_over_size + batch_lengths[-2]
+
+            sum = 0
+            index = 1
+            while index < len(batch_lengths):
+                sum += batch_lengths[index] - batch_lengths[index - 1]
+                index += 1
+            assert sum == sz[0], f"sum: {sum}, sz: {sz[0]}, lengths:{batch_lengths}"
+            inputs['batch_lengths'] = batch_lengths
 
         if self.fastpitch.speaker_emb is not None:
             inputs['speaker'] = torch.randint(
@@ -575,5 +657,77 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
 
         return (inputs,)
 
-    def forward_for_export(self, text, pitch, pace, volume, speaker=None):
+    def forward_for_export(self, text, pitch, pace, volume=None, batch_lengths=None, speaker=None):
+        if self.export_config["enable_ragged_batches"]:
+            text, pitch, pace, volume_tensor = create_batch(
+                text, pitch, pace, batch_lengths, padding_idx=self.fastpitch.encoder.padding_idx, volume=volume
+            )
+            if volume is not None:
+                volume = volume_tensor
         return self.fastpitch.infer(text=text, pitch=pitch, pace=pace, volume=volume, speaker=speaker)
+
+    def interpolate_speaker(
+        self, original_speaker_1, original_speaker_2, weight_speaker_1, weight_speaker_2, new_speaker_id
+    ):
+        """
+        This method performs speaker interpolation between two original speakers the model is trained on.
+        Inputs:
+            original_speaker_1: Integer speaker ID of first existing speaker in the model
+            original_speaker_2: Integer speaker ID of second existing speaker in the model
+            weight_speaker_1: Floating point weight associated in to first speaker during weight combination
+            weight_speaker_2: Floating point weight associated in to second speaker during weight combination
+            new_speaker_id: Integer speaker ID of new interpolated speaker in the model
+        """
+        if self.fastpitch.speaker_emb is None:
+            raise Exception(
+                "Current FastPitch model is not a multi-speaker FastPitch model. Speaker interpolation can only \
+                be performed with a multi-speaker model"
+            )
+        n_speakers = self.fastpitch.speaker_emb.weight.data.size()[0]
+        if original_speaker_1 >= n_speakers or original_speaker_2 >= n_speakers or new_speaker_id >= n_speakers:
+            raise Exception(
+                f"Parameters original_speaker_1, original_speaker_2, new_speaker_id should be less than the total \
+                total number of speakers FastPitch was trained on (n_speakers = {n_speakers})."
+            )
+        speaker_emb_1 = (
+            self.fastpitch.speaker_emb(torch.tensor(original_speaker_1, dtype=torch.int32).cuda()).clone().detach()
+        )
+        speaker_emb_2 = (
+            self.fastpitch.speaker_emb(torch.tensor(original_speaker_2, dtype=torch.int32).cuda()).clone().detach()
+        )
+        new_speaker_emb = weight_speaker_1 * speaker_emb_1 + weight_speaker_2 * speaker_emb_2
+        self.fastpitch.speaker_emb.weight.data[new_speaker_id] = new_speaker_emb
+
+
+@torch.jit.script
+def create_batch(
+    text: torch.Tensor,
+    pitch: torch.Tensor,
+    pace: torch.Tensor,
+    batch_lengths: torch.Tensor,
+    padding_idx: int = -1,
+    volume: Optional[torch.Tensor] = None,
+):
+    batch_lengths = batch_lengths.to(torch.int64)
+    max_len = torch.max(batch_lengths[1:] - batch_lengths[:-1])
+
+    index = 1
+    texts = torch.zeros(batch_lengths.shape[0] - 1, max_len, dtype=torch.int64, device=text.device) + padding_idx
+    pitches = torch.zeros(batch_lengths.shape[0] - 1, max_len, dtype=torch.float32, device=text.device)
+    paces = torch.zeros(batch_lengths.shape[0] - 1, max_len, dtype=torch.float32, device=text.device) + 1.0
+    volumes = torch.zeros(batch_lengths.shape[0] - 1, max_len, dtype=torch.float32, device=text.device) + 1.0
+
+    while index < batch_lengths.shape[0]:
+        seq_start = batch_lengths[index - 1]
+        seq_end = batch_lengths[index]
+        cur_seq_len = seq_end - seq_start
+
+        texts[index - 1, :cur_seq_len] = text[seq_start:seq_end]
+        pitches[index - 1, :cur_seq_len] = pitch[seq_start:seq_end]
+        paces[index - 1, :cur_seq_len] = pace[seq_start:seq_end]
+        if volume is not None:
+            volumes[index - 1, :cur_seq_len] = volume[seq_start:seq_end]
+
+        index += 1
+
+    return texts, pitches, paces, volumes

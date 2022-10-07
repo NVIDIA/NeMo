@@ -24,6 +24,8 @@ import operator
 import os
 import pickle
 from collections import defaultdict
+from os.path import expanduser
+from pathlib import Path
 
 import dash
 import dash_bootstrap_components as dbc
@@ -91,8 +93,19 @@ def parse_args():
         action='store_true',
         help='estimate frequency bandwidth and signal level of audio recordings',
     )
+    parser.add_argument(
+        '--audio-base-path',
+        default=None,
+        type=str,
+        help='A base path for the relative paths in manifest. It defaults to manifest path.',
+    )
     parser.add_argument('--debug', '-d', action='store_true', help='enable debug mode')
     args = parser.parse_args()
+
+    # assume audio_filepath is relative to the directory where the manifest is stored
+    if args.audio_base_path is None:
+        args.audio_base_path = os.path.dirname(args.manifest)
+
     print(args)
     return args
 
@@ -115,7 +128,7 @@ def eval_bandwidth(signal, sr, threshold=-50):
 
 
 # load data from JSON manifest file
-def load_data(data_filename, disable_caching=False, estimate_audio=False, vocab=None):
+def load_data(data_filename, disable_caching=False, estimate_audio=False, vocab=None, audio_base_path=None):
 
     if vocab is not None:
         # load external vocab
@@ -143,7 +156,8 @@ def load_data(data_filename, disable_caching=False, estimate_audio=False, vocab=
                     item['OOV'] = item['word'] not in vocabulary_ext
             if estimate_audio:
                 for item in data:
-                    signal, sr = librosa.load(path=item['audio_filepath'], sr=None)
+                    filepath = absolute_audio_filepath(item['audio_filepath'], audio_base_path)
+                    signal, sr = librosa.load(path=filepath, sr=None)
                     bw = eval_bandwidth(signal, sr)
                     item['freq_bandwidth'] = int(bw)
                     item['level_db'] = 20 * np.log10(np.max(np.abs(signal)))
@@ -228,7 +242,8 @@ def load_data(data_filename, disable_caching=False, estimate_audio=False, vocab=
                 data[-1]['D-I'] = measures['deletions'] - measures['insertions']
 
             if estimate_audio:
-                signal, sr = librosa.load(path=item['audio_filepath'], sr=None)
+                filepath = absolute_audio_filepath(item['audio_filepath'], data_filename)
+                signal, sr = librosa.load(path=filepath, sr=None)
                 bw = eval_bandwidth(signal, sr)
                 item['freq_bandwidth'] = int(bw)
                 item['level_db'] = 20 * np.log10(np.max(np.abs(signal)))
@@ -312,10 +327,32 @@ def plot_word_accuracy(vocabulary_data):
     return fig
 
 
+def absolute_audio_filepath(audio_filepath, audio_base_path):
+    """Return absolute path to an audio file.
+
+    Check if a file existst at audio_filepath.
+    If not, assume that the path is relative to audio_base_path.
+    """
+    audio_filepath = Path(audio_filepath)
+
+    if not audio_filepath.is_file() and not audio_filepath.is_absolute():
+        audio_filepath = audio_base_path / audio_filepath
+        if audio_filepath.is_file():
+            filename = str(audio_filepath)
+        else:
+            filename = expanduser(audio_filepath)
+    else:
+        filename = expanduser(audio_filepath)
+
+    return filename
+
+
+# parse the CLI arguments
 args = parse_args()
+
 print('Loading data...')
 data, wer, cer, wmr, mwa, num_hours, vocabulary, alphabet, metrics_available = load_data(
-    args.manifest, args.disable_caching_metrics, args.estimate_audio_metrics, args.vocab
+    args.manifest, args.disable_caching_metrics, args.estimate_audio_metrics, args.vocab, args.audio_base_path
 )
 print('Starting server...')
 app = dash.Dash(
@@ -736,7 +773,7 @@ def plot_signal(idx, data):
         raise PreventUpdate
     figs = make_subplots(rows=2, cols=1, subplot_titles=('Waveform', 'Spectrogram'))
     try:
-        filename = data[idx[0]]['audio_filepath']
+        filename = absolute_audio_filepath(data[idx[0]]['audio_filepath'], args.audio_base_path)
         audio, fs = librosa.load(path=filename, sr=None)
         if 'offset' in data[idx[0]]:
             audio = audio[
@@ -777,8 +814,8 @@ def plot_signal(idx, data):
         figs.update_yaxes(title_text='Amplitude', row=1, col=1)
         figs.update_xaxes(title_text='Time, s', row=2, col=1)
         figs.update_yaxes(title_text='Frequency, kHz', row=2, col=1)
-    except Exception:
-        pass
+    except Exception as ex:
+        app.logger.error(f'ERROR in plot signal: {ex}')
 
     return figs
 
@@ -788,7 +825,7 @@ def update_player(idx, data):
     if len(idx) == 0:
         raise PreventUpdate
     try:
-        filename = data[idx[0]]['audio_filepath']
+        filename = absolute_audio_filepath(data[idx[0]]['audio_filepath'], args.audio_base_path)
         signal, sr = librosa.load(path=filename, sr=None)
         if 'offset' in data[idx[0]]:
             signal = signal[

@@ -18,23 +18,8 @@ import os
 import time
 from argparse import ArgumentParser
 
-from nemo.utils import logging
-
-try:
-    import pynini
-    from nemo_text_processing.text_normalization.en.graph_utils import generator_main
-
-    PYNINI_AVAILABLE = True
-except (ModuleNotFoundError, ImportError):
-
-    logging.warning(
-        "`pynini` is not installed ! \n"
-        "Please run the `nemo_text_processing/setup.sh` script"
-        "prior to usage of this toolkit."
-    )
-
-    PYNINI_AVAILABLE = False
-
+import pynini
+from nemo_text_processing.text_normalization.en.graph_utils import generator_main
 
 # This script exports compiled grammars inside nemo_text_processing into OpenFst finite state archive files
 # tokenize_and_classify.far and verbalize.far for production purposes
@@ -88,7 +73,7 @@ def parse_args():
     parser = ArgumentParser()
     parser.add_argument("--output_dir", help="output directory for grammars", required=True, type=str)
     parser.add_argument(
-        "--language", help="language", choices=["en", "de", "es", "ru", 'fr', 'vi'], type=str, default='en'
+        "--language", help="language", choices=["en", "de", "es", "pt", "ru", 'fr', 'vi', 'zh'], type=str, default='en'
     )
     parser.add_argument(
         "--grammars", help="grammars to be exported", choices=["tn_grammars", "itn_grammars"], type=str, required=True
@@ -109,7 +94,7 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
 
-    if args.language in ['ru', 'fr', 'vi'] and args.grammars == 'tn_grammars':
+    if args.language in ['pt', 'ru', 'fr', 'vi'] and args.grammars == 'tn_grammars':
         raise ValueError('Only ITN grammars could be deployed in Sparrowhawk for the selected languages.')
 
     if args.language == 'en':
@@ -152,6 +137,13 @@ if __name__ == '__main__':
             ClassifyFst as TNClassifyFst,
         )
         from nemo_text_processing.text_normalization.es.verbalizers.verbalize import VerbalizeFst as TNVerbalizeFst
+    elif args.language == 'pt':
+        from nemo_text_processing.inverse_text_normalization.pt.taggers.tokenize_and_classify import (
+            ClassifyFst as ITNClassifyFst,
+        )
+        from nemo_text_processing.inverse_text_normalization.pt.verbalizers.verbalize import (
+            VerbalizeFst as ITNVerbalizeFst,
+        )
     elif args.language == 'fr':
         from nemo_text_processing.inverse_text_normalization.fr.taggers.tokenize_and_classify import (
             ClassifyFst as ITNClassifyFst,
@@ -166,6 +158,11 @@ if __name__ == '__main__':
         from nemo_text_processing.inverse_text_normalization.vi.verbalizers.verbalize import (
             VerbalizeFst as ITNVerbalizeFst,
         )
+    elif args.language == 'zh':
+        from nemo_text_processing.text_normalization.zh.taggers.tokenize_and_classify import (
+            ClassifyFst as TNClassifyFst,
+        )
+        from nemo_text_processing.text_normalization.zh.verbalizers.verbalize import VerbalizeFst as TNVerbalizeFst
 
     output_dir = os.path.join(args.output_dir, args.language)
     export_grammars(

@@ -17,10 +17,13 @@ import os
 import time
 from argparse import ArgumentParser
 from glob import glob
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
+import pynini
 from joblib import Parallel, delayed
+from nemo_text_processing.text_normalization.data_loader_utils import post_process_punct, pre_process
 from nemo_text_processing.text_normalization.normalize import Normalizer
+from pynini.lib import rewrite
 from tqdm import tqdm
 
 try:
@@ -31,21 +34,6 @@ try:
 except (ModuleNotFoundError, ImportError):
     ASR_AVAILABLE = False
 
-try:
-    import pynini
-    from pynini.lib import rewrite
-
-    PYNINI_AVAILABLE = True
-except (ModuleNotFoundError, ImportError):
-    PYNINI_AVAILABLE = False
-
-try:
-    from nemo.collections.nlp.data.text_normalization.utils import post_process_punct
-    from nemo_text_processing.text_normalization.data_loader_utils import pre_process
-
-    NLP_AVAILABLE = True
-except (ModuleNotFoundError, ImportError):
-    NLP_AVAILABLE = False
 
 """
 The script provides multiple normalization options and chooses the best one that minimizes CER of the ASR output
@@ -156,6 +144,7 @@ class NormalizerWithAudio(Normalizer):
             if self.lang == "en":
                 # this to keep arpabet phonemes in the list of options
                 if "[" in text and "]" in text:
+
                     lattice = rewrite.rewrite_lattice(text, self.tagger.fst)
                 else:
                     try:
@@ -168,11 +157,10 @@ class NormalizerWithAudio(Normalizer):
                 tagged_texts, weights = list(zip(*tagged_texts))
         else:
             tagged_texts = self._get_tagged_text(text, n_tagged)
-
         # non-deterministic Eng normalization uses tagger composed with verbalizer, no permutation in between
         if self.lang == "en":
             normalized_texts = tagged_texts
-            normalized_texts = set([self.post_process(text) for text in normalized_texts])
+            normalized_texts = [self.post_process(text) for text in normalized_texts]
         else:
             normalized_texts = []
             for tagged_text in tagged_texts:
@@ -190,7 +178,9 @@ class NormalizerWithAudio(Normalizer):
                 ]
 
         if self.lm:
-            return normalized_texts, weights
+            remove_dup = sorted(list(set(zip(normalized_texts, weights))), key=lambda x: x[1])
+            normalized_texts, weights = zip(*remove_dup)
+            return list(normalized_texts), weights
 
         normalized_texts = set(normalized_texts)
         return normalized_texts
@@ -346,6 +336,13 @@ def parse_args():
     )
     parser.add_argument("--audio_data", default=None, help="path to an audio file or .json manifest")
     parser.add_argument(
+        "--output_filename",
+        default=None,
+        help="Path of where to save .json manifest with normalization outputs."
+        " It will only be saved if --audio_data is a .json manifest.",
+        type=str,
+    )
+    parser.add_argument(
         '--model', type=str, default='QuartzNet15x5Base-En', help='Pre-trained model name or path to model checkpoint'
     )
     parser.add_argument(
@@ -395,6 +392,7 @@ def _normalize_line(
         text=line["text"], verbose=verbose, n_tagged=n_tagged, punct_post_process=punct_post_process,
     )
 
+    normalized_texts = set(normalized_texts)
     normalized_text, cer = normalizer.select_best_match(
         normalized_texts=normalized_texts,
         input_text=line["text"],
@@ -417,6 +415,7 @@ def normalize_manifest(
     punct_post_process: bool,
     batch_size: int,
     cer_threshold: int,
+    output_filename: Optional[str] = None,
 ):
     """
     Args:
@@ -450,7 +449,9 @@ def normalize_manifest(
 
         print(f"Batch -- {batch_idx} -- is complete")
 
-    manifest_out = audio_data.replace('.json', '_normalized.json')
+    if output_filename is None:
+        output_filename = audio_data.replace('.json', '_normalized.json')
+
     with open(audio_data, 'r') as f:
         lines = f.readlines()
 
@@ -459,7 +460,7 @@ def normalize_manifest(
     # to save intermediate results to a file
     batch = min(len(lines), batch_size)
 
-    tmp_dir = manifest_out.replace(".json", "_parts")
+    tmp_dir = output_filename.replace(".json", "_parts")
     os.makedirs(tmp_dir, exist_ok=True)
 
     Parallel(n_jobs=n_jobs)(
@@ -468,13 +469,13 @@ def normalize_manifest(
     )
 
     # aggregate all intermediate files
-    with open(manifest_out, "w") as f_out:
+    with open(output_filename, "w") as f_out:
         for batch_f in sorted(glob(f"{tmp_dir}/*.json")):
             with open(batch_f, "r") as f_in:
                 lines = f_in.read()
             f_out.write(lines)
 
-    print(f'Normalized version saved at {manifest_out}')
+    print(f'Normalized version saved at {output_filename}')
 
 
 if __name__ == "__main__":
@@ -504,6 +505,8 @@ if __name__ == "__main__":
             punct_post_process=not args.no_punct_post_process,
         )
 
+        if not normalizer.lm:
+            normalized_texts = set(normalized_texts)
         if args.audio_data:
             asr_model = get_asr_model(args.model)
             pred_text = asr_model.transcribe([args.audio_data])[0]
@@ -540,6 +543,7 @@ if __name__ == "__main__":
             punct_post_process=not args.no_punct_post_process,
             batch_size=args.batch_size,
             cer_threshold=args.cer_threshold,
+            output_filename=args.output_filename,
         )
     else:
         raise ValueError(

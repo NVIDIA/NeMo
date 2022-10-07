@@ -32,11 +32,12 @@ from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.modules.rnnt import RNNTDecoderJoint
 from nemo.collections.asr.parts.mixins import ASRModuleMixin
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
+from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.core.classes.mixins import AccessMixin
 from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LengthsType, NeuralType, SpectrogramType
 from nemo.utils import logging
-from nemo.utils.export_utils import augment_filename
 
 
 class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
@@ -212,6 +213,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         return_hypotheses: bool = False,
         partial_hypothesis: Optional[List['Hypothesis']] = None,
         num_workers: int = 0,
+        channel_selector: Optional[ChannelSelectorType] = None,
     ) -> (List[str], Optional[List['Hypothesis']]):
         """
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
@@ -226,6 +228,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             return_hypotheses: (bool) Either return hypotheses or text
         With hypotheses can do some postprocessing like getting timestamp or rescoring
             num_workers: (int) number of workers for DataLoader
+            channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
 
         Returns:
             A list of transcriptions in the same order as paths2audio_files. Will also return
@@ -268,6 +271,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
                     'batch_size': batch_size,
                     'temp_dir': tmpdir,
                     'num_workers': num_workers,
+                    'channel_selector': channel_selector,
                 }
 
                 temporary_datalayer = self._setup_transcribe_dataloader(config)
@@ -697,6 +701,10 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
 
     # PTL-specific methods
     def training_step(self, batch, batch_nb):
+        # Reset access registry
+        if AccessMixin.is_access_enabled():
+            AccessMixin.reset_registry(self)
+
         signal, signal_len, transcript, transcript_len = batch
 
         # forward() only performs encoder forward
@@ -724,7 +732,18 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
                 log_probs=joint, targets=transcript, input_lengths=encoded_len, target_lengths=target_length
             )
 
-            tensorboard_logs = {'train_loss': loss_value, 'learning_rate': self._optimizer.param_groups[0]['lr']}
+            # Add auxiliary losses, if registered
+            loss_value = self.add_auxiliary_losses(loss_value)
+
+            # Reset access registry
+            if AccessMixin.is_access_enabled():
+                AccessMixin.reset_registry(self)
+
+            tensorboard_logs = {
+                'train_loss': loss_value,
+                'learning_rate': self._optimizer.param_groups[0]['lr'],
+                'global_step': torch.tensor(self.trainer.global_step, dtype=torch.float32),
+            }
 
             if (sample_id + 1) % log_every_n_steps == 0:
                 self.wer.update(encoded, encoded_len, transcript, transcript_len)
@@ -749,7 +768,18 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
                 compute_wer=compute_wer,
             )
 
-            tensorboard_logs = {'train_loss': loss_value, 'learning_rate': self._optimizer.param_groups[0]['lr']}
+            # Add auxiliary losses, if registered
+            loss_value = self.add_auxiliary_losses(loss_value)
+
+            # Reset access registry
+            if AccessMixin.is_access_enabled():
+                AccessMixin.reset_registry(self)
+
+            tensorboard_logs = {
+                'train_loss': loss_value,
+                'learning_rate': self._optimizer.param_groups[0]['lr'],
+                'global_step': torch.tensor(self.trainer.global_step, dtype=torch.float32),
+            }
 
             if compute_wer:
                 tensorboard_logs.update({'training_batch_wer': wer})
@@ -838,6 +868,8 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             tensorboard_logs['val_wer_num'] = wer_num
             tensorboard_logs['val_wer_denom'] = wer_denom
             tensorboard_logs['val_wer'] = wer
+
+        self.log('global_step', torch.tensor(self.trainer.global_step, dtype=torch.float32))
 
         return tensorboard_logs
 
@@ -954,18 +986,14 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
                     norm = param.grad.norm()
                     param.grad.data.div_(norm)
 
-    def export(self, output: str, input_example=None, **kwargs):
-        encoder_exp, encoder_descr = self.encoder.export(
-            augment_filename(output, 'Encoder'), input_example=input_example, **kwargs,
-        )
-        decoder_joint = RNNTDecoderJoint(self.decoder, self.joint)
-        decoder_exp, decoder_descr = decoder_joint.export(
-            augment_filename(output, 'Decoder-Joint'),
-            # TODO: propagate from export()
-            input_example=None,
-            **kwargs,
-        )
-        return encoder_exp + decoder_exp, encoder_descr + decoder_descr
+    # EncDecRNNTModel is exported in 2 parts
+    def list_export_subnets(self):
+        return ['encoder', 'decoder_joint']
+
+    # for export
+    @property
+    def decoder_joint(self):
+        return RNNTDecoderJoint(self.decoder, self.joint)
 
     @classmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:

@@ -21,33 +21,25 @@ from math import factorial
 from time import perf_counter
 from typing import Dict, List, Union
 
+import pynini
+import regex
 from joblib import Parallel, delayed
 from nemo_text_processing.text_normalization.data_loader_utils import (
-    get_installation_msg,
     load_file,
+    post_process_punct,
     pre_process,
     write_file,
 )
 from nemo_text_processing.text_normalization.token_parser import PRESERVE_ORDER_KEY, TokenParser
+from pynini.lib.rewrite import top_rewrite
 from tqdm import tqdm
 
 try:
-    import pynini
-    from pynini.lib.rewrite import top_rewrite
-
-    PYNINI_AVAILABLE = True
-
-except (ModuleNotFoundError, ImportError):
-    PYNINI_AVAILABLE = False
-
-try:
     from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
-    from nemo.collections.nlp.data.text_normalization.utils import post_process_punct
 
     NLP_AVAILABLE = True
 except (ModuleNotFoundError, ImportError) as e:
     NLP_AVAILABLE = False
-
 
 SPACE_DUP = re.compile(' {2,}')
 
@@ -80,9 +72,6 @@ class Normalizer:
     ):
         assert input_case in ["lower_cased", "cased"]
 
-        if not PYNINI_AVAILABLE:
-            raise ImportError(get_installation_msg())
-
         self.post_processor = None
 
         if lang == "en":
@@ -113,6 +102,9 @@ class Normalizer:
         elif lang == 'es':
             from nemo_text_processing.text_normalization.es.taggers.tokenize_and_classify import ClassifyFst
             from nemo_text_processing.text_normalization.es.verbalizers.verbalize_final import VerbalizeFinalFst
+        elif lang == 'zh':
+            from nemo_text_processing.text_normalization.zh.taggers.tokenize_and_classify import ClassifyFst
+            from nemo_text_processing.text_normalization.zh.verbalizers.verbalize_final import VerbalizeFinalFst
         self.tagger = ClassifyFst(
             input_case=input_case,
             deterministic=deterministic,
@@ -132,7 +124,7 @@ class Normalizer:
             self.processor = MosesProcessor(lang_id=lang)
         else:
             self.processor = None
-            print("NeMo NLP is not available. Punctuation post-processing will be skipped")
+            print("NeMo NLP is not available. Moses de-tokenization will be skipped.")
 
     def normalize_list(
         self,
@@ -164,7 +156,7 @@ class Normalizer:
 
         try:
             normalized_texts = Parallel(n_jobs=n_jobs)(
-                delayed(self.__process_batch)(texts[i : i + batch], verbose, punct_pre_process, punct_post_process)
+                delayed(self.process_batch)(texts[i : i + batch], verbose, punct_pre_process, punct_post_process)
                 for i in range(0, len(texts), batch)
             )
         except BaseException as e:
@@ -173,7 +165,7 @@ class Normalizer:
         normalized_texts = list(itertools.chain(*normalized_texts))
         return normalized_texts
 
-    def __process_batch(self, batch, verbose, punct_pre_process, punct_post_process):
+    def process_batch(self, batch, verbose, punct_pre_process, punct_post_process):
         """
         Normalizes batch of text sequences
         Args:
@@ -272,9 +264,11 @@ class Normalizer:
 
         Returns: spoken form
         """
-        assert (
-            len(text.split()) < 500
-        ), "Your input is too long. Please split up the input into sentences, or strings with fewer than 500 words"
+        if len(text.split()) > 500:
+            print(
+                "WARNING! Your input is too long and could take a long time to normalize."
+                "Use split_text_into_sentences() to make the input shorter and then call normalize_list()."
+            )
 
         original_text = text
         if punct_pre_process:
@@ -319,6 +313,27 @@ class Normalizer:
                 print("NEMO_NLP collection is not available: skipping punctuation post_processing")
 
         return output
+
+    def split_text_into_sentences(self, text: str) -> List[str]:
+        """
+        Split text into sentences.
+
+        Args:
+            text: text
+
+        Returns list of sentences
+        """
+        lower_case_unicode = ''
+        upper_case_unicode = ''
+        if self.lang == "ru":
+            lower_case_unicode = '\u0430-\u04FF'
+            upper_case_unicode = '\u0410-\u042F'
+
+        # Read and split transcript by utterance (roughly, sentences)
+        split_pattern = rf"(?<!\w\.\w.)(?<![A-Z{upper_case_unicode}][a-z{lower_case_unicode}]+\.)(?<![A-Z{upper_case_unicode}]\.)(?<=\.|\?|\!|\.”|\?”\!”)\s(?![0-9]+[a-z]*\.)"
+
+        sentences = regex.split(split_pattern, text)
+        return sentences
 
     def _permute(self, d: OrderedDict) -> List[str]:
         """
@@ -455,7 +470,7 @@ def parse_args():
     input.add_argument("--text", dest="input_string", help="input string", type=str)
     input.add_argument("--input_file", dest="input_file", help="input file path", type=str)
     parser.add_argument('--output_file', dest="output_file", help="output file path", type=str)
-    parser.add_argument("--language", help="language", choices=["en", "de", "es"], default="en", type=str)
+    parser.add_argument("--language", help="language", choices=["en", "de", "es", "zh"], default="en", type=str)
     parser.add_argument(
         "--input_case", help="input capitalization", choices=["lower_cased", "cased"], default="cased", type=str
     )
