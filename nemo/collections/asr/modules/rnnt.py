@@ -1356,7 +1356,8 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
                 del sub_enc, sub_transcripts, sub_enc_lens, sub_transcript_lens
 
             # Reduce over sub batches
-            losses = self.loss.reduce(losses, target_lengths)
+            if losses is not None:
+                losses = self.loss.reduce(losses, target_lengths)
 
             # Collect sub batch wer results
             if compute_wer:

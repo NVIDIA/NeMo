@@ -254,9 +254,8 @@ class RNNTLoss(Loss):
         self.reduction = reduction
         self._loss = resolve_rnnt_loss(loss_name, blank_idx=self._blank, loss_kwargs=loss_kwargs)
 
+    @typecheck()
     def reduce(self, losses, target_lengths):
-        if losses is None:
-            return None
 
         if isinstance(losses, List):
             losses = torch.cat(losses, 0)
