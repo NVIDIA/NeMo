@@ -16,9 +16,13 @@ function getLatestExistingImage(resultsDict){
   return latestKey;
 }
 
-function getBestResultFromDict(resultsDict, perf_type){
-  index = perf_type == "time" ? 2 : 1;
-  return Object.entries(resultsDict).reduce((minVal, entry) => minVal == undefined ? entry[1][index] : Math.min(minVal,entry[1][index]), undefined)
+function getBestResultFromDict(resultsDict, perfType, higherIsBetter){
+  index = perfType == "time" ? 2 : 1;
+  if (higherIsBetter){
+    return Object.entries(resultsDict).reduce((maxVal, entry) => maxVal == undefined ? entry[1][index] : Math.max(maxVal,entry[1][index]), undefined)
+  }
+  else
+    return Object.entries(resultsDict).reduce((minVal, entry) => minVal == undefined ? entry[1][index] : Math.min(minVal,entry[1][index]), undefined)
 }
 
 function checkVersion(a,b) {
@@ -78,8 +82,8 @@ CreateHTMLTable = {
             <th>NUM STEPS</th>
             <th>TRAIN TIME(s)</th>
             <th>LATEST</th>
-            <th>PREV LOWEST</th>
-            <th> LATEST / PREV LOWEST </th>
+            <th>PREV HIGHEST</th>
+            <th> LATEST / PREV HIGHEST </th>
             <th>LATEST</th>
             <th>PREV LOWEST</th>
             <th> PREV LOWEST / LATEST </th>
@@ -109,7 +113,7 @@ CreateHTMLTable = {
                   var tflopsPreviousBest = "--";
                   var tflopsRatio = "--";
                   if (Object.keys(trainTimeMetrics).length > 0){
-                    tflopsPreviousBest = getBestResultFromDict(trainTimeMetrics, "time").toFixed(3);
+                    tflopsPreviousBest = getBestResultFromDict(trainTimeMetrics, "time", true).toFixed(3);
                     tflopsRatio = (tflopsLatest/tflopsPreviousBest).toFixed(3);
                   }
                   var colorTrainTime = tflopsRatio < 1 ? "red" : "green";
@@ -133,7 +137,7 @@ CreateHTMLTable = {
                   var previousMemoryBest = "--";
                   var ratioMemory = "--";
                   if (Object.keys(memoryUsedMetrics).length > 0){
-                    previousMemoryBest = (getBestResultFromDict(memoryUsedMetrics, "memory")/1024).toFixed(3);
+                    previousMemoryBest = (getBestResultFromDict(memoryUsedMetrics, "memory", false)/1024).toFixed(3);
                     ratioMemory = (previousMemoryBest/latestMemoryResult).toFixed(3);
                   }   
                   colorMemory = ratioMemory < 1 ? "red" : "green";
