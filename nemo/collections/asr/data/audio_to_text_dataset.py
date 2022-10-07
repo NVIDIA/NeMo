@@ -92,22 +92,10 @@ def get_concat_char_dataset(
     manifest_filepaths = config['manifest_filepath']
     datasets = []
     for manifest_filepath in manifest_filepaths:
-        dataset = audio_to_text.AudioToCharDataset(
-            manifest_filepath=manifest_filepath,
-            labels=config.get('labels', None),
-            sample_rate=config['sample_rate'],
-            int_values=config.get('int_values', False),
-            augmentor=augmentor,
-            max_duration=config.get('max_duration', None),
-            min_duration=config.get('min_duration', None),
-            max_utts=config.get('max_utts', 0),
-            blank_index=config.get('blank_index', -1),
-            unk_index=config.get('unk_index', -1),
-            normalize=config.get('normalize_transcripts', False),
-            trim=config.get('trim_silence', False),
-            parser=config.get('parser', 'en'),
-            return_sample_id=config.get('return_sample_id', False),
-        )
+        conf = copy.deepcopy(config)
+        conf['manifest_filepath'] = manifest_filepath
+
+        dataset = audio_to_text_dataset.get_char_dataset(config = conf, augmentor = augmentor)
         datasets.append(dataset)
 
     dataset = ConcatDataset(
@@ -178,18 +166,12 @@ def get_concat_bpe_dataset(
     manifest_filepaths = config['manifest_filepath']
     datasets = []
     for manifest_filepath in manifest_filepaths:
-        dataset = audio_to_text.AudioToBPEDataset(
-            manifest_filepath=manifest_filepath,
-            tokenizer=tokenizer,
-            sample_rate=config['sample_rate'],
-            int_values=config.get('int_values', False),
-            augmentor=augmentor,
-            max_duration=config.get('max_duration', None),
-            min_duration=config.get('min_duration', None),
-            max_utts=config.get('max_utts', 0),
-            trim=config.get('trim_silence', False),
-            use_start_end_token=config.get('use_start_end_token', True),
-            return_sample_id=config.get('return_sample_id', False),
+        conf = copy.deepcopy(config)
+        conf['manifest_filepath'] = manifest_filepath
+        dataset = audio_to_text_dataset.get_bpe_dataset(
+            config = conf, 
+            tokenizer = tokenizer, 
+            augmentor = augmentor
         )
         datasets.append(dataset)
 
