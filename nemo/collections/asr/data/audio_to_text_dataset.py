@@ -96,11 +96,7 @@ def get_concat_char_dataset(
         conf = copy.deepcopy(config)
         conf['manifest_filepath'] = manifest_filepath
 
-<<<<<<< HEAD
         dataset = get_char_dataset(config=conf, augmentor=augmentor)
-=======
-        dataset = audio_to_text_dataset.get_char_dataset(config=conf, augmentor=augmentor)
->>>>>>> 4fd2251ef5f3920db69795d7e1ad5c6cf703e00d
         datasets.append(dataset)
 
     dataset = ConcatDataset(
@@ -173,11 +169,7 @@ def get_concat_bpe_dataset(
     for manifest_filepath in manifest_filepaths:
         conf = copy.deepcopy(config)
         conf['manifest_filepath'] = manifest_filepath
-<<<<<<< HEAD
         dataset = get_bpe_dataset(config=conf, tokenizer=tokenizer, augmentor=augmentor)
-=======
-        dataset = audio_to_text_dataset.get_bpe_dataset(config=conf, tokenizer=tokenizer, augmentor=augmentor)
->>>>>>> 4fd2251ef5f3920db69795d7e1ad5c6cf703e00d
         datasets.append(dataset)
 
     dataset = ConcatDataset(
