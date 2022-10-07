@@ -4651,6 +4651,15 @@ Inference parameters:
 ## 8. Changelog
 <a id="markdown-changelog" name="changelog"></a>
 
+**NeMo Megatron 22.09**
+* Cloud service providers: support for Oracle Cloud Infrastructure (performance validated up to 32 `8x NVIDIA A100` instances)
+* P-Tuning and Prompt Tuning for T5 and mT5 with pipeline parallelism (training only)
+* Adapter learning for GPT-3 with tensor parallelism and pipeline parallelism (training only)
+* Adapter learning and T5 with tensor parallelism (training only)
+* IA3 learning for GPT-3 with tensor parallelism and pipeline parallelism (training only)
+* IA3 learning for T5 with tensor parallelism (training only)
+* Hyperparameter tool to find the highest throughput configs for training on Base Command Platform
+
 **NeMo Megatron 22.08.01**
 * Cloud service providers: support for Amazon Web Services (performance validated up to 20 `p4d.24xlarge` instances)
 * Cloud service providers: switched orchestration from Azure CycleCloud to NVIDIA Nephele for Microsoft Azure
@@ -4724,3 +4733,4 @@ Fixes for the following issues will be released shortly:
 * Accuracy and performance measurement for GPT-3 is currently not supported. Please use the NeMo Megatron 22.05 inference container to use this feature
 * For running inference on BCP please use the NeMo Megatron 22.03 inference container
 * The fine-tuning SQuAD results for T5 are lower than expected
+* The external server that is hosting the Pile dataset is currently not available. NeMo Megatron stack has been tested with the following version of the Pile: https://the-eye.eu/public/AI/pile/SHA256SUMS.txt
