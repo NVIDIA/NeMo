@@ -220,12 +220,12 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
         and/or prompt table will use the learning rate set by the user. 
         """
         self.frozen_model.freeze()  # Freeze the entire model
-        opt_params = [p for p in self.frozen_model.parameters()]
+        opt_params = []
         for _, module in self.frozen_model.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin):
                 module.set_enabled_adapters(enabled=True)
                 module.unfreeze_enabled_adapters()  # selectively unfreeze the adapter modules.
-                #opt_params += [p for p in module.parameters()]
+                opt_params += [p for p in module.parameters()]
 
         self._optimizer_param_groups = [{'params': opt_params}]
         logging.info(f'Optimizer groups set:\n{self.frozen_model.summarize()}')
@@ -504,7 +504,6 @@ class MegatronT5InfusedAdapterModel(MegatronT5BaseAdapterModel):
                 for adapter_key in adapter_name_keys:
                     adapter_module = module.adapter_layer[adapter_key]
                     state_adapter_key = ':'.join([component_name, name, adapter_key])
-                    #print("state_adapter_key", state_adapter_key)            
                     adapter_module.load_state_dict(state_dict[state_adapter_key], strict)
                 module.set_enabled_adapters(enabled=True)
 
