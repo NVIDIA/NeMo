@@ -375,35 +375,57 @@ class MegatronT5AdapterLearningModel(MegatronT5BaseAdapterModel):
                     None  # (@adithyare) adapter learning does not support activations checkpointing atm.
                 )
 
+        self.frozen_model.freeze()
         logging.info(f'Before adding adapters:\n{self.frozen_model.summarize()}')
+        encoder = self.frozen_model.enc_dec_model.enc_dec_model.encoder
+        decoder = self.frozen_model.enc_dec_model.enc_dec_model.decoder
 
-        if cfg.adapter_tuning.type == "parallel_adapter":
+        if encoder:
+            encoder_cfg = self._get_component_cfg('encoder', frozen_model_cfg, cfg)
+            self._add_adapters_to_component(encoder, encoder_cfg, self.adapter_name_keys)
+            logging.info(f'Adding encoder adapters:\n{self.frozen_model.summarize()}')
+
+        if decoder:
+            decoder_cfg = self._get_component_cfg('decoder', frozen_model_cfg, cfg)
+            self._add_adapters_to_component(decoder, decoder_cfg, self.adapter_name_keys)
+            logging.info(f'Adding decoder adapters:\n{self.frozen_model.summarize()}')
+
+    def _add_adapters_to_component(self, component, component_cfg, adapter_name_keys):
+        for _, module in component.named_modules():
+            if isinstance(module, adapter_mixins.AdapterModuleMixin):
+                for adapter_key in adapter_name_keys:
+                    adapter_cfg = self._get_adapter_cfg(component_cfg)
+                    module.add_adapter(name=adapter_key, cfg=adapter_cfg)
+
+    def _get_component_cfg(self, component_name, frozen_model_cfg, cfg):
+        if component_name in frozen_model_cfg:
+            component_cfg = frozen_model_cfg.get(component_name)
+            with open_dict(component_cfg):
+                component_cfg.tensor_model_parallel_size = frozen_model_cfg.tensor_model_parallel_size
+                component_cfg.adapter_tuning = cfg.adapter_tuning
+        else:
+            component_cfg = frozen_model_cfg
+        return component_cfg
+
+    def _get_adapter_cfg(self, component_cfg):
+        if component_cfg.adapter_tuning.type == "parallel_adapter":
             adapter_cfg = ParallelLinearAdapterConfig(
-                in_features=frozen_model_cfg.hidden_size,
-                dim=cfg.adapter_tuning.adapter_dim,
-                norm_position=cfg.adapter_tuning.get('norm_position', 'pre'),
-                norm_type=cfg.adapter_tuning.get('norm_type', 'mixedfusedlayernorm'),
-                column_init_method=cfg.adapter_tuning.get('column_init_method', 'xavier'),
-                row_init_method=cfg.adapter_tuning.get('row_init_method', 'zero'),
-                dropout=cfg.adapter_tuning.adapter_dropout,
+                in_features=component_cfg.hidden_size,
+                dim=component_cfg.adapter_tuning.adapter_dim,
+                norm_position=component_cfg.adapter_tuning.get('norm_position', 'pre'),
+                norm_type=component_cfg.adapter_tuning.get('norm_type', 'mixedfusedlayernorm'),
+                column_init_method=component_cfg.adapter_tuning.get('column_init_method', 'xavier'),
+                row_init_method=component_cfg.adapter_tuning.get('row_init_method', 'zero'),
+                dropout=component_cfg.adapter_tuning.adapter_dropout,
             )
         else:
             adapter_cfg = LinearAdapterConfig(
-                in_features=frozen_model_cfg.hidden_size,
-                dim=cfg.adapter_tuning.adapter_dim,
-                norm_position=cfg.adapter_tuning.get('norm_position', 'pre'),
-                dropout=cfg.adapter_tuning.adapter_dropout,
+                in_features=component_cfg.hidden_size,
+                dim=component_cfg.adapter_tuning.adapter_dim,
+                norm_position=component_cfg.adapter_tuning.get('norm_position', 'pre'),
+                dropout=component_cfg.adapter_tuning.adapter_dropout,
             )
-
-        self.frozen_model.freeze()
-        for _, module in self.frozen_model.named_modules():
-            if isinstance(module, adapter_mixins.AdapterModuleMixin):
-                for adapter_key in self.adapter_name_keys:
-                    module.add_adapter(
-                        name=adapter_key, cfg=adapter_cfg,
-                    )
-
-        logging.info(f'After adding adapters:\n{self.frozen_model.summarize()}')
+        return adapter_cfg
 
     @classmethod
     def list_available_models(cls):
@@ -440,51 +462,52 @@ class MegatronT5InfusedAdapterModel(MegatronT5BaseAdapterModel):
         ]
         self.frozen_model.freeze()
         logging.info(f'Before adding adapters:\n{self.frozen_model.summarize()}')
-
         encoder = self.frozen_model.enc_dec_model.enc_dec_model.encoder
-        if encoder:
-            if 'encoder' in frozen_model_cfg:
-                encoder_cfg = frozen_model_cfg.encoder
-                with open_dict(encoder_cfg):
-                    encoder_cfg.tensor_model_parallel_size = frozen_model_cfg.tensor_model_parallel_size
-            else:
-                encoder_cfg = frozen_model_cfg
+        decoder = self.frozen_model.enc_dec_model.enc_dec_model.decoder
 
+        if encoder:
+            encoder_cfg = self._get_component_cfg('encoder', frozen_model_cfg)
             self._add_adapters_to_component(encoder, encoder_cfg, self.encoder_adapter_name_keys)
             logging.info(f'After adding encoder adapters:\n{self.frozen_model.summarize()}')
 
-        decoder = self.frozen_model.enc_dec_model.enc_dec_model.decoder
         if decoder:
-            if 'decoder' in frozen_model_cfg:
-                decoder_cfg = frozen_model_cfg.decoder
-                with open_dict(decoder_cfg):
-                    decoder_cfg.tensor_model_parallel_size = frozen_model_cfg.tensor_model_parallel_size
-            else:
-                decoder_cfg = frozen_model_cfg
-
+            decoder_cfg = self._get_component_cfg('decoder', frozen_model_cfg)
             self._add_adapters_to_component(decoder, decoder_cfg, self.decoder_adapter_name_keys)
             logging.info(f'After adding all adapters:\n{self.frozen_model.summarize()}')
 
-    def _add_adapters_to_component(self, component, layer_cfg, adapter_name_keys):
+    def _add_adapters_to_component(self, component, component_cfg, adapter_name_keys):
         for _, module in component.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin):
                 for adapter_key in adapter_name_keys:
-                    if adapter_key == 'mlp_infused_adapter':
-                        cfg = InfusedAdapterConfig(
-                            in_features=layer_cfg.ffn_hidden_size // layer_cfg.tensor_model_parallel_size
-                        )
-                    else:
-                        if layer_cfg.get('kv_channels', None):
-                            cfg = InfusedAdapterConfig(
-                                in_features=layer_cfg.kv_channels
-                                * layer_cfg.num_attention_heads
-                                // layer_cfg.tensor_model_parallel_size
-                            )
-                        else:
-                            cfg = InfusedAdapterConfig(
-                                in_features=layer_cfg.hidden_size // layer_cfg.tensor_model_parallel_size
-                            )
-                    module.add_adapter(name=adapter_key, cfg=cfg)
+                    adapter_cfg = self._get_adapter_cfg(component_cfg, adapter_key)
+                    module.add_adapter(name=adapter_key, cfg=adapter_cfg)
+
+    def _get_component_cfg(self, component_name, frozen_model_cfg):
+        if component_name in frozen_model_cfg:
+            component_cfg = frozen_model_cfg.get(component_name)
+            with open_dict(component_cfg):
+                component_cfg.tensor_model_parallel_size = frozen_model_cfg.tensor_model_parallel_size
+        else:
+            component_cfg = frozen_model_cfg
+        return component_cfg
+
+    def _get_adapter_cfg(self, component_cfg, adapter_key):
+        if adapter_key == 'mlp_infused_adapter':
+            cfg = InfusedAdapterConfig(
+                in_features=component_cfg.ffn_hidden_size // component_cfg.tensor_model_parallel_size
+            )
+        else:
+            if component_cfg.get('kv_channels', None):
+                cfg = InfusedAdapterConfig(
+                    in_features=component_cfg.kv_channels
+                    * component_cfg.num_attention_heads
+                    // component_cfg.tensor_model_parallel_size
+                )
+            else:
+                cfg = InfusedAdapterConfig(
+                    in_features=component_cfg.hidden_size // component_cfg.tensor_model_parallel_size
+                )
+        return cfg
 
     def _component_state_dict(self, component_name, component, adapter_name_keys):
         state_dict_ = {}
@@ -516,15 +539,13 @@ class MegatronT5InfusedAdapterModel(MegatronT5BaseAdapterModel):
         weights and not the rest of the base GPT Model.
         """
         encoder = self.frozen_model.enc_dec_model.enc_dec_model.encoder
-        if encoder:
-            encoder_state_dict = self._component_state_dict('encoder', encoder, self.encoder_adapter_name_keys)
-        else:
-            encoder_state_dict = {}
         decoder = self.frozen_model.enc_dec_model.enc_dec_model.decoder
-        if decoder:
-            decoder_state_dict = self._component_state_dict('decoder', decoder, self.decoder_adapter_name_keys)
-        else:
-            decoder_state_dict = {}
+        encoder_state_dict = (
+            self._component_state_dict('encoder', encoder, self.encoder_adapter_name_keys) if encoder else {}
+        )
+        decoder_state_dict = (
+            self._component_state_dict('decoder', decoder, self.decoder_adapter_name_keys) if decoder else {}
+        )
         state_dict_ = {
             **encoder_state_dict,
             **decoder_state_dict,
@@ -538,9 +559,6 @@ class MegatronT5InfusedAdapterModel(MegatronT5BaseAdapterModel):
         """
         encoder = self.frozen_model.enc_dec_model.enc_dec_model.encoder
         decoder = self.frozen_model.enc_dec_model.enc_dec_model.decoder
-        enc_none = encoder is None
-        dec_none = decoder is None
-        print('im here in load_state_dict', state_dict.keys(), enc_none, dec_none)
         if encoder:
             self._load_component_state_dict('encoder', encoder, self.encoder_adapter_name_keys, state_dict, strict)
         if decoder:
