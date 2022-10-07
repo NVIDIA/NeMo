@@ -71,10 +71,8 @@ def inject_dataloader_value_from_model_config(model_cfg: dict, dataloader_cfg: D
 
 
 def get_concat_char_dataset(
-    config: dict, 
-    global_rank: int,
-    world_size: int,
-    augmentor: Optional['AudioAugmentor'] = None) -> ConcatDataset:
+    config: dict, global_rank: int, world_size: int, augmentor: Optional['AudioAugmentor'] = None
+) -> ConcatDataset:
     """
     Instantiates an instance of ConcatDataset containing one or more intances of
     Character Encoding based AudioToCharDataset.
@@ -109,7 +107,7 @@ def get_concat_char_dataset(
             trim=config.get('trim_silence', False),
             parser=config.get('parser', 'en'),
             return_sample_id=config.get('return_sample_id', False),
-       )
+        )
         datasets.append(dataset)
 
     dataset = ConcatDataset(

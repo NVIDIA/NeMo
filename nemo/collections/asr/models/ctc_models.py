@@ -348,9 +348,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
                 )
                 return None
             if sum(config['concat_probabilities']) != 1:
-                logging.warning(
-                    f"`contact_probabilities` need to sum to 1. Config: {config}"
-                )
+                logging.warning(f"`contact_probabilities` need to sum to 1. Config: {config}")
                 return None
 
         # Automatically inject args from model config to dataloader config
@@ -408,10 +406,8 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
                 return None
             if is_concat:
                 dataset = audio_to_text_dataset.get_concat_char_dataset(
-                    config=config, 
-                    global_rank=self.global_rank, 
-                    world_size=self.world_size,
-                    augmentor=augmentor)
+                    config=config, global_rank=self.global_rank, world_size=self.world_size, augmentor=augmentor
+                )
             else:
                 dataset = audio_to_text_dataset.get_char_dataset(config=config, augmentor=augmentor)
 

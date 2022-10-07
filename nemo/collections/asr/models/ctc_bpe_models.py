@@ -108,9 +108,7 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
                 )
                 return None
             if sum(config['concat_probabilities']) != 1:
-                logging.warning(
-                    f"`concat_probabilities` need to sum to 1. Config: {config}"
-                )
+                logging.warning(f"`concat_probabilities` need to sum to 1. Config: {config}")
                 return None
 
         shuffle = config['shuffle']
@@ -165,10 +163,11 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
                 return None
             if is_concat:
                 dataset = audio_to_text_dataset.get_concat_bpe_dataset(
-                    config=config, 
+                    config=config,
                     global_rank=self.global_rank,
                     world_size=self.world_size,
-                    tokenizer=self.tokenizer, augmentor=augmentor
+                    tokenizer=self.tokenizer,
+                    augmentor=augmentor,
                 )
             else:
                 dataset = audio_to_text_dataset.get_bpe_dataset(

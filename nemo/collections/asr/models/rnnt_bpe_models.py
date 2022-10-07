@@ -454,9 +454,7 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
                 )
                 return None
             if sum(config['concat_probabilities']) != 1:
-                logging.warning(
-                    f"`contact_probabilities` need to sum to 1. Config: {config}"
-                )
+                logging.warning(f"`contact_probabilities` need to sum to 1. Config: {config}")
                 return None
 
         # Instantiate tarred dataset loader or normal dataset loader
