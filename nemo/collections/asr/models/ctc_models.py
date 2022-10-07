@@ -15,7 +15,7 @@ import copy
 import json
 import os
 import tempfile
-from math import ceil
+from math import ceil, isclose
 from typing import Dict, List, Optional, Union
 
 import torch
@@ -342,14 +342,15 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
                     f"Concat dataset requires `contact_sampling` but it was not provided. Config: {config}"
                 )
                 return None
-            if 'concat_probabilities' in config and config['concat_probabilities'] is None:
+            if not 'concat_probabilities' in config:
                 logging.warning(
-                    f"Concat dataset requires `contact_probabilities` but was not provided. Config: {config}"
+                    f"Concat dataset requires `contact_probabilities` list but it was not provided. Config: {config}"
                 )
                 return None
-            if sum(config['concat_probabilities']) != 1:
-                logging.warning(f"`contact_probabilities` need to sum to 1. Config: {config}")
-                return None
+            else:
+                if not isclose(sum(config['concat_probabilities']), 1, abs_tol=1e-6):
+                    logging.warning(f"`contact_probabilities` need to sum to 1. Config: {config}")
+                    return None
 
         # Automatically inject args from model config to dataloader config
         audio_to_text_dataset.inject_dataloader_value_from_model_config(self.cfg, config, key='sample_rate')

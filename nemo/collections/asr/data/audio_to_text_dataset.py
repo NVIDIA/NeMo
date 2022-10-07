@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import json
 import random
 from typing import Any, List, Optional, Union
@@ -95,7 +96,7 @@ def get_concat_char_dataset(
         conf = copy.deepcopy(config)
         conf['manifest_filepath'] = manifest_filepath
 
-        dataset = audio_to_text_dataset.get_char_dataset(config = conf, augmentor = augmentor)
+        dataset = get_char_dataset(config=conf, augmentor=augmentor)
         datasets.append(dataset)
 
     dataset = ConcatDataset(
@@ -168,11 +169,7 @@ def get_concat_bpe_dataset(
     for manifest_filepath in manifest_filepaths:
         conf = copy.deepcopy(config)
         conf['manifest_filepath'] = manifest_filepath
-        dataset = audio_to_text_dataset.get_bpe_dataset(
-            config = conf, 
-            tokenizer = tokenizer, 
-            augmentor = augmentor
-        )
+        dataset = get_bpe_dataset(config=conf, tokenizer=tokenizer, augmentor=augmentor)
         datasets.append(dataset)
 
     dataset = ConcatDataset(
@@ -247,7 +244,7 @@ def get_concat_tarred_dataset(
     for manifest_filepath in manifest_filepaths:
         conf = copy.deepcopy(config)
         conf['manifest_filepath'] = manifest_filepath
-        dataset = audio_to_text_dataset.get_tarred_dataset(
+        dataset = get_tarred_dataset(
             config=conf,
             tokenizer=tokenizer,
             shuffle_n=shuffle_n,
