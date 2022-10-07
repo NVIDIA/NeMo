@@ -29,7 +29,7 @@
 
 import operator
 from dataclasses import dataclass
-from typing import Optional, List
+from typing import List, Optional
 
 import torch
 from omegaconf import DictConfig, OmegaConf
@@ -315,7 +315,6 @@ class RNNTLoss(Loss):
         # reduce here using our own reduction function
         if self.reduction is not None:
             loss = self.reduce(loss, target_lengths)
-
 
         # del new variables that may have been created
         del (
