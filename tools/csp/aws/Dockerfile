@@ -1,4 +1,4 @@
-FROM nvcr.io/ea-bignlp/bignlp-training:22.09-py3
+FROM nvcr.io/ea-bignlp/ea-participants-kt/bignlp-training:22.09.rc1-py3
 
 ARG EFA_INSTALLER_VERSION=latest
 ARG AWS_OFI_NCCL_VERSION=1.4.0-aws
