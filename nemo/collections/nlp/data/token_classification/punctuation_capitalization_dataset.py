@@ -660,7 +660,7 @@ def _get_features(
     """
     if verbose:
         logging.info("Start initial tokenization.")
-    create_progress_process = False  # progress_queue is None
+    create_progress_process = progress_queue is None
     if n_jobs is None:
         n_jobs = min(mp.cpu_count(), len(queries))
 
