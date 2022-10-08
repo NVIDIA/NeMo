@@ -443,16 +443,17 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 tensor_shape=tensor_shape,
                 dtype=self.autocast_dtype,
             )
-
         if losses_reduced_per_micro_batch:
-            if batch['tokens'].shape[0] == batch_for_pipeline[0].shape[0]:
+            actual_batch_size = batch['tokens'].shape[0] # Might be lesser than global_batch_size if drop_last=False
+            expected_batch_size =  self.cfg.global_batch_size / parallel_state.get_data_parallel_world_size()
+            if actual_batch_size == expected_batch_size:
                 loss_with_batch_size_list = [
                     [loss_reduced['avg'].item(), self.cfg.micro_batch_size]
                     for loss_reduced in losses_reduced_per_micro_batch
                 ]
             else:
                 loss_with_batch_size_list = []
-                total_samples_remaining = batch['tokens'].shape[0]
+                total_samples_remaining = actual_batch_size
                 for loss_reduced in losses_reduced_per_micro_batch:
                     if total_samples_remaining <= 0:
                         break
