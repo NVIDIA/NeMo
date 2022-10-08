@@ -297,21 +297,17 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
         loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=True)
 
-        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
-            self.train(mode=mode)
+        if self.first_stage_of_pipeline():
+            input_embeds = self.embed_input_train(input_ids, taskname_ids)
 
-            if loss_mean.item == 0.0:
-                loss_mean = []
-            return loss_mean
-
-        input_embeds = self.embed_input_train(input_ids, taskname_ids)
-
-        # TODO: This check needs to be revisited with PP support.
-        if hasattr(self.frozen_model.enc_dec_model.encoder_embedding, 'position_embeddings'):
-            position_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.position_embeddings(position_ids)
-            encoder_input = input_embeds + position_embeddings
+            # TODO: This check needs to be revisited with PP support.
+            if hasattr(self.frozen_model.enc_dec_model.encoder_embedding, 'position_embeddings'):
+                position_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.position_embeddings(position_ids)
+                encoder_input = input_embeds + position_embeddings
+            else:
+                encoder_input = input_embeds
         else:
-            encoder_input = input_embeds
+            encoder_input = None
 
         predicted_token_ids, log_probs = self.frozen_model.decode(
             tokens_enc=input_ids,
@@ -358,21 +354,17 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         }
 
     def validation_epoch_end(self, outputs):
-        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
-            if parallel_state.is_pipeline_last_stage():
-                # only the last pipeline parallel stages return loss
-                averaged_loss = torch.stack(outputs).mean()
-            else:
-                averaged_loss = torch.tensor(0.0).cuda()
+        if parallel_state.is_pipeline_last_stage():
+            # only the last pipeline parallel stages return loss
+            averaged_loss = torch.stack([item['loss'] for item in outputs]).mean()
+        else:
+            averaged_loss = torch.tensor(0.0).cuda()
 
-            # we can only log on one rank if it is rank zero so we broadcast from last rank
-            torch.distributed.broadcast(averaged_loss, get_last_rank())
+        # we can only log on one rank if it is rank zero so we broadcast from last rank
+        torch.distributed.broadcast(averaged_loss, get_last_rank())
+        logging.info(f'Validation loss: {averaged_loss}')
 
-            self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
-            logging.info(f'Validation loss: {averaged_loss}')
-
-            return
-
+        self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
         gather_results = [None for _ in range(parallel_state.get_data_parallel_world_size())]
 
         all_preds = list(itertools.chain(*[item['predicted_token_ids'] for item in outputs]))
@@ -406,11 +398,12 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         else:
             val_acc = torch.tensor(0.0).cuda()
 
-        averaged_loss = torch.stack([item['loss'] for item in outputs]).mean()
+        # averaged_loss = torch.stack([item['loss'] for item in outputs]).mean()
         logging.info(f'Validation loss: {averaged_loss}')
 
         self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
         self.log('val_acc', val_acc, prog_bar=True, rank_zero_only=True)
+        # logging.info(f'Validation loss: {averaged_loss}')
 
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
