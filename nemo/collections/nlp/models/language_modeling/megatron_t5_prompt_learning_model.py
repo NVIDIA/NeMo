@@ -302,7 +302,9 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
             # TODO: This check needs to be revisited with PP support.
             if hasattr(self.frozen_model.enc_dec_model.encoder_embedding, 'position_embeddings'):
-                position_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.position_embeddings(position_ids)
+                position_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.position_embeddings(
+                    position_ids
+                )
                 encoder_input = input_embeds + position_embeddings
             else:
                 encoder_input = input_embeds
