@@ -437,13 +437,14 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
             else:
                 enc_input = None
         else:
-            # This should only happen with PP > 1 and on decoder ranks.
-            pass
+            # This should only happen with PP > 1
+            enc_seq_length = None
 
-        if self.encoder_cfg.get("position_embedding_type", "learned_absolute") == 'relative' and self.add_encoder:
-            encoder_self_attention_relative_position_bias = self.encoder_relative_position_embedding(
-                query_seq_length=enc_seq_length, key_seq_length=enc_seq_length,
-            )
+        if enc_seq_length:
+            if self.encoder_cfg.get("position_embedding_type", "learned_absolute") == 'relative' and self.add_encoder:
+                encoder_self_attention_relative_position_bias = self.encoder_relative_position_embedding(
+                    query_seq_length=enc_seq_length, key_seq_length=enc_seq_length,
+                )
 
         if output_enc_hidden_only:
             # When pipeline parallel > 1 we need to make sure encoder exist (will be missing in decoder)
