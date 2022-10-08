@@ -1278,6 +1278,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
                 )
 
             losses = []
+            target_lengths = []
             batch_size = int(encoder_outputs.size(0))  # actual batch size
 
             # Iterate over batch using fused_batch_size steps
@@ -1338,6 +1339,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
                         target_lengths=sub_transcript_lens,
                     )
                     losses.append(loss_batch)
+                    target_lengths.append(sub_transcript_lens)
 
                     # reset loss reduction type
                     self.loss.reduction = loss_reduction
@@ -1356,12 +1358,9 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
 
                 del sub_enc, sub_transcripts, sub_enc_lens, sub_transcript_lens
 
-            # Collect sub batch loss results
+            # Reduce over sub batches
             if losses is not None:
-                losses = torch.cat(losses, 0)
-                losses = losses.mean()  # global batch size average
-            else:
-                losses = None
+                losses = self.loss.reduce(losses, target_lengths)
 
             # Collect sub batch wer results
             if compute_wer:
