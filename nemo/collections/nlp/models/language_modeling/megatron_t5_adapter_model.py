@@ -405,6 +405,8 @@ class MegatronT5AdapterLearningModel(MegatronT5BaseAdapterModel):
                 component_cfg.adapter_tuning = cfg.adapter_tuning
         else:
             component_cfg = frozen_model_cfg
+            with open_dict(component_cfg):
+                component_cfg.adapter_tuning = cfg.adapter_tuning
         return component_cfg
 
     def _get_adapter_cfg(self, component_cfg):
