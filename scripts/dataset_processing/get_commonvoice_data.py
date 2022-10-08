@@ -64,7 +64,7 @@ parser.add_argument(
 )
 parser.add_argument(
     '--version',
-    default='cv-corpus-5.1-2020-06-22',
+    default='cv-corpus-11.0-2022-09-21',
     type=str,
     help='Version of the dataset (obtainable via https://commonvoice.mozilla.org/en/datasets',
 )
@@ -77,8 +77,8 @@ parser.add_argument(
 )
 args = parser.parse_args()
 COMMON_VOICE_URL = (
-    f"https://voice-prod-bundler-ee1969a6ce8178826482b88e843c335139bd3fb4.s3.amazonaws.com/"
-    "{}/{}.tar.gz".format(args.version, args.language)
+    f"https://mozilla-common-voice-datasets.s3.dualstack.us-west-2.amazonaws.com/"
+    f"{args.version}/{args.version}-{args.language}.tar.gz"
 )
 
 
