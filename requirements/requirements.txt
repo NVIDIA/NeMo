@@ -1,3 +1,4 @@
+click==8.0.3
 setuptools==59.5.0
 numpy>=1.21
 onnx>=1.7.0
