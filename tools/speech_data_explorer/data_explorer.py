@@ -250,9 +250,6 @@ def load_data(
                     alphabet.add(char)
                 num_hours += item['duration']
 
-                
-                
-
                 if field_name in item:
                     metrics_available = True
                     pred = item[field_name].split()
@@ -273,10 +270,10 @@ def load_data(
                     if comparison_mode:
                         if field_name != 'pred_text':
                             if field_name == name_1:
-                                logging.error(f"The .json file has no field with name: {name_1}" )
+                                logging.error(f"The .json file has no field with name: {name_1}")
                                 exit()
                             if field_name == name_2:
-                                logging.error(f"The .json file has no field with name: {name_2}" )
+                                logging.error(f"The .json file has no field with name: {name_2}")
                                 exit()
                 data.append(
                     {
@@ -943,9 +940,9 @@ samples_layout += [
 wordstable_columns_tool = [{'name': 'Word', 'id': 'word'}, {'name': 'Count', 'id': 'count'}]
 wordstable_columns_tool.append({'name': 'Accuracy_1, %', 'id': 'accuracy_1'})
 wordstable_columns_tool.append({'name': 'Accuracy_2, %', 'id': 'accuracy_2'})
-#wordstable_columns_tool.append({'name': 'Accuracy_' + name_1 + ', %', 'id': 'accuracy_1'})
-#wordstable_columns_tool.append({'name': 'Accuracy_' + name_2 + ', %', 'id': 'accuracy_2'})
- 
+# wordstable_columns_tool.append({'name': 'Accuracy_' + name_1 + ', %', 'id': 'accuracy_1'})
+# wordstable_columns_tool.append({'name': 'Accuracy_' + name_2 + ', %', 'id': 'accuracy_2'})
+
 if comparison_mode:
     model_name_1, model_name_2 = name_1, name_2
 
@@ -1081,7 +1078,9 @@ if comparison_mode:
         )
 
     comparison_layout = [
-        html.Div([dcc.Markdown("model 1:" + ' ' + model_name_1[10:] ), dcc.Markdown("model 2:" + ' ' + model_name_2[10:])] ),
+        html.Div(
+            [dcc.Markdown("model 1:" + ' ' + model_name_1[10:]), dcc.Markdown("model 2:" + ' ' + model_name_2[10:])]
+        ),
         html.Hr(),
         html.Div(
             [
