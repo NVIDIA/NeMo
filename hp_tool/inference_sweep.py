@@ -5,16 +5,17 @@ import os
 import pathlib
 import random
 import subprocess
-import utils
+
+from hp_tool import utils
 
 BIGNLP_DEBUG = os.getenv("BIGNLP_DEBUG", "False").lower() in ("true", "t", "1")
 
-def nodes_necessary(cfg, tp, pp):
-    if tp > cfg.cluster.gpus_per_node:
-        if tp % cfg.cluster.gpus_per_node != 0:
+def nodes_necessary(gpus_per_node, tp, pp):
+    if tp > gpus_per_node:
+        if tp % gpus_per_node != 0:
             return 0
         else:
-            return max(pp, pp * tp // cfg.cluster.gpus_per_node)
+            return max(pp, pp * tp // gpus_per_node)
     else:
         return pp
 
@@ -26,7 +27,7 @@ def get_vocabulary_size(base_cfg, cfg):
         with open(vocab_path) as f:
             data = json.load(f)
             vocabulary_size = len(data)
-            print(f"Vocabulary loaded from {vocab_path} size {vocabulary_size}")
+            print(f"Vocabulary loaded from {vocab_path} with size {vocabulary_size}")
             divider = base_cfg["model"]["make_vocab_size_divisible_by"]
             if divider > 1:
                 new_vocabulary_size = divider * (vocabulary_size // divider + 1)
@@ -43,8 +44,7 @@ def get_vocabulary_size(base_cfg, cfg):
         print("FAILED TO LOAD VOCABULARY FOR TOKENIZER - set to default 51200")
         return 51200
 
-
-def filter_configuration(base_cfg, cfg, tp, pp):
+def filter_configuration(base_cfg, cfg, tp, pp, gpus_per_node):
     attention_heads = base_cfg["model"]["num_attention_heads"]
     num_layers = base_cfg["model"]["num_layers"]
     if attention_heads % tp != 0:
@@ -64,14 +64,13 @@ def filter_configuration(base_cfg, cfg, tp, pp):
         )
         return False
     elif pp == 1 or (pp > 1 and tp >= cfg.cluster.gpus_per_node):
-        return nodes_necessary(cfg, tp, pp) > 0
-    else:
-        print(
-            f"FasterTransformer partial node configuration "
-            f"TENSOR_PARALLEL={tp} "
-            f"PIPELINE_PARALLEL={pp} ignored."
-        )
-        False
+        return nodes_necessary(gpus_per_node, tp, pp) > 0
+    print(
+        f"FasterTransformer partial node configuration "
+        f"TENSOR_PARALLEL={tp} "
+        f"PIPELINE_PARALLEL={pp} ignored."
+    )
+    return False
 
 
 def configure_fastertransformer(base_cfg, cfg, tp, pp, bs, destination):
@@ -83,7 +82,7 @@ def configure_fastertransformer(base_cfg, cfg, tp, pp, bs, destination):
     vocabulary_size = get_vocabulary_size(base_cfg, cfg)
 
     command = [
-        "python3",
+        f"python3",
         f"{cfg.fastertransformer_dir}/examples/pytorch/gpt/utils/generate_gpt_config.py",
         f"--max_seq_len {max_seq_len}",
         f"--beam_width {cfg.search_config.inference_settings.benchmark.beam_width}",
@@ -101,8 +100,7 @@ def configure_fastertransformer(base_cfg, cfg, tp, pp, bs, destination):
         f"--request_output_len {cfg.search_config.inference_settings.benchmark.output_len}",
         f"--destination {destination}",
     ]
-    print("Generate config for FasterTransformer")
-    print(" ".join(command))
+    print(f"Generated config for FasterTransformer to: {destination} ")
     result = os.system(" ".join(command))
     if result != 0:
         raise Exception("generate_gpt_config.py failed")
@@ -110,14 +108,13 @@ def configure_fastertransformer(base_cfg, cfg, tp, pp, bs, destination):
 
 def generate_start_ids(base_cfg, cfg, bs, destination):
     command = [
-        "python3",
+        f"python3",
         f"{cfg.fastertransformer_dir}/examples/pytorch/gpt/utils/generate_start_ids.py",
         f"-max_batch_size {bs}",
         f"-max_input_length {cfg.search_config.inference_settings.benchmark.input_len}",
         f"--destination {destination}",
     ]
-    print("Generate start_ids for FasterTransformer")
-    print(" ".join(command))
+    print(f"Generated start_ids for FasterTransformer to: {destination}")
     result = os.system(" ".join(command))
     if result != 0:
         raise Exception("generate_start_ids.py failed")
@@ -125,7 +122,13 @@ def generate_start_ids(base_cfg, cfg, bs, destination):
 
 def generate_submission(base_cfg, cfg, job_name, nodes, tasks_per_node, ini, csv, submission_file):
     cluster_job_name  = f"{cfg.cluster.job_name_prefix}{job_name}"
-    output = f"{submission_file}_job_%j.out"
+    gpus_per_task = cfg.cluster.gpus_per_task 
+    gpus_per_node = cfg.cluster.gpus_per_node
+    path_list = submission_file.split("/")
+    path_list[-1] = "log_job_%j.out"
+    output = "/".join(path_list)
+    path_list[-1] = "log_job_%j.err"
+    error = "/".join(path_list)
 
     ini_parent = pathlib.Path(ini).parent.as_posix()
     csv_parent = pathlib.Path(csv).parent.as_posix()
@@ -143,6 +146,7 @@ def generate_submission(base_cfg, cfg, job_name, nodes, tasks_per_node, ini, csv
     flags = [
         "--mpi pmix",
         f"--output {output}",
+        f"--error {error}",
         f"--container-image {cfg.training_container}",
         f"--container-mounts {mounts_str}",
         f"--unbuffered",
@@ -157,6 +161,8 @@ def generate_submission(base_cfg, cfg, job_name, nodes, tasks_per_node, ini, csv
         time=cfg.search_config.inference_settings.run.time_limit,
         nodes=nodes,
         ntasks_per_node=tasks_per_node,
+        gpus_per_task=gpus_per_task,
+        gpus_per_node=gpus_per_node,
         partition=cfg.cluster.partition,
         account=cfg.cluster.account,
         output=output,
@@ -184,7 +190,6 @@ def search_inference_config(base_cfg, cfg):
     """
     Main function to launch a inference sweep job, with the config given in cfg.
     """
-
     # Prepare global folders
     inference_results_dir = os.path.join(
             cfg.search_config.inference_settings.run.results_dir, 
@@ -193,7 +198,9 @@ def search_inference_config(base_cfg, cfg):
     workspace_dir = os.path.join(inference_results_dir, "workspace")
     os.makedirs(workspace_dir, exist_ok=True)
 
-    assert cfg.search_config.inference_settings.run.model_type == "gpt3"
+    assert cfg.search_config.inference_settings.run.model_type == "gpt3", "Only GPT-3 models are currently supported for the inference HP search."
+    cluster_gpus_per_task = cfg.cluster.gpus_per_task
+    cluster_gpus_per_node = cfg.cluster.gpus_per_node
 
     all_configurations = itertools.product(
         cfg.search_config.inference_settings.run.tensor_parallel_sizes,
@@ -201,10 +208,12 @@ def search_inference_config(base_cfg, cfg):
         cfg.search_config.inference_settings.benchmark.batch_sizes,
     )
 
+    gpus_per_node = cfg.search_config.inference_settings.run.gpus_per_node
+
     configurations = list([
         (tp, pp, bs)
         for tp, pp, bs in all_configurations
-        if filter_configuration(base_cfg, cfg, tp, pp)
+        if filter_configuration(base_cfg, cfg, tp, pp, gpus_per_node)
     ])
 
     if len(configurations) == 0:
@@ -215,25 +224,29 @@ def search_inference_config(base_cfg, cfg):
 
     for tp, pp, bs in configurations:
         benchmark_model_name = (
-                f"{cfg.search_config.inference_settings.run.model_train_name}_"
-                f"tp{tp}_pp{pp}_bs{bs}"
+            f"{cfg.search_config.inference_settings.run.model_train_name}_tp{tp}_pp{pp}_bs{bs}"
         )
-        task_name = f"inference_sweep_{benchmark_model_name}"
+        model_dir = os.path.join(workspace_dir, benchmark_model_name)
+        os.makedirs(model_dir, exist_ok=True)
 
-        config_ini_file = f"{workspace_dir}/{benchmark_model_name}.config.ini"
+        # Generate .ini file for FasterTransformer.
+        config_ini_file = os.path.join(model_dir, "config.ini")
         configure_fastertransformer(base_cfg, cfg, tp, pp, bs, config_ini_file)
 
-        config_start_ids_file = f"{workspace_dir}/{benchmark_model_name}.start_ids.csv"
+        # Generate start ids for this model.
+        config_start_ids_file = os.path.join(model_dir, "start_ids.csv")
         generate_start_ids(base_cfg, cfg, bs, config_start_ids_file)
-        submission_file = f"{workspace_dir}/{benchmark_model_name}.submission.sh"
+
+        # Generate the submission Slurm job.
+        submission_file = os.path.join(model_dir, "submission_script.sh")
         job_name = f"benchmark_FT_{benchmark_model_name}"
-        nodes = nodes_necessary(cfg, tp, pp)
-        tasks_per_node = min(cfg.cluster.gpus_per_node, tp)
+        num_nodes = nodes_necessary(gpus_per_node, tp, pp)
+        tasks_per_node = min(gpus_per_node, tp)
         generate_submission(
                 base_cfg,
                 cfg,
                 job_name,
-                nodes,
+                num_nodes,
                 tasks_per_node,
                 config_ini_file,
                 config_start_ids_file,
@@ -241,26 +254,26 @@ def search_inference_config(base_cfg, cfg):
         )
         dependency = submit_job(submission_file)
         job_ids.append(dependency)
+        print()
 
-    # Prepare summary job
-    summary_name = f"{cfg.search_config.inference_settings.run.model_train_name}_summary"
-
+    # Prepare final job config files.
+    results_dir = os.path.join(workspace_dir, "final_summary")
+    os.makedirs(results_dir, exist_ok=True)
     cfg_fields = ["TP", "PP", "BS"]
-    configurations_file_name = f"{workspace_dir}/{summary_name}_inference_sweep_configs.csv"
-
+    configurations_file_name = os.path.join(results_dir, "inference_sweep_configs.csv")
     with open(configurations_file_name, 'w') as configs_file:
         cfg_writer = csv.writer(configs_file)
         cfg_writer.writerow(cfg_fields)
         cfg_writer.writerows(configurations)
 
+    # Prepare final summary job.
     dependency_string = ":".join(job_ids)
-
-
-    summary_submission_file = f"{workspace_dir}/{summary_name}_job_submission.sh"
-    summary_job_output = f"{summary_submission_file}_job_%j.out"
-    summary_job_result = f"{workspace_dir}/{summary_name}_output.csv"
+    summary_submission_file = os.path.join(results_dir, "job_submission.sh")
+    summary_job_output = os.path.join(results_dir, f"log_final_summary_job_%j.out")
+    summary_job_error = os.path.join(results_dir, f"log_final_summary_job_%j.err")
+    summary_job_result = os.path.join(results_dir, "final_output.csv")
+    summary_name = f"{cfg.search_config.inference_settings.run.model_train_name}_summary"
     summary_job_name = f"{cfg.cluster.job_name_prefix}{summary_name}_job"
-
     summary_script_path = f"{cfg.bignlp_hp_tool_path}/hp_tool/inference_summary.py"
 
     summary_command_elem = [
@@ -273,18 +286,18 @@ def search_inference_config(base_cfg, cfg):
     echo_command_elem = f"cat {summary_job_result}"
     bash_command = [" ".join(summary_command_elem) + " && " + echo_command_elem]
 
-
-    summary_parent = pathlib.Path(configurations_file_name).parent.as_posix()
-    hp_tool_parent = pathlib.Path(summary_script_path).parent.as_posix()
-    mounts = [
-        f"{summary_parent}:{summary_parent}",
-        f"{hp_tool_parent}:{hp_tool_parent}",
-    ]
-    mounts_str = ",".join(mounts)
-
+    # Process container-mounts.
+    bignlp_hp_tool_path = cfg.get("bignlp_hp_tool_path")
+    base_results_dir = cfg.get("base_results_dir")
+    container_mounts = cfg.get("container_mounts")
+    mounts_str = (
+        f"{bignlp_hp_tool_path}:{bignlp_hp_tool_path},{base_results_dir}:{base_results_dir}"
+    )
+    mounts_str += utils.add_container_mounts(container_mounts)
 
     summary_flags = [
         f"--output {summary_job_output}",
+        f"--error {summary_job_error}",
         f"--container-image {cfg.training_container}",
         f"--container-mounts {mounts_str}",
         f"--unbuffered",
@@ -299,6 +312,8 @@ def search_inference_config(base_cfg, cfg):
         time=cfg.search_config.inference_settings.run.time_limit,
         nodes=1,
         ntasks_per_node=1,
+        gpus_per_task=cluster_gpus_per_task,
+        gpus_per_node=cluster_gpus_per_node,
         partition=cfg.cluster.partition,
         account=cfg.cluster.account,
         output=summary_job_output,
@@ -306,4 +321,5 @@ def search_inference_config(base_cfg, cfg):
         dependency=dependency_string,
     )
     submit_job(summary_submission_file)
+    print("Submitted job to generate the final summary.")
 
