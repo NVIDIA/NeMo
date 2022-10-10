@@ -114,7 +114,7 @@ def parse_args():
         '--show_statistics',
         '-shst',
         type=str,
-        help='field name for which you want to see statistics (optional). Example: pred_text_contextnet.'
+        help='field name for which you want to see statistics (optional). Example: pred_text_contextnet.',
     )
     args = parser.parse_args()
 
@@ -130,7 +130,6 @@ def parse_args():
 
     print(args, comparison_mode)
     return args, comparison_mode
-
 
 
 # estimate frequency bandwidth of signal
@@ -218,7 +217,8 @@ def load_data(
     match_vocab_2 = defaultdict(lambda: 0)
 
     def append_data(
-        data_filename, estimate_audio, field_name='pred_text',):
+        data_filename, estimate_audio, field_name='pred_text',
+    ):
         data = []
         wer_dist = 0.0
         wer_count = 0
@@ -249,9 +249,12 @@ def load_data(
                 for char in item['text']:
                     alphabet.add(char)
                 num_hours += item['duration']
+<<<<<<< HEAD
 
                 
                 
+=======
+>>>>>>> 244ee7704ad9df94b1e348824518d0035be3aeab
 
                 if field_name in item:
                     metrics_available = True
@@ -548,7 +551,7 @@ def absolute_audio_filepath(audio_filepath, audio_base_path):
 # parse the CLI arguments
 args, comparison_mode = parse_args()
 if args.show_statistics is not None:
-    fld_nm = args.show_statistics 
+    fld_nm = args.show_statistics
 else:
     fld_nm = 'pred_text'
 # parse names of compared models, if any
@@ -1229,8 +1232,10 @@ def show_item(idx, data):
     return [data[idx[0]][k] for k in data[0]]
 
 
-@app.callback(Output('_diff', 'srcDoc'), [Input('datatable', 'selected_rows'), Input('datatable', 'data'), ])
-def show_diff(idx, data,):
+@app.callback(Output('_diff', 'srcDoc'), [Input('datatable', 'selected_rows'), Input('datatable', 'data'),])
+def show_diff(
+    idx, data,
+):
     if len(idx) == 0:
         raise PreventUpdate
     orig_words = data[idx[0]]['text']
