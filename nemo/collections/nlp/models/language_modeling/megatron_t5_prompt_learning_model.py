@@ -296,13 +296,15 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         self.eval()
 
         loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=True)
-        
+
         if self.first_stage_of_pipeline():
             # Get embeddings for text tokens and insert virtual token embeddings
             input_embeds = self.embed_input_train(input_ids, taskname_ids)
 
             if hasattr(self.frozen_model.enc_dec_model.encoder_embedding, 'position_embeddings'):
-                position_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.position_embeddings(position_ids)
+                position_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.position_embeddings(
+                    position_ids
+                )
                 encoder_input = input_embeds + position_embeddings
             else:
                 encoder_input = input_embeds
