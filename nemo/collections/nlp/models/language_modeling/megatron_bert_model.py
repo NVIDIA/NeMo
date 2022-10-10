@@ -20,7 +20,7 @@ import torch.nn.functional as F
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.nlp.modules.common.megatron.module import Float16Module
+from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import build_train_valid_test_datasets
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
     MegatronPretrainingBatchSampler,
     MegatronPretrainingRandomBatchSampler,
@@ -36,6 +36,7 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import (
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import build_train_valid_test_datasets
 from nemo.collections.nlp.models.language_modeling.megatron.bert_model import BertModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
+from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_params_for_weight_decay_optimization,
@@ -76,7 +77,7 @@ class MegatronBertModel(MegatronBaseModel):
         self._reduced_lm_loss_buffer = []
         self._reduced_sop_loss_buffer = []
 
-        self.model = build_model(model_provider_func=self.model_provider_func, wrap_with_ddp=False)[0] 
+        self.model = build_model(model_provider_func=self.model_provider_func, wrap_with_ddp=False)[0]
         # not using amp o2
         self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
         self.with_distributed_adam = cfg.optim.get('name') == 'distributed_fused_adam'
@@ -109,7 +110,7 @@ class MegatronBertModel(MegatronBaseModel):
         num_tokentypes = 2 if cfg.bert_binary_head else 0
 
         model = BertModel(
-        vocab_size=self.padded_vocab_size,
+            vocab_size=self.padded_vocab_size,
             hidden_size=cfg.hidden_size,
             max_position_embeddings=cfg.max_position_embeddings,
             num_layers=cfg.num_layers,
@@ -136,8 +137,8 @@ class MegatronBertModel(MegatronBaseModel):
             add_binary_head=cfg.bert_binary_head,
             megatron_legacy=cfg.get('megatron_legacy', False),
             sequence_parallel=self.cfg.get('sequence_parallel', False),
-            gradient_accumulation_fusion=self.cfg.get('gradient_accumulation_fusion', False)
-            )
+            gradient_accumulation_fusion=self.cfg.get('gradient_accumulation_fusion', False),
+        )
 
         return model
 
@@ -180,15 +181,15 @@ class MegatronBertModel(MegatronBaseModel):
         batch_for_pipeline = self.process_batch(batch)
         tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
         losses_reduced_per_micro_batch = forward_backward_no_pipelining(
-                forward_step_func=self.get_forward_output_and_loss_func(),
-                batch=batch_for_pipeline,
-                model=self.model,
-                forward_only=False,
-                tensor_shape=tensor_shape,
-                dtype=self.autocast_dtype,
-                grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
-                custom_sync_context_handler=None,
-            )
+            forward_step_func=self.get_forward_output_and_loss_func(),
+            batch=batch_for_pipeline,
+            model=self.model,
+            forward_only=False,
+            tensor_shape=tensor_shape,
+            dtype=self.autocast_dtype,
+            grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
+            custom_sync_context_handler=None,
+        )
 
         if losses_reduced_per_micro_batch:
             # average loss across micro batches
@@ -215,8 +216,7 @@ class MegatronBertModel(MegatronBaseModel):
             # so we all-reduce gradients after the pipeline
             self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
 
-
-         # when using sequence parallelism, the sequence parallel layernorm grads must be all-reduced
+        # when using sequence parallelism, the sequence parallel layernorm grads must be all-reduced
         if self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False):
             self.allreduce_sequence_parallel_gradients()
 
@@ -256,12 +256,12 @@ class MegatronBertModel(MegatronBaseModel):
         batch_for_pipeline = self.process_batch(batch)
         tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
         losses_reduced_per_micro_batch = forward_backward_no_pipelining(
-                    forward_step_func=self.get_forward_output_and_loss_func(),
-                    batch=batch_for_pipeline,
-                    model=self.model,
-                    forward_only=True,
-                    tensor_shape=tensor_shape,
-                    dtype=self.autocast_dtype,
+            forward_step_func=self.get_forward_output_and_loss_func(),
+            batch=batch_for_pipeline,
+            model=self.model,
+            forward_only=True,
+            tensor_shape=tensor_shape,
+            dtype=self.autocast_dtype,
         )
 
         if losses_reduced_per_micro_batch:
@@ -297,7 +297,7 @@ class MegatronBertModel(MegatronBaseModel):
         if sop_logits is not None:
             sop_loss = F.cross_entropy(sop_logits.view(-1, 2).float(), sentence_order.view(-1), ignore_index=-1)
             sop_loss = sop_loss.float()
-            # Need to check what to do here in this case. 
+            # Need to check what to do here in this case.
             return lm_loss
             # return {'lm loss': lm_loss, 'sop loss': sop_loss}
             # loss = lm_loss + sop_loss
@@ -397,7 +397,7 @@ class MegatronBertModel(MegatronBaseModel):
                     global_batch_size=self.cfg.global_batch_size,
                     data_parallel_rank=parallel_state.get_data_parallel_rank(),
                     data_parallel_size=parallel_state.get_data_parallel_world_size(),
-                    drop_last=self.cfg.get('drop_last', True)
+                    drop_last=self.cfg.get('drop_last', True),
                 )
             elif self.cfg.data.dataloader_type == 'cyclic':
                 batch_sampler = MegatronPretrainingRandomBatchSampler(
@@ -407,7 +407,7 @@ class MegatronBertModel(MegatronBaseModel):
                     global_batch_size=self.cfg.global_batch_size,
                     data_parallel_rank=parallel_state.get_data_parallel_rank(),
                     data_parallel_size=parallel_state.get_data_parallel_world_size(),
-                    drop_last=self.cfg.get('drop_last', True)
+                    drop_last=self.cfg.get('drop_last', True),
                 )
             else:
                 raise ValueError('cfg.data.dataloader_type must be "single" or "cyclic"')
