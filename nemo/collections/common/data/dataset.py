@@ -197,21 +197,37 @@ class ConcatMapDataset(Dataset):
         datasets: List[Any],
         sampling_technique: str = 'temperature',
         sampling_temperature: int = 5,
-        sampling_probabilities: List[float] = None,
+        sampling_probabilities: Optional[List[float]] = None,
         seed: Optional[int] = None
     ):
         super().__init__()
         self.datasets = datasets
-        self.size = sum(len(x) for x in self.datasets)
+        self.lengths = [len(x) for x in self.datasets]
         self.sampling_technique = sampling_technique
         self.sampling_temperature = sampling_temperature
         self.sampling_probabilities = sampling_probabilities
         self.np_rng = np.random.RandomState(seed)
 
+        # Build a list of size `len(self)`. Each tuple contains (dataset_id, dataset_index)
+        self.indices: List[Tuple[int, int]] = []
+        # Current position as we consume indices from each data set
+        dataset_positions = [0] * len(self.datasets)
+        # Random permutation of each dataset. Will be regenerated when exhausted.
+        shuffled_indices = [self.np_rng.permutation(len(x)) for x in self.datasets]
         # Build the list of randomly-chosen datasets spanning the entire length, adhering to sampling technique
         if self.sampling_technique == "round-robin":
+            # To exhaust longest dataset, need to draw `num_datasets * max_dataset_len` samples
+            total_length = max(self.lengths) * len(self.lengths)
             # For round robin, iterate through each dataset
-            dataset_ids = np.arange(len(self)) % len(self.datasets)
+            dataset_ids = np.arange(total_length) % len(self.datasets)
+            for dataset_id in dataset_ids:
+                position = dataset_positions[dataset_id]
+                index = shuffled_indices[dataset_id][position]
+                self.indices.append((dataset_id, index))
+                dataset_positions[dataset_id] += 1
+                if dataset_positions[dataset_id] == len(shuffled_indices[dataset_id]):
+                    dataset_positions[dataset_id] = 0
+                    shuffled_indices[dataset_id] = self.np_rng.permutation(len(self.datasets[dataset_id]))
         else:
             # Resolve probabilities of drawing from each data set
             if self.sampling_technique == "random":
@@ -226,30 +242,29 @@ class ConcatMapDataset(Dataset):
                 p = np.power(p, 1 / self.sampling_temperature)
             else:
                 raise ValueError(f"Couldn't interpret sampling technique: {sampling_technique}")
-            p = p / np.sum(p)  # Ensure probabilities sum to 1
-            # Randomly choose a dataset for each position in accordance with p
+            # Normalize probabilities
+            p = p / np.sum(p)
+            # Will randomly choose from datasets
             choices = np.arange(len(self.datasets))
-            dataset_ids = self.np_rng.choice(a=choices, replace=True, size=len(self), p=p)
-
-        # Build a list of size `len(self)`. Each tuple contains (dataset_id, dataset_index)
-        self.indices: List[Tuple[int, int]] = []
-        # Current position as we consume indices from each data set
-        dataset_positions = [0] * len(self.datasets)
-        # Random permutation of each dataset. Will be regenerated when exhausted.
-        shuffled_indices = [self.np_rng.permutation(len(x)) for x in self.datasets]
-        for dataset_id in dataset_ids:
-            dataset = self.datasets[dataset_id]
-            # Pick next index from queue. If needed, re-shuffle this dataset.
-            if dataset_positions[dataset_id] >= len(dataset):
-                shuffled_indices[dataset_id] = self.np_rng.permutation(len(dataset))
-                dataset_positions[dataset_id] = 0
-            position = dataset_positions[dataset_id]
-            index = shuffled_indices[dataset_id][position]
-            self.indices.append((dataset_id, index))
-            dataset_positions[dataset_id] += 1
+            # Keep going until largest dataset is exhausted.
+            exhausted_datasets = set()
+            while len(exhausted_datasets) < len(self.datasets):
+                # Randomly choose a dataset for each position in accordance with p
+                dataset_id = self.np_rng.choice(a=choices, p=p)
+                dataset = self.datasets[dataset_id]
+                # Pick next index from dataset
+                position = dataset_positions[dataset_id]
+                index = shuffled_indices[dataset_id][position]
+                self.indices.append((dataset_id, index))
+                # Maybe reset this dataset's permutation
+                dataset_positions[dataset_id] += 1
+                if dataset_positions[dataset_id] >= len(dataset):
+                    shuffled_indices[dataset_id] = self.np_rng.permutation(len(dataset))
+                    dataset_positions[dataset_id] = 0
+                    exhausted_datasets.add(dataset_id)
 
     def __len__(self):
-        return self.size
+        return len(self.indices)
 
     def __getitem__(self, idx):
         dataset_id, dataset_index = self.indices[idx]
