@@ -198,7 +198,7 @@ class ConcatMapDataset(Dataset):
         sampling_technique: str = 'temperature',
         sampling_temperature: int = 5,
         sampling_probabilities: Optional[List[float]] = None,
-        seed: Optional[int] = None
+        seed: Optional[int] = None,
     ):
         super().__init__()
         self.datasets = datasets
