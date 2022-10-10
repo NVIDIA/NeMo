@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from calendar import c
-from typing import Dict, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import torch
 import torch.nn.functional as F
@@ -25,6 +25,14 @@ from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_sampler
     MegatronPretrainingBatchSampler,
     MegatronPretrainingRandomBatchSampler,
 )
+
+from nemo.collections.nlp.modules.common.transformer.text_generation import (
+    LengthParam,
+    OutputType,
+    SamplingParam,
+    TextGeneration,
+)
+
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import build_train_valid_test_datasets
 from nemo.collections.nlp.models.language_modeling.megatron.bert_model import BertModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
@@ -455,6 +463,23 @@ class MegatronBertModel(MegatronBaseModel):
             )
             self._test_dl = self.build_pretraining_data_loader(self._test_ds, consumed_samples)
 
+    def configure_optimizers(self):
+        retval = super().configure_optimizers()
+
+        if self.with_distributed_adam:
+
+            # Initialize params in reverse order
+            # Note: Estimate order in which grads are generated in
+            # backward pass
+            self._optimizer.init_params(reversed(list(self.parameters())))
+
+            # Overlapped communication interferes with grad reductions
+            # for pipeline parallelism and sequence parallelism
+            if self.cfg.get('pipeline_model_parallel_size', 1) > 1 or self.cfg.get('sequence_parallel', False):
+                self._optimizer.overlap_grad_sync = False
+
+        return retval
+
     def compute_consumed_samples(self, steps_since_resume=0):
         app_state = AppState()
         consumed_samples = (
@@ -504,6 +529,16 @@ class MegatronBertModel(MegatronBaseModel):
     def setup_optimizer_param_groups(self):
         """ModelPT override. Optimizer will get self._optimizer_param_groups"""
         self._optimizer_param_groups = get_params_for_weight_decay_optimization([self.model])
+
+    def setup_optimization(
+        self, optim_config: Optional[Union[DictConfig, Dict]] = None, optim_kwargs: Optional[Dict[str, Any]] = None,
+    ):
+        optim_kwargs = {} if optim_kwargs is None else optim_kwargs.copy()
+        if self.with_distributed_adam:
+            optim_kwargs['process_group'] = parallel_state.get_data_parallel_group()
+            optim_kwargs['param_sync_dtype'] = self.autocast_dtype
+            optim_kwargs['contiguous_grad_buffer'] = True
+        return super().setup_optimization(optim_config=optim_config, optim_kwargs=optim_kwargs)
 
     # Required for ONNX export
     @property
