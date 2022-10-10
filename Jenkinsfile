@@ -825,14 +825,15 @@ pipeline {
                 name='/home/TestData/nlp/adapter_tuning/test_tp2_pp1' \
                 trainer.devices=2 \
                 trainer.max_steps=6 \
-                trainer.val_check_interval=1 \
+                trainer.val_check_interval=2 \
                 trainer.max_epochs=null \
                 model.tensor_model_parallel_size=2 \
                 model.language_model_path='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp2_pp1.nemo' \
                 model.existing_tasks=[] \
                 model.new_tasks=['rte'] \
                 model.data.train_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
-                model.data.validation_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl']"
+                model.data.validation_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+                model.global_batch_size=4"
             sh "python examples/nlp/language_modeling/tuning/megatron_gpt_adapter_eval.py \
                 --config-name=megatron_gpt_adapter_inference \
                 adapter_model_file='/home/TestData/nlp/adapter_tuning/test_tp2_pp1.nemo' \
@@ -864,7 +865,7 @@ pipeline {
                 name='/home/TestData/nlp/adapter_tuning/test_tp1_pp2' \
                 trainer.devices=2 \
                 trainer.max_steps=6 \
-                trainer.val_check_interval=1 \
+                trainer.val_check_interval=2 \
                 trainer.max_epochs=null \
                 model.tensor_model_parallel_size=1 \
                 model.pipeline_model_parallel_size=2 \
@@ -872,7 +873,8 @@ pipeline {
                 model.existing_tasks=[] \
                 model.new_tasks=['rte'] \
                 model.data.train_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
-                model.data.validation_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl']"
+                model.data.validation_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+                model.global_batch_size=4"
             sh "python examples/nlp/language_modeling/tuning/megatron_gpt_adapter_eval.py \
                 --config-name=megatron_gpt_adapter_inference \
                 adapter_model_file='/home/TestData/nlp/adapter_tuning/test_tp1_pp2.nemo' \
