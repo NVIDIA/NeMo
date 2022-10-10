@@ -1,1 +1,1 @@
-{"train_time_metrics": {"nvcr.io/nvidian/bignlp-training:22.08.11-py": [1663140367.3743732, 24.703440800000003, 173.32], "nvcr.io/nvidian/bignlp-train:22.09-5befb680": [1665151187.295398, 25.222953000000004, 169.75]}, "peak_memory_metrics": {}}
+{"train_time_metrics": {"nvcr.io/nvidian/bignlp-training:22.08.11-py": [1663140367.3743732, 24.703440800000003, 173.32], "nvcr.io/nvidian/bignlp-train:22.09-5befb680": [1665151187.295398, 25.222953000000004, 169.75]}, "peak_memory_metrics": {"nvcr.io/nvidian/bignlp-train:22.09-5befb680": [1665102637.0868769, 81226.0]}}
