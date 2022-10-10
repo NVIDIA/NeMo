@@ -95,8 +95,8 @@ class TextMemMapDataset(Dataset):
         """
         Return a string from binary memmap
         """
-        if idx >= self.midx_bins[-1]:
-            raise IndexError(f"Index {idx} if out of dataset range with {len(self)} samples")
+        if (idx >= self.midx_bins[-1]) or (idx < 0):
+            raise IndexError(f"Index {idx} if out of dataset range with {self.midx_bins[-1]} samples")
 
         # Identify the file containing the record
         file_id = np.digitize(idx, self.midx_bins, right=False)
@@ -154,7 +154,9 @@ class TextMemMapDataset(Dataset):
             if 'newline_int' in idx_dict:
                 newline_int = idx_dict['newline_int']
                 if self._newline_int != newline_int:
-                    logger.warning(f"Mismatch in newline_int, expected = {self._newline_int} but loaded {newline_int}")
+                    logging.warning(
+                        f"Mismatch in newline_int, expected = {self._newline_int} but loaded {newline_int}"
+                    )
 
             # test for version mismatch (useful to force recreation of index files)
             idx_version = idx_dict.get('version', '0.0')

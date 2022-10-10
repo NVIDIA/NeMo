@@ -23,6 +23,7 @@ import webdataset as wd
 from torch.utils.data import ChainDataset
 
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
+from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.collections.common import tokenizers
 from nemo.collections.common.parts.preprocessing import collections, parsers
 from nemo.core.classes import Dataset, IterableDataset
@@ -230,6 +231,7 @@ class _AudioTextDataset(Dataset):
         eos_id: Id of end of sequence symbol to append if not None
         pad_id: Id of pad symbol. Defaults to 0
         return_sample_id (bool): whether to return the sample_id as a part of each sample
+        channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
     """
 
     @property
@@ -259,6 +261,7 @@ class _AudioTextDataset(Dataset):
         eos_id: Optional[int] = None,
         pad_id: int = 0,
         return_sample_id: bool = False,
+        channel_selector: Optional[ChannelSelectorType] = None,
     ):
         if type(manifest_filepath) == str:
             manifest_filepath = manifest_filepath.split(",")
@@ -276,6 +279,7 @@ class _AudioTextDataset(Dataset):
         self.featurizer = WaveformFeaturizer(sample_rate=sample_rate, int_values=int_values, augmentor=augmentor)
         self.trim = trim
         self.return_sample_id = return_sample_id
+        self.channel_selector = channel_selector
 
     def get_manifest_sample(self, sample_id):
         return self.manifest_processor.collection[sample_id]
@@ -288,7 +292,12 @@ class _AudioTextDataset(Dataset):
             offset = 0
 
         features = self.featurizer.process(
-            sample.audio_file, offset=offset, duration=sample.duration, trim=self.trim, orig_sr=sample.orig_sr
+            sample.audio_file,
+            offset=offset,
+            duration=sample.duration,
+            trim=self.trim,
+            orig_sr=sample.orig_sr,
+            channel_selector=self.channel_selector,
         )
         f, fl = features, torch.tensor(features.shape[0]).long()
 
@@ -337,6 +346,7 @@ class AudioToCharDataset(_AudioTextDataset):
         bos_id: Id of beginning of sequence symbol to append if not None
         eos_id: Id of end of sequence symbol to append if not None
         return_sample_id (bool): whether to return the sample_id as a part of each sample
+        channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
     """
 
     @property
@@ -370,6 +380,7 @@ class AudioToCharDataset(_AudioTextDataset):
         pad_id: int = 0,
         parser: Union[str, Callable] = 'en',
         return_sample_id: bool = False,
+        channel_selector: Optional[ChannelSelectorType] = None,
     ):
         self.labels = labels
 
@@ -391,6 +402,7 @@ class AudioToCharDataset(_AudioTextDataset):
             eos_id=eos_id,
             pad_id=pad_id,
             return_sample_id=return_sample_id,
+            channel_selector=channel_selector,
         )
 
 
@@ -428,6 +440,7 @@ class AudioToBPEDataset(_AudioTextDataset):
         use_start_end_token: Boolean which dictates whether to add [BOS] and [EOS]
             tokens to beginning and ending of speech respectively.
         return_sample_id (bool): whether to return the sample_id as a part of each sample
+        channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
     """
 
     @property
@@ -455,18 +468,19 @@ class AudioToBPEDataset(_AudioTextDataset):
         trim: bool = False,
         use_start_end_token: bool = True,
         return_sample_id: bool = False,
+        channel_selector: Optional[ChannelSelectorType] = None,
     ):
-        if use_start_end_token and hasattr(tokenizer, 'bos_token'):
+        if use_start_end_token and hasattr(tokenizer, "bos_id") and tokenizer.bos_id > 0:
             bos_id = tokenizer.bos_id
         else:
             bos_id = None
 
-        if use_start_end_token and hasattr(tokenizer, 'eos_token'):
+        if use_start_end_token and hasattr(tokenizer, "eos_id") and tokenizer.eos_id > 0:
             eos_id = tokenizer.eos_id
         else:
             eos_id = None
 
-        if hasattr(tokenizer, 'pad_token'):
+        if hasattr(tokenizer, "pad_id") and tokenizer.pad_id > 0:
             pad_id = tokenizer.pad_id
         else:
             pad_id = 0
@@ -480,6 +494,12 @@ class AudioToBPEDataset(_AudioTextDataset):
                 self._tokenizer = tokenizer
 
             def __call__(self, *args):
+                if isinstance(args[0], List) and self.is_aggregate:
+                    t = []
+                    for span in args[0]:
+                        t.extend(self._tokenizer.text_to_ids(span['str'], span['lang']))
+                    return t
+
                 t = self._tokenizer.text_to_ids(*args)
                 return t
 
@@ -497,6 +517,7 @@ class AudioToBPEDataset(_AudioTextDataset):
             pad_id=pad_id,
             trim=trim,
             return_sample_id=return_sample_id,
+            channel_selector=channel_selector,
         )
 
 
@@ -1006,17 +1027,17 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
         world_size: int = 0,
         return_sample_id: bool = False,
     ):
-        if use_start_end_token and hasattr(tokenizer, 'bos_token'):
+        if use_start_end_token and hasattr(tokenizer, "bos_id") and tokenizer.bos_id > 0:
             bos_id = tokenizer.bos_id
         else:
             bos_id = None
 
-        if use_start_end_token and hasattr(tokenizer, 'eos_token'):
+        if use_start_end_token and hasattr(tokenizer, "eos_id") and tokenizer.eos_id > 0:
             eos_id = tokenizer.eos_id
         else:
             eos_id = None
 
-        if hasattr(tokenizer, 'pad_token'):
+        if hasattr(tokenizer, "pad_id") and tokenizer.pad_id > 0:
             pad_id = tokenizer.pad_id
         else:
             pad_id = 0
@@ -1030,6 +1051,12 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
                 self._tokenizer = tokenizer
 
             def __call__(self, *args):
+                if isinstance(args[0], Iterable) and self.is_aggregate:
+                    t = []
+                    for span in args[0]:
+                        t.extend(self._tokenizer.text_to_ids(span['str'], span['lang']))
+                    return t
+
                 t = self._tokenizer.text_to_ids(*args)
                 return t
 

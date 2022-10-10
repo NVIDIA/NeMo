@@ -12,8 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import re
-from typing import Any, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import torch
 from omegaconf.dictconfig import DictConfig
@@ -29,6 +28,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_base_model import Me
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
+    get_all_params_for_weight_decay_optimization,
     get_params_for_weight_decay_optimization,
 )
 from nemo.collections.nlp.modules.common.text_generation_utils import (
@@ -44,10 +44,9 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import (
     SamplingParam,
     TextGeneration,
 )
-from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes.common import PretrainedModelInfo
-from nemo.utils import AppState, logging
+from nemo.utils import logging
 
 try:
     from apex.transformer import parallel_state
@@ -56,7 +55,6 @@ try:
         forward_backward_pipelining_without_interleaving,
     )
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
-    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -87,11 +85,18 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # self.setup_optimizer_param_groups()
 
         self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
+        self.with_distributed_adam = cfg.optim.get('name') == 'distributed_fused_adam'
+
+        if self.with_distributed_adam and not self.megatron_amp_o2:
+            raise ValueError(
+                "Distributed optimizers require O2. Please set megatron_amp_O2 to True in the model config."
+            )
 
         if self.megatron_amp_o2:
 
-            # Pre-allocate the model on GPU to have master parameters allocated on the same device with matching data type
-            self.model.cuda(torch.cuda.current_device())
+            if not self.with_distributed_adam:
+                # Pre-allocate the model on GPU to have master parameters allocated on the same device with matching data type
+                self.model.cuda(torch.cuda.current_device())
 
             # Model wrapper to convert both model and inputs to half precision
             self.model = Float16Module(module=self.model, precision=cfg.precision)
@@ -145,6 +150,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             pre_process=pre_process,
             post_process=post_process,
             init_method_std=self.cfg.get('init_method_std', 0.02),
+            use_scaled_init_method=self.cfg.get('use_scaled_init_method', True),
             fp16_lm_cross_entropy=self.cfg.get('fp16_lm_cross_entropy', False),
             use_cpu_initialization=self.cfg.get('use_cpu_initialization', False),
             hidden_dropout=self.cfg.get('hidden_dropout', 0.1),
@@ -153,6 +159,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             activations_checkpoint_granularity=self.cfg.get('activations_checkpoint_granularity', None),
             activations_checkpoint_method=self.cfg.get('activations_checkpoint_method', None),
             activations_checkpoint_num_layers=self.cfg.get('activations_checkpoint_num_layers', 1),
+            normalization=self.cfg.get('normalization', 'layernorm'),
             layernorm_epsilon=self.cfg.get('layernorm_epsilon', 1e-5),
             onnx_safe=self.cfg.get('onnx_safe', False),
             persist_layer_norm=self.cfg.get('persist_layer_norm', False),
@@ -164,7 +171,20 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
     def setup_optimizer_param_groups(self):
         """ModelPT override. Optimizer will get self._optimizer_param_groups"""
-        self._optimizer_param_groups = get_params_for_weight_decay_optimization([self.model])
+        if self.cfg.get('do_layer_norm_weight_decay', False):
+            self._optimizer_param_groups = get_all_params_for_weight_decay_optimization([self.model])
+        else:
+            self._optimizer_param_groups = get_params_for_weight_decay_optimization([self.model])
+
+    def setup_optimization(
+        self, optim_config: Optional[Union[DictConfig, Dict]] = None, optim_kwargs: Optional[Dict[str, Any]] = None,
+    ):
+        optim_kwargs = {} if optim_kwargs is None else optim_kwargs.copy()
+        if self.with_distributed_adam:
+            optim_kwargs['process_group'] = parallel_state.get_data_parallel_group()
+            optim_kwargs['param_sync_dtype'] = self.autocast_dtype
+            optim_kwargs['contiguous_grad_buffer'] = True
+        return super().setup_optimization(optim_config=optim_config, optim_kwargs=optim_kwargs)
 
     def forward(self, tokens, text_position_ids, attention_mask, labels):
         output_tensor = self.model(tokens, text_position_ids, attention_mask, labels=labels)
@@ -206,7 +226,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         else:
             # no pipeline parallelism so we reduce grads asynchronously if not using sequence parallelism
             if self.megatron_amp_o2 and not self.cfg.get('sequence_parallel', False):
-                custom_sync_context_handler = self._optimizer.no_sync
+                if self.with_distributed_adam:
+                    custom_sync_context_handler = lambda: self._optimizer.no_sync(greedy_grad_copy=True)
+                else:
+                    custom_sync_context_handler = self._optimizer.no_sync
             else:
                 # TODO: enable async grad all reduce for O1/autocast mixed precision training
                 custom_sync_context_handler = None
@@ -234,7 +257,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False):
             self.allreduce_sequence_parallel_gradients()
 
-        if self.megatron_amp_o2:
+        if self.with_distributed_adam:
+            # gradients are reduced internally in distributed optimizer
+            pass
+        elif self.megatron_amp_o2:
             # when using pipeline parallelism grads must be all-reduced after the pipeline (not asynchronously)
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1 or self.cfg.get('sequence_parallel', False):
                 # main grads are stored in the MainParamsOptimizer wrapper
@@ -386,11 +412,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         return fwd_output_only_func
 
-    def on_pretrain_routine_start(self) -> None:
-        # keep a copy of init_global_step
-        self.init_global_step = self.trainer.global_step
-        return super().on_pretrain_routine_start()
-
     def validation_step(self, batch, batch_idx):
         """
             Our dataloaders produce a micro-batch and then we fetch
@@ -434,8 +455,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         return loss_mean
 
     def validation_epoch_end(self, outputs):
-        if not outputs:
-            return
         if parallel_state.is_pipeline_last_stage():
             # only the last pipeline parallel stages return loss
             averaged_loss = torch.stack(outputs).mean()
@@ -480,6 +499,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
     def build_train_valid_test_datasets(self):
         logging.info('Building GPT datasets.')
+        if self.trainer.limit_val_batches > 1.0 and isinstance(self.trainer.limit_val_batches, float):
+            raise ValueError("limit_val_batches must be an integer or float less than or equal to 1.0.")
         global_batch_size = self.cfg.global_batch_size
         max_train_steps = self.trainer.max_steps
         eval_iters = (max_train_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
@@ -490,6 +511,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             eval_iters * global_batch_size,
             test_iters * global_batch_size,
         ]
+
+        if self.trainer.limit_val_batches <= 1.0 and isinstance(self.trainer.limit_val_batches, float):
+            train_valid_test_num_samples[
+                1
+            ] = 1  # This is to make sure we only have one epoch on every validation iteration
+
         self._train_ds, self._validation_ds, self._test_ds = build_train_valid_test_datasets(
             cfg=self.cfg,
             trainer=self.trainer,
@@ -559,16 +586,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         """
         resume_checkpoint_path = self.trainer._checkpoint_connector.resume_from_checkpoint_fit_path
         if resume_checkpoint_path:
-            try:
-                init_consumed_samples = int(
-                    float(re.findall(r"consumed_samples\=([0-9]+.[0-9]+)", resume_checkpoint_path)[0])
-                )
-            except (ValueError, TypeError):
-                logging.warning("Cannot parse the checkpoint file to get the consumed samples. assume it is zero.")
-                init_consumed_samples = 0
+            init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
         else:
             init_consumed_samples = 0
         self.init_consumed_samples = init_consumed_samples
+        self.init_global_step = self.trainer.global_step
 
         if stage == 'predict':
             return
@@ -608,13 +630,22 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             )
             self._test_dl = self.build_pretraining_data_loader(self._test_ds, consumed_samples)
 
-    def compute_consumed_samples(self, steps_since_resume=0):
-        app_state = AppState()
-        consumed_samples = (
-            self.init_consumed_samples
-            + steps_since_resume * app_state.data_parallel_size * self.cfg.micro_batch_size * get_num_microbatches()
-        )
-        return int(consumed_samples)
+    def configure_optimizers(self):
+        retval = super().configure_optimizers()
+
+        if self.with_distributed_adam:
+
+            # Initialize params in reverse order
+            # Note: Estimate order in which grads are generated in
+            # backward pass
+            self._optimizer.init_params(reversed(list(self.parameters())))
+
+            # Overlapped communication interferes with grad reductions
+            # for pipeline parallelism and sequence parallelism
+            if self.cfg.get('pipeline_model_parallel_size', 1) > 1 or self.cfg.get('sequence_parallel', False):
+                self._optimizer.overlap_grad_sync = False
+
+        return retval
 
     def generate(
         self,

@@ -15,7 +15,7 @@ spec:
       path: /vol/scratch1/scratch.okuchaiev_blossom
   containers:
   - name: cuda
-    image: nvcr.io/nvidia/pytorch:22.05-py3
+    image: nvcr.io/nvidia/pytorch:22.08-py3
     command:
     - cat
     volumeMounts:
@@ -70,7 +70,7 @@ spec:
 
                 stageName = 'Installation & GPU unit tests'
                 stage(stageName) {
-                            sh "nvidia-smi && ./reinstall.sh release && \
+                            sh "git config --global --add safe.directory '*' && nvidia-smi && ./reinstall.sh release && \
                                 NEMO_NUMBA_MINVER=0.53 pytest -m 'not pleasefixme and not torch_tts'"         
                 }
               }
