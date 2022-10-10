@@ -677,7 +677,7 @@ pipeline {
                 language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp1_pp2.nemo' \
                 trainer.devices=2 \
                 tensor_model_parallel_size=1 \
-                pipeline_model_parallel_size=1 \
+                pipeline_model_parallel_size=2 \
                 data.global_batch_size=2 \
                 data.micro_batch_size=2 \
                 data.test_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl']"
@@ -759,7 +759,7 @@ pipeline {
                 language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp1_pp2.nemo' \
                 trainer.devices=2 \
                 tensor_model_parallel_size=1 \
-                pipeline_model_parallel_size=1 \
+                pipeline_model_parallel_size=2 \
                 data.global_batch_size=2 \
                 data.micro_batch_size=2 \
                 data.test_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl']"
