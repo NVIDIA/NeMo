@@ -8,7 +8,7 @@ variables: &VARS
   NGC_BIGNLP_CI_PATH: "bignlp_ci" # mount at /mount/results
   CONTAINER_NVCR_BASE: nvcr.io/nvidian/bignlp-ci:train
   TESTS_TO_RUN_AFTER_MERGING: L0  # Can specify levels, ci job names etc as a space seperated list to run during merge request
-  TESTS_TO_RUN_ON_THIS_COMMIT: train.gpt3.126m_tp1_pp1_1node_100steps
+  TESTS_TO_RUN_ON_THIS_COMMIT: NONE
   TEST_REGEX_ON_THIS_COMMIT: NONE #https://github.com/google/re2/wiki/Syntax (Can define regex as in this spec) e.g /.*gpt3.*/
   CREATE_TEST_DATA: "False"
 
@@ -248,6 +248,7 @@ release_perf:
     - if [[ "$RUN_STAGE" = "eval" && "$RUN_MODEL" == *"gpt3"* ]]; then TEST_FILE="test_gpt3_eval_pipeline.py"; fi
     - pytest tests/ci_tests/selene/pytest/${RUN_STAGE}/${TEST_FILE}
     - echo "Finished pytest job"
+    # Update permission and open to all
     - cd ${PIPELINE_DIR} && chmod 777 -R .
     - exit ${SLURM_EXITCODE}
   rules:
