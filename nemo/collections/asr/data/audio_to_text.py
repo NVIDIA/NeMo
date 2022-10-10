@@ -328,6 +328,7 @@ class AudioToCharDataset(_AudioTextDataset):
     {"audio_filepath": "/path/to/audio.wav", "text": "the
     transcription", "offset": 301.75, "duration": 0.82, "utt":
     "utterance_id", "ctm_utt": "en_4156", "side": "A"}
+
     Args:
         manifest_filepath: Path to manifest json as described above. Can
             be comma-separated paths.

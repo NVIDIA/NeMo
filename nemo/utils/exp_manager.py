@@ -190,6 +190,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     Args:
         trainer (pytorch_lightning.Trainer): The lightning trainer.
         cfg (DictConfig, dict): Can have the following keys:
+
             - explicit_log_dir (str, Path): Can be used to override exp_dir/name/version folder creation. Defaults to
                 None, which will use exp_dir, name, and version to construct the logging directory.
             - exp_dir (str, Path): The base directory to create the logging directory. Defaults to None, which logs to

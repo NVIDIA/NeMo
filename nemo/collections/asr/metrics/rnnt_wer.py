@@ -1131,7 +1131,7 @@ class RNNTWER(Metric):
         log_prediction: Whether to log a single decoded sample per call.
 
     Returns:
-        res: a tuple of 3 zero dimensional float32 ``torch.Tensor` objects: a WER score, a sum of Levenstein's
+        res: a tuple of 3 zero dimensional float32 ``torch.Tensor` objects: a WER score, a sum of Levenshtein's
             distances for all prediction - reference pairs, total number of words in all references.
     """
 

@@ -71,7 +71,7 @@ The script for splitting the Google text normalization data files into `train`, 
 `data/data_split.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/duplex_text_normalization/data/data_split.py>`__.
 
 Data preprocessing
------------
+------------------
 
 Processing scripts can be found in the same folder. Right now we only provide scripts for English text normalization, see `data/en/data_preprocessing.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/duplex_text_normalization/data/en/data_preprocessing.py>`__.
 The details can be found at the top of the scripts.
@@ -84,7 +84,7 @@ This simplifies the task for the model and significantly reduces unrecoverable e
 
 
 Data upsampling
------------
+---------------
 
 Data upsampling is an effective way to increase the training data for better model performance, especially on the long tail of semiotic tokens.
 We used upsampling for training an English text normalization model, see `data/en/upsampling.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/duplex_text_normalization/data/en/upsampling.py>`__.
@@ -195,7 +195,7 @@ To enable training with the tarred dataset, add the following arguments:
 .. _inference_text_normalization:
 
 Model Inference
---------------
+---------------
 
 Run the full inference pipeline:
 
@@ -235,7 +235,7 @@ This pipeline consists of
     * punctuation correction for TTS (to match  the output punctuation to the input form)
 
 Model Architecture
---------------
+------------------
 
 The tagger model first uses a Transformer encoder (e.g., albert-base-v2) to build a
 contextualized representation for each input token. It then uses a classification head
@@ -258,7 +258,7 @@ To improve the effectiveness and robustness of our models, we also experiment wi
 augmentation techniques during training.
 
 Data Augmentation for Training DuplexTaggerModel (Set to be False by default)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 In the Google English TN training data, about 93% of the tokens are not in any semiotic span. In other words, the ground-truth tags of most tokens are of trivial types (i.e., ``SAME`` and ``PUNCT``). To alleviate this class imbalance problem,
 for each original instance with several semiotic spans, we create a new instance by simply concatenating all the semiotic spans together. For example, considering the following ITN instance:
 
@@ -269,7 +269,7 @@ Augmented instance: ``[two|B-TRANSFORM] [thousand|I-TRANSFORM] [two|I-TRANSFORM]
 The argument ``data.train_ds.tagger_data_augmentation`` in the config file controls whether this data augmentation will be enabled or not.
 
 Data Augmentation for Training DuplexDecoderModel (Set to be True by default)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Since the tagger may not be perfect, the inputs to the decoder may not all be semiotic spans. Therefore, to make the decoder become more robust against the tagger's potential errors,
 we train the decoder with not only semiotic spans but also with some other more "noisy" spans. This way even if the tagger makes some errors, there will still be some chance that the
 final output is still correct.

@@ -1,7 +1,7 @@
 .. _punctuation_and_capitalization_lexical_audio:
 
 Punctuation and Capitalization Lexical Audio Model
-====================================
+==================================================
 
 Sometimes punctuation and capitalization cannot be restored based only on text. In this case we can use audio to improve model's accuracy.
 
@@ -178,7 +178,7 @@ Data config
 .. _audio-encoder-config-label:
 
 Audio Encoder config
-^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^
 
 .. list-table:: Audio Encoder Config
    :widths: 5 5 10 25

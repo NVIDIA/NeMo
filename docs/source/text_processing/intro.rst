@@ -7,6 +7,6 @@ NeMo provides a set of models for text processing input and/or output of Automat
 .. toctree::
    :maxdepth: 1
 
-   g2p
+   g2p/g2p
 
 

@@ -54,7 +54,21 @@ Modules
     :show-inheritance:
     :members:
 
+.. _conformer-encoder-api:
+
 .. autoclass:: nemo.collections.asr.modules.ConformerEncoder
+    :show-inheritance:
+    :members:
+
+.. _squeezeformer-encoder-api:
+
+.. autoclass:: nemo.collections.asr.modules.SqueezeformerEncoder
+    :show-inheritance:
+    :members:
+
+.. _rnn-encoder-api:
+
+.. autoclass:: nemo.collections.asr.modules.RNNEncoder
     :show-inheritance:
     :members:
 
@@ -92,10 +106,6 @@ Character Encoding Datasets
     :show-inheritance:
     :members:
 
-.. autoclass:: nemo.collections.asr.data.audio_to_text.AudioToCharWithDursF0Dataset
-    :show-inheritance:
-    :members:
-
 Subword Encoding Datasets
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -118,7 +128,7 @@ Audio Preprocessors
     :show-inheritance:
     :members:
 
-Audio Augmentors
+Audio Augmenters
 ----------------
 
 .. autoclass:: nemo.collections.asr.modules.SpectrogramAugmentation

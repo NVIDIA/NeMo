@@ -5,7 +5,7 @@ Best Practices
 
 The NVIDIA NeMo Toolkit is available on GitHub as `open source <https://github.com/NVIDIA/NeMo>`_ as well as
 a `Docker container on NGC <https://ngc.nvidia.com/catalog/containers/nvidia:nemo>`_. It's assumed the user has
-already installed NeMo by following the :ref:`quick-start-guide` instructions.
+already installed NeMo by following the :ref:`quick_start_guide` instructions.
 
 The conversational AI pipeline consists of three major stages:
 
@@ -268,6 +268,7 @@ A: NeMo’s Beam Search decoder with Levenberg-Marquardt (LM) neural module supp
 
 **Q: How do I use text-to-speech (TTS)?**
 A:
+
 - Obtain speech data ideally at 22050 Hz or alternatively at a higher sample rate and then down sample to 22050 Hz.
     - If less than 22050 Hz and at least 16000 Hz:
         - Retrain WaveGlow on your own dataset.
