@@ -71,7 +71,16 @@ class BertLMHead(MegatronModule):
     """
 
     def __init__(
-        self, mpu_vocab_size, hidden_size, init_method, layernorm_epsilon, parallel_output, use_openai_gelu, onnx_safe, sequence_parallel, gradient_accumulation_fusion  
+        self,
+        mpu_vocab_size,
+        hidden_size,
+        init_method,
+        layernorm_epsilon,
+        parallel_output,
+        use_openai_gelu,
+        onnx_safe,
+        sequence_parallel,
+        gradient_accumulation_fusion,
     ):
 
         super(BertLMHead, self).__init__()
@@ -104,7 +113,15 @@ class BertLMHead(MegatronModule):
 
 
 def post_language_model_processing(
-    lm_output, pooled_output, lm_head, binary_head, lm_labels, logit_weights, fp16_lm_cross_entropy, sequence_parallel=False, gradient_accumulation_fusion = False
+    lm_output,
+    pooled_output,
+    lm_head,
+    binary_head,
+    lm_labels,
+    logit_weights,
+    fp16_lm_cross_entropy,
+    sequence_parallel=False,
+    gradient_accumulation_fusion=False,
 ):
     # lm_logits: [s, b, vocab_size]
     lm_logits = lm_head(lm_output, logit_weights)
@@ -209,7 +226,7 @@ class BertModel(MegatronModule):
             onnx_safe=onnx_safe,
             megatron_legacy=megatron_legacy,
             sequence_parallel=sequence_parallel,
-            gradient_accumulation_fusion = gradient_accumulation_fusion
+            gradient_accumulation_fusion=gradient_accumulation_fusion,
         )
 
         self.initialize_word_embeddings(
@@ -226,7 +243,7 @@ class BertModel(MegatronModule):
                 openai_gelu,
                 onnx_safe,
                 sequence_parallel,
-                gradient_accumulation_fusion
+                gradient_accumulation_fusion,
             )
             self._lm_head_key = 'lm_head'
             self.binary_head = None
