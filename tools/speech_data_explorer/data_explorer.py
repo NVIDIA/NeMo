@@ -249,12 +249,9 @@ def load_data(
                 for char in item['text']:
                     alphabet.add(char)
                 num_hours += item['duration']
-<<<<<<< HEAD
 
                 
                 
-=======
->>>>>>> 244ee7704ad9df94b1e348824518d0035be3aeab
 
                 if field_name in item:
                     metrics_available = True
