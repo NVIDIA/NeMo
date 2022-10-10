@@ -71,7 +71,7 @@ class HeteronymClassificationModel(NLPModel):
 
         # setup to track metrics
         self.classification_report = ClassificationReport(
-            num_classes=num_classes, mode='micro', dist_sync_on_step=True, label_ids=self.wordid_to_idx
+            num_classes=num_classes, mode='macro', dist_sync_on_step=True, label_ids=self.wordid_to_idx
         )
 
         # Language
