@@ -1,8 +1,7 @@
 pipeline {
   agent {
         docker {
-      //image 'gitlab-master.nvidia.com:5005/eharper/nemo_containers:nemo_ci_pytorch_22.07_apex_3c19f1061879394f28272a99a7ea26d58f72dace'
-      image 'nvcr.io/nvidia/pytorch:22.08-py3'
+      image 'nvcr.io/nvidia/pytorch:22.09-py3'
       args '--device=/dev/nvidia0 --gpus all -e TRANSFORMERS_OFFLINE=1 --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache:/root/.cache --shm-size=8g'
         }
   }
@@ -31,6 +30,7 @@ pipeline {
         sh 'pip install transformers==4.21.2'
       }
     }
+
 
     stage('Transformers Offline') {
       steps{
@@ -643,6 +643,170 @@ pipeline {
           }
         }
 
+      }
+    }
+    stage('L2: Megatron T5 Adapter PP=2') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel{
+        stage('T5 Adapter tuning & inference TP=1 PP=2') {
+          steps {
+            sh "python examples/nlp/language_modeling/tuning/megatron_t5_adapter_tuning.py \
+                --config-name=megatron_t5_adapter_tuning_config \
+                name='/home/TestData/nlp/adapter_tuning/test_tp1_pp2' \
+                trainer.devices=2 \
+                trainer.max_steps=6 \
+                trainer.val_check_interval=2 \
+                trainer.max_epochs=null \
+                model.tensor_model_parallel_size=1 \
+                model.pipeline_model_parallel_size=2 \
+                model.language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp1_pp2.nemo' \
+                model.existing_tasks=[] \
+                model.new_tasks=['rte'] \
+                model.data.train_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+                model.data.validation_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+                model.global_batch_size=4"
+            sh "python examples/nlp/language_modeling/tuning/megatron_t5_adapter_eval.py \
+                --config-name=megatron_t5_adapter_inference \
+                adapter_model_file='/home/TestData/nlp/adapter_tuning/test_tp1_pp2.nemo' \
+                language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp1_pp2.nemo' \
+                trainer.devices=2 \
+                tensor_model_parallel_size=1 \
+                pipeline_model_parallel_size=2 \
+                data.global_batch_size=2 \
+                data.micro_batch_size=2 \
+                data.test_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl']"
+            sh "rm -rf /home/TestData/nlp/adapter_tuning/test_tp1_pp2.nemo"
+            sh "rm -rf /home/TestData/nlp/adapter_tuning/test_tp1_pp2"
+          }
+        }
+      }
+    }
+    stage('L2: Megatron T5 Adapter TP=2') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel{
+        stage('T5 Adapter tuning & inference TP=2 PP=1') {
+          steps {
+            sh "python examples/nlp/language_modeling/tuning/megatron_t5_adapter_tuning.py \
+                --config-name=megatron_t5_adapter_tuning_config \
+                name='/home/TestData/nlp/adapter_tuning/test_tp2_pp1' \
+                trainer.devices=2 \
+                trainer.max_steps=6 \
+                trainer.val_check_interval=2 \
+                trainer.max_epochs=null \
+                model.tensor_model_parallel_size=2 \
+                model.language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp2.nemo' \
+                model.existing_tasks=[] \
+                model.new_tasks=['rte'] \
+                model.data.train_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+                model.data.validation_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+                model.global_batch_size=4"
+            sh "python examples/nlp/language_modeling/tuning/megatron_t5_adapter_eval.py \
+                --config-name=megatron_t5_adapter_inference \
+                adapter_model_file='/home/TestData/nlp/adapter_tuning/test_tp2_pp1.nemo' \
+                language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp2.nemo' \
+                trainer.devices=2 \
+                tensor_model_parallel_size=2 \
+                data.global_batch_size=2 \
+                data.micro_batch_size=2 \
+                data.test_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl']"
+            sh "rm -rf /home/TestData/nlp/adapter_tuning/test_tp2_pp1.nemo"
+            sh "rm -rf /home/TestData/nlp/adapter_tuning/test_tp2_pp1"
+          }
+        }
+      }
+    }
+    stage('L2: Megatron T5 IA3 PP=2') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel{
+        stage('T5 IA3 tuning & inference TP=1 PP=2') {
+          steps {
+            sh "python examples/nlp/language_modeling/tuning/megatron_t5_ia3_tuning.py \
+                --config-name=megatron_t5_ia3_tuning_config \
+                name='/home/TestData/nlp/ia3_tuning/test_tp1_pp2' \
+                trainer.devices=2 \
+                trainer.max_steps=6 \
+                trainer.val_check_interval=2 \
+                trainer.max_epochs=null \
+                model.tensor_model_parallel_size=1 \
+                model.pipeline_model_parallel_size=2 \
+                model.language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp1_pp2.nemo' \
+                model.existing_tasks=[] \
+                model.new_tasks=['rte'] \
+                model.data.train_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+                model.data.validation_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+                model.global_batch_size=4"
+            sh "python examples/nlp/language_modeling/tuning/megatron_t5_ia3_eval.py \
+                --config-name=megatron_t5_ia3_inference \
+                adapter_model_file='/home/TestData/nlp/ia3_tuning/test_tp1_pp2.nemo' \
+                language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp1_pp2.nemo' \
+                trainer.devices=2 \
+                tensor_model_parallel_size=1 \
+                pipeline_model_parallel_size=2 \
+                data.global_batch_size=2 \
+                data.micro_batch_size=2 \
+                data.test_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl']"
+            sh "rm -rf /home/TestData/nlp/ia3_tuning/test_tp1_pp2.nemo"
+            sh "rm -rf /home/TestData/nlp/ia3_tuning/test_tp1_pp2"
+          }
+        }
+      }
+    }
+    stage('L2: Megatron T5 IA3 TP=2') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel{
+        stage('T5 IA3 tuning & inference TP=2 PP=1') {
+          steps {
+            sh "python examples/nlp/language_modeling/tuning/megatron_t5_ia3_tuning.py \
+                --config-name=megatron_t5_ia3_tuning_config \
+                name='/home/TestData/nlp/ia3_tuning/test_tp2_pp1' \
+                trainer.devices=2 \
+                trainer.max_steps=6 \
+                trainer.val_check_interval=2 \
+                trainer.max_epochs=null \
+                model.tensor_model_parallel_size=2 \
+                model.language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp2.nemo' \
+                model.existing_tasks=[] \
+                model.new_tasks=['rte'] \
+                model.data.train_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+                model.data.validation_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+                model.global_batch_size=4"
+            sh "python examples/nlp/language_modeling/tuning/megatron_t5_ia3_eval.py \
+                --config-name=megatron_t5_ia3_inference \
+                adapter_model_file='/home/TestData/nlp/ia3_tuning/test_tp2_pp1.nemo' \
+                language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp2.nemo' \
+                trainer.devices=2 \
+                tensor_model_parallel_size=2 \
+                data.global_batch_size=2 \
+                data.micro_batch_size=2 \
+                data.test_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl']"
+            sh "rm -rf /home/TestData/nlp/ia3_tuning/test_tp2_pp1.nemo"
+            sh "rm -rf /home/TestData/nlp/ia3_tuning/test_tp2_pp1"
+          }
+        }
       }
     }
     stage('L2: Megatron GPT Adapter TP=2') {
@@ -3519,6 +3683,36 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
                 data.micro_batch_size=8"
             sh "rm -rf /home/TestData/nlp/prompt_learning/t5_p_tuning_test_tp2.nemo"
             sh "rm -rf /home/TestData/nlp/prompt_learning/t5_p_tuning_test_tp2_preds.txt"
+          }
+        }
+        stage('T5 Prompt Learning TP=1 PP=2') {
+          steps {
+            sh "python examples/nlp/language_modeling/megatron_t5_prompt_learning.py \
+                --config-name=megatron_t5_prompt_learning \
+                name='/home/TestData/nlp/prompt_learning/t5_p_tuning_test_pp2' \
+                trainer.devices=2 \
+                trainer.max_steps=6 \
+                trainer.max_epochs=null \
+                model.pipeline_model_parallel_size=2 \
+                model.language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp1_pp2.nemo' \
+                model.existing_tasks=[] \
+                model.new_tasks=['squad'] \
+                model.data.train_ds=['/home/TestData/nlp/prompt_learning/squad_CI_test.jsonl'] \
+                model.data.validation_ds=['/home/TestData/nlp/prompt_learning/squad_CI_test.jsonl'] \
+                model.global_batch_size=8 \
+                model.micro_batch_size=8"
+            sh "rm -rf /home/TestData/nlp/prompt_learning/t5_p_tuning_test_pp2"
+            sh "python examples/nlp/language_modeling/megatron_t5_prompt_learning_eval.py \
+                virtual_prompt_model_file='/home/TestData/nlp/prompt_learning/t5_p_tuning_test_pp2.nemo' \
+                language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp1_pp2.nemo' \
+                data.test_ds=['/home/TestData/nlp/prompt_learning/squad_CI_test.jsonl'] \
+                pred_file_path='/home/TestData/nlp/prompt_learning/t5_p_tuning_test_pp2_preds.txt' \
+                tensor_model_parallel_size=2 \
+                trainer.devices=2 \
+                data.global_batch_size=8 \
+                data.micro_batch_size=8"
+            sh "rm -rf /home/TestData/nlp/prompt_learning/t5_p_tuning_test_pp2.nemo"
+            sh "rm -rf /home/TestData/nlp/prompt_learning/t5_p_tuning_test_pp2_preds.txt"
           }
         }
       }
