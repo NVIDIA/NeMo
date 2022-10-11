@@ -518,7 +518,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
 
     def set_input_tensor(self, input_tensor):
         pass
-    
+
     def first_stage_of_pipeline(self):
         pass
 
