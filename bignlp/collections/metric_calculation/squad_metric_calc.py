@@ -15,9 +15,13 @@
 import argparse
 import json
 import re
+import os
 import string
 from collections import Counter
-
+try:
+    from nemo.utils.get_rank import is_global_rank_zero
+except ModuleNotFoundError:
+    print("Importing NeMo module failed, checkout the NeMo submodule")
 
 """
 This script can be used to calcualte exact match and F1 scores for many different tasks, not just squad. 
@@ -135,8 +139,14 @@ def main():
     exact_match = 100.0 * exact_match / total
     f1 = 100.0 * f1 / total
 
-    print({'exact_match': exact_match, 'f1': f1, 'total': total})
-
+    metric = {'exact_match': exact_match, 'f1': f1, 'total': total}
+    if is_global_rank_zero:
+        print(metric)
+        with open(
+            os.path.join(os.path.dirname(pred_file), 'squad_metric.json'),
+            'w',
+        ) as outfile:
+            json.dump(metric, outfile)
 
 if __name__ == "__main__":
     main()

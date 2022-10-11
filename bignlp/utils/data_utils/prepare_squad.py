@@ -1,7 +1,10 @@
 import os
 import json
+import time
 from pathlib import Path
 from .download_squad import download_squad
+
+BIGNLP_CI = os.getenv("BIGNLP_CI", "False").lower() in ("true", "t", "1")
 
 def prepare_squad_for_prompt_learning(data_dir, bignlp_path):
     squad_dir = data_dir
@@ -46,6 +49,11 @@ def prepare_squad_for_fine_tuning(data_dir):
 def preprocess_squad_for_fine_tuning(fname, out_fname_prefix, dev=False):
     x = json.load(open(fname, encoding='utf8'))
     print(f"Preprocessing \"{fname}\" for fine-tuning...")
+    if os.path.exists(f'{out_fname_prefix}_src.txt') and os.path.exists(f'{out_fname_prefix}_tgt.txt'):
+        print(f"Skipped! Fine-tuning data existed at \"{out_fname_prefix}*.txt\"")
+        if BIGNLP_CI:
+            time.sleep(5)
+        return
     with open(f'{out_fname_prefix}_src.txt', 'w') as f_src, \
             open(f'{out_fname_prefix}_tgt.txt', 'w') as f_tgt:
         for i in x['data']:

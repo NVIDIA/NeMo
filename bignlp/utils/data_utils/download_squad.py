@@ -1,11 +1,13 @@
 import os
 import sys
+import time
 import shutil
 import argparse
 import io
 
 from bignlp.utils.file_utils import download_single_file
 
+BIGNLP_CI = os.getenv("BIGNLP_CI", "False").lower() in ("true", "t", "1")
 VERSIONS = ["v1.1", "v2.0", "xquad"]
 VERSION2PATHS = {
     "v1.1": [
@@ -28,6 +30,9 @@ def download_squad(data_dir, versions):
     for v in versions:
         if os.path.exists(os.path.join(data_dir, v)):
             print(f"Skipped downloading SQuAD {v}. Already exists.")
+            # download might not finish in time in CI
+            if BIGNLP_CI:
+                time.sleep(5)
             continue
 
         print(f"Downloading SQuAD {v}...")

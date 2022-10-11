@@ -1,7 +1,15 @@
 params=()
-if [[ ! -z $LOCAL_NEMO_PATH ]]; then
-  params+=("container_mounts=[${LOCAL_NEMO_PATH}:/opt/bignlp/NeMo]")
+if [[ "$TEST_TASK" = "squad_real" ]]; then
+  # Should come in here for the test prompt_learn.gpt3.126m_tp1_pp1_1node_squad_real
+  # We need container mounts and LANGUAGE MODEL PATH from the config at gitlab ci yaml file
+  params+=("container_mounts=[${CONTAINER_MOUNTS}]")
+else
+  LANGUAGE_MODEL_PATH=${BASE_RESULTS_DIR}/${CONVERT_MODEL_DIR}/results/megatron_mt5.nemo
+  if [[ ! -z $LOCAL_NEMO_PATH ]]; then
+    params+=("container_mounts=[${LOCAL_NEMO_PATH}:/opt/bignlp/NeMo]")
+  fi
 fi
+
 PP_SPLIT_RANK=${PP_SPLIT_RANK:-`expr ${PP_SIZE} / 2`}
 
 HYDRA_FULL_ERROR=1 BIGNLP_CI=1 python3 main.py \
@@ -21,7 +29,7 @@ HYDRA_FULL_ERROR=1 BIGNLP_CI=1 python3 main.py \
     evaluation.run.model_train_name=${RUN_NAME} \
     evaluation.run.results_dir=${BASE_RESULTS_DIR}/${RUN_NAME} \
     evaluation.virtual_prompt_model_file=${BASE_RESULTS_DIR}/${PROMPT_LEARN_MODEL_DIR}/results/megatron_mt5_prompt.nemo \
-    evaluation.language_model_path=${BASE_RESULTS_DIR}/${CONVERT_MODEL_DIR}/results/megatron_mt5.nemo \
+    evaluation.language_model_path=${LANGUAGE_MODEL_PATH} \
     evaluation.tensor_model_parallel_size=${TP_SIZE} \
     evaluation.pipeline_model_parallel_size=${PP_SIZE} \
     evaluation.pipeline_model_parallel_split_rank=${PP_SPLIT_RANK} \
