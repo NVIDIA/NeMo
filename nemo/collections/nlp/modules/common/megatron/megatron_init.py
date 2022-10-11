@@ -194,6 +194,7 @@ def fake_initialize_model_parallel(
     num_tensor_model_parallel_groups = world_size // tensor_model_parallel_size
     num_pipeline_model_parallel_groups = world_size // pipeline_model_parallel_size
 
+    virtual_pipeline_model_parallel_rank = None
     if virtual_pipeline_model_parallel_size_ is not None:
         virtual_pipeline_model_parallel_rank = 0
 
