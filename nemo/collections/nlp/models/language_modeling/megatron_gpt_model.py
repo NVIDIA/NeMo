@@ -445,7 +445,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             )
         if losses_reduced_per_micro_batch:
             actual_batch_size = batch['tokens'].shape[0]  # Might be lesser than global_batch_size if drop_last=False
-            expected_batch_size = self.cfg.global_batch_size / parallel_state.get_data_parallel_world_size()
+            expected_batch_size = self.cfg.global_batch_size // parallel_state.get_data_parallel_world_size()
             if actual_batch_size == expected_batch_size:
                 loss_with_batch_size_list = [
                     [loss_reduced['avg'].item(), self.cfg.micro_batch_size]
@@ -519,7 +519,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         position_ids = global_batch["position_ids"]
         expected_batch_size = None
         if global_batch_size:
-            expected_batch_size = global_batch_size / parallel_state.get_data_parallel_world_size()
+            expected_batch_size = global_batch_size // parallel_state.get_data_parallel_world_size()
         current_batch_size = tokens.shape[0]
         if expected_batch_size and expected_batch_size > current_batch_size:
             logging.info(
