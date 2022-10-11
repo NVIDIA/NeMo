@@ -15,6 +15,7 @@
 import copy
 import os
 
+import librosa
 import numpy as np
 import soundfile as sf
 import torch
@@ -441,16 +442,28 @@ class AudioBuffersDataLayer(IterableDataset):
         return 1
 
 
-def get_samples(audio_file, target_sr=16000):
+def get_samples(audio_file: str, target_sr: int = 16000):
+    """
+    Read the samples from the given audio_file path. If not specified, the input audio file is automatically
+    resampled to 16KHz.
+
+    Args:
+        audio_file (str):
+            Path to the input audio file
+        target_sr (int):
+            Targeted sampling rate
+    Returns:
+        samples (numpy.ndarray):
+            Time-series sample data from the given audio file
+    """
     with sf.SoundFile(audio_file, 'r') as f:
-        dtype = 'int16'
         sample_rate = f.samplerate
-        samples = f.read(dtype=dtype)
+        samples = f.read()
         if sample_rate != target_sr:
-            samples = librosa.core.resample(samples, sample_rate, target_sr)
-        samples = samples.astype('float32') / 32768
+            samples = librosa.core.resample(samples, orig_sr=sample_rate, target_sr=target_sr)
         samples = samples.transpose()
-        return samples
+        del f
+    return samples
 
 
 class FeatureFrameBufferer:
