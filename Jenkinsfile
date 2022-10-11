@@ -653,6 +653,7 @@ pipeline {
         }
       }
       failFast true
+      parallel{
         stage('T5 Adapter tuning & inference TP=1 PP=2') {
           steps {
             sh "python examples/nlp/language_modeling/tuning/megatron_t5_adapter_tuning.py \
@@ -684,6 +685,7 @@ pipeline {
             sh "rm -rf /home/TestData/nlp/adapter_tuning/test_tp1_pp2"
           }
         }
+      }
     }
     stage('L2: Megatron T5 Adapter TP=2') {
       when {
@@ -693,6 +695,7 @@ pipeline {
         }
       }
       failFast true
+      parallel{
         stage('T5 Adapter tuning & inference TP=2 PP=1') {
           steps {
             sh "python examples/nlp/language_modeling/tuning/megatron_t5_adapter_tuning.py \
@@ -722,6 +725,7 @@ pipeline {
             sh "rm -rf /home/TestData/nlp/adapter_tuning/test_tp2_pp1"
           }
         }
+      }
     }
     stage('L2: Megatron T5 IA3 PP=2') {
       when {
@@ -731,6 +735,7 @@ pipeline {
         }
       }
       failFast true
+      parallel{
         stage('T5 IA3 tuning & inference TP=1 PP=2') {
           steps {
             sh "python examples/nlp/language_modeling/tuning/megatron_t5_ia3_tuning.py \
@@ -762,6 +767,7 @@ pipeline {
             sh "rm -rf /home/TestData/nlp/ia3_tuning/test_tp1_pp2"
           }
         }
+      }
     }
     stage('L2: Megatron T5 IA3 TP=2') {
       when {
@@ -771,6 +777,7 @@ pipeline {
         }
       }
       failFast true
+      parallel{
         stage('T5 IA3 tuning & inference TP=2 PP=1') {
           steps {
             sh "python examples/nlp/language_modeling/tuning/megatron_t5_ia3_tuning.py \
@@ -800,83 +807,7 @@ pipeline {
             sh "rm -rf /home/TestData/nlp/ia3_tuning/test_tp2_pp1"
           }
         }
-    }
-    stage('L2: Megatron GPT IA3 TP=2') {
-      when {
-        anyOf {
-          branch 'main'
-          changeRequest target: 'main'
-        }
       }
-      failFast true
-        stage('GPT IA3 tuning & inference TP=2 PP=1') {
-          steps {
-            sh "python examples/nlp/language_modeling/tuning/megatron_gpt_ia3_tuning.py \
-                --config-name=megatron_gpt_ia3_tuning_config \
-                name='/home/TestData/nlp/ia3_tuning/test_tp2_pp1' \
-                trainer.devices=2 \
-                trainer.max_steps=6 \
-                trainer.val_check_interval=2 \
-                trainer.max_epochs=null \
-                model.tensor_model_parallel_size=2 \
-                model.language_model_path='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp2_pp1.nemo' \
-                model.existing_tasks=[] \
-                model.new_tasks=['rte'] \
-                model.data.train_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
-                model.data.validation_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
-                model.global_batch_size=4"
-            sh "python examples/nlp/language_modeling/tuning/megatron_gpt_ia3_eval.py \
-                --config-name=megatron_gpt_ia3_inference \
-                adapter_model_file='/home/TestData/nlp/ia3_tuning/test_tp2_pp1.nemo' \
-                gpt_model_file='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp2_pp1.nemo' \
-                inference.greedy=True \
-                inference.add_BOS=False \
-                trainer.devices=2 \
-                tensor_model_parallel_size=2 \
-                data_paths=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl']"
-            sh "rm -rf /home/TestData/nlp/ia3_tuning/test_tp2_pp1.nemo"
-            sh "rm -rf /home/TestData/nlp/ia3_tuning/test_tp2_pp1"
-          }
-        }
-    }
-    stage('L2: Megatron GPT IA3 PP=2') {
-      when {
-        anyOf {
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      failFast true
-        stage('GPT IA3 tuning & inference TP=1 PP=2') {
-          steps {
-            sh "python examples/nlp/language_modeling/tuning/megatron_gpt_ia3_tuning.py \
-                --config-name=megatron_gpt_ia3_tuning_config \
-                name='/home/TestData/nlp/ia3_tuning/test_tp1_pp2' \
-                trainer.devices=2 \
-                trainer.max_steps=6 \
-                trainer.val_check_interval=2 \
-                trainer.max_epochs=null \
-                model.tensor_model_parallel_size=1 \
-                model.pipeline_model_parallel_size=2 \
-                model.language_model_path='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp1_pp2.nemo' \
-                model.existing_tasks=[] \
-                model.new_tasks=['rte'] \
-                model.data.train_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
-                model.data.validation_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
-                model.global_batch_size=4"
-            sh "python examples/nlp/language_modeling/tuning/megatron_gpt_ia3_eval.py \
-                --config-name=megatron_gpt_ia3_inference \
-                adapter_model_file='/home/TestData/nlp/ia3_tuning/test_tp1_pp2.nemo' \
-                gpt_model_file='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp1_pp2.nemo' \
-                inference.greedy=True \
-                inference.add_BOS=False \
-                trainer.devices=2 \
-                tensor_model_parallel_size=2 \
-                data_paths=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl']"
-            sh "rm -rf /home/TestData/nlp/ia3_tuning/test_tp1_pp2.nemo"
-            sh "rm -rf /home/TestData/nlp/ia3_tuning/test_tp1_pp2"
-          }
-        }
     }
     stage('L2: Megatron GPT Adapter TP=2') {
       when {
@@ -886,6 +817,7 @@ pipeline {
         }
       }
       failFast true
+      parallel{
         stage('GPT Adapter tuning & inference TP=2 PP=1') {
           steps {
             sh "python examples/nlp/language_modeling/tuning/megatron_gpt_adapter_tuning.py \
@@ -915,6 +847,7 @@ pipeline {
             sh "rm -rf /home/TestData/nlp/adapter_tuning/test_tp2_pp1"
           }
         }
+      }
     }
     stage('L2: Megatron GPT Adapter PP=2') {
       when {
@@ -924,6 +857,7 @@ pipeline {
         }
       }
       failFast true
+      parallel{
         stage('GPT Adapter tuning & inference TP=1 PP=2') {
           steps {
             sh "python examples/nlp/language_modeling/tuning/megatron_gpt_adapter_tuning.py \
@@ -954,6 +888,7 @@ pipeline {
             sh "rm -rf /home/TestData/nlp/adapter_tuning/test_tp1_pp2"
           }
         }
+      }
     }
     stage('L2: Speech Transcription') {
       when {
