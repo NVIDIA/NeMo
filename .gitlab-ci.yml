@@ -247,11 +247,11 @@ release_perf:
     # Will come in here from gpt3 and prompt_gpt3
     - if [[ "$RUN_STAGE" = "eval" ]]; then
         if [[ "$RUN_MODEL" == "gpt3" || "$RUN_MODEL" == "prompt_gpt3" ]]; then
-          TEST_FILE="test_gpt3_eval_pipeline.py"
+          TEST_FILE="test_gpt3_eval_pipeline.py";
         elif [[ "$RUN_MODEL" == "prompt"* || "$RUN_MODEL" == "ia3"* || "$RUN_MODEL" == "adapter"* ]]; then
-          TEST_FILE="test_prompt_eval_pipeline.py"
+          TEST_FILE="test_prompt_eval_pipeline.py";
         else
-          TEST_FILE="test_eval_pipeline.py"
+          TEST_FILE="test_eval_pipeline.py";
         fi
       fi
     - pytest tests/ci_tests/selene/pytest/${RUN_STAGE}/${TEST_FILE}
