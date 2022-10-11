@@ -1,6 +1,6 @@
 import collections
 import re
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from processors.base_processor import DataEntry
 from processors.modify_manifest.modify_manifest import ModifyManifestTextProcessor
