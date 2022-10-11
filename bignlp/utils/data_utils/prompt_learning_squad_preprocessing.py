@@ -14,6 +14,8 @@
 
 import argparse
 import json
+import os
+import time
 
 from tqdm import tqdm
 
@@ -46,6 +48,7 @@ An example of the processed output written to file:
 
 """
 
+BIGNLP_CI = os.getenv("BIGNLP_CI", "False").lower() in ("true", "t", "1")
 
 def main():
     parser = argparse.ArgumentParser()
@@ -125,8 +128,12 @@ def gen_file(data, save_name_base, split_type, make_ground_truth=False):
     if make_ground_truth:
         save_path = f"{save_name_base}_{split_type}_ground_truth.jsonl"
 
+    if os.path.exists(save_path):
+        print(f"Skipped! {split_type} split exists in {save_path}")
+        if BIGNLP_CI:
+            time.sleep(5)
+        return
     print(f"Saving {split_type} split to {save_path}")
-
     with open(save_path, 'w') as save_file:
         for example_json in tqdm(data):
 

@@ -1,27 +1,33 @@
 params=()
-if [[ $MAX_STEPS -le 100 ]]; then # If greater than hundred we use defaults set in the training config file.
-  LOG_EVERY_N_STEPS=`expr $MAX_STEPS / 100`
-  VAL_CHECK_INTERVAL=`expr $MAX_STEPS / 5`
-  params+=(fine_tuning.trainer.log_every_n_steps=$LOG_EVERY_N_STEPS)
-  params+=(fine_tuning.trainer.val_check_interval=$VAL_CHECK_INTERVAL)
-  UPSTREAM_RUN_NAME=convert_${RUN_MODEL}_${RUN_MODEL_SIZE}_tp${TP_SIZE}_pp${PP_SIZE}
-  if [[ ! -z "$RUN_NAME_SUFFIX" ]]; then export UPSTREAM_RUN_NAME=${UPSTREAM_RUN_NAME}_${RUN_NAME_SUFFIX}; fi
-  LANGUAGE_MODEL_PATH=${BASE_RESULTS_DIR}/${UPSTREAM_RUN_NAME}/results/megatron_mt5.nemo
-fi
-if [[ ! -z $LOCAL_NEMO_PATH ]]; then
-  params+=("container_mounts=[${LOCAL_NEMO_PATH}:/opt/bignlp/NeMo]")
+
+if [[ "$TEST_TASK" = "xquad_real" ]]; then
+  # Should come in here for the test prompt_learn.gpt3.126m_tp1_pp1_1node_squad_real
+  # We need container mounts and LANGUAGE MODEL PATH from the config at gitlab ci yaml file
+  params+=("container_mounts=[${CONTAINER_MOUNTS}]")
+else
+  if [[ $MAX_STEPS -le 100 ]]; then # If greater than hundred we use defaults set in the training config file.
+    LOG_EVERY_N_STEPS=`expr $MAX_STEPS / 100`
+    VAL_CHECK_INTERVAL=`expr $MAX_STEPS / 5`
+    params+=(fine_tuning.trainer.log_every_n_steps=$LOG_EVERY_N_STEPS)
+    params+=(fine_tuning.trainer.val_check_interval=$VAL_CHECK_INTERVAL)
+    UPSTREAM_RUN_NAME=convert_${RUN_MODEL}_${RUN_MODEL_SIZE}_tp${TP_SIZE}_pp${PP_SIZE}
+    if [[ ! -z "$RUN_NAME_SUFFIX" ]]; then export UPSTREAM_RUN_NAME=${UPSTREAM_RUN_NAME}_${RUN_NAME_SUFFIX}; fi
+    LANGUAGE_MODEL_PATH=${BASE_RESULTS_DIR}/${UPSTREAM_RUN_NAME}/results/megatron_mt5.nemo
+  fi
+  if [[ ! -z $LOCAL_NEMO_PATH ]]; then
+    params+=("container_mounts=[${LOCAL_NEMO_PATH}:/opt/bignlp/NeMo]")
+  fi
 fi
 PP_SPLIT_RANK=${PP_SPLIT_RANK:-`expr ${PP_SIZE} / 2`}
 MICRO_BATH_SIZE=$((16 * TP_SIZE * PP_SIZE / NUM_NODES))
 
-if [[ ${TEST_TASK} != "xquad" ]]; then
-  params+=(++fine_tuning.model.data.test_ds.micro_batch_size=${MICRO_BATH_SIZE})
-fi
+# For glue tasks, this should be added.
+# params+=(++fine_tuning.model.data.test_ds.micro_batch_size=${MICRO_BATH_SIZE})
 
 set -o xtrace
 
 HYDRA_FULL_ERROR=1 BIGNLP_CI=1 python3 main.py \
-    fine_tuning=${RUN_MODEL}/${TEST_TASK} \
+    fine_tuning=${RUN_MODEL}/xquad \
     stages=["fine_tuning"] \
     bignlp_path=${GIT_CLONE_PATH} \
     data_dir=${BASE_RESULTS_DIR}/data \

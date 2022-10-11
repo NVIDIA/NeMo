@@ -49,7 +49,7 @@ class LossTestingPipeline:
         # Expected training loss curve at different global steps.
         self._test_loss_helper("reduced_train_loss", TypeOfTest.DETERMINISTIC)
 
-    def test__train_loss_approx(self):
+    def test_train_loss_approx(self):
         # Expected training loss curve at different global steps.
         self._test_loss_helper("reduced_train_loss", TypeOfTest.APPROX)
 

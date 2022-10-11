@@ -769,7 +769,7 @@ class NeMoEvaluation(NeMoStage):
             )
             split_string = self.stage_cfg.get("split_string", None)
             if split_string:
-                args += create_args_list(split_string=split_string)
+                args += create_args_list(split_string=f"'{split_string}'")
             calculation_command = [f"python3 {code_path}", *args]
             calculation_command = " \\\n  ".join(calculation_command)
         elif choice_name == "squad":

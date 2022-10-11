@@ -245,7 +245,15 @@ release_perf:
     - pip3 install pytest
     - TEST_FILE=test_${RUN_STAGE}_pipeline.py
     # Will come in here from gpt3 and prompt_gpt3
-    - if [[ "$RUN_STAGE" = "eval" && "$RUN_MODEL" == *"gpt3"* ]]; then TEST_FILE="test_gpt3_eval_pipeline.py"; fi
+    - if [[ "$RUN_STAGE" = "eval" ]]; then
+        if [[ "$RUN_MODEL" == "gpt3" || "$RUN_MODEL" == "prompt_gpt3" ]]; then
+          TEST_FILE="test_gpt3_eval_pipeline.py"
+        elif [[ "$RUN_MODEL" == "prompt"* || "$RUN_MODEL" == "ia3"* || "$RUN_MODEL" == "adapter"* ]]; then
+          TEST_FILE="test_prompt_eval_pipeline.py"
+        else
+          TEST_FILE="test_eval_pipeline.py"
+        fi
+      fi
     - pytest tests/ci_tests/selene/pytest/${RUN_STAGE}/${TEST_FILE}
     - echo "Finished pytest job"
     # Update permission and open to all
@@ -257,7 +265,6 @@ release_perf:
     - if: '$CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH && $TEST_LEVEL =~ $TESTS_TO_RUN_AFTER_MERGING'
       when: always
   allow_failure: false
-
 
 train.gpt3.126m_tp1_pp1_1node_100steps:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
@@ -1042,7 +1049,7 @@ prompt_learn.gpt3.126m_tp1_pp1_1node_squad_real:
     RUN_MODEL_SIZE: 126m
     TEST_TASK: squad_real
     LANGUAGE_MODEL_PATH: /lustre/fsw/joc/big_nlp/bignlp_ci_resources/checkpoints/gpt3_126m_bf16_O2_tp1_pp1.nemo
-    CONTAINER_MOUNTS: "/lustre/fsw/joc/big_nlp/bignlp_ci_resources:/lustre/fsw/joc/big_nlp/bignlp_ci_resources,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data"
+    CONTAINER_MOUNTS: "/lustre/fsw/joc/big_nlp/bignlp_ci_resources:/lustre/fsw/joc/big_nlp/bignlp_ci_resources,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5"
     TP_SIZE: 1
     PP_SIZE: 1
     NUM_NODES: 1
@@ -2186,3 +2193,464 @@ eval.mt5.prompt_390m_tp4_pp1_squad:
     TEST_LEVEL: L1
   needs:
     - prompt_learn.mt5.390m_tp4_pp1_1node_100steps_squad
+
+prompt_learn.mt5.390m_tp1_pp1_1node_squad_real_m040802:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: prompt_learn
+    RUN_MODEL: mt5
+    RUN_MODEL_SIZE: 390m
+    RUN_NAME_SUFFIX: "m040802"
+    TEST_TASK: squad_real
+    LANGUAGE_MODEL_PATH: /lustre/fsw/joc/big_nlp/bignlp_ci_resources/checkpoints/mt5_m040802_base_bf16_O2_adam_geglu_alpha07.nemo
+    CONTAINER_MOUNTS: "/lustre/fsw/joc/big_nlp/bignlp_ci_resources:/lustre/fsw/joc/big_nlp/bignlp_ci_resources,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5"
+    TP_SIZE: 1
+    PP_SIZE: 1
+    PP_SPLIT_RANK: 0
+    NUM_NODES: 1
+    TIME_LIMIT: "04:00:00"
+    TEST_LEVEL: L3
+
+eval.mt5.prompt_390m_tp1_pp1_squad_real_m040802:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: eval
+    RUN_MODEL: prompt_mt5
+    RUN_MODEL_SIZE: 390m
+    RUN_NAME_SUFFIX: "m040802"
+    TEST_TASK: squad_real
+    TP_SIZE: 1
+    PP_SIZE: 1
+    PP_SPLIT_RANK: 0
+    PROMPT_LEARN_MODEL_DIR: prompt_learn_mt5_390m_tp1_pp1_1node_squad_real_m040802
+    LANGUAGE_MODEL_PATH: /lustre/fsw/joc/big_nlp/bignlp_ci_resources/checkpoints/mt5_m040802_base_bf16_O2_adam_geglu_alpha07.nemo
+    CONTAINER_MOUNTS: "/lustre/fsw/joc/big_nlp/bignlp_ci_resources:/lustre/fsw/joc/big_nlp/bignlp_ci_resources,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5"
+    TIME_LIMIT: "01:00:00"
+    TEST_LEVEL: L3
+  needs:
+    - prompt_learn.mt5.390m_tp1_pp1_1node_squad_real_m040802
+
+prompt_learn.mt5.390m_tp1_pp1_1node_squad_real_m070501_RPE:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: prompt_learn
+    RUN_MODEL: mt5
+    RUN_MODEL_SIZE: 390m
+    RUN_NAME_SUFFIX: "m070501_RPE"
+    TEST_TASK: squad_real
+    LANGUAGE_MODEL_PATH: /lustre/fsw/joc/big_nlp/bignlp_ci_resources/checkpoints/mt5_m070501_220m_bf16_O2_NN8_tp1_pp1_gbs2048_mbs32_ln_rpe.nemo
+    CONTAINER_MOUNTS: "/lustre/fsw/joc/big_nlp/bignlp_ci_resources:/lustre/fsw/joc/big_nlp/bignlp_ci_resources,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5"
+    TP_SIZE: 1
+    PP_SIZE: 1
+    PP_SPLIT_RANK: 0
+    NUM_NODES: 1
+    TIME_LIMIT: "04:00:00"
+    TEST_LEVEL: L3
+
+eval.mt5.prompt_390m_tp1_pp1_squad_real_m070501_RPE:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: eval
+    RUN_MODEL: prompt_mt5
+    RUN_MODEL_SIZE: 390m
+    RUN_NAME_SUFFIX: "m070501_RPE"
+    TEST_TASK: squad_real
+    TP_SIZE: 1
+    PP_SIZE: 1
+    PP_SPLIT_RANK: 0
+    PROMPT_LEARN_MODEL_DIR: prompt_learn_mt5_390m_tp1_pp1_1node_squad_real_m070501_RPE
+    LANGUAGE_MODEL_PATH: /lustre/fsw/joc/big_nlp/bignlp_ci_resources/checkpoints/mt5_m070501_220m_bf16_O2_NN8_tp1_pp1_gbs2048_mbs32_ln_rpe.nemo
+    CONTAINER_MOUNTS: "/lustre/fsw/joc/big_nlp/bignlp_ci_resources:/lustre/fsw/joc/big_nlp/bignlp_ci_resources,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5"
+    TIME_LIMIT: "01:00:00"
+    TEST_LEVEL: L3
+  needs:
+    - prompt_learn.mt5.390m_tp1_pp1_1node_squad_real_m070501_RPE
+
+prompt_learn.mt5.3b_tp2_pp1_1node_squad_real_m040803:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: prompt_learn
+    RUN_MODEL: mt5
+    RUN_MODEL_SIZE: 3b
+    RUN_NAME_SUFFIX: "m040803"
+    TEST_TASK: squad_real
+    LANGUAGE_MODEL_PATH: /lustre/fsw/joc/big_nlp/bignlp_ci_resources/checkpoints/mt5_m040803_XL_bf16_O2_adam_geglu_alpha07.nemo
+    CONTAINER_MOUNTS: "/lustre/fsw/joc/big_nlp/bignlp_ci_resources:/lustre/fsw/joc/big_nlp/bignlp_ci_resources,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5"
+    TP_SIZE: 2
+    PP_SIZE: 1
+    PP_SPLIT_RANK: 0
+    NUM_NODES: 2
+    TIME_LIMIT: "04:00:00"
+    TEST_LEVEL: L3
+
+eval.mt5.prompt_3b_tp2_pp1_squad_real_m040803:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: eval
+    RUN_MODEL: prompt_mt5
+    RUN_MODEL_SIZE: 3b
+    RUN_NAME_SUFFIX: "m040803"
+    TEST_TASK: squad_real
+    TP_SIZE: 2
+    PP_SIZE: 1
+    PP_SPLIT_RANK: 0
+    PROMPT_LEARN_MODEL_DIR: prompt_learn_mt5_3b_tp2_pp1_2node_squad_real_m040803
+    LANGUAGE_MODEL_PATH: /lustre/fsw/joc/big_nlp/bignlp_ci_resources/checkpoints/mt5_m040803_XL_bf16_O2_adam_geglu_alpha07.nemo
+    CONTAINER_MOUNTS: "/lustre/fsw/joc/big_nlp/bignlp_ci_resources:/lustre/fsw/joc/big_nlp/bignlp_ci_resources,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5"
+    TIME_LIMIT: "01:00:00"
+    TEST_LEVEL: L3
+  needs:
+    - prompt_learn.mt5.3b_tp2_pp1_1node_squad_real_m040803
+
+
+prompt_learn.mt5.170m_tp1_pp1_1node_squad_real_m040801:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: prompt_learn
+    RUN_MODEL: mt5
+    RUN_MODEL_SIZE: 170m
+    RUN_NAME_SUFFIX: "m040801"
+    TEST_TASK: squad_real
+    LANGUAGE_MODEL_PATH: /lustre/fsw/joc/big_nlp/bignlp_ci_resources/checkpoints/mt5_m040801_small_bf16_O2_adam_geglu_alpha07.nemo
+    CONTAINER_MOUNTS: "/lustre/fsw/joc/big_nlp/bignlp_ci_resources:/lustre/fsw/joc/big_nlp/bignlp_ci_resources,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5"
+    TP_SIZE: 1
+    PP_SIZE: 1
+    PP_SPLIT_RANK: 0
+    NUM_NODES: 1
+    TIME_LIMIT: "04:00:00"
+    TEST_LEVEL: L3
+
+eval.mt5.prompt_170m_tp1_pp1_squad_real_m040801:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: eval
+    RUN_MODEL: prompt_mt5
+    RUN_MODEL_SIZE: 170m
+    RUN_NAME_SUFFIX: "m040801"
+    TEST_TASK: squad_real
+    TP_SIZE: 1
+    PP_SIZE: 1
+    PP_SPLIT_RANK: 0
+    PROMPT_LEARN_MODEL_DIR: prompt_learn_mt5_170m_tp1_pp1_1node_squad_real_m040801
+    LANGUAGE_MODEL_PATH: /lustre/fsw/joc/big_nlp/bignlp_ci_resources/checkpoints/mt5_m040801_small_bf16_O2_adam_geglu_alpha07.nemo
+    CONTAINER_MOUNTS: "/lustre/fsw/joc/big_nlp/bignlp_ci_resources:/lustre/fsw/joc/big_nlp/bignlp_ci_resources,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5"
+    TIME_LIMIT: "01:00:00"
+    TEST_LEVEL: L3
+  needs:
+    - prompt_learn.mt5.170m_tp1_pp1_1node_squad_real_m040801
+
+
+prompt_learn.t5.220m_tp1_pp1_1node_squad_real_n050402:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: prompt_learn
+    RUN_MODEL: t5
+    RUN_MODEL_SIZE: 220m
+    RUN_NAME_SUFFIX: "n050402"
+    TEST_TASK: squad_real
+    LANGUAGE_MODEL_PATH: /lustre/fsw/joc/big_nlp/bignlp_ci_resources/checkpoints/t5_n050402_220m_bf16_O2_geglu_rms_bias.nemo
+    CONTAINER_MOUNTS: "/lustre/fsw/joc/big_nlp/bignlp_ci_resources:/lustre/fsw/joc/big_nlp/bignlp_ci_resources,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5"
+    TP_SIZE: 1
+    PP_SIZE: 1
+    PP_SPLIT_RANK: 0
+    NUM_NODES: 1
+    TIME_LIMIT: "04:00:00"
+    TEST_LEVEL: L3
+
+eval.t5.prompt_220m_tp1_pp1_squad_real_n050402:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: eval
+    RUN_MODEL: prompt_t5
+    RUN_MODEL_SIZE: 220m
+    RUN_NAME_SUFFIX: "n050402"
+    TEST_TASK: squad_real
+    TP_SIZE: 1
+    PP_SIZE: 1
+    PP_SPLIT_RANK: 0
+    PROMPT_LEARN_MODEL_DIR: prompt_learn_t5_220m_tp1_pp1_1node_squad_real_n050402
+    LANGUAGE_MODEL_PATH: /lustre/fsw/joc/big_nlp/bignlp_ci_resources/checkpoints/t5_n050402_220m_bf16_O2_geglu_rms_bias.nemo
+    CONTAINER_MOUNTS: "/lustre/fsw/joc/big_nlp/bignlp_ci_resources:/lustre/fsw/joc/big_nlp/bignlp_ci_resources,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5"
+    TIME_LIMIT: "01:00:00"
+    TEST_LEVEL: L3
+  needs:
+    - prompt_learn.t5.220m_tp1_pp1_1node_squad_real_n050402
+
+
+prompt_learn.t5.3b_tp2_pp1_1node_squad_real_n030801:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: prompt_learn
+    RUN_MODEL: t5
+    RUN_MODEL_SIZE: 3b
+    RUN_NAME_SUFFIX: "n030801"
+    TEST_TASK: squad_real
+    LANGUAGE_MODEL_PATH: /lustre/fsw/joc/big_nlp/bignlp_ci_resources/checkpoints/t5_n030801_3b_bf16_tp2_O1_release.nemo
+    CONTAINER_MOUNTS: "/lustre/fsw/joc/big_nlp/bignlp_ci_resources:/lustre/fsw/joc/big_nlp/bignlp_ci_resources,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5"
+    TP_SIZE: 2
+    PP_SIZE: 1
+    PP_SPLIT_RANK: 0
+    NUM_NODES: 2
+    TIME_LIMIT: "04:00:00"
+    TEST_LEVEL: L3
+
+eval.t5.prompt_3b_tp2_pp1_squad_real_n030801:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: eval
+    RUN_MODEL: prompt_t5
+    RUN_MODEL_SIZE: 3b
+    RUN_NAME_SUFFIX: "n030801"
+    TEST_TASK: squad_real
+    TP_SIZE: 2
+    PP_SIZE: 1
+    PP_SPLIT_RANK: 0
+    PROMPT_LEARN_MODEL_DIR: prompt_learn_t5_3b_tp2_pp1_2node_squad_real_n030801
+    LANGUAGE_MODEL_PATH: /lustre/fsw/joc/big_nlp/bignlp_ci_resources/checkpoints/t5_n030801_3b_bf16_tp2_O1_release.nemo
+    CONTAINER_MOUNTS: "/lustre/fsw/joc/big_nlp/bignlp_ci_resources:/lustre/fsw/joc/big_nlp/bignlp_ci_resources,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5"
+    TIME_LIMIT: "01:00:00"
+    TEST_LEVEL: L3
+  needs:
+    - prompt_learn.t5.3b_tp2_pp1_1node_squad_real_n030801
+
+finetune.t5.220m_tp1_pp1_1node_squad_real_n050402:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: finetune
+    RUN_MODEL: t5
+    RUN_MODEL_SIZE: 220m
+    RUN_NAME_SUFFIX: "n050402"
+    TEST_TASK: squad_real
+    LANGUAGE_MODEL_PATH: /lustre/fsw/joc/big_nlp/bignlp_ci_resources/checkpoints/t5_n050402_220m_bf16_O2_geglu_rms_bias.nemo
+    CONTAINER_MOUNTS: "/lustre/fsw/joc/big_nlp/bignlp_ci_resources:/lustre/fsw/joc/big_nlp/bignlp_ci_resources,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5"
+    TP_SIZE: 1
+    PP_SIZE: 1
+    PP_SPLIT_RANK: 0
+    NUM_NODES: 1
+    MAX_STEPS: -1
+    TIME_LIMIT: "04:00:00"
+    TEST_LEVEL: L3
+
+eval.t5.220m_tp1_pp1_squad_real_n050402:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: eval
+    RUN_MODEL: t5
+    RUN_MODEL_SIZE: 220m
+    RUN_NAME_SUFFIX: "n050402"
+    TEST_TASK: squad_real
+    TP_SIZE: 1
+    PP_SIZE: 1
+    PP_SPLIT_RANK: 0
+    FINETUNE_JOB_DIR: finetune_t5_220m_tp1_pp1_1node_-1steps_squad_real_n050402
+    CONTAINER_MOUNTS: "/lustre/fsw/joc/big_nlp/bignlp_ci_resources:/lustre/fsw/joc/big_nlp/bignlp_ci_resources,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5"
+    TIME_LIMIT: "01:00:00"
+    TEST_LEVEL: L3
+  needs:
+    - finetune.t5.220m_tp1_pp1_1node_squad_real_n050402
+
+finetune.t5.3b_tp2_pp1_1node_squad_real_n030801:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: finetune
+    RUN_MODEL: t5
+    RUN_MODEL_SIZE: 3b
+    RUN_NAME_SUFFIX: "n030801"
+    TEST_TASK: squad_real
+    LANGUAGE_MODEL_PATH: /lustre/fsw/joc/big_nlp/bignlp_ci_resources/checkpoints/t5_n030801_3b_bf16_tp2_O1_release.nemo
+    CONTAINER_MOUNTS: "/lustre/fsw/joc/big_nlp/bignlp_ci_resources:/lustre/fsw/joc/big_nlp/bignlp_ci_resources,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5"
+    TP_SIZE: 2
+    PP_SIZE: 1
+    PP_SPLIT_RANK: 0
+    NUM_NODES: 2
+    MAX_STEPS: -1
+    TIME_LIMIT: "04:00:00"
+    TEST_LEVEL: L3
+
+eval.t5.3b_tp2_pp1_squad_real_n030801:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: eval
+    RUN_MODEL: t5
+    RUN_MODEL_SIZE: 3b
+    RUN_NAME_SUFFIX: "n030801"
+    TEST_TASK: squad_real
+    TP_SIZE: 2
+    PP_SIZE: 1
+    PP_SPLIT_RANK: 0
+    FINETUNE_JOB_DIR: finetune_t5_3b_tp2_pp1_2node_-1steps_squad_real_n030801
+    CONTAINER_MOUNTS: "/lustre/fsw/joc/big_nlp/bignlp_ci_resources:/lustre/fsw/joc/big_nlp/bignlp_ci_resources,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5"
+    TIME_LIMIT: "01:00:00"
+    TEST_LEVEL: L3
+  needs:
+    - finetune.t5.3b_tp2_pp1_1node_squad_real_n030801
+
+
+finetune.mt5.390m_tp1_pp1_1node_xquad_real_m040802:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: finetune
+    RUN_MODEL: mt5
+    RUN_MODEL_SIZE: 390m
+    RUN_NAME_SUFFIX: "m040802"
+    TEST_TASK: xquad_real
+    LANGUAGE_MODEL_PATH: /lustre/fsw/joc/big_nlp/bignlp_ci_resources/checkpoints/mt5_m040802_base_bf16_O2_adam_geglu_alpha07.nemo
+    CONTAINER_MOUNTS: "/lustre/fsw/joc/big_nlp/bignlp_ci_resources:/lustre/fsw/joc/big_nlp/bignlp_ci_resources,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5"
+    TP_SIZE: 1
+    PP_SIZE: 1
+    PP_SPLIT_RANK: 0
+    NUM_NODES: 1
+    MAX_STEPS: -1
+    TIME_LIMIT: "04:00:00"
+    TEST_LEVEL: L3
+
+eval.mt5.390m_tp1_pp1_xquad_real_m040802:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: eval
+    RUN_MODEL: mt5
+    RUN_MODEL_SIZE: 390m
+    RUN_NAME_SUFFIX: "m040802"
+    TEST_TASK: xquad_real
+    TP_SIZE: 1
+    PP_SIZE: 1
+    PP_SPLIT_RANK: 0
+    FINETUNE_JOB_DIR: finetune_mt5_390m_tp1_pp1_1node_-1steps_xquad_real_m040802
+    CONTAINER_MOUNTS: "/lustre/fsw/joc/big_nlp/bignlp_ci_resources:/lustre/fsw/joc/big_nlp/bignlp_ci_resources,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5"
+    TIME_LIMIT: "01:00:00"
+    TEST_LEVEL: L3
+  needs:
+    - finetune.mt5.390m_tp1_pp1_1node_xquad_real_m040802
+
+finetune.mt5.390m_tp1_pp1_1node_xquad_real_m070501_RPE:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: finetune
+    RUN_MODEL: mt5
+    RUN_MODEL_SIZE: 390m
+    RUN_NAME_SUFFIX: "m070501_RPE"
+    TEST_TASK: xquad_real
+    LANGUAGE_MODEL_PATH: /lustre/fsw/joc/big_nlp/bignlp_ci_resources/checkpoints/mt5_m070501_220m_bf16_O2_NN8_tp1_pp1_gbs2048_mbs32_ln_rpe.nemo
+    CONTAINER_MOUNTS: "/lustre/fsw/joc/big_nlp/bignlp_ci_resources:/lustre/fsw/joc/big_nlp/bignlp_ci_resources,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5"
+    TP_SIZE: 1
+    PP_SIZE: 1
+    PP_SPLIT_RANK: 0
+    NUM_NODES: 1
+    MAX_STEPS: -1
+    TIME_LIMIT: "04:00:00"
+    TEST_LEVEL: L3
+
+eval.mt5.390m_tp1_pp1_xquad_real_m070501_RPE:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: eval
+    RUN_MODEL: mt5
+    RUN_MODEL_SIZE: 390m
+    RUN_NAME_SUFFIX: "m070501_RPE"
+    TEST_TASK: xquad_real
+    TP_SIZE: 1
+    PP_SIZE: 1
+    PP_SPLIT_RANK: 0
+    FINETUNE_JOB_DIR: finetune_mt5_390m_tp1_pp1_1node_-1steps_xquad_real_m070501_RPE
+    CONTAINER_MOUNTS: "/lustre/fsw/joc/big_nlp/bignlp_ci_resources:/lustre/fsw/joc/big_nlp/bignlp_ci_resources,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5"
+    TIME_LIMIT: "01:00:00"
+    TEST_LEVEL: L3
+  needs:
+    - finetune.mt5.390m_tp1_pp1_1node_xquad_real_m070501_RPE
+
+finetune.mt5.3b_tp2_pp1_1node_xquad_real_m040803:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: finetune
+    RUN_MODEL: mt5
+    RUN_MODEL_SIZE: 3b
+    RUN_NAME_SUFFIX: "m040803"
+    TEST_TASK: xquad_real
+    LANGUAGE_MODEL_PATH: /lustre/fsw/joc/big_nlp/bignlp_ci_resources/checkpoints/mt5_m040803_XL_bf16_O2_adam_geglu_alpha07.nemo
+    CONTAINER_MOUNTS: "/lustre/fsw/joc/big_nlp/bignlp_ci_resources:/lustre/fsw/joc/big_nlp/bignlp_ci_resources,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5"
+    TP_SIZE: 2
+    PP_SIZE: 1
+    PP_SPLIT_RANK: 0
+    NUM_NODES: 2
+    MAX_STEPS: -1
+    TIME_LIMIT: "04:00:00"
+    TEST_LEVEL: L3
+
+eval.mt5.3b_tp2_pp1_xquad_real_m040803:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: eval
+    RUN_MODEL: mt5
+    RUN_MODEL_SIZE: 3b
+    RUN_NAME_SUFFIX: "m040803"
+    TEST_TASK: xquad_real
+    TP_SIZE: 2
+    PP_SIZE: 1
+    PP_SPLIT_RANK: 0
+    FINETUNE_JOB_DIR: finetune_mt5_3b_tp2_pp1_2node_-1steps_xquad_real_m040803
+    CONTAINER_MOUNTS: "/lustre/fsw/joc/big_nlp/bignlp_ci_resources:/lustre/fsw/joc/big_nlp/bignlp_ci_resources,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5"
+    TIME_LIMIT: "01:00:00"
+    TEST_LEVEL: L3
+  needs:
+    - finetune.mt5.3b_tp2_pp1_1node_xquad_real_m040803
+
+
+finetune.mt5.170m_tp1_pp1_1node_xquad_real_m040801:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: finetune
+    RUN_MODEL: mt5
+    RUN_MODEL_SIZE: 170m
+    RUN_NAME_SUFFIX: "m040801"
+    TEST_TASK: xquad_real
+    LANGUAGE_MODEL_PATH: /lustre/fsw/joc/big_nlp/bignlp_ci_resources/checkpoints/mt5_m040801_small_bf16_O2_adam_geglu_alpha07.nemo
+    CONTAINER_MOUNTS: "/lustre/fsw/joc/big_nlp/bignlp_ci_resources:/lustre/fsw/joc/big_nlp/bignlp_ci_resources,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5"
+    TP_SIZE: 1
+    PP_SIZE: 1
+    PP_SPLIT_RANK: 0
+    NUM_NODES: 1
+    MAX_STEPS: -1
+    TIME_LIMIT: "04:00:00"
+    TEST_LEVEL: L3
+
+eval.mt5.170m_tp1_pp1_xquad_real_m040801:
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_STAGE: eval
+    RUN_MODEL: mt5
+    RUN_MODEL_SIZE: 170m
+    RUN_NAME_SUFFIX: "m040801"
+    TEST_TASK: xquad_real
+    TP_SIZE: 1
+    PP_SIZE: 1
+    PP_SPLIT_RANK: 0
+    FINETUNE_JOB_DIR: finetune_mt5_170m_tp1_pp1_1node_-1steps_xquad_real_m040801
+    CONTAINER_MOUNTS: "/lustre/fsw/joc/big_nlp/bignlp_ci_resources:/lustre/fsw/joc/big_nlp/bignlp_ci_resources,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_mt5"
+    TIME_LIMIT: "01:00:00"
+    TEST_LEVEL: L3
+  needs:
+    - finetune.mt5.170m_tp1_pp1_1node_xquad_real_m040801

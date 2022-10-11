@@ -1,12 +1,18 @@
 params=()
-if [[ ! -z $LOCAL_NEMO_PATH ]]; then
-  params+=("container_mounts=[${LOCAL_NEMO_PATH}:/opt/bignlp/NeMo]")
+if [[ "$TEST_TASK" = "squad_real" ]]; then
+  # Should come in here for the test prompt_learn.gpt3.126m_tp1_pp1_1node_squad_real
+  # We need container mounts and LANGUAGE MODEL PATH from the config at gitlab ci yaml file
+  params+=("container_mounts=[${CONTAINER_MOUNTS}]")
+else
+  if [[ ! -z $LOCAL_NEMO_PATH ]]; then
+    params+=("container_mounts=[${LOCAL_NEMO_PATH}:/opt/bignlp/NeMo]")
+  fi
 fi
 set -o xtrace
 PP_SPLIT_RANK=${PP_SPLIT_RANK:-`expr ${PP_SIZE} / 2`}
 
 HYDRA_FULL_ERROR=1 BIGNLP_CI=1 python3 main.py \
-    evaluation=${RUN_MODEL}/${TEST_TASK} \
+    evaluation=${RUN_MODEL}/squad \
     stages=["evaluation"] \
     bignlp_path=${GIT_CLONE_PATH} \
     data_dir=${BASE_RESULTS_DIR}/data \

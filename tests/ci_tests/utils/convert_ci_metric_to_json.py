@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+import shutil
 from CITestHelper import CITestHelper
 
 def collect_val_test_metrics(ci_job_results_dir):
@@ -70,5 +71,12 @@ if __name__ == '__main__':
     if run_stage in ["train", "finetune", "prompt_learn"]:
         collect_train_test_metrics(ci_job_results_dir)
 
-    if run_stage in ["eval"] and run_model in ["t5", "mt5",]:
-        collect_val_test_metrics(ci_job_results_dir)
+    if run_stage in ["eval"]:
+        if run_model in ["t5", "mt5"]:
+            collect_val_test_metrics(ci_job_results_dir)
+        elif os.path.exists(
+            os.path.join(ci_job_results_dir, "results", "squad_metric.json")
+        ):
+            src = os.path.join(ci_job_results_dir, "results", "squad_metric.json")
+            dst = os.path.join(ci_job_results_dir, "squad_metric.json")
+            shutil.copy(src, dst)
