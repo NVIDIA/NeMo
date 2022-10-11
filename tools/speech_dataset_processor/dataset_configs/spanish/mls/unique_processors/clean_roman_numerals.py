@@ -1,0 +1,97 @@
+import collections
+import os
+from typing import List
+
+import pandas as pd
+
+from nemo.utils import logging
+from processors.base_processor import DataEntry
+from processors.modify_manifest.modify_manifest import ModifyManifestTextProcessor
+
+
+class CleanRomanNumerals(ModifyManifestTextProcessor):
+    def __init__(
+        self,
+        king_triggers,
+        queen_triggers,
+        ordinal_masc_triggers,
+        ordinal_fem_triggers,
+        cardinal_triggers,
+        save_changes_in=None,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.king_triggers = king_triggers
+        self.queen_triggers = queen_triggers
+        self.ordinal_masc_triggers = ordinal_masc_triggers
+        self.ordinal_fem_triggers = ordinal_fem_triggers
+        self.cardinal_triggers = cardinal_triggers
+
+        # read csv
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        csv_path = os.path.join(current_dir, "1-100_roman_numeral_table.csv")
+        df = pd.read_csv(csv_path, sep="\t", index_col=0)
+
+        self.roman_numeral_to_ordinal_masc = {}
+        for i, row in df.iterrows():
+            self.roman_numeral_to_ordinal_masc[row["roman"]] = row["ordinal_masc"].strip()
+
+        self.roman_numeral_to_ordinal_fem = {}
+        for i, row in df.iterrows():
+            self.roman_numeral_to_ordinal_fem[row["roman"]] = row["ordinal_fem"].strip()
+
+        self.roman_numeral_to_cardinal = {}
+        for i, row in df.iterrows():
+            self.roman_numeral_to_cardinal[row["roman"]] = row["cardinal"].strip()
+
+        self.roman_numeral_to_king = {}
+        for i, row in df.iterrows():
+            self.roman_numeral_to_king[row["roman"]] = row["king"].strip()
+
+        self.roman_numeral_to_queen = {}
+        for i, row in df.iterrows():
+            self.roman_numeral_to_queen[row["roman"]] = row["queen"].strip()
+
+        self.clean_roman_numerals_count = collections.defaultdict(int)
+
+    def _process_dataset_entry(self, data_entry) -> List:
+        data_entry = self.clean_operation(
+            data_entry, self.ordinal_masc_triggers, self.roman_numeral_to_ordinal_masc
+        )
+        data_entry = self.clean_operation(
+            data_entry, self.ordinal_fem_triggers, self.roman_numeral_to_ordinal_fem
+        )
+        data_entry = self.clean_operation(
+            data_entry, self.cardinal_triggers, self.roman_numeral_to_cardinal
+        )
+        data_entry = self.clean_operation(
+            data_entry, self.king_triggers, self.roman_numeral_to_king
+        )
+        data_entry = self.clean_operation(
+            data_entry, self.queen_triggers, self.roman_numeral_to_queen
+        )
+        return [DataEntry(data=data_entry, metrics=self.clean_roman_numerals_count)]
+
+    def finalize(self, metrics):
+        total_counter = collections.defaultdict(int)
+        for counter in metrics:
+            for word, count in counter.items():
+                total_counter[word] += count
+        logging.info("Num of roman numeral substitutions")
+        total_counter_sorted = dict(
+            sorted(total_counter.items(), key=lambda x: x[1], reverse=True,)
+        )
+        for word, count in total_counter_sorted.items():
+            logging.info(f"{word} {count}")
+        super().finalize(metrics)
+
+    def clean_operation(self, data, triggers, roman_numeral_to_num_written):
+        for trigger in triggers:
+            if trigger in data["text"]:
+                for roman_numeral, num_written in roman_numeral_to_num_written.items():
+                    noun_roman = f" {trigger} {roman_numeral} "
+                    if noun_roman in data["text"]:
+                        noun_number = f" {trigger} {num_written} "
+                        data["text"] = data["text"].replace(noun_roman, noun_number)
+                        self.clean_roman_numerals_count[noun_roman] += 1
+        return data

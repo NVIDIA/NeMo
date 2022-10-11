@@ -1,0 +1,101 @@
+arabic	roman	cardinal	ordinal_masc	ordinal_fem	king	queen
+1	i	uno	primero	primera	primero	primera
+2	ii	dos	segundo	segunda	segundo	segunda
+3	iii	tres	tercero	tercera	tercero	tercera
+4	iv	cuatro	cuarto	cuarta	cuarto	cuarta
+5	v	cinco	quinto	quinta	quinto	quinta
+6	vi	seis	sexto	sexto	sexto	sexto
+7	vii	siete	séptimo	séptima	séptimo	séptima
+8	viii	ocho	octavo	octava	octavo	octava
+9	ix	nueve	noveno	novena	noveno	novena
+10	x	diez	décimo	décima	décimo	décima
+11	xi	once	undécimo	undécima	undécimo	undécima
+12	xii	doce	duodécimo	duodécima	duodécimo	duodécima
+13	xiii	trece	decimotercero	decimotercera	decimotercero	decimotercera
+14	xiv	catorce	decimocuarto	decimocuarta	decimocuarto	decimocuarta
+15	xv	quince	decimoquinto	decimoquinta	decimoquinto	decimoquinta
+16	xvi	dieciséis	decimosexto	decimosexta	decimosexto	decimosexta
+17	xvii	diecisiete	decimoséptimo	decimoséptima	decimoséptimo	decimoséptima
+18	xviii	dieciocho	decimoctavo	decimoctava	decimoctavo	decimoctava
+19	xix	diecinueve	decimonoveno	decimonovena	decimonoveno	decimonovena
+20	xx	veinte	vigésimo	vigésima	vigésimo	vigésima
+21	xxi	veintiuno	vigésimo primero	vigésimo primera	vigésimo primero	vigésimo primera
+22	xxii	veintidós	vigésimo segundo	vigésimo segunda	vigésimo segundo	vigésimo segunda
+23	xxiii	veintitrés	vigésimo tercero	vigésimo tercera	vigésimo tercero	vigésimo tercera
+24	xxiv	veinticuatro	vigésimo cuarto	vigésimo cuarta	vigésimo cuarto	vigésimo cuarta
+25	xxv	veinticinco	vigésimo quinto	vigésimo quinta	vigésimo quinto	vigésimo quinta
+26	xxvi	veintiséis	vigésimo sexto	vigésimo sexta	vigésimo sexto	vigésimo sexta
+27	xxvii	veintisiete	vigésimo séptimo	vigésimo séptima	vigésimo séptimo	vigésimo séptima
+28	xxviii	veintiocho	vigésimo octavo	vigésimo octava	vigésimo octavo	vigésimo octava
+29	xxix	veintinueve	vigésimo noveno	vigésimo novena	vigésimo noveno	vigésimo novena
+30	xxx	treinta	trigésimo	trigésima	trigésimo	trigésima
+31	xxxi	treinta y uno	trigésimo primero	trigésimo primera	trigésimo primero	trigésimo primera
+32	xxxii	treinta y dos	trigésimo segundo	trigésimo segunda	trigésimo segundo	trigésimo segunda
+33	xxxiii	treinta y tres	trigésimo tercero	trigésimo tercera	trigésimo tercero	trigésimo tercera
+34	xxxiv	treinta y cuatro	trigésimo cuarto	trigésimo cuarta	trigésimo cuarto	trigésimo cuarta
+35	xxxv	treinta y cinco	trigésimo quinto	trigésimo quinta	trigésimo quinto	trigésimo quinta
+36	xxxvi	treinta y seis	trigésimo sexto	trigésimo sexta	trigésimo sexto	trigésimo sexta
+37	xxxvii	treinta y siete	trigésimo séptimo	trigésimo séptima	trigésimo séptimo	trigésimo séptima
+38	xxxviii	treinta y ocho	trigésimo octavo	trigésimo octava	trigésimo octavo	trigésimo octava
+39	xxxix	treinta y nueve	trigésimo noveno	trigésimo novena	trigésimo noveno	trigésimo novena
+40	xl	cuarenta	cuadragésimo	cuadragésima	cuadragésimo	cuadragésima
+41	xli	cuarenta y uno	cuadragésimo primero	cuadragésimo primera	cuadragésimo primero	cuadragésimo primera
+42	xlii	cuarenta y dos	cuadragésimo segundo	cuadragésimo segunda	cuadragésimo segundo	cuadragésimo segunda
+43	xliii	cuarenta y tres	cuadragésimo tercero	cuadragésimo tercera	cuadragésimo tercero	cuadragésimo tercera
+44	xliv	cuarenta y cuatro	cuadragésimo cuarto	cuadragésimo cuarta	cuadragésimo cuarto	cuadragésimo cuarta
+45	xlv	cuarenta y cinco	cuadragésimo quinto	cuadragésimo quinta	cuadragésimo quinto	cuadragésimo quinta
+46	xlvi	cuarenta y seis	cuadragésimo sexto	cuadragésimo sexta	cuadragésimo sexto	cuadragésimo sexta
+47	xlvii	cuarenta y siete	cuadragésimo séptimo	cuadragésimo séptima	cuadragésimo séptimo	cuadragésimo séptima
+48	xlviii	cuarenta y ocho	cuadragésimo octavo	cuadragésimo octava	cuadragésimo octavo	cuadragésimo octava
+49	xlix	cuarenta y nueve	cuadragésimo noveno	cuadragésimo novena	cuadragésimo noveno	cuadragésimo novena
+50	l	cincuenta	quincuagésimo	quincuagésima	quincuagésimo	quincuagésima
+51	li	cincuenta y uno	quincuagésimo primero	quincuagésimo primera	quincuagésimo primero	quincuagésimo primera
+52	lii	cincuenta y dos	quincuagésimo segundo	quincuagésimo segunda	quincuagésimo segundo	quincuagésimo segunda
+53	liii	cincuenta y tres	quincuagésimo tercero	quincuagésimo tercera	quincuagésimo tercero	quincuagésimo tercera
+54	liv	cincuenta y cuatro	quincuagésimo cuarto	quincuagésimo cuarta	quincuagésimo cuarto	quincuagésimo cuarta
+55	lv	cincuenta y cinco	quincuagésimo quinto	quincuagésimo quinta	quincuagésimo quinto	quincuagésimo quinta
+56	lvi	cincuenta y seis	quincuagésimo sexto	quincuagésimo sexta	quincuagésimo sexto	quincuagésimo sexta
+57	lvii	cincuenta y siete	quincuagésimo séptimo	quincuagésimo séptima	quincuagésimo séptimo	quincuagésimo séptima
+58	lviii	cincuenta y ocho	quincuagésimo octavo	quincuagésimo octava	quincuagésimo octavo	quincuagésimo octava
+59	lix	cincuenta y nueve	quincuagésimo noveno	quincuagésimo novena	quincuagésimo noveno	quincuagésimo novena
+60	lx	sesenta	sexagésimo	sexagésima	sexagésimo	sexagésima
+61	lxi	sesenta y uno	sexagésimo primero	sexagésimo primera	sexagésimo primero	sexagésimo primera
+62	lxii	sesenta y dos	sexagésimo segundo	sexagésimo segunda	sexagésimo segundo	sexagésimo segunda
+63	lxiii	sesenta y tres	sexagésimo tercero	sexagésimo tercera	sexagésimo tercero	sexagésimo tercera
+64	lxiv	sesenta y cuatro	sexagésimo cuarto	sexagésimo cuarta	sexagésimo cuarto	sexagésimo cuarta
+65	lxv	sesenta y cinco	sexagésimo quinto	sexagésimo quinta	sexagésimo quinto	sexagésimo quinta
+66	lxvi	sesenta y seis	sexagésimo sexto	sexagésimo sexta	sexagésimo sexto	sexagésimo sexta
+67	lxvii	sesenta y siete	sexagésimo séptimo	sexagésimo séptima	sexagésimo séptimo	sexagésimo séptima
+68	lxviii	sesenta y ocho	sexagésimo octavo	sexagésimo octava	sexagésimo octavo	sexagésimo octava
+69	lxix	sesenta y nueve	sexagésimo noveno	sexagésimo novena	sexagésimo noveno	sexagésimo novena
+70	lxx	setenta 	septuagésimo	septuagésima	septuagésimo	septuagésima
+71	lxxi	setenta y uno	septuagésimo primero	septuagésimo primera	septuagésimo primero	septuagésimo primera
+72	lxxii	setenta y dos	septuagésimo segundo	septuagésimo segunda	septuagésimo segundo	septuagésimo segunda
+73	lxxiii	setenta y tres	septuagésimo tercero	septuagésimo tercera	septuagésimo tercero	septuagésimo tercera
+74	lxxiv	setenta y cuatro	septuagésimo cuarto	septuagésimo cuarta	septuagésimo cuarto	septuagésimo cuarta
+75	lxxv	setenta y cinco	septuagésimo quinto	septuagésimo quinta	septuagésimo quinto	septuagésimo quinta
+76	lxxvi	setenta y seis	septuagésimo sexto	septuagésimo sexta	septuagésimo sexto	septuagésimo sexta
+77	lxxvii	setenta y siete	septuagésimo séptimo	septuagésimo séptima	septuagésimo séptimo	septuagésimo séptima
+78	lxxviii	setenta y ocho	septuagésimo octavo	septuagésimo octava	septuagésimo octavo	septuagésimo octava
+79	lxxix	setenta y nueve	septuagésimo noveno	septuagésimo novena	septuagésimo noveno	septuagésimo novena
+80	lxxx	ochenta	octogésimo	octogésima	octogésimo	octogésima
+81	lxxxi	ochenta y uno	octogésimo primero	octogésimo primera	octogésimo primero	octogésimo primera
+82	lxxxii	ochenta y dos	octogésimo segundo	octogésimo segunda	octogésimo segundo	octogésimo segunda
+83	lxxxiii	ochenta y tres	octogésimo tercero	octogésimo tercera	octogésimo tercero	octogésimo tercera
+84	lxxxiv	ochenta y cuatro	octogésimo cuarto	octogésimo cuarta	octogésimo cuarto	octogésimo cuarta
+85	lxxxv	ochenta y cinco	octogésimo quinto	octogésimo quinta	octogésimo quinto	octogésimo quinta
+86	lxxxvi	ochenta y seis	octogésimo sexto	octogésimo sexta	octogésimo sexto	octogésimo sexta
+87	lxxxvii	ochenta y siete	octogésimo séptimo	octogésimo séptima	octogésimo séptimo	octogésimo séptima
+88	lxxxviii	ochenta y ocho	octogésimo octavo	octogésimo octava	octogésimo octavo	octogésimo octava
+89	lxxxix	ochenta y nueve	octogésimo noveno	octogésimo novena	octogésimo noveno	octogésimo novena
+90	xc	noventa	nonagésimo	nonagésima	nonagésimo	nonagésima
+91	xci	noventa y uno	nonagésimo primero	nonagésimo primera	nonagésimo primero	nonagésimo primera
+92	xcii	noventa y dos	nonagésimo segundo	nonagésimo segunda	nonagésimo segundo	nonagésimo segunda
+93	xciii	noventa y tres	nonagésimo tercero	nonagésimo tercera	nonagésimo tercero	nonagésimo tercera
+94	xciv	noventa y cuatro	nonagésimo cuarto	nonagésimo cuarta	nonagésimo cuarto	nonagésimo cuarta
+95	xcv	noventa y cinco	nonagésimo quinto	nonagésimo quinta	nonagésimo quinto	nonagésimo quinta
+96	xcvi	noventa y seis	nonagésimo sexto	nonagésimo sexta	nonagésimo sexto	nonagésimo sexta
+97	xcvii	noventa y siete	nonagésimo séptimo	nonagésimo séptima	nonagésimo séptimo	nonagésimo séptima
+98	xcviii	noventa y ocho	nonagésimo octavo	nonagésimo octava	nonagésimo octavo	nonagésimo octava
+99	xcix	noventa y nueve	nonagésimo noveno	nonagésimo novena	nonagésimo noveno	nonagésimo novena
+100	c	ciento  	centésimo	centésima	centésimo	centésima
