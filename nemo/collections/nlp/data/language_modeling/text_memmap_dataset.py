@@ -29,15 +29,13 @@ __all__ = ['TextMemMapDataset', 'CSVMemMapDataset', 'build_index_files']
 __idx_version__ = '0.2'  # index file version
 __idx_suffix__ = 'idx'  # index file suffix
 
-# FIXME: have a method to return all needed file extensions (npy, info)
-# FIXME: have a method to check existence of all reuiqred files (given as dict)
-
 
 class TextMemMapDataset(Dataset):
     """
     Allow per-line lazy access to multiple text files using numpy memmap.
     """
 
+    # FIXME: header_lines=0 by default
     def __init__(
         self, dataset_paths, newline_int=10, header_lines=0, workers=None, tokenizer=None, sort_dataset_paths=True,
     ):
@@ -145,7 +143,7 @@ class TextMemMapDataset(Dataset):
         # create data map
         mdata = np.memmap(fn, dtype=np.uint8, mode='r')
 
-        if os.path.exists(idx_fn):
+        if os.path.exists(idx_fn + ".npy"):
             # load index file into memory map
             midx = np.load(idx_fn + ".npy", allow_pickle=True, mmap_mode='r')
             # test for header
@@ -215,10 +213,10 @@ def _build_memmap_index_files(newline_int, fn):
 
     # create data map
     mdata = np.memmap(fn, dtype=np.uint8, mode='r')
-    if os.path.exists(idx_fn):
+    if os.path.exists(idx_fn + ".npy"):
         return False
     else:
-        logging.info(f"Building idx file = {idx_fn}")
+        logging.info(f"Building idx file = {idx_fn}.npy")
         midx = np.where(mdata == newline_int)[0]
         midx_dtype = midx.dtype
         # add last item in case there is no new-line
