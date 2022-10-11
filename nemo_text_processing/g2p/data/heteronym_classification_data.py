@@ -129,7 +129,6 @@ class HeteronymClassificationDataset(Dataset):
         # check the correctness on start-end indices
         for homograph_, start_end_ in zip(homographs, start_end):
             if homograph_.lower() != sentence[start_end_[0] : start_end_[1]].lower():
-                import pdb; pdb.set_trace()
                 logging.error("Incorrect span, skipping this example")
                 return None
 

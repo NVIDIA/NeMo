@@ -79,7 +79,7 @@ class HeteronymClassificationModel(NLPModel):
 
     # @typecheck()
     def forward(self, input_ids, attention_mask, target_and_negatives_mask):
-        hidden_states = self.bert_model(input_ids=input_ids, attention_mask=attention_mask)
+        hidden_states = self.bert_model(input_ids=input_ids, attention_mask=attention_mask, token_type_ids=torch.zeros_like(input_ids))
         if isinstance(hidden_states, tuple):
             hidden_states = hidden_states[0]
         logits = self.classifier(hidden_states=hidden_states)
