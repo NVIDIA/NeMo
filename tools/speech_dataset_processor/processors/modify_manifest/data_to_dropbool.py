@@ -2,20 +2,13 @@ import collections
 import re
 from typing import Dict, List, Optional
 
-from nemo.utils import logging
-
-from utils.metrics_computation import (
-    get_charrate,
-    get_wordrate,
-    get_cer,
-    get_wer,
-    get_wmr,
-)
-from utils.get_diff import get_diff_with_subs_grouped
-from utils.edit_spaces import remove_extra_spaces
-
 from processors.base_processor import DataEntry
 from processors.modify_manifest.modify_manifest import ModifyManifestTextProcessor
+from utils.edit_spaces import remove_extra_spaces
+from utils.get_diff import get_diff_with_subs_grouped
+from utils.metrics_computation import get_cer, get_charrate, get_wer, get_wmr, get_wordrate
+
+from nemo.utils import logging
 
 
 class DropHighLowCharrate(ModifyManifestTextProcessor):
@@ -257,25 +250,24 @@ class DropASRErrorBeginningEnd(ModifyManifestTextProcessor):
 
         if len(diff) > 0:  # i.e. if there are differences between text and pred_text
             first_diff_entry = diff[0]
-            if first_diff_entry[0] == 1 or first_diff_entry[0] == -1: # i.e. diff is purely an insertion or deletion
+            if first_diff_entry[0] == 1 or first_diff_entry[0] == -1:  # i.e. diff is purely an insertion or deletion
                 if len(first_diff_entry[1]) > self.beginning_error_char_threshold:
                     return [DataEntry(data=None, metrics=(1, 0))]
-            elif first_diff_entry[0] != 0: # i.e. diff should be a tuple representing substitution 
+            elif first_diff_entry[0] != 0:  # i.e. diff should be a tuple representing substitution
                 len_deletion = len(first_diff_entry[0][1])
                 len_insertion = len(first_diff_entry[1][1])
                 if abs(len_deletion - len_insertion) > self.beginning_error_char_threshold:
                     return [DataEntry(data=None, metrics=(1, 0))]
 
             last_diff_entry = diff[-1]
-            if last_diff_entry[0] == 1 or last_diff_entry[0] == -1: # i.e. diff is purely an insertion or deletion
+            if last_diff_entry[0] == 1 or last_diff_entry[0] == -1:  # i.e. diff is purely an insertion or deletion
                 if len(last_diff_entry[1]) > self.end_error_char_threshold:
                     return [DataEntry(data=None, metrics=(0, 1))]
-            elif last_diff_entry[0] != 0: # i.e. diff should be a tuple representing substitution 
+            elif last_diff_entry[0] != 0:  # i.e. diff should be a tuple representing substitution
                 len_deletion = len(last_diff_entry[0][1])
                 len_insertion = len(last_diff_entry[1][1])
                 if abs(len_deletion - len_insertion) > self.end_error_char_threshold:
                     return [DataEntry(data=None, metrics=(0, 1))]
-
 
         return [DataEntry(data=data_entry, metrics=(0, 0))]
 
@@ -286,13 +278,11 @@ class DropASRErrorBeginningEnd(ModifyManifestTextProcessor):
             beginning_drop_counter += dropped_beginning
             end_drop_counter += dropped_end
         logging.info(
-            "Num of utterances that were dropped due to asr "
-            "insertions/deletions at the beginning: %d",
+            "Num of utterances that were dropped due to asr " "insertions/deletions at the beginning: %d",
             beginning_drop_counter,
         )
         logging.info(
-            "Num of utterances that were dropped due to asr insertions/deletions at the end: %d",
-            end_drop_counter,
+            "Num of utterances that were dropped due to asr insertions/deletions at the end: %d", end_drop_counter,
         )
         super().finalize(metrics)
 
@@ -316,9 +306,7 @@ class DropHighCER(ModifyManifestTextProcessor):
         self.cer_threshold = cer_threshold
 
     def _process_dataset_entry(self, data_entry) -> List:
-        cer = get_cer(
-            remove_extra_spaces(data_entry["text"]), remove_extra_spaces(data_entry["pred_text"])
-        )
+        cer = get_cer(remove_extra_spaces(data_entry["text"]), remove_extra_spaces(data_entry["pred_text"]))
         if cer > self.cer_threshold:
             return [DataEntry(data=None, metrics=1)]
         else:
@@ -329,9 +317,7 @@ class DropHighCER(ModifyManifestTextProcessor):
         for dropped in metrics:
             drop_counter += dropped
         logging.info(
-            "Num of utterances that were dropped due to CER > %d: %d",
-            self.cer_threshold,
-            drop_counter,
+            "Num of utterances that were dropped due to CER > %d: %d", self.cer_threshold, drop_counter,
         )
         super().finalize(metrics)
 
@@ -366,9 +352,7 @@ class DropHighWER(ModifyManifestTextProcessor):
         for dropped in metrics:
             drop_counter += dropped
         logging.info(
-            "Num of utterances that were dropped due to WER > %d: %d",
-            self.wer_threshold,
-            drop_counter,
+            "Num of utterances that were dropped due to WER > %d: %d", self.wer_threshold, drop_counter,
         )
         super().finalize(metrics)
 
@@ -406,9 +390,7 @@ class DropLowWordMatchRate(ModifyManifestTextProcessor):
         for dropped in metrics:
             drop_counter += dropped
         logging.info(
-            "Num of utterances that were dropped due to WMR < %d: %d",
-            self.wmr_threshold,
-            drop_counter,
+            "Num of utterances that were dropped due to WMR < %d: %d", self.wmr_threshold, drop_counter,
         )
         super().finalize(metrics)
 
@@ -438,11 +420,7 @@ class DropIfSubstringInAttribute(ModifyManifestTextProcessor):
             else:
                 for substring_to_drop in self.attribute_to_substring[attribute]:
                     if substring_to_drop in data_entry[attribute]:
-                        return [
-                            DataEntry(
-                                data=None, metrics=f'"{attribute}" contains "{substring_to_drop}"'
-                            )
-                        ]
+                        return [DataEntry(data=None, metrics=f'"{attribute}" contains "{substring_to_drop}"')]
         return [DataEntry(data=data_entry, metrics="")]
 
     def finalize(self, metrics):

@@ -1,9 +1,9 @@
-from abc import ABC, abstractmethod
 import itertools
 import json
 import multiprocessing
-from typing import List, Dict, Any, Optional
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
 
 from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
@@ -62,9 +62,7 @@ class BaseParallelProcessor(BaseProcessor):
         manifest to read from the original source of data.
         """
         if self.input_manifest_file is None:
-            raise NotImplementedError(
-                "Override this method if the processor creates initial manifest"
-            )
+            raise NotImplementedError("Override this method if the processor creates initial manifest")
 
         # TODO: should we not assume that manifest can fully fit in memory?
         with open(self.input_manifest_file, "rt", encoding="utf8") as fin:
@@ -93,10 +91,7 @@ class BaseParallelProcessor(BaseProcessor):
         # this will unroll all inner lists
         data = itertools.chain(
             *process_map(
-                self.process_dataset_entry,
-                dataset_entries,
-                max_workers=self.max_workers,
-                chunksize=self.chunksize,
+                self.process_dataset_entry, dataset_entries, max_workers=self.max_workers, chunksize=self.chunksize,
             )
         )
         metrics = []
@@ -119,9 +114,7 @@ class BaseParallelProcessor(BaseProcessor):
         """
         logging.info("Total number of entries after processing: %d", self.number_of_entries)
         if self.total_duration != -1:
-            logging.info(
-                "Total audio duration (hours) after processing: %.2f", self.total_duration / 3600
-            )
+            logging.info("Total audio duration (hours) after processing: %.2f", self.total_duration / 3600)
 
     @abstractmethod
     def process_dataset_entry(self, data_entry) -> List[DataEntry]:

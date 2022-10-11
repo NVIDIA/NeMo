@@ -1,6 +1,6 @@
-import diff_match_patch
 from typing import List
 
+import diff_match_patch
 from utils.edit_spaces import remove_extra_spaces
 
 diff = diff_match_patch.diff_match_patch()
@@ -49,9 +49,7 @@ def get_diff_with_subs_grouped(orig_words: str, pred_words: str) -> List[tuple]:
     diffs_group_subs = []
     i = 0
     while i < len(diffs):
-        if (
-            i < len(diffs) - 1
-        ):  # if i == len(diffs), line accessing diffs[i+1] will raise error
+        if i < len(diffs) - 1:  # if i == len(diffs), line accessing diffs[i+1] will raise error
             if diffs[i][0] == -1 and diffs[i + 1][0] == 1:
                 diffs_group_subs.append((diffs[i], diffs[i + 1]))
                 i += 1  # skip extra diff entry so we don't append diffs[i+1] again

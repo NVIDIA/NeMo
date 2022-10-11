@@ -3,10 +3,10 @@ import os
 from typing import List
 
 import pandas as pd
-
-from nemo.utils import logging
 from processors.base_processor import DataEntry
 from processors.modify_manifest.modify_manifest import ModifyManifestTextProcessor
+
+from nemo.utils import logging
 
 
 class CleanRomanNumerals(ModifyManifestTextProcessor):
@@ -55,21 +55,11 @@ class CleanRomanNumerals(ModifyManifestTextProcessor):
         self.clean_roman_numerals_count = collections.defaultdict(int)
 
     def _process_dataset_entry(self, data_entry) -> List:
-        data_entry = self.clean_operation(
-            data_entry, self.ordinal_masc_triggers, self.roman_numeral_to_ordinal_masc
-        )
-        data_entry = self.clean_operation(
-            data_entry, self.ordinal_fem_triggers, self.roman_numeral_to_ordinal_fem
-        )
-        data_entry = self.clean_operation(
-            data_entry, self.cardinal_triggers, self.roman_numeral_to_cardinal
-        )
-        data_entry = self.clean_operation(
-            data_entry, self.king_triggers, self.roman_numeral_to_king
-        )
-        data_entry = self.clean_operation(
-            data_entry, self.queen_triggers, self.roman_numeral_to_queen
-        )
+        data_entry = self.clean_operation(data_entry, self.ordinal_masc_triggers, self.roman_numeral_to_ordinal_masc)
+        data_entry = self.clean_operation(data_entry, self.ordinal_fem_triggers, self.roman_numeral_to_ordinal_fem)
+        data_entry = self.clean_operation(data_entry, self.cardinal_triggers, self.roman_numeral_to_cardinal)
+        data_entry = self.clean_operation(data_entry, self.king_triggers, self.roman_numeral_to_king)
+        data_entry = self.clean_operation(data_entry, self.queen_triggers, self.roman_numeral_to_queen)
         return [DataEntry(data=data_entry, metrics=self.clean_roman_numerals_count)]
 
     def finalize(self, metrics):
@@ -78,9 +68,7 @@ class CleanRomanNumerals(ModifyManifestTextProcessor):
             for word, count in counter.items():
                 total_counter[word] += count
         logging.info("Num of roman numeral substitutions")
-        total_counter_sorted = dict(
-            sorted(total_counter.items(), key=lambda x: x[1], reverse=True,)
-        )
+        total_counter_sorted = dict(sorted(total_counter.items(), key=lambda x: x[1], reverse=True,))
         for word, count in total_counter_sorted.items():
             logging.info(f"{word} {count}")
         super().finalize(metrics)

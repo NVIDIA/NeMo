@@ -67,9 +67,6 @@ class ModifyManifestTextProcessor(BaseParallelProcessor):
             if "text" in data_entries[0].data:
                 data_entries[0].data["text"] = remove_extra_spaces(data_entries[0].data["text"])
             if "pred_text" in data_entries[0].data:
-                data_entries[0].data["pred_text"] = remove_extra_spaces(
-                    data_entries[0].data["pred_text"]
-                )
+                data_entries[0].data["pred_text"] = remove_extra_spaces(data_entries[0].data["pred_text"])
 
         return data_entries
-

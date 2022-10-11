@@ -1,11 +1,10 @@
 import glob
 import json
 from pathlib import Path
-from omegaconf import OmegaConf
+
 import pytest
-
 from main import main
-
+from omegaconf import OmegaConf
 
 CONFIG_BASE_DIR = Path(__file__).parents[1] / "dataset_configs"
 
@@ -29,9 +28,9 @@ def test_configs(config_path, tmp_path):
     main(cfg)
     # additionally, let's test that final generated manifest matches the
     # reference file (ignoring the file paths)
-    with open(
-        Path(config_path).parent / "test_data_reference.json", "rt", encoding="utf8"
-    ) as reference_fin, open(cfg["final_manifest"], "rt", encoding="utf8") as generated_fin:
+    with open(Path(config_path).parent / "test_data_reference.json", "rt", encoding="utf8") as reference_fin, open(
+        cfg["final_manifest"], "rt", encoding="utf8"
+    ) as generated_fin:
         reference_lines = reference_fin.readlines()
         generated_lines = generated_fin.readlines()
         assert len(reference_lines) == len(generated_lines)

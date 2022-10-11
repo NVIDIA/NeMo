@@ -1,6 +1,6 @@
-from pathlib import Path
-import subprocess
 import os
+import subprocess
+from pathlib import Path
 
 from processors.base_processor import BaseProcessor
 

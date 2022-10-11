@@ -1,8 +1,7 @@
 import json
 
-from tqdm import tqdm
-
 from processors.base_processor import BaseProcessor
+from tqdm import tqdm
 
 
 class WriteManifest(BaseProcessor):

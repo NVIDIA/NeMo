@@ -24,4 +24,3 @@ def add_start_end_spaces(input_string):
     output_string = f" {no_extra_spaces_string} "
 
     return output_string
-

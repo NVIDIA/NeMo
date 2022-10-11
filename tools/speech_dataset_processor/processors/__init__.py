@@ -1,28 +1,26 @@
 # let's import all supported processors here to simplify target specification
-from .create_initial_manifest.create_initial_manifest_mls import CreateInitialManifestMLS
 from .asr_inference import ASRInference
-from .write_manifest import WriteManifest
+from .create_initial_manifest.create_initial_manifest_mls import CreateInitialManifestMLS
 from .modify_manifest.data_to_data import (
-    SubSubstringToSpace,
-    SubSubstringToSubstring,
     InsIfASRInsertion,
     SubIfASRSubstitution,
     SubMakeLowercase,
     SubRegex,
+    SubSubstringToSpace,
+    SubSubstringToSubstring,
 )
-
 from .modify_manifest.data_to_dropbool import (
-    DropHighLowCharrate,
-    DropHighLowWordrate,
-    DropHighLowDuration,
-    DropNonAlphabet,
     DropASRErrorBeginningEnd,
     DropHighCER,
+    DropHighLowCharrate,
+    DropHighLowDuration,
+    DropHighLowWordrate,
     DropHighWER,
-    DropLowWordMatchRate,
-    DropIfSubstringInAttribute,
     DropIfRegexInAttribute,
+    DropIfSubstringInAttribute,
     DropIfSubstringInInsertion,
     DropIfTextIsEmpty,
+    DropLowWordMatchRate,
+    DropNonAlphabet,
 )
-
+from .write_manifest import WriteManifest

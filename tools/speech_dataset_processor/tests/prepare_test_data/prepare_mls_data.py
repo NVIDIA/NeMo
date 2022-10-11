@@ -1,24 +1,17 @@
 """Will take the donwloaded tar file and create a version with only X entries."""
 
 import argparse
-import tarfile
-import shutil
-import tempfile
 import os
+import shutil
+import tarfile
+import tempfile
 from pathlib import Path
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("Preparing MLS test data")
-    parser.add_argument(
-        "--extracted_data_path", required=True, help="Path to the downloaded and extracted data."
-    )
-    parser.add_argument(
-        "--num_entries", default=200, type=int, help="How many entries to keep (in each split)"
-    )
-    parser.add_argument(
-        "--test_data_folder", required=True, help="Where to place the prepared data"
-    )
+    parser.add_argument("--extracted_data_path", required=True, help="Path to the downloaded and extracted data.")
+    parser.add_argument("--num_entries", default=200, type=int, help="How many entries to keep (in each split)")
+    parser.add_argument("--test_data_folder", required=True, help="Where to place the prepared data")
 
     args = parser.parse_args()
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -34,11 +27,7 @@ if __name__ == "__main__":
                         break
                     utt_id = line.split("\t", 1)[0]
                     src_flac_path = os.path.join(
-                        args.extracted_data_path,
-                        split,
-                        "audio",
-                        *utt_id.split("_")[:2],
-                        utt_id + ".flac"
+                        args.extracted_data_path, split, "audio", *utt_id.split("_")[:2], utt_id + ".flac"
                     )
                     fout.write(line)
                     tgt_flac_dir = os.path.join(tmpdir_path, split, "audio", *utt_id.split("_")[:2])

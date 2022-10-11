@@ -1,5 +1,6 @@
-import editdistance
 import difflib
+
+import editdistance
 
 sm = difflib.SequenceMatcher()
 

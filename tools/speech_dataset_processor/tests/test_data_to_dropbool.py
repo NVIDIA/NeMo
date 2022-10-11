@@ -1,18 +1,17 @@
 import pytest
-
 from processors.modify_manifest.data_to_dropbool import (
-    DropHighLowCharrate,
-    DropHighLowWordrate,
-    DropHighLowDuration,
-    DropNonAlphabet,
     DropASRErrorBeginningEnd,
     DropHighCER,
+    DropHighLowCharrate,
+    DropHighLowDuration,
+    DropHighLowWordrate,
     DropHighWER,
-    DropLowWordMatchRate,
-    DropIfSubstringInAttribute,
     DropIfRegexInAttribute,
+    DropIfSubstringInAttribute,
     DropIfSubstringInInsertion,
     DropIfTextIsEmpty,
+    DropLowWordMatchRate,
+    DropNonAlphabet,
 )
 
 test_params_list = []
@@ -21,19 +20,19 @@ test_params_list.extend(
     [
         (
             DropHighLowCharrate,
-            {"high_charrate_threshold": 9.9, "low_charrate_threshold": 0 },
+            {"high_charrate_threshold": 9.9, "low_charrate_threshold": 0},
             {"text": "0123456789", "duration": 1},
             True,
         ),
         (
             DropHighLowCharrate,
-            {"high_charrate_threshold": 99, "low_charrate_threshold": 10.1 },
+            {"high_charrate_threshold": 99, "low_charrate_threshold": 10.1},
             {"text": "0123456789", "duration": 1},
             True,
         ),
         (
             DropHighLowCharrate,
-            {"high_charrate_threshold": 10.1, "low_charrate_threshold": 9.9 },
+            {"high_charrate_threshold": 10.1, "low_charrate_threshold": 9.9},
             {"text": "0123456789", "duration": 1},
             False,
         ),
@@ -65,18 +64,8 @@ test_params_list.extend(
 
 test_params_list.extend(
     [
-        (
-            DropHighLowDuration,
-            {"high_duration_threshold": 3.9, "low_duration_threshold": 0},
-            {"duration": 4},
-            True,
-        ),
-        (
-            DropHighLowDuration,
-            {"high_duration_threshold": 99, "low_duration_threshold": 4.1},
-            {"duration": 4},
-            True,
-        ),
+        (DropHighLowDuration, {"high_duration_threshold": 3.9, "low_duration_threshold": 0}, {"duration": 4}, True,),
+        (DropHighLowDuration, {"high_duration_threshold": 99, "low_duration_threshold": 4.1}, {"duration": 4}, True,),
         (
             DropHighLowDuration,
             {"high_duration_threshold": 4.1, "low_duration_threshold": 3.9},
@@ -89,18 +78,8 @@ test_params_list.extend(
 
 test_params_list.extend(
     [
-        (
-            DropNonAlphabet,
-            {"alphabet": " abc"},
-            {"text": "ab ba cab dac"},
-            True,
-        ),
-        (
-            DropNonAlphabet,
-            {"alphabet": " abcd"},
-            {"text": "ab ba cab dac"},
-            False,
-        ),
+        (DropNonAlphabet, {"alphabet": " abc"}, {"text": "ab ba cab dac"}, True,),
+        (DropNonAlphabet, {"alphabet": " abcd"}, {"text": "ab ba cab dac"}, False,),
     ]
 )
 
@@ -134,50 +113,27 @@ test_params_list.extend(
         (
             DropASRErrorBeginningEnd,
             {"beginning_error_char_threshold": 0, "end_error_char_threshold": 2},
-            {"text": "sentence with some text here but actually more text was spoken", "pred_text": "sentence with some text her"},
+            {
+                "text": "sentence with some text here but actually more text was spoken",
+                "pred_text": "sentence with some text her",
+            },
             True,
-        ),
-
-    ]
-)
-
-test_params_list.extend(
-    [
-        (
-            DropHighCER,
-            {"cer_threshold": 9.9},
-            {"text": "0123456789", "pred_text": "012345678"},
-            True,
-        ),
-        (
-            DropHighCER,
-            {"cer_threshold": 10.1},
-            {"text": "0123456789", "pred_text": "012345678"},
-            False,
         ),
     ]
 )
 
 test_params_list.extend(
     [
-        (
-            DropHighWER,
-            {"wer_threshold": 0},
-            {"text": "11  22", "pred_text": "11 22"},
-            False,
-        ),
-        (
-            DropHighWER,
-            {"wer_threshold": 50.1},
-            {"text": "11 22", "pred_text": "11 22 33"},
-            False,
-        ),
-        (
-            DropHighWER,
-            {"wer_threshold": 49.9},
-            {"text": "11 22", "pred_text": "11 22 33"},
-            True,
-        ),
+        (DropHighCER, {"cer_threshold": 9.9}, {"text": "0123456789", "pred_text": "012345678"}, True,),
+        (DropHighCER, {"cer_threshold": 10.1}, {"text": "0123456789", "pred_text": "012345678"}, False,),
+    ]
+)
+
+test_params_list.extend(
+    [
+        (DropHighWER, {"wer_threshold": 0}, {"text": "11  22", "pred_text": "11 22"}, False,),
+        (DropHighWER, {"wer_threshold": 50.1}, {"text": "11 22", "pred_text": "11 22 33"}, False,),
+        (DropHighWER, {"wer_threshold": 49.9}, {"text": "11 22", "pred_text": "11 22 33"}, True,),
     ]
 )
 
@@ -202,13 +158,13 @@ test_params_list.extend(
     [
         (
             DropIfSubstringInAttribute,
-            {"attribute_to_substring": {"filepath": ["002"]} },
+            {"attribute_to_substring": {"filepath": ["002"]}},
             {"text": "hello world", "filepath": "path/to/file/002.wav"},
             True,
         ),
         (
             DropIfSubstringInAttribute,
-            {"attribute_to_substring": {"filepath": ["002"]} },
+            {"attribute_to_substring": {"filepath": ["002"]}},
             {"text": "hello world", "filepath": "path/to/file/001.wav"},
             False,
         ),
@@ -219,16 +175,11 @@ test_params_list.extend(
     [
         (
             DropIfRegexInAttribute,
-            {"attribute_to_regex": {"text": ["(\\D ){5,20}"]} },
+            {"attribute_to_regex": {"text": ["(\\D ){5,20}"]}},
             {"text": "h e l l o world"},
             True,
         ),
-        (
-            DropIfRegexInAttribute,
-            {"attribute_to_regex": {"text": ["(\\D ){5,20}"]} },
-            {"text": "hello world"},
-            False,
-        ),
+        (DropIfRegexInAttribute, {"attribute_to_regex": {"text": ["(\\D ){5,20}"]}}, {"text": "hello world"}, False,),
     ]
 )
 
@@ -236,7 +187,7 @@ test_params_list.extend(
     [
         (
             DropIfSubstringInInsertion,
-            {"substrings_in_insertion": ["might "] } ,
+            {"substrings_in_insertion": ["might "]},
             {"text": "we miss certain words", "pred_text": "we might miss certain words"},
             True,
         ),
@@ -251,24 +202,13 @@ test_params_list.extend(
 
 test_params_list.extend(
     [
-        (
-            DropIfTextIsEmpty,
-            {} ,
-            {"text": "", "pred_text": "uuuu"},
-            True,
-        ),
-        (
-            DropIfTextIsEmpty,
-            {} ,
-            {"text": "uhuh", "pred_text": "uuuu"},
-            False,
-        ),
+        (DropIfTextIsEmpty, {}, {"text": "", "pred_text": "uuuu"}, True,),
+        (DropIfTextIsEmpty, {}, {"text": "uhuh", "pred_text": "uuuu"}, False,),
     ]
 )
 
-@pytest.mark.parametrize(
-    "test_class,class_kwargs,test_input,expected_output", test_params_list, ids=str
-)
+
+@pytest.mark.parametrize("test_class,class_kwargs,test_input,expected_output", test_params_list, ids=str)
 def test_data_to_data(test_class, class_kwargs, test_input, expected_output):
     processor = test_class(**class_kwargs, output_manifest_file=None)
 

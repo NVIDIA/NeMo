@@ -1,6 +1,6 @@
+import os
 import tempfile
 import uuid
-import os
 
 import hydra
 from omegaconf import OmegaConf
@@ -16,13 +16,10 @@ def main(cfg):
     if processors_to_run == "all":
         processors_to_run = ":"
     # converting processors_to_run into Python slice
-    processors_to_run = slice(
-        *map(lambda x: int(x.strip()) if x.strip() else None, processors_to_run.split(":"))
-    )
+    processors_to_run = slice(*map(lambda x: int(x.strip()) if x.strip() else None, processors_to_run.split(":")))
     processors_cfgs = cfg.processors[processors_to_run]
     logging.info(
-        "Specified to run the following processors: %s ",
-        [cfg["_target_"] for cfg in processors_cfgs],
+        "Specified to run the following processors: %s ", [cfg["_target_"] for cfg in processors_cfgs],
     )
 
     processors = []
@@ -37,10 +34,7 @@ def main(cfg):
             if "output_manifest_file" not in processor_cfg:
                 tmp_file_path = os.path.join(tmp_dir, str(uuid.uuid4()))
                 processor_cfg["output_manifest_file"] = tmp_file_path
-                if (
-                    idx != len(processors_cfgs) - 1
-                    and "input_manifest_file" not in processors_cfgs[idx + 1]
-                ):
+                if idx != len(processors_cfgs) - 1 and "input_manifest_file" not in processors_cfgs[idx + 1]:
                     processors_cfgs[idx + 1]["input_manifest_file"] = tmp_file_path
             processor = hydra.utils.instantiate(processor_cfg)
             # running runtime tests to fail right-away if something is not

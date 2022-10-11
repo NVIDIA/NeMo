@@ -2,26 +2,17 @@ import os
 from pathlib import Path
 
 import sox
-from sox import Transformer
-
 from processors.base_processor import BaseParallelProcessor, DataEntry
+from sox import Transformer
 from utils.common import download_file, extract_archive
 
 MLS_URL = "https://dl.fbaipublicfiles.com/mls/mls_{language}.tar.gz"
-TEST_DATA_PATH = str(
-    Path(__file__).parents[2] / "tests" / "test_data" / "mls_{language}" / "data.tar.gz"
-)
+TEST_DATA_PATH = str(Path(__file__).parents[2] / "tests" / "test_data" / "mls_{language}" / "data.tar.gz")
 
 
 class CreateInitialManifestMLS(BaseParallelProcessor):
     def __init__(
-        self,
-        language,
-        download_dir,
-        resampled_audio_dir,
-        data_split,
-        use_test_data=False,
-        **kwargs,
+        self, language, download_dir, resampled_audio_dir, data_split, use_test_data=False, **kwargs,
     ):
         super().__init__(**kwargs)
         self.language = language
@@ -47,9 +38,7 @@ class CreateInitialManifestMLS(BaseParallelProcessor):
         else:
             url = MLS_URL.format(language=self.language)
             download_file(url, str(self.download_dir))
-            data_folder = extract_archive(
-                str(self.download_dir / os.path.basename(url)), str(self.download_dir)
-            )
+            data_folder = extract_archive(str(self.download_dir / os.path.basename(url)), str(self.download_dir))
         self.audio_path_prefix = str(Path(data_folder) / self.data_split / "audio")
         self.transcription_file = str(Path(data_folder) / self.data_split / "transcripts.txt")
 
@@ -69,12 +58,8 @@ class CreateInitialManifestMLS(BaseParallelProcessor):
         utt_id, text = data_entry.split("\t")
         transcript_text = text.strip()
 
-        src_flac_path = os.path.join(
-            self.audio_path_prefix, *utt_id.split("_")[:2], utt_id + ".flac"
-        )
-        tgt_wav_path = os.path.join(
-            self.resampled_audio_dir, *utt_id.split("_")[:2], utt_id + ".wav"
-        )
+        src_flac_path = os.path.join(self.audio_path_prefix, *utt_id.split("_")[:2], utt_id + ".flac")
+        tgt_wav_path = os.path.join(self.resampled_audio_dir, *utt_id.split("_")[:2], utt_id + ".wav")
 
         if not os.path.exists(os.path.dirname(tgt_wav_path)):
             os.makedirs(os.path.dirname(tgt_wav_path), exist_ok=True)
