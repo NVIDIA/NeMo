@@ -26,7 +26,6 @@ try:
         get_pipeline_model_parallel_rank,
         set_pipeline_model_parallel_rank,
         set_virtual_pipeline_model_parallel_rank,
-        set_virtual_pipeline_model_parallel_world_size,
         set_pipeline_model_parallel_split_rank,
         set_pipeline_model_parallel_world_size,
         set_tensor_model_parallel_rank,
@@ -39,6 +38,16 @@ try:
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
+
+try:
+    # TODO: remove when apex is updated
+    from apex.transformer.parallel_state import set_virtual_pipeline_model_parallel_world_size
+
+    HAVE_INTERLEAVED = True
+
+except:
+
+    HAVE_INTERLEAVED = False
 
 
 def initialize_model_parallel_for_nemo(
@@ -54,6 +63,9 @@ def initialize_model_parallel_for_nemo(
     seed=1234,
     apex_transformer_log_level=30,
 ):
+
+    if virtual_pipeline_model_parallel_size is not None and not HAVE_INTERLEAVED:
+        raise ValueError("set_virtual_pipeline_model_parallel_world_size is needed in Apex for interleaved.")
 
     # updating NeMo globals
     app_state = AppState()
