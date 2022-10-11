@@ -106,6 +106,8 @@ build-BigNLP:
     - export SLURM_STATE=$(./jobstate.sh "${SLURM_JOBID}");       echo "SLURM_JOBID=${SLURM_JOBID} SLURM_STATE='${SLURM_STATE}'"
     - export SLURM_WALLTIME=$(./jobtime.sh "${SLURM_JOBID}");     echo "SLURM_WALLTIME=${SLURM_WALLTIME} secs"
     - export SLURM_EXITCODE=$(./jobexitcode.sh "${SLURM_JOBID}" || echo $?); echo "SLURM_EXITCODE='${SLURM_EXITCODE}'"
+    # Update permission and open to all
+    - cd ${PIPELINE_DIR} && chmod 777 -R .
     - cd ${GIT_CLONE_PATH}
     # Run metrics collection
     - git clone ssh://git@gitlab-master.nvidia.com:12051/dl/JoC/bignlp-scripts.git
@@ -128,6 +130,7 @@ build-BigNLP:
     - git add -A
     - git commit -m "Adding results file for $RUN_MODEL"
     - git push origin $CI_PIPELINE_ID
+    - exit ${SLURM_EXITCODE}
   allow_failure: false
   rules:
     - when: manual

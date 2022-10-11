@@ -238,6 +238,7 @@ release_perf:
             git push origin $CI_PIPELINE_ID
             echo "Created test file and pushed it"       
           fi
+          cd ${PIPELINE_DIR} && chmod 777 -R .
           exit ${SLURM_EXITCODE}
         fi
     # Run Pytest
@@ -247,6 +248,8 @@ release_perf:
     - if [[ "$RUN_STAGE" = "eval" && "$RUN_MODEL" == *"gpt3"* ]]; then TEST_FILE="test_gpt3_eval_pipeline.py"; fi
     - pytest tests/ci_tests/selene/pytest/${RUN_STAGE}/${TEST_FILE}
     - echo "Finished pytest job"
+    # Update permission and open to all
+    - cd ${PIPELINE_DIR} && chmod 777 -R .
     - exit ${SLURM_EXITCODE}
   rules:
     - if: $TEST_LEVEL =~ $TESTS_TO_RUN_ON_THIS_COMMIT || $CI_JOB_NAME =~ $TESTS_TO_RUN_ON_THIS_COMMIT || $CI_JOB_NAME =~ $TEST_REGEX_ON_THIS_COMMIT
