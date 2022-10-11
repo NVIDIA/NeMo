@@ -96,7 +96,8 @@ def initialize_model_parallel_for_nemo(
     set_tensor_model_parallel_rank(app_state.tensor_model_parallel_rank)
 
     set_pipeline_model_parallel_rank(app_state.pipeline_model_parallel_rank)
-    set_virtual_pipeline_model_parallel_world_size(app_state.virtual_pipeline_model_parallel_size)
+    if HAVE_INTERLEAVED:
+        set_virtual_pipeline_model_parallel_world_size(app_state.virtual_pipeline_model_parallel_size)
     set_virtual_pipeline_model_parallel_rank(app_state.virtual_pipeline_model_parallel_rank)
     set_pipeline_model_parallel_world_size(app_state.pipeline_model_parallel_size)
     set_pipeline_model_parallel_split_rank(app_state.pipeline_model_parallel_split_rank)
