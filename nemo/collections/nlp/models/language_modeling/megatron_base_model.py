@@ -32,8 +32,8 @@ from nemo.collections.nlp.modules.common.megatron.megatron_init import initializ
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
-from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils import AppState, logging
+from nemo.utils.get_rank import is_global_rank_zero
 
 try:
     from apex.transformer import parallel_state
