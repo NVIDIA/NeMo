@@ -15,8 +15,7 @@
 import torch
 
 try:
-    from apex.transformer.enums import AttnMaskType
-    from apex.transformer.functional.fused_softmax import FusedScaleMaskSoftmax, generic_scaled_masked_softmax
+    from apex.transformer.functional.fused_softmax import FusedScaleMaskSoftmax
 
     HAVE_APEX = True
 
@@ -24,11 +23,10 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 
-class CombinedScaleMaskSoftmax(FusedScaleMaskSoftmax):
+class MatchedScaleMaskSoftmax(FusedScaleMaskSoftmax):
     """
     fused operation: scaling + mask + softmax
-    Use fast ScaledMaskedSoftmax if the Q/K shape is compliant. Otherwise use generic Fused kernel.
-    If scaled_masked_softmax_fusion is False, use torch to compute softmax.
+    match the behavior of fused softmax and torch softmax.
     This is a workaround for https://github.com/NVIDIA/apex/issues/1493.
 
     Arguments:
@@ -41,44 +39,21 @@ class CombinedScaleMaskSoftmax(FusedScaleMaskSoftmax):
         scale: scaling factor used in input tensor scaling.
     """
 
-    def __init__(
-        self,
-        input_in_fp16,
-        input_in_bf16,
-        attn_mask_type,
-        scaled_masked_softmax_fusion,
-        mask_func,
-        softmax_in_fp32,
-        scale,
-    ):
-        super().__init__(
-            input_in_fp16,
-            input_in_bf16,
-            attn_mask_type,
-            scaled_masked_softmax_fusion,
-            mask_func,
-            softmax_in_fp32,
-            scale,
-        )
-        self.generic_scaled_masked_softmax_fusion = generic_scaled_masked_softmax
+    def forward_torch_softmax(self, input, mask):
+        if self.input_in_float16 and self.softmax_in_fp32:
+            input = input.float()
 
-    def is_generic_kernel_available(self, mask, b, np, sq, sk):
-        if self.scaled_masked_softmax_fusion and 0 < sk:  # user want to fuse  # sk must be 1 ~
-            return True
-        return False
+        if self.scale is not None:
+            input = input * self.scale
+        mask_output = self.mask_func(input, mask) if mask is not None else input
+        probs = torch.nn.Softmax(dim=-1)(mask_output)
+        all_k_masked = mask.all(axis=-1)
+        zero_attention_mask = (1.0 - all_k_masked.float())[:, :, :, None]
+        probs = probs * zero_attention_mask
 
-    def forward(self, input, mask):
-        # [b, np, sq, sk]
-        assert input.dim() == 4
-
-        if self.is_kernel_available(mask, *input.size()):
-            return self.forward_fused_softmax(input, mask)
-        elif self.is_generic_kernel_available(mask, *input.size()):
-            return self.forward_generic_softmax(input, mask)
-        else:
-            return self.forward_torch_softmax(input, mask)
-
-    def forward_generic_softmax(self, input, mask):
-        # input.shape = [b, np, sq, sk]
-        scale = self.scale if self.scale is not None else 1.0
-        return self.generic_scaled_masked_softmax_fusion(input, mask, scale)
+        if self.input_in_float16 and self.softmax_in_fp32:
+            if self.input_in_fp16:
+                probs = probs.half()
+            else:
+                probs = probs.bfloat16()
+        return probs
