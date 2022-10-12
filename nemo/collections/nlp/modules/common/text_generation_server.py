@@ -44,8 +44,9 @@ API_ALLOWED_KEYS = set(
 
 
 class MegatronGenerate(Resource):
-    def __init__(self, model):
+    def __init__(self, model, inference_strategy=None):
         self.model = model
+        self.inference_strategy = inference_strategy
 
     @staticmethod
     def send_do_generate():
@@ -147,6 +148,8 @@ class MegatronGenerate(Resource):
             extra = {}
             if task_ids is not None:
                 extra['task_ids'] = task_ids
+            if self.inference_strategy is not None:
+                extra['strategy'] = self.inference_strategy
             output = generate(
                 self.model,
                 sentences,
@@ -170,10 +173,10 @@ class MegatronGenerate(Resource):
 
 
 class MegatronServer(object):
-    def __init__(self, model):
+    def __init__(self, model, inference_strategy=None):
         self.app = Flask(__name__, static_url_path='')
         api = Api(self.app)
-        api.add_resource(MegatronGenerate, '/generate', resource_class_args=[model])
+        api.add_resource(MegatronGenerate, '/generate', resource_class_args=[model, inference_strategy])
 
     def run(self, url, port=5000):
         self.app.run(url, threaded=True, port=port, debug=False)
