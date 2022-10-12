@@ -9,7 +9,7 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig, open_dict
 from pytorch_lightning import Trainer
 
-from nemo.collections.common.data import ConcatMapDataset, ConcatDataset
+from nemo.collections.common.data import ConcatDataset, ConcatMapDataset
 from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.tokenizers import AutoTokenizer

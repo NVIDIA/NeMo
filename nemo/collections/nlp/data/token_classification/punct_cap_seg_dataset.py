@@ -4,7 +4,7 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
-from omegaconf import OmegaConf, DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.common.tokenizers import AutoTokenizer, TokenizerSpec
 from nemo.core import Dataset, typecheck
