@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import itertools
-import os
 from typing import Any, List
 
 import torch
@@ -30,25 +29,19 @@ from nemo.collections.nlp.models.language_modeling.megatron_base_prompt_learning
     MegatronBasePromptLearningModel,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
-<<<<<<< HEAD
-from nemo.collections.nlp.modules.common import PromptTable, VirtualPromptStyle
-=======
 from nemo.collections.nlp.modules.common import VirtualPromptSource
->>>>>>> fix_global_init
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
+from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import logging
 
 try:
     from apex.transformer import parallel_state
-<<<<<<< HEAD
-=======
     from apex.transformer.enums import ModelType
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
         forward_backward_pipelining_without_interleaving,
     )
->>>>>>> fix_global_init
 
     HAVE_APEX = True
 
@@ -62,7 +55,6 @@ __all__ = ['MegatronT5PromptLearningModel']
 class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
     """
     Model class for prompt-tuning or p-tuning a pretrained Megatron T5 model. 
-
     Prompt Tuning initalizes virtual prompt embeddings directly from a copy of
     certain token embeddings from the the pretrained T5 model's vocabulary
     and directly tunes these embedding weights. The token embeddings used in 
@@ -70,9 +62,8 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
     be prompt-tuned for multiple tasks at once. Virtual prompts are stored in a 
     prompt table and can be added or deleted without disrupting virtual prompts 
     for other tasks. 
-
-    P-tuning initializes either an MLP or LSTM encoder model that generates virtual 
-    prompt embeddings for every task. Each task shares the same encoder. After ptuning
+    P-tuning initializes an LSTM encoder model that generates virtual prompt
+    embeddings for every task. Each task shares the same encoder. After p-tuning
     is compelete, the learned virtual prompts can be saved to the prompt table
     using add_ptuned_prompts_to_prompt_table(). Thus, if a user wants to add a 
     new virtual prompt via p-tuning, they do not need to retrain on all previous 
@@ -88,112 +79,6 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             return True
         return False
 
-        # Encoder and decoder need to have the same hidden size and we check for this in the frozen enc-dec model.
-        self.hidden_size = self.frozen_model.cfg.encoder.hidden_size
-
-        if self.first_stage_of_pipeline() and self.virtual_prompt_style in [
-            VirtualPromptStyle.P_TUNING,
-            VirtualPromptStyle.PROMPT_TUNING,
-            VirtualPromptStyle.INFERENCE,
-        ]:
-
-            self.word_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.word_embeddings
-
-            # Prompt table stores all task embeddings, p-tuning virtual prompts get added to the table after training
-            self.prompt_table = PromptTable(
-                existing_tasks=self.existing_tasks,
-                task_templates=self.task_templates,
-                task_id_num_to_name=self.task_id_num_to_name,
-                hidden_size=self.hidden_size,
-            )
-
-        self.decoder_seq_length = cfg.get('decoder_seq_length', 40)
-
-    def load_frozen_model(self, cfg, trainer):
-        save_restore_connector = NLPSaveRestoreConnector()
-
-        # Load frozen model from unpacked directory
-        if os.path.isdir(cfg.get('language_model_path')):
-            save_restore_connector.model_extracted_dir = cfg.get('language_model_path')
-
-        # TODO: Fix this once apex patches FusedScaledMaskedSoftmax.
-        # This is a workaround for the fact that `masked_softmax_fusion` has issues with certain input sizes that may be present while finetuning.
-        t5_cfg = MegatronT5Model.restore_from(
-            cfg.get('language_model_path'),
-            trainer=trainer,
-            return_config=True,
-            save_restore_connector=save_restore_connector,
-        )
-
-        OmegaConf.set_struct(t5_cfg, True)
-        with open_dict(t5_cfg):
-            if hasattr(t5_cfg, 'encoder') and hasattr(t5_cfg, 'decoder'):
-                t5_cfg.encoder.masked_softmax_fusion = False
-                t5_cfg.decoder.masked_softmax_fusion = False
-            else:
-                t5_cfg.masked_softmax_fusion = False
-
-            t5_cfg.megatron_amp_O2 = self.megatron_amp_o2
-
-            # hack to make the _GLOBAL_NUM_MICROBATCHES_CALCULATOR initialize
-            t5_cfg.micro_batch_size = cfg.get('micro_batch_size', 4)
-            t5_cfg.global_batch_size = cfg.get('global_batch_size', 4)
-            t5_cfg.precision = trainer.precision
-
-        self.frozen_model = MegatronT5Model.restore_from(
-            cfg.get('language_model_path'),
-            trainer=trainer,
-            override_config_path=t5_cfg,
-            save_restore_connector=save_restore_connector,
-        )
-
-    def state_dict(self, destination=None, prefix=None, keep_vars=False):
-        """
-        Custom state dict that only contains prompt table and prompt encoder parameters. 
-        No frozen model parameters are stored in the state dict. Prompt encoder parameters 
-        are only in state dict for intermediate checkpoints saved during training. Final
-        nemo checkpoints at the end of training will contain prompt table parameters only. 
-        """
-
-        if self.first_stage_of_pipeline():
-            super().state_dict(destination, prefix, keep_vars)
-        else:
-            state_dict_ = {}
-
-            return state_dict_
-
-    def load_state_dict(self, state_dict, strict: bool = True):
-        """
-        Custom load state dict method that only loads prompt table and prompt encoder
-        parameters. Matching load method for this class' custom state dict method. 
-        """
-        if self.first_stage_of_pipeline():
-            super().load_state_dict(state_dict, strict)
-
-    def setup_optimizer_param_groups(self):
-        """
-        ModelPT override. Optimizer will get self._optimizer_param_groups. 
-        Only want virtual prompt params to be passed to the optimizer.
-        """
-        ## Freeze frozen model
-        for param in self.frozen_model.parameters():
-            param.requires_grad = False
-
-        if self.first_stage_of_pipeline():
-            self.add_virtual_prompt_params_to_param_group()
-        else:
-            self._optimizer_param_groups = ({'params': []},)
-
-    def set_input_tensor(self, input_tensor):
-        """Set input tensor to be used instead of forward()'s input.
-        When doing pipeline parallelism the input from the previous
-        stage comes from communication, not from the input, so the
-        model's forward_step_func won't have it. This function is thus
-        used by internal code to bypass the input provided by the
-        forward_step_func"""
-
-        self.frozen_model.enc_dec_model.set_input_tensor(input_tensor)
-
     def forward(
         self, input_ids, dec_input, enc_mask, dec_mask, position_ids, taskname_ids, labels=None, inference=False,
     ):
@@ -201,15 +86,6 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         Special forward method for p-tuning/prompt-tuning pretrained
         T5 style models.
         """
-<<<<<<< HEAD
-        # Get embeddings for text tokens and insert virtual token embeddings
-        if self.first_stage_of_pipeline():
-            if inference:
-                input_embeds = self.embed_input_inference(input_ids, taskname_ids)
-            else:
-                input_embeds = self.embed_input_train(input_ids, taskname_ids)
-
-=======
         batch_size, seq_length = input_ids.shape
 
         if self.first_stage_of_pipeline():
@@ -219,7 +95,6 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             else:
                 input_embeds = self.embed_input_train(input_ids, taskname_ids)
 
->>>>>>> fix_global_init
             # TODO: This check needs to be revisited with PP support.
             if hasattr(self.frozen_model.enc_dec_model.encoder_embedding, 'position_embeddings'):
                 position_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.position_embeddings(
@@ -258,9 +133,6 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
         return output, encoder_input
 
-<<<<<<< HEAD
-    def fwd_bwd_step(self, batch, forward_only):
-=======
     def load_frozen_model(self, cfg, trainer):
         self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
 
@@ -307,14 +179,10 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         self._optimizer_param_groups = (virtual_prompt_params,)
 
     def fwd_bwd_step(self, batch, batch_idx, forward_only):
->>>>>>> fix_global_init
         """
             Dataloader produces a global batch which is turned into a list of microbatches.
             The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
-<<<<<<< HEAD
-        super().fwd_bwd_step(batch, forward_only, disable_autocast=True)
-=======
         # Get seq length of batch
         _, seq_length = batch[0].shape
         _, dec_seq_length = batch[1].shape
@@ -355,7 +223,6 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             loss_mean = torch.tensor(0.0).cuda()
 
         return loss_mean
->>>>>>> fix_global_init
 
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(batch, model):
@@ -376,53 +243,6 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
         return fwd_output_and_loss_func
 
-<<<<<<< HEAD
-    def setup(self, stage=None):
-        if (
-            stage == 'predict' or self.virtual_prompt_style == VirtualPromptStyle.INFERENCE
-        ) and self.first_stage_of_pipeline():
-            self.freeze_existing_virtual_prompt_params()
-            return
-
-        self.setup_test_data()
-        if stage == 'test':
-            return
-
-        if self.first_stage_of_pipeline():
-            if self.virtual_prompt_style == VirtualPromptStyle.PROMPT_TUNING:
-                self.init_new_prompts()
-            elif self.virtual_prompt_style == VirtualPromptStyle.P_TUNING:
-                self.init_prompt_encoder()
-
-            self.freeze_existing_virtual_prompt_params()
-
-        self.setup_training_data()
-        self.setup_validation_data()
-
-    def setup_training_data(self, training_data_config=None):
-        if self.cfg.data.get('train_ds', None):
-            self._train_ds, self._train_dl = self.build_virtual_prompt_dataset(
-                dataset_paths=self.cfg.data.train_ds,
-                batch_size=self.cfg.global_batch_size,
-                for_train=True,
-                drop_last=True,
-                shuffle=True,
-                num_workers=self.cfg.data.num_workers,
-                pin_memory=True,
-            )
-
-    def setup_validation_data(self, validation_data_config=None):
-        if self.cfg.data.get('validation_ds', None):
-            self._validation_ds, self._validation_dl = self.build_virtual_prompt_dataset(
-                dataset_paths=self.cfg.data.validation_ds,
-                batch_size=self.cfg.global_batch_size,
-                for_train=True,
-                drop_last=True,
-                shuffle=False,
-                num_workers=self.cfg.data.num_workers,
-                pin_memory=True,
-            )
-=======
     def backward(self, *args, **kwargs):
         """ LightningModule hook to do backward.
             We want this to do nothing since we run backward in the fwd/bwd functions from apex.
@@ -449,69 +269,26 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         self._optimizer.zero_grad()
         loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=False)
         self.allreduce_gradients()
->>>>>>> fix_global_init
 
-    def setup_test_data(self, test_data_config=None):
-        if self.cfg.data.get('test_ds', None):
-            self._test_ds, self._test_dl = self.build_virtual_prompt_dataset(
-                dataset_paths=self.cfg.data.test_ds,
-                batch_size=self.cfg.global_batch_size,
-                for_train=False,
-                drop_last=False,
-                shuffle=False,
-                num_workers=self.cfg.data.num_workers,
-                pin_memory=True,
-            )
+        ## logging
+        # we can only log on one rank if it is rank zero so we broadcast from last rank
+        # we can avoid this broadcast by updating the PTL log function to accept specific ranks
+        torch.distributed.broadcast(loss_mean, get_last_rank())
 
-<<<<<<< HEAD
-    def build_virtual_prompt_dataset(
-        self, dataset_paths, batch_size, for_train, drop_last, shuffle, num_workers, pin_memory
-    ):
-        dataset = T5PromptLearningDataset(
-            datasets=dataset_paths,
-            tokenizer=self.tokenizer,
-            virtual_prompt_source=self.virtual_prompt_source,
-            task_templates=self.task_templates,
-            pseudo_tokens=self.pseudo_tokens,
-            pad_token_id=self.pad_token_id,
-            max_seq_length=self.cfg.data.get('max_seq_length', self.frozen_model.cfg.max_position_embeddings),
-            min_seq_length=self.cfg.data.get('min_seq_length', 1),
-            add_bos=self.cfg.data.get('add_bos', False),
-            add_eos=self.cfg.data.get('add_eos', True),
-            for_train=for_train,
-        )
-=======
         if self.cfg.precision == 16 and hasattr(self.trainer.precision_plugin.scaler, "_scale"):
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
                 self.log('loss_scale', loss_scale)
->>>>>>> fix_global_init
 
-        rank = parallel_state.get_data_parallel_rank()
-        world_size = parallel_state.get_data_parallel_world_size()
-        sampler = torch.utils.data.distributed.DistributedSampler(
-            dataset, num_replicas=world_size, rank=rank, shuffle=shuffle
-        )
+        self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True)
+        lr = self._optimizer.param_groups[0]['lr']
+        self.log('lr', lr, rank_zero_only=True)
+        self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True)
 
-        dataloader = torch.utils.data.DataLoader(
-            dataset,
-            collate_fn=dataset.collate_fn,
-            sampler=sampler,
-            batch_size=batch_size // world_size,
-            drop_last=drop_last,
-            num_workers=num_workers,
-            pin_memory=pin_memory,
-        )
-        print('build success', len(dataloader), dataset_paths)
-        return dataset, dataloader
+        return loss_mean
 
-<<<<<<< HEAD
-    def validation_step(self, batch, batch_idx):
-        enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids = batch
-=======
     def validation_step(self, batch, batch_idx, inference=False):
         input_ids, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids = batch
->>>>>>> fix_global_init
 
         mode = self.training
         self.eval()
@@ -530,13 +307,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             else:
                 encoder_input = input_embeds
         else:
-<<<<<<< HEAD
-            encoder_input = input_embeds
-
-        loss_mean = self.fwd_bwd_step(batch, forward_only=True, disable_autocast=True)
-=======
             encoder_input = None
->>>>>>> fix_global_init
 
         predicted_token_ids, log_probs = self.frozen_model.decode(
             tokens_enc=input_ids,
@@ -547,13 +318,8 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
         processed_inputs, processed_preds, processed_labels = [], [], []
         preds = predicted_token_ids.cpu().numpy().tolist()
-<<<<<<< HEAD
-        enc_inputs = enc_input.cpu().numpy().tolist()
-        labels = labels.cpu().numpy().tolist()
-=======
         labels = labels.cpu().numpy().tolist()
         input_ids = input_ids.cpu().numpy().tolist()
->>>>>>> fix_global_init
 
         for i, (input_id, pred, label) in enumerate(zip(input_ids, preds, labels)):
             if self.tokenizer.eos_id in pred:
@@ -581,15 +347,13 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
         self.train(mode=mode)
         return {
-            'enc_inputs': processed_inputs,
-            'predicted_token_ids': processed_preds,
             'loss': loss_mean,
+            'predicted_token_ids': processed_preds,
             'labels': processed_labels,
+            'enc_inputs': processed_inputs,
         }
 
     def validation_epoch_end(self, outputs):
-<<<<<<< HEAD
-=======
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
             if parallel_state.is_pipeline_last_stage():
                 # only the last pipeline parallel stages return loss
@@ -608,7 +372,6 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             logging.info(f'Validation loss: {averaged_loss}')
             self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
 
->>>>>>> fix_global_init
         gather_results = [None for _ in range(parallel_state.get_data_parallel_world_size())]
 
         all_preds = list(itertools.chain(*[item['predicted_token_ids'] for item in outputs]))
@@ -643,38 +406,54 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             val_acc = torch.tensor(0.0).cuda()
 
         self.log('val_acc', val_acc, prog_bar=True, rank_zero_only=True)
+        logging.info(f'val_loss: {averaged_loss}')
 
-<<<<<<< HEAD
         # Save inference ready .nemo checkpoint version
-        if self.cfg.get("save_intermediate_nemo_file", True):
+        if self.cfg.get("save_nemo_on_validation_end", False):
             if self.lowest_val_loss is None or averaged_loss < self.lowest_val_loss:
                 self.save_checkpoint_as_nemo_file()
                 self.lowest_val_loss = averaged_loss
 
-=======
->>>>>>> fix_global_init
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
 
     def test_epoch_end(self, outputs):
         self.validation_epoch_end(outputs)
 
-    def on_train_end(self):
-        # Save p-tuned prompts to prompt table for inference or future task training
-        if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING and self.first_stage_of_pipeline():
-            self.add_ptuned_prompts_to_prompt_table()
-            logging.info(f"All p-tuned prompts where moved to the prompt table.")
+    def build_virtual_prompt_dataset(
+        self, dataset_paths, batch_size, for_train, drop_last, shuffle, num_workers, pin_memory
+    ):
+        dataset = T5PromptLearningDataset(
+            datasets=dataset_paths,
+            tokenizer=self.tokenizer,
+            virtual_prompt_source=self.virtual_prompt_source,
+            task_templates=self.task_templates,
+            pseudo_tokens=self.pseudo_tokens,
+            pad_token_id=self.pad_token_id,
+            max_seq_length=self.cfg.data.get('max_seq_length', self.frozen_model.cfg.max_position_embeddings),
+            min_seq_length=self.cfg.data.get('min_seq_length', 1),
+            add_bos=self.cfg.data.get('add_bos', False),
+            add_eos=self.cfg.data.get('add_eos', True),
+            for_train=for_train,
+        )
 
-            # Remove prompt encoder from model
-            self.prompt_encoder = None
-            logging.info(f"Prompt encoder deleted")
+        rank = parallel_state.get_data_parallel_rank()
+        world_size = parallel_state.get_data_parallel_world_size()
+        sampler = torch.utils.data.distributed.DistributedSampler(
+            dataset, num_replicas=world_size, rank=rank, shuffle=shuffle
+        )
 
-        self.update_config_for_inference_and_save()
-
-    def first_stage_of_pipeline(self):
-        if self.frozen_model.enc_dec_model.pre_process and parallel_state.get_pipeline_model_parallel_rank() == 0:
-            return True
-        return False
+        dataloader = torch.utils.data.DataLoader(
+            dataset,
+            collate_fn=dataset.collate_fn,
+            sampler=sampler,
+            batch_size=batch_size // world_size,
+            drop_last=drop_last,
+            num_workers=num_workers,
+            pin_memory=pin_memory,
+        )
+        print('build success', len(dataloader), dataset_paths)
+        return dataset, dataloader
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> Any:
 
@@ -712,7 +491,10 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             encoder_input=encoder_input,
         )
 
-        processed_inputs, processed_preds, processed_labels = [], [], []
+        processed_preds = []
+        processed_labels = []
+        processed_inputs = []
+
         preds = predicted_token_ids.cpu().numpy().tolist()
         input_ids = input_ids.cpu().numpy().tolist()
 
@@ -726,23 +508,6 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
                 idx = pred.index(self.tokenizer.eos_id)
                 pred = pred[:idx]
 
-<<<<<<< HEAD
-            # Sentencepiece case
-            if hasattr(self.tokenizer, 'special_token_to_id'):
-                pred = [
-                    id
-                    for id in pred
-                    if id not in self.tokenizer.special_token_to_id.values()
-                    and id not in self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
-                ]  # delete the sentinel token at the beginning of prediction
-            else:
-                pred = [
-                    id
-                    for id in pred
-                    if id not in self.tokenizer.tokenizer.additional_special_tokens_ids
-                    and id not in self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
-                ]  # delete the sentinel token at the beginning of prediction
-=======
             special_token_ids = (
                 self.tokenizer.special_token_to_id.values()
                 if hasattr(self.tokenizer, 'special_token_to_id')
@@ -756,34 +521,11 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
             pred = self.tokenizer.ids_to_text(pred)
             processed_preds.append(pred)
->>>>>>> fix_global_init
 
             input_id = [
                 id for id in input_id if id not in self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
             ]  # delete the sentinel token added to the end of input
 
-<<<<<<< HEAD
-            pred = self.tokenizer.ids_to_text(pred)
-            input = self.tokenizer.ids_to_text(enc_input)
-            processed_preds.append(pred)
-            processed_inputs.append(input)
-
-            if label:
-                if hasattr(self.tokenizer, 'special_token_to_id'):
-                    label = [
-                        id
-                        for id in label
-                        if id not in self.tokenizer.special_token_to_id.values()
-                        and id not in self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
-                    ]
-                else:
-                    label = [
-                        id
-                        for id in label
-                        if id not in self.tokenizer.tokenizer.additional_special_tokens_ids
-                        and id not in self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
-                    ]  # delete the sentinel token at the beginning of label
-=======
             input = self.tokenizer.ids_to_text(input_id)
             processed_inputs.append(input)
 
@@ -793,10 +535,9 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
                     for id in label
                     if id not in special_token_ids and id not in self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
                 ]  # delete the sentinel token at the beginning of label
->>>>>>> fix_global_init
 
                 label = self.tokenizer.ids_to_text(label)
-                processed_labels.append(label)
+            processed_labels.append(label)
 
         return {
             'enc_input': processed_inputs,
