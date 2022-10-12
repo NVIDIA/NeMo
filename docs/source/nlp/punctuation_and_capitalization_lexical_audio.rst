@@ -60,6 +60,7 @@ Example of the ``audio_train.txt``/``audio_dev.txt`` file:
     /path/to/1.wav
     /path/to/2.wav
     ....
+
 In this case ``source_data_dir`` structure should look similar to the following:
 
 .. code::

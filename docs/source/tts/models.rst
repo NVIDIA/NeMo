@@ -22,7 +22,7 @@ FastPitch is a fully-parallel text-to-speech model based on FastSpeech, conditio
         :scale: 30%
 
 Mixer-TTS/Mixer-TTS-X
-~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~
 Mixer-TTS is a non-autoregressive model for mel-spectrogram generation. The model is based on MLP-Mixer architecture adapted for speech synthesis. The basic Mixer-TTS contains pitch and duration predictors, with the latter being trained with supervised TTS alignment framework. Alongside the basic model, we propose the extended version, Mixer-TTS-X, which additionally uses token embeddings from a pre-trained language model. Basic Mixer-TTS and its extended version have a small number of parameters and enable much faster speech synthesis compared to the models with similar quality. The model architectures of basic Mixer-TTS is shown below (left). The basic Mixer-TTS uses the same architectures of duration and pitch predictors as FastPitch, but it has two major changes. It replaces all feed-forward transformer-based blocks in the encoder and decoder with new Mixer-TTS blocks (right); it uses an unsupervised speech-to-text alignment framework to train the duration predictor. Please refer to :cite:`tts-models-tatanov2022mixer` for details.
 
     .. image:: images/mixertts_model.png
@@ -95,7 +95,7 @@ Speech-to-Text Aligners
 -----------------------
 
 RAD-TTS Aligner
-~~~~~~~~~~~~
+~~~~~~~~~~~~~~~
 Speech-to-text alignment is a critical component of neural TTS models. Autoregressive TTS models typically use an attention mechanism to learn these alignments on-line. However, these alignments tend to be brittle and often fail to generalize to long utterances and out-of-domain text, leading to missing or repeating words. Most non-autoregressive end-to-end TTS models rely on durations extracted from external sources. RAD-TTS Aligner leverages the alignment mechanism proposed in RAD-TTS and demonstrates its applicability to wide variety of neural TTS models. The alignment learning framework combines the forward-sum algorithm, Viterbi algorithm, and an efficient static prior. RAD-TTS Aligner can improve all tested TTS architectures, both autoregressive (Flowtron, Tacotron 2) and non-autoregressive (FastPitch, FastSpeech 2, RAD-TTS). Specifically, it improves alignment convergence speed, simplifies the training pipeline by eliminating need for external aligners, enhances robustness to errors on long utterances and improves the perceived speech synthesis quality, as judged by human evaluators. The alignment framework is shown below. Please refer to :cite:`tts-models-badlani2022one` for details.
 
     .. image:: images/radaligner_model.png

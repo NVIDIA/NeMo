@@ -279,7 +279,7 @@ The argument ``data.train_ds.decoder_data_augmentation`` in the config file cont
 References
 ----------
 
-.. bibliography:: tn_itn_all.bib
+.. bibliography:: tn_itn_all.bib ../nlp_all.bib
     :style: plain
     :labelprefix: NLP-TEXTNORM
     :keyprefix: nlp-textnorm-

@@ -182,9 +182,7 @@ BERT model checkpoints (`BERT-large-uncased <https://ngc.nvidia.com/catalog/mode
 dataset, or fine tuning downstream tasks, including GLUE benchmark tasks, Question & Answering tasks, Joint Intent & Slot detection,
 Punctuation and Capitalization, Named Entity Recognition, and Speech Recognition post processing model to correct mistakes.
 
-.. note:: Almost all NLP examples also support RoBERTa and ALBERT models for downstream fine-tuning tasks (see the list of all
-supported models by calling ``nemo.collections.nlp.modules.common.lm_utils.get_pretrained_lm_models_list()``. The user needs to specify
-the name of the model desired while running the example scripts.
+.. note:: Almost all NLP examples also support RoBERTa and ALBERT models for downstream fine-tuning tasks (see the list of all supported models by calling ``nemo.collections.nlp.modules.common.lm_utils.get_pretrained_lm_models_list()``). The user needs to specify the name of the model desired while running the example scripts.
 
 BioMegatron Medical BERT
 ------------------------
@@ -272,8 +270,7 @@ A:
 - Obtain speech data ideally at 22050 Hz or alternatively at a higher sample rate and then down sample to 22050 Hz.
     - If less than 22050 Hz and at least 16000 Hz:
         - Retrain WaveGlow on your own dataset.
-        - Tweak the spectrogram generation parameters, namely the ``window_size`` and the ``window_stride`` for their fourier
-        transforms.
+        - Tweak the spectrogram generation parameters, namely the ``window_size`` and the ``window_stride`` for their fourier transforms.
     - For below 16000 Hz, look into obtaining new data.
 - In terms of bitrate/quantization, the general advice is the higher the better. We have not experimented enough to state how much
   this impacts quality.

@@ -23,6 +23,7 @@ Export interface is provided by the ``Exportable`` mix-in class. If a model exte
 How to Use Model Export
 -----------------------
 The following arguments are for ``Exportable.export()``. In most cases, you should only supply the name of the output file and use all defaults:
+
 .. code-block:: Python
 
     def export(
@@ -75,6 +76,7 @@ You should not normally need to override ``Exportable`` default methods. However
         Returns:
             A tuple of input examples. 
 	 """
+
 This function should return a tuple of (normally) Tensors - one per each of model inputs (args to ``forward()``). The last element may be a ``Dict`` to specify non-positional arguments by name, as per Torch ``export()`` convention. For more information, refer to the `Using dictionaries to handle Named Arguments as model inputs
 <https://pytorch.org/docs/stable/onnx.html#using-dictionaries-to-handle-named-arguments-as-model-inputs>`_.
 

@@ -132,7 +132,7 @@ Using this unknown token forces a G2P model to produce the same masking token as
 Purpose-built BERT-based classification model for heteronym disambiguation
 --------------------------------------------------------------------------
 
-HeteronymClassificationModel is a BERT-based :cite:`g2p--ddevlin2018bert` model represents a token classification model and can handle multiple heteronyms at once. The model takes a sentence as an input, and then for every word, it selects a heteronym option out of the available forms.
+HeteronymClassificationModel is a BERT-based :cite:`g2p--devlin2018bert` model represents a token classification model and can handle multiple heteronyms at once. The model takes a sentence as an input, and then for every word, it selects a heteronym option out of the available forms.
 We mask irrelevant forms to disregard the model’s predictions for non-ambiguous words. E.g., given  the input “The Poems are simple to read and easy to comprehend.” the model scores possible {READ_PRESENT and READ_PAST} options for the word “read”.
 Possible heteronym forms are extracted from the WikipediaHomographData :cite:`g2p--gorman2018improving`.
 
@@ -203,7 +203,7 @@ G2P requires NeMo NLP and ASR collections installed. See `Installation instructi
 References
 ----------
 
-.. bibliography:: ../text_processing_all.bib ../../tts/tts_all.bib
+.. bibliography:: ../text_processing_all.bib ../../tts/tts_all.bib ../../nlp/nlp_all.bib
     :style: plain
     :labelprefix: g2p-
     :keyprefix: g2p--

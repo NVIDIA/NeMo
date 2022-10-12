@@ -21,6 +21,7 @@ LJSpeech
 * Dataset URL: https://keithito.com/LJ-Speech-Dataset/
 * Dataset Processing Script: https://github.com/NVIDIA/NeMo/blob/main/scripts/dataset_processing/tts/ljspeech/get_data.py
 * Command Line Instruction:
+
 .. code-block:: shell-session
 
     $ python scripts/dataset_processing/tts/ljspeech/get_data.py \
@@ -40,6 +41,7 @@ LibriTTS
 * Dataset URL: https://www.openslr.org/60/
 * Dataset Processing Script: https://github.com/NVIDIA/NeMo/blob/main/scripts/dataset_processing/tts/libritts/get_data.py
 * Command Line Instruction:
+
 .. code-block:: console
 
     $ python scripts/dataset_processing/tts/libritts/get_data.py \
@@ -68,6 +70,7 @@ Thorsten Müller (German Neutral-TTS dataset)
 * Dataset URL: https://www.openslr.org/resources/95/
 * Dataset Processing Script: https://github.com/NVIDIA/NeMo/blob/main/scripts/dataset_processing/tts/openslr/get_data.py
 * Command Line Instruction:
+
 .. code-block:: bash
 
     $ python scripts/dataset_processing/tts/openslr/get_data.py \
@@ -87,6 +90,7 @@ HUI Audio Corpus German
 * Dataset URL: https://opendata.iisys.de/datasets.html
 * Dataset Processing Script: https://github.com/NVIDIA/NeMo/blob/main/scripts/dataset_processing/tts/hui_acg/get_data.py
 * Command Line Instruction:
+
 .. code-block:: bash
 
     $ python scripts/dataset_processing/tts/hui_acg/get_data.py \

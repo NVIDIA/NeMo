@@ -371,7 +371,7 @@ not be changed.
 
 To use Citrinet instead of QuartzNet, refer to the ``citrinet_512.yaml`` configuration found inside the ``examples/asr/conf/citrinet``
 directory. Citrinet is primarily comprised of the same :class:`~nemo.collections.asr.parts.submodules.jasper.JasperBlock` as ``Jasper`` or
-``QuartzNet`.
+``QuartzNet``.
 
 While the configs for Citrinet and QuartzNet are similar, we note the additional flags used for Citrinet below. Refer to the
 ``JasperBlock`` documentation for the meaning of these arguments.
