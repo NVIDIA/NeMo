@@ -1,13 +1,14 @@
 import glob
 import json
-from omegaconf import OmegaConf
-from pathlib import Path
-import pytest
 import sys
+from pathlib import Path
 
-SDP_ROOT_DIR=(Path(__file__).parents[2] / "tools" / "speech_dataset_processor").resolve()
-sys.path.append(str(SDP_ROOT_DIR))
+import pytest
 from main import main
+from omegaconf import OmegaConf
+
+SDP_ROOT_DIR = (Path(__file__).parents[2] / "tools" / "speech_dataset_processor").resolve()
+sys.path.append(str(SDP_ROOT_DIR))
 
 CONFIG_BASE_DIR = SDP_ROOT_DIR / "dataset_configs"
 
