@@ -18,7 +18,7 @@ class ASRInference(BaseProcessor):
     def __init__(self, output_manifest_file, input_manifest_file, pretrained_model, batch_size=32):
         self.output_manifest_file = output_manifest_file
         self.input_manifest_file = input_manifest_file
-        self.script_path = Path(__file__).parents[1] / "transcribe_speech.py"
+        self.script_path = Path(__file__).parents[3] / "examples" / "asr" / "transcribe_speech.py"
         self.pretrained_model = pretrained_model
         self.batch_size = batch_size
 
