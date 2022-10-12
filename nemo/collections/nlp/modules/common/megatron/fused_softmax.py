@@ -14,6 +14,8 @@
 
 import torch
 
+from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
+
 try:
     from apex.transformer.functional.fused_softmax import FusedScaleMaskSoftmax
 
@@ -21,6 +23,8 @@ try:
 
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
+    # fake missing classes with None attributes
+    FusedScaleMaskSoftmax = ApexGuardDefaults()
 
 
 class MatchedScaleMaskSoftmax(FusedScaleMaskSoftmax):
