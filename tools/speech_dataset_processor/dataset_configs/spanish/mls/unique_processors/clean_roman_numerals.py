@@ -17,8 +17,8 @@ import os
 from typing import List
 
 import pandas as pd
-from processors.base_processor import DataEntry
-from processors.modify_manifest.modify_manifest import ModifyManifestTextProcessor
+from sdp.processors.base_processor import DataEntry
+from sdp.processors.modify_manifest.modify_manifest import ModifyManifestTextProcessor
 
 from nemo.utils import logging
 

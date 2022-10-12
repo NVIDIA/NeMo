@@ -13,9 +13,9 @@
 # limitations under the License.
 
 # let's import all supported processors here to simplify target specification
-from .asr_inference import ASRInference
-from .create_initial_manifest.create_initial_manifest_mls import CreateInitialManifestMLS
-from .modify_manifest.data_to_data import (
+from sdp.processors.asr_inference import ASRInference
+from sdp.processors.create_initial_manifest.create_initial_manifest_mls import CreateInitialManifestMLS
+from sdp.processors.modify_manifest.data_to_data import (
     InsIfASRInsertion,
     SubIfASRSubstitution,
     SubMakeLowercase,
@@ -23,7 +23,7 @@ from .modify_manifest.data_to_data import (
     SubSubstringToSpace,
     SubSubstringToSubstring,
 )
-from .modify_manifest.data_to_dropbool import (
+from sdp.processors.modify_manifest.data_to_dropbool import (
     DropASRErrorBeginningEnd,
     DropHighCER,
     DropHighLowCharrate,
@@ -37,4 +37,4 @@ from .modify_manifest.data_to_dropbool import (
     DropLowWordMatchRate,
     DropNonAlphabet,
 )
-from .write_manifest import WriteManifest
+from sdp.processors.write_manifest import WriteManifest

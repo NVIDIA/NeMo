@@ -16,10 +16,10 @@ import collections
 import re
 from typing import Dict, List
 
-from processors.base_processor import DataEntry
-from processors.modify_manifest.modify_manifest import ModifyManifestTextProcessor
-from utils.edit_spaces import add_start_end_spaces
-from utils.get_diff import get_diff_with_subs_grouped
+from sdp.processors.base_processor import DataEntry
+from sdp.processors.modify_manifest.modify_manifest import ModifyManifestTextProcessor
+from sdp.utils.edit_spaces import add_start_end_spaces
+from sdp.utils.get_diff import get_diff_with_subs_grouped
 
 from nemo.utils import logging
 

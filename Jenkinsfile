@@ -126,6 +126,19 @@ pipeline {
       }
     }
 
+    stage('L0: Unit Tests Speech Dataset Processor') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      steps {
+        sh 'pip install -r tools/speech_dataset_processor/requirements.txt'
+        sh 'CUDA_VISIBLE_DEVICES="" pytest tools/speech_dataset_processor -m "not pleasefixme"'
+      }
+    }    
+
     stage('L0: TN/ITN Tests CPU') {
       when {
         anyOf {

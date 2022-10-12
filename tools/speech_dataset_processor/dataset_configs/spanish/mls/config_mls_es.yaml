@@ -11,19 +11,19 @@ workspace_dir: ???
 final_manifest: ???
 
 processors:
-  - _target_: processors.CreateInitialManifestMLS
+  - _target_: sdp.processors.CreateInitialManifestMLS
     output_manifest_file: "${workspace_dir}/mls_spanish_processed/${data_split}_manifest.json"
     language: spanish
     download_dir: ${workspace_dir}
     resampled_audio_dir: "${workspace_dir}/mls_spanish_processed/${data_split}/audio/"
     data_split: "${data_split}"
 
-  - _target_: processors.ASRInference
+  - _target_: sdp.processors.ASRInference
     input_manifest_file: "${workspace_dir}/mls_spanish_processed/${data_split}_manifest.json"
     output_manifest_file: "${workspace_dir}/processed_manifests/stt_es_quartznet15x5_${data_split}.json"
     pretrained_model: "stt_es_quartznet15x5"
 
-  - _target_: processors.SubSubstringToSubstring
+  - _target_: sdp.processors.SubSubstringToSubstring
     input_manifest_file: "${workspace_dir}/processed_manifests/stt_es_quartznet15x5_${data_split}.json"
 
     substring_pairs: {
@@ -107,7 +107,7 @@ processors:
     test_cases:
       - {input: {text: "á las dos"}, output: {text: "a las dos"}}
 
-  - _target_: processors.SubSubstringToSpace
+  - _target_: sdp.processors.SubSubstringToSpace
     substrings: [
                 '.', '-', '‐', '‑', '–', '—', '―',
                 '"', '$', '&', "'", ',', ',',
@@ -144,13 +144,13 @@ processors:
       - {input: {text: "abc, def."}, output: {text: "abc def"}}
       - {input: {text: "abc! def."}, output: {text: "abc def"}}
 
-  - _target_: processors.DropNonAlphabet
+  - _target_: sdp.processors.DropNonAlphabet
     alphabet: " abcdefghijklmnopqrstuvwxyzáéíñóúü"
     test_cases:
       - {input: {text: "test тест 测试"}, output: null}
       - {input: {text: "test"}, output: {text: "test"}}
 
-  - _target_: dataset_configs.spanish.mls.unique_processors.clean_roman_numerals.CleanRomanNumerals
+  - _target_: sdp.dataset_configs.spanish.mls.unique_processors.clean_roman_numerals.CleanRomanNumerals
     king_triggers: [
       "alfonso",
       "benedicto",

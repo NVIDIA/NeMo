@@ -15,7 +15,7 @@
 from typing import List
 
 import diff_match_patch
-from utils.edit_spaces import remove_extra_spaces
+from sdp.utils.edit_spaces import remove_extra_spaces
 
 diff = diff_match_patch.diff_match_patch()
 diff.Diff_Timeout = 0

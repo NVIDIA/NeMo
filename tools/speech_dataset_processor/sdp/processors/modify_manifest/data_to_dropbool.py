@@ -16,11 +16,11 @@ import collections
 import re
 from typing import Dict, List
 
-from processors.base_processor import DataEntry
-from processors.modify_manifest.modify_manifest import ModifyManifestTextProcessor
-from utils.edit_spaces import remove_extra_spaces
-from utils.get_diff import get_diff_with_subs_grouped
-from utils.metrics_computation import get_cer, get_charrate, get_wer, get_wmr, get_wordrate
+from sdp.processors.base_processor import DataEntry
+from sdp.processors.modify_manifest.modify_manifest import ModifyManifestTextProcessor
+from sdp.utils.edit_spaces import remove_extra_spaces
+from sdp.utils.get_diff import get_diff_with_subs_grouped
+from sdp.utils.metrics_computation import get_cer, get_charrate, get_wer, get_wmr, get_wordrate
 
 from nemo.utils import logging
 

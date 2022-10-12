@@ -16,8 +16,8 @@
 from abc import abstractmethod
 from typing import Dict, List, Optional
 
-from processors.base_processor import BaseParallelProcessor
-from utils.edit_spaces import add_start_end_spaces, remove_extra_spaces
+from sdp.processors.base_processor import BaseParallelProcessor
+from sdp.utils.edit_spaces import add_start_end_spaces, remove_extra_spaces
 
 
 class ModifyManifestTextProcessor(BaseParallelProcessor):

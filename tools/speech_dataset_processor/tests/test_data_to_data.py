@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import pytest
-from tools.speech_dataset_processor.processors.modify_manifest.data_to_data import (
+from sdp.processors.modify_manifest.data_to_data import (
     InsIfASRInsertion,
     SubIfASRSubstitution,
     SubMakeLowercase,

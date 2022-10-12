@@ -16,9 +16,9 @@ import os
 from pathlib import Path
 
 import sox
-from processors.base_processor import BaseParallelProcessor, DataEntry
 from sox import Transformer
-from utils.common import download_file, extract_archive
+from sdp.processors.base_processor import BaseParallelProcessor, DataEntry
+from sdp.utils.common import download_file, extract_archive
 
 MLS_URL = "https://dl.fbaipublicfiles.com/mls/mls_{language}.tar.gz"
 TEST_DATA_PATH = str(Path(__file__).parents[2] / "tests" / "test_data" / "mls_{language}" / "data.tar.gz")

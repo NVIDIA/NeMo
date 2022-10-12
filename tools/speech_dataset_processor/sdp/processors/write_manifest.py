@@ -14,7 +14,7 @@
 
 import json
 
-from processors.base_processor import BaseProcessor
+from sdp.processors.base_processor import BaseProcessor
 from tqdm import tqdm
 
 
