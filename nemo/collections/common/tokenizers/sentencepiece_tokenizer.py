@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import os
-import re
 from typing import Dict, List, Optional, Union
 
 import numpy as np
@@ -273,6 +272,7 @@ def create_spt_model(
     byte_fallback: bool = False,
     split_digits: bool = False,
     split_by_whitespace: bool = True,
+    split_by_unicode_script: bool = True,
 ):
     """
     Creates sentence piece tokenizer model from data file.
@@ -298,6 +298,7 @@ def create_spt_model(
         byte_fallback: If <unk>, fallback to a byte sequence of the character.
         split_digits: If true, digits are split into individual tokens.
         split_by_whitespace: Whether to respect white space while creating subwords. If False, will learn merges across whitespace.
+        split_by_unicode_script: Whether to include multiple Unicode scripts. Ex. is Arabic diacritics which are considered part of the letter (عِدَّةُ)
     """
 
     if not data_file or not os.path.exists(data_file):
@@ -363,6 +364,9 @@ def create_spt_model(
 
     if not split_by_whitespace:
         cmd += " --split_by_whitespace=false"
+
+    if not split_by_unicode_script:
+        cmd += " --split_by_unicode_script=false"
 
     sentencepiece.SentencePieceTrainer.Train(cmd)
 

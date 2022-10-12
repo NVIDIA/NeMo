@@ -171,7 +171,7 @@ The audio files can be of any format supported by `Pydub <https://github.com/jia
 WAV files as they are the default and have been most thoroughly tested.
 
 There should be one manifest file per dataset that will be passed in, therefore, if the user wants separate training and validation
-datasets, they should also have separate manifests. Otherwise, thay will be loading validation data with their training data and vice
+datasets, they should also have separate manifests. Otherwise, they will be loading validation data with their training data and vice
 versa.
 
 Each line of the manifest should be in the following format:
@@ -319,10 +319,10 @@ Training an ASR model on audios sorted based on length may affect the accuracy o
 We support three types of bucketing strategies:
 
 *   fixed_order: the same order of buckets are used for all epochs
-*   syned_randomized (default): each epoch would have a different order of buckets. Order of the buckets is shuffled every epoch.
+*   synced_randomized (default): each epoch would have a different order of buckets. Order of the buckets is shuffled every epoch.
 *   fully_randomized: similar to synced_randomized but each GPU has its own random order. So GPUs would not be synced.
 
-Tha parameter train_ds.bucketing_strategy can be set to specify one of these strategies. The recommended strategy is syned_randomized which gives the highest training speedup.
+Tha parameter train_ds.bucketing_strategy can be set to specify one of these strategies. The recommended strategy is synced_randomized which gives the highest training speedup.
 The fully_randomized strategy would have lower speedup than synced_randomized but may give better accuracy.
 
 Bucketing may improve the training speed more than 2x but may affect the final accuracy of the model slightly. Training for more epochs and using 'synced_randomized' strategy help to fill this gap.
