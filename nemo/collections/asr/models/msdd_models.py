@@ -394,7 +394,8 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
                 Cumulative sum of the number of segments in each scale. This information is needed to reconstruct
                 multi-scale input tensors during forward propagating.
 
-                Example: `batch_size=3, scale_n=6, emb_dim=192`
+                Example:
+                    batch_size=3, scale_n=6, emb_dim=192`
                     ms_seg_counts =
                      [[8,  9, 12, 16, 25, 51],
                       [11, 13, 14, 17, 25, 51],
