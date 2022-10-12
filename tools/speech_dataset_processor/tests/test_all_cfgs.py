@@ -15,10 +15,10 @@
 import glob
 import json
 from pathlib import Path
+
 import pytest
 from omegaconf import OmegaConf
-
-from sdp.main import main  
+from sdp.main import main
 
 CONFIG_BASE_DIR = Path(__file__).parents[1] / "dataset_configs"
 
