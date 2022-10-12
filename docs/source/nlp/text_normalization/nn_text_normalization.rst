@@ -228,7 +228,7 @@ This pipeline consists of
         * adding space around `-` in alpha-numerical words, e.g. `2-car` -> `2 - car`
         * converting unicode fraction e.g. ½ to 1/2
         * normalizing greek letters and some special characters, e.g. `+` -> `plus`
-    * Moses :cite:`nlp-textnorm-koehn-etal-2007-moses`. tokenization/preprocessing of the input
+    * Moses :cite:`nlp-textnorm-koehnetal2007moses`. tokenization/preprocessing of the input
     * inference with neural tagger and decoder
     * Moses postprocessing/ detokenization
     * WFST-based grammars to verbalize some `VERBATIM`

@@ -24,3 +24,10 @@ team at NVIDIA. NeMo Megatron supports several types of models:
    prompt_learning
 
 
+References
+----------
+
+.. bibliography:: ../nlp_all.bib
+    :style: plain
+    :labelprefix: nlp-megatron
+    :keyprefix: nlp-megatron-
