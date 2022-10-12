@@ -150,7 +150,7 @@ processors:
       - {input: {text: "test тест 测试"}, output: null}
       - {input: {text: "test"}, output: {text: "test"}}
 
-  - _target_: sdp.dataset_configs.spanish.mls.unique_processors.clean_roman_numerals.CleanRomanNumerals
+  - _target_: dataset_configs.spanish.mls.unique_processors.clean_roman_numerals.CleanRomanNumerals
     king_triggers: [
       "alfonso",
       "benedicto",
@@ -185,7 +185,7 @@ processors:
     test_cases:
       - {input: {text: "número i"}, output: {text: "número uno"}}
 
-  - _target_: processors.DropIfRegexInAttribute
+  - _target_: sdp.processors.DropIfRegexInAttribute
     attribute_to_regex:
       "text" : ["(\\D ){5,20}"] # looks for between 4 and 19 characters surrounded by spaces
 
@@ -195,7 +195,7 @@ processors:
       - {input: {text: "three a b c spaced out letters"}, output: {text: "three a b c spaced out letters"}}
       - {input: {text: "four a b c d spaced out letters"}, output: null}
 
-  - _target_: processors.DropIfSubstringInAttribute
+  - _target_: sdp.processors.DropIfSubstringInAttribute
     attribute_to_substring:
       "audio_filepath" : [
             # books with lots of OCR errors etc.
@@ -232,7 +232,7 @@ processors:
       - {input: {audio_filepath: "/path/10246/12585/abc.wav"}, output: null}
       - {input: {audio_filepath: "/path/1/1/abc.wav"}, output: {audio_filepath: "/path/1/1/abc.wav"}}
 
-  - _target_: processors.DropHighLowCharrate
+  - _target_: sdp.processors.DropHighLowCharrate
     high_charrate_threshold: 20
     low_charrate_threshold: 5
     test_cases:
@@ -241,7 +241,7 @@ processors:
       - {input: {text: "buenos dias", duration: 1}, output: {text: "buenos dias", duration: 1}}
 
 
-  - _target_: processors.DropIfSubstringInInsertion
+  - _target_: sdp.processors.DropIfSubstringInInsertion
     substrings_in_insertion: [
       "uno ",  "dos ", "tres ", "cuatro ", "cinco ",
       "seis ", "siete ", "ocho ", "nueve ", "diez ",
@@ -254,7 +254,7 @@ processors:
       - {input: {text: "el de junio", pred_text: "el diez de junio"}, output: null}
       - {input: {text: "el diez de junio", pred_text: "el diez de junio"}, output: {text: "el diez de junio", pred_text: "el diez de junio"}}
 
-  - _target_: processors.DropIfSubstringInAttribute
+  - _target_: sdp.processors.DropIfSubstringInAttribute
     attribute_to_substring:
       "pred_text" : [
         'librewox', 'librevox', 'librivox', 'libribox', 'libriebox', 'libriboux',
@@ -264,7 +264,7 @@ processors:
       - {input: {pred_text: "librivox recording"}, output: null}
       - {input: {pred_text: "abcdef"}, output: {pred_text: "abcdef"}}
 
-  - _target_: processors.DropASRErrorBeginningEnd
+  - _target_: sdp.processors.DropASRErrorBeginningEnd
     beginning_error_char_threshold: 10
     end_error_char_threshold: 10
     test_cases:
@@ -273,20 +273,20 @@ processors:
       - { input: {text: "abcdefabcdef sí hola", pred_text: "uvwxyzuvwxyz sí hola"},
          output: {text: "abcdefabcdef sí hola", pred_text: "uvwxyzuvwxyz sí hola"}}
 
-  - _target_: processors.DropHighWER
+  - _target_: sdp.processors.DropHighWER
     wer_threshold: 90
     test_cases:
       - {input: {text: "sí hola", pred_text: "abcdefgh abcdefgh"}, output: null}
       - {input: {text: "sí hola", pred_text: "sí hola"}, output: {text: "sí hola", pred_text: "sí hola"}}
 
-  - _target_: processors.DropHighCER
+  - _target_: sdp.processors.DropHighCER
     output_manifest_file: "${workspace_dir}/processed_manifests/processed_${data_split}.json"
     cer_threshold: 90
     test_cases:
       - {input: {text: "sí hola", pred_text: "abcdefgh abcdefgh"}, output: null}
       - {input: {text: "sí hola", pred_text: "sí hola"}, output: {text: "sí hola", pred_text: "sí hola"}}
 
-  - _target_: processors.WriteManifest
+  - _target_: sdp.processors.WriteManifest
     input_manifest_file: "${workspace_dir}/processed_manifests/processed_${data_split}.json"
     output_manifest_file: ${final_manifest}
     fields_to_save:

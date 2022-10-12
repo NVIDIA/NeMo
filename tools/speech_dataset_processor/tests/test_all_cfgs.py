@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 from omegaconf import OmegaConf
-from sdp.main import main
+from sdp.run_processors import run_processors
 
 CONFIG_BASE_DIR = Path(__file__).parents[1] / "dataset_configs"
 
@@ -40,7 +40,7 @@ def test_configs(config_path, tmp_path):
     cfg["data_split"] = "train"
     cfg["processors"][0]["use_test_data"] = True
     # the test fails if any error in data processing pipeline end-to-end
-    main(cfg)
+    run_processors(cfg)
     # additionally, let's test that final generated manifest matches the
     # reference file (ignoring the file paths)
     with open(Path(config_path).parent / "test_data_reference.json", "rt", encoding="utf8") as reference_fin, open(

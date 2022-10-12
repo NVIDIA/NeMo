@@ -19,11 +19,10 @@ import uuid
 import hydra
 from omegaconf import OmegaConf
 
-from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
 
-def main(cfg):
+def run_processors(cfg):
     logging.info(f"Hydra config: {OmegaConf.to_yaml(cfg)}")
     processors_to_run = cfg.get("processors_to_run", "all")
 
@@ -66,9 +65,3 @@ def main(cfg):
             # TODO: add proper str method to all classes for good display
             logging.info('=> Running processor "%s"', processor)
             processor.process()
-
-
-if __name__ == "__main__":
-    # decorating here to allow easier tests
-    main = hydra_runner(config_name="config")(main)
-    main()
