@@ -34,11 +34,11 @@ The models can be accessed via the :code:`from_pretrained()` method inside the T
     import nemo.collections.tts as nemo_tts
     model = nemo_tts.models.<MODEL_BASE_CLASS>.from_pretrained(model_name="<MODEL_NAME>")
 
-where ``<MODEL_NAME>`` is generally the basename of the "Model Card" entry in the tables in :ref:`Checkpoints<NGC TTS Models>`. For example, the basename of the English FastPitch mel-generator model from https://ngc.nvidia.com/catalog/models/nvidia:nemo:tts_en_fastpitch is :code:`"tts_en-fastpitch"`. You could load this model by running,
+where ``<MODEL_NAME>`` is generally the basename of the "Model Card" entry in the tables in :ref:`Checkpoints<NGC TTS Models>`. For example, the basename of the English FastPitch mel-generator model from https://ngc.nvidia.com/catalog/models/nvidia:nemo:tts_en_fastpitch is :code:`"tts_en_fastpitch"`. You could load this model by running,
 
 .. code-block:: python
 
-    model = nemo_tts.models.FastPitchModel.from_pretrained(model_name="tts_en-fastpitch")
+    model = nemo_tts.models.FastPitchModel.from_pretrained(model_name="tts_en_fastpitch")
 
 If you would like to programmatically list the models available for a particular base class, you can use the
 :code:`list_available_models()` method,
