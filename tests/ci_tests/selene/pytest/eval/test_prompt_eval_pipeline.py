@@ -1,4 +1,8 @@
-from tests.ci_tests.selene.pytest.common.loss_testing_pipeline import LossTestingPipeline
+import os
+import json
+import pytest
+import sys
+
 CI_JOB_RESULTS_DIR = os.environ.get("RESULTS_DIR")
 
 class TestPromptEvalPipeline:
