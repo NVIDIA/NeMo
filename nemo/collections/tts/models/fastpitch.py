@@ -27,8 +27,8 @@ from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
 from nemo.collections.tts.losses.fastpitchloss import DurationLoss, MelLoss, PitchLoss
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.modules.fastpitch import FastPitchModule
-from nemo.collections.tts.torch.tts_data_types import SpeakerID
 from nemo.collections.tts.parts.mixins import FastPitchAdapterModelMixin
+from nemo.collections.tts.torch.tts_data_types import SpeakerID
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import (

@@ -17,6 +17,7 @@ from typing import List, Optional, Tuple
 import torch
 from torch.autograd import Variable
 from torch.nn import functional as F
+
 from nemo.core.classes import adapter_mixins
 
 
@@ -170,7 +171,7 @@ class ConvNorm(torch.nn.Module, adapter_mixins.AdapterModuleMixin):
             ret = self.norm(ret)
 
         if self.is_adapter_available():
-            ret = self.forward_enabled_adapters(ret.transpose(1,2)).transpose(1, 2)
+            ret = self.forward_enabled_adapters(ret.transpose(1, 2)).transpose(1, 2)
         return ret
 
 

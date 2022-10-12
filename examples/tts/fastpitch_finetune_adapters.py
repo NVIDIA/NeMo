@@ -13,18 +13,19 @@
 # limitations under the License.
 
 import os
-import torch
-import pytorch_lightning as pl
-
 from dataclasses import is_dataclass
+
+import pytorch_lightning as pl
+import torch
+from omegaconf import DictConfig, OmegaConf, open_dict
+
 from nemo.collections.common.callbacks import LogEpochTimeCallback
 from nemo.collections.tts.models import FastPitchModel
+from nemo.core import adapter_mixins
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
-from nemo.core import adapter_mixins
-from omegaconf import DictConfig, open_dict, OmegaConf
 
 def update_model_config_to_support_adapter(config) -> DictConfig:
     with open_dict(config):
@@ -79,7 +80,7 @@ def main(cfg):
         logging.warning("The recommended learning rate for finetuning is 2e-4")
 
     trainer = pl.Trainer(**cfg.trainer)
-    exp_log_dir = exp_manager(trainer, cfg.get("exp_manager", None))   
+    exp_log_dir = exp_manager(trainer, cfg.get("exp_manager", None))
     n_speakers = cfg.model.n_speakers
 
     if cfg.model.adapter.add_random_speaker:
@@ -88,7 +89,6 @@ def main(cfg):
     model = FastPitchModel(cfg=update_model_config_to_support_adapter(cfg.model), trainer=trainer)
     model.fastpitch.speaker_emb = torch.nn.Embedding(n_speakers, model.fastpitch.speaker_emb.embedding_dim)
     model.maybe_init_from_pretrained_checkpoint(cfg=cfg)
-
 
     # Add new speaker embedding
     if cfg.model.adapter.add_random_speaker and model.fastpitch.speaker_emb is not None:
@@ -99,8 +99,9 @@ def main(cfg):
         # Choose existing
         # new_speaker_emb = old_emb.weight[0, :].unsqueeze(0).detach().clone()
 
-        new_emb = torch.nn.Embedding(old_emb.num_embeddings+1, old_emb.embedding_dim).from_pretrained(
-            torch.cat([old_emb.weight.detach().clone(), new_speaker_emb], axis=0), freeze=True)
+        new_emb = torch.nn.Embedding(old_emb.num_embeddings + 1, old_emb.embedding_dim).from_pretrained(
+            torch.cat([old_emb.weight.detach().clone(), new_speaker_emb], axis=0), freeze=True
+        )
         model.fastpitch.speaker_emb = new_emb
         model.cfg.n_speakers += 1
 
@@ -124,18 +125,20 @@ def main(cfg):
         if adapter_global_cfg is not None:
             add_global_adapter_cfg(model, adapter_global_cfg)
 
-
     # model.add_adapter(name='encoder+decoder+duration_predictor+pitch_predictor+aligner:adapter', cfg=adapter_cfg)
     model.add_adapter(name=adapter_name, cfg=cfg.model.adapter)
     assert model.is_adapter_available()
 
     model.set_enabled_adapters(enabled=False)
     model.set_enabled_adapters(adapter_name, enabled=True)
-    
-    # Freeze 
-    if freeze_all: model.freeze()
-    if freeze_encoder: model.fastpitch.encoder.freeze()
-    if freeze_decoder: model.fastpitch.decoder.freeze()
+
+    # Freeze
+    if freeze_all:
+        model.freeze()
+    if freeze_encoder:
+        model.fastpitch.encoder.freeze()
+    if freeze_decoder:
+        model.fastpitch.decoder.freeze()
 
     # Set model to training mode.
     model = model.train()
@@ -159,7 +162,6 @@ def main(cfg):
 
         # Save the adapter modules in a seperate file
         model.save_adapters(str(state_path))
-
 
 
 if __name__ == '__main__':
