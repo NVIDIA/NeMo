@@ -42,14 +42,20 @@ def main(cfg):
     with tempfile.TemporaryDirectory() as tmp_dir:
         for idx, processor_cfg in enumerate(processors_cfgs):
             logging.info('=> Building processor "%s"', processor_cfg["_target_"])
-            # we are assuming that each processor defines "output_manifest_file"
+
+            # we assume that each processor defines "output_manifest_file"
             # and "input_manifest_file" keys, which can be optional. In case they
-            # are missing, we are creating tmp files here for them
+            # are missing, we create tmp files here for them
             if "output_manifest_file" not in processor_cfg:
                 tmp_file_path = os.path.join(tmp_dir, str(uuid.uuid4()))
+                OmegaConf.set_struct(processor_cfg, False)
                 processor_cfg["output_manifest_file"] = tmp_file_path
+                OmegaConf.set_struct(processor_cfg, True)
                 if idx != len(processors_cfgs) - 1 and "input_manifest_file" not in processors_cfgs[idx + 1]:
+                    OmegaConf.set_struct(processors_cfgs[idx + 1], False)
                     processors_cfgs[idx + 1]["input_manifest_file"] = tmp_file_path
+                    OmegaConf.set_struct(processors_cfgs[idx + 1], True)
+
             processor = hydra.utils.instantiate(processor_cfg)
             # running runtime tests to fail right-away if something is not
             # matching users expectations
