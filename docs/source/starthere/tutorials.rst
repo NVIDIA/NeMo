@@ -140,23 +140,17 @@ To run a tutorial:
      - P-Tuning/Prompt-Tuning
      - `P-Tuning/Prompt-Tuning <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/nlp/Multitask_Prompt_and_PTuning.ipynb>`_
    * - TTS
-     - TTS Speech/Text Aligner Inference
-     - `TTS Speech/Text Aligner Inference <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/tts/Aligner_Inference_Examples.ipynb>`_
-   * - TTS
      - NeMo TTS Primer
      - `NeMo TTS Primer <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/tts/NeMo_TTS_Primer.ipynb>`_
    * - TTS
-     - Inference and Model Selection
-     - `TTS Inference and Model Selection <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/tts/Inference_ModelSelect.ipynb>`_
-   * - TTS
-     - FastPitch Duration and Pitch Control
-     - `FastPitch Duration and Pitch Control <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/tts/Inference_DurationPitchControl.ipynb>`_
-   * - TTS
-     - FastPitch Speaker Interpolation
-     - `FastPitch Speaker Interpolation <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/tts/FastPitch_Speaker_Interpolation.ipynb>`_
+     - TTS Speech/Text Aligner Inference
+     - `TTS Speech/Text Aligner Inference <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/tts/Aligner_Inference_Examples.ipynb>`_
    * - TTS
      - FastPitch and MixerTTS Model Training
      - `FastPitch and MixerTTS Model Training <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/tts/FastPitch_MixerTTS_Training.ipynb>`_
+   * - TTS
+     - FastPitch Finetuning
+     - `FastPitch Finetuning <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/tts/FastPitch_Finetuning.ipynb>`_
    * - TTS
      - FastPitch and HiFiGAN Model Training for German
      - `FastPitch and HiFiGAN Model Training for German <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/tts/FastPitch_GermanTTS_Training.ipynb>`_
@@ -164,8 +158,14 @@ To run a tutorial:
      - Tacotron2 Model Training
      - `Tacotron2 Model Training <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/tts/Tacotron2_Training.ipynb>`_
    * - TTS
-     - FastPitch Finetuning
-     - `FastPitch Finetuning <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/tts/FastPitch_Finetuning.ipynb>`_
+     - FastPitch Duration and Pitch Control
+     - `FastPitch Duration and Pitch Control <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/tts/Inference_DurationPitchControl.ipynb>`_
+   * - TTS
+     - FastPitch Speaker Interpolation
+     - `FastPitch Speaker Interpolation <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/tts/FastPitch_Speaker_Interpolation.ipynb>`_
+   * - TTS
+     - Inference and Model Selection
+     - `TTS Inference and Model Selection <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/tts/Inference_ModelSelect.ipynb>`_
    * - Tools
      - CTC Segmentation
      - `CTC Segmentation <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tools/CTC_Segmentation_Tutorial.ipynb>`_
