@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import math
-import re
 from typing import Any, List, Optional, Union
 
 import torch
@@ -236,11 +235,6 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         )
         return output_tensor
 
-    def on_fit_start(self) -> None:
-        # keep a copy of init_global_step
-        self.init_global_step = self.trainer.global_step
-        return super().on_fit_start()
-
     def training_step(self, batch, batch_idx):
         input_tokens_id = batch['tokens']
         input_attn_mask = batch['tokens_mask']
@@ -347,7 +341,6 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         # formula to compute the perplexity
         # https://towardsdatascience.com/the-relationship-between-perplexity-and-entropy-in-nlp-f81888775ccc
         self.log('perplexity', torch.exp(averaged_loss), prog_bar=True)
-        self.log('consumed_samples', self.compute_consumed_samples(self.trainer.global_step - self.init_global_step))
         return averaged_loss
 
     def test_step(self, batch, batch_idx):
@@ -443,13 +436,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
     def setup(self, stage=None):
         resume_checkpoint_path = self.trainer._checkpoint_connector.resume_from_checkpoint_fit_path
         if resume_checkpoint_path:
-            try:
-                init_consumed_samples = int(
-                    float(re.findall(r"consumed_samples\=([0-9]+.[0-9]+)", resume_checkpoint_path)[0])
-                )
-            except (ValueError, TypeError):
-                logging.warning("Cannot parse the checkpoint file to get the consumed samples. assume it is zero.")
-                init_consumed_samples = 0
+            init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
         else:
             init_consumed_samples = 0
         self.init_consumed_samples = init_consumed_samples

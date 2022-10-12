@@ -235,7 +235,109 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
 
         return output
 
+<<<<<<< HEAD
     def fwd_bwd_step(self, batch, forward_only):
+=======
+    def embed_input_train(self, input_ids: Tensor, taskname_ids: Tensor):
+        """
+        Replaces the virtual tokens in the input_ids with embeddings 
+        calculated from either the 'prompt_table' or 'prompt_encoder'. 
+        The virtual token placeholders have token_ids listed in
+        `self.pseudo_token_ids`.
+
+        params:
+            input_ids: the input token ids
+            taskname_ids: the NLP task tag token ids
+        returns:
+            the token embedding for the LM model.
+        """
+        # Replace virtual token ids with padding for forward pass through vocab embeddings
+        discrete_token_ids = input_ids.clone()
+        discrete_token_ids[(input_ids >= self.pseudo_token_ids_start)] = self.pad_token_id
+        discrete_token_embeds = self.word_embeddings(discrete_token_ids).clone()
+
+        # Find the indicies where virtual tokens should be inserted
+        virtual_token_locations = input_ids >= self.pseudo_token_ids_start
+
+        # If there are no virtual tokens, just return discrete token embeds
+        if not virtual_token_locations.any():
+            return discrete_token_embeds
+
+        # Get virtual token embeddings from the prompt table or prompt encoder
+        if self.virtual_prompt_source == VirtualPromptSource.PROMPT_TABLE:
+            virtual_token_embeds = [self.prompt_table(task_id_num) for task_id_num in taskname_ids]
+            virtual_token_embeds = torch.stack(virtual_token_embeds)
+
+        elif self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
+            taskname_embeddings = self.word_embeddings(taskname_ids)
+            virtual_token_embeds = self.prompt_encoder(taskname_embeddings=taskname_embeddings)
+
+        # Create index template specifying where virtual token embeddings should be placed
+        batch_size, _, embedding_size = discrete_token_embeds.shape
+        virtual_token_index = virtual_token_locations.nonzero().reshape((batch_size, -1, 2))[:, :, 1][:, :, None]
+        virtual_token_index = virtual_token_index.expand(
+            batch_size, self.total_new_task_virtual_tokens, embedding_size
+        )
+
+        # Make sure discrete_token_embeds and virtual_token_embeds share the same dtype
+        discrete_token_embeds = discrete_token_embeds.type(virtual_token_embeds.dtype)
+
+        # Insert virtual token embeddings where they belong amoung the discrete token embeddings
+        discrete_token_embeds.scatter_(1, virtual_token_index, virtual_token_embeds)
+        input_embeds = discrete_token_embeds
+
+        return input_embeds
+
+    def embed_input_inference(self, input_ids: Tensor, taskname_ids: Tensor):
+        """
+        Replaces the virtual tokens in the input_ids with embeddings the 
+        'prompt_table' only. The virtual token placeholders each have their
+        own unique token_id within `self.pseudo_token_ids` to facilitate 
+        placing the virtual tokens in their correct locations at each 
+        decoding time step. 
+
+        params:
+            input_ids: the input token ids
+            taskname_ids: the NLP task tag token ids
+        returns:
+            the token embedding for the LM model.
+        """
+        batch_size, seq_length = input_ids.shape
+
+        # Replace virtual token ids with padding for forward pass through vocab embeddings
+        discrete_token_ids = input_ids.clone()
+        discrete_token_ids[(input_ids >= self.pseudo_token_ids_start)] = self.pad_token_id
+        discrete_token_embeds = self.frozen_model.model.language_model.embedding.word_embeddings(
+            discrete_token_ids
+        ).clone()
+
+        # Find the indicies where virtual tokens should be inserted
+        virtual_token_locations = input_ids >= self.pseudo_token_ids_start
+        virtual_token_locations = virtual_token_locations.unsqueeze(-1)
+        virtual_token_locations = virtual_token_locations.expand(batch_size, seq_length, self.hidden_size)
+
+        # If there are no virtual tokens, just return discrete token embeds
+        if not virtual_token_locations.any():
+            return discrete_token_embeds
+
+        # Convert virtual token vocab_id to virtual token embedding idx
+        virtual_token_ids = input_ids.clone()
+        virtual_token_ids = torch.sub(virtual_token_ids, self.pseudo_token_ids_start)
+        virtual_token_ids = torch.clamp(virtual_token_ids, min=0)
+
+        # Only get needed virtual token embeddings from the prompt table according to virtual token ids
+        virtual_token_embeds = [self.prompt_table(taskname_ids[i], virtual_token_ids[i]) for i in range(batch_size)]
+        virtual_token_embeds = torch.stack(virtual_token_embeds)
+
+        # Make sure discrete_token_embeds and virtual_token_embeds share the same dtype
+        discrete_token_embeds = discrete_token_embeds.type(virtual_token_embeds.dtype)
+
+        # Put virtual and discrete token embs in their correct locations for final output
+        input_embeds = torch.where(virtual_token_locations, virtual_token_embeds, discrete_token_embeds)
+        return input_embeds
+
+    def fwd_bwd_step(self, batch, batch_idx, forward_only):
+>>>>>>> fix_global_init
         """
             Dataloader produces a global batch which is turned into a list of microbatches.
             The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.

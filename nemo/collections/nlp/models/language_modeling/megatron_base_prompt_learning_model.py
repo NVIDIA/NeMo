@@ -89,6 +89,17 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
 
         self.pipeline_parallel = self.cfg.get('pipeline_model_parallel_size', 1) > 1
         self.tokenizer = self.frozen_model.tokenizer
+<<<<<<< HEAD
+=======
+
+        if hasattr(self.frozen_model.cfg, "encoder") and hasattr(self.frozen_model.cfg, "decoder"):
+            self.hidden_size = (
+                self.frozen_model.cfg.encoder.hidden_size
+            )  # Encoder and decoder need to have the same hidden size and we check for this in the frozen enc-dec model.
+        else:
+            self.hidden_size = self.frozen_model.cfg.hidden_size
+
+>>>>>>> fix_global_init
         self.existing_tasks = list(self.cfg.get('existing_tasks', []))
         self.new_tasks = list(self.cfg.get('new_tasks', []))
         self.virtual_prompt_style = VirtualPromptStyle(cfg.virtual_prompt_style)
@@ -96,11 +107,15 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         # Load templates for assigning virtual prompt token positions
         self.load_task_templates(self.cfg.task_templates)
 
-        if self.virtual_prompt_style in [
+        if self.first_stage_of_pipeline() and self.virtual_prompt_style in [
             VirtualPromptStyle.P_TUNING,
             VirtualPromptStyle.PROMPT_TUNING,
             VirtualPromptStyle.INFERENCE,
         ]:
+
+            # TODO: Handle this when moving GPT prompt learning to the base class.
+            self.word_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.word_embeddings
+
             # Prompt table stores all task embeddings, p-tuning virtual prompts get added to the table after training
             self.prompt_table = PromptTable(
                 existing_tasks=self.existing_tasks,
@@ -108,6 +123,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
                 task_id_num_to_name=self.task_id_num_to_name,
                 hidden_size=self.hidden_size,
             )
+
         self._prompt_table_key = VirtualPromptSource.PROMPT_TABLE.value
         self._prompt_encoder_key = VirtualPromptSource.PROMPT_ENCODER.value
 
@@ -311,10 +327,12 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         nemo checkpoints at the end of training will contain prompt table parameters only. 
         """
         state_dict_ = {}
-        state_dict_[self._prompt_table_key] = self.prompt_table.state_dict()
 
-        if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
-            state_dict_[self._prompt_encoder_key] = self.prompt_encoder.state_dict()
+        if self.first_stage_of_pipeline():
+            state_dict_[self._prompt_table_key] = self.prompt_table.state_dict()
+
+            if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
+                state_dict_[self._prompt_encoder_key] = self.prompt_encoder.state_dict()
 
         return state_dict_
 
@@ -323,6 +341,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         Custom load state dict method that only loads prompt table and prompt encoder
         parameters. Matching load method for this class' custom state dict method. 
         """
+<<<<<<< HEAD
         if self._prompt_table_key in state_dict:
             state_dict_ = state_dict[self._prompt_table_key]
         else:
@@ -342,6 +361,27 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
                 self.init_prompt_encoder()
 
             self.prompt_encoder.load_state_dict(state_dict_, strict)
+=======
+        if self.first_stage_of_pipeline():
+            if self._prompt_table_key in state_dict:
+                state_dict_ = state_dict[self._prompt_table_key]
+            else:
+                # Handle loading state dict before weight saving change for backward compatibility.
+                state_dict_ = OrderedDict()
+                for key in state_dict.keys():
+                    if key.startswith(self._prompt_table_key):
+                        key_substring = ".".join(key.split(".")[1:])
+                        state_dict_[key_substring] = state_dict[key]
+
+            self.prompt_table.load_state_dict(state_dict_, strict)
+
+            if (
+                self._prompt_encoder_key in state_dict
+                and self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER
+            ):
+                state_dict_ = state_dict[self._prompt_encoder_key]
+                self.prompt_encoder.load_state_dict(state_dict_, strict)
+>>>>>>> fix_global_init
 
     def add_virtual_prompt_params_to_param_group(self):
         """
@@ -451,6 +491,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         input_embeds = torch.where(virtual_token_locations, virtual_token_embeds, discrete_token_embeds)
         return input_embeds
 
+<<<<<<< HEAD
     def fwd_bwd_step(self, batch, forward_only, disable_autocast=False, sequence_parallel_enabled=False):
         """
             Dataloader produces a global batch which is turned into a list of microbatches.
@@ -518,6 +559,18 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True)
 
         return loss_mean
+=======
+    def first_stage_of_pipeline(self):
+        if self.frozen_model.enc_dec_model.pre_process and parallel_state.get_pipeline_model_parallel_rank() == 0:
+            return True
+        return False
+
+    def on_train_end(self):
+        # Save p-tuned prompts to prompt table for inference or future task training
+        if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING and self.first_stage_of_pipeline():
+            self.add_ptuned_prompts_to_prompt_table()
+            logging.info(f"All p-tuned prompts where moved to the prompt table.")
+>>>>>>> fix_global_init
 
     def update_config_for_inference_and_save(self):
         self.virtual_prompt_style = VirtualPromptStyle.INFERENCE
@@ -533,6 +586,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         self.save_to(save_path=self.cfg.nemo_path)
         logging.info(f"The final model was saved to {self.cfg.nemo_path}")
 
+<<<<<<< HEAD
     def save_checkpoint_as_nemo_file(self):
         self.add_ptuned_prompts_to_prompt_table()
 
@@ -544,6 +598,28 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
 
         # Temporarily overwrite params to save an inference ready .nemo checkpoint
         self.update_config_for_inference_and_save()
+=======
+    def setup(self, stage=None):
+        if (
+            stage == 'predict' or self.virtual_prompt_style == VirtualPromptStyle.INFERENCE
+        ) and self.first_stage_of_pipeline():
+            self.freeze_existing_virtual_prompt_params()
+            return
+
+        self.setup_test_data()
+        if stage == 'test':
+            return
+
+        if self.first_stage_of_pipeline():
+            if self.virtual_prompt_style == VirtualPromptStyle.PROMPT_TUNING:
+                self.init_new_prompts()
+            elif self.virtual_prompt_style == VirtualPromptStyle.P_TUNING:
+                self.init_prompt_encoder()
+            self.freeze_existing_virtual_prompt_params()
+
+        self.setup_training_data()
+        self.setup_validation_data()
+>>>>>>> fix_global_init
 
         # Set values back to their training state to continue training
         self.virtual_prompt_style = current_virtual_prompt_style
@@ -565,12 +641,17 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
     def get_inference_config(self):
         return self._inference_config
 
+<<<<<<< HEAD
     def backward(self, *args, **kwargs):
         """ LightningModule hook to do backward.
             We want this to do nothing since we run backward in the fwd/bwd functions from apex.
             No need to call it here.
         """
         return
+=======
+    def set_input_tensor(self, input_tensor):
+        pass
+>>>>>>> fix_global_init
 
     def optimizer_zero_grad(self, *args, **kwargs):
         """ LightningModule hook to zero grad.
