@@ -19,6 +19,7 @@ import torch
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import (
+    deallocate_indexed_dataset_memory,
     get_indexed_dataset_,
     get_samples_mapping,
     make_text_memmap_bin_compatibility,
@@ -282,11 +283,8 @@ class TextMemmapSequenceToSequenceDataset(IndexedSequenceToSequenceDataset):
         self._build_samples_mapping()
 
         # Deallocate temporary numpy arrays that were created for `_build_samples_mapping()`
-        del self.src_indexed_dataset.doc_idx
-        del self.src_indexed_dataset.sizes
-
-        del self.tgt_indexed_dataset.doc_idx
-        del self.tgt_indexed_dataset.sizes
+        deallocate_indexed_dataset_memory(self.src_indexed_dataset)
+        deallocate_indexed_dataset_memory(self.tgt_indexed_dataset)
 
 
 class BinarizedMemmapSequenceToSequenceDataset(IndexedSequenceToSequenceDataset):
@@ -349,11 +347,8 @@ class BinarizedMemmapSequenceToSequenceDataset(IndexedSequenceToSequenceDataset)
         self._build_samples_mapping()
 
         # Deallocate temporary numpy arrays that were created for `_build_samples_mapping()`
-        del self.src_indexed_dataset.doc_idx
-        del self.src_indexed_dataset.sizes
-
-        del self.tgt_indexed_dataset.doc_idx
-        del self.tgt_indexed_dataset.sizes
+        deallocate_indexed_dataset_memory(self.src_indexed_dataset)
+        deallocate_indexed_dataset_memory(self.tgt_indexed_dataset)
 
     def _get_indexed_dataset(self, data_prefix, data_impl, skip_warmup):
         indexed_dataset = get_indexed_dataset_(data_prefix, data_impl, skip_warmup)

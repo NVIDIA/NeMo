@@ -539,6 +539,12 @@ def make_text_memmap_bin_compatibility(text_memmap_ds):
     return text_memmap_ds
 
 
+def deallocate_indexed_dataset_memory(indexed_dataset):
+    """Deallocate memory of an IndexedDataset."""
+    del indexed_dataset.sizes
+    del indexed_dataset.doc_idx
+
+
 def get_dataset(
     indexed_dataset,
     start_index,
@@ -1258,4 +1264,5 @@ def get_samples_mapping(
     logging.info('    loaded indexed file in {:3.3f} seconds'.format(time.time() - start_time))
     logging.info('    total number of samples: {}'.format(samples_mapping.shape[0]))
 
+    deallocate_indexed_dataset_memory(indexed_dataset)
     return samples_mapping
