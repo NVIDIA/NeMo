@@ -42,7 +42,7 @@ retrieval_service:
   sentence_bert_batch: 4
   neighbors: 4
   frequent_query: False  # for the current token generation, frequently update the retrieval context. If false, update it every 64 tokens 
-  pad_tokens: False # pad the tokens at the beginning to make it minimum of 64 tokens for retrieving at least once
+  pad_tokens: True # pad the tokens at the beginning to make it minimum of 64 tokens for retrieving at least once
 server: False  # whether launch the API server
 port: 5555 # the port number for the inference server
 web_server: False # whether launch the web inference server
