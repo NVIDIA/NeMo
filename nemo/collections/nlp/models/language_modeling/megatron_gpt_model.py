@@ -199,6 +199,17 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         output_tensor = self.model(tokens, text_position_ids, attention_mask, labels=labels)
         return output_tensor
 
+    def _get_fwd_bwd_function(self):
+        fwd_bwd_function = None
+        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+            if self.cfg.get('virtual_pipeline_model_parallel_size', None) is not None:
+                fwd_bwd_function = _forward_backward_pipelining_with_interleaving
+            else:
+                fwd_bwd_function = forward_backward_pipelining_without_interleaving
+        else:
+            fwd_bwd_function = forward_backward_no_pipelining
+        return fwd_bwd_function
+
     def training_step(self, batch, batch_idx):
         """
             Our dataloaders produce a micro-batch and then we fetch
@@ -224,49 +235,32 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
 
-        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
-            if self.cfg.get('virtual_pipeline_model_parallel_size', 1) is not None:
-                losses_reduced_per_micro_batch = _forward_backward_pipelining_with_interleaving(
-                    forward_step_func=self.get_forward_output_and_loss_func(),
-                    batch=batch_for_pipeline,
-                    model=self.model,
-                    forward_only=False,
-                    tensor_shape=tensor_shape,
-                    dtype=self.autocast_dtype,
-                    grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
-                    sequence_parallel_enabled=self.cfg.get('sequence_parallel', False),
-                )
+        # determine if we can use async grad all reduce
+        custom_sync_context_handler = None
+        if self.megatron_amp_o2 and not self.cfg.get('sequence_parallel', False):
+            if self.with_distributed_adam:
+                custom_sync_context_handler = lambda: self._optimizer.no_sync(greedy_grad_copy=True)
             else:
-                losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
-                    forward_step_func=self.get_forward_output_and_loss_func(),
-                    batch=batch_for_pipeline,
-                    model=self.model,
-                    forward_only=False,
-                    tensor_shape=tensor_shape,
-                    dtype=self.autocast_dtype,
-                    grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
-                    sequence_parallel_enabled=self.cfg.get('sequence_parallel', False),
-                )
+                custom_sync_context_handler = self._optimizer.no_sync
         else:
-            # no pipeline parallelism so we reduce grads asynchronously if not using sequence parallelism
-            if self.megatron_amp_o2 and not self.cfg.get('sequence_parallel', False):
-                if self.with_distributed_adam:
-                    custom_sync_context_handler = lambda: self._optimizer.no_sync(greedy_grad_copy=True)
-                else:
-                    custom_sync_context_handler = self._optimizer.no_sync
-            else:
-                # TODO: enable async grad all reduce for O1/autocast mixed precision training
-                custom_sync_context_handler = None
-            losses_reduced_per_micro_batch = forward_backward_no_pipelining(
-                forward_step_func=self.get_forward_output_and_loss_func(),
-                batch=batch_for_pipeline,
-                model=self.model,
-                forward_only=False,
-                tensor_shape=tensor_shape,
-                dtype=self.autocast_dtype,
-                grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
-                custom_sync_context_handler=custom_sync_context_handler,
-            )
+            # TODO: enable async grad all reduce for O1/autocast mixed precision training
+            custom_sync_context_handler = None
+
+        # run forward and backwards passes for an entire global batch
+        # we do this inside training_step to support pipeline parallelism
+        fwd_bwd_function = self._get_fwd_bwd_function()
+
+        losses_reduced_per_micro_batch = fwd_bwd_function(
+            forward_step_func=self.get_forward_output_and_loss_func(),
+            batch=batch_for_pipeline,
+            model=self.model,
+            forward_only=False,
+            tensor_shape=tensor_shape,
+            dtype=self.autocast_dtype,
+            grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
+            custom_sync_context_handler=custom_sync_context_handler,
+            sequence_parallel_enabled=self.cfg.get('sequence_parallel', False),
+        )
 
         # only the last stages of the pipeline return losses
         if losses_reduced_per_micro_batch:
@@ -466,37 +460,21 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         batch_for_pipeline = self.process_global_batch(batch)
         tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
 
-        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
-            if self.cfg.get('virtual_pipeline_model_parallel_size', 1) is not None:
-                losses_reduced_per_micro_batch = _forward_backward_pipelining_with_interleaving(
-                    forward_step_func=self.get_forward_output_and_loss_func(),
-                    batch=batch_for_pipeline,
-                    model=self.model,
-                    forward_only=True,
-                    tensor_shape=tensor_shape,
-                    dtype=self.autocast_dtype,
-                    sequence_parallel_enabled=self.cfg.get('sequence_parallel', False),
-                )
-            else:
-                losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
-                    forward_step_func=self.get_forward_output_and_loss_func(),
-                    batch=batch_for_pipeline,
-                    model=self.model,
-                    forward_only=True,
-                    tensor_shape=tensor_shape,
-                    dtype=self.autocast_dtype,
-                    sequence_parallel_enabled=self.cfg.get('sequence_parallel', False),
-                )
-        else:
-            losses_reduced_per_micro_batch = forward_backward_no_pipelining(
-                forward_step_func=self.get_forward_output_and_loss_func(),
-                batch=batch_for_pipeline,
-                model=self.model,
-                forward_only=True,
-                tensor_shape=tensor_shape,
-                dtype=self.autocast_dtype,
-            )
+        # run forward passes for an entire global batch
+        # we do this inside validation_step to support pipeline parallelism
+        fwd_bwd_function = self._get_fwd_bwd_function()
 
+        losses_reduced_per_micro_batch = fwd_bwd_function(
+            forward_step_func=self.get_forward_output_and_loss_func(),
+            batch=batch_for_pipeline,
+            model=self.model,
+            forward_only=True,
+            tensor_shape=tensor_shape,
+            dtype=self.autocast_dtype,
+            sequence_parallel_enabled=self.cfg.get('sequence_parallel', False),
+        )
+
+        # only the last stage of the pipeline returns losses
         if losses_reduced_per_micro_batch:
             # average loss across micro batches
             loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
