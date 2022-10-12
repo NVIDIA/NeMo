@@ -518,10 +518,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         attention_mask = global_batch["attention_mask"]
         position_ids = global_batch["position_ids"]
         expected_batch_size = None
-        if global_batch_size:
+        if global_batch_size is not None:
             expected_batch_size = global_batch_size // parallel_state.get_data_parallel_world_size()
         current_batch_size = tokens.shape[0]
-        if expected_batch_size and expected_batch_size > current_batch_size:
+        if expected_batch_size is not None and expected_batch_size > current_batch_size:
             logging.info(
                 'Got batch size of '
                 + str(current_batch_size)
