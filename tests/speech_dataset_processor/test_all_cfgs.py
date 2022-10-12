@@ -23,7 +23,7 @@ from omegaconf import OmegaConf
 SDP_ROOT_DIR = (Path(__file__).parents[2] / "tools" / "speech_dataset_processor").resolve()
 sys.path.append(str(SDP_ROOT_DIR))
 
-from main import main # isort:skip
+from main import main  # isort:skip
 
 CONFIG_BASE_DIR = SDP_ROOT_DIR / "dataset_configs"
 
