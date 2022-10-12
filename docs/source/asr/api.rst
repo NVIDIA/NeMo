@@ -128,7 +128,7 @@ Audio Preprocessors
     :show-inheritance:
     :members:
 
-Audio Augmenters
+Audio Augmentors
 ----------------
 
 .. autoclass:: nemo.collections.asr.modules.SpectrogramAugmentation
