@@ -68,7 +68,7 @@ NeMo TTS supports both cascaded and end-to-end models to synthesize audios. Most
     sf.write("speech.wav", audio.to('cpu').numpy(), 22050)
 
 
-Fine-tuning on Different Datasets
+Fine-Tuning on Different Datasets
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 There are multiple TTS tutorials provided in the directory of `tutorials/tts/ <https://github.com/NVIDIA/NeMo/tree/main/tutorials/tts>`_. Most of these tutorials demonstrate how to instantiate a pre-trained model, and prepare the model for fine-tuning on datasets with the same language or different languages, the same speaker or different speakers.
