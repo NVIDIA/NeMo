@@ -8,21 +8,9 @@ This section provides a brief overview of TTS models that NeMo's TTS collection 
 * **Pretrained Model Checkpoints** are available for any users for immediately synthesizing speech or fine-tuning models on
   your custom datasets. Please follow the section :doc:`./checkpoints` for instructions on how to use those pretrained models.
 
-Speech-to-Text Aligners
------------------------
-
 
 Mel-Spectrogram Generators
 --------------------------
-
-Tacotron2
-~~~~~~~~~~
-Tacotron 2 consists of a recurrent sequence-to-sequence feature prediction network with attention that maps character embeddings to mel-spectrogram frames, and a modified version of WaveNet as a vocoder that generate time-domain waveform samples conditioned on the predicted mel-spectrogram frames. This system uses mel-spectrograms as the conditioning input to WaveNet instead of linguistic, duration, and F0 features, which shows a significant reduction in the size of the WaveNet architecture. The block diagram of the Tacotron 2 architecture is shown below. Please refer to :cite:`tts-models-shen2018natural` for details.
-
-    .. image:: images/tacotron2_model.png
-        :align: center
-        :alt: tacotron2 model
-        :scale: 30%
 
 FastPitch
 ~~~~~~~~~
@@ -33,9 +21,9 @@ FastPitch is a fully-parallel text-to-speech model based on FastSpeech, conditio
         :alt: fastpitch model
         :scale: 30%
 
-Mixer-TTS
+Mixer-TTS/Mixer-TTS-X
 ~~~~~~~~~
-Mixer-TTS is a non-autoregressive model for mel-spectrogram generation. The model is based on MLP-Mixer architecture adapted for speech synthesis. The basic Mixer-TTS contains pitch and duration predictors, with the latter being trained with supervised TTS alignment framework. Alongside the basic model, we propose the extended version which additionally uses token embeddings from a pre-trained language model. Basic Mixer-TTS and its extended version have a small number of parameters and enable much faster speech synthesis compared to the models with similar quality. The model architectures of basic Mixer-TTS is shown below (left). The basic Mixer-TTS uses the same architectures of duration and pitch predictors as FastPitch, but it has two major changes. It replaces all feed-forward transformer-based blocks in the encoder and decoder with new Mixer-TTS blocks (right); it uses an unsupervised speech-to-text alignment framework to train the duration predictor. Please refer to :cite:`tts-models-tatanov2022mixer` for details.
+Mixer-TTS is a non-autoregressive model for mel-spectrogram generation. The model is based on MLP-Mixer architecture adapted for speech synthesis. The basic Mixer-TTS contains pitch and duration predictors, with the latter being trained with supervised TTS alignment framework. Alongside the basic model, we propose the extended version, Mixer-TTS-X, which additionally uses token embeddings from a pre-trained language model. Basic Mixer-TTS and its extended version have a small number of parameters and enable much faster speech synthesis compared to the models with similar quality. The model architectures of basic Mixer-TTS is shown below (left). The basic Mixer-TTS uses the same architectures of duration and pitch predictors as FastPitch, but it has two major changes. It replaces all feed-forward transformer-based blocks in the encoder and decoder with new Mixer-TTS blocks (right); it uses an unsupervised speech-to-text alignment framework to train the duration predictor. Please refer to :cite:`tts-models-tatanov2022mixer` for details.
 
     .. image:: images/mixertts_model.png
         :align: center
@@ -52,17 +40,19 @@ RAD-TTS introduces a predominantly parallel, end-to-end TTS model based on norma
         :alt: radtts model
         :scale: 27%
 
+
+Tacotron2
+~~~~~~~~~~
+Tacotron 2 consists of a recurrent sequence-to-sequence feature prediction network with attention that maps character embeddings to mel-spectrogram frames, and a modified version of WaveNet as a vocoder that generate time-domain waveform samples conditioned on the predicted mel-spectrogram frames. This system uses mel-spectrograms as the conditioning input to WaveNet instead of linguistic, duration, and F0 features, which shows a significant reduction in the size of the WaveNet architecture. The block diagram of the Tacotron 2 architecture is shown below. Please refer to :cite:`tts-models-shen2018natural` for details.
+
+    .. image:: images/tacotron2_model.png
+        :align: center
+        :alt: tacotron2 model
+        :scale: 30%
+
+
 Vocoders
 --------
-
-WaveGlow
-~~~~~~~~
-WaveGlow combines insights from Glow and WaveNet to provide fast, efficient and high quality audio synthesis without the need for auto-regression. WaveGlow is implemented using only a single network, trained using only a single cost function, i.e. maximizing the likelihood of the training data, which makes the training procedure simple and stable. Despite the simplicity of the model, our Pytorch implementation could synthesizes speech at more than 500kHz on an NVIDIA V100 GPU, and its audio quality is as good as the best publicly available WaveNet implementation trained on the same data. The model network is most similar to the recent Glow work as shown below. For the forward pass through the network, we take groups of 8 audio samples as vectors, which is called as "squeeze" operation. We then process these vectors through several "steps of flow", each of which consists of an invertible 1x1 convolution followed by an affine coupling layer. Please refer to :cite:`tts-models-prenger2019waveglow` for details.
-
-    .. image:: images/waveglow_model.png
-        :align: center
-        :alt: waveglow model
-        :scale: 24%
 
 HiFiGAN
 ~~~~~~~
@@ -90,6 +80,19 @@ UnivNet is a neural vocoder that synthesizes high-fidelity waveforms in real tim
         :alt: univnet model
         :scale: 25%
 
+
+WaveGlow
+~~~~~~~~
+WaveGlow combines insights from Glow and WaveNet to provide fast, efficient and high quality audio synthesis without the need for auto-regression. WaveGlow is implemented using only a single network, trained using only a single cost function, i.e. maximizing the likelihood of the training data, which makes the training procedure simple and stable. Despite the simplicity of the model, our Pytorch implementation could synthesizes speech at more than 500kHz on an NVIDIA V100 GPU, and its audio quality is as good as the best publicly available WaveNet implementation trained on the same data. The model network is most similar to the recent Glow work as shown below. For the forward pass through the network, we take groups of 8 audio samples as vectors, which is called as "squeeze" operation. We then process these vectors through several "steps of flow", each of which consists of an invertible 1x1 convolution followed by an affine coupling layer. Please refer to :cite:`tts-models-prenger2019waveglow` for details.
+
+    .. image:: images/waveglow_model.png
+        :align: center
+        :alt: waveglow model
+        :scale: 24%
+
+
+Speech-to-Text Aligners
+-----------------------
 
 RAD-TTS Aligner
 ~~~~~~~~~~~~
