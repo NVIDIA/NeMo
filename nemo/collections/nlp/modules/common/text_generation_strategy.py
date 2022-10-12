@@ -397,15 +397,15 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
         """
         tokenizer = self.model.tokenizer
         if add_BOS:
-                context_tokens = [[tokenizer.eos_id] + tokenizer.text_to_ids(s) for s in sentences]
+            context_tokens = [[tokenizer.eos_id] + tokenizer.text_to_ids(s) for s in sentences]
         else:
             context_tokens = [tokenizer.text_to_ids(s) for s in sentences]
         if self.pad_token_for_retrieval:
             padded = []
-            for line in context_tokens: 
+            for line in context_tokens:
                 if len(line) < self.chunk_size:
                     pad_len = self.chunk_size - len(line)
-                    padded.append([tokenizer.pad_id] * pad_len+ line)
+                    padded.append([tokenizer.pad_id] * pad_len + line)
                 else:
                     padded.append(line)
             context_tokens = padded
