@@ -23,12 +23,36 @@ import torch
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.core.classes import Dataset
+from nemo.core.neural_types import ChannelType, LabelsType, MaskType, NeuralType
 from nemo.utils import logging
 
 __all__ = ['HeteronymClassificationDataset']
 
 
 class HeteronymClassificationDataset(Dataset):
+    # @property
+    # def output_types(self) -> Optional[Dict[str, NeuralType]]:
+    #     """Returns definitions of module output ports."""
+    #
+    #     if not self.with_labels:
+    #         types = {
+    #             'input_ids': NeuralType(('B', 'T'), ChannelType()),
+    #             'segment_ids': NeuralType(('B', 'T'), ChannelType()),
+    #             'input_mask': NeuralType(('B', 'T'), MaskType()),
+    #             'subtokens_mask': NeuralType(('B', 'T'), MaskType()),
+    #             'loss_mask': NeuralType(('B', 'T'), MaskType()),
+    #             'labels': NeuralType(('B', 'T'), LabelsType()),
+    #             }
+    #
+    #     return {
+    #         'input_ids': NeuralType(('B', 'T'), ChannelType()),
+    #         'segment_ids': NeuralType(('B', 'T'), ChannelType()),
+    #         'input_mask': NeuralType(('B', 'T'), MaskType()),
+    #         'subtokens_mask': NeuralType(('B', 'T'), MaskType()),
+    #         'loss_mask': NeuralType(('B', 'T'), MaskType()),
+    #         'labels': NeuralType(('B', 'T'), LabelsType()),
+    #     }
+
     def __init__(
         self,
         manifest: str,
@@ -203,7 +227,6 @@ class HeteronymClassificationDataset(Dataset):
         output = [input_ids, target_and_negatives, subtokens_mask]
         if self.with_labels:
             output.append(target_word_ids)
-
         return output  # [input_ids, target_and_negatives, subtokens_mask, [Optional] target]
 
     def __len__(self):
@@ -262,13 +285,13 @@ class HeteronymClassificationDataset(Dataset):
             for value in cur_target_and_negatives:
                 target_and_negatives_mask[i][value] = 1
 
-        output = [
-            torch.LongTensor(padded_input_ids),
-            torch.LongTensor(padded_attention_mask),
-            target_and_negatives_mask,
-            torch.LongTensor(padded_subtokens_mask),
-        ]
+        output = {
+            "input_ids": torch.LongTensor(padded_input_ids),
+            "attention_mask": torch.LongTensor(padded_attention_mask),
+            "target_and_negatives_mask": target_and_negatives_mask,
+            "subtokens_mask": torch.LongTensor(padded_subtokens_mask),
+        }
 
         if self.with_labels:
-            output.append(torch.LongTensor(padded_targets))
+            output["targets"] = torch.LongTensor(padded_targets)
         return output

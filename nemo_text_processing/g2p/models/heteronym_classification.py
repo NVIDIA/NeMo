@@ -78,15 +78,26 @@ class HeteronymClassificationModel(NLPModel):
         self.lang = cfg.get('lang', None)
 
     # @typecheck()
-    def forward(self, input_ids, attention_mask, target_and_negatives_mask):
-        hidden_states = self.bert_model(input_ids=input_ids, attention_mask=attention_mask, token_type_ids=torch.zeros_like(input_ids))
+    def forward(self, input_ids, attention_mask, token_type_ids):
+        hidden_states = self.bert_model(
+            input_ids=input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids
+        )
         if isinstance(hidden_states, tuple):
             hidden_states = hidden_states[0]
         logits = self.classifier(hidden_states=hidden_states)
-
-        # apply mask to mask out irrelevant options (elementwise)
-        logits = logits * target_and_negatives_mask.unsqueeze(1)
         return logits
+
+    def make_step(self, batch):
+        logits = self.forward(
+            input_ids=batch["input_ids"],
+            attention_mask=batch["attention_mask"],
+            token_type_ids=torch.zeros_like(batch["input_ids"]),
+        )
+        # apply mask to mask out irrelevant options (elementwise)
+        logits = logits * batch["target_and_negatives_mask"].unsqueeze(1)
+
+        loss = self.loss(logits=logits, labels=batch["targets"])
+        return loss, logits
 
     # Training
     def training_step(self, batch, batch_idx):
@@ -94,13 +105,8 @@ class HeteronymClassificationModel(NLPModel):
         Lightning calls this inside the training loop with the data from the training dataloader
         passed in as `batch`.
         """
-        input_ids, attention_mask, target_and_negatives_mask, subword_mask, targets = batch
 
-        logits = self.forward(
-            input_ids=input_ids, attention_mask=attention_mask, target_and_negatives_mask=target_and_negatives_mask
-        )
-        loss = self.loss(logits=logits, labels=targets)
-
+        loss, logits = self.make_step(batch)
         self.log('train_loss', loss)
         return loss
 
@@ -113,16 +119,13 @@ class HeteronymClassificationModel(NLPModel):
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
         """
-        input_ids, attention_mask, target_and_negatives_mask, subword_mask, targets = batch
-        logits = self.forward(
-            input_ids=input_ids, attention_mask=attention_mask, target_and_negatives_mask=target_and_negatives_mask
-        )
-        val_loss = self.loss(logits=logits, labels=targets)
-        self.log(f"{split}_loss", val_loss)
-
-        tag_preds = torch.argmax(logits, axis=-1)[subword_mask > 0]
+        val_loss, logits = self.make_step(batch)
+        subtokens_mask = batch["subtokens_mask"]
+        targets = batch["targets"]
         targets = targets[targets != -100]
 
+        self.log(f"{split}_loss", val_loss)
+        tag_preds = torch.argmax(logits, axis=-1)[subtokens_mask > 0]
         tp, fn, fp, _ = self.classification_report(tag_preds, targets)
         return {f'{split}_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp}
 
@@ -152,8 +155,8 @@ class HeteronymClassificationModel(NLPModel):
         self.log(f"{split}_f1", f1)
         self.log(f"{split}_recall", recall)
 
-        f1_macro = report[report.index("macro"):].split("\n")[0].replace("macro avg", "").strip().split()[-2]
-        f1_micro = report[report.index("micro"):].split("\n")[0].replace("micro avg", "").strip().split()[-2]
+        f1_macro = report[report.index("macro") :].split("\n")[0].replace("macro avg", "").strip().split()[-2]
+        f1_micro = report[report.index("micro") :].split("\n")[0].replace("micro avg", "").strip().split()[-2]
 
         self.log(f"{split}_f1_macro", torch.Tensor([float(f1_macro)]))
         self.log(f"{split}_f1_micro", torch.Tensor([float(f1_micro)]))
@@ -246,14 +249,13 @@ class HeteronymClassificationModel(NLPModel):
             )
 
             for batch in tqdm(infer_datalayer):
-                input_ids, attention_mask, target_and_negatives_mask, subword_mask = batch
                 logits = self.forward(
-                    input_ids=input_ids.to(device),
-                    attention_mask=attention_mask.to(device),
-                    target_and_negatives_mask=target_and_negatives_mask.to(device),
+                    input_ids=batch["input_ids"].to(device),
+                    attention_mask=batch["attention_mask"].to(device),
+                    target_and_negatives_mask=batch["target_and_negatives_mask"].to(device),
                 )
-
-                preds = torch.argmax(logits, axis=-1)[subword_mask > 0]
+                logits = logits * batch["target_and_negatives_mask"].unsqueeze(1)
+                preds = torch.argmax(logits, axis=-1)[batch["subtokens_mask"] > 0]
                 preds = tensor2list(preds)
                 all_preds.extend(preds)
         finally:
