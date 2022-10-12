@@ -1,12 +1,15 @@
 import glob
 import json
-from pathlib import Path
-
-import pytest
-from main import main
 from omegaconf import OmegaConf
+from pathlib import Path
+import pytest
+import sys
 
-CONFIG_BASE_DIR = Path(__file__).parents[1] / "dataset_configs"
+SDP_ROOT_DIR=(Path(__file__).parents[2] / "tools" / "speech_dataset_processor").resolve()
+sys.path.append(str(SDP_ROOT_DIR))
+from main import main
+
+CONFIG_BASE_DIR = SDP_ROOT_DIR / "dataset_configs"
 
 
 def get_test_cases():
@@ -15,6 +18,7 @@ def get_test_cases():
         yield config_path
 
 
+@pytest.mark.pleasefixme
 @pytest.mark.parametrize("config_path", get_test_cases())
 def test_configs(config_path, tmp_path):
     cfg = OmegaConf.load(config_path)

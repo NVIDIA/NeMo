@@ -1,5 +1,5 @@
 import pytest
-from processors.modify_manifest.data_to_data import (
+from tools.speech_dataset_processor.processors.modify_manifest.data_to_data import (
     InsIfASRInsertion,
     SubIfASRSubstitution,
     SubMakeLowercase,

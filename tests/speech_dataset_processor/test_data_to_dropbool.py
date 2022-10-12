@@ -1,5 +1,5 @@
 import pytest
-from processors.modify_manifest.data_to_dropbool import (
+from tools.speech_dataset_processor.processors.modify_manifest.data_to_dropbool import (
     DropASRErrorBeginningEnd,
     DropHighCER,
     DropHighLowCharrate,
