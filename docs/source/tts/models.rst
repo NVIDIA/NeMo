@@ -11,15 +11,6 @@ This section provides a brief overview of TTS models that NeMo's TTS collection 
 Speech-to-Text Aligners
 -----------------------
 
-RAD-TTS Aligner
-~~~~~~~~~~~~
-Speech-to-text alignment is a critical component of neural TTS models. Autoregressive TTS models typically use an attention mechanism to learn these alignments on-line. However, these alignments tend to be brittle and often fail to generalize to long utterances and out-of-domain text, leading to missing or repeating words. Most non-autoregressive end-to-end TTS models rely on durations extracted from external sources. RAD-TTS Aligner leverages the alignment mechanism proposed in RAD-TTS and demonstrates its applicability to wide variety of neural TTS models. The alignment learning framework combines the forward-sum algorithm, Viterbi algorithm, and an efficient static prior. RAD-TTS Aligner can improve all tested TTS architectures, both autoregressive (Flowtron, Tacotron 2) and non-autoregressive (FastPitch, FastSpeech 2, RAD-TTS). Specifically, it improves alignment convergence speed, simplifies the training pipeline by eliminating need for external aligners, enhances robustness to errors on long utterances and improves the perceived speech synthesis quality, as judged by human evaluators. The alignment framework is shown below. Please refer to :cite:`tts-models-badlani2022one` for details.
-
-    .. image:: images/radaligner_model.png
-        :align: center
-        :alt: rad-aligner model
-        :scale: 25%
-
 
 Mel-Spectrogram Generators
 --------------------------
@@ -97,6 +88,16 @@ UnivNet is a neural vocoder that synthesizes high-fidelity waveforms in real tim
     .. image:: images/univnet_model.png
         :align: center
         :alt: univnet model
+        :scale: 25%
+
+
+RAD-TTS Aligner
+~~~~~~~~~~~~
+Speech-to-text alignment is a critical component of neural TTS models. Autoregressive TTS models typically use an attention mechanism to learn these alignments on-line. However, these alignments tend to be brittle and often fail to generalize to long utterances and out-of-domain text, leading to missing or repeating words. Most non-autoregressive end-to-end TTS models rely on durations extracted from external sources. RAD-TTS Aligner leverages the alignment mechanism proposed in RAD-TTS and demonstrates its applicability to wide variety of neural TTS models. The alignment learning framework combines the forward-sum algorithm, Viterbi algorithm, and an efficient static prior. RAD-TTS Aligner can improve all tested TTS architectures, both autoregressive (Flowtron, Tacotron 2) and non-autoregressive (FastPitch, FastSpeech 2, RAD-TTS). Specifically, it improves alignment convergence speed, simplifies the training pipeline by eliminating need for external aligners, enhances robustness to errors on long utterances and improves the perceived speech synthesis quality, as judged by human evaluators. The alignment framework is shown below. Please refer to :cite:`tts-models-badlani2022one` for details.
+
+    .. image:: images/radaligner_model.png
+        :align: center
+        :alt: rad-aligner model
         :scale: 25%
 
 
