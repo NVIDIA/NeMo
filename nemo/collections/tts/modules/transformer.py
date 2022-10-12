@@ -11,13 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Optional
+from typing import Optional, List
+from omegaconf import DictConfig
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from nemo.core.classes import NeuralModule, typecheck
+from nemo.collections.asr.parts.utils import adapter_utils
+from nemo.core.classes import NeuralModule, typecheck, adapter_mixins
 from nemo.core.neural_types.elements import EncodedRepresentation, LengthsType, MaskType, TokenIndex
 from nemo.core.neural_types.neural_type import NeuralType
 
@@ -160,7 +162,7 @@ class MultiHeadAttn(nn.Module):
         return output
 
 
-class TransformerLayer(nn.Module):
+class TransformerLayer(nn.Module, adapter_mixins.AdapterModuleMixin):
     def __init__(self, n_head, d_model, d_head, d_inner, kernel_size, dropout, **kwargs):
         super(TransformerLayer, self).__init__()
 
@@ -260,3 +262,44 @@ class FFTransformerEncoder(FFTransformerDecoder):
     def forward(self, input, conditioning=0):
 
         return self._forward(self.word_emb(input), (input != self.padding_idx).unsqueeze(2), conditioning)  # (B, L, 1)
+
+
+class FFTransformerDecoderAdapter(FFTransformerDecoder, adapter_mixins.AdapterModuleMixin):
+
+    # Higher level forwarding
+    def add_adapter(self, name: str, cfg: dict):
+        cfg = self._update_adapter_cfg_input_dim(cfg)
+        for FFT_layer in self.layers:  # type: adapter_mixins.AdapterModuleMixin
+            FFT_layer.add_adapter(name, cfg)
+
+    def is_adapter_available(self) -> bool:
+        return any([FFT_layer.is_adapter_available() for FFT_layer in self.layers])
+
+    def set_enabled_adapters(self, name: Optional[str] = None, enabled: bool = True):
+        for FFT_layer in self.layers:  # type: adapter_mixins.AdapterModuleMixin
+            FFT_layer.set_enabled_adapters(name=name, enabled=enabled)
+
+    def get_enabled_adapters(self) -> List[str]:
+        names = set([])
+        for FFT_layer in self.layers:  # type: adapter_mixins.AdapterModuleMixin
+            names.update(FFT_layer.get_enabled_adapters())
+
+        names = sorted(list(names))
+        return names
+
+    def _update_adapter_cfg_input_dim(self, cfg: DictConfig):
+        cfg = adapter_utils.update_adapter_cfg_input_dim(self, cfg, module_dim=self.d_model)
+        return cfg
+
+
+class FFTransformerEncoderAdapter(FFTransformerDecoderAdapter, FFTransformerEncoder, adapter_mixins.AdapterModuleMixin):
+    pass
+
+"""
+Register any additional information
+"""
+if adapter_mixins.get_registered_adapter(FFTransformerEncoder) is None:
+    adapter_mixins.register_adapter(base_class=FFTransformerEncoder, adapter_class=FFTransformerEncoderAdapter)
+
+if adapter_mixins.get_registered_adapter(FFTransformerDecoder) is None:
+    adapter_mixins.register_adapter(base_class=FFTransformerDecoder, adapter_class=FFTransformerDecoderAdapter)

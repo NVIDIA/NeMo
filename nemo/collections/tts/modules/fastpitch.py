@@ -41,11 +41,14 @@
 # CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+from typing import Optional, List
+from omegaconf import DictConfig
 
 import torch
 
+from nemo.collections.asr.parts.utils import adapter_utils
 from nemo.collections.tts.helpers.helpers import binarize_attention_parallel, regulate_len
-from nemo.core.classes import NeuralModule, typecheck
+from nemo.core.classes import NeuralModule, typecheck, adapter_mixins
 from nemo.core.neural_types.elements import (
     EncodedRepresentation,
     Index,
@@ -79,7 +82,7 @@ def average_pitch(pitch, durs):
     return pitch_avg
 
 
-class ConvReLUNorm(torch.nn.Module):
+class ConvReLUNorm(torch.nn.Module, adapter_mixins.AdapterModuleMixin):
     def __init__(self, in_channels, out_channels, kernel_size=1, dropout=0.0):
         super(ConvReLUNorm, self).__init__()
         self.conv = torch.nn.Conv1d(in_channels, out_channels, kernel_size=kernel_size, padding=(kernel_size // 2))
@@ -89,7 +92,12 @@ class ConvReLUNorm(torch.nn.Module):
     def forward(self, signal):
         out = torch.nn.functional.relu(self.conv(signal))
         out = self.norm(out.transpose(1, 2)).transpose(1, 2)
-        return self.dropout(out)
+        out = self.dropout(out)
+
+        if self.is_adapter_available():
+            out = self.forward_enabled_adapters(out.transpose(1,2)).transpose(1, 2)
+
+        return out
 
 
 class TemporalPredictor(NeuralModule):
@@ -107,6 +115,7 @@ class TemporalPredictor(NeuralModule):
             ]
         )
         self.fc = torch.nn.Linear(filter_size, 1, bias=True)
+        self.filter_size = filter_size
 
     @property
     def input_types(self):
@@ -126,6 +135,41 @@ class TemporalPredictor(NeuralModule):
         out = self.layers(out.transpose(1, 2)).transpose(1, 2)
         out = self.fc(out) * enc_mask
         return out.squeeze(-1)
+
+
+class TemporalPredictorAdapter(TemporalPredictor, adapter_mixins.AdapterModuleMixin):
+
+    # Higher level forwarding
+    def add_adapter(self, name: str, cfg: dict):
+        cfg = self._update_adapter_cfg_input_dim(cfg)
+        for conv_layer in self.layers:  # type: adapter_mixins.AdapterModuleMixin
+            conv_layer.add_adapter(name, cfg)
+
+    def is_adapter_available(self) -> bool:
+        return any([conv_layer.is_adapter_available() for conv_layer in self.layers])
+
+    def set_enabled_adapters(self, name: Optional[str] = None, enabled: bool = True):
+        for conv_layer in self.layers:  # type: adapter_mixins.AdapterModuleMixin
+            conv_layer.set_enabled_adapters(name=name, enabled=enabled)
+
+    def get_enabled_adapters(self) -> List[str]:
+        names = set([])
+        for conv_layer in self.layers:  # type: adapter_mixins.AdapterModuleMixin
+            names.update(conv_layer.get_enabled_adapters())
+
+        names = sorted(list(names))
+        return names
+
+    def _update_adapter_cfg_input_dim(self, cfg: DictConfig):
+        cfg = adapter_utils.update_adapter_cfg_input_dim(self, cfg, module_dim=self.filter_size)
+        return cfg
+
+
+"""
+Register any additional information
+"""
+if adapter_mixins.get_registered_adapter(TemporalPredictor) is None:
+    adapter_mixins.register_adapter(base_class=TemporalPredictor, adapter_class=TemporalPredictorAdapter)
 
 
 class FastPitchModule(NeuralModule):

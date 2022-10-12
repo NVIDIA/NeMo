@@ -11,12 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import Optional, List
+from omegaconf import DictConfig
 
 import torch
 from torch import nn
 
 from nemo.collections.tts.helpers.helpers import binarize_attention_parallel
 from nemo.collections.tts.modules.submodules import ConvNorm
+from nemo.collections.asr.parts.utils import adapter_utils
+from nemo.core.classes import adapter_mixins
 
 
 class AlignmentEncoder(torch.nn.Module):
@@ -175,3 +179,50 @@ class AlignmentEncoder(torch.nn.Module):
 
         attn = self.softmax(attn)  # softmax along T2
         return attn, attn_logprob
+
+
+class AlignmentEncoderAdapter(AlignmentEncoder, adapter_mixins.AdapterModuleMixin):
+    # Higher level forwarding
+    def add_adapter(self, name: str, cfg: dict):
+
+        for i, conv_layer in enumerate(self.key_proj): 
+            if i % 2 == 0: 
+                cfg = self._update_adapter_cfg_input_dim(cfg, conv_layer.conv.out_channels)
+                conv_layer.add_adapter(name, cfg)
+
+        for i, conv_layer in enumerate(self.query_proj): 
+            if i % 2 == 0: 
+                cfg = self._update_adapter_cfg_input_dim(cfg, conv_layer.conv.out_channels)
+                conv_layer.add_adapter(name, cfg)
+
+
+    def is_adapter_available(self) -> bool:
+        return any([conv_layer.is_adapter_available() for i, conv_layer in enumerate(self.key_proj) if i % 2 == 0] + \
+                   [conv_layer.is_adapter_available() for i, conv_layer in enumerate(self.query_proj) if i % 2 == 0])
+
+    def set_enabled_adapters(self, name: Optional[str] = None, enabled: bool = True):
+        for i, conv_layer in enumerate(self.key_proj):
+             if i % 2 == 0: conv_layer.set_enabled_adapters(name=name, enabled=enabled)
+        for i, conv_layer in enumerate(self.query_proj):
+             if i % 2 == 0: conv_layer.set_enabled_adapters(name=name, enabled=enabled)
+
+    def get_enabled_adapters(self) -> List[str]:
+        names = set([])
+        for i, conv_layer in enumerate(self.key_proj):
+             if i % 2 == 0: names.update(conv_layer.get_enabled_adapters())
+        for i, conv_layer in enumerate(self.query_proj):
+             if i % 2 == 0: names.update(conv_layer.get_enabled_adapters())
+
+        names = sorted(list(names))
+        return names
+
+    def _update_adapter_cfg_input_dim(self, cfg: DictConfig, module_dim: int):
+        cfg = adapter_utils.update_adapter_cfg_input_dim(self, cfg, module_dim=module_dim)
+        return cfg
+
+
+"""
+Register any additional information
+"""
+if adapter_mixins.get_registered_adapter(AlignmentEncoder) is None:
+    adapter_mixins.register_adapter(base_class=AlignmentEncoder, adapter_class=AlignmentEncoderAdapter)
