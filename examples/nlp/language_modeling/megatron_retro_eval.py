@@ -13,21 +13,21 @@
 # limitations under the License.
 
 import os
+import threading
 
+import torch
 from examples.nlp.language_modeling.megatron_gpt_eval import RequestDataSet
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 
-import torch
-from nemo.collections.nlp.modules.common.megatron_web_server import get_demo
 from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
+from nemo.collections.nlp.modules.common.megatron_web_server import get_demo
+from nemo.collections.nlp.modules.common.text_generation_server import MegatronServer
+from nemo.collections.nlp.modules.common.text_generation_utils import generate
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.core.config import hydra_runner
-from nemo.collections.nlp.modules.common.text_generation_utils import generate
-from nemo.collections.nlp.modules.common.text_generation_server import MegatronServer
-import threading
 
 try:
     from apex.transformer import parallel_state
