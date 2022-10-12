@@ -12,11 +12,6 @@ Speech-to-Text Aligner Models
 
 Mel-Spectrogram Generators
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
-.. autoclass:: nemo.collections.tts.models.Tacotron2Model
-    :show-inheritance:
-    :members:
-    :exclude-members: setup_training_data, setup_validation_data, training_step, validation_epoch_end, validation_step, setup_test_data, on_train_epoch_start
-
 .. autoclass:: nemo.collections.tts.models.FastPitchModel
     :show-inheritance:
     :members:
@@ -32,9 +27,14 @@ Mel-Spectrogram Generators
     :members:
     :exclude-members: setup_training_data, setup_validation_data, training_step, validation_epoch_end, validation_step, setup_test_data, on_train_epoch_start
 
+.. autoclass:: nemo.collections.tts.models.Tacotron2Model
+    :show-inheritance:
+    :members:
+    :exclude-members: setup_training_data, setup_validation_data, training_step, validation_epoch_end, validation_step, setup_test_data, on_train_epoch_start
+
 Vocoders
 ~~~~~~~~
-.. autoclass:: nemo.collections.tts.models.WaveGlowModel
+.. autoclass:: nemo.collections.tts.models.GriffinLimModel
     :show-inheritance:
     :members:
     :exclude-members: setup_training_data, setup_validation_data, training_step, validation_epoch_end, validation_step, setup_test_data, on_train_epoch_start
@@ -49,7 +49,7 @@ Vocoders
     :members:
     :exclude-members: setup_training_data, setup_validation_data, training_step, validation_epoch_end, validation_step, setup_test_data, on_train_epoch_start
 
-.. autoclass:: nemo.collections.tts.models.GriffinLimModel
+.. autoclass:: nemo.collections.tts.models.WaveGlowModel
     :show-inheritance:
     :members:
     :exclude-members: setup_training_data, setup_validation_data, training_step, validation_epoch_end, validation_step, setup_test_data, on_train_epoch_start
@@ -68,14 +68,6 @@ Base Classes
 The classes below are the base of the TTS pipeline.
 To read more about them, see the `Base Classes <./intro.html#Base Classes>`__ section of the intro page.
 
-.. autoclass:: nemo.collections.tts.models.base.SpectrogramGenerator
-    :show-inheritance:
-    :members:
-
-.. autoclass:: nemo.collections.tts.models.base.Vocoder
-    :show-inheritance:
-    :members:
-
 .. autoclass:: nemo.collections.tts.models.base.LinVocoder
     :show-inheritance:
     :members:
@@ -84,18 +76,26 @@ To read more about them, see the `Base Classes <./intro.html#Base Classes>`__ se
     :show-inheritance:
     :members:
 
+.. autoclass:: nemo.collections.tts.models.base.SpectrogramGenerator
+    :show-inheritance:
+    :members:
+
 .. autoclass:: nemo.collections.tts.models.base.TextToWaveform
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.tts.models.base.Vocoder
     :show-inheritance:
     :members:
 
 Dataset Processing Classes
 --------------------------
 
-.. autoclass:: nemo.collections.tts.torch.data.TTSDataset
+.. autoclass:: nemo.collections.tts.torch.data.MixerTTSXDataset
     :show-inheritance:
     :members:
 
-.. autoclass:: nemo.collections.tts.torch.data.MixerTTSXDataset
+.. autoclass:: nemo.collections.tts.torch.data.TTSDataset
     :show-inheritance:
     :members:
 
