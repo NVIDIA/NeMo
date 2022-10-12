@@ -90,7 +90,7 @@ class TranscriptionConfig:
     output_filename: Optional[str] = None
     batch_size: int = 32
     num_workers: int = 0
-    append_pred: bool = False  # Sets mode of work, is set to True will add new transcriptions to existing .JSON file.
+    append_pred: bool = False  # Sets mode of work, if True it will add new field transcriptions.
     pred_name_postfix: Optional[str] = None  # If you need to use another model name, rather than standard one.
 
     # Set to True to output language ID information
@@ -218,7 +218,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         # create default output filename
         if cfg.audio_dir is not None:
             cfg.output_filename = os.path.dirname(os.path.join(cfg.audio_dir, '.')) + '.json'
-        elif cfg.pred_name_postfix is None:
+        elif cfg.pred_name_postfix is not None:
             cfg.output_filename = cfg.dataset_manifest.replace('.json', f'_{cfg.pred_name_postfix}.json')
         else:
             cfg.output_filename = cfg.dataset_manifest.replace('.json', f'_{model_name}.json')
@@ -231,9 +231,6 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         )
 
         return cfg
-
-    if cfg.append_pred and cfg.overwrite_transcripts:
-        logging.warning(f"Nothing will be overwritten, as append_pred set to True")
 
     # transcribe audio
 
