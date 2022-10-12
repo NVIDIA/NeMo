@@ -23,10 +23,6 @@ model:
     vocab_file: null
     config: null
 
-  # Optionally we can learn the exclamation marks ["!", "！", "¡"]. If not using them, specify them as 'unused' so that
-  # the datasets will not filter out sentences that end in '!', and therefore the model will not barf when seeing these
-  # for the first time during inference.
-  unused_punctuation: ["!", "！", "¡"]
   null_punct_token: "<NULL>"
   # Punctuation tokens that are predicted before each subword. Add "¡" here if using it.
   punct_pre_labels: ["<NULL>", "¿",]
@@ -76,22 +72,12 @@ model:
     sampling_temperature: 5
     # "common" key/value pairs will be added to every data set, unless that dataset already specifies the key.
     common:
-      max_lines_per_input_file: 200000
       punct_pre_labels: ${model.punct_pre_labels}
       punct_post_labels: ${model.punct_post_labels}
-      unused_punctuation: ${model.unused_punctuation}
       min_lines_per_eg: 2
       max_lines_per_eg: 6
       max_length: 128
       truncate_max_tokens: 0
-    # Same as "common", but only for continuous-script languages
-    common_continuous_script:
-      min_input_length_chars: 2  # Need at least 2 to have char + punctuation
-      max_input_length_chars: 64
-    # Same as "common", but only for non continuous-script languages
-    common_noncontinuous_script:
-      min_input_length_words: 1
-      max_input_length_words: 40
     # Typically, set up one data set per language.
     datasets:
       # targets can be any implementation of a PunctCapSegDataset; only TextPunctCapSegDataset is fully implemented.
@@ -101,94 +87,44 @@ model:
           - ???
         # Will be used to select the punctuation targets generator, which is language-specific.
         language: "en"
-        # List of zero or more implementations of nlp.data.token_classification.punct_cap_seg_dataset.TextCleaner
-        cleaners:
-          # Remove ';' because it has a special meaning for greek punctuation, not used in other languages
-          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
-            chars_to_remove: [";", '"']
-          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
-            punct_tokens: ${model.punct_post_labels}
       - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
         text_files:
           - ???
         language: "es"
-        cleaners:
-          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
-            chars_to_remove: [";", '"']
-          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.SpanishPunctNormalizer
-            pre_punct_tokens: ${model.punct_pre_labels}
-            post_punct_tokens: ${model.punct_post_labels}
       - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
         text_files:
           - ???
         language: "zh"
         # Let dataset know this is a continuous-script language
         is_continuous: true
-        cleaners:
-          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
-            chars_to_remove: [";", '"']
-          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.ChineseTextCleaner
-            remove_spaces: true
-            replace_latin: true
-            no_enum_comma: true
-          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
-            punct_tokens: ${model.punct_post_labels}
 
   validation_ds:
     batch_size: 40
     num_workers: 6
     # "common" options are analogous to train_ds
     common:
-      max_lines_per_input_file: 400000
       punct_pre_labels: ${model.punct_pre_labels}
       punct_post_labels: ${model.punct_post_labels}
-      unused_punctuation: ${model.unused_punctuation}
       min_lines_per_eg: 2
       max_lines_per_eg: 6
       max_length: 128
       truncate_max_tokens: 0
       rng_seed: 12345
-    common_continuous_script:
-      min_input_length_chars: 2
-      max_input_length_chars: 64
-    common_noncontinuous_script:
-      min_input_length_words: 1
-      max_input_length_words: 40
     datasets:
       # Probably one for each training language, with similar parameters
       - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
         text_files:
           - ???
         language: "en"
-        cleaners:
-          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
-            chars_to_remove: [";", '"']
-          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
-            punct_tokens: ${model.punct_post_labels}
       - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
         text_files:
           - ???
         language: "es"
-        cleaners:
-          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
-            chars_to_remove: [";", '"']
-          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.SpanishPunctNormalizer
-            pre_punct_tokens: ${model.punct_pre_labels}
-            post_punct_tokens: ${model.punct_post_labels}
       - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
         text_files:
           - ???
         language: "zh"
         is_continuous: true
-        cleaners:
-          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.CharFilter
-            chars_to_remove: [";", '"']
-          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.ChineseTextCleaner
-            remove_spaces: true
-            replace_latin: true
-            no_enum_comma: true
-          - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.StandardPunctNormalizer
-            punct_tokens: ${model.punct_post_labels}
 
   punct_head_pre:
     num_layers: 1
@@ -239,11 +175,10 @@ trainer:
   resume_from_checkpoint: null
   logger: false
   enable_checkpointing: false
-  progress_bar_refresh_rate: 10
   benchmark: false
 
 exp_manager:
-  exp_dir: nemo_exp/token/
+  exp_dir: nemo_exp/
   name: ${name}
   create_tensorboard_logger: true
   create_checkpoint_callback: true

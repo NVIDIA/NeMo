@@ -9,7 +9,7 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig, open_dict
 from pytorch_lightning import Trainer
 
-from nemo.collections.common.data import ConcatMapDataset
+from nemo.collections.common.data import ConcatMapDataset, ConcatDataset
 from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.tokenizers import AutoTokenizer
@@ -112,7 +112,7 @@ class PunctCapSegModel(NLPModel):
         # Set each dataset's tokenizer. Model's tokenizer doesn't exist until we initialize BertModule, but datasets are
         # instantiated prior to the LM.
         if self._train_dl is not None:
-            # Train DL has one ConcatMapDataset
+            # Train DL has one ConcatDataset
             for dataset in self._train_dl.dataset.datasets:
                 dataset.tokenizer = self.tokenizer
         if self._validation_dl is not None:
@@ -144,7 +144,7 @@ class PunctCapSegModel(NLPModel):
 
     def setup_test_data(self, test_data_config: Union[DictConfig, Dict]):
         self._test_dl = self._setup_eval_dataloaders_from_config(cfg=test_data_config)
-        # self._setup_metrics(len(self._test_dl), self._test_metrics)
+        self._test_metrics = self._setup_metrics(len(self._test_dl))
 
     def setup_validation_data(self, val_data_config: Union[DictConfig, Dict]):
         self._validation_dl = self._setup_eval_dataloaders_from_config(cfg=val_data_config)
@@ -201,12 +201,6 @@ class PunctCapSegModel(NLPModel):
                 for k, v in cfg.get("common", {}).items():
                     if k not in ds_config:
                         ds_config[k] = v
-                # More defaults for only continuous/non-continuous scripts
-                is_cont = ds_config.get("continuous_script", False)
-                extras_key = "common_continuous_script" if is_cont else "common_noncontinuous_script"
-                for k, v in cfg.get(extras_key, {}).items():
-                    if k not in ds_config:
-                        ds_config[k] = v
             dataset: PunctCapSegDataset = instantiate(ds_config)
             if not isinstance(dataset, PunctCapSegDataset):
                 raise ValueError(
@@ -234,12 +228,6 @@ class PunctCapSegModel(NLPModel):
                 for k, v in cfg.get("common", {}).items():
                     if k not in ds_config:
                         ds_config[k] = v
-                # More defaults for only continuous/non-continuous scripts
-                is_cont = ds_config.get("continuous_script", False)
-                extras_key = "common_continuous_script" if is_cont else "common_noncontinuous_script"
-                for k, v in cfg.get(extras_key, {}).items():
-                    if k not in ds_config:
-                        ds_config[k] = v
             dataset: PunctCapSegDataset = instantiate(ds_config)
             if not isinstance(dataset, PunctCapSegDataset):
                 raise ValueError(
@@ -251,7 +239,7 @@ class PunctCapSegModel(NLPModel):
                 dataset.tokenizer = self.tokenizer
             datasets.append(dataset)
         # Currently only one type of dataset is implemented; ok to always use a map data set
-        dataset: ConcatMapDataset = ConcatMapDataset(
+        dataset: ConcatDataset = ConcatDataset(
             datasets=datasets,
             sampling_technique=cfg.get("sampling_technique", "temperature"),
             sampling_temperature=cfg.get("sampling_temperature", 5),
@@ -296,7 +284,6 @@ class PunctCapSegModel(NLPModel):
             # Mask sequence mask
             punct_mask = punct_inputs.ne(self.tokenizer.pad_id)
             cap_seg_mask = cap_seg_inputs.ne(self.tokenizer.pad_id)
-
             # Encoded output is [B, T, D]
             punct_encoded = self.bert_model(
                 input_ids=punct_inputs, attention_mask=punct_mask, token_type_ids=torch.zeros_like(punct_inputs)
@@ -372,9 +359,7 @@ class PunctCapSegModel(NLPModel):
         else:
             _, punct_pre_targets, punct_post_targets, cap_targets, seg_targets, _ = batch
         # All log probs are [B, T, D]
-        punct_pre_mask = punct_pre_targets.ne(self._ignore_idx)
         punct_pre_preds = punct_pre_logits.argmax(dim=-1)
-        punct_post_mask = punct_post_targets.ne(self._ignore_idx)
         punct_post_preds = punct_post_logits.argmax(dim=-1)
         cap_mask = cap_targets.ne(self._ignore_idx)
         cap_preds = cap_logits[cap_mask].sigmoid().gt(0.5)
@@ -383,6 +368,8 @@ class PunctCapSegModel(NLPModel):
 
         eval_modules: Iterable[nn.ModuleDict] = self._dev_metrics if mode == Mode.VAL else self._test_metrics
         metrics: nn.ModuleDict = eval_modules[dataloader_idx]
+        punct_pre_mask = punct_pre_targets.ne(self._ignore_idx)
+        punct_post_mask = punct_post_targets.ne(self._ignore_idx)
         num_targets = punct_pre_mask.sum() + punct_post_mask.sum() + cap_mask.sum() + seg_mask.sum()
         metrics["loss"](loss=loss, num_measurements=num_targets)
         metrics["punct_pre_report"](punct_pre_preds[punct_pre_mask], punct_pre_targets[punct_pre_mask])
@@ -418,13 +405,15 @@ class PunctCapSegModel(NLPModel):
             logging.info(f"{analytic} report for '{language}': {report}")
 
     # TODO re-enable these, in the case of using only one language.
+    #   When using multiple data loaders, uncommenting these will break eval.
+    #   When using one data loader, commenting these will break eval.
     # def validation_epoch_end(self, outputs) -> None:
     #     # Always use multi implementation and just use index 0.
     #     self.multi_validation_epoch_end(outputs=outputs, dataloader_idx=0)
     #
-    # def test_epoch_end(self, outputs) -> None:
-    #     # Always use multi implementation and just use index 0.
-    #     self.multi_test_epoch_end(outputs=outputs, dataloader_idx=0)
+    def test_epoch_end(self, outputs) -> None:
+        # Always use multi implementation and just use index 0.
+        self.multi_test_epoch_end(outputs=outputs, dataloader_idx=0)
 
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0) -> None:
         self._multi_eval_epoch_end(Mode.VAL, dataloader_idx)
@@ -584,6 +573,7 @@ class PunctCapSegModel(NLPModel):
                     char_preds.append(self._cfg.null_punct_token)
         return char_preds
 
+    # TODO squash all the infer_* methods into one, with flags to enable each analytics
     @torch.inference_mode()
     def infer_punctuation(
         self,

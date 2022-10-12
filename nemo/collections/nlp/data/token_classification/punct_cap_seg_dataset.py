@@ -4,6 +4,7 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
+from omegaconf import OmegaConf, DictConfig
 
 from nemo.collections.common.tokenizers import AutoTokenizer, TokenizerSpec
 from nemo.core import Dataset, typecheck
@@ -194,6 +195,28 @@ class PunctCapSegDataset(Dataset):
                 "lengths": NeuralType(("B",), LengthsType()),
             }
 
+    def _fold_indices_to_targets(
+        self, tokens: List[str], target_indices: List[int], oov_lengths: List[int]
+    ) -> List[List[int]]:
+        all_targets: List[List[int]] = []
+        # For each token, make one output list
+        char_index = 0
+        oov_index = 0
+        for token in tokens:
+            token_targets: List[int] = [self._target_pad_value] * self._max_token_len
+            if token == self.tokenizer.unk_token:
+                char_index += oov_lengths[oov_index]
+                oov_index += 1
+                all_targets.append(token_targets)
+                continue
+            start = 2 if token.startswith("##") else 0
+            for i in range(start, len(token)):
+                char_target = target_indices[char_index]
+                token_targets[i] = char_target
+                char_index += 1
+            all_targets.append(token_targets)
+        return all_targets
+
     @typecheck()
     def collate_fn(self, batch):
         if self._multipass:
@@ -280,253 +303,6 @@ class PunctCapSegDataset(Dataset):
             punct_lengths,
             cap_seg_lengths,
         )
-
-
-class TextCleaner(abc.ABC):
-    """Base class for language-specific text cleaners.
-
-    The classes derived from this base class will be applied to each input sentence before we generate examples. The
-    main idea is that these classes normalize the data specific to our task.
-
-    """
-
-    # Add init, option to ignore some chars. E.g., every cleaner except greek can ignore ';' which is a greek full stop
-
-    @abc.abstractmethod
-    def clean(self, text: str) -> str:
-        raise NotImplementedError()
-
-
-class CharFilter(TextCleaner):
-    """Removes all instances of specified chars from inputs.
-
-    """
-
-    def __init__(self, chars_to_remove: List[str]):
-        all_chars_str = "".join([re.escape(x) for x in chars_to_remove])
-        self._remove_char_ptn = re.compile(f"[{all_chars_str}]+")
-
-    def clean(self, text: str) -> str:
-        text = self._remove_char_ptn.sub("", text)
-        return text
-
-
-class StandardPunctNormalizer(TextCleaner):
-    """Class for normalizing punctuation in most languages.
-
-    Intended to be run on plain text data before generating examples.
-
-    First, removes all spaces that appear before punctuation tokens. e.g.,
-    "foo ." -> "foo.", "foo. . ." -> "foo...", etc.
-
-    Then replaces all instances of 2+ consecutive punctuation tokens by the first punctuation token in the sequence.
-    E.g.,
-    "foo..." -> "foo."
-
-    Note on the latter that this primarily deals with 1) ellipsis and 2) messy data. In the former case, we replace
-    ellipsis with a period, in that latter we do the best we can with messy data in a simple way.
-
-    Args:
-        punct_tokens: List of punctuation tokens.
-
-    """
-
-    def __init__(self, punct_tokens: List[str]) -> None:
-        punct_tokens = [x for x in punct_tokens if x != "<NULL>"]  # TODO don't assume null token
-        # This assumes all punctuation tokens are single characters, which should be true
-        escaped_tokens = [re.escape(x) for x in punct_tokens]
-        punct_str = "".join(escaped_tokens)
-        # Match a punct token, followed immediately by more. Capture the first token.
-        self._multi_punct_ptn = re.compile(rf"([{punct_str}])[{punct_str}]+")
-        # Match whitespace followed by a punct token. Capture the token.
-        self._whitespace_ptn = re.compile(rf"\s+([{punct_str}])")
-        # Match punctuation at the beginning of a sentence (not valid except in Spanish)
-        self._punct_at_bos_ptn = re.compile(rf"^[{punct_str}\s]+")
-
-    def clean(self, text: str) -> str:
-        # Remove punctuation/space at beginning of sentence
-        text = self._punct_at_bos_ptn.sub("", text)
-        # Remove whitespace before any punctuation token
-        text = self._whitespace_ptn.sub(r"\g<1>", text)
-        # Replace consecutive punctuation tokens with the first tokens
-        text = self._multi_punct_ptn.sub(r"\g<1>", text)
-        return text
-
-
-class SpanishPunctNormalizer(TextCleaner):
-    """Class for normalizing punctuation Spanish.
-
-    Similar to a :class:``StandardPunctNormalizer`` but has special rules for dealing with "¡" and "¿".
-
-    For non-inverted punctuation, we follow the same rules as :class:``StandardPunctNormalizer``.
-
-    For inverted punctuation, we allow them to appear at the beginning of a string and allow space before them (but not
-    after).
-
-    Args:
-        pre_punct_tokens: List of punctuation tokens that can appear before a subword. Basically, inverted punctuation.
-        post_punct_tokens: List of punctuation tokens that can appear after a subword.
-
-    """
-
-    def __init__(self, pre_punct_tokens: List[str], post_punct_tokens: List[str]) -> None:
-        pre_punct_tokens = [x for x in pre_punct_tokens if x != "<NULL>"]  # TODO don't assume null token
-        post_punct_tokens = [x for x in post_punct_tokens if x != "<NULL>"]
-        # make char classes e.g. '[\.,?]'
-        post_punct_char_str = "".join([re.escape(x) for x in post_punct_tokens])
-        pre_punct_char_str = "".join([re.escape(x) for x in pre_punct_tokens])
-        all_char_str = "".join([re.escape(x) for x in pre_punct_tokens + post_punct_tokens])
-
-        # Match whitespace followed by a non-inverted token. Capture the token.
-        self._whitespace_ptn1 = re.compile(rf"\s+([{post_punct_char_str}])")
-        # Match whitespace after inverted token. Capture the token.
-        self._whitespace_ptn2 = re.compile(rf"([{pre_punct_char_str}])\s+")
-
-        # Catch inverted punctuation at eos
-        self._pre_punct_at_eos_ptn = re.compile(rf"[{pre_punct_char_str}\s]+$")
-        # Catch non-inverted at bos
-        self._post_punct_at_bos_ptn = re.compile(rf"^[{post_punct_char_str}\s]+")
-        # Catch inverted followed by any punctuation, replace with inverted
-        self._multi_punct_ptn1 = re.compile(rf"([{pre_punct_char_str}])[{all_char_str}]+")
-        # Catch non-inverted followed by any tokens without space
-        self._multi_punct_ptn2 = re.compile(rf"([{post_punct_char_str}])[{all_char_str}]+")
-
-    def clean(self, text: str) -> str:
-        # Remove punctuation/space at beginning of sentence
-        text = self._post_punct_at_bos_ptn.sub("", text)
-        text = self._pre_punct_at_eos_ptn.sub("", text)
-        # Remove whitespace before any punctuation token
-        text = self._whitespace_ptn1.sub(r"\g<1>", text)
-        text = self._whitespace_ptn2.sub(r"\g<1>", text)
-        # Replace consecutive punctuation tokens with the first tokens
-        text = self._multi_punct_ptn1.sub(r"\g<1>", text)
-        text = self._multi_punct_ptn2.sub(r"\g<1>", text)
-        return text
-
-
-class ChineseTextCleaner(TextCleaner):
-    """Text cleaner for Chinese.
-
-    Args:
-        remove_spaces: If True, remove all spaces from the text.
-        replace_latin: If true, replace all instances of latin punctuation with the analogous Chinese token. E.g.,
-            replace all instances of '.' with '。'
-        no_enum_comma: If true, replace all instances of the Chinese enumeration comma "、" with the comma ",". Most
-            datasets use these commas interchangeably, so unless you are sure your data correctly and consistently uses
-            the enumeration comma correctly, you should set this to True. Otherwise the model will be penalized for
-            the messy data.
-
-    """
-
-    def __init__(self, remove_spaces: bool = True, replace_latin: bool = True, no_enum_comma: bool = True) -> None:
-        self._remove_spaces = remove_spaces
-        self._replace_latin = replace_latin
-        self._no_enum_comma = no_enum_comma
-
-    def clean(self, text: str) -> str:
-        if self._remove_spaces:
-            text = re.sub(r"\s+", "", text)
-        if self._replace_latin:
-            # Replace latin punctuation with Chinese.
-            text = re.sub(r"\?", "？", text)
-            # # Allow latin comma in numbers
-            # text = re.sub(r"(?<=\D),(?=\D)", "，", text)
-            text = re.sub(r",", "，", text)
-            # Only swap periods if they are at the end of a sentence; else assume they are not full stops.
-            text = re.sub(r"[\\.．]", "。", text)
-            text = re.sub(r"!", "！", text)
-        if self._no_enum_comma:
-            # Replace the enumeration comma with regular comma. The former and latter are often used interchangeably in
-            # raw data, so it is difficult or impossible to learn the enumeration comma.
-            text = re.sub(r"、", "，", text)
-        return text
-
-
-class JapaneseTextCleaner(TextCleaner):
-    """Text cleaner for Japanese.
-
-    Args:
-        remove_spaces: If True, remove all spaces from the text.
-        replace_latin: If true, replace all instances of latin punctuation with the analogous Chinese token. E.g.,
-            replace all instances of '.' with '。'
-
-    """
-
-    def __init__(self, remove_spaces: bool = True, replace_latin: bool = True,) -> None:
-        self._remove_spaces = remove_spaces
-        self._replace_latin = replace_latin
-
-    def clean(self, text: str) -> str:
-        if self._remove_spaces:
-            text = re.sub(r"\s+", "", text)
-        if self._replace_latin:
-            # Replace latin punctuation with Chinese.
-            text = re.sub(r"\?", "？", text)
-            text = re.sub(r"!", "！", text)
-            # # Allow latin comma within numbers
-            # text = re.sub(r"(?<=\D),(?=\D)", "，", text)
-            text = re.sub(r",", "，", text)
-            text = re.sub(r"[\\.．]", "。", text)
-        return text
-
-
-class ArabicTextCleaner(TextCleaner):
-    """Text cleaner for Arabic.
-
-    Args:
-        replace_latin: If true, replace all instances of latin punctuation with the analogous Arabic token. E.g.,
-            replace all instances of '?' with '؟'
-
-    """
-
-    def __init__(self, replace_latin: bool = True,) -> None:
-        self._replace_latin = replace_latin
-
-    def clean(self, text: str) -> str:
-        if self._replace_latin:
-            # Replace latin punctuation with Arabic equivalent (reversed '?' and ',').
-            text = re.sub(r"\?", "؟", text)
-            text = re.sub(r",", "،", text)
-        return text
-
-
-class HindiTextCleaner(TextCleaner):
-    def __init__(self, no_double_danda: bool = True, replace_latin: bool = True,) -> None:
-        self._no_double_danda = no_double_danda
-        self._replace_latin = replace_latin
-
-    def clean(self, text: str) -> str:
-        text = text.strip()
-        if self._no_double_danda:
-            text = re.sub(r"॥", "।", text)
-        if self._replace_latin:
-            text = re.sub(r"\.", "।", text)
-        return text
-
-
-class GreekTextCleaner(TextCleaner):
-    def __init__(self, remove_non_eos_semi_colon: bool = True,) -> None:
-        self._remove_non_eos_semi_colon = remove_non_eos_semi_colon
-        # Match a semi-colon, following by 0+ spaces, then end of line.
-        self._non_eos_semi_colon_ptn = re.compile(r";\s*[^$]")
-
-    def clean(self, text: str) -> str:
-        if self._remove_non_eos_semi_colon:
-            text = self._non_eos_semi_colon_ptn.sub("", text)
-        return text
-
-
-class AmharicTextCleaner(TextCleaner):
-    def __init__(self,) -> None:
-        # If a sentence ends with a period, change it to a four dots
-        self._period_ptn = re.compile(r"\.")
-        # Sometimes two colons ("::") are used instead of the four dots
-        self._two_colon_ptn = re.compile("::")
-
-    def clean(self, text: str) -> str:
-        text = self._period_ptn.sub("።", text)
-        text = self._two_colon_ptn.sub("።", text)
-        return text
 
 
 class PuncTargetsGenerator(abc.ABC):
@@ -793,24 +569,6 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
         prob_truncate: Truncate examples with this probability.
         truncate_max_tokens: If truncating an example, truncate between 1 and this many tokens.
         target_pad_value: Padding value used in the targets. Should be the ignore_idx of your loss function.
-        drop_if_first_char_lower: When reading the input data, discard lines if the first char is lower (presumably not
-            a properly true-cased line).
-        drop_if_no_end_punct: When reading input data, drop any line if it does not end in punctuation (presumably an
-            improperly-punctuated line).
-        drop_if_all_caps: When reading input data, drop any line that is all caps. Probably useful for corpora like
-            OpenSubtitles.
-        min_input_length_words: When reading input data, drop any line that contains fewer than this many words. For
-            continuous script language, ensure this is None because each line will be 1 "word".
-        max_input_length_words: When reading input data, drop any line that contains more than this many words
-            (presumably a multi-sentence line, which will corrupt sentence boundary detection labels).
-        min_input_length_chars: When reading input data, drop any line that contains fewer than this many chars. Intended
-            as an analogy to ``min_input_length_words`` for continuous-script languages.
-        max_input_length_chars: When reading input data, drop any line that contains more than this many chars. Intended
-            as an analogy to ``max_input_length_words`` for continuous-script languages.
-        max_lines_per_input_file: If not None, read only the first N lines of each input file.
-        unused_punctuation: List of legitimate punctuation characters that are not used as targets. Useful when dropping
-            examples that do not end in punctuation, but we are omitting some punctuation labels (e.g., '!') so that we
-            retain input sentences with this token and let the model see it.
         rng_seed: Seed for the PRNG. For training, keep at None to prevent the data loader works from using the same
             extra indices each step.
     """
@@ -823,7 +581,6 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
         punct_post_labels: List[str],
         is_continuous: Optional[bool] = None,
         tokenizer: Optional[TokenizerSpec] = None,
-        cleaners: Optional[List[TextCleaner]] = None,
         multipass: bool = True,
         null_label: str = "<NULL>",
         max_length: int = 512,
@@ -835,15 +592,6 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
         truncate_max_tokens: int = 5,
         truncate_percentage: float = 0.25,
         target_pad_value: int = -100,
-        drop_if_first_char_lower: bool = True,
-        drop_if_no_end_punct: bool = True,
-        drop_if_all_caps: bool = True,
-        min_input_length_words: int = None,
-        max_input_length_words: int = None,
-        max_input_length_chars: int = None,
-        min_input_length_chars: int = None,
-        max_lines_per_input_file: Optional[int] = None,
-        unused_punctuation: Optional[List[str]] = None,
         rng_seed: Optional[int] = None,
     ):
         super().__init__(
@@ -858,7 +606,6 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
         self._max_length = max_length
         self._punct_pre_labels = punct_pre_labels
         self._punct_post_labels = punct_post_labels
-        self._cleaners = cleaners
         self._prob_drop_punct = prob_drop_punct
         self._prob_lower_case = prob_lower_case
         self._max_lines_per_eg = max_lines_per_eg
@@ -866,21 +613,9 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
         self._prob_truncate = prob_truncate
         self._truncate_max_tokens = truncate_max_tokens
         self._truncate_percentage = truncate_percentage
-        self._drop_if_first_char_lower = drop_if_first_char_lower
-        self._drop_if_no_end_punct = drop_if_no_end_punct
-        self._drop_if_all_caps = drop_if_all_caps
-        self._max_input_length_words = max_input_length_words
-        self._min_input_length_words = min_input_length_words
-        self._max_input_length_chars = max_input_length_chars
-        self._min_input_length_chars = min_input_length_chars
-        self._max_line_per_input_file = max_lines_per_input_file
 
         self._rng_seed = rng_seed
         self._rng = np.random.default_rng(seed=self._rng_seed) if rng_seed is not None else None
-        self._unused_punctuation = unused_punctuation if unused_punctuation is not None else []
-
-        if self._max_lines_per_eg < 2:
-            raise ValueError(f"Max lines per e.g. needs to be at least 2 to create meaningful segmentation targets.")
 
         self._data: List[str] = self._load_data(self._text_files)
 
@@ -901,84 +636,22 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
         )
 
     def reseed_rng(self):
-        """Used by validation DS to get same evaluation examples each epoch"""
         worker_info = torch.utils.data.get_worker_info()
         seed = self._rng_seed
-        if worker_info is not None:
-            seed = worker_info.id + (seed if seed is not None else 0)
+        # If seed is None, just let numpy initialize an RNG
+        if worker_info is not None and seed is not None:
+            seed += worker_info.id
         self._rng = np.random.default_rng(seed=seed)
         # Reseed modules as well
         self._cap_targets_gen.reseed_rng()
         self._punct_targets_gen.reseed_rng()
 
     def _load_data(self, text_files) -> List[str]:
-        # Create a set of all legitimate punctuation labels, to filter sentences that do not end with punctuation.
-        non_null_punct_labels = set(self._punct_pre_labels + self._punct_post_labels + self._unused_punctuation)
-        non_null_punct_labels.remove(self._null_label)
-        # Make a regex to determine whether some line contains nothing but punctuation.
-        joined_punct_tokens = "".join([re.escape(x) for x in non_null_punct_labels])
-        all_punct_ptn = re.compile(rf"^[{joined_punct_tokens}\s]*$")
-
         data: List[str] = []
         for text_file in text_files:
-            lines_scanned = 0  # for logging, in case we want to inspect files that skip too many
             with open(text_file) as f:
-                num_lines_from_file = 0
                 for line in f:
-                    if (
-                        self._max_line_per_input_file is not None
-                        and num_lines_from_file >= self._max_line_per_input_file
-                    ):
-                        break
-                    lines_scanned += 1
-                    line = line.strip()
-                    if self._cleaners is not None:
-                        for cleaner in self._cleaners:
-                            line = cleaner.clean(line)
-                    if not line:
-                        continue
-                    # Drop if line does not end in punctuation, if specified.
-                    if self._drop_if_no_end_punct and line[-1] not in non_null_punct_labels:
-                        continue
-                    # Drop if line does not start with an upper-case letter.
-                    # Note: for uncase chars, islower() == isupper() == False, so no action is taken.
-                    if self._drop_if_first_char_lower and line[0].islower():
-                        continue
-                    num_words = len(line.split())
-                    num_chars = len(line)
-                    # Drop if line contains too many words, if specified.
-                    if self._max_input_length_words is not None:
-                        if num_words > self._max_input_length_words:
-                            continue
-                    if self._min_input_length_words is not None:
-                        if num_words < self._min_input_length_words:
-                            continue
-                    # Drop if line contains too many characters, if specified (for continuous languages).
-                    if self._max_input_length_chars is not None:
-                        if num_chars > self._max_input_length_chars:
-                            continue
-                    if self._min_input_length_chars is not None:
-                        if num_chars < self._min_input_length_chars:
-                            continue
-                    # Drop is entire sentence is upper case
-                    if self._drop_if_all_caps and line.isupper():
-                        continue
-                    line = line.strip()
-                    # Drop if just punctuation
-                    if not line or all_punct_ptn.match(line):
-                        continue
-                    data.append(line)
-                    num_lines_from_file += 1
-            lines_skipped = lines_scanned - num_lines_from_file
-            skip_ratio = lines_skipped / lines_scanned
-            logging.info(
-                f"Dataset for '{self.language}' collected {num_lines_from_file} lines from '{text_file}'; skipped "
-                f"{lines_skipped} ({skip_ratio:0.2%}) from this file."
-            )
-        logging.info(
-            f"Dataset for '{self.language}' collected {len(data)} lines from {len(text_files)} "
-            f"file{'s' if len(text_files) > 1 else ''}."
-        )
+                    data.append(line.strip())
         return data
 
     def __len__(self):
@@ -999,28 +672,6 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
                 word_num += 1
         return oov_lengths
 
-    def _fold_indices_to_targets(
-        self, tokens: List[str], target_indices: List[int], oov_lengths: List[int]
-    ) -> List[List[int]]:
-        all_targets: List[List[int]] = []
-        # For each token, make one output list
-        char_index = 0
-        oov_index = 0
-        for token in tokens:
-            token_targets: List[int] = [self._target_pad_value] * self._max_token_len
-            if token == self.tokenizer.unk_token:
-                char_index += oov_lengths[oov_index]
-                oov_index += 1
-                all_targets.append(token_targets)
-                continue
-            start = 2 if token.startswith("##") else 0
-            for i in range(start, len(token)):
-                char_target = target_indices[char_index]
-                token_targets[i] = char_target
-                char_index += 1
-            all_targets.append(token_targets)
-        return all_targets
-
     def __getitem__(self, idx):
         # Important not to let every worker use the same RNG because we randomly concat indices, and that would result
         # in the 2nd+ sentences being the same in every worker.
@@ -1037,6 +688,7 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
         num_lines_to_concat = self._rng.integers(self._min_lines_per_eg - 1, self._max_lines_per_eg)
         # Randomly select additional indices to use
         indices_to_use = [idx] + list(self._rng.integers(0, len(self), num_lines_to_concat))
+        worker_info = torch.utils.data.get_worker_info()
         punctuated_texts: List[str] = [self._data[x] for x in indices_to_use]
 
         unpunctuated_texts = []
