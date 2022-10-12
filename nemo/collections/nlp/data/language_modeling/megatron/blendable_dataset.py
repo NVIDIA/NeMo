@@ -111,7 +111,11 @@ class MemoryEfficientBlendableDataset(torch.utils.data.Dataset):
         ds_bias.extend(range(ds_bias[-1], ds_bias[-1] + n))
 
         self.ds_index = np.array(ds_index, dtype=np.uint32)
-        self.ds_index_size = [(self.ds_index == i) for i in range(num_datasets)]
+        self.ds_index_size = np.array([(self.ds_index == i).sum() for i in range(num_datasets)], dtype=np.uint32)
+        assert (
+            self.ds_index_size > 0
+        ).all(), f"Some datasets have no samples in the blendable dataset, increase weight_bins or the offending weight. ds_index_size = {self.ds_index_size}"
+        self.ds_bias = np.array(ds_bias, dtype=np.uint32)
         self.ds_bias = np.array(ds_bias, dtype=np.uint32)
 
     def get_ds_sample_idx(self, idx):
