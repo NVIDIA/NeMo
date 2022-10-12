@@ -87,7 +87,7 @@ If you are loading audio files for your experiment, you will likely want to use 
 
 Text Normalizer Configuration
 ------------------------------
-Text normalization (TN) converts text from written form into its verbalized form, and it is an essential preprocessing step before text-to-speech Synthesis. TN ensures that TTS can handle all input texts without skipping unknown symbols. For example, "$123" is converted to "one hundred and twenty-three dollars". Currently, NeMo supports text normalizers for English, Russian, German, Spanish, and Chinese. Refer to the previous Section :doc:`../nlp/text_normalization/intro` for more details. Below shows an example of specifying text normalizer for English.
+Text normalization (TN) converts text from written form into its verbalized form, and it is an essential preprocessing step before text-to-speech Synthesis. TN ensures that TTS can handle all input texts without skipping unknown symbols. For example, "$123" is converted to "one hundred and twenty three dollars". Currently, NeMo supports text normalizers for English, German, Spanish, and Chinese. Refer to the previous Section :doc:`../nlp/text_normalization/intro` for more details. Below shows an example of specifying text normalizer for English.
 
 .. code-block:: yaml
 
@@ -105,7 +105,7 @@ Text normalization (TN) converts text from written form into its verbalized form
 
 Tokenizer Configuration
 ------------------------
-Tokenization converts input text string to a list of integer tokens. It may pad leading and/or trailing whitespaces to a string. NeMo tokenizer supports grapheme-only inputs, phoneme-only inputs, or a mixer of grapheme and phoneme inputs to disambiguate pronunciations of heteronyms for English, German, and Spanish. It also utilizes a grapheme-to-phoneme (G2P) tool to transliterate out-of-vocabulary (OOV) words. Please refer to the Section :doc:`../text_processing/g2p/g2p` and `TTS tokenizer collection <https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/common/tokenizers/text_to_speech/tts_tokenizers.py>`_ for more details. The following example sets up a ``EnglishPhonemesTokenizer`` with a mixer of grapheme and phoneme inputs where each word shown in the heteronym list is transliterated into graphemes or phonemes by a 50% chance.
+Tokenization converts input text string to a list of integer tokens. It may pad leading and/or trailing whitespaces to a string. NeMo tokenizer supports grapheme-only inputs, phoneme-only inputs, or a mixer of grapheme and phoneme inputs to disambiguate pronunciations of heteronyms for English, German, and Spanish. It also utilizes a grapheme-to-phoneme (G2P) tool to transliterate out-of-vocabulary (OOV) words. Please refer to the Section :doc:`../text_processing/g2p/g2p` and `TTS tokenizer collection <https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/common/tokenizers/text_to_speech/tts_tokenizers.py>`_ for more details. Note that G2P integration to NeMo TTS tokenizers pipeline is upcoming soon. The following example sets up a ``EnglishPhonemesTokenizer`` with a mixer of grapheme and phoneme inputs where each word shown in the heteronym list is transliterated into graphemes or phonemes by a 50% chance.
 
 .. code-block:: yaml
 
