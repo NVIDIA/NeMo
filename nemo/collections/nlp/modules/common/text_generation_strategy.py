@@ -379,8 +379,40 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
         self.forward_model = self.model.model
         self.frequent_query = args['frequent_query']
         del args['frequent_query']
+        self.pad_token_for_retrieval = args['pad_tokens']
+        del args['pad_tokens']
         self.neighbors = args['neighbors']
         self.service = FaissRetrievalService(tokenizer=self.model.tokenizer, **args)
+        self.chunk_size = self.service.ds.chunk_size
+
+    def tokenize_batch(self, sentences, max_len, add_BOS):
+        """
+        convert the sentences into lists of tokens, pad them to the same length, add bos tokens if it is needed
+        Args:
+            sentences (List[str]): list of input sentences in str format.
+            max_len (int): max number of tokens to generate.
+            add_BOS (bool): whether to add the BOS token at the beginning
+        Returns:
+            Tuple[torch.Tensor], the tokenized and padded torch tensor and the token context length tensor.
+        """
+        tokenizer = self.model.tokenizer
+        if add_BOS:
+                context_tokens = [[tokenizer.eos_id] + tokenizer.text_to_ids(s) for s in sentences]
+        else:
+            context_tokens = [tokenizer.text_to_ids(s) for s in sentences]
+        if self.pad_token_for_retrieval:
+            padded = []
+            for line in context_tokens: 
+                if len(line) < self.chunk_size:
+                    pad_len = self.chunk_size - len(line)
+                    padded.append([tokenizer.pad_id] * pad_len+ line)
+                else:
+                    padded.append(line)
+            context_tokens = padded
+        context_tokens, context_lengths = pad_batch(context_tokens, tokenizer.eos_id, max_len)
+        context_tokens_tensor = torch.cuda.LongTensor(context_tokens)
+        context_length_tensor = torch.cuda.LongTensor(context_lengths)
+        return context_tokens_tensor, context_length_tensor
 
     def clip_max_len(self, maxlen: int) -> int:
         """ clip the max len based on the LM model max sequence length"""
