@@ -82,6 +82,7 @@ class MemoryEfficientBlendableDataset(torch.utils.data.Dataset):
     A BlendableDataset implementation that uses less memory than the original implementation.
     Indices are computed algorithmically instead of storing them in memory.
     """
+
     def __init__(self, datasets, weights, size, weight_bins=100):
         self.datasets = datasets
         num_datasets = len(datasets)
@@ -105,10 +106,10 @@ class MemoryEfficientBlendableDataset(torch.utils.data.Dataset):
             ds_index.extend([i] * n)
             ds_bias.extend(range(n))
         # make sure arrays have length of weight_bins
-        n = (weight_bins - len(ds_index))
+        n = weight_bins - len(ds_index)
         ds_index.extend([i] * n)
-        ds_bias.extend(range(ds_bias[-1], ds_bias[-1]+n))
-        
+        ds_bias.extend(range(ds_bias[-1], ds_bias[-1] + n))
+
         self.ds_index = np.array(ds_index, dtype=np.uint32)
         self.ds_index_size = [(self.ds_index == i) for i in range(num_datasets)]
         self.ds_bias = np.array(ds_bias, dtype=np.uint32)
@@ -122,11 +123,11 @@ class MemoryEfficientBlendableDataset(torch.utils.data.Dataset):
         sample_list = list(zip(*ds_sample_list))[1]
         plt.plot(ds_list, label="ds"); plt.plot(sample_list, label="sample"); plt.grid()
         """
-        
+
         bin = idx % self.weight_bins
         ds_idx = self.ds_index[bin]
         sample_idx = self.ds_bias[bin] + (idx // self.weight_bins) * self.ds_index_size[ds_idx]
-        
+
         return ds_idx, sample_idx
 
     def __len__(self):
