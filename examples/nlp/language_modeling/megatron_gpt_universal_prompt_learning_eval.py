@@ -12,20 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import threading
+
 import torch
 from apex.transformer import parallel_state
 from omegaconf import OmegaConf
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_universal_prompt_model import MegatronGPTUniversalPromptLearningModel
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_universal_prompt_model import (
+    MegatronGPTUniversalPromptLearningModel,
+)
+from nemo.collections.nlp.modules.common.megatron_web_server import get_demo
+from nemo.collections.nlp.modules.common.text_generation_server import MegatronServer
+from nemo.collections.nlp.modules.common.text_generation_utils import generate
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.core.config import hydra_runner
-from nemo.collections.nlp.modules.common.text_generation_server import MegatronServer
-from nemo.collections.nlp.modules.common.text_generation_utils import generate
-from nemo.collections.nlp.modules.common.megatron_web_server import get_demo
-import threading
 
 
 """

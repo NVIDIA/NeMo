@@ -294,7 +294,7 @@ if __name__ == "__main__":
         )
 
     if args.stage == 2:
-        combine shard index files into one
+        # combine shard index files into one
         logging.info('loading trained index')
         # construct the output index
         index = faiss.read_index(args.learned_index)

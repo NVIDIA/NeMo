@@ -18,8 +18,7 @@ from typing import List, Tuple
 import torch
 
 from nemo.collections.nlp.modules.common.megatron.retrieval_service import FaissRetrievalService
-from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
-from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
+from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids, get_ltor_masks_and_position_ids
 
 try:
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
@@ -280,7 +279,7 @@ class UniversalPromptLearningModelTextGenerationStrategy(TextGenerationStrategy)
     def __init__(self, model):
         super().__init__(model)
         self.forward_model = self.model
-        self.vlen = self.model.cfg.perceiver.hidden_steps 
+        self.vlen = self.model.cfg.perceiver.hidden_steps
 
     def forward_step(self, batch, tensor_shape):
 
@@ -302,9 +301,9 @@ class UniversalPromptLearningModelTextGenerationStrategy(TextGenerationStrategy)
                 tensor_shape=tensor_shape,
                 dtype=self.model.autocast_dtype,
             )
-        
+
         if batch[-2].all():
-            output_tensor[0]['logits'] = output_tensor[0]['logits'][:, self.vlen:]
+            output_tensor[0]['logits'] = output_tensor[0]['logits'][:, self.vlen :]
         return output_tensor
 
     def init_batch(self, context_tokens: torch.Tensor, context_length: int):
@@ -313,10 +312,10 @@ class UniversalPromptLearningModelTextGenerationStrategy(TextGenerationStrategy)
         tokenizer = self.model.tokenizer
         tokens = context_tokens.contiguous().cuda()
         batch_size, batch_max = context_tokens.shape
-        attention_mask = torch.tril(torch.ones((batch_size, batch_max+self.vlen, batch_max+self.vlen))).view(
-            batch_size, 1, batch_max+self.vlen, batch_max+self.vlen
+        attention_mask = torch.tril(torch.ones((batch_size, batch_max + self.vlen, batch_max + self.vlen))).view(
+            batch_size, 1, batch_max + self.vlen, batch_max + self.vlen
         )
-         # Convert attention mask from float to bool
+        # Convert attention mask from float to bool
         self.attention_mask = attention_mask < 0.5
         self.position_ids = build_position_ids(tokens)
         self.prompt_input_mask = tokens != tokenizer.unk_id
@@ -355,7 +354,15 @@ class UniversalPromptLearningModelTextGenerationStrategy(TextGenerationStrategy)
         )
         len_array = torch.tensor([maxlen + self.vlen] * micro_batch_size, device=torch.cuda.current_device())
 
-        batch = [tokens, tokens2use, positions2use, attention_mask_repeat,  self.prompt_input_mask, setkey_value_array, len_array]
+        batch = [
+            tokens,
+            tokens2use,
+            positions2use,
+            attention_mask_repeat,
+            self.prompt_input_mask,
+            setkey_value_array,
+            len_array,
+        ]
         tensor_shape = [tokens2use.shape[1] + self.vlen, micro_batch_size, self.model.frozen_model.cfg.hidden_size]
         return batch, tensor_shape
 
@@ -458,7 +465,9 @@ def model_inference_strategy_dispatcher(model, **args):
         MegatronGPTPromptLearningModel,
     )
     from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-    from nemo.collections.nlp.models.language_modeling.megatron_gpt_universal_prompt_model import MegatronGPTUniversalPromptLearningModel
+    from nemo.collections.nlp.models.language_modeling.megatron_gpt_universal_prompt_model import (
+        MegatronGPTUniversalPromptLearningModel,
+    )
     from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
 
     if isinstance(model, MegatronGPTPromptLearningModel):

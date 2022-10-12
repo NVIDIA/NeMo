@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import gradio as gr
 import json
+
+import gradio as gr
 import requests
 
 port_num = 5555
@@ -21,9 +22,7 @@ headers = {"Content-Type": "application/json"}
 
 
 def request_data(data):
-    resp = requests.put('http://localhost:{}/generate'.format(port_num),
-                        data=json.dumps(data),
-                        headers=headers)
+    resp = requests.put('http://localhost:{}/generate'.format(port_num), data=json.dumps(data), headers=headers)
     sentences = resp.json()['sentences']
     return sentences
 
@@ -56,10 +55,30 @@ def get_demo(share, username, password):
                 temperature = gr.Slider(minimum=0.0, maximum=10.0, value=1.0, label='Temperature', step=0.1)
                 top_p = gr.Slider(minimum=0.0, maximum=1.0, step=0.02, value=0.9, label='Top P')
                 top_k = gr.Slider(minimum=0, maximum=10000, step=2, value=0, label='Top K')
-                repetition_penality = gr.Slider(minimum=0.0, maximum=5.0, step=0.02, value=1.2, label='Repetition penalty')
+                repetition_penality = gr.Slider(
+                    minimum=0.0, maximum=5.0, step=0.02, value=1.2, label='Repetition penalty'
+                )
             with gr.Column(scale=1, min_width=800):
-                input_prompt = gr.Textbox(label="Input", value= "Ariel was playing basketball. 1 of her shots went in the hoop. 2 of her shots did not go in the hoop. How many shots were there in total?", lines=5)
+                input_prompt = gr.Textbox(
+                    label="Input",
+                    value="Ariel was playing basketball. 1 of her shots went in the hoop. 2 of her shots did not go in the hoop. How many shots were there in total?",
+                    lines=5,
+                )
                 output_box = gr.Textbox(value="", label="Output")
                 btn = gr.Button(value="Submit")
-                btn.click(get_generation, inputs=[input_prompt, greedy_flag, add_BOS, token_to_gen, min_token_to_gen, temperature, top_p, top_k, repetition_penality], outputs=[output_box])
+                btn.click(
+                    get_generation,
+                    inputs=[
+                        input_prompt,
+                        greedy_flag,
+                        add_BOS,
+                        token_to_gen,
+                        min_token_to_gen,
+                        temperature,
+                        top_p,
+                        top_k,
+                        repetition_penality,
+                    ],
+                    outputs=[output_box],
+                )
     demo.launch(share=share, server_port=13570, server_name='0.0.0.0', auth=(username, password))

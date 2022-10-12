@@ -17,7 +17,9 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks.timer import Timer
 from pytorch_lightning.plugins.environments.torchelastic_environment import TorchElasticEnvironment
 
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_universal_prompt_model import MegatronGPTUniversalPromptLearningModel
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_universal_prompt_model import (
+    MegatronGPTUniversalPromptLearningModel,
+)
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
     NLPDDPStrategy,
@@ -27,7 +29,6 @@ from nemo.collections.nlp.parts.nlp_overrides import (
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import StatelessTimer, exp_manager
-
 
 
 @hydra_runner(config_path="conf", config_name="megatron_gpt_universal_prompt_config")

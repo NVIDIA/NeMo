@@ -19,11 +19,11 @@ import torch
 from torch import nn
 
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
+from nemo.collections.nlp.modules.common.megatron.megatron_perceiver_encoders import MegatronPerceiverEncoderModule
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, init_method_normal
 from nemo.core.classes import Exportable, NeuralModule
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import ChannelType, NeuralType
-from nemo.collections.nlp.modules.common.megatron.megatron_perceiver_encoders import MegatronPerceiverEncoderModule
 
 try:
     from apex.transformer import tensor_parallel, parallel_state
@@ -38,7 +38,6 @@ except (ImportError, ModuleNotFoundError):
 
 
 class UniversalPromptEncoder(NeuralModule, Exportable):
-
     def __init__(
         self, cfg, output_dim,
     ):
@@ -50,11 +49,9 @@ class UniversalPromptEncoder(NeuralModule, Exportable):
         self.input_linear = nn.Linear(output_dim, self.hidden)
         self.output_linear = nn.Linear(self.hidden, output_dim)
         # input_adaptor = nn.Linear(self.hidden_size, output_size)
-        
+
     def forward(self, input_prompt, mask) -> torch.Tensor:
         input_prompt = self.input_linear(input_prompt)
         hidden = self.encoder.forward(input_prompt, mask)
         hidden = self.output_linear(hidden)
         return hidden
-
-

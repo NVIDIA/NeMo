@@ -15,36 +15,38 @@
 import os
 from functools import partial
 from typing import Any, List, Optional, Union
-from omegaconf import OmegaConf
-import torch.nn.functional as F
+
 import torch
-from torch import Tensor
+import torch.nn.functional as F
+from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
+from torch import Tensor
 
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_dataset import GPTPromptLearningDataset
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_universal_prompt_learning_dataset import GPTUniversalPromptLearningDataset
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_universal_prompt_learning_dataset import (
+    GPTUniversalPromptLearningDataset,
+)
 from nemo.collections.nlp.models.language_modeling.megatron_base_prompt_learning_model import (
     MegatronBasePromptLearningModel,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
+from nemo.collections.nlp.modules.common.megatron.utils import (
+    average_losses_across_data_parallel_group,
+    init_method_normal,
+    scaled_init_method_normal,
+)
 from nemo.collections.nlp.modules.common.text_generation_utils import (
     get_default_length_params,
     get_default_sampling_params,
     megatron_gpt_generate,
 )
-from nemo.collections.nlp.modules.common.megatron.utils import (
-    init_method_normal,
-    scaled_init_method_normal,
-)
-
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
+from nemo.collections.nlp.modules.common.universal_prompt_encoder import UniversalPromptEncoder
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import logging
-from nemo.collections.nlp.modules.common.universal_prompt_encoder import UniversalPromptEncoder
 
 try:
     from apex.transformer import parallel_state, tensor_parallel
@@ -160,8 +162,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBasePromptLearningModel):
         """
         if self.frozen_model.model.pre_process:
             state_dict_ = {}
-            state_dict_[
-                self._prompt_encoder_key] = self.prompt_encoder.state_dict()
+            state_dict_[self._prompt_encoder_key] = self.prompt_encoder.state_dict()
             return state_dict_
         else:
             state_dict_ = {}
@@ -208,10 +209,10 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBasePromptLearningModel):
         # Replace virtual token ids with padding for forward pass through vocab embeddings
         discrete_token_ids = input_ids.clone()
         discrete_token_embeds = self.word_embeddings(discrete_token_ids).clone()
-        # [b, s, d] -> [s, b, d] 
+        # [b, s, d] -> [s, b, d]
         prompt_input_emb = discrete_token_embeds.transpose(0, 1).contiguous()
         virtual_token_embeds = self.prompt_encoder(prompt_input_emb, prompt_input_mask)
-        # [b, s, d] -> [s, b, d] 
+        # [b, s, d] -> [s, b, d]
         virtual_token_embeds = virtual_token_embeds.transpose(0, 1).contiguous()
         return virtual_token_embeds, discrete_token_embeds
 

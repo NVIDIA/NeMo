@@ -12,19 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import functools
 import json
 import os
 import pickle
+import re
+from typing import Dict, List
 
 import torch
-from typing import List, Dict
 from tqdm.auto import tqdm
+
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
 from nemo.core import Dataset
 from nemo.utils import AppState, logging
-import re
-import functools
 
 __all__ = ['GPTUniversalPromptLearningDataset']
 
@@ -128,11 +129,11 @@ class GPTUniversalPromptLearningDataset(Dataset):
         # divide the prompt string into pieces according to fields
         pieces = []
         while True:
-            result = re.search(r'{\w*}', prompt_template) 
+            result = re.search(r'{\w*}', prompt_template)
             if result is None:
                 break
             start = result.end()
-            sentence = prompt_template[: start]
+            sentence = prompt_template[:start]
             if len(sentence) != 0:
                 pieces.append(sentence)
             prompt_template = prompt_template[start:]
@@ -145,7 +146,9 @@ class GPTUniversalPromptLearningDataset(Dataset):
             else:
                 doc = json.loads(json_line)
 
-            input_ids = self.tokenize_input(doc, truncation_field, pieces, self.max_seq_length - self.virtual_token_len, self.tokenizer)
+            input_ids = self.tokenize_input(
+                doc, truncation_field, pieces, self.max_seq_length - self.virtual_token_len, self.tokenizer
+            )
             # Skip example if the final length doesn't fit length requirements even after truncation
             if self.min_seq_length <= len(input_ids) <= self.max_seq_length - self.virtual_token_len:
                 # Find answer field indices if training and answer_only_loss is True
@@ -159,8 +162,9 @@ class GPTUniversalPromptLearningDataset(Dataset):
 
         logging.info(f'Skipped {skipped} sentences, sequence length too short or too long even after truncation')
 
-
-    def tokenize_input(self, doc: Dict, limit_length_field: str, prompt_pieces: List[str], max_seq_len:int, tokenizer: TokenizerSpec):
+    def tokenize_input(
+        self, doc: Dict, limit_length_field: str, prompt_pieces: List[str], max_seq_len: int, tokenizer: TokenizerSpec
+    ):
         all_ids = []
         limits = []
         for piece in prompt_pieces:
@@ -236,7 +240,9 @@ class GPTUniversalPromptLearningDataset(Dataset):
         else:
             resi_padding = 0
         batch_max += resi_padding
-        input_ids, loss_mask, prompt_input_mask = self.pad_batch_and_build_loss_mask(input_ids, batch_max, answer_starts)
+        input_ids, loss_mask, prompt_input_mask = self.pad_batch_and_build_loss_mask(
+            input_ids, batch_max, answer_starts
+        )
         # Should be a label for every token in batch, label is the next token
         labels = input_ids[:, 1:].contiguous()
         input_ids = input_ids[:, :-1].contiguous()
@@ -248,9 +254,9 @@ class GPTUniversalPromptLearningDataset(Dataset):
 
         # Using causal attention mask for whole input
         batch_size = len(input_ids)
-        attention_mask = torch.tril(torch.ones((batch_size, batch_max+self.virtual_token_len, batch_max+self.virtual_token_len))).view(
-            batch_size, 1, batch_max+self.virtual_token_len, batch_max+self.virtual_token_len
-        )
+        attention_mask = torch.tril(
+            torch.ones((batch_size, batch_max + self.virtual_token_len, batch_max + self.virtual_token_len))
+        ).view(batch_size, 1, batch_max + self.virtual_token_len, batch_max + self.virtual_token_len)
 
         # Convert attention mask from float to bool
         attention_mask = attention_mask < 0.5
