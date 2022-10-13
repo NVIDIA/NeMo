@@ -60,7 +60,7 @@ model:
     answer_field: answer
 
   p_tuning: # P-tuning specific params
-      encoder_type: mlp # ['tpmlp', 'lstm', 'biglstm', 'mlp'] 
+      encoder_type: "mlp" # Either "mlp" or "lstm", mlp is default
       num_layers: 2 # 2 recommended for MLP, 1 recommended for LSTM, must be at least 2 for mlp
       dropout: 0.0
 

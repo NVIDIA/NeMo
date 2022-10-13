@@ -40,6 +40,7 @@ __all__ = ['MegatronBasePromptLearningModel']
 class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
     """
     Model class for prompt-tuning or p-tuning a pretrained Megatron model. 
+
     Prompt Tuning initalizes virtual prompt embeddings directly from a copy of
     certain token embeddings from the the pretrained model's vocabulary
     and directly tunes these embedding weights. The token embeddings used in 
@@ -47,6 +48,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
     be prompt-tuned for multiple tasks at once. virtual prompts are stored in a 
     prompt table and can be added or deleted without disrupting virtual prompts 
     for other tasks. 
+
     P-tuning initializes an LSTM encoder model that generates virtual prompt
     embeddings for every task. Each task shares the same encoder. After ptuning
     is compelete, the learned virtual prompts can be saved to the prompt table
@@ -314,6 +316,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         calculated from either the 'prompt_table' or 'prompt_encoder'. 
         The virtual token placeholders have token_ids listed in
         `self.pseudo_token_ids`.
+
         params:
             input_ids: the input token ids
             taskname_ids: the NLP task tag token ids
@@ -364,6 +367,7 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         own unique token_id within `self.pseudo_token_ids` to facilitate 
         placing the virtual tokens in their correct locations at each 
         decoding time step. 
+
         params:
             input_ids: the input token ids
             taskname_ids: the NLP task tag token ids
@@ -531,10 +535,14 @@ def get_pseudo_tokens(num_virtual_tokens):
     Takes in an integer and returns a list of strings where each string
     is a numbered virtual token placeholder. If 
     num_virtual_tokens = 3, then this function returns:
+
     ["<prompt_0>", "<prompt_1>", "<prompt_2>"]
+
     Args:
         num_virtual_tokens: (int) Number of virtual token strings you want to make
+
     returns a list of string. 
+
     """
     pseudo_tokens = [
         VirtualPromptPlaceholderToken.BASE.value + str(i) + VirtualPromptPlaceholderToken.END.value
