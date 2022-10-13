@@ -28,6 +28,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_da
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_universal_prompt_learning_dataset import (
     GPTUniversalPromptLearningDataset,
 )
+from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_prompt_learning_model import (
     MegatronBasePromptLearningModel,
 )
@@ -42,13 +43,11 @@ from nemo.collections.nlp.modules.common.text_generation_utils import (
     get_default_sampling_params,
     megatron_gpt_generate,
 )
-from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
+from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam, TextGeneration
 from nemo.collections.nlp.modules.common.universal_prompt_encoder import UniversalPromptEncoder
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import logging
-from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
-from nemo.collections.nlp.modules.common.transformer.text_generation import TextGeneration
 
 try:
     from apex.transformer import parallel_state, tensor_parallel
@@ -680,6 +679,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
             No need to call it here.
         """
         return
+
     def optimizer_zero_grad(self, *args, **kwargs):
         """ LightningModule hook to zero grad.
             We want this to do nothing as we are zeroing grads during the training_step.
