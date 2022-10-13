@@ -282,10 +282,6 @@ class TextMemmapSequenceToSequenceDataset(IndexedSequenceToSequenceDataset):
         ), "src and tgt has different number of lines"
         self._build_samples_mapping()
 
-        # Deallocate temporary numpy arrays that were created for `_build_samples_mapping()`
-        deallocate_indexed_dataset_memory(self.src_indexed_dataset)
-        deallocate_indexed_dataset_memory(self.tgt_indexed_dataset)
-
 
 class BinarizedMemmapSequenceToSequenceDataset(IndexedSequenceToSequenceDataset):
     """Memory-mapped text sequence to sequence dataset. Operates pre-tokenized binarized data files."""
@@ -345,10 +341,6 @@ class BinarizedMemmapSequenceToSequenceDataset(IndexedSequenceToSequenceDataset)
         )
         assert len(self.src_indexed_dataset) == len(self.tgt_indexed_dataset)
         self._build_samples_mapping()
-
-        # Deallocate temporary numpy arrays that were created for `_build_samples_mapping()`
-        deallocate_indexed_dataset_memory(self.src_indexed_dataset)
-        deallocate_indexed_dataset_memory(self.tgt_indexed_dataset)
 
     def _get_indexed_dataset(self, data_prefix, data_impl, skip_warmup):
         indexed_dataset = get_indexed_dataset_(data_prefix, data_impl, skip_warmup)
