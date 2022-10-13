@@ -12,18 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import enum
-from typing import Dict, Optional
-
 import torch
 from torch import nn
 
-from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
 from nemo.collections.nlp.modules.common.megatron.megatron_perceiver_encoders import MegatronPerceiverEncoderModule
-from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, init_method_normal
+from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 from nemo.core.classes import Exportable, NeuralModule
-from nemo.core.classes.common import typecheck
-from nemo.core.neural_types import ChannelType, NeuralType
 
 try:
     from apex.transformer import tensor_parallel, parallel_state

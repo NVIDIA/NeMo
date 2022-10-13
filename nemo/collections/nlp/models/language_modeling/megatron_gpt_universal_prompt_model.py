@@ -24,14 +24,10 @@ from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 from torch import Tensor
 
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_dataset import GPTPromptLearningDataset
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_universal_prompt_learning_dataset import (
     GPTUniversalPromptLearningDataset,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
-from nemo.collections.nlp.models.language_modeling.megatron_base_prompt_learning_model import (
-    MegatronBasePromptLearningModel,
-)
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
@@ -262,7 +258,6 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
                 virtual_token_emb, _ = self.embed_input_train(all_input_ids, prompt_input_mask)
                 input_embeds = self.word_embeddings(input_ids).clone()
             elif inference and not set_inference_key_value_memory:
-                all_input_ids = input_ids[0]
                 input_ids = input_ids[1]
                 discrete_token_ids = input_ids.clone()
                 input_embeds = self.word_embeddings(discrete_token_ids).clone()
