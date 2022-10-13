@@ -1,7 +1,27 @@
 Data Preprocessing
 ==================
 
-NeMo TTS recipes support most of public TTS datasets that consist of multiple languages, multiple emotions, and multiple speakers. Current recipes covered English (en-US), German (de-DE), Spanish (es-ES), and Mandarin Chinese (work in progress), while the support for many other languages is under planning. NeMo provides corpus-specific data preprocessing scripts, as shown in the directory of `scripts/data_processing/tts/ <https://github.com/NVIDIA/NeMo/tree/main/scripts/dataset_processing/tts/>`_, to convert common public TTS datasets into the format expected by the dataloaders as defined in `nemo/collections/tts/torch/data.py <https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/tts/torch/data.py>`_. Following the instructions on how to run the corpus-specific scripts below, you can get started with either directly processing those public datasets, or creating your custom scripts to preprocess your custom datasets scripts.
+NeMo TTS recipes support most of public TTS datasets that consist of multiple languages, multiple emotions, and multiple speakers. Current recipes covered English (en-US), German (de-DE), Spanish (es-ES), and Mandarin Chinese (work in progress), while the support for many other languages is under planning. NeMo provides corpus-specific data preprocessing scripts, as shown in the directory of `scripts/data_processing/tts/ <https://github.com/NVIDIA/NeMo/tree/main/scripts/dataset_processing/tts/>`_, to convert common public TTS datasets into the format expected by the dataloaders as defined in `nemo/collections/tts/torch/data.py <https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/tts/torch/data.py>`_. The ``nemo_tts`` collection expects each dataset to consist of a set of utterances in individual audio files plus a ``JSON`` manifest that describes the dataset, with information about one utterance per line. The audio files can be of any format supported by `Pydub <https://github.com/jiaaro/pydub>`_, though we recommend ``WAV`` files as they are the default and have been most thoroughly tested.
+
+There should be one ``JSON`` manifest file per dataset that will be passed in, therefore, if the user wants separate training and validation datasets, they should also have separate manifests. Otherwise, they will be loading validation data with their training data and vice versa. Each line of the manifest should be in the following format:
+
+.. code-block:: json
+
+    {
+      "audio_filepath": "/path/to/audio.wav",
+      "text": "the transcription of the utterance",
+      "normalized_text": "the normalized transcription of the utterance",
+      "speaker": 5,
+      "duration": 15.4
+    }
+
+where ``"audio_filepath"`` provides an absolute path to the ``.wav`` file corresponding to the utterance so that audio files can be located anywhere without the constraint of being organized in the same directory as the manifest itself; ``"text"`` contains the full transcript (either graphemes or phonemes or their mixer) for the utterance; ``"normalized_text"`` contains normalized ``"text"`` that helps to bypass the normalization steps but it is fully optional; ``"speaker"`` refers to the integer speaker ID; ``"duration"`` describes the duration of the utterance in seconds.
+
+Each entry in the manifest (describing one audio file) should be bordered by ``"{"`` and ``"}"`` and must be placed on one line. The ``"key": value`` pairs should be separated by a commas as shown above. NeMo enforces no blank lines in the manifest so that the total number of lines indicates the total number of audio files in the dataset.
+
+Once there is a manifest that describes each audio file in the dataset, assign the ``JSON`` manifest file path in the experiment config file, for example, ``training_ds.manifest_filepath=<path/to/manifest.json>``.
+
+Following the instructions below on how to run the corpus-specific scripts, you can get started with either directly processing those public datasets, or creating your custom scripts to preprocess your custom datasets scripts.
 
 Public TTS Datasets
 ------------------------------

@@ -176,7 +176,7 @@ versa.
 
 Each line of the manifest should be in the following format:
 
-.. code::
+.. code-block:: json
 
   {"audio_filepath": "/path/to/audio.wav", "text": "the transcription of the utterance", "duration": 23.147}
 
@@ -193,7 +193,7 @@ Since the manifest specifies the path for each utterance, the audio files do not
 in the same directory as the manifest, or even in any specific directory structure.
 
 Once there is a manifest that describes each audio file in the dataset, use the dataset by passing
-in the manifest file path in the experiment config file, e.g. as ``training_ds.manifest_filepath=<path/to/manifest,json>``.
+in the manifest file path in the experiment config file, e.g. as ``training_ds.manifest_filepath=<path/to/manifest.json>``.
 
 Tarred Datasets
 ---------------
