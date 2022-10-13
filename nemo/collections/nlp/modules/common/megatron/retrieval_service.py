@@ -112,12 +112,12 @@ class FaissRetrievalService(RetrievalService):
 #         self.neighbors = neighbors
 #         has_gpu = torch.cuda.is_available() and hasattr(faiss, "index_gpu_to_cpu")
 #         self.index = faiss.IndexFlatL2(embedding_dim)   # build the index
-# 
+#
 #         if faiss_devices is None or not torch.cuda.is_available():
 #             device_list = None
 #         else:
 #             device_list = ['cuda:' + str(device) for device in faiss_devices.split(',')]
-# 
+#
 #         if has_gpu and device_list is not None:
 #             beg = time.time()
 #             co = faiss.GpuMultipleClonerOptions()
@@ -128,17 +128,17 @@ class FaissRetrievalService(RetrievalService):
 #             end = time.time()
 #             logging.info('convert Faiss db to GPU takes', end - beg)
 #         self.index.nprobe = nprobe
-# 
+#
 #         self.bert_model = SentenceTransformer(sentence_bert)
 #         self.tokenizer = tokenizer
 #         self.ds = MMapRetrievalIndexedDataset(retrieval_index)
 #         self.pool = self.bert_model.start_multi_process_pool(device_list)
 #         self.sentence_bert_batch = sentence_bert_batch
-#     
+#
 #     def update_index(self, content)
 #         self.index.add(xb)                  # add vectors to the index
 #         print(index.ntotal)
-# 
+#
 #     def get_knn(self, query: Union[List[str], str, torch.Tensor]):
 #         single_sentence = False
 #         if isinstance(query, str):
@@ -166,4 +166,4 @@ class FaissRetrievalService(RetrievalService):
 #             # unpack the single sentence input
 #             return results[0]
 #         return np.stack(results, axis=0).astype(np.int64)
-# 
+#
