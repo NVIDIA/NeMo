@@ -88,6 +88,12 @@ def make_builder(out_file, impl, vocab_size=None, chunk_size=64, pad_id=0, retri
         return IndexedDatasetBuilder(out_file)
 
 
+def deallocate_indexed_dataset_memory(indexed_dataset):
+    """Deallocate memory of an IndexedDataset."""
+    del indexed_dataset.sizes
+    del indexed_dataset.doc_idx
+
+
 def make_dataset(path, impl, skip_warmup=False, impl_kwargs={}):
     # first handle text memap
     if impl == 'text_mmap':

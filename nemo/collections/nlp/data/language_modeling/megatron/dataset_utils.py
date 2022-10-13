@@ -46,6 +46,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils imp
 )
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import make_dataset as make_indexed_dataset
+from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import deallocate_indexed_dataset_memory
 from nemo.collections.nlp.data.language_modeling.megatron.length_distribution_type import LengthDistribution
 from nemo.collections.nlp.data.language_modeling.megatron.lm_adapted_t5_dataset import T5LMAdaptedDataset
 from nemo.utils import logging
@@ -537,12 +538,6 @@ def make_text_memmap_bin_compatibility(text_memmap_ds):
     text_memmap_ds.sizes = np.ones(len(text_memmap_ds), dtype=np.int32)
 
     return text_memmap_ds
-
-
-def deallocate_indexed_dataset_memory(indexed_dataset):
-    """Deallocate memory of an IndexedDataset."""
-    del indexed_dataset.sizes
-    del indexed_dataset.doc_idx
 
 
 def get_dataset(
