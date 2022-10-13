@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass, is_dataclass
-from typing import Optional
+from typing import Any, Optional
 
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
@@ -144,5 +144,5 @@ class LinearAdapterConfig:
     activation: str = 'swish'
     norm_position: str = 'post'
     dropout: float = 0.0
-    adapter_strategy: Optional[dict] = adapter_mixin_strategies.ResidualAddAdapterStrategyConfig()
+    adapter_strategy: Optional[Any] = adapter_mixin_strategies.ResidualAddAdapterStrategyConfig()
     _target_: str = "{0}.{1}".format(LinearAdapter.__module__, LinearAdapter.__name__)
