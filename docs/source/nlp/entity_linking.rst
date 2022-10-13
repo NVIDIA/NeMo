@@ -23,7 +23,7 @@ Please try the example Entity Linking model in a Jupyter notebook (can run on `G
 
 Connect to an instance with a GPU (**Runtime** -> **Change runtime type** -> select **GPU** for the hardware accelerator).
 
-An example script on how to train the model can be found here: `NeMo/examples/nlp/entity_linking <https://github.com/NVIDIA/NeMo/tree/main/examples/nlp/entity_linking>`__.
+An example script on how to train the model can be found here: `NeMo/examples/nlp/entity_linking <https://github.com/NVIDIA/NeMo/tree/stable/examples/nlp/entity_linking>`__.
 
 
 References

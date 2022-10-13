@@ -78,7 +78,7 @@ Using Optimized Pretrained Models With NeMo
 `NVIDIA GPU Cloud (NGC) <https://ngc.nvidia.com/catalog>`_ is a software repository that has containers and models optimized
 for deep learning. NGC hosts many conversational AI models developed with NeMo that have been trained to state-of-the-art accuracy
 on large datasets. NeMo models on NGC can be automatically downloaded and used for transfer learning tasks. Pretrained models
-are the quickest way to get started with conversational AI on your own data. NeMo has many `example scripts <https://github.com/NVIDIA/NeMo/tree/main/examples>`_
+are the quickest way to get started with conversational AI on your own data. NeMo has many `example scripts <https://github.com/NVIDIA/NeMo/tree/stable/examples>`_
 and `Jupyter Notebook tutorials <https://github.com/NVIDIA/NeMo#tutorials>`_ showing step-by-step how to fine-tune pretrained NeMo
 models on your own domain-specific datasets.
 
@@ -147,7 +147,7 @@ Speech data explorer collects:
 - inspections of individual utterances (waveform, spectrogram, and audio player)
 - errors analysis (word error rate, character error rate, word match rate, mean word accuracy, and diff)
 
-In order to use the tool, it needs to be installed separately. Perform the steps `here <https://github.com/NVIDIA/NeMo/tree/main/tools/speech_data_explorer>`_ to install speech data explorer.
+In order to use the tool, it needs to be installed separately. Perform the steps `here <https://github.com/NVIDIA/NeMo/tree/stable/tools/speech_data_explorer>`_ to install speech data explorer.
 
 Using Kaldi Formatted Data
 --------------------------

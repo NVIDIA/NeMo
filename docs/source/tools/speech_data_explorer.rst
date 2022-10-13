@@ -30,7 +30,7 @@ A `running instance of the SDE <http://18.223.252.228:8050/>`_ demonstrates the 
 
 Getting Started
 ---------------
-SDE could be found in `NeMo/tools/speech_data_explorer <https://github.com/NVIDIA/NeMo/tree/main/tools/speech_data_explorer>`__.
+SDE could be found in `NeMo/tools/speech_data_explorer <https://github.com/NVIDIA/NeMo/tree/stable/tools/speech_data_explorer>`__.
 
 Please install the SDE requirements:
 

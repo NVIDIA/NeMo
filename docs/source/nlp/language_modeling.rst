@@ -7,8 +7,8 @@ A language model (LM) estimates the joint probability of a given text corpus :ma
 
 Currently, we mainly support sentence-level LMs which do not consider long-term dependencies and model all sentences independently of each other. Our models are based on the Transformer sequence-to-sequence architecture :cite:`nlp-language_modeling-vaswani2017attention`.
 
-| An example script on how to train the model can be found here: `NeMo/examples/nlp/language_modeling/transformer_lm.py <https://github.com/NVIDIA/NeMo/tree/main/examples/nlp/language_modeling/transformer_lm.py>`_.
-| The default configuration file for the model can be found at: `NeMo/examples/nlp/language_modeling/conf/transformer_lm_config.yaml <https://github.com/NVIDIA/NeMo/tree/main/examples/nlp/language_modeling/conf/transformer_lm_config.yaml>`_.
+| An example script on how to train the model can be found here: `NeMo/examples/nlp/language_modeling/transformer_lm.py <https://github.com/NVIDIA/NeMo/tree/stable/examples/nlp/language_modeling/transformer_lm.py>`_.
+| The default configuration file for the model can be found at: `NeMo/examples/nlp/language_modeling/conf/transformer_lm_config.yaml <https://github.com/NVIDIA/NeMo/tree/stable/examples/nlp/language_modeling/conf/transformer_lm_config.yaml>`_.
 
 
 Data Format

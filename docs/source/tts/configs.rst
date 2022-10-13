@@ -9,7 +9,7 @@ for audio files, parameters for any augmentation being performed, as well as the
 this page cover each of these in more detail.
 
 Example configuration files for all of the NeMo TTS scripts can be found in the
-`config directory of the examples <https://github.com/NVIDIA/NeMo/tree/main/examples/tts/conf>`_.
+`config directory of the examples <https://github.com/NVIDIA/NeMo/tree/stable/examples/tts/conf>`_.
 
 Dataset Configuration
 ---------------------
@@ -126,7 +126,7 @@ Tokenization converts input text string to a list of integer tokens. It may pad 
 
 Model Architecture Configuration
 --------------------------------
-Each configuration file should describe the model architecture being used for the experiment. Models in the NeMo TTS collection need several module sections with the ``_target_`` field specifying which model architecture or component is used. Please refer to `TTS module collection <https://github.com/NVIDIA/NeMo/tree/main/nemo/collections/tts/modules>`_ for details. Below shows an example of FastPitch model architecture,
+Each configuration file should describe the model architecture being used for the experiment. Models in the NeMo TTS collection need several module sections with the ``_target_`` field specifying which model architecture or component is used. Please refer to `TTS module collection <https://github.com/NVIDIA/NeMo/tree/stable/nemo/collections/tts/modules>`_ for details. Below shows an example of FastPitch model architecture,
 
 .. code-block:: yaml
 
@@ -199,7 +199,7 @@ Pre-trained weights can be provided in multiple ways:
 2) Providing a name of a pretrained NeMo model (which will be downloaded via the cloud) (via ``init_from_pretrained_model``)
 3) Providing a path to a Pytorch Lightning checkpoint file (via ``init_from_ptl_ckpt``)
 
-There are multiple TTS model finetuning scripts in `examples/tts/<model>_finetune.py <https://github.com/NVIDIA/NeMo/tree/main/examples/tts/>`_. You can finetune any model by substituting the ``<model>`` tag. An example of finetuning a HiFiGAN model is shown below.
+There are multiple TTS model finetuning scripts in `examples/tts/<model>_finetune.py <https://github.com/NVIDIA/NeMo/tree/stable/examples/tts/>`_. You can finetune any model by substituting the ``<model>`` tag. An example of finetuning a HiFiGAN model is shown below.
 
 Fine-tuning via a NeMo model
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
