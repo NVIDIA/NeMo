@@ -95,7 +95,7 @@ class MegatronBaseModel(NLPModel):
         )
 
         # This must be called after initialize model parallel since it needs to know the data parallel size
-        self._validate_config()
+        self._validate_and_override_config()
 
         self.grad_clip_pl_default = False  # use pytorch default for gradient clipping. Default False
 
@@ -375,8 +375,10 @@ class MegatronBaseModel(NLPModel):
 
         return init_consumed_samples
 
-    def _validate_config(self):
-        """ Certain configurations might be incompatible or discouraged. We can check for them here."""
+    def _validate_and_override_config(self):
+        """ Certain configurations might be incompatible or discouraged. 
+            We can check for them here and override if necessary.
+        """
         app_state = AppState()
 
         if self.cfg.get('sequence_parallel', False) and self.cfg.get('tensor_model_parallel_size', 1) == 1:
