@@ -426,7 +426,9 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
         """
         tokenizer = self.model.tokenizer
         if add_BOS:
-            context_tokens = [[[tokenizer.eos_id]+tokenizer.text_to_ids(s[0]), tokenizer.text_to_ids(s[1])] for s in sentences]
+            context_tokens = [
+                [[tokenizer.eos_id] + tokenizer.text_to_ids(s[0]), tokenizer.text_to_ids(s[1])] for s in sentences
+            ]
         else:
             context_tokens = [[tokenizer.text_to_ids(s[0]), tokenizer.text_to_ids(s[1])] for s in sentences]
         if self.pad_token_for_retrieval:
