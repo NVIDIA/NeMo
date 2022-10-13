@@ -44,9 +44,15 @@ class MegatronLMAdapterEncoderDecoderModel(MegatronLMEncoderDecoderModel):
         if hasattr(cfg, 'adapter_tuning'):
             logging.info('Using Adapters')
 
-            assert (
-                cfg.encoder.hidden_size == cfg.decoder.hidden_size
-            ), "Encoder and Decoder hidden_size must be the same to use adapters!"
+            if hasattr(cfg, 'encoder') and hasattr(cfg, 'decoder'):
+                assert (
+                    cfg.encoder.hidden_size == cfg.decoder.hidden_size
+                ), "Encoder and Decoder hidden_size must be the same to use adapters!"
+                adapter_hidden_size = cfg.encoder.hidden_size
+            elif hasattr(cfg, 'hidden_size'):
+                adapter_hidden_size = cfg.hidden_size
+            else:
+                raise ValueError('Provided config does not have hidden_size!')
 
             # validate and add adapters
             self._validate_adapters_cfg(cfg.adapter_tuning)
@@ -57,7 +63,7 @@ class MegatronLMAdapterEncoderDecoderModel(MegatronLMEncoderDecoderModel):
             self.freeze()
             if cfg.adapter_tuning.type == "parallel_adapter":
                 self.adapter_cfg = ParallelLinearAdapterConfig(
-                    in_features=cfg.encoder.hidden_size,
+                    in_features=adapter_hidden_size,
                     dim=cfg.adapter_tuning.adapter_dim,
                     norm_position=cfg.adapter_tuning.get('norm_position', 'pre'),
                     norm_type=cfg.adapter_tuning.get('norm_type', 'mixedfusedlayernorm'),
@@ -67,7 +73,7 @@ class MegatronLMAdapterEncoderDecoderModel(MegatronLMEncoderDecoderModel):
                 )
             elif cfg.adapter_tuning.type == 'linear_adapter':
                 self.adapter_cfg = LinearAdapterConfig(
-                    in_features=cfg.hidden_size,
+                    in_features=adapter_hidden_size,
                     dim=cfg.adapter_tuning.adapter_dim,
                     norm_position=cfg.adapter_tuning.get('norm_position', 'pre'),
                     dropout=cfg.adapter_tuning.adapter_dropout,
