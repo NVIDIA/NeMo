@@ -50,10 +50,11 @@ def main():
             latency = "MISSING_LOG"
         else:
             latency = scrap_latency(files[0])
-        row = [tp, pp, bs, latency]
+        gpu_norm_throughput = 1000.0 / latency / tp / pp
+        row = [tp, pp, bs, latency, gpu_norm_throughput]
         rows.append(row)
 
-    header = ["TP", "PP", "BS", "Latency [ms]"]
+    header = ["TP", "PP", "BS", "Latency [ms]", "Throughput [infer/gpu]"]
 
     with open(args.output, 'w') as output_file:
         output_writer = csv.writer(output_file)
