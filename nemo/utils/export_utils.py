@@ -143,7 +143,6 @@ def wrap_forward_method(self):
 
 def parse_input_example(input_example):
     input_list = list(input_example)
-    print("Input List len", len(input_list))
     input_dict = {}
     # process possible kwargs
     if isinstance(input_list[-1], dict):
