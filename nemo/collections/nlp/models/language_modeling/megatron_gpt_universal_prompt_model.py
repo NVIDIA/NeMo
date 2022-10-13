@@ -47,6 +47,8 @@ from nemo.collections.nlp.modules.common.universal_prompt_encoder import Univers
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import logging
+from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
+from nemo.collections.nlp.modules.common.transformer.text_generation import TextGeneration
 
 try:
     from apex.transformer import parallel_state, tensor_parallel
@@ -64,13 +66,12 @@ except (ImportError, ModuleNotFoundError):
 __all__ = ['MegatronGPTUniversalPromptLearningModel']
 
 
-class MegatronGPTUniversalPromptLearningModel(MegatronBasePromptLearningModel):
+class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration):
     """
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
-        super(MegatronBasePromptLearningModel, self).__init__(cfg, trainer)
-
+        super().__init__(cfg, trainer)
         if self.trainer.precision == 32:
             self.autocast_dtype = torch.float
         elif self.trainer.precision == 16:
@@ -215,6 +216,28 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBasePromptLearningModel):
         # [b, s, d] -> [s, b, d]
         virtual_token_embeds = virtual_token_embeds.transpose(0, 1).contiguous()
         return virtual_token_embeds, discrete_token_embeds
+
+    def training_step(self, batch, batch_idx):
+        # we zero grads here because we also call backward in the apex fwd/bwd functions
+        self._optimizer.zero_grad()
+        loss_mean = self.fwd_bwd_step(batch, forward_only=False)
+        self.allreduce_gradients()
+
+        ## logging
+        # we can only log on one rank if it is rank zero so we broadcast from last rank
+        # we can avoid this broadcast by updating the PTL log function to accept specific ranks
+        torch.distributed.broadcast(loss_mean, get_last_rank())
+
+        if self.cfg.precision == 16 and hasattr(self.trainer.precision_plugin.scaler, "_scale"):
+            loss_scale = self.trainer.precision_plugin.scaler._scale
+            if loss_scale is not None:
+                self.log('loss_scale', loss_scale)
+
+        self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True)
+        lr = self._optimizer.param_groups[0]['lr']
+        self.log('lr', lr, rank_zero_only=True)
+        self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True)
+        return loss_mean
 
     def forward(
         self,
@@ -650,6 +673,18 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBasePromptLearningModel):
             return megatron_gpt_generate(
                 self.cuda(), (input_tokens, length_tensor), self.tokenizer, length_params, sampling_params
             )
+
+    def backward(self, *args, **kwargs):
+        """ LightningModule hook to do backward.
+            We want this to do nothing since we run backward in the fwd/bwd functions from apex.
+            No need to call it here.
+        """
+        return
+    def optimizer_zero_grad(self, *args, **kwargs):
+        """ LightningModule hook to zero grad.
+            We want this to do nothing as we are zeroing grads during the training_step.
+        """
+        return
 
     @classmethod
     def list_available_models(cls):
