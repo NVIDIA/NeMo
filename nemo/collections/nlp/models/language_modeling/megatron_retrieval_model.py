@@ -453,7 +453,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
 
     def set_inference_config(self, inference_config, retrieval_config):
         self._inference_config = inference_config
-        self._inference_strategy = model_inference_strategy_dispatcher(self, **retrieval_config)
+        self.inference_strategy = model_inference_strategy_dispatcher(self, **retrieval_config)
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
         inference_config = self._inference_config
@@ -470,13 +470,13 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
                 inference_config['all_probs'] = True
                 inference_config["add_BOS"] = False
                 inference_config['greedy'] = True
-                response = generate(self, **inference_config, strategy=self._inference_strategy)
+                response = generate(self, **inference_config, strategy=self.inference_strategy)
                 compute_prob_response = get_computeprob_response(self.tokenizer, response, batch)
                 return compute_prob_response
             else:
                 del inference_config['compute_logprob']
                 inference_config['inputs'] = batch
-                return generate(self, **inference_config, strategy=self._inference_strategy)
+                return generate(self, **inference_config, strategy=self.inference_strategy)
 
     def generate(
         self,
