@@ -2355,8 +2355,11 @@ class ParallelTransformer(MegatronModule):
 
         with rng_context:
             # fp8_autocast will not do anything if TE or FP8 isn't used
+            fp8_group = None
+            if parallel_state.model_parallel_is_initialized():
+                fp8_group = parallel_state.get_data_parallel_group()
             with fp8_autocast(
-                enabled=self.fp8, fp8_recipe=self.fp8_recipe, fp8_group=parallel_state.get_data_parallel_group(),
+                enabled=self.fp8, fp8_recipe=self.fp8_recipe, fp8_group=fp8_group,
             ):
                 if self.activations_checkpoint_granularity == 'full':
                     hidden_states = self._checkpointed_forward(
