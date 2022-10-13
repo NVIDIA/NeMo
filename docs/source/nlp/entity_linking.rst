@@ -17,7 +17,7 @@ be used to build a knowledge base embedding index.
   :alt: Entity-Linking-Overview
 
 Our BERT-base + Self Alignment Pretraining implementation allows you to train an entity linking encoder. We also provide example code
-on building an index with `Medical UMLS <https://www.nlm.nih.gov/research/umls/index.html>`_ concepts `NeMo/examples/nlp/entity_linking/build_index.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/entity_linking/build_index.py>`__.
+on building an index with `Medical UMLS <https://www.nlm.nih.gov/research/umls/index.html>`_ concepts `NeMo/examples/nlp/entity_linking/build_index.py <https://github.com/NVIDIA/NeMo/tree/stable/examples/nlp/entity_linking/build_index.py>`__.
 
 Please try the example Entity Linking model in a Jupyter notebook (can run on `Google's Colab <https://colab.research.google.com/github/NVIDIA/NeMo/blob/v1.0.2/tutorials/nlp/Entity_Linking_Medical.ipynb>`__).
 

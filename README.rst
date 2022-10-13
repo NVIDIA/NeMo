@@ -247,7 +247,7 @@ We welcome community contributions! Please refer to the  `CONTRIBUTING.md <https
 Publications
 ------------
 
-We provide an ever growing list of publications that utilize the NeMo framework. Please refer to `PUBLICATIONS.md <https://github.com/NVIDIA/NeMo/blob/main/PUBLICATIONS.md>`_. We welcome the addition of your own articles to this list !
+We provide an ever growing list of publications that utilize the NeMo framework. Please refer to `PUBLICATIONS.md <https://github.com/NVIDIA/NeMo/tree/stable/PUBLICATIONS.md>`_. We welcome the addition of your own articles to this list !
 
 Citation
 --------

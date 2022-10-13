@@ -51,7 +51,7 @@ Installation
 
 .. code-block:: shell-session
 
-    wget https://raw.githubusercontent.com/NVIDIA/NeMo/main/nemo_text_processing/install_pynini.sh
+    wget https://raw.githubusercontent.com/NVIDIA/NeMo/stable/nemo_text_processing/install_pynini.sh
     bash install_pynini.sh
 
 

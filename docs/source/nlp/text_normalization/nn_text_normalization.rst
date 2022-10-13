@@ -11,14 +11,14 @@ NeMo has an implementation that allows you to build a neural-based system that i
 both text normalization (TN) and also inverse text normalization (ITN). At a high level, the
 system consists of two individual components:
 
-- `DuplexTaggerModel <https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/duplex_text_normalization/duplex_tagger.py/>`__ - a Transformer-based tagger for identifying "semiotic" spans in the input (e.g., spans that are about times, dates, or monetary amounts).
-- `DuplexDecoderModel <https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/duplex_text_normalization/duplex_decoder.py/>`__ - a Transformer-based seq2seq model for decoding the semiotic spans into their appropriate forms (e.g., spoken forms for TN and written forms for ITN).
+- `DuplexTaggerModel <https://github.com/NVIDIA/NeMo/tree/stable/nemo/collections/nlp/models/duplex_text_normalization/duplex_tagger.py/>`__ - a Transformer-based tagger for identifying "semiotic" spans in the input (e.g., spans that are about times, dates, or monetary amounts).
+- `DuplexDecoderModel <https://github.com/NVIDIA/NeMo/tree/stable/nemo/collections/nlp/models/duplex_text_normalization/duplex_decoder.py/>`__ - a Transformer-based seq2seq model for decoding the semiotic spans into their appropriate forms (e.g., spoken forms for TN and written forms for ITN).
 
 The typical workflow is to first train a DuplexTaggerModel and also a DuplexDecoderModel. An example training script
-is provided: `duplex_text_normalization_train.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/duplex_text_normalization/duplex_text_normalization_train.py>`__.
-After that, the two trained models can be used to initialize a `DuplexTextNormalizationModel <https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/duplex_text_normalization/duplex_tn.py/>`__ that can be used for end-to-end inference.
-An example script for evaluation is provided here: `duplex_text_normalization_test.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/duplex_text_normalization/duplex_text_normalization_test.py>`__. 
-The script for inference of the full pipeline is provided here: `duplex_text_normalization_infer.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/duplex_text_normalization/duplex_text_normalization_infer.py>`__. 
+is provided: `duplex_text_normalization_train.py <https://github.com/NVIDIA/NeMo/tree/stable/examples/nlp/duplex_text_normalization/duplex_text_normalization_train.py>`__.
+After that, the two trained models can be used to initialize a `DuplexTextNormalizationModel <https://github.com/NVIDIA/NeMo/tree/stable/nemo/collections/nlp/models/duplex_text_normalization/duplex_tn.py/>`__ that can be used for end-to-end inference.
+An example script for evaluation is provided here: `duplex_text_normalization_test.py <https://github.com/NVIDIA/NeMo/tree/stable/examples/nlp/duplex_text_normalization/duplex_text_normalization_test.py>`__.
+The script for inference of the full pipeline is provided here: `duplex_text_normalization_infer.py <https://github.com/NVIDIA/NeMo/tree/stable/examples/nlp/duplex_text_normalization/duplex_text_normalization_infer.py>`__.
 This script runs inference from a raw text file or an interactive terminal. 
 The term *duplex* refers to the fact that our system can be trained to do both TN and ITN. However, you can also specifically train the system for only one of the tasks.
 
@@ -68,12 +68,12 @@ In the example, ``self`` denotes that the spoken form is the same as the written
 
 More information about the Google text normalization dataset can be found in the paper `RNN Approaches to Text Normalization: A Challenge <https://arxiv.org/ftp/arxiv/papers/1611/1611.00068.pdf>`__ :cite:`nlp-textnorm-sproat2016rnn`.
 The script for splitting the Google text normalization data files into `train`, `dev`, `test` can be found here: 
-`data/data_split.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/duplex_text_normalization/data/data_split.py>`__.
+`data/data_split.py <https://github.com/NVIDIA/NeMo/tree/stable/examples/nlp/duplex_text_normalization/data/data_split.py>`__.
 
 Data preprocessing
 ------------------
 
-Processing scripts can be found in the same folder. Right now we only provide scripts for English text normalization, see `data/en/data_preprocessing.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/duplex_text_normalization/data/en/data_preprocessing.py>`__.
+Processing scripts can be found in the same folder. Right now we only provide scripts for English text normalization, see `data/en/data_preprocessing.py <https://github.com/NVIDIA/NeMo/tree/stable/examples/nlp/duplex_text_normalization/data/en/data_preprocessing.py>`__.
 The details can be found at the top of the scripts.
 The purpose of the preprocessing scripts is to standardize the format in order to help with model training.
 We also changed punctuation class `PUNCT` to be treated like a plain token ( label changed from `<sil> to ``<self>`), since we want to preserve punctuation even after normalization. 
@@ -87,9 +87,9 @@ Data upsampling
 ---------------
 
 Data upsampling is an effective way to increase the training data for better model performance, especially on the long tail of semiotic tokens.
-We used upsampling for training an English text normalization model, see `data/en/upsampling.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/duplex_text_normalization/data/en/upsampling.py>`__.
+We used upsampling for training an English text normalization model, see `data/en/upsampling.py <https://github.com/NVIDIA/NeMo/tree/stable/examples/nlp/duplex_text_normalization/data/en/upsampling.py>`__.
 Currently this script only upsamples a few classes, that are diverse in semiotic tokens but at the same time underrepresented in the training data.
-Of all the input files in `train` folder created by `data/data_split.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/duplex_text_normalization/data/data_split.py>`__. this script takes the first file and detects the class patterns that occur in it.
+Of all the input files in `train` folder created by `data/data_split.py <https://github.com/NVIDIA/NeMo/tree/stable/examples/nlp/duplex_text_normalization/data/data_split.py>`__. this script takes the first file and detects the class patterns that occur in it.
 For those that are underrepresented, quantitatively defined as lower than `min_number`, the other files are scanned for sentences that have the missing patterns. 
 Those sentences are appended to the first file, which can then be used for training. 
 Details can be found at the top of the script.
@@ -114,8 +114,8 @@ Tarred datasets can be created as follows:
 Model Training
 --------------
 
-An example training script is provided: `duplex_text_normalization_train.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/duplex_text_normalization/duplex_text_normalization_train.py>`__.
-The config file used for the example is at `duplex_tn_config.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/duplex_text_normalization/conf/duplex_tn_config.yaml>`__.
+An example training script is provided: `duplex_text_normalization_train.py <https://github.com/NVIDIA/NeMo/tree/stable/examples/nlp/duplex_text_normalization/duplex_text_normalization_train.py>`__.
+The config file used for the example is at `duplex_tn_config.yaml <https://github.com/NVIDIA/NeMo/tree/stable/examples/nlp/duplex_text_normalization/conf/duplex_tn_config.yaml>`__.
 You can change any of these parameters directly from the config file or update them with the command-line arguments.
 
 The config file contains three main sections. The first section contains the configs for the tagger, the second section is about the decoder,

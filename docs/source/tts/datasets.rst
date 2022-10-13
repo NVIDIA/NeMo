@@ -1,7 +1,7 @@
 Data Preprocessing
 ==================
 
-NeMo TTS recipes support most of public TTS datasets that consist of multiple languages, multiple emotions, and multiple speakers. Current recipes covered English (en-US), German (de-DE), Spanish (es-ES), and Mandarin Chinese (work in progress), while the support for many other languages is under planning. NeMo provides corpus-specific data preprocessing scripts, as shown in the directory of `scripts/data_processing/tts/ <https://github.com/NVIDIA/NeMo/tree/stable/scripts/dataset_processing/tts/>`_, to convert common public TTS datasets into the format expected by the dataloaders as defined in `nemo/collections/tts/torch/data.py <https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/tts/torch/data.py>`_. The ``nemo_tts`` collection expects each dataset to consist of a set of utterances in individual audio files plus a ``JSON`` manifest that describes the dataset, with information about one utterance per line. The audio files can be of any format supported by `Pydub <https://github.com/jiaaro/pydub>`_, though we recommend ``WAV`` files as they are the default and have been most thoroughly tested.
+NeMo TTS recipes support most of public TTS datasets that consist of multiple languages, multiple emotions, and multiple speakers. Current recipes covered English (en-US), German (de-DE), Spanish (es-ES), and Mandarin Chinese (work in progress), while the support for many other languages is under planning. NeMo provides corpus-specific data preprocessing scripts, as shown in the directory of `scripts/data_processing/tts/ <https://github.com/NVIDIA/NeMo/tree/stable/scripts/dataset_processing/tts/>`_, to convert common public TTS datasets into the format expected by the dataloaders as defined in `nemo/collections/tts/torch/data.py <https://github.com/NVIDIA/NeMo/tree/stable/nemo/collections/tts/torch/data.py>`_. The ``nemo_tts`` collection expects each dataset to consist of a set of utterances in individual audio files plus a ``JSON`` manifest that describes the dataset, with information about one utterance per line. The audio files can be of any format supported by `Pydub <https://github.com/jiaaro/pydub>`_, though we recommend ``WAV`` files as they are the default and have been most thoroughly tested.
 
 There should be one ``JSON`` manifest file per dataset that will be passed in, therefore, if the user wants separate training and validation datasets, they should also have separate manifests. Otherwise, they will be loading validation data with their training data and vice versa. Each line of the manifest should be in the following format:
 
@@ -34,12 +34,12 @@ This table below summarizes the statistics for a collection of high-quality publ
 
 Corpus-Specific Data Preprocessing
 ----------------------------------
-NeMo implements model-agnostic data preprocessing scripts that wrap up steps of **downloading raw datasets, extracting files, and/or normalizing raw texts, and generating data manifest files**. Most scripts are able to be reused for any datasets with only minor adaptations. Most TTS models work out-of-the-box with the LJSpeech dataset, so it would be straightforward to start adapting your custom script from `LJSpeech script <https://github.com/NVIDIA/NeMo/blob/main/scripts/dataset_processing/tts/ljspeech/get_data.py>`_. For some models that may require supplementary data for training and validating, such as speech/text alignment prior, pitch, speaker ID, emotion ID, energy, etc, you may need an extra step of **supplementary data extraction** by calling `script/dataset_processing/tts/extract_sup_data.py <https://github.com/NVIDIA/NeMo/blob/main/scripts/dataset_processing/tts/extract_sup_data.py>`_ . The following sub-sections demonstrate detailed instructions for running data preprocessing scripts.
+NeMo implements model-agnostic data preprocessing scripts that wrap up steps of **downloading raw datasets, extracting files, and/or normalizing raw texts, and generating data manifest files**. Most scripts are able to be reused for any datasets with only minor adaptations. Most TTS models work out-of-the-box with the LJSpeech dataset, so it would be straightforward to start adapting your custom script from `LJSpeech script <https://github.com/NVIDIA/NeMo/tree/stable/scripts/dataset_processing/tts/ljspeech/get_data.py>`_. For some models that may require supplementary data for training and validating, such as speech/text alignment prior, pitch, speaker ID, emotion ID, energy, etc, you may need an extra step of **supplementary data extraction** by calling `script/dataset_processing/tts/extract_sup_data.py <https://github.com/NVIDIA/NeMo/tree/stable/scripts/dataset_processing/tts/extract_sup_data.py>`_ . The following sub-sections demonstrate detailed instructions for running data preprocessing scripts.
 
 LJSpeech
 ~~~~~~~~
 * Dataset URL: https://keithito.com/LJ-Speech-Dataset/
-* Dataset Processing Script: https://github.com/NVIDIA/NeMo/blob/main/scripts/dataset_processing/tts/ljspeech/get_data.py
+* Dataset Processing Script: https://github.com/NVIDIA/NeMo/tree/stable/scripts/dataset_processing/tts/ljspeech/get_data.py
 * Command Line Instruction:
 
 .. code-block:: shell-session
@@ -59,7 +59,7 @@ LJSpeech
 LibriTTS
 ~~~~~~~~
 * Dataset URL: https://www.openslr.org/60/
-* Dataset Processing Script: https://github.com/NVIDIA/NeMo/blob/main/scripts/dataset_processing/tts/libritts/get_data.py
+* Dataset Processing Script: https://github.com/NVIDIA/NeMo/tree/stable/scripts/dataset_processing/tts/libritts/get_data.py
 * Command Line Instruction:
 
 .. code-block:: console
@@ -88,7 +88,7 @@ The texts of this dataset has been normalized already. So there is no extra need
 Thorsten Müller (German Neutral-TTS dataset)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 * Dataset URL: https://www.openslr.org/resources/95/
-* Dataset Processing Script: https://github.com/NVIDIA/NeMo/blob/main/scripts/dataset_processing/tts/openslr/get_data.py
+* Dataset Processing Script: https://github.com/NVIDIA/NeMo/tree/stable/scripts/dataset_processing/tts/openslr/get_data.py
 * Command Line Instruction:
 
 .. code-block:: bash
@@ -108,7 +108,7 @@ Thorsten Müller (German Neutral-TTS dataset)
 HUI Audio Corpus German
 ~~~~~~~~~~~~~~~~~~~~~~~
 * Dataset URL: https://opendata.iisys.de/datasets.html
-* Dataset Processing Script: https://github.com/NVIDIA/NeMo/blob/main/scripts/dataset_processing/tts/hui_acg/get_data.py
+* Dataset Processing Script: https://github.com/NVIDIA/NeMo/tree/stable/scripts/dataset_processing/tts/hui_acg/get_data.py
 * Command Line Instruction:
 
 .. code-block:: bash

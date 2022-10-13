@@ -197,7 +197,7 @@ Note, if the input manifest contains target "word_id", evaluation will be also p
 Requirements
 ------------
 
-G2P requires NeMo NLP and ASR collections installed. See `Installation instructions <https://github.com/NVIDIA/NeMo/blob/main/docs/source/starthere/intro.rst#installation>`__ for more details.
+G2P requires NeMo NLP and ASR collections installed. See `Installation instructions <https://github.com/NVIDIA/NeMo/tree/stable/docs/source/starthere/intro.rst#installation>`__ for more details.
 
 
 References

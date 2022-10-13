@@ -15,7 +15,7 @@ Like in these examples:
 
   Yeah, they make you work. Yeah, over there you walk a lot? or Yeah, they make you work. Yeah, over there you walk a lot.
 
-You can find more details on text only punctuation and capitalization in `Punctuation And Capitalization's page <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/punctuation_and_capitalization.html>`_. In this document, we focus on model changes needed to use acoustic features.
+You can find more details on text only punctuation and capitalization in `Punctuation And Capitalization's page <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/nlp/punctuation_and_capitalization.html>`_. In this document, we focus on model changes needed to use acoustic features.
 
 Quick Start Guide
 -----------------
@@ -35,7 +35,7 @@ Quick Start Guide
 
 Model Description
 -----------------
-In addition to `Punctuation And Capitalization model <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/punctuation_and_capitalization.html>`_ we add audio encoder (e.g. Conformer's encoder) and attention based fusion of lexical and audio features.
+In addition to `Punctuation And Capitalization model <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/nlp/punctuation_and_capitalization.html>`_ we add audio encoder (e.g. Conformer's encoder) and attention based fusion of lexical and audio features.
 This model architecture is based on `Multimodal Semi-supervised Learning Framework for Punctuation Prediction in Conversational Speech <https://arxiv.org/pdf/2008.00702.pdf>`__ :cite:`nlp-punct-sunkara20_interspeech`.
 
 .. note::
@@ -50,7 +50,7 @@ This model architecture is based on `Multimodal Semi-supervised Learning Framewo
 
 Raw Data Format
 ---------------
-In addition to `Punctuation And Capitalization Raw Data Format <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/punctuation_and_capitalization.html#raw-data-format>`_ this model also requires audio data.
+In addition to `Punctuation And Capitalization Raw Data Format <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/nlp/punctuation_and_capitalization.html#raw-data-format>`_ this model also requires audio data.
 You have to provide ``audio_train.txt`` and ``audio_dev.txt`` (and optionally ``audio_test.txt``) which contain one valid path to audio per row.
 
 Example of the ``audio_train.txt``/``audio_dev.txt`` file:
@@ -107,7 +107,7 @@ An example of a model configuration file for training the model can be found at:
 Configs
 ^^^^^^^^^^^^
 .. note::
-  This page contains only parameters specific to lexical and audio model. Others parameters can be found in `Punctuation And Capitalization's page <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/punctuation_and_capitalization.html>`_.
+  This page contains only parameters specific to lexical and audio model. Others parameters can be found in `Punctuation And Capitalization's page <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/nlp/punctuation_and_capitalization.html>`_.
 
 Model config
 ^^^^^^^^^^^^
@@ -252,7 +252,7 @@ Audio Encoder config
    * - **config**
      - ``LinearAdapterConfig``
      - ``null``
-     - For more details see `nemo.collections.common.parts.LinearAdapterConfig <https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/common/parts/adapter_modules.py#L141>`_ class.
+     - For more details see `nemo.collections.common.parts.LinearAdapterConfig <https://github.com/NVIDIA/NeMo/tree/stable/nemo/collections/common/parts/adapter_modules.py#L141>`_ class.
 
 
 .. _fusion-config-label:
