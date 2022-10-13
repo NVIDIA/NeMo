@@ -6,7 +6,7 @@ Grapheme-to-Phoneme Models
 Grapheme-to-phoneme conversion (G2P) is the task of transducing graphemes (i.e., orthographic symbols) to phonemes (i.e., units of the sound system of a language).
 For example, for `International_Phonetic_Alphabet (IPA): <https://en.wikipedia.org/wiki/International_Phonetic_Alphabet>`__ ``"Swifts, flushed from chimneys …" → "ˈswɪfts, ˈfɫəʃt ˈfɹəm ˈtʃɪmniz …"``.
 
-Modern text-to-speech (TTS) models can learn pronunciations from raw text input and its corresponding audio data,
+Modern text-to-speech (TTS) synthesis models can learn pronunciations from raw text input and its corresponding audio data,
 but by relying on grapheme input during training, such models fail to provide a reliable way of correcting wrong pronunciations. As a result, many TTS systems use phonetic input
 during training to directly access and correct pronunciations at inference time. G2P systems allow users to enforce the desired pronunciation by providing a phonetic transcript of the input.
 

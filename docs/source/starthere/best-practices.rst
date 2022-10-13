@@ -11,7 +11,7 @@ The conversational AI pipeline consists of three major stages:
 
 - Automatic Speech Recognition (ASR)
 - Natural Language Processing (NLP) or Natural Language Understanding (NLU)
-- Text-to-Speech (TTS) or voice synthesis
+- Text-to-Speech (TTS) Synthesis
 
 As you talk to a computer, the ASR phase converts the audio signal into text, the NLP stage interprets the question
 and generates a smart response, and finally the TTS phase converts the text into speech signals to generate audio for
@@ -264,7 +264,7 @@ A: NeMo’s Beam Search decoder with Levenberg-Marquardt (LM) neural module supp
 - If you want to use a different language model, other than KenLM, you will need to implement a corresponding decoder module.
 - Transformer-XL example is present in OS2S. It would need to be updated to work with NeMo. `Here is the code <https://github.com/NVIDIA/OpenSeq2Seq/tree/master/external_lm_rescore>`_.
 
-**Q: How do I use text-to-speech (TTS)?**
+**Q: How do I use text-to-speech (TTS) synthesis?**
 A:
 
 - Obtain speech data ideally at 22050 Hz or alternatively at a higher sample rate and then down sample to 22050 Hz.

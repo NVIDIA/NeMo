@@ -1,7 +1,7 @@
 Introduction
 ======================
 
-Text-to-Speech (TTS) refers to a system that converts textual inputs into natural human speech. The synthesized speech
+Text-to-Speech (TTS) synthesis refers to a system that converts textual inputs into natural human speech. The synthesized speech
 is expected to sound intelligible and natural. With the resurgence of deep neural networks, TTS research has achieved
 tremendous progress. NeMo implementation focuses on the state-of-the-art neural TTS where both **cascaded** and **end-to-end**
 systems are included,
@@ -11,3 +11,14 @@ systems are included,
 
 We will illustrate details in the following sections.
 
+.. toctree::
+    :maxdepth: 2
+
+    models
+    datasets
+    checkpoints
+    configs
+    api
+    resources
+
+.. include:: resources.rst
