@@ -414,6 +414,35 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
         context_length_tensor = torch.cuda.LongTensor(context_lengths)
         return context_tokens_tensor, context_length_tensor
 
+    def tokenize_batch_with_context_and_completion(self, sentences, max_len, add_BOS):
+        """
+        convert the sentences into lists of tokens, pad them to the same length, add bos tokens if it is needed
+        Args:
+            sentences (List[str]): list of input sentences in str format.
+            max_len (int): max number of tokens to generate.
+            add_BOS (bool): whether to add the BOS token at the beginning
+        Returns:
+            Tuple[torch.Tensor], the tokenized and padded torch tensor and the token context length tensor.
+        """
+        tokenizer = self.model.tokenizer
+        if add_BOS:
+            context_tokens = [[[tokenizer.eos_id]+tokenizer.text_to_ids(s[0]), tokenizer.text_to_ids(s[1])] for s in sentences]
+        else:
+            context_tokens = [[tokenizer.text_to_ids(s[0]), tokenizer.text_to_ids(s[1])] for s in sentences]
+        if self.pad_token_for_retrieval:
+            padded = []
+            for line in context_tokens:
+                if len(line[0]) < self.chunk_size:
+                    pad_len = self.chunk_size - len(line[0])
+                    padded.append([tokenizer.pad_id] * pad_len + line[0] + line[1])
+                else:
+                    padded.append(line[0] + line[1])
+            context_tokens = padded
+        context_tokens, context_lengths = pad_batch(context_tokens, tokenizer.eos_id, max_len)
+        context_tokens_tensor = torch.cuda.LongTensor(context_tokens)
+        context_length_tensor = torch.cuda.LongTensor(context_lengths)
+        return context_tokens_tensor, context_length_tensor
+
     def clip_max_len(self, maxlen: int) -> int:
         """ clip the max len based on the LM model max sequence length"""
         if maxlen > self.model.cfg.encoder_seq_length + 1:

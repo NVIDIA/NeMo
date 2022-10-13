@@ -454,6 +454,21 @@ def generate(
         repetition_penalty=repetition_penalty,
         min_tokens_to_generate=min_tokens_to_generate,
     )
+    special_tokens = set()
+    if tokenizer.pad_token is not None:
+        special_tokens.add(tokenizer.pad_token)
+    if tokenizer.eos_token is not None:
+        special_tokens.add(tokenizer.eos_token)
+    if tokenizer.bos_token is not None:
+        special_tokens.add(tokenizer.bos_token)
+    if tokenizer.cls_token is not None:
+        special_tokens.add(tokenizer.cls_token)
+    if tokenizer.unk_token is not None:
+        special_tokens.add(tokenizer.unk_token)
+    if tokenizer.sep_token is not None:
+        special_tokens.add(tokenizer.sep_token)
+    if tokenizer.mask_token is not None:
+        special_tokens.add(tokenizer.mask_token)
     if output is not None:
         decode_tokens, output_logits, full_logits = output
         resp_sentences = []
@@ -466,10 +481,7 @@ def generate(
             if not isinstance(tokenizer, TabularTokenizer):
                 words = []
                 for token in decode_token:
-                    # Skip any soft prompt pseudo tokens
-                    if token not in tokenizer.tokenizer.decoder:
-                        continue
-                    word = tokenizer.tokenizer.decoder[token]
+                    word = tokenizer.ids_to_tokens(token)
                     word = bytearray([tokenizer.tokenizer.byte_decoder[c] for c in word]).decode(
                         'utf-8', errors='replace'
                     )
@@ -484,7 +496,10 @@ def generate(
             offsets = [0]
             for index, token in enumerate(item):
                 if index != len(item) - 1:
-                    offsets.append(len(token) + offsets[-1])
+                    if token in special_tokens:
+                        offsets.append(offsets[-1])
+                    else:
+                        offsets.append(len(token) + offsets[-1])
             all_offsets.append(offsets)
 
         output = {}
