@@ -159,7 +159,7 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
 
         # Special ids to text function to handle stripping <eos> and special tokens with sentencepiece tokenizers.
         preds_text = MegatronT5FinetuneModel.ids_to_text(predicted_token_ids, self.tokenizer)
-        input_text = MegatronT5FinetuneModel.ids_to_text(input_ids, self.tokenizer)
+        input_text = MegatronT5FinetuneModel.ids_to_text(enc_input, self.tokenizer)
 
         if labels is not None:
             labels_text = MegatronT5FinetuneModel.ids_to_text(labels, self.tokenizer)
