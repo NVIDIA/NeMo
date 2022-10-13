@@ -515,16 +515,15 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
 
     def validation_step(self, batch, batch_idx):
         loss_mean = self.fwd_bwd_step(batch, forward_only=True)
-        if loss_mean.item == 0.0:
-            loss_mean = []
-
+        ## logging
+        # we can only log on one rank if it is rank zero so we broadcast from last rank
+        # we can avoid this broadcast by updating the PTL log function to accept specific ranks
+        torch.distributed.broadcast(loss_mean, get_last_rank())
         return loss_mean
 
     def validation_epoch_end(self, outputs):
         if parallel_state.is_pipeline_last_stage():
             # only the last pipeline parallel stages return loss
-            if len(outputs) == 0:
-                return
             averaged_loss = torch.stack(outputs).mean()
         else:
             averaged_loss = torch.tensor(0.0).cuda()
