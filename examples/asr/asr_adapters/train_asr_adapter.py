@@ -29,13 +29,32 @@ python train_asr_adapter.py \
     model.train_ds.batch_size=16 \
     model.validation_ds.manifest_filepath=<Path to manifest> \
     model.validation_ds.batch_size=16 \
-    model.optim.lr=0.5 \
+    model.optim.lr=0.001 \
     model.optim.weight_decay=0.0 \
     model.optim.sched.warmup_steps=100 \
     trainer.max_steps=300 \
     trainer.devices=1 \
     trainer.precision=32 \
     exp_manager.exp_dir=<Some directory for experiment manager>
+
+# Hyper Parmaeter Search
+
+python train_asr_adapter.py \
+    --config-path="../conf/asr_adapters" \
+    --config-name="asr_adaptation_hp.yaml" \
+    -m \
+    model.pretrained_model=null \
+    model.nemo_model=null \
+    model.adapter.adapter_name=<Unique adapter name> \
+    model.adapter.adapter_module_name=<null, or str module. Type: encoder, decoder, joint, or multiple with + between them> \
+    model.adapter.in_features=<dimension of the layer outputs of the model> \
+    model.train_ds.manifest_filepath=<Path to manifest> \
+    model.train_ds.batch_size=16 \
+    model.validation_ds.manifest_filepath=<Path to manifest> \
+    model.validation_ds.batch_size=16 \
+    exp_manager.exp_dir="<some directory>" \
+    exp_manager.create_wandb_logger=true \
+    exp_manager.wandb_logger_kwargs.project="<Project Name>"
 
 # Fine-tune a model
 
