@@ -859,7 +859,7 @@ class ParallelAttention(MegatronModule):
             self.inference_value_memory[start:end, ...] = value_layer
             key_layer = self.inference_key_memory[:end, ...]
             value_layer = self.inference_value_memory[:end, ...]
-            # Adjust attention mask - no need for this here we do it in text_generation_utils.py
+            # Adjust attention mask
             attention_mask = attention_mask[..., start:end, :end]
             # adjust the key rotary positional embedding
             if rotary_pos_emb is not None:
