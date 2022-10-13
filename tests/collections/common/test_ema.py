@@ -287,7 +287,7 @@ class TestEMAConfig:
 
 class TestEMATrain:
     @pytest.mark.unit
-    @pytest.mark.parametrize("precision", [16, 32])
+    @pytest.mark.parametrize("precision", [16, "bf16", 32])
     @pytest.mark.parametrize("accumulate_grad_batches", [1, 2])
     @pytest.mark.parametrize("evaluate_ema_weights_instead", [True, False])
     @pytest.mark.parametrize("apex_available_mock", [True, False])
