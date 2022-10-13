@@ -21,7 +21,7 @@ The following figure shows the overall data flow of the NeMo speaker diarization
 
 NeMo speaker diarization system consists of the following modules:   
 
-- **Voice Activity Detection (VAD)**: A trainable model which detects the presence or absence of speech in the given audio recording.  
+- **Voice Activity Detector (VAD)**: A trainable model which detects the presence or absence of speech to generate timestamps for speech activity from the given audio recording.  
 
 - **Speaker Embedding Extractor**: A trainable model that extracts speaker embedding vectors containing voice characteristics from raw audio signal.   
 
