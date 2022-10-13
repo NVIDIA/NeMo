@@ -533,7 +533,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
             # map batch and shared args into forward args
             args = self._build_forward_args_from_kwargs(args_name=arg_names, args=batch, **kwargs)
-            output = model(*args)
+            output = model(*args).contiguous()
 
             def id_func(output_tensor):
                 return output_tensor, {output_name: output_tensor}
@@ -652,11 +652,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # we can only log on one rank if it is rank zero so we broadcast from last rank
         torch.distributed.broadcast(averaged_loss, get_last_rank())
         self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
-        self.log(
-            'consumed_samples',
-            self.compute_consumed_samples(self.trainer.global_step - self.init_global_step),
-            rank_zero_only=True,
-        )
         self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True)
 
         return averaged_loss
@@ -674,12 +669,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # we can only log on one rank if it is rank zero so we broadcast from last rank
         torch.distributed.broadcast(averaged_loss, get_last_rank())
         self.log('test_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
-        self.log(
-            'consumed_samples',
-            self.compute_consumed_samples(self.trainer.global_step - self.init_global_step),
-            rank_zero_only=True,
-        )
-
         return averaged_loss
 
     def loss_func(self, loss_mask, tokens_loss):
@@ -832,7 +821,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         else:
             init_consumed_samples = 0
         self.init_consumed_samples = init_consumed_samples
-        self.init_global_step = self.trainer.global_step
 
         """A PTL method to setup the training, validation and test datasets."""
         if stage == 'predict':
