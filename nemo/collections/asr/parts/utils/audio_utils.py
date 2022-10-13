@@ -17,6 +17,7 @@ from typing import Iterable, Optional, Union
 import librosa
 import numpy as np
 import numpy.typing as npt
+import scipy
 import soundfile as sf
 from scipy.spatial.distance import pdist, squareform
 
@@ -376,3 +377,22 @@ def pow2db(power: float, eps: Optional[float] = 1e-16) -> float:
         Power in dB.
     """
     return 10 * np.log10(power + eps)
+
+
+def get_segment_start(signal: np.ndarray, segment: np.ndarray) -> int:
+    """Get starting point of `segment` in `signal`.
+    We assume that `segment` is a part of `signal`.
+
+    Args:
+        signal: numpy array with shape (num_samples,)
+        segment: numpy array with shape (num_samples,)
+
+    Returns:
+        Index of the start of `segment` in `signal`.
+    """
+    if len(signal) <= len(segment):
+        raise ValueError(
+            f'segment must be shorter than signal: len(segment) = {len(segment)}, len(signal) = {len(signal)}'
+        )
+    cc = scipy.signal.correlate(signal, segment, mode='valid')
+    return np.argmax(cc)
