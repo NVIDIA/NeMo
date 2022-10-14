@@ -17,7 +17,7 @@
 import enum
 import logging
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional
 
 import torch
 import torch.nn as nn
@@ -167,5 +167,5 @@ class ParallelLinearAdapterConfig:
     column_init_method: str = 'xavier'
     row_init_method: str = 'zero'
     dropout: float = 0.0
-    adapter_strategy: Optional[dict] = adapter_mixin_strategies.ResidualAddAdapterStrategyConfig()
+    adapter_strategy: Optional[Any] = adapter_mixin_strategies.ResidualAddAdapterStrategyConfig()
     _target_: str = "{0}.{1}".format(ParallelLinearAdapter.__module__, ParallelLinearAdapter.__name__)
