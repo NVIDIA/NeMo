@@ -97,6 +97,7 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
         We don't use torchaudio's implementation here because the original
         implementation is not the same, so for the sake of backwards-compatibility
         this will use the old FilterbankFeatures for now.
+
         Args:
             sample_rate (int): Sample rate of the input audio data.
                 Defaults to 16000
@@ -182,6 +183,7 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
     @property
     def output_types(self):
         """Returns definitions of module output ports.
+
         processed_signal:
             0: AxisType(BatchTag)
             1: AxisType(MelSpectrogramSignalTag)
@@ -275,6 +277,7 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
 class AudioToMFCCPreprocessor(AudioPreprocessor):
     """Preprocessor that converts wavs to MFCCs.
     Uses torchaudio.transforms.MFCC.
+
     Args:
         sample_rate: The sample rate of the audio.
             Defaults to 16000.
@@ -418,6 +421,7 @@ class SpectrogramAugmentation(NeuralModule):
     SpecCutout zeroes out rectangulars as described in Cutout
     (https://arxiv.org/abs/1708.04552). Arguments for use with Cutout are
     `rect_masks`, `rect_freq`, and `rect_time`.
+
     Args:
         freq_masks (int): how many frequency segments should be cut.
             Defaults to 0.
@@ -523,7 +527,7 @@ class MaskedPatchAugmentation(NeuralModule):
                 Defaults to 48.
             mask_patches (float): how many patches should be masked in each sample.
                 if >= 1., interpreted as number of patches (after converting to int)
-                if <1.,   interpreted as fraction of total tokens to be masked 
+                if <1.,   interpreted as fraction of total tokens to be masked (number of patches is rounded up)
                 Defaults to 10.
             freq_masks (int): how many frequency segments should be cut.
                 Defaults to 0.
@@ -572,7 +576,8 @@ class MaskedPatchAugmentation(NeuralModule):
 
         if self.mask_patches is None:
             # masking specified as fraction
-            mask_patches = int(min_len * self._mask_fraction // self.patch_size)
+            len_fraction = int(min_len * self._mask_fraction)
+            mask_patches = len_fraction // self.patch_size + int(len_fraction % self.patch_size != 0)
         else:
             mask_patches = self.mask_patches
 
@@ -596,6 +601,7 @@ class MaskedPatchAugmentation(NeuralModule):
 class CropOrPadSpectrogramAugmentation(NeuralModule):
     """
     Pad or Crop the incoming Spectrogram to a certain shape.
+
     Args:
         audio_length (int): the final number of timesteps that is required.
             The signal will be either padded or cropped temporally to this
@@ -735,3 +741,12 @@ class SpectrogramAugmentationConfig:
 class CropOrPadSpectrogramAugmentationConfig:
     audio_length: int
     _target_: str = "nemo.collections.asr.modules.CropOrPadSpectrogramAugmentation"
+
+
+@dataclass
+class MaskedPatchAugmentationConfig:
+    patch_size: int = 48
+    mask_patches: float = 10.0
+    freq_masks: int = 0
+    freq_width: int = 0
+    _target_: str = "nemo.collections.asr.modules.MaskedPatchAugmentation"

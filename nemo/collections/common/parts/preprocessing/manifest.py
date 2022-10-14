@@ -14,6 +14,7 @@
 
 import json
 from os.path import expanduser
+from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Optional, Union
 
 
@@ -87,7 +88,22 @@ def __parse_item(line: str, manifest_file: str) -> Dict[str, Any]:
         raise ValueError(
             f"Manifest file {manifest_file} has invalid json line structure: {line} without proper audio file key."
         )
-    item['audio_file'] = expanduser(item['audio_file'])
+
+    # If the audio path is a relative path and does not exist,
+    # try to attach the parent directory of manifest to the audio path.
+    # Revert to the original path if the new path still doesn't exist.
+    # Assume that the audio path is like "wavs/xxxxxx.wav".
+    manifest_dir = Path(manifest_file).parent
+    audio_file = Path(item['audio_file'])
+    if (len(str(audio_file)) < 255) and not audio_file.is_file() and not audio_file.is_absolute():
+        # assume the "wavs/" dir and manifest are under the same parent dir
+        audio_file = manifest_dir / audio_file
+        if audio_file.is_file():
+            item['audio_file'] = str(audio_file.absolute())
+        else:
+            item['audio_file'] = expanduser(item['audio_file'])
+    else:
+        item['audio_file'] = expanduser(item['audio_file'])
 
     # Duration.
     if 'duration' not in item:
@@ -111,6 +127,7 @@ def __parse_item(line: str, manifest_file: str) -> Dict[str, Any]:
         offset=item.get('offset', None),
         speaker=item.get('speaker', None),
         orig_sr=item.get('orig_sample_rate', None),
+        token_labels=item.get('token_labels', None),
         lang=item.get('lang', None),
     )
 

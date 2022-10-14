@@ -37,8 +37,10 @@ The full documentation tree is as follows:
    datasets
    asr_language_modeling
    results
+   scores
    configs
    api
    resources
+   examples/kinyarwanda_asr.rst
 
 .. include:: resources.rst

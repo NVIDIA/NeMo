@@ -23,6 +23,7 @@ import webdataset as wd
 from torch.utils.data import ChainDataset
 
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
+from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.collections.common import tokenizers
 from nemo.collections.common.parts.preprocessing import collections, parsers
 from nemo.core.classes import Dataset, IterableDataset
@@ -142,7 +143,7 @@ class ASRManifestProcessor:
         return self.process_text_by_sample(sample)
 
     def process_text_by_file_id(self, file_id: str) -> (List[int], int):
-        manifest_idx = self.collection.mapping[file_id]
+        manifest_idx = self.collection.mapping[file_id][0]
         sample = self.collection[manifest_idx]
         return self.process_text_by_sample(sample)
 
@@ -230,6 +231,7 @@ class _AudioTextDataset(Dataset):
         eos_id: Id of end of sequence symbol to append if not None
         pad_id: Id of pad symbol. Defaults to 0
         return_sample_id (bool): whether to return the sample_id as a part of each sample
+        channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
     """
 
     @property
@@ -259,6 +261,7 @@ class _AudioTextDataset(Dataset):
         eos_id: Optional[int] = None,
         pad_id: int = 0,
         return_sample_id: bool = False,
+        channel_selector: Optional[ChannelSelectorType] = None,
     ):
         if type(manifest_filepath) == str:
             manifest_filepath = manifest_filepath.split(",")
@@ -276,6 +279,7 @@ class _AudioTextDataset(Dataset):
         self.featurizer = WaveformFeaturizer(sample_rate=sample_rate, int_values=int_values, augmentor=augmentor)
         self.trim = trim
         self.return_sample_id = return_sample_id
+        self.channel_selector = channel_selector
 
     def get_manifest_sample(self, sample_id):
         return self.manifest_processor.collection[sample_id]
@@ -288,7 +292,12 @@ class _AudioTextDataset(Dataset):
             offset = 0
 
         features = self.featurizer.process(
-            sample.audio_file, offset=offset, duration=sample.duration, trim=self.trim, orig_sr=sample.orig_sr
+            sample.audio_file,
+            offset=offset,
+            duration=sample.duration,
+            trim=self.trim,
+            orig_sr=sample.orig_sr,
+            channel_selector=self.channel_selector,
         )
         f, fl = features, torch.tensor(features.shape[0]).long()
 
@@ -319,6 +328,7 @@ class AudioToCharDataset(_AudioTextDataset):
     {"audio_filepath": "/path/to/audio.wav", "text": "the
     transcription", "offset": 301.75, "duration": 0.82, "utt":
     "utterance_id", "ctm_utt": "en_4156", "side": "A"}
+
     Args:
         manifest_filepath: Path to manifest json as described above. Can
             be comma-separated paths.
@@ -337,6 +347,7 @@ class AudioToCharDataset(_AudioTextDataset):
         bos_id: Id of beginning of sequence symbol to append if not None
         eos_id: Id of end of sequence symbol to append if not None
         return_sample_id (bool): whether to return the sample_id as a part of each sample
+        channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
     """
 
     @property
@@ -370,6 +381,7 @@ class AudioToCharDataset(_AudioTextDataset):
         pad_id: int = 0,
         parser: Union[str, Callable] = 'en',
         return_sample_id: bool = False,
+        channel_selector: Optional[ChannelSelectorType] = None,
     ):
         self.labels = labels
 
@@ -391,6 +403,7 @@ class AudioToCharDataset(_AudioTextDataset):
             eos_id=eos_id,
             pad_id=pad_id,
             return_sample_id=return_sample_id,
+            channel_selector=channel_selector,
         )
 
 
@@ -428,6 +441,7 @@ class AudioToBPEDataset(_AudioTextDataset):
         use_start_end_token: Boolean which dictates whether to add [BOS] and [EOS]
             tokens to beginning and ending of speech respectively.
         return_sample_id (bool): whether to return the sample_id as a part of each sample
+        channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
     """
 
     @property
@@ -455,18 +469,19 @@ class AudioToBPEDataset(_AudioTextDataset):
         trim: bool = False,
         use_start_end_token: bool = True,
         return_sample_id: bool = False,
+        channel_selector: Optional[ChannelSelectorType] = None,
     ):
-        if use_start_end_token and hasattr(tokenizer, 'bos_token'):
+        if use_start_end_token and hasattr(tokenizer, "bos_id") and tokenizer.bos_id > 0:
             bos_id = tokenizer.bos_id
         else:
             bos_id = None
 
-        if use_start_end_token and hasattr(tokenizer, 'eos_token'):
+        if use_start_end_token and hasattr(tokenizer, "eos_id") and tokenizer.eos_id > 0:
             eos_id = tokenizer.eos_id
         else:
             eos_id = None
 
-        if hasattr(tokenizer, 'pad_token'):
+        if hasattr(tokenizer, "pad_id") and tokenizer.pad_id > 0:
             pad_id = tokenizer.pad_id
         else:
             pad_id = 0
@@ -480,6 +495,12 @@ class AudioToBPEDataset(_AudioTextDataset):
                 self._tokenizer = tokenizer
 
             def __call__(self, *args):
+                if isinstance(args[0], List) and self.is_aggregate:
+                    t = []
+                    for span in args[0]:
+                        t.extend(self._tokenizer.text_to_ids(span['str'], span['lang']))
+                    return t
+
                 t = self._tokenizer.text_to_ids(*args)
                 return t
 
@@ -497,6 +518,7 @@ class AudioToBPEDataset(_AudioTextDataset):
             pad_id=pad_id,
             trim=trim,
             return_sample_id=return_sample_id,
+            channel_selector=channel_selector,
         )
 
 
@@ -552,7 +574,6 @@ class _TarredAudioToTextDataset(IterableDataset):
             All training files which have a duration more than max_duration
             are dropped. Note: Duration is read from the manifest JSON.
             Defaults to None.
-        max_utts (int): Limit number of utterances. 0 means no maximum.
         blank_index (int): Blank character index, defaults to -1.
         unk_index (int): Unknown character index, defaults to -1.
         normalize (bool): Dataset parameter.
@@ -579,10 +600,14 @@ class _TarredAudioToTextDataset(IterableDataset):
                 The benefit of replication is that it allows each node to sample data points from the entire
                 dataset independently of other nodes, and reduces dependence on value of `shuffle_n`.
 
-                Note: Replicated strategy allows every node to sample the entire set of available tarfiles,
-                and therefore more than one node may sample the same tarfile, and even sample the same
-                data points! As such, there is no assured guarantee that all samples in the dataset will be
-                sampled at least once during 1 epoch.
+                .. warning::
+                    Replicated strategy allows every node to sample the entire set of available tarfiles,
+                    and therefore more than one node may sample the same tarfile, and even sample the same
+                    data points! As such, there is no assured guarantee that all samples in the dataset will be
+                    sampled at least once during 1 epoch. Scattered strategy, on the other hand, on specific
+                    occasions (when the number of shards is not divisible with ``world_size``), will not sample
+                    the entire dataset. For these reasons it is not advisable to use tarred datasets as validation
+                    or test datasets.
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
         return_sample_id (bool): whether to return the sample_id as a part of each sample
@@ -599,7 +624,6 @@ class _TarredAudioToTextDataset(IterableDataset):
         shuffle_n: int = 0,
         min_duration: Optional[float] = None,
         max_duration: Optional[float] = None,
-        max_utts: int = 0,
         trim: bool = False,
         bos_id: Optional[int] = None,
         eos_id: Optional[int] = None,
@@ -614,7 +638,7 @@ class _TarredAudioToTextDataset(IterableDataset):
             parser=parser,
             max_duration=max_duration,
             min_duration=min_duration,
-            max_utts=max_utts,
+            max_utts=0,
             bos_id=bos_id,
             eos_id=eos_id,
             pad_id=pad_id,
@@ -647,6 +671,7 @@ class _TarredAudioToTextDataset(IterableDataset):
             self._dataset.rename(audio='wav;ogg;flac', key='__key__')
             .to_tuple('audio', 'key')
             .pipe(self._filter)
+            .pipe(self._loop_offsets)
             .map(f=self._build_sample)
         )
 
@@ -675,17 +700,48 @@ class _TarredAudioToTextDataset(IterableDataset):
 
         return TarredAudioFilter(self.manifest_processor.collection)
 
+    def _loop_offsets(self, iterator):
+        """This function is used to iterate through utterances with different offsets for each file.
+        """
+
+        class TarredAudioLoopOffsets:
+            def __init__(self, collection):
+                self.iterator = iterator
+                self.collection = collection
+                self.current_fn = None
+                self.current_bytes = None
+                self.offset_id = 0
+
+            def __iter__(self):
+                return self
+
+            def __next__(self):
+                if self.current_fn is None:
+                    self.current_bytes, self.current_fn = next(self.iterator)
+                    self.offset_id = 0
+                else:
+                    offset_list = self.collection.mapping[self.current_fn]
+                    if len(offset_list) == self.offset_id + 1:
+                        self.current_bytes, self.current_fn = next(self.iterator)
+                        self.offset_id = 0
+                    else:
+                        self.offset_id += 1
+
+                return self.current_bytes, self.current_fn, self.offset_id
+
+        return TarredAudioLoopOffsets(self.manifest_processor.collection)
+
     def _collate_fn(self, batch):
         return _speech_collate_fn(batch, self.pad_id)
 
     def _build_sample(self, tup):
         """Builds the training sample by combining the data from the WebDataset with the manifest info.
         """
-        audio_bytes, audio_filename = tup
+        audio_bytes, audio_filename, offset_id = tup
 
         # Grab manifest entry from self.manifest_preprocessor.collection
         file_id, _ = os.path.splitext(os.path.basename(audio_filename))
-        manifest_idx = self.manifest_processor.collection.mapping[file_id]
+        manifest_idx = self.manifest_processor.collection.mapping[file_id][offset_id]
         manifest_entry = self.manifest_processor.collection[manifest_idx]
 
         offset = manifest_entry.offset
@@ -781,7 +837,6 @@ class TarredAudioToCharDataset(_TarredAudioToTextDataset):
             All training files which have a duration more than max_duration
             are dropped. Note: Duration is read from the manifest JSON.
             Defaults to None.
-        max_utts (int): Limit number of utterances. 0 means no maximum.
         blank_index (int): Blank character index, defaults to -1.
         unk_index (int): Unknown character index, defaults to -1.
         normalize (bool): Dataset parameter.
@@ -801,6 +856,7 @@ class TarredAudioToCharDataset(_TarredAudioToTextDataset):
             If this is None, pads using 0s.
             Defaults to None.
         shard_strategy (str): Tarred dataset shard distribution strategy chosen as a str value during ddp.
+
             -   `scatter`: The default shard strategy applied by WebDataset, where each node gets
                 a unique set of shards, which are permanently pre-allocated and never changed at runtime.
             -   `replicate`: Optional shard strategy, where each node gets all of the set of shards
@@ -808,10 +864,16 @@ class TarredAudioToCharDataset(_TarredAudioToTextDataset):
                 The benefit of replication is that it allows each node to sample data points from the entire
                 dataset independently of other nodes, and reduces dependence on value of `shuffle_n`.
 
-                Note: Replicated strategy allows every node to sample the entire set of available tarfiles,
-                and therefore more than one node may sample the same tarfile, and even sample the same
-                data points! As such, there is no assured guarantee that all samples in the dataset will be
-                sampled at least once during 1 epoch.
+                .. warning::
+
+                    Replicated strategy allows every node to sample the entire set of available tarfiles,
+                    and therefore more than one node may sample the same tarfile, and even sample the same
+                    data points! As such, there is no assured guarantee that all samples in the dataset will be
+                    sampled at least once during 1 epoch. Scattered strategy, on the other hand, on specific
+                    occasions (when the number of shards is not divisible with ``world_size``), will not sample
+                    the entire dataset. For these reasons it is not advisable to use tarred datasets as validation
+                    or test datasets.
+
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
         return_sample_id (bool): whether to return the sample_id as a part of each sample
@@ -828,7 +890,6 @@ class TarredAudioToCharDataset(_TarredAudioToTextDataset):
         shuffle_n: int = 0,
         min_duration: Optional[float] = None,
         max_duration: Optional[float] = None,
-        max_utts: int = 0,
         blank_index: int = -1,
         unk_index: int = -1,
         normalize: bool = True,
@@ -858,7 +919,6 @@ class TarredAudioToCharDataset(_TarredAudioToTextDataset):
             shuffle_n=shuffle_n,
             min_duration=min_duration,
             max_duration=max_duration,
-            max_utts=max_utts,
             trim=trim,
             bos_id=bos_id,
             eos_id=eos_id,
@@ -918,7 +978,6 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
             All training files which have a duration more than max_duration
             are dropped. Note: Duration is read from the manifest JSON.
             Defaults to None.
-        max_utts (int): Limit number of utterances. 0 means no maximum.
         trim (bool): Whether to use trim silence from beginning and end
             of audio signal using librosa.effects.trim().
             Defaults to False.
@@ -928,6 +987,7 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
             If this is None, pads using 0s.
             Defaults to None.
         shard_strategy (str): Tarred dataset shard distribution strategy chosen as a str value during ddp.
+
             -   `scatter`: The default shard strategy applied by WebDataset, where each node gets
                 a unique set of shards, which are permanently pre-allocated and never changed at runtime.
             -   `replicate`: Optional shard strategy, where each node gets all of the set of shards
@@ -935,10 +995,16 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
                 The benefit of replication is that it allows each node to sample data points from the entire
                 dataset independently of other nodes, and reduces dependence on value of `shuffle_n`.
 
-                Note: Replicated strategy allows every node to sample the entire set of available tarfiles,
-                and therefore more than one node may sample the same tarfile, and even sample the same
-                data points! As such, there is no assured guarantee that all samples in the dataset will be
-                sampled at least once during 1 epoch.
+                .. warning::
+
+                    Replicated strategy allows every node to sample the entire set of available tarfiles,
+                    and therefore more than one node may sample the same tarfile, and even sample the same
+                    data points! As such, there is no assured guarantee that all samples in the dataset will be
+                    sampled at least once during 1 epoch. Scattered strategy, on the other hand, on specific
+                    occasions (when the number of shards is not divisible with ``world_size``), will not sample
+                    the entire dataset. For these reasons it is not advisable to use tarred datasets as validation
+                    or test datasets.
+
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
         return_sample_id (bool): whether to return the sample_id as a part of each sample
@@ -955,7 +1021,6 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
         shuffle_n: int = 0,
         min_duration: Optional[float] = None,
         max_duration: Optional[float] = None,
-        max_utts: int = 0,
         trim: bool = False,
         use_start_end_token: bool = True,
         shard_strategy: str = "scatter",
@@ -963,17 +1028,17 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
         world_size: int = 0,
         return_sample_id: bool = False,
     ):
-        if use_start_end_token and hasattr(tokenizer, 'bos_token'):
+        if use_start_end_token and hasattr(tokenizer, "bos_id") and tokenizer.bos_id > 0:
             bos_id = tokenizer.bos_id
         else:
             bos_id = None
 
-        if use_start_end_token and hasattr(tokenizer, 'eos_token'):
+        if use_start_end_token and hasattr(tokenizer, "eos_id") and tokenizer.eos_id > 0:
             eos_id = tokenizer.eos_id
         else:
             eos_id = None
 
-        if hasattr(tokenizer, 'pad_token'):
+        if hasattr(tokenizer, "pad_id") and tokenizer.pad_id > 0:
             pad_id = tokenizer.pad_id
         else:
             pad_id = 0
@@ -987,6 +1052,12 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
                 self._tokenizer = tokenizer
 
             def __call__(self, *args):
+                if isinstance(args[0], Iterable) and self.is_aggregate:
+                    t = []
+                    for span in args[0]:
+                        t.extend(self._tokenizer.text_to_ids(span['str'], span['lang']))
+                    return t
+
                 t = self._tokenizer.text_to_ids(*args)
                 return t
 
@@ -1000,7 +1071,6 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
             shuffle_n=shuffle_n,
             min_duration=min_duration,
             max_duration=max_duration,
-            max_utts=max_utts,
             trim=trim,
             bos_id=bos_id,
             eos_id=eos_id,

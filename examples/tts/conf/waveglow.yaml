@@ -32,6 +32,7 @@ model:
       shuffle: true
       batch_size: 12
       num_workers: 4
+      pin_memory: true
 
   validation_ds:
     dataset:
@@ -45,6 +46,7 @@ model:
       shuffle: false
       batch_size: 8
       num_workers: 4
+      pin_memory: true
 
   preprocessor:
     _target_: nemo.collections.asr.parts.preprocessing.features.FilterbankFeatures
@@ -95,6 +97,7 @@ trainer:
   logger: false # Provided by exp_manager
   log_every_n_steps: 200
   check_val_every_n_epoch: 25
+  benchmark: false
 
 exp_manager:
   exp_dir: null

@@ -19,7 +19,9 @@ import torch
 
 from nemo.core.classes import ModelPT
 from nemo.core.classes.exportable import Exportable
-from nemo.utils import model_utils
+from nemo.core.classes.mixins import AccessMixin
+from nemo.utils import logging, model_utils
+from nemo.utils.export_utils import cast_all
 
 __all__ = ['ASRModel']
 
@@ -61,6 +63,43 @@ class ASRModel(ModelPT, ABC):
         # recursively walk the subclasses to generate pretrained model info
         list_of_models = model_utils.resolve_subclass_pretrained_model_info(cls)
         return list_of_models
+
+    def add_auxiliary_losses(self, loss: torch.Tensor, reset_registry: bool = False) -> torch.Tensor:
+        """
+        Utility method to enable calculation of auxiliary losses for ASR training.
+
+        Args:
+            loss: The output loss value prior to addition with auxiliary losses.
+            reset_registry: Bool, whether to reset the AccessMixin registry after adding auxiliary losses.
+
+        Returns:
+            Loss tensor used for back propagation.
+        """
+        # Add adapter auxiliary losses, if registered
+        if AccessMixin.is_access_enabled():
+            registry = AccessMixin.get_module_registry(self)
+            log_dict = {}
+
+            for loss_key, loss_registry in registry.items():
+                # Add auxiliary loss to total loss
+                loss_list = loss_registry['adapter_loss']
+                loss_value = sum(loss_list)
+                loss += loss_value
+
+                # Log current loss name and value
+                keys = loss_key.split(".")
+                key = "/".join(keys)
+                key = "adapter_loss/" + key
+                log_dict[key] = loss_value.detach()
+
+            if len(log_dict) > 0:
+                self.log_dict(log_dict)
+
+        if reset_registry:
+            AccessMixin.reset_registry(self)
+
+        # return total loss
+        return loss
 
     def setup_optimization_flags(self):
         """
@@ -115,16 +154,53 @@ class ExportableEncDecModel(Exportable):
     def output_module(self):
         return self.decoder
 
-    def forward_for_export(self, input, length=None):
+    def forward_for_export(self, input, length=None, cache_last_channel=None, cache_last_time=None):
+        """
+        This forward is used when we need to export the model to ONNX format.
+        Inputs cache_last_channel and cache_last_time are needed to be passed for exporting streaming models.
+        When they are passed, it just passes the inputs through the encoder part and currently the ONNX conversion does not fully work for this case.
+        Args:
+            input: Tensor that represents a batch of raw audio signals,
+                of shape [B, T]. T here represents timesteps.
+            length: Vector of length B, that contains the individual lengths of the audio sequences.
+            cache_last_channel: Tensor of shape [N, B, T, H] which contains the cache for last channel layers
+            cache_last_time: Tensor of shape [N, B, H, T] which contains the cache for last time layers
+                N is the number of such layers which need caching, B is batch size, H is the hidden size of activations,
+                and T is the length of the cache
+
+        Returns:
+            the output of the model
+        """
         if hasattr(self.input_module, 'forward_for_export'):
-            encoder_output = self.input_module.forward_for_export(input, length)
+            if cache_last_channel is None and cache_last_time is None:
+                encoder_output = self.input_module.forward_for_export(input, length)
+            else:
+                encoder_output = self.input_module.forward_for_export(
+                    input, length, cache_last_channel, cache_last_time
+                )
         else:
-            encoder_output = self.input_module(input, length)
+            if cache_last_channel is None and cache_last_time is None:
+                encoder_output = self.input_module(input, length)
+            else:
+                encoder_output = self.input_module(input, length, cache_last_channel, cache_last_time)
         if isinstance(encoder_output, tuple):
             decoder_input = encoder_output[0]
         else:
             decoder_input = encoder_output
         if hasattr(self.output_module, 'forward_for_export'):
-            return self.output_module.forward_for_export(decoder_input)
+            if cache_last_channel is None and cache_last_time is None:
+                ret = self.output_module.forward_for_export(decoder_input)
+            else:
+                # TODO: update this part to support full encoder/decoder export
+                ret = encoder_output
         else:
-            return self.output_module(decoder_input)
+            if cache_last_channel is None and cache_last_time is None:
+                ret = self.output_module(decoder_input)
+            else:
+                # TODO: update this part to support full encoder/decoder export
+                ret = encoder_output
+        return cast_all(ret, from_dtype=torch.float16, to_dtype=torch.float32)
+
+    @property
+    def disabled_deployment_input_names(self):
+        return self.encoder.disabled_deployment_input_names

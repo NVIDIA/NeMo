@@ -1,3 +1,2 @@
 inflect
 regex
-pynini==2.1.4

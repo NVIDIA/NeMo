@@ -23,8 +23,8 @@ import torch
 from omegaconf import OmegaConf
 
 import nemo.collections.asr as nemo_asr
-from nemo.collections.asr.metrics.wer import WER
-from nemo.collections.asr.metrics.wer_bpe import WERBPE
+from nemo.collections.asr.metrics.wer import WER, CTCDecoding, CTCDecodingConfig
+from nemo.collections.asr.metrics.wer_bpe import WERBPE, CTCBPEDecoding, CTCBPEDecodingConfig
 from nemo.collections.asr.models import EncDecCTCModel, EncDecCTCModelBPE
 from nemo.collections.asr.parts.utils.speaker_utils import audio_rttm_map, get_uniqname_from_filepath
 from nemo.collections.asr.parts.utils.streaming_utils import AudioFeatureIterator, FrameBatchASR
@@ -59,12 +59,16 @@ class WERBPE_TS(WERBPE):
         tokenizer: TokenizerSpec,
         batch_dim_index=0,
         use_cer=False,
-        ctc_decode=True,
+        ctc_decode=None,
         log_prediction=True,
         dist_sync_on_step=False,
     ):
+        if ctc_decode is not None:
+            logging.warning(f'`ctc_decode` was set to {ctc_decode}. Note that this is ignored.')
 
-        super().__init__(tokenizer, batch_dim_index, use_cer, ctc_decode, log_prediction, dist_sync_on_step)
+        decoding_cfg = CTCBPEDecodingConfig(batch_dim_index=batch_dim_index)
+        decoding = CTCBPEDecoding(decoding_cfg, tokenizer=tokenizer)
+        super().__init__(decoding, use_cer, log_prediction, dist_sync_on_step)
 
     def ctc_decoder_predictions_tensor_with_ts(
         self, time_stride, predictions: torch.Tensor, predictions_len: torch.Tensor = None
@@ -75,15 +79,15 @@ class WERBPE_TS(WERBPE):
         prediction_cpu_tensor = predictions.long().cpu()
         # iterate over batch
         self.time_stride = time_stride
-        for ind in range(prediction_cpu_tensor.shape[self.batch_dim_index]):
+        for ind in range(prediction_cpu_tensor.shape[self.decoding.batch_dim_index]):
             prediction = prediction_cpu_tensor[ind].detach().numpy().tolist()
             if predictions_len is not None:
                 prediction = prediction[: predictions_len[ind]]
             # CTC decoding procedure
             decoded_prediction, char_ts, timestamp_list = [], [], []
-            previous = self.blank_id
+            previous = self.decoding.blank_id
             for pdx, p in enumerate(prediction):
-                if (p != previous or previous == self.blank_id) and p != self.blank_id:
+                if (p != previous or previous == self.decoding.blank_id) and p != self.decoding.blank_id:
                     decoded_prediction.append(p)
                     char_ts.append(round(pdx * self.time_stride, 2))
                     timestamp_list.append(round(pdx * self.time_stride, 2))
@@ -100,15 +104,15 @@ class WERBPE_TS(WERBPE):
         return hypotheses, timestamps, word_timestamps
 
     def decode_tokens_to_str_with_ts(self, tokens: List[int]) -> str:
-        hypothesis = self.tokenizer.ids_to_text(tokens)
+        hypothesis = self.decoding.tokenizer.ids_to_text(tokens)
         return hypothesis
 
     def decode_ids_to_tokens_with_ts(self, tokens: List[int]) -> List[str]:
-        token_list = self.tokenizer.ids_to_tokens(tokens)
+        token_list = self.decoding.tokenizer.ids_to_tokens(tokens)
         return token_list
 
     def get_ts_from_decoded_prediction(self, decoded_prediction: List[str], hypothesis: List[str], char_ts: List[str]):
-        decoded_char_list = self.tokenizer.ids_to_tokens(decoded_prediction)
+        decoded_char_list = self.decoding.tokenizer.ids_to_tokens(decoded_prediction)
         stt_idx, end_idx = 0, len(decoded_char_list) - 1
         stt_ch_idx, end_ch_idx = 0, 0
         space = '▁'
@@ -150,11 +154,16 @@ class WER_TS(WER):
         vocabulary,
         batch_dim_index=0,
         use_cer=False,
-        ctc_decode=True,
+        ctc_decode=None,
         log_prediction=True,
         dist_sync_on_step=False,
     ):
-        super().__init__(vocabulary, batch_dim_index, use_cer, ctc_decode, log_prediction, dist_sync_on_step)
+        if ctc_decode is not None:
+            logging.warning(f'`ctc_decode` was set to {ctc_decode}. Note that this is ignored.')
+
+        decoding_cfg = CTCDecodingConfig(batch_dim_index=batch_dim_index)
+        decoding = CTCDecoding(decoding_cfg, vocabulary=vocabulary)
+        super().__init__(decoding, use_cer, log_prediction, dist_sync_on_step)
 
     def decode_tokens_to_str_with_ts(self, tokens: List[int], timestamps: List[int]) -> str:
         """
@@ -162,14 +171,14 @@ class WER_TS(WER):
         start and end of each word.
         """
         token_list, timestamp_list = self.decode_ids_to_tokens_with_ts(tokens, timestamps)
-        hypothesis = ''.join(self.decode_ids_to_tokens(tokens))
+        hypothesis = ''.join(self.decoding.decode_ids_to_tokens(tokens))
         return hypothesis, timestamp_list
 
     def decode_ids_to_tokens_with_ts(self, tokens: List[int], timestamps: List[int]) -> List[str]:
         token_list, timestamp_list = [], []
         for i, c in enumerate(tokens):
-            if c != self.blank_id:
-                token_list.append(self.labels_map[c])
+            if c != self.decoding.blank_id:
+                token_list.append(self.decoding.labels_map[c])
                 timestamp_list.append(timestamps[i])
         return token_list, timestamp_list
 
@@ -182,16 +191,16 @@ class WER_TS(WER):
         """
         hypotheses, timestamps = [], []
         prediction_cpu_tensor = predictions.long().cpu()
-        for ind in range(prediction_cpu_tensor.shape[self.batch_dim_index]):
+        for ind in range(prediction_cpu_tensor.shape[self.decoding.batch_dim_index]):
             prediction = prediction_cpu_tensor[ind].detach().numpy().tolist()
             if predictions_len is not None:
                 prediction = prediction[: predictions_len[ind]]
 
             # CTC decoding procedure with timestamps
             decoded_prediction, decoded_timing_list = [], []
-            previous = self.blank_id
+            previous = self.decoding.blank_id
             for pdx, p in enumerate(prediction):
-                if (p != previous or previous == self.blank_id) and p != self.blank_id:
+                if (p != previous or previous == self.decoding.blank_id) and p != self.decoding.blank_id:
                     decoded_prediction.append(p)
                     decoded_timing_list.append(pdx)
                 previous = p
@@ -387,12 +396,12 @@ class ASR_TIMESTAMPS:
         kenlm_model = self.ctc_decoder_params['pretrained_language_model']
         logging.info(f"Loading language model : {self.ctc_decoder_params['pretrained_language_model']}")
 
-        if 'EncDecCTCModel' in str(type(asr_model)):
-            labels = asr_model.decoder.vocabulary
-        elif 'EncDecCTCModelBPE' in str(type(asr_model)):
+        if 'EncDecCTCModelBPE' in str(type(asr_model)):
             vocab = asr_model.tokenizer.tokenizer.get_vocab()
             labels = list(vocab.keys())
             labels[0] = "<unk>"
+        elif 'EncDecCTCModel' in str(type(asr_model)):
+            labels = asr_model.decoder.vocabulary
         else:
             raise ValueError(f"Cannot find a vocabulary or tokenizer for: {self.params['self.ASR_model_name']}")
 
@@ -411,9 +420,9 @@ class ASR_TIMESTAMPS:
 
         Returns:
             words_dict (dict):
-                Dictionary of the sequence of words from hypothesis.
+                Dictionary containing the sequence of words from hypothesis.
             word_ts_dict (dict):
-                Dictionary of the time-stamps of words.
+                Dictionary containing the time-stamps of words.
         """
         words_dict, word_ts_dict = {}, {}
 
@@ -466,15 +475,15 @@ class ASR_TIMESTAMPS:
 
         Args:
             trans (list):
-                List of character output (str).
+                List containing the character output (str).
             char_ts (list):
-                List of timestamps (int) for each character.
+                List containing the timestamps (int) for each character.
 
         Returns:
             trans (list):
-                List of the cleaned character output.
+                List containing the cleaned character output.
             char_ts (list):
-                List of the cleaned timestamps for each character.
+                List containing the cleaned timestamps for each character.
         """
         assert (len(trans) > 0) and (len(char_ts) > 0)
         assert len(trans) == len(char_ts)
@@ -495,33 +504,36 @@ class ASR_TIMESTAMPS:
 
         Args:
             trans (list):
-                List of character output (str).
+                List containing the character output (str).
             char_ts (list):
-                List of timestamps of the characters.
+                List containing the timestamps of the characters.
             time_stride (float):
                 The size of stride of the model in second.
 
         Returns:
             spaces_in_sec (list):
-                List of the ranges of spaces
+                List containing the ranges of spaces
             word_list (list):
-                List of the words from ASR inference.
+                List containing the words from ASR inference.
         """
+        blank = ' '
+        spaces_in_sec, word_list = [], []
+        stt_idx = 0
         assert (len(trans) > 0) and (len(char_ts) > 0), "Transcript and char_ts length should not be 0."
         assert len(trans) == len(char_ts), "Transcript and timestamp lengths do not match."
 
-        spaces_in_sec, word_list = [], []
-        stt_idx = 0
+        # If there is a blank, update the time stamps of the space and the word.
         for k, s in enumerate(trans):
-            if s == ' ':
+            if s == blank:
                 spaces_in_sec.append(
                     [round(char_ts[k] * time_stride, 2), round((char_ts[k + 1] - 1) * time_stride, 2)]
                 )
                 word_list.append(trans[stt_idx:k])
                 stt_idx = k + 1
-        if len(trans) > stt_idx and trans[stt_idx] != ' ':
-            word_list.append(trans[stt_idx:])
 
+        # Add the last word
+        if len(trans) > stt_idx and trans[stt_idx] != blank:
+            word_list.append(trans[stt_idx:])
         return spaces_in_sec, word_list
 
     def run_ASR_CitriNet_CTC(self, asr_model: Type[EncDecCTCModelBPE]) -> Tuple[Dict, Dict]:
@@ -534,9 +546,9 @@ class ASR_TIMESTAMPS:
 
         Returns:
             words_dict (dict):
-                Dictionary of the sequence of words from hypothesis.
+                Dictionary containing the sequence of words from hypothesis.
             word_ts_dict (dict):
-                Dictionary of the timestamps of hypothesis words.
+                Dictionary containing the timestamps of hypothesis words.
         """
         words_dict, word_ts_dict = {}, {}
 
@@ -614,9 +626,9 @@ class ASR_TIMESTAMPS:
 
         Returns:
             words_dict (dict):
-                Dictionary of the sequence of words from hypothesis.
+                Dictionary containing the sequence of words from hypothesis.
             word_ts_dict (dict):
-                Dictionary of the time-stamps of words.
+                Dictionary containing the time-stamps of words.
         """
         torch.manual_seed(0)
         torch.set_grad_enabled(False)
@@ -693,18 +705,26 @@ class ASR_TIMESTAMPS:
 
         Returns:
             word_timestamps (list):
-                List of the timestamps for the resulting words.
+                List containing the timestamps for the resulting words.
         """
+        end_stamp = min(end_stamp, (char_ts[-1] + 2))
         start_stamp_in_sec = round(char_ts[0] * self.model_stride_in_secs, 2)
         end_stamp_in_sec = round(end_stamp * self.model_stride_in_secs, 2)
-        word_timetamps_middle = [
-            [round(spaces_in_sec[k][1], 2), round(spaces_in_sec[k + 1][0], 2),] for k in range(len(spaces_in_sec) - 1)
-        ]
-        word_timestamps = (
-            [[start_stamp_in_sec, round(spaces_in_sec[0][0], 2)]]
-            + word_timetamps_middle
-            + [[round(spaces_in_sec[-1][1], 2), end_stamp_in_sec]]
-        )
+
+        # In case of one word output with no space information.
+        if len(spaces_in_sec) == 0:
+            word_timestamps = [[start_stamp_in_sec, end_stamp_in_sec]]
+        elif len(spaces_in_sec) > 0:
+            # word_timetamps_middle should be an empty list if len(spaces_in_sec) == 1.
+            word_timetamps_middle = [
+                [round(spaces_in_sec[k][1], 2), round(spaces_in_sec[k + 1][0], 2),]
+                for k in range(len(spaces_in_sec) - 1)
+            ]
+            word_timestamps = (
+                [[start_stamp_in_sec, round(spaces_in_sec[0][0], 2)]]
+                + word_timetamps_middle
+                + [[round(spaces_in_sec[-1][1], 2), end_stamp_in_sec]]
+            )
         return word_timestamps
 
     def run_pyctcdecode(
@@ -722,9 +742,9 @@ class ASR_TIMESTAMPS:
                 The beam width parameter for beam search decodring.
         Returns:
             hyp_words (list):
-                List of words in the hypothesis.
+                List containing the words in the hypothesis.
             word_ts (list):
-                List of word timestamps from the decoder.
+                List containing the word timestamps from the decoder.
         """
         beams = self.beam_search_decoder.decode_beams(logprob, beam_width=self.ctc_decoder_params['beam_width'])
         word_ts_beam, words_beam = [], []

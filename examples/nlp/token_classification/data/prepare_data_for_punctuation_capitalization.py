@@ -53,9 +53,9 @@ The **labels.txt** file contains corresponding labels for each word in text.txt,
 Each label in labels.txt file consists of 2 symbols:
 
 * the first symbol of the label indicates what punctuation mark should follow the word (where O means no punctuation needed);
-* the second symbol determines if a word needs to be capitalized or not (where U indicates that the word should be upper cased, and O - no capitalization needed.)
+* the second symbol determines if a word needs to be capitalized or not (where U indicates that the word should be upper-cased, and O - no capitalization needed.)
 
-By default the following punctuation marks are considered: commas, periods, and question marks; the rest punctuation marks were removed from the data.
+By default, the following punctuation marks are considered: commas, periods, and question marks; the rest punctuation marks were removed from the data.
 This can be changed by introducing new labels in the labels.txt files
 
 Each line of the labels.txt should follow the format: [LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (for labels.txt). \
@@ -88,12 +88,21 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Prepare data for punctuation and capitalization tasks')
     parser.add_argument("-s", "--source_file", required=True, type=str, help="Path to the source file")
     parser.add_argument("-o", "--output_dir", required=True, type=str, help="Path to the output directory")
+    parser.add_argument(
+        "-p",
+        "--marks",
+        required=False,
+        type=str,
+        help="Punctuation marks to consider for dataset",
+        default=[",", ".", "?"],
+        nargs="+",
+    )
     args = parser.parse_args()
 
     if not os.path.exists(args.source_file):
         raise ValueError(f'{args.source_file} was not found')
 
     os.makedirs(args.output_dir, exist_ok=True)
-    create_text_and_labels(args.output_dir, args.source_file)
+    create_text_and_labels(args.output_dir, args.source_file, "".join(args.marks))
 
     print(f'Processing of the {args.source_file} is complete')

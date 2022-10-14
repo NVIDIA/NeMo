@@ -28,11 +28,9 @@
 
 import argparse
 import logging
-import os
 import sys
 
 import pytorch_lightning as pl
-import torch
 from omegaconf import OmegaConf, open_dict
 
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
@@ -88,7 +86,7 @@ def nemo_convert(argv):
         num_nodes=1,
         # Need to set the following two to False as ExpManager will take care of them differently.
         logger=False,
-        checkpoint_callback=False,
+        enable_checkpointing=False,
     )
     trainer = pl.Trainer(cfg_trainer)
 

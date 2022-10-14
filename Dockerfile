@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:22.04-py3
+ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:22.09-py3
 
 
 # build an image that includes only the nemo dependencies, ensures that dependencies
@@ -32,16 +32,20 @@ RUN apt-get update && \
     python-dev ffmpeg && \
     rm -rf /var/lib/apt/lists/*
 
+# FIXME a workaround to update apex. Remove when base image is updated
+WORKDIR /tmp/
+RUN git clone https://github.com/NVIDIA/apex.git && \
+    cd apex && \
+    git checkout 3c19f1061879394f28272a99a7ea26d58f72dace && \
+    pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" ./
+
 # uninstall stuff from base container
 RUN pip uninstall -y sacrebleu torchtext
 
-# build torchaudio (change latest release version to match pytorch)
+# build torchaudio
 WORKDIR /tmp/torchaudio_build
-RUN git clone --depth 1 --branch release/0.11 https://github.com/pytorch/audio.git && \
-    cd audio && \
-    git submodule update --init --recursive && \
-    BUILD_SOX=1 python setup.py install && \
-    cd .. && rm -r audio
+COPY scripts/installers /tmp/torchaudio_build/scripts/installers/
+RUN /bin/bash /tmp/torchaudio_build/scripts/installers/install_torchaudio_latest.sh
 
 #install TRT tools: PT quantization support and ONNX graph optimizer
 WORKDIR /tmp/trt_build
@@ -56,9 +60,13 @@ WORKDIR /tmp/nemo
 COPY requirements .
 RUN for f in $(ls requirements*.txt); do pip install --disable-pip-version-check --no-cache-dir -r $f; done
 
+# install pynini
+COPY nemo_text_processing/install_pynini.sh /tmp/nemo/
+RUN /bin/bash /tmp/nemo/install_pynini.sh
+
 # install k2, skip if installation fails
 COPY scripts /tmp/nemo/scripts/
-RUN /bin/bash /tmp/nemo/scripts/speech_recognition/k2/setup.sh; exit 0
+RUN /bin/bash /tmp/nemo/scripts/speech_recognition/k2/setup.sh || exit 0
 
 # copy nemo source into a scratch image
 FROM scratch as nemo-src
@@ -66,7 +74,7 @@ COPY . .
 
 # start building the final container
 FROM nemo-deps as nemo
-ARG NEMO_VERSION=1.10.0
+ARG NEMO_VERSION=1.13.0
 
 # Check that NEMO_VERSION is set. Build will fail without this. Expose NEMO and base container
 # version information as runtime environment variable for introspection purposes

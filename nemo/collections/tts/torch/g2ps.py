@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -293,3 +293,6 @@ class IPAG2p(BaseG2p):
         g2p_text = re.sub(_whitespace_re, ' ', g2p_text[0])
 
         return g2p_text
+# TODO (xueyang): deprecate this file since no other places import modules from here anymore. However,
+#  all checkpoints uploaded in ngc used this path. So it requires to update all ngc checkpoints g2p path as well.
+from nemo_text_processing.g2p.modules import IPAG2P, BaseG2p, EnglishG2p

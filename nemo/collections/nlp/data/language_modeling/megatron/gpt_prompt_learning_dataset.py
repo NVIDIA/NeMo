@@ -13,6 +13,8 @@
 # limitations under the License.
 
 import json
+import os
+import pickle
 
 import torch
 from tqdm.auto import tqdm
@@ -20,7 +22,7 @@ from tqdm.auto import tqdm
 from nemo.collections.nlp.modules.common import VirtualPromptSource
 from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
 from nemo.core import Dataset
-from nemo.utils import logging
+from nemo.utils import AppState, logging
 
 __all__ = ['GPTPromptLearningDataset']
 
@@ -28,21 +30,38 @@ __all__ = ['GPTPromptLearningDataset']
 class GPTPromptLearningDataset(Dataset):
     """
     The dataset class for prompt-tuning or p-tuning pretrained GPT models.
+    
+    Args:
+        data (list[strings], list[dicts]): (1) paths to .jsonl or .json files, (2) dict objects corresponding to each input example
+        tokenizer (tokenizer): Tokenizer from frozen language model
+        virtual_prompt_source (Enum): Either VirtualPromptSource.PROMPT_TABLE or VirtualPromptSource.PROMPT_ENCODER
+        task_templates (dict): Dictionary containing all task template information needed to format prompts. Created in the GPTPromptLearningModel class.
+        pseudo_tokens (list[strings]): A list of virtual prompt token placeholders e.g [<prompt_1>, <prompt_2>, ...] up to max num virtual tokens
+        pad_token_id (int): ID of pad token from tokenizer
+        max_seq_length (int): maximum sequence length for each dataset examples. Examples will either be truncated to fit this length or dropped if they cannot be truncated.
+        min_seq_length (int): min length of each data example in the dataset. Data examples will be dropped if they do not meet the min length requirements. 
+        add_bos (bool): Whether to add a beginning of sentence token to each data example
+        add_eos (bool): Whether to add an end of sentence token to each data example
+        for_train (bool): Whether you're creating a dataset for training or inference
+        tokens_to_generate (int): (inference only) Number of tokens to generate during inference
     """
 
     def __init__(
         self,
-        datasets,
+        data,
         tokenizer,
         virtual_prompt_source: VirtualPromptSource,
         task_templates: dict,
         pseudo_tokens,
-        pad_token_id: str,
+        pad_token_id: int,
         max_seq_length: int,
         min_seq_length: int = 1,
         add_bos: bool = False,
         add_eos: bool = True,
         for_train: bool = True,
+        tokens_to_generate=None,
+        cache_data_path: str = None,  # the cache file
+        load_cache: bool = True,  # whether to load from the cache if it is available
     ):
         self.tokenizer = tokenizer
         self.virtual_prompt_source = virtual_prompt_source
@@ -57,22 +76,38 @@ class GPTPromptLearningDataset(Dataset):
         self.for_train = for_train
         self.examples = []
 
+        if not self.for_train:
+            self.tokens_to_generate = tokens_to_generate
+
         assert self.min_seq_length <= max_seq_length, "Min sequence length should be less than or equal to max"
         assert self.max_seq_length > 0, "Max sequence length should be greater than 0"
 
         logging.info("Loading and tokenizing dataset ... ")
 
-        # Datasets is just a list of json dicts
-        if isinstance(datasets[0], dict):
-            self.load_data(datasets)
-
-        # Datasets are a list of file path strings to .json or .jsonl files
-        elif isinstance(datasets[0], str):
-            for path in datasets:
-                dataset = open(path, 'r', encoding='utf-8')
-                self.load_data(dataset)
+        if load_cache and cache_data_path is not None and os.path.exists(cache_data_path):
+            # load it from the cache
+            logging.info(f'load the data from the cache file {cache_data_path}')
+            with open(cache_data_path, 'rb') as f:
+                self.examples = pickle.load(f)
         else:
-            raise ValueError("Datasets must be a list of dicts or a list of filepath strings")
+            # Data is just a list of dicts already loaded from a json file or passed in directly as a dict
+            if isinstance(data[0], dict):
+                self.load_data(data)
+
+            # Datasets are a list of file path strings to .json or .jsonl files
+            elif isinstance(data[0], str):
+                for path in data:
+                    dataset = open(path, 'r', encoding='utf-8')
+                    self.load_data(dataset)
+            else:
+                raise ValueError("Datasets must be a list of filepath strings or a list of data example dicts")
+            if cache_data_path is not None:
+                # the first worker save the results into the cache file
+                app_state = AppState()
+                if app_state._global_rank == 0:
+                    with open(cache_data_path, 'wb') as f:
+                        pickle.dump(self.examples, f)
+                    logging.info(f'save the data to the cache file {cache_data_path}')
 
     def load_data(self, dataset):
         """
@@ -140,6 +175,11 @@ class GPTPromptLearningDataset(Dataset):
                 elif self.virtual_prompt_source == VirtualPromptSource.PROMPT_TABLE:
                     taskname_id = self.task_templates[taskname]["task_id_num"]
 
+                elif self.virtual_prompt_source == VirtualPromptSource.NO_PROMPT:
+                    taskname_id = -1
+                else:
+                    raise ValueError("Invalid virtual prompt source specified")
+
                 # Find answer field indices if training and answer_only_loss is True
                 answer_start_idx = None
                 if answer_only_loss and self.for_train:
@@ -163,7 +203,6 @@ class GPTPromptLearningDataset(Dataset):
         doc,
     ):
         # Sanity check amount of virtual token
-        assert total_virtual_tokens > 0, "There should be at least one virtual prompt token"
         assert (
             total_virtual_tokens < self.max_seq_length
         ), "virtual prompt tokens should not exceed max sequence length"
@@ -184,7 +223,7 @@ class GPTPromptLearningDataset(Dataset):
             len(keys_not_in_template) == 0
         ), f"Examples in your dataset contain the fields: {keys_not_in_template} that are not in the task template."
 
-        # Check that answer field checks if answer_only_loss was set to True
+        # Answer field checks
         if answer_only_loss and self.for_train:
             assert answer_field is not None, "If answer_only_loss=True, an answer_field must be given"
             assert (
@@ -278,9 +317,8 @@ class GPTPromptLearningDataset(Dataset):
     def __getitem__(self, idx):
         return self.examples[idx]
 
-    def collate_fn(self, batch):
+    def collate_fn(self, batch, tp_workers=0):
         """ Prepares input_ids, labels, loss mask, attention_mask, and position ids for global batch """
-        # Get max sequence length of batch
         taskname_ids, input_ids, answer_starts = zip(*batch)
 
         # Pad taskname_ids to be the same length for the prompt encoder
@@ -290,12 +328,19 @@ class GPTPromptLearningDataset(Dataset):
             taskname_ids = torch.tensor(taskname_ids)
 
         # Task ids are just used for a look up embeddings for prompt-table
-        elif self.virtual_prompt_source == VirtualPromptSource.PROMPT_TABLE:
+        elif self.virtual_prompt_source in [VirtualPromptSource.PROMPT_TABLE, VirtualPromptSource.NO_PROMPT]:
             taskname_ids = torch.tensor(taskname_ids)
 
+        # Get max sequence length of batch
         batch_max = max(len(ids) for ids in input_ids)
-        input_ids, loss_mask = self.pad_batch_and_build_loss_mask(input_ids, batch_max, answer_starts)
 
+        if tp_workers > 1:
+            # more sure the sequence length is multiply of number of tp_workers, needed for sequence parallel.
+            resi_padding = (tp_workers - (batch_max - 1) % tp_workers) % tp_workers
+        else:
+            resi_padding = 0
+        batch_max += resi_padding
+        input_ids, loss_mask = self.pad_batch_and_build_loss_mask(input_ids, batch_max, answer_starts)
         # Should be a label for every token in batch, label is the next token
         labels = input_ids[:, 1:].contiguous()
         input_ids = input_ids[:, :-1].contiguous()
@@ -342,15 +387,15 @@ class GPTPromptLearningDataset(Dataset):
 
         return input_ids, batch_loss_masks
 
-    def get_all_examples(self, tokens_to_generate):
+    def inference_collate_fn(self, batch):
         """
         Used for loading inference data. 
         """
-        task_id_nums, input_ids, answer_starts = zip(*self.examples)
+        task_id_nums, input_ids, answer_starts = zip(*batch)
         input_lengths = torch.cuda.LongTensor([len(inputs) for inputs in input_ids])
         task_id_nums = torch.cuda.LongTensor(task_id_nums)
         batch_max = input_lengths.max().item()
-        batch_max += tokens_to_generate
+        batch_max += self.tokens_to_generate
 
         input_ids, _ = self.pad_batch_and_build_loss_mask(input_ids, batch_max, answer_starts)
         input_ids = input_ids.cuda()

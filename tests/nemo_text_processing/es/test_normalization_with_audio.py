@@ -13,10 +13,16 @@
 # limitations under the License.
 
 import pytest
-from nemo_text_processing.text_normalization.normalize_with_audio import NormalizerWithAudio
 from parameterized import parameterized
 
-from ..utils import CACHE_DIR, PYNINI_AVAILABLE, get_test_cases_multiple
+from ..utils import CACHE_DIR, get_test_cases_multiple
+
+try:
+    from nemo_text_processing.text_normalization.normalize_with_audio import NormalizerWithAudio
+
+    PYNINI_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    PYNINI_AVAILABLE = False
 
 
 class TestNormalizeWithAudio:
@@ -29,7 +35,8 @@ class TestNormalizeWithAudio:
 
     @parameterized.expand(get_test_cases_multiple('es/data_text_normalization/test_cases_normalize_with_audio.txt'))
     @pytest.mark.skipif(
-        not PYNINI_AVAILABLE, reason="`pynini` not installed, please install via nemo_text_processing/setup.sh"
+        not PYNINI_AVAILABLE,
+        reason="`pynini` not installed, please install via nemo_text_processing/pynini_install.sh",
     )
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
