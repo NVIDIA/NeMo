@@ -608,7 +608,6 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             loss_mean = torch.tensor(0.0).cuda()
 
         return loss_mean
-
     def training_step(self, batch, batch_idx):
         # we zero grads here because we also call backward in the apex fwd/bwd functions
         self._optimizer.zero_grad()
