@@ -89,12 +89,14 @@ extras_require = {
     'cv': req_file("requirements_cv.txt"),
     'nlp': req_file("requirements_nlp.txt"),
     'tts': req_file("requirements_tts.txt") + req_file("requirements_torch_tts.txt"),
+    'slu': req_file("requirements_slu.txt"),
 }
 
 
 extras_require['all'] = list(chain(extras_require.values()))
 
 # Add lightning requirements as needed
+extras_require['nemo_text_processing'] = list(chain([extras_require['nemo_text_processing'], extras_require['core']]))
 extras_require['common'] = list(chain([extras_require['common'], extras_require['core']]))
 extras_require['test'] = list(
     chain(
@@ -131,6 +133,8 @@ extras_require['tts'] = list(
 
 # TTS has extra dependencies
 extras_require['tts'] = list(chain([extras_require['tts'], extras_require['asr']]))
+
+extras_require['slu'] = list(chain([extras_require['slu'], extras_require['asr']]))
 
 tests_requirements = extras_require["test"]
 
