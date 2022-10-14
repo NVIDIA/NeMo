@@ -126,6 +126,19 @@ pipeline {
       }
     }
 
+    stage('L0: Unit Tests Speech Dataset Processor') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      steps {
+        sh 'pip install -r tools/speech_dataset_processor/requirements.txt'
+        sh 'cd tools/speech_dataset_processor && CUDA_VISIBLE_DEVICES="" pytest tests -m "not pleasefixme"'
+      }
+    }
+
     stage('L0: TN/ITN Tests CPU') {
       when {
         anyOf {
@@ -228,6 +241,20 @@ pipeline {
             trainer.devices=[0] \
             trainer.accelerator="gpu" \
             +trainer.fast_dev_run=True \
+            exp_manager.exp_dir=examples/asr/speech_to_text_results'
+            sh 'rm -rf examples/asr/speech_to_text_results'
+          }
+        }
+
+        stage('Speech to Text EMA') {
+          steps {
+            sh 'python examples/asr/asr_ctc/speech_to_text_ctc.py \
+            model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+            model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+            trainer.devices=2 \
+            trainer.accelerator="gpu" \
+            +trainer.fast_dev_run=True \
+            +exp_manager.ema.enable=True \
             exp_manager.exp_dir=examples/asr/speech_to_text_results'
             sh 'rm -rf examples/asr/speech_to_text_results'
           }
