@@ -51,7 +51,7 @@ class BaseTokenizer(abc.ABC):
             # use add_blank_at=None only for ASR where blank is added automatically, disable blank here
             self.blank = None
 
-        self.oov, tokens = len(tokens), tokens + [oov]  # Out Of Vocabulary
+        self.oov, tokens = len(tokens), tokens# + [oov]  # Out Of Vocabulary
 
         if add_blank_at == "last":
             tokens[-1], tokens[-2] = tokens[-2], tokens[-1]
@@ -377,7 +377,7 @@ class IPAPhonemesTokenizer(BaseTokenizer):
     PAD = '_'
     # fmt: on
 
-    _punctuation = ';:,.!?¡¿—…"«»“” '
+    _punctuation = ';:,.!?¡¿—…"«»“”'
     _letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
     _letters_ipa = "ɑɐɒæɓʙβɔɕçɗɖðʤəɘɚɛɜɝɞɟʄɡɠɢʛɦɧħɥʜɨɪʝɭɬɫɮʟɱɯɰŋɳɲɴøɵɸθœɶʘɹɺɾɻʀʁɽʂʃʈʧʉʊʋⱱʌɣɤʍχʎʏʑʐʒʔʡʕʢǀǁǂǃˈˌːˑʼʴʰʱʲʷˠˤ˞↓↑→↗↘'̩'ᵻ"
 
