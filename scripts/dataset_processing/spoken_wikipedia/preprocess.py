@@ -25,7 +25,6 @@ from collections import defaultdict
 import sox
 from sox import Transformer
 
-
 parser = argparse.ArgumentParser()
 parser.add_argument(
     "--input_folder", required=True, type=str, help="Input folder in which each subfolder contains an article"
