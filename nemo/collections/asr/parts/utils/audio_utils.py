@@ -16,6 +16,7 @@ from typing import Iterable, Optional, Union
 
 import librosa
 import numpy as np
+import soundfile as sf
 import numpy.typing as npt
 from scipy.spatial.distance import pdist, squareform
 
@@ -24,6 +25,28 @@ from nemo.utils import logging
 SOUND_VELOCITY = 343.0  # m/s
 ChannelSelectorType = Union[int, Iterable[int], str]
 
+def get_samples(audio_file: str, target_sr: int = 16000):
+    """
+    Read the samples from the given audio_file path. If not specified, the input audio file is automatically
+    resampled to 16kHz.
+
+    Args:
+        audio_file (str):
+            Path to the input audio file
+        target_sr (int):
+            Targeted sampling rate
+    Returns:
+        samples (numpy.ndarray):
+            Time-series sample data from the given audio file
+    """
+    with sf.SoundFile(audio_file, 'r') as f:
+        sample_rate = f.samplerate
+        samples = f.read()
+        if sample_rate != target_sr:
+            samples = librosa.core.resample(samples, orig_sr=sample_rate, target_sr=target_sr)
+        samples = samples.transpose()
+        del f
+    return samples
 
 def select_channels(signal: npt.NDArray, channel_selector: Optional[ChannelSelectorType] = None) -> npt.NDArray:
     """

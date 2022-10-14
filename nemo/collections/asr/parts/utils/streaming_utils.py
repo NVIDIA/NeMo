@@ -15,15 +15,14 @@
 import copy
 import os
 
-import librosa
 import numpy as np
-import soundfile as sf
 import torch
 from omegaconf import OmegaConf
 from torch.utils.data import DataLoader
 
 from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
 from nemo.collections.asr.parts.mixins.streaming import StreamingEncoder
+from nemo.collections.asr.parts.utils.audio_utils import get_samples
 from nemo.collections.asr.parts.preprocessing.features import normalize_batch
 from nemo.core.classes import IterableDataset
 from nemo.core.neural_types import LengthsType, NeuralType
@@ -440,31 +439,6 @@ class AudioBuffersDataLayer(IterableDataset):
 
     def __len__(self):
         return 1
-
-
-def get_samples(audio_file: str, target_sr: int = 16000):
-    """
-    Read the samples from the given audio_file path. If not specified, the input audio file is automatically
-    resampled to 16KHz.
-
-    Args:
-        audio_file (str):
-            Path to the input audio file
-        target_sr (int):
-            Targeted sampling rate
-    Returns:
-        samples (numpy.ndarray):
-            Time-series sample data from the given audio file
-    """
-    with sf.SoundFile(audio_file, 'r') as f:
-        sample_rate = f.samplerate
-        samples = f.read()
-        if sample_rate != target_sr:
-            samples = librosa.core.resample(samples, orig_sr=sample_rate, target_sr=target_sr)
-        samples = samples.transpose()
-        del f
-    return samples
-
 
 class FeatureFrameBufferer:
     """
