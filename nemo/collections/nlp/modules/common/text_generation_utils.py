@@ -14,6 +14,7 @@
 
 """Utilities for generating text."""
 
+import numpy as np
 import torch
 import torch.nn.functional as F
 
@@ -22,7 +23,6 @@ from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_an
 from nemo.collections.nlp.modules.common.text_generation_strategy import model_inference_strategy_dispatcher
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, OutputType, SamplingParam
 from nemo.utils import AppState
-import numpy as np
 
 try:
     from apex.transformer import parallel_state, tensor_parallel
@@ -211,10 +211,11 @@ def repetition_penalty(logits, repetition_penalty, used_tokens):
         logits = torch.scatter(logits, 1, used_tokens, logits_update / repetition_penalty)
     return logits
 
+
 def get_model_parallel_src_rank():
     """Calculate the global rank corresponding to the first local rank
     in the model parallel group."""
-    process_rank = torch.distributed.get_rank() 
+    process_rank = torch.distributed.get_rank()
     world_size = torch.distributed.get_world_size()
     all_ranks = np.arange(world_size)
     tp_size = parallel_state.get_tensor_model_parallel_world_size()
@@ -223,6 +224,7 @@ def get_model_parallel_src_rank():
     all_ranks = all_ranks.reshape(pp_size, -1, tp_size)
     dp_rank = parallel_state.get_data_parallel_rank()
     return all_ranks[:, dp_rank, :].min()
+
 
 def send_generate_info(
     context_tokens_tensor,
