@@ -5,7 +5,7 @@ run:
   model_train_name: gpt3_5b
   task_name: "squad"
   ia3_learning_dir: ${base_results_dir}/${.model_train_name}/ia3_learning_squad # assume prompt learning was on squad task
-  results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}_eval
+  results_dir: ${base_results_dir}/${.model_train_name}/ia3_learning_${.task_name}_eval
 
 trainer:
   devices: ${divide_ceil:${evaluation.model_parallel_size}, ${.num_nodes}}
