@@ -49,12 +49,12 @@ def main(cfg):
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
 
     # ASR inference for words and word timestamps
-    asr_ts_decoder = ASR_TIMESTAMPS(**cfg.diarizer)
+    asr_ts_decoder = ASR_TIMESTAMPS(cfg.diarizer)
     asr_model = asr_ts_decoder.set_asr_model()
     word_hyp, word_ts_hyp = asr_ts_decoder.run_ASR(asr_model)
 
     # Create a class instance for matching ASR and diarization results
-    asr_diar_offline = ASR_DIAR_OFFLINE(**cfg.diarizer)
+    asr_diar_offline = ASR_DIAR_OFFLINE(cfg.diarizer)
     asr_diar_offline.word_ts_anchor_offset = asr_ts_decoder.word_ts_anchor_offset
 
     # Diarization inference for speaker labels
@@ -62,12 +62,10 @@ def main(cfg):
     total_riva_dict = asr_diar_offline.get_transcript_with_speaker_labels(diar_hyp, word_hyp, word_ts_hyp)
 
     if diar_score is not None:
-
         metric, mapping_dict = diar_score
         DER_result_dict = asr_diar_offline.gather_eval_results(metric, mapping_dict, total_riva_dict)
-        WDER_dict = asr_diar_offline.get_WDER(total_riva_dict, DER_result_dict)
-        asr_diar_offline.print_errors(DER_result_dict, WDER_dict)
-
+        session_result_dict = asr_diar_offline.get_cpWER(total_riva_dict)
+        asr_diar_offline.print_errors(DER_result_dict, session_result_dict)
 
 if __name__ == '__main__':
     main()
