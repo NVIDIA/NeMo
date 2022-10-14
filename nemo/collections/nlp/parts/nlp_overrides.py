@@ -51,6 +51,16 @@ except (ImportError, ModuleNotFoundError):
 
     HAVE_APEX = False
 
+HAVE_APEX_DISTRIBUTED_ADAM = False
+if HAVE_APEX:
+    try:
+        from apex.contrib.optimizers.distributed_fused_adam import DistributedFusedAdam
+
+        HAVE_APEX_DISTRIBUTED_ADAM = True
+
+    except (ImportError, ModuleNotFoundError):
+        pass
+
 
 class NLPDDPStrategy(DDPStrategy):
     """ DDP plugin for Pytorch Lightning. Needed to customize DDP for model parallel models.
@@ -419,6 +429,12 @@ class GradScaler(torch.cuda.amp.GradScaler):
         self.optimizer_update_skipped: Optional[bool] = None
         self.hysteresis = hysteresis
         self._hysteresis_tracker = self.hysteresis
+
+    def unscale_(self, optimizer):
+        if HAVE_APEX_DISTRIBUTED_ADAM and isinstance(optimizer, DistributedFusedAdam) and self._enabled:
+            assert self._scale is not None
+            optimizer._grad_scale /= self._scale.view([])
+        super().unscale_(optimizer)
 
     def _maybe_opt_step(self, optimizer, optimizer_state, *args, **kwargs):
         retval = None
