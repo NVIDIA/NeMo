@@ -100,10 +100,7 @@ class StepTimingParams:
 @dataclass
 class EMAParams:
     enable: Optional[bool] = False
-    evaluate_ema_weights_instead: Optional[bool] = False
     decay: Optional[float] = 0.999
-    apply_ema_every_n_steps: Optional[int] = 1
-    start_step: Optional[int] = 0
 
 
 @dataclass
@@ -357,12 +354,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         trainer.callbacks.insert(0, timing_callback)
 
     if cfg.ema.enable:
-        ema_callback = EMA(
-            decay=cfg.ema.decay,
-            apply_ema_every_n_steps=cfg.ema.apply_ema_every_n_steps,
-            start_step=cfg.ema.start_step,
-            evaluate_ema_weights_instead=cfg.ema.evaluate_ema_weights_instead,
-        )
+        ema_callback = EMA(decay=cfg.ema.decay,)
         trainer.callbacks.append(ema_callback)
 
     if cfg.create_checkpoint_callback:

@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,25 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os.path
-import warnings
-from typing import Any, Dict, List, Optional
+import contextlib
+import copy
+import threading
 
 import pytorch_lightning as pl
 import torch
 from pytorch_lightning import Callback
-from pytorch_lightning.utilities import rank_zero_warn
 from pytorch_lightning.utilities.exceptions import MisconfigurationException
-from pytorch_lightning.utilities.types import STEP_OUTPUT
-
-from nemo.utils import logging
-
-try:
-    import amp_C
-
-    apex_available = True
-except Exception:
-    apex_available = False
 
 
 class EMA(Callback):
@@ -42,143 +31,188 @@ class EMA(Callback):
 
     Args:
         decay: The exponential decay used when calculating the moving average. Has to be between 0-1.
-        apply_ema_every_n_steps: Apply EMA every n global steps.
-        start_step: Start applying EMA from ``start_step`` global step onwards.
-        evaluate_ema_weights_instead: Validate the EMA weights instead of the original weights.
-            Note this means that when saving the model, the validation metrics are calculated with the EMA weights.
-        save_ema_weights_in_callback_state: Enable saving ema weights in callback state.
-            This is not required when using NeMo as the experiment manager handles saving weights.
     """
 
-    def __init__(
-        self,
-        decay: float,
-        apply_ema_every_n_steps: int = 1,
-        start_step: int = 0,
-        save_ema_weights_in_callback_state: bool = False,
-        evaluate_ema_weights_instead: bool = False,
-    ):
-        if not apex_available:
-            rank_zero_warn(
-                "EMA has better performance when Apex is installed: https://github.com/NVIDIA/apex#installation."
-            )
+    def __init__(self, decay: float):
         if not (0 <= decay <= 1):
             raise MisconfigurationException("EMA decay value must be between 0 and 1")
-        self._ema_model_weights: Optional[List[torch.Tensor]] = None
-        self._overflow_buf: Optional[torch.Tensor] = None
-        self._cur_step: Optional[int] = None
-        self._weights_buffer: Optional[List[torch.Tensor]] = None
-        self.apply_ema_every_n_steps = apply_ema_every_n_steps
-        self.start_step = start_step
-        self.save_ema_weights_in_callback_state = save_ema_weights_in_callback_state
-        self.evaluate_ema_weights_instead = evaluate_ema_weights_instead
         self.decay = decay
 
     def on_train_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
-        logging.info('Creating EMA weights copy.')
-        if self._ema_model_weights is None:
-            self._ema_model_weights = [p.detach().clone() for p in pl_module.state_dict().values()]
-        # ensure that all the weights are on the correct device
-        self._ema_model_weights = [p.to(pl_module.device) for p in self._ema_model_weights]
-        self._overflow_buf = torch.IntTensor([0]).to(pl_module.device)
+        trainer.optimizers = [
+            EMAOptimizer(optim, device=pl_module.device, decay=self.decay) for optim in trainer.optimizers
+        ]
 
-    def ema(self, pl_module: "pl.LightningModule") -> None:
-        if apex_available and pl_module.device.type == "cuda":
-            return self.apply_multi_tensor_ema(pl_module)
-        return self.apply_ema(pl_module)
 
-    def apply_multi_tensor_ema(self, pl_module: "pl.LightningModule") -> None:
-        model_weights = list(pl_module.state_dict().values())
-        amp_C.multi_tensor_axpby(
-            65536,  # todo (sean): chunk size, should we expose?
-            self._overflow_buf,
-            [self._ema_model_weights, model_weights, self._ema_model_weights],
-            self.decay,
-            1 - self.decay,
-            -1,
-        )
+@torch.no_grad()
+def ema_update(ema_model_tuple, current_model_tuple, decay):
+    torch._foreach_mul_(ema_model_tuple, decay)
+    torch._foreach_add_(
+        ema_model_tuple, current_model_tuple, alpha=(1.0 - decay),
+    )
 
-    def apply_ema(self, pl_module: "pl.LightningModule") -> None:
-        for orig_weight, ema_weight in zip(list(pl_module.state_dict().values()), self._ema_model_weights):
-            diff = ema_weight.data - orig_weight.data
-            diff.mul_(1.0 - self.decay)
-            ema_weight.sub_(diff)
 
-    def should_apply_ema(self, step: int) -> bool:
-        return step != self._cur_step and step >= self.start_step and step % self.apply_ema_every_n_steps == 0
+def run_ema_update_cpu(ema_model_tuple, current_model_tuple, decay, pre_sync_stream=None):
+    if pre_sync_stream is not None:
+        pre_sync_stream.synchronize()
 
-    def on_train_batch_end(
-        self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", outputs: STEP_OUTPUT, batch: Any, batch_idx: int
-    ) -> None:
-        if self.should_apply_ema(trainer.global_step):
-            self._cur_step = trainer.global_step
-            self.ema(pl_module)
+    ema_update(ema_model_tuple, current_model_tuple, decay)
 
-    def state_dict(self) -> Dict[str, Any]:
-        if self.save_ema_weights_in_callback_state:
-            return dict(cur_step=self._cur_step, ema_weights=self._ema_model_weights)
-        return dict(cur_step=self._cur_step)
 
-    def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
-        self._cur_step = state_dict['cur_step']
-        # when loading using NeMo, ema weights will be loaded by the experiment manager separately.
-        if self._ema_model_weights is None:
-            self._ema_model_weights = state_dict.get('ema_weights')
+class EMAOptimizer(torch.optim.Optimizer):
+    r"""
+    EMAOptimizer is a wrapper for torch.optim.Optimizer that computes
+    Exponential Moving Average of parameters registered in the optimizer.
 
-    def on_load_checkpoint(
-        self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", checkpoint: Dict[str, Any]
-    ) -> None:
-        checkpoint_callback = trainer.checkpoint_callback
+    EMA parameters are automatically updated after every step of the optimizer
+    with the following formula:
 
-        if trainer.ckpt_path and checkpoint_callback is not None and 'NeMo' in type(checkpoint_callback).__name__:
-            ext = checkpoint_callback.FILE_EXTENSION
-            if trainer.ckpt_path.endswith(f'-EMA{ext}'):
-                logging.info(
-                    "loading EMA based weights. "
-                    "The callback will treat the loaded EMA weights as the main weights"
-                    " and create a new EMA copy when training."
-                )
-                return
-            ema_path = trainer.ckpt_path.replace(ext, f'-EMA{ext}')
-            if os.path.exists(ema_path):
-                ema_state_dict = torch.load(ema_path, map_location=torch.device('cpu'))
-                self._ema_model_weights = ema_state_dict['state_dict'].values()
-                del ema_state_dict
-                logging.info("EMA weights have been loaded successfully. Continuing training with saved EMA weights.")
-            else:
-                warnings.warn(
-                    "we were unable to find the associated EMA weights when re-loading, "
-                    "training will start with new EMA weights.",
-                    UserWarning,
-                )
+        ema_weight = decay * ema_weight + (1 - decay) * training_weight
 
-    def replace_model_weights(self, pl_module: "pl.LightningModule") -> None:
-        self._weights_buffer = [p.detach().clone().to('cpu') for p in pl_module.state_dict().values()]
-        new_state_dict = {k: v for k, v in zip(pl_module.state_dict().keys(), self._ema_model_weights)}
-        pl_module.load_state_dict(new_state_dict)
+    To access EMA parameters, use ``swap_ema_weights()`` context manager to
+    perform a temporary in-place swap of regular parameters with EMA
+    parameters.
 
-    def restore_original_weights(self, pl_module: "pl.LightningModule") -> None:
-        state_dict = pl_module.state_dict()
-        new_state_dict = {k: v for k, v in zip(state_dict.keys(), self._weights_buffer)}
-        pl_module.load_state_dict(new_state_dict)
-        del self._weights_buffer
+    Notes:
+        - EMAOptimizer is not compatible with APEX AMP O2.
 
-    @property
-    def ema_initialized(self) -> bool:
-        return self._ema_model_weights is not None
+    Args:
+        optimizer (torch.optim.Optimizer): optimizer to wrap
+        device (torch.device): device for EMA parameters
+        decay (float): decay factor
 
-    def on_validation_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
-        if self.ema_initialized and self.evaluate_ema_weights_instead:
-            self.replace_model_weights(pl_module)
+    Returns:
+        returns an instance of torch.optim.Optimizer that computes EMA of
+        parameters
 
-    def on_validation_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
-        if self.ema_initialized and self.evaluate_ema_weights_instead:
-            self.restore_original_weights(pl_module)
+    Example:
+        model = Model().to(device)
+        opt = torch.optim.Adam(model.parameters())
 
-    def on_test_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
-        if self.ema_initialized and self.evaluate_ema_weights_instead:
-            self.replace_model_weights(pl_module)
+        opt = EMAOptimizer(opt, device, 0.9999)
 
-    def on_test_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
-        if self.ema_initialized and self.evaluate_ema_weights_instead:
-            self.restore_original_weights(pl_module)
+        for epoch in range(epochs):
+            training_loop(model, opt)
+
+            regular_eval_accuracy = evaluate(model)
+
+            with opt.swap_ema_weights():
+                ema_eval_accuracy = evaluate(model)
+    """
+
+    def __init__(
+        self, optimizer: torch.optim.Optimizer, device: torch.device, decay: float = 0.9999,
+    ):
+        self.optimizer = optimizer
+        self.decay = decay
+        self.device = device
+
+        self.first_iteration = True
+        self.rebuild_ema_params = True
+        self.stream = None
+        self.thread = None
+
+        self.ema_params = ()
+
+    def all_parameters(self):
+        return (param for group in self.param_groups for param in group['params'])
+
+    def step(self, closure=None):
+        self.join()
+
+        if self.first_iteration:
+            if any(p.is_cuda for p in self.all_parameters()):
+                self.stream = torch.cuda.Stream()
+
+            self.first_iteration = False
+
+        if self.rebuild_ema_params:
+            opt_params = list(self.all_parameters())
+
+            self.ema_params += tuple(
+                copy.deepcopy(param.data.detach()).to(self.device) for param in opt_params[len(self.ema_params) :]
+            )
+            self.rebuild_ema_params = False
+
+        loss = self.optimizer.step(closure)
+
+        self.update()
+        return loss
+
+    @torch.no_grad()
+    def update(self):
+        if self.stream is not None:
+            self.stream.wait_stream(torch.cuda.current_stream())
+
+        with torch.cuda.stream(self.stream):
+            current_model_state = tuple(
+                param.data.to(self.device, non_blocking=True) for param in self.all_parameters()
+            )
+
+            if self.device.type == 'cuda':
+                ema_update(self.ema_params, current_model_state, self.decay)
+
+        if self.device.type == 'cpu':
+            self.thread = threading.Thread(
+                target=run_ema_update_cpu, args=(self.ema_params, current_model_state, self.decay, self.stream,),
+            )
+            self.thread.start()
+
+    @contextlib.contextmanager
+    def swap_ema_weights(self, enabled: bool = True):
+        r"""
+        A context manager to in-place swap regular parameters with EMA
+        parameters.
+        It swaps back to the original regular parameters on context manager
+        exit.
+
+        Args:
+            enabled (bool): whether the swap should be performed
+        """
+
+        def swap_tensors(tensor1, tensor2):
+            tmp = torch.empty_like(tensor1)
+            tmp.copy_(tensor1)
+            tensor1.copy_(tensor2)
+            tensor2.copy_(tmp)
+
+        if enabled:
+            self.join()
+
+            for param, ema_param in zip(self.all_parameters(), self.ema_params):
+                swap_tensors(param.data, ema_param)
+        try:
+            yield
+        finally:
+            if enabled:
+                for param, ema_param in zip(self.all_parameters(), self.ema_params):
+                    swap_tensors(param.data, ema_param)
+
+    def __getattr__(self, name):
+        return getattr(self.optimizer, name)
+
+    def join(self):
+        if self.stream is not None:
+            self.stream.synchronize()
+
+        if self.thread is not None:
+            self.thread.join()
+
+    def state_dict(self):
+        self.join()
+
+        state_dict = {
+            'opt': self.optimizer.state_dict(),
+            'ema': self.ema_params,
+        }
+        return state_dict
+
+    def load_state_dict(self, state_dict):
+        self.join()
+
+        self.optimizer.load_state_dict(state_dict['opt'])
+        self.ema_params = tuple(param.to(self.device) for param in copy.deepcopy(state_dict['ema']))
+
+    def add_param_group(self, param_group):
+        self.optimizer.add_param_group(param_group)
+        self.rebuild_ema_params = True
