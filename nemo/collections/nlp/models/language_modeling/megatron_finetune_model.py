@@ -331,7 +331,10 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                 idx = ids.index(tokenizer.eos_id)
                 ids = ids[:idx]
 
-            if len(tokenizer.text_to_ids(T5Sentinel.END.value)) == 1 and tokenizer.text_to_ids(T5Sentinel.END.value)[0] in ids:
+            if (
+                len(tokenizer.text_to_ids(T5Sentinel.END.value)) == 1
+                and tokenizer.text_to_ids(T5Sentinel.END.value)[0] in ids
+            ):
                 idx = ids.index(tokenizer.text_to_ids(T5Sentinel.END.value)[0])
                 ids = ids[:idx]
 
