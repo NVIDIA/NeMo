@@ -1040,7 +1040,7 @@ class VitsDataset(Dataset):
                     item = json.loads(line)
 
                     file_info = {
-                        "audio_filepath": item["audio_filepath"],
+                        "audio_filepath": "../" + item["audio_filepath"],
                         "original_text": item["text"],
                         "mel_filepath": item["mel_filepath"] if "mel_filepath" in item else None,
                         "duration": item["duration"] if "duration" in item else None,
