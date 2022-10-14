@@ -16,14 +16,15 @@ from typing import Iterable, Optional, Union
 
 import librosa
 import numpy as np
-import soundfile as sf
 import numpy.typing as npt
+import soundfile as sf
 from scipy.spatial.distance import pdist, squareform
 
 from nemo.utils import logging
 
 SOUND_VELOCITY = 343.0  # m/s
 ChannelSelectorType = Union[int, Iterable[int], str]
+
 
 def get_samples(audio_file: str, target_sr: int = 16000):
     """
@@ -47,6 +48,7 @@ def get_samples(audio_file: str, target_sr: int = 16000):
         samples = samples.transpose()
         del f
     return samples
+
 
 def select_channels(signal: npt.NDArray, channel_selector: Optional[ChannelSelectorType] = None) -> npt.NDArray:
     """

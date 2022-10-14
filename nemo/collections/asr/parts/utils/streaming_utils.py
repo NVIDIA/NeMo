@@ -22,8 +22,8 @@ from torch.utils.data import DataLoader
 
 from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
 from nemo.collections.asr.parts.mixins.streaming import StreamingEncoder
-from nemo.collections.asr.parts.utils.audio_utils import get_samples
 from nemo.collections.asr.parts.preprocessing.features import normalize_batch
+from nemo.collections.asr.parts.utils.audio_utils import get_samples
 from nemo.core.classes import IterableDataset
 from nemo.core.neural_types import LengthsType, NeuralType
 
@@ -439,6 +439,7 @@ class AudioBuffersDataLayer(IterableDataset):
 
     def __len__(self):
         return 1
+
 
 class FeatureFrameBufferer:
     """
