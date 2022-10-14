@@ -21,7 +21,7 @@ from nemo.collections.common.data import ConcatMapDataset
 from nemo.collections.common.metrics import MetricStringToTorchMetric
 from nemo.collections.common.metrics.classification_accuracy import ExactStringPerCategoryMatchMetric
 from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import SequenceToSequenceDataset
-from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
+from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model, T5Sentinel
 from nemo.collections.nlp.parts.nlp_overrides import GlobalBatchDataFetcher
 from nemo.utils import AppState, logging
 
@@ -331,8 +331,8 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                 idx = ids.index(tokenizer.eos_id)
                 ids = ids[:idx]
 
-            if len(tokenizer.text_to_ids('<extra_id_1>')) == 1 and tokenizer.text_to_ids('<extra_id_1>')[0] in ids:
-                idx = ids.index(tokenizer.text_to_ids('<extra_id_1>')[0])
+            if len(tokenizer.text_to_ids(T5Sentinel.END.value)) == 1 and tokenizer.text_to_ids(T5Sentinel.END.value)[0] in ids:
+                idx = ids.index(tokenizer.text_to_ids(T5Sentinel.END.value)[0])
                 ids = ids[:idx]
 
             # Legacy sentencepiece detokenization still preserves special tokens which messes up exact string match.

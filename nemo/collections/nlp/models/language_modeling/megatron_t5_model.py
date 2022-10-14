@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import enum
 import math
 
 from omegaconf.dictconfig import DictConfig
@@ -24,6 +25,11 @@ from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_m
 from nemo.utils import logging
 
 __all__ = ["MegatronT5Model"]
+
+
+class T5Sentinel(enum.Enum):
+    FIRST = '<extra_id_0>'
+    END = '<extra_id_1>'
 
 
 class MegatronT5Model(MegatronLMEncoderDecoderModel):

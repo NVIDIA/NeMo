@@ -37,8 +37,8 @@ List of Huggingface models that this script can covert:
 
 Use instructions:
 
-python hf_t5_to_nemo_coverter.py \
-    --hf_model_name google/ul2 \
+python hf_t5-v1_1_to_nemo.py \
+    --hf_model_name bigscience/T0pp \
     --nemo_state_dict /path/to/nemo_state_dict.pt \
     --nemo_file_path /path/to/nemo_file.nemo
 """
