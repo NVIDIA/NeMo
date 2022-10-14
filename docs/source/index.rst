@@ -34,6 +34,7 @@ NVIDIA NeMo User Guide
    asr/speaker_recognition/intro
    asr/speaker_diarization/intro
    asr/ssl/intro
+   asr/speech_intent_slot/intro
 
 .. toctree::
    :maxdepth: 3
@@ -48,11 +49,9 @@ NVIDIA NeMo User Guide
    
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Text To Speech
+   :maxdepth: 1
+   :caption: Text To Speech (TTS)
    :name: Text To Speech
-   :includehidden:
-   :titlesonly:
 
    tts/intro
 

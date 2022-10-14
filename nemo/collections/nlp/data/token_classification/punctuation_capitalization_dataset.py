@@ -663,6 +663,7 @@ def _get_features(
     create_progress_process = progress_queue is None
     if n_jobs is None:
         n_jobs = min(mp.cpu_count(), len(queries))
+
     if verbose:
         logging.info(f"Running tokenization with {n_jobs} jobs.")
 
@@ -981,6 +982,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
             .. warning::
                 There can be deadlocking problems with some tokenizers (e.g. SentencePiece, HuggingFace AlBERT)
                 if ``n_jobs > 0``.
+
         number_of_batches_is_multiple_of (:obj:`int`, `optional`, defaults to :obj:`1`): number of batches in the
             dataset is made divisible by ``number_of_batches_is_multiple_of``. If ``number_of_batches_is_multiple_of``
             is greater than 1, then several batches are split in parts until number of batches

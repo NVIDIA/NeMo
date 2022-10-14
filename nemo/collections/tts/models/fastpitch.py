@@ -453,10 +453,10 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         mel_loss = collect("mel_loss")
         dur_loss = collect("dur_loss")
         pitch_loss = collect("pitch_loss")
-        self.log("v_loss", val_loss)
-        self.log("v_mel_loss", mel_loss)
-        self.log("v_dur_loss", dur_loss)
-        self.log("v_pitch_loss", pitch_loss)
+        self.log("val_loss", val_loss)
+        self.log("val_mel_loss", mel_loss)
+        self.log("val_dur_loss", dur_loss)
+        self.log("val_pitch_loss", pitch_loss)
 
         _, _, _, _, spec_target, spec_predict = outputs[0].values()
 
@@ -671,6 +671,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
     ):
         """
         This method performs speaker interpolation between two original speakers the model is trained on.
+
         Inputs:
             original_speaker_1: Integer speaker ID of first existing speaker in the model
             original_speaker_2: Integer speaker ID of second existing speaker in the model
