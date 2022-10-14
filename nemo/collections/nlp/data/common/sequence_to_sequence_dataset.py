@@ -18,6 +18,7 @@ import numpy as np
 import torch
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import deallocate_indexed_dataset_memory
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import (
     get_indexed_dataset_,
     get_samples_mapping,
@@ -282,6 +283,9 @@ class TextMemmapSequenceToSequenceDataset(IndexedSequenceToSequenceDataset):
         ), "src and tgt has different number of lines"
         self._build_samples_mapping()
 
+        # Deallocate memory only for the target dataset. src dataset memory is deallocated in _build_samples_mapping
+        deallocate_indexed_dataset_memory(self.tgt_indexed_dataset)
+
 
 class BinarizedMemmapSequenceToSequenceDataset(IndexedSequenceToSequenceDataset):
     """Memory-mapped text sequence to sequence dataset. Operates pre-tokenized binarized data files."""
@@ -341,6 +345,9 @@ class BinarizedMemmapSequenceToSequenceDataset(IndexedSequenceToSequenceDataset)
         )
         assert len(self.src_indexed_dataset) == len(self.tgt_indexed_dataset)
         self._build_samples_mapping()
+
+        # Deallocate memory only for the target dataset. src dataset memory is deallocated in _build_samples_mapping
+        deallocate_indexed_dataset_memory(self.tgt_indexed_dataset)
 
     def _get_indexed_dataset(self, data_prefix, data_impl, skip_warmup):
         indexed_dataset = get_indexed_dataset_(data_prefix, data_impl, skip_warmup)
