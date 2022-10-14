@@ -14,6 +14,8 @@
 
 import collections
 import os
+import tempfile
+import urllib.request
 from typing import List
 
 import pandas as pd
@@ -21,6 +23,16 @@ from sdp.processors.base_processor import DataEntry
 from sdp.processors.modify_manifest.modify_manifest import ModifyManifestTextProcessor
 
 from nemo.utils import logging
+
+NUMERAL_DATA_DOWNLOAD_PATH = (
+    "https://github.com/NVIDIA/NeMo/releases/download/v1.0.0rc1/1-100_roman_numeral_table_spanish.csv"
+)
+
+
+def download_numeral_data(tgt_path):
+    urllib.request.urlretrieve(NUMERAL_DATA_DOWNLOAD_PATH, tgt_path)
+
+    return None
 
 
 class CleanRomanNumerals(ModifyManifestTextProcessor):
@@ -31,10 +43,12 @@ class CleanRomanNumerals(ModifyManifestTextProcessor):
         ordinal_masc_triggers,
         ordinal_fem_triggers,
         cardinal_triggers,
+        numerals_data_path=None,
         save_changes_in=None,
         **kwargs,
     ):
         super().__init__(**kwargs)
+        self.numerals_data_path = numerals_data_path
         self.king_triggers = king_triggers
         self.queen_triggers = queen_triggers
         self.ordinal_masc_triggers = ordinal_masc_triggers
@@ -42,9 +56,15 @@ class CleanRomanNumerals(ModifyManifestTextProcessor):
         self.cardinal_triggers = cardinal_triggers
 
         # read csv
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        csv_path = os.path.join(current_dir, "1-100_roman_numeral_table.csv")
-        df = pd.read_csv(csv_path, sep="\t", index_col=0)
+        if self.numerals_data_path:
+            if not os.path.isfile(self.numerals_data_path):
+                download_numeral_data(self.numerals_data_path)
+                df = pd.read_csv(self.numerals_data_path, sep="\t", index_col=0)
+        else:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                temp_file = os.path.join(temp_dir, "temporary_numeral_data_download.csv")
+                download_numeral_data(temp_file)
+                df = pd.read_csv(temp_file, sep="\t", index_col=0)
 
         self.roman_numeral_to_ordinal_masc = {}
         for i, row in df.iterrows():
