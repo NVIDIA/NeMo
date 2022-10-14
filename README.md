@@ -280,7 +280,7 @@ Figure 1: The GPT-3 family architecture. The 5B variant includes 24 transformer 
 | NVIDIA Triton           | 2.24.0           |
 | FasterTransformer       | v5.1+1c70b45c    |
 | PyTorch                 | 1.13.0a0+d321be6 |
-| NeMo                    | 1.12.0+b51ab59   |
+| NeMo                    | 1.12.0+bc643c7   |
 | PyTorch Lightning       | 1.7.6            |
 | Hydra                   | 1.1.1            |
 | CUDA                    | NVIDIA CUDA 11.7 |
@@ -1596,7 +1596,7 @@ bignlp_scripts_path: ${bignlp_hp_tool_path}/../bignlp-scripts  # Path to the loc
 data_dir: ${bignlp_scripts_path}/data
 base_results_dir: ${bignlp_hp_tool_path}/results
 
-training_container: nvcr.io/ea-bignlp/ea-participants-kt/bignlp-training:22.09.rc1-py3
+training_container: nvcr.io/ea-bignlp/bignlp-training:22.09-py3
 container_mounts:
     - null
 
@@ -4658,10 +4658,8 @@ Inference parameters:
 **NeMo Megatron 22.09**
 * Cloud service providers: support for Oracle Cloud Infrastructure (performance validated up to 32 `8x NVIDIA A100` instances)
 * P-Tuning and Prompt Tuning for T5 and mT5 with pipeline parallelism (training only)
-* Adapter learning for GPT-3 with tensor parallelism and pipeline parallelism (training only)
-* Adapter learning and T5 with tensor parallelism (training only)
-* IA3 learning for GPT-3 with tensor parallelism and pipeline parallelism (training only)
-* IA3 learning for T5 with tensor parallelism (training only)
+* Adapter learning for GPT-3 and T5 with tensor parallelism and pipeline parallelism (training only)
+* IA3 learning for GPT-3 and T5 with tensor parallelism and pipeline parallelism (training only)
 * Hyperparameter tool to find the highest throughput configs for training on Base Command Platform
 
 **NeMo Megatron 22.08.01**
@@ -4738,3 +4736,4 @@ Fixes for the following issues will be released shortly:
 * For running inference on BCP please use the NeMo Megatron 22.03 inference container
 * The fine-tuning SQuAD results for T5 are lower than expected
 * The external server that is hosting the Pile dataset is currently not available. NeMo Megatron stack has been tested with the following version of the Pile: https://the-eye.eu/public/AI/pile/SHA256SUMS.txt
+* In the event of CUDA initialization error in prompt learning, please set `num_workers=0`.
