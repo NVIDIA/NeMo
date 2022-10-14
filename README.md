@@ -4735,5 +4735,4 @@ Fixes for the following issues will be released shortly:
 * Accuracy and performance measurement for GPT-3 is currently not supported. Please use the NeMo Megatron 22.05 inference container to use this feature
 * For running inference on BCP please use the NeMo Megatron 22.03 inference container
 * The fine-tuning SQuAD results for T5 are lower than expected
-* The external server that is hosting the Pile dataset is currently not available. NeMo Megatron stack has been tested with the following version of the Pile: https://the-eye.eu/public/AI/pile/SHA256SUMS.txt
 * In the event of CUDA initialization error in prompt learning, please set `num_workers=0`.
