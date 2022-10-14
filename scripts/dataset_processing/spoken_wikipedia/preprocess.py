@@ -15,15 +15,31 @@
 
 """
 This script can be used to preprocess Spoken Wikipedia corpus before running ctc-segmentation.
+The input folder consists of subfolders with following stricture
+  ├── <Name of Wikipedia article>
+  │   ├── aligned.swc
+  │   ├── audiometa.txt
+  │   ├── audio.ogg
+  │   ├── info.json
+  │   ├── wiki.html
+  │   ├── wiki.txt
+  │   └── wiki.xml
+
+
+## The destination folder will contain look enumerated .ogg and .txt files like this:
+  ├── audio
+  |   ├── 1.ogg
+  |   ├── 2.ogg
+  |   ...
+  └── text
+      ├── 1.txt     
+      ├── 2.txt     
+      ...
 """
 
 import argparse
 import os
 import re
-from collections import defaultdict
-
-import sox
-from sox import Transformer
 
 
 parser = argparse.ArgumentParser()
@@ -56,11 +72,14 @@ def replace_diacritics(text):
     return text
 
 
-n = 0
-duration = 0.0
-for name in os.listdir(args.input_folder):
-    n += 1
+def get_audio(name, n):
+    """
+    Copies .ogg file. If there are several .ogg files, concatenates them.
 
+    Args:
+        name - name of folder within Spoken Wikipedia
+        n - integer that will serve as output file name, e.g. if n=1, file 1.ogg will be created  
+    """
     audio_path = os.path.join(args.input_folder, name, "audio.ogg")
     if not os.path.exists(audio_path):
         ##  Some folders have multiple .ogg files, so we need to first combine them into one file. Example:
@@ -84,7 +103,7 @@ for name in os.listdir(args.input_folder):
             else:
                 break
         if len(multiple_ogg_files) == 0:
-            continue
+            return
         elif len(multiple_ogg_files) == 1:
             os.system("cp " + multiple_ogg_files[0] + " " + audio_path)
         else:
@@ -97,21 +116,18 @@ for name in os.listdir(args.input_folder):
             print("cmd=", cmd)
             os.system(cmd)
 
-    # Then we need to convert .ogg to .wav
-    output_wav_path = args.destination_folder + "/audio/" + str(n) + ".wav"
-    tfm = Transformer()
-    tfm.rate(samplerate=16000)
-    tfm.channels(n_channels=1)
-    if not os.path.exists(args.input_folder + "/" + name + "/wiki.txt"):
-        print("wiki.txt does not exist in " + name)
-        continue
-    try:
-        tfm.build(input_filepath=audio_path, output_filepath=output_wav_path)
-        duration += sox.file_info.duration(output_wav_path)
-    except Exception as e:
-        print("Error in sox: " + name)
-        print(e)
-        continue
+    output_audio_path = args.destination_folder + "/audio/" + str(n) + ".ogg"
+    os.system("cp " + audio_path + " " + output_audio_path)
+
+
+def get_text(name, n):
+    """
+    Cleans wiki.txt.
+
+    Args:
+        name - name of folder within Spoken Wikipedia
+        n - integer that will serve as output file name, e.g. if n=1, file 1.txt will be created  
+    """
 
     # Then we need to clean the text
     out_text = open(args.destination_folder + "/text/" + str(n) + ".txt", "w", encoding="utf-8")
@@ -174,3 +190,15 @@ for name in os.listdir(args.input_folder):
             if do_break:
                 break
     out_text.close()
+
+
+if __name__ == "__main__":
+    n = 0
+    for name in os.listdir(args.input_folder):
+        n += 1
+
+        if not os.path.exists(args.input_folder + "/" + name + "/wiki.txt"):
+            print("wiki.txt does not exist in " + name)
+            continue
+        get_audio(name, n)
+        get_text(name, n)

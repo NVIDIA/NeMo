@@ -15,7 +15,23 @@
 # limitations under the License.
 
 ## Download the Spoken Wikipedia corpus for English
-## Note, that there are some other other languages available
+## Note, that there are some other languages available
+## @InProceedings{KHN16.518,
+##  author = {Arne K{\"o}hn and Florian Stegen and Timo Baumann},
+##  title = {Mining the Spoken Wikipedia for Speech Data and Beyond},
+##  booktitle = {Proceedings of the Tenth International Conference on Language Resources and Evaluation (LREC 2016)},
+##  year = {2016},
+##  month = {may},
+##  date = {23-28},
+##  location = {Portorož, Slovenia},
+##  editor = {Nicoletta Calzolari (Conference Chair) and Khalid Choukri and Thierry Declerck and Marko Grobelnik and Bente Maegaard and Joseph Mariani and Asuncion Moreno and Jan Odijk and Stelios Piperidis},
+##  publisher = {European Language Resources Association (ELRA)},
+##  address = {Paris, France},
+##  isbn = {978-2-9517408-9-1},
+##  islrn = {684-927-624-257-3/},
+##  language = {english}
+## }
+
 wget https://corpora.uni-hamburg.de/hzsk/de/islandora/object/file:swc-2.0_en-with-audio/datastream/TAR/en-with-audio.tar .
 tar -xvf en-with-audio.tar
 
@@ -46,7 +62,7 @@ tar -xvf en-with-audio.tar
 
 ## Some rare folders are incomplete, these will be skipped during preprocessing.
 
-## path to NeMo repository, e.g. /home/user/nemo
+## path to NeMo repository, e.g. /home/user/NeMo
 NEMO_PATH=
 
 INPUT_DIR="english"
@@ -61,8 +77,8 @@ python ${NEMO_PATH}/scripts/dataset_processing/spoken_wikipedia/preprocess.py --
 
 ## Now we have ${INPUT_DIR}_prepared folder with the following structure:
 ##  ├── audio
-##  |   ├── 1.wav
-##  |   ├── 2.wav
+##  |   ├── 1.ogg
+##  |   ├── 2.ogg
 ##  |   ...
 ##  └── text
 ##      ├── 1.txt     
