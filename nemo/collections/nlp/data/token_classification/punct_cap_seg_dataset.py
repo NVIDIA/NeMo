@@ -255,7 +255,7 @@ class PunctCapSegDataset(Dataset):
             punct_post_targets[i, : lengths[i], :] = punct_post_targets_list[i]
             punct_pre_targets[i, : lengths[i], :] = punct_pre_targets_list[i]
 
-        return (input_ids, punct_pre_targets, punct_post_targets, cap_targets, seg_targets, lengths)
+        return input_ids, punct_pre_targets, punct_post_targets, cap_targets, seg_targets, lengths
 
     def _collate_fn_multipass(self, batch):
         punct_inputs = [x[0] for x in batch]
@@ -558,8 +558,6 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
         punct_pre_labels: List of punctuation tokens that can appear before subwords.
         punct_post_labels: List of punctuation tokens that can appear after subwords.
         tokenizer: TokenizerSpec to use to tokenize the data. Can be set later.
-        cleaners: List of one or more implementation of a :class:``TextCleaner``. Will be applied to each input line in
-            the order the cleaners are specified.
         null_label: The string value of the "null" token, or the token that means "no punctuation here".
         max_length: Maximum length of any input.
         prob_drop_punct: Drop punctuation tokens with this probability. 1.0 => drop all, 0.0 -> drop none.
@@ -746,6 +744,9 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
             cap_seg_ids = cap_seg_ids[: self._max_length - 2]
             seg_targets = seg_targets[: self._max_length - 2]
             cap_targets = cap_targets[: self._max_length - 2]
+            cap_seg_tokens = cap_seg_tokens[: self._max_length - 2]
+        # Targeting final token as sentence boundary is not useful. Ignore it.
+        seg_targets[-1] = self._target_pad_value
         # Add BOS/EOS and target padding for those tokens.
         cap_seg_ids = [bos] + cap_seg_ids + [eos]
         seg_targets = [pad] + seg_targets + [pad]
@@ -770,6 +771,11 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
             # One pass: all use the same inputs
             punct_tokens = cap_seg_tokens
             punct_input_text = recased_cap_seg_text
+            # Truncate punctuation as we previously did the tokens
+            if len(punct_tokens) + 2 > self._max_length:
+                punct_tokens = punct_tokens[: self._max_length - 2]
+                punct_pre_target_indices = punct_pre_target_indices[: self._max_length - 2]
+                punct_post_target_indices = punct_post_target_indices[: self._max_length - 2]
         punct_oov_lengths = self._find_oov_lengths(punct_input_text)
         punct_pre_targets = self._fold_indices_to_targets(punct_tokens, punct_pre_target_indices, punct_oov_lengths)
         punct_post_targets = self._fold_indices_to_targets(punct_tokens, punct_post_target_indices, punct_oov_lengths)
