@@ -66,9 +66,8 @@ LibriTTS
 
     $ python scripts/dataset_processing/tts/libritts/get_data.py \
         --data-root <your_local_dataset_root> \
-        --manifests-path <your_manifest_store_path> \
-        --val-size 0.01 \
-        --test-size 0.01
+        --data-sets "ALL"
+        --num-workers 4
 
     $ python scripts/dataset_processing/tts/extract_sup_data.py \
         --config-path ljspeech/ds_conf \
