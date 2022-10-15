@@ -13,28 +13,28 @@
 # limitations under the License.
 
 import abc
+import json
+import threading
 import time
 from typing import List, Union
 
 import faiss
 import numpy as np
+import requests
 import torch
+from flask import Flask, jsonify, request
+from flask_restful import Api, Resource
 from sentence_transformers import SentenceTransformer
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_dataset import MMapRetrievalIndexedDataset
-import torch
-from flask import Flask, jsonify, request
-from flask_restful import Api, Resource
 from nemo.utils import logging
-import threading
-import json
-import requests
 
 lock = threading.Lock()
 headers = {"Content-Type": "application/json"}
 
 PORT_NUM = 17179
+
 
 class RetrievalService:
     @abc.abstractmethod
@@ -44,14 +44,7 @@ class RetrievalService:
 
 class FaissRetrievalResource(Resource):
     def __init__(
-        self,
-        neighbors,
-        index,
-        bert_model,
-        tokenizer,
-        ds, 
-        pool,
-        sentence_bert_batch,
+        self, neighbors, index, bert_model, tokenizer, ds, pool, sentence_bert_batch,
     ):
         # server
         self.neighbors = neighbors
@@ -61,7 +54,6 @@ class FaissRetrievalResource(Resource):
         self.ds = ds
         self.pool = pool
         self.sentence_bert_batch = sentence_bert_batch
-
 
     def put(self):
         # logging.info("request IP: " + str(request.remote_addr))
@@ -100,17 +92,19 @@ class FaissRetrievalResource(Resource):
             return results[0]
         return np.stack(results, axis=0).astype(np.int64)
 
+
 class RetrievalServer(object):
-    def __init__(self,     
-                 faiss_index: str,
-                 faiss_devices: str,
-                 nprobe: int,
-                 retrieval_index: str,
-                 tokenizer: TokenizerSpec,
-                 sentence_bert: str = 'all-mpnet-base-v2',
-                 sentence_bert_batch: int = 4,
-                 neighbors: int = 4,
-                 ):
+    def __init__(
+        self,
+        faiss_index: str,
+        faiss_devices: str,
+        nprobe: int,
+        retrieval_index: str,
+        tokenizer: TokenizerSpec,
+        sentence_bert: str = 'all-mpnet-base-v2',
+        sentence_bert_batch: int = 4,
+        neighbors: int = 4,
+    ):
         self.app = Flask(__name__, static_url_path='')
         # server
         self.neighbors = neighbors
@@ -138,10 +132,23 @@ class RetrievalServer(object):
         self.pool = self.bert_model.start_multi_process_pool(device_list)
         self.sentence_bert_batch = sentence_bert_batch
         api = Api(self.app)
-        api.add_resource(FaissRetrievalResource, '/knn', resource_class_args=[self.neighbors, self.index, self.bert_model, self.tokenizer, self.ds, self.pool, self.sentence_bert_batch])
+        api.add_resource(
+            FaissRetrievalResource,
+            '/knn',
+            resource_class_args=[
+                self.neighbors,
+                self.index,
+                self.bert_model,
+                self.tokenizer,
+                self.ds,
+                self.pool,
+                self.sentence_bert_batch,
+            ],
+        )
 
     def run(self, url, port=PORT_NUM):
         threading.Thread(target=lambda: self.app.run(host=url, threaded=True, port=port)).start()
+
 
 # class OnTheFlyFaissRetrievalService(RetrievalService):
 #     def __init__(
@@ -212,9 +219,11 @@ class RetrievalServer(object):
 #         return np.stack(results, axis=0).astype(np.int64)
 #
 
+
 def request_data(data):
     resp = requests.put('http://localhost:{}/knn'.format(PORT_NUM), data=json.dumps(data), headers=headers)
     return resp.json()
+
 
 class FaissRetrievalService(RetrievalService):
     def __init__(
@@ -232,10 +241,18 @@ class FaissRetrievalService(RetrievalService):
         ds = MMapRetrievalIndexedDataset(retrieval_index)
         self.chunk_size = ds.chunk_size
         if torch.distributed.get_rank() == 0:
-            server = RetrievalServer(faiss_index, faiss_devices, nprobe, retrieval_index, tokenizer, sentence_bert, sentence_bert_batch, neighbors)
+            server = RetrievalServer(
+                faiss_index,
+                faiss_devices,
+                nprobe,
+                retrieval_index,
+                tokenizer,
+                sentence_bert,
+                sentence_bert_batch,
+                neighbors,
+            )
             server.run("0.0.0.0")
         torch.distributed.barrier()
-
 
     def get_knn(self, query: Union[List[str], str, torch.Tensor]):
         if isinstance(query, torch.Tensor):
@@ -247,6 +264,7 @@ class FaissRetrievalService(RetrievalService):
         result = request_data(query)
         result = np.array(result)
         return result
+
 
 # class OnTheFlyFaissRetrievalService(RetrievalService):
 #     def __init__(
