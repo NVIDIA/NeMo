@@ -76,7 +76,7 @@ class MLPInfusedAdapter(InfusedAdapter):
 @dataclass
 class InfusedAdapterConfig:
     in_features: int
-    adapter_strategy: Optional[dict] = adapter_mixin_strategies.ResidualAddAdapterStrategyConfig()
+    adapter_strategy: Optional[Any] = adapter_mixin_strategies.ResidualAddAdapterStrategyConfig()
     _target_: str = "{0}.{1}".format(InfusedAdapter.__module__, InfusedAdapter.__name__)
 
 
