@@ -127,16 +127,16 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         if "energy_loss_scale" in cfg:
             energy_loss_scale = cfg.energy_loss_scale
 
-        self.mel_loss = MelLoss()
-        self.pitch_loss = PitchLoss(loss_scale=pitch_loss_scale)
-        self.duration_loss = DurationLoss(loss_scale=dur_loss_scale)
-        self.energy_loss = EnergyLoss(loss_scale=energy_loss_scale)
+        self.mel_loss_fn = MelLoss()
+        self.pitch_loss_fn = PitchLoss(loss_scale=pitch_loss_scale)
+        self.duration_loss_fn = DurationLoss(loss_scale=dur_loss_scale)
+        self.energy_loss_fn = EnergyLoss(loss_scale=energy_loss_scale)
 
         self.aligner = None
         if self.learn_alignment:
             self.aligner = instantiate(self._cfg.alignment_module)
-            self.forward_sum_loss = ForwardSumLoss()
-            self.bin_loss = BinLoss()
+            self.forward_sum_loss_fn = ForwardSumLoss()
+            self.bin_loss_fn = BinLoss()
 
         self.preprocessor = instantiate(self._cfg.preprocessor)
         input_fft = instantiate(self._cfg.input_fft, **input_fft_kwargs)
@@ -382,19 +382,19 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         if durs is None:
             durs = attn_hard_dur
 
-        mel_loss = self.mel_loss(spect_predicted=mels_pred, spect_tgt=mels)
-        dur_loss = self.duration_loss(log_durs_predicted=log_durs_pred, durs_tgt=durs, len=text_lens)
+        mel_loss = self.mel_loss_fn(spect_predicted=mels_pred, spect_tgt=mels)
+        dur_loss = self.duration_loss_fn(log_durs_predicted=log_durs_pred, durs_tgt=durs, len=text_lens)
         loss = mel_loss + dur_loss
         if self.learn_alignment:
-            ctc_loss = self.forward_sum_loss(attn_logprob=attn_logprob, in_lens=text_lens, out_lens=spec_len)
+            ctc_loss = self.forward_sum_loss_fn(attn_logprob=attn_logprob, in_lens=text_lens, out_lens=spec_len)
             bin_loss_weight = min(self.current_epoch / self.bin_loss_warmup_epochs, 1.0) * 1.0
-            bin_loss = self.bin_loss(hard_attention=attn_hard, soft_attention=attn_soft) * bin_loss_weight
+            bin_loss = self.bin_loss_fn(hard_attention=attn_hard, soft_attention=attn_soft) * bin_loss_weight
             loss += ctc_loss + bin_loss
 
-        pitch_loss = self.pitch_loss(pitch_predicted=pitch_pred, pitch_tgt=pitch, len=text_lens)
+        pitch_loss = self.pitch_loss_fn(pitch_predicted=pitch_pred, pitch_tgt=pitch, len=text_lens)
         energy_loss = 0.0
         if energy_tgt is not None:
-            energy_loss = self.energy_loss(energy_predicted=energy_pred, energy_tgt=energy_tgt, len=text_lens)
+            energy_loss = self.energy_loss_fn(energy_predicted=energy_pred, energy_tgt=energy_tgt, len=text_lens)
         loss += pitch_loss + energy_loss
 
         self.log("t_loss", loss)
@@ -481,12 +481,12 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         if durs is None:
             durs = attn_hard_dur
 
-        mel_loss = self.mel_loss(spect_predicted=mels_pred, spect_tgt=mels)
-        dur_loss = self.duration_loss(log_durs_predicted=log_durs_pred, durs_tgt=durs, len=text_lens)
-        pitch_loss = self.pitch_loss(pitch_predicted=pitch_pred, pitch_tgt=pitch, len=text_lens)
+        mel_loss = self.mel_loss_fn(spect_predicted=mels_pred, spect_tgt=mels)
+        dur_loss = self.duration_loss_fn(log_durs_predicted=log_durs_pred, durs_tgt=durs, len=text_lens)
+        pitch_loss = self.pitch_loss_fn(pitch_predicted=pitch_pred, pitch_tgt=pitch, len=text_lens)
         energy_loss = 0.0
         if energy_tgt is not None:
-            energy_loss = self.energy_loss(energy_predicted=energy_pred, energy_tgt=energy_tgt, len=text_lens)
+            energy_loss = self.energy_loss_fn(energy_predicted=energy_pred, energy_tgt=energy_tgt, len=text_lens)
         loss = mel_loss + dur_loss + pitch_loss + energy_loss
 
         return {
