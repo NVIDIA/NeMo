@@ -519,6 +519,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         if outputs[0]["energy_loss"] is not None:
             energy_loss = collect("energy_loss")
             self.log("val_energy_loss", energy_loss)
+
         _, _, _, _, _, spec_target, spec_predict = outputs[0].values()
 
         if isinstance(self.logger, TensorBoardLogger):
