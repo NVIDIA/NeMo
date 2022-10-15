@@ -54,7 +54,8 @@ python train_asr_adapter.py \
     model.validation_ds.batch_size=16 \
     exp_manager.exp_dir="<some directory>" \
     exp_manager.create_wandb_logger=true \
-    exp_manager.wandb_logger_kwargs.project="<Project Name>"
+    exp_manager.wandb_logger_kwargs.project="<Project Name>" \
+    ++delete_ckpt_after_train=True
 
 # Fine-tune a model
 
@@ -78,7 +79,7 @@ For documentation on existing pretrained models, please visit -
 https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/results.html
 
 """
-
+import glob
 import os
 from dataclasses import is_dataclass
 
@@ -229,6 +230,16 @@ def main(cfg):
 
         # Save the adapter modules in a seperate file
         model.save_adapters(str(state_path))
+
+    if 'delete_ckpt_after_train' in cfg:
+        delete_ckpt_after_train = cfg.delete_ckpt_after_train
+        if delete_ckpt_after_train:
+            logging.info("Deleting *.ckpt files after training to preserve storage space...")
+
+            ckpt_files = glob.glob(os.path.join(exp_log_dir, "checkpoints", "*.ckpt"))
+            for filepath in ckpt_files:
+                logging.info(f"Deleting file : {filepath}")
+                os.remove(filepath)
 
 
 if __name__ == '__main__':
