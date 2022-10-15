@@ -20,6 +20,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional, Sequence
+import hashlib
 
 import torch
 from hydra.core.config_store import ConfigStore
@@ -90,7 +91,10 @@ def execute_job(
     script_path = os.path.join(os.getcwd(), sys.argv[0])
     script_path = os.path.abspath(script_path)
 
-    config_dir = os.path.join(os.getcwd(), "hydra_cfg")
+    hash_salt = "|".join([script_path, str(OmegaConf.to_yaml(config))]).encode('utf-8')
+    hash_val = hashlib.sha256(hash_salt).hexdigest()
+
+    config_dir = os.path.join(os.getcwd(), "hydra_cfg", str(hash_val))
     if not os.path.exists(config_dir):
         os.makedirs(config_dir, exist_ok=True)
 
