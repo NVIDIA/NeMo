@@ -383,7 +383,7 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
         del args['pad_tokens']
         self.neighbors = args['neighbors']
         self.service = FaissRetrievalService(tokenizer=self.model.tokenizer, **args)
-        self.chunk_size = self.service.ds.chunk_size
+        self.chunk_size = self.service.chunk_size
 
     def tokenize_batch(self, sentences, max_len, add_BOS):
         """
