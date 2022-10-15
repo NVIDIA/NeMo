@@ -16,6 +16,7 @@ import abc
 import json
 import threading
 import time
+import logging
 from typing import List, Union
 
 import faiss
@@ -28,7 +29,8 @@ from sentence_transformers import SentenceTransformer
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_dataset import MMapRetrievalIndexedDataset
-from nemo.utils import logging
+log = logging.getLogger('werkzeug')
+log.setLevel(logging.ERROR)
 
 lock = threading.Lock()
 headers = {"Content-Type": "application/json"}
