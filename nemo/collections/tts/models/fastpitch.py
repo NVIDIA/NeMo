@@ -492,7 +492,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         dur_loss = self.duration_loss_fn(log_durs_predicted=log_durs_pred, durs_tgt=durs, len=text_lens)
         pitch_loss = self.pitch_loss_fn(pitch_predicted=pitch_pred, pitch_tgt=pitch, len=text_lens)
         energy_loss = 0.0
-        if energy_pred is not None:
+        if energy_tgt is not None:
             energy_loss = self.energy_loss_fn(energy_predicted=energy_pred, energy_tgt=energy_tgt, len=text_lens)
         loss = mel_loss + dur_loss + pitch_loss + energy_loss
 
