@@ -24,10 +24,10 @@ from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
 from nemo.collections.common.parts.preprocessing import parsers
 from nemo.collections.tts.helpers.helpers import plot_alignment_to_numpy, plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
-from nemo.collections.tts.losses.fastpitchloss import DurationLoss, MelLoss, PitchLoss, EnergyLoss
+from nemo.collections.tts.losses.fastpitchloss import DurationLoss, EnergyLoss, MelLoss, PitchLoss
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.modules.fastpitch import FastPitchModule
-from nemo.collections.tts.torch.tts_data_types import SpeakerID, Energy
+from nemo.collections.tts.torch.tts_data_types import Energy, SpeakerID
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import (
@@ -345,8 +345,11 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
     def training_step(self, batch, batch_idx):
         attn_prior, durs, speaker, energy = None, None, None, None
         if self.learn_alignment:
-            if self.ds_class_name == "TTSDataset": 
-                if SpeakerID in self._train_dl.dataset.sup_data_types_set and Energy in self._train_dl.dataset.sup_data_types_set:
+            if self.ds_class_name == "TTSDataset":
+                if (
+                    SpeakerID in self._train_dl.dataset.sup_data_types_set
+                    and Energy in self._train_dl.dataset.sup_data_types_set
+                ):
                     audio, audio_lens, text, text_lens, attn_prior, pitch, _, energy, _, speaker = batch
                 elif Energy in self._train_dl.dataset.sup_data_types_set:
                     audio, audio_lens, text, text_lens, attn_prior, pitch, _, energy, _ = batch
@@ -362,18 +365,18 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         mels, spec_len = self.preprocessor(input_signal=audio, length=audio_lens)
 
         (
-            mels_pred, 
-            _, 
-            _, 
-            log_durs_pred, 
-            pitch_pred, 
-            attn_soft, 
-            attn_logprob, 
-            attn_hard, 
-            attn_hard_dur, 
-            pitch, 
-            energy_pred, 
-            energy_tgt
+            mels_pred,
+            _,
+            _,
+            log_durs_pred,
+            pitch_pred,
+            attn_soft,
+            attn_logprob,
+            attn_hard,
+            attn_hard_dur,
+            pitch,
+            energy_pred,
+            energy_tgt,
         ) = self(
             text=text,
             durs=durs,
@@ -444,7 +447,10 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         attn_prior, durs, speaker, energy = None, None, None, None
         if self.learn_alignment:
             if self.ds_class_name == "TTSDataset":
-                if SpeakerID in self._train_dl.dataset.sup_data_types_set and Energy in self._train_dl.dataset.sup_data_types_set:
+                if (
+                    SpeakerID in self._train_dl.dataset.sup_data_types_set
+                    and Energy in self._train_dl.dataset.sup_data_types_set
+                ):
                     audio, audio_lens, text, text_lens, attn_prior, pitch, _, energy, _, speaker = batch
                 elif Energy in self._train_dl.dataset.sup_data_types_set:
                     audio, audio_lens, text, text_lens, attn_prior, pitch, _, energy, _ = batch
@@ -460,20 +466,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         mels, mel_lens = self.preprocessor(input_signal=audio, length=audio_lens)
 
         # Calculate val loss on ground truth durations to better align L2 loss in time
-        (
-            mels_pred, 
-            _, 
-            _, 
-            log_durs_pred, 
-            pitch_pred, 
-            _, 
-            _, 
-            _, 
-            attn_hard_dur, 
-            pitch, 
-            energy_pred, 
-            energy_tgt,
-        ) = self(
+        (mels_pred, _, _, log_durs_pred, pitch_pred, _, _, _, attn_hard_dur, pitch, energy_pred, energy_tgt,) = self(
             text=text,
             durs=durs,
             pitch=pitch,
