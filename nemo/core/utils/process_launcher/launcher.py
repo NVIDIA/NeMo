@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import copy
+import hashlib
 import os
 import subprocess
 import sys
@@ -20,7 +21,6 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional, Sequence
-import hashlib
 
 import torch
 from hydra.core.config_store import ConfigStore
