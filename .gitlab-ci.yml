@@ -115,7 +115,10 @@ before_script:
     # Clone bignlp-scripts
     - cd ..
     - git clone ssh://git@gitlab-master.nvidia.com:12051/dl/JoC/bignlp-scripts.git
-    - cd bignlp-hp-tool
+    - git clone ssh://git@gitlab-master.nvidia.com:12051/dl/FasterTransformer/FasterTransformer.git
+    - cd FasterTransformer
+    - git checkout destination_for_gpt_utils
+    - cd ../bignlp-hp-tool
     - bash tests/ci_tests/selene/scripts/${RUN_TASK}/${RUN_MODEL}/${RUN_JOB_NAME}.sh
     # Wait for job to launch
     - sleep 10s # Without this, "sacct" in jobstate.sh does not always find the SLURM job.
@@ -344,6 +347,7 @@ train.mt5.170m_40gb_2runs_4nodes:
     RUN_TASK: train
     RUN_MODEL: mt5
     RUN_SIZE: 0.17b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/results"
     GPU_MEM: 40
     RUNS: 2
     NODES: 4
