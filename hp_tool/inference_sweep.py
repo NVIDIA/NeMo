@@ -120,7 +120,7 @@ def generate_start_ids(base_cfg, cfg, bs, destination):
         raise Exception("generate_start_ids.py failed")
 
 
-def generate_submission(base_cfg, cfg, job_name, nodes, tasks_per_node, ini, csv, submission_file):
+def generate_submission(base_cfg, cfg, job_name, nodes, tasks_per_node, ini, csv, submission_file, mounts_str):
     cluster_job_name  = f"{cfg.cluster.job_name_prefix}{job_name}"
     gpus_per_task = cfg.cluster.gpus_per_task 
     gpus_per_node = cfg.cluster.gpus_per_node
@@ -132,9 +132,6 @@ def generate_submission(base_cfg, cfg, job_name, nodes, tasks_per_node, ini, csv
 
     ini_parent = pathlib.Path(ini).parent.as_posix()
     csv_parent = pathlib.Path(csv).parent.as_posix()
-    mounts_str = f"{ini_parent}:{ini_parent}"
-    if csv_parent != ini_parent:
-        mounts_str += f",{csv_parent}:{csv_parent}"
 
     bash_commands = [
         f"export NCCL_LAUNCH_MODE=GROUP",
@@ -170,10 +167,10 @@ def generate_submission(base_cfg, cfg, job_name, nodes, tasks_per_node, ini, csv
     )
 
 
-def submit_job(submission_file):
+def submit_job(submission_file, results_dir):
     if os.getenv('BIGNLP_CI'):
         job_id = subprocess.check_output([
-            f'sbatch {submission_file} | tee "{workspace_dir}/launcher.log" '],
+            f'sbatch {submission_file} | tee "{results_dir}/launcher.log" '],
             shell=True)
     else:
         if not BIGNLP_DEBUG:
@@ -195,8 +192,15 @@ def search_inference_config(base_cfg, cfg):
             cfg.search_config.inference_settings.run.results_dir, 
             "inference")
     os.makedirs(inference_results_dir, exist_ok=True)
-    workspace_dir = os.path.join(inference_results_dir, "workspace")
-    os.makedirs(workspace_dir, exist_ok=True)
+    
+    # Process container-mounts.
+    bignlp_hp_tool_path = cfg.get("bignlp_hp_tool_path")
+    base_results_dir = cfg.get("base_results_dir")
+    container_mounts = cfg.get("container_mounts")
+    mounts_str = (
+        f"{bignlp_hp_tool_path}:{bignlp_hp_tool_path},{base_results_dir}:{base_results_dir}"
+    )
+    mounts_str += utils.add_container_mounts(container_mounts)
 
     assert cfg.search_config.inference_settings.run.model_type == "gpt3", "Only GPT-3 models are currently supported for the inference HP search."
     cluster_gpus_per_task = cfg.cluster.gpus_per_task
@@ -226,7 +230,7 @@ def search_inference_config(base_cfg, cfg):
         benchmark_model_name = (
             f"{cfg.search_config.inference_settings.run.model_train_name}_tp{tp}_pp{pp}_bs{bs}"
         )
-        model_dir = os.path.join(workspace_dir, benchmark_model_name)
+        model_dir = os.path.join(inference_results_dir, benchmark_model_name)
         os.makedirs(model_dir, exist_ok=True)
 
         # Generate .ini file for FasterTransformer.
@@ -243,21 +247,22 @@ def search_inference_config(base_cfg, cfg):
         num_nodes = nodes_necessary(gpus_per_node, tp, pp)
         tasks_per_node = min(gpus_per_node, tp)
         generate_submission(
-                base_cfg,
-                cfg,
-                job_name,
-                num_nodes,
-                tasks_per_node,
-                config_ini_file,
-                config_start_ids_file,
-                submission_file
+                base_cfg=base_cfg,
+                cfg=cfg,
+                job_name=job_name,
+                nodes=num_nodes,
+                tasks_per_node=tasks_per_node,
+                ini=config_ini_file,
+                csv=config_start_ids_file,
+                submission_file=submission_file,
+                mounts_str=mounts_str,
         )
-        dependency = submit_job(submission_file)
+        dependency = submit_job(submission_file, inference_results_dir)
         job_ids.append(dependency)
         print()
 
     # Prepare final job config files.
-    results_dir = os.path.join(workspace_dir, "final_summary")
+    results_dir = os.path.join(inference_results_dir, "final_summary")
     os.makedirs(results_dir, exist_ok=True)
     cfg_fields = ["TP", "PP", "BS"]
     configurations_file_name = os.path.join(results_dir, "inference_sweep_configs.csv")
@@ -280,20 +285,12 @@ def search_inference_config(base_cfg, cfg):
             f"python3 {summary_script_path}",
             f"--model-prefix {cfg.search_config.inference_settings.run.model_train_name}",
             f"--configs-csv {configurations_file_name}",
-            f"--workspace {workspace_dir}",
+            f"--workspace {inference_results_dir}",
             f"--output {summary_job_result}",
     ]
     echo_command_elem = f"cat {summary_job_result}"
     bash_command = [" ".join(summary_command_elem) + " && " + echo_command_elem]
 
-    # Process container-mounts.
-    bignlp_hp_tool_path = cfg.get("bignlp_hp_tool_path")
-    base_results_dir = cfg.get("base_results_dir")
-    container_mounts = cfg.get("container_mounts")
-    mounts_str = (
-        f"{bignlp_hp_tool_path}:{bignlp_hp_tool_path},{base_results_dir}:{base_results_dir}"
-    )
-    mounts_str += utils.add_container_mounts(container_mounts)
 
     summary_flags = [
         f"--output {summary_job_output}",
@@ -320,6 +317,6 @@ def search_inference_config(base_cfg, cfg):
         comment=f"'FasterTransformer {summary_job_name}'",
         dependency=dependency_string,
     )
-    submit_job(summary_submission_file)
+    submit_job(summary_submission_file, inference_results_dir)
     print("Submitted job to generate the final summary.")
 

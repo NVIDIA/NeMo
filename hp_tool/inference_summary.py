@@ -50,7 +50,7 @@ def main():
             latency = "MISSING_LOG"
         else:
             latency = scrap_latency(files[0])
-        gpu_norm_throughput = 1000.0 / latency / tp / pp
+        gpu_norm_throughput = round(1000.0 / float(latency) / int(tp) / int(pp), 3)
         row = [tp, pp, bs, latency, gpu_norm_throughput]
         rows.append(row)
 
