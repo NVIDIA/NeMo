@@ -528,10 +528,10 @@ def sample_sequence_batch(
         model.cfg.sequence_parallel == False
     ), 'sequence_parallel should be False during inference. Disable it in the model config if restoring from nemo or in hparams.yaml if restoring from PTL checkpoint'
     assert (
-        model.cfg.activations_checkpoint_granularity == None
+        model.cfg.activations_checkpoint_granularity is None
     ), 'activations_checkpoint_granularity should be None during inference. Disable it in the model config if restoring from nemo or in hparams.yaml if restoring from PTL checkpoint'
     assert (
-        model.cfg.activations_checkpoint_method == None
+        model.cfg.activations_checkpoint_method is None
     ), 'activations_checkpoint_method should be None during inference. Disable it in the model config if restoring from nemo or in hparams.yaml if restoring from PTL checkpoint'
 
     tokenizer = model.tokenizer
@@ -555,7 +555,6 @@ def sample_sequence_batch(
         maxlen = inference_strategy.clip_max_len(maxlen)
 
         lengths = torch.ones([batch_size]).long().cuda() * maxlen
-        prev_context_length = 0
         while context_length < maxlen:
             batch, tensor_shape = inference_strategy.prepare_batch_at_step(
                 tokens, maxlen, micro_batch_size, counter, context_length

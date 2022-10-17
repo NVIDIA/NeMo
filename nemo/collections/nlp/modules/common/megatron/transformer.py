@@ -2165,9 +2165,6 @@ class ParallelTransformer(MegatronModule):
                     attention_mask = inputs[1]
                     encoder_output = inputs[2]
                     enc_dec_attn_mask = inputs[3]
-                    rotary_pos_emb = inputs[4]
-                    self_attention_relative_position_bias = inputs[5]
-                    cross_attention_relative_position_bias = inputs[6]
                     for index in range(start, end):
                         layer = self._get_layer(index)
                         hidden_states = layer(
