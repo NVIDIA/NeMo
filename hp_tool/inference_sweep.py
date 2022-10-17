@@ -179,7 +179,7 @@ def submit_job(submission_file, results_dir):
                 shell=True)
         else:
             job_id = str(random.randint(10000, 99999)).encode("utf-8")
-    dependency = job_id.decode("utf-8").strip()
+    dependency = job_id.decode("utf-8").split()[-1]
     return dependency
 
 
