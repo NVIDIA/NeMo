@@ -73,6 +73,7 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
 
         # Initialize description embeddings
         self.description_embeddings = self.get_description_embeddings(self.slot_descriptions)
+        # self.model_description_embeddings = self.description_embeddings
 
         # Set-up losses and classification report
         self._setup_losses_and_classification_report()
@@ -203,9 +204,8 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
             output = self._description_embeddings_model(**inputs)
             return output.last_hidden_state[:, 0, :].to(self.device)
 
-    @staticmethod
-    def get_entity_embedding_from_hidden_states(bio_slot_labels, hidden_states):
-        '''
+    def get_entity_embedding_from_hidden_states(self, bio_slot_labels, hidden_states):
+        """
         Generate mean pooling embedding per entity mention from hidden_states
         Args:
             bio_slot_labels: tensor of size (batch_size, num_tokens, num_entities), that maps tokens to entity matches using BIO slot class of each word token
@@ -220,29 +220,40 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
             bio_slot_labels = [[1, 0, 0, 1, 2, 0, 1]]
             hidden_states = torch.ones((1,7,3))
             [1, 1, 1], [1, 1, 1], [1, 1, 1], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]
-        '''
-        _, max_token_len, hidden_states_dim = hidden_states.size()
+        """
+        batch_size, max_token_len, hidden_states_dim = hidden_states.size()
         mention_hidden_states = []
 
-        for one_bio_slot_labels, one_hidden_states in zip(bio_slot_labels, hidden_states):
+        for i in range(batch_size):
+            one_hidden_states = hidden_states[i]
+            one_bio_slot_labels = bio_slot_labels[i]
+
+            idx = (one_bio_slot_labels == 1).nonzero().squeeze(1).cpu()
+            x_split = torch.tensor_split(one_bio_slot_labels, idx)
+            y_split = torch.tensor_split(one_hidden_states, idx)
+
             mention_states = []
-            for idx, one_mask_value in enumerate(one_bio_slot_labels):
-                if one_mask_value == 1:
-                    mention_states.append([])
-                if mention_states and one_mask_value in [1, 2]:
-                    mention_states[-1].append(one_hidden_states[idx])
+            for j in range(len(x_split)):
+                x = x_split[j]
+                y = y_split[j]
+                temp = y[x != 0].mean(axis=0, keepdims=True)
+                mention_states.append(temp)
 
-            mention_states = [torch.mean(torch.stack(mention_state), 0) for mention_state in mention_states]
-            mention_states += [
-                torch.zeros(hidden_states_dim).to(hidden_states.device)
-                for i in range(max_token_len - len(mention_states))
-            ]
-            mention_hidden_states.append(torch.stack(mention_states))
+            if mention_states:
+                mention_states = torch.cat(mention_states, 0)
+                mention_states = mention_states[~torch.any(mention_states.isnan(), dim=1)]
+                zero_fill = torch.zeros((max_token_len - mention_states.size()[0], hidden_states_dim),
+                                        device=self.device)
+                mention_states = torch.cat((mention_states, zero_fill), 0)
+            else:
+                zero_fill = torch.zeros((max_token_len, hidden_states_dim), device=self.device)
+                mention_states = zero_fill
+            mention_hidden_states.append(mention_states)
 
-        return torch.stack(mention_hidden_states)
+        return torch.stack(mention_hidden_states).to(self.device)
 
     @typecheck()
-    def forward(self, input_ids, attention_mask, token_type_ids, bio_slot_labels):
+    def forward(self, input_ids, attention_mask, token_type_ids, bio_slot_labels, entity_type_embeddings):
         """
         No special modification required for Lightning, define it as you normally would
         in the `nn.Module` in vanilla PyTorch.
@@ -257,17 +268,18 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         bio_slot_logits = self.bio_mlp(hidden_states)
 
         # mention_hidden_states_pad: batch_size * max_token_len * hiddenstate_dim
-        mention_hidden_states_pad = DialogueZeroShotSlotFillingModel.get_entity_embedding_from_hidden_states(
+        mention_hidden_states_pad = self.get_entity_embedding_from_hidden_states(
             bio_slot_labels, hidden_states
         )
-        dot_product_score = self.get_entity_description_score(mention_hidden_states_pad)
+        dot_product_score = self.get_entity_description_score(mention_hidden_states_pad, entity_type_embeddings)
         dot_product_score_log_softmax = torch.log_softmax(dot_product_score, dim=-1)
 
         predicted_bio_slot = torch.argmax(bio_slot_logits, dim=-1)
-        predicted_mention_hidden_states_pad = DialogueZeroShotSlotFillingModel.get_entity_embedding_from_hidden_states(
+        predicted_mention_hidden_states_pad = self.get_entity_embedding_from_hidden_states(
             predicted_bio_slot, hidden_states
         )
-        predicted_dot_product_score = self.get_entity_description_score(predicted_mention_hidden_states_pad)
+        predicted_dot_product_score = self.get_entity_description_score(predicted_mention_hidden_states_pad,
+                                                                        entity_type_embeddings)
         predicted_dot_product_score_log_softmax = torch.log_softmax(predicted_dot_product_score, dim=-1)
 
         return bio_slot_logits, dot_product_score_log_softmax, predicted_dot_product_score_log_softmax
@@ -303,7 +315,7 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         input_ids = torch.tensor(input_ids, dtype=torch.int32, device=self.device)
         token_type_ids = torch.tensor(token_type_ids, dtype=torch.int32, device=self.device)
         attention_masks = torch.tensor(attention_masks, dtype=torch.int32, device=self.device)
-        subtokens_masks = torch.tensor(subtokens_masks, dtype=torch.int32, device=self.device)
+        # subtokens_masks = torch.tensor(subtokens_masks, dtype=torch.int32, device=self.device)
 
         with torch.no_grad():
             hidden_states = self.bert_model(
@@ -315,9 +327,12 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
                 predicted_iob_class_batch, hidden_states
             )
             if not entity_types_descriptions:
-                self.description_embeddings = self.description_embeddings.to(self.device)
+                entity_type_embeddings = self.description_embeddings.to(self.device)
+            else:
+                entity_type_embeddings = self.get_description_embeddings(entity_types_descriptions)
+
             predicted_dot_product_score = self.get_entity_description_score(
-                predicted_mention_hidden_states_pad, entity_types_descriptions
+                predicted_mention_hidden_states_pad, entity_type_embeddings
             )
             predicted_slot_similarity_preds = torch.argmax(predicted_dot_product_score, dim=-1)
 
@@ -329,15 +344,39 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
 
             return predicted_slot_class_batch, predicted_iob_class_batch
 
+    def _get_input_example(self):
+        # cfg = self._cfg.train_ds
+        # cfg['num_workers'] = 0
+        # dl = self._setup_dataloader_from_config(cfg, "train")
+        # input_ids, token_type_ids, attention_mask, _, _, _, bio_slot_labels, mention_labels, _ = next(iter(dl))
+        # input_example = {'input_ids': input_ids, 'attention_mask': attention_mask, 'token_type_ids': token_type_ids,
+        #                  'bio_slot_labels': bio_slot_labels}
+        tokenizer_output = self.tokenizer.tokenizer("This is an example")
+        input_ids = torch.tensor(tokenizer_output["input_ids"]).unsqueeze(0)
+        attention_mask = torch.tensor(tokenizer_output["attention_mask"]).unsqueeze(0)
+        token_type_ids = torch.tensor(tokenizer_output["token_type_ids"]).unsqueeze(0)
+        bio_slot_labels = torch.zeros_like(input_ids)
+        input_example = {
+            'input_ids': input_ids,
+            "attention_mask": attention_mask,
+            "token_type_ids": token_type_ids,
+            "bio_slot_labels": bio_slot_labels,
+            "entity_type_embeddings": self.description_embeddings
+        }
+        return input_example
+
     def merge_subword_tokens_and_slots(
-        self, text, slot_class, iob_slot_class
+        self, text, slot_class=None, iob_slot_class=None
     ) -> Tuple[List[str], torch.Tensor, torch.Tensor]:
         tokens = self.tokenizer.tokenizer.tokenize(text)
         subtokens_masks = torch.tensor(
             [not token.startswith("##") for token in tokens], dtype=torch.bool, device=self.device
         )
-        slot_class = torch.masked_select(slot_class, subtokens_masks)
-        iob_slot_class = torch.masked_select(iob_slot_class, subtokens_masks)
+
+        if slot_class is not None and slot_class.any():
+            slot_class = torch.masked_select(slot_class, subtokens_masks)
+        if iob_slot_class is not None and iob_slot_class.any():
+            iob_slot_class = torch.masked_select(iob_slot_class, subtokens_masks)
 
         merged_tokens = []
         for i, token in enumerate(tokens):
@@ -373,6 +412,7 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
 
     def on_fit_start(self) -> None:
         self.description_embeddings = self.description_embeddings.to(self.device)
+        # self.model_description_embeddings = self.description_embeddings
 
     def training_step(self, batch, batch_idx):
         """
@@ -396,6 +436,7 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
             token_type_ids=token_type_ids,
             attention_mask=attention_mask,
             bio_slot_labels=bio_slot_labels,
+            entity_type_embeddings=self.description_embeddings
         )
 
         train_loss = self.calculate_loss(
@@ -438,6 +479,7 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
             token_type_ids=token_type_ids,
             attention_mask=attention_mask,
             bio_slot_labels=bio_slot_labels,
+            entity_type_embeddings=self.description_embeddings
         )
         val_loss = self.calculate_loss(
             bio_slot_logits,
@@ -450,19 +492,19 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
 
         # bio slots prediction
         loss_mask = loss_mask > 0.5
-        bio_slot_preds = torch.argmax(bio_slot_logits, axis=-1)
+        bio_slot_preds = torch.argmax(bio_slot_logits, dim=-1)
         self.bio_slot_classification_report.update(bio_slot_preds[loss_mask], bio_slot_labels[loss_mask])
 
         # mention class prediction based on ground truth slots, at mention level
         mention_loss_mask = mention_loss_mask > 0.5
-        slot_similarity_preds = torch.argmax(dot_product_score_log_softmax, axis=-1)
+        slot_similarity_preds = torch.argmax(dot_product_score_log_softmax, dim=-1)
         self.slot_similarity_classification_report.update(
             slot_similarity_preds[mention_loss_mask], mention_labels[mention_loss_mask]
         )
 
         # mention class prediction based on predicted bio slots, at token level
         subtokens_mask = subtokens_mask > 0.5
-        predicted_slot_similarity_preds = torch.argmax(predicted_dot_product_score_log_softmax, axis=-1)
+        predicted_slot_similarity_preds = torch.argmax(predicted_dot_product_score_log_softmax, dim=-1)
         predicted_slot_class_batch = DialogueZeroShotSlotFillingModel.align_mention_to_tokens(
             bio_slot_preds, predicted_slot_similarity_preds, label_id_for_empty_slot=self.label_id_for_empty_slot
         )
@@ -548,23 +590,25 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
                 i += 1
         return start_and_end
 
-    def get_entity_description_score(self, mention_hidden_states_pad, entity_types_descriptions=None):
+    def get_entity_description_score(self, mention_hidden_states_pad, entity_type_embeddings):
         """
         Score entity description based on the dot product similarity between mention and description
         Args:
             mention_hidden_states_pad: mention embedding of size (batch_size * max_num_mention * hidden_state_dim)
-            entity_types_descriptions: entity types and descriptions List[types\tdescriptions]
+            entity_type_embeddings: entity types and descriptions embeddings
 
         Returns:
-            dot product score matrix of given mention embedding and description embedding (batch_size * max_num_mention * num_slot_class)
+            dot product score matrix of given mention embedding and description embedding (batch_size * max_num_mention
+            * num_slot_class)
 
         """
-        if entity_types_descriptions:
-            entity_type_embeddings = self.get_description_embeddings(entity_types_descriptions)
-            projected_description_embedding = self.description_projection_mlp(entity_type_embeddings)
-        else:
-            projected_description_embedding = self.description_projection_mlp(self.description_embeddings)
+        # if entity_types_descriptions:
+        #     entity_type_embeddings = self.get_description_embeddings(entity_types_descriptions)
+        #     projected_description_embedding = self.description_projection_mlp(entity_type_embeddings)
+        # else:
+        #     projected_description_embedding = self.description_projection_mlp(self.description_embeddings)
 
+        projected_description_embedding = self.description_projection_mlp(entity_type_embeddings)
         projected_mention_embedding = self.mention_projection_mlp(mention_hidden_states_pad)
         dot_product_score = torch.matmul(projected_mention_embedding, torch.t(projected_description_embedding))
 
@@ -584,8 +628,8 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         for i in range(len(position_stack)):
             if slot_id_stack[i] != self.label_id_for_empty_slot:
                 position = position_stack[i][0], position_stack[i][-1] + 1
-                slot_id_to_start_and_exclusive_end[slot_id_stack[i].item()].append(position)
-                slot_to_words[slot_id_stack[i]].append(utterance_tokens[position[0] : position[1]])
+                slot_id_to_start_and_exclusive_end[slot_id_stack[i]].append(position)
+                slot_to_words[slot_id_stack[i]].append(utterance_tokens[position[0]: position[1]])
 
         return slot_id_to_start_and_exclusive_end
 
@@ -821,6 +865,7 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         instance.description_embeddings = instance.get_description_embeddings(instance.slot_descriptions).to(
             instance.device
         )
+        instance.model_description_embeddings = instance.description_embeddings
         return instance
 
     def update_data_dirs(self, data_dir: str, dialogues_example_dir: str):
