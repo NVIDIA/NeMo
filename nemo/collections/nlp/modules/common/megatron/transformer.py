@@ -1628,6 +1628,7 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
         onnx_safe=False,
         masked_softmax_fusion=True,
         attention_dropout=0.1,
+        ffn_dropout=0.0,
         activation='gelu',
         megatron_legacy=False,
         bias=True,
@@ -1638,6 +1639,7 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
         activations_checkpoint_granularity=None,
         sequence_parallel=False,
         gradient_accumulation_fusion=False,
+        normalize_attention_scores=True,
     ):
         super(ParallelTransformerLayer, self).__init__(
             init_method=init_method,
@@ -1662,6 +1664,7 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
             onnx_safe=onnx_safe,
             masked_softmax_fusion=masked_softmax_fusion,
             attention_dropout=attention_dropout,
+            ffn_dropout=ffn_dropout,
             activation=activation,
             megatron_legacy=megatron_legacy,
             bias=bias,
@@ -1672,6 +1675,7 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
             activations_checkpoint_granularity=activations_checkpoint_granularity,
             sequence_parallel=sequence_parallel,
             gradient_accumulation_fusion=gradient_accumulation_fusion,
+            normalize_attention_scores=normalize_attention_scores,
         )
 
         if precision == 32:
@@ -2035,6 +2039,7 @@ class ParallelTransformer(MegatronModule):
                     layernorm_epsilon=layernorm_epsilon,
                     hidden_dropout=hidden_dropout,
                     attention_dropout=attention_dropout,
+                    ffn_dropout=ffn_dropout,
                     use_cpu_initialization=use_cpu_initialization,
                     bias_activation_fusion=bias_activation_fusion,
                     bias_dropout_add_fusion=bias_dropout_add_fusion,
@@ -2052,6 +2057,7 @@ class ParallelTransformer(MegatronModule):
                     headscale=headscale,
                     activations_checkpoint_granularity=activations_checkpoint_granularity,
                     sequence_parallel=sequence_parallel,
+                    normalize_attention_scores=normalize_attention_scores,
                 )
 
         if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
