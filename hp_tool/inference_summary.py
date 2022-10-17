@@ -43,7 +43,7 @@ def main():
     rows = []
 
     for tp, pp, bs in [l for l in config_lines[1:] if len(l) == 3]:
-        file_prefix = f"{args.workspace}/{args.model_prefix}_tp{tp}_pp{pp}_bs{bs}.submission.sh_job_*"
+        file_prefix = f"{args.workspace}/{args.model_prefix}_tp{tp}_pp{pp}_bs{bs}/log_job*.out"
         files = [f for f in glob.glob(file_prefix) if os.path.isfile(f)]
         latency = "UNKNOWN"
         if len(files) != 1:
