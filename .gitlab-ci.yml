@@ -710,9 +710,9 @@ inference.gpt3.126m_80gb_2runs_1node:
     RUN_MODEL: gpt3
     RUN_SIZE: 0.126b
     GPU_MEM: 80
-    TP_SIZES: [1]
-    PP_SIZES: [1]
-    BS_SIZES: [2,4]
+    TP_SIZES: "[1]"
+    PP_SIZES: "[1]"
+    BS_SIZES: "[2,4]"
     RUN_JOB_NAME: gpt3_inference_search
   rules:
     - when: always
