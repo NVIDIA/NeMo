@@ -679,7 +679,7 @@ pipeline {
             sh "python examples/nlp/language_modeling/tuning/megatron_t5_adapter_tuning.py \
                 --config-name=megatron_t5_adapter_tuning_config \
                 name='test_tp1_pp2' \
-                exp_manager.exp_dir='examples/adapter_tuning'
+                exp_manager.exp_dir='examples/adapter_tuning' \
                 trainer.devices=2 \
                 trainer.max_steps=6 \
                 trainer.val_check_interval=2 \
@@ -722,7 +722,7 @@ pipeline {
             sh "python examples/nlp/language_modeling/tuning/megatron_t5_adapter_tuning.py \
                 --config-name=megatron_t5_adapter_tuning_config \
                 name='test_tp2_pp1' \
-                exp_manager.exp_dir='examples/adapter_tuning'
+                exp_manager.exp_dir='examples/adapter_tuning' \
                 trainer.devices=2 \
                 trainer.max_steps=6 \
                 trainer.val_check_interval=2 \
@@ -763,7 +763,7 @@ pipeline {
             sh "python examples/nlp/language_modeling/tuning/megatron_t5_ia3_tuning.py \
                 --config-name=megatron_t5_ia3_tuning_config \
                 name='test_tp1_pp2' \
-                exp_manager.exp_dir='examples/ia3_tuning'
+                exp_manager.exp_dir='examples/ia3_tuning' \
                 trainer.devices=2 \
                 trainer.max_steps=6 \
                 trainer.val_check_interval=2 \
@@ -806,7 +806,7 @@ pipeline {
             sh "python examples/nlp/language_modeling/tuning/megatron_t5_ia3_tuning.py \
                 --config-name=megatron_t5_ia3_tuning_config \
                 name='test_tp2_pp1' \
-                exp_manager.exp_dir='examples/ia3_tuning'
+                exp_manager.exp_dir='examples/ia3_tuning' \
                 trainer.devices=2 \
                 trainer.max_steps=6 \
                 trainer.val_check_interval=2 \
