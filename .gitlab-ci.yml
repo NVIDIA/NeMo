@@ -4,6 +4,7 @@ variables: &VARS
   HP_BASE_TRAINING_IMAGE: "nvcr.io/nvidian/bignlp-training:22.09.04-py"
   BUILD_IMAGE_TRAINING_NAME_SRUN: ${HP_REGISTRY_SRUN}/bignlp_training_hp_tool:pipe.${CI_PIPELINE_ID}
   HP_CI_PATH: "/lustre/fsw/joc/big_nlp/hp_tool_ci"
+  PIPELINE_DIR: "${HP_CI_PATH}/${CI_PIPELINE_ID}"
 
 stages:
   - build
@@ -79,7 +80,6 @@ test:unit_tests:
 before_script:
   - umask 0007
   - export DOCKERFILE=./Dockerfile
-  - export PIPELINE_DIR="${HP_CI_PATH}/${CI_PIPELINE_ID}"
 
 .LUNA: &LUNA
   variables: &LUNA_VARS
