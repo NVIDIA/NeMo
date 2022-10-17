@@ -926,7 +926,6 @@ class ParallelAttention(MegatronModule):
         return output, bias
 
 
-# TODO: Figure this out
 class ParallelChunkedCrossAttention(MegatronModule):
     """Parallel chunked cross-attention layer class.
 
@@ -985,6 +984,7 @@ class ParallelChunkedCrossAttention(MegatronModule):
         set_inference_key_value_memory=False,
         inference_max_sequence_len=None,
         rotary_pos_emb=None,
+        checkpoint_core_attention=False,
     ):
         # hidden_states is assumed to have dimension [token length, batch, dimension]
         # derive variables
