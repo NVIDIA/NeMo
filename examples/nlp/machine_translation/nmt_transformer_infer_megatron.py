@@ -74,7 +74,6 @@ def main(cfg) -> None:
 
     # load adapters if present in the config
     # adapter path check
-    using_adapters = False
     if hasattr(cfg, 'adapters_file'):
         # check if the provided adapter's path is valid
         if cfg.adapters_file is None or not os.path.exists(cfg.adapters_file):

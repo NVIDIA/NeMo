@@ -83,13 +83,15 @@ def main(cfg) -> None:
             logging.info(
                 'Found validation_ds.src_file_name in the config file. Overriding the finetuned model config file with the values from the new config file.'
             )
+            t5_cfg.data.validation_ds = {}
             t5_cfg.data.validation_ds.src_file_name = cfg.model.data.validation_ds.src_file_name
         if cfg.model.data.validation_ds.get('tgt_file_name', None) is not None:
             logging.info(
                 'Found validation_ds.tgt_file_name in the config file. Overriding the finetuned model config file with the values from the new config file.'
             )
             t5_cfg.data.validation_ds.tgt_file_name = cfg.model.data.validation_ds.tgt_file_name
-
+            # set other validation_ds attributes
+            t5_cfg.data.validation_ds = cfg.model.data.validation_ds
         if "write_predictions_to_file" in cfg.model.data.validation_ds:
             t5_cfg.data.validation_ds.write_predictions_to_file = (
                 cfg.model.data.validation_ds.write_predictions_to_file
@@ -98,8 +100,15 @@ def main(cfg) -> None:
             t5_cfg.data.validation_ds.output_file_path_prefix = cfg.model.data.validation_ds.output_file_path_prefix
             t5_cfg.data.validation_ds.src_file_name = cfg.model.data.validation_ds.src_file_name
 
+        # set batch sizes
         t5_cfg.data.validation_ds.micro_batch_size = cfg.model.data.validation_ds.micro_batch_size
         t5_cfg.data.validation_ds.global_batch_size = cfg.model.data.validation_ds.global_batch_size
+        t5_cfg.micro_batch_size = cfg.model.data.validation_ds.micro_batch_size
+        t5_cfg.global_batch_size = cfg.model.data.validation_ds.global_batch_size
+
+        if hasattr(cfg.model, 'adapter_tuning'):
+            t5_cfg.adapter_tuning = cfg.model.adapter_tuning
+            t5_cfg.adapters_file = cfg.adapters_file
 
         if hasattr(cfg.model.data.validation_ds, 'task_name'):
             model = MegatronT5GLUEModel.restore_from(
