@@ -2379,18 +2379,18 @@ class ParallelTransformer(MegatronModule):
         else:
             rng_context = nullcontext()
 
-        if HAVE_TE:
-            # if TE is installed but fp8 is not available then this will do nothing
-            fp8_context = fp8_autocast(enabled=self.fp8, fp8_recipe=self.fp8_recipe, fp8_group=fp8_group)
-
-        else:
-            fp8_context = nullcontext()
-
         with rng_context:
             # fp8_autocast will not do anything if TE or FP8 isn't used
             fp8_group = None
             if parallel_state.model_parallel_is_initialized():
                 fp8_group = parallel_state.get_data_parallel_group()
+
+            if HAVE_TE:
+                # if TE is installed but fp8 is not available then this will do nothing
+                fp8_context = fp8_autocast(enabled=self.fp8, fp8_recipe=self.fp8_recipe, fp8_group=fp8_group)
+
+            else:
+                fp8_context = nullcontext()
 
             with fp8_context:
                 if self.activations_checkpoint_granularity == 'full':
