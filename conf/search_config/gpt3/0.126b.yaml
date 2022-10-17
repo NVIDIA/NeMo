@@ -30,7 +30,7 @@ inference_settings:
   benchmark:
     input_len: 60
     output_len: 20
-    batch_sizes: [1]
+    batch_sizes: [4,8,16,32,64,128,256,512]
     beam_width: 1
     topk: 4
     topp: 0.0
