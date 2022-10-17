@@ -986,6 +986,11 @@ class ParallelChunkedCrossAttention(MegatronModule):
         rotary_pos_emb=None,
         checkpoint_core_attention=False,
     ):
+        if checkpoint_core_attention:
+            raise ValueError(
+                'checkpoint_core_attention during forward not implemented yet for ParallelChunkedCrossAttention'
+            )
+
         # hidden_states is assumed to have dimension [token length, batch, dimension]
         # derive variables
         # encoder_output here is the retrieved context
