@@ -400,12 +400,11 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         # Check if one-many or many-one and log with lang ids instead of dataloader_idx
         if isinstance(self.src_language, ListConfig):
             translation_lang_string = f'{self.src_language[dataloader_idx]}-{self.tgt_language}'
-            self.log(f'{mode}_sacreBLEU_{translation_lang_string}', bleu_score, sync_dist=True)
-            self.log(f'{mode}_loss_{translation_lang_string}', loss, sync_dist=True)
         else:
             translation_lang_string = f'{self.src_language}-{self.tgt_language[dataloader_idx]}'
-            self.log(f'{mode}_sacreBLEU_{translation_lang_string}', bleu_score, sync_dist=True)
-            self.log(f'{mode}_loss_{translation_lang_string}', loss, sync_dist=True)
+
+        self.log(f'{mode}_sacreBLEU_{translation_lang_string}', bleu_score, sync_dist=True)
+        self.log(f'{mode}_loss_{translation_lang_string}', loss, sync_dist=True)
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
         if hasattr(self, '_validation_ds'):

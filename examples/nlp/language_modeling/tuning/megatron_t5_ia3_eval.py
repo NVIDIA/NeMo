@@ -57,6 +57,7 @@ def main(cfg) -> None:
             app_state.model_parallel_size,
             app_state.data_parallel_size,
             app_state.pipeline_model_parallel_split_rank,
+            app_state.virtual_pipeline_model_parallel_rank,
         ) = fake_initialize_model_parallel(
             world_size=app_state.model_parallel_size,
             rank=trainer.global_rank,
@@ -73,6 +74,7 @@ def main(cfg) -> None:
         )
         with open_dict(ia3_tuning_cfg):
             ia3_tuning_cfg.language_model_path = cfg.language_model_path
+            ia3_tuning_cfg.pretrained_language_model_path = cfg.language_model_path
             ia3_tuning_cfg.micro_batch_size = cfg.data.micro_batch_size
             ia3_tuning_cfg.global_batch_size = cfg.data.global_batch_size
 
