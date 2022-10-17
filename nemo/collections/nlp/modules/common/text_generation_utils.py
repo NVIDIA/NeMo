@@ -525,13 +525,13 @@ def sample_sequence_batch(
         data_parallel_size=1,
     )
     assert (
-        model.cfg.sequence_parallel == False
+        model.cfg.get('sequence_parallel', False) == False
     ), 'sequence_parallel should be False during inference. Disable it in the model config if restoring from nemo or in hparams.yaml if restoring from PTL checkpoint'
     assert (
-        model.cfg.activations_checkpoint_granularity is None
+        model.cfg.get('activations_checkpoint_granularity', None) is None
     ), 'activations_checkpoint_granularity should be None during inference. Disable it in the model config if restoring from nemo or in hparams.yaml if restoring from PTL checkpoint'
     assert (
-        model.cfg.activations_checkpoint_method is None
+        model.cfg.get('activations_checkpoint_method', None) is None
     ), 'activations_checkpoint_method should be None during inference. Disable it in the model config if restoring from nemo or in hparams.yaml if restoring from PTL checkpoint'
 
     tokenizer = model.tokenizer
@@ -560,8 +560,6 @@ def sample_sequence_batch(
                 tokens, maxlen, micro_batch_size, counter, context_length
             )
             output = inference_strategy.forward_step(batch, tensor_shape)
-
-            prev_context_length = context_length
 
             if parallel_state.is_pipeline_last_stage():
                 output = output[0]['logits'].float()
