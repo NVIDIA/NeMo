@@ -395,7 +395,7 @@ train.mt5.3p2b_40gb_2runs_20nodes:
     - when: always
 
 
-###### BENCHMARKS ######
+###### TRAINING BENCHMARKS ######
 benchmark.gpt3.126m_80gb_100runs_1nodes:
   <<: *hp-tool-LUNA-test-LAUNCHER
   variables:
@@ -738,6 +738,120 @@ inference.gpt3.126m_80gb_2runs_1node:
   rules:
     - when: always
 
+inference.gpt3.126m_40gb_2runs_1node:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: inference
+    RUN_MODEL: gpt3
+    RUN_SIZE: 0.126b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/results"
+    GPU_MEM: 40
+    TP_SIZES: "[1]"
+    PP_SIZES: "[1]"
+    BS_SIZES: "[2,4]"
+    RUN_JOB_NAME: gpt3_inference_search
+  rules:
+    - when: always
+
+inference.gpt3.5b_80gb_2runs_1node:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: inference
+    RUN_MODEL: gpt3
+    RUN_SIZE: 5b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/results"
+    GPU_MEM: 80
+    TP_SIZES: "[1,2]"
+    PP_SIZES: "[1]"
+    BS_SIZES: "[2]"
+    RUN_JOB_NAME: gpt3_inference_search
+  rules:
+    - when: always
+
+inference.gpt3.5b_40gb_2runs_1node:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: inference
+    RUN_MODEL: gpt3
+    RUN_SIZE: 5b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/results"
+    GPU_MEM: 40
+    TP_SIZES: "[1,2]"
+    PP_SIZES: "[1]"
+    BS_SIZES: "[2]"
+    RUN_JOB_NAME: gpt3_inference_search
+  rules:
+    - when: always
+
+
+###### TRAINING BENCHMARKS ######
+
+benchmark.inference.gpt3.126m_80gb:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: inference
+    RUN_MODEL: gpt3
+    RUN_SIZE: 0.126b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/benchmark_results"
+    GPU_MEM: 80
+    TP_SIZES: "[1,2]"
+    PP_SIZES: "[1]"
+    BS_SIZES: "[2,4,8,16,32,64,128,256,512]"
+    RUN_JOB_NAME: gpt3_inference_search
+  rules:
+    - when: manual
+
+benchmark.inference.gpt3.5b_80gb:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: inference
+    RUN_MODEL: gpt3
+    RUN_SIZE: 5b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/benchmark_results"
+    GPU_MEM: 80
+    TP_SIZES: "[1,2,4,8]"
+    PP_SIZES: "[1]"
+    BS_SIZES: "[2,4,8,16,32,64,128,256]"
+    RUN_JOB_NAME: gpt3_inference_search
+  rules:
+    - when: manual
+
+benchmark.inference.gpt3.20b_80gb:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: inference
+    RUN_MODEL: gpt3
+    RUN_SIZE: 20b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/benchmark_results"
+    GPU_MEM: 80
+    TP_SIZES: "[2,4,8]"
+    PP_SIZES: "[1,2,4]"
+    BS_SIZES: "[4,8,16,32,64,128,256]"
+    RUN_JOB_NAME: gpt3_inference_search
+  rules:
+    - when: manual
+
+benchmark.inference.gpt3.40b_80gb:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: inference
+    RUN_MODEL: gpt3
+    RUN_SIZE: 40b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/benchmark_results"
+    GPU_MEM: 80
+    TP_SIZES: "[4,8]"
+    PP_SIZES: "[1,2,4,8]"
+    BS_SIZES: "[4,8,16,32,64,128,256]"
+    RUN_JOB_NAME: gpt3_inference_search
+  rules:
+    - when: manual
 
 # ======= CLEANUP ========
 cleanup.selene:
