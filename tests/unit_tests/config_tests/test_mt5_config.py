@@ -23,24 +23,6 @@ class TestmT5Config:
           pipeline_parallel_sizes: auto
           micro_batch_sizes: auto
           act_ckpt_layers: auto
-         
-        inference_settings:
-          run:
-            model_type: mt5
-            model_train_name: mt5_0.17b
-            data_type: fp16 # fp32|fp16|bf16
-            time_limit: 0:30:00
-            results_dir: ${base_results_dir}/${search_config_value}_${...train_settings.gpu_memory_gb}gb
-            top_n: 10
-            max_latency_ms: 500
-            tensor_parallel_sizes: [1, 2]
-            pipeline_parallel_sizes: [1]
-          benchmark:
-            input_len: 60
-            output_len: 20
-            batch_sizes: [8, 16, 32, 64, 128, 256]
-            triton_wait_time_s: 300
-            vocab_size: 250112
         """
         expected = OmegaConf.create(s)
         assert (
@@ -68,24 +50,6 @@ class TestmT5Config:
           pipeline_parallel_sizes: auto
           micro_batch_sizes: auto
           act_ckpt_layers: auto
-         
-        inference_settings:
-          run:
-            model_type: mt5
-            model_train_name: mt5_0.39b
-            data_type: fp16 # fp32|fp16|bf16
-            time_limit: 0:30:00
-            results_dir: ${base_results_dir}/${search_config_value}_${...train_settings.gpu_memory_gb}gb
-            top_n: 10
-            max_latency_ms: 500
-            tensor_parallel_sizes: [1, 2]
-            pipeline_parallel_sizes: [1]
-          benchmark:
-            input_len: 60
-            output_len: 20
-            batch_sizes: [8, 16, 32, 64, 128, 256]
-            triton_wait_time_s: 300
-            vocab_size: 250112
         """
         expected = OmegaConf.create(s)
         assert (
@@ -113,24 +77,6 @@ class TestmT5Config:
           pipeline_parallel_sizes: auto
           micro_batch_sizes: auto
           act_ckpt_layers: auto
-         
-        inference_settings:
-          run:
-            model_type: mt5
-            model_train_name: mt5_3.2b
-            data_type: fp16 # fp32|fp16|bf16
-            time_limit: 0:30:00
-            results_dir: ${base_results_dir}/${search_config_value}_${...train_settings.gpu_memory_gb}gb
-            top_n: 10
-            max_latency_ms: 500
-            tensor_parallel_sizes: [1,2,4]
-            pipeline_parallel_sizes: [1]
-          benchmark:
-            input_len: 60
-            output_len: 20
-            batch_sizes: [8, 16, 32, 64, 128, 256]
-            triton_wait_time_s: 300
-            vocab_size: 250112
         """
         expected = OmegaConf.create(s)
         assert (
@@ -158,24 +104,6 @@ class TestmT5Config:
           pipeline_parallel_sizes: auto
           micro_batch_sizes: auto
           act_ckpt_layers: auto
-         
-        inference_settings:
-          run:
-            model_type: mt5
-            model_train_name: mt5_11.9b
-            data_type: fp16 # fp32|fp16|bf16
-            time_limit: 0:30:00
-            results_dir: ${base_results_dir}/${search_config_value}_${...train_settings.gpu_memory_gb}gb
-            top_n: 10
-            max_latency_ms: 500
-            tensor_parallel_sizes: [2,4,8]
-            pipeline_parallel_sizes: [1]
-          benchmark:
-            input_len: 60
-            output_len: 20
-            batch_sizes: [8, 16, 32, 64, 128, 256]
-            triton_wait_time_s: 300
-            vocab_size: 250112
         """
         expected = OmegaConf.create(s)
         assert (
@@ -203,24 +131,6 @@ class TestmT5Config:
           pipeline_parallel_sizes: auto
           micro_batch_sizes: auto
           act_ckpt_layers: auto
-         
-        inference_settings:
-          run:
-            model_type: mt5
-            model_train_name: mt5_24.65b
-            data_type: fp16 # fp32|fp16|bf16
-            time_limit: 0:30:00
-            results_dir: ${base_results_dir}/${search_config_value}_${...train_settings.gpu_memory_gb}gb
-            top_n: 10
-            max_latency_ms: 500
-            tensor_parallel_sizes: [2,4,8]
-            pipeline_parallel_sizes: [1]
-          benchmark:
-            input_len: 60
-            output_len: 20
-            batch_sizes: [8, 16, 32, 64, 128, 256]
-            triton_wait_time_s: 300
-            vocab_size: 250112
         """
         expected = OmegaConf.create(s)
         assert (
@@ -248,24 +158,6 @@ class TestmT5Config:
           pipeline_parallel_sizes: auto
           micro_batch_sizes: auto
           act_ckpt_layers: auto
-         
-        inference_settings:
-          run:
-            model_type: mt5
-            model_train_name: mt5_42.54b
-            data_type: fp16 # fp32|fp16|bf16
-            time_limit: 0:30:00
-            results_dir: ${base_results_dir}/${search_config_value}_${...train_settings.gpu_memory_gb}gb
-            top_n: 10
-            max_latency_ms: 500
-            tensor_parallel_sizes: [8]
-            pipeline_parallel_sizes: [1,2,4]
-          benchmark:
-            input_len: 60
-            output_len: 20
-            batch_sizes: [8, 16, 32, 64, 128, 256]
-            triton_wait_time_s: 300
-            vocab_size: 250112
         """
         expected = OmegaConf.create(s)
         assert (
