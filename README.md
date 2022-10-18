@@ -4692,7 +4692,7 @@ Inference parameters:
 <a id="markdown-changelog" name="changelog"></a>
 
 **NeMo Megatron 22.09**
-* NeMo Megatron supports running training and inference containers on OCI. For detail orchestration scripts, reach out to [oci_nm@nvidia.com](mailto:oci_nm@nvidia.com)
+* NeMo Megatron supports training and inference containers on OCI. For detail orchestration scripts, reach out to [oci_nm@nvidia.com](mailto:oci_nm@nvidia.com)
 * P-Tuning and Prompt Tuning for T5 and mT5 with pipeline parallelism (training only)
 * Adapter learning for GPT-3 and T5 with tensor parallelism and pipeline parallelism (training only)
 * IA3 learning for GPT-3 and T5 with tensor parallelism and pipeline parallelism (training only)
