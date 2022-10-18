@@ -126,6 +126,19 @@ pipeline {
       }
     }
 
+    stage('L0: Unit Tests Speech Dataset Processor') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      steps {
+        sh 'pip install -r tools/speech_dataset_processor/requirements.txt'
+        sh 'cd tools/speech_dataset_processor && CUDA_VISIBLE_DEVICES="" pytest tests -m "not pleasefixme"'
+      }
+    }
+
     stage('L0: TN/ITN Tests CPU') {
       when {
         anyOf {
@@ -366,7 +379,7 @@ pipeline {
             sh 'rm -rf examples/speaker_tasks/recognition/speaker_recognition_results'
           }
         }
-        
+
         stage('Speaker Diarization') {
           steps {
             sh 'python examples/speaker_tasks/diarization/neural_diarizer/multiscale_diar_decoder.py \
@@ -436,7 +449,7 @@ pipeline {
             sh 'rm -rf examples/speaker_tasks/diarization/clustering_diarizer_results'
           }
         }
-	
+
         stage('Neural Diarizer Inference') {
           steps {
             sh 'python examples/speaker_tasks/diarization/neural_diarizer/multiscale_diar_decoder_infer.py \
@@ -448,7 +461,7 @@ pipeline {
             sh 'rm -rf examples/speaker_tasks/diarization/neural_diarizer_results'
           }
         }
-	
+
         stage('Multispeaker ASR Data Simulation') {
           steps {
             sh 'python tools/speech_data_simulator/multispeaker_simulator.py \
@@ -665,7 +678,8 @@ pipeline {
           steps {
             sh "python examples/nlp/language_modeling/tuning/megatron_t5_adapter_tuning.py \
                 --config-name=megatron_t5_adapter_tuning_config \
-                name='/home/TestData/nlp/adapter_tuning/test_tp1_pp2' \
+                name='test_tp1_pp2' \
+                exp_manager.exp_dir='examples/adapter_tuning' \
                 trainer.devices=2 \
                 trainer.max_steps=6 \
                 trainer.val_check_interval=2 \
@@ -680,7 +694,7 @@ pipeline {
                 model.global_batch_size=4"
             sh "python examples/nlp/language_modeling/tuning/megatron_t5_adapter_eval.py \
                 --config-name=megatron_t5_adapter_inference \
-                adapter_model_file='/home/TestData/nlp/adapter_tuning/test_tp1_pp2.nemo' \
+                adapter_model_file='examples/adapter_tuning/test_tp1_pp2.nemo' \
                 language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp1_pp2.nemo' \
                 trainer.devices=2 \
                 tensor_model_parallel_size=1 \
@@ -688,8 +702,8 @@ pipeline {
                 data.global_batch_size=2 \
                 data.micro_batch_size=2 \
                 data.test_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl']"
-            sh "rm -rf /home/TestData/nlp/adapter_tuning/test_tp1_pp2.nemo"
-            sh "rm -rf /home/TestData/nlp/adapter_tuning/test_tp1_pp2"
+            sh "rm -rf examples/adapter_tuning/test_tp1_pp2.nemo"
+            sh "rm -rf examples/adapter_tuning/test_tp1_pp2"
           }
         }
       }
@@ -707,7 +721,8 @@ pipeline {
           steps {
             sh "python examples/nlp/language_modeling/tuning/megatron_t5_adapter_tuning.py \
                 --config-name=megatron_t5_adapter_tuning_config \
-                name='/home/TestData/nlp/adapter_tuning/test_tp2_pp1' \
+                name='test_tp2_pp1' \
+                exp_manager.exp_dir='examples/adapter_tuning' \
                 trainer.devices=2 \
                 trainer.max_steps=6 \
                 trainer.val_check_interval=2 \
@@ -721,15 +736,15 @@ pipeline {
                 model.global_batch_size=4"
             sh "python examples/nlp/language_modeling/tuning/megatron_t5_adapter_eval.py \
                 --config-name=megatron_t5_adapter_inference \
-                adapter_model_file='/home/TestData/nlp/adapter_tuning/test_tp2_pp1.nemo' \
+                adapter_model_file='examples/adapter_tuning/test_tp2_pp1.nemo' \
                 language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp2.nemo' \
                 trainer.devices=2 \
                 tensor_model_parallel_size=2 \
                 data.global_batch_size=2 \
                 data.micro_batch_size=2 \
                 data.test_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl']"
-            sh "rm -rf /home/TestData/nlp/adapter_tuning/test_tp2_pp1.nemo"
-            sh "rm -rf /home/TestData/nlp/adapter_tuning/test_tp2_pp1"
+            sh "rm -rf examples/adapter_tuning/test_tp2_pp1.nemo"
+            sh "rm -rf examples/adapter_tuning/test_tp2_pp1"
           }
         }
       }
@@ -747,7 +762,8 @@ pipeline {
           steps {
             sh "python examples/nlp/language_modeling/tuning/megatron_t5_ia3_tuning.py \
                 --config-name=megatron_t5_ia3_tuning_config \
-                name='/home/TestData/nlp/ia3_tuning/test_tp1_pp2' \
+                name='test_tp1_pp2' \
+                exp_manager.exp_dir='examples/ia3_tuning' \
                 trainer.devices=2 \
                 trainer.max_steps=6 \
                 trainer.val_check_interval=2 \
@@ -762,7 +778,7 @@ pipeline {
                 model.global_batch_size=4"
             sh "python examples/nlp/language_modeling/tuning/megatron_t5_ia3_eval.py \
                 --config-name=megatron_t5_ia3_inference \
-                adapter_model_file='/home/TestData/nlp/ia3_tuning/test_tp1_pp2.nemo' \
+                adapter_model_file='examples/ia3_tuning/test_tp1_pp2.nemo' \
                 language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp1_pp2.nemo' \
                 trainer.devices=2 \
                 tensor_model_parallel_size=1 \
@@ -770,8 +786,8 @@ pipeline {
                 data.global_batch_size=2 \
                 data.micro_batch_size=2 \
                 data.test_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl']"
-            sh "rm -rf /home/TestData/nlp/ia3_tuning/test_tp1_pp2.nemo"
-            sh "rm -rf /home/TestData/nlp/ia3_tuning/test_tp1_pp2"
+            sh "rm -rf examples/ia3_tuning/test_tp1_pp2.nemo"
+            sh "rm -rf examples/ia3_tuning/test_tp1_pp2"
           }
         }
       }
@@ -789,7 +805,8 @@ pipeline {
           steps {
             sh "python examples/nlp/language_modeling/tuning/megatron_t5_ia3_tuning.py \
                 --config-name=megatron_t5_ia3_tuning_config \
-                name='/home/TestData/nlp/ia3_tuning/test_tp2_pp1' \
+                name='test_tp2_pp1' \
+                exp_manager.exp_dir='examples/ia3_tuning' \
                 trainer.devices=2 \
                 trainer.max_steps=6 \
                 trainer.val_check_interval=2 \
@@ -803,15 +820,15 @@ pipeline {
                 model.global_batch_size=4"
             sh "python examples/nlp/language_modeling/tuning/megatron_t5_ia3_eval.py \
                 --config-name=megatron_t5_ia3_inference \
-                adapter_model_file='/home/TestData/nlp/ia3_tuning/test_tp2_pp1.nemo' \
+                adapter_model_file='examples/ia3_tuning/test_tp2_pp1.nemo' \
                 language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp2.nemo' \
                 trainer.devices=2 \
                 tensor_model_parallel_size=2 \
                 data.global_batch_size=2 \
                 data.micro_batch_size=2 \
                 data.test_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl']"
-            sh "rm -rf /home/TestData/nlp/ia3_tuning/test_tp2_pp1.nemo"
-            sh "rm -rf /home/TestData/nlp/ia3_tuning/test_tp2_pp1"
+            sh "rm -rf examples/ia3_tuning/test_tp2_pp1.nemo"
+            sh "rm -rf examples/ia3_tuning/test_tp2_pp1"
           }
         }
       }
@@ -2175,7 +2192,7 @@ pipeline {
         }
       }
     }
-    
+
     stage('L2: Parallel Pretraining BERT pretraining from Text/Preprocessed') {
       when {
         anyOf {
@@ -3389,8 +3406,8 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         }
       }
     }
-    
-    
+
+
 
     // TODO: Add this test back. Test was failing on CI machines due to HW error
     // stage('L2: Megatron GPT Convert from Megatron-LM checkpoing and Eval') {
