@@ -22,6 +22,7 @@ class TestConfig:
         cluster_type: bcm
         bignlp_hp_tool_path: ???
         bignlp_scripts_path: ${bignlp_hp_tool_path}/../bignlp-scripts
+        fastertransformer_dir: ${bignlp_hp_tool_path}/../FasterTransformer
         base_results_dir: ${bignlp_hp_tool_path}/results
         data_dir: ${bignlp_scripts_path}/data
 

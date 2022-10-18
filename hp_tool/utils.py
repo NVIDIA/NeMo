@@ -347,6 +347,8 @@ def create_slurm_file(
         partition: str = "batch",
         account: Optional[str] = None,
         exclude: Optional[str] = None,
+        output: Optional[str] = None,
+        comment: Optional[str] = None,
 ):
     """
     Creates a slurm script file to launch a job on a slurm based cluster. Saves the script 
@@ -400,6 +402,10 @@ def create_slurm_file(
             f.writelines("#SBATCH --overcommit\n")
         if exclude:
             f.writelines(f"#SBATCH --exclude={','.join(exclude)}\n")
+        if output:
+            f.writelines(f"#SBATCH --output={output}\n")
+        if comment:
+            f.writelines(f"#SBATCH --comment={comment}\n")
         f.writelines(f"#SBATCH --time={time}\n\n")
         for cmd in cmds:
             #assert "'" not in cmd

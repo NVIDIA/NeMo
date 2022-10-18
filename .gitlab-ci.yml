@@ -2,10 +2,9 @@ variables: &VARS
   HP_REGISTRY: "gitlab-master.nvidia.com:5005/dl/joc/bignlp-hp-tool"
   HP_REGISTRY_SRUN: "gitlab-master.nvidia.com#dl/joc/bignlp-hp-tool"
   HP_BASE_TRAINING_IMAGE: "nvcr.io/nvidian/bignlp-training:22.09.04-py"
-  HP_BASE_INFERENCE_IMAGE: "nvcr.io/ea-bignlp/bignlp-inference:22.05-py3"
   BUILD_IMAGE_TRAINING_NAME_SRUN: ${HP_REGISTRY_SRUN}/bignlp_training_hp_tool:pipe.${CI_PIPELINE_ID}
-  BUILD_IMAGE_INFERENCE_NAME_SRUN: ${HP_REGISTRY_SRUN}/bignlp_inference_hp_tool:pipe.${CI_PIPELINE_ID}
   HP_CI_PATH: "/lustre/fsw/joc/big_nlp/hp_tool_ci"
+  PIPELINE_DIR: "${HP_CI_PATH}/${CI_PIPELINE_ID}"
 
 stages:
   - build
@@ -20,7 +19,7 @@ stages:
 
 docs:sphinx_generate_docs_html:
   tags:
-    - os/linux
+    - vm-builder
   stage: generate_docs
   script:
     - python3 -m pip install sphinx
@@ -81,8 +80,6 @@ test:unit_tests:
 before_script:
   - umask 0007
   - export DOCKERFILE=./Dockerfile
-  - export PIPELINE_DIR="${HP_CI_PATH}/${CI_PIPELINE_ID}"
-  - export BASE_RESULTS_DIR="${PIPELINE_DIR}/results"
 
 .LUNA: &LUNA
   variables: &LUNA_VARS
@@ -118,7 +115,10 @@ before_script:
     # Clone bignlp-scripts
     - cd ..
     - git clone ssh://git@gitlab-master.nvidia.com:12051/dl/JoC/bignlp-scripts.git
-    - cd bignlp-hp-tool
+    - git clone ssh://git@gitlab-master.nvidia.com:12051/dl/FasterTransformer/FasterTransformer.git
+    - cd FasterTransformer
+    - git checkout destination_for_gpt_utils
+    - cd ../bignlp-hp-tool
     - bash tests/ci_tests/selene/scripts/${RUN_TASK}/${RUN_MODEL}/${RUN_JOB_NAME}.sh
     # Wait for job to launch
     - sleep 10s # Without this, "sacct" in jobstate.sh does not always find the SLURM job.
@@ -160,17 +160,6 @@ build-BigNLP-training:
   rules:
     - when: always
 
-build-BigNLP-inference:
-  <<: *build_template
-  variables:
-    <<: [*VARS]
-    IMAGE_NAME: bignlp_inference_hp_tool
-    HP_BASE_IMAGE: ${HP_BASE_INFERENCE_IMAGE}
-    BUILD_IMAGE_INFERENCE_NAME: ${HP_REGISTRY}/${IMAGE_NAME}:pipe.${CI_PIPELINE_ID}
-    BUILD_IMAGE_NAME: ${BUILD_IMAGE_INFERENCE_NAME}
-  rules:
-    - when: always
-
 train.gpt3.126m_80gb_2runs_8nodes:
   <<: *hp-tool-LUNA-test-LAUNCHER
   variables:
@@ -178,6 +167,7 @@ train.gpt3.126m_80gb_2runs_8nodes:
     RUN_TASK: train
     RUN_MODEL: gpt3
     RUN_SIZE: 0.126b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/train_results"
     GPU_MEM: 80
     RUNS: 2
     NODES: 8
@@ -195,6 +185,7 @@ train.gpt3.126m_40gb_2runs_8nodes:
     RUN_TASK: train
     RUN_MODEL: gpt3
     RUN_SIZE: 0.126b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/train_results"
     GPU_MEM: 40
     RUNS: 2
     NODES: 8
@@ -212,6 +203,7 @@ train.gpt3.5b_80gb_2runs_16nodes:
     RUN_TASK: train
     RUN_MODEL: gpt3
     RUN_SIZE: 5b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/train_results"
     GPU_MEM: 80
     RUNS: 2
     NODES: 16
@@ -229,6 +221,7 @@ train.gpt3.5b_40gb_2runs_16nodes:
     RUN_TASK: train
     RUN_MODEL: gpt3
     RUN_SIZE: 5b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/train_results"
     GPU_MEM: 40
     RUNS: 2
     NODES: 16
@@ -246,6 +239,7 @@ train.gpt3.20b_80gb_2runs_64nodes:
     RUN_TASK: train
     RUN_MODEL: gpt3
     RUN_SIZE: 20b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/train_results"
     GPU_MEM: 80
     RUNS: 2
     NODES: 64
@@ -263,6 +257,7 @@ train.t5.220m_80gb_2runs_4nodes:
     RUN_TASK: train
     RUN_MODEL: t5
     RUN_SIZE: 0.22b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/train_results"
     GPU_MEM: 80
     RUNS: 2
     NODES: 4
@@ -280,6 +275,7 @@ train.t5.220m_40gb_2runs_4nodes:
     RUN_TASK: train
     RUN_MODEL: t5
     RUN_SIZE: 0.22b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/train_results"
     GPU_MEM: 40
     RUNS: 2
     NODES: 4
@@ -297,6 +293,7 @@ train.t5.2p8b_80gb_2runs_20nodes:
     RUN_TASK: train
     RUN_MODEL: t5
     RUN_SIZE: 2.8b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/train_results"
     GPU_MEM: 80
     RUNS: 2
     NODES: 20
@@ -314,6 +311,7 @@ train.t5.2p8b_40gb_2runs_20nodes:
     RUN_TASK: train
     RUN_MODEL: t5
     RUN_SIZE: 2.8b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/train_results"
     GPU_MEM: 40
     RUNS: 2
     NODES: 20
@@ -331,6 +329,7 @@ train.mt5.170m_80gb_2runs_4nodes:
     RUN_TASK: train
     RUN_MODEL: mt5
     RUN_SIZE: 0.17b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/train_results"
     GPU_MEM: 80
     RUNS: 2
     NODES: 4
@@ -348,6 +347,7 @@ train.mt5.170m_40gb_2runs_4nodes:
     RUN_TASK: train
     RUN_MODEL: mt5
     RUN_SIZE: 0.17b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/train_results"
     GPU_MEM: 40
     RUNS: 2
     NODES: 4
@@ -365,6 +365,7 @@ train.mt5.3p2b_80gb_2runs_20nodes:
     RUN_TASK: train
     RUN_MODEL: mt5
     RUN_SIZE: 3.2b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/train_results"
     GPU_MEM: 80
     RUNS: 2
     NODES: 20
@@ -382,6 +383,7 @@ train.mt5.3p2b_40gb_2runs_20nodes:
     RUN_TASK: train
     RUN_MODEL: mt5
     RUN_SIZE: 3.2b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/train_results"
     GPU_MEM: 40
     RUNS: 2
     NODES: 20
@@ -392,20 +394,8 @@ train.mt5.3p2b_40gb_2runs_20nodes:
   rules:
     - when: always
 
-cleanup.selene:
-  tags: *LUNA_TAGS
-  stage: cleanup
-  variables:
-    <<: [*VARS, *LUNA_VARS]
-  script:
-    - rm -rf ${CI_BUILDS_DIR}/${SLURM_ACCOUNT}/big_nlp/hp_tool_ci/*
-    - echo "Finished cleaning everything on Selene"
-  allow_failure: true
-  rules:
-    - when: manual
 
-
-###### BENCHMARKS ######
+###### TRAINING BENCHMARKS ######
 benchmark.gpt3.126m_80gb_100runs_1nodes:
   <<: *hp-tool-LUNA-test-LAUNCHER
   variables:
@@ -413,6 +403,7 @@ benchmark.gpt3.126m_80gb_100runs_1nodes:
     RUN_TASK: train
     RUN_MODEL: gpt3
     RUN_SIZE: 0.126b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/train_benchmark_results"
     RUNS: 100
     GPU_MEM: 80
     NODES: 1
@@ -430,6 +421,7 @@ benchmark.gpt3.126m_80gb_100runs_8nodes:
     RUN_TASK: train
     RUN_MODEL: gpt3
     RUN_SIZE: 0.126b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/train_benchmark_results"
     RUNS: 100
     GPU_MEM: 80
     NODES: 8
@@ -447,6 +439,7 @@ benchmark.gpt3.5b_80gb_100runs_16nodes:
     RUN_TASK: train
     RUN_MODEL: gpt3
     RUN_SIZE: 5b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/train_benchmark_results"
     RUNS: 100
     GPU_MEM: 80
     NODES: 16
@@ -464,6 +457,7 @@ benchmark.gpt3.20b_80gb_100runs_64nodes:
     RUN_TASK: train
     RUN_MODEL: gpt3
     RUN_SIZE: 20b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/train_benchmark_results"
     RUNS: 100
     GPU_MEM: 80
     NODES: 64
@@ -481,6 +475,7 @@ benchmark.gpt3.40b_80gb_100runs_128nodes:
     RUN_TASK: train
     RUN_MODEL: gpt3
     RUN_SIZE: 40b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/train_benchmark_results"
     RUNS: 100
     GPU_MEM: 80
     NODES: 128
@@ -498,6 +493,7 @@ benchmark.gpt3.175b_80gb_100runs_128nodes:
     RUN_TASK: train
     RUN_MODEL: gpt3
     RUN_SIZE: 175b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/train_benchmark_results"
     RUNS: 100
     GPU_MEM: 80
     NODES: 128
@@ -515,6 +511,7 @@ benchmark.gpt3.175b_80gb_100runs_256nodes:
     RUN_TASK: train
     RUN_MODEL: gpt3
     RUN_SIZE: 175b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/train_benchmark_results"
     RUNS: 100
     GPU_MEM: 80
     NODES: 256
@@ -532,6 +529,7 @@ benchmark.t5.220m_80gb_100runs_4nodes:
     RUN_TASK: train
     RUN_MODEL: t5
     RUN_SIZE: 0.22b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/train_benchmark_results"
     RUNS: 100
     GPU_MEM: 80
     NODES: 4
@@ -549,6 +547,7 @@ benchmark.t5.2.8b_80gb_100runs_20nodes:
     RUN_TASK: train
     RUN_MODEL: t5
     RUN_SIZE: 2.8b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/train_benchmark_results"
     RUNS: 100
     GPU_MEM: 80
     NODES: 20
@@ -566,6 +565,7 @@ benchmark.t5.11b_80gb_100runs_20nodes:
     RUN_TASK: train
     RUN_MODEL: t5
     RUN_SIZE: 11b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/benchmark_results"
     RUNS: 100
     GPU_MEM: 80
     NODES: 20
@@ -583,6 +583,7 @@ benchmark.t5.23.5b_80gb_100runs_40nodes:
     RUN_TASK: train
     RUN_MODEL: t5
     RUN_SIZE: 23.5b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/train_benchmark_results"
     RUNS: 100
     GPU_MEM: 80
     NODES: 40
@@ -600,6 +601,7 @@ benchmark.t5.41.2b_80gb_100runs_40nodes:
     RUN_TASK: train
     RUN_MODEL: t5
     RUN_SIZE: 41.2b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/train_benchmark_results"
     RUNS: 100
     GPU_MEM: 80
     NODES: 40
@@ -617,6 +619,7 @@ benchmark.mt5.170m_80gb_100runs_4nodes:
     RUN_TASK: train
     RUN_MODEL: mt5
     RUN_SIZE: 0.17b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/train_benchmark_results"
     RUNS: 100
     GPU_MEM: 80
     NODES: 4
@@ -634,6 +637,7 @@ benchmark.mt5.390m_80gb_100runs_8nodes:
     RUN_TASK: train
     RUN_MODEL: mt5
     RUN_SIZE: 0.39b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/train_benchmark_results"
     RUNS: 100
     GPU_MEM: 80
     NODES: 8
@@ -651,6 +655,7 @@ benchmark.mt5.3.2b_80gb_100runs_20nodes:
     RUN_TASK: train
     RUN_MODEL: mt5
     RUN_SIZE: 3.2b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/train_benchmark_results"
     RUNS: 100
     GPU_MEM: 80
     NODES: 20
@@ -668,6 +673,7 @@ benchmark.mt5.11.9b_80gb_100runs_20nodes:
     RUN_TASK: train
     RUN_MODEL: mt5
     RUN_SIZE: 11.9b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/train_benchmark_results"
     RUNS: 100
     GPU_MEM: 80
     NODES: 20
@@ -685,6 +691,7 @@ benchmark.mt5.24.65b_80gb_100runs_40nodes:
     RUN_TASK: train
     RUN_MODEL: mt5
     RUN_SIZE: 24.65b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/train_benchmark_results"
     RUNS: 100
     GPU_MEM: 80
     NODES: 40
@@ -702,6 +709,7 @@ benchmark.mt5.42.54b_80gb_100runs_40nodes:
     RUN_TASK: train
     RUN_MODEL: mt5
     RUN_SIZE: 42.54b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/train_benchmark_results"
     RUNS: 100
     GPU_MEM: 80
     NODES: 40
@@ -709,5 +717,152 @@ benchmark.mt5.42.54b_80gb_100runs_40nodes:
     PP_SIZES: auto
     MBS_SIZES: auto
     RUN_JOB_NAME: mt5_training_search
+  rules:
+    - when: manual
+
+# =========== INFERENCE =============
+
+inference.gpt3.126m_80gb_2runs_1node:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: inference
+    RUN_MODEL: gpt3
+    RUN_SIZE: 0.126b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/infer_results"
+    GPU_MEM: 80
+    TP_SIZES: "[1]"
+    PP_SIZES: "[1]"
+    BS_SIZES: "[2,4]"
+    RUN_JOB_NAME: gpt3_inference_search
+  rules:
+    - when: always
+
+inference.gpt3.126m_40gb_2runs_1node:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: inference
+    RUN_MODEL: gpt3
+    RUN_SIZE: 0.126b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/infer_results"
+    GPU_MEM: 40
+    TP_SIZES: "[1]"
+    PP_SIZES: "[1]"
+    BS_SIZES: "[2,4]"
+    RUN_JOB_NAME: gpt3_inference_search
+  rules:
+    - when: always
+
+inference.gpt3.5b_80gb_2runs_1node:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: inference
+    RUN_MODEL: gpt3
+    RUN_SIZE: 5b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/infer_results"
+    GPU_MEM: 80
+    TP_SIZES: "[1,2]"
+    PP_SIZES: "[1]"
+    BS_SIZES: "[2]"
+    RUN_JOB_NAME: gpt3_inference_search
+  rules:
+    - when: always
+
+inference.gpt3.5b_40gb_2runs_1node:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: inference
+    RUN_MODEL: gpt3
+    RUN_SIZE: 5b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/infer_results"
+    GPU_MEM: 40
+    TP_SIZES: "[1,2]"
+    PP_SIZES: "[1]"
+    BS_SIZES: "[2]"
+    RUN_JOB_NAME: gpt3_inference_search
+  rules:
+    - when: always
+
+
+########################################## INFERENCE BENCHMARKS ########################################################
+
+benchmark.inference.gpt3.126m_80gb:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: inference
+    RUN_MODEL: gpt3
+    RUN_SIZE: 0.126b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/inference_benchmark_results"
+    GPU_MEM: 80
+    TP_SIZES: "[1,2]"
+    PP_SIZES: "[1]"
+    BS_SIZES: "[2,4,8,16,32,64,128,256,512]"
+    RUN_JOB_NAME: gpt3_inference_search
+  rules:
+    - when: manual
+
+benchmark.inference.gpt3.5b_80gb:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: inference
+    RUN_MODEL: gpt3
+    RUN_SIZE: 5b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/inference_benchmark_results"
+    GPU_MEM: 80
+    TP_SIZES: "[1,2,4,8]"
+    PP_SIZES: "[1]"
+    BS_SIZES: "[2,4,8,16,32,64,128,256]"
+    RUN_JOB_NAME: gpt3_inference_search
+  rules:
+    - when: manual
+
+benchmark.inference.gpt3.20b_80gb:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: inference
+    RUN_MODEL: gpt3
+    RUN_SIZE: 20b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/inference_benchmark_results"
+    GPU_MEM: 80
+    TP_SIZES: "[2,4,8]"
+    PP_SIZES: "[1,2,4]"
+    BS_SIZES: "[4,8,16,32,64,128,256]"
+    RUN_JOB_NAME: gpt3_inference_search
+  rules:
+    - when: manual
+
+benchmark.inference.gpt3.40b_80gb:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: inference
+    RUN_MODEL: gpt3
+    RUN_SIZE: 40b
+    BASE_RESULTS_DIR: "${PIPELINE_DIR}/inference_benchmark_results"
+    GPU_MEM: 80
+    TP_SIZES: "[4,8]"
+    PP_SIZES: "[1,2,4,8]"
+    BS_SIZES: "[4,8,16,32,64,128,256]"
+    RUN_JOB_NAME: gpt3_inference_search
+  rules:
+    - when: manual
+
+
+# ======= CLEANUP ========
+cleanup.selene:
+  tags: *LUNA_TAGS
+  stage: cleanup
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+  script:
+    - rm -rf ${CI_BUILDS_DIR}/${SLURM_ACCOUNT}/big_nlp/hp_tool_ci/*
+    - echo "Finished cleaning everything on Selene"
+  allow_failure: true
   rules:
     - when: manual
