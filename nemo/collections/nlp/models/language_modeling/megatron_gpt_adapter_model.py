@@ -244,7 +244,7 @@ class MegatronGPTAdapterLearningModel(MegatronGPTBaseAdapterModel):
             'parallel_adapter',
         ], "Adapter type should be 'linear_adapter' or 'parallel_adapter'"
 
-        self.adapter_name_keys = ['adapter_1', 'adapter_2']
+        self.adapter_name_keys = [AdapterType.ADAPTER_ONE, AdapterType.ADAPTER_TWO]
         frozen_model_cfg = MegatronGPTModel.restore_from(
             cfg.get('language_model_path'), trainer=trainer, return_config=True
         )
@@ -326,10 +326,12 @@ class MegatronGPTInfusedAdapterModel(MegatronGPTBaseAdapterModel):
                                 in_features=frozen_model_cfg.ffn_hidden_size
                                 // frozen_model_cfg.tensor_model_parallel_size
                             )
-                        else:
+                        elif adapter_key in [AdapterType.KEY_INFUSED, AdapterType.VALUE_INFUSED]:
                             cfg = InfusedAdapterConfig(
                                 in_features=frozen_model_cfg.hidden_size // frozen_model_cfg.tensor_model_parallel_size
                             )
+                        else:
+                            raise ValueError(f"Adapter Key {adapter_key} is unknown.")
                         module.add_adapter(name=adapter_key, cfg=cfg)
 
         logging.info(f'After adding adapters:\n{self.frozen_model.summarize()}')
