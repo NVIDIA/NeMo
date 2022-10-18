@@ -513,9 +513,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 total_num_samples += sum(batch_sizes)
                 total_loss += np.dot(batch_losses, batch_sizes)
 
-            averaged_loss = torch.tensor(total_loss / total_num_samples).cuda()
+            avg_loss = total_loss / total_num_samples
+            averaged_loss = torch.tensor(avg_loss, dtype=torch.float32).cuda()
         else:
-            averaged_loss = torch.tensor(0.0).cuda()
+            averaged_loss = torch.tensor(0.0, dtype=torch.float32).cuda()
 
         # we can only log on one rank if it is rank zero so we broadcast from last rank
         torch.distributed.broadcast(averaged_loss, get_last_rank())
