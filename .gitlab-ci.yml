@@ -19,7 +19,7 @@ stages:
 
 docs:sphinx_generate_docs_html:
   tags:
-    - V100
+    - vm-builder
   stage: generate_docs
   script:
     - python3 -m pip install sphinx
