@@ -1,0 +1,90 @@
+# {"audio_filepath": "/path/to/audio01.wav", "offset": 390.83, "duration": 13.45, "text": "-", "num_speakers": 2, "rttm_filepath": "/path/to/audio01.rttm"}
+name: "DeepDiarize"
+sample_rate: 16000
+num_workers: 2
+chunk_seconds: 15
+
+model:
+
+  num_workers: ${num_workers}
+  num_speakers: 2
+  feat_in: 80
+  d_model: 512
+  chunk_seconds: ${chunk_seconds}
+  subsampling: 8
+  hidden_dim: 2048
+  n_layers: 18
+  n_heads: 8
+  dropout: 0.1
+  emb_dropout: 0.1
+  warmup_ratio: 0.1
+
+  train_ds:
+    manifest_filepath: ???
+    sample_rate: ${sample_rate}
+    num_workers: ${num_workers}
+    int_values: False
+    batch_size: 28
+    num_samples: -1
+    shuffle: False
+
+  validation_ds:
+    manifest_filepath: ??
+    sample_rate: ${sample_rate}
+    num_workers: ${num_workers}
+    int_values: False
+    batch_size: 1
+    shuffle: False
+
+  preprocessor:
+    _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
+    normalize: "per_feature"
+    window_size: 0.025
+    sample_rate: ${sample_rate}
+    window_stride: 0.01
+    window: "hann"
+    features: 80
+    n_fft: 512
+    frame_splicing: 1
+    dither: 0.00001
+
+  loss:
+    _target_: nemo.collections.asr.losses.bce_loss.BCELoss
+    weight: null # Weight for binary cross-entropy loss. Either `null` or list type input. (e.g. [0.5,0.5])
+
+  optim:
+    name: adamw
+    lr: 1e-5
+    weight_decay: 0.001
+
+    sched:
+      name: CosineAnnealing
+      warmup_ratio: 0.1
+      min_lr: 0.0
+
+trainer:
+  devices: -1 # number of gpus (devices)
+  accelerator: gpu
+  max_steps: 1000000
+  num_nodes: 1
+  strategy: ddp_find_unused_parameters_false
+  limit_val_batches: 8
+  enable_checkpointing: False
+  logger: False
+  log_every_n_steps: 50  # Interval of logging.
+  val_check_interval: 10000  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
+
+
+exp_manager:
+  exp_dir: null
+  name: ${name}
+  create_tensorboard_logger: True
+  create_checkpoint_callback: True
+  create_wandb_logger: False
+  checkpoint_callback_params:
+    monitor: "val_loss"
+    mode: "min"
+    save_top_k: 5
+  wandb_logger_kwargs:
+    name: null
+    project: null
