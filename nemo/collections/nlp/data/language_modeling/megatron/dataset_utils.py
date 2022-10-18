@@ -1257,5 +1257,7 @@ def get_samples_mapping(
     logging.info('    total number of samples: {}'.format(samples_mapping.shape[0]))
 
     # Deallocate temporary numpy arrays that were created for `get_samples_mapping()`
+    # Although we call make_indexed_dataset_compatibility only for rank 0, we deallocate to all datasets
+    # so that the memory-related attributes are consistent across all ranks.
     deallocate_indexed_dataset_memory(indexed_dataset)
     return samples_mapping
