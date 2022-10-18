@@ -47,6 +47,7 @@ def get_uniqname_from_filepath(filepath):
     else:
         raise TypeError("input must be filepath string")
 
+
 def get_uniq_id_from_manifest_line(line: str) -> str:
     """
     Retrieve `uniq_id` from the `audio_filepath` in a manifest line.
@@ -54,6 +55,7 @@ def get_uniq_id_from_manifest_line(line: str) -> str:
     dic = json.loads(line.strip())
     uniq_id = get_uniqname_from_filepath(dic['audio_filepath'])
     return uniq_id
+
 
 def get_uniq_id_with_dur(meta, decimals=3):
     """
@@ -212,10 +214,7 @@ def get_embs_and_timestamps(multiscale_embeddings_and_timestamps, multiscale_arg
         embs_and_timestamps (dict)
             A dictionary containing embeddings and timestamps of each scale, indexed by unique ID.
     """
-    embs_and_timestamps = {
-        uniq_id: {}
-        for uniq_id in multiscale_embeddings_and_timestamps[0][0].keys()
-    }
+    embs_and_timestamps = {uniq_id: {} for uniq_id in multiscale_embeddings_and_timestamps[0][0].keys()}
     if multiscale_args_dict['use_single_scale_clustering']:
         _multiscale_args_dict = deepcopy(multiscale_args_dict)
         _multiscale_args_dict['scale_dict'] = {0: multiscale_args_dict['scale_dict'][0]}
@@ -478,30 +477,31 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
             num_speakers = -1
         uniq_embs_and_timestamps = embs_and_timestamps[uniq_id]
         num_speakers = torch.tensor(num_speakers, dtype=torch.long)
-       
-        speaker_clustering = SpeakerClustering(
-                    max_num_speaker=max_num_speakers,
-                    enhanced_count_thres=clustering_params.enhanced_count_thres,
-                    max_rp_threshold=clustering_params.max_rp_threshold,
-                    sparse_search_volume=clustering_params.sparse_search_volume,
-                    multiscale_weights=uniq_embs_and_timestamps['multiscale_weights'],
-                    cuda=cuda)
 
-        speaker_clustering = torch.jit.script(speaker_clustering) 
-        
+        speaker_clustering = SpeakerClustering(
+            max_num_speaker=max_num_speakers,
+            enhanced_count_thres=clustering_params.enhanced_count_thres,
+            max_rp_threshold=clustering_params.max_rp_threshold,
+            sparse_search_volume=clustering_params.sparse_search_volume,
+            multiscale_weights=uniq_embs_and_timestamps['multiscale_weights'],
+            cuda=cuda,
+        )
+
+        speaker_clustering = torch.jit.script(speaker_clustering)
+
         cluster_labels = speaker_clustering.forward(
             uniq_embs_and_timestamps['embeddings'],
             uniq_embs_and_timestamps['timestamps'],
             uniq_embs_and_timestamps['multiscale_segment_counts'],
             oracle_num_speakers=num_speakers,
-            )
-        
+        )
+
         base_scale_idx = uniq_embs_and_timestamps['multiscale_segment_counts'].shape[0] - 1
         timestamps = speaker_clustering.timestamps_in_scales[base_scale_idx]
         cluster_labels = cluster_labels.cpu().numpy()
         if len(cluster_labels) != timestamps.shape[0]:
             raise ValueError("Mismatch of length between cluster_labels and timestamps.")
-        
+
         lines = []
         for idx, label in enumerate(cluster_labels):
             tag = 'speaker_' + str(label)
@@ -878,7 +878,9 @@ def getSubRangeList(target_range, source_range_list) -> List:
         return out_range
 
 
-def write_rttm2manifest(AUDIO_RTTM_MAP: str, manifest_file: str, include_uniq_id: bool = False, decimals: int = 5) -> str:
+def write_rttm2manifest(
+    AUDIO_RTTM_MAP: str, manifest_file: str, include_uniq_id: bool = False, decimals: int = 5
+) -> str:
     """
     Write manifest file based on rttm files (or vad table out files). This manifest file would be used by
     speaker diarizer to compute embeddings and cluster them. This function takes care of overlapping VAD timestamps
