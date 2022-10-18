@@ -19,9 +19,9 @@ import shutil
 import subprocess
 import tarfile
 
+from examples.nlp.token_classification.data.get_tatoeba_data import create_text_and_labels
 from tqdm import tqdm
 
-from examples.nlp.token_classification.data.get_tatoeba_data import create_text_and_labels
 from nemo.utils import logging
 
 
@@ -67,8 +67,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Prepare LibriTTS dataset')
     parser.add_argument("--data_sets", default="dev_clean", type=str, help="List of subsets separated by comma")
     parser.add_argument("--data_dir", required=True, type=str, help="Path to dir where data will be stored")
-    parser.add_argument("--clean", "-c", action="store_true",
-                        help="If set to True will delete all files except produced .txt and .wav")
+    parser.add_argument(
+        "--clean", "-c", action="store_true", help="If set to True will delete all files except produced .txt and .wav"
+    )
     args = parser.parse_args()
 
     data_dir = args.data_dir
@@ -87,8 +88,9 @@ if __name__ == "__main__":
     splits = set([split.split('_')[0] for split in args.data_sets.split(',')])
     for split in splits:
         os.makedirs(f'{data_dir}/audio/{split}', exist_ok=True)
-        with open(f'{data_dir}/{split}.txt', 'w') as text_data, open(f'{data_dir}/audio_{split}.txt',
-                                                                     'w') as audio_data:
+        with open(f'{data_dir}/{split}.txt', 'w') as text_data, open(
+            f'{data_dir}/audio_{split}.txt', 'w'
+        ) as audio_data:
             for file in tqdm(glob.glob(f'{data_dir}/LibriTTS/{split}*/*/*/*.wav'), desc=f'Processing {split}'):
                 with open(file[:-4] + '.normalized.txt', 'r') as source_file:
                     lines = source_file.readlines()
