@@ -170,7 +170,7 @@ def generate_submission(base_cfg, cfg, job_name, nodes, tasks_per_node, ini, csv
 def submit_job(submission_file, results_dir):
     if os.getenv('BIGNLP_CI'):
         job_id = subprocess.check_output([
-            f'sbatch {submission_file} | tee "{results_dir}/launcher.log" '],
+            f'sbatch {submission_file} | tee "{results_dir}/../launcher.log" '],
             shell=True)
     else:
         if not BIGNLP_DEBUG:
