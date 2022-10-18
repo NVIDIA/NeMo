@@ -117,18 +117,19 @@ class TestGPT3Config:
           run:
             model_type: gpt3
             model_train_name: gpt3_20b
-            data_type: fp16
+            gpus_per_node: 8
+            data_type: "fp16" # fp32|fp16|bf16
             time_limit: 0:30:00
-            results_dir: ${base_results_dir}/${search_config_value}_${...train_settings.gpu_memory_gb}gb
-            top_n: 10
-            max_latency_ms: 500
+            results_dir: ${base_results_dir}/${search_config_value}_${search_config.train_settings.gpu_memory_gb}gb
             tensor_parallel_sizes: [2,4,8]
-            pipeline_parallel_sizes: [1]
+            pipeline_parallel_sizes: [1,2,4]
           benchmark:
             input_len: 60
             output_len: 20
-            batch_sizes: [8, 16, 32, 64, 128, 256]
-            triton_wait_time_s: 300
+            batch_sizes: [4,8,16,32,64,128,256]
+            beam_width: 1
+            topk: 4
+            topp: 0.0
         """
         expected = OmegaConf.create(s)
         assert (
