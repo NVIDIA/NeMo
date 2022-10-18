@@ -11,6 +11,7 @@ HYDRA_FULL_ERROR=1 BIGNLP_CI=1 python3 main.py \
     cluster.job_name_prefix="${SLURM_ACCOUNT}-bignlp_hp_tool:" \
     cluster.gpus_per_task=null \
     cluster.gpus_per_node=null \
+    search_config.train_settings.gpu_memory_gb=${GPU_MEM} \
     search_config.inference_settings.run.tensor_parallel_sizes=${TP_SIZES} \
     search_config.inference_settings.run.pipeline_parallel_sizes=${PP_SIZES} \
     search_config.inference_settings.benchmark.batch_sizes=${BS_SIZES}

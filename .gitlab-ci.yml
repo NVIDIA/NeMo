@@ -787,7 +787,7 @@ inference.gpt3.5b_40gb_2runs_1node:
     - when: always
 
 
-###### TRAINING BENCHMARKS ######
+########################################## INFERENCE BENCHMARKS ########################################################
 
 benchmark.inference.gpt3.126m_80gb:
   <<: *hp-tool-LUNA-test-LAUNCHER
