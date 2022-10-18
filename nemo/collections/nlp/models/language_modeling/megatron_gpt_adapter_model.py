@@ -134,11 +134,12 @@ class MegatronGPTBaseAdapterModel(MegatronGPTPromptLearningModel):
         """
         state_dict_ = {}
         for name, module in self.frozen_model.named_modules():
-            if isinstance(module, adapter_mixins.AdapterModuleMixin):
+            if isinstance(module, adapter_mixins.AdapterModuleMixin) and module.is_adapter_available():
                 for adapter_key in self.adapter_name_keys:
-                    adapter_module = module.adapter_layer[adapter_key]
-                    state_adapter_key = ':'.join([name, adapter_key])
-                    state_dict_[state_adapter_key] = adapter_module.state_dict()
+                    if adapter_key in module.get_accepted_adapters():
+                        adapter_module = module.adapter_layer[adapter_key]
+                        state_adapter_key = ':'.join([name, adapter_key])
+                        state_dict_[state_adapter_key] = adapter_module.state_dict()
 
                 module.set_enabled_adapters(enabled=True)
         return state_dict_
@@ -149,11 +150,12 @@ class MegatronGPTBaseAdapterModel(MegatronGPTPromptLearningModel):
         only for the adapter parameters.
         """
         for name, module in self.frozen_model.named_modules():
-            if isinstance(module, adapter_mixins.AdapterModuleMixin):
+            if isinstance(module, adapter_mixins.AdapterModuleMixin) and module.is_adapter_available():
                 for adapter_key in self.adapter_name_keys:
-                    adapter_module = module.adapter_layer[adapter_key]
-                    state_adapter_key = ':'.join([name, adapter_key])
-                    adapter_module.load_state_dict(state_dict[state_adapter_key], strict)
+                    if adapter_key in module.get_accepted_adapters():
+                        adapter_module = module.adapter_layer[adapter_key]
+                        state_adapter_key = ':'.join([name, adapter_key])
+                        adapter_module.load_state_dict(state_dict[state_adapter_key], strict)
                 module.set_enabled_adapters(enabled=True)
 
     def setup_optimizer_param_groups(self):
@@ -169,7 +171,7 @@ class MegatronGPTBaseAdapterModel(MegatronGPTPromptLearningModel):
         self.frozen_model.freeze()  # Freeze the entire model
         opt_params = []
         for _, module in self.frozen_model.named_modules():
-            if isinstance(module, adapter_mixins.AdapterModuleMixin):
+            if isinstance(module, adapter_mixins.AdapterModuleMixin) and module.is_adapter_available():
                 module.set_enabled_adapters(enabled=True)
                 module.unfreeze_enabled_adapters()  # selectively unfreeze the adapter modules.
                 opt_params += [p for p in module.parameters()]
@@ -275,9 +277,10 @@ class MegatronGPTAdapterLearningModel(MegatronGPTBaseAdapterModel):
         for _, module in self.frozen_model.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin):
                 for adapter_key in self.adapter_name_keys:
-                    module.add_adapter(
-                        name=adapter_key, cfg=adapter_cfg,
-                    )
+                    if adapter_key in module.get_accepted_adapters():
+                        module.add_adapter(
+                            name=adapter_key, cfg=adapter_cfg,
+                        )
 
         logging.info(f'After adding adapters:\n{self.frozen_model.summarize()}')
 
@@ -316,15 +319,16 @@ class MegatronGPTInfusedAdapterModel(MegatronGPTBaseAdapterModel):
         for _, module in self.frozen_model.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin):
                 for adapter_key in self.adapter_name_keys:
-                    if adapter_key == 'mlp_infused_adapter':
-                        cfg = InfusedAdapterConfig(
-                            in_features=frozen_model_cfg.ffn_hidden_size // frozen_model_cfg.tensor_model_parallel_size
-                        )
-                    else:
-                        cfg = InfusedAdapterConfig(
-                            in_features=frozen_model_cfg.hidden_size // frozen_model_cfg.tensor_model_parallel_size
-                        )
-                    module.add_adapter(name=adapter_key, cfg=cfg)
+                    if adapter_key in module.get_accepted_adapters():
+                        if adapter_key == 'mlp_infused_adapter':
+                            cfg = InfusedAdapterConfig(
+                                in_features=frozen_model_cfg.ffn_hidden_size // frozen_model_cfg.tensor_model_parallel_size
+                            )
+                        else:
+                            cfg = InfusedAdapterConfig(
+                                in_features=frozen_model_cfg.hidden_size // frozen_model_cfg.tensor_model_parallel_size
+                            )
+                        module.add_adapter(name=adapter_key, cfg=cfg)
 
         logging.info(f'After adding adapters:\n{self.frozen_model.summarize()}')
 

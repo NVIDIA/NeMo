@@ -102,7 +102,7 @@ else:
             )
 
 
-class ParallelMLP(MegatronModule):
+class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
     """MLP.
 
     MLP will take the input with h hidden state, project it to 4*h
@@ -139,6 +139,7 @@ class ParallelMLP(MegatronModule):
         self.persist_layer_norm = persist_layer_norm
         self.activation = activation
         self.dropout = dropout
+        self.set_accepted_adapters(['mlp_infused_adapter'])
 
         if activation not in ['gelu', 'geglu', 'reglu', 'swiglu']:
             raise ValueError(f"Activation {activation} not supported. Only gelu, geglu, reglu, swiglu are supported.")
@@ -496,7 +497,7 @@ class CoreAttention(MegatronModule):
         return context_layer
 
 
-class ParallelAttention(MegatronModule):
+class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
     """Parallel self-attention layer abstract class.
 
     Self-attention layer takes input with size [s, b, h]
@@ -535,6 +536,8 @@ class ParallelAttention(MegatronModule):
         self.normalize_attention_scores = normalize_attention_scores
 
         self.megatron_legacy = megatron_legacy
+
+        self.set_accepted_adapters(['key_infused_adapter', 'value_infused_adapter'])
 
         if kv_channels is None:
             assert (
@@ -751,8 +754,6 @@ class ParallelAttention(MegatronModule):
         inference_max_sequence_len=None,
         rotary_pos_emb=None,  # rotary positional embedding
         relative_position_bias=None,
-        key_infused_adapter=None,
-        value_infused_adapter=None,
     ):
         # hidden_states: [sq, b, h]
 
@@ -824,14 +825,17 @@ class ParallelAttention(MegatronModule):
             )
             query_layer = query_layer.view(*new_tensor_shape)
 
-        if key_infused_adapter:
-            kls = key_layer.shape
-            key_layer = key_infused_adapter(key_layer.reshape(kls[0], kls[1], -1))
-            key_layer = key_layer.reshape(kls)
-        if value_infused_adapter:
-            vls = value_layer.shape
-            value_layer = value_infused_adapter(value_layer.reshape(vls[0], vls[1], -1))
-            value_layer = value_layer.reshape(vls)
+        if self.is_adapter_available():
+            key_infused_adapter = self.adapter_layer['key_infused_adapter']  if 'key_infused_adapter' in self.adapter_layer else None
+            value_infused_adapter = self.adapter_layer['value_infused_adapter'] if 'value_infused_adapter' in self.adapter_layer else None
+            if key_infused_adapter:
+                assert value_infused_adapter is not None, "Expected key_infused_adapter not found!"
+                kls = key_layer.shape
+                key_layer = key_infused_adapter(key_layer.reshape(kls[0], kls[1], -1)).reshape(kls)
+            if value_infused_adapter:
+                assert key_infused_adapter is not None, "Expected value_infused_adapter not found!"
+                vls = value_layer.shape
+                value_layer = value_infused_adapter(value_layer.reshape(vls[0], vls[1], -1)).reshape(vls)
 
         # ===================================================
         # Adjust key, value, and attention mask for inference
@@ -1133,6 +1137,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         self.layer_type = layer_type
         self.bias = bias
         self.transformer_block_type = transformer_block_type
+        self.set_accepted_adapters(['adapter_1', 'adapter_2'])
 
         if not bias and bias_dropout_fusion:
             raise ValueError(
@@ -1407,17 +1412,6 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
             if self.transformer_block_type in ['pre_ln', 'normformer']:
                 hidden_states = self.input_layernorm(hidden_states)
 
-            if self.is_adapter_available():
-                key_infused_adapter = (
-                    self.adapter_layer['key_infused_adapter'] if 'key_infused_adapter' in self.adapter_layer else None
-                )
-                value_infused_adapter = (
-                    self.adapter_layer['value_infused_adapter']
-                    if 'value_infused_adapter' in self.adapter_layer
-                    else None
-                )
-            else:
-                key_infused_adapter, value_infused_adapter = None, None
 
             attention_output, attention_bias = self.self_attention(
                 hidden_states,
@@ -1428,8 +1422,6 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 inference_max_sequence_len=inference_max_sequence_len,
                 rotary_pos_emb=self_attention_pos_emb,
                 relative_position_bias=self_attention_relative_position_bias,
-                key_infused_adapter=key_infused_adapter,
-                value_infused_adapter=value_infused_adapter,
             )
 
             if get_key_value:
@@ -1498,19 +1490,6 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                     inference_max_sequence_len=inference_max_sequence_len,
                 )
             else:
-                if self.is_adapter_available():
-                    inter_key_infused_adapter = (
-                        self.adapter_layer['inter_key_infused_adapter']
-                        if 'inter_key_infused_adapter' in self.adapter_layer
-                        else None
-                    )
-                    inter_value_infused_adapter = (
-                        self.adapter_layer['inter_value_infused_adapter']
-                        if 'inter_value_infused_adapter' in self.adapter_layer
-                        else None
-                    )
-                else:
-                    inter_key_infused_adapter, inter_value_infused_adapter = None, None
 
                 attention_output, attention_bias = self.inter_attention(
                     normalization_output,
@@ -1518,8 +1497,6 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                     encoder_output=encoder_output,
                     rotary_pos_emb=cross_attention_pos_emb,
                     relative_position_bias=cross_attention_relative_position_bias,
-                    key_infused_adapter=inter_key_infused_adapter,
-                    value_infused_adapter=inter_value_infused_adapter,
                 )
 
             # If normformer, apply norm on the output of the self attention.

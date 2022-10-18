@@ -150,6 +150,15 @@ class AdapterModuleMixin(ABC):
     adapter_global_cfg_key = "global_cfg"
     adapter_metadata_cfg_key = "adapter_meta_cfg"
 
+    def set_accepted_adapters(self, adapters):
+        self.accepted_adapters = adapters
+
+    def get_accepted_adapters(self,):
+        if hasattr(self, 'accepted_adapters'):
+            return self.accepted_adapters
+        else:
+            return []
+
     def add_adapter(self, name: str, cfg: DictConfig):
         """
         Add an Adapter module to this module.
@@ -159,6 +168,9 @@ class AdapterModuleMixin(ABC):
             cfg: A DictConfig or Dataclass that contains at the bare minimum `__target__` to instantiate a
                 new Adapter module.
         """
+        if self.get_accepted_adapters():
+            assert name in self.get_accepted_adapters(), f"{name} has not been added to the list of accepted_adapters for this module."
+
         # Convert to DictConfig from dict or Dataclass
         if is_dataclass(cfg):
             cfg = OmegaConf.structured(cfg)
