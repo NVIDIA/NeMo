@@ -24,6 +24,7 @@ from x_transformers import Decoder
 
 from nemo.collections.asr.data.deep_diarize.inference_data import RTTMDataset
 from nemo.collections.asr.data.deep_diarize.train_data import MultiStreamDataLoader, RTTMStreamingSegmentsDataset
+from nemo.collections.asr.data.deep_diarize.train_tarred_data import TarredRTTMStreamingSegmentsDataset
 from nemo.collections.asr.modules.audio_preprocessing import AudioToMelSpectrogramPreprocessor
 from nemo.collections.asr.modules.deep_diarize_transformer import TransformerXL
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
@@ -73,7 +74,7 @@ class DeepDiarizeModel(ModelPT):
         self.mems = None
 
     def training_step(self, batch, batch_idx):
-        train_x, train_lengths, y, _, sample_ids, offsets = batch
+        train_x, train_lengths, y, _ = batch
         seg, model_lengths = self.sub_sample_layer(train_x, lengths=train_lengths)
         logits, self.mems = self.transformer_model(seg, mems=self.mems)
         logits = self.sigmoid(logits)
@@ -150,7 +151,8 @@ class DeepDiarizeModel(ModelPT):
     def setup_training_data(self, cfg: Optional[Union[DictConfig, Dict]]):
         featurizer, preprocessor = self._setup_preprocessor(cfg)
 
-        datasets = RTTMStreamingSegmentsDataset.create_streaming_datasets(
+        cls = TarredRTTMStreamingSegmentsDataset if cfg.tarred else RTTMStreamingSegmentsDataset
+        datasets = cls.create_streaming_datasets(
             manifest_filepath=cfg.manifest_filepath,
             preprocessor=preprocessor,
             featurizer=featurizer,

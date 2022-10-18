@@ -34,7 +34,7 @@ python ./deep_diarize_train.py --config-path='../conf/neural_diarizer' --config-
     
 python ./deep_diarize_train.py --config-path='../conf/neural_diarizer' --config-name='deep_diarize.yaml' \
     trainer.devices=1 \
-    model.train_ds.manifest_filepath="/ws/manifests/fisher_mixed/fisher_1000_train_manifest.json" \
+    model.train_ds.manifest_filepath="/data/fisher_tarred/audio__OP_0..18_CL_.tar" \
     model.validation_ds.manifest_filepath="/ws/manifests/fisher_mixed/fisher_10_train_manifest.json" \
     exp_manager.name='sample_train' \
     exp_manager.exp_dir='./deep_diarize_exp' \

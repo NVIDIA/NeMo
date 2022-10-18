@@ -1,7 +1,7 @@
 # {"audio_filepath": "/path/to/audio01.wav", "offset": 390.83, "duration": 13.45, "text": "-", "num_speakers": 2, "rttm_filepath": "/path/to/audio01.rttm"}
 name: "DeepDiarize"
 sample_rate: 16000
-num_workers: 2
+num_workers: 16
 chunk_seconds: 15
 
 model:
@@ -24,8 +24,9 @@ model:
     sample_rate: ${sample_rate}
     num_workers: ${num_workers}
     int_values: False
-    batch_size: 28
+    batch_size: 16
     num_samples: -1
+    tarred: True
     shuffle: False
 
   validation_ds:
