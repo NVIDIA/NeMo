@@ -63,7 +63,7 @@ def filter_configuration(base_cfg, cfg, tp, pp, gpus_per_node):
             f"base_cfg[model][num_layers]={num_layers}."
         )
         return False
-    elif pp == 1 or (pp > 1 and tp >= cfg.cluster.gpus_per_node):
+    elif pp == 1 or (pp > 1 and tp >= gpus_per_node):
         return nodes_necessary(gpus_per_node, tp, pp) > 0
     print(
         f"FasterTransformer partial node configuration "
