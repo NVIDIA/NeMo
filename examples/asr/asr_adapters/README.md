@@ -58,3 +58,51 @@ graph TD
 ```
 
 **Note**: If you with to evaluate the base model (with all adapters disabled), simply pass `model.adapter.adapter_name=null` to the config of this script to disable all adapters and evaluate just the base model.
+
+# Scoring and Analysis of Results
+
+The script `scoring_and_analysis.py` can be used to calculate the scoring metric for selecting hyperparameters for constrained and unconstrained adaptation experiments as outlined in [Damage Control During Domain Adaptation for Transducer Based Automatic Speech Recognition](https://arxiv.org/abs/2210.03255).
+
+The script takes in as input a csv file containing all the hyperparameters and their corresponding WERs. Currently, it shows how it can be used to perform analysis on the [Crowdsourced high-quality UK and Ireland English Dialect speech data set](http://www.openslr.org/83/). To use it for other experiments, please updated the global variables outlined in the beginning of the script accordingly. These global variables correspond to the column names within the input csv file.
+
+## Basic Usage
+
+To perform analysis on the adapters experiment results
+
+```
+$ python scoring_and_analysis.py \
+    --csv <path to csv> \
+    --dataset_type_column <dataset_group_column_name>
+```
+
+To perform analysis on the finetuning results
+
+```
+$ python scoring_and_analysis.py \
+    --csv <path to csv> \
+    --dataset_type_column <dataset_group_column_name> \
+    -ft
+```
+
+## Advanced Usage
+
+The script by default shows only the best hyperparameters for each crietria. To see a ranking of all the hyperparameters for each criteria in order to visualize how the results were selected use the `--show_analysis` flag. Moreover, instead of displaying only the best hyperparameters, you can use the `--topk` flag to show the top *k* hyperparameters
+
+```
+$ python scoring_and_analysis.py \
+    --csv <path to csv> \
+    --dataset_type_column <dataset_group_column_name> \
+    --show_analysis \
+    --topk 3
+```
+
+Instead of doing the analysis over all possible combinations of all the hyperparameters, you can restrict the search space only to a subset of experiments. This can be achieved by the `-uargs` and the `-cargs` flag for the unconstrained and the constrained experiments respectively.
+
+```
+$ python scoring_and_analysis.py \
+    --csv <path to csv> \
+    --dataset_type_column <dataset_group_column_name> \
+    -cargs 'Adapter Position' encoder \
+    -cargs 'Adapter Dropout' 0.5 \
+    -uargs 'Train Steps' 5000
+```
