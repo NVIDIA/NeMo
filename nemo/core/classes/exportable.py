@@ -60,7 +60,7 @@ class Exportable(ABC):
         dynamic_axes=None,
         check_tolerance=0.01,
         export_modules_as_functions=False,
-        keep_initializers_as_inputs=False,
+        keep_initializers_as_inputs=None,
     ):
         all_out = []
         all_descr = []
@@ -99,7 +99,7 @@ class Exportable(ABC):
         dynamic_axes=None,
         check_tolerance=0.01,
         export_modules_as_functions=False,
-        keep_initializers_as_inputs=False,
+        keep_initializers_as_inputs=None,
     ):
         my_args = locals().copy()
         my_args.pop('self')
