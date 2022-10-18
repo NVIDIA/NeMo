@@ -831,11 +831,11 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
             key_infused_adapter = self.get_from_adapter_layer(AdapterType.KEY_INFUSED)
             value_infused_adapter = self.get_from_adapter_layer(AdapterType.VALUE_INFUSED)
             if key_infused_adapter:
-                assert value_infused_adapter is not None, "Expected key_infused_adapter not found!"
+                assert value_infused_adapter is not None, "Expected value_infused_adapter not found!"
                 kls = key_layer.shape
                 key_layer = key_infused_adapter(key_layer.reshape(kls[0], kls[1], -1)).reshape(kls)
             if value_infused_adapter:
-                assert key_infused_adapter is not None, "Expected value_infused_adapter not found!"
+                assert key_infused_adapter is not None, "Expected key_infused_adapter not found!"
                 vls = value_layer.shape
                 value_layer = value_infused_adapter(value_layer.reshape(vls[0], vls[1], -1)).reshape(vls)
 
