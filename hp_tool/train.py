@@ -6,6 +6,8 @@ import subprocess
 
 from omegaconf import OmegaConf
 
+from hp_tool import utils
+
 
 def run_training(file_name: str, model_name: str, results_dir: str, cfg: OmegaConf) -> int:
     """
@@ -89,6 +91,8 @@ def generate_overrides_str(
     training_model = f"{model_name}/{file_name}"
     cluster_type = cfg.get("cluster_type")
     container = cfg.get("training_container")
+    bignlp_hp_tool_path = cfg.get("bignlp_hp_tool_path")
+    bignlp_hp_tool_path = convert_to_absolute_path(bignlp_hp_tool_path)
     bignlp_scripts_path = cfg.get("bignlp_scripts_path")
     bignlp_scripts_path = convert_to_absolute_path(bignlp_scripts_path)
     data_dir = cfg.get("data_dir")
@@ -96,6 +100,12 @@ def generate_overrides_str(
     api_key_file = cfg.get("wandb").get("api_key_file")
     if api_key_file is None:
         api_key_file = "null"
+    
+    # Process container-mounts.
+    mounts_str = (
+        f"{bignlp_hp_tool_path}:{bignlp_hp_tool_path},{results_dir}:{results_dir}"
+    )
+    mounts_str += utils.add_container_mounts(container_mounts)
 
     overrides_str = (
         f"training={training_model} "
@@ -106,7 +116,7 @@ def generate_overrides_str(
         f"bignlp_path={bignlp_scripts_path} "
         f"data_dir={data_dir} "
         f"training.exp_manager.create_checkpoint_callback=False "
-        f"container_mounts={container_mounts} "
+        f"container_mounts=\[{mounts_str}\] "
         f"wandb_api_key_file={api_key_file} "
     )
     return overrides_str

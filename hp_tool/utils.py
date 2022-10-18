@@ -464,7 +464,6 @@ def add_container_mounts(container_mounts: Optional[List[str]]) -> str:
     :rtype: str
     """
     mounts_str = ""
-    print(container_mounts)
     if container_mounts[0] is None or container_mounts[0] == "None":
         return ""
     if container_mounts is not None:
