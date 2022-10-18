@@ -62,6 +62,7 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
         * [5.3.2.2.1. Model Config](#53221-model-config)
         * [5.3.2.2.2. Base Config Generation](#53222-base-config-generation)
         * [5.3.2.2.3. Training HP Search](#53223-training-hp-search)
+        * [5.3.2.2.4. Inference HP Search](#53224-inference-hp-search)
       - [5.3.2.3. Running Custom Model Size Configs](#5323-running-custom-model-size-configs)
       - [5.3.2.4. Interpreting the Results](#5324-interpreting-the-results)
       - [5.3.2.5. Logging Runs with Weights and Biases](#5325-logging-runs-with-weights-and-biases)
@@ -243,6 +244,7 @@ Figure 1: The GPT-3 family architecture. The 5B variant includes 24 transformer 
 | Distributed data preprocessing | Yes (the Pile only)       | N/A                                                                                                                                                                  |
 | NVfuser                         | No             | N/A                                                                                                                                                                  |
 | P-Tuning and Prompt Tuning                | Yes             | N/A                                                                                                                                                                  |
+| IA3 and Adapter learning                | Yes             | N/A                                                                                                                                                                  |
 | Distributed Optimizer (ZeRO-2)               | Yes             | N/A                                                                                                                                                                  |
 
 ### 2.2. T5 and mT5 Models
@@ -266,6 +268,8 @@ Figure 1: The GPT-3 family architecture. The 5B variant includes 24 transformer 
 | SW stack support                 | Slurm DeepOps/Base Command Manager/Base Command Platform |    No     |
 | Distributed data preprocessing   | Yes (the Pile dataset for T5, mC4 dataset for mT5)       |    N/A    |
 | NVfuser                          | No                                                       |    N/A    |
+| P-Tuning and Prompt Tuning                | Yes             | N/A                                                                                                                                                                  |
+| IA3 and Adapter learning                | Yes             | N/A                                                                                                                                                                  |
 | Hyperparameter tool                         | Yes                                                       |    N/A    |
 
 
@@ -477,7 +481,7 @@ Command Manager.
 
 
 ```
-srun -p [partition] -N 1 --container-mounts=/path/to/local/dir:/workspace/mount_dir --container-image=[container_tag] bash -c "cp -r /opt/bignlp/bignlp-scripts /opt/bignlp/bignlp-hp-tool /workspace/mount_dir/"
+srun -p [partition] -N 1 --container-mounts=/path/to/local/dir:/workspace/mount_dir --container-image=[container_tag] bash -c "cp -r /opt/bignlp/bignlp-scripts /opt/bignlp/bignlp-hp-tool /opt/bignlp/FasterTransformer /workspace/mount_dir/"
 ```
 
 Install the BigNLP scripts dependencies on the head node of the cluster:
@@ -1452,11 +1456,10 @@ to measure the time it takes to finish each global step), and other relevant met
 
 ### 5.3. Using the HP Tool to Find the Optimal Configuration
 <a id="markdown-using-the-hp-tool-to-find-the-optimal-configuration" name="using-the-hp-tool-to-find-the-optimal-configuration"></a>
-This tool searches for the Hyper-Parameters (HPs) that achieve the highest throughput for training 
+This tool searches for the Hyper-Parameters (HPs) that achieve the highest throughput for training and inference for
 Large Language Models (LLMs) using NeMo-Megatron.
 
-Note: The inference HP search is not available in this release. Please use a previous version of 
-the container to use this feature.
+Note: The inference HP search is only available for GPT-3 models.
 
 #### 5.3.1. HP Tool Capabilities
 <a id="markdown-hp-tool-capabilities" name="hp-tool-capabilities"></a>
@@ -1471,8 +1474,8 @@ tool provides several different capabilities, as shown in the table below:
 | Base Config Generation               | Yes      | Yes      | Yes      |
 | Training HP Search                   | Yes      | Yes      | Yes      |
 | Parallel Training HP Search          | BCM Only | BCM Only | BCM Only |
-| Inference HP Search                  | No       | No       | No       |
-| Parallel Inference HP Search         | No       | No       | No       |
+| Inference HP Search                  | BCM Only | No       | No       |
+| Parallel Inference HP Search         | BCM Only | No       | No       |
 | Slurm Based Clusters                 | Yes      | Yes      | Yes      |
 | Base Command Platform Based Clusters | Yes      | Yes      | Yes      |
 
@@ -1519,6 +1522,21 @@ on the target cluster. During this search, the jobs will run with the number of 
 files, using the `num_nodes` parameter. Once all the jobs have finished running, the final result will be 
 summarized in a CSV file.
 
+##### 5.3.1.4. Inference HP Search
+<a id="markdown-inference-hp-search" name="inference-hp-search"></a>
+
+The tool can also search the best HPs for inference purposes. It will empirically measure the
+throughput and latency for each given configuration in the grid search space, and return a comprehensive
+table with all the numbers. The tool will search over three different critical HPs, which have great
+impact on the inference throughput and latency: Tensor Parallelism (TP), Pipeline Parallelism (PP), and
+Batch Size (BS). Technically, the tool is also capable of searching over different input/output sequence
+lengths. However, we do not recommend adding multiple different sequence lengths to the same search,
+since the model that uses the shortest sequence lengths will always achieve higher throughput and lower
+latency. Therefore, we recommend performing several different inference searches for different sequence
+lengths. Once the search space has been defined, the tool will launch a job for each config in parallel, 
+and measure the throughput and latency. This search will launch the jobs using NeMo-Megatron on the target cluster.
+Once all the jobs have finished running, the final result will be summarized in a CSV file.
+
 #### 5.3.2. Usage
 <a id="markdown-usage" name="usage"></a>
 
@@ -1530,8 +1548,8 @@ In this section, we will explain how to run each of the stages described above.
 ###### 5.3.2.1.1. Slurm
 <a id="markdown-slurm" name="slurm"></a>
 
-First, our configuration setup assumes that the `/opt/bignlp/bignlp-hp-tool` and `/opt/bignlp/bignlp-scripts`
-directories have been copied from the container to the local file system.
+First, our configuration setup assumes that the `/opt/bignlp/bignlp-hp-tool`, `/opt/bignlp/bignlp-scripts` 
+and `/opt/bignlp/FasterTransformer` directories have been copied from the container to the local file system.
 
 The first parameter that must be set is the `bignlp_hp_tool_path` parameter inside the `conf/config.yaml` 
 file. This parameter must point to the absolute path where the `bignlp-hp-tool` repository is stored in 
@@ -1545,7 +1563,8 @@ in the local file system. Any additional directories that should be mounted must
 the source and destination paths are provided. Otherwise, the given paths will be mounted to the same 
 path inside the container.
 
-The `bignlp_scripts_path` must point to the path where bignlp-scripts is located. The location 
+The `bignlp_scripts_path` and `fastertransformer_path` must point to the path where bignlp-scripts and 
+FasterTransformer directories are located in the local file system. The locations
 specified in the default config should be valid if `/opt/bignlp` was extracted correctly. Next, the 
 `data_dir` value must point to the path where the training dataset is located. Note that the dataset 
 for GPT-3, T5 and mT5 values will be different, so modify this parameter accordingly. Follow the data 
@@ -1563,11 +1582,14 @@ defaults:
   - override hydra/job_logging: stdout
 
 run_training_hp_search: True
+run_inference_hp_search: True
 
+cluster_type: bcm  # bcm or bcp
 bignlp_hp_tool_path: ???  # Path to the location of bignlp-hp-tool codebase.
-bignlp_scripts_path: ${bignlp_hp_tool_path}/../bignlp-scripts  # Path to the location of BigNLP-Inference-Scripts codebase.
-data_dir: ${bignlp_scripts_path}/data
+bignlp_scripts_path: ${bignlp_hp_tool_path}/../bignlp-scripts
+fastertransformer_dir: ${bignlp_hp_tool_path}/../FasterTransformer
 base_results_dir: ${bignlp_hp_tool_path}/results
+data_dir: ${bignlp_scripts_path}/data
 
 training_container: nvcr.io/ea-bignlp/bignlp-training:22.09-py3
 container_mounts:
@@ -1575,8 +1597,8 @@ container_mounts:
 
 wandb:  # Weights and Biases (W&B) logging.
   enable: False  # Whether to save logs to W&B.
-  api_key_file: null  # Path to the file where the w&B api key is stored. Key must be on the first line.
-  project: bignlp-hp-tool  # Name of the W&B project to store the logs in. The name of the run will be populated automatically.
+  api_key_file: null # Path to the file where the w&B api key is stored. Key must be on the first line.
+  project: bignlp-hp-tool # Name of the W&B project to store the logs in. The name of the run will be populated automatically.
 ```
 
 ###### 5.3.2.1.2. Base Command Platform
@@ -1630,9 +1652,27 @@ train_settings:
   pipeline_parallel_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8, 10]
   micro_batch_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8, 16]
   act_ckpt_layers: auto  # auto to use our recommendation, or a list, such as [0, 1, 2, 3]
+ 
+inference_settings:
+  run:
+    model_type: gpt3
+    model_train_name: gpt3_5b
+    gpus_per_node: 8
+    data_type: "fp16" # fp32|fp16|bf16
+    time_limit: 0:30:00
+    results_dir: ${base_results_dir}/${search_config_value}_${search_config.train_settings.gpu_memory_gb}gb
+    tensor_parallel_sizes: [1,2,4]
+    pipeline_parallel_sizes: [1,2]
+  benchmark:
+    input_len: 60
+    output_len: 20
+    batch_sizes: [4,8,16,32,64,128,256]
+    beam_width: 1
+    topk: 4
+    topp: 0.0
 ```
 
-The `model_size_in_b` parameter indicates how many billions of parameters the model should contain, and 
+For the training parameters, the `model_size_in_b` parameter indicates how many billions of parameters the model should contain, and 
 the tool will provide a config and HPs for a model of that size. The `num_nodes` parameter indicates 
 how many nodes the HP tool should use to run each training job. The `gpus_per_node` parameter 
 indicates how many GPUs are available in each 
@@ -1667,6 +1707,13 @@ four parameters. If these are left as `auto`, the tool will select appropriate v
 if you wish to override them, you can use these parameters. For example, if you only wish to search 
 for configurations with Tensor Parallelism (TP) values of 1 and 2, you can set 
 `tensor_parallel_sizes: [1, 2]` and leave the other parameters as `auto`.
+
+In the inference parameters, `gpus_per_node` must be used to tell the system how many GPUs are available in each node. 
+`tensor_parallel_sizes` is used to set the TP values to perform the HP search. `pipeline_parallel_sizes` is used to 
+set the PP values to perform the HP search.  `batch_sizes` is used to set all the possible batch sizes for the HP 
+search. `input_len` can be set to the sequence length of the input that will be passed to the model. `output_len` can 
+be set to the output length that will be produced by the model. 
+
 
 ###### 5.3.2.2.2. Base Config Generation
 <a id="markdown-base-config-generation" name="base-config-generation"></a>
@@ -1729,6 +1776,16 @@ train_settings:
   act_ckpt_layers: auto  # auto to use our recommendation, or a list, such as [0, 1, 2, 3]
 ```
 
+###### 5.3.2.2.4. Inference HP Search
+<a id="markdown-inference-hp-search" name="inference-hp-search"></a>
+
+To run the inference HP search pipeline, the parameter `run_inference_hp_search` must be set to `True`
+in the `conf/config.yaml` file. The model used to search the best inference HPs must be selected
+using the `search_config` parameter in `conf/config.yaml`. For example, by default, this parameter
+will be set to `gpt3/5b`, so our tool will search the optimal inference HPs for a 5B parameter GPT-3
+model. The configuration for this model can be found in the `conf/search_config/gpt3/5b.yaml` file.
+To configure the behavior of the HP search, the following parameters can be modified in the
+correspoinding YAML file.
 
 ##### 5.3.2.3. Running Custom Model Size Configs
 <a id="markdown-running-custom-model-size-configs" name="running-custom-model-size-configs"></a>
@@ -1748,9 +1805,9 @@ modified using the `vocab_size`, `num_tokens_in_b`, and `tflops_per_gpu` paramet
 Once all these parameters are set correctly, and after selecting the `gpt3/unknown_size` as the 
 config to run in the `search_config` parameter in the `conf/config.yaml` file, the training 
 pipeline can be executed calling `python3 main.py`. This will produce a base configuration for 
-the suggested model size. If `run_training_hp_search` is set to `True`, the tool will also search 
-for the HPs for training, using the rest of the configuration yaml file as input. The tool will 
-behave the same way as when using a predefined config.
+the suggested model size. If `run_training_hp_search` or `run_inference_hp_search` are set to
+`True`, the tool will also search for the HPs for training or inference, using the rest of the
+configuration yaml file as input. The tool will behave the same way as when using a predefined config.
 
 ##### 5.3.2.4. Interpreting the Results
 <a id="markdown-interpreting-the-results" name="interpreting-the-results"></a>
@@ -1777,6 +1834,12 @@ from highest throughput to slowest throughput. The CSV file also includes inform
 samples per second achieved by each model, the time per global step, the TFLOPS per GPU achieved, 
 and so on. The `final_results` directory will also contain a YAML file, which corresponds to the 
 config with the lowest training time. This is the recommended model for training. 
+
+For the inference HP search, the results can be found inside the directory specified in the
+`results_dir` parameter of the YAML config file. Inside that directory, you will find:
+.../inference/final_summary/final_output.csv.
+This csv file will have the results of every model that was run by the inference HP search
+tool.
 
 Notes: 
  - The result of the Training HP Search will vary when it is run with different numbers of nodes. 
@@ -4634,6 +4697,7 @@ Inference parameters:
 * Adapter learning for GPT-3 and T5 with tensor parallelism and pipeline parallelism (training only)
 * IA3 learning for GPT-3 and T5 with tensor parallelism and pipeline parallelism (training only)
 * Hyperparameter tool to find the highest throughput configs for training on Base Command Platform
+* Hyperparameter tool: parallel inference hyperparameter search for GPT-3 on Base Command Manager
 
 **NeMo Megatron 22.08.01**
 * Cloud service providers: support for Amazon Web Services (performance validated up to 20 `p4d.24xlarge` instances)
