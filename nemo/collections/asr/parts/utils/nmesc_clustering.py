@@ -710,7 +710,9 @@ class SpectralClustering:
         labels = self.clusterSpectralEmbeddings(X, cuda=self.cuda, device=self.device)
         return labels
 
-    def clusterSpectralEmbeddings(self, affinity, cuda: bool = False, device: torch.device = torch.device('cpu')):
+    def clusterSpectralEmbeddings(
+        self, affinity: torch.Tensor, cuda: bool = False, device: torch.device = torch.device('cpu')
+    ):
         """
         Perform k-means clustering on spectral embeddings. To alleviate the effect of randomness,
         k-means clustering is performed for (self.n_random_trials) times then the final labels are obtained
@@ -1054,48 +1056,38 @@ class SpeakerClustering(torch.nn.Module):
         Args:
             max_num_speaker: (int)
                 The maximum number of clusters to consider for each session
-
             min_samples_for_nmesc: (int)
                 The minimum number of samples required for NME clustering. This avoids
                 zero p_neighbour_lists. If the input has fewer segments than min_samples,
                 it is directed to the enhanced speaker counting mode.
-
             enhanced_count_thres: (int)
                 For the short audio recordings under 60 seconds, clustering algorithm cannot
                 accumulate enough amount of speaker profile for each cluster.
                 Thus, getEnhancedSpeakerCount() employs anchor embeddings (dummy representations)
                 to mitigate the effect of cluster sparsity.
                 enhanced_count_thres = 80 is recommended.
-
             max_rp_threshold: (float)
                 Limits the range of parameter search.
                 Clustering performance can vary depending on this range.
                 Default is 0.15.
-
             sparse_search: (bool)
                 Toggle sparse search mode. If True, limit the size of p_value_list to sparse_search_volume.
-
             sparse_search_volume: (int)
                 Number of p_values we search during NME analysis.
                 Default is 30. The lower the value, the faster NME-analysis becomes.
                 Lower than 20 might cause a poor parameter estimation.
-
             maj_vote_spk_count: (bool)
                 If True, take a majority vote on all p-values in the given range to estimate the number of speakers.
                 The majority voting may contribute to surpress overcounting of the speakers and improve speaker
                 counting accuracy.
-
             fixed_thres: (float)
                 If fixed_thres value is provided, NME-analysis process will be skipped.
                 This value should be optimized on a development set to obtain a quality result.
                 Default is None and performs NME-analysis to estimate the threshold.
-
             multiscale_weights: (torch.tensor)
                 Multi-scale weights that are used when affinity scores are merged.
-
             parallelism: (bool)
                 Use dynamic parallelism feature in torch.jit compiler to accelerate the p-value search.
-
             cuda: (bool)
                 Boolean variable for toggling cuda availability.
 

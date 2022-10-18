@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import re
 from typing import Dict, Optional
 
 import torch
@@ -45,7 +44,8 @@ except (ImportError, ModuleNotFoundError):
 
 class MegatronBertModel(MegatronBaseModel):
     """
-    Megatron Bert pretraining
+    Megatron Bert pretraining.
+    Model returns [batch, seq, hidden] shape
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
@@ -96,6 +96,19 @@ class MegatronBertModel(MegatronBaseModel):
 
     def forward(self, input_ids, attention_mask, token_type_ids, lm_labels=None):
         output_tensor = self.model(input_ids, attention_mask, token_type_ids=token_type_ids, lm_labels=lm_labels)
+
+        # Return the output tensor of encoder and transpose from [seq_len, batch, hidden] to [batch, seq_len, hidden]
+        if torch.is_tensor(output_tensor):
+            output_tensor = output_tensor.transpose(1, 0).contiguous()
+        else:
+            lm_loss_, sop_logits = output_tensor
+
+            lm_loss_ = lm_loss_.transpose(1, 0).contiguous()
+            if sop_logits is not None:
+                sop_logits = sop_logits.transpose(1, 0).contiguous()
+
+            output_tensor = (lm_loss_, sop_logits)
+
         return output_tensor
 
     def training_step(self, batch, batch_idx):
@@ -158,11 +171,8 @@ class MegatronBertModel(MegatronBaseModel):
         return reduced_loss
 
     def validation_epoch_end(self, outputs):
-        if not outputs:
-            return
         averaged_loss = torch.stack(outputs).mean()
         self.log('val_loss', averaged_loss, prog_bar=True)
-        self.log('consumed_samples', self.compute_consumed_samples(self.trainer.global_step - self.init_global_step))
 
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
@@ -215,6 +225,8 @@ class MegatronBertModel(MegatronBaseModel):
 
     def _build_train_valid_test_datasets(self):
         logging.info('Building Bert datasets.')
+        if self.trainer.limit_val_batches > 1.0 and isinstance(self.trainer.limit_val_batches, float):
+            raise ValueError("limit_val_batches must be an integer or float less than or equal to 1.0.")
         global_batch_size = self.trainer.world_size * self.cfg.micro_batch_size / self.cfg.tensor_model_parallel_size
         # Compute trianing micro-batch steps: total_global_batch_steps x grad_acumms_per_global_batch
         max_train_steps = self.trainer.max_steps * self.trainer.accumulate_grad_batches
@@ -226,6 +238,12 @@ class MegatronBertModel(MegatronBaseModel):
             eval_iters * global_batch_size,
             test_iters * global_batch_size,
         ]
+
+        if self.trainer.limit_val_batches <= 1.0 and isinstance(self.trainer.limit_val_batches, float):
+            train_valid_test_num_samples[
+                1
+            ] = 1  # This is to make sure we only have one epoch on every validation iteration
+
         self._train_ds, self._validation_ds, self._test_ds = build_train_valid_test_datasets(
             cfg=self.cfg,
             trainer=self.trainer,
@@ -289,16 +307,12 @@ class MegatronBertModel(MegatronBaseModel):
 
     def setup(self, stage=None):
         resume_checkpoint_path = self.trainer._checkpoint_connector.resume_from_checkpoint_fit_path
+
         if resume_checkpoint_path:
-            try:
-                init_consumed_samples = int(
-                    float(re.findall(r"consumed_samples\=([0-9]+.[0-9]+)", resume_checkpoint_path)[0])
-                )
-            except (ValueError, TypeError):
-                logging.warning("Cannot parse the checkpoint file to get the consumed samples. assume it is zero.")
-                init_consumed_samples = 0
+            init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
         else:
             init_consumed_samples = 0
+
         self.init_consumed_samples = init_consumed_samples
 
         if stage == 'predict':
@@ -333,11 +347,6 @@ class MegatronBertModel(MegatronBaseModel):
                 f'Setting up test dataloader with len(len(self._test_ds)): {len(self._test_ds)} and consumed samples: {consumed_samples}'
             )
             self._test_dl = self.build_pretraining_data_loader(self._test_ds, consumed_samples)
-
-    def on_pretrain_routine_start(self) -> None:
-        # keep a copy of init_global_step
-        self.init_global_step = self.trainer.global_step
-        return super().on_pretrain_routine_start()
 
     def compute_consumed_samples(self, steps_since_resume=0):
         app_state = AppState()

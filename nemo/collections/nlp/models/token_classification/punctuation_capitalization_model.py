@@ -889,7 +889,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             num_workers=cfg.num_workers,
             pin_memory=cfg.pin_memory,
             drop_last=cfg.drop_last,
-            persistent_workers=cfg.persistent_workers,
+            persistent_workers=cfg.persistent_workers if cfg.num_workers > 0 else False,
         )
 
     def _setup_infer_dataloader(
@@ -1127,7 +1127,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 predictions computation are marked with asterisk: ``[['[CLS]'*, 'h', 'e', 'l'*, '[SEP]'*],
                 ['[CLS]'*, 'e'*, 'l', 'l'*, '[SEP]'*], ['[CLS]'*, 'l'*, 'l', 'o', '[SEP]'*]]``.
             return_labels (:obj:`bool`, `optional`, defaults to :obj:`False`): whether to return labels in NeMo format
-                (see :ref:`nlp/punctuation_and_capitalization/NeMo Data Format`) instead of queries with restored
+                (see :ref:`nemo-data-format-label`) instead of queries with restored
                 punctuation and capitalization.
             dataloader_kwargs (:obj:`Dict[str, Any]`, `optional`): an optional dictionary with parameters of PyTorch
                 data loader. May include keys: ``'num_workers'``, ``'pin_memory'``, ``'worker_init_fn'``,
@@ -1166,9 +1166,11 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 enumerate(infer_datalayer), total=ceil(len(infer_datalayer.dataset) / batch_size), unit="batch"
             ):
                 inp_ids, inp_type_ids, inp_mask, subtokens_mask, start_word_ids, query_ids, is_first, is_last = batch
+                print("inp_ids:\n", inp_ids, "inp_type_ids:\n", inp_type_ids, "inp_mask:\n", inp_mask)
                 punct_logits, capit_logits = self.forward(
                     input_ids=inp_ids.to(d), token_type_ids=inp_type_ids.to(d), attention_mask=inp_mask.to(d),
                 )
+                print("punct_logits:\n", punct_logits, "capit_logits:\n", capit_logits)
                 _res = self._transform_logit_to_prob_and_remove_margins_and_extract_word_probs(
                     punct_logits, capit_logits, subtokens_mask, start_word_ids, margin, is_first, is_last
                 )
