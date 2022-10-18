@@ -159,6 +159,11 @@ class AdapterModuleMixin(ABC):
         else:
             return []
 
+    def get_from_adapter_layer(self, name: str):
+        if hasattr(self, "adapter_layer"):
+            return self.adapter_layer[name] if name in self.adapter_layer else None
+        return None
+
     def add_adapter(self, name: str, cfg: DictConfig):
         """
         Add an Adapter module to this module.
@@ -169,7 +174,9 @@ class AdapterModuleMixin(ABC):
                 new Adapter module.
         """
         if self.get_accepted_adapters():
-            assert name in self.get_accepted_adapters(), f"{name} has not been added to the list of accepted_adapters for this module."
+            assert (
+                name in self.get_accepted_adapters()
+            ), f"{name} has not been added to the list of accepted_adapters for this module."
 
         # Convert to DictConfig from dict or Dataclass
         if is_dataclass(cfg):

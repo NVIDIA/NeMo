@@ -32,7 +32,8 @@ from nemo.collections.nlp.models.language_modeling.megatron_t5_prompt_learning_m
     MegatronT5PromptLearningModel,
 )
 from nemo.collections.nlp.modules.common import VirtualPromptStyle
-from nemo.collections.nlp.modules.common.megatron.parallel_adapters import (
+from nemo.collections.nlp.modules.common.megatron.adapters.adapter_constants import AdapterType
+from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     InfusedAdapterConfig,
     ParallelLinearAdapterConfig,
 )
@@ -419,8 +420,7 @@ class MegatronT5InfusedAdapterModel(MegatronT5BaseAdapterModel):
                     None  # (@adithyare) adapter learning does not support activations checkpointing atm.
                 )
 
-        self.encoder_adapter_name_keys = ['mlp_infused_adapter', 'key_infused_adapter', 'value_infused_adapter']
-        self.decoder_adapter_name_keys = self.encoder_adapter_name_keys
+        self.adapter_name_keys = [AdapterType.MLP_INFUSED, AdapterType.KEY_INFUSED, AdapterType.VALUE_INFUSED]
         self.frozen_model.freeze()
         logging.info(f'Before adding adapters:\n{self.frozen_model.summarize()}')
         encoder = self.frozen_model.enc_dec_model.enc_dec_model.encoder
@@ -428,12 +428,12 @@ class MegatronT5InfusedAdapterModel(MegatronT5BaseAdapterModel):
 
         if encoder:
             encoder_cfg = self._get_component_cfg('encoder', frozen_model_cfg)
-            self._add_adapters_to_component(encoder, encoder_cfg, self.encoder_adapter_name_keys)
+            self._add_adapters_to_component(encoder, encoder_cfg, self.adapter_name_keys)
             logging.info(f'After adding encoder adapters:\n{self.frozen_model.summarize()}')
 
         if decoder:
             decoder_cfg = self._get_component_cfg('decoder', frozen_model_cfg)
-            self._add_adapters_to_component(decoder, decoder_cfg, self.decoder_adapter_name_keys)
+            self._add_adapters_to_component(decoder, decoder_cfg, self.adapter_name_keys)
             logging.info(f'After adding all adapters:\n{self.frozen_model.summarize()}')
 
     def _add_adapters_to_component(self, component, component_cfg, adapter_name_keys):
@@ -454,7 +454,7 @@ class MegatronT5InfusedAdapterModel(MegatronT5BaseAdapterModel):
         return component_cfg
 
     def _get_adapter_cfg(self, component_cfg, adapter_key):
-        if adapter_key == 'mlp_infused_adapter':
+        if adapter_key == AdapterType.MLP_INFUSED:
             cfg = InfusedAdapterConfig(
                 in_features=component_cfg.ffn_hidden_size // component_cfg.tensor_model_parallel_size
             )
@@ -503,12 +503,8 @@ class MegatronT5InfusedAdapterModel(MegatronT5BaseAdapterModel):
         """
         encoder = self.frozen_model.enc_dec_model.enc_dec_model.encoder
         decoder = self.frozen_model.enc_dec_model.enc_dec_model.decoder
-        encoder_state_dict = (
-            self._component_state_dict('encoder', encoder, self.encoder_adapter_name_keys) if encoder else {}
-        )
-        decoder_state_dict = (
-            self._component_state_dict('decoder', decoder, self.decoder_adapter_name_keys) if decoder else {}
-        )
+        encoder_state_dict = self._component_state_dict('encoder', encoder, self.adapter_name_keys) if encoder else {}
+        decoder_state_dict = self._component_state_dict('decoder', decoder, self.adapter_name_keys) if decoder else {}
         state_dict_ = {
             **encoder_state_dict,
             **decoder_state_dict,
@@ -523,9 +519,9 @@ class MegatronT5InfusedAdapterModel(MegatronT5BaseAdapterModel):
         encoder = self.frozen_model.enc_dec_model.enc_dec_model.encoder
         decoder = self.frozen_model.enc_dec_model.enc_dec_model.decoder
         if encoder:
-            self._load_component_state_dict('encoder', encoder, self.encoder_adapter_name_keys, state_dict, strict)
+            self._load_component_state_dict('encoder', encoder, self.adapter_name_keys, state_dict, strict)
         if decoder:
-            self._load_component_state_dict('decoder', decoder, self.decoder_adapter_name_keys, state_dict, strict)
+            self._load_component_state_dict('decoder', decoder, self.adapter_name_keys, state_dict, strict)
 
     @classmethod
     def list_available_models(cls):

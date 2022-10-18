@@ -27,7 +27,8 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_
     MegatronGPTPromptLearningModel,
 )
 from nemo.collections.nlp.modules.common import VirtualPromptStyle
-from nemo.collections.nlp.modules.common.megatron.parallel_adapters import (
+from nemo.collections.nlp.modules.common.megatron.adapters.adapter_constants import AdapterType
+from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     InfusedAdapterConfig,
     ParallelLinearAdapterConfig,
 )
@@ -303,7 +304,7 @@ class MegatronGPTInfusedAdapterModel(MegatronGPTBaseAdapterModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
-        self.adapter_name_keys = ['mlp_infused_adapter', 'key_infused_adapter', 'value_infused_adapter']
+        self.adapter_name_keys = [AdapterType.MLP_INFUSED, AdapterType.KEY_INFUSED, AdapterType.VALUE_INFUSED]
         frozen_model_cfg = MegatronGPTModel.restore_from(
             cfg.get('language_model_path'), trainer=trainer, return_config=True
         )
@@ -320,9 +321,10 @@ class MegatronGPTInfusedAdapterModel(MegatronGPTBaseAdapterModel):
             if isinstance(module, adapter_mixins.AdapterModuleMixin):
                 for adapter_key in self.adapter_name_keys:
                     if adapter_key in module.get_accepted_adapters():
-                        if adapter_key == 'mlp_infused_adapter':
+                        if adapter_key == AdapterType.MLP_INFUSED:
                             cfg = InfusedAdapterConfig(
-                                in_features=frozen_model_cfg.ffn_hidden_size // frozen_model_cfg.tensor_model_parallel_size
+                                in_features=frozen_model_cfg.ffn_hidden_size
+                                // frozen_model_cfg.tensor_model_parallel_size
                             )
                         else:
                             cfg = InfusedAdapterConfig(
