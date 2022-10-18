@@ -464,6 +464,9 @@ def add_container_mounts(container_mounts: Optional[List[str]]) -> str:
     :rtype: str
     """
     mounts_str = ""
+    print(container_mounts)
+    if container_mounts[0] is None:
+        return ""
     if container_mounts is not None:
         assert isinstance(
             container_mounts, omegaconf.listconfig.ListConfig
