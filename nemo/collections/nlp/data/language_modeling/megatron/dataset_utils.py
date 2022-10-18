@@ -47,6 +47,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils imp
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import deallocate_indexed_dataset_memory
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import make_dataset as make_indexed_dataset
+from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import make_indexed_dataset_compatibility
 from nemo.collections.nlp.data.language_modeling.megatron.length_distribution_type import LengthDistribution
 from nemo.collections.nlp.data.language_modeling.megatron.lm_adapted_t5_dataset import T5LMAdaptedDataset
 from nemo.utils import logging
@@ -530,14 +531,6 @@ def pad_and_convert_to_numpy(tokens, tokentypes, masked_positions, masked_labels
     loss_mask_np = np.array(loss_mask, dtype=np.int64)
 
     return tokens_np, tokentypes_np, labels_np, padding_mask_np, loss_mask_np
-
-
-def make_text_memmap_bin_compatibility(text_memmap_ds):
-    """Make a TextMemMapDataset compatible with binary memmap."""
-    text_memmap_ds.doc_idx = np.arange(len(text_memmap_ds) + 1, dtype=np.int64)
-    text_memmap_ds.sizes = np.ones(len(text_memmap_ds), dtype=np.int32)
-
-    return text_memmap_ds
 
 
 def get_dataset(
@@ -1151,7 +1144,7 @@ def get_indexed_dataset_(data_prefix, data_impl, skip_warmup, data_impl_kwargs={
     indexed_dataset = make_indexed_dataset(data_prefix, data_impl, skip_warmup, impl_kwargs=data_impl_kwargs)
     if data_impl in ['text_mmap', 'csv_mmap']:
         # make csv/text memmap compatible with Megatron sampling
-        make_text_memmap_bin_compatibility(indexed_dataset)
+        make_indexed_dataset_compatibility(indexed_dataset)
 
     assert indexed_dataset.sizes.shape[0] == indexed_dataset.doc_idx[-1]
     logging.info(' > finished creating indexed dataset in {:4f} ' 'seconds'.format(time.time() - start_time))
@@ -1201,6 +1194,10 @@ def get_samples_mapping(
 
     # Build the indexed mapping if not exist.
     if torch.distributed.get_rank() == 0 and not os.path.isfile(indexmap_filename):
+        # Fake index mapping if missing
+        if (not hasattr(indexed_dataset, 'doc_idx')) and (not hasattr(indexed_dataset, 'sizes')):
+            make_indexed_dataset_compatibility(indexed_dataset)
+
         print(
             ' > WARNING: could not find index map file {}, building '
             'the indices on rank 0 ...'.format(indexmap_filename)

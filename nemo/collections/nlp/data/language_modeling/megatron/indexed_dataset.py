@@ -88,6 +88,17 @@ def make_builder(out_file, impl, vocab_size=None, chunk_size=64, pad_id=0, retri
         return IndexedDatasetBuilder(out_file)
 
 
+def make_indexed_dataset_compatibility(ds):
+    """Make any dataset compatible with IndexedDataset for Megatron samples mapping."""
+    if hasattr(ds, 'doc_idx') or hasattr(ds, 'sizes'):
+        raise AttributeError("Dataset already has doc_idx or sizes attributes.")
+
+    ds.doc_idx = np.arange(len(ds) + 1, dtype=np.int64)
+    ds.sizes = np.ones(len(ds), dtype=np.int32)
+
+    return ds
+
+
 def deallocate_indexed_dataset_memory(indexed_dataset):
     """Deallocate memory of an IndexedDataset."""
     indexed_dataset.sizes = None
