@@ -33,10 +33,32 @@
 Introduction
 ------------
 
-NVIDIA NeMo is a conversational AI toolkit built for researchers working on automatic speech recognition (ASR), natural language processing (NLP), and text-to-speech synthesis (TTS).
-The primary objective of NeMo is to help researchers from industry and academia to reuse prior work (code and pretrained models) and make it easier to create new `conversational AI models <https://developer.nvidia.com/conversational-ai#started>`_.
+NVIDIA NeMo is a conversational AI toolkit built for researchers working on automatic speech recognition (ASR), 
+natural language processing (NLP), and text-to-speech synthesis (TTS).
+The primary objective of NeMo is to help researchers from industry and academia to reuse prior work (code and pretrained models) 
+and make it easier to create new `conversational AI models <https://developer.nvidia.com/conversational-ai#started>`_.
 
-`Pre-trained NeMo models. <https://catalog.ngc.nvidia.com/models?query=nemo&orderBy=weightPopularDESC>`_ 
+State of the Art pretrained NeMo models are freely available on `HuggingFace Hub <https://huggingface.co/models?library=nemo&sort=downloads&search=nvidia>`_ and
+`NVIDIA NGC. <https://catalog.ngc.nvidia.com/models?query=nemo&orderBy=weightPopularDESC>`_.
+
+Transcribing audio or synthesizing only takes a few lines of code:
+
+.. code-block:: python
+
+  import nemo.collections.asr as nemo_asr
+
+  asr_model = nemo_asr.models.ASRModel.from_pretrained("nvidia/stt_en_conformer_ctc_large")
+  transcriptions = asr_model.transcribe(["file.wav"])
+
+.. code-block:: python
+
+  # Load FastPitch
+  from nemo.collections.tts.models import FastPitchModel
+  spec_generator = FastPitchModel.from_pretrained("nvidia/tts_en_fastpitch")
+
+  # Load vocoder
+  from nemo.collections.tts.models import HifiGanModel
+  model = HifiGanModel.from_pretrained(model_name="nvidia/tts_hifigan")
 
 `Introductory video. <https://www.youtube.com/embed/wBgpMf_KQVw>`_
 
