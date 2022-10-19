@@ -748,10 +748,15 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         if self.with_distributed_adam:
 
+            if isinstance(self.model, list):
+                params = [reversed(list(module.parameters())) for module in self.model]
+            else:
+                params = reversed(list(self.model.paramters()))
+
             # Initialize params in reverse order
             # Note: Estimate order in which grads are generated in
             # backward pass
-            self._optimizer.init_params(reversed(list(self.parameters())))
+            self._optimizer.init_params(params)
 
             # Overlapped communication interferes with grad reductions
             # for pipeline parallelism and sequence parallelism
