@@ -125,6 +125,9 @@ Documentation
 | Stable  | |stable|    | `Documentation of the stable (i.e. most recent release) branch. <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/>`_ |
 +---------+-------------+------------------------------------------------------------------------------------------------------------------------------------------+
 
+Tutorials
+---------
+A great way to start with NeMo is by checking `one of our tutorials <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/starthere/tutorials.html>`_.
 
 Getting help with NeMo
 ----------------------
