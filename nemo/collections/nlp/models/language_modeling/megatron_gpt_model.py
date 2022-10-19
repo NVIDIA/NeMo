@@ -210,9 +210,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             # Disable overlapped grad sync for layer norm grads when
             # sequence parallelism is enabled
             if isinstance(self.model, list):
-                params = list(itertools.chain.from_iterable(
-                    module.parameters() for module in self.model
-                ))
+                params = list(itertools.chain.from_iterable(module.parameters() for module in self.model))
             else:
                 params = list(self.parameters())
             for param in params:
@@ -282,8 +280,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if self.with_distributed_adam:
             if self.cfg.get('virtual_pipeline_model_parallel_size', None) is not None:
                 raise ValueError(
-                    'Distributed Adam optimizer does '
-                    'not support pipeline parallelism with interleaving'
+                    'Distributed Adam optimizer does ' 'not support pipeline parallelism with interleaving'
                 )
 
         # run forward and backwards passes for an entire global batch
@@ -321,8 +318,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             # reduced
             if not parallel_state.is_pipeline_first_stage():
                 self._optimizer.try_grad_sync(
-                    p for p in self._optimizer.parameters()
-                    if not getattr(p, '_disable_overlap_grad_sync', False)
+                    p for p in self._optimizer.parameters() if not getattr(p, '_disable_overlap_grad_sync', False)
                 )
         elif self.megatron_amp_o2:
             # when using pipeline parallelism grads must be all-reduced after the pipeline (not asynchronously)
