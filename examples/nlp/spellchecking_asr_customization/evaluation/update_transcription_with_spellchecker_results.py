@@ -274,9 +274,10 @@ print("duration=", sum(durations))
 
 for i in range(len(test_data)):
     sent, path = pred_text[i], audio_filepath[i]
-    # example of path: ...clips/8000_197_0000.wav   #doc_id=197
-    path_parts = path.split("_")
-    doc_id = path_parts[-2]
+    # example of path: ...clips/197_0000.wav   #doc_id=197
+    path_parts = path.split("/")
+    path_parts2 = path_parts[-1].split("_")
+    doc_id = path_parts2[-2]
     k = doc_id + "\t" + sent
     if k in final_corrections:
         test_data[i]["before_spell_pred"] = test_data[i]["pred_text"]

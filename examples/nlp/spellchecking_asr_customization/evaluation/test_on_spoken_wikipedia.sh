@@ -1,3 +1,4 @@
+#!/bin/bash
 NEMO_PATH=/home/aleksandraa/nemo
 
 INPUT_DIR=english
