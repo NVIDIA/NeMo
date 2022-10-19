@@ -46,6 +46,9 @@ These models can be used to transcribe audio, synthesize speech, or translate te
 We have have extensive `tutorials <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/starthere/tutorials.html>`_ that 
 can all be run on `Google Colab <https://colab.research.google.com>`_.
 
+For advanced users that want to train NeMo models from scratch or finetune existing NeMo models 
+we have a full suite of `example scripts <https://github.com/NVIDIA/NeMo/tree/update_readme_into/examples>`_ that support multi-GPU/multi-node training.
+
 Also see our `introductory video <https://www.youtube.com/embed/wBgpMf_KQVw>`_ for a high level overview of NeMo.
 
 Key Features
