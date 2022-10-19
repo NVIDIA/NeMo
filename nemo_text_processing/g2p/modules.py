@@ -496,3 +496,89 @@ class IPAG2P(BaseG2p):
             prons.extend(pron)
 
         return prons
+
+class ChineseG2p(BaseG2p):
+    def __init__(
+        self,
+        phoneme_dict=None,
+        word_tokenize_func=None,
+        apply_to_oov_word=None,
+        ignore_ambiguous_words=False,
+        mapping_file: Optional[str] = None,
+    ):
+        """English G2P module. This module converts words from grapheme to phoneme representation using phoneme_dict in CMU dict format.
+        Optionally, it can ignore words which are heteronyms, ambiguous or marked as unchangeable by word_tokenize_func (see code for details).
+        Ignored words are left unchanged or passed through apply_to_oov_word for handling.
+        Args:
+            phoneme_dict (str, Path, Dict): Path to file in CMUdict format or dictionary of CMUdict-like entries.
+            word_tokenize_func: Function for tokenizing text to words.
+                It has to return List[Tuple[Union[str, List[str]], bool]] where every tuple denotes word representation and flag whether to leave unchanged or not.
+                It is expected that unchangeable word representation will be represented as List[str], other cases are represented as str.
+                It is useful to mark word as unchangeable which is already in phoneme representation.
+            apply_to_oov_word: Function that will be applied to out of phoneme_dict word.
+            ignore_ambiguous_words: Whether to not handle word via phoneme_dict with ambiguous phoneme sequences. Defaults to True.
+            heteronyms (str, Path, List): Path to file with heteronyms (every line is new word) or list of words.
+            encoding: Encoding type.
+            phoneme_probability (Optional[float]): The probability (0.<var<1.) that each word is phonemized. Defaults to None which is the same as 1.
+                Note that this code path is only run if the word can be phonemized. For example: If the word does not have a entry in the g2p dict, it will be returned
+                as characters. If the word has multiple entries and ignore_ambiguous_words is True, it will be returned as characters.
+        """
+        from pypinyin import lazy_pinyin, Style
+
+        phoneme_dict = (
+            self._parse_as_pinyin_dict(phoneme_dict)
+            if isinstance(phoneme_dict, str) or isinstance(phoneme_dict, pathlib.Path) or phoneme_dict is None
+            else phoneme_dict
+        )
+
+        if apply_to_oov_word is None:
+            logging.warning(
+                "apply_to_oov_word=None, This means that some of words will remain unchanged "
+                "if they are not handled by any of the rules in self.parse_one_word(). "
+                "This may be intended if phonemes and chars are both valid inputs, otherwise, "
+                "you may see unexpected deletions in your input."
+            )
+
+        super().__init__(
+            phoneme_dict=phoneme_dict,
+            word_tokenize_func=word_tokenize_func,
+            apply_to_oov_word=apply_to_oov_word,
+            mapping_file=mapping_file,
+        )
+        self.tones = {'1':'#1', '2':'#2', '3':'#3', '4':'#4', '5':'#5'}
+
+    def _parse_as_pinyin_dict(self, phoneme_dict_path):
+        """Loads pinyin dict file, and generates a set of all valid symbols."""
+        g2p_dict = defaultdict(list)
+        with open(phoneme_dict_path, 'r') as file:
+            for line in file:
+                parts = line.split(' ')
+                pinyin = parts[0]
+                pronunciation = parts[1:]
+                pronunciation_with_sharp = ['#' + pron for pron in pronunciation]
+                g2p_dict[pinyin].append(pronunciation_with_sharp)
+        return g2p_dict
+
+    def __call__(text):
+        _alt_re = re.compile(r'\([0-9]+\)')
+        """
+        errors func handle below is to process the bilingual situation,
+        specifically, it would return words into letters.
+        e.g. 我今天去了Apple Store, 买了一个ihone。
+        would return a list
+        ['wo3', 'jin1', 'tian1', 'qu4', 'le5', 'A', 'p', 'p', 'l', 'e', 
+        ' ', 'S', 't', 'o', 'r', 'e', ',', ' ', 'mai3', 'le5', 'yi2', 
+        'ge4', 'i', 'h', 'o', 'n', 'e', '。']
+        """
+        pinyin_seq = lazy_pinyin(text, style=Style.TONE3,
+                                 neutral_tone_with_five=True,
+                                 errors=lambda en_words: [letter for letter in en_words])
+        phoneme_seq = []
+        for pinyin in pinyin_seq:
+            if pinyin[-1] in self.tones:
+                assert pinyin[:-1] in self.phoneme_dict
+                phoneme_seq += self.phoneme_dict[pinyin[:-1]]
+                phoneme_seq.append(self.tones[pinyin[-1]])
+            else:
+                phoneme_seq.append(pinyin)
+        return phoneme_seq
