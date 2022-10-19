@@ -42,7 +42,7 @@ class EMA(Callback):
         self.apply_ema_every_n_steps = apply_ema_every_n_steps
         self.validate_original_weights = validate_original_weights
 
-    def on_train_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+    def on_fit_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
         trainer.optimizers = [
             EMAOptimizer(optim, device=pl_module.device, decay=self.decay) for optim in trainer.optimizers
         ]
