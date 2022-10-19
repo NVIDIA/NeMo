@@ -20,10 +20,10 @@ from contextlib import contextmanager
 from typing import List, Optional
 
 from nemo_text_processing.g2p.data.data_utils import (
+    chinese_text_preprocessing,
     english_text_preprocessing,
     german_text_preprocessing,
     spanish_text_preprocessing,
-    chinese_text_preprocessing
 )
 
 from nemo.collections.common.tokenizers.text_to_speech.ipa_lexicon import get_ipa_punctuation_list
@@ -637,6 +637,7 @@ class IPATokenizer(BaseTokenizer):
         finally:
             if hasattr(self.g2p, "phoneme_probability"):
                 self.g2p.phoneme_probability = self.phoneme_probability
+
 
 class ChinesePhonemesTokenizer(BaseTokenizer):
     # fmt: off

@@ -27,8 +27,15 @@ from opencc import OpenCC
 def get_args():
     parser = argparse.ArgumentParser(description='Download openSLR dataset and create manifests with predefined split')
 
-    parser.add_argument("--data-root", type=Path, help="where the dataset will reside", default="./DataChinese/sf_bilingual_speech_zh_en_vv1/SF_bilingual/")
-    parser.add_argument("--manifests-path", type=Path, help="where the resulting manifests files will reside", default="./")
+    parser.add_argument(
+        "--data-root",
+        type=Path,
+        help="where the dataset will reside",
+        default="./DataChinese/sf_bilingual_speech_zh_en_vv1/SF_bilingual/",
+    )
+    parser.add_argument(
+        "--manifests-path", type=Path, help="where the resulting manifests files will reside", default="./"
+    )
     parser.add_argument("--val-size", default=0.005, type=float, help="eval set split")
     parser.add_argument("--test-size", default=0.01, type=float, help="test set split")
     parser.add_argument(
@@ -57,8 +64,8 @@ def __process_transcript(file_path: str):
         for line in fin:
             content = line.split()
             wav_name, text = content[0], "".join(content[1:])
-            wav_name = wav_name.replace(u'\ufeff','')
-            wav_name = wav_name.replace('DL','SF') # TODO, WAR: change DL to SF
+            wav_name = wav_name.replace(u'\ufeff', '')
+            wav_name = wav_name.replace('DL', 'SF')  # TODO, WAR: change DL to SF
             wav_file = file_path / "wavs" / (wav_name + ".wav")
             assert os.path.exists(wav_file), f"{wav_file} not found!"
             duration = subprocess.check_output(f"soxi -D {wav_file}", shell=True)
