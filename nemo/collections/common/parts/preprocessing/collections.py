@@ -739,7 +739,7 @@ class DiarizationSpeechLabel(DiarizationLabel):
                 Number of digits to be rounded.
 
         Returns:
-            start (float)
+            start (float):
                 Start timestamp in floating point number.
             end (float):
                 End timestamp in floating point number.
