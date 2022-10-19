@@ -254,7 +254,7 @@ class BertExampleBuilder(object):
             BertExample, or None if the conversion from text to tags was infeasible
         """
         tags = [0 for _ in hyp.split()]
-        if target is not None:
+        if target is not None and span_info is not None and len(span_info) > 0:
             for p, t in zip(span_info.split(";"), target.split(" ")):
                 c, start, end = p.split(" ")
                 start = int(start)
@@ -289,7 +289,7 @@ class BertExampleBuilder(object):
 
         spans = []
 
-        if span_info is not None:
+        if span_info is not None and len(span_info) > 0:
             # e.g. span_info="CUSTOM 0 5;CUSTOM 9 12"
             # translate class name to its id, translate coords from tokens to wordpieces
             span_info_parts = span_info.split(";")
