@@ -42,7 +42,7 @@ and make it easier to create new `conversational AI models <https://developer.nv
 All NeMo models are trained with `Lightning <https://github.com/Lightning-AI/lightning>`_ and 
 training is automatically scalable to 1000s of GPUs. 
 Additionally, NeMo Megatron LLM models can be trained up to 1 trillion parameters using tensor and pipeline model parallelism.
-NeMo models can be optimized for inference and deployed for production use-cases with `NVIDIA Riva <https://developer.nvidia.com/riva>`.
+NeMo models can be optimized for inference and deployed for production use-cases with `NVIDIA Riva <https://developer.nvidia.com/riva>`_.
 
 Getting started with NeMo is simple.
 State of the Art pretrained NeMo models are freely available on `HuggingFace Hub <https://huggingface.co/models?library=nemo&sort=downloads&search=nvidia>`_ and
