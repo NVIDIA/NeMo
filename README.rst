@@ -38,10 +38,11 @@ natural language processing (NLP), and text-to-speech synthesis (TTS).
 The primary objective of NeMo is to help researchers from industry and academia to reuse prior work (code and pretrained models) 
 and make it easier to create new `conversational AI models <https://developer.nvidia.com/conversational-ai#started>`_.
 
+Getting started with NeMo is simple.
 State of the Art pretrained NeMo models are freely available on `HuggingFace Hub <https://huggingface.co/models?library=nemo&sort=downloads&search=nvidia>`_ and
-`NVIDIA NGC. <https://catalog.ngc.nvidia.com/models?query=nemo&orderBy=weightPopularDESC>`_.
+`NVIDIA NGC <https://catalog.ngc.nvidia.com/models?query=nemo&orderBy=weightPopularDESC>`_.
 
-Transcribing audio or synthesizing only takes a few lines of code:
+Transcribing audio with NeMo only takes a few lines of code:
 
 .. code-block:: python
 
@@ -49,6 +50,8 @@ Transcribing audio or synthesizing only takes a few lines of code:
 
   asr_model = nemo_asr.models.ASRModel.from_pretrained("nvidia/stt_en_conformer_ctc_large")
   transcriptions = asr_model.transcribe(["file.wav"])
+
+Synthesizing speech is easy as well:
 
 .. code-block:: python
 
