@@ -187,7 +187,6 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
         opt_params = []
         for _, module in self.frozen_model.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin) and module.is_adapter_available():
-                print(f' enabling adapter in module: {_}')
                 module.set_enabled_adapters(enabled=True)
                 module.unfreeze_enabled_adapters()  # selectively unfreeze the adapter modules.
                 opt_params += [p for p in module.parameters()]
@@ -235,12 +234,12 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
         """
         state_dict_ = {}
         for name, module in self.frozen_model.named_modules():
-            if isinstance(module, adapter_mixins.AdapterModuleMixin):
+            if isinstance(module, adapter_mixins.AdapterModuleMixin) and module.is_adapter_available():
                 for adapter_key in self.adapter_name_keys:
-                    adapter_module = module.adapter_layer[adapter_key]
-                    state_adapter_key = ':'.join([name, adapter_key])
-                    state_dict_[state_adapter_key] = adapter_module.state_dict()
-
+                    if adapter_key in module.get_accepted_adapters():
+                        adapter_module = module.adapter_layer[adapter_key]
+                        state_adapter_key = ':'.join([name, adapter_key])
+                        state_dict_[state_adapter_key] = adapter_module.state_dict()
                 module.set_enabled_adapters(enabled=True)
         return state_dict_
 
@@ -250,11 +249,12 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
         only for the adapter parameters.
         """
         for name, module in self.frozen_model.named_modules():
-            if isinstance(module, adapter_mixins.AdapterModuleMixin):
+            if isinstance(module, adapter_mixins.AdapterModuleMixin) and module.is_adapter_available():
                 for adapter_key in self.adapter_name_keys:
-                    adapter_module = module.adapter_layer[adapter_key]
-                    state_adapter_key = ':'.join([name, adapter_key])
-                    adapter_module.load_state_dict(state_dict[state_adapter_key], strict)
+                    if adapter_key in module.get_accepted_adapters():
+                        adapter_module = module.adapter_layer[adapter_key]
+                        state_adapter_key = ':'.join([name, adapter_key])
+                        adapter_module.load_state_dict(state_dict[state_adapter_key], strict)
                 module.set_enabled_adapters(enabled=True)
 
     def validation_epoch_end(self, outputs):
@@ -357,8 +357,9 @@ class MegatronT5AdapterLearningModel(MegatronT5BaseAdapterModel):
         for _, module in component.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin):
                 for adapter_key in adapter_name_keys:
-                    adapter_cfg = self._get_adapter_cfg(component_cfg)
-                    module.add_adapter(name=adapter_key, cfg=adapter_cfg)
+                    if adapter_key in module.get_accepted_adapters():
+                        adapter_cfg = self._get_adapter_cfg(component_cfg)
+                        module.add_adapter(name=adapter_key, cfg=adapter_cfg)
 
     def _get_component_cfg(self, component_name, frozen_model_cfg, cfg):
         if component_name in frozen_model_cfg:
