@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import itertools
 from typing import Any, List, Optional, Union
 
 import torch
@@ -182,20 +183,38 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
     def configure_optimizers(self):
 
         if self.with_distributed_adam:
-            # Disable async grad reductions for params that are
-            # synchronized for pipeline parallelism and sequence
-            # parallelism
-            if (
-                parallel_state.get_pipeline_model_parallel_world_size() > 1
-                and (parallel_state.is_pipeline_first_stage() or parallel_state.is_pipeline_last_stage())
-                and self.model.share_token_embeddings
-            ):
-                # Disable overlapped grad sync for embedding grad when
-                # pipeline parallelism is enabled
-                param = self.model.word_embeddings_weight()
-                param._disable_greedy_grad_copy = not self.megatron_amp_o2
-                param._disable_overlap_grad_sync = True
-            for param in self.parameters():
+
+            # Disable overlapped grad sync for embedding grad when
+            # pipeline parallelism is enabled
+            if parallel_state.get_pipeline_model_parallel_world_size() > 1:
+                if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
+                    if isinstance(self.model, list):
+                        module = self.model[0]  # only the first virtual rank has the embeddings
+                    else:
+                        module = self.model
+                    if module.share_token_embeddings:
+                        param = module.word_embeddings_weight()
+                        param._disable_greedy_grad_copy = not self.megatron_amp_o2
+                        param._disable_overlap_grad_sync = True
+                if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
+                    if isinstance(self.model, list):
+                        module = self.model[-1]  # only the last virtual rank has the embeddings
+                    else:
+                        module = self.model
+                    if module.share_token_embeddings:
+                        param = module.word_embeddings_weight()
+                        param._disable_greedy_grad_copy = not self.megatron_amp_o2
+                        param._disable_overlap_grad_sync = True
+
+            # Disable overlapped grad sync for layer norm grads when
+            # sequence parallelism is enabled
+            if isinstance(self.model, list):
+                params = list(itertools.chain.from_iterable(
+                    module.parameters() for module in self.model
+                ))
+            else:
+                params = list(self.parameters())
+            for param in params:
                 if getattr(param, 'sequence_parallel_enabled', False):
                     param._disable_greedy_grad_copy = not self.megatron_amp_o2
                     param._disable_overlap_grad_sync = True
@@ -257,6 +276,15 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 # TODO: enable async grad all reduce for O1/autocast mixed precision training
                 custom_sync_context_handler = None
 
+        # TODO: support distributed Adam with pipeline parallelism
+        # with interleaved schedule
+        if self.with_distributed_adam:
+            if self.cfg.get('virtual_pipeline_model_parallel_size', None) is not None:
+                raise ValueError(
+                    'Distributed Adam optimizer does '
+                    'not support pipeline parallelism with interleaving'
+                )
+
         # run forward and backwards passes for an entire global batch
         # we do this inside training_step to support pipeline parallelism
         fwd_bwd_function = self._get_fwd_bwd_function()
@@ -292,7 +320,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             # reduced
             if not parallel_state.is_pipeline_first_stage():
                 self._optimizer.try_grad_sync(
-                    p for p in self.parameters() if not getattr(p, '_disable_overlap_grad_sync', False)
+                    p for p in self._optimizer.parameters()
+                    if not getattr(p, '_disable_overlap_grad_sync', False)
                 )
         elif self.megatron_amp_o2:
             # when using pipeline parallelism grads must be all-reduced after the pipeline (not asynchronously)
