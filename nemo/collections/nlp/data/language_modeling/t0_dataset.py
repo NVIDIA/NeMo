@@ -11,18 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-
 import numpy as np
 import torch
 
+from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import (
+    get_samples_mapping,
+    make_text_memmap_bin_compatibility,
+)
 from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import JSONLMemMapDataset, TextMemMapDataset
-from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import get_samples_mapping, make_text_memmap_bin_compatibility
 from nemo.core.classes import Dataset
 
 
 class T0Dataset(Dataset):
-
     def __init__(
         self,
         file_path: str,
@@ -33,7 +34,7 @@ class T0Dataset(Dataset):
         add_bos_to_input: bool = False,
         add_eos_to_input: bool = False,
         max_num_samples: int = None,
-        seed: int = 1234
+        seed: int = 1234,
     ):
         """
         src_file_name: Path to a JSONL T0 dataset file.

@@ -13,11 +13,11 @@
 # limitations under the License.
 
 import datetime
+import json
 import multiprocessing as mp
 import os
 import pickle
 import time
-import json
 from functools import partial
 
 import numpy as np
@@ -212,13 +212,7 @@ class JSONLMemMapDataset(TextMemMapDataset):
     """
 
     def __init__(
-        self,
-        dataset_paths,
-        newline_int=10,
-        header_lines=1,
-        workers=None,
-        tokenizer=None,
-        sort_dataset_paths=True,
+        self, dataset_paths, newline_int=10, header_lines=1, workers=None, tokenizer=None, sort_dataset_paths=True,
     ):
         super().__init__(
             dataset_paths=dataset_paths,
