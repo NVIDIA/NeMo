@@ -42,28 +42,10 @@ Getting started with NeMo is simple.
 State of the Art pretrained NeMo models are freely available on `HuggingFace Hub <https://huggingface.co/models?library=nemo&sort=downloads&search=nvidia>`_ and
 `NVIDIA NGC <https://catalog.ngc.nvidia.com/models?query=nemo&orderBy=weightPopularDESC>`_.
 
-Transcribing audio with NeMo only takes a few lines of code:
+We have have extensive `tutorials <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/starthere/tutorials.html>`_ that 
+can all be run on `Google Colab <https://colab.research.google.com>`_.
 
-.. code-block:: python
-
-  import nemo.collections.asr as nemo_asr
-
-  asr_model = nemo_asr.models.ASRModel.from_pretrained("nvidia/stt_en_conformer_ctc_large")
-  transcriptions = asr_model.transcribe(["file.wav"])
-
-Synthesizing speech is easy as well:
-
-.. code-block:: python
-
-  # Load FastPitch
-  from nemo.collections.tts.models import FastPitchModel
-  spec_generator = FastPitchModel.from_pretrained("nvidia/tts_en_fastpitch")
-
-  # Load vocoder
-  from nemo.collections.tts.models import HifiGanModel
-  model = HifiGanModel.from_pretrained(model_name="nvidia/tts_hifigan")
-
-`Introductory video. <https://www.youtube.com/embed/wBgpMf_KQVw>`_
+Also see our `introductory video <https://www.youtube.com/embed/wBgpMf_KQVw>`_ for a high level overview of NeMo.
 
 Key Features
 ------------
@@ -139,9 +121,6 @@ Documentation
 | Stable  | |stable|    | `Documentation of the stable (i.e. most recent release) branch. <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/>`_ |
 +---------+-------------+------------------------------------------------------------------------------------------------------------------------------------------+
 
-Tutorials
----------
-A great way to start with NeMo is by checking `one of our tutorials <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/starthere/tutorials.html>`_.
 
 Getting help with NeMo
 ----------------------
