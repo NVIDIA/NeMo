@@ -43,6 +43,23 @@ class EMA(Callback):
             EMAOptimizer(optim, device=pl_module.device, decay=self.decay) for optim in trainer.optimizers
         ]
 
+    def swap_model_weights(self, trainer: "pl.Trainer"):
+        for optimizer in trainer.optimizers:
+            assert isinstance(optimizer, EMAOptimizer)
+            optimizer.switch_main_parameter_weights()
+
+    def on_validation_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+        self.swap_model_weights(trainer)
+
+    def on_validation_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+        self.swap_model_weights(trainer)
+
+    def on_test_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+        self.swap_model_weights(trainer)
+
+    def on_test_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+        self.swap_model_weights(trainer)
+
 
 @torch.no_grad()
 def ema_update(ema_model_tuple, current_model_tuple, decay):
@@ -158,6 +175,18 @@ class EMAOptimizer(torch.optim.Optimizer):
             )
             self.thread.start()
 
+    def swap_tensors(self, tensor1, tensor2):
+        tmp = torch.empty_like(tensor1)
+        tmp.copy_(tensor1)
+        tensor1.copy_(tensor2)
+        tensor2.copy_(tmp)
+
+    def switch_main_parameter_weights(self):
+        self.join()
+
+        for param, ema_param in zip(self.all_parameters(), self.ema_params):
+            self.swap_tensors(param.data, ema_param)
+
     @contextlib.contextmanager
     def swap_ema_weights(self, enabled: bool = True):
         r"""
@@ -170,23 +199,13 @@ class EMAOptimizer(torch.optim.Optimizer):
             enabled (bool): whether the swap should be performed
         """
 
-        def swap_tensors(tensor1, tensor2):
-            tmp = torch.empty_like(tensor1)
-            tmp.copy_(tensor1)
-            tensor1.copy_(tensor2)
-            tensor2.copy_(tmp)
-
         if enabled:
-            self.join()
-
-            for param, ema_param in zip(self.all_parameters(), self.ema_params):
-                swap_tensors(param.data, ema_param)
+            self.switch_main_parameter_weights()
         try:
             yield
         finally:
             if enabled:
-                for param, ema_param in zip(self.all_parameters(), self.ema_params):
-                    swap_tensors(param.data, ema_param)
+                self.switch_main_parameter_weights()
 
     def __getattr__(self, name):
         return getattr(self.optimizer, name)

@@ -897,19 +897,12 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         return ema_callback
 
     def _save_checkpoint(self, trainer, filepath: str) -> None:
-        super()._save_checkpoint(trainer, filepath)
         ema_callback = self._get_ema_callback(trainer)
         if ema_callback is not None:
-            # save EMA copy of the model as well.
-            ema_callback.replace_model_weights(trainer.lightning_module)
-            filepath = self._ema_format_filepath(filepath)
-            if self.verbose:
-                rank_zero_info(f"Saving EMA weights to separate checkpoint {filepath}")
-            super()._save_checkpoint(trainer, filepath)
-            ema_callback.restore_original_weights(trainer.lightning_module)
-
-    def _ema_format_filepath(self, filepath: str) -> str:
-        return filepath.replace(self.FILE_EXTENSION, f'-EMA{self.FILE_EXTENSION}')
+            ema_callback.swap_model_weights(trainer)
+        super()._save_checkpoint(trainer, filepath)
+        if ema_callback is not None:
+            ema_callback.swap_model_weights(trainer)
 
 
 def configure_checkpointing(
