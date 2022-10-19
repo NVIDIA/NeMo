@@ -672,7 +672,8 @@ pipeline {
           steps {
             sh "python examples/nlp/language_modeling/tuning/megatron_t5_adapter_tuning.py \
                 --config-name=megatron_t5_adapter_tuning_config \
-                name='/home/TestData/nlp/adapter_tuning/test_tp1_pp2' \
+                name='test_tp1_pp2' \
+                exp_manager.exp_dir='examples/adapter_tuning' \
                 trainer.devices=2 \
                 trainer.max_steps=6 \
                 trainer.val_check_interval=2 \
@@ -687,16 +688,17 @@ pipeline {
                 model.global_batch_size=4"
             sh "python examples/nlp/language_modeling/tuning/megatron_t5_adapter_eval.py \
                 --config-name=megatron_t5_adapter_inference \
-                adapter_model_file='/home/TestData/nlp/adapter_tuning/test_tp1_pp2.nemo' \
+                adapter_model_file='examples/adapter_tuning/test_tp1_pp2.nemo' \
                 language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp1_pp2.nemo' \
                 trainer.devices=2 \
                 tensor_model_parallel_size=1 \
                 pipeline_model_parallel_size=2 \
                 data.global_batch_size=2 \
                 data.micro_batch_size=2 \
-                data.test_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl']"
-            sh "rm -rf /home/TestData/nlp/adapter_tuning/test_tp1_pp2.nemo"
-            sh "rm -rf /home/TestData/nlp/adapter_tuning/test_tp1_pp2"
+                data.test_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+                pred_file_path='examples/adapter_tuning/test_tp1_pp2/preds.txt'"
+            sh "rm -rf examples/adapter_tuning/test_tp1_pp2.nemo"
+            sh "rm -rf examples/adapter_tuning/test_tp1_pp2"
           }
         }
       }
@@ -714,7 +716,8 @@ pipeline {
           steps {
             sh "python examples/nlp/language_modeling/tuning/megatron_t5_adapter_tuning.py \
                 --config-name=megatron_t5_adapter_tuning_config \
-                name='/home/TestData/nlp/adapter_tuning/test_tp2_pp1' \
+                name='test_tp2_pp1' \
+                exp_manager.exp_dir='examples/adapter_tuning' \
                 trainer.devices=2 \
                 trainer.max_steps=6 \
                 trainer.val_check_interval=2 \
@@ -728,15 +731,16 @@ pipeline {
                 model.global_batch_size=4"
             sh "python examples/nlp/language_modeling/tuning/megatron_t5_adapter_eval.py \
                 --config-name=megatron_t5_adapter_inference \
-                adapter_model_file='/home/TestData/nlp/adapter_tuning/test_tp2_pp1.nemo' \
+                adapter_model_file='examples/adapter_tuning/test_tp2_pp1.nemo' \
                 language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp2.nemo' \
                 trainer.devices=2 \
                 tensor_model_parallel_size=2 \
                 data.global_batch_size=2 \
                 data.micro_batch_size=2 \
-                data.test_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl']"
-            sh "rm -rf /home/TestData/nlp/adapter_tuning/test_tp2_pp1.nemo"
-            sh "rm -rf /home/TestData/nlp/adapter_tuning/test_tp2_pp1"
+                data.test_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+                pred_file_path='examples/adapter_tuning/test_tp2_pp1/preds.txt'"
+            sh "rm -rf examples/adapter_tuning/test_tp2_pp1.nemo"
+            sh "rm -rf examples/adapter_tuning/test_tp2_pp1"
           }
         }
       }
@@ -754,7 +758,8 @@ pipeline {
           steps {
             sh "python examples/nlp/language_modeling/tuning/megatron_t5_ia3_tuning.py \
                 --config-name=megatron_t5_ia3_tuning_config \
-                name='/home/TestData/nlp/ia3_tuning/test_tp1_pp2' \
+                name='test_tp1_pp2' \
+                exp_manager.exp_dir='examples/ia3_tuning' \
                 trainer.devices=2 \
                 trainer.max_steps=6 \
                 trainer.val_check_interval=2 \
@@ -769,16 +774,17 @@ pipeline {
                 model.global_batch_size=4"
             sh "python examples/nlp/language_modeling/tuning/megatron_t5_ia3_eval.py \
                 --config-name=megatron_t5_ia3_inference \
-                adapter_model_file='/home/TestData/nlp/ia3_tuning/test_tp1_pp2.nemo' \
+                adapter_model_file='examples/ia3_tuning/test_tp1_pp2.nemo' \
                 language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp1_pp2.nemo' \
                 trainer.devices=2 \
                 tensor_model_parallel_size=1 \
                 pipeline_model_parallel_size=2 \
                 data.global_batch_size=2 \
                 data.micro_batch_size=2 \
-                data.test_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl']"
-            sh "rm -rf /home/TestData/nlp/ia3_tuning/test_tp1_pp2.nemo"
-            sh "rm -rf /home/TestData/nlp/ia3_tuning/test_tp1_pp2"
+                data.test_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+                pred_file_path='examples/ia3_tuning/test_tp1_pp2/preds.txt'"
+            sh "rm -rf examples/ia3_tuning/test_tp1_pp2.nemo"
+            sh "rm -rf examples/ia3_tuning/test_tp1_pp2"
           }
         }
       }
@@ -796,7 +802,8 @@ pipeline {
           steps {
             sh "python examples/nlp/language_modeling/tuning/megatron_t5_ia3_tuning.py \
                 --config-name=megatron_t5_ia3_tuning_config \
-                name='/home/TestData/nlp/ia3_tuning/test_tp2_pp1' \
+                name='test_tp2_pp1' \
+                exp_manager.exp_dir='examples/ia3_tuning' \
                 trainer.devices=2 \
                 trainer.max_steps=6 \
                 trainer.val_check_interval=2 \
@@ -810,15 +817,16 @@ pipeline {
                 model.global_batch_size=4"
             sh "python examples/nlp/language_modeling/tuning/megatron_t5_ia3_eval.py \
                 --config-name=megatron_t5_ia3_inference \
-                adapter_model_file='/home/TestData/nlp/ia3_tuning/test_tp2_pp1.nemo' \
+                adapter_model_file='examples/ia3_tuning/test_tp2_pp1.nemo' \
                 language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp2.nemo' \
                 trainer.devices=2 \
                 tensor_model_parallel_size=2 \
                 data.global_batch_size=2 \
                 data.micro_batch_size=2 \
-                data.test_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl']"
-            sh "rm -rf /home/TestData/nlp/ia3_tuning/test_tp2_pp1.nemo"
-            sh "rm -rf /home/TestData/nlp/ia3_tuning/test_tp2_pp1"
+                data.test_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+                pred_file_path='examples/ia3_tuning/test_tp2_pp1/preds.txt'"
+            sh "rm -rf examples/ia3_tuning/test_tp2_pp1.nemo"
+            sh "rm -rf examples/ia3_tuning/test_tp2_pp1"
           }
         }
       }
@@ -836,7 +844,8 @@ pipeline {
           steps {
             sh "python examples/nlp/language_modeling/tuning/megatron_gpt_adapter_tuning.py \
                 --config-name=megatron_gpt_adapter_tuning_config \
-                name='/home/TestData/nlp/adapter_tuning/test_tp2_pp1' \
+                name='test_tp2_pp1' \
+                exp_manager.exp_dir='examples/adapter_tuning' \
                 trainer.devices=2 \
                 trainer.max_steps=6 \
                 trainer.val_check_interval=2 \
@@ -850,15 +859,15 @@ pipeline {
                 model.global_batch_size=4"
             sh "python examples/nlp/language_modeling/tuning/megatron_gpt_adapter_eval.py \
                 --config-name=megatron_gpt_adapter_inference \
-                adapter_model_file='/home/TestData/nlp/adapter_tuning/test_tp2_pp1.nemo' \
+                adapter_model_file='examples/adapter_tuning/test_tp2_pp1.nemo' \
                 gpt_model_file='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp2_pp1.nemo' \
                 inference.greedy=True \
                 inference.add_BOS=False \
                 trainer.devices=2 \
                 tensor_model_parallel_size=2 \
                 data_paths=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl']"
-            sh "rm -rf /home/TestData/nlp/adapter_tuning/test_tp2_pp1.nemo"
-            sh "rm -rf /home/TestData/nlp/adapter_tuning/test_tp2_pp1"
+            sh "rm -rf examples/adapter_tuning/test_tp2_pp1.nemo"
+            sh "rm -rf examples/adapter_tuning/test_tp2_pp1"
           }
         }
       }
@@ -876,7 +885,8 @@ pipeline {
           steps {
             sh "python examples/nlp/language_modeling/tuning/megatron_gpt_adapter_tuning.py \
                 --config-name=megatron_gpt_adapter_tuning_config \
-                name='/home/TestData/nlp/adapter_tuning/test_tp1_pp2' \
+                name='test_tp1_pp2' \
+                exp_manager.exp_dir='examples/adapter_tuning' \
                 trainer.devices=2 \
                 trainer.max_steps=6 \
                 trainer.val_check_interval=2 \
@@ -891,15 +901,15 @@ pipeline {
                 model.global_batch_size=4"
             sh "python examples/nlp/language_modeling/tuning/megatron_gpt_adapter_eval.py \
                 --config-name=megatron_gpt_adapter_inference \
-                adapter_model_file='/home/TestData/nlp/adapter_tuning/test_tp1_pp2.nemo' \
+                adapter_model_file='examples/adapter_tuning/test_tp1_pp2.nemo' \
                 gpt_model_file='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp1_pp2.nemo' \
                 inference.greedy=True \
                 inference.add_BOS=False \
                 trainer.devices=2 \
                 tensor_model_parallel_size=2 \
                 data_paths=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl']"
-            sh "rm -rf /home/TestData/nlp/adapter_tuning/test_tp1_pp2.nemo"
-            sh "rm -rf /home/TestData/nlp/adapter_tuning/test_tp1_pp2"
+            sh "rm -rf examples/adapter_tuning/test_tp1_pp2.nemo"
+            sh "rm -rf examples/adapter_tuning/test_tp1_pp2"
           }
         }
       }
