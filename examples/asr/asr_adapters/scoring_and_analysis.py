@@ -16,9 +16,18 @@
 This script is used to analyze the results of the experiments from a CSV file.
 
 Usage:
-    python scoring_and_analysis.py \
-        --csv <path to cleaned result csv file> \
-        --dataset_type_column <column in csv with the dataset types>
+    To perform analysis on the adapters experiment results::
+
+        python scoring_and_analysis.py \
+            --csv <path to cleaned result csv file> \
+            --dataset_type_column <column name in csv with the dataset types>
+
+    To perform analysis on the finetuning experiment results::
+
+        $ python scoring_and_analysis.py \
+            --csv <path to csv> \
+            --dataset_type_column <column name in csv with the dataset types> \
+            -ft
 """
 
 import argparse
