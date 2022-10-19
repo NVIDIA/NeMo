@@ -727,8 +727,8 @@ class DiarizationSpeechLabel(DiarizationLabel):
             *args,
             **kwargs,
         )
-    
-    def split_rttm_line(self, rttm_line: str, decimals: int=3):
+
+    def split_rttm_line(self, rttm_line: str, decimals: int = 3):
         """
         Convert a line in RTTM file to speaker label, start and end timestamps.
 
@@ -751,19 +751,6 @@ class DiarizationSpeechLabel(DiarizationLabel):
         end = round(float(rttm[4]), decimals) + round(float(rttm[3]), decimals)
         speaker = rttm[7]
         return start, end, speaker
-
-    def load_rttm_to_str(self, rttm_filename: str):
-        """
-        Load a RTTM file and prepare time stamps and label list from rttm file.
-
-        Args:
-            rttm_filename (str):
-                File path to read an RTTM file from
-
-        Returns:
-            labels (list):
-                List containing string-converted RTTM lines.
-        """
 
     def __parse_item_rttm(self, line: str, manifest_file: str) -> Dict[str, Any]:
         """Parse each rttm file and save it to in Dict format"""
