@@ -31,7 +31,7 @@ interference:
   dev: ??? # manifest
   test: ??? # manifest
   interference_probability: 0.3 # probability an interfering source is present
-  max_num_interferers: 2 # max number of interfering sources
+  max_num_interferers: 2 # max number of interfering sources, used number will be randomly selected between 0 and max
   min_azimuth_to_target: 20 # min separation between the target source an an interfering source
 
 mix:
@@ -48,5 +48,5 @@ mix:
     rsnr: [-5, 0, 5, 10, 15, 20] # Two values: uniform distribution, otherwise: random choice from the list
     rsir: [10, 20, 30]
   ref_mic: 0 # index of the ref microphone (zero-based)
-  ref_mic_rms: [-40, -20] # target RMS for the ref mic signal. If necessary, may be reduced to prevent clipping.
+  ref_mic_rms: [-40, -20] # desired RMS for the ref mic signal. If necessary, may be reduced to prevent clipping.
 

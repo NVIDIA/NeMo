@@ -33,6 +33,7 @@ from scipy.stats import halfnorm
 from tqdm import tqdm, trange
 
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
+from nemo.collections.asr.parts.utils.audio_utils import db2mag, mag2db, pow2db, rms
 from nemo.collections.asr.parts.utils.manifest_utils import (
     create_manifest,
     create_segment_manifest,
@@ -2456,14 +2457,46 @@ def plot_rir_manifest_info(filepath: str, plot_filepath: str = None):
 
 
 class RIRMixGenerator(object):
-    """Creates a dataset of mixed signals.
+    """Creates a dataset of mixed signals at the microphone
+    by combining target speech, background noise and interference.
 
-    Signals are are generated using `generate` method.
+    Correspnding signals are are generated and saved
+    using the `generate` method.
+
+    Input configuration is expexted to have the following structure
+    ```
+    sample_rate: sample rate used for simulation
+    room:
+        subset: manifest for RIR data
+    target:
+        subset: manifest for target source data
+    noise:
+        subset: manifest for noise data
+    interference:
+        subset: manifest for interference data
+        interference_probability: probability that interference is present
+        max_num_interferers: max number of interferers, randomly selected between 0 and max
+    mix:
+        subset:
+            num: number of examples to generate
+            rsnr: range of RSNR
+            rsir: range of RSIR
+        ref_mic: reference microphone
+        ref_mic_rms: desired RMS at ref_mic
+    ```
     """
 
     def __init__(self, cfg: DictConfig):
+        """
+        Instantiate a RIRMixGenerator object.
+
+        Args:
+            cfg: generator configuration defining data for room,
+                 target signal, noise, interference and mixture
+        """
         logging.info("Initialize RIRMixGenerator")
         self._cfg = cfg
+        self.check_cfg()
 
         self.subsets = self.cfg.room.keys()
         logging.info('Initialized with %d subsets: %s', len(self.subsets), str(self.subsets))
@@ -2512,6 +2545,78 @@ class RIRMixGenerator(object):
             Please create a new model with the updated config.
         """
         self._cfg = cfg
+
+    def check_cfg(self):
+        """
+        Checks provided configuration to ensure it has the minimal required
+        configuration the values are in a reasonable range.
+        """
+        # sample rate
+        sample_rate = self.cfg.get('sample_rate')
+        if sample_rate is None:
+            raise ValueError('Sample rate not provided.')
+        elif sample_rate < 0:
+            raise ValueError(f'Sample rate must be positive: {sample_rate}')
+
+        # room configuration
+        room_cfg = self.cfg.get('room')
+        if not room_cfg:
+            raise ValueError(
+                'Room configuration not provided. Expecting RIR manifests in format {subset: path_to_manifest}'
+            )
+
+        # target configuration
+        target_cfg = self.cfg.get('target')
+        if not target_cfg:
+            raise ValueError(
+                'Target configuration not provided. Expecting audio manifests in format {subset: path_to_manifest}'
+            )
+
+        for key in ['azimuth', 'elevation', 'distance']:
+            value = target_cfg.get(key)
+
+            if value is None or np.isscalar(value):
+                # no constraint or a fixed dimension is ok
+                pass
+            elif len(value) != 2 or not value[0] < value[1]:
+                # not a valid range
+                raise ValueError(f'Range must be specified with two positive increasing elements for {key}: {value}')
+
+        # noise configuration
+        noise_cfg = self.cfg.get('noise')
+        if not noise_cfg:
+            raise ValueError(
+                'Noise configuration not provided. Expecting audio manifests in format {subset: path_to_manifest}'
+            )
+
+        # interference configuration
+        interference_cfg = self.cfg.get('interference')
+        if not interference_cfg:
+            raise ValueError(
+                'Interference configuration not provided. Expecting audio manifests in format {subset: path_to_manifest}'
+            )
+        interference_probability = interference_cfg.get('interference_probability', 0)
+        max_num_interferers = interference_cfg.get('max_num_interferers', 0)
+        min_azimuth_to_target = interference_cfg.get('min_azimuth_to_target', 0)
+        if interference_probability is not None:
+            if interference_probability < 0:
+                raise ValueError(f'Interference probability must be non-negative. Current value: {interference_prob}')
+            elif interference_probability > 0:
+                assert (
+                    max_num_interferers is not None and max_num_interferers > 0
+                ), f'Max number of interferers must be positive. Current value: {max_num_interferers}'
+                assert (
+                    min_azimuth_to_target is not None and min_azimuth_to_target >= 0
+                ), f'Min azimuth to target must be non-negative'
+
+        # mix configuration
+        mix_cfg = self.cfg.get('mix')
+        if not mix_cfg:
+            raise ValueError('Mix configuration not provided. Expecting configuration for each subset.')
+        if 'ref_mic' not in mix_cfg:
+            raise ValueError('Reference microphone not defined.')
+        if 'ref_mic_rms' not in mix_cfg:
+            raise ValueError('Reference microphone RMS not defined.')
 
     def get_audio_list(
         self, metadata: List[dict], min_duration: float, manifest_filepath: str = None, duration_eps: float = 0.01
@@ -2578,9 +2683,24 @@ class RIRMixGenerator(object):
 
         return audio_list
 
-    def generate_target(self, subset: str):
+    def generate_target(self, subset: str) -> dict:
         """
         Prepare a dictionary with target configuration.
+
+        The output dictionary contains the following information
+        ```
+            room_index: index of the selected room from the RIR corpus
+            room_filepath: path to the room simulation file
+            source: index of the selected source for the target
+            rt60: reverberation time of the selected room
+            num_mics: number of microphones
+            azimuth: azimuth of the target source, relative to the microphone array
+            elevation: elevation of the target source, relative to the microphone array
+            distance: distance of the target source, relative to the microphone array
+            audio_filepath: path to the audio file for the target source
+            text: text for the target source audio signal, if available
+            duration: duration of the target source audio signal
+        ```
 
         Args:
             subset: string denoting a subset which will be used to selected target
@@ -2603,7 +2723,7 @@ class RIRMixGenerator(object):
                 source = self.random.integers(low=0, high=room_data['num_sources'])
                 # Check constraints
                 for constraint in ['azimuth', 'elevation', 'distance']:
-                    if self.cfg.target[constraint] is None:
+                    if self.cfg.target.get(constraint) is None:
                         continue
                     else:
                         # Check that the selected source is in the range
@@ -2646,7 +2766,7 @@ class RIRMixGenerator(object):
             'elevation': room_data['source_elevation'][source],
             'distance': room_data['source_distance'][source],
             'audio_filepath': audio_filepath,
-            'text': audio_data['text'],
+            'text': audio_data.get('text'),
             'duration': audio_data['duration'],
         }
 
@@ -2657,9 +2777,9 @@ class RIRMixGenerator(object):
         Prepare a list of dictionaries with noise configuration.
 
         Args:
-            subset: string denoting a subset which will be used to selected noise audio.
-            targe_cfg: dictionary with target configuration. This is used to determined
-                       the minimal required duration for the noise signal.
+            subset: string denoting a subset which will be used to select noise audio.
+            target_cfg: dictionary with target configuration. This is used determine
+                        the minimal required duration for the noise signal.
         
         Returns:
             List of dictionary with noise configuration, including audio information
@@ -2679,9 +2799,9 @@ class RIRMixGenerator(object):
         Prepare a list of dictionaries with interference configuration.
 
         Args:
-            subset: string denoting a subset which will be used to selected interference audio.
-            targe_cfg: dictionary with target configuration. This is used to determined
-                       the minimal required duration for the noise signal.
+            subset: string denoting a subset which will be used to select interference audio.
+            target_cfg: dictionary with target configuration. This is used to determine
+                        the minimal required duration for the noise signal.
         
         Returns:
             List of dictionary with interference configuration, including source index and audio information
@@ -2762,7 +2882,17 @@ class RIRMixGenerator(object):
         return interference_cfg
 
     def generate_mix(self, subset: str) -> dict:
-        """Generate scaling parameters for the final mix.
+        """Generate scaling parameters for mixing
+        the target speech at the microphone, background noise
+        and interference signal at the microphone.
+
+        The output dictionary contains the following information
+        ```
+            rsnr: reverberant signal-to-noise ratio
+            rsir: reverberant signal-to-interference ratio
+            ref_mic: reference microphone for calculating the metrics
+            ref_mic_rms: RMS of the signal at the reference microphone
+        ```
 
         Args:
             subset: string denoting the subset of configuration
@@ -2795,7 +2925,8 @@ class RIRMixGenerator(object):
         return mix_cfg
 
     def generate(self):
-        """Generate mixed signal corpus.
+        """Generate a corpus of microphone signals by mixing target, background noise
+        and interference signals.
 
         This method will prepare randomized examples based on the current configuration,
         run simulations and save results to output_dir.
@@ -2927,58 +3058,10 @@ def convolve_rir(signal: np.ndarray, rir: np.ndarray) -> np.ndarray:
     return out
 
 
-def rms(x: np.ndarray) -> float:
-    """Calculate RMS value for the input signal.
-
-    Args:
-        x: input signal
-
-    Returns:
-        RMS of the input signal.
-    """
-    return np.sqrt(np.mean(np.abs(x) ** 2))
-
-
-def mag2db(mag: float, eps: Optional[float] = 1e-16) -> float:
-    """Convert magnitude ratio from linear scale to dB.
-
-    Args:
-        mag: linear magnitude value
-        eps: small regularization constant
-
-    Returns:
-        Value in dB.
-    """
-    return 20 * np.log10(mag + eps)
-
-
-def db2mag(db: float) -> float:
-    """Convert value in dB to linear magnitude ratio.
-    
-    Args:
-        db: magnitude ratio in dB
-
-    Returns:
-        Magnitude ratio in linear scale.
-    """
-    return 10 ** (db / 20)
-
-
-def pow2db(power: float, eps: Optional[float] = 1e-16) -> float:
-    """Convert power ratio from linear scale to dB.
-
-    Args:
-        power: power ratio in linear scale
-        eps: small regularization constant
-    
-    Returns:
-        Power in dB.
-    """
-    return 10 * np.log10(power + eps)
-
-
 def calculate_drr(rir: np.ndarray, sample_rate: float, n_direct: List[int], n_0_ms=2.5) -> List[float]:
-    """Calculate DRR from the measured RIR using eq. (3) from [1].
+    """Calculate direct-to-reverberant ratio (DRR) from the measured RIR.
+    
+    Calculation is done as in eq. (3) from [1].
 
     Args:
         rir: room impulse response, shape (num_samples, num_channels)
@@ -3132,6 +3215,10 @@ def load_audio_from_multiple_files(items: List[Dict], sample_rate: int, total_le
     Returns:
         Numpy array, shape (total_len, num_channels)
     """
+    if items is None:
+        # Nothing is provided
+        return None
+
     signal = None
     samples_to_load = total_len
     # if necessary, load multiple from files
@@ -3301,8 +3388,8 @@ def simulate_room_mix(
         clipping_prevention_gain = max_amplitude / clipped_max
         global_gain *= clipping_prevention_gain
         mix_cfg['ref_mic_rms'] += mag2db(clipping_prevention_gain)
-        # TODO: this warning can be removed, but keep now for awareness
-        logging.info(
+
+        logging.debug(
             'Clipping prevented for example %s (protection gain: %.2f dB)',
             base_output_filepath,
             mag2db(clipping_prevention_gain),
@@ -3357,8 +3444,8 @@ def simulate_room_mix(
         'mix_cfg': mix_cfg,
         'rt60': target_cfg.get('rt60'),
         'drr': drr,
-        'rsnr': mix_cfg['rsnr'],
-        'rsir': mix_cfg['rsir'],
+        'rsnr': None if noise_cfg is None else mix_cfg['rsnr'],
+        'rsir': None if interference_cfg is None else mix_cfg['rsir'],
     }
 
     return convert_numpy_to_serializable(metadata)
@@ -3458,11 +3545,12 @@ def plot_mix_manifest_info(filepath: str, plot_filepath: str = None):
     plt.ylabel('# examples')
     plt.title('DRR (average over mics)')
 
-    plt.subplot(2, 4, 7)
-    plt.hist(rsnr, label='RSNR')
-    plt.xlabel('RSNR / dB')
-    plt.ylabel('# examples')
-    plt.title('RSNR')
+    if not any([val is None for val in rsnr]):
+        plt.subplot(2, 4, 7)
+        plt.hist(rsnr, label='RSNR')
+        plt.xlabel('RSNR / dB')
+        plt.ylabel('# examples')
+        plt.title('RSNR')
 
     if not any([val is None for val in rsir]):
         plt.subplot(2, 4, 8)

@@ -124,7 +124,7 @@ flowchart TD
 	G --> |Statistics| J[*.png]
 ```
 
-Microphone signals are constructed as illustrated in the following diagram for an example with two interfering sources
+Microphone signals are constructed by mixing target, backgoround noise and interference signal. This is illustrated in the following diagram for an example with two interfering sources:
 
 ```mermaid
 flowchart LR
@@ -144,7 +144,7 @@ flowchart LR
     ISCALE ==> SUM
 
     SUM ==> RMS[scaling]
-    RMS ==> MIC[Mic signal]
+    RMS ==> MIC[mic signal]
 ```
 
 ## Features
