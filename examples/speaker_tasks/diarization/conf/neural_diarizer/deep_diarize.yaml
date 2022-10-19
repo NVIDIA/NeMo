@@ -73,7 +73,7 @@ trainer:
   enable_checkpointing: False
   logger: False
   log_every_n_steps: 50  # Interval of logging.
-  val_check_interval: 10000  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
+  val_check_interval: 1000  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
 
 
 exp_manager:
