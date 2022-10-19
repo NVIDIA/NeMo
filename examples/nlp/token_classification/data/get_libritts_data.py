@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,6 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""
+This script downloads and unpacks LibriTTS data. And prepares it for punctuation and capitalization lexical audio model.
+Data is being downloaded from www.openslr.org and then extracted via tar.
+The script gathers text from every *.normalized.txt file inside of archive into single file with text and file with audio filepaths.
+"""
 import argparse
 import glob
 import os
@@ -24,6 +29,16 @@ from tqdm import tqdm
 
 from nemo.utils import logging
 
+URL = {
+    'train_clean_100': "https://www.openslr.org/resources/60/train-clean-100.tar.gz",
+    'train_clean_360': "https://www.openslr.org/resources/60/train-clean-360.tar.gz",
+    'train_other_500': "https://www.openslr.org/resources/60/train-other-500.tar.gz",
+    'dev_clean': "https://www.openslr.org/resources/60/dev-clean.tar.gz",
+    'dev_other': "https://www.openslr.org/resources/60/dev-other.tar.gz",
+    'test_clean': "https://www.openslr.org/resources/60/test-clean.tar.gz",
+    'test_other': "https://www.openslr.org/resources/60/test-other.tar.gz",
+}
+
 
 def __extract_file(filepath, data_dir):
     try:
@@ -32,17 +47,6 @@ def __extract_file(filepath, data_dir):
         tar.close()
     except Exception:
         print(f"Error while extracting {filepath}. Already extracted?")
-
-
-URL = {
-    'train_clean_100': "https://www.openslr.org/resources/60/train-clean-100.tar.gz",
-    'train_clean_360': "https://www.openslr.org/resources/60/train-clean-360.tar.gz",
-    'thain_other_500': "https://www.openslr.org/resources/60/train-other-500.tar.gz",
-    'dev_clean': "https://www.openslr.org/resources/60/dev-clean.tar.gz",
-    'dev_other': "https://www.openslr.org/resources/60/dev-other.tar.gz",
-    'test_clean': "https://www.openslr.org/resources/60/test-clean.tar.gz",
-    'test_other': "https://www.openslr.org/resources/60/test-other.tar.gz",
-}
 
 
 def __maybe_download_file(destination: str, source: str):
@@ -64,7 +68,9 @@ def __maybe_download_file(destination: str, source: str):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Prepare LibriTTS dataset')
+    parser = argparse.ArgumentParser(
+        description='Prepare LibriTTS dataset for punctuation capitalization lexical audio model training/evaluating.'
+    )
     parser.add_argument("--data_sets", default="dev_clean", type=str, help="List of subsets separated by comma")
     parser.add_argument("--data_dir", required=True, type=str, help="Path to dir where data will be stored")
     parser.add_argument(
