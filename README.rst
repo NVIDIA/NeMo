@@ -41,6 +41,7 @@ and make it easier to create new `conversational AI models <https://developer.nv
 Getting started with NeMo is simple.
 State of the Art pretrained NeMo models are freely available on `HuggingFace Hub <https://huggingface.co/models?library=nemo&sort=downloads&search=nvidia>`_ and
 `NVIDIA NGC <https://catalog.ngc.nvidia.com/models?query=nemo&orderBy=weightPopularDESC>`_.
+These models can be used to transcribe audio, synthesize speech, or translate text in a just a few lines of code.
 
 We have have extensive `tutorials <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/starthere/tutorials.html>`_ that 
 can all be run on `Google Colab <https://colab.research.google.com>`_.
