@@ -689,22 +689,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         loss = torch.sum(losses * loss_mask) / loss_mask.sum()  # sequence level nll
         return loss
 
-    def process_micro_batch(self, micro_batch):
-        """ Micro batch returned by MegatronT5 dataloader"""
-
-        data_b = micro_batch
-
-        # Unpack.
-        tokens_enc = data_b['text_enc'].long()
-        tokens_dec = data_b['text_dec'].long()
-        labels = data_b['labels'].long()
-        loss_mask = data_b['loss_mask'].float()
-
-        enc_mask = data_b['enc_mask']
-        dec_mask = data_b['dec_mask']
-
-        return tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask
-
     def _process_global_batch_without_megatron_batch_sampler(self, global_batch, tokenizer=None):
         """ Prepares the global batch for apex fwd/bwd functions.
             Global batch is a list of micro batches.
@@ -771,6 +755,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         }
 
     def process_global_batch(self, global_batch):
+        # If the decoder input starts with <pad> instead of <bos>, which is the case for huggingface T5 models, we don't want to mask the first token.
+        # For NeMo-Megatron, the sequence starts with <bos>, which is never masked so we can always set index 0 to be unmasked.
+        global_batch['dec_mask'][:, 0] = 1
+
         return [
             global_batch["text_enc"],
             global_batch["text_dec"],

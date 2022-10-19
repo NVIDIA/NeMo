@@ -24,10 +24,11 @@ from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_sampler
 )
 from nemo.collections.nlp.data.language_modeling.t0_dataset import T0Dataset
 from nemo.collections.nlp.models.language_modeling.megatron_finetune_model import MegatronT5FinetuneModel
-from nemo.utils import logging
+from nemo.utils import AppState, logging
 
 try:
     from apex.transformer import parallel_state
+    from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -62,9 +63,9 @@ class MegatronT0Model(MegatronT5FinetuneModel):
         if hasattr(self, '_train_ds'):
             self.setup_training_dataloader()
         if hasattr(self, '_validation_ds'):
-            self.setup_eval_dataloader(self._validation_ds, self.cfg.data.validation_ds)
+            self._validation_dl = self.setup_eval_dataloader(self._validation_ds, self.cfg.data.validation_ds)
         if hasattr(self.cfg.data, 'test_ds'):
-            self.setup_test_data(self._test_ds, self.cfg.data.test_ds)
+            self._test_dl = self.setup_test_data(self._test_ds, self.cfg.data.test_ds)
 
         # when using pipeline model parallel the final stage need to initialize word embeddings
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
@@ -123,9 +124,9 @@ class MegatronT0Model(MegatronT5FinetuneModel):
                 tokenizer=self.tokenizer,
                 max_src_seq_length=data_cfg.max_src_seq_length,
                 max_tgt_seq_length=data_cfg.max_tgt_seq_length,
-                bos_id=data_cfg.get('bos_id', None), # If bos_id is None, it will use tokenizer.bos_id
                 add_bos_to_input=data_cfg.get('add_bos_to_input', False),
                 add_eos_to_input=data_cfg.get('add_eos_to_input', False),
+                replace_bos_with_pad=data_cfg.get('replace_bos_with_pad', False),
                 max_num_samples=num_samples[0],
                 seed=data_cfg.get('seed', 1234),
             )
@@ -138,9 +139,24 @@ class MegatronT0Model(MegatronT5FinetuneModel):
             return dataset
         else:
             return datasets
-    
+
     def training_step(self, batch, batch_idx):
-        super().super().training_step(batch, batch_idx)
+        return super(MegatronT5FinetuneModel, self).training_step(batch, batch_idx)
+
+    # Override the parent batch reconfiguring logic.
+    def _reconfigure_and_process_inference_batch(self, batch):
+        global_batch_per_gpu = batch['text_enc'].size(0)
+        # This should happen only on the last batch of the validation/test dataset with drop_last=False.
+        if global_batch_per_gpu != self.cfg.data.validation_ds.global_batch_size:
+            app_state = AppState()
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=global_batch_per_gpu * parallel_state.get_data_parallel_world_size(),
+                micro_batch_size=global_batch_per_gpu,
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            )
+        return batch
 
     def build_train_valid_test_datasets(self, stage):
         if stage != 'test':
