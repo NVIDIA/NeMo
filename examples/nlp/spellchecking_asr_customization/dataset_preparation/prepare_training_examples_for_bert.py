@@ -96,6 +96,31 @@ def get_all_candidates_coverage(phrases, phrases2positions):
     return candidate2coverage, candidate2position
 
 
+def get_candidates(phrases, letters):
+    phrases2positions = np.zeros((len(phrases), len(letters)), dtype=float)
+    position2ngrams = [{}] * len(letters)  # positions mapped to dicts of ngrams starting from that position
+
+    begin = 0
+    for begin in range(len(letters)):
+        for end in range(begin + 1, min(len(letters) + 1, begin + 7)):
+            ngram = " ".join(letters[begin:end])
+            if ngram not in ngram2phrases:
+                continue
+            for phrase_id, b, size, lp in ngram2phrases[ngram]:
+                phrases2positions[phrase_id, begin:end] = 1.0
+
+    candidate2coverage, candidate2position = get_all_candidates_coverage(phrases, phrases2positions)
+
+    candidates = []
+    k = 0
+    for idx, coverage in sorted(enumerate(candidate2coverage), key=lambda item: item[1], reverse=True):
+        k += 1
+        if k > 10:
+            break
+        candidates.append(phrases[idx])
+    return candidates
+
+
 refs, hyps = read_custom_vocab()
 manifest_data = read_manifest(args.input_manifest)
 
@@ -107,13 +132,14 @@ print("len(phrases)=", len(phrases), "; len(ngram2phrases)=", len(ngram2phrases)
 
 correct = 0  # debug counter for cases when correct candidate was in top10
 with open(args.output_name, "w", encoding="utf-8") as out:
+    # mostly positive examples
     for i in range(len(refs)):    # loop through custom phrases
         p = random.randrange(len(text))  # pick random sentence
         sent = text[p]
         words = sent.split()
-        if len(words) > 15:
-            s = random.randrange(len(words) - 15)
-            words = words[s:s+15]
+        if len(words) > 10:
+            s = random.randrange(len(words) - 10)
+            words = words[s:s+10]
 
         # choose random position to insert custom phrase
         r = random.randrange(len(words))
@@ -136,30 +162,10 @@ with open(args.output_name, "w", encoding="utf-8") as out:
         reference, position, length = refs[i], begin_len, hyp_len
         letters = final_sent.split()
 
-        phrases2positions = np.zeros((len(phrases), len(letters)), dtype=float)
-        position2ngrams = [{}] * len(letters)   # positions mapped to dicts of ngrams starting from that position
-
-        begin = 0
-        for begin in range(len(letters)):
-            for end in range(begin + 1, min(len(letters) + 1, begin + 7)):
-                ngram = " ".join(letters[begin:end])
-                if ngram not in ngram2phrases:
-                    continue
-                for phrase_id, b, size, lp in ngram2phrases[ngram]:
-                    phrases2positions[phrase_id, begin:end] = 1.0
-
-        candidate2coverage, candidate2position = get_all_candidates_coverage(phrases, phrases2positions)
-
-        candidates = []
-        k = 0
-        correct_id = 0
-        for idx, coverage in sorted(enumerate(candidate2coverage), key=lambda item: item[1], reverse=True):
-            k += 1
-            if k > 10:
-                break
-            candidates.append(phrases[idx])
+        candidates = get_candidates(phrases, letters)
 
         random.shuffle(candidates)
+        correct_id = 0
         for k in range(len(candidates)):
             if candidates[k] == reference:
                 correct += 1
@@ -168,5 +174,22 @@ with open(args.output_name, "w", encoding="utf-8") as out:
             print(final_sent)
             print("WARNING: cannot get 10 candidates", candidates)
             continue
-        out.write(final_sent + ";" + ";".join(candidates) + "\t" + str(correct_id) + "\tCUSTOM " + str(begin_len) + " " + str(begin_len + hyp_len) + "\n")
+        out.write(final_sent + "\t" + ";".join(candidates) + "\t" + str(correct_id) + "\tCUSTOM " + str(begin_len) + " " + str(begin_len + hyp_len) + "\n")
+    # add negative examples (no correct candidate)
+    for i in range(len(refs)):  # loop through custom phrases
+        p = random.randrange(len(text))  # pick random sentence
+        sent = text[p]
+        words = sent.split()
+        if len(words) > 10:
+            s = random.randrange(len(words) - 10)
+            words = words[s:s + 10]
+
+        sent_letters = list("_".join(words))
+
+        candidates = get_candidates(phrases, sent_letters)
+
+        random.shuffle(candidates)
+        correct_id = 0
+        out.write(
+            " ".join(sent_letters) + "\t" + ";".join(candidates) + "\t0\t\n")
 print ("Correct=", correct)
