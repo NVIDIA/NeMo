@@ -29,6 +29,7 @@ from nemo.collections.nlp.models.token_classification.punctuation_capitalization
 from nemo.collections.nlp.modules.common.transformer import TransformerDecoder
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.classes.mixins import adapter_mixins
+from nemo.utils import logging
 
 try:
     import nemo.collections.asr as nemo_asr
