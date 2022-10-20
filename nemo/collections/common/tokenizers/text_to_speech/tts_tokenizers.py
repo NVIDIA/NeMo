@@ -707,7 +707,7 @@ class ChinesePhonemesTokenizer(BaseTokenizer):
             if non_default_punct_list is not None:
                 self.PUNCT_LIST = non_default_punct_list
             else:
-                self.PUNCT_LIST = self.EN_PUNCT_LIST + self.ZH_PUNCT_LIST
+                self.PUNCT_LIST = list(self.EN_PUNCT_LIST) + list(self.ZH_PUNCT_LIST)
             tokens.extend(self.PUNCT_LIST)
 
         super().__init__(tokens, oov=oov, sep=sep, add_blank_at=add_blank_at)

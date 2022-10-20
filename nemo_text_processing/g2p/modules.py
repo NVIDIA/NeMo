@@ -523,8 +523,6 @@ class ChineseG2p(BaseG2p):
                 Note that this code path is only run if the word can be phonemized. For example: If the word does not have a entry in the g2p dict, it will be returned
                 as characters. If the word has multiple entries and ignore_ambiguous_words is True, it will be returned as characters.
         """
-        from pypinyin import lazy_pinyin, Style
-
         phoneme_dict = (
             self._parse_as_pinyin_dict(phoneme_dict)
             if isinstance(phoneme_dict, str) or isinstance(phoneme_dict, pathlib.Path) or phoneme_dict is None
@@ -546,21 +544,24 @@ class ChineseG2p(BaseG2p):
             mapping_file=mapping_file,
         )
         self.tones = {'1':'#1', '2':'#2', '3':'#3', '4':'#4', '5':'#5'}
+        from pypinyin import lazy_pinyin, Style
+        self._lazy_pinyin = lazy_pinyin
+        self._Style = Style
 
     def _parse_as_pinyin_dict(self, phoneme_dict_path):
         """Loads pinyin dict file, and generates a set of all valid symbols."""
         g2p_dict = defaultdict(list)
         with open(phoneme_dict_path, 'r') as file:
             for line in file:
-                parts = line.split(' ')
-                pinyin = parts[0]
-                pronunciation = parts[1:]
+                parts = line.split('\t')
+                # let the key be lower, since pypinyin would give lower representation
+                pinyin = parts[0].lower()
+                pronunciation = parts[1].split()
                 pronunciation_with_sharp = ['#' + pron for pron in pronunciation]
-                g2p_dict[pinyin].append(pronunciation_with_sharp)
+                g2p_dict[pinyin] = pronunciation_with_sharp
         return g2p_dict
 
-    def __call__(text):
-        _alt_re = re.compile(r'\([0-9]+\)')
+    def __call__(self, text):
         """
         errors func handle below is to process the bilingual situation,
         specifically, it would return words into letters.
@@ -570,13 +571,13 @@ class ChineseG2p(BaseG2p):
         ' ', 'S', 't', 'o', 'r', 'e', ',', ' ', 'mai3', 'le5', 'yi2', 
         'ge4', 'i', 'h', 'o', 'n', 'e', '。']
         """
-        pinyin_seq = lazy_pinyin(text, style=Style.TONE3,
+        pinyin_seq = self._lazy_pinyin(text, style=self._Style.TONE3,
                                  neutral_tone_with_five=True,
                                  errors=lambda en_words: [letter for letter in en_words])
         phoneme_seq = []
         for pinyin in pinyin_seq:
             if pinyin[-1] in self.tones:
-                assert pinyin[:-1] in self.phoneme_dict
+                assert pinyin[:-1] in self.phoneme_dict, pinyin[:-1]
                 phoneme_seq += self.phoneme_dict[pinyin[:-1]]
                 phoneme_seq.append(self.tones[pinyin[-1]])
             else:
