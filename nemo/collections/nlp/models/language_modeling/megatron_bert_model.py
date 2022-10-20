@@ -19,11 +19,6 @@ import torch.nn.functional as F
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
-    MegatronPretrainingBatchSampler,
-    MegatronPretrainingRandomBatchSampler,
-)
-
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import build_train_valid_test_datasets
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
     MegatronPretrainingBatchSampler,
@@ -108,7 +103,7 @@ class MegatronBertModel(MegatronBaseModel):
         )
         # not using amp o2
         self.megatron_amp_o2 = False
-        
+
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(batch, model):
 
@@ -128,7 +123,7 @@ class MegatronBertModel(MegatronBaseModel):
                 else:
                     lm_loss = loss_dict['lm loss']
                     loss = lm_loss
-                    reduced_loss = average_losses_across_data_parallel_group([loss, lm_loss])             
+                    reduced_loss = average_losses_across_data_parallel_group([loss, lm_loss])
                 return loss, {'avg': reduced_loss}
 
             return output_tensor, loss_func
@@ -153,7 +148,7 @@ class MegatronBertModel(MegatronBaseModel):
         return output_tensor
 
     def training_step(self, batch, batch_idx):
-        self._optimizer.zero_grad() # DO WE NEED THIS
+        self._optimizer.zero_grad()  # DO WE NEED THIS
         batch_for_pipeline = self.process_batch(batch)
         tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
         losses_reduced_per_micro_batch = forward_backward_no_pipelining(
@@ -165,19 +160,21 @@ class MegatronBertModel(MegatronBaseModel):
             dtype=self.autocast_dtype,
             grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
             custom_sync_context_handler=None,
-        )      
+        )
 
         loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
         loss_tensor = torch.vstack(loss_tensors_list)
         loss_mean = loss_tensor.mean(axis=0)
-        
+
         self._reduced_loss_buffer.append(loss_mean[0])
         self._reduced_lm_loss_buffer.append(loss_mean[1])
         if len(loss_mean) == 3:
             self._reduced_sop_loss_buffer.append(loss_mean[2])
 
         # when using sequence parallelism, the sequence parallel layernorm grads must be all-reduced
-        if self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False): # DO WE NEED THIS
+        if self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.get(
+            'sequence_parallel', False
+        ):  # DO WE NEED THIS
             self.allreduce_sequence_parallel_gradients()
 
         self.allreduce_gradients()  # DO WE NEED THIS
@@ -185,7 +182,7 @@ class MegatronBertModel(MegatronBaseModel):
         if self.cfg.precision == 16:
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
-                self.log('loss_scale', loss_scale) 
+                self.log('loss_scale', loss_scale)
 
         if (batch_idx + 1) % self.trainer.accumulate_grad_batches == 0:
             # Reduced loss for logging.
@@ -206,8 +203,8 @@ class MegatronBertModel(MegatronBaseModel):
             )
             self._reduced_loss_buffer = []
             self._reduced_lm_loss_buffer = []
-            self._reduced_sop_loss_buffer = [] 
-         
+            self._reduced_sop_loss_buffer = []
+
         return loss_mean[0]
 
     def validation_step(self, batch, batch_idx):
@@ -229,7 +226,7 @@ class MegatronBertModel(MegatronBaseModel):
 
     def validation_epoch_end(self, outputs):
         averaged_loss = torch.stack(outputs).mean()
-        # torch.distributed.broadcast(averaged_loss, get_last_rank()) (PRESENT IN GPT3 NOT IN BERT ) IS IT NEEDED ? 
+        # torch.distributed.broadcast(averaged_loss, get_last_rank()) (PRESENT IN GPT3 NOT IN BERT ) IS IT NEEDED ?
         self.log('val_loss', averaged_loss, prog_bar=True)
 
     def test_step(self, batch, batch_idx):
@@ -270,7 +267,9 @@ class MegatronBertModel(MegatronBaseModel):
         datatype = torch.int64
 
         data = batch
-        data_b = tensor_parallel.broadcast_data(keys, data, datatype) # IS THIS NEEDED (NOT PRESENT IN GPT3 BUT PRESENT IN BERT NO-BATCH IMPLEMENTATION)
+        data_b = tensor_parallel.broadcast_data(
+            keys, data, datatype
+        )  # IS THIS NEEDED (NOT PRESENT IN GPT3 BUT PRESENT IN BERT NO-BATCH IMPLEMENTATION)
 
         # Unpack.
         tokens = data_b['text'].long()
@@ -357,7 +356,7 @@ class MegatronBertModel(MegatronBaseModel):
                 data_parallel_rank=parallel_state.get_data_parallel_rank(),
                 data_parallel_size=parallel_state.get_data_parallel_world_size(),
                 drop_last=self.cfg.get('drop_last', True),
-            )   
+            )
         elif self.cfg.data.dataloader_type == 'cyclic':
             batch_sampler = MegatronPretrainingRandomBatchSampler(
                 total_samples=len(dataset),
@@ -372,8 +371,8 @@ class MegatronBertModel(MegatronBaseModel):
             raise ValueError('cfg.data.dataloader_type must be "single" or "cyclic"')
         return torch.utils.data.DataLoader(
             dataset, batch_sampler=batch_sampler, num_workers=self.cfg.data.num_workers, pin_memory=True,
-        )         
- 
+        )
+
     def setup(self, stage=None):
         resume_checkpoint_path = self.trainer._checkpoint_connector.resume_from_checkpoint_fit_path
 
