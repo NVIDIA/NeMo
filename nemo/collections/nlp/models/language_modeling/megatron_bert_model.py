@@ -357,7 +357,7 @@ class MegatronBertModel(MegatronBaseModel):
                     data_parallel_rank=parallel_state.get_data_parallel_rank(),
                     data_parallel_size=parallel_state.get_data_parallel_world_size(),
                     drop_last=self.cfg.get('drop_last', True),
-                )   
+                )
             elif self.cfg.data.dataloader_type == 'cyclic':
                 batch_sampler = MegatronPretrainingRandomBatchSampler(
                     total_samples=len(dataset),
