@@ -1685,9 +1685,6 @@ class SampledRNNTJoint(RNNTJoint):
         )
         self.n_samples = n_samples
         self.register_buffer('blank_id', torch.tensor([self.num_classes_with_blank - 1]), persistent=False)
-        self.register_buffer(
-            'adjustment_val', torch.log(torch.tensor(self.num_classes_with_blank) - 1), persistent=False
-        )
 
     @typecheck()
     def forward(
