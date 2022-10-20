@@ -1848,6 +1848,7 @@ class SampledRNNTJoint(RNNTJoint):
 
         # augment with blank token id
         transcript_vocab_ids = torch.cat([self.blank_id, transcript_vocab_ids])
+        # print("Transcript vocab ids", len(transcript_vocab_ids))
 
         true_weights = self.joint_net[-1].weight[transcript_vocab_ids, :]
         true_bias = self.joint_net[-1].bias[transcript_vocab_ids]
@@ -1855,9 +1856,10 @@ class SampledRNNTJoint(RNNTJoint):
         transcript_scores = torch.matmul(inp, true_weights.transpose(0, 1)) + true_bias
 
         # gather sample ids - weights and frequencies (but ignore the RNNT blank token)
-        sample_ids = torch.randint(high=self.num_classes_with_blank - 1, size=(self.n_samples,)).to(
-            device=transcript_scores.device
-        )
+        # sample_ids = torch.randint(high=self.num_classes_with_blank - 1, size=(self.n_samples,), device=transcript_scores.device)
+
+        sample_ids = torch.randperm(n=self.num_classes_with_blank - 1, device=transcript_scores.device)[:self.n_samples]
+        # sample_ids = torch.unique(sample_ids)
         sample_weights = self.joint_net[-1].weight[sample_ids, :]
         sample_bias = self.joint_net[-1].bias[sample_ids]
 
@@ -1867,8 +1869,23 @@ class SampledRNNTJoint(RNNTJoint):
         # returns tuple, where left indicates position in transcript_vocab_ids that matches corresponding
         # position in sample_ids.
         # Directly use the location of indices in the sample_ids regime to reject inside noise_scores
-        # reject_samples = torch.where(transcript_vocab_ids[:, None] == sample_ids[None, :])
-        # reject_samples = reject_samples[1]  # select the indices corresponding to sample_ids
+
+        # Accepted : subselect tensor
+        reject_samples = torch.where(transcript_vocab_ids[:, None] == sample_ids[None, :])
+        reject_samples = reject_samples[1]  # select the indices corresponding to sample_ids
+        accept_samples = torch.arange(sample_ids.size(0))
+        sample_mask = torch.ones_like(accept_samples, dtype=torch.bool)
+        sample_mask[reject_samples] = False
+        accept_samples = accept_samples[sample_mask]
+
+        # print("noise scores", noise_scores.shape)
+        # print("Num accepted samples ", len(accept_samples))
+
+        noise_scores = noise_scores[..., accept_samples]
+
+        # Reject : set to 0 score for loglikelihood
+        # reject_samples = torch.where(torch.equal(transcript_vocab_ids[:, None], sample_ids[None, :]))
+        # reject_samples = reject_samples[1].unique()  # select the indices corresponding to sample_ids
         # noise_scores[..., reject_samples] *= 0
         # noise_scores -= torch.log(torch.tensor((self.n_samples - len(reject_samples))).float())
 
