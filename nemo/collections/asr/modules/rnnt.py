@@ -1864,7 +1864,6 @@ class SampledRNNTJoint(RNNTJoint):
             # not for computing actual label.
             t_ids = torch.arange(transcript_vocab_ids.size(0), device='cpu')
             mapping = {k: v for k, v in zip(transcript_vocab_ids.to('cpu'), t_ids)}
-            mapping[0] = 0
 
             # From `https://stackoverflow.com/questions/13572448`.
             palette, key = zip(*mapping.items())
@@ -1874,6 +1873,8 @@ class SampledRNNTJoint(RNNTJoint):
             palette = torch.tensor(palette, device=t_device)
 
             index = torch.bucketize(transcript.ravel(), palette)
+            # print("key", key)
+            # print("index", index)
             transcript = key[index].reshape(transcript.shape)
             transcript = transcript.to(t_device)
 
@@ -1902,12 +1903,20 @@ class SampledRNNTJoint(RNNTJoint):
             ]
 
             reject_samples = torch.where(transcript_vocab_ids[1:, None] == sample_ids[None, :])
-            reject_samples = sample_ids[reject_samples[1]] # select the indices corresponding to sample_ids
+            # reject_samples_ids = reject_samples[1]  # select the indices corresponding to sample_ids
+            # reject_samples_ids = sample_ids[reject_samples[1]]  # select the indices corresponding to sample_ids
 
-            accept_samples = torch.arange(sample_ids.size(0), device=reject_samples.device)
+            # print("reject samples", reject_samples.to('cpu'))
+            # print("sample ids", sample_ids)
+            # print("accept mask", sample_ids.size(0))
+            # accept_samples = torch.arange(sample_ids.size(0), device=reject_samples_ids.device)
+            accept_samples = sample_ids.clone()
             sample_mask = torch.ones_like(accept_samples, dtype=torch.bool)
-            sample_mask[reject_samples] = False
+            sample_mask[reject_samples[1]] = False
+            # print("sample mask", sample_mask)
             accept_samples = accept_samples[sample_mask]
+            # print("new len accept", len(accept_samples))
+            # print("new accept", accept_samples)
 
         # print("noise scores", noise_scores.shape)
         # print("Num accepted samples ", len(accept_samples))
@@ -1925,8 +1934,9 @@ class SampledRNNTJoint(RNNTJoint):
 
         # print("all ids", (torch.cat([transcript_vocab_ids, accept_samples])))
 
-        # accept_samples_np = (accept_samples.to('cpu').numpy().tolist())
-        # transcript_vocab_ids_np = (transcript_vocab_ids.to('cpu').numpy().tolist())
+        # accept_samples_np = set(accept_samples.to('cpu').numpy().tolist())
+        # transcript_vocab_ids_np = set(transcript_vocab_ids.to('cpu').numpy().tolist())
+        # print(set.intersection(accept_samples_np, transcript_vocab_ids_np))
 
         sample_weights = self.joint_net[-1].weight[accept_samples, :]
         sample_bias = self.joint_net[-1].bias[accept_samples]
@@ -1962,6 +1972,6 @@ class SampledRNNTJoint(RNNTJoint):
 
 
 # Add the adapter compatible modules to the registry
-for cls in [RNNTDecoder, RNNTJoint]:
+for cls in [RNNTDecoder, RNNTJoint, SampledRNNTJoint]:
     if adapter_mixins.get_registered_adapter(cls) is None:
         adapter_mixins.register_adapter(cls, cls)  # base class is adapter compatible itself
