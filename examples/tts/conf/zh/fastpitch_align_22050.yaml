@@ -11,12 +11,12 @@ sup_data_types: [ "align_prior_matrix", "pitch" ]
 
 # Default values from librosa.pyin
 pitch_fmin: 65.40639132514966
-pitch_fmax: 2093.004522404789
+pitch_fmax: 1986.977294921875
 
 # Stats (per frame), train (these values depend on pitch_fmin and pitch_fmax)
 # For example, on Thorsten Muller (German Neutral-TTS dataset): http://www.openslr.org/95/
-pitch_mean: ???
-pitch_std: ???
+pitch_mean: 221.4948272705078
+pitch_std: 64.65289306640625
 
 # Default values for dataset with sample_rate=22050
 sample_rate: 22050
@@ -29,6 +29,7 @@ highfreq: null
 window: hann
 
 whitelist_path: "nemo_text_processing/text_normalization/zh/data/whitelist/default.tsv"
+phoneme_dict_path: "scripts/tts_dataset_files/zh/pinyin_dict.txt"
 
 model:
   learn_alignment: true
@@ -91,7 +92,7 @@ model:
       max_duration: 14 # change to null to include longer audios.
       min_duration: 0.1
       ignore_file: null
-      trim: false
+      trim: true
       pitch_fmin: ${model.pitch_fmin}
       pitch_fmax: ${model.pitch_fmax}
       pitch_norm: true
@@ -103,6 +104,7 @@ model:
       shuffle: true
       batch_size: 32
       num_workers: 12
+      pin_memory: true
 
   validation_ds:
     dataset:
@@ -133,6 +135,7 @@ model:
       shuffle: false
       batch_size: 32
       num_workers: 2
+      pin_memory: true
 
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
