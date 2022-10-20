@@ -367,9 +367,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             # Note: grads in first pipeline stage have already been
             # reduced
             if not parallel_state.is_pipeline_first_stage():
-                self._optimizer.try_grad_sync(
-                    p for p in self.parameters() if not getattr(p, '_disable_overlap_grad_sync', False)
-                )
+                self.reduce_overlap_gradients()
         elif self.megatron_amp_o2:
             # when using pipeline parallelism grads must be reduced after the pipeline (not asynchronously)
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1:

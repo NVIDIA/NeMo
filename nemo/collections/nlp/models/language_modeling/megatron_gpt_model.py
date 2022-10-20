@@ -209,11 +209,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
             # Disable overlapped grad sync for layer norm grads when
             # sequence parallelism is enabled
-            if isinstance(self.model, list):
-                params = list(itertools.chain.from_iterable(module.parameters() for module in self.model))
-            else:
-                params = list(self.parameters())
-            for param in params:
+            for param in self.parameters():
                 if getattr(param, 'sequence_parallel_enabled', False):
                     param._disable_greedy_grad_copy = not self.megatron_amp_o2
                     param._disable_overlap_grad_sync = True
@@ -317,9 +313,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             # Note: grads in first pipeline stage have already been
             # reduced
             if not parallel_state.is_pipeline_first_stage():
-                self._optimizer.try_grad_sync(
-                    p for p in self._optimizer.parameters() if not getattr(p, '_disable_overlap_grad_sync', False)
-                )
+                self.reduce_overlap_gradients()
         elif self.megatron_amp_o2:
             # when using pipeline parallelism grads must be all-reduced after the pipeline (not asynchronously)
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1 or self.cfg.get('sequence_parallel', False):
@@ -902,3 +896,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 parallel_state.set_virtual_pipeline_model_parallel_rank(i)
                 self.model[i].module.load_state_dict(checkpoint[f'model{i}'], strict=True)
             parallel_state.set_virtual_pipeline_model_parallel_rank(0)
+
+    def parameters(self):
+        if isinstance(self.model, list):
+            return itertools.chain.from_iterable(module.parameters() for module in self.model)
+        else:
+            return self.model.parameters()

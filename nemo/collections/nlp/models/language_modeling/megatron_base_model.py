@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import itertools
 import os
 import re
 from typing import Any, Dict, Optional, Union
@@ -263,6 +262,20 @@ class MegatronBaseModel(NLPModel):
             for buf, synced in zip(grads, torch._utils._unflatten_dense_tensors(coalesced, grads)):
                 buf.copy_(synced)
 
+    def reduce_overlap_gradients(self):
+        """Reduce grads if overlapped grad sync is enabled
+
+        Used for pipeline parallelism with the distributed Adam
+        optimizer. In the first pipeline stage, the grad sync is
+        overlapped with the final backward pass. In other pipeline
+        stages, the grad sync is deferred until the bubble overhead.
+
+        """
+        if self.with_distributed_adam:
+            self._optimizer.try_grad_sync(
+                p for p in self._optimizer.parameters() if not getattr(p, '_disable_overlap_grad_sync', False)
+            )
+
     def on_train_batch_end(self, outputs, batch, batch_idx: int, unused: Optional[int] = 0) -> None:
         super().on_train_batch_end(outputs, batch, batch_idx)
 
@@ -381,12 +394,8 @@ class MegatronBaseModel(NLPModel):
 
             # Initialize params so that main grads are available
             # Note: Consolidate grads without overlap
-            if isinstance(self.model, list):
-                params = list(itertools.chain.from_iterable(module.parameters() for module in self.model))
-            else:
-                params = list(self.parameters())
-            self._optimizer.init_params(p for p in params if getattr(p, '_disable_overlap_grad_sync', False))
-            self._optimizer.init_params(params)
+            self._optimizer.init_params(p for p in self.parameters() if getattr(p, '_disable_overlap_grad_sync', False))
+            self._optimizer.init_params(self.parameters())
 
         if self._scheduler is None:
             return self._optimizer
