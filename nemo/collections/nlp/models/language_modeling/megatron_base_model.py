@@ -394,7 +394,9 @@ class MegatronBaseModel(NLPModel):
 
             # Initialize params so that main grads are available
             # Note: Consolidate grads without overlap
-            self._optimizer.init_params(p for p in self.parameters() if getattr(p, '_disable_overlap_grad_sync', False))
+            self._optimizer.init_params(
+                p for p in self.parameters() if getattr(p, '_disable_overlap_grad_sync', False)
+            )
             self._optimizer.init_params(self.parameters())
 
         if self._scheduler is None:
