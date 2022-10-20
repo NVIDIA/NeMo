@@ -450,6 +450,7 @@ class NoisePerturbation(Perturbation):
             noise_gain_db = data_rms[ref_mic] - noise.rms_db[ref_mic] - snr_db
         else:
             noise_gain_db = data_rms - noise.rms_db - snr_db
+        noise_gain_db = min(noise_gain_db, self._max_gain_db)
 
         # calculate noise segment to use
         start_time = self._rng.uniform(0.0, noise.duration - data.duration)
