@@ -25,10 +25,6 @@ from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_sampler
 )
 
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import build_train_valid_test_datasets
-from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
-    MegatronPretrainingBatchSampler,
-    MegatronPretrainingRandomBatchSampler,
-)
 from nemo.collections.nlp.models.language_modeling.megatron.bert_model import BertModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.utils import (
@@ -347,27 +343,28 @@ class MegatronBertModel(MegatronBaseModel):
 
         if dataset is None:
             return None
-
-        if self.cfg.data.dataloader_type == 'single':
-            batch_sampler = MegatronPretrainingBatchSampler(
-                total_samples=len(dataset),
-                consumed_samples=consumed_samples,
-                micro_batch_size=self.cfg.micro_batch_size,
-                global_batch_size=self.cfg.global_batch_size,
-                data_parallel_rank=parallel_state.get_data_parallel_rank(),
-                data_parallel_size=parallel_state.get_data_parallel_world_size(),
-                drop_last=self.cfg.get('drop_last', True),
-            )   
-        elif self.cfg.data.dataloader_type == 'cyclic':
-            batch_sampler = MegatronPretrainingRandomBatchSampler(
-                total_samples=len(dataset),
-                consumed_samples=consumed_samples,
-                micro_batch_size=self.cfg.micro_batch_size,
-                global_batch_size=self.cfg.global_batch_size,
-                data_parallel_rank=parallel_state.get_data_parallel_rank(),
-                data_parallel_size=parallel_state.get_data_parallel_world_size(),
-                drop_last=self.cfg.get('drop_last', True),
-            )
+        # Megatron sampler
+        if hasattr(self.cfg.data, 'dataloader_type') and self.cfg.data.dataloader_type is not None:
+            if self.cfg.data.dataloader_type == 'single':
+                batch_sampler = MegatronPretrainingBatchSampler(
+                    total_samples=len(dataset),
+                    consumed_samples=consumed_samples,
+                    micro_batch_size=self.cfg.micro_batch_size,
+                    global_batch_size=self.cfg.global_batch_size,
+                    data_parallel_rank=parallel_state.get_data_parallel_rank(),
+                    data_parallel_size=parallel_state.get_data_parallel_world_size(),
+                    drop_last=self.cfg.get('drop_last', True),
+                )   
+            elif self.cfg.data.dataloader_type == 'cyclic':
+                batch_sampler = MegatronPretrainingRandomBatchSampler(
+                    total_samples=len(dataset),
+                    consumed_samples=consumed_samples,
+                    micro_batch_size=self.cfg.micro_batch_size,
+                    global_batch_size=self.cfg.global_batch_size,
+                    data_parallel_rank=parallel_state.get_data_parallel_rank(),
+                    data_parallel_size=parallel_state.get_data_parallel_world_size(),
+                    drop_last=self.cfg.get('drop_last', True),
+                )
         else:
             raise ValueError('cfg.data.dataloader_type must be "single" or "cyclic"')
         return torch.utils.data.DataLoader(
