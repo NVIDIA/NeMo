@@ -1125,7 +1125,7 @@ def _build_train_valid_test_datasets(
             if hasattr(indexed_dataset, 'set_doc_idx'):
                 indexed_dataset.set_doc_idx(doc_idx_ptr)
             # Checks.
-            if hasattr(indexed_dataset, 'doc_idx'):
+            if getattr(indexed_dataset, 'doc_idx', None) is not None:
                 assert indexed_dataset.doc_idx[0] == 0
                 assert indexed_dataset.doc_idx.shape[0] == (total_num_of_documents + 1)
 
