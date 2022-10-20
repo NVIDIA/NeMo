@@ -101,8 +101,12 @@ def make_indexed_dataset_compatibility(ds):
 
 def deallocate_indexed_dataset_memory(indexed_dataset):
     """Deallocate memory of an IndexedDataset."""
-    indexed_dataset.sizes = None
-    indexed_dataset.doc_idx = None
+    if isinstance(indexed_dataset, MMapIndexedDataset):
+        # for MMapIndexedDataset we cannot release any memory
+        pass
+    else:
+        indexed_dataset.sizes = None
+        indexed_dataset.doc_idx = None
 
 
 def make_dataset(path, impl, skip_warmup=False, impl_kwargs={}):
