@@ -47,6 +47,7 @@ from nemo.core.neural_types import (
     LogprobsType,
     LossType,
     NeuralType,
+    SpectrogramType,
 )
 from nemo.utils import logging
 
@@ -1579,17 +1580,15 @@ class RNNTDecoderJointSSL(torch.nn.Module):
 
     @property
     def input_types(self):
-        return OrderedDict(
-            {
-                "encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
-                "targets": NeuralType(('B', 'T'), LabelsType()),
-                "target_lengths": NeuralType(tuple('B'), LengthsType()),
-            }
-        )
+        return {
+            "encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
+            "targets": NeuralType(('B', 'T'), LabelsType()),
+            "target_lengths": NeuralType(tuple('B'), LengthsType()),
+        }
 
     @property
     def output_types(self):
-        return OrderedDict({"log_probs": NeuralType(('B', 'T', 'D'), SpectrogramType())})
+        return {"log_probs": NeuralType(('B', 'T', 'D'), SpectrogramType())}
 
     def forward(self, encoder_output, targets, target_lengths):
 
@@ -1597,6 +1596,302 @@ class RNNTDecoderJointSSL(torch.nn.Module):
         log_probs = self.joint(encoder_outputs=encoder_output, decoder_outputs=decoder)
 
         return log_probs
+
+
+class SampledRNNTJoint(RNNTJoint):
+    def __init__(
+        self,
+        jointnet: Dict[str, Any],
+        num_classes: int,
+        n_samples: int,
+        vocabulary: Optional[List] = None,
+        log_softmax: Optional[bool] = None,
+        preserve_memory: bool = False,
+        fuse_loss_wer: bool = False,
+        fused_batch_size: Optional[int] = None,
+    ):
+        super().__init__(
+            jointnet=jointnet,
+            num_classes=num_classes,
+            vocabulary=vocabulary,
+            log_softmax=log_softmax,
+            preserve_memory=preserve_memory,
+            fuse_loss_wer=fuse_loss_wer,
+            fused_batch_size=fused_batch_size,
+        )
+        self.n_samples = n_samples
+        self.register_buffer('blank_id', torch.tensor([self.num_classes_with_blank - 1]), persistent=False)
+        self.register_buffer(
+            'adjustment_val', torch.log(torch.tensor(self.num_classes_with_blank) - 1), persistent=False
+        )
+
+    @typecheck()
+    def forward(
+        self,
+        encoder_outputs: torch.Tensor,
+        decoder_outputs: Optional[torch.Tensor],
+        encoder_lengths: Optional[torch.Tensor] = None,
+        transcripts: Optional[torch.Tensor] = None,
+        transcript_lengths: Optional[torch.Tensor] = None,
+        compute_wer: bool = False,
+    ) -> Union[torch.Tensor, List[Optional[torch.Tensor]]]:
+        if not torch.is_grad_enabled() or torch.is_inference_mode_enabled():
+            # Simply call full tensor joint
+            return super().forward(
+                encoder_outputs=encoder_outputs,
+                decoder_outputs=decoder_outputs,
+                encoder_lengths=encoder_lengths,
+                transcripts=transcripts,
+                transcript_lengths=transcript_lengths,
+                compute_wer=compute_wer,
+            )
+
+        # encoder = (B, D, T)
+        # decoder = (B, D, U) if passed, else None
+        encoder_outputs = encoder_outputs.transpose(1, 2)  # (B, T, D)
+
+        if decoder_outputs is not None:
+            decoder_outputs = decoder_outputs.transpose(1, 2)  # (B, U, D)
+
+        if not self._fuse_loss_wer:
+            if decoder_outputs is None:
+                raise ValueError(
+                    "decoder_outputs passed is None, and `fuse_loss_wer` is not set. "
+                    "decoder_outputs can only be None for fused step!"
+                )
+
+            out = self.sampled_joint(
+                encoder_outputs, decoder_outputs, transcript=transcripts, transcript_lengths=transcript_lengths
+            )  # [B, T, U, V + 1]
+            return out
+
+        else:
+            # At least the loss module must be supplied during fused joint
+            if self._loss is None or self._wer is None:
+                raise ValueError("`fuse_loss_wer` flag is set, but `loss` and `wer` modules were not provided! ")
+
+            # If fused joint step is required, fused batch size is required as well
+            if self._fused_batch_size is None:
+                raise ValueError("If `fuse_loss_wer` is set, then `fused_batch_size` cannot be None!")
+
+            # When using fused joint step, both encoder and transcript lengths must be provided
+            if (encoder_lengths is None) or (transcript_lengths is None):
+                raise ValueError(
+                    "`fuse_loss_wer` is set, therefore encoder and target lengths " "must be provided as well!"
+                )
+
+            losses = []
+            target_lengths = []
+            batch_size = int(encoder_outputs.size(0))  # actual batch size
+
+            # Iterate over batch using fused_batch_size steps
+            for batch_idx in range(0, batch_size, self._fused_batch_size):
+                begin = batch_idx
+                end = min(begin + self._fused_batch_size, batch_size)
+
+                # Extract the sub batch inputs
+                # sub_enc = encoder_outputs[begin:end, ...]
+                # sub_transcripts = transcripts[begin:end, ...]
+                sub_enc = encoder_outputs.narrow(dim=0, start=begin, length=end - begin)
+                sub_transcripts = transcripts.narrow(dim=0, start=begin, length=end - begin)
+
+                sub_enc_lens = encoder_lengths[begin:end]
+                sub_transcript_lens = transcript_lengths[begin:end]
+
+                # Sub transcripts does not need the full padding of the entire batch
+                # Therefore reduce the decoder time steps to match
+                max_sub_enc_length = sub_enc_lens.max()
+                max_sub_transcript_length = sub_transcript_lens.max()
+
+                if decoder_outputs is not None:
+                    # Reduce encoder length to preserve computation
+                    # Encoder: [sub-batch, T, D] -> [sub-batch, T', D]; T' < T
+                    if sub_enc.shape[1] != max_sub_enc_length:
+                        sub_enc = sub_enc.narrow(dim=1, start=0, length=max_sub_enc_length)
+
+                    # sub_dec = decoder_outputs[begin:end, ...]  # [sub-batch, U, D]
+                    sub_dec = decoder_outputs.narrow(dim=0, start=begin, length=end - begin)  # [sub-batch, U, D]
+
+                    # Reduce decoder length to preserve computation
+                    # Decoder: [sub-batch, U, D] -> [sub-batch, U', D]; U' < U
+                    if sub_dec.shape[1] != max_sub_transcript_length + 1:
+                        sub_dec = sub_dec.narrow(dim=1, start=0, length=max_sub_transcript_length + 1)
+
+                    # Reduce transcript length to correct alignment
+                    # Transcript: [sub-batch, L] -> [sub-batch, L']; L' <= L
+                    if sub_transcripts.shape[1] != max_sub_transcript_length:
+                        sub_transcripts = sub_transcripts.narrow(dim=1, start=0, length=max_sub_transcript_length)
+
+                    # Perform joint => [sub-batch, T', U', V + 1]
+                    sub_joint = self.sampled_joint(
+                        sub_enc, sub_dec, transcript=sub_transcripts, transcript_lengths=sub_transcript_lens
+                    )
+
+                    del sub_dec
+
+                    # Compute sub batch loss
+                    # preserve loss reduction type
+                    loss_reduction = self.loss.reduction
+
+                    # override loss reduction to sum
+                    self.loss.reduction = None
+
+                    # override blank idx
+                    cached_blank_id = self.loss._loss.blank
+                    self.loss._loss.blank = 0
+
+                    # compute and preserve loss
+                    loss_batch = self.loss(
+                        log_probs=sub_joint,
+                        targets=sub_transcripts,
+                        input_lengths=sub_enc_lens,
+                        target_lengths=sub_transcript_lens,
+                    )
+                    losses.append(loss_batch)
+                    target_lengths.append(sub_transcript_lens)
+
+                    # reset loss reduction type
+                    self.loss.reduction = loss_reduction
+                    self.loss._loss.blank = cached_blank_id
+
+                else:
+                    losses = None
+
+                # Update WER for sub batch
+                if compute_wer:
+                    sub_enc = sub_enc.transpose(1, 2)  # [B, T, D] -> [B, D, T]
+                    sub_enc = sub_enc.detach()
+                    sub_transcripts = sub_transcripts.detach()
+
+                    # Update WER on each process without syncing
+                    self.wer.update(sub_enc, sub_enc_lens, sub_transcripts, sub_transcript_lens)
+
+                del sub_enc, sub_transcripts, sub_enc_lens, sub_transcript_lens
+
+            # Reduce over sub batches
+            if losses is not None:
+                losses = self.loss.reduce(losses, target_lengths)
+
+            # Collect sub batch wer results
+            if compute_wer:
+                # Sync and all_reduce on all processes, compute global WER
+                wer, wer_num, wer_denom = self.wer.compute()
+                self.wer.reset()
+            else:
+                wer = None
+                wer_num = None
+                wer_denom = None
+
+            return losses, wer, wer_num, wer_denom
+
+    def sampled_joint(
+        self, f: torch.Tensor, g: torch.Tensor, transcript: torch.Tensor, transcript_lengths: torch.Tensor,
+    ) -> torch.Tensor:
+        """
+        Compute the joint step of the network.
+
+        Here,
+        B = Batch size
+        T = Acoustic model timesteps
+        U = Target sequence length
+        H1, H2 = Hidden dimensions of the Encoder / Decoder respectively
+        H = Hidden dimension of the Joint hidden step.
+        V = Vocabulary size of the Decoder (excluding the RNNT blank token).
+
+        NOTE:
+            The implementation of this model is slightly modified from the original paper.
+            The original paper proposes the following steps :
+            (enc, dec) -> Expand + Concat + Sum [B, T, U, H1+H2] -> Forward through joint hidden [B, T, U, H] -- *1
+            *1 -> Forward through joint final [B, T, U, V + 1].
+
+            We instead split the joint hidden into joint_hidden_enc and joint_hidden_dec and act as follows:
+            enc -> Forward through joint_hidden_enc -> Expand [B, T, 1, H] -- *1
+            dec -> Forward through joint_hidden_dec -> Expand [B, 1, U, H] -- *2
+            (*1, *2) -> Sum [B, T, U, H] -> Forward through joint final [B, T, U, V + 1].
+
+        Args:
+            f: Output of the Encoder model. A torch.Tensor of shape [B, T, H1]
+            g: Output of the Decoder model. A torch.Tensor of shape [B, U, H2]
+            transcript: Batch of transcripts. A torch.Tensor of shape [B, U]
+            transcript_lengths: Batch of lengths of the transcripts. A torch.Tensor of shape [B]
+
+        Returns:
+            Logits / log softmaxed tensor of shape (B, T, U, V + 1).
+        """
+        if self.training is False or torch.is_grad_enabled() is False or torch.is_inference_mode_enabled():
+            # Simply call full tensor joint
+            return super().joint(f=f, g=g)
+
+        # Compute sampled softmax
+        # f = [B, T, H1]
+        f = self.enc(f)
+        f.unsqueeze_(dim=2)  # (B, T, 1, H)
+
+        # g = [B, U, H2]
+        g = self.pred(g)
+        g.unsqueeze_(dim=1)  # (B, 1, U, H)
+
+        inp = f + g  # [B, T, U, H]
+
+        del f, g
+
+        # Forward adapter modules on joint hidden
+        if self.is_adapter_available():
+            inp = self.forward_enabled_adapters(inp)
+
+        # Do partial forward of joint net (skipping the final linear)
+        for module in self.joint_net[:-1]:
+            inp = module(inp)  # [B, T, U, H]
+
+        # gather true labels - weights and frequencies
+        transcript_vocab_ids = torch.unique(transcript)
+
+        # augment with blank token id
+        transcript_vocab_ids = torch.cat([self.blank_id, transcript_vocab_ids])
+
+        true_weights = self.joint_net[-1].weight[transcript_vocab_ids, :]
+        true_bias = self.joint_net[-1].bias[transcript_vocab_ids]
+
+        transcript_scores = torch.matmul(inp, true_weights.transpose(0, 1)) + true_bias
+
+        # gather sample ids - weights and frequencies (but ignore the RNNT blank token)
+        sample_ids = torch.randint(high=self.num_classes_with_blank - 1, size=(self.n_samples,)).to(
+            device=transcript_scores.device
+        )
+        sample_weights = self.joint_net[-1].weight[sample_ids, :]
+        sample_bias = self.joint_net[-1].bias[sample_ids]
+
+        noise_scores = torch.matmul(inp, sample_weights.transpose(0, 1)) + sample_bias
+        # noise_scores += self.adjustment_val
+
+        # returns tuple, where left indicates position in transcript_vocab_ids that matches corresponding
+        # position in sample_ids.
+        # Directly use the location of indices in the sample_ids regime to reject inside noise_scores
+        # reject_samples = torch.where(transcript_vocab_ids[:, None] == sample_ids[None, :])
+        # reject_samples = reject_samples[1]  # select the indices corresponding to sample_ids
+        # noise_scores[..., reject_samples] *= 0
+        # noise_scores -= torch.log(torch.tensor((self.n_samples - len(reject_samples))).float())
+
+        # 5. Apply regular softmax cross entropy
+        res = torch.cat([transcript_scores, noise_scores], dim=-1)
+        # print("res shape", res.shape)
+
+        # res = self.joint_net(inp)  # [B, T, U, V + 1]
+
+        del inp
+
+        if self.preserve_memory:
+            torch.cuda.empty_cache()
+
+        # If log_softmax is automatic
+        if self.log_softmax is None:
+            if not res.is_cuda:  # Use log softmax only if on CPU
+                res = res.log_softmax(dim=-1)
+        else:
+            if self.log_softmax:
+                res = res.log_softmax(dim=-1)
+
+        return res
 
 
 # Add the adapter compatible modules to the registry
