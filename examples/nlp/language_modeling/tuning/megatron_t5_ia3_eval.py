@@ -57,6 +57,7 @@ def main(cfg) -> None:
             app_state.model_parallel_size,
             app_state.data_parallel_size,
             app_state.pipeline_model_parallel_split_rank,
+            app_state.virtual_pipeline_model_parallel_rank,
         ) = fake_initialize_model_parallel(
             world_size=app_state.model_parallel_size,
             rank=trainer.global_rank,
@@ -73,6 +74,7 @@ def main(cfg) -> None:
         )
         with open_dict(ia3_tuning_cfg):
             ia3_tuning_cfg.language_model_path = cfg.language_model_path
+            ia3_tuning_cfg.pretrained_language_model_path = cfg.language_model_path
             ia3_tuning_cfg.micro_batch_size = cfg.data.micro_batch_size
             ia3_tuning_cfg.global_batch_size = cfg.data.global_batch_size
 
@@ -127,7 +129,7 @@ def main(cfg) -> None:
     if cfg.pred_file_path is not None:
         with open(cfg.pred_file_path, "w", encoding="utf-8") as f:
             for batch in response:
-                for inp, pred in zip(batch['enc_input'], batch['predicted_token_ids']):
+                for inp, pred in zip(batch['input_text'], batch['preds_text']):
                     inp = ' '.join(inp.split('\n'))
                     pred = ' '.join(pred.split('\n'))
                     f.write(f'{inp} {pred}\n')
