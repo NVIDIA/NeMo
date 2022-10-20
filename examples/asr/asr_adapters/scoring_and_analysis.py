@@ -15,7 +15,7 @@
 """
 This script is used to analyze the results of the experiments from a CSV file.
 
-Usage:
+Basic Usage:
     To perform analysis on the adapters experiment results::
 
         python scoring_and_analysis.py \
@@ -28,6 +28,31 @@ Usage:
             --csv <path to csv> \
             --dataset_type_column <column name in csv with the dataset types> \
             -ft
+
+Advanced Usage:
+    The script by default shows only the best hyperparameters for each crietria.
+    To see a ranking of all the hyperparameters for each criteria in order to visualize
+    how the results were selected use the `--show_analysis` flag. Moreover, instead of
+    displaying only the best hyperparameters, you can use the `--topk` flag to show the
+    top *k* hyperparameters::
+
+        $ python scoring_and_analysis.py \
+            --csv <path to csv> \
+            --dataset_type_column <dataset_group_column_name> \
+            --show_analysis \
+            --topk 3
+
+    Instead of doing the analysis over all possible combinations of all the hyperparameters,
+    you can restrict the search space only to a subset of experiments. This can be achieved
+    by the `-uargs` and the `-cargs` flag for the unconstrained and the constrained
+    experiments respectively::
+
+        $ python scoring_and_analysis.py \
+            --csv <path to csv> \
+            --dataset_type_column <dataset_group_column_name> \
+            -cargs 'Adapter Position' encoder \
+            -cargs 'Adapter Dropout' 0.5 \
+            -uargs 'Train Steps' 5000
 """
 
 import argparse
@@ -36,28 +61,32 @@ from typing import Tuple
 import numpy as np
 import pandas as pd
 
-# Column name and its attribute to consider for getting the best model configuration
+# CHANGE: Specify the column names and their attributes to consider for the selection
+# of the best results
 UNCONSTRAINED_EXP_KEY = {'name': 'WER: Test', 'attribute': min}
 CONSTRAINED_EXP_KEY = {'name': 'Score', 'attribute': max}
 
-# Hyperparamters to display in the output
+# CHANGE: Hyperparamters of the best run to display in the output
 ADAPTER_HYPERPARAMTER_COLUMNS = ['Adapter Dimensions', 'Adapter Dropout', 'Stochastic Depth', 'Train Steps']
 FINETUNING_HYPERPARAMETER_COLUMNS = ['Train Steps', 'Learning Rate']
 
-# Columns for displaying the analysis table
+# CHANGE: Column name for the test set WER on the new domain
 TEST_WER_COLUMN = 'WER: Test'
-LS_TEST_OTHER_WER_COLUMN = 'WER: Librispeech Test Other'
 
-# Based on the experiment type, get the column name for categorizing the results
+# CHANGE: Column name for the test set WER on the original domain
+ORIGINAL_TEST_WER_COLUMN = 'WER: Librispeech Test Other'
+
+# CHANGE: Based on the experiment type, get the column name for categorizing the results
 EXP_CATEGORY_KEY = {'adapters': 'Adapter Position', 'finetuning': 'Frozen Module'}
 
-# Maximum absolute WER degradation allowed in the original domain
+# CHANGE: Maximum absolute WER degradation allowed in the original domain
 MAX_DEGRADATION_PERCENTAGE = 3
 
-# Baseline WER in the original domain
+# CHANGE: Baseline WER in the original domain
 BASELINE_ORIGINAL_WER = 5.118
 
-# Baseline WER in the domain to be adapted
+# CHANGE: Baseline WER in the domain to be adapted
+# The keys of this dictionary should cover all values of the `dataset_type_column`
 BASELINE_ADAPTED_WER = {
     'irish_english_male': 20.690,
     'midlands_english_female': 9.612,
@@ -103,7 +132,7 @@ def parse_results(filepath: str, dataset_type_col: str, exp_type: str) -> Tuple[
 
     if 'Score' not in df:
         # Calculate the selection scoring metric
-        df['Original Scale'] = df.apply(lambda x: calculate_original_scale(x[LS_TEST_OTHER_WER_COLUMN]), axis=1)
+        df['Original Scale'] = df.apply(lambda x: calculate_original_scale(x[ORIGINAL_TEST_WER_COLUMN]), axis=1)
         df['Adapt WERR'] = df.apply(lambda x: calculate_adapt_werr(x[TEST_WER_COLUMN], x[dataset_type_col]), axis=1)
         df['Score'] = df['Original Scale'] * df['Adapt WERR']
 
@@ -148,7 +177,7 @@ def display_results(df_all: pd.DataFrame, category: str, best_config: pd.Series,
     """
     test_wer_values, ls_test_other_wer_values = [], []
 
-    print(f'{dataset_type_col:^25} | {TEST_WER_COLUMN:<20} | {LS_TEST_OTHER_WER_COLUMN:<20}')
+    print(f'{dataset_type_col:^25} | {TEST_WER_COLUMN:<20} | {ORIGINAL_TEST_WER_COLUMN:<20}')
     print('-' * 70)
     for dtype in df_all[dataset_type_col].unique():
         df_filtered = df_all[(df_all[dataset_type_col] == dtype) & (df_all[EXP_CATEGORY_KEY[exp_type]] == category)]
@@ -163,9 +192,9 @@ def display_results(df_all: pd.DataFrame, category: str, best_config: pd.Series,
 
         dtype_data = df_filtered.iloc[0]
         test_wer_values.append(dtype_data[TEST_WER_COLUMN])
-        ls_test_other_wer_values.append(dtype_data[LS_TEST_OTHER_WER_COLUMN])
+        ls_test_other_wer_values.append(dtype_data[ORIGINAL_TEST_WER_COLUMN])
         print(
-            f'{dtype_data[dataset_type_col]:^25} | {dtype_data[TEST_WER_COLUMN]:^20} | {dtype_data[LS_TEST_OTHER_WER_COLUMN]:^20}'
+            f'{dtype_data[dataset_type_col]:^25} | {dtype_data[TEST_WER_COLUMN]:^20} | {dtype_data[ORIGINAL_TEST_WER_COLUMN]:^20}'
         )
     print('-' * 70)
     print(f'{"Average":^25} | {np.mean(test_wer_values):^20} | {np.mean(ls_test_other_wer_values):^20}')
@@ -189,7 +218,7 @@ def get_best_config(
     hyperparamter_cols = ADAPTER_HYPERPARAMTER_COLUMNS if exp_type == 'adapters' else FINETUNING_HYPERPARAMETER_COLUMNS
 
     # Columns to display in the analysis table
-    analysis_columns = list(set([key_info['name'], TEST_WER_COLUMN, LS_TEST_OTHER_WER_COLUMN]))
+    analysis_columns = list(set([key_info['name'], TEST_WER_COLUMN, ORIGINAL_TEST_WER_COLUMN]))
 
     df_analyze = df_exp.drop(
         columns=[
