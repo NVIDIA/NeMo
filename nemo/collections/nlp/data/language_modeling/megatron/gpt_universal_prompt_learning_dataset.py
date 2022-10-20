@@ -73,6 +73,7 @@ class GPTUniversalPromptLearningDataset(Dataset):
         self.add_eos = add_eos
         self.for_train = for_train
         self.examples = []
+        self.answer_only_loss = self.task_templates["answer_only_loss"]
 
         if not self.for_train:
             self.tokens_to_generate = tokens_to_generate
@@ -153,9 +154,8 @@ class GPTUniversalPromptLearningDataset(Dataset):
             if self.min_seq_length <= len(input_ids) <= self.max_seq_length - self.virtual_token_len:
                 # Find answer field indices if training and answer_only_loss is True
                 answer_start_idx = None
-                if answer_only_loss and self.for_train:
+                if self.for_train:
                     answer_start_idx = self._find_answer_start(input_ids, answer_field, doc)
-
                 self.examples.append((input_ids, answer_start_idx))
             else:
                 skipped += 1
@@ -269,16 +269,18 @@ class GPTUniversalPromptLearningDataset(Dataset):
         batch_loss_masks = []
         prompt_input_masks = []
         for ids, answer_start_idx in zip(input_ids, answer_starts):
-            if answer_start_idx is not None:
+            if self.answer_only_loss and answer_start_idx is not None:
                 # Loss mask where answer tokens are 1.0 and all other tokens are 0.0
                 loss_mask = [float(idx >= answer_start_idx) for idx in range(len(ids))]
             else:
                 # Loss mask where virtual tokens are 0.0 and all other tokens are 1.0
                 loss_mask = [1.0] * len(ids)
             if answer_start_idx is not None:
+                # has ground truth in it, mask it out
                 prompt_input_mask = [True] * answer_start_idx + [False] * (batch_max - answer_start_idx)
             else:
-                prompt_input_mask = [False] * batch_max
+                # no ground truth, all the inputs are used for perceiver
+                prompt_input_mask = [True] * len(ids) + [False] * (batch_max - len(ids))
             prompt_input_masks.append(prompt_input_mask)
             # Pad to max length
             input_length = len(ids)
