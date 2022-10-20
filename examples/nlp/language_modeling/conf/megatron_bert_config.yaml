@@ -81,7 +81,8 @@ model:
   seed: 1234
   use_cpu_initialization: False # Init weights on the CPU (slow for large models)
   onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
-
+  gradient_as_bucket_view: True # PyTorch DDP argument. Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
+  
   # not implemented in NeMo yet
   activations_checkpoint_method: null # 'uniform', 'block'
   activations_checkpoint_num_layers: 1 

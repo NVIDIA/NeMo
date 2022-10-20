@@ -25,6 +25,10 @@ from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_sampler
 )
 
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import build_train_valid_test_datasets
+from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
+    MegatronPretrainingBatchSampler,
+    MegatronPretrainingRandomBatchSampler,
+)
 from nemo.collections.nlp.models.language_modeling.megatron.bert_model import BertModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.utils import (
@@ -38,6 +42,7 @@ from nemo.utils import AppState, logging
 try:
     from apex.transformer import parallel_state, tensor_parallel
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
+
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
