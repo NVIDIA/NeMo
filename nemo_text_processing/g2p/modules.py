@@ -497,6 +497,7 @@ class IPAG2P(BaseG2p):
 
         return prons
 
+
 class ChineseG2p(BaseG2p):
     def __init__(
         self,
@@ -543,7 +544,7 @@ class ChineseG2p(BaseG2p):
             apply_to_oov_word=apply_to_oov_word,
             mapping_file=mapping_file,
         )
-        self.tones = {'1':'#1', '2':'#2', '3':'#3', '4':'#4', '5':'#5'}
+        self.tones = {'1': '#1', '2': '#2', '3': '#3', '4': '#4', '5': '#5'}
         from pypinyin import lazy_pinyin, Style
         self._lazy_pinyin = lazy_pinyin
         self._Style = Style
@@ -571,9 +572,12 @@ class ChineseG2p(BaseG2p):
         ' ', 'S', 't', 'o', 'r', 'e', ',', ' ', 'mai3', 'le5', 'yi2', 
         'ge4', 'i', 'h', 'o', 'n', 'e', '。']
         """
-        pinyin_seq = self._lazy_pinyin(text, style=self._Style.TONE3,
-                                 neutral_tone_with_five=True,
-                                 errors=lambda en_words: [letter for letter in en_words])
+        pinyin_seq = self._lazy_pinyin(
+            text,
+            style=self._Style.TONE3,
+            neutral_tone_with_five=True,
+            errors=lambda en_words: [letter for letter in en_words],
+        )
         phoneme_seq = []
         for pinyin in pinyin_seq:
             if pinyin[-1] in self.tones:
