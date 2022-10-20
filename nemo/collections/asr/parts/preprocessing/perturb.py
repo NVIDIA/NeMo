@@ -447,9 +447,9 @@ class NoisePerturbation(Perturbation):
             data_rms = data.rms_db
 
         noise_gain_db = data_rms - noise.rms_db - snr_db  # float or array of size (num_channels,)
-        if len(noise_gain_db.shape) == 0:  # mono-channel
+        if len(noise_gain_db.shape) == 0:  # mono-channel, noise_gain_db is a float scalar
             noise_gain_db = min(noise_gain_db, self._max_gain_db)
-        else: # multi-channel
+        else:  # multi-channel, noise_gain_db is a array
             for i in range(len(noise_gain_db.shape)):
                 noise_gain_db[i] = min(noise_gain_db[i], self._max_gain_db)
 
