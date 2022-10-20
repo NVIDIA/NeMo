@@ -546,6 +546,7 @@ class ChineseG2p(BaseG2p):
         )
         self.tones = {'1': '#1', '2': '#2', '3': '#3', '4': '#4', '5': '#5'}
         from pypinyin import lazy_pinyin, Style
+
         self._lazy_pinyin = lazy_pinyin
         self._Style = Style
 
