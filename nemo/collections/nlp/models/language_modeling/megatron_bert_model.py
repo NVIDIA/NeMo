@@ -19,6 +19,11 @@ import torch.nn.functional as F
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
+from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
+    MegatronPretrainingBatchSampler,
+    MegatronPretrainingRandomBatchSampler,
+)
+
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
     MegatronPretrainingSampler,
@@ -36,7 +41,7 @@ from nemo.utils import AppState, logging
 
 try:
     from apex.transformer import parallel_state, tensor_parallel
-
+    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
@@ -55,7 +60,7 @@ class MegatronBertModel(MegatronBaseModel):
             )
         super().__init__(cfg, trainer=trainer, no_lm_init=False)
         self.cfg = cfg
-
+        self.autocast_dtype = torch.half
         # used in NVIDIA NGC PyTorch containers
         # buffer used during train_step for logging average loss over gradient accumulation steps
         self._reduced_lm_loss_buffer = []
@@ -94,6 +99,31 @@ class MegatronBertModel(MegatronBaseModel):
         # not using amp o2
         self.megatron_amp_o2 = False
 
+    def get_forward_output_and_loss_func(self):
+        def fwd_output_and_loss_func(batch, model):
+
+            batch = [x.cuda(non_blocking=True) for x in batch]
+            tokens, types, sentence_order, loss_mask, lm_labels, padding_mask = batch
+            if not self.cfg.bert_binary_head:
+                types = None
+            output_tensor = model(tokens, padding_mask, token_type_ids=types, lm_labels=lm_labels)
+
+            def loss_func(output_tensor):
+                loss_dict = self.loss_func(loss_mask, sentence_order, output_tensor)
+                if 'sop loss' in loss_dict:
+                    lm_loss = loss_dict['lm loss']
+                    sop_loss = loss_dict['sop loss']
+                    loss = lm_loss + sop_loss
+                else:
+                    lm_loss = loss_dict['lm loss']
+                    loss = lm_loss
+                reduced_loss = average_losses_across_data_parallel_group([loss])                
+                return loss, {'avg': reduced_loss}
+
+            return output_tensor, loss_func
+
+        return fwd_output_and_loss_func
+
     def forward(self, input_ids, attention_mask, token_type_ids, lm_labels=None):
         output_tensor = self.model(input_ids, attention_mask, token_type_ids=token_type_ids, lm_labels=lm_labels)
 
@@ -112,7 +142,7 @@ class MegatronBertModel(MegatronBaseModel):
         return output_tensor
 
     def training_step(self, batch, batch_idx):
-        tokens, types, sentence_order, loss_mask, lm_labels, padding_mask = self.process_batch(batch)
+        [tokens, types, sentence_order, loss_mask, lm_labels, padding_mask] = self.process_batch(batch)
         if not self.cfg.bert_binary_head:
             types = None
         output_tensor = self(tokens, padding_mask, token_type_ids=types, lm_labels=lm_labels)
@@ -155,20 +185,21 @@ class MegatronBertModel(MegatronBaseModel):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        tokens, types, sentence_order, loss_mask, lm_labels, padding_mask = self.process_batch(batch)
-        if not self.cfg.bert_binary_head:
-            types = None
-        output_tensor = self(tokens, padding_mask, token_type_ids=types, lm_labels=lm_labels)
-        loss_dict = self.loss_func(loss_mask, sentence_order, output_tensor)
-        if 'sop loss' in loss_dict:
-            lm_loss = loss_dict['lm loss']
-            sop_loss = loss_dict['sop loss']
-            loss = lm_loss + sop_loss
-        else:
-            lm_loss = loss_dict['lm loss']
-            loss = lm_loss
-        reduced_loss = average_losses_across_data_parallel_group([loss])
-        return reduced_loss
+        batch_for_pipeline = self.process_batch(batch)
+        tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
+
+        losses_reduced_per_micro_batch = forward_backward_no_pipelining(
+            forward_step_func=self.get_forward_output_and_loss_func(),
+            batch=batch_for_pipeline,
+            model=self.model,
+            forward_only=True,
+            tensor_shape=tensor_shape,
+            dtype=self.autocast_dtype,
+        )
+        loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
+        loss_tensor = torch.concat(loss_tensors_list)
+        loss_mean = loss_tensor.mean()
+        return loss_mean
 
     def validation_epoch_end(self, outputs):
         averaged_loss = torch.stack(outputs).mean()
@@ -221,15 +252,15 @@ class MegatronBertModel(MegatronBaseModel):
         loss_mask = data_b['loss_mask'].float()
         lm_labels = data_b['labels'].long()
         padding_mask = data_b['padding_mask'].long()
-        return tokens, types, sentence_order, loss_mask, lm_labels, padding_mask
+        return [tokens, types, sentence_order, loss_mask, lm_labels, padding_mask]
 
     def _build_train_valid_test_datasets(self):
         logging.info('Building Bert datasets.')
         if self.trainer.limit_val_batches > 1.0 and isinstance(self.trainer.limit_val_batches, float):
             raise ValueError("limit_val_batches must be an integer or float less than or equal to 1.0.")
-        global_batch_size = self.trainer.world_size * self.cfg.micro_batch_size / self.cfg.tensor_model_parallel_size
+        global_batch_size = self.cfg.global_batch_size
         # Compute trianing micro-batch steps: total_global_batch_steps x grad_acumms_per_global_batch
-        max_train_steps = self.trainer.max_steps * self.trainer.accumulate_grad_batches
+        max_train_steps = self.trainer.max_steps
         eval_iters = (max_train_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
         test_iters = self.trainer.limit_test_batches
 
@@ -271,12 +302,38 @@ class MegatronBertModel(MegatronBaseModel):
         logging.info(f'Finished building Bert datasets.')
         return self._train_ds, self._validation_ds, self._test_ds
 
-    def build_pretraining_data_loader(self, dataset, consumed_samples):
+    def build_pretraining_data_loader(self, dataset, consumed_samples, batch=False):
         """Buld dataloader given an input dataset."""
 
         if dataset is None:
             return None
 
+        if batch:
+            if self.cfg.data.dataloader_type == 'single':
+                batch_sampler = MegatronPretrainingBatchSampler(
+                    total_samples=len(dataset),
+                    consumed_samples=consumed_samples,
+                    micro_batch_size=self.cfg.micro_batch_size,
+                    global_batch_size=self.cfg.global_batch_size,
+                    data_parallel_rank=parallel_state.get_data_parallel_rank(),
+                    data_parallel_size=parallel_state.get_data_parallel_world_size(),
+                    drop_last=self.cfg.get('drop_last', True),
+                )   
+            elif self.cfg.data.dataloader_type == 'cyclic':
+                batch_sampler = MegatronPretrainingRandomBatchSampler(
+                    total_samples=len(dataset),
+                    consumed_samples=consumed_samples,
+                    micro_batch_size=self.cfg.micro_batch_size,
+                    global_batch_size=self.cfg.global_batch_size,
+                    data_parallel_rank=parallel_state.get_data_parallel_rank(),
+                    data_parallel_size=parallel_state.get_data_parallel_world_size(),
+                    drop_last=self.cfg.get('drop_last', True),
+                )
+            else:
+                raise ValueError('cfg.data.dataloader_type must be "single" or "cyclic"')
+            return torch.utils.data.DataLoader(
+                dataset, batch_sampler=batch_sampler, num_workers=self.cfg.data.num_workers, pin_memory=True,
+            )         
         # Megatron sampler
         if hasattr(self.cfg.data, 'dataloader_type') and self.cfg.data.dataloader_type is not None:
             if self.cfg.data.dataloader_type == 'single':
@@ -338,7 +395,7 @@ class MegatronBertModel(MegatronBaseModel):
             logging.info(
                 f'Setting up validation dataloader with len(len(self._validation_ds)): {len(self._validation_ds)} and consumed samples: {consumed_samples}'
             )
-            self._validation_dl = self.build_pretraining_data_loader(self._validation_ds, consumed_samples)
+            self._validation_dl = self.build_pretraining_data_loader(self._validation_ds, consumed_samples, batch=True)
 
     def setup_test_data(self, cfg):
         if hasattr(self, '_test_ds'):
