@@ -90,7 +90,7 @@ def make_builder(out_file, impl, vocab_size=None, chunk_size=64, pad_id=0, retri
 
 def make_indexed_dataset_compatibility(ds):
     """Make any dataset compatible with IndexedDataset for Megatron samples mapping."""
-    if hasattr(ds, 'doc_idx') or hasattr(ds, 'sizes'):
+    if (getattr(ds, 'doc_idx', None) is not None) or (getattr(ds, 'sizes', None) is not None):
         raise AttributeError("Dataset already has doc_idx or sizes attributes.")
 
     ds.doc_idx = np.arange(len(ds) + 1, dtype=np.int64)

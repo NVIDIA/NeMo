@@ -1197,7 +1197,7 @@ def get_samples_mapping(
     # Build the indexed mapping if not exist.
     if torch.distributed.get_rank() == 0 and not os.path.isfile(indexmap_filename):
         # Fake index mapping if missing
-        if (not hasattr(indexed_dataset, 'doc_idx')) and (not hasattr(indexed_dataset, 'sizes')):
+        if (getattr(indexed_dataset, 'doc_idx', None) is None) and (getattr(indexed_dataset, 'sizes', None) is None):
             make_indexed_dataset_compatibility(indexed_dataset)
 
         print(
