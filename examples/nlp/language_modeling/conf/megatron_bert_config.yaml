@@ -42,6 +42,7 @@ exp_manager:
 model:
   # model parallelism 
   micro_batch_size: 4
+  global_batch_size: 8
   tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1
 
