@@ -445,8 +445,13 @@ class NoisePerturbation(Perturbation):
         snr_db = self._rng.uniform(self._min_snr_db, self._max_snr_db)
         if data_rms is None:
             data_rms = data.rms_db
-        noise_gain_db = min(data_rms - noise.rms_db - snr_db, self._max_gain_db)
-        # logging.debug("noise: %s %s %s", snr_db, noise_gain_db, noise_record.audio_file)
+
+        noise_gain_db = data_rms - noise.rms_db - snr_db  # float or array of size (num_channels,)
+        if len(noise_gain_db.shape) == 0:  # mono-channel
+            noise_gain_db = min(noise_gain_db, self._max_gain_db)
+        else: # multi-channel
+            for i in range(len(noise_gain_db.shape)):
+                noise_gain_db[i] = min(noise_gain_db[i], self._max_gain_db)
 
         # calculate noise segment to use
         start_time = self._rng.uniform(0.0, noise.duration - data.duration)
