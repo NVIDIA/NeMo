@@ -368,8 +368,12 @@ class MegatronBertModel(MegatronBaseModel):
                     data_parallel_size=parallel_state.get_data_parallel_world_size(),
                     drop_last=self.cfg.get('drop_last', True),
                 )
+            else:	
+                raise ValueError('cfg.data.dataloader_type must be "single" or "cyclic"')	
         else:
-            raise ValueError('cfg.data.dataloader_type must be "single" or "cyclic"')
+            raise ValueError('cfg.data.dataloader_type not found. Must be "single" or "cyclic"')
+
+        # Torch dataloader.    
         return torch.utils.data.DataLoader(
             dataset, batch_sampler=batch_sampler, num_workers=self.cfg.data.num_workers, pin_memory=True,
         )
