@@ -507,11 +507,11 @@ class ChineseG2p(BaseG2p):
         ignore_ambiguous_words=False,
         mapping_file: Optional[str] = None,
     ):
-        """English G2P module. This module converts words from grapheme to phoneme representation using phoneme_dict in CMU dict format.
-        Optionally, it can ignore words which are heteronyms, ambiguous or marked as unchangeable by word_tokenize_func (see code for details).
-        Ignored words are left unchanged or passed through apply_to_oov_word for handling.
+        """Chinese G2P module. This module first converts Chinese characters into pinyin sequences using pypinyin, then pinyin sequences would 
+           be further converted into phoneme sequences using pinyin2phonemes dict file. For Chinese and English bilingual sentences, the English words
+           would be converted into letters.
         Args:
-            phoneme_dict (str, Path, Dict): Path to file in CMUdict format or dictionary of CMUdict-like entries.
+            phoneme_dict (str, Path, Dict): Path to pinyin2phonemes dict file.
             word_tokenize_func: Function for tokenizing text to words.
                 It has to return List[Tuple[Union[str, List[str]], bool]] where every tuple denotes word representation and flag whether to leave unchanged or not.
                 It is expected that unchangeable word representation will be represented as List[str], other cases are represented as str.

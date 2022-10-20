@@ -672,7 +672,7 @@ class ChinesePhonemesTokenizer(BaseTokenizer):
         pad_with_space=False,
         text_preprocessing_func=lambda text: chinese_text_preprocessing(text),
     ):
-        """English phoneme-based tokenizer.
+        """Chinese phoneme-based tokenizer.
         Args:
             g2p: Grapheme to phoneme module.
             punct: Whether to reserve grapheme for basic punctuation or not.
