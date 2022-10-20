@@ -31,21 +31,20 @@ class EMA(Callback):
 
     Args:
         decay: The exponential decay used when calculating the moving average. Has to be between 0-1.
-        apply_ema_every_n_steps: Apply EMA every N steps.
         validate_original_weights: Validate the original weights, as apposed to the EMA weights.
+        cpu_offload: Offload weights to CPU.
     """
 
-    def __init__(self, decay: float, apply_ema_every_n_steps: int = 1, validate_original_weights: bool = False):
+    def __init__(self, decay: float, validate_original_weights: bool = False, cpu_offload: bool = False):
         if not (0 <= decay <= 1):
             raise MisconfigurationException("EMA decay value must be between 0 and 1")
         self.decay = decay
-        self.apply_ema_every_n_steps = apply_ema_every_n_steps
         self.validate_original_weights = validate_original_weights
+        self.cpu_offload = cpu_offload
 
     def on_fit_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
-        trainer.optimizers = [
-            EMAOptimizer(optim, device=pl_module.device, decay=self.decay) for optim in trainer.optimizers
-        ]
+        device = pl_module.device if not self.cpu_offload else torch.device('cpu')
+        trainer.optimizers = [EMAOptimizer(optim, device=device, decay=self.decay) for optim in trainer.optimizers]
 
     def swap_model_weights(self, trainer: "pl.Trainer"):
         for optimizer in trainer.optimizers:
