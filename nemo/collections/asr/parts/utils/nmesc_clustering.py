@@ -32,7 +32,7 @@
 # https://github.com/tango4j/Auto-Tuning-Spectral-Clustering.
 
 from collections import Counter
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 import torch
 from torch.linalg import eigh, eigvalsh
@@ -1021,7 +1021,7 @@ class NMESC:
                 N = torch.max(search_volume, torch.tensor(2))
                 # avoid repeating values by limiting the step size
                 steps = min(self.max_N, N)
-                p_value_list = torch.linspace(start=1, end=self.max_N, steps=N).type(torch.int)
+                p_value_list = torch.linspace(start=1, end=self.max_N, steps=steps).type(torch.int)
             else:
                 p_value_list = torch.arange(1, self.max_N + 1)
         if p_value_list.shape[0] == 0:

@@ -224,7 +224,6 @@ def get_embs_and_timestamps(multiscale_embeddings_and_timestamps, multiscale_arg
 
     embeddings, timestamps = multiscale_embeddings_and_timestamps[0]
     for uniq_id in embeddings.keys():
-        embeddings_dict, time_stamps_dict = {}, {}
         embeddings_list, time_stamps_list, segment_index_list = [], [], []
         for scale_idx in sorted(_multiscale_args_dict['scale_dict'].keys()):
             embeddings, timestamps = multiscale_embeddings_and_timestamps[scale_idx]
