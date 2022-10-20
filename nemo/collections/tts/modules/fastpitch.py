@@ -285,12 +285,11 @@ class FastPitchModule(NeuralModule):
             energy_pred = self.energy_predictor(enc_out, enc_mask).squeeze(-1)
 
             if energy is not None:
-                if energy.shape[-1] != energy_pred.shape[-1]:
-                    # Average energy over characters
-                    energy_tgt = average_pitch(energy.unsqueeze(1), attn_hard_dur)
-                    energy_tgt = torch.log(1.0 + energy_tgt)
-                    energy_emb = self.energy_emb(energy_tgt)
-                    energy_tgt = energy_tgt.squeeze(1)
+                # Average energy over characters
+                energy_tgt = average_pitch(energy.unsqueeze(1), attn_hard_dur)
+                energy_tgt = torch.log(1.0 + energy_tgt)
+                energy_emb = self.energy_emb(energy_tgt)
+                energy_tgt = energy_tgt.squeeze(1)
             else:
                 energy_emb = self.energy_emb(energy_pred.unsqueeze(1))
                 energy_tgt = None
@@ -351,8 +350,12 @@ class FastPitchModule(NeuralModule):
         pitch_predicted = self.pitch_predictor(prosody_input, enc_mask) + pitch
         pitch_emb = self.pitch_emb(pitch_predicted.unsqueeze(1))
         if self.energy_predictor is not None:
-            energy_pred = self.energy_predictor(enc_out, enc_mask).squeeze(-1)
-            energy_emb = self.energy_emb(energy_pred.unsqueeze(1))
+            if energy is not None:
+                assert energy.shape[-1] == text.shape[-1], f"energy.shape[-1]: {energy.shape[-1]} != len(text)"
+                energy_emb = self.energy_emb(energy)
+            else:
+                energy_pred = self.energy_predictor(prosody_input, enc_mask).squeeze(-1)
+                energy_emb = self.energy_emb(energy_pred.unsqueeze(1))
             enc_out = enc_out + energy_emb.transpose(1, 2)
         enc_out = enc_out + pitch_emb.transpose(1, 2)
 
