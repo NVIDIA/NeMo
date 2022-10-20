@@ -26,7 +26,7 @@ from nemo.collections.tts.helpers.helpers import (
     plot_alignment_to_numpy, plot_spectrogram_to_numpy, process_batch
 )
 from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
-from nemo.collections.tts.losses.fastpitchloss import DurationLoss, MelLoss, PitchLoss, EnergyLoss
+from nemo.collections.tts.losses.fastpitchloss import DurationLoss, EnergyLoss, MelLoss, PitchLoss
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.modules.fastpitch import FastPitchModule
 from nemo.core.classes import Exportable
@@ -363,18 +363,18 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         mels, spec_len = self.preprocessor(input_signal=audio, length=audio_lens)
 
         (
-            mels_pred, 
-            _, 
-            _, 
-            log_durs_pred, 
-            pitch_pred, 
-            attn_soft, 
-            attn_logprob, 
-            attn_hard, 
-            attn_hard_dur, 
-            pitch, 
-            energy_pred, 
-            energy_tgt
+            mels_pred,
+            _,
+            _,
+            log_durs_pred,
+            pitch_pred,
+            attn_soft,
+            attn_logprob,
+            attn_hard,
+            attn_hard_dur,
+            pitch,
+            energy_pred,
+            energy_tgt,
         ) = self(
             text=text,
             durs=durs,
@@ -460,20 +460,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         mels, mel_lens = self.preprocessor(input_signal=audio, length=audio_lens)
 
         # Calculate val loss on ground truth durations to better align L2 loss in time
-        (
-            mels_pred, 
-            _, 
-            _, 
-            log_durs_pred, 
-            pitch_pred, 
-            _, 
-            _, 
-            _, 
-            attn_hard_dur, 
-            pitch, 
-            energy_pred, 
-            energy_tgt,
-        ) = self(
+        (mels_pred, _, _, log_durs_pred, pitch_pred, _, _, _, attn_hard_dur, pitch, energy_pred, energy_tgt,) = self(
             text=text,
             durs=durs,
             pitch=pitch,

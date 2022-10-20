@@ -179,9 +179,11 @@ class FastPitchModule(NeuralModule):
 
         if self.energy_predictor is not None:
             self.energy_emb = torch.nn.Conv1d(
-                1, symbols_embedding_dim,
+                1,
+                symbols_embedding_dim,
                 kernel_size=energy_embedding_kernel_size,
-                padding=int((energy_embedding_kernel_size - 1) / 2))
+                padding=int((energy_embedding_kernel_size - 1) / 2),
+            )
 
         # Store values precomputed from training data for convenience
         self.register_buffer('pitch_mean', torch.zeros(1))
