@@ -41,6 +41,9 @@ from torch.linalg import eigh, eigvalsh
 @torch.jit.script
 def cos_similarity(a: torch.Tensor, b: torch.Tensor, eps=torch.tensor(3.5e-4)):
     """
+    Calculate cosine similarities of the given two set of tensors. The output is an N by N
+    matrix where N is the number of feature vectors.
+
     Args:
         a (Tensor):
             Matrix containing speaker representation vectors. (N x embedding_dim)
@@ -61,8 +64,7 @@ def cos_similarity(a: torch.Tensor, b: torch.Tensor, eps=torch.tensor(3.5e-4)):
 @torch.jit.script
 def ScalerMinMax(X: torch.Tensor):
     """
-    Min-max scale the input affinity matrix X, which will lead to a dynamic range of
-    [0, 1].
+    Min-max scale the input affinity matrix X, which will lead to a dynamic range of [0, 1].
 
     Args:
         X (Tensor):
@@ -80,6 +82,8 @@ def ScalerMinMax(X: torch.Tensor):
 @torch.jit.script
 def getEuclideanDistance(specEmbA: torch.Tensor, specEmbB: torch.Tensor, device: torch.device = torch.device('cpu')):
     """
+    Calculate Euclidean distances from the given feature tensors.
+
     Args:
         specEmbA (Tensor):
             Matrix containing spectral embedding vectors from eigenvalue decomposition (N x embedding_dim).
@@ -368,18 +372,9 @@ def get_argmin_mat(timestamps_in_scales: List[torch.Tensor]):
     repeatedly mapped to a segment from a shorter scale or the base scale.
 
     Args:
-        uniq_scale_dict (dict):
-            Dictionary of embeddings and timestamps for each scale.
-            Indexed by integer scale key and contains sub-dictionaries.
-            uniq_scale_dict = {0 : sub_dict_0, 1: sub_dict_1, 2: sub_dict_2 ..., }
-
-            Sub-dictionary contents:
-            1. sub_dict['embeddings']
-                Contains torch.Tensor which has dimension of (Number of base segments) x (Embedding Dimension)
-
-            2. sub_dict['time_stamps']
-                Contains torch.Tensor which has dimension of (Number of base segments) x 2
-                [[start1, end1], [start2, end2], [start3, end3], ..., [startN, endN]]
+        timestamps_in_scales (list):
+            List containing timestamp tensors for each scale.
+            Each tensor has dimensions of (Number of base segments) x 2.
 
     Returns:
         session_scale_mapping_dict (dict):
@@ -602,6 +597,37 @@ def getEnhancedSpeakerCount(
     ctt = Counter(est_num_of_spk_list)
     comp_est_num_of_spk = max(ctt.most_common(1)[0][0] - anchor_spk_n, 1)
     return comp_est_num_of_spk
+
+
+@torch.jit.script
+def split_input_data(
+    embeddings_in_scales: torch.Tensor,
+    timestamps_in_scales: torch.Tensor,
+    multiscale_segment_counts: torch.LongTensor,
+):
+    """
+    Split multiscale embeddings and multiscale timestamps and put split scale-wise data into python lists.
+    This formatting function is needed to make the input type as `torch.Tensor`.
+
+    Args:
+        embeddings_in_scales (Tensor):
+            Concatenated Torch Tensor containing embeddings in multiple scales
+        timestamps_in_scales (Tensor):
+            Concatenated Torch Tensor containing timestamps in multiple scales
+        multiscale_segment_counts (LongTensor):
+            Concatenated Torch LongTensor containing number of segments per each scale
+
+    Returns:
+        embeddings_in_scales (list):
+            List containing split embedding tensors by each scale
+        timestamps_in_scales (list):
+            List containing split timestamps tensors by each scale
+    """
+    split_index: List[int] = multiscale_segment_counts.tolist()
+    embeddings_in_scales = torch.split(embeddings_in_scales, split_index, dim=0)
+    timestamps_in_scales = torch.split(timestamps_in_scales, split_index, dim=0)
+    embeddings_in_scales, timestamps_in_scales = list(embeddings_in_scales), list(timestamps_in_scales)
+    return embeddings_in_scales, timestamps_in_scales
 
 
 @torch.jit.script
@@ -1009,7 +1035,6 @@ class SpeakerClustering(torch.nn.Module):
         max_num_speaker: int = 8,
         min_samples_for_nmesc: int = 6,
         nme_mat_size: int = 300,
-        enhanced_count_thres: int = 80,
         max_rp_threshold: float = 0.15,
         sparse_search: bool = True,
         sparse_search_volume: int = 30,
@@ -1030,12 +1055,6 @@ class SpeakerClustering(torch.nn.Module):
                 The minimum number of samples required for NME clustering. This avoids
                 zero p_neighbour_lists. If the input has fewer segments than min_samples,
                 it is directed to the enhanced speaker counting mode.
-            enhanced_count_thres (int):
-                For the short audio recordings under 60 seconds, clustering algorithm cannot
-                accumulate enough amount of speaker profile for each cluster.
-                Thus, getEnhancedSpeakerCount() employs anchor embeddings (dummy representations)
-                to mitigate the effect of cluster sparsity.
-                enhanced_count_thres = 80 is recommended.
             max_rp_threshold (float):
                 Limits the range of parameter search.
                 Clustering performance can vary depending on this range.
@@ -1065,7 +1084,6 @@ class SpeakerClustering(torch.nn.Module):
         self.max_num_speaker: int = max_num_speaker
         self.min_samples_for_nmesc: int = min_samples_for_nmesc
         self.nme_mat_size: int = nme_mat_size
-        self.enhanced_count_thres: int = enhanced_count_thres
         self.max_rp_threshold: float = max_rp_threshold
         self.sparse_search: bool = sparse_search
         self.sparse_search_volume: int = sparse_search_volume
@@ -1077,36 +1095,6 @@ class SpeakerClustering(torch.nn.Module):
         self.embeddings_in_scales: List[torch.Tensor] = [torch.Tensor(0)]
         self.timestamps_in_scales: List[torch.Tensor] = [torch.Tensor(0)]
         self.device = torch.device("cuda") if self.cuda else torch.device("cpu")
-
-    def split_input_data(
-        self,
-        embeddings_in_scales: torch.Tensor,
-        timestamps_in_scales: torch.Tensor,
-        multiscale_segment_counts: torch.LongTensor,
-    ):
-        """
-        Split multiscale embeddings and multiscale timestamps and put split scale-wise data into python lists.
-        This formatting function is needed to make the input type as `torch.Tensor`.
-
-        Args:
-            embeddings_in_scales (Tensor):
-                Concatenated Torch Tensor containing embeddings in multiple scales
-            timestamps_in_scales (Tensor):
-                Concatenated Torch Tensor containing timestamps in multiple scales
-            multiscale_segment_counts (LongTensor):
-                Concatenated Torch LongTensor containing number of segments per each scale
-
-        Returns:
-            embeddings_in_scales (list):
-                List containing split embedding tensors by each scale
-            timestamps_in_scales (list):
-                List containing split timestamps tensors by each scale
-        """
-        split_index: List[int] = multiscale_segment_counts.tolist()
-        embeddings_in_scales = torch.split(embeddings_in_scales, split_index, dim=0)
-        timestamps_in_scales = torch.split(timestamps_in_scales, split_index, dim=0)
-        embeddings_in_scales, timestamps_in_scales = list(embeddings_in_scales), list(timestamps_in_scales)
-        return embeddings_in_scales, timestamps_in_scales
 
     def forward(
         self,
@@ -1120,25 +1108,26 @@ class SpeakerClustering(torch.nn.Module):
         p-value and perform spectral clustering based on the estimated p-value and the calculated affinity matrix.
 
         Args:
-            uniq_scale_dict (dict):
-                Dictionary of embeddings and timestamps for each scale.
-                Indexed by integer scale key and contains sub-dictionaries.
-                uniq_scale_dict = {0 : sub_dict_0, 1: sub_dict_1, 2: sub_dict_2 ...}
-
-                Sub-dictionary contents:
-                1. sub_dict['embeddings']
-                    Contains torch.Tensor which has dimension of (Number of base segments) x (Embedding Dimension)
-
-                2. sub_dict['time_stamps']
-                    Contains torch.Tensor which has dimension of (Number of base segments) x 2
-                    [[start1, end1], [start2, end2], [start3, end3], ..., [startN, endN]]
+            embeddings_in_scales (Tensor):
+                Concatenated Torch tensor containing embeddings in multiple scales
+                This tensor has dimensions of (Number of base segments) x (Embedding Dimension)
+            timestamps_in_scales (Tensor):
+                Concatenated Torch tensor containing timestamps in multiple scales
+                This tensor has dimensions of (Number of base segments) x 2
+                Example:
+                    [[0.4, 1.4], [0.9, 1.9], [1.4, 2.4], ... [121.2, 122.2]]
+            multiscale_segment_counts (LongTensor):
+                Concatenated Torch tensor containing number of segments per each scale
+                This tensor has dimensions of (Number of scales)
+                Example:
+                    [31, 52, 84, 105, 120]
 
         Returns:
             Y (torch.tensor[int])
                 Speaker label for each segment.
         """
 
-        self.embeddings_in_scales, self.timestamps_in_scales = self.split_input_data(
+        self.embeddings_in_scales, self.timestamps_in_scales = split_input_data(
             embeddings_in_scales, timestamps_in_scales, multiscale_segment_counts
         )
         emb = embeddings_in_scales[multiscale_segment_counts.shape[0] - 1]

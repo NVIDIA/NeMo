@@ -28,7 +28,7 @@ from pyannote.core import Annotation, Segment, Timeline
 from pyannote.metrics.diarization import DiarizationErrorRate
 from tqdm import tqdm
 
-from nemo.collections.asr.parts.utils.nmesc_clustering import SpeakerClustering, get_argmin_mat
+from nemo.collections.asr.parts.utils.nmesc_clustering import SpeakerClustering, get_argmin_mat, split_input_data
 from nemo.utils import logging
 
 
@@ -439,7 +439,7 @@ def write_cluster_labels(base_scale_idx, lines_cluster_labels, out_rttm_dir):
             f.write(clus_label_line)
 
 
-def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, clustering_params):
+def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, clustering_params, use_torch_script=False):
     """
     Performs spectral clustering on embeddings with time stamps generated from VAD output
 
@@ -451,6 +451,7 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
         out_rttm_dir (str): Path to write predicted rttms
         clustering_params (dict): clustering parameters provided through config that contains max_num_speakers (int),
         oracle_num_speakers (bool), max_rp_threshold(float), sparse_search_volume(int) and enhance_count_threshold (int)
+        use_torch_script (bool): Boolean that determines whether to use torch.jit.script for speaker clustering
 
     Returns:
         all_reference (list[uniq_name,Annotation]): reference annotations for score calculation
@@ -480,14 +481,13 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
 
         speaker_clustering = SpeakerClustering(
             max_num_speaker=max_num_speakers,
-            enhanced_count_thres=clustering_params.enhanced_count_thres,
             max_rp_threshold=clustering_params.max_rp_threshold,
             sparse_search_volume=clustering_params.sparse_search_volume,
             multiscale_weights=uniq_embs_and_timestamps['multiscale_weights'],
             cuda=cuda,
         )
-
-        speaker_clustering = torch.jit.script(speaker_clustering)
+        if use_torch_script:
+            speaker_clustering = torch.jit.script(speaker_clustering)
 
         cluster_labels = speaker_clustering.forward(
             uniq_embs_and_timestamps['embeddings'],
@@ -1015,10 +1015,14 @@ def get_scale_mapping_argmat(uniq_embs_and_timestamps: Dict[str, dict]) -> Dict[
             Dictionary containing scale mapping information matrix for each scale.
     """
     scale_mapping_argmat = {}
-    uniq_scale_dict = uniq_embs_and_timestamps['scale_dict']
-    session_scale_mapping_dict = get_argmin_mat(uniq_scale_dict)
-    for scale_idx in sorted(uniq_scale_dict.keys()):
-        mapping_argmat = session_scale_mapping_dict[scale_idx]
+    embeddings_in_scales, timestamps_in_scales = split_input_data(
+        embeddings_in_scales=uniq_embs_and_timestamps['embeddings'],
+        timestamps_in_scales=uniq_embs_and_timestamps['timestamps'],
+        multiscale_segment_counts=uniq_embs_and_timestamps['multiscale_segment_counts'],
+    )
+    session_scale_mapping_list = get_argmin_mat(timestamps_in_scales)
+    for scale_idx in range(len(session_scale_mapping_list)):
+        mapping_argmat = session_scale_mapping_list[scale_idx]
         scale_mapping_argmat[scale_idx] = mapping_argmat
     return scale_mapping_argmat
 
