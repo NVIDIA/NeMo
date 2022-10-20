@@ -271,14 +271,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 # TODO: enable async grad all reduce for O1/autocast mixed precision training
                 custom_sync_context_handler = None
 
-        # TODO: support distributed Adam with pipeline parallelism
-        # with interleaved schedule
-        if self.with_distributed_adam:
-            if self.cfg.get('virtual_pipeline_model_parallel_size', None) is not None:
-                raise ValueError(
-                    'Distributed Adam optimizer does ' 'not support pipeline parallelism with interleaving'
-                )
-
         # run forward and backwards passes for an entire global batch
         # we do this inside training_step to support pipeline parallelism
         fwd_bwd_function = self._get_fwd_bwd_function()
