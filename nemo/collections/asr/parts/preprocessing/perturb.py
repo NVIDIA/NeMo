@@ -431,7 +431,7 @@ class NoisePerturbation(Perturbation):
             self._manifest, target_sr, self._rng, tarred_audio=self._tarred_audio, audio_dataset=self._data_iterator
         )
 
-    def perturb(self, data):
+    def perturb(self, data, ref_mic=0):
         noise = read_one_audiosegment(
             self._manifest,
             data.sample_rate,
@@ -439,19 +439,17 @@ class NoisePerturbation(Perturbation):
             tarred_audio=self._tarred_audio,
             audio_dataset=self._data_iterator,
         )
-        self.perturb_with_input_noise(data, noise)
+        self.perturb_with_input_noise(data, noise, ref_mic=ref_mic)
 
-    def perturb_with_input_noise(self, data, noise, data_rms=None):
+    def perturb_with_input_noise(self, data, noise, data_rms=None, ref_mic=0):
         snr_db = self._rng.uniform(self._min_snr_db, self._max_snr_db)
         if data_rms is None:
             data_rms = data.rms_db
 
-        noise_gain_db = data_rms - noise.rms_db - snr_db  # float or array of size (num_channels,)
-        if len(noise_gain_db.shape) == 0:  # mono-channel, noise_gain_db is a float scalar
-            noise_gain_db = min(noise_gain_db, self._max_gain_db)
-        else:  # multi-channel, noise_gain_db is a array
-            for i in range(len(noise_gain_db.shape)):
-                noise_gain_db[i] = min(noise_gain_db[i], self._max_gain_db)
+        if data.num_channels > 1:
+            noise_gain_db = data_rms[ref_mic] - noise.rms_db[ref_mic] - snr_db
+        else:
+            noise_gain_db = data_rms - noise.rms_db - snr_db
 
         # calculate noise segment to use
         start_time = self._rng.uniform(0.0, noise.duration - data.duration)
