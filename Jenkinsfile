@@ -1,8 +1,8 @@
 pipeline {
   agent {
         docker {
-      image 'nvcr.io/nvidia/pytorch:22.09-py3'
-      args '--device=/dev/nvidia0 --gpus all -e TRANSFORMERS_OFFLINE=0 --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache:/root/.cache --shm-size=8g'
+          image 'nvcr.io/nvidia/pytorch:22.09-py3'
+          args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache:/root/.cache --shm-size=8g'
         }
   }
   options {
@@ -16,18 +16,13 @@ pipeline {
       steps{
         sh 'git config --global --add safe.directory /var/lib/jenkins/workspace/NeMo_$GIT_BRANCH'
         sh 'git config --global --add safe.directory /raid/JenkinsWorkDir/workspace/NeMo_$GIT_BRANCH'
+        sh 'git config --global --add safe.directory /mnt/D3/JenkinsWorkDir/workspace/NeMo_$GIT_BRANCH'
       }
     }
 
     stage('nvidia-smi'){
       steps{
         sh 'nvidia-smi'
-      }
-    }
-
-    stage('Transformers Offline') {
-      steps{
-        sh 'echo "TRANSFORMERS_OFFLINE="${TRANSFORMERS_OFFLINE}'
       }
     }
 
@@ -701,7 +696,8 @@ pipeline {
                 pipeline_model_parallel_size=2 \
                 data.global_batch_size=2 \
                 data.micro_batch_size=2 \
-                data.test_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl']"
+                data.test_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+                pred_file_path='examples/adapter_tuning/test_tp1_pp2/preds.txt'"
             sh "rm -rf examples/adapter_tuning/test_tp1_pp2.nemo"
             sh "rm -rf examples/adapter_tuning/test_tp1_pp2"
           }
@@ -742,7 +738,8 @@ pipeline {
                 tensor_model_parallel_size=2 \
                 data.global_batch_size=2 \
                 data.micro_batch_size=2 \
-                data.test_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl']"
+                data.test_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+                pred_file_path='examples/adapter_tuning/test_tp2_pp1/preds.txt'"
             sh "rm -rf examples/adapter_tuning/test_tp2_pp1.nemo"
             sh "rm -rf examples/adapter_tuning/test_tp2_pp1"
           }
@@ -785,7 +782,8 @@ pipeline {
                 pipeline_model_parallel_size=2 \
                 data.global_batch_size=2 \
                 data.micro_batch_size=2 \
-                data.test_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl']"
+                data.test_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+                pred_file_path='examples/ia3_tuning/test_tp1_pp2/preds.txt'"
             sh "rm -rf examples/ia3_tuning/test_tp1_pp2.nemo"
             sh "rm -rf examples/ia3_tuning/test_tp1_pp2"
           }
@@ -826,7 +824,8 @@ pipeline {
                 tensor_model_parallel_size=2 \
                 data.global_batch_size=2 \
                 data.micro_batch_size=2 \
-                data.test_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl']"
+                data.test_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+                pred_file_path='examples/ia3_tuning/test_tp2_pp1/preds.txt'"
             sh "rm -rf examples/ia3_tuning/test_tp2_pp1.nemo"
             sh "rm -rf examples/ia3_tuning/test_tp2_pp1"
           }
