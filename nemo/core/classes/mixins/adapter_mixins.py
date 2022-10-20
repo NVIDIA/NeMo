@@ -150,10 +150,16 @@ class AdapterModuleMixin(ABC):
     adapter_global_cfg_key = "global_cfg"
     adapter_metadata_cfg_key = "adapter_meta_cfg"
 
-    def set_accepted_adapters(self, adapters):
+    def set_accepted_adapters(self, adapters: List[str]) -> None:
+        """
+        The module with this mixin can define a list of adapter names that it will accept.
+        This method should be called in the modules init method and set the adapter names the module will expect to be added.
+        """
         self.accepted_adapters = adapters
 
-    def get_accepted_adapters(self,):
+    def get_accepted_adapters(self,) -> List[str]:
+        """
+        """
         if hasattr(self, 'accepted_adapters'):
             return self.accepted_adapters
         else:
