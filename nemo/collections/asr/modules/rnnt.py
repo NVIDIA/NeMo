@@ -1858,8 +1858,12 @@ class SampledRNNTJoint(RNNTJoint):
             # print("Vocab", [(idx, v) for idx, v in enumerate(transcript_vocab_ids.cpu().numpy())])
             # print("Transcript original IDS:", transcript[0])
 
+            # Remap the transcript label ids to new positions of label ids (in the transcript_vocab_ids)
+            # This is necessary cause the RNNT loss doesnt care about the value, only the position of the ids
+            # of the transcript tokens. We can skip this step for noise samples cause those are only used for softmax
+            # not for computing actual label.
             t_ids = torch.arange(transcript_vocab_ids.size(0), device='cpu')
-            mapping = {k.item(): v.item() for k, v in zip(transcript_vocab_ids.to('cpu'), t_ids)}
+            mapping = {k: v for k, v in zip(transcript_vocab_ids.to('cpu'), t_ids)}
             mapping[0] = 0
 
             # From `https://stackoverflow.com/questions/13572448`.
