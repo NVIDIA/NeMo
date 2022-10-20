@@ -20,6 +20,8 @@ import torch
 from pytorch_lightning import Callback
 from pytorch_lightning.utilities.exceptions import MisconfigurationException
 
+from nemo.core.optim.optimizer_with_main_params import MainParamsOptimizerWrapper
+
 
 class EMA(Callback):
     """
@@ -139,6 +141,8 @@ class EMAOptimizer(torch.optim.Optimizer):
         self.ema_params = ()
 
     def all_parameters(self):
+        if isinstance(self.optimizer, MainParamsOptimizerWrapper):
+            return (param for group in self.optimizer.float16_groups for param in group['params'])
         return (param for group in self.param_groups for param in group['params'])
 
     def step(self, closure=None):
