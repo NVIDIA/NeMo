@@ -41,16 +41,15 @@ PORT_NUM = 17179
 
 class RetrievalService:
     @abc.abstractmethod
-    def get_knn(self, query: Union[List[str], str, torch.Tensor]):
+    def get_knn(self, query: Union[List[str], str, torch.Tensor], neighbors: int):
         pass
 
 
 class FaissRetrievalResource(Resource):
     def __init__(
-        self, neighbors, index, bert_model, tokenizer, ds, pool, sentence_bert_batch,
+        self, index, bert_model, tokenizer, ds, pool, sentence_bert_batch,
     ):
         # server
-        self.neighbors = neighbors
         self.index = index
         self.bert_model = bert_model
         self.tokenizer = tokenizer
@@ -61,13 +60,15 @@ class FaissRetrievalResource(Resource):
     def put(self):
         # logging.info("request IP: " + str(request.remote_addr))
         # logging.info(json.dumps(request.get_json()))
-        sentences = request.get_json()
+        data = request.get_json()
+        sentences = data['sentences']
+        num_neighbors = data['neighbors']
         with lock:  # Need to get lock to keep multiple threads from hitting code
-            neighbors = self.get_knn(sentences)
+            neighbors = self.get_knn(sentences, num_neighbors)
         return jsonify(neighbors.tolist())
         # check keys
 
-    def get_knn(self, query: Union[List[str], str, torch.Tensor]):
+    def get_knn(self, query: Union[List[str], str, torch.Tensor], neighbors: int):
         single_sentence = False
         if isinstance(query, str):
             single_sentence = True
@@ -81,7 +82,7 @@ class FaissRetrievalResource(Resource):
         emb = self.bert_model.encode_multi_process(
             sentences=query, pool=self.pool, batch_size=self.sentence_bert_batch
         )
-        D, knn = self.index.search(emb, self.neighbors)
+        D, knn = self.index.search(emb, neighbors)
         results = []
         for sentence_neighbors in knn:
             chunks = []
@@ -106,11 +107,9 @@ class RetrievalServer(object):
         tokenizer: TokenizerSpec,
         sentence_bert: str = 'all-mpnet-base-v2',
         sentence_bert_batch: int = 4,
-        neighbors: int = 4,
     ):
         self.app = Flask(__name__, static_url_path='')
         # server
-        self.neighbors = neighbors
         has_gpu = torch.cuda.is_available() and hasattr(faiss, "index_gpu_to_cpu")
 
         if faiss_devices is None or not torch.cuda.is_available():
@@ -139,7 +138,6 @@ class RetrievalServer(object):
             FaissRetrievalResource,
             '/knn',
             resource_class_args=[
-                self.neighbors,
                 self.index,
                 self.bert_model,
                 self.tokenizer,
@@ -238,7 +236,6 @@ class FaissRetrievalService(RetrievalService):
         tokenizer: TokenizerSpec,
         sentence_bert: str = 'all-mpnet-base-v2',
         sentence_bert_batch: int = 4,
-        neighbors: int = 4,
     ):
         self.tokenizer = tokenizer
         ds = MMapRetrievalIndexedDataset(retrieval_index)
@@ -252,19 +249,20 @@ class FaissRetrievalService(RetrievalService):
                 tokenizer,
                 sentence_bert,
                 sentence_bert_batch,
-                neighbors,
             )
             server.run("0.0.0.0")
         torch.distributed.barrier()
 
-    def get_knn(self, query: Union[List[str], str, torch.Tensor]):
+    def get_knn(self, query: Union[List[str], str, torch.Tensor], neighbors):
         if isinstance(query, torch.Tensor):
             sentence_list = []
             for q in query:
                 text = self.tokenizer.ids_to_text(q)
                 sentence_list.append(text)
             query = sentence_list
-        result = request_data(query)
+        data = {'sentences': query}
+        data['neighbors'] = neighbors
+        result = request_data(data)
         result = np.array(result)
         return result
 

@@ -21,6 +21,8 @@ from flask import Flask, jsonify, request
 from flask_restful import Api, Resource
 
 from nemo.collections.nlp.modules.common.text_generation_utils import generate
+from nemo.collections.nlp.modules.common.text_generation_strategy import RetroModelTextGenerationStrategy
+
 from nemo.utils import logging
 
 GENERATE_NUM = 0
@@ -143,6 +145,14 @@ class MegatronGenerate(Resource):
             if min_tokens_to_generate < 0:
                 return "min_tokens_to_generate must be an integer no less than 0"
 
+        neighbors = None
+        if "neighbors" in request.get_json():
+            neighbors = request.get_json()["neighbors"]
+            if not isinstance(neighbors, int):
+                return "num of neighbors must be an integer no less than 0"
+            if neighbors < 0:
+                return "num of neighbors must be an integer no less than 0"
+
         with lock:  # Need to get lock to keep multiple threads from hitting code
             MegatronGenerate.send_do_generate()  # Tell other ranks we're doing generate
             extra = {}
@@ -150,6 +160,11 @@ class MegatronGenerate(Resource):
                 extra['task_ids'] = task_ids
             if self.inference_strategy is not None:
                 extra['strategy'] = self.inference_strategy
+                # RETRO specific arguments
+                if isinstance(self.inference_strategy, RetroModelTextGenerationStrategy):
+                    if neighbors is not None:
+                        self.inference_strategy.update_neighbors(neighbors)
+
             output = generate(
                 self.model,
                 sentences,

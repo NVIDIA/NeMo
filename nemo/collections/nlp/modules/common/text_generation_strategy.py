@@ -382,8 +382,13 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
         self.pad_token_for_retrieval = args['pad_tokens']
         del args['pad_tokens']
         self.neighbors = args['neighbors']
+        del args['neighbors']
         self.service = FaissRetrievalService(tokenizer=self.model.tokenizer, **args)
         self.chunk_size = self.service.chunk_size
+    
+    def update_neighbors(self, neighbors):
+        # dynamically change the number of neighbors during the query
+        self.neighbors = neighbors
 
     def tokenize_batch(self, sentences, max_len, add_BOS):
         """
@@ -461,7 +466,7 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
         for i in range(0, context_length, 64):
             if i > 0:
                 tokens = context_tokens[:, i - 64 : i]
-                chunks = self.service.get_knn(tokens)
+                chunks = self.service.get_knn(tokens, self.neighbors)
                 self.retrieved.append(chunks)
 
     def prepare_batch_at_step(
@@ -472,11 +477,11 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
         if context_length % 64 == 0:
             # added a new retrieval context
             token_context = tokens[:, context_length - 64 : context_length]
-            chunks = self.service.get_knn(token_context)
+            chunks = self.service.get_knn(token_context, self.neighbors)
             self.retrieved.append(chunks)
         elif self.frequent_query and len(self.retrieved) > 0:
             token_context = tokens[:, context_length - 64 : context_length]
-            chunks = self.service.get_knn(token_context)
+            chunks = self.service.get_knn(token_context, self.neighbors)
             self.retrieved[-1] = chunks
 
         # types2use = None
