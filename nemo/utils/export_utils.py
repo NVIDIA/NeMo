@@ -287,16 +287,16 @@ try:
         mod.load_state_dict(n_state)
         return mod
 
-    def replace_ColumnParallelLinear(n: nn.Module) -> Optional[nn.Linear]:
+    def replace_ParallelLinear(n: nn.Module) -> Optional[nn.Linear]:
         """
-        Replaces Apex's ColumnParallelLinear with nn.Linear
+        Replaces Apex's ColumnParallelLinear or RowParallelLinear with nn.Linear
         Args:
            n: the nn.Module pytorch module to replace
         Returns:
            Equivalent Linear module
         """
-        if not isinstance(n, ColumnParallelLinear):
-            raise ValueError("This function can only change the ColumnParallelLinear module.")
+        if not (isinstance(n, ColumnParallelLinear) or isinstance(n, RowParallelLinear)):
+            raise ValueError("This function can only change the ColumnParallelLinear or RowParallelLinear module.")
 
         dev = next(n.parameters()).device
         mod = LinearWithBiasSkip(n.weight, n.bias, n.skip_bias_add).to(dev)
@@ -327,8 +327,8 @@ try:
         "FusedLayerNorm": replace_FusedLayerNorm,
         "MixedFusedLayerNorm": replace_FusedLayerNorm,
         "FastLayerNorm": replace_FusedLayerNorm,
-        "RowParallelLinear": replace_RowParallelLinear,
-        "ColumnParallelLinear": replace_ColumnParallelLinear,
+        "RowParallelLinear": replace_ParallelLinear,
+        "ColumnParallelLinear": replace_ParallelLinear,
         "FusedScaleMaskSoftmax": replace_FusedScaleMaskSoftmax,
     }
 
