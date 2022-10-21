@@ -14,77 +14,20 @@
 import io
 import math
 import random
-from itertools import chain, cycle
 
 import torch
 import webdataset as wds
-from torch.utils.data import IterableDataset
 
 from nemo.collections.asr.data.audio_to_diar_label import extract_seg_info_from_rttm
 from nemo.collections.asr.data.audio_to_text import expand_audio_filepaths
-from nemo.collections.asr.data.deep_diarize.utils import assign_frame_level_spk_vector
+from nemo.collections.asr.data.deep_diarize.train_data import RTTMStreamingSegmentsDataset
 from nemo.collections.asr.modules import AudioToMelSpectrogramPreprocessor
 from nemo.collections.asr.parts.preprocessing import WaveformFeaturizer
 
 
-class TarredRTTMStreamingSegmentsDataset(IterableDataset):
-    def __init__(
-        self,
-        batch_size,
-        manifest_filepath: str,
-        preprocessor: AudioToMelSpectrogramPreprocessor,
-        featurizer: WaveformFeaturizer,
-        window_stride: float,
-        subsampling: int,
-        train_segment_seconds: int,
-    ):
-        self.batch_size = batch_size
-        self.subsampling = subsampling
-        self.train_segment_seconds = train_segment_seconds
-        self.preprocessor = preprocessor
-        self.featurizer = featurizer
-        self.round_digits = 2
-        self.max_spks = 2
-        self.frame_per_sec = int(1 / (window_stride * subsampling))
-        self.manifest_filepath = manifest_filepath
-
-    def parse_rttm_for_ms_targets(
-        self, rttm_timestamps, total_annotated_duration: int, offset: float, end_duration: float,
-    ):
-        """
-        Generate target tensor variable by extracting groundtruth diarization labels from an RTTM file.
-        This function converts (start, end, speaker_id) format into base-scale (the finest scale) segment level
-        diarization label in a matrix form.
-
-        Example of seg_target:
-            [[0., 1.], [0., 1.], [1., 1.], [1., 0.], [1., 0.], ..., [0., 1.]]
-
-        Args:
-            sample:
-                `DiarizationSpeechLabel` instance containing sample information such as audio filepath and RTTM filepath.
-            target_spks (tuple):
-                Speaker indices that are generated from combinations. If there are only one or two speakers,
-                only a single target_spks tuple is generated.
-
-        Returns:
-            fr_level_target  (torch.tensor):
-                Tensor variable containing hard-labels of speaker activity in each base-scale segment.
-        """
-        fr_level_target = assign_frame_level_spk_vector(
-            rttm_timestamps=rttm_timestamps,
-            total_annotated_duration=total_annotated_duration,
-            round_digits=self.round_digits,
-            frame_per_sec=self.frame_per_sec,
-            subsampling=self.subsampling,
-            preprocessor=self.preprocessor,
-            sample_rate=self.preprocessor._sample_rate,
-            start_duration=offset,
-            end_duration=end_duration,
-        )
-        return fr_level_target
-
+class TarredRTTMStreamingSegmentsDataset(RTTMStreamingSegmentsDataset):
     def process_data(self, x):
-        reset_memory = True
+        start_segment = True
         audio_bytes, rttm_file = x['wav'], x['rttm']
 
         rttm_filestream = io.BytesIO(rttm_file)
@@ -94,9 +37,8 @@ class TarredRTTMStreamingSegmentsDataset(IterableDataset):
         rttm_timestamps = extract_seg_info_from_rttm("", rttm_lines)
         stt_list, end_list, speaker_list = rttm_timestamps
         total_annotated_duration = max(end_list)
-        n_segments = math.floor(total_annotated_duration / self.train_segment_seconds)
+        n_segments = math.ceil(total_annotated_duration / self.train_segment_seconds)
         start_offset = 0
-        n_segments -= 1
         for n_segment in range(n_segments):
             duration = self.train_segment_seconds
 
@@ -113,11 +55,8 @@ class TarredRTTMStreamingSegmentsDataset(IterableDataset):
                 train_segment.unsqueeze_(0), train_length.unsqueeze_(0)
             )
             start_offset += duration
-            yield train_segment, train_length, targets, reset_memory
-            reset_memory = False
-
-    def get_stream(self, dataset):
-        return chain.from_iterable(map(self.process_data, cycle(dataset)))
+            yield train_segment, train_length, targets, start_segment
+            start_segment = False
 
     def get_streams(self):
         url = expand_audio_filepaths(self.manifest_filepath, shard_strategy='replicate', world_size=1, global_rank=1,)
@@ -125,28 +64,18 @@ class TarredRTTMStreamingSegmentsDataset(IterableDataset):
         dataset = wds.WebDataset(url).shuffle(100, rng=random.Random(worker_seed))
         return zip(*[self.get_stream(iter(dataset)) for _ in range(self.batch_size)])
 
-    def __iter__(self):
-        return self.get_streams()
-
     @classmethod
-    def create_streaming_datasets(
+    def create_datasets(
         cls,
-        batch_size,
-        manifest_filepath: str,
-        preprocessor: AudioToMelSpectrogramPreprocessor,
         featurizer: WaveformFeaturizer,
-        window_stride: float,
+        manifest_filepath: str,
+        num_workers: int,
+        preprocessor: AudioToMelSpectrogramPreprocessor,
+        split_size: int,
         subsampling: int,
         train_segment_seconds: int,
-        max_workers: int,
-        num_calls: int,
+        window_stride: float,
     ):
-        num_workers = max_workers
-        for n in range(max_workers, 0, -1):
-            if batch_size % n == 0:
-                num_workers = n
-                break
-        split_size = batch_size // num_workers
         return [
             cls(
                 manifest_filepath=manifest_filepath,

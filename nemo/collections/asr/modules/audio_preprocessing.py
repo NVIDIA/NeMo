@@ -16,7 +16,7 @@ import math
 import random
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 import torch
 from packaging import version
@@ -214,7 +214,8 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
         log_zero_guard_type="add",
         log_zero_guard_value=2 ** -24,
         dither=1e-5,
-        pad_to=16,
+        pad_to: Union[int, str] = 16,
+        max_duration=16.7,
         frame_splicing=1,
         exact_pad=False,
         pad_value=0,
@@ -255,6 +256,7 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
             log_zero_guard_value=log_zero_guard_value,
             dither=dither,
             pad_to=pad_to,
+            max_duration=max_duration,
             frame_splicing=frame_splicing,
             exact_pad=exact_pad,
             pad_value=pad_value,

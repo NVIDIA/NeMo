@@ -34,6 +34,7 @@
 # This file contains code artifacts adapted from https://github.com/ryanleary/patter
 import math
 import random
+from typing import Union
 
 import librosa
 import numpy as np
@@ -184,7 +185,7 @@ class FilterbankFeatures(nn.Module):
         log_zero_guard_type="add",
         log_zero_guard_value=2 ** -24,
         dither=CONSTANT,
-        pad_to=16,
+        pad_to: Union[int, str] = 16,
         max_duration=16.7,
         frame_splicing=1,
         exact_pad=False,
@@ -268,7 +269,7 @@ class FilterbankFeatures(nn.Module):
 
         # Calculate maximum sequence length
         max_length = self.get_seq_len(torch.tensor(max_duration * sample_rate, dtype=torch.float))
-        max_pad = pad_to - (max_length % pad_to) if pad_to > 0 else 0
+        max_pad = pad_to - (max_length % pad_to) if not isinstance(pad_to, str) and pad_to > 0 else 0
         self.max_length = max_length + max_pad
         self.pad_value = pad_value
         self.mag_power = mag_power

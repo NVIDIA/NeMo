@@ -14,6 +14,7 @@
 import math
 from typing import Dict, Optional, Union
 
+import hydra.utils
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -23,9 +24,9 @@ from torch.utils.data import DataLoader
 from x_transformers import Decoder
 
 from nemo.collections.asr.data.deep_diarize.inference_data import RTTMDataset
-from nemo.collections.asr.data.deep_diarize.train_data import MultiStreamDataLoader, RTTMStreamingSegmentsDataset
+from nemo.collections.asr.data.deep_diarize.train_data import LocalRTTMStreamingSegmentsDataset, MultiStreamDataLoader
 from nemo.collections.asr.data.deep_diarize.train_tarred_data import TarredRTTMStreamingSegmentsDataset
-from nemo.collections.asr.modules.audio_preprocessing import AudioToMelSpectrogramPreprocessor
+from nemo.collections.asr.metrics.running_avg import RunningAverage
 from nemo.collections.asr.modules.deep_diarize_transformer import TransformerXL
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.submodules.subsampling import ConvSubsampling
@@ -72,6 +73,7 @@ class DeepDiarizeModel(ModelPT):
         self.sigmoid = torch.nn.Sigmoid()
         self.apply(self._init_weights)
         self.mems = None
+        self.running_loss_avg = RunningAverage()
 
     def training_step(self, batch, batch_idx):
         train_x, train_lengths, y, _ = batch
@@ -79,8 +81,13 @@ class DeepDiarizeModel(ModelPT):
         logits, self.mems = self.transformer_model(seg, mems=self.mems)
         logits = self.sigmoid(logits)
         loss = self.loss(logits, y)
+        self.running_loss_avg(loss)
         self.logger.log_metrics(
-            {"train_loss": loss, "learning_rate": self.lr_schedulers().get_last_lr()[0],},
+            {
+                "train_loss": loss,
+                "learning_rate": self.lr_schedulers().get_last_lr()[0],
+                'running_train_loss': self.running_loss_avg.compute(),
+            },
             step=self.trainer.global_step,
         )
         return loss
@@ -128,22 +135,14 @@ class DeepDiarizeModel(ModelPT):
 
         self._optimizer_param_groups = param_groups
 
-    def _setup_preprocessor(self, cfg):
-        featurizer = WaveformFeaturizer(sample_rate=cfg.sample_rate, int_values=cfg.int_values, augmentor=None)
-        preprocessor = AudioToMelSpectrogramPreprocessor(
-            normalize="per_feature",
-            window_size=0.025,
-            window_stride=self.cfg.preprocessor.window_stride,
-            sample_rate=self.cfg.preprocessor.sample_rate,
-            features=self.cfg.preprocessor.features,
-            n_fft=512,
-            frame_splicing=1,
-            dither=0.00001,
-            pad_to=0,
+    def _setup_preprocessor(self, dataloader_cfg):
+        featurizer = WaveformFeaturizer(
+            sample_rate=dataloader_cfg.sample_rate, int_values=dataloader_cfg.int_values, augmentor=None
         )
+        preprocessor = hydra.utils.instantiate(self.cfg.preprocessor)
         # todo: will be written by validation, in this case it will always be the same, but just to be aware.
         self.train_sequence_length = preprocessor.featurizer.get_seq_len(
-            (torch.tensor(self.cfg.chunk_seconds * cfg.sample_rate, dtype=torch.float))
+            (torch.tensor(self.cfg.chunk_seconds * dataloader_cfg.sample_rate, dtype=torch.float))
         )
         self.sub_sample_length = int(self.train_sequence_length / self.cfg.subsampling)
         return featurizer, preprocessor
@@ -151,7 +150,7 @@ class DeepDiarizeModel(ModelPT):
     def setup_training_data(self, cfg: Optional[Union[DictConfig, Dict]]):
         featurizer, preprocessor = self._setup_preprocessor(cfg)
 
-        cls = TarredRTTMStreamingSegmentsDataset if cfg.tarred else RTTMStreamingSegmentsDataset
+        cls = TarredRTTMStreamingSegmentsDataset if cfg.tarred else LocalRTTMStreamingSegmentsDataset
         datasets = cls.create_streaming_datasets(
             manifest_filepath=cfg.manifest_filepath,
             preprocessor=preprocessor,
@@ -161,7 +160,6 @@ class DeepDiarizeModel(ModelPT):
             train_segment_seconds=self.cfg.chunk_seconds,
             batch_size=cfg.batch_size,
             max_workers=cfg.num_workers,
-            num_calls=cfg.num_samples,
         )
         self._train_dl = MultiStreamDataLoader(datasets)
 

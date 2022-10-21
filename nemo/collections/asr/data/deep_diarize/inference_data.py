@@ -47,13 +47,11 @@ class RTTMDataset(Dataset):
         rttm_timestamps = extract_seg_info_from_rttm("", rttm_lines)
         stt_list, end_list, speaker_list = rttm_timestamps
         total_annotated_duration = max(end_list)
-        n_segments = math.floor((total_annotated_duration - sample.offset) / self.segment_seconds)
+        n_segments = math.ceil((total_annotated_duration - sample.offset) / self.segment_seconds)
         start_offset = sample.offset
 
-        n_segments -= 1
         segments, lengths, targets = [], [], []
         for n_segment in range(n_segments):
-
             fr_level_target = assign_frame_level_spk_vector(
                 rttm_timestamps=rttm_timestamps,
                 total_annotated_duration=total_annotated_duration,

@@ -25,7 +25,6 @@ model:
     num_workers: ${num_workers}
     int_values: False
     batch_size: 16
-    num_samples: -1
     tarred: True
     shuffle: False
 
@@ -48,13 +47,15 @@ model:
     n_fft: 512
     frame_splicing: 1
     dither: 0.00001
+    max_duration: ${chunk_seconds}
+    pad_to: "max"
 
   loss:
     _target_: nemo.collections.asr.losses.bce_loss.BCELoss
     weight: null # Weight for binary cross-entropy loss. Either `null` or list type input. (e.g. [0.5,0.5])
 
   optim:
-    name: adamw
+    name: fused_adam
     lr: 1e-5
     weight_decay: 0.001
 

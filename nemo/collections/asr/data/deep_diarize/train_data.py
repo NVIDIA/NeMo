@@ -14,6 +14,7 @@
 
 import math
 import random
+from abc import ABC
 from itertools import chain, cycle
 
 import torch
@@ -43,7 +44,7 @@ def _train_collate_fn(batch):
             Groundtruth Speaker label for the given input embedding sequence.
     """
     packed_batch = list(zip(*batch))
-    (train_segment, train_length, targets, reset_hidden_states,) = packed_batch
+    (train_segment, train_length, targets, start_segment,) = packed_batch
 
     train_segments = torch.cat(train_segment).transpose(1, 2)
     train_segments_lengths = torch.stack(train_length)
@@ -52,16 +53,13 @@ def _train_collate_fn(batch):
         train_segments,
         train_segments_lengths,
         targets,
-        reset_hidden_states,
+        start_segment,
     )
 
 
-class RTTMStreamingSegmentsDataset(IterableDataset):
+class RTTMStreamingSegmentsDataset(IterableDataset, ABC):
     def __init__(
         self,
-        data_list,
-        collection,
-        rttm_timestamps,
         batch_size,
         manifest_filepath: str,
         preprocessor: AudioToMelSpectrogramPreprocessor,
@@ -70,9 +68,6 @@ class RTTMStreamingSegmentsDataset(IterableDataset):
         subsampling: int,
         train_segment_seconds: int,
     ):
-        self.data_list = data_list
-        self.collection = collection
-        self.rttm_timestamps = rttm_timestamps
         self.batch_size = batch_size
         self.subsampling = subsampling
         self.train_segment_seconds = train_segment_seconds
@@ -120,10 +115,91 @@ class RTTMStreamingSegmentsDataset(IterableDataset):
 
     @property
     def shuffled_batch_list(self):
+        raise NotImplementedError
+
+    def process_data(self, data):
+        raise NotImplementedError
+
+    def get_stream(self, data_list):
+        return chain.from_iterable(map(self.process_data, cycle(data_list)))
+
+    def get_streams(self):
+        return zip(*[self.get_stream(self.shuffled_batch_list) for _ in range(self.batch_size)])
+
+    def __iter__(self):
+        return self.get_streams()
+
+    @classmethod
+    def create_streaming_datasets(
+        cls,
+        batch_size,
+        manifest_filepath: str,
+        preprocessor: AudioToMelSpectrogramPreprocessor,
+        featurizer: WaveformFeaturizer,
+        window_stride: float,
+        subsampling: int,
+        train_segment_seconds: int,
+        max_workers,
+    ):
+        num_workers = max_workers
+        for n in range(max_workers, 0, -1):
+            if batch_size % n == 0:
+                num_workers = n
+                break
+        split_size = batch_size // num_workers
+        return cls.create_datasets(
+            featurizer=featurizer,
+            manifest_filepath=manifest_filepath,
+            num_workers=num_workers,
+            preprocessor=preprocessor,
+            split_size=split_size,
+            subsampling=subsampling,
+            train_segment_seconds=train_segment_seconds,
+            window_stride=window_stride,
+        )
+
+    @classmethod
+    def create_datasets(
+        cls,
+        featurizer: WaveformFeaturizer,
+        manifest_filepath: str,
+        num_workers: int,
+        preprocessor: AudioToMelSpectrogramPreprocessor,
+        split_size: int,
+        subsampling: int,
+        train_segment_seconds: int,
+        window_stride: float,
+    ):
+        raise NotImplementedError
+
+
+class LocalRTTMStreamingSegmentsDataset(RTTMStreamingSegmentsDataset):
+    def __init__(
+        self,
+        data_list: list,
+        collection: DiarizationSpeechLabel,
+        rttm_timestamps: list,
+        batch_size: int,
+        manifest_filepath: str,
+        preprocessor: AudioToMelSpectrogramPreprocessor,
+        featurizer: WaveformFeaturizer,
+        window_stride: float,
+        subsampling: int,
+        train_segment_seconds: int,
+    ):
+        super().__init__(
+            batch_size, manifest_filepath, preprocessor, featurizer, window_stride, subsampling, train_segment_seconds
+        )
+        self.data_list = data_list
+        self.collection = collection
+        self.rttm_timestamps = rttm_timestamps
+
+    @property
+    def shuffled_batch_list(self):
         return random.sample(self.data_list, len(self.data_list))
 
     def process_data(self, data):
-        reset_memory = True
+        start_segment = True
         for x in data:
             sample_id, start_offset, duration, total_annotated_duration = x
             sample = self.collection[sample_id]
@@ -140,25 +216,14 @@ class RTTMStreamingSegmentsDataset(IterableDataset):
                 train_segment.unsqueeze_(0), train_length.unsqueeze_(0)
             )
 
-            yield train_segment, train_length, targets, reset_memory
-            reset_memory = False
-
-    def get_stream(self, data_list):
-        return chain.from_iterable(map(self.process_data, cycle(data_list)))
-
-    def get_streams(self):
-        return zip(*[self.get_stream(self.shuffled_batch_list) for _ in range(self.batch_size)])
-
-    def __iter__(self):
-        return self.get_streams()
+            yield train_segment, train_length, targets, start_segment
+            start_segment = False
 
     @staticmethod
-    def data_setup(manifest_filepath: str, train_segment_seconds: int, num_calls: int):
+    def data_setup(manifest_filepath: str, train_segment_seconds: int):
         collection = DiarizationSpeechLabel(
             manifests_files=manifest_filepath.split(","), emb_dict=None, clus_label_dict=None,
         )
-        if num_calls > 0:
-            collection = list(collection)[:num_calls]
         segments = []
         all_rttm_timestamps = []
         for sample_id, sample in enumerate(collection):
@@ -172,40 +237,30 @@ class RTTMStreamingSegmentsDataset(IterableDataset):
             stt_list, end_list, speaker_list = rttm_timestamps
             all_rttm_timestamps.append(rttm_timestamps)
             total_annotated_duration = max(end_list)
-            n_segments = math.floor((total_annotated_duration - sample.offset) / train_segment_seconds)
+            n_segments = math.ceil((total_annotated_duration - sample.offset) / train_segment_seconds)
             start_offset = sample.offset
             sample_segments = []
-
-            n_segments -= 1
             for n_segment in range(n_segments):
                 duration = train_segment_seconds
                 sample_segments.append((sample_id, start_offset, duration, total_annotated_duration))
                 start_offset += train_segment_seconds
-
             segments.append(sample_segments)
         return collection, segments, all_rttm_timestamps
 
     @classmethod
-    def create_streaming_datasets(
+    def create_datasets(
         cls,
-        batch_size,
-        manifest_filepath: str,
-        preprocessor: AudioToMelSpectrogramPreprocessor,
         featurizer: WaveformFeaturizer,
-        window_stride: float,
+        manifest_filepath: str,
+        num_workers: int,
+        preprocessor: AudioToMelSpectrogramPreprocessor,
+        split_size: int,
         subsampling: int,
         train_segment_seconds: int,
-        max_workers,
-        num_calls: int = -1,
+        window_stride: float,
     ):
-        num_workers = max_workers
-        for n in range(max_workers, 0, -1):
-            if batch_size % n == 0:
-                num_workers = n
-                break
-        split_size = batch_size // num_workers
-        (collection, data_list, rttm_timestamps,) = RTTMStreamingSegmentsDataset.data_setup(
-            manifest_filepath=manifest_filepath, train_segment_seconds=train_segment_seconds, num_calls=num_calls,
+        (collection, data_list, rttm_timestamps,) = cls.data_setup(
+            manifest_filepath=manifest_filepath, train_segment_seconds=train_segment_seconds
         )
         return [
             cls(
