@@ -291,7 +291,10 @@ class FastPitchModule(NeuralModule):
 
             if energy is not None:
                 # Average energy over characters
-                energy_tgt = average_pitch(energy.unsqueeze(1), attn_hard_dur)
+                if self.learn_alignment:
+                    energy_tgt = average_pitch(energy.unsqueeze(1), attn_hard_dur)
+                else:
+                    energy_tgt = average_pitch(energy.unsqueeze(1), durs_predicted)
                 energy_tgt = torch.log(1.0 + energy_tgt)
                 energy_emb = self.energy_emb(energy_tgt)
                 energy_tgt = energy_tgt.squeeze(1)
