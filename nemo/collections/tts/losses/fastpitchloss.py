@@ -140,10 +140,10 @@ class EnergyLoss(Loss):
         }
 
     @typecheck()
-    def forward(self, energy_predicted, energy_tgt, len):
+    def forward(self, energy_predicted, energy_tgt, length):
         if energy_tgt is None:
             return 0.0
-        dur_mask = mask_from_lens(len, max_len=energy_tgt.size(1))
+        dur_mask = mask_from_lens(length, max_len=energy_tgt.size(1))
         energy_loss = F.mse_loss(energy_tgt, energy_predicted, reduction='none')
         energy_loss = (energy_loss * dur_mask).sum() / dur_mask.sum()
         energy_loss *= self.loss_scale

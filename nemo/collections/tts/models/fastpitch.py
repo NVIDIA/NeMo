@@ -148,9 +148,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         speaker_emb_condition_decoder = cfg.get("speaker_emb_condition_decoder", False)
         speaker_emb_condition_aligner = cfg.get("speaker_emb_condition_aligner", False)
         energy_embedding_kernel_size = cfg.get("energy_embedding_kernel_size", 0)
-        energy_predictor = None
-        if self._cfg.get("energy_predictor", None) is not None:
-            energy_predictor = instantiate(self._cfg.energy_predictor)
+        energy_predictor = instantiate(self._cfg.get("energy_predictor", None))
 
         self.fastpitch = FastPitchModule(
             input_fft,
@@ -345,18 +343,16 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
     def training_step(self, batch, batch_idx):
         attn_prior, durs, speaker, energy = None, None, None, None
         if self.learn_alignment:
-            if self.ds_class_name == "TTSDataset":
-                batch_dict = process_batch(batch, self._train_dl.dataset.sup_data_types_set)
-                audio = batch_dict.get("audio")
-                audio_lens = batch_dict.get("audio_lens")
-                text = batch_dict.get("text")
-                text_lens = batch_dict.get("text_lens")
-                attn_prior = batch_dict.get("align_prior_matrix", None)
-                pitch = batch_dict.get("pitch", None)
-                energy = batch_dict.get("energy", None)
-                speaker = batch_dict.get("speaker_id", None)
-            else:
-                raise ValueError(f"Unknown vocab class: {self.vocab.__class__.__name__}")
+            assert self.ds_class_name == "TTSDataset", f"Unknown vocab class: {self.vocab.__class__.__name__}"
+            batch_dict = process_batch(batch, self._train_dl.dataset.sup_data_types_set)
+            audio = batch_dict.get("audio")
+            audio_lens = batch_dict.get("audio_lens")
+            text = batch_dict.get("text")
+            text_lens = batch_dict.get("text_lens")
+            attn_prior = batch_dict.get("align_prior_matrix", None)
+            pitch = batch_dict.get("pitch", None)
+            energy = batch_dict.get("energy", None)
+            speaker = batch_dict.get("speaker_id", None)
         else:
             audio, audio_lens, text, text_lens, durs, pitch, speaker = batch
 
@@ -442,18 +438,16 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
     def validation_step(self, batch, batch_idx):
         attn_prior, durs, speaker, energy = None, None, None, None
         if self.learn_alignment:
-            if self.ds_class_name == "TTSDataset":
-                batch_dict = process_batch(batch, self._train_dl.dataset.sup_data_types_set)
-                audio = batch_dict.get("audio")
-                audio_lens = batch_dict.get("audio_lens")
-                text = batch_dict.get("text")
-                text_lens = batch_dict.get("text_lens")
-                attn_prior = batch_dict.get("align_prior_matrix", None)
-                pitch = batch_dict.get("pitch", None)
-                energy = batch_dict.get("energy", None)
-                speaker = batch_dict.get("speaker_id", None)
-            else:
-                raise ValueError(f"Unknown vocab class: {self.vocab.__class__.__name__}")
+            assert self.ds_class_name == "TTSDataset", f"Unknown vocab class: {self.vocab.__class__.__name__}"
+            batch_dict = process_batch(batch, self._train_dl.dataset.sup_data_types_set)
+            audio = batch_dict.get("audio")
+            audio_lens = batch_dict.get("audio_lens")
+            text = batch_dict.get("text")
+            text_lens = batch_dict.get("text_lens")
+            attn_prior = batch_dict.get("align_prior_matrix", None)
+            pitch = batch_dict.get("pitch", None)
+            energy = batch_dict.get("energy", None)
+            speaker = batch_dict.get("speaker_id", None)
         else:
             audio, audio_lens, text, text_lens, durs, pitch, speaker = batch
 
@@ -478,7 +472,6 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         mel_loss = self.mel_loss_fn(spect_predicted=mels_pred, spect_tgt=mels)
         dur_loss = self.duration_loss_fn(log_durs_predicted=log_durs_pred, durs_tgt=durs, len=text_lens)
         pitch_loss = self.pitch_loss_fn(pitch_predicted=pitch_pred, pitch_tgt=pitch, len=text_lens)
-        energy_loss = 0.0
         energy_loss = self.energy_loss_fn(energy_predicted=energy_pred, energy_tgt=energy_tgt, len=text_lens)
         loss = mel_loss + dur_loss + pitch_loss + energy_loss
 

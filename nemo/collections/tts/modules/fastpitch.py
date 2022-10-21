@@ -276,6 +276,9 @@ class FastPitchModule(NeuralModule):
             if self.learn_alignment and pitch.shape[-1] != pitch_predicted.shape[-1]:
                 # Pitch during training is per spectrogram frame, but during inference, it should be per character
                 pitch = average_pitch(pitch.unsqueeze(1), attn_hard_dur).squeeze(1)
+            elif not self.learn_alignment:
+                # If alignment is not learnt attn_hard_dur is None, hence durs_predicted is used in average_pitch
+                pitch = average_pitch(pitch.unsqueeze(1), durs_predicted).squeeze(1)
             pitch_emb = self.pitch_emb(pitch.unsqueeze(1))
         else:
             pitch_emb = self.pitch_emb(pitch_predicted.unsqueeze(1))
