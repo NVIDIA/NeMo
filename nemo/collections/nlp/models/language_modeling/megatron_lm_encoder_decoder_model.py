@@ -451,7 +451,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         def fwd_output_and_loss_func(batch, model):
             batch = [x.cuda(non_blocking=True) for x in batch]
             encoder_input_ids, decoder_input_ids, loss_mask, lm_labels, encoder_attn_mask, decoder_attn_mask = batch
-
+            # ! invoke model embedding lookup 
+            # concentate 
             output = model(
                 encoder_input_ids,  # enc_input_ids
                 encoder_attn_mask,  # enc_attn_mask

@@ -12,10 +12,10 @@ trainer:
   accelerator: gpu
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
-  replace_sampler_ddp: False
+  replace_sampler_ddp: False # Q what's this?
   max_epochs: 1000 # PTL default. In practice, max_steps will be reached first. 
   max_steps: 400000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
-  log_every_n_steps: 10
+  log_every_n_steps: 10 # Q shouldn't it be micro_batch * pipeline * tensor p? What is exactly a global_step? 
   val_check_interval: 1000
   accumulate_grad_batches: 1
   gradient_clip_val: 1.0
@@ -30,13 +30,13 @@ exp_manager:
     name: null
   resume_if_exists: True
   resume_ignore_no_checkpoint: True
-  create_checkpoint_callback: True
+  create_checkpoint_callback: True # Q What does this exactly do?
   checkpoint_callback_params:
     monitor: val_loss
     save_top_k: 10
     mode: min
     always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
-    filename: '${name}--{${exp_manager.checkpoint_callback_params.monitor}:.3f}-{step}-{consumed_samples}'
+    filename: '${name}--{${exp_manager.checkpoint_callback_params.monitor}:.3f}-{step}-{consumed_samples}' # Q Where is it getting consumed_sample var froM?
     model_parallel_size: ${multiply:${model.tensor_model_parallel_size}, ${model.pipeline_model_parallel_size}}
 
 model:
@@ -50,10 +50,9 @@ model:
   max_generation_delta: 20 # Maximum decoder sequence length is encoder sequence length + this parameter.
   pretrained_model_path: null # Path to a pretrained model 
   pretrained_model_type: T5
-  retrieval: False
 
   # model parallelism 
-  micro_batch_size: 32
+  micro_batch_size: 32 # Q global = micro * tensor * pipeline * data right?
   global_batch_size: 512 # will use more micro batches to reach global batch size
   tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1
@@ -67,14 +66,17 @@ model:
   grad_allreduce_chunk_size_mb: 125
   grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce
   gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
+  # Q What are all these grad_ options? 
 
-  seq_length: 512
+  seq_length: 512 # Q Why not 2048?
   max_position_embeddings: ${.seq_length}
 
   # weight init
+  # Q No fancy init methods used is it? No glorot etc
   embedding_init_method_std: 0.02 # Standard deviation of the zero mean normal distribution used for weight initialization.')
 
   # embedding dropout
+  # Q how does this work? 
   embedding_dropout: 0.1
 
   # embedding sharing
@@ -118,10 +120,6 @@ model:
     drop_last: false
     pin_memory: false
     num_workers: 8
-    retrieval_db_src: null # retrieval database with src sentences
-    retrieval_db_tgt: null # retrieval database with tgt sentences
-    retrieval_indices: null # file with indices of nns to retrieve
-    retrieval_nns: 1 # number of nearest neighbors to append
 
   test_ds:
     src_file_name: ???
@@ -135,10 +133,6 @@ model:
     drop_last: false
     pin_memory: false
     num_workers: 8
-    retrieval_indices: null # file with indices of nns to retrieve
-    retrieval_db_src: null # retrieval database with src sentences
-    retrieval_db_tgt: null # retrieval database with tgt sentences
-    retrieval_nns: 1 # number of nearest neighbors to append
 
 
   optim:

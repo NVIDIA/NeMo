@@ -95,7 +95,7 @@ class MTRetrievalModel(MTEncDecModel):
             self.test_decoder_ids(tgt, raise_error=True)
         
         # Encode neighbors using retrieval_encoder
-        for 
+        # for 
 
         src_hiddens = self.encoder(input_ids=src, encoder_mask=src_mask)
         tgt_hiddens = self.decoder(

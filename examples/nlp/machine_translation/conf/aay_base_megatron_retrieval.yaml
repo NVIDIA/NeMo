@@ -1,0 +1,47 @@
+# The retrieval nmt architecture supports adding nearest neighbors to the encoder-deocder architecture
+
+defaults:
+  - aayn_base_megatron
+
+name: megatron_nmt_retrieval
+
+do_training: True # set to False if only preprocessing data
+do_testing: False # set to True to run evaluation on test data after training
+
+
+model:
+
+  retriever:
+    type: 'text' # choices 'perceiver' 'text'
+    latent_size: int = 16 # perceiver latents size to use
+    encoder: str = None # path to retrieval-encoder
+  
+  train_ds: 
+    retrieval: True # train retrieval augmented model
+    nn_mapping: null # file with indices of nns to retrieve for train
+    num_neighbors: 1 # number of nearest neighbors to append
+  
+  validation_ds:
+    retrieval: True # train retrieval augmented model
+    nn_mapping: null # file with indices of nns to retrieve fro val
+    num_neighbors: 1 # number of nearest neighbors to append
+  
+  test_ds:
+    retrieval: True # train retrieval augmented model
+    nn_mapping: null
+    num_neighbors: 1 # number of nearest neighbors to append
+
+retrieval_ds:
+  src_file_name: null
+  tgt_file_name: null
+  dataset_type: 'text_memmap' # Options ['bin_memmap', 'text_memmap']
+  sampler: 'megatron' # Options ['megatron']. Note megatron samplers do not shuffle across epochs.
+  micro_batch_size: ${model.micro_batch_size}
+  global_batch_size: ${model.global_batch_size}
+  # config for preprocessing training data and creating a tarred datset automatically
+  max_seq_length: 512
+  num_samples: -1
+  drop_last: false
+  pin_memory: false
+  num_workers: 8
+  concat_sampling_probabilities: null # only used with ConcatTranslationDataset 

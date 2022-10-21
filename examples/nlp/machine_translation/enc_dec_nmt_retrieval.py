@@ -46,7 +46,7 @@ Usage:
     
  3. Start training:
  
- # TODO: UPDATE the running comma
+ # TODO: UPDATE the running command
  (This example for "base" model on 2 GPUs for 150000 steps with batch size of 12500 tokens per GPU)
  
  python enc_dec_nmt_retrieval.py \
@@ -95,7 +95,7 @@ Usage:
       +exp_manager.checkpoint_callback_params.mode=max 
 """
 
-
+# Q Something like this in the megatron_retrieval? - No data classes 
 @dataclass
 class MTRetrievalConfig(NemoConfig):
     name: Optional[str] = 'MTRetrieval'

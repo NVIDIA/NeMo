@@ -63,6 +63,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         # All of the lines below need to be set when the parent class calls self._build_tokenizer()
+        # Q Why still yttm? I thought we are moving to spm?
         self.encoder_tokenizer_library = cfg.encoder_tokenizer.get('library', 'yttm')
         self.decoder_tokenizer_library = cfg.decoder_tokenizer.get('library', 'yttm')
         self.special_tokens = {}
@@ -209,6 +210,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         reduced_loss = super().validation_step(batch, batch_idx)
         tokens_enc, labels, enc_mask = batch['text_enc'], batch['labels'], batch['enc_mask']
 
+        # Q Take care of this. Look at p-tuning 
         predicted_tokens_ids, _ = self.decode(
             tokens_enc,
             enc_mask,
@@ -501,8 +503,12 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                 decoder_tokenizer=self.decoder_tokenizer,
             )
 
-    def build_memmap_dataset_from_config(self, cfg: DictConfig):
-        """Builds a memmap dataset from a existing binary based o nthe provided config."""
+    def build_memmap_dataset_from_config(self, cfg: DictConfig, encoder_tokenizer=None, decoder_tokenizer=None):
+        """Builds a memmap dataset from a existing binary based on the provided config. Can provide custom tokenizers too."""
+        if encoder_tokenizer is None:
+            encoder_tokenizer = self.encoder_tokenizer
+        if decoder_tokenizer is None:
+            decoder_tokenizer = self.decoder_tokenizer
         is_src_listconfig = isinstance(cfg.src_file_name, ListConfig)
         is_tgt_listconfig = isinstance(cfg.tgt_file_name, ListConfig)
         # If multilingual, make sure both source and target are list configs
@@ -549,8 +555,8 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                     dataset = BinarizedMemmapSequenceToSequenceDataset(
                         src_dataset_prefix=src_file,
                         tgt_dataset_prefix=tgt_file,
-                        src_tokenizer=self.encoder_tokenizer,
-                        tgt_tokenizer=self.decoder_tokenizer,
+                        src_tokenizer=encoder_tokenizer,
+                        tgt_tokenizer=decoder_tokenizer,
                         max_src_seq_length=cfg.max_seq_length,
                         max_tgt_seq_length=cfg.max_seq_length,
                         max_num_samples=num_samples[0],
@@ -560,8 +566,8 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                     dataset = TextMemmapSequenceToSequenceDataset(
                         src_file_name=src_file,
                         tgt_file_name=tgt_file,
-                        src_tokenizer=self.encoder_tokenizer,
-                        tgt_tokenizer=self.decoder_tokenizer,
+                        src_tokenizer=encoder_tokenizer,
+                        tgt_tokenizer=decoder_tokenizer,
                         max_src_seq_length=cfg.max_seq_length,
                         max_tgt_seq_length=cfg.max_seq_length,
                         max_num_samples=num_samples[0],
@@ -576,8 +582,8 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                 dataset = BinarizedMemmapSequenceToSequenceDataset(
                     src_dataset_prefix=cfg.src_file_name,
                     tgt_dataset_prefix=cfg.tgt_file_name,
-                    src_tokenizer=self.encoder_tokenizer,
-                    tgt_tokenizer=self.decoder_tokenizer,
+                    src_tokenizer=encoder_tokenizer,
+                    tgt_tokenizer=decoder_tokenizer,
                     max_src_seq_length=cfg.max_seq_length,
                     max_tgt_seq_length=cfg.max_seq_length,
                     max_num_samples=self.trainer.max_steps * self._cfg.global_batch_size,
@@ -587,8 +593,8 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                 dataset = TextMemmapSequenceToSequenceDataset(
                     src_file_name=cfg.src_file_name,
                     tgt_file_name=cfg.tgt_file_name,
-                    src_tokenizer=self.encoder_tokenizer,
-                    tgt_tokenizer=self.decoder_tokenizer,
+                    src_tokenizer=encoder_tokenizer,
+                    tgt_tokenizer=decoder_tokenizer,
                     max_src_seq_length=cfg.max_seq_length,
                     max_tgt_seq_length=cfg.max_seq_length,
                     max_num_samples=self.trainer.max_steps * self._cfg.global_batch_size,
