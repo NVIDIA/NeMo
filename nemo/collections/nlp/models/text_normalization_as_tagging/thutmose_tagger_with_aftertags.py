@@ -39,6 +39,12 @@ from nemo.utils.decorators import experimental
 
 __all__ = ["ThutmoseTaggerWithAftertagsModel"]
 
+"""
+    This is a subclass for future research to explore the following idea:
+      a predefined number of frequent tokens should be predicted by a separate head to simplify alignment and reduce token vocabulary size.
+    For example, punctuation symbols, cardinal endings -nd, -rd, -st, -th, -'s, etc.
+      
+"""
 
 @experimental
 class ThutmoseTaggerWithAftertagsModel(ThutmoseTaggerModel):

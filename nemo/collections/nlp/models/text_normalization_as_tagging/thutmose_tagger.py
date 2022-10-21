@@ -295,6 +295,7 @@ class ThutmoseTaggerModel(NLPModel):
                 - final output text
                 - input words
                 - tags predicted for input words
+                - tags after swap preprocessing
                 - semiotic labels predicted for input words
         """
 
