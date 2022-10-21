@@ -54,12 +54,8 @@ from numpy import ndarray
 from pesq import pesq
 from pystoi import stoi
 
+from nemo.collections.tts.torch.tts_data_types import DATA_STR2DATA_CLASS, MAIN_DATA_TYPES, WithLens
 from nemo.utils import logging
-from nemo.collections.tts.torch.tts_data_types import (
-    DATA_STR2DATA_CLASS,
-    MAIN_DATA_TYPES,
-    WithLens,
-)
 
 HAVE_WANDB = True
 try:
@@ -575,6 +571,6 @@ def process_batch(batch_data, sup_data_types_set):
             batch_dict[name] = batch_data[batch_index]
             batch_index = batch_index + 1
             if issubclass(datatype, WithLens):
-                batch_dict[name+"_lens"] = batch_data[batch_index]
+                batch_dict[name + "_lens"] = batch_data[batch_index]
                 batch_index = batch_index + 1
     return batch_dict
