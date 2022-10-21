@@ -1,0 +1,7 @@
+_target_: nemo.collections.tts.data.audio_trimming.EnergyAudioTrimmer
+
+db_threshold: 50.0
+frame_threshold: 3
+frame_length: 2048
+frame_step: 512
+pad_seconds: 0.2
