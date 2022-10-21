@@ -737,8 +737,8 @@ class DiarizationSpeechLabel(DiarizationLabel):
 
         The above example RTTM line contains the following information:
             session name: abc_dev_0123
-            start time: 146.903
-            end time: 1.860
+            segment start time: 146.903
+            segment duration: 1.860
             speaker label: speaker543
 
         Args:
