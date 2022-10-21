@@ -122,7 +122,7 @@ class ExpManagerConfig:
     summary_writer_kwargs: Optional[Dict[Any, Any]] = None
     create_wandb_logger: Optional[bool] = False
     wandb_logger_kwargs: Optional[Dict[Any, Any]] = None
-    create_mlflow_logger: Optional[bool] = True
+    create_mlflow_logger: Optional[bool] = False
     mlflow_logger_kwargs: Optional[Dict[Any, Any]] = None
     # Checkpointing parameters
     create_checkpoint_callback: Optional[bool] = True
