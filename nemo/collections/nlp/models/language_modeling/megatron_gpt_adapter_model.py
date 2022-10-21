@@ -137,7 +137,7 @@ class MegatronGPTBaseAdapterModel(MegatronGPTPromptLearningModel):
         for name, module in self.frozen_model.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin) and module.is_adapter_available():
                 for adapter_key in self.adapter_name_keys:
-                    if adapter_key in module.get_accepted_adapters():
+                    if adapter_key in module.get_accepted_adapter_names():
                         adapter_module = module.adapter_layer[adapter_key]
                         state_adapter_key = ':'.join([name, adapter_key])
                         state_dict_[state_adapter_key] = adapter_module.state_dict()
@@ -153,7 +153,7 @@ class MegatronGPTBaseAdapterModel(MegatronGPTPromptLearningModel):
         for name, module in self.frozen_model.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin) and module.is_adapter_available():
                 for adapter_key in self.adapter_name_keys:
-                    if adapter_key in module.get_accepted_adapters():
+                    if adapter_key in module.get_accepted_adapter_names():
                         adapter_module = module.adapter_layer[adapter_key]
                         state_adapter_key = ':'.join([name, adapter_key])
                         adapter_module.load_state_dict(state_dict[state_adapter_key], strict)
@@ -244,7 +244,7 @@ class MegatronGPTAdapterLearningModel(MegatronGPTBaseAdapterModel):
             'parallel_adapter',
         ], "Adapter type should be 'linear_adapter' or 'parallel_adapter'"
 
-        self.adapter_name_keys = [AdapterType.ADAPTER_ONE, AdapterType.ADAPTER_TWO]
+        self.adapter_name_keys = [AdapterType.ADAPTER_ONE.name, AdapterType.ADAPTER_TWO.name]
         frozen_model_cfg = MegatronGPTModel.restore_from(
             cfg.get('language_model_path'), trainer=trainer, return_config=True
         )
@@ -278,7 +278,7 @@ class MegatronGPTAdapterLearningModel(MegatronGPTBaseAdapterModel):
         for _, module in self.frozen_model.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin):
                 for adapter_key in self.adapter_name_keys:
-                    if adapter_key in module.get_accepted_adapters():
+                    if adapter_key in module.get_accepted_adapter_names():
                         module.add_adapter(
                             name=adapter_key, cfg=adapter_cfg,
                         )
@@ -304,7 +304,11 @@ class MegatronGPTInfusedAdapterModel(MegatronGPTBaseAdapterModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
-        self.adapter_name_keys = [AdapterType.MLP_INFUSED, AdapterType.KEY_INFUSED, AdapterType.VALUE_INFUSED]
+        self.adapter_name_keys = [
+            AdapterType.MLP_INFUSED.name,
+            AdapterType.KEY_INFUSED.name,
+            AdapterType.VALUE_INFUSED.name,
+        ]
         frozen_model_cfg = MegatronGPTModel.restore_from(
             cfg.get('language_model_path'), trainer=trainer, return_config=True
         )
@@ -320,13 +324,13 @@ class MegatronGPTInfusedAdapterModel(MegatronGPTBaseAdapterModel):
         for _, module in self.frozen_model.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin):
                 for adapter_key in self.adapter_name_keys:
-                    if adapter_key in module.get_accepted_adapters():
-                        if adapter_key == AdapterType.MLP_INFUSED:
+                    if adapter_key in module.get_accepted_adapter_names():
+                        if adapter_key == AdapterType.MLP_INFUSED.name:
                             cfg = InfusedAdapterConfig(
                                 in_features=frozen_model_cfg.ffn_hidden_size
                                 // frozen_model_cfg.tensor_model_parallel_size
                             )
-                        elif adapter_key in [AdapterType.KEY_INFUSED, AdapterType.VALUE_INFUSED]:
+                        elif adapter_key in [AdapterType.KEY_INFUSED.name, AdapterType.VALUE_INFUSED.name]:
                             cfg = InfusedAdapterConfig(
                                 in_features=frozen_model_cfg.hidden_size // frozen_model_cfg.tensor_model_parallel_size
                             )

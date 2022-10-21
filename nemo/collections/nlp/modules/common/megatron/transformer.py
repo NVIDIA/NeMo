@@ -247,7 +247,7 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
         if self.dropout > 0:
             intermediate_parallel = F.dropout(intermediate_parallel, p=self.dropout, training=self.training)
 
-        infused_adapter = self.get_from_adapter_layer(AdapterType.MLP_INFUSED)
+        infused_adapter = self.get_from_adapter_layer(AdapterType.MLP_INFUSED.name)
         if infused_adapter:
             intermediate_parallel = infused_adapter(intermediate_parallel)
 
@@ -799,8 +799,8 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
             query_layer = query_layer.view(*new_tensor_shape)
 
         if self.is_adapter_available():
-            key_infused_adapter = self.get_from_adapter_layer(AdapterType.KEY_INFUSED)
-            value_infused_adapter = self.get_from_adapter_layer(AdapterType.VALUE_INFUSED)
+            key_infused_adapter = self.get_from_adapter_layer(AdapterType.KEY_INFUSED.name)
+            value_infused_adapter = self.get_from_adapter_layer(AdapterType.VALUE_INFUSED.name)
             if key_infused_adapter:
                 assert value_infused_adapter is not None, "Expected value_infused_adapter not found!"
                 kls = key_layer.shape
@@ -1422,12 +1422,15 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
             layernorm_input = bias_dropout_add_func(attention_output, attention_bias, residual, self.hidden_dropout)
             # print(f"Layer: {self.layer_number} Attention checksum {layernorm_input.sum()}")
 
-            if self.is_adapter_available():  # TODO: (@adithyre) need to find the correct place for this adapter
+            if self.is_adapter_available():
                 adapter_1 = self.get_from_adapter_layer(AdapterType.ADAPTER_ONE)
                 if adapter_1:
                     strategy = adapter_1.adapter_strategy
                     layernorm_input = self.forward_single_enabled_adapter_(
-                        layernorm_input, adapter_1, adapter_name=AdapterType.ADAPTER_ONE, adapter_strategy=strategy
+                        layernorm_input,
+                        adapter_1,
+                        adapter_name=AdapterType.ADAPTER_ONE.name,
+                        adapter_strategy=strategy,
                     )
 
             # Post-LN normalization after residual
@@ -1513,11 +1516,11 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         if (
             self.is_adapter_available()
         ):  # TODO: (@adithyre) was able to move adapter_2 back to the end of the transformer after ptl 1.7 update.
-            adapter_2 = self.get_from_adapter_layer(AdapterType.ADAPTER_TWO)
+            adapter_2 = self.get_from_adapter_layer(AdapterType.ADAPTER_TWO.name)
             if adapter_2:
                 strategy = adapter_2.adapter_strategy
                 output = self.forward_single_enabled_adapter_(
-                    output, adapter_2, adapter_name=AdapterType.ADAPTER_TWO, adapter_strategy=strategy
+                    output, adapter_2, adapter_name=AdapterType.ADAPTER_TWO.name, adapter_strategy=strategy
                 )
 
         return output

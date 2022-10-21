@@ -13,18 +13,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import enum
+from dataclasses import dataclass
+
+from nemo.collections.common.parts.adapter_modules import LinearAdapterConfig
+from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
+    InfusedAdapterConfig,
+    ParallelLinearAdapterConfig,
+)
+from nemo.core.classes.mixins.adapter_mixins import AdapterSpec
 
 
-class AdapterType(str, enum.Enum):
+@dataclass
+class AdapterType:
     # Adapters requires in the IA3 schema
-    KEY_INFUSED = "key_infused_adapter"
-    VALUE_INFUSED = "value_infused_adapter"
-    MLP_INFUSED = "mlp_infused_adapter"
+    KEY_INFUSED: AdapterSpec = AdapterSpec(name="key_infused_adapter", targets=[InfusedAdapterConfig._target_])
+    VALUE_INFUSED: AdapterSpec = AdapterSpec(name="value_infused_adapter", targets=[InfusedAdapterConfig._target_])
+    MLP_INFUSED: AdapterSpec = AdapterSpec(name="mlp_infused_adapter", targets=[InfusedAdapterConfig._target_])
 
     # Standard Adapters
-    ADAPTER_ONE = "adapter_1"
-    ADAPTER_TWO = "adapter_2"
-
-    def __str__(self):
-        return str(self.value)
+    ADAPTER_ONE: AdapterSpec = AdapterSpec(
+        name="adapter_1", targets=[ParallelLinearAdapterConfig._target_, LinearAdapterConfig._target_]
+    )
+    ADAPTER_TWO: AdapterSpec = AdapterSpec(
+        name="adapter_2", targets=[ParallelLinearAdapterConfig._target_, LinearAdapterConfig._target_]
+    )
