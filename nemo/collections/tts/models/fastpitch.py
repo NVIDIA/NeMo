@@ -341,7 +341,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
     def training_step(self, batch, batch_idx):
         attn_prior, durs, speaker, energy = None, None, None, None
         if self.learn_alignment:
-            assert self.ds_class_name == "TTSDataset", f"Unknown vocab class: {self.vocab.__class__.__name__}"
+            assert self.ds_class_name == "TTSDataset", f"Unknown dataset class: {self.ds_class_name}"
             batch_dict = process_batch(batch, self._train_dl.dataset.sup_data_types_set)
             audio = batch_dict.get("audio")
             audio_lens = batch_dict.get("audio_lens")
@@ -436,7 +436,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
     def validation_step(self, batch, batch_idx):
         attn_prior, durs, speaker, energy = None, None, None, None
         if self.learn_alignment:
-            assert self.ds_class_name == "TTSDataset", f"Unknown vocab class: {self.vocab.__class__.__name__}"
+            assert self.ds_class_name == "TTSDataset", f"Unknown dataset class: {self.ds_class_name}"
             batch_dict = process_batch(batch, self._train_dl.dataset.sup_data_types_set)
             audio = batch_dict.get("audio")
             audio_lens = batch_dict.get("audio_lens")
