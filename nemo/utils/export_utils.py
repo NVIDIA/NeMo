@@ -241,7 +241,7 @@ apex_available = True
 try:
     from apex.normalization.fused_layer_norm import FusedLayerNorm, MixedFusedLayerNorm
     from apex.contrib.layer_norm.layer_norm import FastLayerNorm
-    from apex.transformer.tensor_parallel.layers import RowParallelLinear
+    from apex.transformer.tensor_parallel.layers import RowParallelLinear, ColumnParallelLinear
     from apex.transformer.functional.fused_softmax import FusedScaleMaskSoftmax
 
     def replace_FusedLayerNorm(n: nn.Module) -> Optional[nn.BatchNorm2d]:
@@ -287,6 +287,24 @@ try:
         mod.load_state_dict(n_state)
         return mod
 
+    def replace_ColumnParallelLinear(n: nn.Module) -> Optional[nn.Linear]:
+        """
+        Replaces Apex's ColumnParallelLinear with nn.Linear
+        Args:
+           n: the nn.Module pytorch module to replace
+        Returns:
+           Equivalent Linear module
+        """
+        if not isinstance(n, ColumnParallelLinear):
+            raise ValueError("This function can only change the ColumnParallelLinear module.")
+
+        dev = next(n.parameters()).device
+        mod = LinearWithBiasSkip(n.weight, n.bias, n.skip_bias_add).to(dev)
+
+        n_state = n.state_dict()
+        mod.load_state_dict(n_state)
+        return mod
+
     def replace_FusedScaleMaskSoftmax(n: nn.Module) -> Optional[nn.Linear]:
         """
         Replaces Apex's FusedScaleMaskSoftmax with nn.LayerNorm. This is required for ONNX export.
@@ -310,6 +328,7 @@ try:
         "MixedFusedLayerNorm": replace_FusedLayerNorm,
         "FastLayerNorm": replace_FusedLayerNorm,
         "RowParallelLinear": replace_RowParallelLinear,
+        "ColumnParallelLinear": replace_ColumnParallelLinear,
         "FusedScaleMaskSoftmax": replace_FusedScaleMaskSoftmax,
     }
 
