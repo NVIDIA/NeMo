@@ -61,7 +61,7 @@ from nemo.core.neural_types.elements import (
 from nemo.core.neural_types.neural_type import NeuralType
 
 
-def average_pitch(pitch, durs):
+def average_features(pitch, durs):
     durs_cums_ends = torch.cumsum(durs, dim=1).long()
     durs_cums_starts = torch.nn.functional.pad(durs_cums_ends[:, :-1], (1, 0))
     pitch_nonzero_cums = torch.nn.functional.pad(torch.cumsum(pitch != 0.0, dim=2), (1, 0))
@@ -275,10 +275,10 @@ class FastPitchModule(NeuralModule):
         if pitch is not None:
             if self.learn_alignment and pitch.shape[-1] != pitch_predicted.shape[-1]:
                 # Pitch during training is per spectrogram frame, but during inference, it should be per character
-                pitch = average_pitch(pitch.unsqueeze(1), attn_hard_dur).squeeze(1)
+                pitch = average_features(pitch.unsqueeze(1), attn_hard_dur).squeeze(1)
             elif not self.learn_alignment:
-                # If alignment is not learnt attn_hard_dur is None, hence durs_predicted is used in average_pitch
-                pitch = average_pitch(pitch.unsqueeze(1), durs_predicted).squeeze(1)
+                # If alignment is not learnt attn_hard_dur is None, hence durs_predicted
+                pitch = average_features(pitch.unsqueeze(1), durs_predicted).squeeze(1)
             pitch_emb = self.pitch_emb(pitch.unsqueeze(1))
         else:
             pitch_emb = self.pitch_emb(pitch_predicted.unsqueeze(1))
@@ -292,9 +292,9 @@ class FastPitchModule(NeuralModule):
             if energy is not None:
                 # Average energy over characters
                 if self.learn_alignment:
-                    energy_tgt = average_pitch(energy.unsqueeze(1), attn_hard_dur)
+                    energy_tgt = average_features(energy.unsqueeze(1), attn_hard_dur)
                 else:
-                    energy_tgt = average_pitch(energy.unsqueeze(1), durs_predicted)
+                    energy_tgt = average_features(energy.unsqueeze(1), durs_predicted)
                 energy_tgt = torch.log(1.0 + energy_tgt)
                 energy_emb = self.energy_emb(energy_tgt)
                 energy_tgt = energy_tgt.squeeze(1)
