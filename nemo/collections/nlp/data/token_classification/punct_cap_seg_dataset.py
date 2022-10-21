@@ -4,7 +4,6 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
-from omegaconf import OmegaConf, DictConfig
 
 from nemo.collections.common.tokenizers import AutoTokenizer, TokenizerSpec
 from nemo.core import Dataset, typecheck
@@ -577,6 +576,7 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
         language: str,
         punct_pre_labels: List[str],
         punct_post_labels: List[str],
+        full_stops: List[str],
         is_continuous: Optional[bool] = None,
         tokenizer: Optional[TokenizerSpec] = None,
         multipass: bool = True,
@@ -602,6 +602,7 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
         self._text_files = text_files
         self._null_label = null_label
         self._max_length = max_length
+        self._full_stops = set(full_stops)
         self._punct_pre_labels = punct_pre_labels
         self._punct_post_labels = punct_post_labels
         self._prob_drop_punct = prob_drop_punct
@@ -625,8 +626,7 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
             rng_seed=self._rng_seed,
         )
 
-        # TODO expose options for probability of lower- or upper-casing examples. Currently all lower-cased.
-        self._cap_targets_gen: CapTargetsGenerator = CapTargetsGenerator()
+        self._cap_targets_gen: CapTargetsGenerator = CapTargetsGenerator(p_lower=prob_lower_case)
 
     def create_tarred_dataset(self, output_dir: str):
         raise NotImplementedError(
@@ -686,7 +686,6 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
         num_lines_to_concat = self._rng.integers(self._min_lines_per_eg - 1, self._max_lines_per_eg)
         # Randomly select additional indices to use
         indices_to_use = [idx] + list(self._rng.integers(0, len(self), num_lines_to_concat))
-        worker_info = torch.utils.data.get_worker_info()
         punctuated_texts: List[str] = [self._data[x] for x in indices_to_use]
 
         unpunctuated_texts = []
@@ -697,7 +696,6 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
             unpunctuated_texts.append(unpunct_text)
             punct_pre_target_indices.extend(pre_targets)
             punct_post_target_indices.extend(post_targets)
-
         # If this is a one-pass model, use the un-punctuated texts for cap/seg
         cap_seg_texts = punctuated_texts if self._multipass else unpunctuated_texts
 
@@ -722,18 +720,27 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
         char_position = 0
         oov_index = 0
         for token in cap_seg_tokens:
-            if token == self.tokenizer.unk_id:
+            if token == self.tokenizer.unk_token:
                 chars_in_token = cap_seg_oov_lengths[oov_index]
                 oov_index += 1
             else:
                 chars_in_token = len(token) - (2 if token.startswith("##") else 0)
             char_position += chars_in_token
-            # If this subword contains the next boundary char, it's a target. Else negative target.
+            # If this token contains the next boundary char, it's a target.
             if boundary_char_indices and char_position >= boundary_char_indices[0]:
                 seg_targets.append(1)
                 del boundary_char_indices[0]
             else:
-                seg_targets.append(0)
+                # At inference time, sentence boundary predictions apply only to full stops. At training time, we can
+                # therefore ignore any token that is neither a full-stop character or a token that ends with a full stop
+                # Tokens:       ['Hello',  'Mr',    'Smith']
+                # Punc targets: [  ',',     '.',      '.']
+                # Seg targets:  [ignore,  no_stop,  full_stop]
+                char_target_token = self._punct_post_labels[punct_post_target_indices[char_position - 1]]
+                if token[-1] in self._full_stops or char_target_token in self._full_stops:
+                    seg_targets.append(0)
+                else:
+                    seg_targets.append(self._target_pad_value)
 
         # Finalize the truecase/sentence boundary inputs and targets
         # Fold true-case targets into subword-based

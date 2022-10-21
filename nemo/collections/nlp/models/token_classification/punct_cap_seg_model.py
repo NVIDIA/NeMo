@@ -9,7 +9,7 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig, open_dict
 from pytorch_lightning import Trainer
 
-from nemo.collections.common.data import ConcatMapDataset, ConcatDataset
+from nemo.collections.common.data import ConcatDataset
 from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.tokenizers import AutoTokenizer
@@ -36,6 +36,7 @@ class PunctCapSegModel(NLPModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None) -> None:
         super().__init__(cfg=cfg, trainer=trainer)
         self._multipass: bool = self._cfg.get("multipass", True)
+        self._full_stops = set(self._cfg.get("full_stops", [".", "?", "？", "。", "।", "؟"]))
 
         # Retrieve labels
         self._punct_post_labels: List[str] = self._cfg.punct_post_labels
@@ -51,6 +52,7 @@ class PunctCapSegModel(NLPModel):
         # Used for loss masking. Should by synchronized with data sets.
         self._ignore_idx: int = self._cfg.get("ignore_idx", -100)
 
+        # Used for making character-level predictions with subwords (predict max_token_len per token)
         self._max_token_len = max(len(x) for x in self.tokenizer.vocab)
 
         # All logits are shape [B, T, D]
@@ -66,7 +68,7 @@ class PunctCapSegModel(NLPModel):
         )
         # For true-casing, we use multi-label classification to predict for each char in a subword
         self._cap_loss: nn.BCEWithLogitsLoss = nn.BCEWithLogitsLoss(
-            pos_weight=None  # torch.tensor(cfg.loss.cap["weight"]) if "weight" in cfg.loss.cap else None
+            pos_weight=torch.tensor(cfg.loss.cap["weight"]) if "weight" in cfg.loss.cap else None
         )
         # Weights can be specified in punct{-pre,-post}, cap, seg order.
         self._agg_loss = AggregatorLoss(num_inputs=4, weights=cfg.get("agg_loss_weights"))
@@ -110,7 +112,7 @@ class PunctCapSegModel(NLPModel):
         )
 
         # Set each dataset's tokenizer. Model's tokenizer doesn't exist until we initialize BertModule, but datasets are
-        # instantiated prior to the LM.
+        # instantiated prior to that.
         if self._train_dl is not None:
             # Train DL has one ConcatDataset
             for dataset in self._train_dl.dataset.datasets:
@@ -520,9 +522,11 @@ class PunctCapSegModel(NLPModel):
         return preds
 
     def _get_char_seg_preds(
-        self, tokens: List[str], probs: List[float], oov_lens: List[int], threshold: float
+        self, tokens: List[str], probs: List[float], oov_lens: List[int], threshold: float, full_stop_preds: List[int]
     ) -> List[int]:
         """Gathers character-level sentence boundary predictions from subword predictions"""
+        # We'll do a lot of lookups
+        full_stop_preds = set(full_stop_preds)
         preds: List[int] = []
         oov_index = 0
         current_char = 0
@@ -537,8 +541,9 @@ class PunctCapSegModel(NLPModel):
                 token_len = len(token)
             # Advance to the end of this char
             current_char += token_len
-            # Note if this char should be a full stop
-            if probs[token_num] >= threshold:
+            # Note if this char should be a full stop. Only consider positions where we predicted a full stop.
+            is_full_stop = current_char - 1 in full_stop_preds or token[-1] in self._full_stops
+            if is_full_stop and probs[token_num] >= threshold:
                 preds.append(current_char)
         return preds
 
@@ -948,9 +953,6 @@ class PunctCapSegModel(NLPModel):
                 cap_char_preds = self._get_char_cap_preds(
                     tokens=tokens, probs=all_cap_scores[batch_idx], oov_lens=oov_lens, threshold=cap_threshold,
                 )
-                break_points = self._get_char_seg_preds(
-                    tokens=tokens, probs=all_seg_scores[batch_idx], oov_lens=oov_lens, threshold=seg_threshold
-                )
                 post_tokens = self._get_char_punct_preds(
                     tokens=tokens,
                     probs=all_post_scores[batch_idx],
@@ -966,6 +968,11 @@ class PunctCapSegModel(NLPModel):
                     oov_lens=oov_lens,
                     threshold=punct_threshold,
                     is_post=False,
+                )
+                full_stop_indices = [i for i, token in enumerate(post_tokens) if token in self._full_stops]
+                break_points = self._get_char_seg_preds(
+                    tokens=tokens, probs=all_seg_scores[batch_idx], oov_lens=oov_lens, threshold=seg_threshold,
+                    full_stop_preds=full_stop_indices
                 )
 
                 segmented_texts: List[str] = []
@@ -990,7 +997,7 @@ class PunctCapSegModel(NLPModel):
                     if post_token != self._cfg.null_punct_token:
                         output_chars.append(post_token)
                     # Maybe split sentence on this char
-                    if break_points and break_points[0] == non_whitespace_index:
+                    if break_points and break_points[0] == non_whitespace_index + 1:
                         segmented_texts.append("".join(output_chars).strip())
                         output_chars = []
                         del break_points[0]
@@ -1011,7 +1018,7 @@ class PunctCapSegModel(NLPModel):
         batch_size: int = 32,
         fold_overlap: int = 16,
         max_length: Optional[int] = None,
-        two_pass: bool = True,
+        num_passes: Optional[int] = None
     ) -> List[List[str]]:
         """
 
@@ -1025,38 +1032,50 @@ class PunctCapSegModel(NLPModel):
             seg_threshold: Sentence boundary detection threshold. Split on all subtokens which score above this value.
             truecase_threshold: True-casing threshold. Upper-case all chars that score above this value; lower-case all
                 others.
-            two_pass: If true, add punctuation after an initial encoding, and re-encode the punctuated text and run
-                sentence boundary detection and true-casing in parallel. If false, re-encode the data three times for
-                punctuation, segmentation, and true-casing, in that order.
+            num_passes:
         """
         in_mode = self.training
         self.eval()
-        punctuated_texts: List[str] = self.infer_punctuation(
-            texts, threshold=punct_threshold, batch_size=batch_size, fold_overlap=fold_overlap, max_length=max_length
-        )
-        if not two_pass:
-            segmented_texts: List[List[str]] = self.infer_segmentation(
-                punctuated_texts,
-                threshold=seg_threshold,
+        # Default to 2 passes for multipass models, 1 for single-pass models
+        if num_passes is None:
+            num_passes = 2 if self._multipass else 1
+        if num_passes == 1:
+            output_texts = self.infer_one_pass(
+                texts=texts,
                 batch_size=batch_size,
                 fold_overlap=fold_overlap,
                 max_length=max_length,
-            )
-            output_texts: List[List[str]] = self.infer_capitalization(
-                segmented_texts,
-                threshold=truecase_threshold,
-                batch_size=batch_size,
-                fold_overlap=fold_overlap,
-                max_length=max_length,
+                seg_threshold=seg_threshold,
+                cap_threshold=truecase_threshold,
+                punct_threshold=punct_threshold
             )
         else:
-            output_texts: List[List[str]] = self.infer_cap_seg(
-                punctuated_texts,
-                cap_threshold=truecase_threshold,
-                seg_threshold=seg_threshold,
-                fold_overlap=fold_overlap,
-                batch_size=batch_size,
-                max_length=max_length,
+            punctuated_texts: List[str] = self.infer_punctuation(
+                texts, threshold=punct_threshold, batch_size=batch_size, fold_overlap=fold_overlap, max_length=max_length
             )
+            if num_passes == 2:
+                output_texts: List[List[str]] = self.infer_cap_seg(
+                    punctuated_texts,
+                    cap_threshold=truecase_threshold,
+                    seg_threshold=seg_threshold,
+                    fold_overlap=fold_overlap,
+                    batch_size=batch_size,
+                    max_length=max_length,
+                )
+            else:
+                segmented_texts: List[List[str]] = self.infer_segmentation(
+                    punctuated_texts,
+                    threshold=seg_threshold,
+                    batch_size=batch_size,
+                    fold_overlap=fold_overlap,
+                    max_length=max_length,
+                )
+                output_texts: List[List[str]] = self.infer_capitalization(
+                    segmented_texts,
+                    threshold=truecase_threshold,
+                    batch_size=batch_size,
+                    fold_overlap=fold_overlap,
+                    max_length=max_length,
+                )
         self.train(in_mode)
         return output_texts
