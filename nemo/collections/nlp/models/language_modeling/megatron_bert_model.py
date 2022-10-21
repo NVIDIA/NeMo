@@ -26,6 +26,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_sampler
 )
 from nemo.collections.nlp.models.language_modeling.megatron.bert_model import BertModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
+from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_params_for_weight_decay_optimization,
@@ -55,7 +56,9 @@ class MegatronBertModel(MegatronBaseModel):
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
         super().__init__(cfg, trainer=trainer, no_lm_init=False)
+
         self.cfg = cfg
+        self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
 
         if self.trainer.precision == 32:
             self.autocast_dtype = torch.float
@@ -101,8 +104,22 @@ class MegatronBertModel(MegatronBaseModel):
             add_binary_head=cfg.bert_binary_head,
             megatron_legacy=cfg.get('megatron_legacy', False),
         )
-        # not using amp o2
-        self.megatron_amp_o2 = False
+
+        if self.megatron_amp_o2:
+            if isinstance(self.model, list):
+                for module in self.model:
+                    module.cuda(torch.cuda.current_device())
+            else:
+                    self.model.cuda(torch.cuda.current_device()) 
+
+            if isinstance(self.model, list):
+                converted_model = []
+                for module in self.model:
+                    converted_model.append(Float16Module(module=module, precision=cfg.precision))
+                    self.model = converted_model
+            else:
+                self.model = Float16Module(module=self.model, precision=cfg.precision)
+            
 
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(batch, model):
@@ -148,9 +165,17 @@ class MegatronBertModel(MegatronBaseModel):
         return output_tensor
 
     def training_step(self, batch, batch_idx):
+
         self._optimizer.zero_grad()  # DO WE NEED THIS
         batch_for_pipeline = self.process_batch(batch)
         tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
+
+        if self.megatron_amp_o2 and not self.cfg.get('sequence_parallel', False):
+            custom_sync_context_handler = self._optimizer.no_sync
+        else:
+            # TODO: enable async grad all reduce for O1/autocast mixed precision training
+            custom_sync_context_handler = None    
+
         losses_reduced_per_micro_batch = forward_backward_no_pipelining(
             forward_step_func=self.get_forward_output_and_loss_func(),
             batch=batch_for_pipeline,
@@ -177,7 +202,17 @@ class MegatronBertModel(MegatronBaseModel):
         ):  # DO WE NEED THIS
             self.allreduce_sequence_parallel_gradients()
 
-        self.allreduce_gradients()  # DO WE NEED THIS
+
+        if self.megatron_amp_o2: # DO WE NEED THESE CONDITIONAL STATEMENTS
+            # when using pipeline parallelism grads must be all-reduced after the pipeline (not asynchronously)
+            if self.cfg.get('pipeline_model_parallel_size', 1) > 1 or self.cfg.get('sequence_parallel', False):
+                # main grads are stored in the MainParamsOptimizer wrapper
+                self._optimizer.allreduce_main_grads()
+        else:
+            # async grad allreduce is not currently implemented for O1/autocasting mixed precision training
+            # so we all-reduce gradients after the pipeline
+            self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
+  
         # torch.distributed.broadcast(loss_mean, get_last_rank()) PRESENT IN GPT3 (FOR TP NOT SURE IF THIS IS NEEDED)
         if self.cfg.precision == 16:
             loss_scale = self.trainer.precision_plugin.scaler._scale
@@ -206,6 +241,33 @@ class MegatronBertModel(MegatronBaseModel):
             self._reduced_sop_loss_buffer = []
 
         return loss_mean[0]
+
+    def _append_module_grads(self, module, grads):
+        for param in module.parameters():
+            if getattr(param, 'sequence_parallel_enabled', False):
+                if self.megatron_amp_o2:
+                    grad = param.main_grad
+                else:
+                    grad = param.grad
+                grads.append(grad.data)
+
+    def allreduce_sequence_parallel_gradients(self):
+        """ All-reduce layernorm parameters across model parallel nodes when sequence parallelism is used.
+            Modified from megatron-lm:
+            https://gitlab-master.nvidia.com/ADLR/megatron-lm/-/blob/3f91f09bb2ab32f9904b47f46f19d2fc3f518ed8/megatron/training.py#L425
+        """
+
+        grads = []
+        if isinstance(self.model, list):
+            for module in self.model:
+                self._append_module_grads(module, grads)
+        else:
+            self._append_module_grads(self.model, grads)
+
+        coalesced = torch._utils._flatten_dense_tensors(grads)
+        torch.distributed.all_reduce(coalesced, group=parallel_state.get_tensor_model_parallel_group())
+        for buf, synced in zip(grads, torch._utils._unflatten_dense_tensors(coalesced, grads)):
+            buf.copy_(synced)
 
     def validation_step(self, batch, batch_idx):
         batch_for_pipeline = self.process_batch(batch)
