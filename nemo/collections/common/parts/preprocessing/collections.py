@@ -732,6 +732,15 @@ class DiarizationSpeechLabel(DiarizationLabel):
         """
         Convert a line in RTTM file to speaker label, start and end timestamps.
 
+        An example line of `rttm_line`:
+            SPEAKER abc_dev_0123 1 146.903 1.860 <NA> <NA> speaker543 <NA> <NA>
+
+        The above example RTTM line contains the following information:
+            session name: abc_dev_0123
+            start time: 146.903
+            end time: 1.860
+            speaker label: speaker543
+
         Args:
             rttm_line (str):
                 A line in RTTM formatted file containing offset and duration of each segment.
