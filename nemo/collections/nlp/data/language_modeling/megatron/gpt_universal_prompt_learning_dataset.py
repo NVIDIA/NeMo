@@ -124,7 +124,6 @@ class GPTUniversalPromptLearningDataset(Dataset):
 
         prompt_template = self.task_templates["prompt_template"]
         truncation_field = self.task_templates['truncate_field']
-        answer_only_loss = self.task_templates["answer_only_loss"]
         answer_field = self.task_templates["answer_field"]
 
         # divide the prompt string into pieces according to fields

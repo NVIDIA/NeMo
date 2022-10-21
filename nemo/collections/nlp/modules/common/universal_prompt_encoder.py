@@ -19,17 +19,6 @@ from nemo.collections.nlp.modules.common.megatron.megatron_perceiver_encoders im
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 from nemo.core.classes import Exportable, NeuralModule
 
-try:
-    from apex.transformer import tensor_parallel, parallel_state
-
-    HAVE_APEX = True
-
-except (ImportError, ModuleNotFoundError):
-    HAVE_APEX = False
-
-    # fake missing classes with None attributes
-    ModelType = AttnMaskType = AttnType = LayerType = ApexGuardDefaults()
-
 
 class UniversalPromptEncoder(NeuralModule, Exportable):
     def __init__(

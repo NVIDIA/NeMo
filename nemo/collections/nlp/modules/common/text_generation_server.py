@@ -20,9 +20,8 @@ import torch
 from flask import Flask, jsonify, request
 from flask_restful import Api, Resource
 
-from nemo.collections.nlp.modules.common.text_generation_utils import generate
 from nemo.collections.nlp.modules.common.text_generation_strategy import RetroModelTextGenerationStrategy
-
+from nemo.collections.nlp.modules.common.text_generation_utils import generate
 from nemo.utils import logging
 
 GENERATE_NUM = 0

@@ -115,7 +115,9 @@ def main(cfg) -> None:
     if cfg.server:
         if parallel_state.is_pipeline_first_stage() and parallel_state.get_tensor_model_parallel_rank() == 0:
             if cfg.web_server:
-                thread = threading.Thread(target=get_retro_demo, daemon=True, args=(cfg.share, cfg.username, cfg.password))
+                thread = threading.Thread(
+                    target=get_retro_demo, daemon=True, args=(cfg.share, cfg.username, cfg.password)
+                )
                 thread.start()
             server = MegatronServer(model.cuda(), inference_strategy=model.inference_strategy)
             server.run("0.0.0.0", port=cfg.port)

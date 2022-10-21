@@ -242,13 +242,7 @@ class FaissRetrievalService(RetrievalService):
         self.chunk_size = ds.chunk_size
         if torch.distributed.get_rank() == 0:
             server = RetrievalServer(
-                faiss_index,
-                faiss_devices,
-                nprobe,
-                retrieval_index,
-                tokenizer,
-                sentence_bert,
-                sentence_bert_batch,
+                faiss_index, faiss_devices, nprobe, retrieval_index, tokenizer, sentence_bert, sentence_bert_batch,
             )
             server.run("0.0.0.0")
         torch.distributed.barrier()

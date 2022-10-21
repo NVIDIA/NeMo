@@ -215,7 +215,6 @@ def repetition_penalty(logits, repetition_penalty, used_tokens):
 def get_model_parallel_src_rank():
     """Calculate the global rank corresponding to the first local rank
     in the model parallel group."""
-    process_rank = torch.distributed.get_rank()
     world_size = torch.distributed.get_world_size()
     all_ranks = np.arange(world_size)
     tp_size = parallel_state.get_tensor_model_parallel_world_size()

@@ -385,7 +385,7 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
         del args['neighbors']
         self.service = FaissRetrievalService(tokenizer=self.model.tokenizer, **args)
         self.chunk_size = self.service.chunk_size
-    
+
     def update_neighbors(self, neighbors):
         # dynamically change the number of neighbors during the query
         self.neighbors = neighbors
