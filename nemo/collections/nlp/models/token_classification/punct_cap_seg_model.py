@@ -25,13 +25,6 @@ from nemo.core.neural_types import LengthsType, LogitsType, NeuralType, TokenInd
 from nemo.utils import logging
 
 
-class Mode(enum.Enum):
-    """Value used in many places. Prefer over passing strings."""
-
-    VAL = "val"
-    TEST = "test"
-
-
 class PunctCapSegModel(NLPModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None) -> None:
         super().__init__(cfg=cfg, trainer=trainer)
@@ -123,12 +116,11 @@ class PunctCapSegModel(NLPModel):
                 dataset.tokenizer = self.tokenizer
 
         # Will be populated when dev/test sets are setup
-        self._dev_metrics: Iterable[nn.ModuleDict] = nn.ModuleList()
-        self._test_metrics: Iterable[nn.ModuleDict] = nn.ModuleList()
+        self._dev_metrics: nn.ModuleList[nn.ModuleDict] = nn.ModuleList()
         if self._validation_dl is not None:
             self._dev_metrics = self._setup_metrics(len(self._validation_dl))
-        if self._test_dl is not None:
-            self._test_metrics = self._setup_metrics(len(self._test_dl))
+        # module list of module dict
+        self._test_metrics: Optional[nn.ModuleList[nn.ModuleDict]] = None
 
     @property
     def max_length(self):
@@ -141,12 +133,9 @@ class PunctCapSegModel(NLPModel):
     def setup_multiple_validation_data(self, val_data_config: Union[DictConfig, Dict]):
         self.setup_validation_data(val_data_config)
 
-    def setup_multiple_test_data(self, test_data_config: Union[DictConfig, Dict]):
-        self.setup_test_data(test_data_config)
-
     def setup_test_data(self, test_data_config: Union[DictConfig, Dict]):
         self._test_dl = self._setup_eval_dataloaders_from_config(cfg=test_data_config)
-        self._test_metrics = self._setup_metrics(len(self._test_dl))
+        self._test_metrics = self._setup_test_metrics(test_data_config.get("num_thresholds", 1))
 
     def setup_validation_data(self, val_data_config: Union[DictConfig, Dict]):
         self._validation_dl = self._setup_eval_dataloaders_from_config(cfg=val_data_config)
@@ -157,7 +146,13 @@ class PunctCapSegModel(NLPModel):
     def setup_training_data(self, train_data_config: Union[DictConfig, Dict]):
         self._train_dl = self._setup_train_dataloader_from_config(cfg=train_data_config)
 
-    def _setup_metrics(self, num_dl: int) -> nn.ModuleList:
+    def _setup_test_metrics(self, num_thresholds: int = 10) -> nn.ModuleList:
+        metrics: nn.ModuleList = nn.ModuleList()
+        for _ in range(num_thresholds):
+            metrics.append(self._setup_metrics(num_dl=1)[0])
+        return metrics
+
+    def _setup_metrics(self, num_dl: int = 1) -> nn.ModuleList:
         """Creates metrics for each data loader. Typically, we have one DL per language.
 
         Metrics are reported for punctuation (pre- and post-token), true casing, segmentation, and loss.
@@ -345,7 +340,7 @@ class PunctCapSegModel(NLPModel):
         self.log('train_loss', loss)
         return loss
 
-    def _eval_step(self, batch: Tuple, mode: Mode, dataloader_idx: int = 0) -> None:
+    def _eval_step(self, batch: Tuple, dataloader_idx: int = 0) -> None:
         loss, punct_pre_logits, punct_post_logits, cap_logits, seg_logits = self._run_step(batch)
         if self._multipass:
             (
@@ -368,8 +363,7 @@ class PunctCapSegModel(NLPModel):
         seg_mask = seg_targets.ne(self._ignore_idx)
         seg_preds = seg_logits.argmax(dim=-1)
 
-        eval_modules: Iterable[nn.ModuleDict] = self._dev_metrics if mode == Mode.VAL else self._test_metrics
-        metrics: nn.ModuleDict = eval_modules[dataloader_idx]
+        metrics: nn.ModuleDict = self._dev_metrics[dataloader_idx]
         punct_pre_mask = punct_pre_targets.ne(self._ignore_idx)
         punct_post_mask = punct_post_targets.ne(self._ignore_idx)
         num_targets = punct_pre_mask.sum() + punct_post_mask.sum() + cap_mask.sum() + seg_mask.sum()
@@ -379,31 +373,84 @@ class PunctCapSegModel(NLPModel):
         metrics["cap_report"](cap_preds, cap_targets[cap_mask])
         metrics["seg_report"](seg_preds[seg_mask], seg_targets[seg_mask])
 
-    def _get_language_for_dl_idx(self, idx: int, mode: Mode) -> str:
-        dl_list = self._validation_dl if mode == Mode.VAL else self._test_dl
-        ds: PunctCapSegDataset = dl_list[idx].dataset
+    def _test_step(self, batch: Tuple, dataloader_idx: int = 0) -> None:
+        loss, punct_pre_logits, punct_post_logits, cap_logits, seg_logits = self._run_step(batch)
+        if self._multipass:
+            (
+                _,
+                _,  # punct, cap/seg inputs (don't need because we ran step)
+                punct_pre_targets,
+                punct_post_targets,
+                cap_targets,
+                seg_targets,
+                _,
+                _,  # punct, cap/seg lengths (don't need because we use pad_id)
+            ) = batch
+        else:
+            _, punct_pre_targets, punct_post_targets, cap_targets, seg_targets, _ = batch
+        # Prepare masks
+        cap_mask = cap_targets.ne(self._ignore_idx)
+        seg_mask = seg_targets.ne(self._ignore_idx)
+        punct_pre_mask = punct_pre_targets.ne(self._ignore_idx)
+        punct_post_mask = punct_post_targets.ne(self._ignore_idx)
+        # Get all probs. All log probs are [B, T, D]
+        punct_pre_probs = punct_pre_logits.softmax(dim=-1)
+        punct_post_probs = punct_post_logits.softmax(dim=-1)
+        seg_probs = seg_logits.softmax(dim=-1)[..., 1]
+        cap_probs = cap_logits[cap_mask].sigmoid()  # Setup as a BCE multi-label problem
+        num_targets = punct_pre_mask.sum() + punct_post_mask.sum() + cap_mask.sum() + seg_mask.sum()
+        # Ignore the punctuation null index, for thresholding purposes
+        punct_pre_probs[..., self._null_punct_pre_index] = -1
+        punct_post_probs[..., self._null_punct_post_index] = -1
+
+        num_thresholds = len(self._test_metrics)
+        # bounds are [0.0, 1.0] inclusive, and N-2 thresholds between bounds. For one, use default 0.5
+        if num_thresholds > 1:
+            thresholds = torch.arange(num_thresholds) / (num_thresholds - 1)
+        else:
+            thresholds = [0.5]
+        punct_pre_scores, punct_pre_preds = punct_pre_probs.max(dim=-1)
+        punct_post_scores, punct_post_preds = punct_post_probs.max(dim=-1)
+        for i, threshold in enumerate(thresholds):
+            seg_preds = seg_probs.ge(threshold)
+            cap_preds = cap_probs.ge(threshold)
+            # Predict null if punctuation scores low
+            pre_threshold_mask = punct_pre_scores.lt(threshold)
+            post_threshold_mask = punct_post_scores.lt(threshold)
+            thresholded_pre_preds = punct_pre_preds.masked_fill(pre_threshold_mask, self._null_punct_pre_index)
+            thresholded_post_preds = punct_post_preds.masked_fill(post_threshold_mask, self._null_punct_pre_index)
+            self._test_metrics[i]["punct_pre_report"](
+                thresholded_pre_preds[punct_pre_mask], punct_pre_targets[punct_pre_mask]
+            )
+            self._test_metrics[i]["punct_post_report"](
+                thresholded_post_preds[punct_post_mask], punct_post_targets[punct_post_mask]
+            )
+            self._test_metrics[i]["cap_report"](cap_preds, cap_targets[cap_mask])
+            self._test_metrics[i]["seg_report"](seg_preds[seg_mask], seg_targets[seg_mask])
+
+    def _get_language_for_dl_idx(self, idx: int) -> str:
+        ds: PunctCapSegDataset = self._validation_dl[idx].dataset
         language = ds.language
         return language
 
-    def _multi_eval_epoch_end(self, mode: Mode, dataloader_idx: int):
+    def _multi_eval_epoch_end(self, dataloader_idx: int):
         """ Epoch end logic for both validation and test """
-        mod_list: Iterable[nn.ModuleDict] = self._dev_metrics if mode == Mode.VAL else self._test_metrics
-        metric_dict: nn.ModuleDict = mod_list[dataloader_idx]
+        metric_dict: nn.ModuleDict = self._dev_metrics[dataloader_idx]
         # Resolve language for better logging
-        language = self._get_language_for_dl_idx(dataloader_idx, mode)
+        language = self._get_language_for_dl_idx(dataloader_idx)
 
         # Compute, reset, and log the loss for this language
         loss = metric_dict["loss"].compute()
         metric_dict["loss"].reset()
-        self.log(f"{mode.value}_{language}_loss", loss)
+        self.log(f"val_{language}_loss", loss)
 
         # Compute, reset, and log the precision/recall/f1 for punct/cap/seg for this language
         for analytic in ["punct_pre", "punct_post", "cap", "seg"]:
             precision, recall, f1, report = metric_dict[f"{analytic}_report"].compute()
             metric_dict[f"{analytic}_report"].reset()
-            self.log(f"{mode.value}_{language}_{analytic}_precision", precision)
-            self.log(f"{mode.value}_{language}_{analytic}_recall", recall)
-            self.log(f"{mode.value}_{language}_{analytic}_f1", f1)
+            self.log(f"val_{language}_{analytic}_precision", precision)
+            self.log(f"val_{language}_{analytic}_recall", recall)
+            self.log(f"val_{language}_{analytic}_f1", f1)
             logging.info(f"{analytic} report for '{language}': {report}")
 
     # TODO re-enable these, in the case of using only one language.
@@ -414,20 +461,29 @@ class PunctCapSegModel(NLPModel):
     #     self.multi_validation_epoch_end(outputs=outputs, dataloader_idx=0)
     #
     def test_epoch_end(self, outputs) -> None:
-        # Always use multi implementation and just use index 0.
-        self.multi_test_epoch_end(outputs=outputs, dataloader_idx=0)
+        num_thresholds = len(self._test_metrics)
+        if num_thresholds > 1:
+            thresholds = torch.arange(num_thresholds) / (num_thresholds - 1)
+        else:
+            thresholds = [0.5]
+        # Compute, reset, and log the precision/recall/f1 for punct/cap/seg for this threshold
+        for analytic in ["punct_pre", "punct_post", "cap", "seg"]:
+            print(f"Table for {analytic}")
+            print(f"threshold\tprecision\trecall\tf1")
+            for i, metrics in enumerate(self._test_metrics):
+                precision, recall, f1, report = metrics[f"{analytic}_report"].compute()
+                threshold = thresholds[i]
+                print(f"{threshold:0.2f}\t{precision:0.2f}\t{recall:0.2f}\t{f1:0.2f}")
+                metrics[f"{analytic}_report"].reset()
 
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0) -> None:
-        self._multi_eval_epoch_end(Mode.VAL, dataloader_idx)
+        self._multi_eval_epoch_end(dataloader_idx)
 
     def validation_step(self, batch: Tuple[torch.Tensor], batch_idx: int, dataloader_idx: int = 0) -> None:
-        self._eval_step(batch=batch, mode=Mode.VAL, dataloader_idx=dataloader_idx)
-
-    def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0) -> None:
-        self._multi_eval_epoch_end(Mode.TEST, dataloader_idx)
+        self._eval_step(batch=batch, dataloader_idx=dataloader_idx)
 
     def test_step(self, batch: Tuple[torch.Tensor], batch_idx: int, dataloader_idx: int = 0) -> None:
-        self._eval_step(batch=batch, mode=Mode.TEST, dataloader_idx=dataloader_idx)
+        self._test_step(batch=batch, dataloader_idx=dataloader_idx)
 
     def on_validation_epoch_start(self) -> None:
         # For datasets that generate examples on-the-fly, reset the RNG so we get the same examples every
