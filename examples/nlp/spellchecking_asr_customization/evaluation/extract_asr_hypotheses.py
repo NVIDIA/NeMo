@@ -1,18 +1,14 @@
 import json
 import os
 import re
+from argparse import ArgumentParser
 from collections import Counter
+
 from tqdm.auto import tqdm
 
-from argparse import ArgumentParser
-
 parser = ArgumentParser(description="Analyze errors in ASR predictions")
-parser.add_argument(
-    "--manifest", required=True, type=str, help='Path to manifest file'
-)
-parser.add_argument(
-    "--folder", required=True, type=str, help='Path to output folder'
-)
+parser.add_argument("--manifest", required=True, type=str, help='Path to manifest file')
+parser.add_argument("--folder", required=True, type=str, help='Path to output folder')
 args = parser.parse_args()
 
 
@@ -52,14 +48,8 @@ for sent, path in zip(pred_text, audio_filepath):
 
     words = sent.split()
     for i in range(0, len(words), 2):
-        short_sent = " ".join(words[i:i+10])
+        short_sent = " ".join(words[i : i + 10])
         if len(short_sent) > 8:
             hypotheses.append((short_sent, sent))
 
 save_hypotheses(hypotheses, last_doc_id)
-
-
-        
-        
-
-
