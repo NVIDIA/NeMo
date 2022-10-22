@@ -27,9 +27,7 @@ parser.add_argument("--data_dir", type=str, required=True, help="Path to folder 
 parser.add_argument("--out_filename", type=str, required=True, help="Path to output file")
 parser.add_argument("--lang", required=True, type=str, help="Language, e.g. en")
 parser.add_argument(
-    "--tn_direction",
-    action='store_true',
-    help="Whether to run in TN direction, default is ITN",
+    "--tn_direction", action='store_true', help="Whether to run in TN direction, default is ITN",
 )
 args = parser.parse_args()
 

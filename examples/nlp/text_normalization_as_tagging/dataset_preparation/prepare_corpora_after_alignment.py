@@ -25,8 +25,7 @@ from argparse import ArgumentParser
 from collections import Counter
 from typing import Dict, Optional, TextIO, Tuple
 
-from nemo.collections.nlp.data.text_normalization_as_tagging.utils import get_src_and_dst_for_alignment
-from nemo.collections.nlp.data.text_normalization_as_tagging.utils import alpha_tokenize
+from nemo.collections.nlp.data.text_normalization_as_tagging.utils import alpha_tokenize, get_src_and_dst_for_alignment
 from nemo.utils import logging
 
 parser = ArgumentParser(description="Produce data for the ThutmoseTaggerModel")
@@ -78,7 +77,9 @@ def process_file(inputname: str, out: TextIO, keys2replacements: Dict[str, str],
                 cls, written, spoken = line.strip().split("\t")
                 if spoken == "sil":
                     if tn:
-                        if " " in written:  # this means there is an error in corpus, will lead to token number mismatch
+                        if (
+                            " " in written
+                        ):  # this means there is an error in corpus, will lead to token number mismatch
                             sent_is_ok = False
                         else:
                             words.append(written.casefold())
@@ -112,8 +113,7 @@ def process_file(inputname: str, out: TextIO, keys2replacements: Dict[str, str],
                     if tn:
                         inputs, targets = replacements, spoken_words
                     for w, r in zip(
-                        same_from_begin + inputs + same_from_end,
-                        same_from_begin + targets + same_from_end
+                        same_from_begin + inputs + same_from_end, same_from_begin + targets + same_from_end
                     ):
                         words.append(w)
                         if cls == "LETTERS" or cls == "PLAIN":
@@ -370,7 +370,9 @@ def get_labeled_corpus(tn: bool = False) -> None:
             for line in f:
                 cls, src, dst, replacements = line.strip().split("\t")
                 if tn:
-                    replacements = replacements.replace("_", "").replace("<<", "")  # remove special tokenization symbols
+                    replacements = replacements.replace("_", "").replace(
+                        "<<", ""
+                    )  # remove special tokenization symbols
                     if replacements == "" or replacements == " ":
                         print("WARNING: empty replacements: ", line)
                         continue
@@ -444,8 +446,15 @@ def get_labeled_corpus_for_tn_tokenizer() -> None:
                 while len(token_labels) < len(alpha_tokens):
                     if i >= len(written_segments):
                         raise IndexError(
-                            "i=" + str(i) + "; written_segments=" + str(written_segments) + "; token_labels=" + str(
-                                token_labels) + "; line=" + line)
+                            "i="
+                            + str(i)
+                            + "; written_segments="
+                            + str(written_segments)
+                            + "; token_labels="
+                            + str(token_labels)
+                            + "; line="
+                            + line
+                        )
                     segment = written_segments[i]
                     i += 1
 
@@ -489,7 +498,7 @@ def get_labeled_corpus_for_tn_tokenizer() -> None:
                         "keys2replacements[key] != replacements",
                         keys2replacements[key],
                         written_tokens_str,
-                        " ".join(token_labels)
+                        " ".join(token_labels),
                     )
                 keys2replacements[key] = value
     print("size of phrase-to-replacements dictionary =", len(keys2replacements))

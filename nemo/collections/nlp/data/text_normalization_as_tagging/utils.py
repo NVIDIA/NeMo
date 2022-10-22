@@ -37,10 +37,11 @@ UNICODE_VULGAR_FRACTIONS = {
     "⅛": "1/8",
     "⅜": "3/8",
     "⅝": "5/8",
-    "⅞": "7/8"
+    "⅞": "7/8",
 }
 
 UNICODE_VULGAR_FRACTIONS_SET = set(UNICODE_VULGAR_FRACTIONS.keys())
+
 
 def get_token_list(text: str) -> List[str]:
     """Returns a list of tokens.

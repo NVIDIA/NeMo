@@ -23,8 +23,11 @@ from argparse import ArgumentParser
 from collections import Counter
 from typing import Dict, TextIO, Tuple
 
-from nemo.collections.nlp.data.text_normalization_as_tagging.utils import alpha_tokenize, spoken_preprocessing, written_preprocessing
-
+from nemo.collections.nlp.data.text_normalization_as_tagging.utils import (
+    alpha_tokenize,
+    spoken_preprocessing,
+    written_preprocessing,
+)
 
 parser = ArgumentParser(description="Text Normalization Data Preprocessing for English")
 parser.add_argument(
@@ -37,9 +40,7 @@ parser.add_argument(
     "--sampling_count", required=True, type=int, help="Number of examples per class, you want, use -1 for all examples"
 )
 parser.add_argument(
-    "--tn_direction",
-    action='store_true',
-    help="Whether to run in TN direction, default is ITN",
+    "--tn_direction", action='store_true', help="Whether to run in TN direction, default is ITN",
 )
 args = parser.parse_args()
 
@@ -89,7 +90,12 @@ def process_file(
             if line.startswith("<eos>"):
                 if len(input_tokens) > 0 and sent_ok:
                     out.write(
-                        " ".join(input_tokens) + "\t" + " ".join(reference_fragments) + "\t" + ";".join(semiotic_info) + "\n"
+                        " ".join(input_tokens)
+                        + "\t"
+                        + " ".join(reference_fragments)
+                        + "\t"
+                        + ";".join(semiotic_info)
+                        + "\n"
                     )
                     out_raw.write("\n".join(raw_lines) + "\n" + line)
                 input_tokens = []

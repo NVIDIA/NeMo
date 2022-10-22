@@ -46,6 +46,7 @@ __all__ = ["ThutmoseTaggerWithAftertagsModel"]
       
 """
 
+
 @experimental
 class ThutmoseTaggerWithAftertagsModel(ThutmoseTaggerModel):
     """
@@ -90,7 +91,11 @@ class ThutmoseTaggerWithAftertagsModel(ThutmoseTaggerModel):
         )
 
         self.builder = bert_example.BertExampleBuilder(
-            self.label_map, self.after_label_map, self.semiotic_classes, self.tokenizer.tokenizer, self.max_sequence_len
+            self.label_map,
+            self.after_label_map,
+            self.semiotic_classes,
+            self.tokenizer.tokenizer,
+            self.max_sequence_len,
         )
 
     @typecheck()
@@ -110,7 +115,9 @@ class ThutmoseTaggerWithAftertagsModel(ThutmoseTaggerModel):
         """
 
         input_ids, input_mask, segment_ids, labels_mask, labels, after_labels, semiotic_labels, _ = batch
-        tag_logits, after_tag_logits, semiotic_logits = self.forward(input_ids=input_ids, input_mask=input_mask, segment_ids=segment_ids)
+        tag_logits, after_tag_logits, semiotic_logits = self.forward(
+            input_ids=input_ids, input_mask=input_mask, segment_ids=segment_ids
+        )
         loss_on_tags = self.loss_fn(logits=tag_logits, labels=labels, loss_mask=labels_mask)
         loss_on_after_tags = self.loss_fn(logits=after_tag_logits, labels=after_labels, loss_mask=labels_mask)
         loss_on_semiotic = self.loss_fn(logits=semiotic_logits, labels=semiotic_labels, loss_mask=labels_mask)
@@ -126,8 +133,19 @@ class ThutmoseTaggerWithAftertagsModel(ThutmoseTaggerModel):
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
         """
-        input_ids, input_mask, segment_ids, labels_mask, tag_labels, after_tag_labels, semiotic_labels, semiotic_spans = batch
-        tag_logits, after_tag_logits, semiotic_logits = self.forward(input_ids=input_ids, input_mask=input_mask, segment_ids=segment_ids)
+        (
+            input_ids,
+            input_mask,
+            segment_ids,
+            labels_mask,
+            tag_labels,
+            after_tag_labels,
+            semiotic_labels,
+            semiotic_spans,
+        ) = batch
+        tag_logits, after_tag_logits, semiotic_logits = self.forward(
+            input_ids=input_ids, input_mask=input_mask, segment_ids=segment_ids
+        )
         tag_preds = torch.argmax(tag_logits, dim=2)
         after_tag_preds = torch.argmax(after_tag_logits, dim=2)
         semiotic_preds = torch.argmax(semiotic_logits, dim=2)
@@ -294,7 +312,12 @@ class ThutmoseTaggerWithAftertagsModel(ThutmoseTaggerModel):
         _, tag_accuracy, _, tag_report = self.tag_classification_report.compute()
         _, tag_multiword_accuracy, _, tag_multiword_report = self.tag_multiword_classification_report.compute()
         _, after_tag_accuracy, _, after_tag_report = self.after_tag_classification_report.compute()
-        _, after_tag_multiword_accuracy, _, after_tag_multiword_report = self.after_tag_multiword_classification_report.compute()
+        (
+            _,
+            after_tag_multiword_accuracy,
+            _,
+            after_tag_multiword_report,
+        ) = self.after_tag_multiword_classification_report.compute()
         _, semiotic_accuracy, _, semiotic_report = self.semiotic_classification_report.compute()
 
         logging.info("Total tag accuracy: " + str(tag_accuracy))
@@ -323,7 +346,7 @@ class ThutmoseTaggerWithAftertagsModel(ThutmoseTaggerModel):
         self.after_tag_multiword_classification_report.reset()
         self.semiotic_classification_report.reset()
 
-     # Functions for inference
+    # Functions for inference
     @torch.no_grad()
     def _infer(self, sents: List[str]) -> List[List[int]]:
         """ Main function for Inference
