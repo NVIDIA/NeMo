@@ -1,18 +1,19 @@
 import argparse
-import os
 import json
+import multiprocessing
+import os
 
 import sox
-from sox import Transformer
 import tqdm
-import multiprocessing
+from sox import Transformer
 from tqdm.contrib.concurrent import process_map
-
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--manifest', required=True, type=str, help='path to the original manifest')
 parser.add_argument("--num_workers", default=multiprocessing.cpu_count(), type=int, help="Workers to process dataset.")
-parser.add_argument("--destination_folder", required=True, type=str, help="Destination folder where audio files will be stored")
+parser.add_argument(
+    "--destination_folder", required=True, type=str, help="Destination folder where audio files will be stored"
+)
 args = parser.parse_args()
 
 
@@ -27,9 +28,8 @@ def process(x):
     tfm = Transformer()
     tfm.rate(samplerate=16000)
     tfm.channels(n_channels=1)
-    tfm.build(input_filepath=x['audio_filepath'],
-              output_filepath=output_wav_path)
-    #x['duration'] = sox.file_info.duration(output_wav_path) 
+    tfm.build(input_filepath=x['audio_filepath'], output_filepath=output_wav_path)
+    # x['duration'] = sox.file_info.duration(output_wav_path)
     x['audio_filepath'] = output_wav_path
     return x
 

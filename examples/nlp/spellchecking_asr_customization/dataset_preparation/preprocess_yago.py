@@ -9,6 +9,7 @@ parser.add_argument("--vocab_name", type=str, required=True, help="Output vocab 
 
 args = parser.parse_args()
 
+
 def replace_diacritics(text):
     text = re.sub(r"[éèëēêęěė]", "e", text)
     text = re.sub(r"[ãâāáäăâàąåạả]", "a", text)
@@ -38,7 +39,7 @@ with open(args.input_name, "r", encoding="utf-8") as inp:
         s = line.strip()
         s = s.replace("<", "").replace(">", "")
         s = s.casefold()
-        s = re.sub(r"\(.+\)", r"", s)   #delete brackets
+        s = re.sub(r"\(.+\)", r"", s)  # delete brackets
         s = s.replace("_", " ")
         s = s.replace("/", ",")
         parts = s.split(",")
@@ -69,5 +70,3 @@ out.close()
 with open(args.vocab_name, "w", encoding="utf-8") as out:
     for w in sorted(list(vocab)):
         out.write(" ".join(list(w)) + "\n")
-
-

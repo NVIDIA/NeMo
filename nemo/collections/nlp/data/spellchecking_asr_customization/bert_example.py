@@ -14,16 +14,17 @@
 # limitations under the License.
 
 import logging
+import pdb
 from collections import OrderedDict
 from os import path
 from typing import Dict, List, Optional, Tuple, Union
 
 from transformers import PreTrainedTokenizerBase
 
-import pdb
 
 """Build BERT Examples from asr hypothesis, customization candidate, target labels, span info.
 """
+
 
 class BertExample(object):
     """Class for training and inference examples for BERT.
@@ -85,9 +86,7 @@ class BertExample(object):
                 with ID 0.
         """
         pad_len = max_seq_length - len(self.features['input_ids'])
-        self.features["spans"].extend(
-            [(-1, -1, -1)] * (max_spans_length - len(self.features["spans"]))
-        )
+        self.features["spans"].extend([(-1, -1, -1)] * (max_spans_length - len(self.features["spans"])))
         for key in self.features:
             if key == "spans":
                 continue
@@ -172,7 +171,10 @@ class BertExampleBuilder(object):
 
         if len(input_ids) != len(segment_ids):
             raise ValueError(
-                "len(input_ids)=" + str(len(input_ids)) + " is different from len(segment_ids)=" + str(len(segment_ids))
+                "len(input_ids)="
+                + str(len(input_ids))
+                + " is different from len(segment_ids)="
+                + str(len(segment_ids))
             )
 
         if "PLAIN" not in self._semiotic_classes:
@@ -236,7 +238,7 @@ class BertExampleBuilder(object):
             default_label=0,
         )
         example.pad_to_max_length(self._max_seq_length, self._max_spans_length, self._pad_id)
-        #pdb.set_trace()
+        # pdb.set_trace()
         return example
 
     def build_bert_example(
@@ -259,7 +261,7 @@ class BertExampleBuilder(object):
                 c, start, end = p.split(" ")
                 start = int(start)
                 end = int(end)
-                tags[start:end] = [int(t) for i in range(end-start)]
+                tags[start:end] = [int(t) for i in range(end - start)]
 
         hyp_tokens, labels, token_start_indices = self._split_to_wordpieces_with_labels(hyp.split(), tags)
         references = ref.split(";")
@@ -270,7 +272,7 @@ class BertExampleBuilder(object):
             all_ref_tokens.extend(ref_tokens + ["[SEP]"])
             all_ref_segment_ids.extend([i + 1] * (len(ref_tokens) + 1))
 
-        input_tokens = ["[CLS]"] + hyp_tokens + ["[SEP]"] + all_ref_tokens   # ends with [SEP]
+        input_tokens = ["[CLS]"] + hyp_tokens + ["[SEP]"] + all_ref_tokens  # ends with [SEP]
         labels_mask = [0] + [1] * len(labels) + [0] + [0] * len(all_ref_tokens)
         labels = [0] + labels + [0] + [0] * len(all_ref_tokens)
 
@@ -280,7 +282,10 @@ class BertExampleBuilder(object):
 
         if len(input_ids) != len(segment_ids):
             raise ValueError(
-                "len(input_ids)=" + str(len(input_ids)) + " is different from len(segment_ids)=" + str(len(segment_ids))
+                "len(input_ids)="
+                + str(len(input_ids))
+                + " is different from len(segment_ids)="
+                + str(len(segment_ids))
             )
 
         if "PLAIN" not in self._semiotic_classes:
@@ -344,8 +349,9 @@ class BertExampleBuilder(object):
         )
         return example
 
-
-    def _split_to_wordpieces_with_labels(self, tokens: List[str], labels: List[int]) -> Tuple[List[str], List[int], List[int]]:
+    def _split_to_wordpieces_with_labels(
+        self, tokens: List[str], labels: List[int]
+    ) -> Tuple[List[str], List[int], List[int]]:
         """Splits tokens (and the labels accordingly) to WordPieces.
 
         Args:
