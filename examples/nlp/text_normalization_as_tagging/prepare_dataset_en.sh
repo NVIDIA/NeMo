@@ -22,7 +22,6 @@ MCKLS_BINARY=
 ## initial unzipped Google Text Normalization Dataset, e.g. /home/user/data/en_with_types
 GOOGLE_CORPUS_DIR=
 
-
 ## corpus language
 CORPUS_LANG=en
 
@@ -38,12 +37,25 @@ ALIGNMENT_DIR=${WORK_DIR}/alignment
 ## option --add_test_full=true creates additional test_full folder, which is not truncated
 python ${NEMO_PATH}/examples/nlp/duplex_text_normalization/data/data_split.py \
   --data_dir=${GOOGLE_CORPUS_DIR} \
-  --output_dir=${CORPUS_DIR} \
+  --output_dir=${CORPUS_DIR}_tmp \
   --lang=${CORPUS_LANG} \
   --add_test_full
 
 ## we need only output-00099-of-00100.tsv as the final test data
 rm ${CORPUS_DIR}/test/output-00095-of-00100.tsv ${CORPUS_DIR}/test/output-00096-of-00100.tsv ${CORPUS_DIR}/test/output-00097-of-00100.tsv ${CORPUS_DIR}/test/output-00098-of-00100.tsv
+
+## apply a blacklist of erroneous conversions to remove the sentences containing them from the corpus
+mkdir ${CORPUS_DIR}
+python ${NEMO_PATH}/examples/nlp/text_normalization_as_tagging/dataset_preparation/filter_sentences_with_errors.py \
+  --data_dir=${CORPUS_DIR}_tmp \
+  --out_dir=${CORPUS_DIR} \
+  --lang=${CORPUS_LANG} \
+  --errors_vocab_filename=${NEMO_PATH}/examples/nlp/text_normalization_as_tagging/dataset_preparation/corpus_errors.${CORPUS_LANG}
+
+## delete debug files with filtered sentences
+rm ${CORPUS_DIR}/*/*.bad
+
+rm -r ${CORPUS_DIR}_tmp
 
 ## This script extracts all unique ITN phrase-pairs from the Google TN dataset, tokenizes them and stores in separate
 ## folders for each semiotic class. In each folder we generate a bash script for running the alignment.
@@ -55,8 +67,10 @@ python ${NEMO_PATH}/examples/nlp/text_normalization_as_tagging/dataset_preparati
   --mckls_binary=${MCKLS_BINARY} \
   --lang=${CORPUS_LANG}
 
-##exclude punct class
+## exclude classes we do not need
 rm -r ${ALIGNMENT_DIR}/punct
+rm -r ${ALIGNMENT_DIR}/electronic
+rm -r ${ALIGNMENT_DIR}/plain
 
 ## for better GIZA++ alignments mix in examples from other classes
 ## they will append to the tail of "src" and "dst" files and they will not have corresponding freqs in "freq" file
@@ -84,7 +98,6 @@ do
         ${ALIGNMENT_DIR}/cardinal/${fn} \
         ${ALIGNMENT_DIR}/measure/${fn} \
         ${ALIGNMENT_DIR}/money/${fn} > ${ALIGNMENT_DIR}/decimal/${fn}.new
-
 done
 
 for c in "decimal" "fraction" "measure" "money"
@@ -92,6 +105,7 @@ do
     mv ${ALIGNMENT_DIR}/${c}/src.new ${ALIGNMENT_DIR}/${c}/src
     mv ${ALIGNMENT_DIR}/${c}/dst.new ${ALIGNMENT_DIR}/${c}/dst
 done
+
 
 for subfolder in ${ALIGNMENT_DIR}/*
 do
@@ -139,38 +153,36 @@ python ${NEMO_PATH}/examples/nlp/text_normalization_as_tagging/dataset_preparati
 
 ## Here we put some voluntary thresholds on how many tags we take.
 ## Tags with low frequencies are likely to be derived from sporadic alignment mistakes
-grep -v "0__" ${WORK_DIR}/replacement_vocab_full.txt.verbatim | head -n 108 > ${WORK_DIR}/replacement_vocab_verbatim.txt
-grep -v "0__" ${WORK_DIR}/replacement_vocab_full.txt.time | head -n 148 > ${WORK_DIR}/replacement_vocab_time.txt
-grep -v "0__" ${WORK_DIR}/replacement_vocab_full.txt.telephone | head -n 52 > ${WORK_DIR}/replacement_vocab_telephone.txt
-head -n 0 ${WORK_DIR}/replacement_vocab_full.txt.plain > ${WORK_DIR}/replacement_vocab_plain.txt
-grep -v "0__" ${WORK_DIR}/replacement_vocab_full.txt.ordinal | head -n 251 > ${WORK_DIR}/replacement_vocab_ordinal.txt
-grep -v "0__" ${WORK_DIR}/replacement_vocab_full.txt.money | grep -v "a__" | head -n 532 > ${WORK_DIR}/replacement_vocab_money.txt
-grep -v "0__" ${WORK_DIR}/replacement_vocab_full.txt.measure | head -n 488 > ${WORK_DIR}/replacement_vocab_measure.txt
-head -n 257 ${WORK_DIR}/replacement_vocab_full.txt.letters > ${WORK_DIR}/replacement_vocab_letters.txt
-grep -v "0__" ${WORK_DIR}/replacement_vocab_full.txt.fraction | head -n 169 > ${WORK_DIR}/replacement_vocab_fraction.txt
-head -n 276 ${WORK_DIR}/replacement_vocab_full.txt.electronic > ${WORK_DIR}/replacement_vocab_electronic.txt
-head -n 73 ${WORK_DIR}/replacement_vocab_full.txt.digit > ${WORK_DIR}/replacement_vocab_digit.txt
-grep -v "0__" ${WORK_DIR}/replacement_vocab_full.txt.decimal | head -n 149 > ${WORK_DIR}/replacement_vocab_decimal.txt
-grep -v "0__" ${WORK_DIR}/replacement_vocab_full.txt.date | grep -v "[0-9]-[0-9]" | grep -v "[0-9]\,[0-9]" | grep -v "[0-9]\.[0-9]" | grep -v "[0-9]\/[0-9]" | head -n 554 > ${WORK_DIR}/replacement_vocab_date.txt
-grep -v "0__" ${WORK_DIR}/replacement_vocab_full.txt.cardinal | head -n 402 > ${WORK_DIR}/replacement_vocab_cardinal.txt
-head -n 137 ${WORK_DIR}/replacement_vocab_full.txt.address > ${WORK_DIR}/replacement_vocab_address.txt
+head -n 4 replacement_vocab_full.txt.verbatim > replacement_vocab_verbatim.txt
+head -n 203 replacement_vocab_full.txt.time | grep -v "__" > replacement_vocab_time.txt
+head -n 0 replacement_vocab_full.txt.telephone > replacement_vocab_telephone.txt
+head -n 0 replacement_vocab_full.txt.plain > replacement_vocab_plain.txt
+head -n 130 replacement_vocab_full.txt.ordinal > replacement_vocab_ordinal.txt
+head -n 290 replacement_vocab_full.txt.money | grep -v "0__" | grep -v "__1" > replacement_vocab_money.txt
+head -n 319 replacement_vocab_full.txt.measure | grep -v "__" > replacement_vocab_measure.txt
+head -n 257 replacement_vocab_full.txt.letters > replacement_vocab_letters.txt
+head -n 183 replacement_vocab_full.txt.fraction > replacement_vocab_fraction.txt
+head -n 0 replacement_vocab_full.txt.electronic > replacement_vocab_electronic.txt
+head -n 60 replacement_vocab_full.txt.digit > replacement_vocab_digit.txt
+head -n 93 replacement_vocab_full.txt.decimal > replacement_vocab_decimal.txt
+head -n 322 replacement_vocab_full.txt.date > replacement_vocab_date.txt
+head -n 239 replacement_vocab_full.txt.cardinal > replacement_vocab_cardinal.txt
+head -n 121 replacement_vocab_full.txt.address > replacement_vocab_address.txt
 
 ## concatenate all tags in a single vocabulary (repetitions don't matter)
-cat ${WORK_DIR}/replacement_vocab_address.txt \
-  ${WORK_DIR}/replacement_vocab_cardinal.txt \
-  ${WORK_DIR}/replacement_vocab_date.txt \
-  ${WORK_DIR}/replacement_vocab_decimal.txt \
-  ${WORK_DIR}/replacement_vocab_digit.txt \
-  ${WORK_DIR}/replacement_vocab_electronic.txt \
-  ${WORK_DIR}/replacement_vocab_fraction.txt \
-  ${WORK_DIR}/replacement_vocab_letters.txt \
-  ${WORK_DIR}/replacement_vocab_measure.txt \
-  ${WORK_DIR}/replacement_vocab_money.txt \
-  ${WORK_DIR}/replacement_vocab_ordinal.txt \
-  ${WORK_DIR}/replacement_vocab_plain.txt \
-  ${WORK_DIR}/replacement_vocab_telephone.txt \
-  ${WORK_DIR}/replacement_vocab_time.txt \
-  ${WORK_DIR}/replacement_vocab_verbatim.txt > ${WORK_DIR}/replacement_vocab.select.txt
+cat replacement_vocab_address.txt \
+  replacement_vocab_cardinal.txt \
+  replacement_vocab_date.txt \
+  replacement_vocab_decimal.txt \
+  replacement_vocab_digit.txt \
+  replacement_vocab_fraction.txt \
+  replacement_vocab_letters.txt \
+  replacement_vocab_measure.txt \
+  replacement_vocab_money.txt \
+  replacement_vocab_ordinal.txt \
+  replacement_vocab_telephone.txt \
+  replacement_vocab_time.txt \
+  replacement_vocab_verbatim.txt > replacement_vocab.select.txt
 
 ## Here we loop once again through the alignments and discard those examples that are not fully covered
 ## by our restricted tag vocabulary
@@ -257,8 +269,10 @@ cp ${CORPUS_DIR}/semiotic_classes.txt ${WORK_DIR}/datasets/semiotic_classes.txt
 ## The following script maps the whole input text of ITN span to the list of different conversions that occurred
 ## with this input anywhere in the Google TN Dataset.
 python ${NEMO_PATH}/examples/nlp/text_normalization_as_tagging/evaluation/get_multi_reference_vocab.py \
+  --lang=en \
   --data_dir=${CORPUS_DIR} \
   --out_filename=${CORPUS_DIR}/reference_vocab.txt
+
 
 ## Filter some errors from the obtained multi-reference vocabulary
 grep -P "[\d] m[\t]" ${CORPUS_DIR}/reference_vocab.txt | grep -v -P "^MEASURE" | grep -v -P "^MONEY" > ${CORPUS_DIR}/reference_vocab.bad1
@@ -276,7 +290,8 @@ python ${NEMO_PATH}/examples/nlp/text_normalization_as_tagging/evaluation/prepar
   --data_dir=${CORPUS_DIR}/test \
   --reference_vocab=${CORPUS_DIR}/reference_vocab.filt \
   --output_file=${WORK_DIR}/datasets/test.labeled \
-  --sampling_count=-1
+  --sampling_count=-1 \
+  --lang=en
 awk 'BEGIN {FS="\t"}{print $1}' < ${WORK_DIR}/datasets/test.labeled > ${WORK_DIR}/datasets/test.input
 awk 'BEGIN {FS="\t"}{print $1 "\t" $3}' < ${WORK_DIR}/datasets/test.labeled > ${WORK_DIR}/datasets/test.input_ref
 
@@ -284,11 +299,21 @@ awk 'BEGIN {FS="\t"}{print $1 "\t" $3}' < ${WORK_DIR}/datasets/test.labeled > ${
 ## We try to sample at least 1000 examples per semiotic class.
 python ${NEMO_PATH}/examples/nlp/text_normalization_as_tagging/evaluation/prepare_corpora_for_testing.py \
   --data_dir=${CORPUS_DIR}/test_full \
-  --reference_vocab=${CORPUS_DIR}/reference_vocab.txt \
+  --reference_vocab=${CORPUS_DIR}/reference_vocab.filt \
   --output_file=${WORK_DIR}/datasets/test1000.labeled \
-  --sampling_count=1000
+  --sampling_count=1000 \
+  --lang=en
 awk 'BEGIN {FS="\t"}{print $1}' < ${WORK_DIR}/datasets/test1000.labeled > ${WORK_DIR}/datasets/test1000.input
 awk 'BEGIN {FS="\t"}{print $1 "\t" $3}' < ${WORK_DIR}/datasets/test1000.labeled > ${WORK_DIR}/datasets/test1000.input_ref
+
+DATASET=${WORK_DIR}/datasets/itn_sample500k_rest1500k_select_vocab
+mkdir $DATASET
+cat ${CORPUS_DIR}/train.labeled.sample_500 > ${DATASET}/train.tsv
+head -n 1500000 ${CORPUS_DIR}/train.labeled.rest_500 >> ${DATASET}/train.tsv
+cat ${CORPUS_DIR}/dev.labeled.sample_10 > ${DATASET}/valid.tsv
+head -n 12000 ${CORPUS_DIR}/dev.labeled.rest_10 >> ${DATASET}/valid.tsv
+cp ${DATASET}/valid.tsv ${DATASET}/test.tsv
+
 
 ## After we have train a model, we can run inference and evaluation like below
 
