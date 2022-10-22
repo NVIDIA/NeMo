@@ -1,14 +1,16 @@
 import argparse
+import json
 import os
 import re
-from tqdm.auto import tqdm
-import json
-
 from collections import defaultdict
+
+from tqdm.auto import tqdm
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--asr_hypotheses_folder", required=True, type=str, help="Input folder with asr hypotheses")
-parser.add_argument("--spellchecker_results_folder", required=True, type=str, help="Input folder with spellchecker output")
+parser.add_argument(
+    "--spellchecker_results_folder", required=True, type=str, help="Input folder with spellchecker output"
+)
 parser.add_argument("--input_manifest", required=True, type=str, help="Manifest with trancription before correction")
 parser.add_argument("--output_manifest", required=True, type=str, help="Manifest with trancription after correction")
 args = parser.parse_args()
@@ -22,6 +24,7 @@ def read_manifest(path):
             data = json.loads(line)
             manifest.append(data)
     return manifest
+
 
 def check_banned_replacements(src, dst):
     if src.endswith(" l") and dst.endswith(" l y") and src[0:-2] == dst[0:-4]:
@@ -193,21 +196,42 @@ def check_banned_replacements(src, dst):
     if dst.startswith("r e ") and dst[4:] == src:
         return True
 
-    if dst == "t h r o u g h" or dst == "w i t h" or dst == "y o u ' v e" or dst == "w e ' v e" or dst == "a c t" or dst == "s e p t e m b e r" or dst == "n o v e m b e r" or dst == "o c t o b e r" or dst == "m a y" or dst == "j a n u a r y" or dst == "f e b r u a r y" or dst == "d e c e m b e r":
+    if (
+        dst == "t h r o u g h"
+        or dst == "w i t h"
+        or dst == "y o u ' v e"
+        or dst == "w e ' v e"
+        or dst == "a c t"
+        or dst == "s e p t e m b e r"
+        or dst == "n o v e m b e r"
+        or dst == "o c t o b e r"
+        or dst == "m a y"
+        or dst == "j a n u a r y"
+        or dst == "f e b r u a r y"
+        or dst == "d e c e m b e r"
+    ):
         return True
 
     if src != dst and (src.startswith(dst) or dst.startswith(src) or src.endswith(dst) or dst.endswith(src)):
         return True
 
-    dummy_candidates = ["a g k t t r k n a p r t f", "v w w x y x u r t g p w q", "n t r y t q q r u p t l n t", "p b r t u r e t f v w x u p z", "p p o j j k l n b f q t", "j k y u i t d s e w s r e j h i p p", "q w r e s f c t d r q g g y"]
+    dummy_candidates = [
+        "a g k t t r k n a p r t f",
+        "v w w x y x u r t g p w q",
+        "n t r y t q q r u p t l n t",
+        "p b r t u r e t f v w x u p z",
+        "p p o j j k l n b f q t",
+        "j k y u i t d s e w s r e j h i p p",
+        "q w r e s f c t d r q g g y",
+    ]
     if dst in dummy_candidates:
-       return True
+        return True
 
     return False
-    
+
 
 final_corrections = defaultdict(str)
-banned_count=0
+banned_count = 0
 for name in os.listdir(args.spellchecker_results_folder):
     doc_id, _ = name.split(".")
     short2full_sent = defaultdict(list)
@@ -219,7 +243,7 @@ for name in os.listdir(args.spellchecker_results_folder):
                 short_sent, full_sent = s.split("\t")
                 short_sent = " ".join(list(short_sent.replace(" ", "_")))
                 full_sent = " ".join(list(full_sent.replace(" ", "_")))
-                short2full_sent[short_sent].append(full_sent) 
+                short2full_sent[short_sent].append(full_sent)
         print("len(short2full_sent)=", len(short2full_sent))
     except:
         continue
@@ -234,11 +258,11 @@ for name in os.listdir(args.spellchecker_results_folder):
             if short_sent not in short2full_sent:
                 continue
             if check_banned_replacements(src, dst):
-                print ("!!!", src, " => ", dst)
+                print("!!!", src, " => ", dst)
                 banned_count += 1
                 continue
-            for full_sent in short2full_sent[short_sent]:   #mostly there will be one-to-one correspondence 
-                if full_sent not in full_sent2corrections: 
+            for full_sent in short2full_sent[short_sent]:  # mostly there will be one-to-one correspondence
+                if full_sent not in full_sent2corrections:
                     full_sent2corrections[full_sent] = {}
                 if src not in full_sent2corrections[full_sent]:
                     full_sent2corrections[full_sent][src] = {}
@@ -248,17 +272,22 @@ for name in os.listdir(args.spellchecker_results_folder):
 
     print("len(full_sent2corrections)=", len(full_sent2corrections))
 
-    
     for full_sent in full_sent2corrections:
         corrected_full_sent = full_sent
         for src in full_sent2corrections[full_sent]:
-            for dst, freq in sorted(full_sent2corrections[full_sent][src].items(), key=lambda item: item[1], reverse=True):
+            for dst, freq in sorted(
+                full_sent2corrections[full_sent][src].items(), key=lambda item: item[1], reverse=True
+            ):
                 corrected_full_sent = corrected_full_sent.replace(src, dst)
                 # take only best variant
                 break
-        original_full_sent = "".join(full_sent.split()).replace("_", " ")  #restore original format instead of separate letters
-        corrected_full_sent = "".join(corrected_full_sent.split()).replace("_", " ")  #restore original format instead of separate letters
-        final_corrections[doc_id + "\t" + original_full_sent] = corrected_full_sent     
+        original_full_sent = "".join(full_sent.split()).replace(
+            "_", " "
+        )  # restore original format instead of separate letters
+        corrected_full_sent = "".join(corrected_full_sent.split()).replace(
+            "_", " "
+        )  # restore original format instead of separate letters
+        final_corrections[doc_id + "\t" + original_full_sent] = corrected_full_sent
 
 
 print("len(final_corrections)=", len(final_corrections))
@@ -289,12 +318,3 @@ with open(args.output_manifest, "w", encoding="utf-8") as out:
         out.write(line + "\n")
 
 print("banned count=", banned_count)
-
-
-
-
-
-
-
-
-

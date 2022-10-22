@@ -13,13 +13,14 @@
 # limitations under the License.
 
 
+import pdb
 from time import perf_counter
 from typing import Dict, List, Optional
-from transformers import BertModel, BertConfig
 
 import torch
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
+from transformers import BertConfig, BertModel
 
 from nemo.collections.common.losses import CrossEntropyLoss
 from nemo.collections.nlp.data.spellchecking_asr_customization import (
@@ -36,8 +37,6 @@ from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import LogitsType, NeuralType
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
-
-import pdb
 
 __all__ = ["SpellcheckingAsrCustomizationModel"]
 
@@ -103,9 +102,9 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
         self.builder = bert_example.BertExampleBuilder(
             self.label_map, self.semiotic_classes, self.tokenizer.tokenizer, self.max_sequence_len
         )
-        #configuration = BertConfig(type_vocab_size=4)
-        #print(configuration)
-        #self.bert_model = BertModel(configuration)
+        # configuration = BertConfig(type_vocab_size=4)
+        # print(configuration)
+        # self.bert_model = BertModel(configuration)
 
     @typecheck()
     def forward(self, input_ids, input_mask, segment_ids):
@@ -140,7 +139,7 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
 
         # Update tag classification_report
         predictions, tag_labels = tag_preds.tolist(), labels.tolist()
-        #if self.current_epoch == 3:
+        # if self.current_epoch == 3:
         #    pdb.set_trace()
         for prediction, label, span in zip(predictions, tag_labels, spans):
             # Here we want to track whether the predicted output matches ground truth labels
@@ -248,7 +247,7 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
             letters = hyp.split(" ")
             candidates = ref.split(";")
             report_str = ""
-            tag_preds_for_sent = tag_preds[1:(len(letters)+1)]  # take only predictions for actual sent letters
+            tag_preds_for_sent = tag_preds[1 : (len(letters) + 1)]  # take only predictions for actual sent letters
             last_tag = -1
             tag_begin = -1
             for idx, tag in enumerate(tag_preds_for_sent):
@@ -272,14 +271,15 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
                 if len_ratio >= 0.7 and len_ratio <= 1.3:
                     report_str += "REPLACE:\t" + source + "\t" + target + "\t" + hyp + "\n"
 
-            #pdb.set_trace()
+            # pdb.set_trace()
             all_preds.append(
                 "\n"
                 + " ".join(letters)
                 + "\n"
                 + " ".join(list(map(str, tag_preds_for_sent)))
                 + "\n\t"
-                + ref + "\n"
+                + ref
+                + "\n"
                 + report_str
             )
 
@@ -347,6 +347,5 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
 
     @classmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:
-        result = [
-        ]
+        result = []
         return None

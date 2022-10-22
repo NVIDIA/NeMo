@@ -1,10 +1,11 @@
 import math
 import random
-import numpy as np
+from argparse import ArgumentParser
 from collections import defaultdict
 from os.path import join
-from argparse import ArgumentParser
 from typing import Dict, Optional, TextIO, Tuple
+
+import numpy as np
 from numba import jit
 
 parser = ArgumentParser(
@@ -39,7 +40,7 @@ def get_index(custom_phrases) -> None:
     with open(args.ngram_mapping, "r", encoding="utf-8") as f:
         for line in f:
             src, dst, joint_freq, src_freq, dst_freq = line.strip().split("\t")
-            assert(src != "" and dst != ""), "src=" + src + "; dst=" + dst
+            assert src != "" and dst != "", "src=" + src + "; dst=" + dst
             dst = dst.replace("<DELETE>", "=")
             if dst.strip() == "":
                 continue
@@ -53,7 +54,7 @@ def get_index(custom_phrases) -> None:
     for custom_phrase in custom_phrases:
         inputs = custom_phrase.split(" ")
         begin = 0
-        index_keys = [{} for i in inputs]  #key - letter ngram, index - beginning positions in phrase
+        index_keys = [{} for i in inputs]  # key - letter ngram, index - beginning positions in phrase
 
         for begin in range(len(inputs)):
             for end in range(begin + 1, min(len(inputs) + 1, begin + 5)):
@@ -62,7 +63,7 @@ def get_index(custom_phrases) -> None:
                     continue
                 for rep in vocab[inp]:
                     lp = math.log(vocab[inp][rep])
-                    
+
                     for b in range(max(0, end - 5), end):  # try to grow previous ngrams with new replacement
                         new_ngrams = {}
                         for ngram in index_keys[b]:
@@ -70,7 +71,7 @@ def get_index(custom_phrases) -> None:
                             if len(ngram) + len(rep) <= 10 and b + ngram.count(" ") == begin:
                                 if lp_prev + lp > -4.0:
                                     new_ngrams[ngram + rep + " "] = lp_prev + lp
-                        index_keys[b] = index_keys[b] | new_ngrams   #  join two dictionaries
+                        index_keys[b] = index_keys[b] | new_ngrams  #  join two dictionaries
                     # add current replacement as ngram
                     if lp > -4.0:
                         index_keys[begin][rep + " "] = lp
@@ -91,9 +92,9 @@ def get_index(custom_phrases) -> None:
                     del ngram_to_phrase_and_position[ngram]
                     continue
 
-    phrases = []   # id to phrase
+    phrases = []  # id to phrase
     phrase2id = {}  # phrase to id
-    ngram2phrases = defaultdict(list) # ngram to list of phrase ids
+    ngram2phrases = defaultdict(list)  # ngram to list of phrase ids
 
     for ngram, freq in sorted(index_freq.items(), key=lambda item: item[1], reverse=True):
         for phrase, b, length, lp in ngram_to_phrase_and_position[ngram]:
@@ -105,7 +106,7 @@ def get_index(custom_phrases) -> None:
     return phrases, ngram2phrases
 
 
-@jit(nopython=True) # Set "nopython" mode for best performance, equivalent to @njit
+@jit(nopython=True)  # Set "nopython" mode for best performance, equivalent to @njit
 def get_all_candidates_coverage(phrases, phrases2positions):
     candidate2coverage = [0.0] * len(phrases)
     candidate2position = [-1] * len(phrases)
@@ -125,7 +126,7 @@ def get_all_candidates_coverage(phrases, phrases2positions):
                 max_sum = moving_sum
                 best_pos = pos
 
-        coverage = max_sum / (phrase_length + 2)    # smoothing
+        coverage = max_sum / (phrase_length + 2)  # smoothing
         candidate2coverage[i] = coverage
         candidate2position[i] = best_pos
     return candidate2coverage, candidate2position
@@ -142,7 +143,15 @@ with open(args.output_name + ".index", "w", encoding="utf-8") as out_debug:
             phr = phrases[phrase_id]
             out_debug.write(ngram + "\t" + phr + "\t" + str(b) + "\t" + str(size) + "\t" + str(lp) + "\n")
 
-dummy_candidates = ["a g k t t r k n a p r t f", "v w w x y x u r t g p w q", "n t r y t q q r u p t l n t", "p b r t u r e t f v w x u p z", "p p o j j k l n b f q t", "j k y u i t d s e w s r e j h i p p", "q w r e s f c t d r q g g y"]
+dummy_candidates = [
+    "a g k t t r k n a p r t f",
+    "v w w x y x u r t g p w q",
+    "n t r y t q q r u p t l n t",
+    "p b r t u r e t f v w x u p z",
+    "p p o j j k l n b f q t",
+    "j k y u i t d s e w s r e j h i p p",
+    "q w r e s f c t d r q g g y",
+]
 out_debug = open(args.output_name + ".candidates", "w", encoding="utf-8")
 out = open(args.output_name, "w", encoding="utf-8")
 with open(args.input_file, "r", encoding="utf-8") as f:
@@ -152,7 +161,7 @@ with open(args.input_file, "r", encoding="utf-8") as f:
         letters = list(sent)
 
         phrases2positions = np.zeros((len(phrases), len(letters)), dtype=float)
-        position2ngrams = [{}] * len(letters)   # positions mapped to dicts of ngrams starting from that position
+        position2ngrams = [{}] * len(letters)  # positions mapped to dicts of ngrams starting from that position
 
         begin = 0
         for begin in range(len(letters)):
@@ -177,7 +186,9 @@ with open(args.input_file, "r", encoding="utf-8") as f:
                 candidates.append(random.choice(dummy_candidates))
             else:
                 candidates.append(phrases[idx])
-                out_debug.write("\t" + phrases[idx] + "\n" + " ".join(list(map(str, (map(int, phrases2positions[idx]))))) + "\n")
+                out_debug.write(
+                    "\t" + phrases[idx] + "\n" + " ".join(list(map(str, (map(int, phrases2positions[idx]))))) + "\n"
+                )
 
         random.shuffle(candidates)
         if len(candidates) != 10:

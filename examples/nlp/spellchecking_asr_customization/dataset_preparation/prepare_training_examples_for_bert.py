@@ -1,12 +1,13 @@
 import json
 import random
-import numpy as np
-from tqdm.auto import tqdm
+from argparse import ArgumentParser
 from collections import defaultdict
 from os.path import join
-from argparse import ArgumentParser
 from typing import Dict, Optional, TextIO, Tuple
+
+import numpy as np
 from numba import jit
+from tqdm.auto import tqdm
 
 parser = ArgumentParser(
     description="Prepare training examples for Bert: insert custom phrases and best candidates into sample sentences"
@@ -17,6 +18,7 @@ parser.add_argument("--index_name", required=True, type=str, help="Path to file 
 parser.add_argument("--output_name", type=str, required=True, help="Output file")
 
 args = parser.parse_args()
+
 
 def process_line(line: str) -> Optional[Tuple[str, str, str, int]]:
     """A helper function to read the file with alignment results"""
@@ -57,9 +59,9 @@ def read_custom_vocab():
 
 
 def read_index():
-    phrases = []   # id to phrase
+    phrases = []  # id to phrase
     phrase2id = {}  # phrase to id
-    ngram2phrases = defaultdict(list) # ngram to list of phrase ids
+    ngram2phrases = defaultdict(list)  # ngram to list of phrase ids
     with open(args.index_name, "r", encoding="utf-8") as f:
         for line in f:
             ngram, phrase, begin, length, lp = line.strip().split("\t")
@@ -70,7 +72,7 @@ def read_index():
     return phrases, ngram2phrases
 
 
-@jit(nopython=True) # Set "nopython" mode for best performance, equivalent to @njit
+@jit(nopython=True)  # Set "nopython" mode for best performance, equivalent to @njit
 def get_all_candidates_coverage(phrases, phrases2positions):
     candidate2coverage = [0.0] * len(phrases)
     candidate2position = [-1] * len(phrases)
@@ -90,7 +92,7 @@ def get_all_candidates_coverage(phrases, phrases2positions):
                 max_sum = moving_sum
                 best_pos = pos
 
-        coverage = max_sum / (phrase_length + 2)    # smoothing
+        coverage = max_sum / (phrase_length + 2)  # smoothing
         candidate2coverage[i] = coverage
         candidate2position[i] = best_pos
     return candidate2coverage, candidate2position
@@ -133,13 +135,13 @@ print("len(phrases)=", len(phrases), "; len(ngram2phrases)=", len(ngram2phrases)
 correct = 0  # debug counter for cases when correct candidate was in top10
 with open(args.output_name, "w", encoding="utf-8") as out:
     # mostly positive examples
-    for i in range(len(refs)):    # loop through custom phrases
+    for i in range(len(refs)):  # loop through custom phrases
         p = random.randrange(len(text))  # pick random sentence
         sent = text[p]
         words = sent.split()
         if len(words) > 10:
             s = random.randrange(len(words) - 10)
-            words = words[s:s+10]
+            words = words[s : s + 10]
 
         # choose random position to insert custom phrase
         r = random.randrange(len(words))
@@ -169,12 +171,23 @@ with open(args.output_name, "w", encoding="utf-8") as out:
         for k in range(len(candidates)):
             if candidates[k] == reference:
                 correct += 1
-                correct_id = k + 1    # correct index is 1-based
+                correct_id = k + 1  # correct index is 1-based
         if len(candidates) != 10:
             print(final_sent)
             print("WARNING: cannot get 10 candidates", candidates)
             continue
-        out.write(final_sent + "\t" + ";".join(candidates) + "\t" + str(correct_id) + "\tCUSTOM " + str(begin_len) + " " + str(begin_len + hyp_len) + "\n")
+        out.write(
+            final_sent
+            + "\t"
+            + ";".join(candidates)
+            + "\t"
+            + str(correct_id)
+            + "\tCUSTOM "
+            + str(begin_len)
+            + " "
+            + str(begin_len + hyp_len)
+            + "\n"
+        )
     # add negative examples (no correct candidate)
     for i in range(len(refs)):  # loop through custom phrases
         p = random.randrange(len(text))  # pick random sentence
@@ -182,7 +195,7 @@ with open(args.output_name, "w", encoding="utf-8") as out:
         words = sent.split()
         if len(words) > 10:
             s = random.randrange(len(words) - 10)
-            words = words[s:s + 10]
+            words = words[s : s + 10]
 
         sent_letters = list("_".join(words))
 
@@ -190,6 +203,5 @@ with open(args.output_name, "w", encoding="utf-8") as out:
 
         random.shuffle(candidates)
         correct_id = 0
-        out.write(
-            " ".join(sent_letters) + "\t" + ";".join(candidates) + "\t0\t\n")
-print ("Correct=", correct)
+        out.write(" ".join(sent_letters) + "\t" + ";".join(candidates) + "\t0\t\n")
+print("Correct=", correct)

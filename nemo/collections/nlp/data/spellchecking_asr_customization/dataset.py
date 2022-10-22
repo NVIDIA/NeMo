@@ -56,7 +56,9 @@ class SpellcheckingAsrCustomizationDataset(Dataset):
 
     def __getitem__(self, idx: int):
         example = self.examples[idx]
-        example.pad_to_max_length(self.example_builder._max_seq_length, self.example_builder._max_spans_length, self.example_builder._pad_id)
+        example.pad_to_max_length(
+            self.example_builder._max_seq_length, self.example_builder._max_spans_length, self.example_builder._pad_id
+        )
         input_ids = np.array(example.features["input_ids"])
         input_mask = np.array(example.features["input_mask"])
         segment_ids = np.array(example.features["segment_ids"])
@@ -104,7 +106,9 @@ class SpellcheckingAsrCustomizationTestDataset(Dataset):
 
     def __getitem__(self, idx: int):
         example = self.examples[idx]
-        example.pad_to_max_length(self.example_builder._max_seq_length, self.example_builder._max_spans_length, self.example_builder._pad_id)
+        example.pad_to_max_length(
+            self.example_builder._max_seq_length, self.example_builder._max_spans_length, self.example_builder._pad_id
+        )
         input_ids = np.array(example.features["input_ids"])
         input_mask = np.array(example.features["input_mask"])
         segment_ids = np.array(example.features["segment_ids"])

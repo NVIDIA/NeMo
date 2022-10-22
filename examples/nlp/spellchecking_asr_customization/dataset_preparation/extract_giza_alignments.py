@@ -235,23 +235,9 @@ def main() -> None:
                     ban = True
 
                 if ban:
-                    out_str = (
-                        "ban:\t"
-                        + " ".join(srctokens)
-                        + "\t"
-                        + " ".join(dsttokens)
-                        + "\t"
-                        + str(align)
-                    )
+                    out_str = "ban:\t" + " ".join(srctokens) + "\t" + " ".join(dsttokens) + "\t" + str(align)
                 else:
-                    out_str = (
-                        "good:\t"
-                        + " ".join(srctokens)
-                        + "\t"
-                        + " ".join(dsttokens)
-                        + "\t"
-                        + align
-                    )
+                    out_str = "good:\t" + " ".join(srctokens) + "\t" + " ".join(dsttokens) + "\t" + align
 
                 out.write(out_str + "\n")
                 cache[cache_key] = out_str

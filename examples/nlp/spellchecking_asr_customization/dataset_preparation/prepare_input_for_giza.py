@@ -1,13 +1,12 @@
 import json
 import random
-from tqdm.auto import tqdm
-from os.path import join
 from argparse import ArgumentParser
+from os.path import join
+
+from tqdm.auto import tqdm
 
 parser = ArgumentParser(description="Prepare input for GIZA")
-parser.add_argument(
-    "--input_manifest", required=True, type=str, help='Path to manifest file'
-)
+parser.add_argument("--input_manifest", required=True, type=str, help='Path to manifest file')
 parser.add_argument("--output_name", type=str, required=True, help="Output file")
 parser.add_argument("--out_dir", type=str, required=True, help="Path to output folder")
 parser.add_argument("--giza_dir", type=str, required=True, help="Path to folder with GIZA++ binaries")
@@ -51,7 +50,7 @@ pred_text = [data['pred_text'] for data in test_data]
 
 size = len(ref_text)
 
-assert(size == len(pred_text))
+assert size == len(pred_text)
 
 with open(args.output_name, "w", encoding="utf-8") as out:
     for i in range(size):
@@ -63,5 +62,3 @@ with open(args.output_name, "w", encoding="utf-8") as out:
         hyp_letters = list(hyp)
 
         out.write(" ".join(hyp_letters) + "\t" + " ".join(ref_letters) + "\n")
-
-

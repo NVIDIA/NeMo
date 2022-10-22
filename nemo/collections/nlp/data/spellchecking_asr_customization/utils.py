@@ -47,5 +47,3 @@ def read_label_map(path: str) -> Dict[str, int]:
                     raise ValueError('There should be no empty lines in the middle of the label map ' 'file.')
                 empty_line_encountered = True
         return label_map
-
-

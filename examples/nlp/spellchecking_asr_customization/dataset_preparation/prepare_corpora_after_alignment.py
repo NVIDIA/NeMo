@@ -18,12 +18,13 @@ This script can be used to extract ngram mapping vocabulary from joined giza ali
 """
 
 import glob
+import math
 import os
 import re
-import math
 from argparse import ArgumentParser
 from collections import defaultdict
 from typing import Dict, Optional, TextIO, Tuple
+
 from fuzzywuzzy import process
 
 parser = ArgumentParser(description="Produce data for the Spellchecking ASR Customization")
@@ -33,9 +34,7 @@ parser.add_argument(
     type=str,
     help='Mode, one of ["get_replacement_vocab", "index_by_vocab", "edit_distance"]',
 )
-parser.add_argument(
-    "--alignment_filename", required=True, type=str, help='Name of alignment file, like "align.out"'
-)
+parser.add_argument("--alignment_filename", required=True, type=str, help='Name of alignment file, like "align.out"')
 parser.add_argument("--out_filename", required=True, type=str, help='Output file')
 parser.add_argument("--vocab_filename", required=True, type=str, help='Vocab name')
 args = parser.parse_args()
@@ -51,7 +50,7 @@ def process_line(line: str) -> Optional[Tuple[str, str, str, int]]:
         return None
 
     src, dst, align = parts[1], parts[2], parts[3]
-    
+
     return src, dst, align
 
 
@@ -90,7 +89,18 @@ def get_replacement_vocab() -> None:
     with open(args.vocab_filename, "w", encoding="utf-8") as out:
         for inp in full_vocab:
             for rep in full_vocab[inp]:
-                out.write(inp + "\t" + rep + "\t" + str(full_vocab[inp][rep]) + "\t" + str(src_vocab[inp]) + "\t" + str(dst_vocab[rep]) + "\n")
+                out.write(
+                    inp
+                    + "\t"
+                    + rep
+                    + "\t"
+                    + str(full_vocab[inp][rep])
+                    + "\t"
+                    + str(src_vocab[inp])
+                    + "\t"
+                    + str(dst_vocab[rep])
+                    + "\n"
+                )
 
 
 def index_by_vocab() -> None:
@@ -107,9 +117,9 @@ def index_by_vocab() -> None:
     with open(args.vocab_filename, "r", encoding="utf-8") as f:
         for line in f:
             src, dst, joint_freq, src_freq, dst_freq = line.strip().split("\t")
-            assert(src != "" and dst != ""), "src=" + src + "; dst=" + dst
-            #-if dst.startswith("<DELETE>") or dst.endswith("<DELETE>"):
-            #-    continue
+            assert src != "" and dst != "", "src=" + src + "; dst=" + dst
+            # -if dst.startswith("<DELETE>") or dst.endswith("<DELETE>"):
+            # -    continue
             vocab[src][dst] = int(joint_freq) / int(src_freq)
 
     index_freq = defaultdict(int)
@@ -122,17 +132,17 @@ def index_by_vocab() -> None:
         for line in f:
             n += 1
             if n % 1000 == 0:
-                print (n)
+                print(n)
             t = process_line(line)
             if t is None:
                 continue
             phrase, _, _ = t
-            #if not phrase.startswith("y o x t e r"):
+            # if not phrase.startswith("y o x t e r"):
             #    continue
             ok = True
             inputs = phrase.split(" ")
             begin = 0
-            index_keys = [{} for i in inputs]  #key - letter ngram, index - beginning positions in phrase
+            index_keys = [{} for i in inputs]  # key - letter ngram, index - beginning positions in phrase
 
             for begin in range(len(inputs)):
                 for end in range(begin + 1, min(len(inputs) + 1, begin + 5)):
@@ -152,13 +162,12 @@ def index_by_vocab() -> None:
                                 if len(ngram) + len(rep) <= 10 and b + ngram.count(" ") == begin:
                                     if lp_prev + lp > -4.0:
                                         new_ngrams[ngram + rep + " "] = lp_prev + lp
-                            index_keys[b] = index_keys[b] | new_ngrams   #  join two dictionaries
+                            index_keys[b] = index_keys[b] | new_ngrams  #  join two dictionaries
                         # add current replacement as ngram
                         if lp > -4.0:
                             index_keys[begin][rep + " "] = lp
-                            #if phrase.startswith("y o x t e r"):
+                            # if phrase.startswith("y o x t e r"):
                             #    print(phrase, begin, rep, lp, rep_before_clean, inp, sep="; ")
-
 
             for b in range(len(index_keys)):
                 for ngram, lp in sorted(index_keys[b].items(), key=lambda item: item[1], reverse=True):
@@ -186,7 +195,7 @@ def index_by_vocab() -> None:
         for line in f:
             n += 1
             if n % 1000 == 0:
-                print (n)
+                print(n)
             t = process_line(line)
             if t is None:
                 continue
@@ -213,7 +222,7 @@ def index_by_vocab() -> None:
     out.close()
     print("Correct=", correct)
     print("Total=", n)
-    print("Accuracy=", correct/n)
+    print("Accuracy=", correct / n)
 
 
 def search_by_edit_distance():
@@ -225,7 +234,7 @@ def search_by_edit_distance():
         for line in f:
             n += 1
             if n % 1000 == 0:
-                print (n)
+                print(n)
             t = process_line(line)
             if t is None:
                 continue
@@ -243,7 +252,7 @@ def search_by_edit_distance():
                 correct += 1
     print("Correct=", correct)
     print("Total=", n)
-    print("Accuracy=", correct/n)
+    print("Accuracy=", correct / n)
 
 
 def main() -> None:
@@ -259,4 +268,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

@@ -40,7 +40,6 @@ The input folder consists of subfolders with following stricture
 import argparse
 import os
 import re
-
 from collections import defaultdict
 
 parser = argparse.ArgumentParser()
@@ -194,7 +193,7 @@ def get_text(name, n, word2doc):
                 s = re.sub(r"\[\[([^\]]+)\]\]", r"\g<1>", s)
 
                 out_text.write(s + "\n")
-                for w in re.findall(r"[\w']+", s): #find all words
+                for w in re.findall(r"[\w']+", s):  # find all words
                     word2doc[w.casefold()].add(n)
 
             if do_break:
@@ -215,7 +214,7 @@ if __name__ == "__main__":
     word2doc = defaultdict(set)
     for name in os.listdir(args.input_folder):
         n += 1
-        print (name)
+        print(name)
         if not os.path.exists(args.input_folder + "/" + name + "/wiki.txt"):
             print("wiki.txt does not exist in " + name)
             continue
@@ -224,4 +223,3 @@ if __name__ == "__main__":
     with open(args.destination_folder + "/vocabs/idf.txt", "w", encoding="utf-8") as out:
         for w, d in sorted(word2doc.items(), key=lambda item: len(item[1]), reverse=True):
             out.write(w + "\t" + str(len(word2doc[w])) + "\n")
-
