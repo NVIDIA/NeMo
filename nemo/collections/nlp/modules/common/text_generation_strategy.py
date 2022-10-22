@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import abc
+from multiprocessing import context
 from typing import List, Tuple
 
 import torch
@@ -383,7 +384,11 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
         del args['pad_tokens']
         self.neighbors = args['neighbors']
         del args['neighbors']
+        self.store_retrieved = args['store_retrieved']
+        del args['store_retrieved']
         self.service = FaissRetrievalService(tokenizer=self.model.tokenizer, **args)
+        self.retrieved = []
+        self.retrieved_text = []
         self.chunk_size = self.service.chunk_size
 
     def update_neighbors(self, neighbors):
@@ -456,8 +461,21 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
             maxlen = self.model.cfg.encoder_seq_length + 1
         return maxlen
 
+    def _store_retrieved(self, tokens, neighbors):
+        tokenizer = self.model.tokenizer
+        for batch_id in range(len(tokens)):
+            item = {}
+            query_text = tokenizer.ids_to_text(tokens[batch_id])
+            item['query'] = query_text
+            item['neighbors'] = []
+            for context_id in range(len(neighbors[batch_id])):
+                neighbor_text = tokenizer.ids_to_text(neighbors[batch_id][context_id])
+                item['neighbors'].append(neighbor_text)
+            self.retrieved_text.append(item)
+
     def init_batch(self, context_tokens: torch.Tensor, context_length: int):
         self.retrieved = []
+        self.retrieved_text = []
         """initialize the batch data before the inference steps."""
         # Move to GPU.
         tokenizer = self.model.tokenizer
@@ -467,6 +485,8 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
             if i > 0:
                 tokens = context_tokens[:, i - 64 : i]
                 chunks = self.service.get_knn(tokens, self.neighbors)
+                if self.store_retrieved:
+                    self._store_retrieved(tokens, chunks)
                 self.retrieved.append(chunks)
 
     def prepare_batch_at_step(
@@ -478,10 +498,14 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
             # added a new retrieval context
             token_context = tokens[:, context_length - 64 : context_length]
             chunks = self.service.get_knn(token_context, self.neighbors)
+            if self.store_retrieved:
+                self._store_retrieved(token_context, chunks)
             self.retrieved.append(chunks)
         elif self.frequent_query and len(self.retrieved) > 0:
             token_context = tokens[:, context_length - 64 : context_length]
             chunks = self.service.get_knn(token_context, self.neighbors)
+            if self.store_retrieved:
+                self._store_retrieved(token_context, chunks)
             self.retrieved[-1] = chunks
 
         # types2use = None

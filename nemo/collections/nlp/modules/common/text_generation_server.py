@@ -183,6 +183,11 @@ class MegatronGenerate(Resource):
                     output[k] = output[k].tolist()
         if not all_probs:
             del output['full_logprob']
+
+        if self.inference_strategy is not None:
+            if isinstance(self.inference_strategy, RetroModelTextGenerationStrategy):
+                retrieved_doc = self.inference_strategy.retrieved_text
+                output['retrieved'] = retrieved_doc
         return jsonify(output)
 
 

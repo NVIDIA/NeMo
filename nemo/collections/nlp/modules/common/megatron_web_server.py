@@ -23,8 +23,8 @@ headers = {"Content-Type": "application/json"}
 
 def request_data(data):
     resp = requests.put('http://localhost:{}/generate'.format(port_num), data=json.dumps(data), headers=headers)
-    sentences = resp.json()['sentences']
-    return sentences
+    output_json = resp.json()
+    return output_json
 
 
 def get_generation(prompt, greedy, add_BOS, token_to_gen, min_tokens, temp, top_p, top_k, repetition):
@@ -40,8 +40,21 @@ def get_generation(prompt, greedy, add_BOS, token_to_gen, min_tokens, temp, top_
         "repetition_penalty": repetition,
         "min_tokens_to_generate": int(min_tokens),
     }
-    sentences = request_data(data)
+    sentences = request_data(data)['sentences']
     return sentences[0]
+
+
+def convert_retrieved_to_md(retrieved):
+    output_str = '<table><tr><th>Query</th><th>Retrieved Doc</th></tr>'
+    for item in retrieved:
+        output_str += f'<tr><td rowspan="{len(item["neighbors"])}">{item["query"]}</td>'
+        for i, neighbor in enumerate(item['neighbors']):
+            if i == 0:
+                output_str += f"<td>{neighbor}</td></tr>"
+            else:
+                output_str += f"<tr><td>{neighbor}</td></tr>"
+    output_str += '</table>'
+    return output_str
 
 
 def get_retro_generation(prompt, greedy, add_BOS, token_to_gen, min_tokens, temp, top_p, top_k, repetition, neighbors):
@@ -58,8 +71,10 @@ def get_retro_generation(prompt, greedy, add_BOS, token_to_gen, min_tokens, temp
         "min_tokens_to_generate": int(min_tokens),
         "neighbors": int(neighbors),
     }
-    sentences = request_data(data)
-    return sentences[0]
+    output_json = request_data(data)
+    sentences = output_json['sentences']
+    retrieved = output_json['retrieved']
+    return sentences[0], convert_retrieved_to_md(retrieved)
 
 
 def get_demo(share, username, password):
@@ -103,7 +118,7 @@ def get_demo(share, username, password):
 
 
 def get_retro_demo(share, username, password):
-    with gr.Blocks() as demo:
+    with gr.Blocks(css="table, th, td { border: 1px solid blue; }") as demo:
         with gr.Row():
             with gr.Column(scale=2, width=200):
                 greedy_flag = gr.Checkbox(label="Greedy")
@@ -124,6 +139,7 @@ def get_retro_demo(share, username, password):
                     lines=5,
                 )
                 output_box = gr.Textbox(value="", label="Output")
+                output_retrieval = gr.HTML()
                 btn = gr.Button(value="Submit")
                 btn.click(
                     get_retro_generation,
@@ -139,6 +155,6 @@ def get_retro_demo(share, username, password):
                         repetition_penality,
                         k_neighbors,
                     ],
-                    outputs=[output_box],
+                    outputs=[output_box, output_retrieval],
                 )
     demo.launch(share=share, server_port=13570, server_name='0.0.0.0', auth=(username, password))
