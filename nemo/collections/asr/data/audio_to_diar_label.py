@@ -51,12 +51,15 @@ def get_scale_mapping_list(uniq_timestamps):
             longer segments. At the same time, each row contains N numbers of indices where N is number of
             segments in the base-scale (i.e., the finest scale).
     """
-    uniq_scale_dict = uniq_timestamps['scale_dict']
-    scale_mapping_argmat = [[] for _ in range(len(uniq_scale_dict.keys()))]
+    timestamps_in_scales = []
+    for key, val in uniq_timestamps['scale_dict'].items():
+        # import ipdb; ipdb.set_trace()
+        timestamps_in_scales.append(torch.tensor(val['time_stamps']))
+    session_scale_mapping_list = get_argmin_mat(timestamps_in_scales)
 
-    session_scale_mapping_dict = get_argmin_mat(uniq_scale_dict)
-    for scale_idx in sorted(uniq_scale_dict.keys()):
-        scale_mapping_argmat[scale_idx] = session_scale_mapping_dict[scale_idx]
+    scale_mapping_argmat = [[] for _ in range(len(uniq_timestamps['scale_dict'].keys()))]
+    for scale_idx in range(len(session_scale_mapping_list)):
+        scale_mapping_argmat[scale_idx] = session_scale_mapping_list[scale_idx]
     scale_mapping_argmat = torch.stack(scale_mapping_argmat)
     return scale_mapping_argmat
 
@@ -290,9 +293,7 @@ class _AudioMSDDTrainDataset(Dataset):
         seg_target_list, base_clus_label = [], []
         self.scale_n = len(self.multiscale_timestamp_dict[uniq_id]['scale_dict'])
         subseg_time_stamp_list = self.multiscale_timestamp_dict[uniq_id]["scale_dict"][self.scale_n - 1]["time_stamps"]
-        for line in subseg_time_stamp_list:
-            line_split = line.split()
-            seg_stt, seg_end = float(line_split[0]), float(line_split[1])
+        for (seg_stt, seg_end) in subseg_time_stamp_list:
             seg_stt_fr, seg_end_fr = int(seg_stt * self.frame_per_sec), int(seg_end * self.frame_per_sec)
             soft_label_vec_sess = torch.sum(fr_level_target[seg_stt_fr:seg_end_fr, :], axis=0) / (
                 seg_end_fr - seg_stt_fr
@@ -388,9 +389,11 @@ class _AudioMSDDTrainDataset(Dataset):
         ms_seg_counts = [0 for _ in range(self.scale_n)]
         for scale_idx in range(self.scale_n):
             scale_ts_list = []
-            for k, line in enumerate(self.multiscale_timestamp_dict[uniq_id]["scale_dict"][scale_idx]["time_stamps"]):
-                line_split = line.split()
-                seg_stt, seg_end = float(line_split[0]), float(line_split[1])
+            for k, (seg_stt, seg_end) in enumerate(
+                self.multiscale_timestamp_dict[uniq_id]["scale_dict"][scale_idx]["time_stamps"]
+            ):
+                # line_split = line.split()
+                # seg_stt, seg_end = float(line_split[0]), float(line_split[1])
                 stt, end = (
                     int((seg_stt - sample.offset) * self.frame_per_sec),
                     int((seg_end - sample.offset) * self.frame_per_sec),

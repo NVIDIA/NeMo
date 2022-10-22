@@ -1261,14 +1261,12 @@ def extract_timestamps(manifest_file: str):
         for i, line in enumerate(manifest.readlines()):
             line = line.strip()
             dic = json.loads(line)
-
             uniq_name = dic['uniq_id']
             if uniq_name not in time_stamps:
                 time_stamps[uniq_name] = []
             start = dic['offset']
             end = start + dic['duration']
-            stamp = '{:.3f} {:.3f} '.format(start, end)
-            time_stamps[uniq_name].append(stamp)
+            time_stamps[uniq_name].append([start, end])
     return time_stamps
 
 
