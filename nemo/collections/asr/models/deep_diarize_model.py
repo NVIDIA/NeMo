@@ -26,6 +26,7 @@ from x_transformers import Decoder
 from nemo.collections.asr.data.deep_diarize.inference_data import RTTMDataset
 from nemo.collections.asr.data.deep_diarize.train_data import LocalRTTMStreamingSegmentsDataset, MultiStreamDataLoader
 from nemo.collections.asr.data.deep_diarize.train_tarred_data import TarredRTTMStreamingSegmentsDataset
+from nemo.collections.asr.metrics.der import DER
 from nemo.collections.asr.metrics.running_avg import RunningAverage
 from nemo.collections.asr.modules.deep_diarize_transformer import TransformerXL
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
@@ -74,6 +75,12 @@ class DeepDiarizeModel(ModelPT):
         self.apply(self._init_weights)
         self.mems = None
         self.running_loss_avg = RunningAverage()
+        self.der = DER(
+            seconds_per_frame=self.cfg.preprocessor.window_stride * self.cfg.subsampling,
+            min_seconds_for_segment=self.cfg.min_seconds_for_segment,
+            threshold=self.cfg.threshold,
+            combine_segments_seconds=self.cfg.combine_segments_seconds,
+        )
 
     def training_step(self, batch, batch_idx):
         train_x, train_lengths, y, _ = batch
@@ -104,16 +111,18 @@ class DeepDiarizeModel(ModelPT):
         )
 
     def validation_step(self, batch, batch_idx):
-        inputs, input_lengths, y_splits, y = batch
+        inputs, input_lengths, y, annotations = batch
         mems = None
         logits = None
-        for chunk, length, y_split in zip(inputs, input_lengths, y_splits):
+        for chunk, length in zip(inputs, input_lengths):
             seg, model_lengths = self.sub_sample_layer(chunk, lengths=length.unsqueeze(0))
             chunk_logits, mems = self.transformer_model(seg, mems=mems)
             chunk_logits = self.sigmoid(chunk_logits)
             logits = chunk_logits if logits is None else torch.cat((logits, chunk_logits), dim=1)
         loss = self.loss(logits, y.unsqueeze(0))
         self.log('val_loss', loss, sync_dist=True)
+        self.der(logits.squeeze(0), annotations)
+        self.log('DER', self.der, sync_dist=True)
 
     def _init_weights(self, module):
         if isinstance(module, (nn.Linear, nn.Embedding)):
@@ -173,7 +182,9 @@ class DeepDiarizeModel(ModelPT):
             subsampling=self.cfg.subsampling,
             segment_seconds=self.cfg.chunk_seconds,
         )
-        self._validation_dl = DataLoader(dataset, num_workers=cfg.num_workers, collate_fn=dataset.collate_fn)
+        self._validation_dl = DataLoader(
+            dataset, num_workers=cfg.num_workers, collate_fn=dataset.collate_fn, shuffle=False
+        )
 
     def setup_test_data(self, test_data_config: Optional[Union[DictConfig, Dict]]):
         pass

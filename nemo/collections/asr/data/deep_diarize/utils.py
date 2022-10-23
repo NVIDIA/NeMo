@@ -3,7 +3,6 @@ import torch
 
 def assign_frame_level_spk_vector(
     rttm_timestamps: list,
-    total_annotated_duration: int,
     round_digits: int,
     frame_per_sec: int,
     sample_rate: int,
@@ -30,34 +29,27 @@ def assign_frame_level_spk_vector(
             Tensor containing label for each feature level frame.
     """
     stt_list, end_list, speaker_list = rttm_timestamps
-    if len(speaker_list) == 0:
-        return None
-    else:
-        sorted_speakers = sorted(list(set(speaker_list)))
-        segment_duration = end_duration - start_duration
-        assert segment_duration <= total_annotated_duration
+    sorted_speakers = sorted(list(set(speaker_list)))
+    segment_duration = end_duration - start_duration
 
-        total_fr_len = preprocessor.featurizer.get_seq_len(
-            (torch.tensor(segment_duration * sample_rate, dtype=torch.float))
-        )
-        total_fr_len = int(total_fr_len / subsampling) + 1
-        spk_num = max(len(sorted_speakers), min_spks)
-        speaker_mapping_dict = {rttm_key: x_int for x_int, rttm_key in enumerate(sorted_speakers)}
-        fr_level_target = torch.zeros(total_fr_len, spk_num)
+    total_fr_len = preprocessor.featurizer.get_seq_len(torch.tensor(segment_duration * sample_rate, dtype=torch.float))
+    total_fr_len = int(total_fr_len / subsampling) + 1
+    spk_num = max(len(sorted_speakers), min_spks)
+    speaker_mapping_dict = {rttm_key: x_int for x_int, rttm_key in enumerate(sorted_speakers)}
+    fr_level_target = torch.zeros(total_fr_len, spk_num)
 
-        # If RTTM is not provided, then there is no speaker mapping dict in target_spks.
-        # Thus, return a zero-filled tensor as a placeholder.
-        for count, (stt, end, spk_rttm_key) in enumerate(zip(stt_list, end_list, speaker_list)):
-            stt, end = round(stt, round_digits), round(end, round_digits)
-            # check if this sample is within the segment frame.
-            if (start_duration > stt) and (end < end_duration):
-                spk = speaker_mapping_dict[spk_rttm_key]
-                stt_fr, end_fr = (
-                    int(round(stt, 2) * frame_per_sec),
-                    int(round(end, round_digits) * frame_per_sec),
-                )
-                fr_level_target[stt_fr:end_fr, spk] = 1
-            if stt > end_duration:
-                # we've reached the required size of the segment
-                break
-        return fr_level_target
+    # If RTTM is not provided, then there is no speaker mapping dict in target_spks.
+    # Thus, return a zero-filled tensor as a placeholder.
+    for count, (stt, end, spk_rttm_key) in enumerate(zip(stt_list, end_list, speaker_list)):
+        stt, end = round(stt, round_digits), round(end, round_digits)
+        # check if this sample is within the segment frame.
+        if (start_duration <= stt) and (end <= end_duration):
+            spk = speaker_mapping_dict[spk_rttm_key]
+            # calculate the start/end relative to this segment of the file.
+            relative_stt, relative_end = stt - start_duration, end - start_duration
+            stt_fr, end_fr = int(relative_stt * frame_per_sec), int(relative_end * frame_per_sec)
+            fr_level_target[stt_fr:end_fr, spk] = 1
+        if stt >= end_duration:
+            # we've reached the required size of the segment
+            break
+    return fr_level_target

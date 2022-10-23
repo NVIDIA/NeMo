@@ -79,7 +79,7 @@ class RTTMStreamingSegmentsDataset(IterableDataset, ABC):
         self.manifest_filepath = manifest_filepath
 
     def parse_rttm_for_ms_targets(
-        self, rttm_timestamps, total_annotated_duration: int, offset: float, end_duration: float,
+        self, rttm_timestamps: list, offset: float, end_duration: float,
     ):
         """
         Generate target tensor variable by extracting groundtruth diarization labels from an RTTM file.
@@ -102,7 +102,6 @@ class RTTMStreamingSegmentsDataset(IterableDataset, ABC):
         """
         fr_level_target = assign_frame_level_spk_vector(
             rttm_timestamps=rttm_timestamps,
-            total_annotated_duration=total_annotated_duration,
             round_digits=self.round_digits,
             frame_per_sec=self.frame_per_sec,
             subsampling=self.subsampling,
@@ -206,7 +205,7 @@ class LocalRTTMStreamingSegmentsDataset(RTTMStreamingSegmentsDataset):
             rttm_timestamps = self.rttm_timestamps[sample_id]
 
             targets = self.parse_rttm_for_ms_targets(
-                rttm_timestamps, total_annotated_duration, offset=start_offset, end_duration=start_offset + duration,
+                rttm_timestamps=rttm_timestamps, offset=start_offset, end_duration=start_offset + duration,
             )
             train_segment = self.featurizer.process(sample.audio_file, offset=start_offset, duration=duration)
 
