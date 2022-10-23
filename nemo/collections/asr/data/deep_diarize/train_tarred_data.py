@@ -43,7 +43,7 @@ class TarredRTTMStreamingSegmentsDataset(RTTMStreamingSegmentsDataset):
             duration = self.train_segment_seconds
 
             targets = self.parse_rttm_for_ms_targets(
-                rttm_timestamps, total_annotated_duration, offset=start_offset, end_duration=start_offset + duration,
+                rttm_timestamps, offset=start_offset, end_duration=start_offset + duration,
             )
             # Convert audio bytes to IO stream for processing (for SoundFile to read)
             audio_filestream = io.BytesIO(audio_bytes)
