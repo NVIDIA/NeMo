@@ -1,7 +1,6 @@
-import enum
-import itertools
+
 from collections import defaultdict
-from typing import DefaultDict, Dict, Iterable, List, Optional, Tuple, Union
+from typing import DefaultDict, Dict, List, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
