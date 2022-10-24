@@ -9,8 +9,8 @@ class RunningAverage(Metric):
 
     def __init__(self):
         super().__init__()
-        self.add_state('sum', default=torch.tensor(0), dist_reduce_fx='sum')
-        self.add_state('count', default=torch.tensor(0), dist_reduce_fx='sum')
+        self.add_state('sum', default=torch.tensor(0, dtype=torch.float), dist_reduce_fx='sum')
+        self.add_state('count', default=torch.tensor(0, dtype=torch.int), dist_reduce_fx='sum')
 
     def compute(self):
         return self.sum / self.count
