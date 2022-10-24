@@ -455,7 +455,9 @@ class NoisePerturbation(Perturbation):
             ref_mic (int): reference mic index for scaling multi-channel audios
         """
         if data.num_channels != noise.num_channels:
-            raise ValueError(f"Found mismatched channels for data ({data.num_channels}) and noise ({noise.num_channels}).")
+            raise ValueError(
+                f"Found mismatched channels for data ({data.num_channels}) and noise ({noise.num_channels})."
+            )
 
         snr_db = self._rng.uniform(self._min_snr_db, self._max_snr_db)
         if data_rms is None:
@@ -482,9 +484,7 @@ class NoisePerturbation(Perturbation):
         else:
             data._samples += noise._samples
 
-    def perturb_with_foreground_noise(
-        self, data, noise, data_rms=None, max_noise_dur=2, max_additions=1, ref_mic=0
-    ):
+    def perturb_with_foreground_noise(self, data, noise, data_rms=None, max_noise_dur=2, max_additions=1, ref_mic=0):
         """
         Args:
             data (AudioSegment): audio data
@@ -495,7 +495,9 @@ class NoisePerturbation(Perturbation):
             ref_mic (int): reference mic index for scaling multi-channel audios
         """
         if data.num_channels != noise.num_channels:
-            raise ValueError(f"Found mismatched channels for data ({data.num_channels}) and noise ({noise.num_channels}).")
+            raise ValueError(
+                f"Found mismatched channels for data ({data.num_channels}) and noise ({noise.num_channels})."
+            )
 
         snr_db = self._rng.uniform(self._min_snr_db, self._max_snr_db)
         if not data_rms:
