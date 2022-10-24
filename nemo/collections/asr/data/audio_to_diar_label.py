@@ -42,21 +42,19 @@ def get_scale_mapping_list(uniq_timestamps):
             The element at the m-th row and the n-th column of the scale mapping matrix indicates the (m+1)-th scale
             segment index which has the closest center distance with (n+1)-th segment in the base scale.
 
-            Example:
-                scale_mapping_argmat[2][101] = 85
+            - Example:
+                `scale_mapping_argmat[2][101] = 85`
 
-            In the above example, it means that 86-th segment in the 3rd scale (python index is 2) is mapped with
-            102-th segment in the base scale. Thus, the longer segments bound to have more repeating numbers since
-            multiple base scale segments (since the base scale has the shortest length) fall into the range of the
-            longer segments. At the same time, each row contains N numbers of indices where N is number of
-            segments in the base-scale (i.e., the finest scale).
+            In the above example, the code snippet means that 86-th segment in the 3rd scale (python index is 2) is
+            mapped to the 102-th segment in the base scale. Thus, the longer segments bound to have more repeating
+            numbers since multiple base scale segments (since the base scale has the shortest length) fall into the
+            range of the longer segments. At the same time, each row contains N numbers of indices where N is number
+            of segments in the base-scale (i.e., the finest scale).
     """
     timestamps_in_scales = []
     for key, val in uniq_timestamps['scale_dict'].items():
-        # import ipdb; ipdb.set_trace()
         timestamps_in_scales.append(torch.tensor(val['time_stamps']))
     session_scale_mapping_list = get_argmin_mat(timestamps_in_scales)
-
     scale_mapping_argmat = [[] for _ in range(len(uniq_timestamps['scale_dict'].keys()))]
     for scale_idx in range(len(session_scale_mapping_list)):
         scale_mapping_argmat[scale_idx] = session_scale_mapping_list[scale_idx]
