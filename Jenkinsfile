@@ -30,6 +30,7 @@ pipeline {
       steps {
         sh 'python -c "import torch; print(torch.__version__)"'
         sh 'python -c "import torchvision; print(torchvision.__version__)"'
+        sh 'python -c "import torchaudio; print(torchaudio.__version__)"'
       }
     }
 
