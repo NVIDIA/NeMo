@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo.collections.asr.modules.audio_modules import AudioToSpectrogram, SpectrogramToAudio
 from nemo.collections.asr.modules.audio_preprocessing import (
     AudioToMelSpectrogramPreprocessor,
     AudioToMFCCPreprocessor,

@@ -400,3 +400,40 @@ def get_segment_start(signal: np.ndarray, segment: np.ndarray) -> int:
         )
     cc = scipy.signal.correlate(signal, segment, mode='valid')
     return np.argmax(cc)
+
+
+def calculate_sdr(
+    estimate: np.ndarray,
+    target: np.ndarray,
+    scale_invariant: bool = False,
+    remove_mean: bool = True,
+    eps: float = 1e-10,
+) -> float:
+    """Calculate signal-to-distortion ratio.
+
+        SDR = 10 * log10( ||t||_2^2 / ||e-t||_2^2
+
+    Optionally, apply scale-invariant scaling to target signal.
+
+    Args:
+        estimate: estimated signal
+        target: target signal
+
+    Returns:
+        SDR in dB.
+    """
+    if remove_mean:
+        estimate = estimate - np.mean(estimate)
+        target = target - np.mean(target)
+
+    if scale_invariant:
+        estimate_dot_target = np.mean(estimate * target)
+        target_pow = np.mean(np.abs(target) ** 2)
+        target_scale = estimate_dot_target / (target_pow + eps)
+        target = target_scale * target
+
+    target_pow = np.mean(np.abs(target) ** 2)
+    distortion_pow = np.mean(np.abs(estimate - target) ** 2)
+
+    sdr = 10 * np.log10(target_pow / (distortion_pow + eps) + eps)
+    return sdr
