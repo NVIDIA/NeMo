@@ -26,6 +26,9 @@ from nemo.collections.asr.parts.preprocessing import WaveformFeaturizer
 
 
 class TarredRTTMStreamingSegmentsDataset(RTTMStreamingSegmentsDataset):
+
+    minimum_segment_seconds: int = 1
+
     def process_data(self, x):
         start_segment = True
         audio_bytes, rttm_file = x['wav'], x['rttm']
@@ -39,24 +42,25 @@ class TarredRTTMStreamingSegmentsDataset(RTTMStreamingSegmentsDataset):
         total_annotated_duration = max(end_list)
         n_segments = math.ceil(total_annotated_duration / self.train_segment_seconds)
         start_offset = 0
+
         for n_segment in range(n_segments):
-            duration = self.train_segment_seconds
+            if (total_annotated_duration - start_offset) > self.minimum_segment_seconds:
+                duration = self.train_segment_seconds
 
-            targets = self.parse_rttm_for_ms_targets(
-                rttm_timestamps, offset=start_offset, end_duration=start_offset + duration,
-            )
-            # Convert audio bytes to IO stream for processing (for SoundFile to read)
-            audio_filestream = io.BytesIO(audio_bytes)
-            train_segment = self.featurizer.process(audio_filestream, offset=start_offset, duration=duration)
+                targets = self.parse_rttm_for_ms_targets(
+                    rttm_timestamps, offset=start_offset, end_duration=start_offset + duration,
+                )
+                # Convert audio bytes to IO stream for processing (for SoundFile to read)
+                audio_filestream = io.BytesIO(audio_bytes)
+                train_segment = self.featurizer.process(audio_filestream, offset=start_offset, duration=duration)
 
-            train_length = torch.tensor(train_segment.shape[0]).long()
-
-            train_segment, train_length = self.preprocessor.get_features(
-                train_segment.unsqueeze_(0), train_length.unsqueeze_(0)
-            )
-            start_offset += duration
-            yield train_segment, train_length, targets, start_segment
-            start_segment = False
+                train_length = torch.tensor(train_segment.shape[0]).long()
+                train_segment, train_length = self.preprocessor.get_features(
+                    train_segment.unsqueeze_(0), train_length.unsqueeze_(0)
+                )
+                start_offset += duration
+                yield train_segment, train_length, targets, start_segment
+                start_segment = False
 
     def get_streams(self):
         url = expand_audio_filepaths(self.manifest_filepath, shard_strategy='replicate', world_size=1, global_rank=1,)
@@ -88,3 +92,7 @@ class TarredRTTMStreamingSegmentsDataset(RTTMStreamingSegmentsDataset):
             )
             for _ in range(num_workers)
         ]
+
+    @property
+    def dataloader_class(self):
+        return wds.WebLoader

@@ -7,14 +7,14 @@ class RunningAverage(Metric):
 
     full_state_update: bool = False
 
-    def __init__(self, alpha=0.98):
+    def __init__(self):
         super().__init__()
-        assert 0.0 < alpha <= 1.0, "Argument alpha should be a float between 0.0 and 1.0"
-        self.alpha = alpha
-        self.add_state('value', default=torch.tensor(0), dist_reduce_fx='mean')
+        self.add_state('sum', default=torch.tensor(0), dist_reduce_fx='sum')
+        self.add_state('count', default=torch.tensor(0), dist_reduce_fx='sum')
 
     def compute(self):
-        return self.value
+        return self.sum / self.count
 
-    def update(self, loss) -> None:
-        self.value = self.value * self.alpha + (1.0 - self.alpha) * loss
+    def update(self, val, n=1) -> None:
+        self.sum += val
+        self.count += n

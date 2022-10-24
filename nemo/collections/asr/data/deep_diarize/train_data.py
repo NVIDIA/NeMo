@@ -277,13 +277,17 @@ class LocalRTTMStreamingSegmentsDataset(RTTMStreamingSegmentsDataset):
             for _ in range(num_workers)
         ]
 
+    @property
+    def dataloader_class(self):
+        return DataLoader
+
 
 class MultiStreamDataLoader:
     def __init__(self, datasets):
         self.datasets = datasets
 
     def get_stream_loaders(self):
-        return zip(*[DataLoader(dataset, num_workers=1, batch_size=None) for dataset in self.datasets])
+        return zip(*[dataset.dataloader_class(dataset, num_workers=1, batch_size=None) for dataset in self.datasets])
 
     def __iter__(self):
         for batch_parts in self.get_stream_loaders():
