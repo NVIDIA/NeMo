@@ -460,9 +460,16 @@ class MegatronBaseModel(NLPModel):
             logging.info("Gradient accumulation fusion can only be used with megatron amp O2 mixed precision.")
             with open_dict(self.cfg):
                 self.cfg.gradient_accumulation_fusion = False
-        
+
         if self.cfg.get('use_emha', False):
-            raise ValueError 'use_emha is not yet supported please set to False'
+            raise ValueError('use_emha is not yet supported please set to False')
+
+        if self.cfg.get('virtual_pipeline_model_parallel_size', None) is not None:
+            assert (
+                self.cfg.num_layers // self.cfg.pipeline_model_parallel_size
+            ) % self.cfg.virtual_pipeline_model_parallel_size == 0, (
+                'Make sure the number of model chunks is the same across all pipeline stages.'
+            )
 
     def is_data_parallel_rank_zero(self):
         if is_global_rank_zero():
