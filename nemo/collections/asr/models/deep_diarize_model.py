@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import math
-from typing import Dict, Optional, Union
+from typing import Any, Dict, Optional, Union
 
 import hydra.utils
 import torch
@@ -188,3 +188,9 @@ class DeepDiarizeModel(ModelPT):
 
     def setup_test_data(self, test_data_config: Optional[Union[DictConfig, Dict]]):
         pass
+
+    def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
+        checkpoint['mems'] = self.mems
+
+    def on_load_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
+        self.mems = checkpoint['mems']
