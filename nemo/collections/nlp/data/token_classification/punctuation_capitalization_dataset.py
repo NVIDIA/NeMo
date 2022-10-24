@@ -663,6 +663,7 @@ def _get_features(
     create_progress_process = progress_queue is None
     if n_jobs is None:
         n_jobs = min(mp.cpu_count(), len(queries))
+
     if verbose:
         logging.info(f"Running tokenization with {n_jobs} jobs.")
 
@@ -981,6 +982,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
             .. warning::
                 There can be deadlocking problems with some tokenizers (e.g. SentencePiece, HuggingFace AlBERT)
                 if ``n_jobs > 0``.
+
         number_of_batches_is_multiple_of (:obj:`int`, `optional`, defaults to :obj:`1`): number of batches in the
             dataset is made divisible by ``number_of_batches_is_multiple_of``. If ``number_of_batches_is_multiple_of``
             is greater than 1, then several batches are split in parts until number of batches
@@ -1991,8 +1993,8 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 computed for corresponding token. See more in description of constructor parameters
                 ``ignore_start_end``, ``ignore_extra_tokens`` (if ``self.add_masks_and_segment_ids_to_batch`` is
                 ``False``, then these items is missing).
-                - ``'features'`` (:obj:`numpy.ndarray`) :obj:`np.float` array of waveforms of audio if ``self.preload_audio`` is set to ``True`` else empty.
-                - ``'features_length'`` (:obj:`numpy.ndarray`) :obj:`np.long` array of number of samples per audio.
-                - ``'audio_filepaths'`` (:obj:`List`) :obj:`str` contains paths of audio files if ``self.preload_audio`` set to ``False``
+              - ``'features'`` (:obj:`numpy.ndarray`) :obj:`np.float` array of waveforms of audio if ``self.preload_audio`` is set to ``True`` else empty.
+              - ``'features_length'`` (:obj:`numpy.ndarray`) :obj:`np.long` array of number of samples per audio.
+              - ``'audio_filepaths'`` (:obj:`List`) :obj:`str` contains paths of audio files if ``self.preload_audio`` set to ``False``
         """
         return self.batches[idx]
