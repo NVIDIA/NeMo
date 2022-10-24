@@ -1120,9 +1120,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 for i in range(num_tokens_to_generate)
             ]
         elif return_cache:
-            import time
-
-            start_time = time.time()
             key_cache = torch.zeros((enc_output.shape[0], 16, 1, 16, 64))
             val_cache = torch.zeros((enc_output.shape[0], 16, 1, 16, 64))
             return_memory_arr = torch.tensor([[True] for _ in range(enc_output.shape[0])])
@@ -1133,12 +1130,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 for i in range(num_tokens_to_generate)
             ]
 
-        import time
-
-        start_time = time.time()
-        total_cache_time = 0.0
         for i in range(num_tokens_to_generate):
-            s = time.time()
             # No microbatches in decoding. Just the global batch.
             decoder_seq_length = predicted_tokens_dec.size(1)
             dec_mask = predicted_tokens_dec != tokenizer.pad_id
@@ -1253,8 +1245,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     parallel_state.get_pipeline_model_parallel_last_rank(),
                     group=parallel_state.get_pipeline_model_parallel_group(),
                 )
-            total_cache_time += time.time() - s
-        inference_time = time.time() - start_time
+
         # Reset microbatch calculator to what it was before decoding.
         _reconfigure_microbatch_calculator(
             rank=app_state.global_rank,
