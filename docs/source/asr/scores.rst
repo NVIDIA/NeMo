@@ -169,6 +169,16 @@ FR
     
 --------------------
 
+HR
+^^
+
+.. csv-table::
+    :header-rows: 1
+    :align: left
+    :file: data/scores/hr/conformer_hr.csv
+    
+--------------------
+
 IT
 ^^
 
@@ -213,6 +223,3 @@ ZH
     :header-rows: 1
     :align: left
     :file: data/scores/zh/conformer_zh.csv
-    
---------------------
-

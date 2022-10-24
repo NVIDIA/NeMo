@@ -16,9 +16,7 @@ import copy
 import math
 from typing import Dict, List, Tuple, Type, Union
 
-import librosa
 import numpy as np
-import soundfile as sf
 import torch
 from omegaconf import OmegaConf
 
@@ -26,6 +24,7 @@ import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import WER, CTCDecoding, CTCDecodingConfig
 from nemo.collections.asr.metrics.wer_bpe import WERBPE, CTCBPEDecoding, CTCBPEDecodingConfig
 from nemo.collections.asr.models import EncDecCTCModel, EncDecCTCModelBPE
+from nemo.collections.asr.parts.utils.audio_utils import get_samples
 from nemo.collections.asr.parts.utils.speaker_utils import audio_rttm_map, get_uniqname_from_filepath
 from nemo.collections.asr.parts.utils.streaming_utils import AudioFeatureIterator, FrameBatchASR
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
@@ -223,22 +222,6 @@ def get_wer_feat_logit(audio_file_path, asr, frame_len, tokens_per_chunk, delay,
     return hyp, tokens, log_prob
 
 
-def get_samples(audio_file, target_sr=16000):
-    """
-    Read the samples from the given audio_file path.
-    """
-    with sf.SoundFile(audio_file, 'r') as f:
-        dtype = 'int16'
-        sample_rate = f.samplerate
-        samples = f.read(dtype=dtype)
-        if sample_rate != target_sr:
-            samples = librosa.core.resample(samples, sample_rate, target_sr)
-        samples = samples.astype('float32') / 32768
-        samples = samples.transpose()
-        del f
-    return samples
-
-
 class FrameBatchASR_Logits(FrameBatchASR):
     """
     A class for streaming frame-based ASR.
@@ -396,12 +379,12 @@ class ASR_TIMESTAMPS:
         kenlm_model = self.ctc_decoder_params['pretrained_language_model']
         logging.info(f"Loading language model : {self.ctc_decoder_params['pretrained_language_model']}")
 
-        if 'EncDecCTCModel' in str(type(asr_model)):
-            labels = asr_model.decoder.vocabulary
-        elif 'EncDecCTCModelBPE' in str(type(asr_model)):
+        if 'EncDecCTCModelBPE' in str(type(asr_model)):
             vocab = asr_model.tokenizer.tokenizer.get_vocab()
             labels = list(vocab.keys())
             labels[0] = "<unk>"
+        elif 'EncDecCTCModel' in str(type(asr_model)):
+            labels = asr_model.decoder.vocabulary
         else:
             raise ValueError(f"Cannot find a vocabulary or tokenizer for: {self.params['self.ASR_model_name']}")
 

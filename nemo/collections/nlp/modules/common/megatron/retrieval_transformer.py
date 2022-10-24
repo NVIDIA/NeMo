@@ -60,6 +60,7 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
         fp32_residual_connection=False,
         activations_checkpoint_method=None,
         activations_checkpoint_num_layers=1,
+        activations_checkpoint_granularity=None,
         layernorm_epsilon=1e-5,
         bias_activation_fusion=True,
         bias_dropout_add_fusion=True,
@@ -76,6 +77,8 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
         layer_number_offset=0,  # this is use only for attention norm_factor scaling
         sequence_parallel=False,
         gradient_accumulation_fusion=False,
+        normalize_attention_scores=True,
+        megatron_legacy=False,
     ):
         super(MegatronRetrievalTransformerEncoderModule, self).__init__()
 
@@ -114,6 +117,7 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
             fp32_residual_connection=fp32_residual_connection,
             activations_checkpoint_method=activations_checkpoint_method,
             activations_checkpoint_num_layers=activations_checkpoint_num_layers,
+            activations_checkpoint_granularity=activations_checkpoint_granularity,
             layernorm_epsilon=layernorm_epsilon,
             hidden_dropout=hidden_dropout,
             attention_dropout=attention_dropout,
@@ -133,6 +137,8 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
             layer_number_offset=layer_number_offset,
             sequence_parallel=sequence_parallel,
             gradient_accumulation_fusion=gradient_accumulation_fusion,
+            normalize_attention_scores=normalize_attention_scores,
+            megatron_legacy=megatron_legacy,
         )
         rot_dim = hidden_size // num_attention_heads if kv_channels is None else kv_channels
         # partial rotary embeddings, which is better than full rotary
@@ -328,6 +334,7 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
         fp32_residual_connection=False,
         activations_checkpoint_method=None,
         activations_checkpoint_num_layers=1,
+        activations_checkpoint_granularity=None,
         layernorm_epsilon=1e-5,
         bias_activation_fusion=True,
         bias_dropout_add_fusion=True,
@@ -344,6 +351,8 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
         layer_number_offset=0,  # this is use only for attention norm_factor scaling
         sequence_parallel=False,
         gradient_accumulation_fusion=False,
+        normalize_attention_scores=True,
+        megatron_legacy=False,
     ):
         super(MegatronRetrievalTransformerDecoderModule, self).__init__()
 
@@ -381,6 +390,7 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
             fp32_residual_connection=fp32_residual_connection,
             activations_checkpoint_method=activations_checkpoint_method,
             activations_checkpoint_num_layers=activations_checkpoint_num_layers,
+            activations_checkpoint_granularity=activations_checkpoint_granularity,
             layernorm_epsilon=layernorm_epsilon,
             hidden_dropout=hidden_dropout,
             attention_dropout=attention_dropout,
@@ -400,6 +410,8 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
             layer_number_offset=layer_number_offset,
             sequence_parallel=sequence_parallel,
             gradient_accumulation_fusion=gradient_accumulation_fusion,
+            normalize_attention_scores=normalize_attention_scores,
+            megatron_legacy=megatron_legacy,
         )
         rot_dim = hidden_size // num_attention_heads if kv_channels is None else kv_channels
         # partial rotary embeddings, which is better than full rotary

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import List
+from typing import List, Union
 
 import editdistance
 import torch
@@ -21,6 +21,8 @@ from torchmetrics import Metric
 
 from nemo.collections.asr.metrics.rnnt_wer import AbstractRNNTDecoding, RNNTDecodingConfig
 from nemo.collections.asr.metrics.wer import move_dimension_to_the_front
+from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
+from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging
 
@@ -58,17 +60,87 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
                 word based timestamp mapping the output log-probabilities to discrete intervals of timestamps.
                 The timestamps will be available in the returned Hypothesis.timestep as a dictionary.
 
+            compute_langs: a bool flag, which allows to compute language id (LID) information per token,
+                word, and the entire sample (most likely language id). The LIDS will be available 
+                in the returned Hypothesis object as a dictionary
+
             rnnt_timestamp_type: A str value, which represents the types of timestamps that should be calculated.
                 Can take the following values - "char" for character/subword time stamps, "word" for word level
                 time stamps and "all" (default), for both character level and word level time stamps.
 
             word_seperator: Str token representing the seperator between words.
 
+            preserve_frame_confidence: Bool flag which preserves the history of per-frame confidence scores
+                generated during decoding (sample / batched). When set to true, the Hypothesis will contain
+                the non-null value for `frame_confidence` in it. Here, `alignments` is a List of List of ints.
+
+            confidence_cfg: A dict-like object which contains the following key-value pairs related to confidence
+                scores. In order to obtain hypotheses with confidence scores, please utilize
+                `rnnt_decoder_predictions_tensor` function with the `preserve_frame_confidence` flag set to True.
+
+                preserve_frame_confidence: Bool flag which preserves the history of per-frame confidence scores
+                    generated during decoding (sample / batched). When set to true, the Hypothesis will contain
+                    the non-null value for `frame_confidence` in it. Here, `alignments` is a List of List of floats.
+
+                    The length of the list corresponds to the Acoustic Length (T).
+                    Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more confidence scores.
+                    U is the number of target tokens for the current timestep Ti.
+                preserve_token_confidence: Bool flag which preserves the history of per-token confidence scores
+                    generated during greedy decoding (sample / batched). When set to true, the Hypothesis will contain
+                    the non-null value for `token_confidence` in it. Here, `token_confidence` is a List of floats.
+
+                    The length of the list corresponds to the number of recognized tokens.
+                preserve_word_confidence: Bool flag which preserves the history of per-word confidence scores
+                    generated during greedy decoding (sample / batched). When set to true, the Hypothesis will contain
+                    the non-null value for `word_confidence` in it. Here, `word_confidence` is a List of floats.
+
+                    The length of the list corresponds to the number of recognized words.
+                exclude_blank: Bool flag indicating that blank token confidence scores are to be excluded
+                    from the `token_confidence`.
+                aggregation: Which aggregation type to use for collapsing per-token confidence into per-word confidence.
+                    Valid options are `mean`, `min`, `max`, `prod`.
+                method_cfg: A dict-like object which contains the method name and settings to compute per-frame
+                    confidence scores.
+
+                    name: The method name (str).
+                        Supported values:
+                            - 'max_prob' for using the maximum token probability as a confidence.
+                            - 'entropy' for using a normalized entropy of a log-likelihood vector.
+
+                    entropy_type: Which type of entropy to use (str).
+                        Used if confidence_method_cfg.name is set to `entropy`.
+                        Supported values:
+                            - 'gibbs' for the (standard) Gibbs entropy. If the temperature α is provided,
+                                the formula is the following: H_α = -sum_i((p^α_i)*log(p^α_i)).
+                                Note that for this entropy, the temperature should comply the following inequality:
+                                1/log(V) <= α <= -1/log(1-1/V) where V is the model vocabulary size.
+                            - 'tsallis' for the Tsallis entropy with the Boltzmann constant one.
+                                Tsallis entropy formula is the following: H_α = 1/(α-1)*(1-sum_i(p^α_i)),
+                                where α is a parameter. When α == 1, it works like the Gibbs entropy.
+                                More: https://en.wikipedia.org/wiki/Tsallis_entropy
+                            - 'renui' for the Rényi entropy.
+                                Rényi entropy formula is the following: H_α = 1/(1-α)*log_2(sum_i(p^α_i)),
+                                where α is a parameter. When α == 1, it works like the Gibbs entropy.
+                                More: https://en.wikipedia.org/wiki/R%C3%A9nyi_entropy
+
+                    temperature: Temperature scale for logsoftmax (α for entropies). Here we restrict it to be > 0.
+                        When the temperature equals one, scaling is not applied to 'max_prob',
+                        and any entropy type behaves like the Shannon entropy: H = -sum_i(p_i*log(p_i))
+
+                    entropy_norm: A mapping of the entropy value to the interval [0,1].
+                        Supported values:
+                            - 'lin' for using the linear mapping.
+                            - 'exp' for using exponential mapping with linear shift.
+
             The config may further contain the following sub-dictionaries:
             "greedy":
                 max_symbols: int, describing the maximum number of target tokens to decode per
                     timestep during greedy decoding. Setting to larger values allows longer sentences
                     to be decoded, at the cost of increased execution time.
+
+                preserve_frame_confidence: Same as above, overrides above value.
+
+                confidence_method: Same as above, overrides confidence_cfg.method.
 
             "beam":
                 beam_size: int, defining the beam size for beam search. Must be >= 1.
@@ -95,7 +167,7 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
                         By default, a float of 2.0 is used so that a target sequence can be at most twice
                         as long as the acoustic model output length T.
 
-                                maes_num_steps: Number of adaptive steps to take. From the paper, 2 steps is generally sufficient,
+                maes_num_steps: Number of adaptive steps to take. From the paper, 2 steps is generally sufficient,
                     and can be reduced to 1 to improve decoding speed while sacrificing some accuracy. int > 0.
 
                 maes_prefix_alpha: Maximum prefix length in prefix search. Must be an integer, and is advised to keep this as 1
@@ -130,6 +202,22 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
             decoding_cfg=decoding_cfg, decoder=decoder, joint=joint, blank_id=blank_id
         )
 
+    def _aggregate_token_confidence(self, hypothesis: Hypothesis) -> List[float]:
+        """
+        Implemented by subclass in order to reduce token confidence to a word-level confidence.
+
+        **Note**: Only supports Sentencepiece based tokenizers!
+
+        Args:
+            hypothesis: Hypothesis
+
+        Returns:
+            A list of word-level confidence scores.
+        """
+        return self._aggregate_token_confidence_subwords_sentencepiece(
+            hypothesis.words, hypothesis.token_confidence, hypothesis.y_sequence
+        )
+
     def decode_tokens_to_str(self, tokens: List[int]) -> str:
         """
         Implemented by subclass in order to decoder a token list into a string.
@@ -156,6 +244,66 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
         """
         token_list = self.tokenizer.ids_to_tokens(tokens)
         return token_list
+
+    def decode_tokens_to_lang(self, tokens: List[int]) -> str:
+        """
+        Compute the most likely language ID (LID) string given the tokens.
+
+        Args:
+            tokens: List of int representing the token ids.
+
+        Returns:
+            A decoded LID string.
+        """
+        lang = self.tokenizer.ids_to_lang(tokens)
+        return lang
+
+    def decode_ids_to_langs(self, tokens: List[int]) -> List[str]:
+        """
+        Decode a token id list into language ID (LID) list.
+
+        Args:
+            tokens: List of int representing the token ids.
+
+        Returns:
+            A list of decoded LIDS.
+        """
+        lang_list = self.tokenizer.ids_to_text_and_langs(tokens)
+        return lang_list
+
+    def decode_hypothesis(self, hypotheses_list: List[Hypothesis]) -> List[Union[Hypothesis, NBestHypotheses]]:
+        """
+        Decode a list of hypotheses into a list of strings.
+        Overrides the super() method optionally adding lang information
+
+        Args:
+            hypotheses_list: List of Hypothesis.
+
+        Returns:
+            A list of strings.
+        """
+        hypotheses = super().decode_hypothesis(hypotheses_list)
+        if self.compute_langs:
+            if isinstance(self.tokenizer, AggregateTokenizer):
+                for ind in range(len(hypotheses_list)):
+                    # Extract the integer encoded hypothesis
+                    prediction = hypotheses_list[ind].y_sequence
+
+                    if type(prediction) != list:
+                        prediction = prediction.tolist()
+
+                    # RNN-T sample level is already preprocessed by implicit RNNT decoding
+                    # Simply remove any blank tokens
+                    prediction = [p for p in prediction if p != self.blank_id]
+
+                    hypotheses[ind].langs = self.decode_tokens_to_lang(prediction)
+                    hypotheses[ind].langs_chars = self.decode_ids_to_langs(prediction)
+            else:
+                logging.warning(
+                    "Ignoring request for lang output in hypotheses since the model does not use an aggregate tokenizer"
+                )
+
+        return hypotheses
 
 
 class RNNTBPEWER(Metric):
