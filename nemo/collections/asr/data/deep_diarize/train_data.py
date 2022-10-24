@@ -171,6 +171,10 @@ class RTTMStreamingSegmentsDataset(IterableDataset, ABC):
     ):
         raise NotImplementedError
 
+    @property
+    def dataloader_class(self):
+        return DataLoader
+
 
 class LocalRTTMStreamingSegmentsDataset(RTTMStreamingSegmentsDataset):
     def __init__(
@@ -276,10 +280,6 @@ class LocalRTTMStreamingSegmentsDataset(RTTMStreamingSegmentsDataset):
             )
             for _ in range(num_workers)
         ]
-
-    @property
-    def dataloader_class(self):
-        return DataLoader
 
 
 class MultiStreamDataLoader:
