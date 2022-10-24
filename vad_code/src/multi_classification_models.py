@@ -12,14 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
-import json
-import os
-import tempfile
 from math import ceil, floor
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional
 
 import torch
+import torch.nn.functional as F
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from src.audio_to_multi_label import get_audio_multi_label_dataset
@@ -31,6 +28,57 @@ from nemo.collections.common.metrics import TopKClassificationAccuracy
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import *
 from nemo.utils import logging, model_utils
+
+
+class SigmoidFocalLoss(torch.nn.Module):
+    """
+    Adapted from https://pytorch.org/vision/0.12/_modules/torchvision/ops/focal_loss.html
+    """
+
+    def __init__(self, alpha: float = 0.25, gamma: float = 2, reduction: str = "mean") -> None:
+        """
+        Args:
+            alpha: (optional) Weighting factor in range (0,1) to balance
+                    positive vs negative examples or -1 for ignore. Default = 0.25
+            gamma: Exponent of the modulating factor (1 - p_t) to
+                balance easy vs hard examples.
+            reduction: 'none' | 'mean' | 'sum'
+                    'none': No reduction will be applied to the output.
+                    'mean': The output will be averaged.
+                    'sum': The output will be summed.
+        """
+        super().__init__()
+        self.alpha = alpha
+        self.gamma = gamma
+        self.reduction = reduction
+
+    def forward(self, inputs, targets):
+        """
+        Args:
+            inputs: A float tensor of arbitrary shape.
+                    The predictions for each example.
+            targets: A float tensor with the same shape as inputs. Stores the binary
+                    classification label for each element in inputs
+                    (0 for the negative class and 1 for the positive class).
+        Returns:
+            Loss tensor with the reduction option applied.
+        """
+
+        p = torch.sigmoid(inputs)
+        ce_loss = F.binary_cross_entropy_with_logits(inputs, targets, reduction="none")
+        p_t = p * targets + (1 - p) * (1 - targets)
+        loss = ce_loss * ((1 - p_t) ** self.gamma)
+
+        if self.alpha >= 0:
+            alpha_t = self.alpha * targets + (1 - self.alpha) * (1 - targets)
+            loss = alpha_t * loss
+
+        if self.reduction == "mean":
+            loss = loss.mean()
+        elif self.reduction == "sum":
+            loss = loss.sum()
+
+        return loss
 
 
 class EncDecMultiClassificationModel(EncDecClassificationModel):
@@ -56,7 +104,11 @@ class EncDecMultiClassificationModel(EncDecClassificationModel):
 
     def _setup_loss(self):
         if "loss" in self.cfg:
-            weight = self.cfg.loss.get("weight", [1.0, 1.0])
+            if "type" in self.cfg.loss and "focal" in self.cfg.loss.type:
+                alpha = self.cfg.loss.get("alpha", 0.25)
+                gamma = self.cfg.loss.get("gamma", 2.0)
+                return SigmoidFocalLoss(alpha, gamma)
+            weight = self.cfg.loss.get("weight", None)
             return CrossEntropyLoss(logits_ndim=3, weight=weight)
         else:
             return CrossEntropyLoss(logits_ndim=3)

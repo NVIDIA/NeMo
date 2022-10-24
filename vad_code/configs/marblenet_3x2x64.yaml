@@ -13,13 +13,13 @@ model:
     sample_rate: ${model.sample_rate}
     labels: ${model.labels}
     batch_size: 128
-    shuffle: false
+    shuffle: true
     # tarred datasets
     is_tarred: false
     tarred_audio_filepaths: null
     tarred_shard_strategy: "scatter"
     shuffle_n: 2048
-    num_workers: 4
+    num_workers: 8
     pin_memory: true
     # bucketing params
     bucketing_strategy: "synced_randomized"

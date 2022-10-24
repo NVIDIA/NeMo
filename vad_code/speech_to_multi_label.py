@@ -1,7 +1,4 @@
 import pytorch_lightning as pl
-
-pl.seed_everything(0)
-
 from omegaconf import OmegaConf
 from src.multi_classification_models import EncDecMultiClassificationModel
 
