@@ -35,6 +35,7 @@ from pytorch_lightning.utilities.types import _PATH
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from torch.nn.parallel import DistributedDataParallel
 
+from nemo.collections.common.callbacks.ema import EMAOptimizer
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import MainParamsOptimizerWrapper
@@ -597,7 +598,7 @@ class MegatronHalfPrecisionPlugin(NativeMixedPrecisionPlugin):
         **kwargs: Any,
     ) -> None:
         assert isinstance(
-            optimizer, MainParamsOptimizerWrapper
+            optimizer, (MainParamsOptimizerWrapper, EMAOptimizer,)
         ), "MegatronHalfPrecisionPlugin supports only the optimizer with master parameters"
 
         if self.scaler is None:

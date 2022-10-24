@@ -129,6 +129,12 @@ class EMAOptimizer(torch.optim.Optimizer):
     def __init__(
         self, optimizer: torch.optim.Optimizer, device: torch.device, decay: float = 0.9999,
     ):
+
+        # copy most of the `Optimizer` methods into this instance. `__del__` is skipped in case the optimizer has
+        # implemented custom logic which we would not want to call on destruction of the `EMAOptimizer`.
+        # this allows us to use the underlying optimizer without having to go through the EMAOptimizer wrapper.
+        self.__dict__ = {k: v for k, v in optimizer.__dict__.items() if k not in ("step", "__del__")}
+
         self.optimizer = optimizer
         self.decay = decay
         self.device = device
@@ -142,10 +148,10 @@ class EMAOptimizer(torch.optim.Optimizer):
 
     def all_parameters(self):
         if isinstance(self.optimizer, MainParamsOptimizerWrapper):
-            return (param for group in self.optimizer.float16_groups for param in group['params'])
+            return (param for group in self.optimizer.float16_groups for param in group)
         return (param for group in self.param_groups for param in group['params'])
 
-    def step(self, closure=None):
+    def step(self, closure=None, **kwargs):
         self.join()
 
         if self.first_iteration:
@@ -162,7 +168,10 @@ class EMAOptimizer(torch.optim.Optimizer):
             )
             self.rebuild_ema_params = False
 
-        loss = self.optimizer.step(closure)
+        if isinstance(self.optimizer, MainParamsOptimizerWrapper):
+            loss = self.optimizer.step(**kwargs)
+        else:
+            loss = self.optimizer.step(closure)
 
         self.update()
         return loss
