@@ -1,0 +1,11 @@
+pred_dir: ""
+gt_dir: ""
+num_workers: 20
+params:
+  onset: [0.5,0.6,0.7,0.8,0.9] # onset threshold for detecting the beginning and end of a speech
+  offset: [0.5,0.6,0.7,0.8,0.9] # offset threshold for detecting the end of a speech.
+  pad_onset: [0.0,0.1,0.2,0.3,0.4] # adding durations before each speech segment
+  pad_offset: [0.0,0.1,0.2,0.3] # adding durations after each speech segment
+  min_duration_on: [0.0,0.05,0.1,0.15,0.2,0.25] # threshold for small non_speech deletion
+  min_duration_off: [0.0,0.05,0.1,0.15,0.2,0.25] # threshold for short speech segment deletion
+  filter_speech_first: True

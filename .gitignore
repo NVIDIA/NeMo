@@ -12,6 +12,13 @@ work
 runs
 fastspeech_output
 .hydra
+.bash_history.local
+*.txt
+manifests*
+results/
+draco*
+
+synth_audio*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -50,6 +57,8 @@ MANIFEST
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
 *.spec
+manifests*
+synth_audio*
 
 # Installer logs
 pip-log.txt
@@ -173,4 +182,3 @@ examples/neural_graphs/*.yml
 
 .hydra/
 nemo_experiments/
-

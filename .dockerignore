@@ -17,3 +17,4 @@ coverage.xml
 .git
 **/*.nemo
 **/*.ckpt
+vad_code/

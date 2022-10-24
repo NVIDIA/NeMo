@@ -1,0 +1,12 @@
+preprocessor:
+  nb_augmentation_prob: 0.4
+train_ds:
+  augmentor:
+    noise:
+      prob: 0.5
+      manifest_path: "/data_root/ASR/rir_noises_tarred/noises_20s_tarred/tarred_audio_manifest.json"
+      audio_tar_filepaths: "/data_root/ASR/rir_noises_tarred/noises_20s_tarred/audio_{0..511}.tar"
+      min_snr_db: 0
+      max_snr_db: 30
+    transcode_aug:
+      prob: 0.1
