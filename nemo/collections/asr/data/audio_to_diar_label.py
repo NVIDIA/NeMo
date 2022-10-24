@@ -241,6 +241,7 @@ class _AudioMSDDTrainDataset(Dataset):
                 Unique sample ID for training.
             base_scale_clus_label (torch.tensor):
                 Tensor variable containing the speaker labels for the base-scale segments.
+        
         Returns:
             per_scale_clus_label (torch.tensor):
                 Tensor variable containing the speaker labels for each segment in each scale.
@@ -390,8 +391,6 @@ class _AudioMSDDTrainDataset(Dataset):
             for k, (seg_stt, seg_end) in enumerate(
                 self.multiscale_timestamp_dict[uniq_id]["scale_dict"][scale_idx]["time_stamps"]
             ):
-                # line_split = line.split()
-                # seg_stt, seg_end = float(line_split[0]), float(line_split[1])
                 stt, end = (
                     int((seg_stt - sample.offset) * self.frame_per_sec),
                     int((seg_end - sample.offset) * self.frame_per_sec),
