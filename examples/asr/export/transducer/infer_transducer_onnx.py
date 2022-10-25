@@ -44,7 +44,7 @@ python infer_transducer_onnx.py \
 # Export and compare a NeMo and ONNX model
 python infer_transducer_onnx.py \
     --nemo_model="<path to a .nemo file>" \
-    --export
+    --export \
     --dataset_manifest="<Either pass a manifest file path here>" \
     --audio_dir="<Or pass a directory containing preprocessed monochannel audio files>" \
     --max_symbold_per_step=5 \
@@ -100,8 +100,8 @@ def assert_args(args):
 def export_model_if_required(args, nemo_model):
     if args.export:
         nemo_model.export("temp_rnnt.onnx")
-        args.onnx_encoder = "Encoder-temp_rnnt.onnx"
-        args.onnx_decoder = "Decoder-Joint-temp_rnnt.onnx"
+        args.onnx_encoder = "encoder-temp_rnnt.onnx"
+        args.onnx_decoder = "decoder_joint-temp_rnnt.onnx"
 
 
 def resolve_audio_filepaths(args):

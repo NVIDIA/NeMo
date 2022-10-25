@@ -1027,15 +1027,22 @@ class ONNXGreedyBatchedRNNTInfer:
         except (ModuleNotFoundError, ImportError):
             raise ImportError(f"`onnx` or `onnxruntime` could not be imported, please install the libraries.\n")
 
+        if torch.cuda.is_available():
+            # Try to use onnxruntime-gpu
+            providers = ['TensorrtExecutionProvider', 'CUDAExecutionProvider']
+        else:
+            # Fall back to CPU and onnxruntime-cpu
+            providers = ['CPUExecutionProvider']
+
         onnx_model = onnx.load(encoder_model)
         onnx.checker.check_model(onnx_model, full_check=True)
         self.encoder_model = onnx_model
-        self.encoder = onnxruntime.InferenceSession(onnx_model.SerializeToString())
+        self.encoder = onnxruntime.InferenceSession(onnx_model.SerializeToString(), providers=providers)
 
         onnx_model = onnx.load(decoder_joint_model)
         onnx.checker.check_model(onnx_model, full_check=True)
         self.decoder_joint_model = onnx_model
-        self.decoder_joint = onnxruntime.InferenceSession(onnx_model.SerializeToString())
+        self.decoder_joint = onnxruntime.InferenceSession(onnx_model.SerializeToString(), providers=providers)
 
         logging.info("Successfully loaded encoder, decoder and joint onnx models !")
 
