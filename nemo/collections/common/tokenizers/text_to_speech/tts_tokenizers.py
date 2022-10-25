@@ -666,7 +666,6 @@ class ChinesePhonemesTokenizer(BaseTokenizer):
         space=' ',
         silence=None,
         apostrophe=True,
-        oov=BaseTokenizer.OOV,
         sep='|',  # To be able to distinguish between 2/3 letters codes.
         add_blank_at=None,
         pad_with_space=False,
@@ -682,7 +681,6 @@ class ChinesePhonemesTokenizer(BaseTokenizer):
             space: Space token as string.
             silence: Silence token as string (will be disabled if it is None).
             apostrophe: Whether to use apostrophe or not.
-            oov: OOV token as string.
             sep: Separation token as string.
             add_blank_at: Add blank to labels in the specified order ("last") or after tokens (any non None),
              if None then no blank in labels.
@@ -732,8 +730,7 @@ class ChinesePhonemesTokenizer(BaseTokenizer):
         Called for encoding to tokens after text preprocessing and G2P.
 
         Args:
-            g2p_text: G2P's output, could be a mixture of phonemes and graphemes,
-                e.g. "see OOV" -> ['S', 'IY1', ' ', 'O', 'O', 'V']
+            g2p_text: G2P's output, could be a mixture of Chinese phonemes and English letters.
             raw_text: original raw input
         """
         ps, space, tokens = [], self.tokens[self.space], set(self.tokens)
@@ -749,6 +746,7 @@ class ChinesePhonemesTokenizer(BaseTokenizer):
                 ps.append(p)
             # Warn about unknown char/phoneme
             elif p != space:
+                # ps.extend(['o','o','v'])
                 message = f"Text: [{''.join(g2p_text)}] contains unknown char/phoneme: [{p}]."
                 if raw_text is not None:
                     message += f"Original text: [{raw_text}]. Symbol will be skipped."

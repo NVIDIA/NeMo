@@ -508,21 +508,16 @@ class ChineseG2p(BaseG2p):
         mapping_file: Optional[str] = None,
     ):
         """Chinese G2P module. This module first converts Chinese characters into pinyin sequences using pypinyin, then pinyin sequences would 
-           be further converted into phoneme sequences using pinyin2phonemes dict file. For Chinese and English bilingual sentences, the English words
+           be further converted into phoneme sequences using pinyin_dict_nv_22.10.txt dict file. For Chinese and English bilingual sentences, the English words
            would be converted into letters.
         Args:
-            phoneme_dict (str, Path, Dict): Path to pinyin2phonemes dict file.
+            phoneme_dict (str, Path, Dict): Path to pinyin_dict_nv_22.10.txt dict file.
             word_tokenize_func: Function for tokenizing text to words.
                 It has to return List[Tuple[Union[str, List[str]], bool]] where every tuple denotes word representation and flag whether to leave unchanged or not.
                 It is expected that unchangeable word representation will be represented as List[str], other cases are represented as str.
                 It is useful to mark word as unchangeable which is already in phoneme representation.
             apply_to_oov_word: Function that will be applied to out of phoneme_dict word.
             ignore_ambiguous_words: Whether to not handle word via phoneme_dict with ambiguous phoneme sequences. Defaults to True.
-            heteronyms (str, Path, List): Path to file with heteronyms (every line is new word) or list of words.
-            encoding: Encoding type.
-            phoneme_probability (Optional[float]): The probability (0.<var<1.) that each word is phonemized. Defaults to None which is the same as 1.
-                Note that this code path is only run if the word can be phonemized. For example: If the word does not have a entry in the g2p dict, it will be returned
-                as characters. If the word has multiple entries and ignore_ambiguous_words is True, it will be returned as characters.
         """
         phoneme_dict = (
             self._parse_as_pinyin_dict(phoneme_dict)

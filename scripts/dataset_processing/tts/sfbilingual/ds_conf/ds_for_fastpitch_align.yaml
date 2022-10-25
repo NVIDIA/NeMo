@@ -22,7 +22,10 @@ dataset:
   max_duration: null
   min_duration: 0.1
   ignore_file: null
-  trim: false
+  trim: true
+  trim_top_db: 50
+  trim_frame_length: 1024
+  trim_hop_length: 256
   pitch_fmin: 65.40639132514966
   pitch_fmax: 2093.004522404789
 

@@ -25,7 +25,7 @@ from opencc import OpenCC
 
 
 def get_args():
-    parser = argparse.ArgumentParser(description='Download openSLR dataset and create manifests with predefined split')
+    parser = argparse.ArgumentParser(description='Prepare SF_bilingual dataset and create manifests with predefined split')
 
     parser.add_argument(
         "--data-root",

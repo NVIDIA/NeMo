@@ -89,10 +89,13 @@ model:
       n_mels: ${model.n_mel_channels}
       lowfreq: ${model.lowfreq}
       highfreq: ${model.highfreq}
-      max_duration: 14 # change to null to include longer audios.
+      max_duration: null # change to null to include longer audios.
       min_duration: 0.1
       ignore_file: null
       trim: true
+      trim_top_db: 50
+      trim_frame_length: ${model.n_window_size}
+      trim_hop_length: ${model.n_window_stride}
       pitch_fmin: ${model.pitch_fmin}
       pitch_fmax: ${model.pitch_fmax}
       pitch_norm: true
@@ -120,10 +123,13 @@ model:
       n_mels: ${model.n_mel_channels}
       lowfreq: ${model.lowfreq}
       highfreq: ${model.highfreq}
-      max_duration: 14 # change to null to include longer audios.
+      max_duration: null # change to null to include longer audios.
       min_duration: 0.1
       ignore_file: null
-      trim: false
+      trim: true
+      trim_top_db: 50
+      trim_frame_length: ${model.n_window_size}
+      trim_hop_length: ${model.n_window_stride}
       pitch_fmin: ${model.pitch_fmin}
       pitch_fmax: ${model.pitch_fmax}
       pitch_norm: true
@@ -208,7 +214,6 @@ model:
   optim:
     name: adamw
     lr: 1e-3
-    # optimizer arguments
     betas: [0.9, 0.999]
     weight_decay: 1e-6
 
