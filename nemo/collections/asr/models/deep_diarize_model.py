@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import math
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import hydra.utils
 import torch
@@ -82,8 +82,13 @@ class DeepDiarizeModel(ModelPT):
             combine_segments_seconds=self.cfg.combine_segments_seconds,
         )
 
+    def _mask_mems(self, mask: List[bool]):
+        for mem in self.mems:
+            mem[mask, :, :] = 0
+
     def training_step(self, batch, batch_idx):
-        train_x, train_lengths, y, _ = batch
+        train_x, train_lengths, y, mask = batch
+        # self._mask_mems(mask)
         seg, model_lengths = self.sub_sample_layer(train_x, lengths=train_lengths)
         logits, self.mems = self.transformer_model(seg, mems=self.mems)
         logits = self.sigmoid(logits)
@@ -195,5 +200,8 @@ class DeepDiarizeModel(ModelPT):
     def on_load_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
         self.mems = checkpoint['mems']
 
+    def _move_mems_to_device(self, mems: List[torch.Tensor]) -> List[torch.Tensor]:
+        return [x.to(self.device) for x in mems]
+
     def on_train_start(self) -> None:
-        self.mems = self.mems.to(self.device) if self.mems is not None else self.mems
+        self.mems = self._move_mems_to_device(self.mems) if self.mems is not None else self.mems
