@@ -278,8 +278,8 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
                         )
 
                 # Add gradient accumulation hook for fp32 grad accumulation
-                if self._fp32_grad_accum:
-                    # Expand so we get access to grad_fn.
+                if self._fp32_grad_accum and param.requires_grad:
+                    # Expand so we get access to grad_fn.ls
                     param_tmp = param.expand_as(param)
                     # Get the gradient accumulator function.
                     grad_acc = param_tmp.grad_fn.next_functions[0][0]
