@@ -21,7 +21,13 @@ import torch
 import torch.nn.functional as F
 from einops import rearrange, repeat
 
-from nemo.collections.nlp.modules.common.megatron.adapters.adapter_constants import AdapterType
+from nemo.collections.common.parts.adapter_modules import LinearAdapterConfig
+from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
+    AdapterName,
+    InfusedAdapterConfig,
+    MLPInfusedAdapterConfig,
+    ParallelLinearAdapterConfig,
+)
 from nemo.collections.nlp.modules.common.megatron.fused_bias_dropout_add import (
     bias_dropout_add,
     bias_dropout_add_fused_inference,
@@ -111,7 +117,7 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
         self.persist_layer_norm = persist_layer_norm
         self.activation = activation
         self.dropout = dropout
-        self.set_accepted_adapters([AdapterType.MLP_INFUSED])
+        self.set_accepted_adapter_types([MLPInfusedAdapterConfig._target_])
 
         if activation not in ['gelu', 'geglu', 'reglu', 'swiglu']:
             raise ValueError(f"Activation {activation} not supported. Only gelu, geglu, reglu, swiglu are supported.")
@@ -247,7 +253,7 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
         if self.dropout > 0:
             intermediate_parallel = F.dropout(intermediate_parallel, p=self.dropout, training=self.training)
 
-        infused_adapter = self.get_from_adapter_layer(AdapterType.MLP_INFUSED.name)
+        infused_adapter = self.get_from_adapter_layer(AdapterName.MLP_INFUSED)
         if infused_adapter:
             intermediate_parallel = infused_adapter(intermediate_parallel)
 
@@ -510,7 +516,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
 
         self.megatron_legacy = megatron_legacy
 
-        self.set_accepted_adapters([AdapterType.KEY_INFUSED, AdapterType.VALUE_INFUSED])
+        self.set_accepted_adapter_types([InfusedAdapterConfig._target_])
 
         if kv_channels is None:
             assert (
@@ -799,8 +805,8 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
             query_layer = query_layer.view(*new_tensor_shape)
 
         if self.is_adapter_available():
-            key_infused_adapter = self.get_from_adapter_layer(AdapterType.KEY_INFUSED.name)
-            value_infused_adapter = self.get_from_adapter_layer(AdapterType.VALUE_INFUSED.name)
+            key_infused_adapter = self.get_from_adapter_layer(AdapterName.KEY_INFUSED)
+            value_infused_adapter = self.get_from_adapter_layer(AdapterName.VALUE_INFUSED)
             if key_infused_adapter:
                 assert value_infused_adapter is not None, "Expected value_infused_adapter not found!"
                 kls = key_layer.shape
@@ -1110,7 +1116,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         self.layer_type = layer_type
         self.bias = bias
         self.transformer_block_type = transformer_block_type
-        self.set_accepted_adapters([AdapterType.ADAPTER_ONE, AdapterType.ADAPTER_TWO])
+        self.set_accepted_adapter_types([LinearAdapterConfig._target_, ParallelLinearAdapterConfig._target_])
 
         if not bias and bias_dropout_fusion:
             raise ValueError(
@@ -1423,14 +1429,11 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
             # print(f"Layer: {self.layer_number} Attention checksum {layernorm_input.sum()}")
 
             if self.is_adapter_available():
-                adapter_1 = self.get_from_adapter_layer(AdapterType.ADAPTER_ONE)
+                adapter_1 = self.get_from_adapter_layer("adapter_1")
                 if adapter_1:
                     strategy = adapter_1.adapter_strategy
                     layernorm_input = self.forward_single_enabled_adapter_(
-                        layernorm_input,
-                        adapter_1,
-                        adapter_name=AdapterType.ADAPTER_ONE.name,
-                        adapter_strategy=strategy,
+                        layernorm_input, adapter_1, adapter_name="adapter_1", adapter_strategy=strategy,
                     )
 
             # Post-LN normalization after residual
@@ -1516,11 +1519,11 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         if (
             self.is_adapter_available()
         ):  # TODO: (@adithyre) was able to move adapter_2 back to the end of the transformer after ptl 1.7 update.
-            adapter_2 = self.get_from_adapter_layer(AdapterType.ADAPTER_TWO.name)
+            adapter_2 = self.get_from_adapter_layer("adapter_2")
             if adapter_2:
                 strategy = adapter_2.adapter_strategy
                 output = self.forward_single_enabled_adapter_(
-                    output, adapter_2, adapter_name=AdapterType.ADAPTER_TWO.name, adapter_strategy=strategy
+                    output, adapter_2, adapter_name="adapter_2", adapter_strategy=strategy
                 )
 
         return output

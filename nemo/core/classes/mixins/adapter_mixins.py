@@ -28,13 +28,6 @@ ADAPTER_REGISTRY = {}
 
 
 @dataclass
-class AdapterSpec:
-    def __init__(self, name: str, targets: List[str]) -> None:
-        self.name = name
-        self.targets = targets
-
-
-@dataclass
 class AdapterRegistryInfo:
     base_class: type
     adapter_class: type
@@ -157,36 +150,21 @@ class AdapterModuleMixin(ABC):
     adapter_global_cfg_key = "global_cfg"
     adapter_metadata_cfg_key = "adapter_meta_cfg"
 
-    def set_accepted_adapters(self, adapter_specs: List[AdapterSpec]) -> None:
+    def set_accepted_adapter_types(self, adapter_types: List[str]) -> None:
         """
         The module with this mixin can define a list of adapter names that it will accept.
         This method should be called in the modules init method and set the adapter names the module will expect to be added.
         """
-        if hasattr(self, "accepted_adapter_types"):
+        if hasattr(self, "_accepted_adapter_types"):
             raise RuntimeError("accepted adapter types can only be set once.")
-        _accepted_adapter_types = set()
-        _accepted_adapter_names = set()
-        for a in adapter_specs:
-            _accepted_adapter_types.update(a.targets)
-            _accepted_adapter_names.add(a.name)
-        self.accepted_adapter_types = list(_accepted_adapter_types)
-        self.accepted_adapter_names = list(_accepted_adapter_names)
+        self._accepted_adapter_types = adapter_types
 
     def get_accepted_adapter_types(self,) -> List[str]:
         """
         Returns the list of accepted adapter types.
         """
-        if hasattr(self, 'accepted_adapter_types'):
-            return self.accepted_adapter_types
-        else:
-            return []
-
-    def get_accepted_adapter_names(self,) -> List[str]:
-        """
-        Returns the list of accepted adapter names.
-        """
-        if hasattr(self, 'accepted_adapter_names'):
-            return self.accepted_adapter_names
+        if hasattr(self, '_accepted_adapter_types'):
+            return self._accepted_adapter_types
         else:
             return []
 
@@ -207,7 +185,7 @@ class AdapterModuleMixin(ABC):
         if self.get_accepted_adapter_types():
             assert (
                 cfg._target_ in self.get_accepted_adapter_types()
-            ), f"{cfg._target_} has not been added to the list of accepted_adapter_types for this module."
+            ), f"{cfg._target_} has not been added to the list of accepted adapter types for this module."
 
         # Convert to DictConfig from dict or Dataclass
         if is_dataclass(cfg):

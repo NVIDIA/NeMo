@@ -32,9 +32,10 @@ from nemo.collections.nlp.models.language_modeling.megatron_t5_prompt_learning_m
     MegatronT5PromptLearningModel,
 )
 from nemo.collections.nlp.modules.common import VirtualPromptStyle
-from nemo.collections.nlp.modules.common.megatron.adapters.adapter_constants import AdapterType
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
+    AdapterName,
     InfusedAdapterConfig,
+    MLPInfusedAdapterConfig,
     ParallelLinearAdapterConfig,
 )
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
@@ -236,8 +237,8 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
         for name, module in self.frozen_model.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin) and module.is_adapter_available():
                 for adapter_key in self.adapter_name_keys:
-                    if adapter_key in module.get_accepted_adapter_names():
-                        adapter_module = module.adapter_layer[adapter_key]
+                    adapter_module = module.get_from_adapter_layer(adapter_key)
+                    if adapter_module:
                         state_adapter_key = ':'.join([name, adapter_key])
                         state_dict_[state_adapter_key] = adapter_module.state_dict()
                 module.set_enabled_adapters(enabled=True)
@@ -251,8 +252,8 @@ class MegatronT5BaseAdapterModel(MegatronT5PromptLearningModel):
         for name, module in self.frozen_model.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin) and module.is_adapter_available():
                 for adapter_key in self.adapter_name_keys:
-                    if adapter_key in module.get_accepted_adapter_names():
-                        adapter_module = module.adapter_layer[adapter_key]
+                    adapter_module = module.get_from_adapter_layer(adapter_key)
+                    if adapter_module:
                         state_adapter_key = ':'.join([name, adapter_key])
                         adapter_module.load_state_dict(state_dict[state_adapter_key], strict)
                 module.set_enabled_adapters(enabled=True)
@@ -328,7 +329,7 @@ class MegatronT5AdapterLearningModel(MegatronT5BaseAdapterModel):
             'parallel_adapter',
         ], "Adapter type should be 'linear_adapter' or 'parallel_adapter'"
 
-        self.adapter_name_keys = [AdapterType.ADAPTER_ONE.name, AdapterType.ADAPTER_TWO.name]
+        self.adapter_name_keys = ["adapter_1", "adapter_2"]
         frozen_model_cfg = MegatronT5Model.restore_from(
             cfg.get('language_model_path'), trainer=trainer, return_config=True
         )
@@ -357,8 +358,8 @@ class MegatronT5AdapterLearningModel(MegatronT5BaseAdapterModel):
         for _, module in component.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin):
                 for adapter_key in adapter_name_keys:
-                    if adapter_key in module.get_accepted_adapter_names():
-                        adapter_cfg = self._get_adapter_cfg(component_cfg)
+                    adapter_cfg = self._get_adapter_cfg(component_cfg)
+                    if adapter_cfg._target_ in module.get_accepted_adapter_types():
                         module.add_adapter(name=adapter_key, cfg=adapter_cfg)
 
     def _get_component_cfg(self, component_name, frozen_model_cfg, cfg):
@@ -421,11 +422,7 @@ class MegatronT5InfusedAdapterModel(MegatronT5BaseAdapterModel):
                     None  # (@adithyare) adapter learning does not support activations checkpointing atm.
                 )
 
-        self.adapter_name_keys = [
-            AdapterType.MLP_INFUSED.name,
-            AdapterType.KEY_INFUSED.name,
-            AdapterType.VALUE_INFUSED.name,
-        ]
+        self.adapter_name_keys = [AdapterName.KEY_INFUSED, AdapterName.VALUE_INFUSED, AdapterName.MLP_INFUSED]
         self.frozen_model.freeze()
         logging.info(f'Before adding adapters:\n{self.frozen_model.summarize()}')
         encoder = self.frozen_model.enc_dec_model.enc_dec_model.encoder
@@ -445,8 +442,8 @@ class MegatronT5InfusedAdapterModel(MegatronT5BaseAdapterModel):
         for _, module in component.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin):
                 for adapter_key in adapter_name_keys:
-                    if adapter_key in module.get_accepted_adapter_names():
-                        adapter_cfg = self._get_adapter_cfg(component_cfg, adapter_key)
+                    adapter_cfg = self._get_adapter_cfg(component_cfg, adapter_key)
+                    if adapter_cfg._target_ in module.get_accepted_adapter_types():
                         module.add_adapter(name=adapter_key, cfg=adapter_cfg)
 
     def _get_component_cfg(self, component_name, frozen_model_cfg):
@@ -459,11 +456,11 @@ class MegatronT5InfusedAdapterModel(MegatronT5BaseAdapterModel):
         return component_cfg
 
     def _get_adapter_cfg(self, component_cfg, adapter_key):
-        if adapter_key == AdapterType.MLP_INFUSED.name:
-            cfg = InfusedAdapterConfig(
+        if adapter_key == AdapterName.MLP_INFUSED:
+            cfg = MLPInfusedAdapterConfig(
                 in_features=component_cfg.ffn_hidden_size // component_cfg.tensor_model_parallel_size
             )
-        elif adapter_key in [AdapterType.KEY_INFUSED.name, AdapterType.VALUE_INFUSED.name]:
+        elif adapter_key in [AdapterName.KEY_INFUSED, AdapterName.VALUE_INFUSED]:
             if component_cfg.get('kv_channels', None):
                 cfg = InfusedAdapterConfig(
                     in_features=component_cfg.kv_channels
@@ -484,8 +481,8 @@ class MegatronT5InfusedAdapterModel(MegatronT5BaseAdapterModel):
         for name, module in component.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin) and module.is_adapter_available():
                 for adapter_key in adapter_name_keys:
-                    if adapter_key in module.get_accepted_adapter_names():
-                        adapter_module = module.adapter_layer[adapter_key]
+                    adapter_module = module.get_from_adapter_layer(adapter_key)
+                    if adapter_module:
                         state_adapter_key = ':'.join([component_name, name, adapter_key])
                         state_dict_[state_adapter_key] = adapter_module.state_dict()
                 module.set_enabled_adapters(enabled=True)
@@ -497,8 +494,8 @@ class MegatronT5InfusedAdapterModel(MegatronT5BaseAdapterModel):
         for name, module in component.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin) and module.is_adapter_available():
                 for adapter_key in adapter_name_keys:
-                    if adapter_key in module.get_accepted_adapter_names():
-                        adapter_module = module.adapter_layer[adapter_key]
+                    adapter_module = module.get_from_adapter_layer(adapter_key)
+                    if adapter_module:
                         state_adapter_key = ':'.join([component_name, name, adapter_key])
                         adapter_module.load_state_dict(state_dict[state_adapter_key], strict)
                 module.set_enabled_adapters(enabled=True)

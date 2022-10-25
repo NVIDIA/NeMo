@@ -27,9 +27,10 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_
     MegatronGPTPromptLearningModel,
 )
 from nemo.collections.nlp.modules.common import VirtualPromptStyle
-from nemo.collections.nlp.modules.common.megatron.adapters.adapter_constants import AdapterType
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
+    AdapterName,
     InfusedAdapterConfig,
+    MLPInfusedAdapterConfig,
     ParallelLinearAdapterConfig,
 )
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
@@ -137,8 +138,8 @@ class MegatronGPTBaseAdapterModel(MegatronGPTPromptLearningModel):
         for name, module in self.frozen_model.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin) and module.is_adapter_available():
                 for adapter_key in self.adapter_name_keys:
-                    if adapter_key in module.get_accepted_adapter_names():
-                        adapter_module = module.adapter_layer[adapter_key]
+                    adapter_module = module.get_from_adapter_layer(adapter_key)
+                    if adapter_module:
                         state_adapter_key = ':'.join([name, adapter_key])
                         state_dict_[state_adapter_key] = adapter_module.state_dict()
 
@@ -153,8 +154,8 @@ class MegatronGPTBaseAdapterModel(MegatronGPTPromptLearningModel):
         for name, module in self.frozen_model.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin) and module.is_adapter_available():
                 for adapter_key in self.adapter_name_keys:
-                    if adapter_key in module.get_accepted_adapter_names():
-                        adapter_module = module.adapter_layer[adapter_key]
+                    adapter_module = module.get_from_adapter_layer(adapter_key)
+                    if adapter_module:
                         state_adapter_key = ':'.join([name, adapter_key])
                         adapter_module.load_state_dict(state_dict[state_adapter_key], strict)
                 module.set_enabled_adapters(enabled=True)
@@ -244,7 +245,7 @@ class MegatronGPTAdapterLearningModel(MegatronGPTBaseAdapterModel):
             'parallel_adapter',
         ], "Adapter type should be 'linear_adapter' or 'parallel_adapter'"
 
-        self.adapter_name_keys = [AdapterType.ADAPTER_ONE.name, AdapterType.ADAPTER_TWO.name]
+        self.adapter_name_keys = ["adapter_1", "adapter_2"]
         frozen_model_cfg = MegatronGPTModel.restore_from(
             cfg.get('language_model_path'), trainer=trainer, return_config=True
         )
@@ -278,7 +279,7 @@ class MegatronGPTAdapterLearningModel(MegatronGPTBaseAdapterModel):
         for _, module in self.frozen_model.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin):
                 for adapter_key in self.adapter_name_keys:
-                    if adapter_key in module.get_accepted_adapter_names():
+                    if adapter_cfg._target_ in module.get_accepted_adapter_types():
                         module.add_adapter(
                             name=adapter_key, cfg=adapter_cfg,
                         )
@@ -304,11 +305,7 @@ class MegatronGPTInfusedAdapterModel(MegatronGPTBaseAdapterModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
-        self.adapter_name_keys = [
-            AdapterType.MLP_INFUSED.name,
-            AdapterType.KEY_INFUSED.name,
-            AdapterType.VALUE_INFUSED.name,
-        ]
+        self.adapter_name_keys = [AdapterName.KEY_INFUSED, AdapterName.VALUE_INFUSED, AdapterName.MLP_INFUSED]
         frozen_model_cfg = MegatronGPTModel.restore_from(
             cfg.get('language_model_path'), trainer=trainer, return_config=True
         )
@@ -324,18 +321,17 @@ class MegatronGPTInfusedAdapterModel(MegatronGPTBaseAdapterModel):
         for _, module in self.frozen_model.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin):
                 for adapter_key in self.adapter_name_keys:
-                    if adapter_key in module.get_accepted_adapter_names():
-                        if adapter_key == AdapterType.MLP_INFUSED.name:
-                            cfg = InfusedAdapterConfig(
-                                in_features=frozen_model_cfg.ffn_hidden_size
-                                // frozen_model_cfg.tensor_model_parallel_size
-                            )
-                        elif adapter_key in [AdapterType.KEY_INFUSED.name, AdapterType.VALUE_INFUSED.name]:
-                            cfg = InfusedAdapterConfig(
-                                in_features=frozen_model_cfg.hidden_size // frozen_model_cfg.tensor_model_parallel_size
-                            )
-                        else:
-                            raise ValueError(f"Adapter Key {adapter_key} is unknown.")
+                    if adapter_key == AdapterName.MLP_INFUSED:
+                        cfg = MLPInfusedAdapterConfig(
+                            in_features=frozen_model_cfg.ffn_hidden_size // frozen_model_cfg.tensor_model_parallel_size
+                        )
+                    elif adapter_key in [AdapterName.KEY_INFUSED, AdapterName.VALUE_INFUSED]:
+                        cfg = InfusedAdapterConfig(
+                            in_features=frozen_model_cfg.hidden_size // frozen_model_cfg.tensor_model_parallel_size
+                        )
+                    else:
+                        raise ValueError(f"Adapter Key {adapter_key} is unknown.")
+                    if cfg._target_ in module.get_accepted_adapter_types():
                         module.add_adapter(name=adapter_key, cfg=cfg)
 
         logging.info(f'After adding adapters:\n{self.frozen_model.summarize()}')
