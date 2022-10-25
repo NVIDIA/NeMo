@@ -110,7 +110,7 @@ class MegatronBertModel(MegatronBaseModel):
                 for module in self.model:
                     module.cuda(torch.cuda.current_device())
             else:
-                    self.model.cuda(torch.cuda.current_device()) 
+                self.model.cuda(torch.cuda.current_device())
 
             if isinstance(self.model, list):
                 converted_model = []
@@ -119,7 +119,6 @@ class MegatronBertModel(MegatronBaseModel):
                     self.model = converted_model
             else:
                 self.model = Float16Module(module=self.model, precision=cfg.precision)
-            
 
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(batch, model):
@@ -166,15 +165,15 @@ class MegatronBertModel(MegatronBaseModel):
 
     def training_step(self, batch, batch_idx):
 
-        self._optimizer.zero_grad()  
+        self._optimizer.zero_grad()
         batch_for_pipeline = self.process_batch(batch)
         tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
 
         if self.megatron_amp_o2:
-            custom_sync_context_handler = self._optimizer.no_sync 
+            custom_sync_context_handler = self._optimizer.no_sync
         else:
             # TODO: enable async grad all reduce for O1/autocast mixed precision training
-            custom_sync_context_handler = None    
+            custom_sync_context_handler = None
 
         losses_reduced_per_micro_batch = forward_backward_no_pipelining(
             forward_step_func=self.get_forward_output_and_loss_func(),
@@ -199,7 +198,7 @@ class MegatronBertModel(MegatronBaseModel):
         # async grad allreduce is not currently implemented for O1/autocasting mixed precision training
         # so we all-reduce gradients after the pipeline
         self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
-  
+
         if self.cfg.precision == 16:
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
