@@ -69,12 +69,21 @@ class VitClassificationModel(MegatronModule):
                  pre_process=True, post_process=True):
         super(VitClassificationModel, self).__init__()
 
+        scaled_init_method = (
+            scaled_init_method_normal(model_cfg.init_method_std, model_cfg.num_layers)
+            if model_cfg.use_scaled_init_method
+            else init_method_normal(model_cfg.init_method_std)
+        )
+
         self.hidden_size = model_cfg.hidden_size
         self.num_classes = num_classes
         self.finetune = finetune
         self.pre_process = pre_process
         self.post_process = post_process
         self.backbone = VitBackbone(
+            model_cfg,
+            init_method=init_method_normal(model_cfg.init_method_std),
+            scaled_init_method=scaled_init_method,
             pre_process=self.pre_process,
             post_process=self.post_process,
             single_token_output=True
@@ -219,7 +228,7 @@ class MegatronVitClassificationModel(MegatronVisionModel):
         return super().configure_optimizers()
 
     # TODO (yuya): remove text_position_ids, attention_mask, labels
-    def forward(self, tokens, text_position_ids, attention_mask, labels):
+    def forward(self, tokens):
         output_tensor = self.model(tokens)
         return output_tensor
 
@@ -621,7 +630,7 @@ class MegatronVitClassificationModel(MegatronVisionModel):
         self._train_ds, self._validation_ds = build_train_valid_datasets(
             model_cfg=self.cfg,
             data_path=self.cfg.data.data_path,
-            image_size=(self.cfg.data.img_h, self.cfg.data.img_w),
+            image_size=(self.cfg.img_h, self.cfg.img_w),
         )
         self._test_ds = None
 

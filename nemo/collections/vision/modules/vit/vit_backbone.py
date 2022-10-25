@@ -18,8 +18,9 @@ import math
 import einops
 import torch
 import torch.nn.functional as F
+from functools import partial
 
-from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer
+from nemo.collections.vision.modules.common.megatron.transformer import ParallelVisionTransformer
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     get_linear_layer,
@@ -80,6 +81,8 @@ def isPerfectSquare(x):
 
 
 def twod_interpolate_position_embeddings_hook(
+        model_cfg,
+        class_token_present,
         state_dict,
         prefix,
         local_metadata,
@@ -88,11 +91,10 @@ def twod_interpolate_position_embeddings_hook(
         unexpected_keys,
         error_msgs,
 ):
-    args = get_args()
-    num_patches_per_dim_h = args.img_h // args.patch_dim
-    num_patches_per_dim_w = args.img_w // args.patch_dim
+    num_patches_per_dim_h = model_cfg.img_h // model_cfg.patch_dim
+    num_patches_per_dim_w = model_cfg.img_w // model_cfg.patch_dim
     num_patches = num_patches_per_dim_h * num_patches_per_dim_w
-    hidden_size = args.hidden_size
+    hidden_size = model_cfg.hidden_size
 
     key = prefix + "weight"
 
@@ -105,7 +107,7 @@ def twod_interpolate_position_embeddings_hook(
         input_has_class_token = not isPerfectSquare(input_seq_len)
         num_tok_input = input_seq_len - CLASS_TOKEN_LENGTH if input_has_class_token else input_seq_len
         num_tok_output = num_patches
-        output_has_class_token = args.class_token_present
+        output_has_class_token = class_token_present
 
         # update input_param and load it to state_dict[key]
         if input_has_class_token:
@@ -154,34 +156,29 @@ class VitBackbone(MegatronModule):
     """Vision Transformer Model."""
 
     def __init__(self,
+                 model_cfg,
+                 init_method=None,
+                 scaled_init_method=None,
                  pre_process=True,
                  post_process=True,
                  class_token=True,
-                 single_token_output=False,
-                 post_layer_norm=True,
-                 drop_path_rate=0.0):
-        super(VitBackbone, self).__init__(share_word_embeddings=False)
-        args = get_args()
-
-        self.fp16_lm_cross_entropy = args.fp16_lm_cross_entropy
-        if args.init_method_xavier_uniform:
-            self.init_method = torch.nn.init.xavier_uniform_
-            self.scaled_init_method = torch.nn.init.xavier_uniform_
-        else:
-            self.init_method = init_method_normal(args.init_method_std)
-            self.scaled_init_method = scaled_init_method_normal(
-                args.init_method_std, args.num_layers
-            )
+                 single_token_output=False):
+        super(VitBackbone, self).__init__(share_token_embeddings=False)
+        
+        self.fp16_lm_cross_entropy = model_cfg.fp16_lm_cross_entropy
+        if init_method is None:
+            init_method = init_method_normal(init_method_std)
+        if scaled_init_method is None:
+            scaled_init_method = scaled_init_method_normal(init_method_std, num_layers)
 
         self.pre_process = pre_process
         self.post_process = post_process
         self.class_token = class_token
-        self.post_layer_norm = post_layer_norm
-        self.hidden_size = args.hidden_size
-        self.patch_dim = args.patch_dim
-        self.img_h = args.img_h
-        self.img_w = args.img_w
-        self.micro_batch_size = args.micro_batch_size
+        self.hidden_size = model_cfg.hidden_size
+        self.patch_dim = model_cfg.patch_dim
+        self.img_h = model_cfg.img_h
+        self.img_w = model_cfg.img_w
+        self.micro_batch_size = model_cfg.micro_batch_size
         self.single_token_output = single_token_output
         self.drop_path_rate = drop_path_rate
 
@@ -191,7 +188,7 @@ class VitBackbone(MegatronModule):
         self.num_patches_per_dim_w = self.img_w // self.patch_dim
         self.num_patches = self.num_patches_per_dim_h * self.num_patches_per_dim_w
         self.seq_length = self.num_patches + (CLASS_TOKEN_LENGTH if self.class_token else 0)
-        self.flatten_dim = self.patch_dim * self.patch_dim * args.num_channels
+        self.flatten_dim = self.patch_dim * self.patch_dim * model_cfg.num_channels
         self.input_tensor = None
         self.position_ids = None
 
@@ -213,25 +210,51 @@ class VitBackbone(MegatronModule):
             self.position_embeddings = torch.nn.Embedding(
                 self.seq_length, self.hidden_size
             )
-            init_method_normal(args.init_method_std)(
+            init_method_normal(model_cfg.init_method_std)(
                 self.position_embeddings.weight
             )
 
-            args.class_token_present = self.class_token
+            class_token_present = self.class_token
             self.position_embeddings._register_load_state_dict_pre_hook(
-                twod_interpolate_position_embeddings_hook
+                partial(
+                    twod_interpolate_position_embeddings_hook,
+                    model_cfg,
+                    class_token_present
+                )
             )
 
-            self.embedding_dropout = torch.nn.Dropout(args.hidden_dropout)
+            self.embedding_dropout = torch.nn.Dropout(model_cfg.hidden_dropout)
 
-        # Transformer
-        self.transformer = ParallelTransformer(
-            self.init_method,
-            self.scaled_init_method,
+        self.transformer = ParallelVisionTransformer(
+            init_method=init_method,
+            output_layer_init_method=scaled_init_method,
+            num_layers=model_cfg.num_layers,
+            hidden_size=model_cfg.hidden_size,
+            num_attention_heads=model_cfg.num_attention_heads,
+            apply_query_key_layer_scaling=model_cfg.apply_query_key_layer_scaling,
+            kv_channels=model_cfg.kv_channels,
+            ffn_hidden_size=model_cfg.ffn_hidden_size,
+            # self_attn_mask_type=self.encoder_attn_mask_type, # TODO (yuya)
             pre_process=self.pre_process,
             post_process=self.post_process,
-            post_layer_norm=self.post_layer_norm,
-            drop_path_rate=self.drop_path_rate
+            precision=model_cfg.precision,
+            fp32_residual_connection=model_cfg.fp32_residual_connection,
+            activations_checkpoint_method=model_cfg.activations_checkpoint_method,
+            activations_checkpoint_num_layers=model_cfg.activations_checkpoint_num_layers,
+            normalization=model_cfg.normalization,
+            layernorm_epsilon=model_cfg.layernorm_epsilon,
+            hidden_dropout=model_cfg.hidden_dropout,
+            drop_path_rate=model_cfg.drop_path_rate,
+            use_cpu_initialization=model_cfg.use_cpu_initialization,
+            bias_activation_fusion=model_cfg.bias_gelu_fusion,
+            persist_layer_norm=model_cfg.persist_layer_norm,
+            openai_gelu=model_cfg.openai_gelu,
+            onnx_safe=model_cfg.onnx_safe,
+            masked_softmax_fusion=model_cfg.masked_softmax_fusion,
+            megatron_legacy=model_cfg.megatron_legacy,
+            sequence_parallel=model_cfg.sequence_parallel,
+            activations_checkpoint_granularity=model_cfg.activations_checkpoint_granularity,
+            gradient_accumulation_fusion=model_cfg.gradient_accumulation_fusion,
         )
 
     def set_input_tensor(self, input_tensor):
@@ -248,7 +271,7 @@ class VitBackbone(MegatronModule):
                 p2=self.patch_dim,
             )
 
-            assert rearranged_input.dtype == torch.half
+            # assert rearranged_input.dtype == torch.half # TODO (yuya)
             encoder_output = self.linear_encoder(rearranged_input)
 
             concatenated_tokens = encoder_output
