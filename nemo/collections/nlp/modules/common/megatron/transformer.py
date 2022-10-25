@@ -2088,7 +2088,7 @@ class ParallelTransformer(MegatronModule):
 
             else:
                 if get_key_value or return_memory:
-                    presents = torch.empty((self.num_layers, 2, 32, 16, 64))
+                    presents = torch.empty((self.num_layers, 2, hidden_states.shape[1], 16, 64))
                 for index in range(self.num_layers):
                     layer = self._get_layer(index)
                     past = None
