@@ -76,6 +76,10 @@ model:
   fp32_residual_connection: False # Move residual connections to fp32
   fp16_lm_cross_entropy: False # Move the cross entropy unreduced loss calculation for lm head to fp16
 
+  # Megatron O2-style half-precision
+  megatron_amp_O2: False # Enable O2-level automatic mixed precision using main parameters
+  grad_allreduce_chunk_size_mb: 125
+  grad_div_ar_fusion: True 
 
   # miscellaneous
   seed: 1234
