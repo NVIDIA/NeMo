@@ -13,7 +13,6 @@ class RunningAverage(Metric):
         self.add_state('count', default=torch.tensor(0, dtype=torch.int), dist_reduce_fx='sum', persistent=True)
 
     def compute(self):
-        print(f"current state, {self.sum} {self.count}")
         return self.sum / self.count
 
     def update(self, val, n=1) -> None:
