@@ -47,6 +47,9 @@ def build_dataset(cfg, trainer, data_prefix, data_impl, num_samples, seq_length,
         # Print stats about the splits.
         logging.info(' > dataset split:')
         logging.info('     Total {} documents is : {} '.format(name, total_num_of_documents))
+        drop_last = True
+        if name == "valid":
+            drop_last = cfg.data.get("validation_drop_last", True)
         dataset = GPTDataset(
             cfg,
             trainer,
@@ -58,6 +61,7 @@ def build_dataset(cfg, trainer, data_prefix, data_impl, num_samples, seq_length,
             current_num_samples,
             seq_length,
             seed,
+            drop_last=drop_last,
         )
         return dataset
 
@@ -231,6 +235,9 @@ def _build_train_valid_test_datasets(
         dataset = None
         if splits[index + 1] > splits[index]:
             documents = np.arange(start=splits[index], stop=splits[index + 1], step=1, dtype=np.int32)
+            drop_last = True
+            if name == "valid":
+                drop_last = cfg.data.get("validation_drop_last", True)
             dataset = GPTDataset(
                 cfg,
                 trainer,
@@ -242,6 +249,7 @@ def _build_train_valid_test_datasets(
                 train_valid_test_num_samples[index],
                 seq_length,
                 seed,
+                drop_last=drop_last,
             )
         return dataset
 
@@ -266,7 +274,7 @@ def get_indexed_dataset_(data_prefix, data_impl, skip_warmup):
 
 class GPTDataset(Dataset):
     def __init__(
-        self, cfg, trainer, tokenizer, name, data_prefix, documents, indexed_dataset, num_samples, seq_length, seed,
+        self, cfg, trainer, tokenizer, name, data_prefix, documents, indexed_dataset, num_samples, seq_length, seed, drop_last=True
     ):
         if not HAVE_APEX:
             raise ImportError(
@@ -276,6 +284,8 @@ class GPTDataset(Dataset):
         super().__init__()
         self.name = name
         self.indexed_dataset = indexed_dataset
+        self.drop_last = drop_last
+        self.seq_length = seq_length
 
         # Checks
         assert np.min(documents) >= 0
@@ -306,6 +316,7 @@ class GPTDataset(Dataset):
             seq_length,
             seed,
             index_mapping_dir=self.index_mapping_dir,
+            drop_last=drop_last,
         )
 
     def __len__(self):
@@ -336,6 +347,10 @@ class GPTDataset(Dataset):
             # And finally add the relevant portion of last document.
             sample_list.append(self.indexed_dataset.get(self.doc_idx[doc_index_l], length=offset_l + 1))
             sample = np.concatenate(sample_list)
+        if len(sample) != (self.seq_length + 1):
+            logging.info(F' > WARNING: Got sample of length: {len(sample)} for sequence length={self.seq_length+1}, padding the sample to match sequence length')
+            sample = np.array(sample, dtype=np.int64)
+            sample = np.pad(sample, (0, self.seq_length + 1 - len(sample)), mode='constant', constant_values=-1)
         return sample.astype(np.int64)
 
     def __getitem__(self, idx):
@@ -345,6 +360,9 @@ class GPTDataset(Dataset):
         attention_mask, loss_mask, position_ids = _create_ltor_masks_and_position_ids(
             tokens, self.eos_id, self.reset_position_ids, self.reset_attention_mask, self.eod_mask_loss,
         )
+        loss_mask[labels == -1] = 0.0
+        tokens[tokens == -1] = 0
+        labels[labels == -1] = 0
 
         return {
             'tokens': tokens,
@@ -405,7 +423,7 @@ def _create_ltor_masks_and_position_ids(
 
 
 def _build_index_mappings(
-    name, data_prefix, documents, sizes, num_samples, seq_length, seed, index_mapping_dir: str = None
+    name, data_prefix, documents, sizes, num_samples, seq_length, seed, index_mapping_dir: str = None, drop_last: bool = True
 ):
     """Build doc-idx, sample-idx, and shuffle-idx.
     doc-idx: is an array (ordered) of documents to be used in training.
@@ -503,9 +521,9 @@ def _build_index_mappings(
                     f'Could not compile megatron dataset C++ helper functions and therefore cannot import helpers python file.'
                 )
 
-            sample_idx = helpers.build_sample_idx(sizes, doc_idx, seq_length, num_epochs, tokens_per_epoch)
+            sample_idx = helpers.build_sample_idx(sizes, doc_idx, seq_length, num_epochs, tokens_per_epoch, drop_last)
             # sample_idx = _build_sample_idx(sizes, doc_idx, seq_length,
-            #                               num_epochs, tokens_per_epoch)
+            #                              num_epochs, tokens_per_epoch, drop_last)
             np.save(sample_idx_filename, sample_idx, allow_pickle=True)
             logging.info(
                 ' > elasped time to build and save sample-idx mapping '
@@ -586,14 +604,17 @@ def _build_doc_idx(documents, num_epochs, np_rng, separate_last_epoch):
     return np.concatenate((doc_idx_first, doc_idx_last))
 
 
-def _build_sample_idx(sizes, doc_idx, seq_length, num_epochs, tokens_per_epoch):
+def _build_sample_idx(sizes, doc_idx, seq_length, num_epochs, tokens_per_epoch, drop_last):
     """Sample index mapping is a 2D array with sizes
     [number-of-samples + 1, 2] where [..., 0] contains
     the index into `doc_idx` and [..., 1] is the
     starting offset in that document."""
 
     # Total number of samples. For -1 see comments in `_num_epochs`.
-    num_samples = (num_epochs * tokens_per_epoch - 1) // seq_length
+    if not drop_last:
+        num_samples = -(-(num_epochs * tokens_per_epoch - 1)//seq_length)
+    else:
+        num_samples = (num_epochs * tokens_per_epoch - 1) // seq_length
     sample_idx = np.zeros([num_samples + 1, 2], dtype=np.int32)
 
     # Index into sample_idx.
@@ -624,6 +645,10 @@ def _build_sample_idx(sizes, doc_idx, seq_length, num_epochs, tokens_per_epoch):
                 remaining_seq_length = 0
             else:
                 # Otherwise, start from the begining of the next document.
+                if doc_idx_index == (len(doc_idx) - 1):
+                    assert sample_index == num_samples, F"sample_index={sample_index} and num_samples={num_samples} should be the same"
+                    doc_offset = sizes[doc_idx[doc_idx_index]] - 1
+                    break
                 doc_idx_index += 1
                 doc_offset = 0
         # Record the sequence.
