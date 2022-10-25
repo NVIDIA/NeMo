@@ -320,9 +320,9 @@ class MegatronVitClassificationModel(MegatronVisionModel):
             # so we all-reduce gradients after the pipeline
             self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
 
-        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
-            # when using pipeline parallelism the first and last stage must keep embeddings in sync
-            self.allreduce_first_last_embeddings()
+        # if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+        #     # when using pipeline parallelism the first and last stage must keep embeddings in sync
+        #     self.allreduce_first_last_embeddings()
 
         ## logging
         # we can only log on one rank if it is rank zero so we broadcast from last rank
@@ -388,35 +388,35 @@ class MegatronVitClassificationModel(MegatronVisionModel):
         for buf, synced in zip(grads, torch._utils._unflatten_dense_tensors(coalesced, grads)):
             buf.copy_(synced)
 
-    def allreduce_first_last_embeddings(self):
-
-        # Modified from megatron-lm: https://github.com/NVIDIA/Megatron-LM/blob/d41696840ed0a7edb7e0499eb82a48ae112d9bb3/megatron/training.py#L407
-        # All-reduce word_embeddings' grad across first and last stages to ensure
-        # that word_embeddings parameters stay in sync.
-        # This should only run for models that support pipelined model parallelism
-        # (BERT and GPT-2).
-        if parallel_state.get_pipeline_model_parallel_world_size() > 1 and (
-            parallel_state.is_pipeline_first_stage(ignore_virtual=True)
-            or parallel_state.is_pipeline_last_stage(ignore_virtual=True)
-        ):
-            if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
-                if isinstance(self.model, list):
-                    module = self.model[0]  # only the first virtual rank has the embeddings
-                else:
-                    module = self.model
-            if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
-                if isinstance(self.model, list):
-                    module = self.model[-1]  # only the last virtual rank has the embeddings
-                else:
-                    module = self.model
-            if module.share_token_embeddings:
-                word_embeddings_weight = module.word_embeddings_weight()
-                if self.megatron_amp_o2:
-                    # O2 recipe stores a "main" copy of weights and grads
-                    grad = word_embeddings_weight.main_grad
-                else:
-                    grad = word_embeddings_weight.grad
-                torch.distributed.all_reduce(grad, group=parallel_state.get_embedding_group())
+    # def allreduce_first_last_embeddings(self):
+    #
+    #     # Modified from megatron-lm: https://github.com/NVIDIA/Megatron-LM/blob/d41696840ed0a7edb7e0499eb82a48ae112d9bb3/megatron/training.py#L407
+    #     # All-reduce word_embeddings' grad across first and last stages to ensure
+    #     # that word_embeddings parameters stay in sync.
+    #     # This should only run for models that support pipelined model parallelism
+    #     # (BERT and GPT-2).
+    #     if parallel_state.get_pipeline_model_parallel_world_size() > 1 and (
+    #         parallel_state.is_pipeline_first_stage(ignore_virtual=True)
+    #         or parallel_state.is_pipeline_last_stage(ignore_virtual=True)
+    #     ):
+    #         if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
+    #             if isinstance(self.model, list):
+    #                 module = self.model[0]  # only the first virtual rank has the embeddings
+    #             else:
+    #                 module = self.model
+    #         if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
+    #             if isinstance(self.model, list):
+    #                 module = self.model[-1]  # only the last virtual rank has the embeddings
+    #             else:
+    #                 module = self.model
+    #         if module.share_token_embeddings:
+    #             word_embeddings_weight = module.word_embeddings_weight()
+    #             if self.megatron_amp_o2:
+    #                 # O2 recipe stores a "main" copy of weights and grads
+    #                 grad = word_embeddings_weight.main_grad
+    #             else:
+    #                 grad = word_embeddings_weight.grad
+    #             torch.distributed.all_reduce(grad, group=parallel_state.get_embedding_group())
 
     def get_forward_output_and_loss_func(self):
 
