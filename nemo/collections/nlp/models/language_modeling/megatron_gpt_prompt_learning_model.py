@@ -454,7 +454,6 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 inference_max_sequence_len=inference_max_sequence_len,
             )
         else:
-            with torch.autocast(device_type="cuda", dtype=self.autocast_dtype):
                 output = self.frozen_model.model(
                     input_ids=None,
                     position_ids=None,
