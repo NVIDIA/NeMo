@@ -144,7 +144,7 @@ class TestAudioSegment:
                 # samples is a one-dimensional vector for single-channel signal
                 samples = np.random.rand(self.num_samples)
             else:
-                samples = np.random.rand(self.num_samples, data_channels)
+                samples = np.random.rand(self.num_samples, noise_channels)
             sf.write(noise_file, samples, self.sample_rate, 'float')
 
             manifest_file = os.path.join(test_dir, 'noise_manifest.json')
