@@ -287,17 +287,14 @@ class MegatronBertModel(MegatronBaseModel):
         datatype = torch.int64
 
         data = batch
-        data_b = tensor_parallel.broadcast_data(
-            keys, data, datatype
-        )  # IS THIS NEEDED (NOT PRESENT IN GPT3 BUT PRESENT IN BERT NO-BATCH IMPLEMENTATION)
 
         # Unpack.
-        tokens = data_b['text'].long()
-        types = data_b['types'].long()
-        sentence_order = data_b['is_random'].long()
-        loss_mask = data_b['loss_mask'].float()
-        lm_labels = data_b['labels'].long()
-        padding_mask = data_b['padding_mask'].long()
+        tokens = data['text'].long()
+        types = data['types'].long()
+        sentence_order = data['is_random'].long()
+        loss_mask = data['loss_mask'].float()
+        lm_labels = data['labels'].long()
+        padding_mask = data['padding_mask'].long()
         return [tokens, types, sentence_order, loss_mask, lm_labels, padding_mask]
 
     def _build_train_valid_test_datasets(self):
