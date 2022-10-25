@@ -537,7 +537,11 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
             [set_inference_key_value_memory] * micro_batch_size, device=torch.cuda.current_device()
         )
         len_array = torch.tensor([maxlen] * micro_batch_size, device=torch.cuda.current_device())
-        neighbors_array = torch.tensor([self.neighbors] * micro_batch_size, device=torch.cuda.current_device())
+        if self.neighbors == 0:
+            # no retrieval, use 1 padding
+            neighbors_array = torch.tensor([1] * micro_batch_size, device=torch.cuda.current_device())
+        else:
+            neighbors_array = torch.tensor([self.neighbors] * micro_batch_size, device=torch.cuda.current_device())
 
         batch = [
             tokens2use,

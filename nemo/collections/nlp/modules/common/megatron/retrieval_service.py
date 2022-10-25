@@ -240,6 +240,9 @@ class FaissRetrievalService(RetrievalService):
         self.tokenizer = tokenizer
         ds = MMapRetrievalIndexedDataset(retrieval_index)
         self.chunk_size = ds.chunk_size
+        pad_id = self.tokenizer.pad_id
+        # batch, neighbors, 2*chunk_size
+        self.no_retrieval = np.ones((1, 1, 2 * self.chunk_size), dtype=ds._index.dtype) * pad_id
         if torch.distributed.get_rank() == 0:
             server = RetrievalServer(
                 faiss_index, faiss_devices, nprobe, retrieval_index, tokenizer, sentence_bert, sentence_bert_batch,
@@ -254,6 +257,9 @@ class FaissRetrievalService(RetrievalService):
                 text = self.tokenizer.ids_to_text(q)
                 sentence_list.append(text)
             query = sentence_list
+        if neighbors == 0:
+            # use padding
+            return np.repeat(self.no_retrieval, len(query), 0).astype(np.int64)
         data = {'sentences': query}
         data['neighbors'] = neighbors
         result = request_data(data)

@@ -118,7 +118,7 @@ def get_demo(share, username, password):
 
 
 def get_retro_demo(share, username, password):
-    with gr.Blocks(css="table, th, td { border: 1px solid blue; }") as demo:
+    with gr.Blocks(css="table, th, td { border: 1px solid blue; table-layout: fixed; width: 100%; }") as demo:
         with gr.Row():
             with gr.Column(scale=2, width=200):
                 greedy_flag = gr.Checkbox(label="Greedy")
@@ -131,7 +131,7 @@ def get_retro_demo(share, username, password):
                 repetition_penality = gr.Slider(
                     minimum=0.0, maximum=5.0, step=0.02, value=1.2, label='Repetition penalty'
                 )
-                k_neighbors = gr.Slider(minimum=1, maximum=50, step=2, value=2, label='Retrieved Documents')
+                k_neighbors = gr.Slider(minimum=0, maximum=50, step=1, value=2, label='Retrieved Documents')
             with gr.Column(scale=1, min_width=800):
                 input_prompt = gr.Textbox(
                     label="Input",
