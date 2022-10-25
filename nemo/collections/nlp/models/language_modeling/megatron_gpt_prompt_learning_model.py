@@ -454,15 +454,15 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 inference_max_sequence_len=inference_max_sequence_len,
             )
         else:
-                output = self.frozen_model.model(
-                    input_ids=None,
-                    position_ids=None,
-                    encoder_input=encoder_input,
-                    attention_mask=attention_mask,
-                    labels=labels,
-                    set_inference_key_value_memory=set_inference_key_value_memory,
-                    inference_max_sequence_len=inference_max_sequence_len,
-                )
+            output = self.frozen_model.model(
+                input_ids=None,
+                position_ids=None,
+                encoder_input=encoder_input,
+                attention_mask=attention_mask,
+                labels=labels,
+                set_inference_key_value_memory=set_inference_key_value_memory,
+                inference_max_sequence_len=inference_max_sequence_len,
+            )
 
         return output
 

@@ -22,10 +22,10 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_
 )
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
+    MegatronHalfPrecisionPlugin,
     NLPDDPStrategy,
     NLPSaveRestoreConnector,
-    MegatronHalfPrecisionPlugin,
-    PipelineMixedPrecisionPlugin
+    PipelineMixedPrecisionPlugin,
 )
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
