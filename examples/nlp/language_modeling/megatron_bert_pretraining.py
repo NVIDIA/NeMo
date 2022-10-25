@@ -19,7 +19,12 @@ from pytorch_lightning.plugins.environments.torchelastic_environment import Torc
 from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
 
 from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
-from nemo.collections.nlp.parts.nlp_overrides import GradScaler, NLPDDPStrategy, MegatronHalfPrecisionPlugin, PipelineMixedPrecisionPlugin
+from nemo.collections.nlp.parts.nlp_overrides import (
+    GradScaler,
+    MegatronHalfPrecisionPlugin,
+    NLPDDPStrategy,
+    PipelineMixedPrecisionPlugin,
+)
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import StatelessTimer, exp_manager
