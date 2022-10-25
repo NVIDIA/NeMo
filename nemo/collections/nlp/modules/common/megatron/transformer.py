@@ -752,12 +752,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         inference_max_sequence_len=None,
         rotary_pos_emb=None,  # rotary positional embedding
         relative_position_bias=None,
-<<<<<<< HEAD
-=======
         checkpoint_core_attention=False,
-        key_infused_adapter=None,
-        value_infused_adapter=None,
->>>>>>> main
     ):
         # hidden_states: [sq, b, h]
 
@@ -1429,12 +1424,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 inference_max_sequence_len=inference_max_sequence_len,
                 rotary_pos_emb=self_attention_pos_emb,
                 relative_position_bias=self_attention_relative_position_bias,
-<<<<<<< HEAD
-=======
                 checkpoint_core_attention=checkpoint_core_attention,
-                key_infused_adapter=key_infused_adapter,
-                value_infused_adapter=value_infused_adapter,
->>>>>>> main
             )
 
             if get_key_value:
@@ -1511,12 +1501,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                     encoder_output=encoder_output,
                     rotary_pos_emb=cross_attention_pos_emb,
                     relative_position_bias=cross_attention_relative_position_bias,
-<<<<<<< HEAD
-=======
                     checkpoint_core_attention=checkpoint_core_attention,
-                    key_infused_adapter=inter_key_infused_adapter,
-                    value_infused_adapter=inter_value_infused_adapter,
->>>>>>> main
                 )
 
             # If normformer, apply norm on the output of the self attention.
