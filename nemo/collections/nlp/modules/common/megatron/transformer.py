@@ -1454,11 +1454,11 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
             # print(f"Layer: {self.layer_number} Attention checksum {layernorm_input.sum()}")
 
             if self.is_adapter_available():
-                adapter_1 = self.get_from_adapter_layer("adapter_1")
+                adapter_1 = self.get_from_adapter_layer(AdapterName.PRE_ATTN_ADAPTER)
                 if adapter_1:
                     strategy = adapter_1.adapter_strategy
                     layernorm_input = self.forward_single_enabled_adapter_(
-                        layernorm_input, adapter_1, adapter_name="adapter_1", adapter_strategy=strategy,
+                        layernorm_input, adapter_1, adapter_name=AdapterName.PRE_ATTN_ADAPTER, adapter_strategy=strategy,
                     )
 
             # Post-LN normalization after residual
@@ -1546,11 +1546,11 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         if (
             self.is_adapter_available()
         ):  # TODO: (@adithyre) was able to move adapter_2 back to the end of the transformer after ptl 1.7 update.
-            adapter_2 = self.get_from_adapter_layer("adapter_2")
+            adapter_2 = self.get_from_adapter_layer(AdapterName.POST_ATTN_ADAPTER)
             if adapter_2:
                 strategy = adapter_2.adapter_strategy
                 output = self.forward_single_enabled_adapter_(
-                    output, adapter_2, adapter_name="adapter_2", adapter_strategy=strategy
+                    output, adapter_2, adapter_name=AdapterName.POST_ATTN_ADAPTER, adapter_strategy=strategy
                 )
 
         return output

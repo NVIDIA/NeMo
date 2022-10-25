@@ -329,7 +329,7 @@ class MegatronT5AdapterLearningModel(MegatronT5BaseAdapterModel):
             'parallel_adapter',
         ], "Adapter type should be 'linear_adapter' or 'parallel_adapter'"
 
-        self.adapter_name_keys = ['adapter_1', 'adapter_2']
+        self.adapter_name_keys = [AdapterName.PRE_ATTN_ADAPTER, AdapterName.POST_ATTN_ADAPTER]
         frozen_model_cfg = MegatronT5Model.restore_from(
             cfg.get('language_model_path'), trainer=trainer, return_config=True
         )
