@@ -16,7 +16,6 @@ import torch
 from torch import nn
 
 from nemo.collections.nlp.modules.common.megatron.megatron_perceiver_encoders import MegatronPerceiverEncoderModule
-from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 from nemo.core.classes import Exportable, NeuralModule
 
 
