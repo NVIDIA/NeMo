@@ -18,7 +18,7 @@ import os
 import shutil
 from copy import deepcopy
 from functools import reduce
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import omegaconf
@@ -398,26 +398,6 @@ def rttm_to_labels(rttm_filename):
     return labels
 
 
-def get_rttm_speaker_index(rttm_labels):
-    """
-    Generate speaker mapping between integer index to RTTM speaker label names.
-
-    Args:
-        rttm_labels (list):
-            List containing string type RTTM lines
-    Returns:
-        speaker_mapping_dict (dict):
-            Dictionary containing the mapping between integer index and RTTM speaker labels.
-    """
-    speaker_set = set()
-    for rttm_line in rttm_labels:
-        spk_str = rttm_line.split()[-1]
-        speaker_set.add(spk_str)
-    speaker_list = sorted(list(speaker_set))
-    speaker_mapping_dict = {key: val for key, val in enumerate(speaker_list)}
-    return speaker_mapping_dict
-
-
 def write_cluster_labels(base_scale_idx, lines_cluster_labels, out_rttm_dir):
     """
     Write cluster labels that are generated from clustering into a file.
@@ -463,7 +443,7 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
         logging.warning("cuda=False, using CPU for Eigen decomposition. This might slow down the clustering process.")
         cuda = False
 
-    for uniq_id, value in tqdm(AUDIO_RTTM_MAP.items()):
+    for uniq_id, value in tqdm(AUDIO_RTTM_MAP.items(), desc='clustering', leave=False):
         if clustering_params.oracle_num_speakers:
             num_speakers = value.get('num_speakers', None)
             if num_speakers is None:
@@ -512,7 +492,9 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
     return all_reference, all_hypothesis
 
 
-def score_labels(AUDIO_RTTM_MAP, all_reference, all_hypothesis, collar=0.25, ignore_overlap=True):
+def score_labels(
+    AUDIO_RTTM_MAP, all_reference, all_hypothesis, collar=0.25, ignore_overlap=True
+) -> Optional[Tuple[DiarizationErrorRate, Dict]]:
     """
     Calculates DER, CER, FA and MISS
 
@@ -531,7 +513,6 @@ def score_labels(AUDIO_RTTM_MAP, all_reference, all_hypothesis, collar=0.25, ign
     collar in md-eval.pl, 0.5s should be applied for pyannote.metrics.
 
     """
-    metric = None
     if len(all_reference) == len(all_hypothesis):
         metric = DiarizationErrorRate(collar=2 * collar, skip_overlap=ignore_overlap)
 
@@ -556,14 +537,11 @@ def score_labels(AUDIO_RTTM_MAP, all_reference, all_hypothesis, collar=0.25, ign
                 collar, ignore_overlap, FA, MISS, DER, CER
             )
         )
-
         return metric, mapping_dict
-    else:
-        logging.warning(
-            "check if each ground truth RTTMs were present in provided manifest file. Skipping calculation of Diariazation Error Rate"
-        )
-
-        return None
+    logging.warning(
+        "check if each ground truth RTTMs were present in provided manifest file. Skipping calculation of Diariazation Error Rate"
+    )
+    return
 
 
 def get_vad_out_from_rttm_line(rttm_line):

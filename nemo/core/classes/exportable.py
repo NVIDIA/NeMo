@@ -28,6 +28,7 @@ from nemo.utils.export_utils import (
     parse_input_example,
     replace_for_export,
     verify_runtime,
+    verify_torchscript,
     wrap_forward_method,
 )
 
@@ -60,6 +61,7 @@ class Exportable(ABC):
         dynamic_axes=None,
         check_tolerance=0.01,
         export_modules_as_functions=False,
+        keep_initializers_as_inputs=None,
     ):
         all_out = []
         all_descr = []
@@ -94,10 +96,11 @@ class Exportable(ABC):
         do_constant_folding=True,
         onnx_opset_version=None,
         training=TrainingMode.EVAL,
-        check_trace: bool = False,
+        check_trace: Union[bool, List[torch.Tensor]] = False,
         dynamic_axes=None,
         check_tolerance=0.01,
         export_modules_as_functions=False,
+        keep_initializers_as_inputs=None,
     ):
         my_args = locals().copy()
         my_args.pop('self')
@@ -145,6 +148,11 @@ class Exportable(ABC):
                 output_example = tuple(self.forward(*input_list, **input_dict))
 
                 if format == ExportFormat.TORCHSCRIPT:
+                    if check_trace:
+                        if isinstance(check_trace, bool):
+                            check_trace_input = {"forward": tuple(input_list) + tuple(input_dict.values())}
+                        else:
+                            check_trace_input = check_trace
                     jitted_model = torch.jit.trace_module(
                         self,
                         {"forward": tuple(input_list) + tuple(input_dict.values())},
@@ -158,6 +166,15 @@ class Exportable(ABC):
                         logging.info(f"JIT code:\n{jitted_model.code}")
                     jitted_model.save(output)
                     assert os.path.exists(output)
+
+                    if check_trace:
+                        if isinstance(check_trace, bool):
+                            check_trace_input = [input_example]
+                        else:
+                            check_trace_input = check_trace
+
+                        verify_torchscript(jitted_model, output, check_trace_input, input_names, check_tolerance)
+
                 elif format == ExportFormat.ONNX:
                     # dynamic axis is a mapping from input/output_name => list of "dynamic" indices
                     if dynamic_axes is None:
@@ -174,6 +191,7 @@ class Exportable(ABC):
                         do_constant_folding=do_constant_folding,
                         dynamic_axes=dynamic_axes,
                         opset_version=onnx_opset_version,
+                        keep_initializers_as_inputs=keep_initializers_as_inputs,
                         export_modules_as_functions=export_modules_as_functions,
                     )
 

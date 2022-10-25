@@ -112,10 +112,10 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         att_mask=None,
         pos_emb=None,
         pad_mask=None,
-        cache_last_time=None,
         cache_last_channel=None,
-        cache_last_time_next=None,
+        cache_last_time=None,
         cache_last_channel_next=None,
+        cache_last_time_next=None,
     ):
         """
         Args:
@@ -123,10 +123,10 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
             att_mask (torch.Tensor): attention masks(B, T, T)
             pos_emb (torch.Tensor): (L, 1, d_model)
             pad_mask (torch.tensor): padding mask
-            cache_last_time (torch.tensor) : cache for convolutional layers (N, B, d_model, T_cache)
-            cache_last_time_next (torch.tensor) : next cache for convolutional layers (N, B, d_model, T_cache)
             cache_last_channel (torch.tensor) : cache for MHA layers (N, B, T_cache, d_model)
+            cache_last_time (torch.tensor) : cache for convolutional layers (N, B, d_model, T_cache)
             cache_last_channel_next (torch.tensor) : next cache for MHA layers (N, B, T_cache, d_model)
+            cache_last_time_next (torch.tensor) : next cache for convolutional layers (N, B, d_model, T_cache)
         Returns:
             x (torch.Tensor): (B, T, d_model)
         """
@@ -193,6 +193,9 @@ class ConformerConvolution(nn.Module):
         self.kernel_size = kernel_size
         self.norm_type = norm_type
 
+        if conv_context_size is None:
+            conv_context_size = (kernel_size - 1) // 2
+
         if pointwise_activation in activation_registry:
             self.pointwise_activation = activation_registry[pointwise_activation]()
             dw_conv_input_dim = d_model * 2
@@ -213,7 +216,7 @@ class ConformerConvolution(nn.Module):
             kernel_size=kernel_size,
             stride=1,
             padding=conv_context_size,
-            groups=d_model,
+            groups=dw_conv_input_dim,
             bias=True,
         )
 

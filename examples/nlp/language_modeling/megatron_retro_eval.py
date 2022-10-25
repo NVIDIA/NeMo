@@ -31,7 +31,7 @@ This is the script to run RETRO Model text generation.
 Usage:
     Assume the model has TP=1, PP=1
     run greedy inference from a nemo file:
-        python megatron_gpt_eval.py \
+        python megatron_retro_eval.py \
             trainer.devices=1 \
             trainer.num_nodes=1 \
             trainer.accelerator=gpu \
@@ -64,8 +64,6 @@ def main(cfg) -> None:
     )
 
     with open_dict(model_cfg):
-        # work around for the fused softmax bug
-        model_cfg.masked_softmax_fusion = False
         model_cfg.precision = trainer.precision
 
     model = MegatronRetrievalModel.restore_from(
