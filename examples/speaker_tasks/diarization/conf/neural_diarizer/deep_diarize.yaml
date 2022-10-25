@@ -91,7 +91,7 @@ exp_manager:
   checkpoint_callback_params:
     monitor: "val_loss"
     mode: "min"
-    save_top_k: 5
+    save_top_k: 1
   wandb_logger_kwargs:
     name: null
     project: null

@@ -194,3 +194,6 @@ class DeepDiarizeModel(ModelPT):
 
     def on_load_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
         self.mems = checkpoint['mems']
+
+    def on_train_start(self) -> None:
+        self.mems = self.mems.to(self.device) if self.mems is not None else self.mems
