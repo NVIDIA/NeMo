@@ -1026,7 +1026,228 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # Return the output tensor of encoder and transpose from [seq_len, batch, hidden] to [batch, seq_len, hidden]
         return output_tensor.transpose(1, 0)
 
+    def _one_step_forward(
+        self, 
+        enc_output, 
+        enc_output_attn_mask, 
+        predicted_tokens_dec, 
+        dec_mask,
+        tensor_shape,
+        vocab_size,
+        device,
+        ignore_ids=[]
+    ):
+        batch_for_pipeline = [enc_output, enc_output_attn_mask, predicted_tokens_dec, dec_mask]
+        arg_names = ['enc_output', 'enc_output_attn_mask', 'dec_input_ids', 'dec_attn_mask']
+        decoder_seq_length = predicted_tokens_dec.size(1)
+
+        forward_step_func = self._get_forward_output_only_func(arg_names=arg_names, output_name="logits")
+
+        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+            output_tensor = forward_backward_pipelining_without_interleaving(
+                forward_step_func=forward_step_func,
+                batch=batch_for_pipeline,
+                model=self.enc_dec_model,
+                forward_only=True,
+                tensor_shape=tensor_shape,
+                decoder_sequence_length=decoder_seq_length,
+                dtype=self.autocast_dtype,
+            )
+        else:
+            output_tensor = forward_backward_no_pipelining(
+                forward_step_func=forward_step_func,
+                batch=batch_for_pipeline,
+                model=self.enc_dec_model,
+                forward_only=True,
+                tensor_shape=tensor_shape,
+                decoder_sequence_length=decoder_seq_length,
+                dtype=self.autocast_dtype,
+            )
+
+        # get output tensor
+        if parallel_state.is_pipeline_last_stage():
+            output_tensor = output_tensor[0]['logits']
+            # make sure it won't sample outside the vocab_size range
+            output_tensor[:, :, vocab_size :] = -float('Inf')
+            # ignore selected indices
+            if ignore_ids:
+                output_tensor = output_tensor.index_fill(
+                    dim=-1, index=torch.tensor(ignore_ids, device=device), value=-float('Inf')
+                )
+
+            log_probs = torch.nn.functional.log_softmax(output_tensor, dim=-1)
+        else:
+            log_probs = torch.zeros(
+                (predicted_tokens_dec.shape[0], predicted_tokens_dec.shape[1]), dtype=self.autocast_dtype
+            ).cuda()
+            
+        return log_probs
+
+    @staticmethod
+    def compute_len_penalty(lengths, alpha):
+        """Returns length penalty according to https://arxiv.org/pdf/1609.08144.pdf"""
+        return ((5 + lengths) / 6).pow(alpha)
+
     def decode(
+        self, 
+        tokens_enc,
+        enc_mask,
+        num_tokens_to_generate,
+        encoder_input=None,
+        tokenizer=None,
+        enc_output=None,
+        enc_output_attn_mask=None,
+        ignore_ids=[],
+        beam_size=5,
+    ):
+        # prepare init data
+        # Check whether the DDP is initialized. This is needed when running inference outside of training loop.
+        if parallel_state.is_unitialized():
+            def dummy():
+                return
+
+            if self.trainer.strategy.launcher is not None:
+                self.trainer.strategy.launcher.launch(dummy, trainer=self.trainer)
+            self.trainer.strategy.setup_environment()
+
+            # Reconfigure microbatch sizes here because on model restore, this will contain the micro/global batch configuration used while training.
+            _reconfigure_microbatch_calculator(
+                rank=0,  # This doesn't matter since it is only used for logging
+                rampup_batch_size=None,
+                global_batch_size=1,
+                micro_batch_size=1,  # Make sure that there is no "grad acc" while decoding.
+                data_parallel_size=1,  # We check above to make sure that dataparallel size is always 1 at inference.
+            )
+
+        # If classes that inherit from this class are using a different tokenizer,
+        tokenizer = self.tokenizer if tokenizer is None else tokenizer
+        app_state = AppState()
+        if tokens_enc is not None:
+            global_batch_per_gpu = tokens_enc.size(0)
+            device = tokens_enc.device
+            encoder_seq_length = tokens_enc.size(1)
+        else:
+            global_batch_per_gpu = enc_output.size(0)
+            device = enc_output.device
+            encoder_seq_length = enc_output.size(1)
+
+        # Reconfigure microbatch calculator here to set num microbatches to 1 while decoding since its not clear how to decode with "grad acc".
+        _reconfigure_microbatch_calculator(
+            rank=app_state.global_rank,
+            rampup_batch_size=None,
+            global_batch_size=global_batch_per_gpu * parallel_state.get_data_parallel_world_size(),
+            micro_batch_size=global_batch_per_gpu,  # Make sure that there is no "grad acc" while decoding.
+            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+        )
+        predicted_tokens_dec = torch.LongTensor([tokenizer.bos_id] * global_batch_per_gpu).unsqueeze(1).to(device)
+        tensor_shape = [encoder_seq_length, global_batch_per_gpu, self.cfg.encoder.hidden_size]
+        assert predicted_tokens_dec.size(0) == global_batch_per_gpu
+
+        # get encoder hiddens (output)
+        if enc_output is None:
+            # Encode returns a tensr of shape [batch, seq_len, hidden]
+            enc_output = self.encode(
+                tokens_enc=tokens_enc, enc_mask=enc_mask, encoder_input=encoder_input, reconfigure_microbatch=False
+            )
+            batch_size = enc_output.shape[0]
+        if enc_output_attn_mask is None:
+            enc_output_attn_mask = enc_mask
+
+        # single step forward
+        dec_mask = predicted_tokens_dec != tokenizer.pad_id
+        log_probs = self._one_step_forward(
+            enc_output, enc_output_attn_mask, predicted_tokens_dec, dec_mask, tensor_shape, tokenizer.vocab_size, device
+        )
+
+        scores, prefixes = torch.topk(log_probs.permute(0, 2, 1), beam_size, dim=1)
+        scores, prefixes = scores.view(-1, 1), prefixes.view(-1, 1)
+
+        tgt = torch.ones((batch_size, 1)).to(device) * tokenizer.bos_id
+        prefixes = torch.cat((tgt.repeat(1, beam_size).view(-1, 1), prefixes), dim=1).long()
+
+        # repeat source sequence beam_size times for beam search
+        _, src_length, hidden_size = enc_output.size()
+        enc_output_attn_mask = enc_output_attn_mask.repeat(1, beam_size).view(-1, src_length)
+        enc_output = enc_output.repeat(1, beam_size, 1).view(
+            -1, src_length, hidden_size
+        )
+
+        # pad_profile tracks finished hypotheses to generate only <pad> tokens
+        # if <eos> or <pad> has been generated
+        pad_profile = torch.zeros_like(scores).long()
+
+        # prefixes_len tracks lengths of generated hypotheses to perform
+        # length penalty correction
+        prefixes_len = torch.zeros_like(scores).fill_(prefixes.size(1) + 1)
+
+        # reconfigure batch size for apex
+        global_batch_per_gpu = prefixes.shape[0]
+        tensor_shape[1] = prefixes.shape[0]
+        
+        _reconfigure_microbatch_calculator(
+            rank=app_state.global_rank,
+            rampup_batch_size=None,
+            global_batch_size=global_batch_per_gpu * parallel_state.get_data_parallel_world_size(),
+            micro_batch_size=global_batch_per_gpu,  # Make sure that there is no "grad acc" while decoding.
+            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+        )
+
+        for i in range(num_tokens_to_generate):
+            # generate and score candidates for prefixes continuation
+            log_probs = self._one_step_forward(
+                enc_output, enc_output_attn_mask, prefixes, prefixes != tokenizer.pad_id, tensor_shape, tokenizer.vocab_size, device
+            )
+
+            # get top candidates for each item in batch
+            scores_i, prefixes_i = torch.topk(log_probs[:, -1, :], beam_size, dim=-1)
+
+            # mask all finished hypotheses to exclude them from beam
+            pad_mask = pad_profile.repeat(1, beam_size)
+
+            # for all prefixes ending with <eos> or <pad> replace generated
+            # continuations with <pad>
+            prefixes_i = tokenizer.pad_id * pad_mask + prefixes_i * (1 - pad_mask)
+
+            # force all hypotheses but one generated from already finished
+            # hypotheses to have extremely low score, so they will not be
+            # considered during beam re-ranking
+            pad_mask[:, 1:] = pad_mask[:, 1:] * -10000.0
+            scores = scores + scores_i * (1 - pad_mask).to(scores.dtype)
+
+            # choose top-k hypotheses with length penalty applied
+            len_penalties = self.compute_len_penalty(prefixes_len, 0)
+            scores = scores / len_penalties
+            scores, indices_i = torch.topk(scores.view(-1, beam_size ** 2), beam_size, dim=1)
+            scores = scores.view(-1, 1) * len_penalties
+
+            # select prefixes which correspond to the chosen hypotheses
+            prefixes = prefixes.unsqueeze(1).repeat(1, beam_size, 1)
+            prefixes = torch.cat((prefixes, prefixes_i.unsqueeze(2)), dim=2)
+            prefixes = prefixes.view(batch_size, beam_size ** 2, -1)
+            p_len = prefixes.size(2)
+            prefixes_ids = indices_i.unsqueeze(2).repeat(1, 1, p_len)
+            prefixes = prefixes.gather(1, prefixes_ids).view(-1, p_len)
+
+            # update prefixes_len and pad_profile
+            not_eos_pad = prefixes.ne(tokenizer.eos_id) & prefixes.ne(tokenizer.pad_id)
+            prefixes_len = 1 + not_eos_pad.sum(dim=1, keepdim=True).to(scores.dtype)
+            pad_profile = (~not_eos_pad[:, -1:]).long()
+
+            # if all hypotheses end with <eos> or <pad>, interrupt search
+            if pad_profile.sum() == batch_size * beam_size:
+                break
+
+        # select best performing hypotheses in each element of the batch
+        len_penalties = self.compute_len_penalty(prefixes_len, 0)
+        scores = scores / len_penalties
+        best_guesses = (
+            torch.argmax(scores.view(-1, beam_size), dim=1, keepdim=True).repeat(1, prefixes.size(1)).unsqueeze(1)
+        )
+
+        tgt_text = prefixes.view(batch_size, beam_size, -1).gather(1, best_guesses).squeeze(1)
+        return tgt_text, None
+
+    def decode_old(
         self,
         tokens_enc,
         enc_mask,

@@ -37,6 +37,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_sampler
 from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_model import (
     MegatronLMEncoderDecoderModel,
 )
+from nemo.collections.nlp.modules.common.text_generation_strategy import model_inference_strategy_dispatcher
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
 from nemo.collections.nlp.modules.common.megatron.megatron_export import DecEmb, EncEmb, TokensHeadEmb
@@ -196,6 +197,10 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             make_vocab_size_divisible_by=self._cfg.get('make_vocab_size_divisible_by', 128),
             tensor_model_parallel_size=self._cfg.get('tensor_model_parallel_size', 1),
         )
+
+    def set_inference_config(self, inference_config, retrieval_config):
+        self._inference_config = inference_config
+        self._inference_strategy = model_inference_strategy_dispatcher(self, **retrieval_config)
 
     def training_step(self, batch, batch_idx):
         # Need to squeze dim 0 for tarred datasets since things are pre-batched and we ask the dataloader for batch size 1.
