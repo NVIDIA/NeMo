@@ -459,6 +459,11 @@ class NoisePerturbation(Perturbation):
                 f"Found mismatched channels for data ({data.num_channels}) and noise ({noise.num_channels})."
             )
 
+        if not (0 <= ref_mic < data.num_channels):
+            raise ValueError(
+                f" reference mic ID must be an integer in [0, {data.num_channels}), got {ref_mic} instead."
+            )
+
         snr_db = self._rng.uniform(self._min_snr_db, self._max_snr_db)
         if data_rms is None:
             data_rms = data.rms_db
@@ -497,6 +502,11 @@ class NoisePerturbation(Perturbation):
         if data.num_channels != noise.num_channels:
             raise ValueError(
                 f"Found mismatched channels for data ({data.num_channels}) and noise ({noise.num_channels})."
+            )
+
+        if not (0 <= ref_mic < data.num_channels):
+            raise ValueError(
+                f" reference mic ID must be an integer in [0, {data.num_channels}), got {ref_mic} instead."
             )
 
         snr_db = self._rng.uniform(self._min_snr_db, self._max_snr_db)
