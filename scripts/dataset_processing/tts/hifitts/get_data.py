@@ -13,13 +13,13 @@
 # limitations under the License.
 
 import argparse
-from email.mime import audio
+import glob
 import json
+import re
 import tarfile
 import urllib.request
+from email.mime import audio
 from pathlib import Path
-import glob
-import re
 
 import sox
 import wget
@@ -84,7 +84,7 @@ def __process_data(data_root, filelists):
                         'text': data['text'],
                         'normalized_text': data['text_normalized'],
                         'speaker': int(speaker_id),
-                        'audio_quality': audio_quality
+                        'audio_quality': audio_quality,
                     }
                     entries.append(entry)
 
