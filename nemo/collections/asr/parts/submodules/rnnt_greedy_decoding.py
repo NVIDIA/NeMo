@@ -349,15 +349,9 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
                 k = k.item()  # K is the label at timestep t_s in inner loop, s >= 0.
 
                 if k == self._blank_index:
-                    print("NORMAL BLANK")
-
-                elif k > self._blank_index:
-                  for i in range(len(big_blank_indices)):
-                      if k == big_blank_indices[i]:
-                          big_blank_duration = big_blank_durations[i]
-                          print("BIG BLANK #", i + 1)
+                    print("HERE BLANK")
                 else:
-                    print("NO BLANK")
+                    print("HERE", k)
 
                 if self.preserve_alignments:
                     # insert logprobs into last timestep
@@ -380,6 +374,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
                     hypothesis.dec_state = hidden_prime
                     hypothesis.last_token = k
 
+
                 # Increment token counter.
                 symbols_added += 1
 
@@ -387,6 +382,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
         if self.preserve_alignments:
             if len(hypothesis.alignments[-1]) == 0:
                 del hypothesis.alignments[-1]
+        print("HERE EOS")
 
         # Unpack the hidden states
         hypothesis.dec_state = self.decoder.batch_select_state(hypothesis.dec_state, 0)
@@ -1008,6 +1004,7 @@ class ONNXGreedyBatchedRNNTInfer:
                 # Get index k, of max prob for batch
                 k = np.argmax(logp, axis=1).astype(np.int32)
 
+
                 # Update blank mask with current predicted blanks
                 # This is accumulating blanks over all time steps T and all target steps min(max_symbols, U)
                 k_is_blank = k == self._blank_index
@@ -1058,7 +1055,6 @@ class ONNXGreedyBatchedRNNTInfer:
                             timesteps[kidx].append(time_idx)
 
                     symbols_added += 1
-
         return label, timesteps
 
     def run_encoder(self, audio_signal, length):
