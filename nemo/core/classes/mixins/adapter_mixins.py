@@ -182,7 +182,7 @@ class AdapterModuleMixin(ABC):
             cfg: A DictConfig or Dataclass that contains at the bare minimum `__target__` to instantiate a
                 new Adapter module.
         """
-        if self._accepted_adapter_types is not None:
+        if hasattr(self, '_accepted_adapter_types'):
             if len(self._accepted_adapter_types) > 0:
                 test = model_utils.import_class_by_path(cfg._target_)
                 if test not in self._accepted_adapter_types:
