@@ -948,16 +948,14 @@ pipeline {
       parallel {
         stage('Conformer RNNT Onnx Export') {
           steps {
-            sh 'cd examples/asr/export/transducer/'
-            sh 'python infer_transducer_onnx.py \
+            sh 'cd examples/asr/export/transducer/ && python infer_transducer_onnx.py \
             --pretrained_model="stt_en_conformer_ctc_small" \
             --dataset_manifest="/home/TestData/an4_dataset/an4_val.json" \
             --max_symbold_per_step=5 \
             --batch_size=32 \
             --log \
-            --export'
-            sh 'rm -rf *.onnx'
-            sh "cd ../../../.."
+            --export && \
+            rm -rf *.onnx'
           }
         }
       }
