@@ -40,7 +40,7 @@ withing this examples directory to convert your model to .nemo format.
 """
 
 
-@hydra_runner(config_path="conf", config_name="megatron_gpt_prompt_learning_config")
+@hydra_runner(config_path="conf", config_name="megatron_gpt_prompt_learning_config_intent_slot")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
