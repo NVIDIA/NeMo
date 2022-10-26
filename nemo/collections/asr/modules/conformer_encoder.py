@@ -429,7 +429,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         audio_signal, pos_emb = self.pos_enc(x=audio_signal, cache_len=cache_len)
 
         # Create the self-attention and padding masks
-        pad_mask, att_mask = self._create_masks(audio_signal, max_audio_length, padding_length)
+        pad_mask, att_mask = self._create_masks(max_audio_length, padding_length, audio_signal.device)
 
         if cache_last_channel is not None:
             pad_mask = pad_mask[:, cache_len:]
@@ -454,7 +454,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
                 # and cause an increase in the WER
                 _, pos_emb = self.pos_enc(x=audio_signal, cache_len=cache_len)
                 pad_mask, att_mask = self._create_masks(
-                    audio_signal, max_audio_length, length
+                    max_audio_length, length, audio_signal.device
                 )
 
         if self.out_proj is not None:
@@ -471,9 +471,9 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         else:
             return audio_signal, length
 
-    def _create_masks(self, audio_signal, max_audio_length, padding_length):
+    def _create_masks(self, max_audio_length, padding_length, device):
         # pad_mask is the masking to be used to ignore paddings
-        pad_mask = torch.arange(0, max_audio_length, device=audio_signal.device).expand(
+        pad_mask = torch.arange(0, max_audio_length, device=device).expand(
             padding_length.size(0), -1
         ) < padding_length.unsqueeze(-1)
 

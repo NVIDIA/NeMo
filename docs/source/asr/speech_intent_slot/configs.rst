@@ -88,7 +88,9 @@ An example config for the model can be:
       subsampling_factor: 4 # must be power of 2
       subsampling_conv_channels: -1 # -1 sets it to d_model
 
-      # Reduction params
+      # Reduction parameters: Can be used to add another subsampling layer at a given position.
+      # Having a 2x reduction will speedup the training and inference speech while keeping similar WER.
+      # Adding it at the end will give the best WER while adding it at the beginning will give the best speedup.
       reduction: null # pooling, striding, or null
       reduction_position: null # Encoder block index or -1 for subsampling at the end of encoder
       reduction_factor: 1
