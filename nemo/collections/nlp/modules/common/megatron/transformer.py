@@ -756,7 +756,6 @@ class ParallelAttention(MegatronModule):
     ):
         # hidden_states: [sq, b, h]
 
-        print(locals())
         # =================================================
         # Pre-allocate memory for key-values for inference.
         # =================================================
