@@ -1203,7 +1203,7 @@ class ExportedModelGreedyBatchedRNNTInfer:
 
 
 class ONNXGreedyBatchedRNNTInfer(ExportedModelGreedyBatchedRNNTInfer):
-    def __init__(self, encoder_model: str, decoder_joint_model: str, max_symbols_per_step: Optional[int] = None):
+    def __init__(self, encoder_model: str, decoder_joint_model: str, max_symbols_per_step: Optional[int] = 10):
         super().__init__(
             encoder_model=encoder_model,
             decoder_joint_model=decoder_joint_model,
@@ -1367,7 +1367,7 @@ class TorchscriptGreedyBatchedRNNTInfer(ExportedModelGreedyBatchedRNNTInfer):
         decoder_joint_model: str,
         cfg: DictConfig,
         device: str,
-        max_symbols_per_step: Optional[int] = None,
+        max_symbols_per_step: Optional[int] = 10,
     ):
         super().__init__(
             encoder_model=encoder_model,
@@ -1400,49 +1400,11 @@ class TorchscriptGreedyBatchedRNNTInfer(ExportedModelGreedyBatchedRNNTInfer):
         self.decoder_joint_inputs = [arg for arg in arguments]
 
     def _setup_blank_index(self):
-
-        # # ASSUME: Single input with no time length information
-        # dynamic_dim = 257
-        #
-        # if enc_logits is None:
-        #     ip_shape = [1, 40, dynamic_dim]  # self.encoder_inputs[0].type.tensor_type.shape.dim
-        #
-        #     enc_logits, encoded_length = self.run_encoder(
-        #         audio_signal=torch.randn(*ip_shape), length=torch.randint(0, 1, size=(dynamic_dim,))
-        #     )
-        #
-        # # prepare states
-        # states = self._get_initial_states(batchsize=dynamic_dim)
-        #
-        # # run decoder 1 step
-        # joint_out, states = self.run_decoder_joint(enc_logits, None, None, *states)
-        # log_probs, lengths = joint_out
-        #
-        # self._blank_index = log_probs.shape[-1] - 1  # last token of vocab size is blank token
-        # torch._C.Value
-        # torch._C.Graph
-        # torch.Node
-
-        # inputs = (list(self.decoder_joint.graph.inputs()))
-        # print(inputs[-1].node())
-
         self._blank_index = len(self.cfg.joint.vocabulary)
 
-        logging.info(
-            f"Enc-Dec-Joint step was evaluated, blank token id = {self._blank_index}; vocab size = {len(self.cfg.joint.vocabulary) + 1}"
-        )
+        logging.info(f"Blank token id = {self._blank_index}; vocab size = {len(self.cfg.joint.vocabulary) + 1}")
 
     def run_encoder(self, audio_signal, length):
-        # if hasattr(audio_signal, 'cpu'):
-        #     audio_signal = audio_signal.cpu().numpy()
-        #
-        # if hasattr(length, 'cpu'):
-        #     length = length.cpu().numpy()
-
-        # ip = {
-        #     self.encoder_inputs[0].name: audio_signal,
-        #     self.encoder_inputs[1].name: length,
-        # }
         enc_out = self.encoder(audio_signal, length)
         enc_out, encoded_length = enc_out  # ASSUME: single output
         return enc_out, encoded_length
@@ -1453,26 +1415,9 @@ class TorchscriptGreedyBatchedRNNTInfer(ExportedModelGreedyBatchedRNNTInfer):
             targets = torch.zeros(enc_logits.shape[0], 1, dtype=torch.int32, device=enc_logits.device)
             target_length = torch.ones(enc_logits.shape[0], dtype=torch.int32, device=enc_logits.device)
 
-        # if hasattr(targets, 'cpu'):
-        #     targets = targets.cpu().numpy()
-        #
-        # if hasattr(target_length, 'cpu'):
-        #     target_length = target_length.cpu().numpy()
-
-        # ip = {
-        #     self.decoder_joint_inputs[0].name: enc_logits,
-        #     self.decoder_joint_inputs[1].name: targets,
-        #     self.decoder_joint_inputs[2].name: target_length,
-        # }
-
         num_states = 0
         if states is not None and len(states) > 0:
             num_states = len(states)
-            # for idx, state in enumerate(states):
-            #     if hasattr(state, 'cpu'):
-            #         state = state.cpu().numpy()
-            #
-            #     ip[self.decoder_joint_inputs[len(ip)].name] = state
 
         dec_out = self.decoder_joint(enc_logits, targets, target_length, *states)
 
@@ -1494,15 +1439,8 @@ class TorchscriptGreedyBatchedRNNTInfer(ExportedModelGreedyBatchedRNNTInfer):
 
         input_states = []
         for state_id in range(num_states):
-            node = input_state_nodes[state_id]
-            # Hardcode shape size for LSTM
+            # Hardcode shape size for LSTM (1 is for num layers in LSTM, which is flattened for export)
             ip_shape = [1, batchsize, self.cfg.model_defaults.pred_hidden]
-            # for shape_idx, shape in enumerate(node.type.tensor_type.shape.dim):
-            #     if hasattr(shape, 'dim_param') and 'dynamic' in shape.dim_param:
-            #         ip_shape.append(batchsize)  # replace dynamic axes with constant
-            #     else:
-            #         ip_shape.append(int(shape.dim_value))
-
             input_states.append(torch.zeros(*ip_shape, device=self.device))
 
         return input_states
