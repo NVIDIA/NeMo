@@ -500,11 +500,7 @@ class IPAG2P(BaseG2p):
 
 class ChineseG2p(BaseG2p):
     def __init__(
-        self,
-        phoneme_dict=None,
-        word_tokenize_func=None,
-        apply_to_oov_word=None,
-        mapping_file: Optional[str] = None,
+        self, phoneme_dict=None, word_tokenize_func=None, apply_to_oov_word=None, mapping_file: Optional[str] = None,
     ):
         """Chinese G2P module. This module first converts Chinese characters into pinyin sequences using pypinyin, then pinyin sequences would 
            be further converted into phoneme sequences using pinyin_dict_nv_22.10.txt dict file. For Chinese and English bilingual sentences, the English words
@@ -542,7 +538,7 @@ class ChineseG2p(BaseG2p):
 
         self._lazy_pinyin = lazy_pinyin
         self._Style = Style
-    
+
     @staticmethod
     def _parse_as_pinyin_dict(phoneme_dict_path):
         """Loads pinyin dict file, and generates a set of all valid symbols."""
