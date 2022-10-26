@@ -103,6 +103,11 @@ model:
     subsampling_conv_channels: -1 # set to -1 to make it equal to the d_model
     causal_downsampling: false
 
+    # Reduction params
+    reduction: null # pooling, striding, or null
+    reduction_position: null # Encoder block index or -1 for subsampling at the end of encoder
+    reduction_factor: 1
+
     # Feed forward module's params
     ff_expansion_factor: 4
 

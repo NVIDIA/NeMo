@@ -99,6 +99,11 @@ model:
     subsampling_conv_channels: -1 # -1 sets it to d_model
     causal_downsampling: true # enables causal convolutions during downsampling
 
+    # Reduction params
+    reduction: null # pooling, striding, or null
+    reduction_position: null # Encoder block index or -1 for subsampling at the end of encoder
+    reduction_factor: 1
+
     # Feed forward module's params
     ff_expansion_factor: 4
 

@@ -30,7 +30,11 @@ from nemo.collections.asr.parts.submodules.multi_head_attention import (
     PositionalEncoding,
     RelPositionalEncoding,
 )
-from nemo.collections.asr.parts.submodules.subsampling import ConvSubsampling, StackingSubsampling
+from nemo.collections.asr.parts.submodules.subsampling import (
+    ConvSubsampling,
+    StackingSubsampling,
+    SubsamplingReductionModule,
+)
 from nemo.collections.asr.parts.utils import adapter_utils
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
@@ -60,6 +64,12 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             Defaults to 4.
         subsampling_conv_channels (int): the size of the convolutions in the subsampling module
             Defaults to -1 which would set it to d_model.
+        reduction (str, Optional): the method of reduction, choices=['pooling', 'striding']. If no value
+            is passed, then no reduction is performed and the models runs with the original 4x subsampling.
+        reduction_position (int, Optional): the index of the layer to apply reduction. If -1, apply reduction
+            at the end.
+        reduction_factor (int): the reduction factor which should be either 1 or a power of 2
+            Defaults to 1.
         ff_expansion_factor (int): the expansion factor in feed forward layers
             Defaults to 4.
         self_attention_model (str): type of the attention layer and positional encoding
@@ -153,6 +163,9 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         subsampling='striding',
         subsampling_factor=4,
         subsampling_conv_channels=-1,
+        reduction=None,
+        reduction_position=None,
+        reduction_factor=1,
         ff_expansion_factor=4,
         self_attention_model='rel_pos',
         n_heads=4,
@@ -228,6 +241,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         else:
             self.xscale = None
 
+        # Subsampling
         if subsampling_conv_channels == -1:
             subsampling_conv_channels = d_model
         if subsampling and subsampling_factor > 1:
@@ -251,6 +265,17 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
                 )
         else:
             self.pre_encode = nn.Linear(feat_in, d_model)
+
+        # Reduction
+        if reduction and reduction_factor > 1:
+            assert reduction_position >= -1 and reduction_position < n_layers
+            self.reduction_subsampling = SubsamplingReductionModule(
+                reduction=reduction, d_model=d_model, reduction_factor=reduction_factor,
+            )
+            self.reduction_position = reduction_position
+        else:
+            self.reduction_subsampling = None
+            self.reduction_position = None
 
         self._feat_out = d_model
 
@@ -384,6 +409,46 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         max_audio_length = audio_signal.size(1)
 
         # Create the self-attention and padding masks
+        audio_signal, max_audio_length, pad_mask, att_mask, pos_emb, cache_last_channel_next = self._create_masks(
+            audio_signal, max_audio_length, length, cache_last_channel=cache_last_channel
+        )
+
+        for lth, layer in enumerate(self.layers):
+            audio_signal = layer(
+                x=audio_signal,
+                att_mask=att_mask,
+                pos_emb=pos_emb,
+                pad_mask=pad_mask,
+                cache_last_channel=cache_last_channel,
+                cache_last_time=cache_last_time,
+                cache_last_channel_next=cache_last_channel_next,
+                cache_last_time_next=cache_last_time_next,
+            )
+
+            if self.reduction_position == lth:
+                audio_signal, length = self.reduction_subsampling(x=audio_signal, lengths=length)
+                max_audio_length = audio_signal.size(1)
+                # Don't update the audio_signal here because then it will again scale the audio_signal
+                # and cause an increase in the WER
+                _, _, pad_mask, att_mask, pos_emb, cache_last_channel_next = self._create_masks(
+                    audio_signal, max_audio_length, length, cache_last_channel=cache_last_channel_next
+                )
+
+        if self.out_proj is not None:
+            audio_signal = self.out_proj(audio_signal)
+
+        # Reduction
+        if self.reduction_position == -1:
+            audio_signal, length = self.reduction_subsampling(x=audio_signal, lengths=length)
+
+        audio_signal = torch.transpose(audio_signal, 1, 2)
+
+        if cache_last_channel is not None:
+            return audio_signal, length, cache_last_channel_next, cache_last_time_next
+        else:
+            return audio_signal, length
+
+    def _create_masks(self, audio_signal, max_audio_length, length, cache_last_channel=None):
         if cache_last_channel is not None:
             last_channel_num, bs, cache_len, channel_size = cache_last_channel.size()
             cache_keep_size = max_audio_length - self.streaming_cfg.cache_drop_size
@@ -420,27 +485,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         pad_mask = ~pad_mask
         att_mask = ~att_mask
 
-        for lth, layer in enumerate(self.layers):
-            audio_signal = layer(
-                x=audio_signal,
-                att_mask=att_mask,
-                pos_emb=pos_emb,
-                pad_mask=pad_mask,
-                cache_last_channel=cache_last_channel,
-                cache_last_time=cache_last_time,
-                cache_last_channel_next=cache_last_channel_next,
-                cache_last_time_next=cache_last_time_next,
-            )
-
-        if self.out_proj is not None:
-            audio_signal = self.out_proj(audio_signal)
-
-        audio_signal = torch.transpose(audio_signal, 1, 2)
-
-        if cache_last_channel is not None:
-            return audio_signal, length, cache_last_channel_next, cache_last_time_next
-        else:
-            return audio_signal, length
+        return audio_signal, max_audio_length, pad_mask, att_mask, pos_emb, cache_last_channel_next
 
     def enable_pad_mask(self, on=True):
         # On inference, user may choose to disable pad mask
