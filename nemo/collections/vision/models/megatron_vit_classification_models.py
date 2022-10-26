@@ -304,11 +304,13 @@ class MegatronVitClassificationModel(MegatronVisionModel):
             sequence_parallel_enabled=self.cfg.get('sequence_parallel', False),
         )
 
+        # print(losses_reduced_per_micro_batch)
         # only the last stages of the pipeline return losses
         if losses_reduced_per_micro_batch:
             # average loss across micro batches
             loss_tensors_list = [loss_reduced['loss'] for loss_reduced in losses_reduced_per_micro_batch]
-            loss_tensor = torch.concat(loss_tensors_list)
+            loss_tensor = torch.stack(loss_tensors_list)
+            # print(loss_tensor)
             loss_mean = loss_tensor.mean()
         else:
             loss_mean = torch.tensor(0.0).cuda()
@@ -525,7 +527,7 @@ class MegatronVitClassificationModel(MegatronVisionModel):
 
         # only the last stage of the pipeline returns losses
         if losses_reduced_per_micro_batch:
-            actual_batch_size = batch['tokens'].shape[0]  # Might be lesser than global_batch_size if drop_last=False
+            actual_batch_size = batch[0].shape[0]  # Might be lesser than global_batch_size if drop_last=False
             expected_batch_size = self.cfg.global_batch_size // parallel_state.get_data_parallel_world_size()
             if actual_batch_size == expected_batch_size:
                 loss_with_batch_size_list = [
