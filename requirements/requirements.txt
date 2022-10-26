@@ -11,3 +11,4 @@ numba
 wget
 text-unidecode
 huggingface_hub
+zarr
