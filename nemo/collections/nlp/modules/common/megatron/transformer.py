@@ -1458,7 +1458,10 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 if adapter_1:
                     strategy = adapter_1.adapter_strategy
                     layernorm_input = self.forward_single_enabled_adapter_(
-                        layernorm_input, adapter_1, adapter_name=AdapterName.PRE_ATTN_ADAPTER, adapter_strategy=strategy,
+                        layernorm_input,
+                        adapter_1,
+                        adapter_name=AdapterName.PRE_ATTN_ADAPTER,
+                        adapter_strategy=strategy,
                     )
 
             # Post-LN normalization after residual
