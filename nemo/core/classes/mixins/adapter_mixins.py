@@ -20,6 +20,7 @@ import torch
 import torch.nn as nn
 from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf, open_dict
+from sympy import true
 
 from nemo.utils import logging, model_utils
 
@@ -182,13 +183,19 @@ class AdapterModuleMixin(ABC):
             cfg: A DictConfig or Dataclass that contains at the bare minimum `__target__` to instantiate a
                 new Adapter module.
         """
-        if hasattr(self, '_accepted_adapter_types'):
-            if len(self._accepted_adapter_types) > 0:
-                test = model_utils.import_class_by_path(cfg._target_)
-                if test not in self._accepted_adapter_types:
-                    raise ValueError(
-                        f"Config {cfg} creates adapter class {test} is not in the list of accepted adapter types."
-                    )
+        _types = self.get_accepted_adapter_types()
+        _pass_types = False
+        if len(_types) > 0:
+            test = model_utils.import_class_by_path(cfg._target_)
+            for _type in _types:
+                # TODO: (@adithyare) should revisit if subclass is the best check...
+                if issubclass(test, _type):
+                    _pass_types = True
+                    break
+        if not _pass_types:
+            raise ValueError(
+                f"Config {cfg} creates adapter class {test} is not in the list of accepted adapter types."
+            )
 
         # Convert to DictConfig from dict or Dataclass
         if is_dataclass(cfg):
