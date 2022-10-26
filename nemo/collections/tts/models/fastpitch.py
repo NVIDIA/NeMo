@@ -394,7 +394,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             loss += ctc_loss + bin_loss
 
         pitch_loss = self.pitch_loss_fn(pitch_predicted=pitch_pred, pitch_tgt=pitch, len=text_lens)
-        energy_loss = self.energy_loss_fn(energy_predicted=energy_pred, energy_tgt=energy_tgt, len=text_lens)
+        energy_loss = self.energy_loss_fn(energy_predicted=energy_pred, energy_tgt=energy_tgt, length=text_lens)
         loss += pitch_loss + energy_loss
 
         self.log("t_loss", loss)
@@ -470,7 +470,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         mel_loss = self.mel_loss_fn(spect_predicted=mels_pred, spect_tgt=mels)
         dur_loss = self.duration_loss_fn(log_durs_predicted=log_durs_pred, durs_tgt=durs, len=text_lens)
         pitch_loss = self.pitch_loss_fn(pitch_predicted=pitch_pred, pitch_tgt=pitch, len=text_lens)
-        energy_loss = self.energy_loss_fn(energy_predicted=energy_pred, energy_tgt=energy_tgt, len=text_lens)
+        energy_loss = self.energy_loss_fn(energy_predicted=energy_pred, energy_tgt=energy_tgt, length=text_lens)
         loss = mel_loss + dur_loss + pitch_loss + energy_loss
 
         return {
