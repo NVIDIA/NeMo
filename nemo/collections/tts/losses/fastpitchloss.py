@@ -130,7 +130,7 @@ class EnergyLoss(Loss):
         return {
             "energy_predicted": NeuralType(('B', 'T'), RegressionValuesType()),
             "energy_tgt": NeuralType(('B', 'T'), RegressionValuesType()),
-            "len": NeuralType(('B'), LengthsType()),
+            "length": NeuralType(('B'), LengthsType()),
         }
 
     @property
