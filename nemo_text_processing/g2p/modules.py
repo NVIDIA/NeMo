@@ -504,7 +504,6 @@ class ChineseG2p(BaseG2p):
         phoneme_dict=None,
         word_tokenize_func=None,
         apply_to_oov_word=None,
-        ignore_ambiguous_words=False,
         mapping_file: Optional[str] = None,
     ):
         """Chinese G2P module. This module first converts Chinese characters into pinyin sequences using pypinyin, then pinyin sequences would 
@@ -517,7 +516,6 @@ class ChineseG2p(BaseG2p):
                 It is expected that unchangeable word representation will be represented as List[str], other cases are represented as str.
                 It is useful to mark word as unchangeable which is already in phoneme representation.
             apply_to_oov_word: Function that will be applied to out of phoneme_dict word.
-            ignore_ambiguous_words: Whether to not handle word via phoneme_dict with ambiguous phoneme sequences. Defaults to True.
         """
         phoneme_dict = (
             self._parse_as_pinyin_dict(phoneme_dict)
@@ -544,14 +542,15 @@ class ChineseG2p(BaseG2p):
 
         self._lazy_pinyin = lazy_pinyin
         self._Style = Style
-
-    def _parse_as_pinyin_dict(self, phoneme_dict_path):
+    
+    @staticmethod
+    def _parse_as_pinyin_dict(phoneme_dict_path):
         """Loads pinyin dict file, and generates a set of all valid symbols."""
         g2p_dict = defaultdict(list)
         with open(phoneme_dict_path, 'r') as file:
             for line in file:
                 parts = line.split('\t')
-                # let the key be lower, since pypinyin would give lower representation
+                # let the key be lowercased, since pypinyin would give lower representation
                 pinyin = parts[0].lower()
                 pronunciation = parts[1].split()
                 pronunciation_with_sharp = ['#' + pron for pron in pronunciation]
@@ -561,7 +560,7 @@ class ChineseG2p(BaseG2p):
     def __call__(self, text):
         """
         errors func handle below is to process the bilingual situation,
-        specifically, it would return words into letters.
+        where English words would be split into letters.
         e.g. 我今天去了Apple Store, 买了一个ihone。
         would return a list
         ['wo3', 'jin1', 'tian1', 'qu4', 'le5', 'A', 'p', 'p', 'l', 'e', 

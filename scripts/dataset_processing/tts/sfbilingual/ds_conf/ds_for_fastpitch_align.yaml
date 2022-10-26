@@ -4,7 +4,7 @@ manifest_filepath: "train_manifest.json"
 sup_data_path: "sup_data"
 sup_data_types: [ "align_prior_matrix", "pitch" ]
 whitelist_path: "nemo_text_processing/text_normalization/zh/data/whitelist/default.tsv"
-phoneme_dict_path: "scripts/tts_dataset_files/zh/pinyin_dict.txt"
+phoneme_dict_path: "scripts/tts_dataset_files/zh/pinyin_dict_nv_22.10.txt"
 
 dataset:
   _target_: nemo.collections.tts.torch.data.TTSDataset

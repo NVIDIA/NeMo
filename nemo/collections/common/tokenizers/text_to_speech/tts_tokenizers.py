@@ -746,7 +746,6 @@ class ChinesePhonemesTokenizer(BaseTokenizer):
                 ps.append(p)
             # Warn about unknown char/phoneme
             elif p != space:
-                # ps.extend(['o','o','v'])
                 message = f"Text: [{''.join(g2p_text)}] contains unknown char/phoneme: [{p}]."
                 if raw_text is not None:
                     message += f"Original text: [{raw_text}]. Symbol will be skipped."

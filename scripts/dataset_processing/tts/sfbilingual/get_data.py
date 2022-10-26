@@ -67,7 +67,9 @@ def __process_transcript(file_path: str):
             content = line.split()
             wav_name, text = content[0], "".join(content[1:])
             wav_name = wav_name.replace(u'\ufeff', '')
-            wav_name = wav_name.replace('DL', 'SF')  # TODO, WAR: change DL to SF
+            # WAR: change DL to SF, e.g. real wave file com_SF_ce2727.wav, wav name in text_SF
+            # com_DL_ce2727. It would be fixed through the dataset in the future.
+            wav_name = wav_name.replace('DL', 'SF')
             wav_file = file_path / "wavs" / (wav_name + ".wav")
             assert os.path.exists(wav_file), f"{wav_file} not found!"
             duration = subprocess.check_output(f"soxi -D {wav_file}", shell=True)
