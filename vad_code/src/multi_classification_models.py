@@ -107,8 +107,10 @@ class EncDecMultiClassificationModel(EncDecClassificationModel):
             if "type" in self.cfg.loss and "focal" in self.cfg.loss.type:
                 alpha = self.cfg.loss.get("alpha", 0.25)
                 gamma = self.cfg.loss.get("gamma", 2.0)
+                logging.info(f"Using focal loss with alpha={alpha} and gamma={gamma}")
                 return SigmoidFocalLoss(alpha, gamma)
             weight = self.cfg.loss.get("weight", None)
+            logging.info(f"Using cross-entropy with weights: {weight}")
             return CrossEntropyLoss(logits_ndim=3, weight=weight)
         else:
             return CrossEntropyLoss(logits_ndim=3)

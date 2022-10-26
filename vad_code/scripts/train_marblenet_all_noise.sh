@@ -1,7 +1,7 @@
 DATA_DIR="./manifests_local"
-NAME="marblenet_3x2x64_multilang_40ms_all_noise"
+NAME="marblenet_3x2x64_multilang_40ms_all_noise_adamlr1e-2_wd1e-3"
 BATCH_SIZE=512
-NUM_WORKERS=8
+NUM_WORKERS=4
 PIN_MEMORY=true
 CUDA_VISIBLE_DEVICES=0,1 python speech_to_multi_label.py \
     --config-path="./configs" --config-name="marblenet_3x2x64_noise" \
@@ -22,4 +22,5 @@ CUDA_VISIBLE_DEVICES=0,1 python speech_to_multi_label.py \
     exp_manager.name=${NAME} \
     exp_manager.create_wandb_logger=true \
     exp_manager.wandb_logger_kwargs.name=${NAME} \
-    exp_manager.wandb_logger_kwargs.project="Frame_VAD"
+    exp_manager.wandb_logger_kwargs.project="Frame_VAD" \
+    ++model.loss.weight="[6.667,1.176]"
