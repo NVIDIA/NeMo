@@ -408,10 +408,32 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
 
         max_audio_length = audio_signal.size(1)
 
+        if self.reduction_position is not None and cache_last_channel is not None:
+            raise ValueError("Caching with reduction feature is not supported yet!")
+
+        if cache_last_channel is not None:
+            last_channel_num, bs, cache_len, channel_size = cache_last_channel.size()
+            cache_keep_size = max_audio_length - self.streaming_cfg.cache_drop_size
+            cache_last_channel_next = torch.zeros(
+                (last_channel_num, bs, cache_len + cache_keep_size, channel_size),
+                device=cache_last_channel.device,
+                dtype=cache_last_channel.dtype,
+            )
+            max_audio_length += cache_len
+            padding_length = length + cache_len
+        else:
+            padding_length = length
+            cache_last_channel_next = None
+            cache_len = 0
+
+        audio_signal, pos_emb = self.pos_enc(x=audio_signal, cache_len=cache_len)
+
         # Create the self-attention and padding masks
-        audio_signal, max_audio_length, pad_mask, att_mask, pos_emb, cache_last_channel_next = self._create_masks(
-            audio_signal, max_audio_length, length, cache_last_channel=cache_last_channel
-        )
+        pad_mask, att_mask = self._create_masks(audio_signal, max_audio_length, padding_length)
+
+        if cache_last_channel is not None:
+            pad_mask = pad_mask[:, cache_len:]
+            att_mask = att_mask[:, cache_len:]
 
         for lth, layer in enumerate(self.layers):
             audio_signal = layer(
@@ -430,8 +452,9 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
                 max_audio_length = audio_signal.size(1)
                 # Don't update the audio_signal here because then it will again scale the audio_signal
                 # and cause an increase in the WER
-                _, _, pad_mask, att_mask, pos_emb, cache_last_channel_next = self._create_masks(
-                    audio_signal, max_audio_length, length, cache_last_channel=cache_last_channel_next
+                _, pos_emb = self.pos_enc(x=audio_signal, cache_len=cache_len)
+                pad_mask, att_mask = self._create_masks(
+                    audio_signal, max_audio_length, length
                 )
 
         if self.out_proj is not None:
@@ -448,23 +471,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         else:
             return audio_signal, length
 
-    def _create_masks(self, audio_signal, max_audio_length, length, cache_last_channel=None):
-        if cache_last_channel is not None:
-            last_channel_num, bs, cache_len, channel_size = cache_last_channel.size()
-            cache_keep_size = max_audio_length - self.streaming_cfg.cache_drop_size
-            cache_last_channel_next = torch.zeros(
-                (last_channel_num, bs, cache_len + cache_keep_size, channel_size),
-                device=cache_last_channel.device,
-                dtype=cache_last_channel.dtype,
-            )
-            max_audio_length += cache_len
-            padding_length = length + cache_len
-            audio_signal, pos_emb = self.pos_enc(x=audio_signal, cache_len=cache_len)
-        else:
-            padding_length = length
-            cache_last_channel_next = None
-            audio_signal, pos_emb = self.pos_enc(x=audio_signal)
-
+    def _create_masks(self, audio_signal, max_audio_length, padding_length):
         # pad_mask is the masking to be used to ignore paddings
         pad_mask = torch.arange(0, max_audio_length, device=audio_signal.device).expand(
             padding_length.size(0), -1
@@ -478,14 +485,10 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         # paddings should also get ignored, so pad_mask_for_att_mask is used to ignore their corresponding scores
         att_mask = torch.logical_and(pad_mask_for_att_mask, att_mask.to(pad_mask_for_att_mask.device))
 
-        if cache_last_channel is not None:
-            pad_mask = pad_mask[:, cache_len:]
-            att_mask = att_mask[:, cache_len:]
-
         pad_mask = ~pad_mask
         att_mask = ~att_mask
 
-        return audio_signal, max_audio_length, pad_mask, att_mask, pos_emb, cache_last_channel_next
+        return pad_mask, att_mask
 
     def enable_pad_mask(self, on=True):
         # On inference, user may choose to disable pad mask

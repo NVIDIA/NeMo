@@ -355,7 +355,7 @@ class SubsamplingReductionModule(nn.Module):
     def __init__(self, reduction: str, d_model: int, reduction_factor: int = 2):
         super().__init__()
 
-        assert reduction in ['pooling', 'subsampling']
+        assert reduction in ['pooling', 'striding']
 
         self.reduction = reduction
         self.d_model = d_model
@@ -366,7 +366,7 @@ class SubsamplingReductionModule(nn.Module):
             self.padding = 0
             self.kernel_size = self.reduction_enc.kernel_size
             self.stride = self.reduction_enc.stride
-        elif reduction == 'subsampling':
+        elif reduction == 'striding':
             self.reduction_enc = ConvSubsampling(
                 subsampling='striding',
                 subsampling_factor=reduction_factor,
@@ -383,7 +383,7 @@ class SubsamplingReductionModule(nn.Module):
             - lengths: [B]
         """
 
-        if self.reduction == 'subsampling':
+        if self.reduction == 'striding':
             x, lengths = self.reduction_enc(x=x, lengths=lengths)
         else:
             x = torch.transpose(x, 1, 2)  # [B, C, T]
