@@ -216,9 +216,6 @@ class TestExportable:
             ts_decoder_joint = torch.jit.load(decoder_joint_filename)
             assert ts_decoder_joint is not None
 
-            torch.FunctionSchema
-            torch.Argument
-
             ts_decoder_joint_args = ts_decoder_joint.forward.schema.arguments[1:]  # First value is self
 
             input_examples = model.decoder.input_example()
@@ -235,14 +232,6 @@ class TestExportable:
             if num_states > 0:
                 for idx, ip in enumerate(ts_decoder_joint_args[3:]):
                     assert ip.name == "input_" + state_name + '_' + str(idx + 1)
-
-            # assert len(onnx_model.graph.output) == (len(input_examples) - 1) + num_states
-            # assert onnx_model.graph.output[0].name == 'outputs'
-            # assert onnx_model.graph.output[1].name == 'prednet_lengths'
-            #
-            # if num_states > 0:
-            #     for idx, op in enumerate(onnx_model.graph.output[2:]):
-            #         assert op.name == "output-" + state_name + '-' + str(idx + 1)
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
