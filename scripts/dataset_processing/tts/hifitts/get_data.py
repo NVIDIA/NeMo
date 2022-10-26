@@ -18,18 +18,15 @@ import json
 import re
 import tarfile
 import urllib.request
-from email.mime import audio
 from pathlib import Path
 
-import sox
-import wget
 from tqdm import tqdm
 
 
 def get_args():
     parser = argparse.ArgumentParser(description='Download HiFiTTS and create manifests with predefined split')
-    parser.add_argument("--data-root", required=True, type=Path)
-    parser.add_argument('--split', type=str, default='all')
+    parser.add_argument("--data-root", required=True, type=Path, help='Directory into which to download and extract dataset. \{data-root\}/hi_fi_tts_v0 will be created.')
+    parser.add_argument('--split', type=str, default='all', help='Choose to generate manifest for all or one of (train, test, split), note that this will still download the full dataset.')
 
     args = parser.parse_args()
     return args
@@ -84,6 +81,10 @@ def __process_data(data_root, filelists):
                         'text': data['text'],
                         'normalized_text': data['text_normalized'],
                         'speaker': int(speaker_id),
+                        # Audio_quality is either clean or other. 
+                        # The clean set includes recordings with high sound-to-noise ratio and wide bandwidth.
+                        # The books with noticeable noise or narrow bandwidth are included in the other subset.
+                        # Note: some speaker_id's have both clean and other audio quality.
                         'audio_quality': audio_quality,
                     }
                     entries.append(entry)
