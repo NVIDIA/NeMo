@@ -552,7 +552,7 @@ def conformer_model():
             'subsampling_factor': 4,
             'subsampling_conv_channels': 512,
             'reduction': None,
-            'reduction_position': -2,
+            'reduction_position': None,
             'reduction_factor': 1,
             'ff_expansion_factor': 4,
             'self_attention_model': 'rel_pos',

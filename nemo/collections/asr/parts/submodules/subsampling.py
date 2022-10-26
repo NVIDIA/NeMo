@@ -302,7 +302,7 @@ class TimeReductionModule(nn.Module):
         self.out_dim = out_dim
         self.kernel_size = kernel_size
         self.stride = stride
-        self.padding = max(0, self.kernel_size - self.stride)  # FIXME: fix the padding and do -1. Test once.
+        self.padding = max(0, self.kernel_size - self.stride)
 
         self.dw_conv = nn.Conv1d(
             in_channels=d_model,
