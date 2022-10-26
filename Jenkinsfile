@@ -1,8 +1,8 @@
 pipeline {
   agent {
         docker {
-      image 'nvcr.io/nvidia/pytorch:22.09-py3'
-      args '--device=/dev/nvidia0 --gpus all -e TRANSFORMERS_OFFLINE=0 --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache:/root/.cache --shm-size=8g'
+          image 'nvcr.io/nvidia/pytorch:22.09-py3'
+          args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache:/root/.cache --shm-size=8g'
         }
   }
   options {
@@ -16,18 +16,13 @@ pipeline {
       steps{
         sh 'git config --global --add safe.directory /var/lib/jenkins/workspace/NeMo_$GIT_BRANCH'
         sh 'git config --global --add safe.directory /raid/JenkinsWorkDir/workspace/NeMo_$GIT_BRANCH'
+        sh 'git config --global --add safe.directory /mnt/D3/JenkinsWorkDir/workspace/NeMo_$GIT_BRANCH'
       }
     }
 
     stage('nvidia-smi'){
       steps{
         sh 'nvidia-smi'
-      }
-    }
-
-    stage('Transformers Offline') {
-      steps{
-        sh 'echo "TRANSFORMERS_OFFLINE="${TRANSFORMERS_OFFLINE}'
       }
     }
 
@@ -3132,7 +3127,7 @@ import pathlib
 from pandas.testing import assert_frame_equal
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 import torch
-if not (torch.cuda.is_available() and torch.cuda.get_device_properties(0).major == 8):
+if not (torch.cuda.is_available() and 'A100' in torch.cuda.get_device_name()):
     import sys
     sys.exit(0)
 event_file = list(pathlib.Path('examples/nlp/language_modeling/retro_results/megatron_retro/smalltest').glob('events.out.tfevents*'))[0]
