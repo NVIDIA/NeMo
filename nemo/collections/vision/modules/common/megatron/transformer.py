@@ -418,7 +418,10 @@ class ParallelVisionTransformer(ParallelTransformer):
 
         self.num_layers = self.get_num_layers(num_layers)
 
-        self.drop_path_rates = [rate.item() for rate in torch.linspace(0, self.drop_path_rate, self.num_layers)]
+        self.drop_path_rates = [
+            rate.item() for rate in
+            torch.linspace(0, self.drop_path_rate, self.num_layers * parallel_state.get_pipeline_model_parallel_world_size())
+        ]
 
         # Rebuild with vision transformer layers.
         def build_layer(layer_number):

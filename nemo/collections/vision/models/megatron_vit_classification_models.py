@@ -208,19 +208,19 @@ class MegatronVitClassificationModel(MegatronVisionModel):
                         module = self.model[0]  # only the first virtual rank has the embeddings
                     else:
                         module = self.model
-                    if module.share_token_embeddings:
-                        param = module.word_embeddings_weight()
-                        param._disable_greedy_grad_copy = not self.megatron_amp_o2
-                        param._disable_overlap_grad_sync = True
+                    # if module.share_token_embeddings:
+                    #     param = module.word_embeddings_weight()
+                    #     param._disable_greedy_grad_copy = not self.megatron_amp_o2
+                    #     param._disable_overlap_grad_sync = True
                 if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
                     if isinstance(self.model, list):
                         module = self.model[-1]  # only the last virtual rank has the embeddings
                     else:
                         module = self.model
-                    if module.share_token_embeddings:
-                        param = module.word_embeddings_weight()
-                        param._disable_greedy_grad_copy = not self.megatron_amp_o2
-                        param._disable_overlap_grad_sync = True
+                    # if module.share_token_embeddings:
+                    #     param = module.word_embeddings_weight()
+                    #     param._disable_greedy_grad_copy = not self.megatron_amp_o2
+                    #     param._disable_overlap_grad_sync = True
 
             # Disable overlapped grad sync for layer norm grads when
             # sequence parallelism is enabled
@@ -700,22 +700,22 @@ class MegatronVitClassificationModel(MegatronVisionModel):
             num_parameters_on_device = sum(
                 [sum([p.nelement() for p in model_module.parameters()]) for model_module in self.model]
             )
-            if parallel_state.get_pipeline_model_parallel_world_size() > 1 and parallel_state.is_pipeline_last_stage(
-                ignore_virtual=True
-            ):
-                # substract the embedding weights on the last virtual stage
-                num_word_embedding_parameters = sum([p.nelement() for p in self.model[-1].word_embeddings_weight()])
-                num_parameters_on_device -= num_word_embedding_parameters
+            # if parallel_state.get_pipeline_model_parallel_world_size() > 1 and parallel_state.is_pipeline_last_stage(
+            #     ignore_virtual=True
+            # ):
+            #     # substract the embedding weights on the last virtual stage
+            #     num_word_embedding_parameters = sum([p.nelement() for p in self.model[-1].word_embeddings_weight()])
+            #     num_parameters_on_device -= num_word_embedding_parameters
         else:
             num_parameters_on_device = sum([p.nelement() for p in self.model.parameters()])
 
-            if parallel_state.get_pipeline_model_parallel_world_size() > 1 and parallel_state.is_pipeline_last_stage(
-                ignore_virtual=True
-            ):
-                # substract the embedding weights on the last stage
-                num_word_embedding_parameters = sum([p.nelement() for p in self.model.word_embeddings_weight()])
-
-                num_parameters_on_device -= num_word_embedding_parameters
+            # if parallel_state.get_pipeline_model_parallel_world_size() > 1 and parallel_state.is_pipeline_last_stage(
+            #     ignore_virtual=True
+            # ):
+            #     # substract the embedding weights on the last stage
+            #     num_word_embedding_parameters = sum([p.nelement() for p in self.model.word_embeddings_weight()])
+            #
+            #     num_parameters_on_device -= num_word_embedding_parameters
 
         # to be summed across data parallel group
         total_num_parameters = torch.tensor(num_parameters_on_device).cuda()
@@ -748,11 +748,11 @@ class MegatronVitClassificationModel(MegatronVisionModel):
             if isinstance(self.model, list):
                 for i, module in enumerate(self.model):
                     parallel_state.set_virtual_pipeline_model_parallel_rank(i)
-                    module.sync_initial_word_embeddings()
+                    # module.sync_initial_word_embeddings()
                 parallel_state.set_virtual_pipeline_model_parallel_rank(0)
             else:
-                self.model.sync_initial_word_embeddings()
-
+                # self.model.sync_initial_word_embeddings()
+                pass
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds') and self._train_ds is not None:
             consumed_samples = self.compute_consumed_samples(0)

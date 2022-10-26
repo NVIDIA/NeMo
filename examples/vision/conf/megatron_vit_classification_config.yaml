@@ -1,4 +1,4 @@
-name: megatron_gpt
+name: megatron_vit_classify
 restore_from_path: null # used when starting from a .nemo file
 
 trainer:
@@ -10,7 +10,7 @@ trainer:
   enable_checkpointing: False
   replace_sampler_ddp: False
   max_epochs: -1 # PTL default. In practice, max_steps will be reached first. 
-  max_steps: 100000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+  max_steps: 750000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10
   val_check_interval: 100
   limit_val_batches: 50
@@ -23,7 +23,7 @@ trainer:
 exp_manager:
   explicit_log_dir: null
   exp_dir: null
-  name: megatron_gpt
+  name: megatron_vit_classify
   create_wandb_logger: False
   wandb_logger_kwargs:
     project: null
@@ -37,7 +37,7 @@ exp_manager:
     mode: min
     always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
     save_nemo_on_train_end: False # not recommended when training large models on clusters with short time limits
-    filename: 'megatron_gpt--{val_loss:.2f}-{step}-{consumed_samples}'
+    filename: 'megatron_vit_classify--{val_loss:.2f}-{step}-{consumed_samples}'
     model_parallel_size: ${multiply:${model.tensor_model_parallel_size}, ${model.pipeline_model_parallel_size}}
 
 
@@ -155,13 +155,13 @@ model:
   
   optim:
     name: fused_adam
-    lr: 2e-4
-    weight_decay: 0.01 
+    lr: 5e-4
+    weight_decay: 0.05
     betas: 
     - 0.9
     - 0.98
     sched:
       name: CosineAnnealing
-      warmup_steps: 500
-      constant_steps: 50000
-      min_lr: 2e-5
+      warmup_steps: 12500
+      constant_steps: 0
+      min_lr: 1e-5
