@@ -435,7 +435,7 @@ class MegatronVitClassificationModel(MegatronVisionModel):
 
         def loss_func(labels, output_tensor):
             logits = output_tensor.contiguous().float()
-            loss = F.cross_entropy(logits, labels)
+            loss = torch.nn.functional.cross_entropy(logits, labels)
 
             outputs = torch.argmax(logits, -1)
             correct = (outputs == labels).float()
