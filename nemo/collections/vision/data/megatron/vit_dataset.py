@@ -17,11 +17,21 @@ import random
 import numpy as np
 import torch
 import torchvision.transforms as T
+from torch.utils.data import DataLoader, Dataset
 
-from megatron.data.image_folder import ImageFolder
-from megatron.data.autoaugment import ImageNetPolicy
+from nemo.collections.vision.data.megatron.image_folder import ImageFolder
+from nemo.collections.vision.data.megatron.autoaugment import ImageNetPolicy
 from PIL import Image, ImageFilter, ImageOps
 
+def _to_torch_data_type(precision):
+    if precision == 32:
+        return torch.float32
+    elif precision == 16:
+        return torch.float16
+    elif precision == 'bf16':
+        return torch.bfloat16
+    else:
+        raise ValueError(f"Cannot recognize precision {precision}")
 
 class RandomSeedDataset(Dataset):
 
@@ -83,8 +93,7 @@ class Solarization(object):
 
 class ClassificationTransform():
     def __init__(self, model_cfg, image_size, train=True):
-        assert model_cfg.fp16 or model_cfg.bf16
-        self.data_type = torch.half if model_cfg.fp16 else torch.bfloat16
+        self.data_type = _to_torch_data_type(model_cfg.precision)
         if train:
             self.transform = T.Compose([
                 T.RandomResizedCrop(image_size),
@@ -117,8 +126,7 @@ class InpaintingTransform():
         self.patch_size = model_cfg.patch_dim
         self.mask_size = int(self.mask_factor * (image_size[0] / self.patch_size) * (image_size[1] / self.patch_size))
         self.train = train
-        assert model_cfg.fp16 or model_cfg.bf16
-        self.data_type = torch.half if model_cfg.fp16 else torch.bfloat16
+        self.data_type = _to_torch_data_type(model_cfg.precision)
 
         if self.train:
             self.transform = T.Compose([
@@ -176,10 +184,10 @@ class InpaintingTransform():
         return trans_input, mask
 
 
+
 class DinoTransform(object):
     def __init__(self, model_cfg, image_size, train=True):
-        self.data_type = torch.half if model_cfg.fp16 else torch.bfloat16
-
+        self.data_type = _to_torch_data_type(model_cfg.precision)
         flip_and_color_jitter = T.Compose([
             T.RandomHorizontalFlip(p=0.5),
             T.RandomApply(
@@ -190,7 +198,7 @@ class DinoTransform(object):
             T.RandomGrayscale(p=0.2),
         ])
 
-        if model_cfg.fp16 or model_cfg.bf16:
+        if model_cfg.precision in [16, "bf16"]:
             normalize = T.Compose([
                 T.ToTensor(),
                 T.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),

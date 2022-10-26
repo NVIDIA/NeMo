@@ -42,6 +42,7 @@ exp_manager:
 
 
 model:
+  precision: ${trainer.precision}
   # specify micro_batch_size, global_batch_size, and model parallelism
   # gradient accumulation will be done automatically based on data_parallel_size
   micro_batch_size: 4 # limited by GPU memory
@@ -51,9 +52,15 @@ model:
   virtual_pipeline_model_parallel_size: null # interleaved pipeline
 
   # vision configs
+  vision_pretraining_type: "classify"
+  num_classes: 1000
   patch_dim: 4
   img_h: 224
   img_w: 224
+  classes_fraction: 1.0
+  data_per_class_fraction: 1.0
+  num_channels: 3
+  drop_path_rate: 0.0
 
   # model architecture
   encoder_seq_length: 3136
@@ -95,6 +102,8 @@ model:
   megatron_amp_O2: False # Enable O2-level automatic mixed precision using main parameters
   grad_allreduce_chunk_size_mb: 125
   grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce
+  masked_softmax_fusion: True # Use a kernel that fuses the attention softmax with it's mask.
+  bias_dropout_add_fusion: True # Use a kernel that fuses the bias addition, dropout and residual connection addition.
 
   # miscellaneous
   seed: 1234
@@ -104,6 +113,9 @@ model:
   apex_transformer_log_level: 30 # Python logging level displays logs with severity greater than or equal to this
   gradient_as_bucket_view: True # PyTorch DDP argument. Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
   gradient_accumulation_fusion: False # Fuse weight gradient accumulation to GEMMs. Only used with pipeline parallelism.
+  openai_gelu: False
+  bias_gelu_fusion: False
+  megatron_legacy: False
 
   ## Activation Checkpointing
   # NeMo Megatron supports 'selective' activation checkpointing where only the memory intensive part of attention is checkpointed.

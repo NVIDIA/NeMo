@@ -143,7 +143,9 @@ class ParallelVisionTransformerLayer_(ParallelTransformerLayer_):
         gradient_accumulation_fusion=False,
         normalize_attention_scores=True,
     ):
-        kwrags = locals()
+        kwargs = locals()
+        for key in ["self", "__class__"]:
+            kwargs.pop(key)
         drop_path_rate = kwargs.pop("drop_path_rate")
         super(ParallelVisionTransformerLayer_, self).__init__(**kwargs)
 
@@ -324,15 +326,15 @@ class ParallelVisionTransformerLayer_(ParallelTransformerLayer_):
 class ParallelVisionTransformerLayer(ParallelVisionTransformerLayer_):
     def __init__(self, **kwargs):
         super(ParallelVisionTransformerLayer, self).__init__(**kwargs)
-
-        if kwargs['precision'] == 32:
+        precision = kwargs['precision']
+        if precision == 32:
             self.dtype = torch.float32
-        elif kwargs['precision'] == 16:
+        elif precision == 16:
             self.dtype = torch.float16
-        elif kwargs['precision'] == 'bf16':
+        elif precision == 'bf16':
             self.dtype = torch.bfloat16
         else:
-            raise ValueError
+            raise ValueError(f"Cannot recognize precision {precision}")
 
     def forward(
         self,
@@ -349,6 +351,8 @@ class ParallelVisionTransformerLayer(ParallelVisionTransformerLayer_):
         cross_attention_relative_position_bias=None,
     ):
         kwargs = locals()
+        for key in ["self", "__class__"]:
+            kwargs.pop(key)
         if self.dtype == torch.float32:
             return super().forward(
                 **kwargs
@@ -407,6 +411,8 @@ class ParallelVisionTransformer(ParallelTransformer):
         normalize_attention_scores=True,
     ):
         kwargs = locals()
+        for key in ["self", "__class__"]:
+            kwargs.pop(key)
         self.drop_path_rate = kwargs.pop("drop_path_rate")
         super(ParallelVisionTransformer, self).__init__(**kwargs)
 

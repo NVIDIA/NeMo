@@ -180,7 +180,7 @@ class VitBackbone(MegatronModule):
         self.img_w = model_cfg.img_w
         self.micro_batch_size = model_cfg.micro_batch_size
         self.single_token_output = single_token_output
-        self.drop_path_rate = drop_path_rate
+        self.drop_path_rate = model_cfg.drop_path_rate
 
         assert self.img_h % self.patch_dim == 0
         assert self.img_w % self.patch_dim == 0

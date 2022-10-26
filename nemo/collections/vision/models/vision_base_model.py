@@ -16,10 +16,14 @@ import copy
 import hashlib
 import json
 import os
-from typing import Any, Optional
+from typing import Any, Union, Dict, Optional
 
-from omegaconf import DictConfig, OmegaConf
-from pytorch_lightning import Trainer
+import torch
+from omegaconf import open_dict
+from omegaconf.dictconfig import DictConfig
+from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
+from pytorch_lightning.trainer.connectors.logger_connector.fx_validator import _FxValidator
+from pytorch_lightning.trainer.trainer import Trainer
 from pytorch_lightning.core.saving import _load_state as ptl_load_state
 from pytorch_lightning.core.saving import load_hparams_from_tags_csv, load_hparams_from_yaml
 from pytorch_lightning.utilities import rank_zero_only
@@ -30,9 +34,27 @@ from transformers import TRANSFORMERS_CACHE
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.core.classes import ModelPT
 from nemo.core.classes.exportable import Exportable
-from nemo.utils import AppState, logging
 
-__all__ = ['VisionModel']
+from nemo.collections.nlp.modules.common.megatron.clip_grads import (
+    clip_grad_norm_distributed_optimizer,
+    clip_grad_norm_fp32,
+)
+from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
+from nemo.collections.nlp.parts.nlp_overrides import GradScaler
+from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
+from nemo.utils import AppState, logging
+from nemo.utils.get_rank import is_global_rank_zero
+
+try:
+    from apex.transformer import parallel_state
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
+
+
+__all__ = ['VisionModel', 'MegatronVisionModel']
 
 NEMO_VISION_TMP = os.path.join(os.path.dirname(str(TRANSFORMERS_CACHE)), "nemo_vision_tmp")
 

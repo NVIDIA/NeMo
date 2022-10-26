@@ -28,6 +28,9 @@ from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_sampler
     MegatronPretrainingRandomBatchSampler,
 )
 
+from nemo.collections.vision.models.vision_base_model import MegatronVisionModel
+from nemo.collections.vision.modules.vit.vit_backbone import VitBackbone, VitMlpHead
+
 from nemo.collections.nlp.modules.common.megatron.module import (
     MegatronModule,
     Float16Module,
@@ -45,6 +48,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import logging
+from nemo.core.classes.common import PretrainedModelInfo
 
 try:
     from apex.transformer import parallel_state
