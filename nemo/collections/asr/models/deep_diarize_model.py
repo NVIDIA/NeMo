@@ -83,8 +83,9 @@ class DeepDiarizeModel(ModelPT):
         )
 
     def _mask_mems(self, mask: List[bool]):
-        for mem in self.mems:
-            mem[mask, :, :] = 0
+        if self.mems is not None:
+            for mem in self.mems:
+                mem[mask, :, :] = 0
 
     def training_step(self, batch, batch_idx):
         train_x, train_lengths, y, mask = batch
