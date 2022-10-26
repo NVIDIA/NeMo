@@ -177,6 +177,9 @@ class RTTMStreamingSegmentsDataset(IterableDataset, ABC):
 
 
 class LocalRTTMStreamingSegmentsDataset(RTTMStreamingSegmentsDataset):
+
+    minimum_segment_seconds: int = 1
+
     def __init__(
         self,
         data_list: list,
@@ -205,22 +208,24 @@ class LocalRTTMStreamingSegmentsDataset(RTTMStreamingSegmentsDataset):
         start_segment = True
         for x in data:
             sample_id, start_offset, duration, total_annotated_duration = x
-            sample = self.collection[sample_id]
-            rttm_timestamps = self.rttm_timestamps[sample_id]
 
-            targets = self.parse_rttm_for_ms_targets(
-                rttm_timestamps=rttm_timestamps, offset=start_offset, end_duration=start_offset + duration,
-            )
-            train_segment = self.featurizer.process(sample.audio_file, offset=start_offset, duration=duration)
+            if (total_annotated_duration - start_offset) > self.minimum_segment_seconds:
+                sample = self.collection[sample_id]
+                rttm_timestamps = self.rttm_timestamps[sample_id]
 
-            train_length = torch.tensor(train_segment.shape[0]).long()
+                targets = self.parse_rttm_for_ms_targets(
+                    rttm_timestamps=rttm_timestamps, offset=start_offset, end_duration=start_offset + duration,
+                )
+                train_segment = self.featurizer.process(sample.audio_file, offset=start_offset, duration=duration)
 
-            train_segment, train_length = self.preprocessor.get_features(
-                train_segment.unsqueeze_(0), train_length.unsqueeze_(0)
-            )
+                train_length = torch.tensor(train_segment.shape[0]).long()
 
-            yield train_segment, train_length, targets, start_segment
-            start_segment = False
+                train_segment, train_length = self.preprocessor.get_features(
+                    train_segment.unsqueeze_(0), train_length.unsqueeze_(0)
+                )
+
+                yield train_segment, train_length, targets, start_segment
+                start_segment = False
 
     @staticmethod
     def data_setup(manifest_filepath: str, train_segment_seconds: int):
