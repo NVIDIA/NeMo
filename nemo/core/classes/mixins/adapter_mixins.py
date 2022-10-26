@@ -192,10 +192,10 @@ class AdapterModuleMixin(ABC):
                 if issubclass(test, _type):
                     _pass_types = True
                     break
-        if not _pass_types:
-            raise ValueError(
-                f"Config {cfg} creates adapter class {test} is not in the list of accepted adapter types."
-            )
+            if not _pass_types:
+                raise ValueError(
+                    f"Config {cfg} creates adapter class {test} is not in the list of accepted adapter types."
+                )
 
         # Convert to DictConfig from dict or Dataclass
         if is_dataclass(cfg):
