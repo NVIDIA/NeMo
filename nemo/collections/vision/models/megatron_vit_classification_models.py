@@ -112,7 +112,7 @@ class VitClassificationModel(MegatronModule):
 
         if self.post_process:
             hidden_states = self.head(hidden_states)
-
+        hidden_states = hidden_states.contiguous()
         return hidden_states
 
 
