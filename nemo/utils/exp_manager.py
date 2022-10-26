@@ -79,7 +79,7 @@ class CallbackParams:
     save_top_k: Optional[int] = 3
     save_weights_only: Optional[bool] = False
     mode: Optional[str] = "min"
-    every_n_epochs: Optional[int] = 1
+    every_n_epochs: Optional[int] = None
     every_n_train_steps: Optional[int] = None
     prefix: Optional[str] = None  # If None, exp_manager will attempt to handle the filepath
     postfix: str = ".nemo"
