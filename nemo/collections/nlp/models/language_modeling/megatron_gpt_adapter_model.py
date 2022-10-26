@@ -36,7 +36,7 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes.mixins import adapter_mixins
-from nemo.utils import logging
+from nemo.utils import logging, model_utils
 
 
 class MegatronGPTBaseAdapterModel(MegatronGPTPromptLearningModel):
@@ -279,7 +279,7 @@ class MegatronGPTAdapterLearningModel(MegatronGPTBaseAdapterModel):
         for _, module in self.frozen_model.named_modules():
             if isinstance(module, adapter_mixins.AdapterModuleMixin):
                 for adapter_key in self.adapter_name_keys:
-                    if adapter_cfg._target_ in module.get_accepted_adapter_types():
+                    if model_utils.import_class_by_path(adapter_cfg._target_) in module.get_accepted_adapter_types():
                         module.add_adapter(
                             name=adapter_key, cfg=adapter_cfg,
                         )
@@ -331,7 +331,7 @@ class MegatronGPTInfusedAdapterModel(MegatronGPTBaseAdapterModel):
                         )
                     else:
                         raise ValueError(f"Adapter Key {adapter_key} is unknown.")
-                    if cfg._target_ in module.get_accepted_adapter_types():
+                    if model_utils.import_class_by_path(cfg._target_) in module.get_accepted_adapter_types():
                         module.add_adapter(name=adapter_key, cfg=cfg)
 
         logging.info(f'After adding adapters:\n{self.frozen_model.summarize()}')

@@ -157,7 +157,7 @@ class AdapterModuleMixin(ABC):
         """
         if hasattr(self, "_accepted_adapter_types"):
             raise RuntimeError("accepted adapter types can only be set once.")
-        self._accepted_adapter_types = adapter_types
+        self._accepted_adapter_types = [model_utils.import_class_by_path(s) for s in adapter_types]
 
     def get_accepted_adapter_types(self,) -> List[str]:
         """
@@ -182,10 +182,13 @@ class AdapterModuleMixin(ABC):
             cfg: A DictConfig or Dataclass that contains at the bare minimum `__target__` to instantiate a
                 new Adapter module.
         """
-        if self.get_accepted_adapter_types():
-            assert (
-                cfg._target_ in self.get_accepted_adapter_types()
-            ), f"{cfg._target_} has not been added to the list of accepted adapter types for this module."
+        if self._accepted_adapter_types is not None:
+            if len(self._accepted_adapter_types) > 0:
+                test = model_utils.import_class_by_path(cfg._target_)
+                if test not in self._accepted_adapter_types:
+                    raise ValueError(
+                        f"Config {cfg} creates adapter class {test} is not in the list of accepted adapter types."
+                    )
 
         # Convert to DictConfig from dict or Dataclass
         if is_dataclass(cfg):

@@ -40,7 +40,7 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
 )
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes.mixins import adapter_mixins
-from nemo.utils import logging
+from nemo.utils import logging, model_utils
 
 try:
     from apex.transformer import parallel_state
@@ -359,7 +359,7 @@ class MegatronT5AdapterLearningModel(MegatronT5BaseAdapterModel):
             if isinstance(module, adapter_mixins.AdapterModuleMixin):
                 for adapter_key in adapter_name_keys:
                     adapter_cfg = self._get_adapter_cfg(component_cfg)
-                    if adapter_cfg._target_ in module.get_accepted_adapter_types():
+                    if model_utils.import_class_by_path(adapter_cfg._target_) in module.get_accepted_adapter_types():
                         module.add_adapter(name=adapter_key, cfg=adapter_cfg)
 
     def _get_component_cfg(self, component_name, frozen_model_cfg, cfg):
@@ -443,7 +443,7 @@ class MegatronT5InfusedAdapterModel(MegatronT5BaseAdapterModel):
             if isinstance(module, adapter_mixins.AdapterModuleMixin):
                 for adapter_key in adapter_name_keys:
                     adapter_cfg = self._get_adapter_cfg(component_cfg, adapter_key)
-                    if adapter_cfg._target_ in module.get_accepted_adapter_types():
+                    if model_utils.import_class_by_path(adapter_cfg._target_) in module.get_accepted_adapter_types():
                         module.add_adapter(name=adapter_key, cfg=adapter_cfg)
 
     def _get_component_cfg(self, component_name, frozen_model_cfg):
