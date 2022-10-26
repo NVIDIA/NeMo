@@ -453,9 +453,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
                 # Don't update the audio_signal here because then it will again scale the audio_signal
                 # and cause an increase in the WER
                 _, pos_emb = self.pos_enc(x=audio_signal, cache_len=cache_len)
-                pad_mask, att_mask = self._create_masks(
-                    max_audio_length, length, audio_signal.device
-                )
+                pad_mask, att_mask = self._create_masks(max_audio_length, length, audio_signal.device)
 
         if self.out_proj is not None:
             audio_signal = self.out_proj(audio_signal)
