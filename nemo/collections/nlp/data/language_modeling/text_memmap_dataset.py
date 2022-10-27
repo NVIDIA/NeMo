@@ -35,7 +35,6 @@ class TextMemMapDataset(Dataset):
     Allow per-line lazy access to multiple text files using numpy memmap.
     """
 
-    # FIXME: header_lines=0 by default
     def __init__(
         self, dataset_paths, newline_int=10, header_lines=0, workers=None, tokenizer=None, sort_dataset_paths=True,
     ):
@@ -82,6 +81,9 @@ class TextMemMapDataset(Dataset):
 
         self.midx_bins = midx_bins
         self.mdata_midx_list = mdata_midx_list
+        
+        # figure out size of the dataset 
+        self._size = self.midx_bins[-1]
 
     def __del__(self):
         if self.mdata_midx_list:
@@ -89,14 +91,14 @@ class TextMemMapDataset(Dataset):
                 mdata._mmap.close()
 
     def __len__(self):
-        return self.midx_bins[-1]
+        return self._size
 
     def __getitem__(self, idx):
         """
         Return a string from binary memmap
         """
-        if (idx >= self.midx_bins[-1]) or (idx < 0):
-            raise IndexError(f"Index {idx} if out of dataset range with {self.midx_bins[-1]} samples")
+        if (idx >= len(self)) or (idx < 0):
+            raise IndexError(f"Index {idx} if out of dataset range with {len(self)} samples")
 
         # Identify the file containing the record
         file_id = np.digitize(idx, self.midx_bins, right=False)
@@ -219,12 +221,13 @@ def _build_memmap_index_files(newline_int, fn):
         logging.info(f"Building idx file = {idx_fn}.npy")
         midx = np.where(mdata == newline_int)[0]
         midx_dtype = midx.dtype
-        # add last item in case there is no new-line
+        # make sure to account for all data
+        midx = midx.tolist()
+        # add last item in case there is no new-line at the end of the file
         if (len(midx) == 0) or (midx[-1] + 1 != len(mdata)):
-            midx = np.asarray(midx.tolist() + [len(midx) + 1], dtype=midx_dtype)
+            midx = midx +  [len(mdata) + 1]
 
         # remove empty lines from end of file
-        midx = midx.tolist()
         while len(midx) > 1 and (midx[-1] - midx[-2]) < 2:
             midx.pop(-1)
         midx = np.asarray(midx, dtype=midx_dtype)
