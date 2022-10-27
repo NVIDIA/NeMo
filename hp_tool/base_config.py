@@ -390,11 +390,22 @@ def generate_base_config(
         base_cfg["model"]["optim"]["sched"]["constant_steps"] = int(
             0.166 * base_cfg["trainer"]["max_steps"]
         )
+        # Always use partial activation checkpointing with block.
+        # Search activations_checkpoint_num_layers to be between 0 and num_layers/PP. 
+        #     If using interleaved scheduling, activations_checkpoint_num_layers must be between 0 and num_layers/PP/Virtual_pipelines(VP).
+        # If using PP>1, we can also search for num_micro_batches_with_partial_activation_checkpoints.
+        #.    num_micro_batches_with_partial_activation_checkpoints must be a value between 0 and activations_checkpoint_num_layers (both included).
+        #
+        # num_micro_batches_with_partial_activation_checkpoints WILL NEED TO SEARCH. 
+        # Need to know the range(min, max, interval)
+        #
+        # activations_checkpoint_layers_per_pipeline WILL NEED TO SEARCH.
+        # range(min, max, interval)
         if model_size_in_b <= 13.0:
             base_cfg["model"]["sequence_parallel"] = False
-            base_cfg["model"]["activations_checkpoint_granularity"] = "full"
-            base_cfg["model"]["activations_checkpoint_method"] = "block"
-            base_cfg["model"]["activations_checkpoint_num_layers"] = 0
+            #base_cfg["model"]["activations_checkpoint_granularity"] = "full"
+            #base_cfg["model"]["activations_checkpoint_method"] = "block"
+            #base_cfg["model"]["activations_checkpoint_num_layers"] = 0
     else:
         base_cfg["model"]["global_batch_size"] = int(gbs)
         base_cfg["model"]["encoder"]["num_layers"] = int(layers)
