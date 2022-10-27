@@ -84,7 +84,7 @@ class WikiText(PerplexityTask):
     def docs_for_split(self, split):
         ret = []
         for line in (
-            open(self.cache_dir + f"/wikitext/wikitext-2-raw/wiki.{split}.raw").read().split("\n")
+            open(self.cache_dir + f"/wikitext/wikitext-2-raw/wiki.{split}.raw", encoding='utf-8').read().split("\n")
         ):
             rline = line.replace("= = =", "===").replace("= =", "==").strip()
             if rline.startswith("= ") and rline.strip().endswith(" ="):
@@ -135,7 +135,7 @@ class WikiText103(WikiText):
     def docs_for_split(self, split):
         ret = []
         for line in (
-            open(self.cache_dir + f"/wikitext/wikitext-103-raw/wiki.{split}.raw").read().split("\n")
+            open(self.cache_dir + f"/wikitext/wikitext-103-raw/wiki.{split}.raw", encoding='utf-8').read().split("\n")
         ):
             rline = line.replace("= = =", "===").replace("= =", "==").strip()
             if rline.startswith("= ") and rline.strip().endswith(" ="):

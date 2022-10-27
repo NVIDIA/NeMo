@@ -52,6 +52,7 @@ model:
   global_batch_size: 2048
   tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1
+  virtual_pipeline_model_parallel_size: null # interleaved pipeline
   resume_from_checkpoint: null # manually set the checkpoint file to load from
 
   # model architecture
@@ -70,14 +71,19 @@ model:
   pre_process: True # add embedding
   post_process: True # add pooler
   persist_layer_norm: True # Use of persistent fused layer norm kernel.
-  grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce
   gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
+
+  # Fusion
+  grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce
   gradient_accumulation_fusion: True # Fuse weight gradient accumulation to GEMMs
+  bias_activation_fusion: True # Use a kernel that fuses the bias addition from weight matrices with the subsequent activation function.
+  bias_dropout_add_fusion: True # Use a kernel that fuses the bias addition, dropout and residual connection addition.
+  masked_softmax_fusion: True # Use a kernel that fuses the attention softmax with it's mask.
 
   ## Activation Checkpointing
   activations_checkpoint_granularity: full # 'selective' or 'full'
-  activations_checkpoint_method: block # 'uniform', 'block', not used with 'selective'
-  activations_checkpoint_num_layers: 0 # not used with 'selective'
+  activations_checkpoint_method: block # 'uniform', 'block'
+  activations_checkpoint_num_layers: 0 
 
   ## Sequence Parallelism
   sequence_parallel: False
@@ -101,6 +107,17 @@ model:
   megatron_amp_O2: True # Enable O2-level automatic mixed precision using master parameters
   grad_allreduce_chunk_size_mb: 125
 
+  ## Transformer Engine
+  transformer_engine: False
+  fp8: False # enables fp8 in TransformerLayer forward
+  fp8_e4m3: False # sets fp8_format = recipe.Format.E4M3
+  fp8_hybrid: False # sets fp8_format = recipe.Format.HYBRID
+  fp8_margin: 0 # scaling margin
+  fp8_interval: 1 # scaling update interval
+  fp8_amax_history_len: 1 # Number of steps for which amax history is recorded per tensor
+  fp8_amax_compute_algo: most_recent # 'most_recent' or 'max'. Algorithm for computing amax from history
+  use_emha: False
+
   # miscellaneous
   seed: 1234
   use_cpu_initialization: False # Init weights on the CPU (slow for large models)
@@ -118,6 +135,7 @@ model:
 
   optim:
     name: distributed_fused_adam
+    bucket_cap_mb: ${training.model.grad_allreduce_chunk_size_mb}
     lr: 1.6e-4
     weight_decay: 0.1 
     betas: 

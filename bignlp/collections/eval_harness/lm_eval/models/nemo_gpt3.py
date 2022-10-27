@@ -152,26 +152,25 @@ def setup_trainer_and_model(args):
 
     return trainer, model
 
-
 def hacky_DDP_initialize(model):
     if parallel_state.is_unitialized():
+        def dummy():
+            return
 
-        class RequestDataSet(Dataset):
-            def __init__(self, sentences):
-                super().__init__()
-                self.sentences = sentences
+        if model.trainer.strategy.get("launcher") is not None:
+            model.trainer.strategy.launcher.launch(dummy, trainer=model.trainer)
+        model.trainer.strategy.setup_environment()
 
-            def __len__(self):
-                return len(self.sentences)
+        if model.cfg.get('transformer_engine', False) and model.cfg.get('tensor_model_parallel_size', 1) > 1:
+            logging.info(f'Setting up transformer engine modules for tensor parallelism.')
+            if model.cfg.get('megatron_amp_O2', 'False'):
+                # when using O2 additional module key is added that casts the weights
+                for layer in model.model.module.language_model.encoder.layers:
+                    layer.set_tensor_parallel_group(parallel_state.get_tensor_model_parallel_group())
 
-            def __getitem__(self, idx):
-                return self.sentences[idx]
-
-        # TODO, this is a little hacky. need to handle this nicely in the future
-        # run empty predict to initialize the DDP
-        ds = RequestDataSet([""])
-        request_dl = DataLoader(dataset=ds, batch_size=1)
-        model.trainer.predict(model, request_dl)
+            else:
+                for layer in model.model.language_model.encoder.layers:
+                    layer.set_tensor_parallel_group(parallel_state.get_tensor_model_parallel_group())
 
 
 class NeMo_GPT3LM_TP_PP(LM):
@@ -221,8 +220,18 @@ class NeMo_GPT3LM_TP_PP(LM):
                 len(token) - 1 for token in tokens
             ]  # fake delete last token by reducing input len
             max_len = max(lens)
+            extra_pad_len = 0
+            if max_len % 8 != 0:
+                extra_pad_len = 8 - (max_len % 8)
+                max_len += extra_pad_len
+            # extra_pad_len = 2048 - max_len
+            # max_len += extra_pad_len
 
             tokens_pad = pad_sequence(tokens, batch_first=False, padding_value=eos_id)
+            if extra_pad_len > 0:
+                extra_pad = torch.ones(extra_pad_len, len(batch)) * eos_id
+                extra_pad = extra_pad.type_as(tokens_pad)
+                tokens_pad = torch.vstack((tokens_pad, extra_pad))
             # Add padding to all samples to adapt nemo generate api
 
             new_batch = []
