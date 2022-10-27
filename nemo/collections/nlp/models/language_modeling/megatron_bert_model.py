@@ -36,7 +36,7 @@ from nemo.core.neural_types import ChannelType, MaskType, NeuralType
 from nemo.utils import AppState, logging
 
 try:
-    from apex.transformer import parallel_state, tensor_parallel
+    from apex.transformer import parallel_state
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
 
     HAVE_APEX = True
@@ -282,19 +282,13 @@ class MegatronBertModel(MegatronBaseModel):
 
     def process_batch(self, batch):
         """Build the batch."""
-        # Items and their type.
-        keys = ['text', 'types', 'labels', 'is_random', 'loss_mask', 'padding_mask']
-        datatype = torch.int64
-
-        data = batch
-
         # Unpack.
-        tokens = data['text'].long()
-        types = data['types'].long()
-        sentence_order = data['is_random'].long()
-        loss_mask = data['loss_mask'].float()
-        lm_labels = data['labels'].long()
-        padding_mask = data['padding_mask'].long()
+        tokens = batch['text'].long()
+        types = batch['types'].long()
+        sentence_order = batch['is_random'].long()
+        loss_mask = batch['loss_mask'].float()
+        lm_labels = batch['labels'].long()
+        padding_mask = batch['padding_mask'].long()
         return [tokens, types, sentence_order, loss_mask, lm_labels, padding_mask]
 
     def _build_train_valid_test_datasets(self):
