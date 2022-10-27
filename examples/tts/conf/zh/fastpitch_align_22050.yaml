@@ -29,7 +29,7 @@ highfreq: null
 window: hann
 
 whitelist_path: "nemo_text_processing/text_normalization/zh/data/whitelist/default.tsv"
-phoneme_dict_path: "scripts/tts_dataset_files/zh/pinyin_dict.txt"
+phoneme_dict_path: "scripts/tts_dataset_files/zh/pinyin_dict_nv_22.10.txt"
 
 model:
   learn_alignment: true

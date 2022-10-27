@@ -647,7 +647,7 @@ class ChinesePhonemesTokenizer(BaseTokenizer):
                     'OU', 'P', 'Q', 'R', 'S', 'SH', 'T', 'U', 'UI', 'UN', 
                     'V', 'VE', 'VN', 'W', 'X', 'Y', 'Z', 'ZH']]
     TONES_LIST = ['#1', '#2', '#3', '#4', '#5']
-    ZH_PUNCT_LIST = list("，。？！；：、‘’“”（）【】「」《》")
+    ZH_PUNCT_LIST = list("，。？！；：、‘’“”（）【】「」《》") + [',', '.', '!', '?', '-', ':', ';', '/', '"', '(', ')', '[', ']', '{', '}']
 
     def __init__(
         self,
@@ -701,7 +701,7 @@ class ChinesePhonemesTokenizer(BaseTokenizer):
                 self.PUNCT_LIST = list(self.ZH_PUNCT_LIST)
             tokens.extend(self.PUNCT_LIST)
 
-        super().__init__(tokens, oov=oov, sep=sep, add_blank_at=add_blank_at)
+        super().__init__(tokens, sep=sep, add_blank_at=add_blank_at)
 
         self.punct = punct
         self.pad_with_space = pad_with_space
