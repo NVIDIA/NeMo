@@ -641,12 +641,6 @@ class IPATokenizer(BaseTokenizer):
 
 class ChinesePhonemesTokenizer(BaseTokenizer):
     # fmt: off
-    EN_PUNCT_LIST = (  # Derived from LJSpeech and "/" additionally
-        ',', '.', '!', '?', '-',
-        ':', ';', '/', '"', '(',
-        ')', '[', ']', '{', '}',
-    )
-
     PRONUNCIATION_LIST = ['#' + i for i in ['^', 'A', 'AI', 'AN', 'ANG', 'AO', 'B', 'C', 'CH', 'D', 
                     'E', 'EI', 'EN', 'ENG', 'ER', 'F', 'G', 'H', 'I', 'IE', 
                     'IN', 'ING', 'IU', 'J', 'K', 'L', 'M', 'N', 'O', 'ONG', 
@@ -660,7 +654,6 @@ class ChinesePhonemesTokenizer(BaseTokenizer):
         g2p,
         punct=True,
         non_default_punct_list=None,
-        stresses=False,
         chars=False,
         *,
         space=' ',
@@ -676,7 +669,6 @@ class ChinesePhonemesTokenizer(BaseTokenizer):
             g2p: Grapheme to phoneme module.
             punct: Whether to reserve grapheme for basic punctuation or not.
             non_default_punct_list: List of punctuation marks which will be used instead default.
-            stresses: Whether to use phonemes codes with stresses (0-2) or not.
             chars: Whether to additionally use chars together with phonemes. It is useful if g2p module can return chars too.
             space: Space token as string.
             silence: Silence token as string (will be disabled if it is None).
@@ -706,7 +698,7 @@ class ChinesePhonemesTokenizer(BaseTokenizer):
             if non_default_punct_list is not None:
                 self.PUNCT_LIST = non_default_punct_list
             else:
-                self.PUNCT_LIST = list(self.EN_PUNCT_LIST) + list(self.ZH_PUNCT_LIST)
+                self.PUNCT_LIST = list(self.ZH_PUNCT_LIST)
             tokens.extend(self.PUNCT_LIST)
 
         super().__init__(tokens, oov=oov, sep=sep, add_blank_at=add_blank_at)

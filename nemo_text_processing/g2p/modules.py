@@ -513,9 +513,10 @@ class ChineseG2p(BaseG2p):
                 It is useful to mark word as unchangeable which is already in phoneme representation.
             apply_to_oov_word: Function that will be applied to out of phoneme_dict word.
         """
+        assert phoneme_dict is not None, "Please set the phoneme_dict path."
         phoneme_dict = (
             self._parse_as_pinyin_dict(phoneme_dict)
-            if isinstance(phoneme_dict, str) or isinstance(phoneme_dict, pathlib.Path) or phoneme_dict is None
+            if isinstance(phoneme_dict, str) or isinstance(phoneme_dict, pathlib.Path)
             else phoneme_dict
         )
 
@@ -557,11 +558,11 @@ class ChineseG2p(BaseG2p):
         """
         errors func handle below is to process the bilingual situation,
         where English words would be split into letters.
-        e.g. 我今天去了Apple Store, 买了一个ihone。
+        e.g. 我今天去了Apple Store, 买了一个iPhone。
         would return a list
         ['wo3', 'jin1', 'tian1', 'qu4', 'le5', 'A', 'p', 'p', 'l', 'e', 
         ' ', 'S', 't', 'o', 'r', 'e', ',', ' ', 'mai3', 'le5', 'yi2', 
-        'ge4', 'i', 'h', 'o', 'n', 'e', '。']
+        'ge4', 'i', 'P', 'h', 'o', 'n', 'e', '。']
         """
         pinyin_seq = self._lazy_pinyin(
             text,
@@ -575,6 +576,9 @@ class ChineseG2p(BaseG2p):
                 assert pinyin[:-1] in self.phoneme_dict, pinyin[:-1]
                 phoneme_seq += self.phoneme_dict[pinyin[:-1]]
                 phoneme_seq.append(self.tones[pinyin[-1]])
+            # All pinyin would end up with a number in 1-5, which represents tones of the pinyin.
+            # For symbols which are not pinyin, e.g. English letters, Chinese puncts, we directly 
+            # use them as inputs.
             else:
                 phoneme_seq.append(pinyin)
         return phoneme_seq
