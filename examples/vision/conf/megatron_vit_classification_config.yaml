@@ -82,15 +82,6 @@ model:
   post_process: True # add pooler
   persist_layer_norm: True # Use of persistent fused layer norm kernel.
 
-  tokenizer:
-    library: 'megatron'
-    type: 'GPT2BPETokenizer'
-    model: null
-    vocab_file: null
-    merge_file: null 
-    delimiter: null # only used for tabular tokenizer
-    sentencepiece_legacy: false # Legacy=True allows you to add special tokens to sentencepiece tokenizers.
-
   # precision
   native_amp_init_scale: 4294967296 # 2 ** 32
   native_amp_growth_interval: 1000
@@ -142,7 +133,7 @@ model:
     # List: can override from the CLI: "model.data.data_prefix=[/path/to/train, /path/to/val]",
     data_path: ???
     num_workers: 2
-    dataloader_type: single # cyclic
+    dataloader_type: cyclic # cyclic
     validation_drop_last: True # Set to false if the last partial validation samples is to be consumed
 
   # Nsys profiling options

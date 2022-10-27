@@ -269,7 +269,6 @@ class MegatronVitClassificationModel(MegatronVisionModel):
             # GPT3 uses decoder with AttnMask:causal, thus doesn't need attention_mask
             batch_for_pipeline = None
 
-
         # TODO (yuya): fix this shape
         tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
 
