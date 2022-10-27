@@ -124,12 +124,20 @@ class TextMemMapDataset(Dataset):
             i = midx[file_idx - 1] + 1  # ignore newline
             j = midx[file_idx]
 
-        text = mdata[i:j].tobytes().decode("utf-8")
+        # fetch sample from memmap
 
+        sample = self._fetch_sample_from_memmap(mdata, i, j)
         # parse raw text (e.g., tokenize)
-        data = self._build_data_from_text(text)
+        data = self._build_data_from_text(sample)
 
         return data
+
+    def _fetch_sample_from_memmap(self, mdata, i, j):
+        """Fetchs the text sample. Can be overriden by child-classes to support loading of partial samples and alternative decode methods"""
+        # load text sample by slicing memmap data[i:j]
+        text = mdata[i:j].tobytes().decode("utf-8")
+
+        return text
 
     def _build_data_from_text(self, text):
         """Allows child-classes to modify the parsing of raw text, prior to tokenization"""
