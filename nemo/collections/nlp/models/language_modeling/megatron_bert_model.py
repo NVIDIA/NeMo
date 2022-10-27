@@ -183,7 +183,7 @@ class MegatronBertModel(MegatronBaseModel):
             tensor_shape=tensor_shape,
             dtype=self.autocast_dtype,
             grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
-            custom_sync_context_handler=None,
+            custom_sync_context_handler=custom_sync_context_handler,
         )
 
         loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
