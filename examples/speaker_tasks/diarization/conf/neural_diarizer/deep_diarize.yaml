@@ -75,7 +75,6 @@ trainer:
   max_steps: 1000000
   num_nodes: 1
   strategy: ddp_find_unused_parameters_false
-  limit_val_batches: 8
   enable_checkpointing: False
   logger: False
   log_every_n_steps: 50  # Interval of logging.
