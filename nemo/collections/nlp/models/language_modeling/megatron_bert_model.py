@@ -129,7 +129,7 @@ class MegatronBertModel(MegatronBaseModel):
                 types = None
 
             output_tensor = self.forward(tokens, padding_mask, types, lm_labels)
-            
+
             def loss_func(output_tensor):
                 loss_dict = self.loss_func(loss_mask, sentence_order, output_tensor)
                 if 'sop loss' in loss_dict:
@@ -247,7 +247,6 @@ class MegatronBertModel(MegatronBaseModel):
 
     def validation_epoch_end(self, outputs):
         averaged_loss = torch.stack(outputs).mean()
-        # torch.distributed.broadcast(averaged_loss, get_last_rank()) (PRESENT IN GPT3 NOT IN BERT ) IS IT NEEDED ?
         self.log('val_loss', averaged_loss, prog_bar=True)
 
     def test_step(self, batch, batch_idx):
