@@ -111,7 +111,7 @@ def generate_grid_search_configs(
 
     # Generate grid search configs.
     for tp, pp in valid_tp_pp_list:
-        act_ckpt_layers, num_micro_batches_partial_act_ckpt, act_ckpt_layers_per_pipeline = _set_activations_checkpoint_params(tp, pp, num_layers, multiplier, model_size_in_b, model_name)
+        act_ckpt_layers, num_micro_batches_partial_act_ckpt, act_ckpt_layers_per_pipeline, results_cfgs = _set_activations_checkpoint_params(tp, pp, num_layers, act_method, multiplier, model_size_in_b, model_name)
         for mbs in mbs_list:
                 if act_layers is not None and act_layers != "auto":
                     act_ckpt_layers = act_layers
@@ -132,6 +132,7 @@ def generate_grid_search_configs(
                                 model_name=model_name,
                             )
                             if new_cfg:  # Save candidate cfg.
+                                num_mbs_act_str, act_per_pipe_str = "", ""
                                 if num_mbs_act is not None:
                                     num_mbs_act_str = f"_num_mbs_act_{num_mbs_act}"
                                 if act_per_pipe is not None:
@@ -185,7 +186,7 @@ def _set_activations_checkpoint_params(tp, pp, num_layers, act_method, multiplie
             # Act ckpt layers per pipeline
             act_ckpt_layers_per_pipeline = range(min_layers_per_pipe, max_layers_per_pipe + 1, interval_layers_per_pipe)
 
-    return act_ckpt_layers, num_micro_batches_partial_act_ckpt, act_ckpt_layers_per_pipeline
+    return act_ckpt_layers, num_micro_batches_partial_act_ckpt, act_ckpt_layers_per_pipeline, results_cfgs
 
 
 def _tp_pp_mbs_grid_gpt3_80gb(model_size_in_b: float, valid_pp: List[int]) -> Tuple[int, int, int]:
