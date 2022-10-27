@@ -88,9 +88,11 @@ class TestTrainingGPT3Config:
           masked_softmax_fusion: True # Use a kernel that fuses the attention softmax with it's mask.
         
           ## Activation Checkpointing
-          activations_checkpoint_granularity: full # 'selective' or 'full'
+          activations_checkpoint_granularity: selective # 'selective' or 'full'
           activations_checkpoint_method: block # 'uniform', 'block'
-          activations_checkpoint_num_layers: 0 
+          activations_checkpoint_num_layers: 0
+          num_micro_batches_with_partial_activation_checkpoints: null
+          activations_checkpoint_layers_per_pipeline: null 
         
           ## Sequence Parallelism
           sequence_parallel: False
@@ -318,10 +320,12 @@ class TestTrainingGPT3Config:
           masked_softmax_fusion: True # Use a kernel that fuses the attention softmax with it's mask.
         
           ## Activation Checkpointing
-          activations_checkpoint_granularity: full # 'selective' or 'full'
+          activations_checkpoint_granularity: selective # 'selective' or 'full'
           activations_checkpoint_method: block # 'uniform', 'block'
           activations_checkpoint_num_layers: 0 
-        
+          num_micro_batches_with_partial_activation_checkpoints: null
+          activations_checkpoint_layers_per_pipeline: null 
+          
           ## Sequence Parallelism
           sequence_parallel: False
         
@@ -550,7 +554,9 @@ class TestTrainingGPT3Config:
           activations_checkpoint_granularity: selective # 'selective' or 'full'
           activations_checkpoint_method: uniform # 'uniform', 'block'
           activations_checkpoint_num_layers: 1
-        
+          num_micro_batches_with_partial_activation_checkpoints: null
+          activations_checkpoint_layers_per_pipeline: null 
+
           ## Sequence Parallelism
           sequence_parallel: True
         
@@ -779,7 +785,9 @@ class TestTrainingGPT3Config:
           activations_checkpoint_granularity: selective # 'selective' or 'full'
           activations_checkpoint_method: uniform # 'uniform', 'block'
           activations_checkpoint_num_layers: 1
-        
+          num_micro_batches_with_partial_activation_checkpoints: null
+          activations_checkpoint_layers_per_pipeline: null 
+
           ## Sequence Parallelism
           sequence_parallel: True
         
@@ -1008,7 +1016,9 @@ class TestTrainingGPT3Config:
           activations_checkpoint_granularity: selective # 'selective' or 'full'
           activations_checkpoint_method: uniform # 'uniform', 'block'
           activations_checkpoint_num_layers: 1
-        
+          num_micro_batches_with_partial_activation_checkpoints: null
+          activations_checkpoint_layers_per_pipeline: null 
+
           ## Sequence Parallelism
           sequence_parallel: True
         
