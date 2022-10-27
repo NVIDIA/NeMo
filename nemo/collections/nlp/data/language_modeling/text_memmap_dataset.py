@@ -30,6 +30,25 @@ __idx_version__ = '0.2'  # index file version
 __idx_suffix__ = 'idx'  # index file suffix
 
 
+def _build_index_from_memdata(mdata, newline_int):
+    """Build index of newline positions in memmap"""
+    # find newline positions
+    midx = np.where(mdata == newline_int)[0]
+    midx_dtype = midx.dtype
+    # make sure to account for all data
+    midx = midx.tolist()
+    # add last item in case there is no new-line at the end of the file
+    if (len(midx) == 0) or (midx[-1] + 1 != len(mdata)):
+        midx = midx + [len(mdata) + 1]
+
+    # remove empty lines from end of file
+    while len(midx) > 1 and (midx[-1] - midx[-2]) < 2:
+        midx.pop(-1)
+    midx = np.asarray(midx, dtype=midx_dtype)
+
+    return midx
+
+
 class TextMemMapDataset(Dataset):
     """
     Allow per-line lazy access to multiple text files using numpy memmap.
@@ -226,25 +245,6 @@ class CSVMemMapDataset(TextMemMapDataset):
         text = text.split(self._data_sep)[self._data_col]
         # tokenize
         return super()._build_data_from_text(text)
-
-
-def _build_index_from_memdata(mdata, newline_int):
-    """Build index of newline positions in memmap"""
-    # find newline positions
-    midx = np.where(mdata == newline_int)[0]
-    midx_dtype = midx.dtype
-    # make sure to account for all data
-    midx = midx.tolist()
-    # add last item in case there is no new-line at the end of the file
-    if (len(midx) == 0) or (midx[-1] + 1 != len(mdata)):
-        midx = midx + [len(mdata) + 1]
-
-    # remove empty lines from end of file
-    while len(midx) > 1 and (midx[-1] - midx[-2]) < 2:
-        midx.pop(-1)
-    midx = np.asarray(midx, dtype=midx_dtype)
-
-    return midx
 
 
 def _build_memmap_index_files(newline_int, build_index_fn, fn):
