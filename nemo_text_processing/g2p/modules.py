@@ -577,7 +577,7 @@ class ChineseG2p(BaseG2p):
                 phoneme_seq += self.phoneme_dict[pinyin[:-1]]
                 phoneme_seq.append(self.tones[pinyin[-1]])
             # All pinyin would end up with a number in 1-5, which represents tones of the pinyin.
-            # For symbols which are not pinyin, e.g. English letters, Chinese puncts, we directly 
+            # For symbols which are not pinyin, e.g. English letters, Chinese puncts, we directly
             # use them as inputs.
             else:
                 phoneme_seq.append(pinyin)
