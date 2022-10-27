@@ -950,7 +950,7 @@ def configure_checkpointing(
         params.filename = f'{name}--{{{params.monitor}:.4f}}-{{epoch}}-{{step}}'
     if params.prefix is None:
         params.prefix = name
-    NeMoModelCheckpoint.CHECKPOINT_NAME_LAST = params.filename + '-last'
+    NeMoModelCheckpoint.CHECKPOINT_NAME_LAST = f'{name}-last'
 
     logging.debug(params.dirpath)
     logging.debug(params.filename)
