@@ -36,8 +36,19 @@ class TextMemMapDataset(Dataset):
     """
 
     def __init__(
-        self, dataset_paths, newline_int=10, header_lines=0, workers=None, tokenizer=None, sort_dataset_paths=True,
+        self,
+        dataset_paths,
+        newline_int=10,
+        header_lines=0,
+        workers=None,
+        tokenizer=None,
+        sort_dataset_paths=True,
+        build_index_fn=_build_index_from_memdata,
     ):
+        """
+        build_index_fn - a callable build_index_fn(mdata, newline_int) -> midx [np.array] that returns the index newlines in mdata int data
+                         must be pickleable (to be used in multiprocessing.Pool.map)
+        """
         super().__init__()
         self.mdata_midx_list = []
 
@@ -64,7 +75,7 @@ class TextMemMapDataset(Dataset):
         is_ditributed = torch.distributed.is_available() and torch.distributed.is_initialized()
 
         if not is_ditributed or (is_ditributed and torch.distributed.get_rank() == 0):
-            build_index_files(dataset_paths, newline_int, workers=self._worker)
+            build_index_files(dataset_paths, newline_int, workers=self._worker, build_index_fn=build_index_fn)
 
         if is_ditributed:
             torch.distributed.barrier()
@@ -81,8 +92,8 @@ class TextMemMapDataset(Dataset):
 
         self.midx_bins = midx_bins
         self.mdata_midx_list = mdata_midx_list
-        
-        # figure out size of the dataset 
+
+        # figure out size of the dataset
         self._size = self.midx_bins[-1]
 
     def __del__(self):
@@ -209,7 +220,26 @@ class CSVMemMapDataset(TextMemMapDataset):
         return super()._build_data_from_text(text)
 
 
-def _build_memmap_index_files(newline_int, fn):
+def _build_index_from_memdata(mdata, newline_int):
+    """Build index of newline positions in memmap"""
+    # find newline positions
+    midx = np.where(mdata == newline_int)[0]
+    midx_dtype = midx.dtype
+    # make sure to account for all data
+    midx = midx.tolist()
+    # add last item in case there is no new-line at the end of the file
+    if (len(midx) == 0) or (midx[-1] + 1 != len(mdata)):
+        midx = midx + [len(mdata) + 1]
+
+    # remove empty lines from end of file
+    while len(midx) > 1 and (midx[-1] - midx[-2]) < 2:
+        midx.pop(-1)
+    midx = np.asarray(midx, dtype=midx_dtype)
+
+    return midx
+
+
+def _build_memmap_index_files(newline_int, build_index_fn, fn):
     """Helper function to build an index file"""
     idx_fn = f"{fn}.{__idx_suffix__}"
 
@@ -219,18 +249,8 @@ def _build_memmap_index_files(newline_int, fn):
         return False
     else:
         logging.info(f"Building idx file = {idx_fn}.npy")
-        midx = np.where(mdata == newline_int)[0]
-        midx_dtype = midx.dtype
-        # make sure to account for all data
-        midx = midx.tolist()
-        # add last item in case there is no new-line at the end of the file
-        if (len(midx) == 0) or (midx[-1] + 1 != len(mdata)):
-            midx = midx +  [len(mdata) + 1]
-
-        # remove empty lines from end of file
-        while len(midx) > 1 and (midx[-1] - midx[-2]) < 2:
-            midx.pop(-1)
-        midx = np.asarray(midx, dtype=midx_dtype)
+        # find all newline positions
+        midx = build_index_fn(mdata, newline_int)
 
         data = dict(newline_int=newline_int, version=__idx_version__)
         # save index as numpy array to enable memmap reading
@@ -242,7 +262,7 @@ def _build_memmap_index_files(newline_int, fn):
         return True
 
 
-def build_index_files(dataset_paths, newline_int, workers=None):
+def build_index_files(dataset_paths, newline_int, workers=None, build_index_fn=_build_index_from_memdata):
     """Auxiliary method to build multiple index files"""
     if len(dataset_paths) < 1:
         raise ValueError("files_list must contain at leat one file name")
@@ -254,7 +274,7 @@ def build_index_files(dataset_paths, newline_int, workers=None):
     # load all files into memmap
     start_time = time.time()
     with mp.Pool(workers) as p:
-        build_status = p.map(partial(_build_memmap_index_files, newline_int), dataset_paths)
+        build_status = p.map(partial(_build_memmap_index_files, newline_int, build_index_fn), dataset_paths)
 
     logging.info(
         f'Time building {sum(build_status)} / {len(build_status)} mem-mapped files: {datetime.timedelta(seconds=time.time() - start_time)}'
