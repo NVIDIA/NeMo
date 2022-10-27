@@ -157,7 +157,7 @@ def hacky_DDP_initialize(model):
         def dummy():
             return
 
-        if model.trainer.strategy.get("launcher") is not None:
+        if model.trainer.strategy.launcher is not None:
             model.trainer.strategy.launcher.launch(dummy, trainer=model.trainer)
         model.trainer.strategy.setup_environment()
 
