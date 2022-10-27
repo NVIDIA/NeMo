@@ -244,6 +244,7 @@ class VitBackbone(MegatronModule):
             normalization=model_cfg.normalization,
             layernorm_epsilon=model_cfg.layernorm_epsilon,
             hidden_dropout=model_cfg.hidden_dropout,
+            attention_dropout=model_cfg.attention_dropout,
             drop_path_rate=model_cfg.drop_path_rate,
             use_cpu_initialization=model_cfg.use_cpu_initialization,
             bias_activation_fusion=model_cfg.bias_gelu_fusion,
