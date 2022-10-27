@@ -18,6 +18,7 @@ model:
   dropout: 0.1
   emb_dropout: 0.1
   warmup_ratio: 0.1
+  mask_mem: False
 
   # evaluation parameters
   min_seconds_for_segment: 0.2

@@ -81,6 +81,7 @@ class DeepDiarizeModel(ModelPT):
             threshold=self.cfg.threshold,
             combine_segments_seconds=self.cfg.combine_segments_seconds,
         )
+        self.mask_mem = self.cfg.get('mask_mem', False)
 
     def _mask_mems(self, mask: List[bool]):
         if self.mems is not None:
@@ -89,7 +90,8 @@ class DeepDiarizeModel(ModelPT):
 
     def training_step(self, batch, batch_idx):
         train_x, train_lengths, y, mask = batch
-        # self._mask_mems(mask)
+        if self.mask_mem:
+            self._mask_mems(mask)
         seg, model_lengths = self.sub_sample_layer(train_x, lengths=train_lengths)
         logits, self.mems = self.transformer_model(seg, mems=self.mems)
         logits = self.sigmoid(logits)
