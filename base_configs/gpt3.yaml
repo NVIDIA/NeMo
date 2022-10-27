@@ -1,7 +1,7 @@
 run:
   name: gpt3_126m
   results_dir: ${base_results_dir}/${.name}
-  time_limit: "1-12:00:00"
+  time_limit: "1-00:00:00"
   dependency: "singleton"
 
 trainer:
@@ -13,12 +13,12 @@ trainer:
   enable_checkpointing: False
   replace_sampler_ddp: False
   max_epochs: null
-  max_steps: 600000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
-  max_time: "01:11:30:00" # days:hours:minutes:seconds
-  log_every_n_steps: 1
-  val_check_interval: 50
-  limit_val_batches: 1
-  limit_test_batches: 1
+  max_steps: 600000 # consumed_samples = global_step * global_batch_size
+  max_time: "00:23:30:00" # days:hours:minutes:seconds
+  log_every_n_steps: 10
+  val_check_interval: 2000
+  limit_val_batches: 50
+  limit_test_batches: 50
   accumulate_grad_batches: 1
   gradient_clip_val: 1.0
 
@@ -47,11 +47,11 @@ exp_manager:
     buffer_size: 5
 
 model:
-  # model parallelism 
   micro_batch_size: 4
   global_batch_size: 256
   tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1
+  virtual_pipeline_model_parallel_size: null # interleaved pipeline
   resume_from_checkpoint: null # manually set the checkpoint file to load from
 
   # model architecture
@@ -70,17 +70,22 @@ model:
   pre_process: True # add embedding
   post_process: True # add pooler
   persist_layer_norm: True # Use of persistent fused layer norm kernel.
-  grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce
   gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
+
+  # Fusion
+  grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce
   gradient_accumulation_fusion: True # Fuse weight gradient accumulation to GEMMs
+  bias_activation_fusion: True # Use a kernel that fuses the bias addition from weight matrices with the subsequent activation function.
+  bias_dropout_add_fusion: True # Use a kernel that fuses the bias addition, dropout and residual connection addition.
+  masked_softmax_fusion: True # Use a kernel that fuses the attention softmax with it's mask.
 
   ## Activation Checkpointing
-  activations_checkpoint_granularity: selective # 'selective' or 'full'
-  activations_checkpoint_method: null # 'uniform', 'block', not used with 'selective'
-  activations_checkpoint_num_layers: null # not used with 'selective'
+  activations_checkpoint_granularity: full # 'selective' or 'full'
+  activations_checkpoint_method: block # 'uniform', 'block'
+  activations_checkpoint_num_layers: 0 
 
   ## Sequence Parallelism
-  sequence_parallel: True
+  sequence_parallel: False
 
   tokenizer:
     library: 'megatron'
@@ -101,14 +106,35 @@ model:
   megatron_amp_O2: True # Enable O2-level automatic mixed precision using master parameters
   grad_allreduce_chunk_size_mb: 125
 
+  ## Transformer Engine
+  transformer_engine: False
+  fp8: False # enables fp8 in TransformerLayer forward
+  fp8_e4m3: False # sets fp8_format = recipe.Format.E4M3
+  fp8_hybrid: False # sets fp8_format = recipe.Format.HYBRID
+  fp8_margin: 0 # scaling margin
+  fp8_interval: 1 # scaling update interval
+  fp8_amax_history_len: 1 # Number of steps for which amax history is recorded per tensor
+  fp8_amax_compute_algo: most_recent # 'most_recent' or 'max'. Algorithm for computing amax from history
+  use_emha: False
+
   # miscellaneous
   seed: 1234
   use_cpu_initialization: False # Init weights on the CPU (slow for large models)
   onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
   apex_transformer_log_level: 30 # Python logging level displays logs with severity greater than or equal to this
 
+  # Nsys profiling options
+  nsys_profile:
+    enabled: False
+    trace: [nvtx,cuda]
+    start_step: 10  # Global batch to start profiling
+    end_step: 10 # Global batch to end profiling
+    ranks: [0] # Global rank IDs to profile
+    gen_shape: False # Generate model and kernel details including input shapes
+
   optim:
     name: distributed_fused_adam
+    bucket_cap_mb: ${training.model.grad_allreduce_chunk_size_mb}
     lr: 6e-4
     weight_decay: 0.1 
     betas: 
@@ -134,4 +160,3 @@ model:
     data_prefix: # Should be weight path weight path... for a blended dataset
       - 1.0
       - ${data_dir}/my-gpt3_00_text_document
-
