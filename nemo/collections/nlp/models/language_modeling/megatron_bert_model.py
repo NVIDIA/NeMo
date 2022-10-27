@@ -127,8 +127,9 @@ class MegatronBertModel(MegatronBaseModel):
             tokens, types, sentence_order, loss_mask, lm_labels, padding_mask = batch
             if not self.cfg.bert_binary_head:
                 types = None
-            output_tensor = model(tokens, padding_mask, token_type_ids=types, lm_labels=lm_labels)
 
+            output_tensor = self.forward(tokens, padding_mask, types, lm_labels)
+            
             def loss_func(output_tensor):
                 loss_dict = self.loss_func(loss_mask, sentence_order, output_tensor)
                 if 'sop loss' in loss_dict:
