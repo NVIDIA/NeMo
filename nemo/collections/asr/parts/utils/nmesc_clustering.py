@@ -1065,6 +1065,12 @@ class SpeakerClustering(torch.nn.Module):
                 The minimum number of samples required for NME clustering. This avoids
                 zero p_neighbour_lists. If the input has fewer segments than min_samples,
                 it is directed to the enhanced speaker counting mode.
+            enhanced_count_thres: (int)
+                For the short audio recordings under 60 seconds, clustering algorithm cannot
+                accumulate enough amount of speaker profile for each cluster.
+                Thus, function `getEnhancedSpeakerCount`employs anchor embeddings
+                (dummy representations) to mitigate the effect of cluster sparsity.
+                enhanced_count_thres = 80 is recommended.
             max_rp_threshold (float):
                 Limits the range of parameter search.
                 Clustering performance can vary depending on this range.
@@ -1143,6 +1149,7 @@ class SpeakerClustering(torch.nn.Module):
         self.embeddings_in_scales, self.timestamps_in_scales = split_input_data(
             embeddings_in_scales, timestamps_in_scales, multiscale_segment_counts
         )
+        
         emb = self.embeddings_in_scales[multiscale_segment_counts.shape[0] - 1]
 
         if emb.shape[0] == 1:
