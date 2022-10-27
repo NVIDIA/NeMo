@@ -269,12 +269,14 @@ def generic_base_config(cfg: omegaconf.dictconfig.DictConfig, model_name: str = 
     return base_cfg
 
 
-def modify_cfg(base_cfg: dict, act: int, tp: int, pp: int, mbs: int, max_minutes: int, max_steps: int, num_nodes: int, model_name: str) -> dict:
+def modify_cfg(base_cfg: dict, act: int, num_mbs_act: int, act_per_pipe: int, tp: int, pp: int, mbs: int, max_minutes: int, max_steps: int, num_nodes: int, model_name: str) -> dict:
     """
     Modify the base configuration for the model with the new parameters that are specific to the current model, which the HP tool heuristics selected.
 
     :param dict base_cfg: base configuration for the current model, which will be modified in this function.
     :param int act: number of activation checkpointing layers to use for the model.
+    :param int num_mbs_act: 
+    :param int act_per_pipe: 
     :param int tp: Tensor Parallelism (TP) value to be set for the model.
     :param int pp: Pipeline Parallelism (PP) value to be set for the model.
     :param int mbs: Micro Batch Size (MBS) value to be set for the model.
@@ -292,11 +294,21 @@ def modify_cfg(base_cfg: dict, act: int, tp: int, pp: int, mbs: int, max_minutes
         else: 
             new_cfg["model"]["encoder"]["activations_checkpoint_num_layers"] = act // 2
             new_cfg["model"]["decoder"]["activations_checkpoint_num_layers"] = act // 2
-    else:
-        act = "selective"
+        
+    num_mbs_act_str = ""
+    if num_mbs_act is not None and model_name == "gpt3":
+        new_cfg["model"]["num_micro_batches_with_partial_activation_checkpoints"] = num_mbs_act
+        num_mbs_act_str = f"_num_mbs_act_{num_mbs_act}"
+
+    act_per_pipe_str = ""
+    if act_per_pipe is not None and model_name == "gpt3":
+        new_cfg["model"]["activations_checkpoint_layers_per_pipeline"] = act_per_pipe
+        act_per_pipe_str = f"_act_per_pipe_{act_per_pipe}"
+
     new_cfg["model"]["tensor_model_parallel_size"] = tp
     new_cfg["model"]["pipeline_model_parallel_size"] = pp
     new_cfg["model"]["micro_batch_size"] = mbs
+
     if model_name == "gpt3":
         att_heads = new_cfg["model"]["num_attention_heads"]
         num_layers = new_cfg["model"]["num_layers"]
@@ -321,9 +333,9 @@ def modify_cfg(base_cfg: dict, act: int, tp: int, pp: int, mbs: int, max_minutes
         new_cfg["run"]["time_limit"] = f"{days}-{hours}:{mins}:00"
         new_cfg["run"][
             "name"
-        ] = f"{new_cfg['run']['name']}_{num_nodes}nodes_tp_{tp}_pp_{pp}_mbs_{mbs}_act_ckpt_{act}"
+        ] = f"{new_cfg['run']['name']}_{num_nodes}nodes_tp_{tp}_pp_{pp}_mbs_{mbs}_act_ckpt_{act}{num_mbs_act_str}{act_per_pipe_str}"
         print(
-            f"Valid config: GBS={gbs}, MBS={mbs}, TP={tp}, PP={pp}, act_ckpt_layers={act}. Adding to directory."
+            f"Valid config: GBS={gbs}, MBS={mbs}, TP={tp}, PP={pp}, act_ckpt_layers={act}, num_mbs_act={num_mbs_act}, act_per_pipe={act_per_pipe}. Adding to directory."
         )
         return new_cfg
     return None
