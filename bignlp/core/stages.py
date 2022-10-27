@@ -319,6 +319,11 @@ class BigNLPStage:
         return "CUDA_DEVICE_MAX_CONNECTIONS=1" \
             if tensor_model_parallel_size > 1 else ""
 
+    @property
+    def _nvte_bias_gelu_nvfusion(self) -> str:
+        """Only used in pretraining; override in training class"""
+        return ""
+
     @functools.lru_cache()
     def get_job_path(self, sub_stage:Optional = None) -> JobPaths:
         """Fetch a JobPaths object for current stage"""
@@ -363,7 +368,11 @@ class NeMoStage(BigNLPStage):
         if self.cluster == "bcp":
             core_command = []
         else:
-            core_command = [self._cuda_device_max_connections, self._cuda_visible_devices]
+            core_command = [
+                self._cuda_device_max_connections,
+                self._cuda_visible_devices,
+                self._nvte_bias_gelu_nvfusion,
+            ]
 
         core_command += [
             self._make_api_log_command_prefix(
@@ -494,6 +503,15 @@ class Training(NeMoStage):
             "gpt3": self._nemo_code_path / "examples/nlp/language_modeling/megatron_gpt_pretraining.py"
         }
         return model_type_to_code_path[model_type]
+
+    @property
+    def _nvte_bias_gelu_nvfusion(self) -> str:
+        """Only used in pretraining; override in training class; not supported on BCP"""
+        return (
+            "NVTE_BIAS_GELU_NVFUSION="
+            "\$(python3 -c 'import torch; "
+            "print(int(torch.cuda.get_device_properties(torch.cuda.current_device()).major >= 9))')"
+        )
 
 
 class FineTuning(NeMoStage):

@@ -30,6 +30,7 @@ from nemo.utils.model_utils import inject_model_parallel_rank
 
 from lm_eval.base import LM
 from lm_eval import utils
+from .nemo_gpt3 import hacky_DDP_initialize
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)-15s | %(name)-7s | %(levelname)-8s: %(message)s"
@@ -133,27 +134,6 @@ def setup_trainer_and_model(args):
         pass
 
     return trainer, model
-
-
-def hacky_DDP_initialize(model):
-    if parallel_state.is_unitialized():
-
-        class RequestDataSet(Dataset):
-            def __init__(self, sentences):
-                super().__init__()
-                self.sentences = sentences
-
-            def __len__(self):
-                return len(self.sentences)
-
-            def __getitem__(self, idx):
-                return self.sentences[idx]
-
-        # TODO, this is a little hacky. need to handle this nicely in the future
-        # run empty predict to initialize the DDP
-        ds = RequestDataSet([""])
-        request_dl = DataLoader(dataset=ds, batch_size=1)
-        model.trainer.predict(model, request_dl)
 
 
 class NeMo_GPT3_PROMPTLM(LM):

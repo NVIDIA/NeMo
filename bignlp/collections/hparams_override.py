@@ -33,8 +33,8 @@ def hparams_override(cfg):
             conf.cfg.activations_checkpoint_granularity = None
         if "activations_checkpoint_method" in conf.cfg:
             conf.cfg.activations_checkpoint_method = None
-        if "sequence_parallel" in conf.cfg:
-            conf.cfg.sequence_parallel = False
+        # if "sequence_parallel" in conf.cfg:
+        #     conf.cfg.sequence_parallel = False
         if conf.cfg.optim.name == "distributed_fused_adam":
             conf.cfg.optim.name = "fused_adam"
 
