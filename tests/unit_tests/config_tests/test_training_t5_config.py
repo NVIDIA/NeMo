@@ -178,7 +178,8 @@ model:
     gen_shape: False # Generate model and kernel details including input shapes
 
   optim:
-    name: fused_adam
+    name: distributed_fused_adam
+    bucket_cap_mb: ${training.model.grad_allreduce_chunk_size_mb}
     lr: 0.0001
     betas:
       - 0.9
@@ -454,7 +455,8 @@ model:
     gen_shape: False # Generate model and kernel details including input shapes
 
   optim:
-    name: fused_adam
+    name: distributed_fused_adam
+    bucket_cap_mb: ${training.model.grad_allreduce_chunk_size_mb}
     lr: 0.0001
     betas:
       - 0.9
@@ -730,7 +732,8 @@ model:
     gen_shape: False # Generate model and kernel details including input shapes
 
   optim:
-    name: fused_adam
+    name: distributed_fused_adam
+    bucket_cap_mb: ${training.model.grad_allreduce_chunk_size_mb}
     lr: 0.0001
     betas:
       - 0.9
@@ -1006,7 +1009,8 @@ model:
     gen_shape: False # Generate model and kernel details including input shapes
 
   optim:
-    name: fused_adam
+    name: distributed_fused_adam
+    bucket_cap_mb: ${training.model.grad_allreduce_chunk_size_mb}
     lr: 0.0001
     betas:
       - 0.9
@@ -1282,7 +1286,8 @@ model:
     gen_shape: False # Generate model and kernel details including input shapes
 
   optim:
-    name: fused_adam
+    name: distributed_fused_adam
+    bucket_cap_mb: ${training.model.grad_allreduce_chunk_size_mb}
     lr: 0.0001
     betas:
       - 0.9
