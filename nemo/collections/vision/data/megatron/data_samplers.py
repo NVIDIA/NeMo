@@ -35,7 +35,6 @@ class MegatronVisionPretrainingRandomBatchSampler(BaseMegatronBatchSampler):
 
     def __len__(self):
         num_available_samples = self.total_samples
-        print(self.drop_last, num_available_samples // self.global_batch_size)
         if self.drop_last:
             return num_available_samples // self.global_batch_size
         else:
