@@ -81,8 +81,8 @@ class TextMemMapDataset(Dataset):
 
         self.midx_bins = midx_bins
         self.mdata_midx_list = mdata_midx_list
-        
-        # figure out size of the dataset 
+
+        # figure out size of the dataset
         self._size = self.midx_bins[-1]
 
     def __del__(self):
@@ -225,7 +225,7 @@ def _build_memmap_index_files(newline_int, fn):
         midx = midx.tolist()
         # add last item in case there is no new-line at the end of the file
         if (len(midx) == 0) or (midx[-1] + 1 != len(mdata)):
-            midx = midx +  [len(mdata) + 1]
+            midx = midx + [len(mdata) + 1]
 
         # remove empty lines from end of file
         while len(midx) > 1 and (midx[-1] - midx[-2]) < 2:
