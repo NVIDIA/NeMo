@@ -327,6 +327,7 @@ def modify_cfg(base_cfg: dict, act: int, num_mbs_act: int, act_per_pipe: int, tp
         # Valid config
         new_cfg["trainer"]["num_nodes"] = num_nodes  # Necessary for short single-node test.
         new_cfg["trainer"]["max_steps"] = max_steps
+        new_cfg["trainer"]["val_check_interval"] = max_steps
         days = max_minutes // 3600
         hours = (max_minutes % 3600) // 60
         mins = (max_minutes % 3600) % 60
