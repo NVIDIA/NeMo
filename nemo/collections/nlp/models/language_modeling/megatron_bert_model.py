@@ -174,7 +174,8 @@ class MegatronBertModel(MegatronBaseModel):
                     padding_mask = batch[5].cuda(non_blocking=True)
                     tokens, types, sentence_order = None, None, None
                 else:
-                    tokens, types, sentence_order, loss_mask, lm_labels, padding_mask = None, None, None, None, None, None
+                    padding_mask = batch[5].cuda(non_blocking=True)
+                    tokens, types, sentence_order, loss_mask, lm_labels = None, None, None, None, None
   
             if not self.cfg.bert_binary_head:
                 types = None
