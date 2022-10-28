@@ -27,7 +27,7 @@ def read_manifest(manifest_path: Path) -> List[dict]:
     return entries
 
 
-def write_manifest(manifest_path: Path, entries: List[dict]):
+def write_manifest(manifest_path: Path, entries: List[dict]) -> None:
     """Convert input entries to JSON format and write them as a manifest at the given path.
     """
     output_lines = [f"{json.dumps(entry, ensure_ascii=False)}\n" for entry in entries]
@@ -35,10 +35,14 @@ def write_manifest(manifest_path: Path, entries: List[dict]):
         output_f.writelines(output_lines)
 
 
-def normalize_volume(audio: np.array, volume_level: float):
+def normalize_volume(audio: np.array, volume_level: float) -> np.array:
     """Apply peak normalization to the input audio.
     """
     if not (0.0 <= volume_level <= 1.0):
         raise ValueError(f"Volume must be in range [0.0, 1.0], received {volume_level}")
+
+    max_sample = np.max(np.abs(audio))
+    if max_sample == 0:
+        return audio
 
     return volume_level * (audio / np.max(np.abs(audio)))

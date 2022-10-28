@@ -15,53 +15,51 @@
 import numpy as np
 import pytest
 
-from nemo.collections.tts.data.audio_trimming import get_start_and_end_of_speech, pad_sample_indices
+from nemo.collections.tts.data.audio_trimming import get_start_and_end_of_speech_frames, pad_sample_indices
 
 
 class TestAudioTrimming:
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
-    def test_get_start_and_end_of_speech(self):
-        # First speech frame is index 2 (samples 200-300) and last one is index 7 (samples 700-800).
+    def test_get_start_and_end_of_speech_frames_frames(self):
+        # First speech frame is index 2 (inclusive) and last one is index 8 (exclusive).
         is_speech = np.array([True, False, True, True, False, True, True, True, False, True, False])
-        frame_threshold = 2
-        frame_step = 100
+        speech_frame_threshold = 2
 
-        start_i, end_i = get_start_and_end_of_speech(
-            is_speech=is_speech, frame_threshold=frame_threshold, frame_step=frame_step
+        start_frame, end_frame = get_start_and_end_of_speech_frames(
+            is_speech=is_speech, speech_frame_threshold=speech_frame_threshold
         )
 
-        assert start_i == 200
-        assert end_i == 800
+        assert start_frame == 2
+        assert end_frame == 8
 
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
-    def test_get_start_and_end_of_speech_not_found(self):
+    def test_get_start_and_end_of_speech_frames_not_frames_found(self):
         is_speech = np.array([False, True, True, False])
-        frame_threshold = 3
-        frame_step = 100
+        speech_frame_threshold = 3
 
-        start_i, end_i = get_start_and_end_of_speech(
-            is_speech=is_speech, frame_threshold=frame_threshold, frame_step=frame_step, audio_id="test"
+        start_frame, end_frame = get_start_and_end_of_speech_frames(
+            is_speech=is_speech, speech_frame_threshold=speech_frame_threshold, audio_id="test"
         )
 
-        assert start_i == 0
-        assert end_i == 400
+        assert start_frame == 0
+        assert end_frame == 4
 
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     def test_pad_sample_indices(self):
-        start_i, end_i = pad_sample_indices(
-            start_sample_i=1000, end_sample_i=2000, max_sample=5000, sample_rate=100, pad_seconds=3
+        start_sample, end_sample = pad_sample_indices(
+            start_sample=1000, end_sample=2000, max_sample=5000, sample_rate=100, pad_seconds=3
         )
-        assert start_i == 700
-        assert end_i == 2300
+        assert start_sample == 700
+        assert end_sample == 2300
 
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     def test_pad_sample_indices_boundaries(self):
-        start_i, end_i = pad_sample_indices(
-            start_sample_i=100, end_sample_i=1000, max_sample=1150, sample_rate=100, pad_seconds=2
+        start_sample, end_sample = pad_sample_indices(
+            start_sample=100, end_sample=1000, max_sample=1150, sample_rate=100, pad_seconds=2
         )
-        assert start_i == 0
-        assert end_i == 1150
+        assert start_sample == 0
+        assert end_sample == 1150

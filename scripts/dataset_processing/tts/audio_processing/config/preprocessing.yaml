@@ -1,6 +1,6 @@
 name: "preprocessing"
 
-data_base_dir: "/home"
+data_base_dir: ???
 
 defaults:
   - trim: energy

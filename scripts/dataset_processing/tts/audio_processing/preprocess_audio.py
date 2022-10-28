@@ -24,11 +24,11 @@ too many copies of the same audio.
 Most of these can also be done by the TTS data loader at training time, but doing them ahead of time
 lets us implement more complex processing, validate the corectness of the output, and save on compute time.
 
-$ HYDRA_FULL_ERROR=1 python /home/rlangman/Code/NeMo/scripts/dataset_processing/tts/audio_processing/preprocess_audio.py \
-    --config-path=/home/rlangman/Code/NeMo/scripts/dataset_processing/tts/audio_processing/config \
-	--config-name=preprocessing.yaml \
-	data_base_dir="/home/data" \
-	config.num_workers=1
+$ HYDRA_FULL_ERROR=1 python <nemo_root_path>/scripts/dataset_processing/tts/audio_processing/preprocess_audio.py \
+    --config-path=<nemo_root_path>/scripts/dataset_processing/tts/audio_processing/config \
+    --config-name=preprocessing.yaml \
+    data_base_dir="/home/data" \
+    config.num_workers=1
 """
 
 import os
@@ -89,7 +89,8 @@ def _process_entry(
     audio, sample_rate = librosa.load(input_path, sr=None)
 
     if audio_trimmer is not None:
-        audio, start_i, end_i = audio_trimmer.trim_audio(audio=audio, sample_rate=sample_rate, audio_id=audio_filepath)
+        audio_id = str(audio_filepath)
+        audio, start_i, end_i = audio_trimmer.trim_audio(audio=audio, sample_rate=sample_rate, audio_id=audio_id)
 
     if output_sample_rate is not None:
         audio = librosa.resample(y=audio, orig_sr=sample_rate, target_sr=output_sample_rate)
@@ -100,8 +101,8 @@ def _process_entry(
 
     sf.write(file=output_path, data=audio, samplerate=sample_rate)
 
-    original_duration = librosa.get_duration(filename=audio_filepath)
-    output_duration = librosa.get_duration(filename=output_path)
+    original_duration = librosa.get_duration(filename=str(audio_filepath))
+    output_duration = librosa.get_duration(filename=str(output_path))
 
     entry["audio_filepath"] = output_path
     entry["duration"] = output_duration

@@ -61,6 +61,15 @@ class TestDataUtils:
 
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
+    def test_normalize_volume_zeros(self):
+        input_audio = np.array([0.0, 0.0, 0.0])
+
+        output_audio = normalize_volume(audio=input_audio, volume_level=0.5)
+
+        np.testing.assert_array_almost_equal(input_audio, input_audio)
+
+    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.unit
     def test_normalize_volume_out_of_range(self):
         input_audio = np.array([0.0, 0.1, 0.3, 0.5])
         with pytest.raises(ValueError, match="Volume must be in range"):

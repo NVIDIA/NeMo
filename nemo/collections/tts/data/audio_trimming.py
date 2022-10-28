@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 from abc import ABC, abstractmethod
 from typing import Tuple
 
@@ -47,35 +48,41 @@ class EnergyAudioTrimmer(AudioTrimmer):
         self,
         db_threshold: int = 50,
         ref_amplitude: float = 1.0,
-        frame_threshold: int = 1,
-        frame_length: int = 2048,
-        frame_step: int = 512,
+        speech_frame_threshold: int = 1,
+        trim_win_length: int = 2048,
+        trim_hop_length: int = 512,
         pad_seconds: float = 0.1,
         volume_norm: bool = True,
-    ):
+    ) -> None:
         """Energy/power based silence trimming using Librosa backend.
            Args:
                db_threshold: Audio frames at least db_threshold decibels below ref_amplitude will be
                  considered silence.
                ref_amplitude: Amplitude threshold for classifying speech versus silence.
-               frame_threshold: Start and end of speech will be detected where there are at least frame_threshold
-                 consecutive audio frames classified as speech. Setting this value higher is more robust to
-                 false-positives (silence detected as speech), but setting it too high may result in very short
-                 speech segments being cut out from the audio.
-               frame_length: Length of audio frames to use when doing speech detection. This does not need to match
-                 the frame_length used any other part of the code or model.
-               frame_step: Stride of audio frames to use when doing speech detection. This does not need to match
-                 the frame_step used any other part of the code or model.
-               pad_seconds: Amount of audio to keep before the detected start of speech and after the end of
-                 speech. Set this to at least 0.1 to avoid cutting off any speech audio, with larger values
-                 being safer but increasing the amount of silence left afterwards.
+               speech_frame_threshold: Start and end of speech will be detected where there are at least
+                 speech_frame_threshold consecutive audio frames classified as speech. Setting this value higher
+                 is more robust to false-positives (silence detected as speech), but setting it too high may result
+                 in very short speech segments being cut out from the audio.
+               trim_win_length: Length of audio frames to use when doing speech detection. This does not need to match
+                 the win_length used any other part of the code or model.
+               trim_hop_length: Stride of audio frames to use when doing speech detection. This does not need to match
+                 the hop_length used any other part of the code or model.
+               pad_seconds: Audio duration in seconds to keep before and after each speech segment.
+                 Set this to at least 0.1 to avoid cutting off any speech audio, with larger values
+                 being safer but increasing the average silence duration left afterwards.
                volume_norm: Whether to normalize the volume of audio before doing speech detection.
         """
+        assert db_threshold >= 0
+        assert ref_amplitude >= 0
+        assert speech_frame_threshold > 0
+        assert trim_win_length > 0
+        assert trim_hop_length > 0
+
         self.db_threshold = db_threshold
         self.ref_amplitude = ref_amplitude
-        self.frame_threshold = frame_threshold
-        self.frame_length = frame_length
-        self.frame_step = frame_step
+        self.speech_frame_threshold = speech_frame_threshold
+        self.trim_win_length = trim_win_length
+        self.trim_hop_length = trim_hop_length
         self.pad_seconds = pad_seconds
         self.volume_norm = volume_norm
 
@@ -87,29 +94,29 @@ class EnergyAudioTrimmer(AudioTrimmer):
         speech_frames = librosa.effects._signal_to_frame_nonsilent(
             audio,
             ref=self.ref_amplitude,
-            frame_length=self.frame_length,
-            hop_length=self.frame_step,
+            frame_length=self.trim_win_length,
+            hop_length=self.trim_hop_length,
             top_db=self.db_threshold,
         )
 
-        start_i, end_i = get_start_and_end_of_speech(
-            is_speech=speech_frames,
-            frame_threshold=self.frame_threshold,
-            frame_step=self.frame_step,
-            audio_id=audio_id,
+        start_frame, end_frame = get_start_and_end_of_speech_frames(
+            is_speech=speech_frames, speech_frame_threshold=self.speech_frame_threshold, audio_id=audio_id,
         )
 
-        start_i, end_i = pad_sample_indices(
-            start_sample_i=start_i,
-            end_sample_i=end_i,
+        start_sample = librosa.core.frames_to_samples(start_frame, hop_length=self.trim_hop_length)
+        end_sample = librosa.core.frames_to_samples(end_frame, hop_length=self.trim_hop_length)
+
+        start_sample, end_sample = pad_sample_indices(
+            start_sample=start_sample,
+            end_sample=end_sample,
             max_sample=audio.shape[0],
             sample_rate=sample_rate,
             pad_seconds=self.pad_seconds,
         )
 
-        trimmed_audio = audio[start_i:end_i]
+        trimmed_audio = audio[start_sample:end_sample]
 
-        return trimmed_audio, start_i, end_i
+        return trimmed_audio, start_sample, end_sample
 
 
 class VadAudioTrimmer(AudioTrimmer):
@@ -117,14 +124,14 @@ class VadAudioTrimmer(AudioTrimmer):
         self,
         model_name: str = "vad_multilingual_marblenet",
         vad_sample_rate: int = 16000,
-        vad_threshold: float = 0.4,
+        vad_threshold: float = 0.5,
         device: str = "cpu",
-        frame_threshold: int = 1,
-        frame_length: int = 2048,
-        frame_step: int = 512,
+        speech_frame_threshold: int = 1,
+        trim_win_length: int = 4096,
+        trim_hop_length: int = 1024,
         pad_seconds: float = 0.1,
         volume_norm: bool = True,
-    ):
+    ) -> None:
         """Voice activity detection (VAD) based silence trimming.
 
            Args:
@@ -134,65 +141,69 @@ class VadAudioTrimmer(AudioTrimmer):
                vad_threshold: Softmax probability [0, 1] of VAD output, above which audio frames will be classified
                  as speech.
                device: Device "cpu" or "cuda" to use for running the VAD model.
-               frame_length: Length of audio frames to use when doing speech detection. This does not need to match
-                 the frame_length used any other part of the code or model.
-               frame_step: Stride of audio frames to use when doing speech detection. This does not need to match
-                 the frame_step used any other part of the code or model.
-               pad_seconds: Amount of audio to keep before the detected start of speech and after the end of
-                 speech. Set this to at least 0.1 to avoid cutting off any speech audio, with larger values
-                 being safer but increasing the amount of silence left afterwards.
+               trim_win_length: Length of audio frames to use when doing speech detection. This does not need to match
+                 the win_length used any other part of the code or model.
+               trim_hop_length: Stride of audio frames to use when doing speech detection. This does not need to match
+                 the hop_length used any other part of the code or model.
+               pad_seconds: Audio duration in seconds to keep before and after each speech segment.
+                 Set this to at least 0.1 to avoid cutting off any speech audio, with larger values
+                 being safer but increasing the average silence duration left afterwards.
                volume_norm: Whether to normalize the volume of audio before doing speech detection.
         """
+        assert vad_sample_rate > 0
+        assert vad_threshold >= 0
+        assert speech_frame_threshold > 0
+        assert trim_win_length > 0
+        assert trim_hop_length > 0
+
         self.device = device
         self.vad_model = EncDecClassificationModel.from_pretrained(model_name=model_name).eval().to(self.device)
         self.vad_sample_rate = vad_sample_rate
         self.vad_threshold = vad_threshold
 
-        self.frame_threshold = frame_threshold
-        self.frame_length = frame_length
-        self.frame_step = frame_step
+        self.speech_frame_threshold = speech_frame_threshold
+        self.trim_win_length = trim_win_length
+        self.trim_hop_length = trim_hop_length
+        # Window shift neeeded in order to center frames
+        self.trim_shift = self.trim_win_length // 2
 
         self.pad_seconds = pad_seconds
         self.volume_norm = volume_norm
 
     def _detect_speech(self, audio: np.array) -> np.array:
-        # Center-pad the audio
-        audio = np.pad(audio, [self.frame_length // 2, self.frame_length // 2])
-
-        # [num_frames, frame_length]
+        # [num_frames, win_length]
         audio_frames = librosa.util.frame(
-            audio, frame_length=self.frame_length, hop_length=self.frame_step
+            audio, frame_length=self.trim_win_length, hop_length=self.trim_hop_length
         ).transpose()
+        audio_frame_lengths = audio_frames.shape[0] * [self.trim_win_length]
 
-        num_frames = audio_frames.shape[0]
-        # [num_frames, frame_length]
+        # [num_frames, win_length]
         audio_signal = torch.tensor(audio_frames, dtype=torch.float32, device=self.device)
         # [1]
-        audio_signal_len = torch.tensor(num_frames * [self.frame_length], dtype=torch.int32, device=self.device)
-
+        audio_signal_len = torch.tensor(audio_frame_lengths, dtype=torch.int32, device=self.device)
         # VAD outputs 2 values for each audio frame with logits indicating the likelihood that
         # each frame is non-speech or speech, respectively.
         # [num_frames, 2]
         log_probs = self.vad_model(input_signal=audio_signal, input_signal_length=audio_signal_len)
         probs = torch.softmax(log_probs, dim=-1)
-        probs = probs.cpu().detach().numpy()
+        probs = probs.detach().cpu().numpy()
         # [num_frames]
         speech_probs = probs[:, 1]
         speech_frames = speech_probs >= self.vad_threshold
 
         return speech_frames
 
-    def _scale_sample_indices(self, start_sample_i: int, end_sample_i: int, sample_rate: int) -> Tuple[int, int]:
+    def _scale_sample_indices(self, start_sample: int, end_sample: int, sample_rate: int) -> Tuple[int, int]:
         sample_rate_ratio = sample_rate / self.vad_sample_rate
-        start_sample_i = sample_rate_ratio * start_sample_i
-        end_sample_i = sample_rate_ratio * end_sample_i
-        return start_sample_i, end_sample_i
+        start_sample = int(sample_rate_ratio * start_sample)
+        end_sample = int(sample_rate_ratio * end_sample)
+        return start_sample, end_sample
 
     def trim_audio(self, audio: np.array, sample_rate: int, audio_id: str = "") -> Tuple[np.array, int, int]:
         if sample_rate == self.vad_sample_rate:
             vad_audio = audio
         else:
-            # Downsample audio to match sample rate of VAD model
+            # Resample audio to match sample rate of VAD model
             vad_audio = librosa.resample(audio, orig_sr=sample_rate, target_sr=self.vad_sample_rate)
 
         if self.volume_norm:
@@ -201,92 +212,100 @@ class VadAudioTrimmer(AudioTrimmer):
 
         speech_frames = self._detect_speech(audio=vad_audio)
 
-        start_i, end_i = get_start_and_end_of_speech(
-            is_speech=speech_frames,
-            frame_threshold=self.frame_threshold,
-            frame_step=self.frame_step,
-            audio_id=audio_id,
+        start_frame, end_frame = get_start_and_end_of_speech_frames(
+            is_speech=speech_frames, speech_frame_threshold=self.speech_frame_threshold, audio_id=audio_id,
         )
+
+        if start_frame == 0:
+            start_sample = 0
+        else:
+            start_sample = librosa.core.frames_to_samples(start_frame, hop_length=self.trim_hop_length)
+            start_sample += self.trim_shift
+
+        # Avoid trimming off the end because VAD model is not trained to classify partial end frames.
+        if end_frame == speech_frames.shape[0]:
+            end_sample = vad_audio.shape[0]
+        else:
+            end_sample = librosa.core.frames_to_samples(end_frame, hop_length=self.trim_hop_length)
+            end_sample += self.trim_shift
 
         if sample_rate != self.vad_sample_rate:
             # Convert sample indices back to input sample rate
-            start_i, end_i = self._scale_sample_indices(start_i, end_i, sample_rate)
+            start_sample, end_sample = self._scale_sample_indices(
+                start_sample=start_sample, end_sample=end_sample, sample_rate=sample_rate
+            )
 
-        start_i, end_i = pad_sample_indices(
-            start_sample_i=start_i,
-            end_sample_i=end_i,
+        start_sample, end_sample = pad_sample_indices(
+            start_sample=start_sample,
+            end_sample=end_sample,
             max_sample=audio.shape[0],
             sample_rate=sample_rate,
             pad_seconds=self.pad_seconds,
         )
 
-        trimmed_audio = audio[start_i:end_i]
+        trimmed_audio = audio[start_sample:end_sample]
 
-        return trimmed_audio, start_i, end_i
+        return trimmed_audio, start_sample, end_sample
 
 
-def get_start_and_end_of_speech(
-    is_speech: np.array, frame_threshold: int, frame_step: int, audio_id: str = ""
+def get_start_and_end_of_speech_frames(
+    is_speech: np.array, speech_frame_threshold: int, audio_id: str = ""
 ) -> Tuple[int, int]:
-    """Finds the start and end of speech for an utterance.
+    """Finds the speech frames corresponding to the start and end of speech for an utterance.
        Args:
            is_speech: [num_frames] boolean array with true entries labeling speech frames.
-           frame_threshold: The number of consecutive speech frames required to classify the speech boundaries.
-           frame_step: Audio frame stride used to covert frame boundaries to audio samples.
+           speech_frame_threshold: The number of consecutive speech frames required to classify the speech boundaries.
            audio_id: String identifier (eg. file name) used for logging.
 
-       Returns integers representing the sample indicies of the start and of speech.
+       Returns integers representing the frame indices of the start (inclusive) and end (exclusive) of speech.
     """
     num_frames = is_speech.shape[0]
 
-    # Iterate forwards over the utterance until we find the first frame_threshold consecutive speech frames.
-    start_i = None
-    for i in range(0, num_frames):
-        high_i = min(num_frames, i + frame_threshold)
+    # Iterate forwards over the utterance until we find the first speech_frame_threshold consecutive speech frames.
+    start_frame = None
+    for i in range(0, num_frames - speech_frame_threshold + 1):
+        high_i = i + speech_frame_threshold
         if all(is_speech[i:high_i]):
-            start_i = i
+            start_frame = i
             break
 
-    # Iterate backwards over the utterance until we find the last frame_threshold consecutive speech frames.
-    end_i = None
-    for i in range(num_frames, 0, -1):
-        low_i = max(0, i - frame_threshold)
+    # Iterate backwards over the utterance until we find the last speech_frame_threshold consecutive speech frames.
+    end_frame = None
+    for i in range(num_frames, speech_frame_threshold - 1, -1):
+        low_i = i - speech_frame_threshold
         if all(is_speech[low_i:i]):
-            end_i = i
+            end_frame = i
             break
 
-    if start_i is None:
+    if start_frame is None:
         logging.warning(f"Could not find start of speech for '{audio_id}'")
-        start_i = 0
+        start_frame = 0
 
-    if end_i is None:
+    if end_frame is None:
         logging.warning(f"Could not find end of speech for '{audio_id}'")
-        end_i = num_frames
+        end_frame = num_frames
 
-    start_i = librosa.core.frames_to_samples(start_i, hop_length=frame_step)
-    end_i = librosa.core.frames_to_samples(end_i, hop_length=frame_step)
-
-    return start_i, end_i
+    return start_frame, end_frame
 
 
 def pad_sample_indices(
-    start_sample_i: int, end_sample_i: int, max_sample: int, sample_rate: int, pad_seconds: float
+    start_sample: int, end_sample: int, max_sample: int, sample_rate: int, pad_seconds: float
 ) -> Tuple[int, int]:
     """Shift the input sample indices by pad_seconds in front and back within [0, max_sample]
        Args:
-           start_sample_i: Start sample index
-           end_sample_i: End sample index
+           start_sample: Start sample index
+           end_sample: End sample index
            max_sample: Maximum sample index
            sample_rate: Sample rate of audio
            pad_seconds: Amount to pad/shift the indices by.
 
        Returns the sample indices after padding by the input amount.
     """
-    pad_samples = pad_seconds * sample_rate
-    start_sample_i = start_sample_i - pad_samples
-    end_sample_i = end_sample_i + pad_samples
+    pad_samples = int(pad_seconds * sample_rate)
+    start_sample = start_sample - pad_samples
+    end_sample = end_sample + pad_samples
 
-    start_sample_i = int(max(0, start_sample_i))
-    end_sample_i = int(min(max_sample, end_sample_i))
+    start_sample = max(0, start_sample)
+    end_sample = min(max_sample, end_sample)
 
-    return start_sample_i, end_sample_i
+    return start_sample, end_sample
