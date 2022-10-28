@@ -106,19 +106,8 @@ class MegatronBertModel(MegatronBaseModel):
         )
 
         if self.megatron_amp_o2:
-            if isinstance(self.model, list):
-                for module in self.model:
-                    module.cuda(torch.cuda.current_device())
-            else:
-                self.model.cuda(torch.cuda.current_device())
-
-            if isinstance(self.model, list):
-                converted_model = []
-                for module in self.model:
-                    converted_model.append(Float16Module(module=module, precision=cfg.precision))
-                    self.model = converted_model
-            else:
-                self.model = Float16Module(module=self.model, precision=cfg.precision)
+            self.model.cuda(torch.cuda.current_device())
+            self.model = Float16Module(module=self.model, precision=cfg.precision)
 
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(batch, model):
