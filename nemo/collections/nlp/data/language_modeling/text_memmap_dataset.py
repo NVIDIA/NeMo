@@ -252,10 +252,10 @@ def _build_memmap_index_files(newline_int, build_index_fn, fn):
     idx_fn = f"{fn}.{__idx_suffix__}"
 
     # create data map
-    mdata = np.memmap(fn, dtype=np.uint8, mode='r')
     if os.path.exists(idx_fn + ".npy"):
         return False
     else:
+        mdata = np.memmap(fn, dtype=np.uint8, mode='r')
         logging.info(f"Building idx file = {idx_fn}.npy")
         # find all newline positions
         midx = build_index_fn(mdata, newline_int)
