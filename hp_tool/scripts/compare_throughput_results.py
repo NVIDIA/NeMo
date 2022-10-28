@@ -70,15 +70,15 @@ def main(cfg):
             ffn_hs = None
             layers = model_cfg.get("num_layers")
             act_ckpt_layers = model_cfg.get("activations_checkpoint_num_layers")
-            act_ckpt_micro_batches = model_cfg.get("num_micro_batches_with_partial_activation_checkpoints")
-            act_ckpt_layers_per_pipeline = model_cfg.get("activations_checkpoint_layers_per_pipeline")
+            num_mbs_act = model_cfg.get("num_micro_batches_with_partial_activation_checkpoints")
+            act_per_pipe = model_cfg.get("activations_checkpoint_layers_per_pipeline")
         else:
             hs = encoder_cfg.get("hidden_size")
             ffn_hs = encoder_cfg.get("ffn_hidden_size")
             layers = encoder_cfg.get("num_layers")
             act_ckpt_layers = encoder_cfg.get("activations_checkpoint_num_layers")
-            act_ckpt_micro_batches = None
-            act_ckpt_layers_per_pipeline = None
+            num_mbs_act = None
+            act_per_pipe = None
         tp = model_cfg.get("tensor_model_parallel_size")
         pp = model_cfg.get("pipeline_model_parallel_size")
         mbs = model_cfg.get("micro_batch_size")
@@ -115,7 +115,7 @@ def main(cfg):
                         gpus_per_node=gpus_per_node,
                         time_per_step=avg_global_step_time,
                     )
-                    config_name = f"tp{tp}_pp{pp}_mbs{mbs}_act_{act_ckpt_layers}_act_mbs_{act_ckpt_micro_batches}_act_layers_per_pipeline_{act_ckpt_layers_per_pipeline}"
+                    config_name = f"tp{tp}_pp{pp}_mbs{mbs}_act_{act_ckpt_layers}_num_mbs_act_{num_mbs_act}_act_per_pipe_{act_per_pipe}"
                     result.append(
                         [
                             model_name,
@@ -124,8 +124,8 @@ def main(cfg):
                             pp,
                             mbs,
                             act_ckpt_layers,
-                            act_ckpt_micro_batches,
-                            act_ckpt_layers_per_pipeline,
+                            num_mbs_act,
+                            act_per_pipe,
                             layers,
                             hs,
                             ffn_hs,
@@ -151,7 +151,7 @@ def main(cfg):
         if i + 1 == output_top_n:
             break
 
-    top_config = f"{model_name}_{model_size}b_{nodes}nodes_tp_{result[0][2]}_pp_{result[0][3]}_mbs_{result[0][4]}_act_ckpt_{result[0][5]}_act_ckpt_micro_batches_{result[0][6]}_act_ckpt_layers_per_pipeline_{result[0][7]}"
+    top_config = f"{model_name}_{model_size}b_{nodes}nodes_tp_{result[0][2]}_pp_{result[0][3]}_mbs_{result[0][4]}_act_ckpt_{result[0][5]}_num_mbs_act_{result[0][6]}_act_per_pipe_{result[0][7]}"
     print("\n==================================================")
     print(f"Optimal config: {top_config} with {result[0][14]:.4f}s per global step.")
     print(f"Saving config to {final_result_logs}/optimal_config_{model_size}b_{nodes}nodes.yaml.")
