@@ -129,9 +129,9 @@ def get_huggingface_lm_model(
                 return model_class(config_class.from_json_file(config_file))
         if config_dict:
             config_class = HUGGINGFACE_MODELS[model_type]["config"]
-            return model_class(config=config_class(**config_dict), add_pooling_layer=False)
+            return model_class(config=config_class(**config_dict))
         else:
-            return model_class.from_pretrained(pretrained_model_name, add_pooling_layer=False)
+            return model_class.from_pretrained(pretrained_model_name)
     else:
         raise ValueError(f"Use HuggingFace API directly in NeMo for {pretrained_model_name}")
 
