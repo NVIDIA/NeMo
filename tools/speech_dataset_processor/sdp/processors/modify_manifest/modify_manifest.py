@@ -14,20 +14,28 @@
 
 
 from abc import abstractmethod
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Type
 
-from sdp.processors.base_processor import BaseParallelProcessor
+from sdp.processors.base_processor import BaseParallelProcessor, DataEntry
 from sdp.utils.edit_spaces import add_start_end_spaces, remove_extra_spaces
 
 
 class ModifyManifestTextProcessor(BaseParallelProcessor):
     """Base class useful for most "text-only" modifications of the manifest.
 
-    Will add the following functionality:
-        - Add space in the beginning and end of sentence for easier regex-based
+    This adds the following functionality on top of BaseParallelProcessor
+        - Adds space in the beginning and end of sentence for easier regex-based
           processing.
         - Automatically handles common test cases by comparing input to output
           values.
+
+    Args:
+        test_cases: an optional list of dicts containing test cases for checking 
+            that the processor makes the changes that we are expecting.
+            The dicts must have a key 'input', the value of which is a dictionary
+            containing data which is our test input manifest line, and a key 
+            'output', the value of which is a dictionary containing data which is
+            the expected output manifest line.
 
     .. note::
         This class only supports one-to-one or one-to-none mappings.
@@ -54,10 +62,10 @@ class ModifyManifestTextProcessor(BaseParallelProcessor):
                 )
 
     @abstractmethod
-    def _process_dataset_entry(self, data_entry):
+    def _process_dataset_entry(self, data_entry: Type[DataEntry]):
         pass
 
-    def process_dataset_entry(self, data_entry):
+    def process_dataset_entry(self, data_entry: Type[DataEntry]):
         """Wrapper for 'process_dataset_entry' abstract method.
 
         Before 'process_dataset_entry' is called, the function
