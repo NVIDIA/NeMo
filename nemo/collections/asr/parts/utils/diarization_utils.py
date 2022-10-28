@@ -297,7 +297,7 @@ class ASR_DIAR_OFFLINE:
         self.realigning_lm = None
         self.ctm_exists = False
         self.frame_VAD = {}
-        
+
         self.make_file_lists()
 
         self.color_palette = {
@@ -1184,8 +1184,10 @@ class ASR_DIAR_OFFLINE:
 
             # save to trans_dict
             trans_dict['sentences'].append(
-                {'sentence': sentence['text'], 
-                 'start_time': sentence['start_point'], 
-                 'end_time': sentence['end_point'], 
-                 'speaker_label': sentence['speaker']}
+                {
+                    'sentence': sentence['text'],
+                    'start_time': sentence['start_point'],
+                    'end_time': sentence['end_point'],
+                    'speaker_label': sentence['speaker'],
+                }
             )
