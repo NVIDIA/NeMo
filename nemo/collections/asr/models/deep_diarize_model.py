@@ -128,6 +128,10 @@ class DeepDiarizeModel(ModelPT):
             chunk_logits = self.sigmoid(chunk_logits)
             logits = chunk_logits if logits is None else torch.cat((logits, chunk_logits), dim=1)
         loss = self.loss(logits, y.unsqueeze(0))
+        # calculate the loss after we flipped the speaker labels as well
+        invert_loss = self.loss(logits, torch.flip(y, dims=(-1,)).unsqueeze(0))
+        # take the minimum loss
+        loss = min(loss, invert_loss)
         self.log('val_loss', loss, sync_dist=True)
         self.der(logits.squeeze(0), annotations)
         self.log('DER', self.der, sync_dist=True)
