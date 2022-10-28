@@ -295,15 +295,11 @@ def modify_cfg(base_cfg: dict, act: int, num_mbs_act: int, act_per_pipe: int, tp
             new_cfg["model"]["encoder"]["activations_checkpoint_num_layers"] = act // 2
             new_cfg["model"]["decoder"]["activations_checkpoint_num_layers"] = act // 2
         
-    num_mbs_act_str = ""
     if num_mbs_act is not None and model_name == "gpt3":
         new_cfg["model"]["num_micro_batches_with_partial_activation_checkpoints"] = num_mbs_act
-        num_mbs_act_str = f"_num_mbs_act_{num_mbs_act}"
 
-    act_per_pipe_str = ""
     if act_per_pipe is not None and model_name == "gpt3":
         new_cfg["model"]["activations_checkpoint_layers_per_pipeline"] = act_per_pipe
-        act_per_pipe_str = f"_act_per_pipe_{act_per_pipe}"
 
     new_cfg["model"]["tensor_model_parallel_size"] = tp
     new_cfg["model"]["pipeline_model_parallel_size"] = pp
@@ -334,7 +330,7 @@ def modify_cfg(base_cfg: dict, act: int, num_mbs_act: int, act_per_pipe: int, tp
         new_cfg["run"]["time_limit"] = f"{days}-{hours}:{mins}:00"
         new_cfg["run"][
             "name"
-        ] = f"{new_cfg['run']['name']}_{num_nodes}nodes_tp_{tp}_pp_{pp}_mbs_{mbs}_act_ckpt_{act}{num_mbs_act_str}{act_per_pipe_str}"
+        ] = f"{new_cfg['run']['name']}_{num_nodes}nodes_tp_{tp}_pp_{pp}_mbs_{mbs}_act_ckpt_{act}_num_mbs_act_{num_mbs_act}_act_per_pipe_{act_per_pipe}"
         print(
             f"Valid config: GBS={gbs}, MBS={mbs}, TP={tp}, PP={pp}, act_ckpt_layers={act}, num_mbs_act={num_mbs_act}, act_per_pipe={act_per_pipe}. Adding to directory."
         )
