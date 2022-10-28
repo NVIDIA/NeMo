@@ -170,9 +170,9 @@ def _set_activations_checkpoint_params(tp, pp, num_layers, act_method, multiplie
     if model_name == "gpt3" and pp > 2:  # Interleaved pipeline scheduling.
         virtual_pipelines = num_layers // pp  # TODO: verify that this is the best value.
         act_multiple = 1
-
         max_micro_b = pp * (virtual_pipelines-1) + (pp-1) * 2 + 1
         interval_micro_b = virtual_pipelines
+        max_layers_per_pipe = 1
 
     act_ckpt_layers, num_micro_batches_partial_act_ckpt, act_ckpt_layers_per_pipeline = [None], [None], [None]
     if act_method == "block":
@@ -228,20 +228,20 @@ def _tp_pp_mbs_grid_gpt3_80gb(model_size_in_b: float, valid_pp: List[int]) -> Tu
         pp = [x for x in valid_pp if 1 <= x <= 16]
         mbs = [1, 2, 4, 8]
     elif 130.0 < model_size_in_b <= 195.0:
-        tp = [4, 8]
-        pp = [x for x in valid_pp if 2 <= x <= 16]
+        tp = [8]
+        pp = [x for x in valid_pp if 4 <= x <= 16]
         mbs = [1, 2, 4]
     elif 195.0 < model_size_in_b <= 395.0:
-        tp = [4, 8]
-        pp = [x for x in valid_pp if 2 <= x <= 32]
+        tp = [8]
+        pp = [x for x in valid_pp if 8 <= x <= 32]
         mbs = [1, 2, 4]
     elif 395.0 < model_size_in_b <= 790.0:
-        tp = [4, 8]
-        pp = [x for x in valid_pp if 4 <= x <= 100]
+        tp = [8]
+        pp = [x for x in valid_pp if 8 <= x <= 100]
         mbs = [1, 2, 4]
     elif 790.0 < model_size_in_b <= 1100.0:
-        tp = [4, 8]
-        pp = [x for x in valid_pp if 4 <= x <= 130]
+        tp = [8]
+        pp = [x for x in valid_pp if 16 <= x <= 130]
         mbs = [1, 2, 4]
     return tp, pp, mbs
 
