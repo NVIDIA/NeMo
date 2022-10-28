@@ -108,7 +108,7 @@ class MegatronBertModel(MegatronBaseModel):
         if self.megatron_amp_o2:
             self.model.cuda(torch.cuda.current_device())
             self.model = Float16Module(module=self.model, precision=cfg.precision)
-            
+
     def _validate_trainer(self):
         """ Certain trainer configurations can break training.
             Here we try to catch them and raise an error.
@@ -116,7 +116,7 @@ class MegatronBertModel(MegatronBaseModel):
         if self.trainer.accumulate_grad_batches > 1:
             raise ValueError(
                 f'Gradient accumulation is done within training_step. trainer.accumulate_grad_batches must equal 1'
-            )          
+            )
 
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(batch, model):
