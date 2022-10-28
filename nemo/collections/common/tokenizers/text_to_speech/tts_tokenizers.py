@@ -647,7 +647,12 @@ class ChinesePhonemesTokenizer(BaseTokenizer):
                     'OU', 'P', 'Q', 'R', 'S', 'SH', 'T', 'U', 'UI', 'UN', 
                     'V', 'VE', 'VN', 'W', 'X', 'Y', 'Z', 'ZH']]
     TONES_LIST = ['#1', '#2', '#3', '#4', '#5']
-    ZH_PUNCT_LIST = list("，。？！；：、‘’“”（）【】「」《》") + [',', '.', '!', '?', '-', ':', ';', '/', '"', '(', ')', '[', ']', '{', '}']
+    PUNCT_LIST = (  # Derived from LJSpeech and "/" additionally
+        ',', '.', '!', '?', '-',
+        ':', ';', '/', '"', '(',
+        ')', '[', ']', '{', '}',
+    )
+    ZH_PUNCT_LIST = list("，。？！；：、‘’“”（）【】「」《》") + list(PUNCT_LIST)
 
     def __init__(
         self,
