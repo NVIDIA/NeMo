@@ -1013,21 +1013,28 @@ class ASR_DIAR_OFFLINE:
         return_string_out = '\n'.join(return_string_out)
         return return_string_out
 
-    def write_and_log(self, uniq_id, trans_dict, audacity_label_words, gecko_dict, sentences):
+    def write_and_log(
+        self,
+        uniq_id: str,
+        trans_dict: Dict[str, Dict[str, float]],
+        audacity_label_words: List[str],
+        gecko_dict: Dict[str, Dict[str, float]],
+        sentences: List[Dict[str, float]],
+    ):
         """
         Write output files and display logging messages.
 
         Args:
             uniq_id (str):
-                A unique ID (key) that identifies each input audio file.
+                A unique ID (key) that identifies each input audio file
             trans_dict (dict):
-                Dictionary containing the transcription output for a session.
-            audacity_label_words (str):
-
+                Dictionary containing the transcription output for a session
+            audacity_label_words (list):
+                List containing word and word timestamp information in Audacity label format
             gecko_dict (dict):
-                Dictionary formatted to be opened in  Gecko software.
+                Dictionary formatted to be opened in  Gecko software
             sentences (list):
-
+                List containing sentence dictionary
         """
         # print the sentences in the .txt output
         string_out = self.print_sentences(sentences, self.params)
@@ -1042,9 +1049,20 @@ class ASR_DIAR_OFFLINE:
         write_txt(f'{self.root_path}/pred_rttms/{uniq_id}.txt', string_out.strip())
         write_txt(f'{self.root_path}/pred_rttms/{uniq_id}.w.label', '\n'.join(audacity_label_words))
 
-    def print_errors(self, DER_result_dict, session_result_dict):
+    def print_errors(
+        self, DER_result_dict: Dict[str, Dict[str, float]], session_result_dict: Dict[str, Dict[str, float]]
+    ):
         """
         Print a slew of error metrics for ASR and Diarization.
+
+        Args:
+            DER_result_dict (dict):
+                Dictionary containing FA, MISS, CER and DER values for both aggregated amount and
+                each session.
+            session_result_dict (dict):
+                Dictionary containing session-by-session WER and cpWER. `session_result_dict` only
+                exists when CTM files are provided.
+
         """
         DER_info = f"\nDER                : {DER_result_dict['total']['DER']:.4f} \
                      \nFA                 : {DER_result_dict['total']['FA']:.4f} \
