@@ -48,6 +48,7 @@ class CTCLoss(nn.CTCLoss, Serialization, Typing):
         if reduction not in ['none', 'mean', 'sum', 'mean_batch', 'mean_volume']:
             raise ValueError('`reduction` must be one of [mean, sum, mean_batch, mean_volume]')
 
+        self.config_reduction = reduction
         if reduction == 'mean_batch' or reduction == 'mean_volume':
             ctc_reduction = 'none'
             self._apply_reduction = True
@@ -57,10 +58,9 @@ class CTCLoss(nn.CTCLoss, Serialization, Typing):
         super().__init__(blank=self._blank, reduction=ctc_reduction, zero_infinity=zero_infinity)
 
     def reduce(self, losses, target_lengths):
-
-        if self.reduction == 'mean_batch':
+        if self.config_reduction == 'mean_batch':
             losses = losses.mean()  # global batch size average
-        elif self.reduction == 'mean_volume':
+        elif self.config_reduction == 'mean_volume':
             losses = losses.sum() / target_lengths.sum()  # same as above but longer samples weigh more
 
         return losses
