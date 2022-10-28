@@ -183,6 +183,11 @@ class MegatronT5FinetuneModel(MegatronT5Model):
 
         return super().on_validation_epoch_end()
 
+    def on_train_epoch_start(self) -> None:
+        # Same logic as validation epoch end, but this may be need if there is no validation sanity check to trigger validation_epoch_end()
+        self.on_validation_epoch_end()
+        return super().on_train_epoch_start()
+
     def training_step(self, batch, batch_idx):
         micro_batch_size = batch[0]['text_enc'].size(0)
         # This should happen only on the last batch of the dataset.
@@ -258,9 +263,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
 
         return pred, label
 
-    def inference_step(self, batch, batch_idx, mode, dataloader_idx=0):
-        batch_has_lang_information = len(batch[0]) == 7
-
+    def _reconfigure_and_process_inference_batch(self, batch):
         micro_batch_size = batch[0]['text_enc'].size(0)
         # This should happen only on the last batch of the dataset.
         if micro_batch_size != self.cfg.data.validation_ds.micro_batch_size:
@@ -279,6 +282,14 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         # After the process_global_batch call, processed_batch will be a single dictionary containing the global batch.
         # This is required since the parent class expects a single global batch dictioanry.
         processed_batch = self._process_global_batch(batch)
+
+        return processed_batch
+
+    def inference_step(self, batch, batch_idx, mode, dataloader_idx=0):
+        # Regular finetuning datasets will return a list of dicts for each microbatch. But T0 datasets will return a single dict for the global batch.
+        batch_has_lang_information = isinstance(batch, list) and len(batch[0]) == 7
+
+        processed_batch = self._reconfigure_and_process_inference_batch(batch)
 
         # Call parent validation step to get the loss.
         # NOTE: There could be extra keys in the processed_batch dictionary such as "langs" for XNLI, this will be ignored in the parent class.

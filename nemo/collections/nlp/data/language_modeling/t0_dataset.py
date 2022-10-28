@@ -11,55 +11,124 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import json
-
 import numpy as np
 import torch
 
-from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import TextMemMapDataset
+from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import (
+    get_samples_mapping,
+    make_text_memmap_bin_compatibility,
+)
+from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import JSONLMemMapDataset, TextMemMapDataset
+from nemo.core.classes import Dataset
 
 
-class T0JSONLMemMapDataset(TextMemMapDataset):
-    """
-    Memory-mapped iteration over a JSONL file.
-    """
-
+class T0Dataset(Dataset):
     def __init__(
         self,
-        dataset_paths,
-        newline_int=10,
-        header_lines=1,
-        workers=None,
-        tokenizer=None,
-        sort_dataset_paths=True,
-        max_src_seq_length=512,
-        max_tgt_seq_length=512,
+        file_path: str,
+        tokenizer: TokenizerSpec,
+        max_src_seq_length: int = 512,
+        max_tgt_seq_length: int = 512,
+        replace_bos_with_pad: bool = False,
+        add_bos_to_input: bool = False,
+        add_eos_to_input: bool = False,
+        max_num_samples: int = None,
+        seed: int = 1234,
     ):
-        super().__init__(
-            dataset_paths=dataset_paths,
-            newline_int=newline_int,
-            header_lines=header_lines,
-            workers=workers,
-            tokenizer=None,  # Make sure parent tokenizer is None so that it returns the raw JSON string
-            sort_dataset_paths=sort_dataset_paths,
-        )
-        if tokenizer is None:
-            raise ValueError("Tokenizer must be provided to use T0JSONLMemMapDataset, got None")
+        """
+        src_file_name: Path to a JSONL T0 dataset file.
+        tokenizer: Tokenizer for the dataset. Instance of a class that inherits TokenizerSpec (ex: YTTM, SentencePiece).
+        max_src_seq_length: Maximum length of the source sequences. Lines above this length will be truncated.
+        max_tgt_seq_length: Maximum length of the target sequences. Lines above this length will be truncated.
+        replace_bos_with_pad: Whether the decoder starts with a pad token. This is needed for Google's T5 models that may be converted from HF.
+        add_bos_to_input: Whether to add the bos_id to the input sequence.
+        add_eos_to_input: Whether to add the eos_id to the input sequence.
+        seed: Random seed for data shuffling.
+        max_num_samples: Maximum number of samples to load. This can be > dataset length if you want to oversample data. If None, all samples will be loaded.
+        """
         self.tokenizer = tokenizer
+        self.file_path = file_path
         self.max_src_seq_length = max_src_seq_length
         self.max_tgt_seq_length = max_tgt_seq_length
+        self.replace_bos_with_pad = replace_bos_with_pad
+        self.add_bos_to_input = add_bos_to_input
+        self.add_eos_to_input = add_eos_to_input
+        self.max_num_samples = max_num_samples
+        self.seed = seed
 
-    def _build_data_from_text(self, text):
-        """Return a CSV field from text"""
-        example = json.loads(text)
+        self.indexed_dataset = JSONLMemMapDataset(dataset_paths=[file_path], tokenizer=None)
+
+        # Create compatibility with Megatron samples mapping
+        if self.max_num_samples is not None:
+            make_text_memmap_bin_compatibility(self.indexed_dataset)
+
+        # Will be None after this call if `max_num_samples` is None
+        self._build_samples_mapping()
+
+    def _build_samples_mapping(self):
+        if self.max_num_samples is not None:
+            # This means max src and max tgt sequence length need to be the same
+            if self.max_src_seq_length != self.max_tgt_seq_length:
+                raise ValueError(
+                    f"max_src_seq_length ({self.max_src_seq_length}) != max_tgt_seq_length ({self.max_tgt_seq_length}). This is needed for max_samples based training for now."
+                )
+
+            self.samples_mapping = get_samples_mapping(
+                indexed_dataset=self.indexed_dataset,
+                data_prefix=self.file_path,
+                num_epochs=None,
+                max_num_samples=self.max_num_samples,
+                max_seq_length=self.max_src_seq_length - 2,
+                short_seq_prob=0,
+                seed=self.seed,
+                name=self.file_path.split('/')[-1],
+                binary_head=False,
+            )
+        else:
+            self.samples_mapping = None
+
+    def __len__(self):
+        if self.max_num_samples is None:
+            return len(self.indexed_dataset)
+        else:
+            return len(self.samples_mapping)
+
+    def __getitem__(self, idx):
+        if isinstance(idx, np.int64):
+            idx = idx.item()
+
+        if self.samples_mapping is not None:
+            assert idx < len(self.samples_mapping)
+            idx, _, _ = self.samples_mapping[idx]
+            if isinstance(idx, np.uint32):
+                idx = idx.item()
+
+        assert idx < len(self.indexed_dataset)
+        example = self.indexed_dataset[idx]
+        return self._process_example(example)
+
+    def _process_example(self, example):
+        """
+        Process a single example from the dataset into IDs and other T0-related metadata.
+        """
         tokenized_input = self.tokenizer.text_to_ids(example['input'])
         tokenized_output = self.tokenizer.text_to_ids(example['output'])
-        if len(tokenized_input) > self.max_src_seq_length - 2:
+        offset = 0
+        if self.add_bos_to_input:
+            offset += 1
+        if self.add_eos_to_input:
+            offset += 1
+        if len(tokenized_input) > self.max_src_seq_length - offset:
             tokenized_input = tokenized_input[: self.max_src_seq_length - 2]
         if len(tokenized_output) > self.max_tgt_seq_length - 2:
             tokenized_output = tokenized_output[: self.max_tgt_seq_length - 2]
-        text_enc = [self.tokenizer.bos_id] + tokenized_input + [self.tokenizer.eos_id]
-        target = [self.tokenizer.bos_id] + tokenized_output + [self.tokenizer.eos_id]
+        bos_id = self.tokenizer.pad_id if self.replace_bos_with_pad else self.tokenizer.bos_id
+        if self.add_bos_to_input:
+            tokenized_input = [bos_id] + tokenized_input
+        if self.add_eos_to_input:
+            tokenized_input = tokenized_input + [self.tokenizer.eos_id]
+        target = [bos_id] + tokenized_output + [self.tokenizer.eos_id]
         original = ""
         template = ""
         for item in example['chunked_idx'].split(', '):
@@ -72,7 +141,7 @@ class T0JSONLMemMapDataset(TextMemMapDataset):
                 raise ValueError(f"Unknown chunk type: {item[0]}")
 
         return {
-            'text_enc': text_enc,
+            'text_enc': tokenized_input,
             'text_dec': target[:-1],
             'labels': target[1:],
             'original': self.tokenizer.text_to_ids(original),
