@@ -563,7 +563,7 @@ def getEnhancedSpeakerCount(
     for the short audio samples.
 
     Args:
-        emb (torch.Tensor):
+        emb (Tensor):
             The input embedding from the embedding extractor.
         cuda (bool):
             Use cuda for the operations if cuda==True.
@@ -771,7 +771,7 @@ class SpectralClustering:
                 Torch device variable
 
         Returns:
-            labels (torch.Tensor):
+            labels (Tensor):
                 clustering label output
         """
         laplacian = getLaplacian(affinity_mat)
@@ -1149,7 +1149,7 @@ class SpeakerClustering(torch.nn.Module):
         self.embeddings_in_scales, self.timestamps_in_scales = split_input_data(
             embeddings_in_scales, timestamps_in_scales, multiscale_segment_counts
         )
-        
+
         emb = self.embeddings_in_scales[multiscale_segment_counts.shape[0] - 1]
 
         if emb.shape[0] == 1:
