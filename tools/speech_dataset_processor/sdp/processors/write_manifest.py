@@ -29,6 +29,7 @@ class WriteManifest(BaseProcessor):
         fields_to_save: list of the fields in the input manifest that we want to copy over. 
             The output file will only contain these fields.
     """
+
     def __init__(self, output_manifest_file: str, input_manifest_file: str, fields_to_save: List[str]):
         self.output_manifest_file = output_manifest_file
         self.input_manifest_file = input_manifest_file
