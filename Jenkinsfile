@@ -2931,7 +2931,7 @@ pipeline {
         trainer.log_every_n_steps=1 \
         trainer.val_check_interval=10 \
         trainer.limit_val_batches=2 \
-        trainer.accumulate_grad_batches=2 \
+        trainer.accumulate_grad_batches=1 \
         trainer.max_steps=10 \
         trainer.precision=16 \
         trainer.gradient_clip_val=1.0 \
@@ -2940,6 +2940,7 @@ pipeline {
         model.optim.name=fused_adam \
         model.optim.lr=2e-4 \
         model.optim.sched.warmup_steps=2 \
+	model.megatron_amp_O2=True \
         model.optim.sched.constant_steps=2 \
         model.optim.sched.min_lr=8e-5 \
         model.max_position_embeddings=128 \
@@ -2959,7 +2960,7 @@ pipeline {
         trainer.log_every_n_steps=1 \
         trainer.val_check_interval=10 \
         trainer.limit_val_batches=2 \
-        trainer.accumulate_grad_batches=2 \
+        trainer.accumulate_grad_batches=1 \
         trainer.max_steps=20 \
         trainer.precision=16 \
         trainer.gradient_clip_val=1.0 \
