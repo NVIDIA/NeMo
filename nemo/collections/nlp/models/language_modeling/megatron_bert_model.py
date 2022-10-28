@@ -217,17 +217,7 @@ class MegatronBertModel(MegatronBaseModel):
     def training_step(self, batch, batch_idx):
 
         self._optimizer.zero_grad()
-
-        if parallel_state.is_pipeline_first_stage(ignore_virtual=True) or parallel_state.is_pipeline_last_stage(
-            ignore_virtual=True
-        ):
-            # we prepare the micro batches for the apex fwd/bwd function
-            batch_for_pipeline = self.process_batch(batch)
-        else:
-            # The intermediate pipeline stages do not need any inputs from data loader
-            # GPT3 uses decoder with AttnMask:causal, thus doesn't need attention_mask
-            batch_for_pipeline = None     
-
+        batch_for_pipeline = self.process_batch(batch)
         tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
 
         if self.megatron_amp_o2:
@@ -522,7 +512,6 @@ class MegatronBertModel(MegatronBaseModel):
                 num_parameters_on_device -= num_word_embedding_parameters
         else:
             num_parameters_on_device = sum([p.nelement() for p in self.model.parameters()])
-
             if parallel_state.get_pipeline_model_parallel_world_size() > 1 and parallel_state.is_pipeline_last_stage(
                 ignore_virtual=True
             ):

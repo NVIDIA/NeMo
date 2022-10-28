@@ -35,7 +35,7 @@ try:
     from apex.transformer import parallel_state, tensor_parallel
     from apex.transformer.enums import AttnMaskType
     from apex.transformer.tensor_parallel.layers import set_tensor_model_parallel_attributes
-
+    
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
@@ -233,14 +233,15 @@ class BertModel(MegatronModule):
         self.language_model.set_input_tensor(input_tensor)
 
     def forward(self, bert_model_input, attention_mask, token_type_ids=None, lm_labels=None):
-        if parallel_state.is_pipeline_first_stage():
-            extended_attention_mask = bert_extended_attention_mask(attention_mask)
+       
+        extended_attention_mask = bert_extended_attention_mask(attention_mask)
+
+        if parallel_state.is_pipeline_first_stage():  
             input_ids = bert_model_input
             position_ids = build_position_ids(input_ids)
-        else:
+        else :
             position_ids = None
             input_ids = None
-            extended_attention_mask = bert_extended_attention_mask(attention_mask)
 
         lm_output = self.language_model(
             input_ids, position_ids, extended_attention_mask, token_type_ids=token_type_ids
