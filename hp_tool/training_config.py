@@ -132,12 +132,7 @@ def generate_grid_search_configs(
                                 model_name=model_name,
                             )
                             if new_cfg:  # Save candidate cfg.
-                                num_mbs_act_str, act_per_pipe_str = "", ""
-                                if num_mbs_act is not None:
-                                    num_mbs_act_str = f"_num_mbs_act_{num_mbs_act}"
-                                if act_per_pipe is not None:
-                                    act_per_pipe_str = f"_act_per_pipe_{act_per_pipe}"
-                                file_name = f"{model_name}_{model_size_in_b}b_{num_nodes}nodes_tp_{tp}_pp_{pp}_mbs_{mbs}_act_ckpt_{act}{num_mbs_act_str}{act_per_pipe_str}.yaml"
+                                file_name = f"{model_name}_{model_size_in_b}b_{num_nodes}nodes_tp_{tp}_pp_{pp}_mbs_{mbs}_act_ckpt_{act}_num_mbs_act_{num_mbs_act}_act_per_pipe_{act_per_pipe}.yaml"
                                 results_cfgs[act].append(file_name)
                                 with open(f"{base_dir}/{file_name}", "w") as f:
                                     yaml.dump(new_cfg, f)
@@ -171,7 +166,7 @@ def _set_activations_checkpoint_params(tp, pp, num_layers, act_method, multiplie
         virtual_pipelines = num_layers // pp  # TODO: verify that this is the best value.
         act_multiple = 1
         max_micro_b = pp * (virtual_pipelines-1) + (pp-1) * 2 + 1
-        interval_micro_b = virtual_pipelines
+        interval_micro_b = virtual_pipelines * 2
         max_layers_per_pipe = 1
 
     act_ckpt_layers, num_micro_batches_partial_act_ckpt, act_ckpt_layers_per_pipeline = [None], [None], [None]
