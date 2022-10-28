@@ -67,5 +67,6 @@ def main(cfg):
         session_result_dict = asr_diar_offline.get_cpWER(total_riva_dict)
         asr_diar_offline.print_errors(DER_result_dict, session_result_dict)
 
+
 if __name__ == '__main__':
     main()
