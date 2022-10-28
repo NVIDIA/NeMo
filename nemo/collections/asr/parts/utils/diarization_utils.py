@@ -44,18 +44,18 @@ except ImportError:
 __all__ = ['ASR_DIAR_OFFLINE']
 
 
-def dump_json_to_file(file_path: str, riva_dict: dict):
+def dump_json_to_file(file_path: str, trans_dict: dict):
     """
-    Write a json file from the riva_dict dictionary.
+    Write a json file from the trans_dict dictionary.
 
     Args:
         file_path (str):
             Target filepath where json file is saved
-        riva_dict (dict):
+        trans_dict (dict):
             Dictionary containing transcript, speaker labels and timestamps
     """
     with open(file_path, "w") as outfile:
-        json.dump(riva_dict, outfile, indent=4)
+        json.dump(trans_dict, outfile, indent=4)
 
 
 def write_txt(w_path: str, val: str):
@@ -242,14 +242,50 @@ def calculate_cpWER(
 class ASR_DIAR_OFFLINE:
     """
     A class designed for performing ASR and diarization together.
+
+    Attributes:
+        cfg_diarizer (OmegaConf):
+            Hydra config for diarizer key
+        params (OmegaConf):
+            Parameters config in diarizer.asr
+        ctc_decoder_params (OmegaConf)
+            cfg_diarizer.asr.ctc_decoder_parameters
+        realigning_lm_params (OmegaConf):
+            cfg_diarizer.asr.realigning_lm_parameters
+        manifest_filepath (str):
+            Path to the input manifest path
+        nonspeech_threshold (float)
+            self.params.asr_based_vad_threshold
+        fix_word_ts_with_VAD (bool)
+            self.params.fix_word_ts_with_VAD
+        root_path (str)
+            cfg_diarizer.out_dir
+        vad_threshold_for_word_ts (float):
+            Threshold used for compensating word timestamps with VAD output
+        max_word_ts_length_in_sec (float):
+            Maximum limit for word timestamp length
+        word_ts_anchor_offset (float):
+            Offset for word timestamps from ASR decoders
+        run_ASR:
+            Placeholder variable for an ASR launcher function
+        realigning_lm:
+            Placeholder variable for a loaded ARPA Language model
+        ctm_exists (bool):
+            Boolean that indicates whether all files have corresponding reference CTM file
+        frame_VAD (dict):
+            Dictionary containing frame-level VAD logits
+        AUDIO_RTTM_MAP:
+            Dictionary containing the input manifest information
+        color_palette (dict):
+            Dictionary containing the ANSI color escape codes for each speaker index
     """
 
     def __init__(self, cfg_diarizer):
         self.cfg_diarizer = cfg_diarizer
-        self.manifest_filepath = cfg_diarizer.manifest_filepath
         self.params = cfg_diarizer.asr.parameters
         self.ctc_decoder_params = cfg_diarizer.asr.ctc_decoder_parameters
         self.realigning_lm_params = cfg_diarizer.asr.realigning_lm_parameters
+        self.manifest_filepath = cfg_diarizer.manifest_filepath
         self.nonspeech_threshold = self.params.asr_based_vad_threshold
         self.fix_word_ts_with_VAD = self.params.fix_word_ts_with_VAD
         self.root_path = cfg_diarizer.out_dir
@@ -261,7 +297,7 @@ class ASR_DIAR_OFFLINE:
         self.realigning_lm = None
         self.ctm_exists = False
         self.frame_VAD = {}
-        self.AUDIO_RTTM_MAP = audio_rttm_map(self.manifest_filepath)
+        
         self.make_file_lists()
 
         self.color_palette = {
@@ -282,6 +318,7 @@ class ASR_DIAR_OFFLINE:
         """
         Create lists containing the filepaths of audio clips and CTM files.
         """
+        self.AUDIO_RTTM_MAP = audio_rttm_map(self.manifest_filepath)
         self.audio_file_list = [value['audio_filepath'] for _, value in self.AUDIO_RTTM_MAP.items()]
 
         self.ctm_file_list = []
@@ -408,7 +445,7 @@ class ASR_DIAR_OFFLINE:
             self.frame_VAD[uniq_id] = frame_vad_float_list
 
     def gather_eval_results(
-        self, metric, mapping_dict: Dict[str, str], total_riva_dict: Dict[str, Dict[str, float]], der_deci: int = 4
+        self, metric, mapping_dict: Dict[str, str], trans_info_dict: Dict[str, Dict[str, float]], decimals: int = 4
     ) -> Dict[str, float]:
         """
         Gather diarization evaluation results from pyannote DiarizationErrorRate metric object.
@@ -416,8 +453,13 @@ class ASR_DIAR_OFFLINE:
         Args:
             metric (DiarizationErrorRate metric):
                 DiarizationErrorRate metric pyannote object
+            trans_info_dict (dict):
+                Dictionary containing word timestamps, speaker labels and words from all sessions.
+                Each session is indexed by unique-ID as a key.
             mapping_dict (dict):
                 Dictionary containing speaker mapping labels for each audio file with key as unique name
+            decimals (int):
+                The number of rounding decimals for DER value
 
         Returns:
             DER_result_dict (dict):
@@ -431,10 +473,10 @@ class ASR_DIAR_OFFLINE:
             pred_rttm = os.path.join(self.root_path, 'pred_rttms', key + '.rttm')
             pred_labels = rttm_to_labels(pred_rttm)
 
-            est_n_spk = self.get_num_of_spk_from_labels(pred_labels)
             ref_rttm = self.AUDIO_RTTM_MAP[key]['rttm_filepath']
             ref_labels = rttm_to_labels(ref_rttm)
             ref_n_spk = self.get_num_of_spk_from_labels(ref_labels)
+            est_n_spk = self.get_num_of_spk_from_labels(pred_labels)
 
             if self.cfg_diarizer['oracle_vad']:
                 score['missed detection'] = 0
@@ -448,10 +490,10 @@ class ASR_DIAR_OFFLINE:
             )
 
             DER_result_dict[key] = {
-                "DER": round(_DER, der_deci),
-                "CER": round(_CER, der_deci),
-                "FA": round(_FA, der_deci),
-                "MISS": round(_MISS, der_deci),
+                "DER": round(_DER, decimals),
+                "CER": round(_CER, decimals),
+                "FA": round(_FA, decimals),
+                "MISS": round(_MISS, decimals),
                 "est_n_spk": est_n_spk,
                 "mapping": mapping_dict[key],
                 "is_spk_count_correct": (est_n_spk == ref_n_spk),
@@ -573,10 +615,11 @@ class ASR_DIAR_OFFLINE:
                 - word_ts_hyp['my_audio_01'] = [[0.0, 0.04], [0.64, 0.68], [0.84, 0.88], ...]
 
         Returns:
-            total_riva_dict (dict):
-                Dictionary containing word timestamps, speaker labels and words.
+            trans_info_dict (dict):
+                Dictionary containing word timestamps, speaker labels and words from all sessions.
+                Each session is indexed by unique-ID as a key.
         """
-        total_riva_dict = {}
+        trans_info_dict = {}
         if self.fix_word_ts_with_VAD:
             if self.frame_VAD == {}:
                 logging.info(
@@ -599,9 +642,9 @@ class ASR_DIAR_OFFLINE:
             word_dict_seq_list = self.get_word_dict_seq_list(uniq_id, diar_hyp, word_hyp, word_ts_hyp, word_ts_refined)
             if self.realigning_lm:
                 word_dict_seq_list = self.realign_words_with_lm(word_dict_seq_list)
-            total_riva_dict = self.make_json_output(uniq_id, diar_hyp, word_dict_seq_list, total_riva_dict)
+            trans_info_dict = self.make_json_output(uniq_id, diar_hyp, word_dict_seq_list, trans_info_dict)
         logging.info(f"Diarization with ASR output files are saved in: {self.root_path}/pred_rttms")
-        return total_riva_dict
+        return trans_info_dict
 
     def get_word_dict_seq_list(
         self,
@@ -658,7 +701,7 @@ class ASR_DIAR_OFFLINE:
         uniq_id: str,
         diar_hyp: Dict[str, List[str]],
         word_dict_seq_list: List[Dict[str, float]],
-        total_riva_dict: Dict[str, Dict[str, float]],
+        trans_info_dict: Dict[str, Dict[str, float]],
     ) -> Dict[str, Dict[str, float]]:
         """
         Generate json output files and transcripts from the ASR and diarization results.
@@ -670,17 +713,17 @@ class ASR_DIAR_OFFLINE:
                 Dictionary containing the word sequence from ASR output.
             word_dict_seq_list (list):
                 List containing words and corresponding word timestamps in dictionary format.
-            total_riva_dict (dict):
+            trans_info_dict (dict):
                 Dictionary containing the final transcription, alignment and speaker labels.
 
         Returns:
-            total_riva_dict (dict):
+            trans_info_dict (dict):
                 A dictionary containing overall results of diarization and ASR inference.
         """
         word_seq_list, audacity_label_words = [], []
         labels = diar_hyp[uniq_id]
         n_spk = self.get_num_of_spk_from_labels(labels)
-        riva_dict = od(
+        trans_dict = od(
             {
                 'status': 'Success',
                 'session_id': uniq_id,
@@ -728,9 +771,9 @@ class ASR_DIAR_OFFLINE:
             # add current word to sentence
             sentence['text'] += word.strip() + ' '
 
-            self.add_json_to_dict(riva_dict, word, stt_sec, end_sec, speaker)
+            self.add_json_to_dict(trans_dict, word, stt_sec, end_sec, speaker)
             audacity_label_words.append(self.get_audacity_label(word, stt_sec, end_sec, speaker))
-            total_riva_dict[uniq_id] = riva_dict
+            trans_info_dict[uniq_id] = trans_dict
             prev_speaker = speaker
 
         # note that we need to add the very last sentence.
@@ -738,9 +781,9 @@ class ASR_DIAR_OFFLINE:
         sentences.append(sentence)
         gecko_dict['monologues'].append({'speaker': {'name': None, 'id': speaker}, 'terms': terms_list})
 
-        riva_dict['transcription'] = ' '.join(word_seq_list)
-        self.write_and_log(uniq_id, riva_dict, audacity_label_words, gecko_dict, sentences)
-        return total_riva_dict
+        trans_dict['transcription'] = ' '.join(word_seq_list)
+        self.write_and_log(uniq_id, trans_dict, audacity_label_words, gecko_dict, sentences)
+        return trans_info_dict
 
     def get_realignment_ranges(self, k: int, word_seq_len: int) -> Tuple[int, int]:
         """
@@ -855,12 +898,12 @@ class ASR_DIAR_OFFLINE:
             realigned_list.append(line_dict)
         return realigned_list
 
-    def get_cpWER(self, total_riva_dict: Dict[str, Dict[str, float]]) -> Dict[str, float]:
+    def get_cpWER(self, trans_info_dict: Dict[str, Dict[str, float]]) -> Dict[str, float]:
         """
         Calculate cpWER from the multispeaker ASR output. cpWER is calculated as following steps.
 
-        total_riva_dict (dict):
-            A dictionary containing overall results of diarization and ASR inference.
+        trans_info_dict (dict):
+            Dictionary containing overall results of diarization and ASR inference from all sessions.
 
         Returns:
             session_result_dict (dict):
@@ -873,7 +916,7 @@ class ASR_DIAR_OFFLINE:
         word_seq_lists = []
         for audio_file_path in self.audio_file_list:
             uniq_id = get_uniqname_from_filepath(audio_file_path)
-            word_seq_lists.append(total_riva_dict[uniq_id]['words'])
+            word_seq_lists.append(trans_info_dict[uniq_id]['words'])
 
         if self.ctm_exists == True:
             session_result_dict = calculate_cpWER(word_seq_lists, self.ctm_file_list)
@@ -960,19 +1003,19 @@ class ASR_DIAR_OFFLINE:
         return_string_out = '\n'.join(return_string_out)
         return return_string_out
 
-    def write_and_log(self, uniq_id, riva_dict, audacity_label_words, gecko_dict, sentences):
+    def write_and_log(self, uniq_id, trans_dict, audacity_label_words, gecko_dict, sentences):
         """
         Write output files and display logging messages.
 
         Args:
             uniq_id (str):
                 A unique ID (key) that identifies each input audio file.
-            riva_dict (dict):
-
+            trans_dict (dict):
+                Dictionary containing the transcription output for a session.
             audacity_label_words (str):
 
             gecko_dict (dict):
-
+                Dictionary formatted to be opened in  Gecko software.
             sentences (list):
 
         """
@@ -982,9 +1025,9 @@ class ASR_DIAR_OFFLINE:
             string_out = self.break_lines(string_out)
 
         # add sentences to the json array
-        self.add_sentences_to_dict(riva_dict, sentences)
+        self.add_sentences_to_dict(trans_dict, sentences)
 
-        dump_json_to_file(f'{self.root_path}/pred_rttms/{uniq_id}.json', riva_dict)
+        dump_json_to_file(f'{self.root_path}/pred_rttms/{uniq_id}.json', trans_dict)
         dump_json_to_file(f'{self.root_path}/pred_rttms/{uniq_id}_gecko.json', gecko_dict)
         write_txt(f'{self.root_path}/pred_rttms/{uniq_id}.txt', string_out.strip())
         write_txt(f'{self.root_path}/pred_rttms/{uniq_id}.w.label', '\n'.join(audacity_label_words))
@@ -1058,30 +1101,81 @@ class ASR_DIAR_OFFLINE:
         return string_out
 
     @staticmethod
-    def get_audacity_label(word, stt_sec, end_sec, speaker):
+    def get_audacity_label(word: str, stt_sec: float, end_sec: float, speaker: str) -> str:
+        """
+        Get a sting formatted line for Audacity label.
+
+        Args:
+            word (str):
+                A decoded word
+            stt_sec (float):
+                Start timestamp of the word
+            end_sec (float):
+                End timestamp of the word
+
+        Returns:
+            speaker (str):
+                Speaker label in string type
+        """
         spk = speaker.split('_')[-1]
         return f'{stt_sec}\t{end_sec}\t[{spk}] {word}'
 
     @staticmethod
-    def get_num_of_spk_from_labels(labels):
+    def get_num_of_spk_from_labels(labels: List[str]) -> int:
+        """
+        Count the number of speakers in a segment label list.
+        Args:
+            labels (list):
+                List containing segment start and end timestamp and speaker labels.
+                - Example:
+                    ["15.25 21.82 speaker_0",
+                     "21.18 29.51 speaker_1",
+                     ... ]
+
+        Returns:
+            n_spk (int):
+                The number of speakers in the list `labels`
+
+        """
         spk_set = [x.split(' ')[-1].strip() for x in labels]
         return len(set(spk_set))
 
     @staticmethod
-    def add_json_to_dict(riva_dict, word, stt, end, speaker):
-        riva_dict['words'].append({'word': word, 'start_time': stt, 'end_time': end, 'speaker_label': speaker})
+    def add_json_to_dict(trans_dict: Dict[str, List[str]], word: str, stt: float, end: float, speaker: str):
+        """
+        Add a dictionary variable containing timestamps and speaker label for a word to final output dictionary.
+
+        trans_dict (dict):
+            Dictionary containing the transcription output for a session.
+        word (str):
+            A decoded word
+        stt (float):
+            Start time of the word
+        end (float):
+            End time of the word
+        speaker (str):
+            Speaker label of the word
+        """
+        trans_dict['words'].append({'word': word, 'start_time': stt, 'end_time': end, 'speaker_label': speaker})
 
     @staticmethod
-    def add_sentences_to_dict(riva_dict, sentences):
+    def add_sentences_to_dict(trans_dict, sentences):
+        """
+        Add informatin in `sentence` variable to result dictionary.
+
+        Args:
+            trans_dict (dict):
+                Dictionary containing the transcription output for a session.
+            sentences (list):
+                List containing dictionary variables containing word, word timestamps and speaker label.
+        """
         # iterate over sentences
         for sentence in sentences:
-            # extract info
-            speaker = sentence['speaker']
-            start_point = sentence['start_point']
-            end_point = sentence['end_point']
-            text = sentence['text']
 
-            # save to riva_dict
-            riva_dict['sentences'].append(
-                {'sentence': text, 'start_time': start_point, 'end_time': end_point, 'speaker_label': speaker}
+            # save to trans_dict
+            trans_dict['sentences'].append(
+                {'sentence': sentence['text'], 
+                 'start_time': sentence['start_point'], 
+                 'end_time': sentence['end_point'], 
+                 'speaker_label': sentence['speaker']}
             )
