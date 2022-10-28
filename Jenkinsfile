@@ -2933,7 +2933,7 @@ pipeline {
         trainer.limit_val_batches=2 \
         trainer.accumulate_grad_batches=1 \
         trainer.max_steps=10 \
-        trainer.precision=16 \
+        trainer.precision=bf16 \
         trainer.gradient_clip_val=1.0 \
         exp_manager.exp_dir=examples/nlp/language_modeling/bert_pretrain_results \
         model.tensor_model_parallel_size=2 \
@@ -2962,7 +2962,7 @@ pipeline {
         trainer.limit_val_batches=2 \
         trainer.accumulate_grad_batches=1 \
         trainer.max_steps=20 \
-        trainer.precision=16 \
+        trainer.precision=bf16 \
         trainer.gradient_clip_val=1.0 \
         exp_manager.exp_dir=examples/nlp/language_modeling/bert_pretrain_results \
         exp_manager.resume_if_exists=True \
