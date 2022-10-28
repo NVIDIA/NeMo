@@ -30,8 +30,10 @@ __idx_version__ = '0.2'  # index file version
 __idx_suffix__ = 'idx'  # index file suffix
 
 
-def _build_index_from_memdata(mdata, newline_int):
+def _build_index_from_memdata(fn, newline_int):
     """Build index of newline positions in memmap"""
+    # use memmap to read file
+    mdata = np.memmap(fn, dtype=np.uint8, mode='r')
     # find newline positions
     midx = np.where(mdata == newline_int)[0]
     midx_dtype = midx.dtype
@@ -45,6 +47,10 @@ def _build_index_from_memdata(mdata, newline_int):
     while len(midx) > 1 and (midx[-1] - midx[-2]) < 2:
         midx.pop(-1)
     midx = np.asarray(midx, dtype=midx_dtype)
+
+    # free memmap
+    mdata._mmap.close()
+    del mdata
 
     return midx
 
@@ -65,7 +71,7 @@ class TextMemMapDataset(Dataset):
         build_index_fn=_build_index_from_memdata,
     ):
         """
-        build_index_fn - a callable build_index_fn(mdata, newline_int) -> midx [np.array] that returns the index newlines in mdata int data
+        build_index_fn - a callable build_index_fn(fn, newline_int) -> midx [np.array] that returns the index of newlines in a file fn
                          must be pickleable (to be used in multiprocessing.Pool.map)
         """
         super().__init__()
@@ -255,17 +261,17 @@ def _build_memmap_index_files(newline_int, build_index_fn, fn):
     if os.path.exists(idx_fn + ".npy"):
         return False
     else:
-        mdata = np.memmap(fn, dtype=np.uint8, mode='r')
-        logging.info(f"Building idx file = {idx_fn}.npy")
+        logging.info(f"Building indexing for fn = {fn}")
         # find all newline positions
-        midx = build_index_fn(mdata, newline_int)
-
+        midx = build_index_fn(fn, newline_int)
+        # create e metadata file
         data = dict(newline_int=newline_int, version=__idx_version__)
+
         # save index as numpy array to enable memmap reading
+        logging.info(f"Saving idx file = {idx_fn}.npy")
         np.save(idx_fn + ".npy", midx, allow_pickle=True)
+        logging.info(f"Saving metadata file = {idx_fn}.info")
         pickle.dump(data, open(idx_fn + ".info", "wb"))
-        mdata._mmap.close()
-        del mdata
 
         return True
 
