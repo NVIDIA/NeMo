@@ -56,7 +56,7 @@ class MegatronBertModel(MegatronBaseModel):
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
         super().__init__(cfg, trainer=trainer, no_lm_init=False)
-
+        self._validate_trainer()
         self.cfg = cfg
         self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
 
@@ -108,6 +108,15 @@ class MegatronBertModel(MegatronBaseModel):
         if self.megatron_amp_o2:
             self.model.cuda(torch.cuda.current_device())
             self.model = Float16Module(module=self.model, precision=cfg.precision)
+            
+    def _validate_trainer(self):
+        """ Certain trainer configurations can break training.
+            Here we try to catch them and raise an error.
+        """
+        if self.trainer.accumulate_grad_batches > 1:
+            raise ValueError(
+                f'Gradient accumulation is done within training_step. trainer.accumulate_grad_batches must equal 1'
+            )          
 
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(batch, model):
