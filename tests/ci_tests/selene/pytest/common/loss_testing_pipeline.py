@@ -40,7 +40,7 @@ class LossTestingPipeline:
         #assert len(actual_loss_list) == loss_list_size, f"{self.job_name} : The events file must have {loss_list_size} {loss_type} values, one per training iteration."
         for i, step in enumerate(range(expected["start_step"], expected["end_step"], expected["step_interval"])):
             if test_type == TypeOfTest.APPROX:
-                assert actual_loss_list[step] == pytest.approx(expected=expected_loss_list[i], rel=self.margin_loss), f"{self.job_name} : The loss at step {step} should be approximately {expected_loss_list[i]} but it is {train_loss_list[step]}."
+                assert actual_loss_list[step] == pytest.approx(expected=expected_loss_list[i], rel=self.margin_loss), f"{self.job_name} : The loss at step {step} should be approximately {expected_loss_list[i]} but it is {actual_loss_list[step]}."
             else:
                 assert actual_loss_list[step] == expected_loss_list[i], f"{self.job_name} : The loss at step {step} should be {expected_loss_list[i]} but it is {actual_loss_list[step]}."
 
