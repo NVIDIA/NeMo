@@ -450,6 +450,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
 
     def get_label(self, path2audio_file):
         """
+        returns label of path2audio_file from classes the model was trained on. 
         Args
             path2audio_file: path to audio wav file
 
