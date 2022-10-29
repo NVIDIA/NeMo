@@ -663,7 +663,7 @@ class ASR_DIAR_OFFLINE:
         word_hyp: Dict[str, List[str]],
         word_ts_hyp: Dict[str, List[float]],
         word_ts_refined: Dict[str, List[float]],
-    ) -> Dict[str, Dict[str, float]]:
+    ) -> Dict[str, Dict[str, str]]:
         """
         Save the hypothesis words and speaker labels to a dictionary variable for future use.
 
@@ -712,7 +712,7 @@ class ASR_DIAR_OFFLINE:
         diar_hyp: Dict[str, List[str]],
         word_dict_seq_list: List[Dict[str, float]],
         trans_info_dict: Dict[str, Dict[str, float]],
-    ) -> Dict[str, Dict[str, float]]:
+    ) -> Dict[str, Dict[str, str]]:
         """
         Generate json output files and transcripts from the ASR and diarization results.
 
@@ -856,7 +856,7 @@ class ASR_DIAR_OFFLINE:
         word_pos = word_pos + self.word_ts_anchor_offset
         return word_pos
 
-    def realign_words_with_lm(self, word_dict_seq_list: List[Dict[str, float]]):
+    def realign_words_with_lm(self, word_dict_seq_list: List[Dict[str, float]]) -> List[Dict[str, float]]:
         """
         Realign the mapping between speaker labels and words using a language model.
         The realigning process calculates the probability of the certain range around the words,
