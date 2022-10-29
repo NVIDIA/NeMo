@@ -76,7 +76,7 @@ def main(cfg):
             hs = encoder_cfg.get("hidden_size")
             ffn_hs = encoder_cfg.get("ffn_hidden_size")
             layers = encoder_cfg.get("num_layers")
-            act_ckpt_layers = encoder_cfg.get("activations_checkpoint_num_layers")
+            act_ckpt_layers = encoder_cfg.get("activations_checkpoint_num_layers") * 2
             num_mbs_act = None
             act_per_pipe = None
         tp = model_cfg.get("tensor_model_parallel_size")
