@@ -920,8 +920,6 @@ class ASR_DIAR_OFFLINE:
                 Session-by-session results including DER, miss rate, false alarm rate, WER and cpWER
         """
         session_result_dict, count_dict = {'session_level': {}}, {}
-        hyps_spk, refs_spk = [], []
-        hyps_mix, refs_mix = [], []
 
         word_seq_lists = []
         for audio_file_path in self.audio_file_list:
