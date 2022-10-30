@@ -27,8 +27,16 @@ from nemo.utils import logging
 class PunctCapSegModel(NLPModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None) -> None:
         super().__init__(cfg=cfg, trainer=trainer)
+        # Whether model predicts all analytics in one encoder pass, or multiple passes
         self._multipass: bool = self._cfg.get("multipass", True)
+        # Potential sentence boundary detection characters
         self._full_stops = set(self._cfg.get("full_stops", [".", "?", "？", "。", "।", "؟"]))
+        # Whether to run `tok.ids_to_text(tok.text_to_ids(text))` on all inputs, to make char-level predictions less
+        # error-prone. Needed for SPE when normalization is not identity.
+        self._pretokenize: bool = self._cfg.get("pretokenize", False)
+        # Should be set to the training DS max length; default to the positional embeddings size
+        self._max_length = self._cfg.get("max_length", self.bert_model.config.max_position_embeddings)
+        self._freeze_encoder_n_batches = self._cfg.get("freeze_encoder_n_batches", None)
 
         # Retrieve labels
         self._punct_post_labels: List[str] = self._cfg.punct_post_labels
@@ -45,7 +53,14 @@ class PunctCapSegModel(NLPModel):
         self._ignore_idx: int = self._cfg.get("ignore_idx", -100)
 
         # Used for making character-level predictions with subwords (predict max_token_len per token)
-        self._max_token_len = max(len(x) for x in self.tokenizer.vocab)
+        # self._max_token_len = max(len(x) for x in self.tokenizer.vocab)
+        self._using_sp = hasattr(self.tokenizer.tokenizer, "sp_model")
+        if not self._using_sp:
+            self._max_token_len = max(len(x) for x in self.tokenizer.vocab)
+        else:
+            # SentencePiece model - AutoTokenizer doesn't have 'vocab' attr for some SP models
+            vocab_size = self.tokenizer.vocab_size
+            self._max_token_len = max(len(self.tokenizer.ids_to_tokens([idx])[0]) for idx in range(vocab_size))
 
         # All logits are shape [B, T, D]
         self._punct_pre_loss: CrossEntropyLoss = CrossEntropyLoss(
@@ -63,7 +78,7 @@ class PunctCapSegModel(NLPModel):
             pos_weight=torch.tensor(cfg.loss.cap["weight"]) if "weight" in cfg.loss.cap else None
         )
         # Weights can be specified in punct{-pre,-post}, cap, seg order.
-        self._agg_loss = AggregatorLoss(num_inputs=4, weights=cfg.get("agg_loss_weights"))
+        self._agg_loss = AggregatorLoss(num_inputs=4, weights=cfg.loss.get("agg_loss_weights"))
 
         # Punctuation head takes as input encodings and predicts distributions over punct tokens
         self._punct_head_pre: TokenClassifier = TokenClassifier(
@@ -121,14 +136,6 @@ class PunctCapSegModel(NLPModel):
         # module list of module dict
         self._test_metrics: Optional[nn.ModuleList[nn.ModuleDict]] = None
 
-    @property
-    def max_length(self):
-        # Prefer to use the max length used in training; fall back on the LM's max length.
-        if "train_ds" in self._cfg and "max_length" in self._cfg.train_ds:
-            return self._cfg.train_ds.max_length
-        else:
-            return self.bert_model.config.max_position_embeddings
-
     def setup_multiple_validation_data(self, val_data_config: Union[DictConfig, Dict]):
         self.setup_validation_data(val_data_config)
 
@@ -145,7 +152,7 @@ class PunctCapSegModel(NLPModel):
     def setup_training_data(self, train_data_config: Union[DictConfig, Dict]):
         self._train_dl = self._setup_train_dataloader_from_config(cfg=train_data_config)
 
-    def _setup_test_metrics(self, num_thresholds: int = 10) -> nn.ModuleList:
+    def _setup_test_metrics(self, num_thresholds: int = 100) -> nn.ModuleList:
         metrics: nn.ModuleList = nn.ModuleList()
         for _ in range(num_thresholds):
             metrics.append(self._setup_metrics(num_dl=1)[0])
@@ -251,6 +258,17 @@ class PunctCapSegModel(NLPModel):
         )
         return dataloader
 
+    def on_train_batch_start(self, batch, batch_idx: int, unused: int = 0) -> Optional[int]:
+        if self._freeze_encoder_n_batches is not None:
+            if batch_idx == 0:
+                logging.info(f"Freezing encoder for {self._freeze_encoder_n_batches} batches")
+                self.bert_model.freeze()
+            if batch_idx == self._freeze_encoder_n_batches:
+                logging.info(f"Unfreeze encoder at batch {batch_idx}")
+                self.bert_model.unfreeze()
+                # Short circuit future checks
+                self._freeze_encoder_n_batches = None
+
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return {"input_ids": NeuralType(("B", "T"), TokenIndex()), "lengths": NeuralType(("B",), LengthsType())}
@@ -282,10 +300,10 @@ class PunctCapSegModel(NLPModel):
             cap_seg_mask = cap_seg_inputs.ne(self.tokenizer.pad_id)
             # Encoded output is [B, T, D]
             punct_encoded = self.bert_model(
-                input_ids=punct_inputs, attention_mask=punct_mask, token_type_ids=torch.zeros_like(punct_inputs)
+                input_ids=punct_inputs, attention_mask=punct_mask, token_type_ids=None
             )
             cap_seg_encoded = self.bert_model(
-                input_ids=cap_seg_inputs, attention_mask=cap_seg_mask, token_type_ids=torch.zeros_like(cap_seg_inputs)
+                input_ids=cap_seg_inputs, attention_mask=cap_seg_mask, token_type_ids=None
             )
             # Megatron will return tuples; the first element is the decoder output.
             if isinstance(punct_encoded, tuple):
@@ -302,7 +320,7 @@ class PunctCapSegModel(NLPModel):
             inputs, punct_pre_targets, punct_post_targets, cap_targets, seg_targets, _ = batch
             mask = inputs.ne(self.tokenizer.pad_id)
             # Encoded output is [B, T, D]
-            encoded = self.bert_model(input_ids=inputs, attention_mask=mask, token_type_ids=torch.zeros_like(inputs))
+            encoded = self.bert_model(input_ids=inputs, attention_mask=mask, token_type_ids=None)
             if isinstance(encoded, tuple):
                 encoded = encoded[0]
             # [B, T, D * max_token_len]
@@ -397,10 +415,9 @@ class PunctCapSegModel(NLPModel):
         punct_post_probs = punct_post_logits.softmax(dim=-1)
         seg_probs = seg_logits.softmax(dim=-1)[..., 1]
         cap_probs = cap_logits[cap_mask].sigmoid()  # Setup as a BCE multi-label problem
-        num_targets = punct_pre_mask.sum() + punct_post_mask.sum() + cap_mask.sum() + seg_mask.sum()
         # Ignore the punctuation null index, for thresholding purposes
-        punct_pre_probs[..., self._null_punct_pre_index] = -1
-        punct_post_probs[..., self._null_punct_post_index] = -1
+        punct_pre_probs[..., self._null_punct_pre_index] = 1e-3
+        punct_post_probs[..., self._null_punct_post_index] = 1e-3
 
         num_thresholds = len(self._test_metrics)
         # bounds are [0.0, 1.0] inclusive, and N-2 thresholds between bounds. For one, use default 0.5
@@ -467,6 +484,8 @@ class PunctCapSegModel(NLPModel):
             thresholds = [0.5]
         # Compute, reset, and log the precision/recall/f1 for punct/cap/seg for this threshold
         for analytic in ["punct_pre", "punct_post", "cap", "seg"]:
+            # TODO messy and ad-hoc
+            # TODO if using only one threshold, print full classification report.
             print(f"Table for {analytic}")
             print(f"threshold\tprecision\trecall\tf1")
             for i, metrics in enumerate(self._test_metrics):
@@ -504,8 +523,9 @@ class PunctCapSegModel(NLPModel):
             tokenizer=self.tokenizer,
             input_file=config.get("input_file"),
             input_texts=config.get("texts"),
-            max_length=config.get("max_length", self.max_length),
-            fold_overlap=config.get("fold_overlap", 16),
+            max_length=config.get("max_length", self._max_length),
+            fold_overlap=config.get("fold_overlap", 8),
+            pretokenize=config.get("pretokenize", self._pretokenize)
         )
         dataloader = torch.utils.data.DataLoader(
             dataset=dataset,
@@ -570,7 +590,12 @@ class PunctCapSegModel(NLPModel):
                 oov_index += 1
                 preds.extend([0] * token_len)
                 continue
-            start = 2 if token.startswith("##") else 0
+            start = 0
+            if self._using_sp:
+                if token.startswith("▁"):
+                    start = 1
+            elif token.startswith("##"):
+                start = 2
             for char_num in range(start, len(token)):
                 score = probs[token_num][char_num]
                 preds.append(0 if score < threshold else 1)
@@ -587,13 +612,16 @@ class PunctCapSegModel(NLPModel):
         current_char = 0
         for token_num, token in enumerate(tokens):
             # Find out how many input chars this subtoken consumes
+            token_len = len(token)
             if token == self.tokenizer.unk_token:
                 token_len = oov_lens[oov_index]
                 oov_index += 1
-            elif token.startswith("##"):
-                token_len = len(token) - 2
+            elif self._using_sp:
+                if token.startswith("▁"):
+                    token_len = len(token) - 1
             else:
-                token_len = len(token)
+                if token.startswith("##"):
+                    token_len = len(token) - 2
             # Advance to the end of this char
             current_char += token_len
             # Note if this char should be a full stop. Only consider positions where we predicted a full stop.
@@ -622,7 +650,12 @@ class PunctCapSegModel(NLPModel):
                 oov_index += 1
                 char_preds.extend([self._cfg.null_punct_token] * token_len)
                 continue
-            start = 2 if token.startswith("##") else 0
+            start = 0
+            if self._using_sp:
+                if token.startswith("▁"):
+                    start = 1
+            elif token.startswith("##"):
+                start = 2
             for char_num in range(start, len(token)):
                 score = probs[token_num][char_num]
                 if score >= threshold:
@@ -635,7 +668,12 @@ class PunctCapSegModel(NLPModel):
 
     # TODO just copied from data set
     def _find_oov_lengths(self, input_text: str) -> List[int]:
-        if isinstance(self.tokenizer, AutoTokenizer) and self.tokenizer.tokenizer.do_basic_tokenize:
+        if (
+                isinstance(self.tokenizer, AutoTokenizer) and
+                hasattr(self.tokenizer.tokenizer, "do_basic_tokenize") and
+                self.tokenizer.tokenizer.do_basic_tokenize
+        ):
+            # Special case where tokenize will insert whitespace, and alter word indices
             input_text = " ".join(self.tokenizer.tokenizer.basic_tokenizer.tokenize(input_text))
         tokens = self.tokenizer.text_to_tokens(input_text)
         oov_lengths = []
@@ -644,8 +682,13 @@ class PunctCapSegModel(NLPModel):
         for token in tokens:
             if token == self.tokenizer.unk_token:
                 oov_lengths.append(len(words[word_num]))
-            if not token.startswith("##"):
                 word_num += 1
+            elif self._using_sp:
+                if token.startswith("▁"):
+                    word_num += 1
+            else:
+                if not token.startswith("##"):
+                    word_num += 1
         return oov_lengths
 
     @torch.inference_mode()
@@ -655,29 +698,38 @@ class PunctCapSegModel(NLPModel):
         cap_threshold: float = 0.5,
         seg_threshold: float = 0.5,
         punct_threshold: float = 0.5,
-        fold_overlap: int = 16,
+        fold_overlap: int = 20,
         batch_size: int = 32,
         max_length: Optional[int] = None,
+        pretokenize: Optional[bool] = None,
         do_punctuation: bool = True,
         do_truecasing: bool = True,
-        do_segmentation: bool = True
+        do_segmentation: bool = True,
     ) -> List[List[str]]:
         in_mode = self.training
         self.eval()
+        # Default to this model's values
         if max_length is None:
-            max_length = self.max_length
+            max_length = self._max_length
+        if pretokenize is None:
+            pretokenize = self._pretokenize
         dataloader = self.predict_dataloader(
-            {"texts": texts, "max_length": max_length, "fold_overlap": fold_overlap, "batch_size": batch_size}
+            {
+                "texts": texts,
+                "max_length": max_length,
+                "fold_overlap": fold_overlap,
+                "batch_size": batch_size,
+                "pretokenize": pretokenize
+            }
         )
         out_texts: List[List[str]] = []
         for batch in dataloader:
             folded_input_ids, folded_batch_indices, lengths, input_strings = batch
-            # print(self.tokenizer.ids_to_tokens(folded_input_ids[0].tolist()))
             # [B, T, D]
             encoded: torch.Tensor = self.bert_model(
                 input_ids=folded_input_ids,
                 attention_mask=folded_input_ids.ne(self.tokenizer.pad_id),
-                token_type_ids=torch.zeros_like(folded_input_ids),
+                token_type_ids=None
             )
 
             if do_truecasing:
@@ -703,10 +755,13 @@ class PunctCapSegModel(NLPModel):
                 # Unfold token preds to char preds [B, T, D * max_token_len] -> [B, T, max_token_len, D]
                 pre_logits = pre_logits.view([*pre_logits.shape[:-1], -1, len(self._punct_pre_labels)])
                 post_logits = post_logits.view([*post_logits.shape[:-1], -1, len(self._punct_post_labels)])
-                # Select the highest-scoring value
-                # [B, T, max_token_len, D] -> [B, T, max_token_len]
-                all_pre_scores, all_pre_preds = pre_logits.softmax(dim=-1).max(dim=-1)
-                all_post_scores, all_post_preds = post_logits.softmax(dim=-1).max(dim=-1)
+                # Select the highest-scoring value. Set null index to very small value (in case it was 1.0)
+                pre_probs = pre_logits.softmax(dim=-1)
+                pre_probs[..., self._null_punct_pre_index] = 1e-3
+                all_pre_scores, all_pre_preds = pre_probs.max(dim=-1)
+                post_probs = post_logits.softmax(dim=-1)
+                post_probs[..., self._null_punct_post_index] = 1e-3
+                all_post_scores, all_post_preds = post_probs.max(dim=-1)
                 all_pre_scores = self._unfold_tensors(
                     folded_tensor=all_pre_scores, lengths=lengths, overlap=fold_overlap, batch_ids=folded_batch_indices
                 )
@@ -775,6 +830,7 @@ class PunctCapSegModel(NLPModel):
                         else:
                             output_chars.append(input_char.lower())
                     else:
+                        # No true-casing; pass through input char
                         output_chars.append(input_char)
                     if do_punctuation:
                         # Maybe add punctuation after this char

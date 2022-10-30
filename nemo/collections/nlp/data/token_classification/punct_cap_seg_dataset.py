@@ -30,6 +30,7 @@ class InferencePunctCapSegDataset(Dataset):
         input_file: Optional[str] = None,
         max_length: int = 512,
         fold_overlap: int = 16,
+        pretokenize: bool = False
     ):
         super().__init__()
         if not ((input_texts is None) ^ (input_file is None)):
@@ -37,6 +38,7 @@ class InferencePunctCapSegDataset(Dataset):
         self._tokenizer = tokenizer
         self._max_length = max_length
         self._fold_overlap = fold_overlap
+        self._pretokenize = pretokenize
 
         self._data: List[str]
         if input_texts is not None:
@@ -63,6 +65,8 @@ class InferencePunctCapSegDataset(Dataset):
     def __getitem__(self, idx):
         input_text = self._data[idx]
         input_ids = self._tokenizer.text_to_ids(input_text)
+        if self._pretokenize:
+            input_text = self._tokenizer.ids_to_text(input_ids)
         return input_ids, input_text
 
     def _fold_batch(self, input_ids: List[List[int]]) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -137,6 +141,7 @@ class PunctCapSegDataset(Dataset):
         target_pad_value: int = -100,
         rng_seed: Optional[int] = None,
         multipass: bool = True,
+        pretokenize: bool = False
     ) -> None:
         super().__init__()
         self._language = language
@@ -146,6 +151,7 @@ class PunctCapSegDataset(Dataset):
         self._rng_seed = rng_seed
         self._max_token_len = 0
         self._multipass = multipass
+        self._pretokenize = pretokenize
         # Call setter
         self.tokenizer = tokenizer
 
@@ -157,7 +163,14 @@ class PunctCapSegDataset(Dataset):
     def tokenizer(self, tokenizer: TokenizerSpec):
         self._tokenizer = tokenizer
         if tokenizer is not None:
-            self._max_token_len = max(len(x) for x in self.tokenizer.vocab)
+            self._using_sp = hasattr(self.tokenizer.tokenizer, "sp_model")
+            if not self._using_sp:
+                # Should skip special tokens, but in most cases they are shorter than longest tokens anyway
+                self._max_token_len = max(len(x) for x in self.tokenizer.vocab)
+            else:
+                # SentencePiece model - AutoTokenizer doesn't have 'vocab' attr for some SP models
+                vocab_size = tokenizer.vocab_size
+                self._max_token_len = max(len(self.tokenizer.ids_to_tokens([idx])[0]) for idx in range(vocab_size))
 
     @property
     def language(self) -> str:
@@ -208,7 +221,12 @@ class PunctCapSegDataset(Dataset):
                 oov_index += 1
                 all_targets.append(token_targets)
                 continue
-            start = 2 if token.startswith("##") else 0
+            start = 0
+            if self._using_sp:
+                if token.startswith("▁"):
+                    start = 1
+            elif token.startswith("##"):
+                start = 2
             for i in range(start, len(token)):
                 char_target = target_indices[char_index]
                 token_targets[i] = char_target
@@ -422,7 +440,7 @@ class BasicPuncTargetsGenerator(PuncTargetsGenerator):
                 out_chars.append(" ")
                 continue
             # Either create a target, or append to the input
-            if post_targets and input_char in self._post_labels and self._rng.random() < self._p_drop:
+            if post_targets and input_char in self._post_labels and self._rng.random() <= self._p_drop:
                 post_targets[-1] = self._post_label_to_index[input_char]
             else:
                 out_chars.append(input_char)
@@ -451,9 +469,9 @@ class SpanishPuncTargetsGenerator(PuncTargetsGenerator):
                 out_chars.append(" ")
                 continue
             # Either create a target, or append to the input
-            if input_char in self._post_labels and self._rng.random() < self._p_drop:
+            if input_char in self._post_labels and self._rng.random() <= self._p_drop:
                 post_targets[-1] = self._post_label_to_index[input_char]
-            elif input_char in self._pre_labels and self._rng.random() < self._p_drop:
+            elif input_char in self._pre_labels and self._rng.random() <= self._p_drop:
                 pre_targets.append(self._pre_label_to_index[input_char])
             else:
                 non_whitespace_idx += 1
@@ -497,7 +515,7 @@ class CapTargetsGenerator:
 
         """
         # Normalize spaces to allow assumptions
-        input_text = re.sub(r"\s+", " ", input_text)
+        input_text = re.sub(r"\s+", " ", input_text).strip()
         out_chars: List[str] = []
         targets: List[int] = []
         for input_char in input_text:
@@ -579,6 +597,7 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
         full_stops: List[str],
         is_continuous: Optional[bool] = None,
         tokenizer: Optional[TokenizerSpec] = None,
+        pretokenize: bool = False,
         multipass: bool = True,
         null_label: str = "<NULL>",
         max_length: int = 512,
@@ -598,6 +617,7 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
             target_pad_value=target_pad_value,
             is_continuous=is_continuous,
             multipass=multipass,
+            pretokenize=pretokenize
         )
         self._text_files = text_files
         self._null_label = null_label
@@ -657,7 +677,11 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
 
     def _find_oov_lengths(self, input_text: str) -> List[int]:
         # Need to do mimic tokenizer's behavior
-        if isinstance(self.tokenizer, AutoTokenizer) and self.tokenizer.tokenizer.do_basic_tokenize:
+        if (
+                isinstance(self.tokenizer, AutoTokenizer) and
+                hasattr(self.tokenizer.tokenizer, "do_basic_tokenize") and
+                self.tokenizer.tokenizer.do_basic_tokenize
+        ):
             input_text = " ".join(self.tokenizer.tokenizer.basic_tokenizer.tokenize(input_text))
         tokens = self.tokenizer.text_to_tokens(input_text)
         oov_lengths = []
@@ -666,7 +690,13 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
         for token in tokens:
             if token == self.tokenizer.unk_token:
                 oov_lengths.append(len(words[word_num]))
-            if not token.startswith("##"):
+                word_num += 1
+                continue
+            # Not OOV; check if we need to advance word number
+            if self._using_sp:
+                if token.startswith("▁"):
+                    word_num += 1
+            elif not token.startswith("##"):
                 word_num += 1
         return oov_lengths
 
@@ -687,6 +717,13 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
         # Randomly select additional indices to use
         indices_to_use = [idx] + list(self._rng.integers(0, len(self), num_lines_to_concat))
         punctuated_texts: List[str] = [self._data[x] for x in indices_to_use]
+        if self._pretokenize:
+            # SP normalization can cause errors, so cycle the text through encode/decode first.
+            for i in range(len(punctuated_texts)):
+                text = punctuated_texts[i]
+                ids = self.tokenizer.text_to_ids(text)
+                text = self.tokenizer.ids_to_text(ids)
+                punctuated_texts[i] = text
 
         unpunctuated_texts = []
         punct_pre_target_indices = []
@@ -724,7 +761,14 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
                 chars_in_token = cap_seg_oov_lengths[oov_index]
                 oov_index += 1
             else:
-                chars_in_token = len(token) - (2 if token.startswith("##") else 0)
+                skip = 0
+                if self._using_sp:
+                    if token.startswith("▁"):
+                        skip = 1
+                else:
+                    if token.startswith("##"):
+                        skip = 2
+                chars_in_token = len(token) - skip
             char_position += chars_in_token
             # If this token contains the next boundary char, it's a target.
             if boundary_char_indices and char_position >= boundary_char_indices[0]:
@@ -736,8 +780,15 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
                 # Tokens:       ['Hello',  'Mr',    'Smith']
                 # Punc targets: [  ',',     '.',      '.']
                 # Seg targets:  [ignore,  no_stop,  full_stop]
-                char_target_token = self._punct_post_labels[punct_post_target_indices[char_position - 1]]
-                if token[-1] in self._full_stops or char_target_token in self._full_stops:
+                # Resolve whether this subtoken ends with a full stop. In one-pass mode, the punctuation char will have
+                # been removed; in two-pass mode, the token will still have the punctuation char at the end.
+                if not self._multipass:
+                    char_target_token = self._punct_post_labels[punct_post_target_indices[char_position - 1]]
+                    is_full_stop = token[-1] in self._full_stops or char_target_token in self._full_stops
+                else:
+                    is_full_stop = token[-1] in self._full_stops
+                # if token[-1] in self._full_stops or char_target_token in self._full_stops:
+                if is_full_stop:
                     seg_targets.append(0)
                 else:
                     seg_targets.append(self._target_pad_value)
