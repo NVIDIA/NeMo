@@ -1,4 +1,3 @@
-
 from collections import defaultdict
 from typing import DefaultDict, Dict, List, Optional, Tuple, Union
 
@@ -769,7 +768,10 @@ class PunctCapSegModel(NLPModel):
                     folded_tensor=all_pre_preds, lengths=lengths, overlap=fold_overlap, batch_ids=folded_batch_indices
                 )
                 all_post_scores = self._unfold_tensors(
-                    folded_tensor=all_post_scores, lengths=lengths, overlap=fold_overlap, batch_ids=folded_batch_indices
+                    folded_tensor=all_post_scores,
+                    lengths=lengths,
+                    overlap=fold_overlap,
+                    batch_ids=folded_batch_indices,
                 )
                 all_post_preds = self._unfold_tensors(
                     folded_tensor=all_post_preds, lengths=lengths, overlap=fold_overlap, batch_ids=folded_batch_indices
@@ -806,8 +808,11 @@ class PunctCapSegModel(NLPModel):
                 if do_segmentation:
                     full_stop_indices = [i for i, token in enumerate(post_tokens) if token in self._full_stops]
                     break_points = self._get_char_seg_preds(
-                        tokens=tokens, probs=all_seg_scores[batch_idx], oov_lens=oov_lens, threshold=seg_threshold,
-                        full_stop_preds=full_stop_indices
+                        tokens=tokens,
+                        probs=all_seg_scores[batch_idx],
+                        oov_lens=oov_lens,
+                        threshold=seg_threshold,
+                        full_stop_preds=full_stop_indices,
                     )
 
                 segmented_texts: List[str] = []
