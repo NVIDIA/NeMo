@@ -542,14 +542,6 @@ class MegatronBertModel(MegatronBaseModel):
 
         resume_checkpoint_path = self.trainer._checkpoint_connector.resume_from_checkpoint_fit_path
 
-        if resume_checkpoint_path:
-            init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
-        else:
-            init_consumed_samples = 0
-
-        self.init_consumed_samples = init_consumed_samples
-        self.init_global_step = self.trainer.global_step
-
         if stage == 'predict':
             return
         # TODO: consider adding a ModelPT guard to check if model is being restored.
