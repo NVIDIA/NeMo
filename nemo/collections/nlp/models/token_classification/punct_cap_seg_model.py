@@ -298,9 +298,7 @@ class PunctCapSegModel(NLPModel):
             punct_mask = punct_inputs.ne(self.tokenizer.pad_id)
             cap_seg_mask = cap_seg_inputs.ne(self.tokenizer.pad_id)
             # Encoded output is [B, T, D]
-            punct_encoded = self.bert_model(
-                input_ids=punct_inputs, attention_mask=punct_mask, token_type_ids=None
-            )
+            punct_encoded = self.bert_model(input_ids=punct_inputs, attention_mask=punct_mask, token_type_ids=None)
             cap_seg_encoded = self.bert_model(
                 input_ids=cap_seg_inputs, attention_mask=cap_seg_mask, token_type_ids=None
             )
@@ -524,7 +522,7 @@ class PunctCapSegModel(NLPModel):
             input_texts=config.get("texts"),
             max_length=config.get("max_length", self._max_length),
             fold_overlap=config.get("fold_overlap", 8),
-            pretokenize=config.get("pretokenize", self._pretokenize)
+            pretokenize=config.get("pretokenize", self._pretokenize),
         )
         dataloader = torch.utils.data.DataLoader(
             dataset=dataset,
@@ -668,9 +666,9 @@ class PunctCapSegModel(NLPModel):
     # TODO just copied from data set
     def _find_oov_lengths(self, input_text: str) -> List[int]:
         if (
-                isinstance(self.tokenizer, AutoTokenizer) and
-                hasattr(self.tokenizer.tokenizer, "do_basic_tokenize") and
-                self.tokenizer.tokenizer.do_basic_tokenize
+            isinstance(self.tokenizer, AutoTokenizer)
+            and hasattr(self.tokenizer.tokenizer, "do_basic_tokenize")
+            and self.tokenizer.tokenizer.do_basic_tokenize
         ):
             # Special case where tokenize will insert whitespace, and alter word indices
             input_text = " ".join(self.tokenizer.tokenizer.basic_tokenizer.tokenize(input_text))
@@ -718,7 +716,7 @@ class PunctCapSegModel(NLPModel):
                 "max_length": max_length,
                 "fold_overlap": fold_overlap,
                 "batch_size": batch_size,
-                "pretokenize": pretokenize
+                "pretokenize": pretokenize,
             }
         )
         out_texts: List[List[str]] = []
@@ -728,7 +726,7 @@ class PunctCapSegModel(NLPModel):
             encoded: torch.Tensor = self.bert_model(
                 input_ids=folded_input_ids,
                 attention_mask=folded_input_ids.ne(self.tokenizer.pad_id),
-                token_type_ids=None
+                token_type_ids=None,
             )
 
             if do_truecasing:

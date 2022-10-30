@@ -31,7 +31,7 @@ from transformers import (
     DistilBertConfig,
     GPT2Config,
     RobertaConfig,
-    XLMRobertaConfig
+    XLMRobertaConfig,
 )
 
 from nemo.collections.nlp.modules.common.huggingface.albert import AlbertEncoder

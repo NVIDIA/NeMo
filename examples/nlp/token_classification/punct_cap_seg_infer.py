@@ -13,9 +13,12 @@ def get_args() -> argparse.Namespace:
     input_opts.add_argument("--text-file")
     input_opts.add_argument("--sentence")
     parser.add_argument(
-        "--num-passes", default=None, type=int, choices=[None, 1, 2, 3],
+        "--num-passes",
+        default=None,
+        type=int,
+        choices=[None, 1, 2, 3],
         help="Number of passes through the encoder. Will default to '1' for models trained in single-pass mode and '2' "
-             "for model trained in multi-pass mode."
+        "for model trained in multi-pass mode.",
     )
     parser.add_argument("--punctuation-threshold", type=float, default=0.5)
     parser.add_argument("--segmentation-threshold", type=float, default=0.5)
@@ -53,7 +56,7 @@ def main() -> None:
         punct_threshold=args.punctuation_threshold,
         seg_threshold=args.segmentation_threshold,
         cap_threshold=args.truecase_threshold,
-        max_length=args.max_length
+        max_length=args.max_length,
     )
     for i, text in enumerate(texts):
         print(f"Input {i}: {text}")

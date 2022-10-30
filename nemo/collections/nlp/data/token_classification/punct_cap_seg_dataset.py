@@ -30,7 +30,7 @@ class InferencePunctCapSegDataset(Dataset):
         input_file: Optional[str] = None,
         max_length: int = 512,
         fold_overlap: int = 16,
-        pretokenize: bool = False
+        pretokenize: bool = False,
     ):
         super().__init__()
         if not ((input_texts is None) ^ (input_file is None)):
@@ -141,7 +141,7 @@ class PunctCapSegDataset(Dataset):
         target_pad_value: int = -100,
         rng_seed: Optional[int] = None,
         multipass: bool = True,
-        pretokenize: bool = False
+        pretokenize: bool = False,
     ) -> None:
         super().__init__()
         self._language = language
@@ -617,7 +617,7 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
             target_pad_value=target_pad_value,
             is_continuous=is_continuous,
             multipass=multipass,
-            pretokenize=pretokenize
+            pretokenize=pretokenize,
         )
         self._text_files = text_files
         self._null_label = null_label
@@ -678,9 +678,9 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
     def _find_oov_lengths(self, input_text: str) -> List[int]:
         # Need to do mimic tokenizer's behavior
         if (
-                isinstance(self.tokenizer, AutoTokenizer) and
-                hasattr(self.tokenizer.tokenizer, "do_basic_tokenize") and
-                self.tokenizer.tokenizer.do_basic_tokenize
+            isinstance(self.tokenizer, AutoTokenizer)
+            and hasattr(self.tokenizer.tokenizer, "do_basic_tokenize")
+            and self.tokenizer.tokenizer.do_basic_tokenize
         ):
             input_text = " ".join(self.tokenizer.tokenizer.basic_tokenizer.tokenize(input_text))
         tokens = self.tokenizer.text_to_tokens(input_text)
