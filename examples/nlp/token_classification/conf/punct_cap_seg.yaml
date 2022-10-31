@@ -1,5 +1,5 @@
 
-name: "two_pass"
+name: "punct_cap_seg"
 init_from_nemo_model: null
 
 model:
@@ -7,7 +7,9 @@ model:
   supported_languages: [
       "en", "es", "zh"
   ]
-  multipass: true  # train with two passes
+  multipass: false  # train with two passes (true) or one (false)
+  pretokenize: true  # For SPE, probably true. This will pass the inputs through a cycle of tokenization/detokenization
+  freeze_encoder_n_batches: null  # To freeze the encoder for the first N batches, set to a positive number.
 
   tokenizer:
     special_tokens: null
@@ -17,7 +19,7 @@ model:
 
   language_model:
     config_file: null
-    pretrained_model_name: bert-base-multilingual-cased
+    pretrained_model_name: xlm-roberta-base
     nemo_file: null
     lm_checkpoint: null
     vocab_file: null
@@ -34,39 +36,32 @@ model:
       "？", "，", "。", # Chinese, no enum comma
       "、", "・",  # Japanese comma, middle dot
       "।", # Hindi
-      "؟",  # Arabic
-      "՞", # Armenian
-      ";",  # Greek question mark
-      "።",  # Amharic full stop
+      "؟", "،", # Arabic
   ]
+  # Punctuation tokens that might be full stops. Used for masking sentence boundary predictions.
+  full_stops: [".", "?", "？", "。", "।", "؟"]
   loss:
+    # Loss weights for [pre_punct, post_punct, cap, seg]
+    agg_loss_weights: [0.25, 0.25, 0.25, 0.25]
     # Loss weights for punct_post_labels
     punct_post:
-      # This would be more convenient with a dict. Values are aligned to punctuation.
-      weight: [
-          0.5,
-          3, 3, 4,
-          4, 3, 4,
-          3, 5,
-          3,
-          4,
-          1, 1, 1 # 3 placeholder punctuation tokens
-      ]
+      # Weight for each positive example. Computed via `counts.pow(1/T).mean() / counts.pow(1/T)`. T is 5 here.
+      weight: [0.34, 0.74, 0.8, 1.03, 1.28, 1.64, 1.36, 1.81, 2.3, 1.37, 1.49, 1.2]
     # Loss weights for punct_pre_labels
     punct_pre:
-      weight: [0.5, 4.0]
+      weight: [0.56, 2.0]
     # Loss weights for [lower_case, upper_case]
     cap:
-      weight: [0.5, 5.0]
+      weight: 1.0  # BCE - only positive class weight
     # Loss weights for [no_stop, full_stop]
     seg:
-      weight: [0.5, 4.0]
+      weight: [1.0, 1.0]
   # Target padding value. No need to change.
   pad_value: -100
 
   train_ds:
-    batch_size: 32
-    num_workers: 6
+    batch_size: 64
+    num_workers: 4
     # A list of datasets will be used to create a ConcatMapDataset.
     sampling_technique: "temperature"
     sampling_temperature: 5
@@ -78,11 +73,17 @@ model:
       max_lines_per_eg: 6
       max_length: 128
       truncate_max_tokens: 0
+      prob_drop_punct: 1.0
+      prob_lower_case: 1.0
+      multipass: ${model.multipass}
+      full_stops: ${model.full_stops}
+      pretokenize: ${model.pretokenize}
     # Typically, set up one data set per language.
     datasets:
-      # targets can be any implementation of a PunctCapSegDataset; only TextPunctCapSegDataset is fully implemented.
+      # targets can be any implementation of a PunctCapSegDataset
       - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
-        # One or more unprocessed, plain-text files containing one sentence per line
+        # One or more text files containing one sentence per line. Should be pre-processed by `prep_pcs_data.py` to
+        # avoid errors such as consecutive punctuation marks, as well as remove bad lines.
         text_files:
           - ???
         # Will be used to select the punctuation targets generator, which is language-specific.
@@ -99,8 +100,8 @@ model:
         is_continuous: true
 
   validation_ds:
-    batch_size: 40
-    num_workers: 6
+    batch_size: 128
+    num_workers: 4
     # "common" options are analogous to train_ds
     common:
       punct_pre_labels: ${model.punct_pre_labels}
@@ -110,6 +111,11 @@ model:
       max_length: 128
       truncate_max_tokens: 0
       rng_seed: 12345
+      prob_drop_punct: 1.0
+      prob_lower_case: 1.0
+      multipass: ${model.multipass}
+      full_stops: ${model.full_stops}
+      pretokenize: ${model.pretokenize}
     datasets:
       # Probably one for each training language, with similar parameters
       - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
@@ -153,13 +159,14 @@ model:
   optim:
     name: adam
     lr: 2e-5
+    betas: [0.9, 0.999]
     weight_decay: 0
     sched:
       name: WarmupAnnealing
       min_lr: 1e-6
       last_epoch: -1
       warmup_ratio: null
-      warmup_steps: 6000
+      warmup_steps: 8000
 
 trainer:
   devices: -1
@@ -183,7 +190,6 @@ exp_manager:
   create_tensorboard_logger: true
   create_checkpoint_callback: true
   # Available metrics are val_{language}_{punct_pre,punct_post,cap,seg}_{f1,precision,recall}
-  # TODO use average metrics all languages
   checkpoint_callback_params:
     monitor: "val_en_punct_post_f1"
     mode: "max"

@@ -1,0 +1,57 @@
+
+output_dir: ???
+punct_pre_labels: ["¿",]
+punct_post_labels: [
+    ".", ",", "?",
+    "？", "，", "。", # Chinese, no enum comma
+    "、", "・",  # Japanese comma, middle dot
+    "।", # Hindi
+    "؟", "،"  # Arabic
+]
+max_lines_per_input_file: 1000000
+dev_set_num_lines: 1000
+test_set_num_lines: 1000
+min_chars_per_line: 2  # Need at least 2 to have char + punctuation
+max_chars_per_line: 32
+min_words_per_line: 1
+max_words_per_line: 20
+datasets:
+  # Each dataset specifies the text, language, and cleaners to use.
+  - text_files:
+      - "/path/to/news.2021.en.shuffled.deduped"
+    # Will be used to select the punctuation targets generator, which is language-specific.
+    language: "en"
+    # List of zero or more implementations of nlp.data.token_classification.punct_cap_seg_dataset.TextCleaner. Will be
+    # applied in the order they are specified in this list.
+    text_cleaners:
+      - _target_: __main__.CharFilter
+        post_punct_labels: ${punct_post_labels}
+        pre_punct_labels:  ${punct_pre_labels}
+        # Some languages will need language-specific cleaners, e.g., Spanish, Hindi, Chinese. Other can use this one for
+        # basic cleaning.
+      - _target_: __main__.StandardPunctNormalizer
+        punct_tokens: ${punct_post_labels}
+  - text_files:
+      - "/path/to/news.2021.es.shuffled.deduped"
+    language: "es"
+    text_cleaners:
+      - _target_: __main__.CharFilter
+        post_punct_labels: ${punct_post_labels}
+        pre_punct_labels:  ${punct_pre_labels}
+      - _target_: __main__.SpanishPunctNormalizer
+        pre_punct_tokens: ${punct_pre_labels}
+        post_punct_tokens: ${punct_post_labels}
+  - text_files:
+      - "/path/to/news.2021.zh.shuffled.deduped"
+    language: "zh"
+    continuous_script: true
+    text_cleaners:
+      - _target_: __main__.CharFilter
+        post_punct_labels: ${punct_post_labels}
+        pre_punct_labels:  ${punct_pre_labels}
+      - _target_: __main__.ChineseTextCleaner
+        remove_spaces: true
+        replace_latin: true
+        no_enum_comma: true
+      - _target_: __main__.StandardPunctNormalizer
+        punct_tokens: ${punct_post_labels}
