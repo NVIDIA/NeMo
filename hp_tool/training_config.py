@@ -110,8 +110,9 @@ def generate_grid_search_configs(
                     valid_tp_pp_list.append((tp, pp))
 
     # Generate grid search configs.
+    results_cfgs = [[] for _ in range(multiplier * num_layers + 1)]
     for tp, pp in valid_tp_pp_list:
-        act_ckpt_layers, num_micro_batches_partial_act_ckpt, act_ckpt_layers_per_pipeline, results_cfgs = _set_activations_checkpoint_params(tp, pp, num_layers, act_method, multiplier, model_size_in_b, model_name)
+        act_ckpt_layers, num_micro_batches_partial_act_ckpt, act_ckpt_layers_per_pipeline = _set_activations_checkpoint_params(tp, pp, num_layers, act_method, multiplier, model_size_in_b, model_name)
         for mbs in mbs_list:
                 if act_layers is not None and act_layers != "auto":
                     act_ckpt_layers = act_layers
@@ -138,13 +139,13 @@ def generate_grid_search_configs(
                                     yaml.dump(new_cfg, f)
 
     print("\nAll candidate configurations created correctly.\n")
+    print(results_cfgs)
     return base_dir, results_cfgs, num_nodes
 
 
 def _set_activations_checkpoint_params(tp, pp, num_layers, act_method, multiplier, model_size_in_b, model_name):
     act_multiple = 2
     if act_method == "block":
-        results_cfgs = [[] for _ in range(multiplier * num_layers + 1)]
         if 1.0 <= model_size_in_b < 26.0:
             act_multiple = 4
         elif 26.0 <= model_size_in_b:
@@ -181,7 +182,7 @@ def _set_activations_checkpoint_params(tp, pp, num_layers, act_method, multiplie
             # Act ckpt layers per pipeline
             act_ckpt_layers_per_pipeline = range(min_layers_per_pipe, max_layers_per_pipe + 1, interval_layers_per_pipe)
 
-    return act_ckpt_layers, num_micro_batches_partial_act_ckpt, act_ckpt_layers_per_pipeline, results_cfgs
+    return act_ckpt_layers, num_micro_batches_partial_act_ckpt, act_ckpt_layers_per_pipeline
 
 
 def _tp_pp_mbs_grid_gpt3_80gb(model_size_in_b: float, valid_pp: List[int]) -> Tuple[int, int, int]:
