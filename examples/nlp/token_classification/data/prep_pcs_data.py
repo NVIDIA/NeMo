@@ -1,4 +1,3 @@
-
 """
 This file's `__main__` method runs preprocessing on text files in an attempt to ensure valid inputs for punctuation,
 true-casing, and sentence boundary detections.
@@ -14,17 +13,17 @@ text with Chinese commas.
 
 """
 
+import abc
 import os
 import re
-import abc
 import sys
 import unicodedata
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-from tqdm import tqdm
 import hydra.utils
 from omegaconf import MISSING, OmegaConf
+from tqdm import tqdm
 
 from nemo.utils import logging
 
@@ -74,13 +73,13 @@ class CharFilter(TextCleaner):
     """
 
     def __init__(
-            self,
-            post_punct_labels: List[str],
-            pre_punct_labels: List[str],
-            extra_chars_to_keep: Optional[List[str]] = None,
-            no_punct_in_numbers: bool = True,
-            retain_semicolon: bool = False,  # for Greek set to true; for other language has less utility
-            replace_hyphens_with_space: bool = True
+        self,
+        post_punct_labels: List[str],
+        pre_punct_labels: List[str],
+        extra_chars_to_keep: Optional[List[str]] = None,
+        no_punct_in_numbers: bool = True,
+        retain_semicolon: bool = False,  # for Greek set to true; for other language has less utility
+        replace_hyphens_with_space: bool = True,
     ):
         if extra_chars_to_keep is None:
             extra_chars_to_keep = []
@@ -411,13 +410,13 @@ def main():
             )
 
         with open(f"{cfg.output_dir}/{dataset.language}.dev.txt", "w") as writer:
-            for line in all_lines[:cfg.dev_set_num_lines]:
+            for line in all_lines[: cfg.dev_set_num_lines]:
                 writer.write(f"{line}\n")
         with open(f"{cfg.output_dir}/{dataset.language}.test.txt", "w") as writer:
-            for line in all_lines[cfg.dev_set_num_lines:cfg.dev_set_num_lines+cfg.test_set_num_lines]:
+            for line in all_lines[cfg.dev_set_num_lines : cfg.dev_set_num_lines + cfg.test_set_num_lines]:
                 writer.write(f"{line}\n")
         with open(f"{cfg.output_dir}/{dataset.language}.train.txt", "w") as writer:
-            for line in all_lines[cfg.dev_set_num_lines+cfg.test_set_num_lines:]:
+            for line in all_lines[cfg.dev_set_num_lines + cfg.test_set_num_lines :]:
                 writer.write(f"{line}\n")
 
         logging.info(
