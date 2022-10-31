@@ -300,7 +300,8 @@ class ModelPT(LightningModule, Model):
             restore_path = os.path.abspath(os.path.expanduser(restore_path))
         else:
             restore_path = os.path.abspath(os.path.expanduser(save_restore_connector.model_extracted_dir))
-
+        print('os.listdir('/'.join(restore_path.split('/')[:-1])):', os.listdir('/'.join(restore_path.split('/')[:-1])))
+        print('os.listdir('/'.join(restore_path.split('/')[:-2])):', os.listdir('/'.join(restore_path.split('/')[:-2])))
         if not path.exists(restore_path):
             raise FileNotFoundError(f"Can't find {restore_path}")
 
