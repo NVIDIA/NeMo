@@ -1,9 +1,8 @@
-
 import os
 from dataclasses import dataclass
 
 import torch
-from omegaconf import OmegaConf, MISSING
+from omegaconf import MISSING, OmegaConf
 from pytorch_lightning import Trainer
 
 from nemo.collections.nlp.models import PunctCapSegModel
@@ -71,7 +70,7 @@ def main(cfg: PCSEvalConfig) -> None:
             "rng_seed": cfg.rng_seed,
             "prob_drop_punct": cfg.prob_drop_punct,
             "prob_lower_case": cfg.prob_lower_case,
-        }
+        },
     }
     m.setup_test_data(OmegaConf.create(data_config))
     trainer = Trainer(accelerator='gpu', devices=1, precision=cfg.precision)
