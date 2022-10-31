@@ -139,7 +139,7 @@ class PunctCapSegModel(NLPModel):
         self.setup_validation_data(val_data_config)
 
     def setup_test_data(self, test_data_config: Union[DictConfig, Dict]):
-        self._test_dl = self._setup_eval_dataloaders_from_config(cfg=test_data_config)
+        self._test_dl = self._setup_test_dataloader_from_config(cfg=test_data_config)
         self._test_metrics = self._setup_test_metrics(test_data_config.get("num_thresholds", 1))
 
     def setup_validation_data(self, val_data_config: Union[DictConfig, Dict]):
@@ -222,6 +222,25 @@ class PunctCapSegModel(NLPModel):
             dataloaders.append(dataloader)
         return dataloaders
 
+    def _setup_test_dataloader_from_config(self, cfg) -> List[torch.utils.data.DataLoader]:
+        dataset: PunctCapSegDataset = instantiate(cfg.dataset)
+        if not isinstance(dataset, PunctCapSegDataset):
+            raise ValueError(
+                f"Expected dataset config to instantiate an implementation of 'PunctCapSegDataset' but instead got "
+                f"'{type(dataset)}' from config {cfg.dataset}."
+            )
+        if hasattr(self, "tokenizer"):
+            dataset.tokenizer = self.tokenizer
+        dataloader = torch.utils.data.DataLoader(
+            dataset=dataset,
+            collate_fn=dataset.collate_fn,
+            batch_size=cfg.get("batch_size", 128),
+            num_workers=cfg.get("num_workers", 8),
+            pin_memory=cfg.get("pin_memory", False),
+            drop_last=cfg.get("drop_last", False),
+        )
+        return dataloader
+
     def _setup_train_dataloader_from_config(self, cfg) -> List[torch.utils.data.DataLoader]:
         datasets: List[PunctCapSegDataset] = []
         for ds_config in cfg.datasets:
@@ -258,6 +277,7 @@ class PunctCapSegModel(NLPModel):
         return dataloader
 
     def on_train_batch_start(self, batch, batch_idx: int, unused: int = 0) -> Optional[int]:
+        # If freezing the encoder, freeze before batch 0 and unfreeze before batch N
         if self._freeze_encoder_n_batches is not None:
             if batch_idx == 0:
                 logging.info(f"Freezing encoder for {self._freeze_encoder_n_batches} batches")
@@ -267,6 +287,7 @@ class PunctCapSegModel(NLPModel):
                 self.bert_model.unfreeze()
                 # Short circuit future checks
                 self._freeze_encoder_n_batches = None
+        return None
 
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -478,18 +499,24 @@ class PunctCapSegModel(NLPModel):
         if num_thresholds > 1:
             thresholds = torch.arange(num_thresholds) / (num_thresholds - 1)
         else:
-            thresholds = [0.5]
+            thresholds = None
         # Compute, reset, and log the precision/recall/f1 for punct/cap/seg for this threshold
         for analytic in ["punct_pre", "punct_post", "cap", "seg"]:
-            # TODO messy and ad-hoc
-            # TODO if using only one threshold, print full classification report.
-            print(f"Table for {analytic}")
-            print(f"threshold\tprecision\trecall\tf1")
-            for i, metrics in enumerate(self._test_metrics):
-                precision, recall, f1, report = metrics[f"{analytic}_report"].compute()
-                threshold = thresholds[i]
-                print(f"{threshold:0.2f}\t{precision:0.2f}\t{recall:0.2f}\t{f1:0.2f}")
-                metrics[f"{analytic}_report"].reset()
+            if thresholds is None:
+                precision, recall, f1, report = self._test_metrics[0][f"{analytic}_report"].compute()
+                self.log(f"test_{analytic}_precision", precision)
+                self.log(f"test_{analytic}_recall", recall)
+                self.log(f"test_{analytic}_f1", f1)
+                logging.info(f"{analytic} test report: {report}")
+            else:
+                # TODO messy and ad-hoc way to sweep thresholds
+                print(f"Table for {analytic}")
+                print(f"threshold\tprecision\trecall\tf1")
+                for i, metrics in enumerate(self._test_metrics):
+                    precision, recall, f1, report = metrics[f"{analytic}_report"].compute()
+                    threshold = thresholds[i]
+                    print(f"{threshold:0.2f}\t{precision:0.2f}\t{recall:0.2f}\t{f1:0.2f}")
+                    metrics[f"{analytic}_report"].reset()
 
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0) -> None:
         self._multi_eval_epoch_end(dataloader_idx)
