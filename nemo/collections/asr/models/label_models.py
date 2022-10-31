@@ -450,8 +450,8 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
 
     def get_label(self, path2audio_file):
         """
-        returns label of path2audio_file from classes the model was trained on. 
-        Args
+        Returns label of path2audio_file from classes the model was trained on. 
+        Args:
             path2audio_file: path to audio wav file
 
         Returns:
@@ -529,11 +529,11 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             device: compute device to perform operations.
 
         Returns:
-            All below variables returns values in order (shuffle=False) of audio files in manifest file
+            The variables below all follow the audio file order in the manifest file.
             embs: embeddings of files provided in manifest file
             logits: logits of final layer of EncDecSpeakerLabel Model
-            gt_labels: labels from manifest file (useful for speaker enrolment and testing)
-            mapped_labels: classification labels in order that mapped from trained model
+            gt_labels: labels from manifest file (needed for speaker enrollment and testing)
+            mapped_labels: Classification labels sorted in the order that they are mapped by the trained model
 
         """
         mode = self.training

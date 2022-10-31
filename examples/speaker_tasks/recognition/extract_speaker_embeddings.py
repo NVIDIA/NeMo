@@ -40,23 +40,14 @@ from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel
 from nemo.collections.asr.parts.utils.speaker_utils import embedding_normalize
 from nemo.utils import logging
 
-try:
-    from torch.cuda.amp import autocast
-except ImportError:
-    from contextlib import contextmanager
-
-    @contextmanager
-    def autocast(enabled=None):
-        yield
-
 
 def get_embeddings(speaker_model, manifest_file, batch_size=1, embedding_dir='./', device='cuda'):
     """
     save embeddings to pickle file
     Args:
         speaker_model: NeMo <EncDecSpeakerLabel> model 
-        manifest_file: path to manifest file containing paths to audio filepaths for 
-            which embeddings need to be extracted
+        manifest_file: Path to the manifest file containing the audio file path from which the 
+                       embeddings should be extracted
         batch_size: batch_size for inference
         embedding_dir: path to directory to store embeddings file
         device: compute device to perform operations
