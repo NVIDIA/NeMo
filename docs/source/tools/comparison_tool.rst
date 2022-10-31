@@ -74,22 +74,23 @@ SDE application has tree pages if --names_compared argument is not empy:
 
     .. image:: images/sde_base_stats.png
         :align: center
+        :width: 800px
         :alt: SDE Statistics
-        :scale: 100%
+        
 
 * `Samples` (to allow navigation across the entire dataset and exploration of individual utterances)
 
     .. image:: images/sde_player.png
         :align: center
+        :width: 800px
         :alt: SDE Statistics
-        :scale: 100%
 
 * `Comparison tool` (To visually explore predictions)
 
     .. image:: images/scrsh_2.png
         :align: center
+        :width: 800px
         :alt: Comparison tool
-        :scale: 100%
 
 
 Plotly Dash Datatable provides core CT's interactive features (navigation, filtering, and sorting).
@@ -100,8 +101,8 @@ Comparison tool has one datatable:
 
     .. image:: images/scrsh_3.png
         :align: center
+        :width: 800px
         :alt: Data
-        :scale: 100%
 
 CT supports all operations, that present in SDE and in addition "or" and "and" operations
 
@@ -109,8 +110,8 @@ CT supports all operations, that present in SDE and in addition "or" and "and" o
 
     .. image:: images/scrsh_4.png
         :align: center
+        :width: 800px
         :alt: Filtering
-        :scale: 100%
 
 
 Analysis of Speech Datasets
@@ -128,8 +129,8 @@ More information about transcribe_speech cold be found inside it's code: `NeMo/e
 
     .. image:: images/scrsh_2.png
         :align: center
+        :width: 800px
         :alt: fields
-        :scale: 100%
 
 Fields 1 and 2 are responsible for what will be displayed on the horizontal and vertical axes
 
@@ -141,8 +142,8 @@ Fields 5 and 6 are responsible for point spacing. With a high probability, some 
 
     .. image:: images/scrsh_5.png
         :align: center
+        :width: 800px
         :alt: dot spacing
-        :scale: 100%
 
 Point spacing works as follows: a small random value is added to all point coordinates, the value of which is limited by the "radius" parameter, which can be set manually
 
@@ -150,8 +151,8 @@ Point spacing works as follows: a small random value is added to all point coord
 
     .. image:: images/scrsh_9.png
         :align: center
+        :width: 800px
         :alt: Example
-        :scale: 100%
 
 Initially, the accuracy on the word of the first model is displayed along the axes, from the second, in this case, all points lying above the diagonal will have a higher accuracy on the model displayed on the vertical axis,
 and all points below the diagonal will have a better quality on the model displayed on the horizontal axis
