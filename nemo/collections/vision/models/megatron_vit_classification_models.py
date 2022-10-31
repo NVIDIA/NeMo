@@ -522,31 +522,33 @@ class MegatronVitClassificationModel(MegatronVisionModel):
             sequence_parallel_enabled=self.cfg.get('sequence_parallel', False),
         )
 
-        # only the last stage of the pipeline returns losses
-        if losses_reduced_per_micro_batch:
-            actual_batch_size = batch[0].shape[0]  # Might be lesser than global_batch_size if drop_last=False
-            expected_batch_size = self.cfg.global_batch_size // parallel_state.get_data_parallel_world_size()
-            if actual_batch_size == expected_batch_size:
-                loss_with_batch_size_list = [
-                    [loss_reduced['loss'].item(), self.cfg.micro_batch_size]
-                    for loss_reduced in losses_reduced_per_micro_batch
-                ]
+        def _get_metric_with_batch_size(metric_key):
+            # only the last stage of the pipeline returns losses
+            if losses_reduced_per_micro_batch:
+                actual_batch_size = batch[0].shape[0]  # Might be lesser than global_batch_size if drop_last=False
+                expected_batch_size = self.cfg.global_batch_size // parallel_state.get_data_parallel_world_size()
+                if actual_batch_size == expected_batch_size:
+                    loss_with_batch_size_list = [
+                        [loss_reduced[metric_key].item(), self.cfg.micro_batch_size]
+                        for loss_reduced in losses_reduced_per_micro_batch
+                    ]
+                else:
+                    loss_with_batch_size_list = []
+                    total_samples_remaining = actual_batch_size
+                    for loss_reduced in losses_reduced_per_micro_batch:
+                        if total_samples_remaining <= 0:
+                            break
+                        if total_samples_remaining // self.cfg.micro_batch_size >= 1:
+                            loss_with_batch_size_list.append([loss_reduced[metric_key].item(), self.cfg.micro_batch_size])
+                        else:
+                            loss_with_batch_size_list.append([loss_reduced[metric_key].item(), total_samples_remaining])
+                        total_samples_remaining = total_samples_remaining - self.cfg.micro_batch_size
             else:
+                # we're not on the last pipeline stage so no losses
                 loss_with_batch_size_list = []
-                total_samples_remaining = actual_batch_size
-                for loss_reduced in losses_reduced_per_micro_batch:
-                    if total_samples_remaining <= 0:
-                        break
-                    if total_samples_remaining // self.cfg.micro_batch_size >= 1:
-                        loss_with_batch_size_list.append([loss_reduced['loss'].item(), self.cfg.micro_batch_size])
-                    else:
-                        loss_with_batch_size_list.append([loss_reduced['loss'].item(), total_samples_remaining])
-                    total_samples_remaining = total_samples_remaining - self.cfg.micro_batch_size
-        else:
-            # we're not on the last pipeline stage so no losses
-            loss_with_batch_size_list = []
+            return loss_with_batch_size_list
 
-        return loss_with_batch_size_list
+        return _get_metric_with_batch_size('loss'), _get_metric_with_batch_size('accuracy')
 
     def validation_epoch_end(self, outputs):
         # TODO (yuya): need fix later, check with Sean
@@ -554,25 +556,36 @@ class MegatronVitClassificationModel(MegatronVisionModel):
             return
 
         if parallel_state.is_pipeline_last_stage():
-            # only the last pipeline parallel stages return loss with their batch size
-            total_num_samples = 0
-            total_loss = 0
-            for loss_with_batch_size in outputs:
-                loss_with_batch_size_array = np.array(loss_with_batch_size).flatten()
-                batch_losses = loss_with_batch_size_array[0::2]
-                batch_sizes = loss_with_batch_size_array[1::2]
-                total_num_samples += sum(batch_sizes)
-                total_loss += np.dot(batch_losses, batch_sizes)
+            loss_outputs = [output[0] for output in outputs]
+            acc_outputs = [output[1] for output in outputs]
 
-            avg_loss = total_loss / total_num_samples
-            averaged_loss = torch.tensor(avg_loss, dtype=torch.float32).cuda()
+            def _get_average_metric(metric_outputs):
+                # only the last pipeline parallel stages return metric with their batch size
+                total_num_samples = 0
+                total_metric = 0
+                for metric_with_batch_size in metric_outputs:
+                    metric_with_batch_size_array = np.array(metric_with_batch_size).flatten()
+                    batch_metrices = metric_with_batch_size_array[0::2]
+                    batch_sizes = metric_with_batch_size_array[1::2]
+                    total_num_samples += sum(batch_sizes)
+                    total_metric += np.dot(batch_metrices, batch_sizes)
+    
+                avg_metric = total_metric / total_num_samples
+                return avg_metric
+
+            averaged_metrics = torch.tensor(
+                [_get_average_metric(loss_outputs), _get_average_metric(acc_outputs)],
+                dtype=torch.float32).cuda()
         else:
-            averaged_loss = torch.tensor(0.0, dtype=torch.float32).cuda()
+            averaged_metrics = torch.tensor([0.0, 0.0], dtype=torch.float32).cuda()
 
         # we can only log on one rank if it is rank zero so we broadcast from last rank
-        torch.distributed.broadcast(averaged_loss, get_last_rank())
+        torch.distributed.broadcast(averaged_metrics, get_last_rank())
+
+        averaged_loss, averaged_acc = averaged_metrics
 
         self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
+        self.log('val_accuracy', averaged_acc, prog_bar=True, rank_zero_only=True)
 
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
