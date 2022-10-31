@@ -56,6 +56,7 @@ class RTTMDataset(Dataset):
         annotations = self._pyannote_annotations(rttm_timestamps)
         stt_list, end_list, speaker_list = rttm_timestamps
         total_annotated_duration = max(end_list)
+        speakers = sorted(list(set(speaker_list)))
         n_segments = math.ceil((total_annotated_duration - sample.offset) / self.segment_seconds)
         start_offset = sample.offset
 
@@ -70,6 +71,7 @@ class RTTMDataset(Dataset):
                 sample_rate=self.preprocessor._sample_rate,
                 start_duration=start_offset,
                 end_duration=start_offset + self.segment_seconds,
+                speakers=speakers,
             )
             segment = self.featurizer.process(sample.audio_file, offset=start_offset, duration=self.segment_seconds)
 

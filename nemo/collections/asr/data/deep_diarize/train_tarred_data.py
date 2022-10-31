@@ -80,6 +80,7 @@ class TarredRTTMStreamingSegmentsDataset(RTTMStreamingSegmentsDataset):
         train_segment_seconds: int,
         window_stride: float,
     ):
+        raise NotImplementedError("Shouldn't be using this.")
         return [
             cls(
                 manifest_filepath=manifest_filepath,

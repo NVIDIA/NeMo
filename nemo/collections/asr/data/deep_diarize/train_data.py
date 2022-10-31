@@ -16,6 +16,7 @@ import math
 import random
 from abc import ABC
 from itertools import chain, cycle
+from typing import List
 
 import torch
 from torch.utils.data import DataLoader, IterableDataset
@@ -23,6 +24,7 @@ from torch.utils.data import DataLoader, IterableDataset
 from nemo.collections.asr.data.audio_to_diar_label import extract_seg_info_from_rttm
 from nemo.collections.asr.data.deep_diarize.utils import assign_frame_level_spk_vector
 from nemo.collections.asr.modules import AudioToMelSpectrogramPreprocessor
+from nemo.collections.asr.modules.audio_preprocessing import SpectrogramAugmentation
 from nemo.collections.asr.parts.preprocessing import WaveformFeaturizer
 from nemo.collections.common.parts.preprocessing.collections import DiarizationSpeechLabel
 
@@ -64,6 +66,7 @@ class RTTMStreamingSegmentsDataset(IterableDataset, ABC):
         manifest_filepath: str,
         preprocessor: AudioToMelSpectrogramPreprocessor,
         featurizer: WaveformFeaturizer,
+        spec_augmentation: SpectrogramAugmentation,
         window_stride: float,
         subsampling: int,
         train_segment_seconds: int,
@@ -73,13 +76,14 @@ class RTTMStreamingSegmentsDataset(IterableDataset, ABC):
         self.train_segment_seconds = train_segment_seconds
         self.preprocessor = preprocessor
         self.featurizer = featurizer
+        self.spec_augmentation = spec_augmentation
         self.round_digits = 2
         self.max_spks = 2
         self.frame_per_sec = int(1 / (window_stride * subsampling))
         self.manifest_filepath = manifest_filepath
 
     def parse_rttm_for_ms_targets(
-        self, rttm_timestamps: list, offset: float, end_duration: float,
+        self, rttm_timestamps: list, offset: float, end_duration: float, speakers: List,
     ):
         """
         Generate target tensor variable by extracting groundtruth diarization labels from an RTTM file.
@@ -109,6 +113,7 @@ class RTTMStreamingSegmentsDataset(IterableDataset, ABC):
             sample_rate=self.preprocessor._sample_rate,
             start_duration=offset,
             end_duration=end_duration,
+            speakers=speakers,
         )
         return fr_level_target
 
@@ -135,6 +140,7 @@ class RTTMStreamingSegmentsDataset(IterableDataset, ABC):
         manifest_filepath: str,
         preprocessor: AudioToMelSpectrogramPreprocessor,
         featurizer: WaveformFeaturizer,
+        spec_augmentation: SpectrogramAugmentation,
         window_stride: float,
         subsampling: int,
         train_segment_seconds: int,
@@ -151,6 +157,7 @@ class RTTMStreamingSegmentsDataset(IterableDataset, ABC):
             manifest_filepath=manifest_filepath,
             num_workers=num_workers,
             preprocessor=preprocessor,
+            spec_augmentation=spec_augmentation,
             split_size=split_size,
             subsampling=subsampling,
             train_segment_seconds=train_segment_seconds,
@@ -164,6 +171,7 @@ class RTTMStreamingSegmentsDataset(IterableDataset, ABC):
         manifest_filepath: str,
         num_workers: int,
         preprocessor: AudioToMelSpectrogramPreprocessor,
+        spec_augmentation: SpectrogramAugmentation,
         split_size: int,
         subsampling: int,
         train_segment_seconds: int,
@@ -184,37 +192,53 @@ class LocalRTTMStreamingSegmentsDataset(RTTMStreamingSegmentsDataset):
         self,
         data_list: list,
         collection: DiarizationSpeechLabel,
-        rttm_timestamps: list,
         batch_size: int,
         manifest_filepath: str,
         preprocessor: AudioToMelSpectrogramPreprocessor,
         featurizer: WaveformFeaturizer,
+        spec_augmentation: SpectrogramAugmentation,
         window_stride: float,
         subsampling: int,
         train_segment_seconds: int,
     ):
         super().__init__(
-            batch_size, manifest_filepath, preprocessor, featurizer, window_stride, subsampling, train_segment_seconds
+            batch_size,
+            manifest_filepath,
+            preprocessor,
+            featurizer,
+            spec_augmentation,
+            window_stride,
+            subsampling,
+            train_segment_seconds,
         )
         self.data_list = data_list
         self.collection = collection
-        self.rttm_timestamps = rttm_timestamps
 
     @property
     def shuffled_batch_list(self):
         return random.sample(self.data_list, len(self.data_list))
 
     def process_data(self, data):
+        sample, rttm_timestamps = data
         start_segment = True
-        for x in data:
-            sample_id, start_offset, duration, total_annotated_duration = x
+        stt_list, end_list, speaker_list = rttm_timestamps
+        speakers = sorted(list(set(speaker_list)))
+        random.shuffle(speakers)
+
+        total_annotated_duration = max(end_list)
+        n_segments = math.ceil((total_annotated_duration - sample.offset) / self.train_segment_seconds)
+        start_offset = sample.offset
+        for n_segment in range(n_segments):
+            duration = self.train_segment_seconds
+            start_offset += duration
 
             if (total_annotated_duration - start_offset) > self.minimum_segment_seconds:
-                sample = self.collection[sample_id]
-                rttm_timestamps = self.rttm_timestamps[sample_id]
 
                 targets = self.parse_rttm_for_ms_targets(
-                    rttm_timestamps=rttm_timestamps, offset=start_offset, end_duration=start_offset + duration,
+                    rttm_timestamps=rttm_timestamps,
+                    offset=start_offset,
+                    end_duration=start_offset + duration,
+                    speakers=speakers,
                 )
                 train_segment = self.featurizer.process(sample.audio_file, offset=start_offset, duration=duration)
 
@@ -224,16 +248,17 @@ class LocalRTTMStreamingSegmentsDataset(RTTMStreamingSegmentsDataset):
                     train_segment.unsqueeze_(0), train_length.unsqueeze_(0)
                 )
 
+                train_segment = self.spec_augmentation(input_spec=train_segment, length=train_length)
+
                 yield train_segment, train_length, targets, start_segment
                 start_segment = False
 
     @staticmethod
-    def data_setup(manifest_filepath: str, train_segment_seconds: int):
+    def data_setup(manifest_filepath: str):
         collection = DiarizationSpeechLabel(
             manifests_files=manifest_filepath.split(","), emb_dict=None, clus_label_dict=None,
         )
-        segments = []
-        all_rttm_timestamps = []
+        samples = []
         for sample_id, sample in enumerate(collection):
             if sample.offset is None:
                 sample.offset = 0
@@ -242,18 +267,10 @@ class LocalRTTMStreamingSegmentsDataset(RTTMStreamingSegmentsDataset):
                 rttm_lines = f.readlines()
             # todo: unique ID isn't needed
             rttm_timestamps = extract_seg_info_from_rttm("", rttm_lines)
-            stt_list, end_list, speaker_list = rttm_timestamps
-            all_rttm_timestamps.append(rttm_timestamps)
-            total_annotated_duration = max(end_list)
-            n_segments = math.ceil((total_annotated_duration - sample.offset) / train_segment_seconds)
-            start_offset = sample.offset
-            sample_segments = []
-            for n_segment in range(n_segments):
-                duration = train_segment_seconds
-                sample_segments.append((sample_id, start_offset, duration, total_annotated_duration))
-                start_offset += train_segment_seconds
-            segments.append(sample_segments)
-        return collection, segments, all_rttm_timestamps
+            if sample is None or rttm_timestamps is None or not rttm_timestamps:
+                raise ValueError
+            samples.append((sample, rttm_timestamps,))
+        return collection, samples
 
     @classmethod
     def create_datasets(
@@ -262,22 +279,21 @@ class LocalRTTMStreamingSegmentsDataset(RTTMStreamingSegmentsDataset):
         manifest_filepath: str,
         num_workers: int,
         preprocessor: AudioToMelSpectrogramPreprocessor,
+        spec_augmentation: SpectrogramAugmentation,
         split_size: int,
         subsampling: int,
         train_segment_seconds: int,
         window_stride: float,
     ):
-        (collection, data_list, rttm_timestamps,) = cls.data_setup(
-            manifest_filepath=manifest_filepath, train_segment_seconds=train_segment_seconds
-        )
+        (collection, calls,) = cls.data_setup(manifest_filepath=manifest_filepath)
         return [
             cls(
-                data_list=data_list,
+                data_list=calls,
                 collection=collection,
-                rttm_timestamps=rttm_timestamps,
                 manifest_filepath=manifest_filepath,
                 preprocessor=preprocessor,
                 featurizer=featurizer,
+                spec_augmentation=spec_augmentation,
                 window_stride=window_stride,
                 subsampling=subsampling,
                 train_segment_seconds=train_segment_seconds,

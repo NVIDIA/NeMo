@@ -28,6 +28,7 @@ from nemo.collections.asr.data.deep_diarize.train_data import LocalRTTMStreaming
 from nemo.collections.asr.data.deep_diarize.train_tarred_data import TarredRTTMStreamingSegmentsDataset
 from nemo.collections.asr.metrics.der import DER
 from nemo.collections.asr.metrics.running_avg import RunningAverage
+from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.modules.deep_diarize_transformer import TransformerXL
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.submodules.subsampling import ConvSubsampling
@@ -186,11 +187,14 @@ class DeepDiarizeModel(ModelPT):
     def setup_training_data(self, cfg: Optional[Union[DictConfig, Dict]]):
         featurizer, preprocessor = self._setup_preprocessor(cfg)
 
+        spec_augmentation = ASRModel.from_config_dict(self.cfg.spec_augment)
+
         cls = TarredRTTMStreamingSegmentsDataset if cfg.tarred else LocalRTTMStreamingSegmentsDataset
         datasets = cls.create_streaming_datasets(
             manifest_filepath=cfg.manifest_filepath,
             preprocessor=preprocessor,
             featurizer=featurizer,
+            spec_augmentation=spec_augmentation,
             window_stride=self.cfg.preprocessor.window_stride,
             subsampling=self.cfg.subsampling,
             train_segment_seconds=self.cfg.chunk_seconds,

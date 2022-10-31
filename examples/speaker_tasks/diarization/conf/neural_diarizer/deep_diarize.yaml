@@ -56,6 +56,14 @@ model:
     max_duration: ${chunk_seconds}
     pad_to: "max"
 
+  spec_augment:
+    _target_: nemo.collections.asr.modules.SpectrogramAugmentation
+    freq_masks: 2 # set to zero to disable it
+    # you may use lower time_masks for smaller models to have a faster convergence
+    time_masks: 10 # set to zero to disable it
+    freq_width: 27
+    time_width: 0.05
+
   loss:
     _target_: nemo.collections.asr.losses.bce_loss.BCELoss
     weight: null # Weight for binary cross-entropy loss. Either `null` or list type input. (e.g. [0.5,0.5])
