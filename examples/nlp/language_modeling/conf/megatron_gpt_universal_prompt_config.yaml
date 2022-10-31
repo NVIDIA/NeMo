@@ -69,17 +69,29 @@ model:
     answer_field: "answer"
 
   data:
-    train_ds: [data/rte_train.jsonl,]
-    validation_ds: [data/rte_val.jsonl,]
-    add_eos: True
-    shuffle: True
-    num_workers: 2
-    pin_memory: True
-    train_cache_data_path: null  # the path to the train cache data 
-    validation_cache_data_path: null  # the path to the validation cache data 
-    test_cache_data_path: null  # the path to the test cache data 
-    load_cache: False  # whether to load from the cache data
-  
+    train_ds:
+      file_names: ??? # Path to a list of JSONL files corresponding to the source data.
+      shuffle: True
+      num_workers: 8
+      pin_memory: True
+      max_seq_length: 512
+      drop_last: True
+      concat_sampling_probabilities: ??? # When providing a list of datasets, this arg defines the sampling probabilities from each dataset when strategy='random'
+      seed: 1234
+      add_eos: True
+      add_bos: True
+
+    validation_ds:
+      file_names: ??? # Path to a list of JSONL files corresponding to the source data.
+      shuffle: False
+      num_workers: 0
+      pin_memory: True
+      max_seq_length: 512
+      drop_last: False # TODO: Figure out if there is a way to avoid dropping last.
+      seed: 1234
+      add_eos: True
+      add_bos: True
+
   perceiver:
     init_method_std: 0.02 # Standard deviation of the zero mean normal distribution used for weight initialization.')
 

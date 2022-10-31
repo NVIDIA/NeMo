@@ -14,18 +14,22 @@
 
 import os
 from functools import partial
-from typing import Any, List, Optional, Union
+from typing import Any, Optional
+from omegaconf import DictConfig, ListConfig
 
 import torch
 import torch.nn.functional as F
 from omegaconf import OmegaConf
-from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 from torch import Tensor
-
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_universal_prompt_learning_dataset import (
-    GPTUniversalPromptLearningDataset,
+from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
+    get_datasets_weights_and_num_samples,
+)
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_universal_prompt_learning_dataset import GPTUniversalPromptLearningT0Dataset
+from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
+from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
+    MegatronPretrainingBatchSampler,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
@@ -35,8 +39,6 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     scaled_init_method_normal,
 )
 from nemo.collections.nlp.modules.common.text_generation_utils import (
-    get_default_length_params,
-    get_default_sampling_params,
     megatron_gpt_generate,
 )
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam, TextGeneration
@@ -182,7 +184,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         ModelPT override. Optimizer will get self._optimizer_param_groups. 
         Only want virtual prompt params to be passed to the optimizer.
         """
-        ## Freeze frozen model
+        # Freeze frozen model
         for param in self.frozen_model.parameters():
             param.requires_grad = False
 
@@ -218,7 +220,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         loss_mean = self.fwd_bwd_step(batch, forward_only=False)
         self.allreduce_gradients()
 
-        ## logging
+        # logging
         # we can only log on one rank if it is rank zero so we broadcast from last rank
         # we can avoid this broadcast by updating the PTL log function to accept specific ranks
         torch.distributed.broadcast(loss_mean, get_last_rank())
@@ -381,7 +383,15 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         self.prompt_encoder = UniversalPromptEncoder(perceiver_conf, output_dim=self.frozen_model.cfg.hidden_size)
 
     def setup(self, stage=None):
-        self.setup_test_data()
+        # NOTE: super().__init__ will try and setup train/val/test datasets, but we sidestep this using a if self._train_ds is not None condition
+        # We then set things up for real only once setup() of this class is called.
+        resume_checkpoint_path = self.trainer._checkpoint_connector.resume_from_checkpoint_fit_path
+        if resume_checkpoint_path:
+            init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
+        else:
+            init_consumed_samples = 0
+        self.init_consumed_samples = init_consumed_samples
+
         if stage == 'test' or stage == 'predict':
             return
 
@@ -392,130 +402,114 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         self.setup_validation_data()
 
     def setup_training_data(self, training_data_config=None):
-        if self.cfg.data.get('train_ds', None):
-            self._train_ds, self._train_dl = self.build_virtual_prompt_dataset(
-                data=self.cfg.data.train_ds,
-                batch_size=self.cfg.global_batch_size,
-                max_seq_length=self.frozen_model.cfg.encoder_seq_length,
-                min_seq_length=self.cfg.data.get('min_seq_length', 1),
-                add_bos=self.cfg.data.get('add_bos', False),
-                add_eos=self.cfg.data.get('add_eos', True),
-                for_train=True,
-                drop_last=True,
-                shuffle=True,
-                num_workers=self.cfg.data.num_workers,
-                pin_memory=True,
-                cache_data_path=self.cfg.data.get('train_cache_data_path', None),
-                load_cache=self.cfg.data.get('load_cache', False),
-            )
+        self._train_ds = self.build_dataset(
+            data_cfg=self.cfg.data.train_ds,
+            is_train=True,
+        )
+        consumed_samples = self.compute_consumed_samples(0)
+        self._train_dl = self.build_data_loader(
+            dataset=self._train_ds, data_cfg=self.cfg.data.train_ds, consumed_samples=consumed_samples,
+        )
 
     def setup_validation_data(self, validation_data_config=None):
-        if self.cfg.data.get('validation_ds', None):
-            self._validation_ds, self._validation_dl = self.build_virtual_prompt_dataset(
-                data=self.cfg.data.validation_ds,
-                batch_size=self.cfg.global_batch_size,
-                max_seq_length=self.frozen_model.cfg.encoder_seq_length,
-                min_seq_length=self.cfg.data.get('min_seq_length', 1),
-                add_bos=self.cfg.data.get('add_bos', False),
-                add_eos=self.cfg.data.get('add_eos', True),
-                for_train=True,
-                drop_last=True,
-                shuffle=False,
-                num_workers=self.cfg.data.num_workers,
-                pin_memory=True,
-                cache_data_path=self.cfg.data.get('validation_cache_data_path', None),
-                load_cache=self.cfg.data.get('load_cache', False),
-            )
+        self._validation_ds = self.build_dataset(
+            data_cfg=self.cfg.data.validation_ds,
+            is_train=False,
+        )
+        self._validation_dl = []
+        for dataset in self._validation_ds:
+            eval_dl = self.build_data_loader(dataset=dataset, data_cfg=self.cfg.data.validation_ds, consumed_samples=0,)
+            self._validation_dl.append(eval_dl)
 
-    def setup_test_data(self, test_data_config=None):
-        if self.cfg.data.get('test_ds', None):
-            self._test_ds, self._test_dl = self.build_virtual_prompt_dataset(
-                data=self.cfg.data.test_ds,
-                batch_size=self.cfg.global_batch_size,
-                max_seq_length=self.frozen_model.cfg.encoder_seq_length,
-                min_seq_length=self.cfg.data.get('min_seq_length', 1),
-                add_bos=self.cfg.data.get('add_bos', False),
-                add_eos=self.cfg.data.get('add_eos', True),
-                for_train=False,
-                drop_last=False,
-                shuffle=False,
-                num_workers=self.cfg.data.num_workers,
-                pin_memory=True,
-                cache_data_path=self.cfg.data.get('test_cache_data_path', None),
-                load_cache=self.cfg.data.get('load_cache', False),
-            )
-
-    def build_virtual_prompt_dataset(
+    def build_dataset(
         self,
-        data,
-        batch_size=None,
-        max_seq_length=2048,
-        min_seq_length=1,
-        add_bos=False,
-        add_eos=False,
-        for_train=True,
-        drop_last=False,
-        shuffle=False,
-        num_workers=0,
-        pin_memory=False,
-        tokens_to_generate=None,
-        get_dataset_only=False,
-        cache_data_path=None,
-        load_cache=False,
+        data_cfg,
+        is_train=True,
     ):
-        dataset = GPTUniversalPromptLearningDataset(
-            data=data,
-            tokenizer=self.tokenizer,
-            virtual_token_len=self.cfg.perceiver.hidden_steps,
-            task_templates=self.task_templates,
-            pad_token_id=self.pad_token_id,
-            max_seq_length=max_seq_length,
-            min_seq_length=min_seq_length,
-            add_bos=add_bos,
-            add_eos=add_eos,
-            for_train=for_train,
-            tokens_to_generate=tokens_to_generate,
-            cache_data_path=cache_data_path,
-            load_cache=load_cache,
-        )
-
-        if get_dataset_only:
-            return dataset
-
-        # Make distributed dataloader
-        rank = parallel_state.get_data_parallel_rank()
-        data_parallel_size = parallel_state.get_data_parallel_world_size()
-        sampler = torch.utils.data.distributed.DistributedSampler(
-            dataset, num_replicas=data_parallel_size, rank=rank, shuffle=shuffle
-        )
-
-        assert batch_size % data_parallel_size == 0, "Global batch size must be evenly divisible by data parallel size"
-
-        if for_train:
-            if self.cfg.get("sequence_parallel", False):
-                collate_fn = partial(
-                    dataset.collate_fn, tp_workers=parallel_state.get_tensor_model_parallel_world_size()
+        # Construct the data prefix list for `get_datasets_weights_and_num_samples()` that is of the format [weight1,file_name1,weight2,file_name2,...]
+        if is_train:
+            if data_cfg.concat_sampling_probabilities is None or not isinstance(
+                data_cfg.concat_sampling_probabilities, ListConfig
+            ):
+                raise ValueError(
+                    f"concat_sampling_probabilities must be a ListConfig with the same number of files in file_names. Found: {data_cfg.concat_sampling_probabilities}"
                 )
-            else:
-                collate_fn = partial(dataset.collate_fn, tp_workers=0)
+
+            if len(data_cfg.get('concat_sampling_probabilities', None)) != len(data_cfg.file_names):
+                raise ValueError(
+                    f"concat_sampling_probabilities must be of the same size as file_names. Provided size {len(data_cfg.concat_sampling_probabilities)}, number of datasets {len(data_cfg.file_names)}"
+                )
+
+            data_prefix = []
+            for weight, prefix in zip(data_cfg.concat_sampling_probabilities, data_cfg.file_names):
+                data_prefix.append(weight)
+                data_prefix.append(prefix)
+
+            if self.trainer.max_steps is None or self.trainer.max_steps <= 0:
+                raise ValueError(
+                    f'Trainer max_steps must be set to a positive integer. Found {self.trainer.max_steps}'
+                )
+            num_train_samples = [self.trainer.max_steps * self.cfg.global_batch_size]
+            _, _, num_train_samples_per_dataset = get_datasets_weights_and_num_samples(data_prefix, num_train_samples)
+            num_train_samples_after_blend = sum([x[0] for x in num_train_samples_per_dataset])
         else:
-            collate_fn = dataset.inference_collate_fn
+            num_train_samples_per_dataset = [[None]] * len(data_cfg.file_names)
 
-        dataloader = torch.utils.data.DataLoader(
-            dataset,
-            collate_fn=collate_fn,
-            sampler=sampler,
-            batch_size=batch_size // data_parallel_size,
-            drop_last=drop_last,
-            num_workers=num_workers,
-            pin_memory=pin_memory,
+        datasets = []
+        for file_path, num_samples in zip(data_cfg.file_names, num_train_samples_per_dataset):
+            dataset = GPTUniversalPromptLearningT0Dataset(
+                data=file_path,
+                tokenizer=self.tokenizer,
+                answer_only_loss=data_cfg.get('answer_only_loss', True),
+                pad_token_id=self.pad_token_id,
+                virtual_token_len=self.cfg.perceiver.hidden_steps,
+                max_seq_length=data_cfg.max_seq_length,
+                add_bos=data_cfg.get("add_bos", False),
+                add_eos=data_cfg.get("add_eos", False),
+                max_num_samples=num_samples[0],
+                seed=data_cfg.get('seed', 1234),
+            )
+            datasets.append(dataset)
+        if is_train:
+            dataset = BlendableDataset(
+                datasets=datasets, weights=data_cfg.concat_sampling_probabilities, size=num_train_samples_after_blend
+            )
+            return dataset
+        else:
+            return datasets
+
+    def build_data_loader(self, dataset, data_cfg, consumed_samples=0):
+        if isinstance(dataset, BlendableDataset):
+            collate_fun = dataset.datasets[0].collate_fn
+        else:
+            collate_fun = dataset.collate_fn
+        if self.cfg.get("sequence_parallel", False):
+            collate_fn = partial(
+                collate_fun, tp_workers=parallel_state.get_tensor_model_parallel_world_size()
+            )
+        else:
+            collate_fn = partial(collate_fun, tp_workers=0)
+
+        batch_sampler = MegatronPretrainingBatchSampler(
+            total_samples=len(dataset),
+            consumed_samples=consumed_samples,
+            micro_batch_size=self.cfg.micro_batch_size,
+            global_batch_size=self.cfg.global_batch_size,
+            data_parallel_rank=parallel_state.get_data_parallel_rank(),
+            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            drop_last=True,
         )
-
-        return dataset, dataloader
+        return torch.utils.data.DataLoader(
+            dataset,
+            batch_sampler=batch_sampler,
+            collate_fn=collate_fn,
+            num_workers=data_cfg.num_workers,
+            pin_memory=data_cfg.pin_memory,
+        )
 
     def validation_step(self, batch, batch_idx):
         loss_mean = self.fwd_bwd_step(batch, forward_only=True)
-        ## logging
+        # logging
         # we can only log on one rank if it is rank zero so we broadcast from last rank
         # we can avoid this broadcast by updating the PTL log function to accept specific ranks
         torch.distributed.broadcast(loss_mean, get_last_rank())
@@ -549,60 +543,6 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
 
     def on_train_end(self):
         pass
-
-    def generate(
-        self,
-        inputs: Union[List[str], torch.Tensor, List[dict]],
-        length_params: LengthParam,
-        sampling_params: SamplingParam = None,
-    ):
-
-        # check whether the DDP is initialized
-        if parallel_state.is_unitialized():
-
-            def dummy():
-                return
-
-            if self.trainer.strategy.launcher is not None:
-                self.trainer.strategy.launcher.launch(dummy, trainer=self.trainer)
-            self.trainer.strategy.setup_environment()
-
-        # set the default sampling params if it is None.
-        # default do greedy sampling
-        if sampling_params is None:
-            sampling_params = get_default_sampling_params()
-            sampling_params["add_BOS"] = self.cfg.data.get("add_bos", False)
-
-        if length_params is None:
-            length_params = get_default_length_params()
-
-        max_input_length = self.frozen_model.cfg.encoder_seq_length - length_params["max_length"]
-
-        # input dicts are either dataset paths or already loaded example dicts
-        if "taskname" not in inputs[0].keys():
-            data = [path["data_path"] for path in inputs]
-        else:
-            data = inputs
-
-        dataset = self.build_virtual_prompt_dataset(
-            data=data,
-            max_seq_length=max_input_length,
-            min_seq_length=self.cfg.data.get('min_seq_length', 1),
-            add_bos=sampling_params["add_BOS"],
-            add_eos=False,
-            for_train=False,
-            tokens_to_generate=length_params["max_length"],
-            get_dataset_only=True,
-        )
-
-        full_dataset = [dataset[i] for i in range(len(dataset))]
-        task_ids, processed_inputs = dataset.inference_collate_fn(full_dataset)
-        self.frozen_model.model.parallel_output = False
-
-        # Call same generate code as in MegatronGPT
-        return megatron_gpt_generate(
-            self.cuda(), processed_inputs, self.tokenizer, length_params, sampling_params, task_ids
-        )
 
     def get_forward_output_only_func(self):
         """
