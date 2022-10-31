@@ -26,7 +26,7 @@ Similarly to QuartzNet, the MatchboxNet family of models are denoted as MatchBox
     .. image:: images/matchboxnet_vertical.png
         :align: center
         :alt: MatchboxNet model
-        :scale: 50%
+        :width: 800px
 
 It can reach state-of-the art accuracy on the Google Speech Commands dataset while having significantly fewer parameters than similar models. 
 The `_v1` and `_v2` are denoted for models trained on `v1` (30-way classification) and `v2` (35-way classification) datasets; 
@@ -52,7 +52,7 @@ Similarly to MatchboxNet, the MarbleNet family of models are denoted as MarbleNe
     .. image:: images/marblenet_vertical.png
         :align: center
         :alt: MarbleNet model
-        :scale: 30%
+        :width: 800px
 
 It can reach state-of-the art performance on the difficult `AVA speech dataset <https://research.google.com/ava/download.html#ava_speech_download>`_ while having significantly fewer parameters than similar models even training on simple data.
 MarbleNet models can be instantiated using the :class:`~nemo.collections.asr.models.EncDecClassificationModel` class.
