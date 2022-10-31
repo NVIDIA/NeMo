@@ -18,7 +18,6 @@ import hydra.utils
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from kornia.losses import BinaryFocalLossWithLogits
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
