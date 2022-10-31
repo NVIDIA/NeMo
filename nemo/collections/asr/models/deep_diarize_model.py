@@ -75,12 +75,15 @@ class DeepDiarizeModel(ModelPT):
         self.apply(self._init_weights)
         self.mems = None
         self.running_loss_avg = RunningAverage()
-        self.der = DER(
-            seconds_per_frame=self.cfg.preprocessor.window_stride * self.cfg.subsampling,
-            min_seconds_for_segment=self.cfg.min_seconds_for_segment,
-            threshold=self.cfg.threshold,
-            combine_segments_seconds=self.cfg.combine_segments_seconds,
-        )
+        self.der, self.der_no_mem = [
+            DER(
+                seconds_per_frame=self.cfg.preprocessor.window_stride * self.cfg.subsampling,
+                min_seconds_for_segment=self.cfg.min_seconds_for_segment,
+                threshold=self.cfg.threshold,
+                combine_segments_seconds=self.cfg.combine_segments_seconds,
+            )
+            for x in range(2)
+        ]
         self.mask_mem = self.cfg.get('mask_mem', False)
 
     def _mask_mems(self, mask: List[bool]):
@@ -120,21 +123,33 @@ class DeepDiarizeModel(ModelPT):
 
     def validation_step(self, batch, batch_idx):
         inputs, input_lengths, y, annotations = batch
-        mems = None
-        logits = None
+        mems, logits, no_mem_logits = None, None, None
         for chunk, length in zip(inputs, input_lengths):
             seg, model_lengths = self.sub_sample_layer(chunk, lengths=length.unsqueeze(0))
             chunk_logits, mems = self.transformer_model(seg, mems=mems)
             chunk_logits = self.sigmoid(chunk_logits)
             logits = chunk_logits if logits is None else torch.cat((logits, chunk_logits), dim=1)
+
+            chunk_logits, _ = self.transformer_model(seg)
+            chunk_logits = self.sigmoid(chunk_logits)
+            no_mem_logits = chunk_logits if no_mem_logits is None else torch.cat((no_mem_logits, chunk_logits), dim=1)
+
+        loss = self._calculate_val_loss(logits, y)
+        no_mem_loss = self._calculate_val_loss(no_mem_logits, y)
+        self.log('val_loss', loss, sync_dist=True)
+        self.log('no_mem_val_loss', no_mem_loss, sync_dist=True)
+        self.der(logits.squeeze(0), annotations)
+        self.der_no_mem(no_mem_logits.squeeze(0), annotations)
+        self.log('DER', self.der, sync_dist=True)
+        self.log('no_mem_DER', self.der_no_mem, sync_dist=True)
+
+    def _calculate_val_loss(self, logits, y):
         loss = self.loss(logits, y.unsqueeze(0))
         # calculate the loss after we flipped the speaker labels as well
         invert_loss = self.loss(logits, torch.flip(y, dims=(-1,)).unsqueeze(0))
         # take the minimum loss
         loss = min(loss, invert_loss)
-        self.log('val_loss', loss, sync_dist=True)
-        self.der(logits.squeeze(0), annotations)
-        self.log('DER', self.der, sync_dist=True)
+        return loss
 
     def _init_weights(self, module):
         if isinstance(module, (nn.Linear, nn.Embedding)):
