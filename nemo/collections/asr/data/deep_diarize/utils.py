@@ -29,7 +29,7 @@ def assign_frame_level_spk_vector(
         fr_level_target (torch.tensor):
             Tensor containing label for each feature level frame.
     """
-    stt_list, end_list, _ = rttm_timestamps
+    stt_list, end_list, speaker_list = rttm_timestamps
     segment_duration = end_duration - start_duration
 
     total_fr_len = preprocessor.featurizer.get_seq_len(torch.tensor(segment_duration * sample_rate, dtype=torch.float))
@@ -40,7 +40,7 @@ def assign_frame_level_spk_vector(
 
     # If RTTM is not provided, then there is no speaker mapping dict in target_spks.
     # Thus, return a zero-filled tensor as a placeholder.
-    for count, (stt, end, spk_rttm_key) in enumerate(zip(stt_list, end_list, speakers)):
+    for count, (stt, end, spk_rttm_key) in enumerate(zip(stt_list, end_list, speaker_list)):
         stt, end = round(stt, round_digits), round(end, round_digits)
         # check if this sample is within the segment frame.
         if (start_duration <= stt) and (end <= end_duration):

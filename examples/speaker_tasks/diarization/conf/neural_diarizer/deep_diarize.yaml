@@ -20,6 +20,9 @@ model:
   warmup_ratio: 0.1
   mask_mem: False
   shift_mem_down: 0
+  focal: False
+  alpha: 0.25
+  gamma: 2
 
   # evaluation parameters
   min_seconds_for_segment: 0.2
@@ -59,9 +62,9 @@ model:
 
   spec_augment:
     _target_: nemo.collections.asr.modules.SpectrogramAugmentation
-    freq_masks: 2 # set to zero to disable it
+    freq_masks: 0 # set to zero to disable it
     # you may use lower time_masks for smaller models to have a faster convergence
-    time_masks: 10 # set to zero to disable it
+    time_masks: 0 # set to zero to disable it
     freq_width: 27
     time_width: 0.05
 

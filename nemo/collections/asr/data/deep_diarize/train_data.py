@@ -191,7 +191,6 @@ class LocalRTTMStreamingSegmentsDataset(RTTMStreamingSegmentsDataset):
     def __init__(
         self,
         data_list: list,
-        collection: DiarizationSpeechLabel,
         batch_size: int,
         manifest_filepath: str,
         preprocessor: AudioToMelSpectrogramPreprocessor,
@@ -212,7 +211,6 @@ class LocalRTTMStreamingSegmentsDataset(RTTMStreamingSegmentsDataset):
             train_segment_seconds,
         )
         self.data_list = data_list
-        self.collection = collection
 
     @property
     def shuffled_batch_list(self):
@@ -230,7 +228,6 @@ class LocalRTTMStreamingSegmentsDataset(RTTMStreamingSegmentsDataset):
         start_offset = sample.offset
         for n_segment in range(n_segments):
             duration = self.train_segment_seconds
-            start_offset += duration
 
             if (total_annotated_duration - start_offset) > self.minimum_segment_seconds:
 
@@ -252,6 +249,7 @@ class LocalRTTMStreamingSegmentsDataset(RTTMStreamingSegmentsDataset):
 
                 yield train_segment, train_length, targets, start_segment
                 start_segment = False
+                start_offset += duration
 
     @staticmethod
     def data_setup(manifest_filepath: str):
@@ -267,10 +265,8 @@ class LocalRTTMStreamingSegmentsDataset(RTTMStreamingSegmentsDataset):
                 rttm_lines = f.readlines()
             # todo: unique ID isn't needed
             rttm_timestamps = extract_seg_info_from_rttm("", rttm_lines)
-            if sample is None or rttm_timestamps is None or not rttm_timestamps:
-                raise ValueError
             samples.append((sample, rttm_timestamps,))
-        return collection, samples
+        return samples
 
     @classmethod
     def create_datasets(
@@ -285,11 +281,10 @@ class LocalRTTMStreamingSegmentsDataset(RTTMStreamingSegmentsDataset):
         train_segment_seconds: int,
         window_stride: float,
     ):
-        (collection, calls,) = cls.data_setup(manifest_filepath=manifest_filepath)
+        calls = cls.data_setup(manifest_filepath=manifest_filepath)
         return [
             cls(
                 data_list=calls,
-                collection=collection,
                 manifest_filepath=manifest_filepath,
                 preprocessor=preprocessor,
                 featurizer=featurizer,

@@ -18,6 +18,7 @@ import hydra.utils
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from kornia.losses import BinaryFocalLossWithLogits
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
@@ -73,6 +74,7 @@ class DeepDiarizeModel(ModelPT):
         )
 
         self.loss = torch.nn.BCELoss()
+        self.train_loss = torch.nn.BCELoss(reduction='none' if self.cfg.focal else 'mean')
         self.sigmoid = torch.nn.Sigmoid()
         self.apply(self._init_weights)
         self.mems = None
@@ -100,7 +102,13 @@ class DeepDiarizeModel(ModelPT):
         seg, model_lengths = self.sub_sample_layer(train_x, lengths=train_lengths)
         logits, self.mems = self.transformer_model(seg, mems=self.mems)
         logits = self.sigmoid(logits)
-        loss = self.loss(logits, y)
+        loss = self.train_loss(logits, y)
+
+        if self.cfg.focal:
+            pt = torch.exp(-loss)  # prevents nans when probability 0
+            loss = self.cfg.alpha * (1 - pt) ** self.cfg.gamma * loss
+            loss = loss.mean()
+
         self.running_loss_avg(loss)
         self.logger.log_metrics(
             {
