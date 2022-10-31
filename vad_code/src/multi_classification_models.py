@@ -13,13 +13,14 @@
 # limitations under the License.
 
 from math import ceil, floor
+from multiprocessing.sharedctypes import Value
 from typing import Dict, List, Optional
 
 import torch
 import torch.nn.functional as F
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
-from src.audio_to_multi_label import get_audio_multi_label_dataset
+from src.audio_to_multi_label import get_audio_multi_label_dataset, get_tarred_audio_multi_label_dataset
 from torchmetrics import Accuracy
 
 from nemo.collections.asr.models.classification_models import EncDecClassificationModel
@@ -115,25 +116,40 @@ class EncDecMultiClassificationModel(EncDecClassificationModel):
         else:
             return CrossEntropyLoss(logits_ndim=3)
 
-    def _setup_dataloader_from_config(self, config: DictConfig):
-        OmegaConf.set_struct(config, False)
-        config.is_regression_task = self.is_regression_task
-        OmegaConf.set_struct(config, True)
+    def _setup_dataloader_from_config(self, cfg: DictConfig):
+        OmegaConf.set_struct(cfg, False)
+        cfg.is_regression_task = self.is_regression_task
+        OmegaConf.set_struct(cfg, True)
 
-        if 'manifest_filepath' in config and config['manifest_filepath'] is None:
-            logging.warning(f"Could not load dataset as `manifest_filepath` is None. Provided config : {config}")
-            return None
+        if cfg.get('is_tarred', False):
+            if ('tarred_audio_filepaths' in cfg and cfg['tarred_audio_filepaths'] is None) or (
+                'manifest_filepath' in cfg and cfg['manifest_filepath'] is None
+            ):
+                raise ValueError(
+                    "Could not load dataset as `manifest_filepath` is None or "
+                    f"`tarred_audio_filepaths` is None. Provided cfg : {cfg}"
+                )
 
-        dataset = get_audio_multi_label_dataset(config)
+            shuffle_n = cfg.get('shuffle_n', 4 * cfg['batch_size']) if shuffle else 0
+            dataset = get_tarred_audio_multi_label_dataset(
+                cfg=cfg, shuffle_n=shuffle_n, global_rank=self.global_rank, world_size=self.world_size,
+            )
+            shuffle = False
+        else:
+            if 'manifest_filepath' in cfg and cfg['manifest_filepath'] is None:
+                raise ValueError(f"Could not load dataset as `manifest_filepath` is None. Provided cfg : {cfg}")
+
+            shuffle = cfg.get('shuffle', False)
+            dataset = get_audio_multi_label_dataset(cfg)
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
-            batch_size=config.get("batch_size", 1),
+            batch_size=cfg.get("batch_size", 1),
             collate_fn=dataset.collate_fn,
-            drop_last=config.get('drop_last', False),
-            shuffle=config.get('shuffle', False),
-            num_workers=config.get('num_workers', 0),
-            pin_memory=config.get('pin_memory', False),
+            drop_last=cfg.get('drop_last', False),
+            shuffle=shuffle,
+            num_workers=cfg.get('num_workers', 0),
+            pin_memory=cfg.get('pin_memory', False),
         )
 
     def get_label_masks(self, labels, labels_len):
