@@ -1,3 +1,5 @@
+from typing import Dict, List, Optional
+
 import IPython.display as ipd
 import librosa
 import matplotlib.pyplot as plt
@@ -101,6 +103,126 @@ def plot_sample(
     ax2.tick_params(axis='y', labelcolor='r')
     ax2.legend(loc='lower right', shadow=True)
     ax2.set_ylabel('Preds and Probas')
+    ax2.set_ylim([-0.1, 1.1])
+    plt.show()
+    if save_path != "":
+        plt.savefig(save_path)
+    return ipd.Audio(audio, rate=16000)
+
+
+def plot_sample_from_manifest(data: Dict, max_duration: Optional[float] = None, repeat: int = 1, save_path: str = ""):
+    audio_file = data['audio_filepath']
+    labels = [float(x) for x in data['label'].split()]
+    duration = data['duration']
+    offset = data['offset']
+    if repeat > 1:
+        labels = np.repeat(labels, repeat)
+    if max_duration:
+        duration = min(duration, max_duration)
+
+    plt.figure(figsize=[20, 2])
+    UNIT_FRAME_LEN = 0.01
+
+    audio, sample_rate = librosa.load(path=audio_file, sr=16000, mono=True, offset=offset, duration=duration)
+    dur = librosa.get_duration(y=audio, sr=sample_rate)
+
+    length = len(labels)
+    ax1 = plt.subplot()
+    ax1.set_title(audio_file)
+    ax1.plot(np.arange(audio.size) / sample_rate, audio, 'gray')
+    ax1.set_xlim([0, int(dur) + 1])
+    ax1.tick_params(axis='y', labelcolor='b')
+    ax1.set_ylabel('Signal')
+    ax1.set_ylim([-1, 1])
+    ax2 = ax1.twinx()
+
+    ax2.plot(np.arange(length) * UNIT_FRAME_LEN, labels, 'r', label='label')
+    ax2.tick_params(axis='y', labelcolor='r')
+    ax2.legend(loc='lower right', shadow=True)
+    ax2.set_ylabel('Labels')
+    ax2.set_ylim([-0.1, 1.1])
+    plt.show()
+    if save_path != "":
+        plt.savefig(save_path)
+    return ipd.Audio(audio, rate=16000)
+
+
+def load_rttm_file(filepath):
+    data = pd.read_csv(filepath, sep=" ", delimiter=None, header=None)
+    data = data.rename(columns={3: "start", 4: "dur", 7: "speaker"})
+
+    data['start'] = data['start'].astype(float)
+    data['dur'] = data['dur'].astype(float)
+    data['end'] = data['start'] + data['dur']
+
+    data = data.sort_values(by=['start'])
+    data['segment'] = list(zip(data['start'], data['end']))
+
+    return data
+
+
+def merge_intervals(intervals: List[List[float]]) -> List[List[float]]:
+    intervals.sort(key=lambda x: x[0])
+    merged = []
+    for interval in intervals:
+        # if the list of merged intervals is empty or if the current
+        # interval does not overlap with the previous, simply append it.
+        if not merged or merged[-1][1] < interval[0]:
+            merged.append(interval)
+        else:
+            # otherwise, there is overlap, so we merge the current and previous
+            # intervals.
+            merged[-1][1] = max(merged[-1][1], interval[1])
+    return merged
+
+
+def get_speech_segments(rttm_file):
+    speech_segments = list(load_rttm_file(rttm_file)['segment'])
+    speech_segments = [list(x) for x in speech_segments]
+    speech_segments = merge_intervals(speech_segments)
+    return speech_segments
+
+
+def get_frame_labels(segments: List[List[float]], frame_length: float, offset: float, duration: float, sid: int = 0):
+    labels = []
+    n_frames = np.ceil(duration / frame_length)
+
+    for i in range(n_frames):
+        t = offset + i * frame_length
+        while sid < len(segments) - 1 and segments[sid][1] < t:
+            sid += 1
+        if segments[sid][0] <= t <= segments[sid][1]:
+            labels.append('1')
+        else:
+            labels.append('0')
+    return ' '.join(labels), sid
+
+
+def plot_sample_from_rttm(audio_file: str, rttm_file: str, max_duration: Optional[float] = None, save_path: str = ""):
+    plt.figure(figsize=[20, 2])
+    UNIT_FRAME_LEN = 0.01
+
+    audio, sample_rate = librosa.load(path=audio_file, sr=16000, mono=True, offset=0, duration=max_duration)
+    dur = librosa.get_duration(y=audio, sr=sample_rate)
+
+    segments = get_speech_segments(rttm_file)
+    labels, _ = get_frame_labels(segments, UNIT_FRAME_LEN, 0.0, dur)
+    labels = [float(x) for x in labels.split()]
+
+    length = len(labels)
+    ax1 = plt.subplot()
+    ax1.set_title(audio_file)
+    ax1.plot(np.arange(audio.size) / sample_rate, audio, 'gray')
+    ax1.set_xlim([0, int(dur) + 1])
+    ax1.tick_params(axis='y', labelcolor='b')
+    ax1.set_ylabel('Signal')
+    ax1.set_ylim([-1, 1])
+    ax2 = ax1.twinx()
+
+    ax2.plot(np.arange(length) * UNIT_FRAME_LEN, labels, 'r', label='label')
+    ax2.tick_params(axis='y', labelcolor='r')
+    ax2.legend(loc='lower right', shadow=True)
+    ax2.set_ylabel('Labels')
     ax2.set_ylim([-0.1, 1.1])
     plt.show()
     if save_path != "":

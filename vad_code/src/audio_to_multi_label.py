@@ -97,15 +97,18 @@ class AudioToMultiLabelDataset(Dataset):
     def filter_audio_files(self, data_list):
         results = []
         cnt = 0
+        duration = 0.0
         discarded = []
         for sample in data_list:
             if Path(sample.audio_file).is_file():
                 results.append(sample)
+                duration += sample.duration
             else:
                 cnt += 1
                 discarded.append(sample.audio_file)
         logging.info(f"{cnt} audio files were discarded since not found.")
         logging.info(discarded[:5])
+        logging.info(f"Total duration after filtering: {duration / 3600: .2f} hours.")
         logging.info("--------------------------------")
         return results
 

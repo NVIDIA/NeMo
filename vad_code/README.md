@@ -19,21 +19,22 @@
 ## Changed Files
 - nemo.collections.asr.data.audio_to_label
 - nemo.collections.asr.data.audio_to_label_dataset
+- nemo/collections/common/parts/preprocessing/collections.py
 
 
 
 
 
 ## Datasets
-- icsi_all_40ms_cleaned.json 71.13234651042855
-- ami_train_40ms_cleaned.json 69.7192981423723, dev 14.4
-- fisher_2004_40ms_cleaned.json 984.3992727737443
-- fisher_2005_40ms_cleaned.json 975.0129316627406
-- french_train_40ms_cleaned.json 688.0881139586156, dev9.38
-- german_train_40ms.json 567.384683333323, dev 26.33
-- mandarin_train_40ms_cleaned.json 429.20428550349055, dev 2.03
-- russian_train_40ms.json 116.36067777778014, dev 15.22
-- spanish_train_40ms_cleaned.json 660.1667013369457, dev 9.9
+- icsi_all_40ms, train 71.13234651042855
+- ami_train_40ms, 69.7192981423723, dev 14.4
+- fisher_2004_40ms, 984.3992727737443
+- fisher_2005_40ms, 975.0129316627406
+- french_train_40ms, 688.0881139586156, dev 9.38
+- german_train_40ms, 567.384683333323, dev 26.33
+- mandarin_train_40ms, 429.20428550349055, dev 2.03
+- russian_train_40ms, 116.36067777778014, dev 15.22
+- spanish_train_40ms, 660.1667013369457, dev 9.9
 - ch120_moved: dev 1.78
 - total: train 4561.46831099944, dev ~79hr
 

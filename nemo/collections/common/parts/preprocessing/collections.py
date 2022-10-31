@@ -260,6 +260,7 @@ class SpeechLabel(_Collection):
             self.mapping = {}
         output_type = self.OUTPUT_TYPE
         data, duration_filtered = [], 0.0
+        total_duration = 0.0
         for audio_file, duration, command, offset in zip(audio_files, durations, labels, offsets):
             # Duration filters.
             if min_duration is not None and duration < min_duration:
@@ -270,6 +271,7 @@ class SpeechLabel(_Collection):
                 duration_filtered += duration
                 continue
 
+            total_duration += duration
             data.append(output_type(audio_file, duration, command, offset))
 
             if index_by_file_id:
@@ -286,6 +288,7 @@ class SpeechLabel(_Collection):
             else:
                 data.sort(key=lambda entity: entity.duration)
 
+        logging.info(f"Dataset loaded with total duration of {total_duration / 3600} hours.")
         logging.info(
             "Filtered duration for loading collection is %f.", duration_filtered,
         )
