@@ -303,8 +303,8 @@ class ModelPT(LightningModule, Model):
         print('restore path: ', restore_path)
         first_dir, tail = os.path.split(restore_path)
         second_dir, tail_second = os.path.split(first_dir)
-        print("os.listdir('/'.join(restore_path.split('/')[:-1])):", os.listdir(first_dir))
         print("os.listdir('/'.join(restore_path.split('/')[:-2])):", os.listdir(second_dir))
+        print("os.listdir('/'.join(restore_path.split('/')[:-1])):", os.listdir(first_dir))
         if not path.exists(restore_path):
             raise FileNotFoundError(f"Can't find {restore_path}")
 
