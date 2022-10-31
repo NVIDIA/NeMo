@@ -473,7 +473,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         Returns the speaker embeddings for a provided audio file.
 
         Args:
-            path2audio_file: path to audio wav file
+            path2audio_file: path to an audio wav file
 
         Returns:
             emb: speaker embeddings (Audio representations)
