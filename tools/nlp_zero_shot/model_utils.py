@@ -6,7 +6,8 @@ from omegaconf import OmegaConf
 from nemo.collections.nlp.models.dialogue.dialogue_zero_shot_slot_filling_model import DialogueZeroShotSlotFillingModel
 
 
-def load_model(model_path):
+def load_model(model_path=None):
+    model_path = model_path or os.getenv('MODEL_PATH')
     self_path = Path(__file__).resolve()
     nemo_path = self_path.parent.parent.parent.resolve()
     cfg = OmegaConf.load(Path(nemo_path) / "examples/nlp/dialogue/conf/dialogue_config.yaml")

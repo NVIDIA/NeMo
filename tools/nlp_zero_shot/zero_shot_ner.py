@@ -56,4 +56,7 @@ if __name__ == "__main__":
     parser.add_argument('--port', default=8082, type=int, help='please specify a server port')
     args = parser.parse_args()
     model: DialogueZeroShotSlotFillingModel = load_model(args.model_path)
-    uvicorn.run(app, host="0.0.0.0", port=args.port, log_level='debug')
+    uvicorn.run(app, host="0.0.0.0", port=8082, log_level='debug')
+
+else:
+    model: DialogueZeroShotSlotFillingModel = load_model()
