@@ -1359,7 +1359,7 @@ train.gpt3.126m_tp2_pp2_2node_100steps_SP_SAR:
     MAX_STEPS: 100
     TIME_LIMIT: "01:00:00"
     TEST_LEVEL: L1
-    ADDITIONAL_PARAMS: "training.model.activations_checkpoint_granularity=selective training.model.activations_checkpoint_method=null training.model.activations_checkpoint_num_layers=null training.model.sequence_parallel=True "
+    ADDITIONAL_PARAMS: "training.model.activations_checkpoint_granularity=selective training.model.activations_checkpoint_method=uniform training.model.activations_checkpoint_num_layers=1 training.model.sequence_parallel=True "
   needs:
     - build-BigNLP
 
@@ -1545,7 +1545,7 @@ train.gpt3.126m_tp2_pp2_2node_100steps_DistOpt_SP_SAR:
     MAX_STEPS: 100
     TIME_LIMIT: "01:00:00"
     TEST_LEVEL: L1
-    ADDITIONAL_PARAMS: "training.model.optim.name=distributed_fused_adam training.model.activations_checkpoint_granularity=selective training.model.activations_checkpoint_method=null training.model.activations_checkpoint_num_layers=null training.model.sequence_parallel=True "
+    ADDITIONAL_PARAMS: "training.model.optim.name=distributed_fused_adam training.model.activations_checkpoint_granularity=selective training.model.activations_checkpoint_method=uniform training.model.activations_checkpoint_num_layers=1 training.model.sequence_parallel=True "
   needs:
     - build-BigNLP
 
