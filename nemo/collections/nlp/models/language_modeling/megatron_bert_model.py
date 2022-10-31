@@ -27,7 +27,9 @@ from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_sampler
 from nemo.collections.nlp.models.language_modeling.megatron.bert_model import BertModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
+
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
+
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_params_for_weight_decay_optimization,
@@ -38,6 +40,7 @@ from nemo.utils import AppState, logging
 
 try:
     from apex.transformer import parallel_state
+
     from apex.transformer.pipeline_parallel.schedules.common import build_model
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
@@ -46,6 +49,7 @@ try:
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_with_interleaving import (
         _forward_backward_pipelining_with_interleaving,
     )
+
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
@@ -63,12 +67,13 @@ class MegatronBertModel(MegatronBaseModel):
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
         super().__init__(cfg, trainer=trainer, no_lm_init=False)
-
+        if not self.megatron_amp_o2 and self.cfg.get('virtual_pipeline_model_parallel_size', None):
+            raise ValueError('Virtual pipeline model parallel is only supported when using megatron_amp_O2') 
+            
+        self._validate_trainer()
+        
         self.cfg = cfg
         self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
-
-        if not self.megatron_amp_o2 and self.cfg.get('virtual_pipeline_model_parallel_size', None):
-            raise ValueError('Virtual pipeline model parallel is only supported when using megatron_amp_O2')        
 
         if self.trainer.precision == 32:
             self.autocast_dtype = torch.float
@@ -96,19 +101,8 @@ class MegatronBertModel(MegatronBaseModel):
             self.model = self.model[0]
 
         if self.megatron_amp_o2:
-            if isinstance(self.model, list):
-                for module in self.model:
-                    module.cuda(torch.cuda.current_device())
-            else:
-                self.model.cuda(torch.cuda.current_device())
-
-            if isinstance(self.model, list):
-                converted_model = []
-                for module in self.model:
-                    converted_model.append(Float16Module(module=module, precision=cfg.precision))
-                    self.model = converted_model
-            else:
-                self.model = Float16Module(module=self.model, precision=cfg.precision)
+            self.model.cuda(torch.cuda.current_device())
+            self.model = Float16Module(module=self.model, precision=cfg.precision)
 
     def model_provider_func(self, pre_process, post_process):
         cfg = self.cfg
@@ -142,7 +136,17 @@ class MegatronBertModel(MegatronBaseModel):
             add_binary_head=cfg.bert_binary_head,
             megatron_legacy=cfg.get('megatron_legacy', False),
         )
+
         return model
+        
+    def _validate_trainer(self):
+        """ Certain trainer configurations can break training.
+            Here we try to catch them and raise an error.
+        """
+        if self.trainer.accumulate_grad_batches > 1:
+            raise ValueError(
+                f'Gradient accumulation is done within training_step. trainer.accumulate_grad_batches must equal 1'
+            )        
 
     def _get_fwd_bwd_function(self):
         fwd_bwd_function = None
@@ -180,7 +184,7 @@ class MegatronBertModel(MegatronBaseModel):
             if not self.cfg.bert_binary_head:
                 types = None
             output_tensor = self.forward(tokens, padding_mask, types, lm_labels)
-            
+
             def loss_func(output_tensor):
                 loss_dict = self.loss_func(loss_mask, sentence_order, output_tensor)
                 if 'sop loss' in loss_dict:
@@ -240,6 +244,7 @@ class MegatronBertModel(MegatronBaseModel):
             grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
             custom_sync_context_handler=custom_sync_context_handler,
         )
+
         if losses_reduced_per_micro_batch:
             loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
             loss_tensor = torch.vstack(loss_tensors_list)
@@ -294,6 +299,7 @@ class MegatronBertModel(MegatronBaseModel):
 
         return loss_mean[0]
 
+
     def allreduce_first_last_embeddings(self):
 
         # Modified from megatron-lm: https://github.com/NVIDIA/Megatron-LM/blob/d41696840ed0a7edb7e0499eb82a48ae112d9bb3/megatron/training.py#L407
@@ -327,10 +333,10 @@ class MegatronBertModel(MegatronBaseModel):
     def validation_step(self, batch, batch_idx):
         batch_for_pipeline = self.process_batch(batch)
         tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
-        
+  
         fwd_bwd_function = self._get_fwd_bwd_function()
 
-        losses_reduced_per_micro_batch = fwd_bwd_function(
+        losses_reduced_per_micro_batch = forward_backward_no_pipelining(
             forward_step_func=self.get_forward_output_and_loss_func(),
             batch=batch_for_pipeline,
             model=self.model,
@@ -338,6 +344,7 @@ class MegatronBertModel(MegatronBaseModel):
             tensor_shape=tensor_shape,
             dtype=self.autocast_dtype,
         )
+
         if losses_reduced_per_micro_batch: 
             loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
             loss_tensor = torch.vstack(loss_tensors_list)
