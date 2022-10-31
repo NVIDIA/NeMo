@@ -68,6 +68,7 @@ class DeepDiarizeModel(ModelPT):
                 dropout=self.cfg.dropout,
                 emb_dropout=self.cfg.emb_dropout,
                 rel_pos_bias=True,
+                shift_mem_down=self.cfg.shift_mem_down,
             ),
         )
 
