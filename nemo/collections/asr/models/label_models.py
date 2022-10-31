@@ -419,8 +419,8 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
     @torch.no_grad()
     def infer_file(self, path2audio_file):
         """
-        Args
-            path2audio_file: path to audio wav file
+        Args:
+            path2audio_file: path to an audio wav file
 
         Returns:
             emb: speaker embeddings (Audio representations)

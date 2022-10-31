@@ -46,7 +46,7 @@ def get_embeddings(speaker_model, manifest_file, batch_size=1, embedding_dir='./
     save embeddings to pickle file
     Args:
         speaker_model: NeMo <EncDecSpeakerLabel> model 
-        manifest_file: Path to the manifest file containing the audio file path from which the 
+        manifest_file: path to the manifest file containing the audio file path from which the 
                        embeddings should be extracted
         batch_size: batch_size for inference
         embedding_dir: path to directory to store embeddings file
