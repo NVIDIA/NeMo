@@ -340,6 +340,10 @@ def main():
                 conf.cfg.tokenizer.vocab_file = vocab_file
             if merge_file is not None:
                 conf.cfg.tokenizer.merge_file = merge_file
+            if "activations_checkpoint_granularity" in conf.cfg:
+                conf.cfg.activations_checkpoint_granularity = None
+            if "activations_checkpoint_method" in conf.cfg:
+                conf.cfg.activations_checkpoint_method = None
             if "sequence_parallel" in conf.cfg:
                 conf.cfg.sequence_parallel = False
 
