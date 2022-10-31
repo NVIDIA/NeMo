@@ -1,9 +1,8 @@
-import torch
 import pytorch_lightning as pl
+import torch
 
 
 class OnnxModule(torch.nn.Module):
-
     def __init__(self, hidden_size: int = 768, max_batch_size: int = 16):
         super().__init__()
         self.hidden_size = hidden_size
@@ -14,12 +13,14 @@ class OnnxModule(torch.nn.Module):
             torch.nn.Linear(self.hidden_size, self.hidden_size),
             torch.nn.ReLU(),
             torch.nn.Linear(self.hidden_size, 3),
-            torch.nn.LogSoftmax(dim=-1)
+            torch.nn.LogSoftmax(dim=-1),
         )
         self.mention_projection_mlp = torch.nn.Linear(self.hidden_size, 300, bias=False)
         self.description_projection_mlp = torch.nn.Linear(self.hidden_size, 300, bias=False)
 
-    def forward(self, bio_slot_labels: torch.Tensor, hidden_states: torch.Tensor, entity_type_embeddings: torch.Tensor):
+    def forward(
+        self, bio_slot_labels: torch.Tensor, hidden_states: torch.Tensor, entity_type_embeddings: torch.Tensor
+    ):
         bio_slot_logits = self.bio_mlp(hidden_states)
         predicted_bio_slot = torch.argmax(bio_slot_logits, dim=-1)
 
@@ -31,8 +32,9 @@ class OnnxModule(torch.nn.Module):
             predicted_bio_slot, hidden_states
         )
 
-        predicted_dot_product_score = self.get_entity_description_score(predicted_mention_hidden_states_pad,
-                                                                        entity_type_embeddings)
+        predicted_dot_product_score = self.get_entity_description_score(
+            predicted_mention_hidden_states_pad, entity_type_embeddings
+        )
         predicted_dot_product_score_log_softmax = torch.log_softmax(predicted_dot_product_score, dim=-1)
         return bio_slot_logits, dot_product_score_log_softmax, predicted_dot_product_score_log_softmax
 
@@ -74,8 +76,9 @@ class OnnxModule(torch.nn.Module):
 
         if mention_hidden_states:
             output = torch.stack(mention_hidden_states)
-            zero_fill_batch = torch.zeros((orig_batch_size - output.shape[0], max_token_len, hidden_states_dim),
-                                          device=self.device)
+            zero_fill_batch = torch.zeros(
+                (orig_batch_size - output.shape[0], max_token_len, hidden_states_dim), device=self.device
+            )
             output = torch.cat((output, zero_fill_batch))
         else:
             output = torch.zeros((orig_batch_size, max_token_len, hidden_states_dim))

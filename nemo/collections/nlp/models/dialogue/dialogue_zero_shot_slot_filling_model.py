@@ -22,7 +22,6 @@ from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 
 from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss
-from nemo.collections.nlp.models.dialogue.onnx_module import OnnxModule
 from nemo.collections.nlp.data.dialogue.data_processor.assistant_data_processor import DialogueAssistantDataProcessor
 from nemo.collections.nlp.data.dialogue.dataset.dialogue_zero_shot_slot_filling_dataset import (
     DialogueZeroShotSlotFillingDataset,
@@ -30,6 +29,7 @@ from nemo.collections.nlp.data.dialogue.dataset.dialogue_zero_shot_slot_filling_
 from nemo.collections.nlp.data.intent_slot_classification import IntentSlotDataDesc
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.metrics.dialogue_metrics import DialogueClassificationMetrics
+from nemo.collections.nlp.models.dialogue.onnx_module import OnnxModule
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import get_huggingface_lm_model
 from nemo.core import PretrainedModelInfo
@@ -259,11 +259,9 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
             else:
                 entity_type_embeddings = self.get_description_embeddings(entity_types_descriptions)
 
-            (
-                bio_slot_logits,
-                dot_product_score_log_softmax,
-                predicted_dot_product_score_log_softmax
-             ) = self(input_ids, attention_masks, token_type_ids, bio_slot_labels, entity_type_embeddings)
+            (bio_slot_logits, dot_product_score_log_softmax, predicted_dot_product_score_log_softmax) = self(
+                input_ids, attention_masks, token_type_ids, bio_slot_labels, entity_type_embeddings
+            )
 
             predicted_iob_class_batch = torch.argmax(bio_slot_logits, dim=-1)
             predicted_slot_similarity_preds = torch.argmax(predicted_dot_product_score_log_softmax, dim=-1)
@@ -293,7 +291,7 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
             "attention_mask": attention_mask,
             "token_type_ids": token_type_ids,
             "bio_slot_labels": bio_slot_labels,
-            "entity_type_embeddings": self.description_embeddings
+            "entity_type_embeddings": self.description_embeddings,
         }
         return input_example
 
@@ -372,7 +370,7 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
             token_type_ids=token_type_ids,
             attention_mask=attention_mask,
             bio_slot_labels=bio_slot_labels,
-            entity_type_embeddings=self.description_embeddings
+            entity_type_embeddings=self.description_embeddings,
         )
 
         train_loss = self.calculate_loss(
@@ -415,7 +413,7 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
             token_type_ids=token_type_ids,
             attention_mask=attention_mask,
             bio_slot_labels=bio_slot_labels,
-            entity_type_embeddings=self.description_embeddings
+            entity_type_embeddings=self.description_embeddings,
         )
         val_loss = self.calculate_loss(
             bio_slot_logits,
@@ -541,7 +539,7 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
             if slot_id_stack[i] != self.label_id_for_empty_slot:
                 position = position_stack[i][0], position_stack[i][-1] + 1
                 slot_id_to_start_and_exclusive_end[slot_id_stack[i]].append(position)
-                slot_to_words[slot_id_stack[i]].append(utterance_tokens[position[0]: position[1]])
+                slot_to_words[slot_id_stack[i]].append(utterance_tokens[position[0] : position[1]])
 
         return slot_id_to_start_and_exclusive_end
 
