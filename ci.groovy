@@ -70,6 +70,16 @@ spec:
                   sh "git config --global --add safe.directory '*' && nvidia-smi && ./reinstall.sh release"
                 }
 
+                stage('Copyright check') {
+                    sh "python tests/check_copyright_header.py --dir ."
+                }
+
+                stage('PyTorch Lightning DDP Checks') {
+                  steps {
+                    sh 'CUDA_VISIBLE_DEVICES="0,1" python "tests/core_ptl/check_for_ranks.py"'
+                  }
+                }
+
                 stage('L0: GPU unit tests') {
                             sh "NEMO_NUMBA_MINVER=0.53 pytest -m 'not pleasefixme and not torch_tts'"         
                 }
