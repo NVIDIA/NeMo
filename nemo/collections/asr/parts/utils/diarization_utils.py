@@ -175,28 +175,28 @@ def calculate_session_cpWER(
         min_perm_ref_trans (str):
             Reference transcript containing the permutation that minimizes WER. Words are separated by spaces.
     """
-    p_wer_list, ref_lists = [], []
-    hyp_word_list = []
+    p_wer_list, permed_hyp_lists = [], []
+    ref_word_list = []
 
     # Concatenate the hypothesis transcripts into a list
-    for spk_id, word_list in enumerate(per_spk_hyp_trans):
-        hyp_word_list.append(word_list)
-    hyp_trans = " ".join(hyp_word_list)
+    for spk_id, word_list in enumerate(per_spk_ref_trans):
+        ref_word_list.append(word_list)
+    ref_trans = " ".join(ref_word_list)
 
     # Calculate WER for every permutation
-    for ref_word_list in permutations(per_spk_ref_trans):
-        ref_trans = " ".join(ref_word_list)
-        ref_lists.append(ref_trans)
+    for hyp_word_list in permutations(per_spk_hyp_trans):
+        hyp_trans = " ".join(hyp_word_list)
+        permed_hyp_lists.append(hyp_trans)
 
         # Calculate a WER value of the permuted and concatenated transcripts
         p_wer = word_error_rate(hypotheses=[hyp_trans], references=[ref_trans])
         p_wer_list.append(p_wer)
 
-    # Find the lowest WER and its reference transcript
+    # Find the lowest WER and its hypothesis transcript
     argmin_idx = np.argmin(p_wer_list)
-    min_perm_ref_trans = ref_lists[argmin_idx]
+    min_perm_hyp_trans = permed_hyp_lists[argmin_idx]
     cpWER = p_wer_list[argmin_idx]
-    return cpWER, hyp_trans, min_perm_ref_trans
+    return cpWER, min_perm_hyp_trans, ref_trans
 
 
 def calculate_total_WER(
