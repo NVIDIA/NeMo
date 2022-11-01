@@ -21,6 +21,7 @@ import torch.nn.functional as F
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
+from torchmetrics.functional import permutation_invariant_training
 from x_transformers import Decoder
 
 from nemo.collections.asr.data.deep_diarize.inference_data import RTTMDataset
@@ -88,11 +89,32 @@ class DeepDiarizeModel(ModelPT):
             for x in range(2)
         ]
         self.mask_mem = self.cfg.get('mask_mem', False)
+        self.permutations = None
 
     def _mask_mems(self, mask: List[bool]):
         if self.mems is not None:
             for mem in self.mems:
                 mem[mask, :, :] = 0
+
+    def _permutation_mask(self, preds, y, memory_resets):
+        if self.permutations is None:
+            # todo: assumption of two speakers
+            self.permutations = torch.empty(preds.size(0), 2, dtype=torch.int).to(self.device)
+
+        for x, memory_reset in enumerate(memory_resets):
+            if memory_reset:
+                with torch.no_grad():
+                    calc_loss, permutation = permutation_invariant_training(
+                        preds[x].unsqueeze(0).transpose(1, 2),
+                        y[x].unsqueeze(0).transpose(1, 2),
+                        metric_func=self._calculate_train_loss,
+                        eval_func='min',
+                    )
+                self.permutations[x] = permutation
+
+        for x, labels in enumerate(y):
+            y[x] = torch.index_select(y[x], 1, self.permutations[x])
+        return y
 
     def training_step(self, batch, batch_idx):
         train_x, train_lengths, y, mask = batch
@@ -101,12 +123,9 @@ class DeepDiarizeModel(ModelPT):
         seg, model_lengths = self.sub_sample_layer(train_x, lengths=train_lengths)
         logits, self.mems = self.transformer_model(seg, mems=self.mems)
         logits = self.sigmoid(logits)
-        loss = self.train_loss(logits, y)
-
-        if self.cfg.focal:
-            pt = torch.exp(-loss)  # prevents nans when probability 0
-            loss = self.cfg.alpha * (1 - pt) ** self.cfg.gamma * loss
-            loss = loss.mean()
+        if self.cfg.permute:
+            y = self._permutation_mask(logits, y, mask)
+        loss = self._calculate_train_loss(logits, y)
 
         self.running_loss_avg(loss)
         self.logger.log_metrics(
@@ -117,6 +136,14 @@ class DeepDiarizeModel(ModelPT):
             },
             step=self.trainer.global_step,
         )
+        return loss
+
+    def _calculate_train_loss(self, logits, y):
+        loss = self.train_loss(logits, y)
+        if self.cfg.focal:
+            pt = torch.exp(-loss)  # prevents nans when probability 0
+            loss = self.cfg.alpha * (1 - pt) ** self.cfg.gamma * loss
+            loss = loss.mean()
         return loss
 
     def divide(self, num, max_length):
