@@ -27,11 +27,12 @@ spec:
     restartPolicy: Never
     backoffLimit: 4
     tty: true
-    shm-size: 8g
+    shm-size: 16g
   nodeSelector:
     kubernetes.io/os: linux
     nvidia.com/gpu_type: "Tesla_T4x4"
     nvidia.com/node_type: gpu_tester
+    nvidia.com/driver_version: "510.20"
 """
 )   {
       node(POD_LABEL) {
