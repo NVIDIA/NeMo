@@ -153,7 +153,7 @@ def calculate_session_cpWER(
 
     1. Concatenate all utterances of each speaker for both reference and hypothesis files.
     2. Compute the WER between the reference and all possible speaker permutations of the hypothesis.
-    3. Pick the lowest WER among them (this is assumed to be the best permutation: `min_perm_ref_trans`).
+    3. Pick the lowest WER among them (this is assumed to be the best permutation: `min_perm_hyp_trans`).
 
     cpWER was proposed in the following article:
         CHiME-6 Challenge: Tackling Multispeaker Speech Recognition for Unsegmented Recordings
