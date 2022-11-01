@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
+from multiprocessing import Pool
 import json
 import os
 import re
@@ -71,12 +73,9 @@ def write_dataset_to_file(dataset, filename, detokenizer):
     with open(filename, 'w') as f:
         for item in dataset:
             if 'is_correct' in item and item['is_correct'].numpy() is False:
-                print('Skipping because is_correct is False')
+                print('Skipping example because is_correct is False')
                 continue
-            if 'inputs_pretokenized' not in item:
-                import ipdb
 
-                ipdb.set_trace()
             item_object = {}
             i = remove_newline_and_detokenize(item['inputs_pretokenized'].numpy().decode('utf-8'), detokenizer)
             item_object['input'] = i
@@ -90,8 +89,32 @@ def write_dataset_to_file(dataset, filename, detokenizer):
                 item_object['choices'] = choices
             f.write(json.dumps(item_object) + '\n')
 
+def process_folder(data_folder, folder_name, output_folder, detokenizer):
+    if not os.path.isdir(os.path.join(data_folder, folder_name)):
+        return
+    print(f'Processing {folder_name}')
+    train_fname = os.path.join(data_folder, folder_name, 'train.tfrecord-00000-of-00001')
+    valid_fname = os.path.join(data_folder, folder_name, 'validation.tfrecord-00000-of-00001')
+    test_fname = os.path.join(data_folder, folder_name, 'test.tfrecord-00000-of-00001')
+    if not os.path.exists(train_fname):
+        print(f'Could not find {train_fname}')
+        return
 
-def process_folder(data_folder, output_folder):
+    ds = tf.data.TFRecordDataset(tf.io.gfile.glob([train_fname]))
+    fdict = _TASK_SPLITS_AND_FEATURES_DICT[folder_name]['features_dict']
+    feature_description = {
+        feat: _feature_config(**desc) for feat, desc in fdict.items()
+    }
+    ds = ds.map(lambda pb: tf.io.parse_single_example(pb, feature_description), num_parallel_calls=tf.data.experimental.AUTOTUNE)
+    ds = ds.map(lambda x: {k: tf.cast(v, fdict[k]["dtype"]) for k, v in x.items()}, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+    write_dataset_to_file(ds, os.path.join(output_folder, 'train', folder_name + '.jsonl'), detokenizer)
+    if os.path.exists(valid_fname):
+        write_dataset_to_file(ds, os.path.join(output_folder, 'val', folder_name + '.jsonl'), detokenizer)
+    if os.path.exists(test_fname):
+        write_dataset_to_file(ds, os.path.join(output_folder, 'test', folder_name + '.jsonl'), detokenizer)
+
+
+def process_all_folders(data_folder, output_folder):
     detokenizer = MosesDetokenizer('en')
     assert os.path.isdir(data_folder)
     if not os.path.exists(output_folder):
@@ -104,34 +127,11 @@ def process_folder(data_folder, output_folder):
         os.system(f'mkdir -p {os.path.join(output_folder, "test")}')
 
     print(f'Found {len(os.listdir(data_folder))} folders to process ...')
+    pool_args = []
     for folder_name in os.listdir(data_folder):
-        if not os.path.isdir(os.path.join(data_folder, folder_name)):
-            continue
-        print(f'Processing {folder_name}')
-        train_fname = os.path.join(data_folder, folder_name, 'train.tfrecord-00000-of-00001')
-        valid_fname = os.path.join(data_folder, folder_name, 'validation.tfrecord-00000-of-00001')
-        test_fname = os.path.join(data_folder, folder_name, 'test.tfrecord-00000-of-00001')
-        if not os.path.exists(train_fname):
-            print(f'Could not find {train_fname}')
-            continue
-
-        ds = tf.data.TFRecordDataset(tf.io.gfile.glob([train_fname]))
-        fdict = _TASK_SPLITS_AND_FEATURES_DICT[folder_name]['features_dict']
-        feature_description = {feat: _feature_config(**desc) for feat, desc in fdict.items()}
-        ds = ds.map(
-            lambda pb: tf.io.parse_single_example(pb, feature_description),
-            num_parallel_calls=tf.data.experimental.AUTOTUNE,
-        )
-        ds = ds.map(
-            lambda x: {k: tf.cast(v, fdict[k]["dtype"]) for k, v in x.items()},
-            num_parallel_calls=tf.data.experimental.AUTOTUNE,
-        )
-        write_dataset_to_file(ds, os.path.join(output_folder, 'train', folder_name + '.jsonl'), detokenizer)
-        if os.path.exists(valid_fname):
-            write_dataset_to_file(ds, os.path.join(output_folder, 'val', folder_name + '.jsonl'), detokenizer)
-        if os.path.exists(test_fname):
-            write_dataset_to_file(ds, os.path.join(output_folder, 'test', folder_name + '.jsonl'), detokenizer)
-
+        pool_args.append((data_folder, folder_name, output_folder, detokenizer))
+    pool = Pool()
+    pool.starmap(process_folder, pool_args)
 
 if __name__ == '__main__':
     parser = ArgumentParser()
@@ -148,4 +148,4 @@ if __name__ == '__main__':
         help="Path to output folder where JSONL files will be written.",
     )
     args = parser.parse_args()
-    process_folder(args.p3_dataset_path, args.jsonl_output_path)
+    process_all_folders(args.p3_dataset_path, args.jsonl_output_path)
