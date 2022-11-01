@@ -969,8 +969,6 @@ class ASR_DIAR_OFFLINE:
             WER_result_dict (dict):
                 Session-by-session results including DER, miss rate, false alarm rate, WER and cpWER
         """
-        count_dict = {}
-
         word_seq_lists = []
         for audio_file_path in self.audio_file_list:
             uniq_id = get_uniqname_from_filepath(audio_file_path)
@@ -1025,6 +1023,7 @@ class ASR_DIAR_OFFLINE:
         self, DER_result_dict: Dict[str, Dict[str, float]], WER_result_dict: Dict[str, Dict[str, float]]
     ):
         """
+        Merge WER results and DER results into a single dictionary variable.
 
         Args:
             DER_result_dict (dict):
@@ -1036,6 +1035,8 @@ class ASR_DIAR_OFFLINE:
 
         Returns:
             total_result_dict (dict):
+                Dictionary containing both DER and WER results. This dictionary contains unique-IDs of
+                each session and `total` key that includes average (cp)WER and DER/CER/Miss/FA values.
         """
         total_result_dict = {}
         for uniq_id in DER_result_dict.keys():
