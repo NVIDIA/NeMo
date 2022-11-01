@@ -55,6 +55,16 @@ model:
         min_speed_rate: 0.95
         max_speed_rate: 1.05
         prob: 0.0
+      impulse:
+        manifest_path: null
+        shift_impulse: False
+        prob: 0.0
+      noise:
+        manifest_path: null
+        min_snr_db: 10
+        max_snr_db: 40
+        prob: 0.0
+        orig_sr: ${model.sample_rate}
     num_sources: ${model.num_sources}
     mixing_portion: 0.7
     manifest_filepath: ???
