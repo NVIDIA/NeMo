@@ -456,23 +456,24 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
         else:
             num_speakers = -1
         uniq_embs_and_timestamps = embs_and_timestamps[uniq_id]
-        num_speakers = torch.tensor(num_speakers, dtype=torch.long)
 
         speaker_clustering = SpeakerClustering(
-            max_num_speaker=max_num_speakers,
+            oracle_num_speakers=num_speakers,
+            enhanced_count_thres=clustering_params.enhanced_count_thres,
             max_rp_threshold=clustering_params.max_rp_threshold,
-            sparse_search_volume=clustering_params.sparse_search_volume,
-            multiscale_weights=uniq_embs_and_timestamps['multiscale_weights'],
             cuda=cuda,
         )
+
         if use_torch_script:
             speaker_clustering = torch.jit.script(speaker_clustering)
 
         cluster_labels = speaker_clustering.forward(
             uniq_embs_and_timestamps['embeddings'],
             uniq_embs_and_timestamps['timestamps'],
+            uniq_embs_and_timestamps['multiscale_weights'],
             uniq_embs_and_timestamps['multiscale_segment_counts'],
-            oracle_num_speakers=num_speakers,
+            torch.tensor(max_num_speakers, dtype=torch.long),
+            torch.tensor(clustering_params.sparse_search_volume, dtype=torch.long),
         )
 
         base_scale_idx = uniq_embs_and_timestamps['multiscale_segment_counts'].shape[0] - 1
@@ -1226,7 +1227,7 @@ def prepare_split_data(manifest_filepath, _out_dir, multiscale_args_dict, global
 
 def extract_timestamps(manifest_file: str):
     """
-    This method extracts timestamps from segments passed through manifest_file. 
+    This method extracts timestamps from segments passed through manifest_file.
 
     Args:
         manifest_file (str):
