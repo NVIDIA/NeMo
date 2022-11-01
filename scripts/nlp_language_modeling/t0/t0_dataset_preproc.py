@@ -12,12 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import re
-from multiprocessing import Pool
 import json
 import os
 import re
 from argparse import ArgumentParser
+from multiprocessing import Pool
 
 import tensorflow as tf
 from sacremoses import MosesDetokenizer
@@ -89,6 +88,7 @@ def write_dataset_to_file(dataset, filename, detokenizer):
                 item_object['choices'] = choices
             f.write(json.dumps(item_object) + '\n')
 
+
 def process_folder(data_folder, folder_name, output_folder, detokenizer):
     if not os.path.isdir(os.path.join(data_folder, folder_name)):
         return
@@ -102,11 +102,15 @@ def process_folder(data_folder, folder_name, output_folder, detokenizer):
 
     ds = tf.data.TFRecordDataset(tf.io.gfile.glob([train_fname]))
     fdict = _TASK_SPLITS_AND_FEATURES_DICT[folder_name]['features_dict']
-    feature_description = {
-        feat: _feature_config(**desc) for feat, desc in fdict.items()
-    }
-    ds = ds.map(lambda pb: tf.io.parse_single_example(pb, feature_description), num_parallel_calls=tf.data.experimental.AUTOTUNE)
-    ds = ds.map(lambda x: {k: tf.cast(v, fdict[k]["dtype"]) for k, v in x.items()}, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+    feature_description = {feat: _feature_config(**desc) for feat, desc in fdict.items()}
+    ds = ds.map(
+        lambda pb: tf.io.parse_single_example(pb, feature_description),
+        num_parallel_calls=tf.data.experimental.AUTOTUNE,
+    )
+    ds = ds.map(
+        lambda x: {k: tf.cast(v, fdict[k]["dtype"]) for k, v in x.items()},
+        num_parallel_calls=tf.data.experimental.AUTOTUNE,
+    )
     write_dataset_to_file(ds, os.path.join(output_folder, 'train', folder_name + '.jsonl'), detokenizer)
     if os.path.exists(valid_fname):
         write_dataset_to_file(ds, os.path.join(output_folder, 'val', folder_name + '.jsonl'), detokenizer)
@@ -132,6 +136,7 @@ def process_all_folders(data_folder, output_folder):
         pool_args.append((data_folder, folder_name, output_folder, detokenizer))
     pool = Pool()
     pool.starmap(process_folder, pool_args)
+
 
 if __name__ == '__main__':
     parser = ArgumentParser()
