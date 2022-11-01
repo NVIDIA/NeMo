@@ -88,7 +88,6 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         self.pad_token_id = self.tokenizer.pad_id if self.tokenizer.pad_id is not None else self.tokenizer.unk_id
 
         # Load templates for assigning virtual prompt token positions
-        self.load_task_templates(self.cfg.task_templates)
 
         # make sure the default pytorch lightning gradient clipping in the basemodel
         self.grad_clip_pl_default = True
@@ -109,9 +108,6 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         virtual_prompt_params = {'params': []}
         virtual_prompt_params['params'].extend([param for param in self.prompt_encoder.parameters()])
         self._optimizer_param_groups = (virtual_prompt_params,)
-
-    def load_task_templates(self, task_templates):
-        self.task_templates = OmegaConf.to_container(self.cfg.task_templates)
 
     def load_frozen_model(self, cfg, trainer):
         save_restore_connector = NLPSaveRestoreConnector()
