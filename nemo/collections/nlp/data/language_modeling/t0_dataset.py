@@ -119,10 +119,13 @@ class T0Dataset(Dataset):
             offset += 1
         if self.add_eos_to_input:
             offset += 1
+
         if len(tokenized_input) > self.max_src_seq_length - offset:
-            tokenized_input = tokenized_input[: self.max_src_seq_length - 2]
+            tokenized_input = tokenized_input[: self.max_src_seq_length - offset]
+
         if len(tokenized_output) > self.max_tgt_seq_length - 2:
             tokenized_output = tokenized_output[: self.max_tgt_seq_length - 2]
+
         bos_id = self.tokenizer.pad_id if self.replace_bos_with_pad else self.tokenizer.bos_id
         if self.add_bos_to_input:
             tokenized_input = [bos_id] + tokenized_input
