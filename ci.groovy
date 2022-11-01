@@ -60,6 +60,7 @@ spec:
                 stage('Code Style') {
                         sh "apt-get update && \
                             apt-get install -y bc && \
+                            nvidia-smi && \
                             pip install -r requirements/requirements_test.txt && \
                             python setup.py style && ls -l /testdata/TestData && ln -s /testdata/TestData /home/TestData && \
                             ls -l /home && ls -l /home/TestData"
