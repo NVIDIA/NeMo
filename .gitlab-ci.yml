@@ -1244,11 +1244,12 @@ cleanup.selene:
   variables:
     <<: [*VARS, *LUNA_VARS]
   script:
-    - rm -rf ${CI_BUILDS_DIR}/${SLURM_ACCOUNT}/big_nlp/bignlp_ci/*
-    - echo "Finished cleaning everything in Selene"
+    - NUM_CLEANUP=`find ${CI_BUILDS_DIR}/${SLURM_ACCOUNT}/big_nlp/bignlp_ci/* -type d -ctime +20 | wc -l`
+    - find ${CI_BUILDS_DIR}/${SLURM_ACCOUNT}/big_nlp/bignlp_ci/* -type d -ctime +20 | xargs rm -rf
+    - echo "Finished cleaning $NUM_CLEANUP directories older than 20 days everything in Selene"
   allow_failure: true
   rules:
-    - when: manual
+    - when: always
 
 
 # Auto generated tests
