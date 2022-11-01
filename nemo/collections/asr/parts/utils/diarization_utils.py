@@ -170,10 +170,10 @@ def calculate_session_cpWER(
     Returns:
         cpWER (float):
             cpWER value for the given session.
-        hyp_trans (str):
-            Hypothesis transcript in an arbitrary permutation. Words are separated by spaces.
-        min_perm_ref_trans (str):
-            Reference transcript containing the permutation that minimizes WER. Words are separated by spaces.
+        min_perm_hyp_trans (str):
+            Hypothesis transcript containing the permutation that minimizes WER. Words are separated by spaces.
+        ref_trans (str):
+            Reference transcript in an arbitrary permutation. Words are separated by spaces.
     """
     p_wer_list, permed_hyp_lists = [], []
     ref_word_list = []
