@@ -349,11 +349,10 @@ class MegatronVitClassificationModel(MegatronVisionModel):
         self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True)
         lr = self._optimizer.param_groups[0]['lr']
         self.log('lr', lr, rank_zero_only=True)
-        self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True)
-        # TODO: make sure compute_consumed_samples works for pipeline parallelism
+        self.log('global_step', self.trainer.global_step + 1, prog_bar=True, rank_zero_only=True)
         self.log(
             'consumed_samples',
-            self.compute_consumed_samples(self.trainer.global_step - self.init_global_step),
+            self.compute_consumed_samples(self.trainer.global_step + 1 - self.init_global_step),
             prog_bar=True,
             rank_zero_only=True,
         )
@@ -584,6 +583,7 @@ class MegatronVitClassificationModel(MegatronVisionModel):
 
         averaged_loss, averaged_acc = averaged_metrics
 
+        self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True)
         self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
         self.log('val_accuracy', averaged_acc, prog_bar=True, rank_zero_only=True)
 

@@ -148,12 +148,12 @@ model:
   optim:
     name: fused_adam
     lr: 5e-4
-    weight_decay: 0.1
+    weight_decay: 0.05
     betas: 
     - 0.9
-    - 0.98
+    - 0.999
     sched:
       name: CosineAnnealing
-      warmup_steps: 6250
+      warmup_steps: 12500
       constant_steps: 0
       min_lr: 1e-5
