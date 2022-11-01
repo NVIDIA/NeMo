@@ -1,0 +1,6 @@
+latexcodec
+sphinx>=3.0
+sphinx-book-theme
+sphinxcontrib-bibtex
+wrapt
+numpy

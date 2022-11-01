@@ -1,0 +1,2 @@
+Model Name,Model Base Class,Model Card
+asrlm_en_transformer_large_ls,TransformerLMModel,"https://ngc.nvidia.com/catalog/models/nvidia:nemo:asrlm_en_transformer_large_ls"

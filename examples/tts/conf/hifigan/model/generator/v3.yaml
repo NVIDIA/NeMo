@@ -1,0 +1,7 @@
+_target_: nemo.collections.tts.modules.hifigan_modules.Generator
+resblock: 2
+upsample_rates: [8,8,4]
+upsample_kernel_sizes: [16,16,8]
+upsample_initial_channel: 256
+resblock_kernel_sizes: [3,5,7]
+resblock_dilation_sizes: [[1,2], [2,6], [3,12]]
