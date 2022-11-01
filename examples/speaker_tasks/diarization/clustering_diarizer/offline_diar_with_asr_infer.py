@@ -59,13 +59,13 @@ def main(cfg):
 
     # Diarization inference for speaker labels
     diar_hyp, diar_score = asr_diar_offline.run_diarization(cfg, word_ts_hyp)
-    total_riva_dict = asr_diar_offline.get_transcript_with_speaker_labels(diar_hyp, word_hyp, word_ts_hyp)
+    trans_info_dict = asr_diar_offline.get_transcript_with_speaker_labels(diar_hyp, word_hyp, word_ts_hyp)
 
     if diar_score is not None:
         metric, mapping_dict = diar_score
-        DER_result_dict = asr_diar_offline.gather_eval_results(metric, mapping_dict, total_riva_dict)
-        session_result_dict = asr_diar_offline.get_cpWER(total_riva_dict)
-        asr_diar_offline.print_errors(DER_result_dict, session_result_dict)
+        DER_result_dict = asr_diar_offline.gather_eval_results(metric, mapping_dict, trans_info_dict)
+        WER_result_dict = asr_diar_offline.get_cpWER(trans_info_dict)
+        asr_diar_offline.print_errors(DER_result_dict, WER_result_dict)
 
 
 if __name__ == '__main__':

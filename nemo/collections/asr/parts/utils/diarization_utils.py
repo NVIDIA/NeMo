@@ -44,18 +44,18 @@ except ImportError:
 __all__ = ['ASR_DIAR_OFFLINE']
 
 
-def dump_json_to_file(file_path: str, trans_dict: dict):
+def dump_json_to_file(file_path: str, session_trans_dict: dict):
     """
-    Write a json file from the trans_dict dictionary.
+    Write a json file from the session_trans_dict dictionary.
 
     Args:
         file_path (str):
             Target filepath where json file is saved
-        trans_dict (dict):
+        session_trans_dict (dict):
             Dictionary containing transcript, speaker labels and timestamps
     """
     with open(file_path, "w") as outfile:
-        json.dump(trans_dict, outfile, indent=4)
+        json.dump(session_trans_dict, outfile, indent=4)
 
 
 def write_txt(w_path: str, val: str):
@@ -71,8 +71,7 @@ def write_txt(w_path: str, val: str):
     with open(w_path, "w") as output:
         output.write(val + '\n')
 
-
-def get_per_spk_ref_transcripts(ctm_file_path: str) -> Tuple[Dict[str, List[str]], str]:
+def get_per_spk_ref_transcripts(ctm_file_path: str) -> Tuple[List[str], str]:
     """
     Save the reference transcripts separately by its speaker identity.
 
@@ -81,55 +80,73 @@ def get_per_spk_ref_transcripts(ctm_file_path: str) -> Tuple[Dict[str, List[str]
             Filepath to the reference CTM files.
 
     Returns:
-        per_spk_ref_trans (dict):
-            Dictionary containing the reference transcripts for each speaker.
+        per_spk_ref_trans (list):
+            List containing the reference transcripts for each speaker.
+
+            Example::
+                >>> per_spk_ref_trans = ["hi how are you well that's nice", "i'm good yeah how is your sister"]
+
         mix_ref_trans (str):
             Reference transcript from CTM file. This transcript has word sequence in temporal order.
+
+            Example::
+                >>> mix_ref_trans = ["hi how are you i'm good well that's nice yeah how is your sister"]
     """
-    mix_ref_trans, per_spk_ref_trans = [], {}
+    mix_ref_trans, per_spk_ref_trans_dict = [], {}
     ctm_content = open(ctm_file_path).readlines()
     for ctm_line in ctm_content:
         ctm_split = ctm_line.split()
         spk = ctm_split[1]
-        if spk not in per_spk_ref_trans:
-            per_spk_ref_trans[spk] = []
-        per_spk_ref_trans[spk].append(ctm_split[4])
+        if spk not in per_spk_ref_trans_dict:
+            per_spk_ref_trans_dict[spk] = []
+        per_spk_ref_trans_dict[spk].append(ctm_split[4])
         mix_ref_trans.append(ctm_split[4])
+    per_spk_ref_trans = [ " ".join(word_list) for word_list in per_spk_ref_trans_dict.values()]
     mix_ref_trans = " ".join(mix_ref_trans)
     return per_spk_ref_trans, mix_ref_trans
 
-
-def get_per_spk_hyp_transcripts(word_dict_seq_list: List[Dict[str, float]]) -> Tuple[Dict[str, List[str]], str]:
+def get_per_spk_hyp_transcripts(word_dict_seq_list: List[Dict[str, float]]) -> Tuple[List[str], str]:
     """
-    Save the hypothesis transcripts separately by its speaker identity.
+    Save the hypothesis transcripts separately according to its speaker identity.
 
     Args:
         word_dict_seq_list (list):
             List containing words and corresponding word timestamps in dictionary format.
+
     Returns:
-        per_spk_hyp_trans (dict):
+        per_spk_hyp_trans_dict (dict):
             Dictionary containing the hypothesis transcript for each speaker. A list containing the sequence
-            of words is assigned for each speaker (key value).
+            of words is assigned for each speaker.
+
+            Example::
+                >>> per_spk_ref_trans = ["hi how are you well that's nice", "i'm good yeah how is your sister"]
+
         mix_hyp_trans (str):
             Hypothesis transcript from ASR output. This transcript has word sequence in temporal order.
+
+            Example::
+                >>> mix_ref_trans = ["hi how are you i'm good well that's nice yeah how is your sister"]
     """
-    mix_hyp_trans, per_spk_hyp_trans = [], {}
+    mix_hyp_trans, per_spk_hyp_trans_dict = [], {}
     for word_dict in word_dict_seq_list:
         spk = word_dict['speaker_label']
-        if spk not in per_spk_hyp_trans:
-            per_spk_hyp_trans[spk] = []
-        per_spk_hyp_trans[spk].append(word_dict['word'])
+        if spk not in per_spk_hyp_trans_dict:
+            per_spk_hyp_trans_dict[spk] = []
+        per_spk_hyp_trans_dict[spk].append(word_dict['word'])
         mix_hyp_trans.append(word_dict['word'])
+
+    # Create a list containing string formatted transcript
+    per_spk_hyp_trans = [ " ".join(word_list) for word_list in per_spk_hyp_trans_dict.values()]
     mix_hyp_trans = " ".join(mix_hyp_trans)
     return per_spk_hyp_trans, mix_hyp_trans
 
 
 def calculate_session_cpWER(
-    per_spk_hyp_trans: Dict[str, List[str]], per_spk_ref_trans: Dict[str, List[str]]
+    per_spk_hyp_trans: List[List[str]], per_spk_ref_trans: List[List[str]]
 ) -> Tuple[float, str, str]:
     """
-    Calculate a session-level concatenated minimum-permutation word error rate (cpWER). cpWER is a scoring
-    method that can evaluate speaker diarization and speech recognition performance at the same time.
+    Calculate a session-level concatenated minimum-permutation word error rate (cpWER) value. cpWER is
+    a scoring method that can evaluate speaker diarization and speech recognition performance at the same time.
     cpWER is calculated by going through the following steps.
 
     1. Concatenate all utterances of each speaker for both reference and hypothesis files.
@@ -141,10 +158,10 @@ def calculate_session_cpWER(
         https://arxiv.org/pdf/2004.09249.pdf
 
     Args:
-        per_spk_hyp_trans (dict):
+        per_spk_hyp_trans (list):
             Dictionary containing the hypothesis transcript for each speaker. A list containing the sequence
             of words is assigned for each speaker (key value).
-        per_spk_ref_trans (dict):
+        per_spk_ref_trans (list):
             Dictionary containing the reference transcript for each speaker. A list containing the sequence
             of words is assigned for each speaker (key value).
 
@@ -156,32 +173,31 @@ def calculate_session_cpWER(
         min_perm_ref_trans (str):
             Reference transcript containing the permutation that minimizes WER. Words are separated by spaces.
     """
-    wer_list, ref_lists = [], []
+    p_wer_list, ref_lists = [], []
     hyp_word_list = []
 
-    # concatenate the hypothesis transcripts into a list
-    for spk_id, word_list in per_spk_hyp_trans.items():
-        hyp_word_list.extend(word_list)
+    # Concatenate the hypothesis transcripts into a list
+    for spk_id, word_list in enumerate(per_spk_hyp_trans):
+        hyp_word_list.append(word_list)
     hyp_trans = " ".join(hyp_word_list)
 
-    # calculate WER for every permutation
-    for key_tuple in permutations(per_spk_ref_trans.keys()):
-        ref_word_list = []
-        for uniq_id in key_tuple:
-            ref_word_list.extend(per_spk_ref_trans[uniq_id])
+    # Calculate WER for every permutation
+    for ref_word_list in permutations(per_spk_ref_trans):
         ref_trans = " ".join(ref_word_list)
         ref_lists.append(ref_trans)
-        wer = word_error_rate(hypotheses=[hyp_trans], references=[ref_trans])
-        wer_list.append(wer)
 
-    # find the lowest WER and its reference transcript
-    argmin_idx = np.argmin(wer_list)
+        # Calculate a WER value of the permuted and concatenated transcripts
+        p_wer = word_error_rate(hypotheses=[hyp_trans], references=[ref_trans])
+        p_wer_list.append(p_wer)
+    
+    # Find the lowest WER and its reference transcript
+    argmin_idx = np.argmin(p_wer_list)
     min_perm_ref_trans = ref_lists[argmin_idx]
-    cpWER = wer_list[argmin_idx]
+    cpWER = p_wer_list[argmin_idx]
     return cpWER, hyp_trans, min_perm_ref_trans
 
 
-def calculate_cpWER(
+def calculate_total_WER(
     word_seq_lists: List[List[Dict[str, float]]], ctm_file_list: List[str]
 ) -> Dict[str, Dict[str, float]]:
     """
@@ -197,20 +213,20 @@ def calculate_cpWER(
             List containing a dictionary containing word, word timestamp and speaker label.
             The dictionary has following keys: `word`, `start_time`, `end_time` and `speaker_label`.
 
-            - Example:
-                [{'word': 'right', 'start_time': 0.0, 'end_time': 0.04, 'speaker_label': 'speaker_0'},  
-                 {'word': 'and', 'start_time': 0.64, 'end_time': 0.68, 'speaker_label': 'speaker_1'},  
-                 {'word': 'i', 'start_time': 0.84, 'end_time': 0.88, 'speaker_label': 'speaker_1'},  
-                 ...]
+            Example::
+                >>> [{'word': 'right', 'start_time': 0.0, 'end_time': 0.04, 'speaker_label': 'speaker_0'},  
+                     {'word': 'and', 'start_time': 0.64, 'end_time': 0.68, 'speaker_label': 'speaker_1'},  
+                     {'word': 'i', 'start_time': 0.84, 'end_time': 0.88, 'speaker_label': 'speaker_1'},  
+                     ...]
 
         ctm_file_list (list):
             List containing filepaths of CTM files.
 
     Returns:
-        session_result_dict (dict):
+        WER_result_dict (dict):
             Dictionary containing session level cpWER and WER values.
     """
-    session_result_dict = {'session_level': {}}
+    WER_result_dict = {'total': {}}
     hyps_spk, refs_spk = [], []
     hyps_mix, refs_mix = [], []
 
@@ -218,25 +234,25 @@ def calculate_cpWER(
         per_spk_hyp_trans, mix_hyp_trans = get_per_spk_hyp_transcripts(word_dict_seq_list)
         per_spk_ref_trans, mix_ref_trans = get_per_spk_ref_transcripts(ctm_file_path)
 
-        # calculate cpWER and mixWER using the above results
+        # Calculate cpWER and mixWER using the above results
         cpWER, hyp_trans, ref_trans = calculate_session_cpWER(per_spk_hyp_trans, per_spk_ref_trans)
         mixWER = word_error_rate(hypotheses=[mix_hyp_trans], references=[mix_ref_trans])
 
-        # save session-level cpWER and mixWER values
+        # Save session-level cpWER and mixWER values
         uniq_id = get_uniqname_from_filepath(ctm_file_path)
-        session_result_dict['session_level'][uniq_id] = {}
-        session_result_dict['session_level'][uniq_id]['cpWER'] = cpWER
-        session_result_dict['session_level'][uniq_id]['mixWER'] = mixWER
+        WER_result_dict[uniq_id] = {}
+        WER_result_dict[uniq_id]['cpWER'] = cpWER
+        WER_result_dict[uniq_id]['mixWER'] = mixWER
 
         hyps_spk.append(hyp_trans)
         refs_spk.append(ref_trans)
         hyps_mix.append(mix_hyp_trans)
         refs_mix.append(mix_ref_trans)
 
-    # average cpWER and regular WER value on all sessions
-    session_result_dict['average_cpWER'] = word_error_rate(hypotheses=hyps_spk, references=refs_spk)
-    session_result_dict['average_mixWER'] = word_error_rate(hypotheses=hyps_mix, references=refs_mix)
-    return session_result_dict
+    # Take an average of cpWER and regular WER value on all sessions
+    WER_result_dict['total']['average_cpWER'] = word_error_rate(hypotheses=hyps_spk, references=refs_spk)
+    WER_result_dict['total']['average_mixWER'] = word_error_rate(hypotheses=hyps_mix, references=refs_mix)
+    return WER_result_dict
 
 
 class ASR_DIAR_OFFLINE:
@@ -249,21 +265,21 @@ class ASR_DIAR_OFFLINE:
         params (OmegaConf):
             Parameters config in diarizer.asr
         ctc_decoder_params (OmegaConf)
-            cfg_diarizer.asr.ctc_decoder_parameters
+            Hydra config for beam search decoder
         realigning_lm_params (OmegaConf):
-            cfg_diarizer.asr.realigning_lm_parameters
+            Hydra config for realigning language model
         manifest_filepath (str):
             Path to the input manifest path
-        nonspeech_threshold (float)
-            self.params.asr_based_vad_threshold
-        fix_word_ts_with_VAD (bool)
-            self.params.fix_word_ts_with_VAD
-        root_path (str)
-            cfg_diarizer.out_dir
+        nonspeech_threshold (float):
+            Threshold for VAD logits that are used for creating speech segments
+        fix_word_ts_with_VAD (bool):
+            Choose whether to fix word timestamps by using VAD results
+        root_path (str):
+            Path to the folder where diarization results are saved
         vad_threshold_for_word_ts (float):
             Threshold used for compensating word timestamps with VAD output
         max_word_ts_length_in_sec (float):
-            Maximum limit for word timestamp length
+            Maximum limit for the duration of each word timestamp
         word_ts_anchor_offset (float):
             Offset for word timestamps from ASR decoders
         run_ASR:
@@ -271,15 +287,14 @@ class ASR_DIAR_OFFLINE:
         realigning_lm:
             Placeholder variable for a loaded ARPA Language model
         ctm_exists (bool):
-            Boolean that indicates whether all files have corresponding reference CTM file
+            Boolean that indicates whether all files have the corresponding reference CTM file
         frame_VAD (dict):
             Dictionary containing frame-level VAD logits
         AUDIO_RTTM_MAP:
             Dictionary containing the input manifest information
         color_palette (dict):
-            Dictionary containing the ANSI color escape codes for each speaker index
+            Dictionary containing the ANSI color escape codes for each speaker label (speaker index)
     """
-
     def __init__(self, cfg_diarizer):
         self.cfg_diarizer = cfg_diarizer
         self.params = cfg_diarizer.asr.parameters
@@ -314,6 +329,20 @@ class ASR_DIAR_OFFLINE:
             'white': '\033[0;37m',
         }
 
+        self.csv_columns = [
+            'uniq_id',
+            'DER',
+            'CER',
+            'FA',
+            'MISS',
+            'est_n_spk',
+            'is_spk_count_correct',
+            'cpWER',
+            'mixWER',
+            'mapping',
+        ]
+        
+
     def make_file_lists(self):
         """
         Create lists containing the filepaths of audio clips and CTM files.
@@ -331,7 +360,7 @@ class ASR_DIAR_OFFLINE:
             ):
                 self.ctm_file_list.append(self.AUDIO_RTTM_MAP[uniq_id]['ctm_filepath'])
 
-        # check if all unique-IDs have CTM files
+        # check if all unique IDs have CTM files
         if len(self.audio_file_list) == len(self.ctm_file_list):
             self.ctm_exists = True
 
@@ -439,7 +468,7 @@ class ASR_DIAR_OFFLINE:
             vad_processing_dir (str):
                 The path where VAD results are saved.
             smoothing_type (bool or str): [False, median, mean]
-                type of smoothing applied softmax logits to smooth the predictions.  
+                type of smoothing applied softmax logits to smooth the predictions.
         """
         if isinstance(smoothing_type, bool) and not smoothing_type:
             ext_type = 'frame'
@@ -465,7 +494,7 @@ class ASR_DIAR_OFFLINE:
                 DiarizationErrorRate metric pyannote object
             trans_info_dict (dict):
                 Dictionary containing word timestamps, speaker labels and words from all sessions.
-                Each session is indexed by unique-ID as a key.
+                Each session is indexed by unique ID as a key.
             mapping_dict (dict):
                 Dictionary containing speaker mapping labels for each audio file with key as unique name
             decimals (int):
@@ -541,23 +570,23 @@ class ASR_DIAR_OFFLINE:
                 Contains the parameters for diarization and ASR decoding.
 
         Returns:
-            c (float):
+            cursor (float):
                 A timestamp of the earliest start of a silence region from
                 the given time point, vad_index_word_end.
         """
 
-        c = vad_index_word_end + offset
+        cursor = vad_index_word_end + offset
         limit = int(100 * self.max_word_ts_length_in_sec + vad_index_word_end)
-        while c < len(vad_frames):
-            if vad_frames[c] < self.vad_threshold_for_word_ts:
+        while cursor < len(vad_frames):
+            if vad_frames[cursor] < self.vad_threshold_for_word_ts:
                 break
             else:
-                c += 1
-                if c > limit:
+                cursor += 1
+                if cursor > limit:
                     break
-        c = min(len(vad_frames) - 1, c)
-        c = round(c / 100.0, 2)
-        return c
+        cursor = min(len(vad_frames) - 1, cursor)
+        cursor = round(cursor / 100.0, 2)
+        return cursor
 
     def compensate_word_ts_list(
         self, audio_file_list: List[str], word_ts_dict: Dict[str, List[float]], params: Dict[str, float]
@@ -612,22 +641,28 @@ class ASR_DIAR_OFFLINE:
 
         Args:
             diar_hyp (dict):
-                Dictionary of the Diarization output labels in str.
-                - Example:
-                - diar_hyp['my_audio_01'] = ['0.0 4.375 speaker_1', '4.375 5.125 speaker_0', ...]
+                Dictionary of the Diarization output labels in str. Indexed by unique IDs.
+
+                Example::
+                >>>  diar_hyp['my_audio_01'] = ['0.0 4.375 speaker_1', '4.375 5.125 speaker_0', ...]
+
             word_hyp (dict):
-                Dictionary of words from ASR inference.
-                - Example:
-                - word_hyp['my_audio_01'] = ['hi', 'how', 'are', ...]
+                Dictionary of words from ASR inference. Indexed by unique IDs.
+
+                Example::
+                >>> word_hyp['my_audio_01'] = ['hi', 'how', 'are', ...]
+
             word_ts_hyp (dict):
                 Dictionary containing the start time and the end time of each word.
-                - Example:
-                - word_ts_hyp['my_audio_01'] = [[0.0, 0.04], [0.64, 0.68], [0.84, 0.88], ...]
+                Indexed by unique IDs.
+
+                Example::
+                >>> word_ts_hyp['my_audio_01'] = [[0.0, 0.04], [0.64, 0.68], [0.84, 0.88], ...]
 
         Returns:
             trans_info_dict (dict):
                 Dictionary containing word timestamps, speaker labels and words from all sessions.
-                Each session is indexed by unique-ID as a key.
+                Each session is indexed by a unique ID.
         """
         trans_info_dict = {}
         if self.fix_word_ts_with_VAD:
@@ -671,19 +706,30 @@ class ASR_DIAR_OFFLINE:
             uniq_id (str):
                 A unique ID (key) that identifies each input audio file.
             diar_hyp (dict):
-                Dictionary of the diarization output labels in str.
-                - Example:
-                - diar_hyp['my_audio_01'] = ['0.0 4.375 speaker_1', '4.375 5.125 speaker_0', ...]
+                Dictionary of the Diarization output labels in str. Indexed by unique IDs.
+
+                Example::
+                >>>  diar_hyp['my_audio_01'] = ['0.0 4.375 speaker_1', '4.375 5.125 speaker_0', ...]
+
             word_hyp (dict):
-                Dictionary of words from ASR inference.
-                - Example:
-                - word_hyp['my_audio_01'] = ['hi', 'how', 'are', ...]
+                Dictionary of words from ASR inference. Indexed by unique IDs.
+
+                Example::
+                >>> word_hyp['my_audio_01'] = ['hi', 'how', 'are', ...]
+
             word_ts_hyp (dict):
                 Dictionary containing the start time and the end time of each word.
-                - Example:
-                - word_ts_hyp['my_audio_01'] = [[0.0, 0.04], [0.64, 0.68], [0.84, 0.88], ...]
-            word_ts_hyp (dict):
-                Dictionary containing the refined version of `word_ts_hyp`.
+                Indexed by unique IDs.
+
+                Example::
+                >>> word_ts_hyp['my_audio_01'] = [[0.0, 0.04], [0.64, 0.68], [0.84, 0.88], ...]
+            
+            word_ts_refined (dict):
+                Dictionary containing the refined word timestamps based on hypothesis word timestamps.
+                Indexed by unique IDs.
+
+                Example::
+                >>> word_ts_refined['my_audio_01'] = [[0.0, 0.60], [0.64, 0.80], [0.84, 0.92], ...]
 
         Returns:
             word_dict_seq_list (list):
@@ -733,7 +779,7 @@ class ASR_DIAR_OFFLINE:
         word_seq_list, audacity_label_words = [], []
         labels = diar_hyp[uniq_id]
         n_spk = self.get_num_of_spk_from_labels(labels)
-        trans_dict = od(
+        session_trans_dict = od(
             {
                 'status': 'Success',
                 'session_id': uniq_id,
@@ -781,9 +827,9 @@ class ASR_DIAR_OFFLINE:
             # add current word to sentence
             sentence['text'] += word.strip() + ' '
 
-            self.add_json_to_dict(trans_dict, word, stt_sec, end_sec, speaker)
+            self.add_json_to_dict(session_trans_dict, word, stt_sec, end_sec, speaker)
             audacity_label_words.append(self.get_audacity_label(word, stt_sec, end_sec, speaker))
-            trans_info_dict[uniq_id] = trans_dict
+            trans_info_dict[uniq_id] = session_trans_dict
             prev_speaker = speaker
 
         # note that we need to add the very last sentence.
@@ -791,8 +837,8 @@ class ASR_DIAR_OFFLINE:
         sentences.append(sentence)
         gecko_dict['monologues'].append({'speaker': {'name': None, 'id': speaker}, 'terms': terms_list})
 
-        trans_dict['transcription'] = ' '.join(word_seq_list)
-        self.write_and_log(uniq_id, trans_dict, audacity_label_words, gecko_dict, sentences)
+        session_trans_dict['transcription'] = ' '.join(word_seq_list)
+        self.write_and_log(uniq_id, session_trans_dict, audacity_label_words, gecko_dict, sentences)
         return trans_info_dict
 
     def get_realignment_ranges(self, k: int, word_seq_len: int) -> Tuple[int, int]:
@@ -862,7 +908,9 @@ class ASR_DIAR_OFFLINE:
         The realigning process calculates the probability of the certain range around the words,
         especially at the boundary between two hypothetical sentences spoken by different speakers.
 
-        <Example> k-th word: "but"
+        Example::
+            k-th word: "but"
+
             hyp_former:
                 since i think like tuesday </s> <s>  but he's coming back to albuquerque
             hyp_latter:
@@ -916,10 +964,10 @@ class ASR_DIAR_OFFLINE:
             Dictionary containing overall results of diarization and ASR inference from all sessions.
 
         Returns:
-            session_result_dict (dict):
+            WER_result_dict (dict):
                 Session-by-session results including DER, miss rate, false alarm rate, WER and cpWER
         """
-        session_result_dict, count_dict = {'session_level': {}}, {}
+        count_dict = {}
 
         word_seq_lists = []
         for audio_file_path in self.audio_file_list:
@@ -927,14 +975,14 @@ class ASR_DIAR_OFFLINE:
             word_seq_lists.append(trans_info_dict[uniq_id]['words'])
 
         if self.ctm_exists == True:
-            session_result_dict = calculate_cpWER(word_seq_lists, self.ctm_file_list)
+            WER_result_dict = calculate_total_WER(word_seq_lists, self.ctm_file_list)
         else:
-            session_result_dict = {}
-        return session_result_dict
+            WER_result_dict = {}
+        return WER_result_dict
 
     def get_str_speech_labels(self, speech_labels_float: List[List[float]]) -> List[str]:
         """
-        Convert speech_labels_float to a list that contains string values.
+        Convert floating point speech labels list to a list containing string values.
 
         Args:
             speech_labels_float (list):
@@ -947,38 +995,64 @@ class ASR_DIAR_OFFLINE:
             speech_labels.append("{:.3f} {:.3f} speech".format(start, end))
         return speech_labels
 
-    def write_session_level_result_in_csv(self, session_result_dict):
+    def write_session_level_result_in_csv(
+            self, 
+            DER_result_dict: Dict[str, Dict[str, float]], 
+            WER_result_dict: Dict[str, Dict[str, float]]
+        ):
         """
         This function is for development use when a CTM file is provided.
         Saves the session-level diarization and ASR result into a csv file.
 
         Args:
-            session_result_dict (dict):
-                Dictionary containing session-by-session results of ASR and diarization
+            WER_result_dict (dict):
+                Dictionary containing session-by-session results of ASR and diarization in terms of
+                WER and cpWER.
         """
         target_path = f"{self.root_path}/pred_rttms/ctm_eval.csv"
         logging.info(f"Writing {target_path}")
-        csv_columns = [
-            'uniq_id',
-            'DER',
-            'CER',
-            'FA',
-            'MISS',
-            'est_n_spk',
-            'is_spk_count_correct',
-            'cpWER',
-            'mixWER',
-            'mapping',
-        ]
-        dict_data = [x for k, x in session_result_dict['session_level'].items()]
+        total_result_jsons = self.get_total_result_dict(DER_result_dict, WER_result_dict)
         try:
             with open(target_path, 'w') as csvfile:
-                writer = csv.DictWriter(csvfile, fieldnames=csv_columns)
+                writer = csv.DictWriter(csvfile, fieldnames=self.csv_columns)
                 writer.writeheader()
-                for data in dict_data:
+                for data in total_result_jsons:
                     writer.writerow(data)
         except IOError:
             logging.info("I/O error has occurred while writing a csv file.")
+    
+    def get_total_result_dict(
+            self, 
+            DER_result_dict: Dict[str, Dict[str, float]], 
+            WER_result_dict: Dict[str, Dict[str, float]]
+            ):
+        """
+
+        Args:
+            DER_result_dict (dict):
+                Dictionary containing FA, MISS, CER and DER values for both aggregated amount and
+                each session.
+            WER_result_dict (dict):
+                Dictionary containing session-by-session WER and cpWER. `WER_result_dict` only
+                exists when CTM files are provided.
+
+        Returns:
+            total_result_dict (dict):
+        """
+        total_result_dict = {}
+        for uniq_id in DER_result_dict.keys():
+            if uniq_id == 'total':
+                continue
+            total_result_dict[uniq_id] = {x: "-" for x in self.csv_columns}
+            total_result_dict[uniq_id]["uniq_id"] = uniq_id
+            if uniq_id in DER_result_dict:
+                total_result_dict[uniq_id].update(DER_result_dict[uniq_id])
+            if uniq_id in WER_result_dict:
+                total_result_dict[uniq_id].update(WER_result_dict[uniq_id])
+        total_result_jsons= list(total_result_dict.values())
+        return total_result_jsons
+
+
 
     def break_lines(self, string_out: str, max_chars_in_line: int = 90) -> str:
         """
@@ -1014,7 +1088,7 @@ class ASR_DIAR_OFFLINE:
     def write_and_log(
         self,
         uniq_id: str,
-        trans_dict: Dict[str, Dict[str, float]],
+        session_trans_dict: Dict[str, Dict[str, float]],
         audacity_label_words: List[str],
         gecko_dict: Dict[str, Dict[str, float]],
         sentences: List[Dict[str, float]],
@@ -1025,7 +1099,7 @@ class ASR_DIAR_OFFLINE:
         Args:
             uniq_id (str):
                 A unique ID (key) that identifies each input audio file
-            trans_dict (dict):
+            session_trans_dict (dict):
                 Dictionary containing the transcription output for a session
             audacity_label_words (list):
                 List containing word and word timestamp information in Audacity label format
@@ -1040,15 +1114,15 @@ class ASR_DIAR_OFFLINE:
             string_out = self.break_lines(string_out)
 
         # add sentences to the json array
-        self.add_sentences_to_dict(trans_dict, sentences)
+        self.add_sentences_to_dict(session_trans_dict, sentences)
 
-        dump_json_to_file(f'{self.root_path}/pred_rttms/{uniq_id}.json', trans_dict)
+        dump_json_to_file(f'{self.root_path}/pred_rttms/{uniq_id}.json', session_trans_dict)
         dump_json_to_file(f'{self.root_path}/pred_rttms/{uniq_id}_gecko.json', gecko_dict)
         write_txt(f'{self.root_path}/pred_rttms/{uniq_id}.txt', string_out.strip())
         write_txt(f'{self.root_path}/pred_rttms/{uniq_id}.w.label', '\n'.join(audacity_label_words))
 
     def print_errors(
-        self, DER_result_dict: Dict[str, Dict[str, float]], session_result_dict: Dict[str, Dict[str, float]]
+        self, DER_result_dict: Dict[str, Dict[str, float]], WER_result_dict: Dict[str, Dict[str, float]]
     ):
         """
         Print a slew of error metrics for ASR and Diarization.
@@ -1057,8 +1131,8 @@ class ASR_DIAR_OFFLINE:
             DER_result_dict (dict):
                 Dictionary containing FA, MISS, CER and DER values for both aggregated amount and
                 each session.
-            session_result_dict (dict):
-                Dictionary containing session-by-session WER and cpWER. `session_result_dict` only
+            WER_result_dict (dict):
+                Dictionary containing session-by-session WER and cpWER. `WER_result_dict` only
                 exists when CTM files are provided.
 
         """
@@ -1068,14 +1142,14 @@ class ASR_DIAR_OFFLINE:
                      \nCER                : {DER_result_dict['total']['CER']:.4f} \
                      \nSpk. counting acc. : {DER_result_dict['total']['spk_counting_acc']:.4f}"
         if self.ctm_exists == True:
-            self.write_session_level_result_in_csv(session_result_dict)
             logging.info(
                 DER_info
-                + f"\ncpWER              : {session_result_dict['average_cpWER']:.4f} \
-                     \nWER                : {session_result_dict['average_mixWER']:.4f}"
+                + f"\ncpWER              : {WER_result_dict['total']['average_cpWER']:.4f} \
+                     \nWER                : {WER_result_dict['total']['average_mixWER']:.4f}"
             )
         else:
             logging.info(DER_info)
+        self.write_session_level_result_in_csv(DER_result_dict, WER_result_dict)
 
     def print_sentences(self, sentences: List[Dict[str, float]], params: Dict[str, float]) -> str:
         """
@@ -1153,10 +1227,10 @@ class ASR_DIAR_OFFLINE:
         Args:
             labels (list):
                 List containing segment start and end timestamp and speaker labels.
-                - Example:
-                    ["15.25 21.82 speaker_0",
-                     "21.18 29.51 speaker_1",
-                     ... ]
+
+                Example::
+
+                    >>> labels = ["15.25 21.82 speaker_0", "21.18 29.51 speaker_1", ... ]
 
         Returns:
             n_spk (int):
@@ -1167,30 +1241,31 @@ class ASR_DIAR_OFFLINE:
         return len(set(spk_set))
 
     @staticmethod
-    def add_json_to_dict(trans_dict: Dict[str, List[str]], word: str, stt: float, end: float, speaker: str):
+    def add_json_to_dict(session_trans_dict: Dict[str, List[str]], word: str, stt: float, end: float, speaker: str):
         """
-        Add a dictionary variable containing timestamps and speaker label for a word to final output dictionary.
+        Add a dictionary variable containing timestamps and speaker label for a word to the final transcription
+        information  dictionary.
 
-        trans_dict (dict):
+        session_trans_dict (dict):
             Dictionary containing the transcription output for a session.
         word (str):
             A decoded word
         stt (float):
-            Start time of the word
+            Start time of the decoded word
         end (float):
-            End time of the word
+            End time of the decoded word
         speaker (str):
-            Speaker label of the word
+            Speaker label of the decoded word
         """
-        trans_dict['words'].append({'word': word, 'start_time': stt, 'end_time': end, 'speaker_label': speaker})
+        session_trans_dict['words'].append({'word': word, 'start_time': stt, 'end_time': end, 'speaker_label': speaker})
 
     @staticmethod
-    def add_sentences_to_dict(trans_dict, sentences):
+    def add_sentences_to_dict(session_trans_dict, sentences):
         """
         Add informatin in `sentence` variable to result dictionary.
 
         Args:
-            trans_dict (dict):
+            session_trans_dict (dict):
                 Dictionary containing the transcription output for a session.
             sentences (list):
                 List containing dictionary variables containing word, word timestamps and speaker label.
@@ -1198,8 +1273,8 @@ class ASR_DIAR_OFFLINE:
         # iterate over sentences
         for sentence in sentences:
 
-            # save to trans_dict
-            trans_dict['sentences'].append(
+            # save to session_trans_dict
+            session_trans_dict['sentences'].append(
                 {
                     'sentence': sentence['text'],
                     'start_time': sentence['start_point'],
