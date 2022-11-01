@@ -12,13 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import re
 import json
-import tensorflow as tf
-from argparse import ArgumentParser
-from tasks_splits_and_features import _TASK_SPLITS_AND_FEATURES_DICT
 import os
+import re
+from argparse import ArgumentParser
+
+import tensorflow as tf
 from sacremoses import MosesDetokenizer
+from tasks_splits_and_features import _TASK_SPLITS_AND_FEATURES_DICT
+
 
 """
 This script converts the P3 dataset used to train T0 from a tfrecords format to individual JSONL files.
@@ -45,15 +47,15 @@ NOTE: This script requires tensorflow to be installed.
 4. Each JSONL file is compatible with NeMo's T0JSONLMemMapDataset (https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/data/language_modeling/t0_dataset.py)
 """
 
+
 def _feature_config(shape, dtype):
     if dtype in ("int32", "bool"):
         # int32 and bool are stored as int64 in the tf.train.Example protobuf.
         dtype = "int64"
     if shape and shape[0] is None:
-        return tf.io.FixedLenSequenceFeature(
-            shape[1:], dtype, allow_missing=True
-        )
+        return tf.io.FixedLenSequenceFeature(shape[1:], dtype, allow_missing=True)
     return tf.io.FixedLenFeature(shape, dtype)
+
 
 def remove_newline_and_detokenize(x, detokenizer):
     x = re.sub(r'\\n+', ' ', x)
@@ -64,6 +66,7 @@ def remove_newline_and_detokenize(x, detokenizer):
     x = detokenizer.detokenize([x])
     return x
 
+
 def write_dataset_to_file(dataset, filename, detokenizer):
     with open(filename, 'w') as f:
         for item in dataset:
@@ -71,16 +74,22 @@ def write_dataset_to_file(dataset, filename, detokenizer):
                 print('Skipping because is_correct is False')
                 continue
             if 'inputs_pretokenized' not in item:
-                import ipdb; ipdb.set_trace()
+                import ipdb
+
+                ipdb.set_trace()
             item_object = {}
             i = remove_newline_and_detokenize(item['inputs_pretokenized'].numpy().decode('utf-8'), detokenizer)
             item_object['input'] = i
             t = remove_newline_and_detokenize(item['targets_pretokenized'].numpy().decode('utf-8'), detokenizer)
             item_object['output'] = t
             if 'answer_choices' in item:
-                choices = [remove_newline_and_detokenize(x.decode('utf-8'), detokenizer) for x in item['answer_choices'].numpy().tolist()]
+                choices = [
+                    remove_newline_and_detokenize(x.decode('utf-8'), detokenizer)
+                    for x in item['answer_choices'].numpy().tolist()
+                ]
                 item_object['choices'] = choices
             f.write(json.dumps(item_object) + '\n')
+
 
 def process_folder(data_folder, output_folder):
     detokenizer = MosesDetokenizer('en')
@@ -108,11 +117,15 @@ def process_folder(data_folder, output_folder):
 
         ds = tf.data.TFRecordDataset(tf.io.gfile.glob([train_fname]))
         fdict = _TASK_SPLITS_AND_FEATURES_DICT[folder_name]['features_dict']
-        feature_description = {
-            feat: _feature_config(**desc) for feat, desc in fdict.items()
-        }
-        ds = ds.map(lambda pb: tf.io.parse_single_example(pb, feature_description), num_parallel_calls=tf.data.experimental.AUTOTUNE)
-        ds = ds.map(lambda x: {k: tf.cast(v, fdict[k]["dtype"]) for k, v in x.items()}, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+        feature_description = {feat: _feature_config(**desc) for feat, desc in fdict.items()}
+        ds = ds.map(
+            lambda pb: tf.io.parse_single_example(pb, feature_description),
+            num_parallel_calls=tf.data.experimental.AUTOTUNE,
+        )
+        ds = ds.map(
+            lambda x: {k: tf.cast(v, fdict[k]["dtype"]) for k, v in x.items()},
+            num_parallel_calls=tf.data.experimental.AUTOTUNE,
+        )
         write_dataset_to_file(ds, os.path.join(output_folder, 'train', folder_name + '.jsonl'), detokenizer)
         if os.path.exists(valid_fname):
             write_dataset_to_file(ds, os.path.join(output_folder, 'val', folder_name + '.jsonl'), detokenizer)
