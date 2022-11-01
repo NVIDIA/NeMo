@@ -64,6 +64,7 @@ class MegatronBertModel(MegatronBaseModel):
             raise ImportError(
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
+        self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
         super().__init__(cfg, trainer=trainer, no_lm_init=False)
         if not self.megatron_amp_o2 and self.cfg.get('virtual_pipeline_model_parallel_size', None):
             raise ValueError('Virtual pipeline model parallel is only supported when using megatron_amp_O2')
@@ -71,7 +72,6 @@ class MegatronBertModel(MegatronBaseModel):
         self._validate_trainer()
 
         self.cfg = cfg
-        self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
 
         if self.trainer.precision == 32:
             self.autocast_dtype = torch.float
@@ -334,7 +334,7 @@ class MegatronBertModel(MegatronBaseModel):
 
         fwd_bwd_function = self._get_fwd_bwd_function()
 
-        losses_reduced_per_micro_batch = forward_backward_no_pipelining(
+        losses_reduced_per_micro_batch = fwd_bwd_function(
             forward_step_func=self.get_forward_output_and_loss_func(),
             batch=batch_for_pipeline,
             model=self.model,
