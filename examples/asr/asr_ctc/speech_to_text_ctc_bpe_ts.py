@@ -114,7 +114,7 @@ def main(cfg):
         asr_model = TSEncDecCTCModelBPE.restore_from(
             cfg.nemo_checkpoint_path, map_location=torch.device('cpu'), strict=False,
         )
-        asr_model.load_state_dict(torch.load('/home/yangzhang/code/ts_asr/librispeechmix/ckpts/draco_3mix_ctc_spectL1.0_stopStep-1_speedP0.3_spk3_ep120_bs64_lr0.0003_lr2__schedCosineAnnealing_warm25000_wd1e-2_encfrTrue_decfrFalse_asrEfrFalse_asrDfrFalse_d256_layer18_18_head4_4_nSpecT5_nSpecF2_wSpecF27_v128--val_wer=0.0995-epoch=100.ckpt'), strict=False)
+        # asr_model.load_state_dict(torch.load('/home/yangzhang/code/ts_asr/librispeechmix/ckpts/draco_3mix_ctc_spectL1.0_stopStep-1_speedP0.3_spk3_ep120_bs64_lr0.0003_lr2__schedCosineAnnealing_warm25000_wd1e-2_encfrTrue_decfrFalse_asrEfrFalse_asrDfrFalse_d256_layer18_18_head4_4_nSpecT5_nSpecF2_wSpecF27_v128--val_wer=0.0995-epoch=100.ckpt'), strict=False)
 
     if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.manifest_filepath is not None:
         trainer = pl.Trainer(devices=1, accelerator='gpu')
