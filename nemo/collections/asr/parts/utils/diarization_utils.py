@@ -71,6 +71,7 @@ def write_txt(w_path: str, val: str):
     with open(w_path, "w") as output:
         output.write(val + '\n')
 
+
 def get_per_spk_ref_transcripts(ctm_file_path: str) -> Tuple[List[str], str]:
     """
     Save the reference transcripts separately by its speaker identity.
@@ -101,9 +102,10 @@ def get_per_spk_ref_transcripts(ctm_file_path: str) -> Tuple[List[str], str]:
             per_spk_ref_trans_dict[spk] = []
         per_spk_ref_trans_dict[spk].append(ctm_split[4])
         mix_ref_trans.append(ctm_split[4])
-    per_spk_ref_trans = [ " ".join(word_list) for word_list in per_spk_ref_trans_dict.values()]
+    per_spk_ref_trans = [" ".join(word_list) for word_list in per_spk_ref_trans_dict.values()]
     mix_ref_trans = " ".join(mix_ref_trans)
     return per_spk_ref_trans, mix_ref_trans
+
 
 def get_per_spk_hyp_transcripts(word_dict_seq_list: List[Dict[str, float]]) -> Tuple[List[str], str]:
     """
@@ -136,7 +138,7 @@ def get_per_spk_hyp_transcripts(word_dict_seq_list: List[Dict[str, float]]) -> T
         mix_hyp_trans.append(word_dict['word'])
 
     # Create a list containing string formatted transcript
-    per_spk_hyp_trans = [ " ".join(word_list) for word_list in per_spk_hyp_trans_dict.values()]
+    per_spk_hyp_trans = [" ".join(word_list) for word_list in per_spk_hyp_trans_dict.values()]
     mix_hyp_trans = " ".join(mix_hyp_trans)
     return per_spk_hyp_trans, mix_hyp_trans
 
@@ -189,7 +191,7 @@ def calculate_session_cpWER(
         # Calculate a WER value of the permuted and concatenated transcripts
         p_wer = word_error_rate(hypotheses=[hyp_trans], references=[ref_trans])
         p_wer_list.append(p_wer)
-    
+
     # Find the lowest WER and its reference transcript
     argmin_idx = np.argmin(p_wer_list)
     min_perm_ref_trans = ref_lists[argmin_idx]
@@ -295,6 +297,7 @@ class ASR_DIAR_OFFLINE:
         color_palette (dict):
             Dictionary containing the ANSI color escape codes for each speaker label (speaker index)
     """
+
     def __init__(self, cfg_diarizer):
         self.cfg_diarizer = cfg_diarizer
         self.params = cfg_diarizer.asr.parameters
@@ -341,7 +344,6 @@ class ASR_DIAR_OFFLINE:
             'mixWER',
             'mapping',
         ]
-        
 
     def make_file_lists(self):
         """
@@ -996,10 +998,8 @@ class ASR_DIAR_OFFLINE:
         return speech_labels
 
     def write_session_level_result_in_csv(
-            self, 
-            DER_result_dict: Dict[str, Dict[str, float]], 
-            WER_result_dict: Dict[str, Dict[str, float]]
-        ):
+        self, DER_result_dict: Dict[str, Dict[str, float]], WER_result_dict: Dict[str, Dict[str, float]]
+    ):
         """
         This function is for development use when a CTM file is provided.
         Saves the session-level diarization and ASR result into a csv file.
@@ -1020,12 +1020,10 @@ class ASR_DIAR_OFFLINE:
                     writer.writerow(data)
         except IOError:
             logging.info("I/O error has occurred while writing a csv file.")
-    
+
     def get_total_result_dict(
-            self, 
-            DER_result_dict: Dict[str, Dict[str, float]], 
-            WER_result_dict: Dict[str, Dict[str, float]]
-            ):
+        self, DER_result_dict: Dict[str, Dict[str, float]], WER_result_dict: Dict[str, Dict[str, float]]
+    ):
         """
 
         Args:
@@ -1049,10 +1047,8 @@ class ASR_DIAR_OFFLINE:
                 total_result_dict[uniq_id].update(DER_result_dict[uniq_id])
             if uniq_id in WER_result_dict:
                 total_result_dict[uniq_id].update(WER_result_dict[uniq_id])
-        total_result_jsons= list(total_result_dict.values())
+        total_result_jsons = list(total_result_dict.values())
         return total_result_jsons
-
-
 
     def break_lines(self, string_out: str, max_chars_in_line: int = 90) -> str:
         """
@@ -1121,9 +1117,7 @@ class ASR_DIAR_OFFLINE:
         write_txt(f'{self.root_path}/pred_rttms/{uniq_id}.txt', string_out.strip())
         write_txt(f'{self.root_path}/pred_rttms/{uniq_id}.w.label', '\n'.join(audacity_label_words))
 
-    def print_errors(
-        self, DER_result_dict: Dict[str, Dict[str, float]], WER_result_dict: Dict[str, Dict[str, float]]
-    ):
+    def print_errors(self, DER_result_dict: Dict[str, Dict[str, float]], WER_result_dict: Dict[str, Dict[str, float]]):
         """
         Print a slew of error metrics for ASR and Diarization.
 
@@ -1257,12 +1251,14 @@ class ASR_DIAR_OFFLINE:
         speaker (str):
             Speaker label of the decoded word
         """
-        session_trans_dict['words'].append({'word': word, 'start_time': stt, 'end_time': end, 'speaker_label': speaker})
+        session_trans_dict['words'].append(
+            {'word': word, 'start_time': stt, 'end_time': end, 'speaker_label': speaker}
+        )
 
     @staticmethod
     def add_sentences_to_dict(session_trans_dict, sentences):
         """
-        Add informatin in `sentence` variable to result dictionary.
+        Add information in the `sentence` variable to the result dictionary.
 
         Args:
             session_trans_dict (dict):
