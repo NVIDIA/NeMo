@@ -72,7 +72,8 @@ def remove_newline_and_detokenize(x, detokenizer):
 def write_dataset_to_file(dataset, filename, detokenizer):
     with open(filename, 'w') as f:
         for item in dataset:
-            if 'is_correct' in item and item['is_correct'].numpy() is False:
+            # NOTE: Although we do `.tolist()` here this is not actually a list. This is just to convert from a numpy to python object so we can check if it is True/False.
+            if 'is_correct' in item and item['is_correct'].numpy().tolist() is False:
                 print('Skipping example because is_correct is False')
                 continue
 
