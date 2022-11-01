@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import math
-import re
 from typing import Any, List, Optional, Union
 
 import torch
@@ -87,8 +86,9 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
 
         if self.megatron_amp_o2:
 
-            # Pre-allocate the model on GPU to have master parameters allocated on the same device with matching data type
-            self.model.cuda(torch.cuda.current_device())
+            if not self.with_distributed_adam:
+                # Pre-allocate the model on GPU to have master parameters allocated on the same device with matching data type
+                self.model.cuda(torch.cuda.current_device())
 
             # Model wrapper to convert both model and inputs to half precision
             self.model = Float16Module(module=self.model, precision=self.cfg.precision)
@@ -236,11 +236,6 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         )
         return output_tensor
 
-    def on_fit_start(self) -> None:
-        # keep a copy of init_global_step
-        self.init_global_step = self.trainer.global_step
-        return super().on_fit_start()
-
     def training_step(self, batch, batch_idx):
         input_tokens_id = batch['tokens']
         input_attn_mask = batch['tokens_mask']
@@ -259,13 +254,16 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
                 self.log('loss_scale', loss_scale)
-        # while async grad allreduce is enabled, bprop will keep moving forward without waiting for
-        # the finish of async grad AR works. Hence, to guarantee the correctness of grads reduction,
-        # we cannot start weight update until all async grad AR works are done.
-        if self.megatron_amp_o2 and self.cfg.get('pipeline_model_parallel_size', 1) == 1:
-            torch.cuda.synchronize()
 
-        if self.megatron_amp_o2:
+        if self.with_distributed_adam:
+            # gradients are reduced internally in distributed optimizer
+            pass
+        elif self.megatron_amp_o2:
+            # while async grad allreduce is enabled, bprop will keep moving forward without waiting for
+            # the finish of async grad AR works. Hence, to guarantee the correctness of grads reduction,
+            # we cannot start weight update until all async grad AR works are done.
+            if self.cfg.get('pipeline_model_parallel_size', 1) == 1:
+                torch.cuda.synchronize()
             # when using pipeline parallelism grads must be reduced after the pipeline (not asynchronously)
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
                 # main grads are stored in the MainParamsOptimizer wrapper
@@ -347,7 +345,6 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         # formula to compute the perplexity
         # https://towardsdatascience.com/the-relationship-between-perplexity-and-entropy-in-nlp-f81888775ccc
         self.log('perplexity', torch.exp(averaged_loss), prog_bar=True)
-        self.log('consumed_samples', self.compute_consumed_samples(self.trainer.global_step - self.init_global_step))
         return averaged_loss
 
     def test_step(self, batch, batch_idx):
@@ -443,13 +440,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
     def setup(self, stage=None):
         resume_checkpoint_path = self.trainer._checkpoint_connector.resume_from_checkpoint_fit_path
         if resume_checkpoint_path:
-            try:
-                init_consumed_samples = int(
-                    float(re.findall(r"consumed_samples\=([0-9]+.[0-9]+)", resume_checkpoint_path)[0])
-                )
-            except (ValueError, TypeError):
-                logging.warning("Cannot parse the checkpoint file to get the consumed samples. assume it is zero.")
-                init_consumed_samples = 0
+            init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
         else:
             init_consumed_samples = 0
         self.init_consumed_samples = init_consumed_samples

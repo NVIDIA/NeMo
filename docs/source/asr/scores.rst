@@ -42,20 +42,37 @@ EN
                 
 --------------------
 
+.. csv-table::
+    :header-rows: 1
+    :align: left
+    :file: data/scores/en/squeezeformer_en.csv
+                
+--------------------
+
+BE
+^^
+
+.. csv-table::
+    :header-rows: 1
+    :align: left
+    :file: data/scores/be/conformer_be.csv
+    
+--------------------
+
 CA
 ^^
 
 .. csv-table::
     :header-rows: 1
     :align: left
-    :file: data/scores/ca/quartznet15x5_ca.csv
+    :file: data/scores/ca/conformer_ca.csv
     
 --------------------
 
 .. csv-table::
     :header-rows: 1
     :align: left
-    :file: data/scores/ca/conformer_ca.csv
+    :file: data/scores/ca/quartznet15x5_ca.csv
     
 --------------------
 
@@ -189,6 +206,16 @@ IT
     
 --------------------
 
+KAB
+^^^
+
+.. csv-table::
+    :header-rows: 1
+    :align: left
+    :file: data/scores/kab/conformer_kab.csv
+    
+--------------------
+
 PL
 ^^
 
@@ -206,6 +233,16 @@ RU
     :header-rows: 1
     :align: left
     :file: data/scores/ru/quartznet15x5_ru.csv
+    
+--------------------
+
+RW
+^^
+
+.. csv-table::
+    :header-rows: 1
+    :align: left
+    :file: data/scores/rw/conformer_rw.csv
     
 --------------------
 

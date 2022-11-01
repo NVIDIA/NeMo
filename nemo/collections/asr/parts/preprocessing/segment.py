@@ -33,6 +33,7 @@
 # SOFTWARE.
 # This file contains code artifacts adapted from https://github.com/ryanleary/patter
 
+import math
 import os
 import random
 
@@ -96,8 +97,10 @@ class AudioSegment(object):
             )
 
         if target_sr is not None and target_sr != sample_rate:
-            # resample along the temporal dimension (axis=0)
-            samples = librosa.core.resample(samples, orig_sr=sample_rate, target_sr=target_sr, axis=0)
+            # resample along the temporal dimension (axis=0) will be in librosa 0.10.0 (#1561)
+            samples = samples.transpose()
+            samples = librosa.core.resample(samples, orig_sr=sample_rate, target_sr=target_sr)
+            samples = samples.transpose()
             sample_rate = target_sr
         if trim:
             # librosa is using channels-first layout (num_channels, num_samples), which is transpose of AudioSegment's layout
@@ -261,22 +264,39 @@ class AudioSegment(object):
 
         Note that audio_file can be either the file path, or a file-like object.
         """
+        is_segmented = False
         try:
             with sf.SoundFile(audio_file, 'r') as f:
                 sample_rate = f.samplerate
-                if 0 < n_segments < len(f):
-                    max_audio_start = len(f) - n_segments
+                if target_sr is not None:
+                    n_segments_at_original_sr = math.ceil(n_segments * sample_rate / target_sr)
+                else:
+                    n_segments_at_original_sr = n_segments
+
+                if 0 < n_segments_at_original_sr < len(f):
+                    max_audio_start = len(f) - n_segments_at_original_sr
                     audio_start = random.randint(0, max_audio_start)
                     f.seek(audio_start)
-                    samples = f.read(n_segments, dtype='float32')
+                    samples = f.read(n_segments_at_original_sr, dtype='float32')
+                    is_segmented = True
+                elif n_segments_at_original_sr >= len(f):
+                    logging.warning(
+                        f"Number of segments is greater than the length of the audio file {audio_file}. This may lead to shape mismatch errors."
+                    )
+                    samples = f.read(dtype='float32')
                 else:
                     samples = f.read(dtype='float32')
         except RuntimeError as e:
             logging.error(f"Loading {audio_file} via SoundFile raised RuntimeError: `{e}`.")
 
-        return cls(
+        features = cls(
             samples, sample_rate, target_sr=target_sr, trim=trim, orig_sr=orig_sr, channel_selector=channel_selector
         )
+
+        if is_segmented:
+            features._samples = features._samples[:n_segments]
+
+        return features
 
     @property
     def samples(self):

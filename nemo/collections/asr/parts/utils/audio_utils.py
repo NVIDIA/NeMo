@@ -17,12 +17,37 @@ from typing import Iterable, Optional, Union
 import librosa
 import numpy as np
 import numpy.typing as npt
+import soundfile as sf
 from scipy.spatial.distance import pdist, squareform
 
 from nemo.utils import logging
 
 SOUND_VELOCITY = 343.0  # m/s
 ChannelSelectorType = Union[int, Iterable[int], str]
+
+
+def get_samples(audio_file: str, target_sr: int = 16000):
+    """
+    Read the samples from the given audio_file path. If not specified, the input audio file is automatically
+    resampled to 16kHz.
+
+    Args:
+        audio_file (str):
+            Path to the input audio file
+        target_sr (int):
+            Targeted sampling rate
+    Returns:
+        samples (numpy.ndarray):
+            Time-series sample data from the given audio file
+    """
+    with sf.SoundFile(audio_file, 'r') as f:
+        sample_rate = f.samplerate
+        samples = f.read()
+        if sample_rate != target_sr:
+            samples = librosa.core.resample(samples, orig_sr=sample_rate, target_sr=target_sr)
+        samples = samples.transpose()
+        del f
+    return samples
 
 
 def select_channels(signal: npt.NDArray, channel_selector: Optional[ChannelSelectorType] = None) -> npt.NDArray:
@@ -303,3 +328,53 @@ def transform_to_match_coherence(
     x = x.transpose()
 
     return x
+
+
+def rms(x: np.ndarray) -> float:
+    """Calculate RMS value for the input signal.
+
+    Args:
+        x: input signal
+
+    Returns:
+        RMS of the input signal.
+    """
+    return np.sqrt(np.mean(np.abs(x) ** 2))
+
+
+def mag2db(mag: float, eps: Optional[float] = 1e-16) -> float:
+    """Convert magnitude ratio from linear scale to dB.
+
+    Args:
+        mag: linear magnitude value
+        eps: small regularization constant
+
+    Returns:
+        Value in dB.
+    """
+    return 20 * np.log10(mag + eps)
+
+
+def db2mag(db: float) -> float:
+    """Convert value in dB to linear magnitude ratio.
+    
+    Args:
+        db: magnitude ratio in dB
+
+    Returns:
+        Magnitude ratio in linear scale.
+    """
+    return 10 ** (db / 20)
+
+
+def pow2db(power: float, eps: Optional[float] = 1e-16) -> float:
+    """Convert power ratio from linear scale to dB.
+
+    Args:
+        power: power ratio in linear scale
+        eps: small regularization constant
+    
+    Returns:
+        Power in dB.
+    """
+    return 10 * np.log10(power + eps)

@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:22.08-py3
+ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:22.09-py3
 
 
 # build an image that includes only the nemo dependencies, ensures that dependencies
@@ -32,12 +32,11 @@ RUN apt-get update && \
     python-dev ffmpeg && \
     rm -rf /var/lib/apt/lists/*
 
-# FIXME a workaround to update apex. Remove when base image is updated
 WORKDIR /tmp/
 RUN git clone https://github.com/NVIDIA/apex.git && \
     cd apex && \
-    git checkout 3c19f1061879394f28272a99a7ea26d58f72dace && \
-    pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" ./
+    git checkout 2b0e8371113fe70758f1964c40bf7dbe304fd9e6 && \
+    pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" --global-option="--distributed_adam" --global-option="--deprecated_fused_adam" ./
 
 # uninstall stuff from base container
 RUN pip uninstall -y sacrebleu torchtext
@@ -74,7 +73,7 @@ COPY . .
 
 # start building the final container
 FROM nemo-deps as nemo
-ARG NEMO_VERSION=1.12.0
+ARG NEMO_VERSION=1.13.0
 
 # Check that NEMO_VERSION is set. Build will fail without this. Expose NEMO and base container
 # version information as runtime environment variable for introspection purposes
