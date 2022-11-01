@@ -15,7 +15,7 @@
 import os
 
 import pytest
-from nemo_text_processing.g2p.modules import IPAG2P
+from nemo_text_processing.g2p.modules import IpaG2p
 
 
 class TestModules:
@@ -30,7 +30,7 @@ class TestModules:
         phoneme_probability=None,
         set_graphemes_upper=True,
     ):
-        return IPAG2P(
+        return IpaG2p(
             phoneme_dict,
             apply_to_oov_word=apply_to_oov_word,
             use_chars=use_chars,

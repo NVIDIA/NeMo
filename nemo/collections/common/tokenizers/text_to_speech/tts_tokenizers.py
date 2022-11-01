@@ -13,9 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import abc
 import itertools
 import string
+from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from typing import List, Optional
 
@@ -31,7 +31,7 @@ from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
 
-class BaseTokenizer(abc.ABC):
+class BaseTokenizer(ABC):
     PAD, BLANK, OOV = '<pad>', '<blank>', '<oov>'
 
     def __init__(self, tokens, *, pad=PAD, blank=BLANK, oov=OOV, sep='', add_blank_at=None):
@@ -72,7 +72,7 @@ class BaseTokenizer(abc.ABC):
     def __call__(self, text: str) -> List[int]:
         return self.encode(text)
 
-    @abc.abstractmethod
+    @abstractmethod
     def encode(self, text: str) -> List[int]:
         """Turns str text into int tokens."""
         pass
@@ -525,7 +525,7 @@ class IPATokenizer(BaseTokenizer):
     ):
         """General-purpose IPA-based tokenizer.
         Args:
-            g2p: Grapheme to phoneme module, should be IPAG2P or some subclass thereof.
+            g2p: Grapheme to phoneme module, should be IpaG2p or some subclass thereof.
             punct: Whether to reserve grapheme for basic punctuation or not.
             non_default_punct_list: List of punctuation marks which will be used instead default, if any.
             space: Space token as string.
@@ -545,7 +545,7 @@ class IPATokenizer(BaseTokenizer):
             logging.error(
                 f"Please make sure the G2P module passed into the IPATokenizer has a `symbols` attribute. "
                 f"This is required in order to build the tokenizer vocabulary.\n"
-                f"Expected e.g. IPAG2P, found {type(g2p)}"
+                f"Expected e.g. IpaG2p, found {type(g2p)}"
             )
             raise ValueError("G2P modules passed into the IPATokenizer must have `symbols` defined.")
 
