@@ -79,7 +79,9 @@ def ScalerMinMax(X: torch.Tensor) -> torch.Tensor:
 
 
 @torch.jit.script
-def getEuclideanDistance(specEmbA: torch.Tensor, specEmbB: torch.Tensor, device: torch.device = torch.device('cpu')) -> torch.Tensor:
+def getEuclideanDistance(
+    specEmbA: torch.Tensor, specEmbB: torch.Tensor, device: torch.device = torch.device('cpu')
+) -> torch.Tensor:
     """
     Calculate Euclidean distances from the given feature tensors.
 
@@ -336,11 +338,8 @@ def getAffinityGraphMat(affinity_mat_raw: torch.Tensor, p_value: int) -> torch.T
 
 @torch.jit.script
 def getMinimumConnection(
-        mat: torch.Tensor, 
-        max_N: torch.Tensor, 
-        n_list: torch.Tensor, 
-        device: torch.device
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    mat: torch.Tensor, max_N: torch.Tensor, n_list: torch.Tensor, device: torch.device
+) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Generate connections until fully connect all the nodes in the graph.
     If the graph is not fully connected, it might generate inaccurate results.
@@ -477,7 +476,9 @@ def getLaplacian(X: torch.Tensor) -> torch.Tensor:
 
 
 @torch.jit.script
-def eigDecompose(laplacian: torch.Tensor, cuda: bool, device: torch.device = torch.device('cpu')) -> Tuple[torch.Tensor, torch.Tensor]:
+def eigDecompose(
+    laplacian: torch.Tensor, cuda: bool, device: torch.device = torch.device('cpu')
+) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Calculate eigenvalues and eigenvectors from the Laplacian matrix.
     """
@@ -644,7 +645,9 @@ def split_input_data(
 
 
 @torch.jit.script
-def estimateNumofSpeakers(affinity_mat: torch.Tensor, max_num_speakers: int, cuda: bool = False) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+def estimateNumofSpeakers(
+    affinity_mat: torch.Tensor, max_num_speakers: int, cuda: bool = False
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Estimate the number of speakers using eigendecomposition on the Laplacian Matrix.
 
@@ -989,7 +992,9 @@ class NMESC:
                 The ratio between p_neighbors value and the maximum eigen gap value.
         """
         affinity_mat = getAffinityGraphMat(self.mat, p_neighbors)
-        est_num_of_spk, lambdas, lambda_gap_list = estimateNumofSpeakers(affinity_mat, self.max_num_speakers, self.cuda)
+        est_num_of_spk, lambdas, lambda_gap_list = estimateNumofSpeakers(
+            affinity_mat, self.max_num_speakers, self.cuda
+        )
         arg_sorted_idx = torch.argsort(lambda_gap_list[: self.max_num_speakers], descending=True)
         max_key = arg_sorted_idx[0]
         max_eig_gap = lambda_gap_list[max_key] / (torch.max(lambdas).item() + self.eps)
@@ -1035,6 +1040,7 @@ class NMESC:
         if p_value_list.shape[0] == 0:
             raise ValueError("p_value_list should not be empty.")
         return p_value_list
+
 
 class SpeakerClustering(torch.nn.Module):
     def __init__(
