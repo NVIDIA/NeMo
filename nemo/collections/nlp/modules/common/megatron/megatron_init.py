@@ -15,7 +15,6 @@
 import random
 
 import numpy as np
-from regex import P
 import torch
 
 from nemo.utils import AppState, logging
@@ -66,7 +65,6 @@ def initialize_model_parallel_for_nemo(
 
     if virtual_pipeline_model_parallel_size is not None and not HAVE_INTERLEAVED:
         raise ValueError("set_virtual_pipeline_model_parallel_world_size is needed in Apex for interleaved.")
-    # import pdb; pdb.set_trace()
     # updating NeMo globals
     app_state = AppState()
     app_state.global_rank = global_rank

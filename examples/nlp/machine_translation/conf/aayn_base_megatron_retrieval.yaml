@@ -1,5 +1,4 @@
 # The retrieval nmt architecture supports adding nearest neighbors to the encoder-deocder architecture
-
 defaults:
   - aayn_base_megatron
 
@@ -8,44 +7,28 @@ name: megatron_nmt_retrieval
 do_training: True # set to False if only preprocessing data
 do_testing: False # set to True to run evaluation on test data after training
 
-
 model:
-
+  global_batch_size: 64
   retriever:
-    type: 'text' # choices 'perceiver' 'text'
-    latent_size: int = 16 # perceiver latents size to use
+    type: 'perceiver' # choices 'perceiver' 'text'
+    latent_size: int = 64 # perceiver latents size to use
     encoder_path: str = None # path to retrieval-encoder
-    trainer:  # Trainer config for loading big gpt model
-      devices: 1
-      accelerator: gpu
-      num_nodes: 1
-      precision: 16
-      logger: false
-      enable_checkpointing: false
-      replace_sampler_ddp: false
-      max_epochs: 3
-      max_steps: -1
-      log_every_n_steps: 10
-      val_check_interval: 1.0
-      accumulate_grad_batches: 1
-      gradient_clip_val: 1.0
-      resume_from_checkpoint: null
-      benchmark: false
   
   train_ds: 
     retrieval: True # train retrieval augmented model
     nn_mapping: null # file with indices of nns to retrieve for train
-    num_neighbors: 5 # number of nearest neighbors to append
+    num_neighbors: 3 # number of nearest neighbors to append
   
   validation_ds:
-    # retrieval: True # train retrieval augmented model
+    # retrieval: True # train retrieval augmented model 
+    # TODO uncomment this to val retrieval augmented model
     nn_mapping: null # file with indices of nns to retrieve fro val
-    num_neighbors: 5 # number of nearest neighbors to append
+    num_neighbors: 3 # number of nearest neighbors to append
   
   test_ds:
     retrieval: True # train retrieval augmented model
     nn_mapping: null
-    num_neighbors: 5 # number of nearest neighbors to append
+    num_neighbors: 3 # number of nearest neighbors to append
 
   retrieval_ds:
     src_file_name: null
@@ -60,4 +43,4 @@ model:
     drop_last: false
     pin_memory: false
     num_workers: 8
-    concat_sampling_probabilities: null # only used with ConcatTranslationDataset 
+    concat_sampling_probabilities: null # only used with ConcatTranslationDataset
