@@ -1,8 +1,9 @@
-import pytorch_lightning as pl
+from typing import List
+
 import torch
 
 
-class OnnxModule(torch.nn.Module):
+class ZeroShotModule(torch.nn.Module):
     def __init__(self, hidden_size: int = 768, max_batch_size: int = 16):
         super().__init__()
         self.hidden_size = hidden_size
@@ -39,51 +40,53 @@ class OnnxModule(torch.nn.Module):
         return bio_slot_logits, dot_product_score_log_softmax, predicted_dot_product_score_log_softmax
 
     def get_entity_embedding_from_hidden_states(self, bio_slot_labels, hidden_states):
-        mention_hidden_states = []
-        orig_batch_size, max_token_len, hidden_states_dim = hidden_states.shape
+        batch_size, max_len, hidden_size = hidden_states.shape
 
-        # missing = self.max_batch_size - batch_size
-        # hidden_states_new = torch.cat((hidden_states, torch.randn(missing, max_token_len, hidden_states_dim,
-        #                                                       device=self.device)))
-        # bio_slot_labels_new = torch.cat((bio_slot_labels, torch.zeros(missing, max_token_len, device=self.device, dtype=bio_slot_labels.dtype)))
+        bio_labels_flat = bio_slot_labels.reshape(-1)
+        hidden_shapes_flat = hidden_states.reshape((-1, hidden_size))
 
-        hidden_states_new = hidden_states[bio_slot_labels.any(dim=1)].to(self.device)
-        bio_slot_labels_new = bio_slot_labels[bio_slot_labels.any(dim=1)].to(self.device)
+        # Remove all zeros from the input since we don't use it
+        hidden_shapes_flat = hidden_shapes_flat[bio_labels_flat != 0]
+        bio_labels_flat = bio_labels_flat[bio_labels_flat != 0]
 
-        batch_size, _, _ = hidden_states_new.shape
+        # Find indices of 1's since that's where an entity mention begins
+        idx = (bio_labels_flat == 1).nonzero().reshape(-1)
 
-        for i in range(batch_size):
-            one_hidden_states = hidden_states_new[i]
-            one_bio_slot_labels = bio_slot_labels_new[i]
+        # Find lengths of each BIO entity mention
+        mention_lengths = idx[1:] - idx[:-1]
 
-            one_hidden_states = one_hidden_states[one_bio_slot_labels != 0]
-            one_bio_slot_labels = one_bio_slot_labels[one_bio_slot_labels != 0]
+        sum1 = torch.tensor([0], device=self.device)
+        if mention_lengths.shape[0] > 0:
+            sum1 = torch.sum(mention_lengths, dim=0, keepdim=True)
 
-            idx = (one_bio_slot_labels == 1).nonzero().squeeze(1).to('cpu')
-            y_split = torch.tensor_split(one_hidden_states, idx)
+        # Find the "leftover" length for the last element in the mention_lengths array
+        remainder = (bio_labels_flat.shape[0] - sum1).to(self.device)
 
-            mention_states = []
-            for j in range(len(y_split)):
-                y = y_split[j]
-                temp = torch.mean(y, dim=0, keepdim=True)
-                mention_states.append(temp)
+        # Convert the new mention lengths array to a python list
+        mention_lengths_list: List[int] = torch.cat((mention_lengths, remainder)).tolist()
 
-            mention_states = torch.cat(mention_states, 0)
-            mention_states = mention_states[~torch.any(mention_states.isnan(), dim=1)]
-            zero_fill = torch.zeros((max_token_len - mention_states.size()[0], hidden_states_dim), device=self.device)
-            mention_states = torch.cat((mention_states, zero_fill), 0)
-            mention_hidden_states.append(mention_states)
+        means_list = []
 
-        if mention_hidden_states:
-            output = torch.stack(mention_hidden_states)
-            zero_fill_batch = torch.zeros(
-                (orig_batch_size - output.shape[0], max_token_len, hidden_states_dim), device=self.device
-            )
-            output = torch.cat((output, zero_fill_batch))
-        else:
-            output = torch.zeros((orig_batch_size, max_token_len, hidden_states_dim))
+        # Calculate the final embeddings by first splitting the hidden shapes array and then averaging
+        # the embeddings
+        for y2_ in hidden_shapes_flat.split(mention_lengths_list):
+            mean = torch.zeros((max_len, hidden_size))
+            if y2_.shape[0] > 0:
+                mean = torch.mean(y2_, dim=0, keepdim=True)
+            means_list.append(mean)
 
-        return output.to(self.device)
+        means = torch.cat(means_list)
+
+        output = []
+        count_ones: List[int] = torch.sum(bio_slot_labels == 1, dim=1, dtype=torch.int64).tolist()
+
+        # Finally create the output array by padding
+        for count in count_ones:
+            temp = means[:count]
+            means = means[count:]
+            output.append(torch.nn.functional.pad(temp, (0, 0, 0, max_len - count)))
+
+        return torch.stack(output).to(self.device)
 
     def get_entity_description_score(self, mention_hidden_states_pad, entity_type_embeddings):
         projected_description_embedding = self.description_projection_mlp(entity_type_embeddings)
