@@ -150,25 +150,13 @@ def get_retro_demo(share, username, password):
                     minimum=0.0, maximum=5.0, step=0.02, value=1.2, label='Repetition penalty'
                 )
                 k_neighbors = gr.Slider(minimum=0, maximum=50, step=1, value=2, label='Retrieved Documents')
-                weights = gr.Slider(minimum=0.0,
-                                    maximum=1.0,
-                                    value=0.5,
-                                    label='Weight for the first Retrieval',
-                                    step=0.02)
-                add_retrival_doc = gr.Textbox(
-                    label="Add New Retrieval Doc",
-                    value="",
-                    lines=5,
+                weights = gr.Slider(
+                    minimum=0.0, maximum=1.0, value=0.5, label='Weight for the first Retrieval', step=0.02
                 )
+                add_retrival_doc = gr.Textbox(label="Add New Retrieval Doc", value="", lines=5,)
                 add_btn = gr.Button(value="Add")
                 output_status = gr.Label(value='')
-                add_btn.click(
-                    add_doc,
-                    inputs=[
-                        add_retrival_doc,
-                    ],
-                    outputs=[output_status]
-                )
+                add_btn.click(add_doc, inputs=[add_retrival_doc,], outputs=[output_status])
 
             with gr.Column(scale=1, min_width=800):
                 input_prompt = gr.Textbox(
