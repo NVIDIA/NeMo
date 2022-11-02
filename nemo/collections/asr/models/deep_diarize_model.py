@@ -22,13 +22,12 @@ from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 from torchmetrics.functional import permutation_invariant_training
-from x_transformers import Decoder
+from x_transformers import Decoder, XTransformer
 
 from nemo.collections.asr.data.deep_diarize.inference_data import RTTMDataset
 from nemo.collections.asr.data.deep_diarize.train_data import LocalRTTMStreamingSegmentsDataset, MultiStreamDataLoader
 from nemo.collections.asr.data.deep_diarize.train_tarred_data import TarredRTTMStreamingSegmentsDataset
 from nemo.collections.asr.metrics.der import DER
-from nemo.collections.asr.metrics.running_avg import RunningAverage
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.modules.deep_diarize_transformer import TransformerXL
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
@@ -57,11 +56,11 @@ class DeepDiarizeModel(ModelPT):
             is_causal=False,
         )
 
-        self.transformer_model = TransformerXL(
+        self.transformer_feature_encoder = TransformerXL(
             max_seq_len=self.sub_sample_length,
             max_mem_len=self.sub_sample_length,
             dim_in=self.cfg.d_model,
-            dim_out=self.cfg.num_speakers,
+            dim_out=self.cfg.d_model,
             attn_layers=Decoder(
                 dim=self.cfg.hidden_dim,
                 depth=self.cfg.n_layers,
@@ -73,12 +72,24 @@ class DeepDiarizeModel(ModelPT):
             ),
         )
 
+        self.eda_module = XTransformer(
+            dim=512,
+            enc_num_tokens=256,
+            enc_depth=6,
+            enc_heads=8,
+            enc_max_seq_len=1024,
+            dec_num_tokens=256,
+            dec_depth=6,
+            dec_heads=8,
+            dec_max_seq_len=1024,
+            tie_token_emb=True,  # tie embeddings of encoder and decoder
+        )
+
         self.loss = torch.nn.BCELoss()
         self.train_loss = torch.nn.BCELoss(reduction='none' if self.cfg.focal else 'mean')
         self.sigmoid = torch.nn.Sigmoid()
         self.apply(self._init_weights)
         self.mems = None
-        self.running_loss_avg = RunningAverage()
         self.der, self.der_no_mem = [
             DER(
                 seconds_per_frame=self.cfg.preprocessor.window_stride * self.cfg.subsampling,
@@ -116,28 +127,6 @@ class DeepDiarizeModel(ModelPT):
             y[x] = torch.index_select(y[x], 1, self.permutations[x])
         return y
 
-    def training_step(self, batch, batch_idx):
-        train_x, train_lengths, y, mask = batch
-        if self.mask_mem:
-            self._mask_mems(mask)
-        seg, model_lengths = self.sub_sample_layer(train_x, lengths=train_lengths)
-        logits, self.mems = self.transformer_model(seg, mems=self.mems)
-        logits = self.sigmoid(logits)
-        if self.cfg.permute:
-            y = self._permutation_mask(logits, y, mask)
-        loss = self._calculate_train_loss(logits, y)
-
-        self.running_loss_avg(loss)
-        self.logger.log_metrics(
-            {
-                "train_loss": loss,
-                "learning_rate": self.lr_schedulers().get_last_lr()[0],
-                'running_train_loss': self.running_loss_avg.compute(),
-            },
-            step=self.trainer.global_step,
-        )
-        return loss
-
     def _calculate_train_loss(self, logits, y):
         loss = self.train_loss(logits, y)
         if self.cfg.focal:
@@ -146,36 +135,67 @@ class DeepDiarizeModel(ModelPT):
             loss = loss.mean()
         return loss
 
-    def divide(self, num, max_length):
-        n_chunks = math.ceil(num / max_length)
-        remainder = num % max_length
-        lengths = [max_length if num - (max_length * (x + 1)) >= 0 else remainder for x in range(n_chunks)]
-        return lengths
+    def training_step(self, batch, batch_idx):
+        train_x, train_lengths, y, mask, speaker_existence_labels = batch
+        seg, model_lengths = self.sub_sample_layer(train_x, lengths=train_lengths)
+        if self.mask_mem:
+            self._mask_mems(mask)
+        x, self.mems = self.transformer_feature_encoder(seg, mems=self.mems)
 
-    def pad(self, chunk):
-        return F.pad(chunk.transpose(1, 2), pad=(0, self.train_sequence_length - chunk.size(1)), value=0).transpose(
-            1, 2
+        speaker_embeddings = self.eda_module(x)
+
+        speaker_outputs = None
+        for speaker_id, speaker_embedding in enumerate(speaker_embeddings):
+            length = seg.size(1)
+            speaker_embedding = speaker_embedding.expand(length, -1).unsqueeze(0)
+            speaker_x = torch.cat([x, speaker_embedding], dim=-1)
+            logits = self.transformer_speaker_activity(speaker_x)
+            logits = self.sigmoid(logits)
+            speaker_outputs = logits if speaker_outputs is None else torch.cat((speaker_outputs, logits), dim=2)
+
+        if self.cfg.permute:
+            y = self._permutation_mask(speaker_outputs, y, mask)
+        loss = self._calculate_train_loss(speaker_outputs, y)
+
+        speaker_existence_probability = self.existence_module(speaker_embeddings)
+        existence_loss = self.existence_loss(speaker_existence_probability, speaker_existence_labels)
+
+        self.logger.log_metrics(
+            {
+                "train_loss": loss,
+                "existence_loss": existence_loss,
+                "learning_rate": self.lr_schedulers().get_last_lr()[0],
+            },
+            step=self.trainer.global_step,
         )
+        return loss
 
     def validation_step(self, batch, batch_idx):
         inputs, input_lengths, y, annotations = batch
-        mems, logits, no_mem_logits = None, None, None
+        mems, full_speech_activity = None, None
         for chunk, length in zip(inputs, input_lengths):
             seg, model_lengths = self.sub_sample_layer(chunk, lengths=length.unsqueeze(0))
-            chunk_logits, mems = self.transformer_model(seg, mems=mems)
-            chunk_logits = self.sigmoid(chunk_logits)
-            logits = chunk_logits if logits is None else torch.cat((logits, chunk_logits), dim=1)
+            x, mems = self.transformer_feature_encoder(seg, mems=mems)
 
-            chunk_logits, _ = self.transformer_model(seg)
-            chunk_logits = self.sigmoid(chunk_logits)
-            no_mem_logits = chunk_logits if no_mem_logits is None else torch.cat((no_mem_logits, chunk_logits), dim=1)
+            speaker_embeddings = self.eda_module(x)
 
-        loss = self._calculate_val_loss(logits, y)
-        no_mem_loss = self._calculate_val_loss(no_mem_logits, y)
+            speaker_outputs = None
+            for speaker_id, speaker_embedding in enumerate(speaker_embeddings):
+                length = seg.size(1)
+                speaker_embedding = speaker_embedding.expand(length, -1).unsqueeze(0)
+                speaker_x = torch.cat([x, speaker_embedding], dim=-1)
+                logits = self.transformer_speaker_activity(speaker_x)
+                logits = self.sigmoid(logits)
+                speaker_outputs = logits if speaker_outputs is None else torch.cat((speaker_outputs, logits), dim=2)
+            full_speech_activity = (
+                full_speech_activity
+                if speaker_outputs is None
+                else torch.cat((full_speech_activity, speaker_outputs), dim=1)
+            )
+
+        loss = self._calculate_val_loss(full_speech_activity, y)
         self.log('val_loss', loss, sync_dist=True)
-        self.log('no_mem_val_loss', no_mem_loss, sync_dist=True)
-        self.der(logits.squeeze(0), annotations)
-        self.der_no_mem(no_mem_logits.squeeze(0), annotations)
+        self.der(full_speech_activity, annotations)
         self.log('DER', self.der, sync_dist=True)
         self.log('no_mem_DER', self.der_no_mem, sync_dist=True)
 
