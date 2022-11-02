@@ -527,7 +527,7 @@ class ASR_DIAR_OFFLINE:
 
     def gather_eval_results(
         self, metric, mapping_dict: Dict[str, str], trans_info_dict: Dict[str, Dict[str, float]], decimals: int = 4
-    ) -> Dict[str, float]:
+    ) -> Dict[str, Dict[str, float]]:
         """
         Gather diarization evaluation results from pyannote DiarizationErrorRate metric object.
 
@@ -998,7 +998,7 @@ class ASR_DIAR_OFFLINE:
             realigned_list.append(line_dict)
         return realigned_list
 
-    def get_cpWER(self, trans_info_dict: Dict[str, Dict[str, float]]) -> Dict[str, float]:
+    def calculate_cpWER(self, trans_info_dict: Dict[str, Dict[str, float]]) -> Dict[str, Dict[str, float]]:
         """
         Calculate cpWER from the multispeaker ASR output. cpWER is calculated as following steps.
 
@@ -1013,12 +1013,7 @@ class ASR_DIAR_OFFLINE:
         for audio_file_path in self.audio_file_list:
             uniq_id = get_uniqname_from_filepath(audio_file_path)
             word_seq_lists.append(trans_info_dict[uniq_id]['words'])
-
-        if self.ctm_exists == True:
-            WER_result_dict = calculate_total_WER(word_seq_lists, self.ctm_file_list)
-        else:
-            WER_result_dict = {}
-        return WER_result_dict
+        return calculate_total_WER(word_seq_lists, self.ctm_file_list) if self.ctm_exists else {}
 
     def get_str_speech_labels(self, speech_labels_float: List[List[float]]) -> List[str]:
         """
@@ -1158,33 +1153,33 @@ class ASR_DIAR_OFFLINE:
         write_txt(f'{self.root_path}/pred_rttms/{uniq_id}.txt', string_out.strip())
         write_txt(f'{self.root_path}/pred_rttms/{uniq_id}.w.label', '\n'.join(audacity_label_words))
 
-    def print_errors(self, DER_result_dict: Dict[str, Dict[str, float]], WER_result_dict: Dict[str, Dict[str, float]]):
+    def print_errors(self, der_result_dict: Dict[str, Dict[str, float]], wer_result_dict: Dict[str, Dict[str, float]]):
         """
         Print a slew of error metrics for ASR and Diarization.
 
         Args:
-            DER_result_dict (dict):
+            der_result_dict (dict):
                 Dictionary containing FA, MISS, CER and DER values for both aggregated amount and
                 each session.
-            WER_result_dict (dict):
+            wer_result_dict (dict):
                 Dictionary containing session-by-session WER and cpWER. `WER_result_dict` only
                 exists when CTM files are provided.
 
         """
-        DER_info = f"\nDER                : {DER_result_dict['total']['DER']:.4f} \
-                     \nFA                 : {DER_result_dict['total']['FA']:.4f} \
-                     \nMISS               : {DER_result_dict['total']['MISS']:.4f} \
-                     \nCER                : {DER_result_dict['total']['CER']:.4f} \
-                     \nSpk. counting acc. : {DER_result_dict['total']['spk_counting_acc']:.4f}"
-        if self.ctm_exists == True:
+        DER_info = f"\nDER                : {der_result_dict['total']['DER']:.4f} \
+                     \nFA                 : {der_result_dict['total']['FA']:.4f} \
+                     \nMISS               : {der_result_dict['total']['MISS']:.4f} \
+                     \nCER                : {der_result_dict['total']['CER']:.4f} \
+                     \nSpk. counting acc. : {der_result_dict['total']['spk_counting_acc']:.4f}"
+        if self.ctm_exists:
             logging.info(
                 DER_info
-                + f"\ncpWER              : {WER_result_dict['total']['average_cpWER']:.4f} \
-                     \nWER                : {WER_result_dict['total']['average_mixWER']:.4f}"
+                + f"\ncpWER              : {wer_result_dict['total']['average_cpWER']:.4f} \
+                     \nWER                : {wer_result_dict['total']['average_mixWER']:.4f}"
             )
         else:
             logging.info(DER_info)
-        self.write_session_level_result_in_csv(DER_result_dict, WER_result_dict)
+        self.write_session_level_result_in_csv(der_result_dict, wer_result_dict)
 
     def print_sentences(self, sentences: List[Dict[str, float]], params: Dict[str, float]) -> str:
         """
