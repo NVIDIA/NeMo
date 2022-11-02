@@ -338,7 +338,7 @@ class IPAG2P(BaseG2p):
         if phoneme_dict_obj:
             self.phoneme_dict, self.symbols = self._normalize_dict(phoneme_dict_obj)
         else:
-            raise ValueError(f"Found empty entries in {phoneme_dict}.")
+            raise ValueError(f"{phoneme_dict} contains no entries!")
 
         if apply_to_oov_word is None:
             logging.warning(
