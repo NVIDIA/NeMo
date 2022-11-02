@@ -21,7 +21,7 @@ import torch.distributed
 import torch.nn as nn
 from omegaconf import DictConfig, ListConfig
 
-from nemo.collections.asr.models.configs import FramewiseStreamingConfig
+from nemo.collections.asr.models.configs import CacheAwareStreamingConfig
 from nemo.collections.asr.parts.mixins.streaming import StreamingEncoder
 from nemo.collections.asr.parts.submodules.causal_convs import CausalConv1D
 from nemo.collections.asr.parts.submodules.conformer_modules import ConformerLayer
@@ -30,7 +30,11 @@ from nemo.collections.asr.parts.submodules.multi_head_attention import (
     PositionalEncoding,
     RelPositionalEncoding,
 )
-from nemo.collections.asr.parts.submodules.subsampling import ConvSubsampling, StackingSubsampling
+from nemo.collections.asr.parts.submodules.subsampling import (
+    ConvSubsampling,
+    StackingSubsampling,
+    SubsamplingReductionModule,
+)
 from nemo.collections.asr.parts.utils import adapter_utils
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
@@ -60,6 +64,12 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             Defaults to 4.
         subsampling_conv_channels (int): the size of the convolutions in the subsampling module
             Defaults to -1 which would set it to d_model.
+        reduction (str, Optional): the method of reduction, choices=['pooling', 'striding']. If no value
+            is passed, then no reduction is performed and the models runs with the original 4x subsampling.
+        reduction_position (int, Optional): the index of the layer to apply reduction. If -1, apply reduction
+            at the end.
+        reduction_factor (int): the reduction factor which should be either 1 or a power of 2
+            Defaults to 1.
         ff_expansion_factor (int): the expansion factor in feed forward layers
             Defaults to 4.
         self_attention_model (str): type of the attention layer and positional encoding
@@ -80,6 +90,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             Defaults to 'batch_norm'.
         dropout (float): the dropout rate used in all layers except the attention layers
             Defaults to 0.1.
+        dropout_pre_encoder (float): the dropout rate used before the encoder
+            Defaults to 0.1.
         dropout_emb (float): the dropout rate used for the positional embeddings
             Defaults to 0.1.
         dropout_att (float): the dropout rate used for the attention layer
@@ -97,12 +109,12 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         input_example_length = torch.randint(1, max_dim, (max_batch,)).to(dev)
 
         if hasattr(self, 'export_cache_support') and self.export_cache_support:
-            cache_last_channel = torch.randn(self.n_layers, max_batch, self.conv_context_size[0], self.d_model).to(dev)
-            cache_last_time = torch.randn(self.n_layers, max_batch, self.d_model, max_dim).to(dev)
+            cache_last_channel = torch.randn(self.n_layers, max_batch, max_dim, self.d_model).to(dev)
+            cache_last_time = torch.randn(self.n_layers, max_batch, self.d_model, self.conv_context_size[0]).to(dev)
+            all_input_example = tuple([input_example, input_example_length, cache_last_channel, cache_last_time])
         else:
-            cache_last_channel = cache_last_time = None
+            all_input_example = tuple([input_example, input_example_length])
 
-        all_input_example = tuple([input_example, input_example_length, cache_last_channel, cache_last_time])
         return all_input_example
 
     @property
@@ -153,6 +165,9 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         subsampling='striding',
         subsampling_factor=4,
         subsampling_conv_channels=-1,
+        reduction=None,
+        reduction_position=None,
+        reduction_factor=1,
         ff_expansion_factor=4,
         self_attention_model='rel_pos',
         n_heads=4,
@@ -165,6 +180,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         conv_norm_type='batch_norm',
         conv_context_size=None,
         dropout=0.1,
+        dropout_pre_encoder=0.1,
         dropout_emb=0.1,
         dropout_att=0.0,
     ):
@@ -228,6 +244,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         else:
             self.xscale = None
 
+        # Subsampling
         if subsampling_conv_channels == -1:
             subsampling_conv_channels = d_model
         if subsampling and subsampling_factor > 1:
@@ -252,6 +269,17 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         else:
             self.pre_encode = nn.Linear(feat_in, d_model)
 
+        # Reduction
+        if reduction and reduction_factor > 1:
+            assert reduction_position >= -1 and reduction_position < n_layers
+            self.reduction_subsampling = SubsamplingReductionModule(
+                reduction=reduction, d_model=d_model, reduction_factor=reduction_factor,
+            )
+            self.reduction_position = reduction_position
+        else:
+            self.reduction_subsampling = None
+            self.reduction_position = None
+
         self._feat_out = d_model
 
         if not untie_biases and self_attention_model == "rel_pos":
@@ -268,7 +296,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         if self_attention_model == "rel_pos":
             self.pos_enc = RelPositionalEncoding(
                 d_model=d_model,
-                dropout_rate=dropout,
+                dropout_rate=dropout_pre_encoder,
                 max_len=pos_emb_max_len,
                 xscale=self.xscale,
                 dropout_rate_emb=dropout_emb,
@@ -277,7 +305,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             pos_bias_u = None
             pos_bias_v = None
             self.pos_enc = PositionalEncoding(
-                d_model=d_model, dropout_rate=dropout, max_len=pos_emb_max_len, xscale=self.xscale
+                d_model=d_model, dropout_rate=dropout_pre_encoder, max_len=pos_emb_max_len, xscale=self.xscale
             )
         else:
             raise ValueError(f"Not valid self_attention_model: '{self_attention_model}'!")
@@ -312,6 +340,19 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         self.setup_streaming_params()
         self.export_cache_support = False
 
+    def update_max_seq_length(self, seq_length: int, device):
+        # Find global max audio length across all nodes
+        if torch.distributed.is_initialized():
+            global_max_len = torch.tensor([seq_length], dtype=torch.float32, device=device)
+
+            # Update across all ranks in the distributed system
+            torch.distributed.all_reduce(global_max_len, op=torch.distributed.ReduceOp.MAX)
+
+            seq_length = global_max_len.int().item()
+
+        if seq_length > self.max_audio_length:
+            self.set_max_audio_length(seq_length)
+
     def set_max_audio_length(self, max_audio_length):
         """
         Sets maximum input length.
@@ -319,11 +360,6 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         """
         self.max_audio_length = max_audio_length
         device = next(self.parameters()).device
-        seq_range = torch.arange(0, self.max_audio_length, device=device)
-        if hasattr(self, 'seq_range'):
-            self.seq_range = seq_range
-        else:
-            self.register_buffer('seq_range', seq_range, persistent=False)
         self.pos_enc.extend_pe(max_audio_length, device)
 
         att_mask = torch.ones(1, max_audio_length, max_audio_length, dtype=torch.bool, device=device)
@@ -353,10 +389,10 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
 
         if length is None:
             length = audio_signal.new_full(
-                audio_signal.size(0), max_audio_length, dtype=torch.int32, device=self.seq_range.device
+                audio_signal.size(0), max_audio_length, dtype=torch.int32, device=audio_signal.device
             )
 
-        if cache_last_channel is not None:
+        if cache_last_time is not None:
             cache_last_time_next = torch.zeros_like(cache_last_time)
         else:
             cache_last_time_next = None
@@ -375,7 +411,9 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
 
         max_audio_length = audio_signal.size(1)
 
-        # Create the self-attention and padding masks
+        if self.reduction_position is not None and cache_last_channel is not None:
+            raise ValueError("Caching with reduction feature is not supported yet!")
+
         if cache_last_channel is not None:
             last_channel_num, bs, cache_len, channel_size = cache_last_channel.size()
             cache_keep_size = max_audio_length - self.streaming_cfg.cache_drop_size
@@ -386,14 +424,59 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             )
             max_audio_length += cache_len
             padding_length = length + cache_len
-            audio_signal, pos_emb = self.pos_enc(x=audio_signal, cache_len=cache_len)
         else:
             padding_length = length
             cache_last_channel_next = None
-            audio_signal, pos_emb = self.pos_enc(x=audio_signal)
+            cache_len = 0
 
+        audio_signal, pos_emb = self.pos_enc(x=audio_signal, cache_len=cache_len)
+
+        # Create the self-attention and padding masks
+        pad_mask, att_mask = self._create_masks(max_audio_length, padding_length, audio_signal.device)
+
+        if cache_last_channel is not None:
+            pad_mask = pad_mask[:, cache_len:]
+            att_mask = att_mask[:, cache_len:]
+
+        for lth, layer in enumerate(self.layers):
+            audio_signal = layer(
+                x=audio_signal,
+                att_mask=att_mask,
+                pos_emb=pos_emb,
+                pad_mask=pad_mask,
+                cache_last_channel=cache_last_channel,
+                cache_last_time=cache_last_time,
+                cache_last_channel_next=cache_last_channel_next,
+                cache_last_time_next=cache_last_time_next,
+            )
+
+            if self.reduction_position == lth:
+                audio_signal, length = self.reduction_subsampling(x=audio_signal, lengths=length)
+                max_audio_length = audio_signal.size(1)
+                # Don't update the audio_signal here because then it will again scale the audio_signal
+                # and cause an increase in the WER
+                _, pos_emb = self.pos_enc(x=audio_signal, cache_len=cache_len)
+                pad_mask, att_mask = self._create_masks(max_audio_length, length, audio_signal.device)
+
+        if self.out_proj is not None:
+            audio_signal = self.out_proj(audio_signal)
+
+        # Reduction
+        if self.reduction_position == -1:
+            audio_signal, length = self.reduction_subsampling(x=audio_signal, lengths=length)
+
+        audio_signal = torch.transpose(audio_signal, 1, 2)
+
+        if cache_last_channel is not None:
+            return audio_signal, length, cache_last_channel_next, cache_last_time_next
+        else:
+            return audio_signal, length
+
+    def _create_masks(self, max_audio_length, padding_length, device):
         # pad_mask is the masking to be used to ignore paddings
-        pad_mask = self.make_pad_mask(max_audio_length=max_audio_length, seq_lens=padding_length)
+        pad_mask = torch.arange(0, max_audio_length, device=device).expand(
+            padding_length.size(0), -1
+        ) < padding_length.unsqueeze(-1)
 
         # pad_mask_for_att_mask is the mask which helps to ignore paddings
         pad_mask_for_att_mask = pad_mask.unsqueeze(1).repeat([1, max_audio_length, 1])
@@ -403,86 +486,54 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         # paddings should also get ignored, so pad_mask_for_att_mask is used to ignore their corresponding scores
         att_mask = torch.logical_and(pad_mask_for_att_mask, att_mask.to(pad_mask_for_att_mask.device))
 
-        if cache_last_channel is not None:
-            pad_mask = pad_mask[:, cache_len:]
-            att_mask = att_mask[:, cache_len:]
-
         pad_mask = ~pad_mask
         att_mask = ~att_mask
 
-        for lth, layer in enumerate(self.layers):
-            audio_signal = layer(
-                x=audio_signal,
-                att_mask=att_mask,
-                pos_emb=pos_emb,
-                pad_mask=pad_mask,
-                cache_last_time=cache_last_time,
-                cache_last_channel=cache_last_channel,
-                cache_last_time_next=cache_last_time_next,
-                cache_last_channel_next=cache_last_channel_next,
-            )
-
-        if self.out_proj is not None:
-            audio_signal = self.out_proj(audio_signal)
-
-        audio_signal = torch.transpose(audio_signal, 1, 2)
-
-        if cache_last_channel is not None:
-            return audio_signal, length, cache_last_channel_next, cache_last_time_next
-        else:
-            return audio_signal, length
-
-    def update_max_seq_length(self, seq_length: int, device):
-        # Find global max audio length across all nodes
-        if torch.distributed.is_initialized():
-            global_max_len = torch.tensor([seq_length], dtype=torch.float32, device=device)
-
-            # Update across all ranks in the distributed system
-            torch.distributed.all_reduce(global_max_len, op=torch.distributed.ReduceOp.MAX)
-
-            seq_length = global_max_len.int().item()
-
-        if seq_length > self.max_audio_length:
-            self.set_max_audio_length(seq_length)
-
-    def make_pad_mask(self, max_audio_length, seq_lens):
-        """Make masking for padding."""
-        mask = self.seq_range[:max_audio_length].expand(seq_lens.size(0), -1) < seq_lens.unsqueeze(-1)
-        return mask
+        return pad_mask, att_mask
 
     def enable_pad_mask(self, on=True):
-        # On inference, user may chose to disable pad mask
+        # On inference, user may choose to disable pad mask
         mask = self.use_pad_mask
         self.use_pad_mask = on
         return mask
 
     def setup_streaming_params(
-        self, max_context: int = 10000,
+        self, chunk_size: int = None, shift_size: int = None, left_chunks: int = None, max_context: int = 10000
     ):
         """
             This function sets the needed values and parameters to perform streaming. The configuration would be stored in self.streaming_cfg.
             The streaming configuration is needed to simulate streaming inference.
+            Args:
+                chunk_size (int): overrides the chunk size
+                shift_size (int): overrides the shift size for chunks
+                left_chunks (int): overrides the number of left chunks visible to each chunk
+                max_context (int): the value used for the cache size of last_channel layers if left context is set to infinity (-1)
+                    Defaults to -1 (means feat_out is d_model)
         """
-        streaming_cfg = FramewiseStreamingConfig()
-        if self.att_context_style == "chunked_limited":
+        streaming_cfg = CacheAwareStreamingConfig()
+        if chunk_size is not None:
+            if chunk_size <= 1:
+                raise ValueError("chunk_size needs to be a number larger or equal to one.")
+            lookahead_steps = chunk_size - 1
+            streaming_cfg.cache_drop_size = chunk_size - shift_size
+        elif self.att_context_style == "chunked_limited":
             lookahead_steps = self.att_context_size[1]
             streaming_cfg.cache_drop_size = 0
         elif self.att_context_style == "regular":
-            lookahead_steps_att = (
-                self.att_context_size[1] * self.n_layers if self.att_context_size[1] >= 0 else max_context
-            )
-            lookahead_steps_conv = (
-                self.conv_context_size[1] * self.n_layers if self.conv_context_size[1] >= 0 else max_context
-            )
-            lookahead_steps = max(lookahead_steps_att, lookahead_steps_conv)
+            lookahead_steps = self.att_context_size[1] * self.n_layers + self.conv_context_size[1] * self.n_layers
             streaming_cfg.cache_drop_size = lookahead_steps
         else:
-            streaming_cfg.cache_drop_size = cache_drop_size
+            streaming_cfg.cache_drop_size = 0
             lookahead_steps = None
 
-        streaming_cfg.last_channel_cache_size = (
-            self.att_context_size[0] if self.att_context_size[0] >= 0 else max_context
-        )
+        if chunk_size is None:
+            streaming_cfg.last_channel_cache_size = (
+                self.att_context_size[0] if self.att_context_size[0] >= 0 else max_context
+            )
+        else:
+            if left_chunks is None:
+                raise ValueError("left_chunks can not be None when chunk_size is set.")
+            streaming_cfg.last_channel_cache_size = left_chunks * chunk_size
 
         if hasattr(self.pre_encode, "get_sampling_frames"):
             sampling_frames = self.pre_encode.get_sampling_frames()

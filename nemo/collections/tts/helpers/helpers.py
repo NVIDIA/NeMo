@@ -54,6 +54,7 @@ from numpy import ndarray
 from pesq import pesq
 from pystoi import stoi
 
+from nemo.collections.tts.torch.tts_data_types import DATA_STR2DATA_CLASS, MAIN_DATA_TYPES, WithLens
 from nemo.utils import logging
 
 HAVE_WANDB = True
@@ -528,26 +529,26 @@ def regulate_len(durations, enc_out, pace=1.0, mel_max_len=None):
 
     dtype = enc_out.dtype
     reps = durations.float() / pace
-    reps = (reps + 0.5).long()
+    reps = (reps + 0.5).floor().long()
     dec_lens = reps.sum(dim=1)
 
     max_len = dec_lens.max()
     reps_cumsum = torch.cumsum(torch.nn.functional.pad(reps, (1, 0, 0, 0), value=0.0), dim=1)[:, None, :]
-    reps_cumsum = reps_cumsum.to(dtype)
+    reps_cumsum = reps_cumsum.to(dtype=dtype, device=enc_out.device)
 
     range_ = torch.arange(max_len).to(enc_out.device)[None, :, None]
     mult = (reps_cumsum[:, :, :-1] <= range_) & (reps_cumsum[:, :, 1:] > range_)
     mult = mult.to(dtype)
     enc_rep = torch.matmul(mult, enc_out)
 
-    if mel_max_len:
+    if mel_max_len is not None:
         enc_rep = enc_rep[:, :mel_max_len]
         dec_lens = torch.clamp_max(dec_lens, mel_max_len)
 
     return enc_rep, dec_lens
 
 
-def split_view(tensor, split_size, dim=0):
+def split_view(tensor, split_size: int, dim: int = 0):
     if dim < 0:  # Support negative indexing
         dim = len(tensor.shape) + dim
     # If not divisible by split_size, we need to pad with 0
@@ -560,3 +561,16 @@ def split_view(tensor, split_size, dim=0):
     cur_shape = tensor.shape
     new_shape = cur_shape[:dim] + (tensor.shape[dim] // split_size, split_size) + cur_shape[dim + 1 :]
     return tensor.reshape(*new_shape)
+
+
+def process_batch(batch_data, sup_data_types_set):
+    batch_dict = {}
+    batch_index = 0
+    for name, datatype in DATA_STR2DATA_CLASS.items():
+        if datatype in MAIN_DATA_TYPES or datatype in sup_data_types_set:
+            batch_dict[name] = batch_data[batch_index]
+            batch_index = batch_index + 1
+            if issubclass(datatype, WithLens):
+                batch_dict[name + "_lens"] = batch_data[batch_index]
+                batch_index = batch_index + 1
+    return batch_dict
