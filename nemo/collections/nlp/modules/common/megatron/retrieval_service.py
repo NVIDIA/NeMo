@@ -400,6 +400,7 @@ class ComboRetrievalService(RetrievalService):
         weights = np.array(weights)
         # normalize the weights
         self.weights = weights / weights.sum()
+        self.chunk_size = self.retrieval_services[0].chunk_size
 
     def get_knn(self, query: Union[List[str], str, torch.Tensor], neighbors):
         if neighbors == 0:

@@ -17,7 +17,7 @@ from typing import List, Tuple
 
 import torch
 
-from nemo.collections.nlp.modules.common.megatron.retrieval_service import FaissRetrievalService
+from nemo.collections.nlp.modules.common.megatron.retrieval_service import ComboRetrievalService, DynamicFaissRetrievalService, FaissRetrievalService
 from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids, get_ltor_masks_and_position_ids
 
 try:
@@ -378,14 +378,23 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
         super().__init__(model)
         self.forward_model = self.model.model
         self.frequent_query = args['frequent_query']
-        del args['frequent_query']
         self.pad_token_for_retrieval = args['pad_tokens']
-        del args['pad_tokens']
         self.neighbors = args['neighbors']
-        del args['neighbors']
         self.store_retrieved = args['store_retrieved']
-        del args['store_retrieved']
-        self.service = FaissRetrievalService(tokenizer=self.model.tokenizer, **args)
+        weights = args['weights']
+        services = []
+        for service_conf in args['services']:
+            if service_conf['type'] == 'FaissRetrievalService':
+                del service_conf['type']
+                service = FaissRetrievalService(tokenizer=self.model.tokenizer, **service_conf)
+                services.append(service)
+            elif service_conf['type'] == 'DynamicFaissRetrievalService':
+                del service_conf['type']
+                service = DynamicFaissRetrievalService(tokenizer=self.model.tokenizer, **service_conf)
+                services.append(service)
+            else:
+                raise ValueError(f'no such service {service_conf["type"]} implemented')
+        self.service = ComboRetrievalService(retrieval_services=services, weights=weights)
         self.retrieved = []
         self.retrieved_text = []
         self.chunk_size = self.service.chunk_size
