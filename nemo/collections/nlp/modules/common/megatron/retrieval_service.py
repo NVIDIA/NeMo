@@ -45,6 +45,15 @@ class RetrievalService:
     def get_knn(self, query: Union[List[str], str, torch.Tensor], neighbors: int):
         pass
 
+    @abc.abstractmethod
+    def add_docs_to_index(self, docs: List[str]):
+        """
+        Add documents to the Faiss index
+        Args:
+            docs: List[str], list of documents that is going to be added to the index
+        """
+        raise NotImplementedError()
+
 
 class ChunkStore():
 
@@ -182,7 +191,7 @@ class DynamicRetrievalResource(FaissRetrievalResource):
         self.stride = stride
         self.pad_id = self.tokenizer.pad_id
         self._count = 0
-        self.ds = store 
+        self.ds = store
 
     def put(self):
         data = request.get_json()
@@ -246,6 +255,8 @@ class DynamicRetrievalServer(object):
         self.chunk_size = chunk_size
         self.stride = stride
         self.store = ChunkStore()
+        self.store.store[-1] = np.ones(2 * self.chunk_size,
+                                 dtype=np.int64) * self.pad_id
 
         if faiss_devices is None or not torch.cuda.is_available():
             device_list = None
@@ -302,6 +313,7 @@ class FaissRetrievalService(RetrievalService):
         sentence_bert: str = 'all-mpnet-base-v2',
         sentence_bert_batch: int = 4,
     ):
+        self.updatable = False
         self.tokenizer = tokenizer
         ds = MMapRetrievalIndexedDataset(retrieval_index)
         self.chunk_size = ds.chunk_size
@@ -330,3 +342,102 @@ class FaissRetrievalService(RetrievalService):
         result = request_data(data, PORT_NUM)
         result = np.array(result)
         return result
+
+
+class DynamicFaissRetrievalService(RetrievalService):
+    def __init__(
+        self,
+        faiss_devices: str,
+        tokenizer: TokenizerSpec,
+        chunk_size: int,
+        stride: int,
+        sentence_bert: str = 'all-mpnet-base-v2',
+        sentence_bert_batch: int = 4,
+    ):
+        self.updatable = True
+        self.tokenizer = tokenizer
+        self.chunk_size = chunk_size
+        pad_id = self.tokenizer.pad_id
+        # batch, neighbors, 2*chunk_size
+        self.no_retrieval = np.ones((1, 1, 2 * self.chunk_size), dtype=np.int64) * pad_id
+        if torch.distributed.get_rank() == 0:
+            server = DynamicRetrievalServer(
+                faiss_devices, tokenizer, chunk_size, stride, sentence_bert, sentence_bert_batch
+            )
+            server.run("0.0.0.0")
+        torch.distributed.barrier()
+
+    def get_knn(self, query: Union[List[str], str, torch.Tensor], neighbors):
+        if isinstance(query, torch.Tensor):
+            sentence_list = []
+            for q in query:
+                text = self.tokenizer.ids_to_text(q)
+                sentence_list.append(text)
+            query = sentence_list
+        if neighbors == 0:
+            # use padding
+            return np.repeat(self.no_retrieval, len(query), 0).astype(np.int64)
+        data = {'sentences': query}
+        data['neighbors'] = neighbors
+        result = request_data(data, PORT_NUM_DYN)
+        result = np.array(result)
+        return result
+
+    def add_docs_to_index(self, query: List[str]):
+        """
+        Add documents to the Faiss index
+        Args:
+            docs: List[str], list of documents that is going to be added to the index
+        """
+        if isinstance(query, torch.Tensor):
+            sentence_list = []
+            for q in query:
+                text = self.tokenizer.ids_to_text(q)
+                sentence_list.append(text)
+            query = sentence_list
+        data = {'sentences': query}
+        return request_data(data, PORT_NUM_DYN)
+
+
+class ComboRetrievalService(RetrievalService):
+    def __init__(
+        self,
+        retrieval_services,
+        weights
+    ):
+        self.retrieval_services = retrieval_services
+        self.updatable = any([service.updatable for service in retrieval_services])
+        weights = np.array(weights)
+        # normalize the weights
+        self.weights = weights / weights.sum()
+
+    def get_knn(self, query: Union[List[str], str, torch.Tensor], neighbors):
+        if neighbors == 0:
+            return self.retrieval_services[0].get_knn(query, 0)
+        total_neighbors = 0
+        results = []
+        for i, service in enumerate(self.retrieval_services):
+            k = int(neighbors * self.weights[i])
+            if i == len(self.retrieval_services) - 1:
+                k = neighbors - total_neighbors
+            total_neighbors += k
+            if k == 0:
+                # empty, skip it
+                continue
+            result = service.get_knn(query, k)
+            results.append(result)
+        return np.concatenate(results, axis=1)
+
+    def add_docs_to_index(self, query: List[str]):
+        """
+        Add documents to the Faiss index
+        Args:
+            docs: List[str], list of documents that is going to be added to the index
+        """
+        output = 'success'
+        if not self.updatable:
+            return output
+        for i, service in enumerate(self.retrieval_services):
+            if service.updatable:
+                service.add_docs_to_index(query)
+        return output
