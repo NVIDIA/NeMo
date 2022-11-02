@@ -33,6 +33,8 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
     write_rttm2manifest,
 )
 from nemo.utils import logging
+from scipy.optimize import linear_sum_assignment
+import itertools
 
 try:
     import arpa
@@ -142,8 +144,20 @@ def get_per_spk_hyp_transcripts(word_dict_seq_list: List[Dict[str, float]]) -> T
     mix_hyp_trans = " ".join(mix_hyp_trans)
     return per_spk_hyp_trans, mix_hyp_trans
 
+def count_words(per_spk_trans: List[List[str]]):
+    """
+    Count the number of words in per-speaker transcription.
 
-def calculate_session_cpWER(
+    Args:
+        per_spk_trans (list):
+            List containing transcript for each speaker.
+
+    Returns:
+        Number of words in the per-speaker transcription
+    """
+    return np.array([ len(trans.split()) for trans in per_spk_trans ])
+
+def concat_perm_word_error_rate(
     per_spk_hyp_trans: List[List[str]], per_spk_ref_trans: List[List[str]]
 ) -> Tuple[float, str, str]:
     """
@@ -159,13 +173,30 @@ def calculate_session_cpWER(
         CHiME-6 Challenge: Tackling Multispeaker Speech Recognition for Unsegmented Recordings
         https://arxiv.org/pdf/2004.09249.pdf
 
+    Implementation:
+        - Brute force permutation method for calculating cpWER has time complexity of `O(n!)`.
+        - To reduce the computaional burden, linear sum assignment (LSA) algorithm is applied
+          (also known as Hungarian algorithm) to find the permutation that leads to the lowest WER.
+        - LSA algorithm has `O(n^3)` time complexity in the worst case.
+        - In this implementation, instead of calculating all WER values for all permutation of hypotheses,
+          we only calculate WER values of (estimated number of speakers) x (reference number of speakers)
+          combinations and then select the permutation that yields the lowest WER based on LSA algorithm.
+        - Note that we discard redundant speakers when the number of the estimated speakers are larger than
+          the number of reference speakers. Thus, the words belong to the redundant speakers are considered
+          as deletions during WER calculation.
+
     Args:
         per_spk_hyp_trans (list):
-            Dictionary containing the hypothesis transcript for each speaker. A list containing the sequence
-            of words is assigned for each speaker (key value).
+            List containing the hypothesis transcript for each speaker. A list containing the sequence
+            of words is assigned for each speaker.
+            Example::
+                >>> per_spk_hyp_trans = ["hey how are you we that's nice", "i'm good yes hi is your sister"]
+
         per_spk_ref_trans (list):
-            Dictionary containing the reference transcript for each speaker. A list containing the sequence
-            of words is assigned for each speaker (key value).
+            List containing the reference transcript for each speaker. A list containing the sequence
+            of words is assigned for each speaker.
+            Example::
+                >>> per_spk_ref_trans = ["hi how are you well that's nice", "i'm good yeah how is your sister"]
 
     Returns:
         cpWER (float):
@@ -183,28 +214,37 @@ def calculate_session_cpWER(
         ref_word_list.append(word_list)
     ref_trans = " ".join(ref_word_list)
 
-    # Calculate WER for every permutation
-    for hyp_word_list in permutations(per_spk_hyp_trans):
-        hyp_trans = " ".join(hyp_word_list)
-        permed_hyp_lists.append(hyp_trans)
+    hyp_ref_pair = [per_spk_hyp_trans, per_spk_ref_trans]
 
-        # Calculate a WER value of the permuted and concatenated transcripts
-        p_wer = word_error_rate(hypotheses=[hyp_trans], references=[ref_trans])
-        p_wer_list.append(p_wer)
+    # Get all pairs of (estimated num of spks) x (reference num of spks) combinations
+    all_pairs = list(itertools.product(*hyp_ref_pair))
 
-    # Find the lowest WER and its hypothesis transcript
-    argmin_idx = np.argmin(p_wer_list)
-    min_perm_hyp_trans = permed_hyp_lists[argmin_idx]
-    cpWER = p_wer_list[argmin_idx]
+    # Calculate WER for each speaker in hypothesis with reference
+    # There are (number of hyp speakers) x (number of ref speakers) combinations
+    lsa_wer_list = []
+    for (spk_hyp_trans, spk_ref_trans) in all_pairs:
+        spk_wer = word_error_rate(hypotheses=[spk_hyp_trans], references=[spk_ref_trans])
+        lsa_wer_list.append(spk_wer)
+    
+    # Make a cost matrix and calculate a linear sum assignment on the cost matrix.
+    # Row is hypothesis index and column is reference index
+    cost_wer = np.array(lsa_wer_list).reshape([len(per_spk_hyp_trans), len(per_spk_ref_trans)])
+    row_hyp_ind, col_ref_ind = linear_sum_assignment(cost_wer)
+
+    # In case where hypothesis has more speakers, add words from residual speakers
+    hyp_permed = [ per_spk_hyp_trans[k] for k in row_hyp_ind ] 
+    min_perm_hyp_trans = " ".join(hyp_permed)
+
+    # Calculate a WER value from the permutation that yields the lowest WER.
+    cpWER = word_error_rate(hypotheses=[min_perm_hyp_trans], references=[ref_trans])
     return cpWER, min_perm_hyp_trans, ref_trans
-
 
 def calculate_total_WER(
     word_seq_lists: List[List[Dict[str, float]]], ctm_file_list: List[str]
 ) -> Dict[str, Dict[str, float]]:
     """
     Launcher function for `calculate_SESsion_cpWER`. Calculate session-level cpWER and average cpWER.
-    For detailed information about cpWER, see docstrings of `calculate_session_cpWER` function.
+    For detailed information about cpWER, see docstrings of `concat_perm_word_error_rate` function.
 
     As opposed to cpWER, mixWER is the regular WER value where the hypothesis transcript contains
     words in temporal order regardless of the speakers. mixWER value can be different from cpWER value,
@@ -237,7 +277,7 @@ def calculate_total_WER(
         per_spk_ref_trans, mix_ref_trans = get_per_spk_ref_transcripts(ctm_file_path)
 
         # Calculate cpWER and mixWER using the above results
-        cpWER, hyp_trans, ref_trans = calculate_session_cpWER(per_spk_hyp_trans, per_spk_ref_trans)
+        cpWER, hyp_trans, ref_trans = concat_perm_word_error_rate(per_spk_hyp_trans, per_spk_ref_trans)
         mixWER = word_error_rate(hypotheses=[mix_hyp_trans], references=[mix_ref_trans])
 
         # Save session-level cpWER and mixWER values
@@ -1224,7 +1264,6 @@ class ASR_DIAR_OFFLINE:
                 List containing segment start and end timestamp and speaker labels.
 
                 Example::
-
                     >>> labels = ["15.25 21.82 speaker_0", "21.18 29.51 speaker_1", ... ]
 
         Returns:
