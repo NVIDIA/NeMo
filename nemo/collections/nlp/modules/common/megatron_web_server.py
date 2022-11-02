@@ -57,7 +57,7 @@ def convert_retrieved_to_md(retrieved):
     return output_str
 
 
-def get_retro_generation(prompt, greedy, add_BOS, token_to_gen, min_tokens, temp, top_p, top_k, repetition, neighbors):
+def get_retro_generation(prompt, greedy, add_BOS, token_to_gen, min_tokens, temp, top_p, top_k, repetition, neighbors, weights):
     data = {
         "sentences": [prompt],
         "tokens_to_generate": int(token_to_gen),
@@ -70,6 +70,7 @@ def get_retro_generation(prompt, greedy, add_BOS, token_to_gen, min_tokens, temp
         "repetition_penalty": repetition,
         "min_tokens_to_generate": int(min_tokens),
         "neighbors": int(neighbors),
+        "weights": weights,
     }
     output_json = request_data(data)
     sentences = output_json['sentences']
@@ -132,6 +133,8 @@ def get_retro_demo(share, username, password):
                     minimum=0.0, maximum=5.0, step=0.02, value=1.2, label='Repetition penalty'
                 )
                 k_neighbors = gr.Slider(minimum=0, maximum=50, step=1, value=2, label='Retrieved Documents')
+                weights = gr.Slider(minimum=0.0, maximum=1.0, value=0.5, label='Weight for the first Retrieval', step=0.02)
+
             with gr.Column(scale=1, min_width=800):
                 input_prompt = gr.Textbox(
                     label="Input",
@@ -154,6 +157,7 @@ def get_retro_demo(share, username, password):
                         top_k,
                         repetition_penality,
                         k_neighbors,
+                        weights,
                     ],
                     outputs=[output_box, output_retrieval],
                 )
