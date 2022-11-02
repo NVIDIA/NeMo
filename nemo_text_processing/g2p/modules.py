@@ -19,7 +19,7 @@ import re
 import time
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from typing import DefaultDict, List, Optional, Tuple
+from typing import Callable, DefaultDict, List, Optional, Set, Tuple, Union
 
 import nltk
 import torch
@@ -262,17 +262,17 @@ class IPAG2P(BaseG2p):
 
     def __init__(
         self,
-        phoneme_dict,
-        word_tokenize_func=english_word_tokenize,
-        apply_to_oov_word=None,
-        ignore_ambiguous_words=True,
-        heteronyms=None,
-        use_chars=False,
+        phoneme_dict: Union[str, pathlib.Path, dict],
+        word_tokenize_func: Callable[[str], List[Tuple[Union[str, List[str]], bool]]] = english_word_tokenize,
+        apply_to_oov_word: Optional[Callable[[str], str]] = None,
+        ignore_ambiguous_words: bool = True,
+        heteronyms: Optional[Union[str, pathlib.Path, List[str]]] = None,
+        use_chars: bool = False,
         phoneme_probability: Optional[float] = None,
         use_stresses: Optional[bool] = True,
         set_graphemes_upper: Optional[bool] = True,
         mapping_file: Optional[str] = None,
-    ):
+    ) -> None:
         """Generic IPA G2P module. This module converts words from grapheme to International Phonetic Alphabet representations.
         Optionally, it can ignore heteronyms, ambiguous words, or words marked as unchangeable by word_tokenize_func (see code for details).
         Ignored words are left unchanged or passed through apply_to_oov_word for handling.
@@ -328,15 +328,15 @@ class IPAG2P(BaseG2p):
                         parts = line.strip().split()
                         assert len(parts) == 2, f"Wrong format for the entry: {line.strip()}."
                         word = re.sub(_alt_re, '', parts[0])
-                        phoneme_dict_obj[word].append(list(parts[1]))
+                        phoneme_dict_obj[word].append(parts[1:])
         else:
             # Load phoneme_dict as dictionary object
-            logging.info("Loading phoneme_dict as a Dict object. Extracting valid symbols from values.")
+            logging.info("Loading phoneme_dict as a Dict object.")
             phoneme_dict_obj = phoneme_dict
 
         # verify if phoneme dict obj is empty
         if phoneme_dict_obj:
-            self.phoneme_dict, self.symbols = self._parse_as_cmu_dict(phoneme_dict_obj)
+            self.phoneme_dict, self.symbols = self._normalize_dict(phoneme_dict_obj)
         else:
             raise ValueError(f"Found empty entries in {phoneme_dict}.")
 
@@ -365,13 +365,13 @@ class IPAG2P(BaseG2p):
             self.heteronyms = [het.upper() for het in self.heteronyms]
 
     @staticmethod
-    def _parse_file_by_lines(p):
+    def _parse_file_by_lines(p: Union[str, pathlib.Path]) -> List[str]:
         with open(p, 'r') as f:
             return [l.rstrip() for l in f.readlines()]
 
-    def _parse_as_cmu_dict(self, phoneme_dict_obj: dict) -> Tuple[DefaultDict[str, List], set]:
+    def _normalize_dict(self, phoneme_dict_obj: dict) -> Tuple[DefaultDict[str, List[List[str]]], Set]:
         """
-        parse a python dict object according to the decision on word cases and removal of lexical stress markers.
+        Parse a python dict object according to the decision on word cases and removal of lexical stress markers.
 
         Args:
             phoneme_dict_obj (dict): a dictionary object.
@@ -414,16 +414,16 @@ class IPAG2P(BaseG2p):
 
         return g2p_dict, symbols
 
-    def add_symbols(self, symbols):
+    def add_symbols(self, symbols: str) -> None:
         """By default the G2P symbols will be inferred from the words & pronunciations in the phoneme_dict.
         Use this to add characters in the vocabulary that are not present in the phoneme_dict.
         """
         self.symbols.update(symbols)
 
-    def is_unique_in_phoneme_dict(self, word):
+    def is_unique_in_phoneme_dict(self, word: str) -> bool:
         return len(self.phoneme_dict[word]) == 1
 
-    def parse_one_word(self, word: str):
+    def parse_one_word(self, word: str) -> Tuple[str, bool]:
         """Returns parsed `word` and `status` (bool: False if word wasn't handled, True otherwise).
         """
         if self.set_graphemes_upper:
@@ -436,7 +436,7 @@ class IPAG2P(BaseG2p):
         if self.CHAR_REGEX.search(word) is None:
             return list(word), True
 
-        # Heteronym
+        # Heteronyms
         if self.heteronyms and word in self.heteronyms:
             return word, True
 
@@ -480,7 +480,7 @@ class IPAG2P(BaseG2p):
         else:
             return word, False
 
-    def __call__(self, text):
+    def __call__(self, text: str) -> List:
         words = self.word_tokenize_func(text)
 
         prons = []
