@@ -55,8 +55,7 @@ class RetrievalService:
         raise NotImplementedError()
 
 
-class ChunkStore():
-
+class ChunkStore:
     def __init__(self):
         self.store = {}
 
@@ -172,15 +171,7 @@ class RetrievalServer(object):
 
 class DynamicRetrievalResource(FaissRetrievalResource):
     def __init__(
-        self,
-        index,
-        bert_model,
-        tokenizer,
-        pool,
-        sentence_bert_batch,
-        chunk_size,
-        stride,
-        store,
+        self, index, bert_model, tokenizer, pool, sentence_bert_batch, chunk_size, stride, store,
     ):
         self.index = index
         self.bert_model = bert_model
@@ -224,14 +215,13 @@ class DynamicRetrievalResource(FaissRetrievalResource):
             chunk_texts = []
             for i in range(0, len(np_array), self.stride):
                 if i + 2 * self.chunk_size <= len(np_array):
-                    chunk = np_array[i:i + 2 * self.chunk_size]
+                    chunk = np_array[i : i + 2 * self.chunk_size]
                     self.ds.store[self._count] = chunk
                     self._count += 1
                     chunk_texts.append(self.tokenizer.ids_to_text(chunk))
             emb = self.bert_model.encode_multi_process(
-                sentences=chunk_texts,
-                pool=self.pool,
-                batch_size=self.sentence_bert_batch)
+                sentences=chunk_texts, pool=self.pool, batch_size=self.sentence_bert_batch
+            )
             self.index.add(emb)  # add vectors to the index
 
 
@@ -250,7 +240,7 @@ class DynamicRetrievalServer(object):
 
         self.bert_model = SentenceTransformer(sentence_bert)
         embedding_dim = self.bert_model.get_sentence_embedding_dimension()
-        self.index = faiss.IndexFlatL2(embedding_dim)   # build the index
+        self.index = faiss.IndexFlatL2(embedding_dim)  # build the index
         self.pad_id = tokenizer.pad_id
         self.chunk_size = chunk_size
         self.stride = stride
