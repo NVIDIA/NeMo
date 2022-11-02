@@ -89,6 +89,7 @@ def write_dataset_to_file(dataset, filename, detokenizer):
                 item_object['choices'] = choices
             f.write(json.dumps(item_object) + '\n')
 
+
 def write_train_val_test_dataset_to_file(file_name, folder_name, output_folder, detokenizer, split):
     ds = tf.data.TFRecordDataset(tf.io.gfile.glob([file_name]))
     fdict = _TASK_SPLITS_AND_FEATURES_DICT[folder_name]['features_dict']
@@ -102,6 +103,7 @@ def write_train_val_test_dataset_to_file(file_name, folder_name, output_folder, 
         num_parallel_calls=tf.data.experimental.AUTOTUNE,
     )
     write_dataset_to_file(ds, os.path.join(output_folder, split, folder_name + '.jsonl'), detokenizer)
+
 
 def process_folder(data_folder, folder_name, output_folder, detokenizer):
     if not os.path.isdir(os.path.join(data_folder, folder_name)):
