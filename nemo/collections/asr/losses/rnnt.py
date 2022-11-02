@@ -87,12 +87,7 @@ RNNT_LOSS_RESOLVER = {
         is_available=NUMBA_RNNT_AVAILABLE,
         installation_msg=NUMBA_INSTALLATION_MESSAGE,
     ),
-    "pytorch": RNNTLossConfig(
-        loss_name="pytorch",
-        lib_name="pytorch",
-        min_version='0.0',
-        is_available=True,
-    ),
+    "pytorch": RNNTLossConfig(loss_name="pytorch", lib_name="pytorch", min_version='0.0', is_available=True,),
 }
 
 RNNT_LOSS_RESOLVER['default'] = RNNT_LOSS_RESOLVER['warprnnt_numba']
@@ -222,7 +217,6 @@ class RNNTLossPytorch(Loss):
             losses = losses.sum() / label_lens.sum()  # same as above but longer samples weigh more
 
         return losses
-
 
     def compute_forward_prob(self, acts, labels, act_lens, label_lens):
         B, T, U, _ = acts.shape
