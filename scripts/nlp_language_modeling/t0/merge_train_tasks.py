@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """
 This script will merge prompt-specific train files into a single file per task.
 """
@@ -87,7 +86,7 @@ def merge_train_folder(train_data_folder, merged_train_data_folder):
     for idx, fname in enumerate(os.listdir(train_data_folder)):
         if idx % 10 == 0:
             print(f'Processed {idx + 1}/{len(os.listdir(train_data_folder))} files ...')
-        if fname.endswith('.jsonl'):
+        if fname.endswith('.jsonl') and '_score_eval' not in fname:
             found = False
             for task in tasks:
                 if fname.startswith(task):
@@ -105,6 +104,9 @@ def merge_train_folder(train_data_folder, merged_train_data_folder):
         v.close()
         if task_counter[task] == 0:
             print('WARNING: No files found for task: ', task)
+    
+    for k, v in task_counter.items():
+        print(f'Task {k} had {v} prompt templates.')
 
 if __name__ == '__main__':
     parser = ArgumentParser()
