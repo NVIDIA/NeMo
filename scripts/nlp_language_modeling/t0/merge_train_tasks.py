@@ -104,7 +104,7 @@ def merge_train_folder(train_data_folder, merged_train_data_folder):
         v.close()
         if task_counter[task] == 0:
             print('WARNING: No files found for task: ', task)
-    
+
     for k, v in task_counter.items():
         print(f'Task {k} had {v} prompt templates.')
 
