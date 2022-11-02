@@ -245,8 +245,7 @@ class DynamicRetrievalServer(object):
         self.chunk_size = chunk_size
         self.stride = stride
         self.store = ChunkStore()
-        self.store.store[-1] = np.ones(2 * self.chunk_size,
-                                 dtype=np.int64) * self.pad_id
+        self.store.store[-1] = np.ones(2 * self.chunk_size, dtype=np.int64) * self.pad_id
 
         if faiss_devices is None or not torch.cuda.is_available():
             device_list = None
@@ -390,11 +389,7 @@ class DynamicFaissRetrievalService(RetrievalService):
 
 
 class ComboRetrievalService(RetrievalService):
-    def __init__(
-        self,
-        retrieval_services,
-        weights
-    ):
+    def __init__(self, retrieval_services, weights):
         self.retrieval_services = retrieval_services
         self.updatable = any([service.updatable for service in retrieval_services])
         weights = np.array(weights)
