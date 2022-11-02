@@ -136,6 +136,7 @@ model:
     num_workers: 2
     dataloader_type: cyclic # cyclic
     validation_drop_last: True # Set to false if the last partial validation samples is to be consumed
+    data_sharding: False
 
   # Nsys profiling options
   nsys_profile:
