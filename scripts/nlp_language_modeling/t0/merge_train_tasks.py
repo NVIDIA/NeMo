@@ -19,7 +19,6 @@ import json
 import os
 from argparse import ArgumentParser
 
-
 tasks = [
     'adversarial_qa',
     'ag_news',
@@ -79,6 +78,7 @@ tasks = [
     'yelp_review_full',
 ]
 
+
 def merge_train_folder(train_data_folder, merged_train_data_folder):
     if not os.path.exists(merged_train_data_folder):
         os.makedirs(merged_train_data_folder)
@@ -105,6 +105,7 @@ def merge_train_folder(train_data_folder, merged_train_data_folder):
         v.close()
         if task_counter[task] == 0:
             print('WARNING: No files found for task: ', task)
+
 
 if __name__ == '__main__':
     parser = ArgumentParser()
