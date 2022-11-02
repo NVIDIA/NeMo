@@ -37,12 +37,22 @@ lock = threading.Lock()
 headers = {"Content-Type": "application/json"}
 
 PORT_NUM = 17179
+PORT_NUM_DYN = 17180
 
 
 class RetrievalService:
     @abc.abstractmethod
     def get_knn(self, query: Union[List[str], str, torch.Tensor], neighbors: int):
         pass
+
+
+class ChunkStore():
+
+    def __init__(self):
+        self.store = {}
+
+    def get_chunk(self, neighbor_id):
+        return self.store[neighbor_id]
 
 
 class FaissRetrievalResource(Resource):
@@ -151,78 +161,133 @@ class RetrievalServer(object):
         threading.Thread(target=lambda: self.app.run(host=url, threaded=True, port=port)).start()
 
 
-# class OnTheFlyFaissRetrievalService(RetrievalService):
-#     def __init__(
-#         self,
-#         faiss_devices: str,
-#         embedding_dim: int,
-#         tokenizer: TokenizerSpec,
-#         sentence_bert: str = 'all-mpnet-base-v2',
-#         sentence_bert_batch: int = 4,
-#         neighbors: int = 4,
-#     ):
-#         self.neighbors = neighbors
-#         has_gpu = torch.cuda.is_available() and hasattr(faiss, "index_gpu_to_cpu")
-#         self.index = faiss.IndexFlatL2(embedding_dim)   # build the index
-#
-#         if faiss_devices is None or not torch.cuda.is_available():
-#             device_list = None
-#         else:
-#             device_list = ['cuda:' + str(device) for device in faiss_devices.split(',')]
-#
-#         if has_gpu and device_list is not None:
-#             beg = time.time()
-#             co = faiss.GpuMultipleClonerOptions()
-#             co.useFloat16 = True
-#             co.usePrecomputed = False
-#             co.shard = True
-#             self.index = faiss.index_cpu_to_all_gpus(self.index, co, ngpu=len(device_list))
-#             end = time.time()
-#             logging.info('convert Faiss db to GPU takes', end - beg)
-#         self.index.nprobe = nprobe
-#
-#         self.bert_model = SentenceTransformer(sentence_bert)
-#         self.tokenizer = tokenizer
-#         self.ds = MMapRetrievalIndexedDataset(retrieval_index)
-#         self.pool = self.bert_model.start_multi_process_pool(device_list)
-#         self.sentence_bert_batch = sentence_bert_batch
-#
-#     def update_index(self, content)
-#         self.index.add(xb)                  # add vectors to the index
-#         print(index.ntotal)
-#
-#     def get_knn(self, query: Union[List[str], str, torch.Tensor]):
-#         single_sentence = False
-#         if isinstance(query, str):
-#             single_sentence = True
-#             query = [query]
-#         elif isinstance(query, torch.Tensor):
-#             sentence_list = []
-#             for q in query:
-#                 text = self.tokenizer.ids_to_text(q)
-#                 sentence_list.append(text)
-#             query = sentence_list
-#         emb = self.bert_model.encode_multi_process(
-#             sentences=query, pool=self.pool, batch_size=self.sentence_bert_batch
-#         )
-#         D, knn = self.index.search(emb, self.neighbors)
-#         results = []
-#         for sentence_neighbors in knn:
-#             chunks = []
-#             for neighbor_chunk_id in sentence_neighbors:
-#                 chunk_id = self.ds.get_chunk(neighbor_chunk_id)
-#                 chunks.append(chunk_id)
-#             chunks = np.stack(chunks, axis=0).astype(np.int64)
-#             results.append(chunks)
-#         if single_sentence:
-#             # unpack the single sentence input
-#             return results[0]
-#         return np.stack(results, axis=0).astype(np.int64)
-#
+class DynamicRetrievalResource(FaissRetrievalResource):
+    def __init__(
+        self,
+        index,
+        bert_model,
+        tokenizer,
+        pool,
+        sentence_bert_batch,
+        chunk_size,
+        stride,
+        store,
+    ):
+        self.index = index
+        self.bert_model = bert_model
+        self.tokenizer = tokenizer
+        self.pool = pool
+        self.sentence_bert_batch = sentence_bert_batch
+        self.chunk_size = chunk_size
+        self.stride = stride
+        self.pad_id = self.tokenizer.pad_id
+        self._count = 0
+        self.ds = store 
+
+    def put(self):
+        data = request.get_json()
+        sentences = data['sentences']
+        if 'neighbors' in data:
+            # do knn query
+            num_neighbors = data['neighbors']
+            with lock:  # Need to get lock to keep multiple threads from hitting code
+                neighbors = self.get_knn(sentences, num_neighbors)
+            return jsonify(neighbors.tolist())
+        else:
+            # update the index
+            with lock:  # Need to get lock to keep multiple threads from hitting code
+                self.add_docs_to_index(sentences)
+            return "success"
+
+    def add_docs_to_index(self, docs: List[str]):
+        """
+        Add documents to the Faiss index
+        Args:
+            docs: List[str], list of documents that is going to be added to the index
+        """
+        for doc in docs:
+            token_ids = self.tokenizer.text_to_ids(doc)
+            np_array = np.array(token_ids, dtype=np.int32)
+            padded_size = self.chunk_size - (len(np_array) % self.chunk_size)
+            # for retrieval database, added one more chunk in the end as padding
+            padded_size += self.chunk_size
+            np_array = np.pad(np_array, (0, padded_size), 'constant', constant_values=self.pad_id)
+            chunk_texts = []
+            for i in range(0, len(np_array), self.stride):
+                if i + 2 * self.chunk_size <= len(np_array):
+                    chunk = np_array[i:i + 2 * self.chunk_size]
+                    self.ds.store[self._count] = chunk
+                    self._count += 1
+                    chunk_texts.append(self.tokenizer.ids_to_text(chunk))
+            emb = self.bert_model.encode_multi_process(
+                sentences=chunk_texts,
+                pool=self.pool,
+                batch_size=self.sentence_bert_batch)
+            self.index.add(emb)  # add vectors to the index
 
 
-def request_data(data):
-    resp = requests.put('http://localhost:{}/knn'.format(PORT_NUM), data=json.dumps(data), headers=headers)
+class DynamicRetrievalServer(object):
+    def __init__(
+        self,
+        faiss_devices: str,
+        tokenizer: TokenizerSpec,
+        chunk_size: int = 64,
+        stride: int = 32,
+        sentence_bert: str = 'all-mpnet-base-v2',
+        sentence_bert_batch: int = 4,
+    ):
+        self.app = Flask(__name__, static_url_path='')
+        has_gpu = torch.cuda.is_available() and hasattr(faiss, "index_gpu_to_cpu")
+
+        self.bert_model = SentenceTransformer(sentence_bert)
+        embedding_dim = self.bert_model.get_sentence_embedding_dimension()
+        self.index = faiss.IndexFlatL2(embedding_dim)   # build the index
+        self.pad_id = tokenizer.pad_id
+        self.chunk_size = chunk_size
+        self.stride = stride
+        self.store = ChunkStore()
+
+        if faiss_devices is None or not torch.cuda.is_available():
+            device_list = None
+        else:
+            device_list = ['cuda:' + str(device) for device in faiss_devices.split(',')]
+
+        if has_gpu and device_list is not None:
+            beg = time.time()
+            co = faiss.GpuMultipleClonerOptions()
+            co.useFloat16 = True
+            co.usePrecomputed = False
+            co.shard = True
+            self.index = faiss.index_cpu_to_all_gpus(self.index, co, ngpu=len(device_list))
+            end = time.time()
+            logging.info('convert Faiss db to GPU takes', end - beg)
+
+        self.tokenizer = tokenizer
+        self.pool = self.bert_model.start_multi_process_pool(device_list)
+        self.sentence_bert_batch = sentence_bert_batch
+
+        api = Api(self.app)
+        api.add_resource(
+            DynamicRetrievalResource,
+            '/knn',
+            resource_class_args=[
+                self.index,
+                self.bert_model,
+                self.tokenizer,
+                self.pool,
+                self.sentence_bert_batch,
+                self.chunk_size,
+                self.stride,
+                self.store,
+            ],
+        )
+
+    def run(self, url, port=PORT_NUM_DYN):
+        threading.Thread(target=lambda: self.app.run(host=url, threaded=True, port=port)).start()
+
+
+def request_data(data, port=PORT_NUM):
+    resp = requests.put('http://localhost:{}/knn'.format(port), data=json.dumps(data), headers=headers)
     return resp.json()
 
 
@@ -262,76 +327,6 @@ class FaissRetrievalService(RetrievalService):
             return np.repeat(self.no_retrieval, len(query), 0).astype(np.int64)
         data = {'sentences': query}
         data['neighbors'] = neighbors
-        result = request_data(data)
+        result = request_data(data, PORT_NUM)
         result = np.array(result)
         return result
-
-
-# class OnTheFlyFaissRetrievalService(RetrievalService):
-#     def __init__(
-#         self,
-#         faiss_devices: str,
-#         embedding_dim: int,
-#         tokenizer: TokenizerSpec,
-#         sentence_bert: str = 'all-mpnet-base-v2',
-#         sentence_bert_batch: int = 4,
-#         neighbors: int = 4,
-#     ):
-#         self.neighbors = neighbors
-#         has_gpu = torch.cuda.is_available() and hasattr(faiss, "index_gpu_to_cpu")
-#         self.index = faiss.IndexFlatL2(embedding_dim)   # build the index
-#
-#         if faiss_devices is None or not torch.cuda.is_available():
-#             device_list = None
-#         else:
-#             device_list = ['cuda:' + str(device) for device in faiss_devices.split(',')]
-#
-#         if has_gpu and device_list is not None:
-#             beg = time.time()
-#             co = faiss.GpuMultipleClonerOptions()
-#             co.useFloat16 = True
-#             co.usePrecomputed = False
-#             co.shard = True
-#             self.index = faiss.index_cpu_to_all_gpus(self.index, co, ngpu=len(device_list))
-#             end = time.time()
-#             logging.info('convert Faiss db to GPU takes', end - beg)
-#         self.index.nprobe = nprobe
-#
-#         self.bert_model = SentenceTransformer(sentence_bert)
-#         self.tokenizer = tokenizer
-#         self.ds = MMapRetrievalIndexedDataset(retrieval_index)
-#         self.pool = self.bert_model.start_multi_process_pool(device_list)
-#         self.sentence_bert_batch = sentence_bert_batch
-#
-#     def update_index(self, content)
-#         self.index.add(xb)                  # add vectors to the index
-#         print(index.ntotal)
-#
-#     def get_knn(self, query: Union[List[str], str, torch.Tensor]):
-#         single_sentence = False
-#         if isinstance(query, str):
-#             single_sentence = True
-#             query = [query]
-#         elif isinstance(query, torch.Tensor):
-#             sentence_list = []
-#             for q in query:
-#                 text = self.tokenizer.ids_to_text(q)
-#                 sentence_list.append(text)
-#             query = sentence_list
-#         emb = self.bert_model.encode_multi_process(
-#             sentences=query, pool=self.pool, batch_size=self.sentence_bert_batch
-#         )
-#         D, knn = self.index.search(emb, self.neighbors)
-#         results = []
-#         for sentence_neighbors in knn:
-#             chunks = []
-#             for neighbor_chunk_id in sentence_neighbors:
-#                 chunk_id = self.ds.get_chunk(neighbor_chunk_id)
-#                 chunks.append(chunk_id)
-#             chunks = np.stack(chunks, axis=0).astype(np.int64)
-#             results.append(chunks)
-#         if single_sentence:
-#             # unpack the single sentence input
-#             return results[0]
-#         return np.stack(results, axis=0).astype(np.int64)
-#
