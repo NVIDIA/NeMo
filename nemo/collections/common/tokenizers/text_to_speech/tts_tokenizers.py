@@ -27,7 +27,7 @@ from nemo_text_processing.g2p.data.data_utils import (
     spanish_text_preprocessing,
 )
 
-from nemo.collections.common.tokenizers.text_to_speech.ipa_lexicon import get_ipa_punctuation_list
+from nemo.collections.common.tokenizers.text_to_speech.ipa_lexicon import get_ipa_punctuation_set, validate_locale
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
@@ -242,7 +242,7 @@ class GermanCharsTokenizer(BaseCharsTokenizer):
 
 class SpanishCharsTokenizer(BaseCharsTokenizer):
 
-    PUNCT_LIST = get_ipa_punctuation_list("es-ES")
+    PUNCT_LIST = get_ipa_punctuation_set("es-ES")
 
     def __init__(
         self, punct=True, apostrophe=True, add_blank_at=None, pad_with_space=False, non_default_punct_list=None,
@@ -519,8 +519,10 @@ class IPATokenizer(BaseTokenizer):
         """General-purpose IPA-based tokenizer.
         Args:
             g2p: Grapheme to phoneme module, should be IPAG2P or some subclass thereof.
-            punct: Whether to reserve grapheme for basic punctuation or not.
             locale: Locale used to determine default text processing logic and punctuation.
+                Supports ["en-US", "de-DE", "es-ES"]. Defaults to "en-US".
+                Specify None if implementing custom logic for a new locale.
+            punct: Whether to reserve grapheme for basic punctuation or not.
             non_default_punct_list: List of punctuation marks which will be used instead default, if any.
             space: Space token as string.
             silence: Silence token as string (will be disabled if it is None).
@@ -528,7 +530,7 @@ class IPATokenizer(BaseTokenizer):
             oov: OOV token as string.
             sep: Separation token as string.
             add_blank_at: Add blank to labels in the specified order ("last") or after tokens (any non None),
-             if None then no blank in labels.
+                if None then no blank in labels.
             pad_with_space: Whether to pad text with spaces at the beginning and at the end or not.
         """
         if not hasattr(g2p, "symbols"):
@@ -538,6 +540,9 @@ class IPATokenizer(BaseTokenizer):
                 f"Expected e.g. IPAG2P, found {type(g2p)}"
             )
             raise ValueError("G2P modules passed into the IPATokenizer must have `symbols` defined.")
+
+        if locale is not None:
+            validate_locale(locale)
 
         self.phoneme_probability = None
         if hasattr(g2p, "phoneme_probability"):
@@ -553,7 +558,7 @@ class IPATokenizer(BaseTokenizer):
             if non_default_punct_list is not None:
                 self.punct_list = non_default_punct_list
             else:
-                self.punct_list = get_ipa_punctuation_list(locale)
+                self.punct_list = get_ipa_punctuation_set(locale)
 
             tokens.update(self.punct_list)
 
@@ -574,6 +579,7 @@ class IPATokenizer(BaseTokenizer):
         self.pad_with_space = pad_with_space
 
         self.g2p = g2p
+
         if locale == "en-US":
             self.text_preprocessing_func = lambda text: english_text_preprocessing(text, lower=False)
         else:
