@@ -132,80 +132,95 @@ class T0Dataset(Dataset):
         if self.add_eos_to_input:
             tokenized_input = tokenized_input + [self.tokenizer.eos_id]
         target = [bos_id] + tokenized_output + [self.tokenizer.eos_id]
-        original = ""
-        template = ""
-        for item in example['chunked_idx'].split(', '):
-            item = item.split('-')
-            if item[0] == "original_text":
-                original += example['input'][int(item[1]) : int(item[2])]
-            elif item[0] == "template":
-                template += example['input'][int(item[1]) : int(item[2])]
-            else:
-                raise ValueError(f"Unknown chunk type: {item[0]}")
 
-        return {
+        processed_example =  {
             'text_enc': tokenized_input,
             'text_dec': target[:-1],
             'labels': target[1:],
-            'original': self.tokenizer.text_to_ids(original),
-            'template': self.tokenizer.text_to_ids(template),
-            'prompt': self.tokenizer.text_to_ids(example['prompt']),
         }
+
+        # Process optional args:
+        if 'chunked_idx' in example:
+            original = ""
+            template = ""
+            for item in example['chunked_idx'].split(', '):
+                item = item.split('-')
+                if item[0] == "original_text":
+                    original += example['input'][int(item[1]) : int(item[2])]
+                elif item[0] == "template":
+                    template += example['input'][int(item[1]) : int(item[2])]
+                else:
+                    raise ValueError(f"Unknown chunk type: {item[0]}")
+
+            additional_args = {
+                'original': self.tokenizer.text_to_ids(original),
+                'template': self.tokenizer.text_to_ids(template),
+                'prompt': self.tokenizer.text_to_ids(example['prompt']),
+            }
+            processed_example.update(additional_args)
+
+        if 'choices' in example:
+            additional_args = {
+                'choices': [self.tokenizer.text_to_ids(choice) for choice in example['choices']],
+            }
+            processed_example.update(additional_args)
+
+        if 'task_name_with_prompt' in example:
+            additional_args = {
+                'task_name_with_prompt': self.tokenizer.text_to_ids(example['task_name_with_prompt']),
+            }
+            processed_example.update(additional_args)
+
+        return processed_example
 
     def _maybe_cast_to_list(self, x):
         if isinstance(x, np.ndarray):
             return [item.tolist() for item in x]
         return x
 
+    def _collate_item(self, item):
+        item = self._maybe_cast_to_list(item)
+        max_length = max([len(x) for x in item]) if item else 0
+        item = [x + [self.tokenizer.pad_id] * (max_length - len(x)) for x in item]
+        return item
+
     def collate_fn(self, batch):
         enc_query = [item['text_enc'] for item in batch]
         dec_input = [item['text_dec'] for item in batch]
         labels = [item['labels'] for item in batch]
-        original = [item['original'] for item in batch]
-        template = [item['template'] for item in batch]
-        prompt = [item['prompt'] for item in batch]
 
-        enc_query = self._maybe_cast_to_list(enc_query)
-        dec_input = self._maybe_cast_to_list(dec_input)
-        labels = self._maybe_cast_to_list(labels)
-        original = self._maybe_cast_to_list(original)
-        template = self._maybe_cast_to_list(template)
-        prompt = self._maybe_cast_to_list(prompt)
-
-        max_dec_input_length = max([len(item) for item in dec_input]) if dec_input else 0
-        max_enc_query_length = max([len(item) for item in enc_query]) if enc_query else 0
-        max_label_length = max([len(item) for item in labels]) if labels else 0
-        max_original_length = max([len(item) for item in original]) if original else 0
-        max_template_length = max([len(item) for item in template]) if template else 0
-        max_prompt_length = max([len(item) for item in prompt]) if prompt else 0
-
-        loss_mask = [([1] * (len(item))) + ([0] * (max_label_length - len(item))) for item in labels]
-        enc_query = [item + [self.tokenizer.pad_id] * (max_enc_query_length - len(item)) for item in enc_query]
-        dec_input = [item + [self.tokenizer.pad_id] * (max_dec_input_length - len(item)) for item in dec_input]
-        labels = [item + [self.tokenizer.pad_id] * (max_label_length - len(item)) for item in labels]
-        original = [item + [self.tokenizer.pad_id] * (max_original_length - len(item)) for item in original]
-        template = [item + [self.tokenizer.pad_id] * (max_template_length - len(item)) for item in template]
-        prompt = [item + [self.tokenizer.pad_id] * (max_prompt_length - len(item)) for item in prompt]
-
-        enc_query = torch.LongTensor(enc_query)
-        dec_input = torch.LongTensor(dec_input)
-        labels = torch.LongTensor(labels)
-        loss_mask = torch.LongTensor(loss_mask)
-        original = torch.LongTensor(original)
-        template = torch.LongTensor(template)
-        prompt = torch.LongTensor(prompt)
+        enc_query = torch.LongTensor(self._collate_item(enc_query))
+        dec_input = torch.LongTensor(self._collate_item(dec_input))
+        loss_mask = torch.LongTensor([([1] * (len(item))) + ([0] * (dec_input.size(1) - len(item))) for item in labels])
+        labels = torch.LongTensor(self._collate_item(labels))
 
         enc_mask = (enc_query != self.tokenizer.pad_id).long()
         dec_mask = (dec_input != self.tokenizer.pad_id).long()
 
-        return {
+        processed_example = {
             'text_enc': enc_query,
             'text_dec': dec_input,
             'labels': labels,
             'loss_mask': loss_mask,
             'enc_mask': enc_mask,
             'dec_mask': dec_mask,
-            'original': original,
-            'template': template,
-            'prompt': prompt,
         }
+
+        # Collate additional args if present in the batch.
+        if 'original' in batch[0]:
+            original = self._collate_item([item['original'] for item in batch])
+            processed_example['original'] = torch.LongTensor(original)
+
+        if 'template' in batch[0]:
+            template = self._collate_item([item['template'] for item in batch])
+            processed_example['template'] = torch.LongTensor(template)
+
+        if 'prompt' in batch[0]:
+            prompt = self._collate_item([item['prompt'] for item in batch])
+            processed_example['prompt'] = torch.LongTensor(prompt)
+
+        if 'task_name_with_prompt' in batch[0]:
+            task_name_with_prompt = self._collate_item([item['task_name_with_prompt'] for item in batch])
+            processed_example['task_name_with_prompt'] = torch.LongTensor(task_name_with_prompt)
+
+        return processed_example

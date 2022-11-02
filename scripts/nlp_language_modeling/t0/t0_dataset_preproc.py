@@ -89,6 +89,19 @@ def write_dataset_to_file(dataset, filename, detokenizer):
                 item_object['choices'] = choices
             f.write(json.dumps(item_object) + '\n')
 
+def write_train_val_test_dataset_to_file(file_name, folder_name, output_folder, detokenizer, split):
+    ds = tf.data.TFRecordDataset(tf.io.gfile.glob([file_name]))
+    fdict = _TASK_SPLITS_AND_FEATURES_DICT[folder_name]['features_dict']
+    feature_description = {feat: _feature_config(**desc) for feat, desc in fdict.items()}
+    ds = ds.map(
+        lambda pb: tf.io.parse_single_example(pb, feature_description),
+        num_parallel_calls=tf.data.experimental.AUTOTUNE,
+    )
+    ds = ds.map(
+        lambda x: {k: tf.cast(v, fdict[k]["dtype"]) for k, v in x.items()},
+        num_parallel_calls=tf.data.experimental.AUTOTUNE,
+    )
+    write_dataset_to_file(ds, os.path.join(output_folder, split, folder_name + '.jsonl'), detokenizer)
 
 def process_folder(data_folder, folder_name, output_folder, detokenizer):
     if not os.path.isdir(os.path.join(data_folder, folder_name)):
@@ -100,23 +113,11 @@ def process_folder(data_folder, folder_name, output_folder, detokenizer):
     if not os.path.exists(train_fname):
         print(f'Could not find {train_fname}')
         return
-
-    ds = tf.data.TFRecordDataset(tf.io.gfile.glob([train_fname]))
-    fdict = _TASK_SPLITS_AND_FEATURES_DICT[folder_name]['features_dict']
-    feature_description = {feat: _feature_config(**desc) for feat, desc in fdict.items()}
-    ds = ds.map(
-        lambda pb: tf.io.parse_single_example(pb, feature_description),
-        num_parallel_calls=tf.data.experimental.AUTOTUNE,
-    )
-    ds = ds.map(
-        lambda x: {k: tf.cast(v, fdict[k]["dtype"]) for k, v in x.items()},
-        num_parallel_calls=tf.data.experimental.AUTOTUNE,
-    )
-    write_dataset_to_file(ds, os.path.join(output_folder, 'train', folder_name + '.jsonl'), detokenizer)
+    write_train_val_test_dataset_to_file(train_fname, folder_name, output_folder, detokenizer, 'train')
     if os.path.exists(valid_fname):
-        write_dataset_to_file(ds, os.path.join(output_folder, 'val', folder_name + '.jsonl'), detokenizer)
+        write_train_val_test_dataset_to_file(valid_fname, folder_name, output_folder, detokenizer, 'val')
     if os.path.exists(test_fname):
-        write_dataset_to_file(ds, os.path.join(output_folder, 'test', folder_name + '.jsonl'), detokenizer)
+        write_train_val_test_dataset_to_file(test_fname, folder_name, output_folder, detokenizer, 'test')
 
 
 def process_all_folders(data_folder, output_folder):
