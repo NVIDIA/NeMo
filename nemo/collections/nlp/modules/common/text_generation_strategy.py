@@ -17,7 +17,11 @@ from typing import List, Tuple
 
 import torch
 
-from nemo.collections.nlp.modules.common.megatron.retrieval_service import ComboRetrievalService, DynamicFaissRetrievalService, FaissRetrievalService
+from nemo.collections.nlp.modules.common.megatron.retrieval_service import (
+    ComboRetrievalService,
+    DynamicFaissRetrievalService,
+    FaissRetrievalService,
+)
 from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids, get_ltor_masks_and_position_ids
 
 try:
