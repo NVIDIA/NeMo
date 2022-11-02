@@ -225,7 +225,6 @@ class RNNTLossPytorch(Loss):
 
         return losses
 
-
     def compute_forward_prob(self, acts, labels, act_lens, label_lens):
         B, T, U, _ = acts.shape
 
