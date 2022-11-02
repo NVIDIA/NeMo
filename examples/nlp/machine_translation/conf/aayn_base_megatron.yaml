@@ -52,7 +52,7 @@ model:
   pretrained_model_type: T5
 
   # model parallelism 
-  micro_batch_size: 32 # Q global = micro * tensor * pipeline * data right?
+  micro_batch_size: 32 # global = micro * data_parallel * grad_accum
   global_batch_size: 512 # will use more micro batches to reach global batch size
   tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1

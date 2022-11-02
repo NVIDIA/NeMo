@@ -492,7 +492,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                 decoder_tokenizer=self.decoder_tokenizer,
             )
 
-    def build_memmap_dataset_from_config(self, cfg: DictConfig, encoder_tokenizer=None, decoder_tokenizer=None):
+    def build_memmap_dataset_from_config(self, cfg: DictConfig, encoder_tokenizer=None, decoder_tokenizer=None, retrieval_dataset=False):
         """Builds a memmap dataset from a existing binary based on the provided config. Can provide custom tokenizers too."""
         if encoder_tokenizer is None:
             encoder_tokenizer = self.encoder_tokenizer
@@ -567,6 +567,10 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                 datasets=datasets, weights=cfg.concat_sampling_probabilities, size=num_train_samples_after_blend
             )
         else:
+            if retrieval_dataset:
+                max_num_samples = None
+            else:
+                max_num_samples = self.trainer.max_steps * self._cfg.global_batch_size
             if cfg.dataset_type == 'bin_memmap':
                 dataset = BinarizedMemmapSequenceToSequenceDataset(
                     src_dataset_prefix=cfg.src_file_name,
@@ -575,7 +579,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                     tgt_tokenizer=decoder_tokenizer,
                     max_src_seq_length=cfg.max_seq_length,
                     max_tgt_seq_length=cfg.max_seq_length,
-                    max_num_samples=self.trainer.max_steps * self._cfg.global_batch_size,
+                    max_num_samples=max_num_samples,
                     seed=self._cfg.seed,
                 )
             elif cfg.dataset_type == 'text_memmap':
@@ -586,7 +590,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                     tgt_tokenizer=decoder_tokenizer,
                     max_src_seq_length=cfg.max_seq_length,
                     max_tgt_seq_length=cfg.max_seq_length,
-                    max_num_samples=self.trainer.max_steps * self._cfg.global_batch_size,
+                    max_num_samples=max_num_samples,
                     seed=self._cfg.seed,
                 )
         return dataset
