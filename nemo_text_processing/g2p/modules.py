@@ -423,14 +423,14 @@ class IPAG2P(BaseG2p):
     def is_unique_in_phoneme_dict(self, word: str) -> bool:
         return len(self.phoneme_dict[word]) == 1
 
-    def parse_one_word(self, word: str) -> Tuple[str, bool]:
+    def parse_one_word(self, word: str) -> Tuple[List[str], bool]:
         """Returns parsed `word` and `status` (bool: False if word wasn't handled, True otherwise).
         """
         if self.set_graphemes_upper:
             word = word.upper()
 
         if self.phoneme_probability is not None and self._rng.random() > self.phoneme_probability:
-            return word, True
+            return list(word), True
 
         # Punctuation (assumes other chars have been stripped)
         if self.CHAR_REGEX.search(word) is None:
@@ -438,7 +438,7 @@ class IPAG2P(BaseG2p):
 
         # Heteronyms
         if self.heteronyms and word in self.heteronyms:
-            return word, True
+            return list(word), True
 
         # `'s` suffix (with apostrophe) - not in phoneme dict
         if (
@@ -478,9 +478,9 @@ class IPAG2P(BaseG2p):
         if self.apply_to_oov_word is not None:
             return self.apply_to_oov_word(word), True
         else:
-            return word, False
+            return list(word), False
 
-    def __call__(self, text: str) -> List:
+    def __call__(self, text: str) -> List[str]:
         words = self.word_tokenize_func(text)
 
         prons = []
