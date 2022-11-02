@@ -18,7 +18,6 @@ import json
 import os
 from argparse import ArgumentParser
 
-
 tasks = [
     'adversarial_qa',
     'ag_news',
@@ -78,6 +77,7 @@ tasks = [
     'yelp_review_full',
 ]
 
+
 def merge_train_folder(train_data_folder, merged_train_data_folder):
     if not os.path.exists(merged_train_data_folder):
         os.makedirs(merged_train_data_folder)
@@ -107,6 +107,7 @@ def merge_train_folder(train_data_folder, merged_train_data_folder):
     
     for k, v in task_counter.items():
         print(f'Task {k} had {v} prompt templates.')
+
 
 if __name__ == '__main__':
     parser = ArgumentParser()

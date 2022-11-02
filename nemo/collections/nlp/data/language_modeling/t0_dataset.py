@@ -133,7 +133,7 @@ class T0Dataset(Dataset):
             tokenized_input = tokenized_input + [self.tokenizer.eos_id]
         target = [bos_id] + tokenized_output + [self.tokenizer.eos_id]
 
-        processed_example =  {
+        processed_example = {
             'text_enc': tokenized_input,
             'text_dec': target[:-1],
             'labels': target[1:],
@@ -191,7 +191,9 @@ class T0Dataset(Dataset):
 
         enc_query = torch.LongTensor(self._collate_item(enc_query))
         dec_input = torch.LongTensor(self._collate_item(dec_input))
-        loss_mask = torch.LongTensor([([1] * (len(item))) + ([0] * (dec_input.size(1) - len(item))) for item in labels])
+        loss_mask = torch.LongTensor(
+            [([1] * (len(item))) + ([0] * (dec_input.size(1) - len(item))) for item in labels]
+        )
         labels = torch.LongTensor(self._collate_item(labels))
 
         enc_mask = (enc_query != self.tokenizer.pad_id).long()
