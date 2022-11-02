@@ -525,7 +525,7 @@ class IPATokenizer(BaseTokenizer):
     ):
         """General-purpose IPA-based tokenizer.
         Args:
-            g2p: Grapheme to phoneme module, should be IpaG2p or some subclass thereof.
+            g2p: Grapheme to phoneme module, should be IPAG2P or some subclass thereof.
             punct: Whether to reserve grapheme for basic punctuation or not.
             non_default_punct_list: List of punctuation marks which will be used instead default, if any.
             space: Space token as string.
@@ -545,7 +545,7 @@ class IPATokenizer(BaseTokenizer):
             logging.error(
                 f"Please make sure the G2P module passed into the IPATokenizer has a `symbols` attribute. "
                 f"This is required in order to build the tokenizer vocabulary.\n"
-                f"Expected e.g. IpaG2p, found {type(g2p)}"
+                f"Expected e.g. IPAG2P, found {type(g2p)}"
             )
             raise ValueError("G2P modules passed into the IPATokenizer must have `symbols` defined.")
 

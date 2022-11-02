@@ -252,7 +252,7 @@ class EnglishG2p(BaseG2p):
 
 
 @experimental
-class IpaG2p(BaseG2p):
+class IPAG2P(BaseG2p):
     # fmt: off
     STRESS_SYMBOLS = ["ˈ", "ˌ"]
     # Regex for roman characters, accented characters, and locale-agnostic numbers/digits
