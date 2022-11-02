@@ -172,7 +172,7 @@ class MegatronGenerate(Resource):
                     if neighbors is not None:
                         self.inference_strategy.update_neighbors(neighbors)
                     if weights is not None:
-                        self.inference_strategy.update_weights([weights, 1-weights])
+                        self.inference_strategy.update_weights([weights, 1 - weights])
 
             output = generate(
                 self.model,
