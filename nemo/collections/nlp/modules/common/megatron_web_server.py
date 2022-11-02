@@ -17,12 +17,20 @@ import json
 import gradio as gr
 import requests
 
-port_num = 5555
+from nemo.collections.nlp.modules.common.megatron.retrieval_service import PORT_NUM_DYN
+
+PORT_NUM = 5555
 headers = {"Content-Type": "application/json"}
 
 
-def request_data(data):
+def request_data(data, port_num=PORT_NUM):
     resp = requests.put('http://localhost:{}/generate'.format(port_num), data=json.dumps(data), headers=headers)
+    output_json = resp.json()
+    return output_json
+
+
+def update_index(data, port_num=PORT_NUM_DYN):
+    resp = requests.put('http://localhost:{}/knn'.format(port_num), data=json.dumps(data), headers=headers)
     output_json = resp.json()
     return output_json
 
@@ -76,6 +84,13 @@ def get_retro_generation(prompt, greedy, add_BOS, token_to_gen, min_tokens, temp
     sentences = output_json['sentences']
     retrieved = output_json['retrieved']
     return sentences[0], convert_retrieved_to_md(retrieved)
+
+
+def add_doc(doc):
+    data = {
+        "sentences": [doc],
+    }
+    return update_index(data)
 
 
 def get_demo(share, username, password):
@@ -134,6 +149,20 @@ def get_retro_demo(share, username, password):
                 )
                 k_neighbors = gr.Slider(minimum=0, maximum=50, step=1, value=2, label='Retrieved Documents')
                 weights = gr.Slider(minimum=0.0, maximum=1.0, value=0.5, label='Weight for the first Retrieval', step=0.02)
+                add_retrival_doc = gr.Textbox(
+                    label="Add New Retrieval Doc",
+                    value="",
+                    lines=5,
+                )
+                add_btn = gr.Button(value="Add")
+                output_status = gr.Label(value='')
+                add_btn.click(
+                    add_doc,
+                    inputs=[
+                        add_retrival_doc,
+                    ],
+                    outputs=[output_status]
+                )
 
             with gr.Column(scale=1, min_width=800):
                 input_prompt = gr.Textbox(

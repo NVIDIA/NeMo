@@ -58,6 +58,11 @@ class RetrievalService:
 class ChunkStore:
     def __init__(self):
         self.store = {}
+        self._count = 0
+
+    def add(self, chunk):
+        self.store[self._count] = chunk
+        self._count += 1
 
     def get_chunk(self, neighbor_id):
         return self.store[neighbor_id]
@@ -181,7 +186,6 @@ class DynamicRetrievalResource(FaissRetrievalResource):
         self.chunk_size = chunk_size
         self.stride = stride
         self.pad_id = self.tokenizer.pad_id
-        self._count = 0
         self.ds = store
 
     def put(self):
@@ -216,8 +220,7 @@ class DynamicRetrievalResource(FaissRetrievalResource):
             for i in range(0, len(np_array), self.stride):
                 if i + 2 * self.chunk_size <= len(np_array):
                     chunk = np_array[i : i + 2 * self.chunk_size]
-                    self.ds.store[self._count] = chunk
-                    self._count += 1
+                    self.ds.add(chunk)
                     chunk_texts.append(self.tokenizer.ids_to_text(chunk))
             emb = self.bert_model.encode_multi_process(
                 sentences=chunk_texts, pool=self.pool, batch_size=self.sentence_bert_batch
