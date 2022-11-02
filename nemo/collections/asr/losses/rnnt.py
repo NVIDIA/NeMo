@@ -90,10 +90,10 @@ RNNT_LOSS_RESOLVER = {
     ),
     "pytorch": RNNTLossConfig(
         loss_name="pytorch",
-        lib_name="pytorch",
+        lib_name="torch",
         min_version='0.0',
         is_available=True,
-        installation_msg="it just works but slow",
+        installation_msg="Pure Pytorch implementation of RNN-T loss. Slow and for debugging purposes only.",
     ),
 }
 
@@ -174,9 +174,8 @@ def resolve_rnnt_loss(loss_name: str, blank_idx: int, loss_kwargs: dict = None) 
         _warn_unused_additional_kwargs(loss_name, loss_kwargs)
 
     elif loss_name == 'pytorch':
-        loss_func = RNNTLossPytorch(
-            blank=blank_idx, reduction='none'
-        )
+        loss_func = RNNTLossPytorch(blank=blank_idx, reduction='none')
+        _warn_unused_additional_kwargs(loss_name, loss_kwargs)
 
     else:
         raise ValueError(
@@ -184,6 +183,92 @@ def resolve_rnnt_loss(loss_name: str, blank_idx: int, loss_kwargs: dict = None) 
         )
 
     return loss_func
+
+
+class RNNTLossPytorch(Loss):
+    @property
+    def input_types(self):
+        """Input types definitions for CTCLoss.
+        """
+        return {
+            "acts": NeuralType(('B', 'T', 'T', 'D'), LogprobsType()),
+            "labels": NeuralType(('B', 'T'), LabelsType()),
+            "act_lens": NeuralType(tuple('B'), LengthsType()),
+            "label_lens": NeuralType(tuple('B'), LengthsType()),
+        }
+
+    @property
+    def output_types(self):
+        """Output types definitions for CTCLoss.
+        loss:
+            NeuralType(None)
+        """
+        return {"loss": NeuralType(elements_type=LossType())}
+
+    def __init__(self, blank, reduction):
+        super().__init__()
+        self.blank = blank
+        self.reduction = reduction
+
+    def forward(self, acts, labels, act_lens, label_lens):
+        acts = torch.log_softmax(acts, -1)
+        forward_logprob = self.compute_forward_prob(acts, labels, act_lens, label_lens)
+        losses = -forward_logprob
+        if self.reduction == 'mean_batch':
+            losses = losses.mean()  # global batch size average
+        elif self.reduction == 'mean':
+            losses = torch.div(losses, label_lens).mean()
+        elif self.reduction == 'sum':
+            losses = losses.sum()
+        elif self.reduction == 'mean_volume':
+            losses = losses.sum() / label_lens.sum()  # same as above but longer samples weigh more
+
+        return losses
+
+
+    def compute_forward_prob(self, acts, labels, act_lens, label_lens):
+        B, T, U, _ = acts.shape
+
+        log_alpha = torch.zeros(B, T, U)
+        log_alpha = log_alpha.to(acts.device)
+
+        for t in range(T):
+            for u in range(U):
+                if u == 0:
+                    if t == 0:
+                        log_alpha[:, t, u] = 0.0
+                    else:
+                        log_alpha[:, t, u] = log_alpha[:, t - 1, u] + acts[:, t - 1, 0, self.blank]
+
+                else:
+                    if t == 0:
+                        gathered = torch.gather(
+                            acts[:, t, u - 1], dim=1, index=labels[:, u - 1].view(-1, 1).type(torch.int64)
+                        ).reshape(-1)
+                        log_alpha[:, t, u] = log_alpha[:, t, u - 1] + gathered.to(log_alpha.device)
+                    else:
+                        log_alpha[:, t, u] = torch.logsumexp(
+                            torch.stack(
+                                [
+                                    log_alpha[:, t - 1, u] + acts[:, t - 1, u, self.blank],
+                                    log_alpha[:, t, u - 1]
+                                    + torch.gather(
+                                        acts[:, t, u - 1], dim=1, index=labels[:, u - 1].view(-1, 1).type(torch.int64)
+                                    ).reshape(-1),
+                                ]
+                            ),
+                            dim=0,
+                        )
+
+        log_probs = []
+        for b in range(B):
+            to_append = (
+                log_alpha[b, act_lens[b] - 1, label_lens[b]] + acts[b, act_lens[b] - 1, label_lens[b], self.blank]
+            )
+            log_probs.append(to_append)
+        log_prob = torch.stack(log_probs)
+
+        return log_prob
 
 
 class RNNTLoss(Loss):
