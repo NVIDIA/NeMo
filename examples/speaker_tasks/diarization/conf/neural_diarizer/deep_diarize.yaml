@@ -12,15 +12,32 @@ model:
   d_model: 512
   chunk_seconds: ${chunk_seconds}
   subsampling: 8
-  hidden_dim: 1024
-  n_layers: 18
-  n_heads: 8
-  dropout: 0.1
-  emb_dropout: 0.1
+
+  encoder:
+    hidden_dim: 1024
+    n_layers: 4
+    n_heads: 8
+    dropout: 0.1
+    emb_dropout: 0.1
+    shift_mem_down: 0
+
+  eda:
+    n_layers: 4
+    n_heads: 8
+    inner_dim: 1024
+    dropout: 0.1
+
+  decoder:
+    inner_dim: 1024
+    n_heads: 8
+    n_layers: 4
+    dropout: 0.1
+
   warmup_ratio: 0.1
   mask_mem: False
   permute: False
-  shift_mem_down: 0
+
+  existence_alpha: 0.1
   focal: False
   alpha: 0.25
   gamma: 2

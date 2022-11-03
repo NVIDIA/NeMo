@@ -11,18 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import math
 from typing import Any, Dict, List, Optional, Union
 
 import hydra.utils
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 from torchmetrics.functional import permutation_invariant_training
-from x_transformers import Decoder, XTransformer
+from x_transformers import Decoder
 
 from nemo.collections.asr.data.deep_diarize.inference_data import RTTMDataset
 from nemo.collections.asr.data.deep_diarize.train_data import LocalRTTMStreamingSegmentsDataset, MultiStreamDataLoader
@@ -30,10 +28,62 @@ from nemo.collections.asr.data.deep_diarize.train_tarred_data import TarredRTTMS
 from nemo.collections.asr.metrics.der import DER
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.modules.deep_diarize_transformer import TransformerXL
+from nemo.collections.asr.modules.transformer import PerceiverEncoder, TransformerDecoder
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.submodules.subsampling import ConvSubsampling
 from nemo.core import PretrainedModelInfo
 from nemo.core.classes.modelPT import ModelPT
+
+
+class DiarizeTransformerXLDecoder(torch.nn.Module):
+    def __init__(
+        self,
+        seq_len: int,
+        num_speakers: int,
+        hidden_dim: int,
+        n_heads: int,
+        n_layers: int,
+        inner_dim: int,
+        dropout: float,
+    ):
+        super().__init__()
+        self.seq_len = seq_len
+        self.num_speakers = num_speakers
+        self.decoder = TransformerDecoder(
+            num_layers=n_layers,
+            hidden_size=hidden_dim,
+            inner_size=inner_dim,
+            num_attention_heads=n_heads,
+            attn_score_dropout=dropout,
+            attn_layer_dropout=dropout,
+            ffn_dropout=dropout,
+        )
+
+        self.projection = torch.nn.Linear(hidden_dim, 1)
+
+    def forward(self, attractors: torch.Tensor, encoded_xl_features: torch.Tensor):
+        B, K, H = attractors.size()
+        N = self.seq_len
+        attractors = attractors.view(B * K, 1, H).expand(-1, N, -1)
+        attractors_mask = torch.ones(B * K, N).to(attractors.device)
+
+        # [B, N, H] -> [B, K, N, H]
+        transformer_xl_encoded_features = encoded_xl_features.view(B, 1, N, H).expand(-1, self.num_speakers, -1, -1)
+        # [B, K, N, H] -> [B * K, N, H]
+        transformer_xl_encoded_features = transformer_xl_encoded_features.reshape(B * K, N, H)
+        encoder_mask = torch.ones(B * K, N).to(attractors.device)
+
+        output = self.decoder(
+            decoder_states=attractors,  # [B, K, H] -> [B * K, N, H]
+            decoder_mask=attractors_mask,
+            encoder_states=transformer_xl_encoded_features,  # [B, N, H] -> [B * K, N, H]
+            encoder_mask=encoder_mask,
+            encoder_diagonal=0,
+        )
+
+        # [B * K, N, H] -> [B * K, N] reshape to [B, N, K]
+        activities = self.projection(output).view(B, N, K)
+        return activities.sigmoid()
 
 
 class DeepDiarizeModel(ModelPT):
@@ -62,27 +112,35 @@ class DeepDiarizeModel(ModelPT):
             dim_in=self.cfg.d_model,
             dim_out=self.cfg.d_model,
             attn_layers=Decoder(
-                dim=self.cfg.hidden_dim,
-                depth=self.cfg.n_layers,
-                heads=self.cfg.n_heads,
-                dropout=self.cfg.dropout,
-                emb_dropout=self.cfg.emb_dropout,
+                dim=self.cfg.encoder.hidden_dim,
+                depth=self.cfg.encoder.n_layers,
+                heads=self.cfg.encoder.n_heads,
+                dropout=self.cfg.encoder.dropout,
+                emb_dropout=self.cfg.encoder.emb_dropout,
                 rel_pos_bias=True,
-                shift_mem_down=self.cfg.shift_mem_down,
+                shift_mem_down=self.cfg.encoder.shift_mem_down,
             ),
         )
+        self.eda_module = PerceiverEncoder(
+            num_layers=self.cfg.eda.n_layers,
+            hidden_size=self.cfg.d_model,
+            num_attention_heads=self.cfg.eda.n_heads,
+            inner_size=self.cfg.eda.inner_dim,
+            hidden_steps=self.num_speakers,
+            attn_score_dropout=self.cfg.eda.dropout,
+            attn_layer_dropout=self.cfg.eda.dropout,
+            ffn_dropout=self.cfg.eda.dropout,
+        )
+        self.fc = torch.nn.Linear(self.cfg.d_model, 1)
 
-        self.eda_module = XTransformer(
-            dim=512,
-            enc_num_tokens=256,
-            enc_depth=6,
-            enc_heads=8,
-            enc_max_seq_len=1024,
-            dec_num_tokens=256,
-            dec_depth=6,
-            dec_heads=8,
-            dec_max_seq_len=1024,
-            tie_token_emb=True,  # tie embeddings of encoder and decoder
+        self.decoder = DiarizeTransformerXLDecoder(
+            seq_len=self.sub_sample_length,
+            num_speakers=self.num_speakers,
+            hidden_dim=self.cfg.d_model,
+            n_heads=self.cfg.decoder.n_heads,
+            n_layers=self.cfg.decoder.n_layers,
+            inner_dim=self.cfg.decoder.inner_dim,
+            dropout=self.cfg.decoder.dropout,
         )
 
         self.loss = torch.nn.BCELoss()
@@ -90,16 +148,13 @@ class DeepDiarizeModel(ModelPT):
         self.sigmoid = torch.nn.Sigmoid()
         self.apply(self._init_weights)
         self.mems = None
-        self.der, self.der_no_mem = [
-            DER(
-                seconds_per_frame=self.cfg.preprocessor.window_stride * self.cfg.subsampling,
-                min_seconds_for_segment=self.cfg.min_seconds_for_segment,
-                threshold=self.cfg.threshold,
-                combine_segments_seconds=self.cfg.combine_segments_seconds,
-            )
-            for x in range(2)
-        ]
-        self.mask_mem = self.cfg.get('mask_mem', False)
+        self.der = DER(
+            seconds_per_frame=self.cfg.preprocessor.window_stride * self.cfg.subsampling,
+            min_seconds_for_segment=self.cfg.min_seconds_for_segment,
+            threshold=self.cfg.threshold,
+            combine_segments_seconds=self.cfg.combine_segments_seconds,
+        )
+        self.mask_mem = self.cfg.mask_mem
         self.permutations = None
 
     def _mask_mems(self, mask: List[bool]):
@@ -127,6 +182,10 @@ class DeepDiarizeModel(ModelPT):
             y[x] = torch.index_select(y[x], 1, self.permutations[x])
         return y
 
+    def _shuffle(self, tensor: torch.Tensor, dim: int):
+        idx = torch.randperm(tensor.shape[dim])
+        return tensor[:, idx]
+
     def _calculate_train_loss(self, logits, y):
         loss = self.train_loss(logits, y)
         if self.cfg.focal:
@@ -135,30 +194,30 @@ class DeepDiarizeModel(ModelPT):
             loss = loss.mean()
         return loss
 
+    def _calculate_attractor_loss(self, attractors, y):
+        # loss would be calculated between outputs and number of speakers present in segment
+        outputs = self.fc(attractors).sigmoid().squeeze()
+        speaker_exists = y.transpose(1, 2).sum(2)
+        speaker_exists[speaker_exists > 0] = 1
+        return self._calculate_train_loss(outputs, speaker_exists)
+
     def training_step(self, batch, batch_idx):
-        train_x, train_lengths, y, mask, speaker_existence_labels = batch
-        seg, model_lengths = self.sub_sample_layer(train_x, lengths=train_lengths)
+        train_x, train_lengths, y, memory_reset = batch
+        sub_sample_x, model_lengths = self.sub_sample_layer(train_x, lengths=train_lengths)
         if self.mask_mem:
-            self._mask_mems(mask)
-        x, self.mems = self.transformer_feature_encoder(seg, mems=self.mems)
+            self._mask_mems(memory_reset)
+        encoded_xl_features, self.mems = self.transformer_feature_encoder(sub_sample_x, mems=self.mems)
 
-        speaker_embeddings = self.eda_module(x)
+        seq_mask = torch.ones(sub_sample_x.size(0), sub_sample_x.size(1)).to(self.device)
+        # shuffle frames before generating attractors
+        attractors, _ = self.eda_module(self._shuffle(sub_sample_x, dim=1), seq_mask)
 
-        speaker_outputs = None
-        for speaker_id, speaker_embedding in enumerate(speaker_embeddings):
-            length = seg.size(1)
-            speaker_embedding = speaker_embedding.expand(length, -1).unsqueeze(0)
-            speaker_x = torch.cat([x, speaker_embedding], dim=-1)
-            logits = self.transformer_speaker_activity(speaker_x)
-            logits = self.sigmoid(logits)
-            speaker_outputs = logits if speaker_outputs is None else torch.cat((speaker_outputs, logits), dim=2)
+        speaker_outputs = self.decoder(attractors, encoded_xl_features)
 
         if self.cfg.permute:
-            y = self._permutation_mask(speaker_outputs, y, mask)
+            y = self._permutation_mask(speaker_outputs, y, memory_reset)
         loss = self._calculate_train_loss(speaker_outputs, y)
-
-        speaker_existence_probability = self.existence_module(speaker_embeddings)
-        existence_loss = self.existence_loss(speaker_existence_probability, speaker_existence_labels)
+        existence_loss = self._calculate_attractor_loss(attractors, y)
 
         self.logger.log_metrics(
             {
@@ -168,41 +227,33 @@ class DeepDiarizeModel(ModelPT):
             },
             step=self.trainer.global_step,
         )
-        return loss
+        return loss + (self.cfg.existence_alpha * existence_loss)
 
     def validation_step(self, batch, batch_idx):
         inputs, input_lengths, y, annotations = batch
-        mems, full_speech_activity = None, None
+        mems, speech_activity = None, None
         for chunk, length in zip(inputs, input_lengths):
-            seg, model_lengths = self.sub_sample_layer(chunk, lengths=length.unsqueeze(0))
-            x, mems = self.transformer_feature_encoder(seg, mems=mems)
+            sub_sample_x, model_lengths = self.sub_sample_layer(chunk, lengths=length.unsqueeze(0))
+            encoded_xl_features, mems = self.transformer_feature_encoder(sub_sample_x, mems=mems)
+            seq_mask = torch.ones(sub_sample_x.size(0), sub_sample_x.size(1)).to(self.device)
+            attractors, _ = self.eda_module(sub_sample_x, seq_mask)
 
-            speaker_embeddings = self.eda_module(x)
-
-            speaker_outputs = None
-            for speaker_id, speaker_embedding in enumerate(speaker_embeddings):
-                length = seg.size(1)
-                speaker_embedding = speaker_embedding.expand(length, -1).unsqueeze(0)
-                speaker_x = torch.cat([x, speaker_embedding], dim=-1)
-                logits = self.transformer_speaker_activity(speaker_x)
-                logits = self.sigmoid(logits)
-                speaker_outputs = logits if speaker_outputs is None else torch.cat((speaker_outputs, logits), dim=2)
-            full_speech_activity = (
-                full_speech_activity
-                if speaker_outputs is None
-                else torch.cat((full_speech_activity, speaker_outputs), dim=1)
+            speaker_outputs = self.decoder(attractors, encoded_xl_features)
+            speech_activity = (
+                speaker_outputs if speech_activity is None else torch.cat((speech_activity, speaker_outputs), dim=1)
             )
-
-        loss = self._calculate_val_loss(full_speech_activity, y)
+        loss = self._calculate_val_loss(speech_activity, y)
         self.log('val_loss', loss, sync_dist=True)
-        self.der(full_speech_activity, annotations)
+        self.der(speech_activity.squeeze(0), annotations)
         self.log('DER', self.der, sync_dist=True)
-        self.log('no_mem_DER', self.der_no_mem, sync_dist=True)
 
     def _calculate_val_loss(self, logits, y):
         loss = self.loss(logits, y.unsqueeze(0))
         # calculate the loss after we flipped the speaker labels as well
         invert_loss = self.loss(logits, torch.flip(y, dims=(-1,)).unsqueeze(0))
+        if self.cfg.focal:
+            loss = loss.mean()
+            invert_loss = invert_loss.mean()
         # take the minimum loss
         loss = min(loss, invert_loss)
         return loss
@@ -236,7 +287,7 @@ class DeepDiarizeModel(ModelPT):
         self.train_sequence_length = preprocessor.featurizer.get_seq_len(
             (torch.tensor(self.cfg.chunk_seconds * dataloader_cfg.sample_rate, dtype=torch.float))
         )
-        self.sub_sample_length = int(self.train_sequence_length / self.cfg.subsampling)
+        self.sub_sample_length = int(self.train_sequence_length / self.cfg.subsampling) + 1
         return featurizer, preprocessor
 
     def setup_training_data(self, cfg: Optional[Union[DictConfig, Dict]]):
