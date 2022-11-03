@@ -323,10 +323,11 @@ class MegatronVitClassificationModel(MegatronVisionModel):
             if not parallel_state.is_pipeline_first_stage():
                 self.reduce_overlap_gradients()
         elif self.megatron_amp_o2:
-            # when using pipeline parallelism grads must be all-reduced after the pipeline (not asynchronously)
-            if self.cfg.get('pipeline_model_parallel_size', 1) > 1 or self.cfg.get('sequence_parallel', False):
-                # main grads are stored in the MainParamsOptimizer wrapper
-                self._optimizer.allreduce_main_grads()
+            # # when using pipeline parallelism grads must be all-reduced after the pipeline (not asynchronously)
+            # if self.cfg.get('pipeline_model_parallel_size', 1) > 1 or self.cfg.get('sequence_parallel', False):
+            #     # main grads are stored in the MainParamsOptimizer wrapper
+            #     self._optimizer.allreduce_main_grads()
+            self._optimizer.allreduce_main_grads()
         else:
             # async grad allreduce is not currently implemented for O1/autocasting mixed precision training
             # so we all-reduce gradients after the pipeline
