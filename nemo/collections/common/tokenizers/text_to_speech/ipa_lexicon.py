@@ -71,8 +71,7 @@ IPA_CHARACTER_SETS = {
 
 def validate_locale(locale):
     if locale not in SUPPORTED_LOCALES:
-        raise ValueError(f"Unsupported locale '{locale}'. "
-                         f"Supported locales {SUPPORTED_LOCALES}")
+        raise ValueError(f"Unsupported locale '{locale}'. " f"Supported locales {SUPPORTED_LOCALES}")
 
 
 def get_grapheme_character_set(locale):
@@ -88,8 +87,7 @@ def get_grapheme_character_set(locale):
 def get_ipa_character_set(locale):
     if locale not in IPA_CHARACTER_SETS:
         raise ValueError(
-            f"IPA character set not found for locale '{locale}'. "
-            f"Supported locales {IPA_CHARACTER_SETS.keys()}"
+            f"IPA character set not found for locale '{locale}'. " f"Supported locales {IPA_CHARACTER_SETS.keys()}"
         )
     char_set = set(IPA_CHARACTER_SETS[locale])
     return char_set
