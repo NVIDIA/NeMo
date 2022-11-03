@@ -14,6 +14,7 @@
 
 import copy
 import csv
+import itertools
 import json
 import os
 from collections import OrderedDict as od
@@ -22,6 +23,7 @@ from itertools import permutations
 from typing import Dict, List, Tuple, Union
 
 import numpy as np
+from scipy.optimize import linear_sum_assignment
 
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.asr.models import ClusteringDiarizer
@@ -33,8 +35,6 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
     write_rttm2manifest,
 )
 from nemo.utils import logging
-from scipy.optimize import linear_sum_assignment
-import itertools
 
 try:
     import arpa
@@ -144,6 +144,7 @@ def get_per_spk_hyp_transcripts(word_dict_seq_list: List[Dict[str, float]]) -> T
     mix_hyp_trans = " ".join(mix_hyp_trans)
     return per_spk_hyp_trans, mix_hyp_trans
 
+
 def count_words(per_spk_trans: List[List[str]]):
     """
     Count the number of words in per-speaker transcription.
@@ -155,7 +156,8 @@ def count_words(per_spk_trans: List[List[str]]):
     Returns:
         (np.array): Number of words for each speaker n the transcription
     """
-    return np.array([ len(trans.split()) for trans in per_spk_trans ])
+    return np.array([len(trans.split()) for trans in per_spk_trans])
+
 
 def concat_perm_word_error_rate(
     per_spk_hyp_trans: List[List[str]], per_spk_ref_trans: List[List[str]]
@@ -225,19 +227,20 @@ def concat_perm_word_error_rate(
     for (spk_hyp_trans, spk_ref_trans) in all_pairs:
         spk_wer = word_error_rate(hypotheses=[spk_hyp_trans], references=[spk_ref_trans])
         lsa_wer_list.append(spk_wer)
-    
+
     # Make a cost matrix and calculate a linear sum assignment on the cost matrix.
     # Row is hypothesis index and column is reference index
     cost_wer = np.array(lsa_wer_list).reshape([len(per_spk_hyp_trans), len(per_spk_ref_trans)])
     row_hyp_ind, col_ref_ind = linear_sum_assignment(cost_wer)
 
     # In case where hypothesis has more speakers, add words from residual speakers
-    hyp_permed = [ per_spk_hyp_trans[k] for k in row_hyp_ind ] 
+    hyp_permed = [per_spk_hyp_trans[k] for k in row_hyp_ind]
     min_perm_hyp_trans = " ".join(hyp_permed)
 
     # Calculate a WER value from the permutation that yields the lowest WER.
     cpWER = word_error_rate(hypotheses=[min_perm_hyp_trans], references=[ref_trans])
     return cpWER, min_perm_hyp_trans, ref_trans
+
 
 def calculate_total_WER(
     word_seq_lists: List[List[Dict[str, Union[str, float]]]], ctm_file_list: List[str]
@@ -637,7 +640,7 @@ class OfflineDiarWithASR:
         return cursor
 
     def compensate_word_ts_list(
-        self, audio_file_list: List[str], word_ts_dict: Dict[str, List[float]], 
+        self, audio_file_list: List[str], word_ts_dict: Dict[str, List[float]],
     ) -> Dict[str, List[List[float]]]:
         """
         Compensate the word timestamps based on the VAD output.
