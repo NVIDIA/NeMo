@@ -44,4 +44,4 @@ model.speaker_beam.n_layers=18 \
 dataset="librispeech" \
 trainer.val_check_interval=1.0 \
 model.optim.lr=2 \
-+nemo_checkpoint_path=/home/yangzhang/code/ts_asr/ckpts/stt_en_conformer_ctc_medium_1.0.0/stt_en_conformer_ctc_medium.nemo
++tsasr_checkpoint_path=/home/yangzhang/code/ts_asr/librispeechmix/ckpts/draco_3mix_ctc_spectL1.0_stopStep-1_speedP0.3_spk3_ep120_bs64_lr0.0003_lr2__schedCosineAnnealing_warm25000_wd1e-2_encfrTrue_decfrFalse_asrEfrFalse_asrDfrFalse_d256_layer18_18_head4_4_nSpecT5_nSpecF2_wSpecF27_v128.nemo
