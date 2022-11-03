@@ -13,7 +13,7 @@ def prepare_squad_for_prompt_learning(data_dir, bignlp_path):
 
     preprocess_script = bignlp_path / "bignlp/utils/data_utils/prompt_learning_squad_preprocessing.py"
     os.system(
-        f"python {preprocess_script} "
+        f"python3 {preprocess_script} "
         f"--data-dir={squad_v1_dir} "
     )
 
