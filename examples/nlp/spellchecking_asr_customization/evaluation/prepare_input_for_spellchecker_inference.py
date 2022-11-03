@@ -71,7 +71,7 @@ def get_index(custom_phrases) -> None:
                             if len(ngram) + len(rep) <= 10 and b + ngram.count(" ") == begin:
                                 if lp_prev + lp > -4.0:
                                     new_ngrams[ngram + rep + " "] = lp_prev + lp
-                        index_keys[b] = index_keys[b] | new_ngrams  #  join two dictionaries
+                        index_keys[b].update(new_ngrams) # = index_keys[b] | new_ngrams  #  join two dictionaries
                     # add current replacement as ngram
                     if lp > -4.0:
                         index_keys[begin][rep + " "] = lp
@@ -152,7 +152,13 @@ dummy_candidates = [
     "j k y u i t d s e w s r e j h i p p",
     "q w r e s f c t d r q g g y",
 ]
+
+path_parts = args.output_name.split("/")
+path_parts2 = path_parts[-1].split(".")
+doc_id = path_parts2[0]
+
 out_debug = open(args.output_name + ".candidates", "w", encoding="utf-8")
+out_debug2 = open(args.output_name + ".candidates_select", "w", encoding="utf-8")
 out = open(args.output_name, "w", encoding="utf-8")
 with open(args.input_file, "r", encoding="utf-8") as f:
     for line in f:
@@ -161,7 +167,8 @@ with open(args.input_file, "r", encoding="utf-8") as f:
         letters = list(sent)
 
         phrases2positions = np.zeros((len(phrases), len(letters)), dtype=float)
-        position2ngrams = [{}] * len(letters)  # positions mapped to dicts of ngrams starting from that position
+        
+        position2ngrams = [set() for _ in range(len(letters))]  # positions mapped to sets of ngrams starting from that position
 
         begin = 0
         for begin in range(len(letters)):
@@ -171,24 +178,51 @@ with open(args.input_file, "r", encoding="utf-8") as f:
                     continue
                 for phrase_id, b, size, lp in ngram2phrases[ngram]:
                     phrases2positions[phrase_id, begin:end] = 1.0
-
+                position2ngrams[begin].add(ngram) 
+                                                                                
         candidate2coverage, candidate2position = get_all_candidates_coverage(phrases, phrases2positions)
+
+        # mask for each custom phrase, how many which symbols are covered by input ngrams
+        phrases2coveredsymbols = [[0 for x in phrases[i].split(" ")] for i in range(len(phrases))]
 
         candidates = []
         k = 0
         correct_id = 0
         out_debug.write(" ".join(letters) + "\n")
+        for pos in range(len(position2ngrams)):
+            if len(position2ngrams[pos]) > 0:
+                out_debug.write("\t\t" + str(pos) + "\t" + "|".join(list(position2ngrams[pos])) + "\n")
+
         for idx, coverage in sorted(enumerate(candidate2coverage), key=lambda item: item[1], reverse=True):
+            begin = candidate2position[idx]  # this is most likely beginning of this candidate
+            phrase_length = phrases[idx].count(" ") + 1
+            for pos in range(begin, begin + phrase_length):
+                if pos >= len(position2ngrams):  # we do not know exact end of custom phrase in text, it can be different from phrase length
+                    break
+                for ngram in position2ngrams[pos]:
+                    for phrase_id, b, size, lp in ngram2phrases[ngram]:
+                        if phrase_id != idx:
+                            continue
+                        for ppos in range(b, b + size):
+                            if ppos >= phrase_length:
+                                break 
+                            phrases2coveredsymbols[phrase_id][ppos] = 1
+                        #out_debug.write("\t\t\t" + ngram + "\t" + str(b) + "\t" + str(phrases2coveredsymbols[phrase_id]) + "\n")
             k += 1
-            if k > 10:
+            if k > 20:
                 break
-            if coverage < 0.4:
-                candidates.append(random.choice(dummy_candidates))
-            else:
-                candidates.append(phrases[idx])
-                out_debug.write(
-                    "\t" + phrases[idx] + "\n" + " ".join(list(map(str, (map(int, phrases2positions[idx]))))) + "\n"
-                )
+            real_coverage = sum(phrases2coveredsymbols[idx]) / len(phrases2coveredsymbols[idx])
+            if real_coverage < 0.8:
+                out_debug.write("\t\t- " + phrases[idx] + "\tcov: " + str(coverage) + "\treal_cov: " + str(real_coverage) + "\n")
+                continue
+            candidates.append(phrases[idx])
+            out_debug.write(
+                "\t" + str(real_coverage) + "\t" + phrases[idx] + "\n" + " ".join(list(map(str, (map(int, phrases2positions[idx]))))) + "\n"
+            )
+            out_debug2.write(doc_id + "\t" + phrases[idx].replace(" ", "").replace("_", " ") + "\t" + short_sent + "\n")
+
+        while len(candidates) < 10:
+            candidates.append(random.choice(dummy_candidates))
 
         random.shuffle(candidates)
         if len(candidates) != 10:
@@ -197,3 +231,4 @@ with open(args.input_file, "r", encoding="utf-8") as f:
         out.write(" ".join(letters) + "\t" + ";".join(candidates) + "\n")
 out.close()
 out_debug.close()
+out_debug2.close()
