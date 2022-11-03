@@ -280,7 +280,7 @@ def _gbs_tp_pp_t5_80gb(model_size_in_b: float) -> Tuple[int, int, int]:
     elif model_size_in_b <= 250:
         gbs, tp, pp = 1920, 8, 32
     else:
-        raise ValueError("No T5 model larger than 250B parameters is supported.")
+        raise ValueError("No T5/mT5 model larger than 250B parameters is supported.")
     return gbs, tp, pp
 
 
@@ -317,7 +317,7 @@ def _gbs_tp_pp_t5_40gb(model_size_in_b: float) -> Tuple[int, int, int]:
     elif model_size_in_b <= 250:
         gbs, tp, pp = 1920, 8, 64
     else:
-        raise ValueError("No T5 model larger than 250B parameters is supported.")
+        raise ValueError("No T5/mT5 model larger than 250B parameters is supported.")
     return gbs, tp, pp
 
 
