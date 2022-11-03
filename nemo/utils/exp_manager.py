@@ -87,6 +87,19 @@ class CallbackParams:
     save_nemo_on_train_end: Optional[bool] = True  # Whether to automatically save .nemo file durin on_train_end hook
     model_parallel_size: Optional[int] = None  # tensor parallel size * pipeline parallel size
 
+@dataclass
+class MLFlowParams:
+    # name of experiment, if none, defaults to the globally set experiment name
+    experiment_name: Optional[str] = None
+    # no run_name because it's set by version
+    # local or remote tracking seerver. If tracking_uri is not set, it defaults to save_dir
+    tracking_uri: Optional[str] = None
+    tags: Optional[Dict[str, Any]] = None
+    save_dir: Optional[str] = "./mlruns"
+    prefix: str = ""
+    artifact_location: Optional[str] = None
+    # provide run_id if resuming a previously started run
+    run_id: Optional[str] = None
 
 @dataclass
 class StepTimingParams:
@@ -123,7 +136,7 @@ class ExpManagerConfig:
     create_wandb_logger: Optional[bool] = False
     wandb_logger_kwargs: Optional[Dict[Any, Any]] = None
     create_mlflow_logger: Optional[bool] = False
-    mlflow_logger_kwargs: Optional[Dict[Any, Any]] = None
+    mlflow_logger_kwargs: Optional[MLFlowParams] = MLFlowParams()
     # Checkpointing parameters
     create_checkpoint_callback: Optional[bool] = True
     checkpoint_callback_params: Optional[CallbackParams] = CallbackParams()
@@ -308,7 +321,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     if cfg.create_mlflow_logger and (not cfg.mlflow_logger_kwargs.get("experiment_name", None)):
         cfg.mlflow_logger_kwargs.experiment_name = cfg.name
         logging.warning(
-            'mlflow logger specified but no experiment name set. ' 'Using the same as Tensorboard: %s',
+            'mlflow logger specified but no experiment name set. Using the same as Tensorboard: %s',
             cfg.mlflow_logger_kwargs.experiment_name,
         )
 
@@ -740,8 +753,6 @@ def configure_loggers(
         logging.info("WandBLogger has been set up")
 
     if create_mlflow_logger:
-        if mlflow_kwargs is None:
-            mlflow_kwargs = {}
         mlflow_logger = MLFlowLogger(run_name=version, **mlflow_kwargs)
 
         logger_list.append(mlflow_logger)
