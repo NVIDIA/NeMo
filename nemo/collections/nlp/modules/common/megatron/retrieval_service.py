@@ -56,9 +56,11 @@ class RetrievalService:
 
 
 class ChunkStore:
-    def __init__(self):
+    def __init__(self, chunk_size, pad_id):
         self.store = {}
         self._count = 0
+        self.no_retrieval = np.ones(2 * chunk_size, dtype=np.int64) * pad_id
+        self.store[-1] = self.no_retrieval
 
     def add(self, chunk):
         self.store[self._count] = chunk
@@ -66,6 +68,11 @@ class ChunkStore:
 
     def get_chunk(self, neighbor_id):
         return self.store[neighbor_id]
+
+    def reset(self):
+        self._count = 0
+        self.store = {}
+        self.store[-1] = self.no_retrieval
 
 
 class FaissRetrievalResource(Resource):
@@ -190,18 +197,27 @@ class DynamicRetrievalResource(FaissRetrievalResource):
 
     def put(self):
         data = request.get_json()
-        sentences = data['sentences']
         if 'neighbors' in data:
+            sentences = data['sentences']
             # do knn query
             num_neighbors = data['neighbors']
             with lock:  # Need to get lock to keep multiple threads from hitting code
                 neighbors = self.get_knn(sentences, num_neighbors)
             return jsonify(neighbors.tolist())
+        elif 'reset' in data:
+            with lock:  # Need to get lock to keep multiple threads from hitting code
+                self.reset()
+            return "success"
         else:
+            sentences = data['sentences']
             # update the index
             with lock:  # Need to get lock to keep multiple threads from hitting code
                 self.add_docs_to_index(sentences)
             return "success"
+
+    def reset(self):
+        self.index.reset()
+        self.ds.reset()
 
     def add_docs_to_index(self, docs: List[str]):
         """
@@ -211,6 +227,8 @@ class DynamicRetrievalResource(FaissRetrievalResource):
         """
         for doc in docs:
             token_ids = self.tokenizer.text_to_ids(doc)
+            # append eos in the end
+            token_ids.append(self.tokenizer.eos_id)
             np_array = np.array(token_ids, dtype=np.int32)
             padded_size = self.chunk_size - (len(np_array) % self.chunk_size)
             # for retrieval database, added one more chunk in the end as padding
@@ -247,8 +265,7 @@ class DynamicRetrievalServer(object):
         self.pad_id = tokenizer.pad_id
         self.chunk_size = chunk_size
         self.stride = stride
-        self.store = ChunkStore()
-        self.store.store[-1] = np.ones(2 * self.chunk_size, dtype=np.int64) * self.pad_id
+        self.store = ChunkStore(chunk_size, self.pad_id)
 
         if faiss_devices is None or not torch.cuda.is_available():
             device_list = None
