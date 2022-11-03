@@ -27,7 +27,7 @@ from nemo_text_processing.g2p.data.data_utils import (
     spanish_text_preprocessing,
 )
 
-from nemo.collections.common.tokenizers.text_to_speech.ipa_lexicon import get_ipa_punctuation_set, validate_locale
+from nemo.collections.common.tokenizers.text_to_speech.ipa_lexicon import get_ipa_punctuation_list, validate_locale
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
@@ -242,7 +242,7 @@ class GermanCharsTokenizer(BaseCharsTokenizer):
 
 class SpanishCharsTokenizer(BaseCharsTokenizer):
 
-    PUNCT_LIST = get_ipa_punctuation_set("es-ES")
+    PUNCT_LIST = get_ipa_punctuation_list("es-ES")
 
     def __init__(
         self, punct=True, apostrophe=True, add_blank_at=None, pad_with_space=False, non_default_punct_list=None,
@@ -558,7 +558,7 @@ class IPATokenizer(BaseTokenizer):
             if non_default_punct_list is not None:
                 self.punct_list = non_default_punct_list
             else:
-                self.punct_list = get_ipa_punctuation_set(locale)
+                self.punct_list = get_ipa_punctuation_list(locale)
 
             tokens.update(self.punct_list)
 

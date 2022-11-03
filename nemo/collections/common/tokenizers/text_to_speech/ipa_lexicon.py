@@ -93,9 +93,9 @@ def get_ipa_character_set(locale):
     return char_set
 
 
-def get_ipa_punctuation_set(locale):
+def get_ipa_punctuation_list(locale):
     if locale is None:
-        return set(DEFAULT_PUNCTUATION)
+        return sorted(list(DEFAULT_PUNCTUATION))
 
     validate_locale(locale)
 
@@ -108,4 +108,5 @@ def get_ipa_punctuation_set(locale):
     elif locale == "es-ES":
         punct_set.update(['¿', '¡'])
 
-    return punct_set
+    punct_list = sorted(list(punct_set))
+    return punct_list
