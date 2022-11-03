@@ -139,8 +139,14 @@ def calculate_model_size_params(
             hs, att_h, ffn = 5120, 80, 10880
         elif model_size_in_b < 43.0:
             hs, att_h, ffn = 6144, 96, 10880
+        elif model_size_in_b <= 85.5:
+            hs, att_h, ffn = 6144, 96, 16384
+        elif model_size_in_b <= 165.5:
+            hs, att_h, ffn, kv = 7680, 96, 20480, 128
+        elif model_size_in_b <= 250:
+            hs, att_h, ffn, kv = 12288, 96, 32768, 128
         else:
-            raise ValueError("Model_size for T5 must be smaller than 43B parameters.")
+            raise ValueError("Model_size for T5 must be smaller than 250B parameters.")
     elif model_name == "mt5":
         kv, lr = 64, 1e-4
         if model_size_in_b < 0.25:
