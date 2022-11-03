@@ -13,8 +13,10 @@
 # limitations under the License.
 
 import abc
+import base64
 import json
 import logging
+import pickle
 import threading
 import time
 from typing import List, Union
@@ -101,7 +103,8 @@ class SentenceBertResource(Resource):
             return jsonify({'dim': self.embedding_dim})
         sentences = data
         emb = self.get_emb(sentences)
-        return jsonify(emb)
+        str_emb = base64.b64encode(pickle.dumps(emb))
+        return str_emb.decode('ascii')
 
     def get_emb(self, query: Union[List[str], str, torch.Tensor]):
         if isinstance(query, str):
@@ -115,7 +118,7 @@ class SentenceBertResource(Resource):
         emb = self.bert_model.encode_multi_process(
             sentences=query, pool=self.pool, batch_size=self.sentence_bert_batch
         )
-        return emb.tolist()
+        return emb
 
 
 class SentenceBertServer(object):
@@ -189,7 +192,8 @@ class FaissRetrievalResource(Resource):
                 sentence_list.append(text)
             query = sentence_list
         emb = request_data(query, PORT_NUM_BERT)
-        emb = np.array(emb, dtype=np.float32)
+        emb_data = base64.b64decode(emb.encode())
+        emb = pickle.loads(emb_data)
         D, knn = self.index.search(emb, neighbors)
         results = []
         for sentence_neighbors in knn:
@@ -300,7 +304,8 @@ class DynamicRetrievalResource(FaissRetrievalResource):
                     self.ds.add(chunk)
                     chunk_texts.append(self.tokenizer.ids_to_text(chunk))
             emb = request_data(chunk_texts, PORT_NUM_BERT)
-            emb = np.array(emb, dtype=np.float32)
+            emb_data = base64.b64decode(emb.encode())
+            emb = pickle.loads(emb_data)
             self.index.add(emb)  # add vectors to the index
 
 
