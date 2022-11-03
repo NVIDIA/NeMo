@@ -31,7 +31,12 @@ __idx_suffix__ = 'idx'  # index file suffix
 
 
 def _build_index_from_memdata(fn, newline_int):
-    """Build index of newline positions in memmap"""
+    """
+    Build index of delimiter positions between samples in memmap.
+    Can be provided externally.
+    
+    Returns a 1D array of ints.
+    """
     # use memmap to read file
     mdata = np.memmap(fn, dtype=np.uint8, mode='r')
     # find newline positions
@@ -264,6 +269,11 @@ def _build_memmap_index_files(newline_int, build_index_fn, fn):
         logging.info(f"Building indexing for fn = {fn}")
         # find all newline positions
         midx = build_index_fn(fn, newline_int)
+        # validate midx
+        midx = np.asarray(midx)
+        if not np.issubdtype(midx.dtype, np.integer):
+            raise TypeError(f"midx must be an integer array, but got type = {midx.dtype}")
+
         # create e metadata file
         data = dict(newline_int=newline_int, version=__idx_version__)
 
