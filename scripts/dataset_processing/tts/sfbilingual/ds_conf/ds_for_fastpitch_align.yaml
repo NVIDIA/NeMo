@@ -1,11 +1,10 @@
-name: "ds_for_mixer_tts"
+name: "ds_for_fastpitch_align"
 
 manifest_filepath: "train_manifest.json"
 sup_data_path: "sup_data"
 sup_data_types: [ "align_prior_matrix", "pitch" ]
-whitelist_path: "nemo_text_processing/text_normalization/en/data/whitelist/lj_speech.tsv"
-phoneme_dict_path: "scripts/tts_dataset_files/cmudict-0.7b_nv22.10"
-heteronyms_path: "scripts/tts_dataset_files/heteronyms-052722"
+whitelist_path: "nemo_text_processing/text_normalization/zh/data/whitelist/default.tsv"
+phoneme_dict_path: "scripts/tts_dataset_files/zh/pinyin_dict_nv_22.10.txt"
 
 dataset:
   _target_: nemo.collections.tts.torch.data.TTSDataset
@@ -19,17 +18,20 @@ dataset:
   window: "hann"
   n_mels: 80
   lowfreq: 0
-  highfreq: 8000
+  highfreq: null
   max_duration: null
   min_duration: 0.1
   ignore_file: null
-  trim: false
+  trim: true
+  trim_top_db: 50
+  trim_frame_length: 1024
+  trim_hop_length: 256
   pitch_fmin: 65.40639132514966
   pitch_fmax: 2093.004522404789
 
   text_normalizer:
     _target_: nemo_text_processing.text_normalization.normalize.Normalizer
-    lang: en
+    lang: zh
     input_case: cased
     whitelist: ${whitelist_path}
 
@@ -39,13 +41,10 @@ dataset:
     punct_post_process: true
 
   text_tokenizer:
-    _target_: nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.EnglishPhonemesTokenizer
+    _target_: nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.ChinesePhonemesTokenizer
     punct: true
-    stresses: true
-    chars: true
     apostrophe: true
     pad_with_space: true
     g2p:
-      _target_: nemo_text_processing.g2p.modules.EnglishG2p
+      _target_: nemo_text_processing.g2p.modules.ChineseG2p
       phoneme_dict: ${phoneme_dict_path}
-      heteronyms: ${heteronyms_path}
