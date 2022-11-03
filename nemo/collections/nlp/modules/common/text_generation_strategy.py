@@ -21,6 +21,7 @@ from nemo.collections.nlp.modules.common.megatron.retrieval_service import (
     ComboRetrievalService,
     DynamicFaissRetrievalService,
     FaissRetrievalService,
+    start_sentence_bert_server,
 )
 from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids, get_ltor_masks_and_position_ids
 
@@ -386,6 +387,8 @@ class RetroModelTextGenerationStrategy(TextGenerationStrategy):
         self.neighbors = args['neighbors']
         self.store_retrieved = args['store_retrieved']
         weights = args['weights']
+        # start the sentence bert server
+        start_sentence_bert_server(tokenizer=self.model.tokenizer, **args['sentence_bert'])
         services = []
         for service_conf in args['services']:
             if service_conf['type'] == 'FaissRetrievalService':

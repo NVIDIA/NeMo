@@ -38,6 +38,12 @@ headers = {"Content-Type": "application/json"}
 
 PORT_NUM = 17179
 PORT_NUM_DYN = 17180
+PORT_NUM_BERT = 17181
+
+
+def request_data(data, port=PORT_NUM):
+    resp = requests.put('http://localhost:{}/knn'.format(port), data=json.dumps(data), headers=headers)
+    return resp.json()
 
 
 class RetrievalService:
@@ -46,7 +52,7 @@ class RetrievalService:
         pass
 
     @abc.abstractmethod
-    def add_docs_to_index(self, docs: List[str], add_eos: bool=True):
+    def add_docs_to_index(self, docs: List[str], add_eos: bool = True):
         """
         Add documents to the Faiss index
         Args:
@@ -76,17 +82,89 @@ class ChunkStore:
         self.store[-1] = self.no_retrieval
 
 
+class SentenceBertResource(Resource):
+    def __init__(
+        self, bert_model, tokenizer, pool, sentence_bert_batch,
+    ):
+        # server
+        self.bert_model = bert_model
+        self.tokenizer = tokenizer
+        self.pool = pool
+        self.sentence_bert_batch = sentence_bert_batch
+        self.embedding_dim = self.bert_model.get_sentence_embedding_dimension()
+
+    def put(self):
+        # logging.info("request IP: " + str(request.remote_addr))
+        # logging.info(json.dumps(request.get_json()))
+        data = request.get_json()
+        if isinstance(data, dict):
+            return jsonify({'dim': self.embedding_dim})
+        sentences = data
+        emb = self.get_emb(sentences)
+        return jsonify(emb)
+
+    def get_emb(self, query: Union[List[str], str, torch.Tensor]):
+        if isinstance(query, str):
+            query = [query]
+        elif isinstance(query, torch.Tensor):
+            sentence_list = []
+            for q in query:
+                text = self.tokenizer.ids_to_text(q)
+                sentence_list.append(text)
+            query = sentence_list
+        emb = self.bert_model.encode_multi_process(
+            sentences=query, pool=self.pool, batch_size=self.sentence_bert_batch
+        )
+        return emb.tolist()
+
+
+class SentenceBertServer(object):
+    def __init__(
+        self,
+        devices: str,
+        tokenizer: TokenizerSpec,
+        sentence_bert: str = 'all-mpnet-base-v2',
+        sentence_bert_batch: int = 4,
+    ):
+        self.app = Flask(__name__, static_url_path='')
+
+        if devices is None or not torch.cuda.is_available():
+            device_list = None
+        else:
+            device_list = ['cuda:' + str(device) for device in devices.split(',')]
+
+        self.bert_model = SentenceTransformer(sentence_bert)
+        self.tokenizer = tokenizer
+        self.pool = self.bert_model.start_multi_process_pool(device_list)
+        self.sentence_bert_batch = sentence_bert_batch
+        api = Api(self.app)
+        api.add_resource(
+            SentenceBertResource,
+            '/knn',
+            resource_class_args=[self.bert_model, self.tokenizer, self.pool, self.sentence_bert_batch,],
+        )
+
+    def run(self, url, port=PORT_NUM_BERT):
+        threading.Thread(target=lambda: self.app.run(host=url, threaded=True, port=port)).start()
+
+
+def start_sentence_bert_server(
+    devices: str, tokenizer: TokenizerSpec, sentence_bert: str = 'all-mpnet-base-v2', sentence_bert_batch: int = 4
+):
+    if torch.distributed.get_rank() == 0:
+        server = SentenceBertServer(devices, tokenizer, sentence_bert, sentence_bert_batch,)
+        server.run("0.0.0.0")
+    torch.distributed.barrier()
+
+
 class FaissRetrievalResource(Resource):
     def __init__(
-        self, index, bert_model, tokenizer, ds, pool, sentence_bert_batch,
+        self, index, tokenizer, ds,
     ):
         # server
         self.index = index
-        self.bert_model = bert_model
         self.tokenizer = tokenizer
         self.ds = ds
-        self.pool = pool
-        self.sentence_bert_batch = sentence_bert_batch
 
     def put(self):
         # logging.info("request IP: " + str(request.remote_addr))
@@ -110,9 +188,8 @@ class FaissRetrievalResource(Resource):
                 text = self.tokenizer.ids_to_text(q)
                 sentence_list.append(text)
             query = sentence_list
-        emb = self.bert_model.encode_multi_process(
-            sentences=query, pool=self.pool, batch_size=self.sentence_bert_batch
-        )
+        emb = request_data(query, PORT_NUM_BERT)
+        emb = np.array(emb, dtype=np.float32)
         D, knn = self.index.search(emb, neighbors)
         results = []
         for sentence_neighbors in knn:
@@ -130,14 +207,7 @@ class FaissRetrievalResource(Resource):
 
 class RetrievalServer(object):
     def __init__(
-        self,
-        faiss_index: str,
-        faiss_devices: str,
-        nprobe: int,
-        retrieval_index: str,
-        tokenizer: TokenizerSpec,
-        sentence_bert: str = 'all-mpnet-base-v2',
-        sentence_bert_batch: int = 4,
+        self, faiss_index: str, faiss_devices: str, nprobe: int, retrieval_index: str, tokenizer: TokenizerSpec,
     ):
         self.app = Flask(__name__, static_url_path='')
         # server
@@ -159,23 +229,11 @@ class RetrievalServer(object):
             end = time.time()
             logging.info('convert Faiss db to GPU takes', end - beg)
         self.index.nprobe = nprobe
-        self.bert_model = SentenceTransformer(sentence_bert)
         self.tokenizer = tokenizer
         self.ds = MMapRetrievalIndexedDataset(retrieval_index)
-        self.pool = self.bert_model.start_multi_process_pool(device_list)
-        self.sentence_bert_batch = sentence_bert_batch
         api = Api(self.app)
         api.add_resource(
-            FaissRetrievalResource,
-            '/knn',
-            resource_class_args=[
-                self.index,
-                self.bert_model,
-                self.tokenizer,
-                self.ds,
-                self.pool,
-                self.sentence_bert_batch,
-            ],
+            FaissRetrievalResource, '/knn', resource_class_args=[self.index, self.tokenizer, self.ds,],
         )
 
     def run(self, url, port=PORT_NUM):
@@ -184,13 +242,10 @@ class RetrievalServer(object):
 
 class DynamicRetrievalResource(FaissRetrievalResource):
     def __init__(
-        self, index, bert_model, tokenizer, pool, sentence_bert_batch, chunk_size, stride, store,
+        self, index, tokenizer, chunk_size, stride, store,
     ):
         self.index = index
-        self.bert_model = bert_model
         self.tokenizer = tokenizer
-        self.pool = pool
-        self.sentence_bert_batch = sentence_bert_batch
         self.chunk_size = chunk_size
         self.stride = stride
         self.pad_id = self.tokenizer.pad_id
@@ -221,7 +276,7 @@ class DynamicRetrievalResource(FaissRetrievalResource):
         self.index.reset()
         self.ds.reset()
 
-    def add_docs_to_index(self, docs: List[str], add_eos: bool=True):
+    def add_docs_to_index(self, docs: List[str], add_eos: bool = True):
         """
         Add documents to the Faiss index
         Args:
@@ -244,27 +299,18 @@ class DynamicRetrievalResource(FaissRetrievalResource):
                     chunk = np_array[i : i + 2 * self.chunk_size]
                     self.ds.add(chunk)
                     chunk_texts.append(self.tokenizer.ids_to_text(chunk))
-            emb = self.bert_model.encode_multi_process(
-                sentences=chunk_texts, pool=self.pool, batch_size=self.sentence_bert_batch
-            )
+            emb = request_data(chunk_texts, PORT_NUM_BERT)
+            emb = np.array(emb, dtype=np.float32)
             self.index.add(emb)  # add vectors to the index
 
 
 class DynamicRetrievalServer(object):
     def __init__(
-        self,
-        faiss_devices: str,
-        tokenizer: TokenizerSpec,
-        chunk_size: int = 64,
-        stride: int = 32,
-        sentence_bert: str = 'all-mpnet-base-v2',
-        sentence_bert_batch: int = 4,
+        self, faiss_devices: str, tokenizer: TokenizerSpec, chunk_size: int = 64, stride: int = 32,
     ):
         self.app = Flask(__name__, static_url_path='')
         has_gpu = torch.cuda.is_available() and hasattr(faiss, "index_gpu_to_cpu")
-
-        self.bert_model = SentenceTransformer(sentence_bert)
-        embedding_dim = self.bert_model.get_sentence_embedding_dimension()
+        embedding_dim = request_data({}, PORT_NUM_BERT)['dim']
         self.index = faiss.IndexFlatL2(embedding_dim)  # build the index
         self.pad_id = tokenizer.pad_id
         self.chunk_size = chunk_size
@@ -287,44 +333,21 @@ class DynamicRetrievalServer(object):
             logging.info('convert Faiss db to GPU takes', end - beg)
 
         self.tokenizer = tokenizer
-        self.pool = self.bert_model.start_multi_process_pool(device_list)
-        self.sentence_bert_batch = sentence_bert_batch
 
         api = Api(self.app)
         api.add_resource(
             DynamicRetrievalResource,
             '/knn',
-            resource_class_args=[
-                self.index,
-                self.bert_model,
-                self.tokenizer,
-                self.pool,
-                self.sentence_bert_batch,
-                self.chunk_size,
-                self.stride,
-                self.store,
-            ],
+            resource_class_args=[self.index, self.tokenizer, self.chunk_size, self.stride, self.store,],
         )
 
     def run(self, url, port=PORT_NUM_DYN):
         threading.Thread(target=lambda: self.app.run(host=url, threaded=True, port=port)).start()
 
 
-def request_data(data, port=PORT_NUM):
-    resp = requests.put('http://localhost:{}/knn'.format(port), data=json.dumps(data), headers=headers)
-    return resp.json()
-
-
 class FaissRetrievalService(RetrievalService):
     def __init__(
-        self,
-        faiss_index: str,
-        faiss_devices: str,
-        nprobe: int,
-        retrieval_index: str,
-        tokenizer: TokenizerSpec,
-        sentence_bert: str = 'all-mpnet-base-v2',
-        sentence_bert_batch: int = 4,
+        self, faiss_index: str, faiss_devices: str, nprobe: int, retrieval_index: str, tokenizer: TokenizerSpec,
     ):
         self.updatable = False
         self.tokenizer = tokenizer
@@ -334,9 +357,7 @@ class FaissRetrievalService(RetrievalService):
         # batch, neighbors, 2*chunk_size
         self.no_retrieval = np.ones((1, 1, 2 * self.chunk_size), dtype=ds._index.dtype) * pad_id
         if torch.distributed.get_rank() == 0:
-            server = RetrievalServer(
-                faiss_index, faiss_devices, nprobe, retrieval_index, tokenizer, sentence_bert, sentence_bert_batch,
-            )
+            server = RetrievalServer(faiss_index, faiss_devices, nprobe, retrieval_index, tokenizer)
             server.run("0.0.0.0")
         torch.distributed.barrier()
 
@@ -359,13 +380,7 @@ class FaissRetrievalService(RetrievalService):
 
 class DynamicFaissRetrievalService(RetrievalService):
     def __init__(
-        self,
-        faiss_devices: str,
-        tokenizer: TokenizerSpec,
-        chunk_size: int,
-        stride: int,
-        sentence_bert: str = 'all-mpnet-base-v2',
-        sentence_bert_batch: int = 4,
+        self, faiss_devices: str, tokenizer: TokenizerSpec, chunk_size: int, stride: int,
     ):
         self.updatable = True
         self.tokenizer = tokenizer
@@ -374,9 +389,7 @@ class DynamicFaissRetrievalService(RetrievalService):
         # batch, neighbors, 2*chunk_size
         self.no_retrieval = np.ones((1, 1, 2 * self.chunk_size), dtype=np.int64) * pad_id
         if torch.distributed.get_rank() == 0:
-            server = DynamicRetrievalServer(
-                faiss_devices, tokenizer, chunk_size, stride, sentence_bert, sentence_bert_batch
-            )
+            server = DynamicRetrievalServer(faiss_devices, tokenizer, chunk_size, stride)
             server.run("0.0.0.0")
         torch.distributed.barrier()
 
@@ -396,7 +409,7 @@ class DynamicFaissRetrievalService(RetrievalService):
         result = np.array(result)
         return result
 
-    def add_docs_to_index(self, query: List[str], add_eos: bool=True):
+    def add_docs_to_index(self, query: List[str], add_eos: bool = True):
         """
         Add documents to the Faiss index
         Args:
@@ -444,7 +457,7 @@ class ComboRetrievalService(RetrievalService):
             results.append(result)
         return np.concatenate(results, axis=1)
 
-    def add_docs_to_index(self, query: List[str], add_eos: bool=True):
+    def add_docs_to_index(self, query: List[str], add_eos: bool = True):
         """
         Add documents to the Faiss index
         Args:
