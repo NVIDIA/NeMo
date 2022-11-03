@@ -61,6 +61,7 @@ def main(cfg):
     diar_hyp, diar_score = asr_diar_offline.run_diarization(cfg, word_ts_hyp)
     trans_info_dict = asr_diar_offline.get_transcript_with_speaker_labels(diar_hyp, word_hyp, word_ts_hyp)
 
+    # If RTTM is provided and DER evaluation
     if diar_score is not None:
         metric, mapping_dict = diar_score
         der_results = asr_diar_offline.gather_eval_results(metric, mapping_dict, trans_info_dict)
