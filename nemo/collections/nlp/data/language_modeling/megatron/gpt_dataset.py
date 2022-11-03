@@ -26,6 +26,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils imp
     get_train_valid_test_split_,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
+from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import deallocate_indexed_dataset_memory
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import make_dataset as make_indexed_dataset
 from nemo.core import Dataset
 from nemo.utils import logging
@@ -274,7 +275,18 @@ def get_indexed_dataset_(data_prefix, data_impl, skip_warmup):
 
 class GPTDataset(Dataset):
     def __init__(
-        self, cfg, trainer, tokenizer, name, data_prefix, documents, indexed_dataset, num_samples, seq_length, seed, drop_last=True
+        self,
+        cfg,
+        trainer,
+        tokenizer,
+        name,
+        data_prefix,
+        documents,
+        indexed_dataset,
+        num_samples,
+        seq_length,
+        seed,
+        drop_last=True,
     ):
         if not HAVE_APEX:
             raise ImportError(
@@ -318,6 +330,7 @@ class GPTDataset(Dataset):
             index_mapping_dir=self.index_mapping_dir,
             drop_last=drop_last,
         )
+        deallocate_indexed_dataset_memory(self.indexed_dataset)
 
     def __len__(self):
         # -1 is due to data structure used to retieve the index:
@@ -348,7 +361,9 @@ class GPTDataset(Dataset):
             sample_list.append(self.indexed_dataset.get(self.doc_idx[doc_index_l], length=offset_l + 1))
             sample = np.concatenate(sample_list)
         if len(sample) != (self.seq_length + 1):
-            logging.info(F' > WARNING: Got sample of length: {len(sample)} for sequence length={self.seq_length+1}, padding the sample to match sequence length')
+            logging.info(
+                F' > WARNING: Got sample of length: {len(sample)} for sequence length={self.seq_length+1}, padding the sample to match sequence length'
+            )
             sample = np.array(sample, dtype=np.int64)
             sample = np.pad(sample, (0, self.seq_length + 1 - len(sample)), mode='constant', constant_values=-1)
         return sample.astype(np.int64)
@@ -423,7 +438,15 @@ def _create_ltor_masks_and_position_ids(
 
 
 def _build_index_mappings(
-    name, data_prefix, documents, sizes, num_samples, seq_length, seed, index_mapping_dir: str = None, drop_last: bool = True
+    name,
+    data_prefix,
+    documents,
+    sizes,
+    num_samples,
+    seq_length,
+    seed,
+    index_mapping_dir: str = None,
+    drop_last: bool = True,
 ):
     """Build doc-idx, sample-idx, and shuffle-idx.
     doc-idx: is an array (ordered) of documents to be used in training.
@@ -612,7 +635,7 @@ def _build_sample_idx(sizes, doc_idx, seq_length, num_epochs, tokens_per_epoch, 
 
     # Total number of samples. For -1 see comments in `_num_epochs`.
     if not drop_last:
-        num_samples = -(-(num_epochs * tokens_per_epoch - 1)//seq_length)
+        num_samples = -(-(num_epochs * tokens_per_epoch - 1) // seq_length)
     else:
         num_samples = (num_epochs * tokens_per_epoch - 1) // seq_length
     sample_idx = np.zeros([num_samples + 1, 2], dtype=np.int32)
@@ -646,7 +669,9 @@ def _build_sample_idx(sizes, doc_idx, seq_length, num_epochs, tokens_per_epoch, 
             else:
                 # Otherwise, start from the begining of the next document.
                 if doc_idx_index == (len(doc_idx) - 1):
-                    assert sample_index == num_samples, F"sample_index={sample_index} and num_samples={num_samples} should be the same"
+                    assert (
+                        sample_index == num_samples
+                    ), F"sample_index={sample_index} and num_samples={num_samples} should be the same"
                     doc_offset = sizes[doc_idx[doc_idx_index]] - 1
                     break
                 doc_idx_index += 1
