@@ -250,8 +250,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
                 Defaults to None.
             - create_mlflow_logger (bool): Whether to create an MLFlow logger and attach it to the pytorch lightning
                 training. Defaults to False
-            - mlflow_logger_kwargs (dict): required: A dictionary of kwargs that can be passed to lightning's MLFlowLogger
-                class. Defaults to None.
+            - mlflow_logger_kwargs (dict): optional parameters for the MLFlow logger
             - create_checkpoint_callback (bool): Whether to create a ModelCheckpoint callback and attach it to the
                 pytorch lightning trainer. The ModelCheckpoint saves the top 3 models with the best "val_loss", the most
                 recent checkpoint under ``*last.ckpt``, and the final checkpoint after training completes under ``*end.ckpt``.
