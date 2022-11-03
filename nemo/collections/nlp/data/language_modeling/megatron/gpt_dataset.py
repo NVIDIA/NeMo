@@ -604,7 +604,7 @@ def _build_doc_idx(documents, num_epochs, np_rng, separate_last_epoch):
     return np.concatenate((doc_idx_first, doc_idx_last))
 
 
-def _build_sample_idx(sizes, doc_idx, seq_length, num_epochs, tokens_per_epoch, drop_last):
+def _build_sample_idx(sizes, doc_idx, seq_length, num_epochs, tokens_per_epoch, drop_last=True):
     """Sample index mapping is a 2D array with sizes
     [number-of-samples + 1, 2] where [..., 0] contains
     the index into `doc_idx` and [..., 1] is the

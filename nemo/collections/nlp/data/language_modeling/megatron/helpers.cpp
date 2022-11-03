@@ -100,7 +100,7 @@ py::array build_sample_idx(const py::array_t<int32_t>& sizes_,
 			   const int32_t seq_length,
 			   const int32_t num_epochs,
 			   const int64_t tokens_per_epoch,
-         const bool drop_last) {
+         const bool drop_last = true) {
     /* Sample index (sample_idx) is used for gpt2 like dataset for which
        the documents are flattened and the samples are built based on this
        1-D flatten array. It is a 2D array with sizes [number-of-samples + 1, 2]
