@@ -17,4 +17,4 @@ einops
 ijson
 faiss-cpu
 sentence_transformers
-gradio
+gradio==3.4.0
