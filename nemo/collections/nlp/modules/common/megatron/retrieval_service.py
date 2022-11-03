@@ -46,11 +46,12 @@ class RetrievalService:
         pass
 
     @abc.abstractmethod
-    def add_docs_to_index(self, docs: List[str]):
+    def add_docs_to_index(self, docs: List[str], add_eos: bool=True):
         """
         Add documents to the Faiss index
         Args:
             docs: List[str], list of documents that is going to be added to the index
+            add_eos: bool, whether add the eos in the end
         """
         raise NotImplementedError()
 
@@ -210,25 +211,28 @@ class DynamicRetrievalResource(FaissRetrievalResource):
             return "success"
         else:
             sentences = data['sentences']
+            add_eos = data['add_eos']
             # update the index
             with lock:  # Need to get lock to keep multiple threads from hitting code
-                self.add_docs_to_index(sentences)
+                self.add_docs_to_index(sentences, add_eos)
             return "success"
 
     def reset(self):
         self.index.reset()
         self.ds.reset()
 
-    def add_docs_to_index(self, docs: List[str]):
+    def add_docs_to_index(self, docs: List[str], add_eos: bool=True):
         """
         Add documents to the Faiss index
         Args:
             docs: List[str], list of documents that is going to be added to the index
+            add_eos: bool, whether add the eos in the end
         """
         for doc in docs:
             token_ids = self.tokenizer.text_to_ids(doc)
             # append eos in the end
-            token_ids.append(self.tokenizer.eos_id)
+            if add_eos:
+                token_ids.append(self.tokenizer.eos_id)
             np_array = np.array(token_ids, dtype=np.int32)
             padded_size = self.chunk_size - (len(np_array) % self.chunk_size)
             # for retrieval database, added one more chunk in the end as padding
@@ -392,11 +396,12 @@ class DynamicFaissRetrievalService(RetrievalService):
         result = np.array(result)
         return result
 
-    def add_docs_to_index(self, query: List[str]):
+    def add_docs_to_index(self, query: List[str], add_eos: bool=True):
         """
         Add documents to the Faiss index
         Args:
             docs: List[str], list of documents that is going to be added to the index
+            add_eos: bool, whether add the eos in the end
         """
         if isinstance(query, torch.Tensor):
             sentence_list = []
@@ -404,7 +409,7 @@ class DynamicFaissRetrievalService(RetrievalService):
                 text = self.tokenizer.ids_to_text(q)
                 sentence_list.append(text)
             query = sentence_list
-        data = {'sentences': query}
+        data = {'sentences': query, 'add_eos': add_eos}
         return request_data(data, PORT_NUM_DYN)
 
 
@@ -439,16 +444,17 @@ class ComboRetrievalService(RetrievalService):
             results.append(result)
         return np.concatenate(results, axis=1)
 
-    def add_docs_to_index(self, query: List[str]):
+    def add_docs_to_index(self, query: List[str], add_eos: bool=True):
         """
         Add documents to the Faiss index
         Args:
             docs: List[str], list of documents that is going to be added to the index
+            add_eos: bool, whether add the eos in the end
         """
         output = 'success'
         if not self.updatable:
             return output
         for i, service in enumerate(self.retrieval_services):
             if service.updatable:
-                service.add_docs_to_index(query)
+                service.add_docs_to_index(query, add_eos)
         return output

@@ -88,9 +88,10 @@ def get_retro_generation(
     return sentences[0], convert_retrieved_to_md(retrieved)
 
 
-def add_doc(doc):
+def add_doc(doc, add_eos):
     data = {
         "sentences": [doc],
+        "add_eos": add_eos,
     }
     return update_index(data)
 
@@ -163,11 +164,12 @@ def get_retro_demo(share, username, password):
                     minimum=0.0, maximum=1.0, value=0.5, label='Weight for the first Retrieval', step=0.02
                 )
                 add_retrival_doc = gr.Textbox(label="Add New Retrieval Doc", value="", lines=5,)
+                add_EOS = gr.Checkbox(label="Add EOS token to Retrieval Doc", value=True)
                 with gr.Row():
                     add_btn = gr.Button(value="Add")
                     reset_btn = gr.Button(value="Reset Index")
                 output_status = gr.Label(value='')
-                add_btn.click(add_doc, inputs=[add_retrival_doc,], outputs=[output_status])
+                add_btn.click(add_doc, inputs=[add_retrival_doc, add_EOS], outputs=[output_status])
                 reset_btn.click(reset_index, inputs=[], outputs=[output_status])
 
             with gr.Column(scale=1, min_width=800):
