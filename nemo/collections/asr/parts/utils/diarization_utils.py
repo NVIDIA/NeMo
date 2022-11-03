@@ -422,7 +422,7 @@ class OfflineDiarWithASR:
         logging.info(f"Loading LM for realigning: {self.realigning_lm_params['arpa_language_model']}")
         return arpa.loadf(self.realigning_lm_params['arpa_language_model'])[0]
 
-    def save_VAD_labels_list(self, word_ts_dict: Dict[str, Dict[str, List[float]]]):
+    def _save_VAD_labels_list(self, word_ts_dict: Dict[str, Dict[str, List[float]]]):
         """
         Take the non_speech labels from logit output. The logit output is obtained from
         `run_ASR` function.
@@ -487,7 +487,7 @@ class OfflineDiarWithASR:
         """
 
         if diar_model_config.diarizer.asr.parameters.asr_based_vad:
-            self.save_VAD_labels_list(word_timestamps)
+            self._save_VAD_labels_list(word_timestamps)
             oracle_manifest = os.path.join(self.root_path, 'asr_vad_manifest.json')
             oracle_manifest = write_rttm2manifest(self.VAD_RTTM_MAP, oracle_manifest)
             diar_model_config.diarizer.vad.model_path = None
@@ -496,7 +496,7 @@ class OfflineDiarWithASR:
         diar_model = ClusteringDiarizer(cfg=diar_model_config)
         score = diar_model.diarize()
         if diar_model_config.diarizer.vad.model_path is not None and not diar_model_config.diarizer.oracle_vad:
-            self.get_frame_level_VAD(
+            self._get_frame_level_VAD(
                 vad_processing_dir=diar_model.vad_pred_dir,
                 smoothing_type=diar_model_config.diarizer.vad.parameters.smoothing,
             )
@@ -508,13 +508,13 @@ class OfflineDiarWithASR:
             diar_hyp[uniq_id] = rttm_to_labels(pred_rttm)
         return diar_hyp, score
 
-    def get_frame_level_VAD(self, vad_processing_dir, smoothing_type=False):
+    def _get_frame_level_VAD(self, vad_processing_dir, smoothing_type=False):
         """
         Read frame-level VAD outputs.
 
         Args:
             vad_processing_dir (str):
-                The path where VAD results are saved.
+                Path to the directory where the VAD results are saved.
             smoothing_type (bool or str): [False, median, mean]
                 type of smoothing applied softmax logits to smooth the predictions.
         """
@@ -603,7 +603,7 @@ class OfflineDiarWithASR:
 
         return DER_result_dict
 
-    def get_the_closest_silence_start(
+    def _get_the_closest_silence_start(
         self, vad_index_word_end: float, vad_frames: np.ndarray, offset: int = 10
     ) -> float:
         """
@@ -663,7 +663,7 @@ class OfflineDiarWithASR:
                     len_to_next_word = round(word_ts_seq_list[k + 1][0] - word_ts[0] - 0.01, 2)
                     if uniq_id in self.frame_VAD:
                         vad_index_word_end = int(100 * word_ts[1])
-                        closest_sil_stt = self.get_the_closest_silence_start(
+                        closest_sil_stt = self._get_the_closest_silence_start(
                             vad_index_word_end, self.frame_VAD[uniq_id]
                         )
                         vad_est_len = round(closest_sil_stt - word_ts[0], 2)
