@@ -97,9 +97,7 @@ def add_doc(doc, add_eos):
 
 
 def reset_index():
-    data = {
-        "reset": True
-    }
+    data = {"reset": True}
     resp = requests.put('http://localhost:{}/knn'.format(PORT_NUM_DYN), data=json.dumps(data), headers=headers)
     output_json = resp.json()
     return output_json
