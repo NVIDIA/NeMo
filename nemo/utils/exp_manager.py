@@ -87,6 +87,7 @@ class CallbackParams:
     save_nemo_on_train_end: Optional[bool] = True  # Whether to automatically save .nemo file durin on_train_end hook
     model_parallel_size: Optional[int] = None  # tensor parallel size * pipeline parallel size
 
+
 @dataclass
 class MLFlowParams:
     # name of experiment, if none, defaults to the globally set experiment name
@@ -100,6 +101,7 @@ class MLFlowParams:
     artifact_location: Optional[str] = None
     # provide run_id if resuming a previously started run
     run_id: Optional[str] = None
+
 
 @dataclass
 class StepTimingParams:
