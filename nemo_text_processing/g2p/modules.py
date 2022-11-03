@@ -349,7 +349,7 @@ class IPAG2P(BaseG2p):
             )
 
         # word_tokenize_func returns a List[Tuple[Union[str, List[str]], bool]] where every tuple denotes
-        # a word representation (word or list tokens) and a flag indicating whether to process the output or
+        # a word representation (word or list tokens) and a flag indicating whether to process the word or
         # leave it unchanged.
         if locale == "en-US":
             word_tokenize_func = english_word_tokenize

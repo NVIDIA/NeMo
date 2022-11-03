@@ -157,7 +157,7 @@ class TestModules:
 
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
-    def test_ipa_g2p_ensupported_locale(self):
+    def test_ipa_g2p_unsupported_locale(self):
         with pytest.raises(ValueError, match="Unsupported locale"):
             self._create_g2p(locale="en-USA")
 
