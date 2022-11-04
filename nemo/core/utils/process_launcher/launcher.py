@@ -195,7 +195,7 @@ def launch(launcher, job_overrides: Sequence[Sequence[str]], initial_job_idx: in
     jobs_per_gpu = runner_cfg.get('jobs_per_gpu', 1)
 
     # Only GPUs are supported for now.
-    if num_gpus < 0:
+    if num_gpus <= 0:
         if torch.cuda.is_available():
             num_gpus = torch.cuda.device_count()
         else:
