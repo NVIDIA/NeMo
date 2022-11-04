@@ -144,9 +144,7 @@ def get_per_spk_hyp_transcripts(word_dict_seq_list: List[Dict[str, float]]) -> T
     return spk_hypothesis, mix_hypothesis
 
 
-def concat_perm_word_error_rate(
-    spk_hypothesis: List[str], spk_reference: List[str]
-) -> Tuple[float, str, str]:
+def concat_perm_word_error_rate(spk_hypothesis: List[str], spk_reference: List[str]) -> Tuple[float, str, str]:
     """
     Calculate a session-level concatenated minimum-permutation word error rate (cpWER) value. cpWER is
     a scoring method that can evaluate speaker diarization and speech recognition performance at the same time.
