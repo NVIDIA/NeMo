@@ -17,12 +17,20 @@ import json
 import gradio as gr
 import requests
 
-port_num = 5555
+from nemo.collections.nlp.modules.common.megatron.retrieval_service import PORT_NUM_DYN
+
+PORT_NUM = 5555
 headers = {"Content-Type": "application/json"}
 
 
-def request_data(data):
+def request_data(data, port_num=PORT_NUM):
     resp = requests.put('http://localhost:{}/generate'.format(port_num), data=json.dumps(data), headers=headers)
+    output_json = resp.json()
+    return output_json
+
+
+def update_index(data, port_num=PORT_NUM_DYN):
+    resp = requests.put('http://localhost:{}/knn'.format(port_num), data=json.dumps(data), headers=headers)
     output_json = resp.json()
     return output_json
 
@@ -57,7 +65,9 @@ def convert_retrieved_to_md(retrieved):
     return output_str
 
 
-def get_retro_generation(prompt, greedy, add_BOS, token_to_gen, min_tokens, temp, top_p, top_k, repetition, neighbors):
+def get_retro_generation(
+    prompt, greedy, add_BOS, token_to_gen, min_tokens, temp, top_p, top_k, repetition, neighbors, weights
+):
     data = {
         "sentences": [prompt],
         "tokens_to_generate": int(token_to_gen),
@@ -70,11 +80,27 @@ def get_retro_generation(prompt, greedy, add_BOS, token_to_gen, min_tokens, temp
         "repetition_penalty": repetition,
         "min_tokens_to_generate": int(min_tokens),
         "neighbors": int(neighbors),
+        "weights": weights,
     }
     output_json = request_data(data)
     sentences = output_json['sentences']
     retrieved = output_json['retrieved']
     return sentences[0], convert_retrieved_to_md(retrieved)
+
+
+def add_doc(doc, add_eos):
+    data = {
+        "sentences": [doc],
+        "add_eos": add_eos,
+    }
+    return update_index(data)
+
+
+def reset_index():
+    data = {"reset": True}
+    resp = requests.put('http://localhost:{}/knn'.format(PORT_NUM_DYN), data=json.dumps(data), headers=headers)
+    output_json = resp.json()
+    return output_json
 
 
 def get_demo(share, username, password):
@@ -132,6 +158,18 @@ def get_retro_demo(share, username, password):
                     minimum=0.0, maximum=5.0, step=0.02, value=1.2, label='Repetition penalty'
                 )
                 k_neighbors = gr.Slider(minimum=0, maximum=50, step=1, value=2, label='Retrieved Documents')
+                weights = gr.Slider(
+                    minimum=0.0, maximum=1.0, value=0.5, label='Weight for the first Retrieval', step=0.02
+                )
+                add_retrival_doc = gr.Textbox(label="Add New Retrieval Doc", value="", lines=5,)
+                add_EOS = gr.Checkbox(label="Add EOS token to Retrieval Doc", value=True)
+                with gr.Row():
+                    add_btn = gr.Button(value="Add")
+                    reset_btn = gr.Button(value="Reset Index")
+                output_status = gr.Label(value='')
+                add_btn.click(add_doc, inputs=[add_retrival_doc, add_EOS], outputs=[output_status])
+                reset_btn.click(reset_index, inputs=[], outputs=[output_status])
+
             with gr.Column(scale=1, min_width=800):
                 input_prompt = gr.Textbox(
                     label="Input",
@@ -154,6 +192,7 @@ def get_retro_demo(share, username, password):
                         top_k,
                         repetition_penality,
                         k_neighbors,
+                        weights,
                     ],
                     outputs=[output_box, output_retrieval],
                 )
