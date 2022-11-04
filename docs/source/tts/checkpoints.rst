@@ -79,7 +79,11 @@ There are multiple TTS tutorials provided in the directory of `tutorials/tts/ <h
 NGC TTS Models
 -----------------------------------
 
-Below summarizes a full list of available NeMo TTS models that have been released in `NGC NeMo Text to Speech Collection <https://catalog.ngc.nvidia.com/orgs/nvidia/collections/nemo_tts/entities>`_.
+This section summarizes a full list of available NeMo TTS models that have been released in `NGC NeMo Text to Speech Collection <https://catalog.ngc.nvidia.com/orgs/nvidia/collections/nemo_tts/entities>`_. You can download model checkpoints of your interest via either way below,
+
+* :code:`wget '<CHECKPOINT_URL_IN_THE_TABLE>'`
+* :code:`curl -LO '<CHECKPOINT_URL_IN_THE_TABLE>'`
+
 
 Speech/Text Aligners
 ^^^^^^^^^^^^^^^^^^^^
