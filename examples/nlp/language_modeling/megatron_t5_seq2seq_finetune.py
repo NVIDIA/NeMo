@@ -20,6 +20,7 @@ from pytorch_lightning.callbacks.timer import Timer
 from pytorch_lightning.plugins.environments.torchelastic_environment import TorchElasticEnvironment
 from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
 
+from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.models.language_modeling.megatron_finetune_model import MegatronT5FinetuneModel
 from nemo.collections.nlp.models.language_modeling.megatron_glue_model import MegatronT5GLUEModel
 from nemo.collections.nlp.models.language_modeling.megatron_t0_model import MegatronT0Model
@@ -36,6 +37,10 @@ from nemo.utils.exp_manager import StatelessTimer, exp_manager
 from nemo.utils.model_utils import inject_model_parallel_rank
 
 def _modify_config(t5_cfg, cfg, add_cfg_to_tree=False):
+    """
+    This function modifies the original t5 pre-training config (t5_cfg) with attributes from the finetuning config (cfg).
+    The `add_cfg_to_tree` arg adds `cfg` to the top of the yaml tree which is needed for all `hparams.yaml` files when passed as an arg to `load_from_checkpoint()`.
+    """
     OmegaConf.set_struct(t5_cfg, True)
     with open_dict(t5_cfg):
         t5_cfg.megatron_amp_O2 = cfg.model.get('megatron_amp_O2', False)
@@ -69,7 +74,8 @@ def _modify_config(t5_cfg, cfg, add_cfg_to_tree=False):
 
     return t5_cfg
 
-def load_from_nemo(cls, restore_from_path, trainer, t5_cfg):
+def load_from_nemo(cls, cfg, trainer, t5_cfg):
+    t5_cfg = _modify_config(t5_cfg, cfg, add_cfg_to_tree=False)
     model = cls.restore_from(
         restore_path=cfg.model.restore_from_path,
         trainer=trainer,
@@ -81,7 +87,7 @@ def load_from_nemo(cls, restore_from_path, trainer, t5_cfg):
 def load_from_checkpoint_dir(cls, cfg, trainer):
     app_state = AppState()
     if cfg.model.tensor_model_parallel_size > 1 or cfg.model.pipeline_model_parallel_size > 1:
-        app_state.model_parallel_size = cfg.model.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
+        app_state.model_parallel_size = cfg.model.tensor_model_parallel_size * cfg.model.pipeline_model_parallel_size
         app_state.tensor_model_parallel_size = cfg.model.tensor_model_parallel_size
         app_state.pipeline_model_parallel_size = cfg.model.pipeline_model_parallel_size
         (
@@ -155,52 +161,28 @@ def main(cfg) -> None:
         if isinstance(callback, Timer):
             trainer.callbacks[idx] = StatelessTimer(cfg.trainer.max_time,)
 
-    '''
-    # Get the T5 Base configuration.
-    t5_cfg = MegatronT5FinetuneModel.restore_from(
-        restore_path=cfg.model.restore_from_path, trainer=trainer, return_config=True
-    )
-
-    # Override the T5 configuration with the one from the config file.
-    OmegaConf.set_struct(t5_cfg, True)
-    with open_dict(t5_cfg):
-        t5_cfg.megatron_amp_O2 = cfg.model.get('megatron_amp_O2', False)
-        if hasattr(t5_cfg, 'encoder') and hasattr(t5_cfg, 'decoder'):
-            t5_cfg.encoder.masked_softmax_fusion = False
-            t5_cfg.decoder.masked_softmax_fusion = False
-            t5_cfg.encoder.hidden_dropout = cfg.model.get('hidden_dropout', 0.1)
-            t5_cfg.decoder.hidden_dropout = cfg.model.get('hidden_dropout', 0.1)
-            if hasattr(t5_cfg.encoder, 'ffn_dropout'):
-                t5_cfg.encoder.ffn_dropout = cfg.model.get('ffn_dropout', 0.1)
-            if hasattr(t5_cfg.decoder, 'ffn_dropout'):
-                t5_cfg.decoder.ffn_dropout = cfg.model.get('ffn_dropout', 0.1)
-        else:
-            t5_cfg.hidden_dropout = cfg.model.get('hidden_dropout', 0.1)
-            t5_cfg.attention_dropout = cfg.model.get('attention_dropout', 0.1)
-            t5_cfg.masked_softmax_fusion = False
-        t5_cfg.data = cfg.model.data
-        t5_cfg.precision = cfg.trainer.precision
-        t5_cfg.optim = cfg.model.optim
-        t5_cfg.micro_batch_size = cfg.model.data.train_ds.micro_batch_size
-        t5_cfg.global_batch_size = cfg.model.data.train_ds.global_batch_size
-        # XNLI has eval languages in the yaml config.
-        if hasattr(cfg.model, 'eval_languages'):
-            t5_cfg.eval_languages = cfg.model.eval_languages
-    '''
-
     if hasattr(cfg.model.data.train_ds, 'task_name'):
         if cfg.model.restore_from_path:
-            model = load_from_nemo(MegatronT5GLUEModel, cfg.model.restore_from_path, trainer, t5_cfg)
+            t5_cfg = MegatronT5GLUEModel.restore_from(
+               restore_path=cfg.model.restore_from_path, trainer=trainer, return_config=True
+            )
+            model = load_from_nemo(MegatronT5GLUEModel, cfg, trainer, t5_cfg)
         else:
             model = load_from_checkpoint_dir(MegatronT5GLUEModel, cfg, trainer)
     elif hasattr(cfg.model.data.train_ds, 'file_names'):
         if cfg.model.restore_from_path:
-            model = load_from_nemo(MegatronT0Model, cfg.model.restore_from_path, trainer, t5_cfg)
+            t5_cfg = MegatronT0Model.restore_from(
+               restore_path=cfg.model.restore_from_path, trainer=trainer, return_config=True
+            )
+            model = load_from_nemo(MegatronT0Model, cfg, trainer, t5_cfg)
         else:
             model = load_from_checkpoint_dir(MegatronT0Model, cfg, trainer, t5_cfg)
     else:
         if cfg.model.restore_from_path:
-            model = load_from_nemo(MegatronT5FinetuneModel, cfg.model.restore_from_path, trainer, t5_cfg)
+            t5_cfg = MegatronT5FinetuneModel.restore_from(
+               restore_path=cfg.model.restore_from_path, trainer=trainer, return_config=True
+            )
+            model = load_from_nemo(MegatronT5FinetuneModel, cfg, trainer, t5_cfg)
         else:
             model = load_from_checkpoint_dir(MegatronT5FinetuneModel, cfg, trainer, t5_cfg)
 
