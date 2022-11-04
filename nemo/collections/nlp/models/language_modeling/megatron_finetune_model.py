@@ -42,6 +42,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer=trainer)
+        import ipdb; ipdb.set_trace()
         self.val_metric, self.val_metric_name = self.setup_metric(self.cfg.data.validation_ds)
         self.val_metric = torch.nn.ModuleList(self.val_metric)
         if hasattr(self.cfg.data, "test_ds"):
