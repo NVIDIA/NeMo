@@ -1124,7 +1124,7 @@ class OfflineDiarWithASR:
                 Input transcript with speaker labels
             max_chars_in_line (int):
                 Maximum characters in each line
-        
+
         Returns:
             return_string_out (str):
                 String variable containing line breaking
