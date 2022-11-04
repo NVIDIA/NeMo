@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+from contextlib import nullcontext
 from enum import Enum
 from typing import Callable, Dict, Optional, Type
 
@@ -43,6 +44,18 @@ _EXT_DICT = {
     ".ts": ExportFormat.TORCHSCRIPT,
     ".onnx": ExportFormat.ONNX,
 }
+
+
+def avoid_bfloat16_autocast_context():
+    """
+    If the current autocast context is bfloat16,
+    cast it to float32
+    """
+
+    if torch.is_autocast_enabled() and torch.get_autocast_gpu_dtype() == torch.bfloat16:
+        return torch.cuda.amp.autocast(dtype=torch.float32)
+    else:
+        return nullcontext()
 
 
 def avoid_float16_autocast_context():
