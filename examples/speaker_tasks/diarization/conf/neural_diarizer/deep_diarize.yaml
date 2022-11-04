@@ -53,7 +53,7 @@ model:
     num_workers: ${num_workers}
     int_values: False
     batch_size: 32
-    tarred: True
+    tarred: False
     shuffle: False
 
   validation_ds:
@@ -92,18 +92,18 @@ model:
 
   optim:
     name: fused_adam
-    lr: 1e-5
+    lr: 3e-5
     weight_decay: 0.001
 
     sched:
       name: CosineAnnealing
-      warmup_ratio: 0.1
+      warmup_ratio: 0.01
       min_lr: 0.0
 
 trainer:
   devices: -1 # number of gpus (devices)
   accelerator: gpu
-  max_steps: 1000000
+  max_steps: 500000
   num_nodes: 1
   strategy: ddp_find_unused_parameters_false
   enable_checkpointing: False

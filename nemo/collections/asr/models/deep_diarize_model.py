@@ -28,7 +28,7 @@ from nemo.collections.asr.data.deep_diarize.train_tarred_data import TarredRTTMS
 from nemo.collections.asr.metrics.der import DER
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.modules.deep_diarize_transformer import TransformerXL
-from nemo.collections.asr.modules.transformer import PerceiverEncoder, TransformerDecoder
+from nemo.collections.asr.modules.transformer import PerceiverEncoder, TransformerDecoder, TransformerEncoder
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.submodules.subsampling import ConvSubsampling
 from nemo.core import PretrainedModelInfo
@@ -60,30 +60,32 @@ class DiarizeTransformerXLDecoder(torch.nn.Module):
         )
 
         self.projection = torch.nn.Linear(hidden_dim, 1)
+        self.sigmoid = torch.nn.Sigmoid()
 
-    def forward(self, attractors: torch.Tensor, encoded_xl_features: torch.Tensor):
+    def forward(self, attractors: torch.Tensor, encoded_xl_features: torch.Tensor) -> torch.Tensor:
         B, K, H = attractors.size()
-        N = self.seq_len
-        attractors = attractors.view(B * K, 1, H).expand(-1, N, -1)
+        N = encoded_xl_features.size(1)
+        # [B, K, H] -> [B * K, N, H]
+        attractors = attractors.view(B, K, 1, H).expand(-1, -1, N, -1).reshape(B * K, N, H)
         attractors_mask = torch.ones(B * K, N).to(attractors.device)
 
         # [B, N, H] -> [B, K, N, H]
-        transformer_xl_encoded_features = encoded_xl_features.view(B, 1, N, H).expand(-1, self.num_speakers, -1, -1)
+        transformer_xl_encoded_features = encoded_xl_features.view(B, 1, N, H).expand(-1, K, -1, -1)
         # [B, K, N, H] -> [B * K, N, H]
         transformer_xl_encoded_features = transformer_xl_encoded_features.reshape(B * K, N, H)
         encoder_mask = torch.ones(B * K, N).to(attractors.device)
 
         output = self.decoder(
-            decoder_states=attractors,  # [B, K, H] -> [B * K, N, H]
+            decoder_states=attractors,
             decoder_mask=attractors_mask,
-            encoder_states=transformer_xl_encoded_features,  # [B, N, H] -> [B * K, N, H]
+            encoder_states=transformer_xl_encoded_features,
             encoder_mask=encoder_mask,
             encoder_diagonal=0,
         )
 
         # [B * K, N, H] -> [B * K, N] reshape to [B, N, K]
-        activities = self.projection(output).view(B, N, K)
-        return activities.sigmoid()
+        activities = self.projection(output).view(B, K, N).transpose(1, 2)
+        return self.sigmoid(activities)
 
 
 class DeepDiarizeModel(ModelPT):
@@ -207,11 +209,9 @@ class DeepDiarizeModel(ModelPT):
         if self.mask_mem:
             self._mask_mems(memory_reset)
         encoded_xl_features, self.mems = self.transformer_feature_encoder(sub_sample_x, mems=self.mems)
-
-        seq_mask = torch.ones(sub_sample_x.size(0), sub_sample_x.size(1)).to(self.device)
+        seq_mask = torch.ones(encoded_xl_features.size(0), encoded_xl_features.size(1)).to(self.device)
         # shuffle frames before generating attractors
-        attractors, _ = self.eda_module(self._shuffle(sub_sample_x, dim=1), seq_mask)
-
+        attractors, _ = self.eda_module(self._shuffle(encoded_xl_features, dim=1), seq_mask)
         speaker_outputs = self.decoder(attractors, encoded_xl_features)
 
         if self.cfg.permute:
@@ -251,9 +251,6 @@ class DeepDiarizeModel(ModelPT):
         loss = self.loss(logits, y.unsqueeze(0))
         # calculate the loss after we flipped the speaker labels as well
         invert_loss = self.loss(logits, torch.flip(y, dims=(-1,)).unsqueeze(0))
-        if self.cfg.focal:
-            loss = loss.mean()
-            invert_loss = invert_loss.mean()
         # take the minimum loss
         loss = min(loss, invert_loss)
         return loss
