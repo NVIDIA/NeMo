@@ -143,6 +143,7 @@ def get_per_spk_hyp_transcripts(word_dict_seq_list: List[Dict[str, float]]) -> T
     mix_hypothesis = " ".join(mix_hypothesis)
     return spk_hypothesis, mix_hypothesis
 
+
 def concat_perm_word_error_rate(
     spk_hypothesis: List[List[str]], spk_reference: List[List[str]]
 ) -> Tuple[float, str, str]:
@@ -720,7 +721,9 @@ class OfflineDiarWithASR:
 
         for k, audio_file_path in enumerate(self.audio_file_list):
             uniq_id = get_uniqname_from_filepath(audio_file_path)
-            word_dict_seq_list = self._get_word_dict_seq_list(uniq_id, diar_hyp, word_hyp, word_ts_hyp, word_ts_refined)
+            word_dict_seq_list = self._get_word_dict_seq_list(
+                uniq_id, diar_hyp, word_hyp, word_ts_hyp, word_ts_refined
+            )
             if self.realigning_lm:
                 word_dict_seq_list = self.realign_words_with_lm(word_dict_seq_list)
             trans_info_dict = self._make_json_output(uniq_id, diar_hyp, word_dict_seq_list, trans_info_dict)
