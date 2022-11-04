@@ -145,7 +145,7 @@ def get_per_spk_hyp_transcripts(word_dict_seq_list: List[Dict[str, float]]) -> T
 
 
 def concat_perm_word_error_rate(
-    spk_hypothesis: List[List[str]], spk_reference: List[List[str]]
+    spk_hypothesis: List[str], spk_reference: List[str]
 ) -> Tuple[float, str, str]:
     """
     Calculate a session-level concatenated minimum-permutation word error rate (cpWER) value. cpWER is
@@ -166,7 +166,7 @@ def concat_perm_word_error_rate(
           (also known as Hungarian algorithm) to find the permutation that leads to the lowest WER.
         - In this implementation, instead of calculating all WER values for all permutation of hypotheses,
           we only calculate WER values of (estimated number of speakers) x (reference number of speakers)
-          combinations with O(n^2)) time complexity and then select the permutation that yields the lowest
+          combinations with `O(n^2)`) time complexity and then select the permutation that yields the lowest
           WER based on LSA algorithm.
         - LSA algorithm has `O(n^3)` time complexity in the worst case.
         - Note that we discard redundant speakers when the number of the estimated speakers are larger than
@@ -198,14 +198,11 @@ def concat_perm_word_error_rate(
     """
     ref_word_list = []
 
-    # Concatenate the hypothesis transcripts into a list
-    for spk_id, word_list in enumerate(spk_reference):
-        ref_word_list.append(word_list)
-    ref_trans = " ".join(ref_word_list)
-
-    hyp_ref_pair = [spk_hypothesis, spk_reference]
+    # Concatenate the reference transcripts into a string variable
+    ref_trans = " ".join(spk_reference)
 
     # Get all pairs of (estimated num of spks) x (reference num of spks) combinations
+    hyp_ref_pair = [spk_hypothesis, spk_reference]
     all_pairs = list(itertools.product(*hyp_ref_pair))
 
     # Calculate WER for each speaker in hypothesis with reference
