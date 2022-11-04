@@ -15,10 +15,7 @@ import numpy as np
 import torch
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import (
-    get_samples_mapping,
-    make_text_memmap_bin_compatibility,
-)
+from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import get_samples_mapping
 from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import JSONLMemMapDataset, TextMemMapDataset
 from nemo.core.classes import Dataset
 
@@ -58,10 +55,6 @@ class T0Dataset(Dataset):
         self.seed = seed
 
         self.indexed_dataset = JSONLMemMapDataset(dataset_paths=[file_path], tokenizer=None)
-
-        # Create compatibility with Megatron samples mapping
-        if self.max_num_samples is not None:
-            make_text_memmap_bin_compatibility(self.indexed_dataset)
 
         # Will be None after this call if `max_num_samples` is None
         self._build_samples_mapping()
