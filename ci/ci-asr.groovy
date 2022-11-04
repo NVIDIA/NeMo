@@ -54,7 +54,7 @@ spec:
                     checkout changelog: true, poll: true, scm: [$class: 'GitSCM', branches: [[name: "pr/"+githubHelper.getPRNumber()]],
                     doGenerateSubmoduleConfigurations: false,
                     submoduleCfg: [],
-                    userRemoteConfigs: [[credentialsId: 'github-token', url: githubHelper.getCloneUrl(), refspec: '+refs/pull/*/head:refs/remotes/origin/pr/*']]]
+                    userRemoteConfigs: [[credentialsId: 'github-token', url: githubHelper.getCloneUrl(), refspec: '+refs/pull/'+githubHelper.getPRNumber()+'/head:refs/remotes/origin/pr/'+githubHelper.getPRNumber()]]]
                 }
 
                 stage('Code Requirements') {
