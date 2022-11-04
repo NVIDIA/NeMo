@@ -54,35 +54,51 @@ def main(cfg: DictConfig) -> None:
         raise ValueError("A pre-trained model should be provided.")
     _, model = instantiate_model_and_trainer(cfg, MODEL, False)
 
-    text_file = cfg.inference.from_file
-    logging.info(f"Running inference on {text_file}...")
-    if not os.path.exists(text_file):
-        raise ValueError(f"{text_file} not found.")
+    input_filenames = []
+    output_filenames = []
 
-    with open(text_file, "r", encoding="utf-8") as f:
-        lines = f.readlines()
+    if "from_filelist" in cfg.inference and "output_folder" in cfg.inference:
+        filelist_file = cfg.inference.from_filelist
+        output_folder = cfg.inference.output_folder
+        with open(filelist_file, "r", encoding="utf-8") as f:
+            for line in f:
+                path = line.strip()
+                input_filenames.append(path)
+                folder, name = os.path.split(path)
+                output_filenames.append(os.path.join(output_folder, name))
+    else:
+        text_file = cfg.inference.from_file
+        logging.info(f"Running inference on {text_file}...")
+        if not os.path.exists(text_file):
+            raise ValueError(f"{text_file} not found.")
+        input_filenames.append(text_file)
+        output_filenames.append(cfg.inference.out_file) 
 
     batch_size = cfg.inference.get("batch_size", 8)
 
-    batch, all_preds = [], []
-    for i, line in enumerate(lines):
-        batch.append(line.strip())
-        if len(batch) == batch_size or i == len(lines) - 1:
-            outputs = model._infer(batch)
-            for x in outputs:
-                all_preds.append(x)
-            batch = []
-    if len(all_preds) != len(lines):
-        raise ValueError(
-            "number of input lines and predictions is different: predictions="
-            + str(len(all_preds))
-            + "; lines="
-            + str(len(lines))
-        )
-    out_file = cfg.inference.out_file
-    with open(f"{out_file}", "w", encoding="utf-8") as f_out:
-        f_out.write("\n".join(all_preds))
-    logging.info(f"Predictions saved to {out_file}.")
+    for input_filename, output_filename in zip(input_filenames, output_filenames):
+
+        with open(input_filename, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+
+        batch, all_preds = [], []
+        for i, line in enumerate(lines):
+            batch.append(line.strip())
+            if len(batch) == batch_size or i == len(lines) - 1:
+                outputs = model._infer(batch)
+                for x in outputs:
+                    all_preds.append(x)
+                batch = []
+        if len(all_preds) != len(lines):
+            raise ValueError(
+                "number of input lines and predictions is different: predictions="
+                + str(len(all_preds))
+                + "; lines="
+                + str(len(lines))
+            )
+        with open(output_filename, "w", encoding="utf-8") as f_out:
+            f_out.write("\n".join(all_preds))
+        logging.info(f"Predictions saved to {output_filename}.")
 
 
 if __name__ == "__main__":
