@@ -161,8 +161,8 @@ def concat_perm_word_error_rate(
         https://arxiv.org/pdf/2004.09249.pdf
 
     Implementation:
-        - Brute force permutation method for calculating cpWER has time complexity of `O(n!)`.
-        - To reduce the computaional burden, linear sum assignment (LSA) algorithm is applied
+        - Brute force permutation method for calculating cpWER has a time complexity of `O(n!)`.
+        - To reduce the computational burden, linear sum assignment (LSA) algorithm is applied
           (also known as Hungarian algorithm) to find the permutation that leads to the lowest WER.
         - In this implementation, instead of calculating all WER values for all permutation of hypotheses,
           we only calculate WER values of (estimated number of speakers) x (reference number of speakers)
@@ -243,7 +243,7 @@ def calculate_total_WER(
     Args:
         word_seq_lists (list):
             List containing multiple lists of dictionaries containing word, word timestamp and speaker label.
-            The dictionary has following keys: `word`, `start_time`, `end_time` and `speaker_label`.
+            The dictionary has the following keys: `word`, `start_time`, `end_time` and `speaker_label`.
 
             Example:
             >>> word_dict_seq_list = \
@@ -1263,7 +1263,7 @@ class OfflineDiarWithASR:
     @staticmethod
     def get_audacity_label(word: str, stt_sec: float, end_sec: float, speaker: str) -> str:
         """
-        Get a sting formatted line for Audacity label.
+        Get a string formatted line for Audacity label.
 
         Args:
             word (str):
