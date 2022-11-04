@@ -108,7 +108,7 @@ def exportable_ScaledMaskedSoftmax(input, mask, scale):
 def get_export_format(filename: str):
     _, ext = os.path.splitext(filename)
     try:
-        return _EXT_DICT[ext]
+        return _EXT_DICT[ext.lower()]
     except KeyError:
         raise ValueError(f"Export file {filename} extension does not correspond to any export format!")
 
@@ -186,12 +186,10 @@ def verify_runtime(model, output, input_examples, input_names, check_tolerance=0
         logging.warning(f"ONNX generated at {output}, not verified - please install onnxruntime_gpu package.\n")
         onnx.checker.check_model(onnx_model, full_check=True)
         return
-
+    del onnx_model
     onnx_session_opt = onnxruntime.SessionOptions()
     onnx_session_opt.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
-    sess = onnxruntime.InferenceSession(
-        onnx_model.SerializeToString(), sess_options=onnx_session_opt, providers=['CUDAExecutionProvider']
-    )
+    sess = onnxruntime.InferenceSession(output, sess_options=onnx_session_opt, providers=['CUDAExecutionProvider'])
     all_good = True
     for input_example in input_examples:
         input_list, input_dict = parse_input_example(input_example)
@@ -241,7 +239,7 @@ apex_available = True
 try:
     from apex.normalization.fused_layer_norm import FusedLayerNorm, MixedFusedLayerNorm
     from apex.contrib.layer_norm.layer_norm import FastLayerNorm
-    from apex.transformer.tensor_parallel.layers import RowParallelLinear
+    from apex.transformer.tensor_parallel.layers import RowParallelLinear, ColumnParallelLinear
     from apex.transformer.functional.fused_softmax import FusedScaleMaskSoftmax
 
     def replace_FusedLayerNorm(n: nn.Module) -> Optional[nn.BatchNorm2d]:
@@ -287,6 +285,24 @@ try:
         mod.load_state_dict(n_state)
         return mod
 
+    def replace_ParallelLinear(n: nn.Module) -> Optional[nn.Linear]:
+        """
+        Replaces Apex's ColumnParallelLinear or RowParallelLinear with nn.Linear
+        Args:
+           n: the nn.Module pytorch module to replace
+        Returns:
+           Equivalent Linear module
+        """
+        if not (isinstance(n, ColumnParallelLinear) or isinstance(n, RowParallelLinear)):
+            raise ValueError("This function can only change the ColumnParallelLinear or RowParallelLinear module.")
+
+        dev = next(n.parameters()).device
+        mod = LinearWithBiasSkip(n.weight, n.bias, n.skip_bias_add).to(dev)
+
+        n_state = n.state_dict()
+        mod.load_state_dict(n_state)
+        return mod
+
     def replace_FusedScaleMaskSoftmax(n: nn.Module) -> Optional[nn.Linear]:
         """
         Replaces Apex's FusedScaleMaskSoftmax with nn.LayerNorm. This is required for ONNX export.
@@ -309,7 +325,8 @@ try:
         "FusedLayerNorm": replace_FusedLayerNorm,
         "MixedFusedLayerNorm": replace_FusedLayerNorm,
         "FastLayerNorm": replace_FusedLayerNorm,
-        "RowParallelLinear": replace_RowParallelLinear,
+        "RowParallelLinear": replace_ParallelLinear,
+        "ColumnParallelLinear": replace_ParallelLinear,
         "FusedScaleMaskSoftmax": replace_FusedScaleMaskSoftmax,
     }
 

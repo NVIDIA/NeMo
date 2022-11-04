@@ -487,13 +487,10 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         return averaged_loss, averaged_metric
 
     def write_predictions_to_file(self, outputs, output_file_path_prefix):
-        with open(output_file_path_prefix + "_inputs_preds_labels.json", "w") as f_json:
-            json_output = {
-                "inputs": outputs["inputs"],
-                "preds": outputs["preds"],
-                "labels": outputs["labels"],
-            }
-            json.dump(json_output, f_json)
+        with open(output_file_path_prefix + "_inputs_preds_labels.jsonl", "w") as f_json:
+            assert len(outputs['inputs']) == len(outputs['preds']) == len(outputs['labels'])
+            for i, p, l in zip(outputs['inputs'], outputs['preds'], outputs['labels']):
+                f_json.write(json.dumps({'input': i, 'pred': p, 'label': l}) + '\n')
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         return self.inference_step(batch, batch_idx, 'validation', dataloader_idx)
