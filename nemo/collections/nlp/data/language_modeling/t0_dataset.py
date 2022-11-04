@@ -54,7 +54,7 @@ class T0Dataset(Dataset):
         self.max_num_samples = max_num_samples
         self.seed = seed
 
-        self.indexed_dataset = JSONLMemMapDataset(dataset_paths=[file_path], tokenizer=None)
+        self.indexed_dataset = JSONLMemMapDataset(dataset_paths=[file_path], tokenizer=None, header_lines=0)
 
         # Will be None after this call if `max_num_samples` is None
         self._build_samples_mapping()
