@@ -12,13 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytest
+from itertools import permutations
+
 import numpy as np
+import pytest
 import torch
 
-from nemo.collections.asr.parts.utils.diarization_utils import concat_perm_word_error_rate
 from nemo.collections.asr.metrics.wer import word_error_rate
-from itertools import permutations
+from nemo.collections.asr.parts.utils.diarization_utils import concat_perm_word_error_rate
+
 
 def perm_concat_perm_word_error_rate(spk_hypothesis, spk_reference):
     """
@@ -47,12 +49,15 @@ def perm_concat_perm_word_error_rate(spk_hypothesis, spk_reference):
     cpWER = p_wer_list[argmin_idx]
     return cpWER, min_perm_hyp_trans, ref_trans
 
+
 def calculate_wer_count(_ins, _del, _sub, ref_word_count):
-    return ((_ins + _del + _sub)/ ref_word_count)
+    return (_ins + _del + _sub) / ref_word_count
+
 
 def word_count_ref(ref):
-    return sum([ len(w.split()) for w in ref])
-   
+    return sum([len(w.split()) for w in ref])
+
+
 def permuted_input_test(hyp, ref, calculated):
     """
     Randomly permute the input to see if evaluation result stays the same.
@@ -61,6 +66,7 @@ def permuted_input_test(hyp, ref, calculated):
         cpWER, hyp_min, ref_str = concat_perm_word_error_rate(spk_hypothesis=hyp, spk_reference=ref)
         diff = torch.abs(torch.tensor(calculated - cpWER))
         assert diff <= 1e-6
+
 
 class TestConcatMinPermWordErrorRate:
     @pytest.mark.unit
@@ -77,7 +83,7 @@ class TestConcatMinPermWordErrorRate:
         cpWER_perm, hyp_min_perm, ref_str = perm_concat_perm_word_error_rate(spk_hypothesis=hyp, spk_reference=ref)
         diff = torch.abs(torch.tensor(cpWER_perm - cpWER))
         assert diff <= 1e-6
-        
+
         # Test with a substitution
         hyp = ["wrongword"]
         _ins, _del, _sub = 0, 0, 1
@@ -102,7 +108,7 @@ class TestConcatMinPermWordErrorRate:
 
     @pytest.mark.unit
     def test_cpwer_ex1(self):
-        hyp = ["aa bb c ff", "dd e ii jj kk", "hi"]   
+        hyp = ["aa bb c ff", "dd e ii jj kk", "hi"]
         ref = ["aa bb cc ff", "dd ee gg jj kk", "hh ii"]
         _ins, _del, _sub = 0, 1, 4
         cpWER, hyp_min, ref_str = concat_perm_word_error_rate(spk_hypothesis=hyp, spk_reference=ref)
@@ -114,7 +120,7 @@ class TestConcatMinPermWordErrorRate:
         cpWER_perm, hyp_min_perm, ref_str = perm_concat_perm_word_error_rate(spk_hypothesis=hyp, spk_reference=ref)
         diff = torch.abs(torch.tensor(cpWER_perm - cpWER))
         assert diff <= 1e-6
-    
+
     @pytest.mark.unit
     def test_cpwer_ex2(self):
         hyp = ["aa bb cc dd ii", "ff gg hh nn", "ee jj kk ll mm"]
@@ -129,7 +135,7 @@ class TestConcatMinPermWordErrorRate:
         cpWER_perm, hyp_min_perm, ref_str = perm_concat_perm_word_error_rate(spk_hypothesis=hyp, spk_reference=ref)
         diff = torch.abs(torch.tensor(cpWER_perm - cpWER))
         assert diff <= 1e-6
-        
+
     @pytest.mark.unit
     def test_cpwer_ex3(self):
         hyp = ["aa bb cc", "dd ee", "gg", "hh ii", "jj kk"]
@@ -144,7 +150,7 @@ class TestConcatMinPermWordErrorRate:
         cpWER_perm, hyp_min_perm, ref_str = perm_concat_perm_word_error_rate(spk_hypothesis=hyp, spk_reference=ref)
         diff = torch.abs(torch.tensor(cpWER_perm - cpWER))
         assert diff <= 1e-6
-    
+
     @pytest.mark.unit
     def test_cpwer_ex4(self):
         hyp = ["aa bb cc", "dd ee", "ff gg hh", "ii jj kk"]
@@ -156,4 +162,3 @@ class TestConcatMinPermWordErrorRate:
         diff = torch.abs(torch.tensor(calculated - cpWER))
         assert diff <= 1e-6
         permuted_input_test(hyp, ref, calculated)
-    
