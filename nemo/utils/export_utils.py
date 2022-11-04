@@ -45,6 +45,24 @@ _EXT_DICT = {
 }
 
 
+def avoid_float16_autocast_context():
+    """
+    If the current autocast context is float16, cast it to bfloat16
+    if available (unless we're in jit) or float32
+    """
+
+    if torch.is_autocast_enabled() and torch.get_autocast_gpu_dtype() == torch.float16:
+        if torch.jit.is_scripting() or torch.jit.is_tracing():
+            return torch.cuda.amp.autocast(dtype=torch.float32)
+
+        if torch.cuda.is_bf16_supported():
+            return torch.cuda.amp.autocast(dtype=torch.bfloat16)
+        else:
+            return torch.cuda.amp.autocast(dtype=torch.float32)
+    else:
+        return nullcontext()
+
+
 def cast_tensor(x, from_dtype=torch.float16, to_dtype=torch.float32):
     return x.to(dtype=to_dtype) if x.dtype == from_dtype else x
 
@@ -69,7 +87,8 @@ class CastToFloat(nn.Module):
 
     def forward(self, x):
         if torch.is_autocast_enabled():
-            ret = self.mod.forward(x.to(torch.float32)).to(x.dtype)
+            with avoid_float16_autocast_context():
+                ret = self.mod.forward(x.to(torch.float32)).to(x.dtype)
         else:
             ret = self.mod.forward(x)
         return ret
