@@ -64,7 +64,8 @@ def _modify_config(t5_cfg, cfg, add_cfg_to_tree=False):
         # This is needed when modifying a hparam file directly to load `.ckpt` files.
         # This is not needed to modify the cfg in `.nemo` files.
         if add_cfg_to_tree:
-            t5_cfg.cfg = cfg
+            OmegaConf.resolve(t5_cfg)
+            t5_cfg.cfg = t5_cfg
 
     return t5_cfg
 
