@@ -205,10 +205,11 @@ def build_map_dataset_to_nemo_func(cfg: HFDatasetConvertionConfig, basedir):
         batch['audio_filepath'] = os.path.abspath(os.path.join(basedir, batch['audio_filepath']))
         audio_filepath = batch['audio_filepath']
         audio_filepath = prepare_audio_filepath(audio_filepath)
+        batch['audio_filepath'] = audio_filepath  # update filepath with prepared path
 
         soundfile.write(audio_filepath, batch['audio']['array'], samplerate=cfg.sampling_rate, format='wav')
 
-        batch['duration'] = librosa.get_duration(batch['audio']['array'], sr=batch['audio']['sampling_rate'])
+        batch['duration'] = librosa.get_duration(y=batch['audio']['array'], sr=batch['audio']['sampling_rate'])
         return batch
 
     return map_dataset_to_nemo
