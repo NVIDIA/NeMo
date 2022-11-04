@@ -18,20 +18,17 @@ import os
 import pickle
 import re
 from typing import Dict, List
-import numpy as np
 
+import numpy as np
 import torch
 from tqdm.auto import tqdm
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import get_samples_mapping
 from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import JSONLMemMapDataset
 from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
 from nemo.core import Dataset
 from nemo.utils import AppState, logging
-from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import (
-    get_samples_mapping,
-    make_text_memmap_bin_compatibility,
-)
 
 __all__ = ['GPTUniversalPromptLearningDataset']
 
@@ -80,9 +77,7 @@ class GPTUniversalPromptLearningT0Dataset(Dataset):
 
         logging.info("Loading and tokenizing dataset ... ")
 
-        self.indexed_dataset = JSONLMemMapDataset(dataset_paths=[data], tokenizer=None, header_lines=0)
-        if self.max_num_samples is not None:
-            make_text_memmap_bin_compatibility(self.indexed_dataset)
+        self.indexed_dataset = JSONLMemMapDataset(dataset_paths=[data], tokenizer=None, header_lines=0, workers=12)
         # Will be None after this call if `max_num_samples` is None
         self._build_samples_mapping(data)
 
@@ -127,8 +122,9 @@ class GPTUniversalPromptLearningT0Dataset(Dataset):
         Process a single example from the dataset into IDs and other T0-related metadata.
         """
         tokenized_input = self.tokenizer.text_to_ids(example['input'])
-        tokenized_output = self.tokenizer.text_to_ids(example['output'])
-        offset = self.virtual_token_len 
+        # add a space between input and output
+        tokenized_output = self.tokenizer.text_to_ids(' ' + example['output'])
+        offset = self.virtual_token_len
         if self.add_bos:
             offset += 1
         if self.add_eos:
@@ -139,7 +135,7 @@ class GPTUniversalPromptLearningT0Dataset(Dataset):
                 # cut the input by default
                 tokenized_input = tokenized_input[: len(tokenized_input) - cut_tokens]
             elif len(tokenized_output) - cut_tokens > 0:
-                # cut the output 
+                # cut the output
                 tokenized_output = tokenized_output[: len(tokenized_output) - cut_tokens]
             else:
                 # cut both the input and output
@@ -194,7 +190,15 @@ class GPTUniversalPromptLearningT0Dataset(Dataset):
         attention_mask = attention_mask < 0.5
         position_ids = build_position_ids(input_ids)
 
-        return input_ids, labels, loss_mask, position_ids, attention_mask, prompt_input_mask
+        return (
+            input_ids,
+            labels,
+            loss_mask,
+            position_ids,
+            attention_mask,
+            prompt_input_mask,
+            torch.tensor(answer_starts),
+        )
 
     def pad_batch_and_build_loss_mask(self, input_ids, batch_max, answer_starts):
         """ Pad input_ids in batch to max batch length while building loss mask """

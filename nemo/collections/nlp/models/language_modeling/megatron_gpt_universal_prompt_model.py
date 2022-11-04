@@ -15,19 +15,23 @@
 import os
 from functools import partial
 from typing import Any, Optional
-from omegaconf import DictConfig, ListConfig
 
 import torch
 import torch.nn.functional as F
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, ListConfig, OmegaConf
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 from torch import Tensor
+
+from nemo.collections.common.metrics import MetricStringToTorchMetric
+from nemo.collections.common.metrics.classification_accuracy import ExactStringPerCategoryMatchMetric
 from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
     get_datasets_weights_and_num_samples,
 )
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_universal_prompt_learning_dataset import GPTUniversalPromptLearningT0Dataset
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_universal_prompt_learning_dataset import (
+    GPTUniversalPromptLearningT0Dataset,
+)
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
     MegatronPretrainingBatchSampler,
 )
@@ -38,9 +42,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     init_method_normal,
     scaled_init_method_normal,
 )
-from nemo.collections.nlp.modules.common.text_generation_utils import (
-    megatron_gpt_generate,
-)
+from nemo.collections.nlp.modules.common.text_generation_utils import megatron_gpt_generate
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam, TextGeneration
 from nemo.collections.nlp.modules.common.universal_prompt_encoder import UniversalPromptEncoder
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
@@ -100,6 +102,75 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         if self.frozen_model.model.pre_process:
             self.word_embeddings = self.frozen_model.model.language_model.embedding.word_embeddings
         self._prompt_encoder_key = 'prompt_encoder'
+        self.val_metric, self.val_metric_name = self.setup_metric(self.cfg.data.validation_ds)
+        self.val_metric = torch.nn.ModuleList(self.val_metric)
+
+    @property
+    def _metrics_require_string2category_map(self):
+        return set(["f1", "accuracy", "average_precision"])
+
+    def setup_metric(self, data_cfg):
+        # XNLI is a special case.
+        metric_name = "exact_string_match"
+        if hasattr(self.cfg, "eval_languages"):
+            metric = [ExactStringPerCategoryMatchMetric(self.cfg.eval_languages)]
+        else:
+            if not hasattr(data_cfg, "metric"):
+                metric = MetricStringToTorchMetric["exact_string_match"]
+            else:
+                if not hasattr(data_cfg.metric, "name"):
+                    raise ValueError("Metric name is not provided in the metric config.")
+                if data_cfg.metric.name not in MetricStringToTorchMetric:
+                    raise KeyError(
+                        f"{data_cfg.metric.name} is not supported. List of supported metrics: {MetricStringToTorchMetric.keys()}"
+                    )
+                if data_cfg.metric.name in self._metrics_require_string2category_map:
+                    if data_cfg.metric.average is None:
+                        raise ValueError(
+                            f"{data_cfg.metric.name} requires specifying whether you want to compute a micro or macro average. Found None."
+                        )
+                if (
+                    data_cfg.metric.get('labels_are_strings', False)
+                    and data_cfg.metric.name in self._metrics_require_string2category_map
+                ):
+                    if data_cfg.metric.num_classes is None:
+                        raise ValueError(
+                            "Number of classes is not provided in the metric section within the data config. "
+                            f"Please provide the number of classes in the data config to use the {data_cfg.metric.name} metric."
+                        )
+                    if data_cfg.metric.get('class_labels', None) is None or not isinstance(
+                        data_cfg.metric.get('class_labels', None), ListConfig
+                    ):
+                        raise ValueError(
+                            "Class labels are not provided properly in the metric section witnin the data config. "
+                            f"Please provide the class labels as a list of strings in the data config to use the {data_cfg.metric.name} metric."
+                        )
+                    if len(data_cfg.metric.get('class_labels', None)) != data_cfg.metric.num_classes:
+                        raise ValueError(
+                            f"Number of class labels {len(data_cfg.metric.get('class_labels', None))} does not match `num_classes` : {data_cfg.metric.num_classes}"
+                        )
+
+            metric_name = data_cfg.metric.name
+            metric = MetricStringToTorchMetric[metric_name]
+            # GLUE will not have a "src_file_name" attribute and will always have only a single metric.
+            if hasattr(data_cfg, "src_file_name") or hasattr(data_cfg, "file_names"):
+                if hasattr(data_cfg, "src_file_name") and isinstance(data_cfg.src_file_name, ListConfig):
+                    # We pass average and num_classes to the metric constructor via kwargs even if they don't exist for each metric.
+                    metric = [
+                        metric(average=data_cfg.metric.average, num_classes=data_cfg.metric.num_classes)
+                        for _ in range(len(data_cfg.src_file_name))
+                    ]
+                elif hasattr(data_cfg, "file_names") and isinstance(data_cfg.file_names, ListConfig):
+                    metric = [
+                        metric(average=data_cfg.metric.average, num_classes=data_cfg.metric.num_classes)
+                        for _ in range(len(data_cfg.file_names))
+                    ]
+                else:
+                    metric = [metric(average=data_cfg.metric.average, num_classes=data_cfg.metric.num_classes)]
+            else:
+                metric = [metric()]  # GLUE does need to specify average or num_classes.
+
+        return metric, metric_name
 
     def add_virtual_prompt_params_to_param_group(self):
         """
@@ -348,7 +419,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(batch, model):
             batch = [x.cuda(non_blocking=True) for x in batch]
-            input_ids, labels, loss_mask, position_ids, attention_mask, prompt_input_mask = batch
+            input_ids, labels, loss_mask, position_ids, attention_mask, prompt_input_mask, answer_starts = batch
             labels = F.pad(labels, (self.cfg.perceiver.hidden_steps, 0, 0, 0), value=0)
             loss_mask = F.pad(loss_mask, (self.cfg.perceiver.hidden_steps, 0, 0, 0), value=0)
             output_tensor = model(input_ids, position_ids, attention_mask, prompt_input_mask, labels, inference=False)
@@ -398,29 +469,23 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         self.setup_validation_data()
 
     def setup_training_data(self, training_data_config=None):
-        self._train_ds = self.build_dataset(
-            data_cfg=self.cfg.data.train_ds,
-            is_train=True,
-        )
+        self._train_ds = self.build_dataset(data_cfg=self.cfg.data.train_ds, is_train=True,)
         consumed_samples = self.compute_consumed_samples(0)
         self._train_dl = self.build_data_loader(
             dataset=self._train_ds, data_cfg=self.cfg.data.train_ds, consumed_samples=consumed_samples,
         )
 
     def setup_validation_data(self, validation_data_config=None):
-        self._validation_ds = self.build_dataset(
-            data_cfg=self.cfg.data.validation_ds,
-            is_train=False,
-        )
+        self._validation_ds = self.build_dataset(data_cfg=self.cfg.data.validation_ds, is_train=False,)
         self._validation_dl = []
         for dataset in self._validation_ds:
-            eval_dl = self.build_data_loader(dataset=dataset, data_cfg=self.cfg.data.validation_ds, consumed_samples=0,)
+            eval_dl = self.build_data_loader(
+                dataset=dataset, data_cfg=self.cfg.data.validation_ds, consumed_samples=0,
+            )
             self._validation_dl.append(eval_dl)
 
     def build_dataset(
-        self,
-        data_cfg,
-        is_train=True,
+        self, data_cfg, is_train=True,
     ):
         # Construct the data prefix list for `get_datasets_weights_and_num_samples()` that is of the format [weight1,file_name1,weight2,file_name2,...]
         if is_train:
@@ -480,9 +545,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         else:
             collate_fun = dataset.collate_fn
         if self.cfg.get("sequence_parallel", False):
-            collate_fn = partial(
-                collate_fun, tp_workers=parallel_state.get_tensor_model_parallel_world_size()
-            )
+            collate_fn = partial(collate_fun, tp_workers=parallel_state.get_tensor_model_parallel_world_size())
         else:
             collate_fn = partial(collate_fun, tp_workers=0)
 
@@ -505,16 +568,64 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
 
     def validation_step(self, batch, batch_idx, dataloader_idx):
         loss_mean = self.fwd_bwd_step(batch, forward_only=True)
-        # logging
-        # we can only log on one rank if it is rank zero so we broadcast from last rank
-        # we can avoid this broadcast by updating the PTL log function to accept specific ranks
         torch.distributed.broadcast(loss_mean, get_last_rank())
-        return loss_mean
+        # run inference
+        input_ids = batch[0]
+        input_ids = torch.nn.functional.pad(input_ids, (0, 1, 0, 0))
+        context_lengths = batch[-1]
+        token_to_gen = batch[0].shape[1] - context_lengths.max() + 1
+
+        length_params: LengthParam = {
+            "max_length": token_to_gen,
+            "min_length": 1,
+        }
+
+        sampling_params: SamplingParam = {
+            "use_greedy": True,
+            "temperature": 1.0,
+            "top_k": 0,
+            "top_p": 0,
+            "repetition_penalty": 1.0,
+            "add_BOS": False,
+            "all_probs": False,
+            "compute_logprob": False,
+        }
+
+        self.frozen_model.model.parallel_output = False
+
+        # Call same generate code as in MegatronGPT
+        result = megatron_gpt_generate(
+            self.cuda(), (input_ids, context_lengths), self.tokenizer, length_params, sampling_params
+        )
+
+        number_tokens = [int(i.sum()) for i in batch[2]]
+
+        preds_text = []
+        labels_text = []
+        for bid in range(len(number_tokens)):
+            start_id = context_lengths[bid]
+            pred_text_tokens = result['token_ids'][bid][start_id : start_id + number_tokens[bid]]
+            pred_text = self.frozen_model.tokenizer.ids_to_text(pred_text_tokens)
+            label_text_tokens = batch[1][bid][start_id - 1 : start_id + number_tokens[bid] - 1]
+            label_text = self.frozen_model.tokenizer.ids_to_text(label_text_tokens)
+            preds_text.append(pred_text)
+            labels_text.append(label_text)
+
+        metric = self.val_metric[dataloader_idx]
+        assert len(categories) == len(preds_text) == len(labels_text)
+        for _, (pred, label) in enumerate(zip(preds_text, labels_text)):
+            _ = metric(pred, label)
+
+        return {
+            'loss': loss_mean,
+            'preds': preds_text,
+            'labels': labels_text,
+        }
 
     def validation_epoch_end(self, outputs):
         if parallel_state.is_pipeline_last_stage():
             # only the last pipeline parallel stages return loss
-            averaged_loss = torch.stack([ torch.stack(o).mean() for o in outputs]).mean().detach()
+            averaged_loss = torch.stack([torch.stack(o).mean() for o in outputs]).mean().detach()
         else:
             averaged_loss = torch.tensor(0.0).cuda()
 
