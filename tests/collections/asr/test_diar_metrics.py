@@ -14,11 +14,9 @@
 
 from itertools import permutations
 
-import numpy as np
 import pytest
 import torch
 
-from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.asr.parts.utils.diarization_utils import calculate_session_cpWER, calculate_session_cpWER_bruteforce
 
 
