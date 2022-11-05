@@ -17,7 +17,10 @@ from itertools import permutations
 import pytest
 import torch
 
-from nemo.collections.asr.parts.utils.diarization_utils import calculate_session_cpWER, calculate_session_cpWER_bruteforce
+from nemo.collections.asr.parts.utils.diarization_utils import (
+    calculate_session_cpWER,
+    calculate_session_cpWER_bruteforce,
+)
 
 
 def word_count(spk_transcript):
