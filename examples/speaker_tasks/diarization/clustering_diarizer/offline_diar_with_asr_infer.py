@@ -65,7 +65,7 @@ def main(cfg):
     if diar_score is not None:
         metric, mapping_dict = diar_score
         der_results = asr_diar_offline.gather_eval_results(metric, mapping_dict, trans_info_dict)
-        wer_results = asr_diar_offline.calculate_cpWER(trans_info_dict)
+        wer_results = asr_diar_offline.evaluate(trans_info_dict)
         asr_diar_offline.print_errors(der_results, wer_results)
 
 
