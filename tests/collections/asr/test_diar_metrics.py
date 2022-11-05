@@ -23,8 +23,10 @@ from nemo.collections.asr.parts.utils.diarization_utils import calculate_session
 def word_count(spk_transcript):
     return sum([len(w.split()) for w in spk_transcript])
 
+
 def calculate_wer_count(_ins, _del, _sub, ref_word_count):
     return (_ins + _del + _sub) / ref_word_count
+
 
 def permuted_input_test(hyp, ref, calculated):
     """
@@ -35,10 +37,12 @@ def permuted_input_test(hyp, ref, calculated):
         diff = torch.abs(torch.tensor(calculated - cpWER))
         assert diff <= 1e-6
 
+
 class TestConcatMinPermWordErrorRate:
     """
     Tests for cpWER calculation.
     """
+
     @pytest.mark.unit
     def test_cpwer_oneword(self):
         hyp = ["oneword"]
