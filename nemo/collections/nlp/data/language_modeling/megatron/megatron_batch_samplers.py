@@ -161,7 +161,8 @@ class MegatronPretrainingBatchSampler(BaseMegatronBatchSampler):
         if len(batch) > 0 and not self.drop_last:
             # start_idx, end_idx = self.get_start_end_idx()
             indices = [batch[i] for i in range(self.data_parallel_rank, len(batch), self.data_parallel_size)]
-            # yield batch[start_idx:end_idx]
+            num_pad = self._global_batch_size//self.data_parallel_size - len(indices)
+            indices = indices + [-1]*num_pad  
             yield indices
 
 
