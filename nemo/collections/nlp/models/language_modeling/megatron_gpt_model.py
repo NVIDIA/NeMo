@@ -484,7 +484,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 if validation_step and not self.cfg.data.get('validation_drop_last', True):
                     num_valid_samples_in_mb = int(loss_mask.sum() / loss_mask.numel() * loss_mask.shape[0])
                     loss_sum_for_mb = num_valid_samples_in_mb * loss_for_mb
-                    loss_sum_for_mb_all_gpu = loss_sum_for_mb.clone().detach()
+                    loss_sum_for_mb_all_gpu = torch.cat([loss_sum_for_mb.clone().detach().view(1)])
                     # Could potentially reduce num_valid_samples_in_microbatch and use that to aggregate instead of len(self._validation_ds)
                     torch.distributed.all_reduce(
                         loss_sum_for_mb_all_gpu, group=parallel_state.get_data_parallel_group()
