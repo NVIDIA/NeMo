@@ -608,11 +608,10 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
             pred_text = self.frozen_model.tokenizer.ids_to_text(pred_text_tokens)
             label_text_tokens = batch[1][bid][start_id - 1 : start_id + number_tokens[bid] - 1]
             label_text = self.frozen_model.tokenizer.ids_to_text(label_text_tokens)
-            preds_text.append(pred_text)
-            labels_text.append(label_text)
+            preds_text.append(pred_text.strip())
+            labels_text.append(label_text.strip())
 
         metric = self.val_metric[dataloader_idx]
-        assert len(categories) == len(preds_text) == len(labels_text)
         for _, (pred, label) in enumerate(zip(preds_text, labels_text)):
             _ = metric(pred, label)
 
@@ -622,24 +621,63 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
             'labels': labels_text,
         }
 
-    def validation_epoch_end(self, outputs):
-        if parallel_state.is_pipeline_last_stage():
-            # only the last pipeline parallel stages return loss
-            averaged_loss = torch.stack([torch.stack(o).mean() for o in outputs]).mean().detach()
+    def _determine_log_key(self, data_config, dataloader_idx, metric_name, mode):
+        # Function that determines whether to log based on the user provided name of the dataset or the dataloader index.
+        base_key = f"{mode}_{metric_name}_" if metric_name is not None else f"{mode}_"
+        # If the user provided names for each validation/test dataset, use those.
+        if hasattr(data_config, "names") and data_config.names is not None:
+            # With only a single validation/test dataset, the name is not a list.
+            if not isinstance(data_config.names, ListConfig):
+                name = data_config.names
+            else:
+                name = data_config.names[dataloader_idx]
+            return base_key + name
         else:
-            averaged_loss = torch.tensor(0.0).cuda()
+            return base_key + f"dataloader{dataloader_idx}"
 
-        # we can only log on one rank if it is rank zero so we broadcast from last rank
-        torch.distributed.broadcast(averaged_loss, get_last_rank())
+    def validation_epoch_end(self, outputs):
+        averaged_loss = []
+        averaged_metric = []
+        mode = 'validation'
+        metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
+        # Log metrics for each provided validation/test dataset.
+        for dataloader_idx, output in enumerate(outputs):
+            if parallel_state.is_pipeline_last_stage():
+                # only the last pipeline parallel stages return loss
+                loss = torch.stack([x['loss'] for x in output]).mean()
+            else:
+                loss = torch.tensor(0.0).cuda()
 
-        self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
-        logging.info(f'val_loss: {averaged_loss}')
+            # we can only log on one rank if it is rank zero so we broadcast from last rank
+            torch.distributed.broadcast(loss, get_last_rank())
+            # Determine the key used to log the loss based on the user provided name of the dataset or the dataloader index.
+            loss_log_key = self._determine_log_key(self.cfg.data.validation_ds, dataloader_idx, "loss", mode)
+            # Determine the key used to log the eval metric based on the user provided name of the dataset or the dataloader index.
+            metric_log_key = self._determine_log_key(self.cfg.data.validation_ds, dataloader_idx, metric_name, mode)
+            self.log(loss_log_key, loss)
+            metric_object = (
+                self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
+            )
+            metric = metric_object.compute()
+            self.log(metric_log_key, metric)
+            logging.info(f"{metric_log_key}: {metric}")
+            metric_object.reset()
 
-        # Save inference ready .nemo checkpoint version
-        # if self.cfg.get("save_intermediate_nemo_file", True):
-        #     if self.lowest_val_loss is None or averaged_loss < self.lowest_val_loss:
-        #         self.save_checkpoint_as_nemo_file()
-        #         self.lowest_val_loss = averaged_loss
+            averaged_loss.append(loss)
+            averaged_metric.append(metric)
+
+        # Logging of the averaged metrics:
+        averaged_loss = sum(averaged_loss) / len(averaged_loss)
+        averaged_metric = sum(averaged_metric) / len(averaged_metric)
+
+        if mode == 'validation':
+            self.log("validation_loss", averaged_loss)
+            self.log(f"validation_{self.val_metric_name}", averaged_metric)
+        elif mode == 'test':
+            self.log("test_loss", averaged_loss)
+            self.log(f"test_{self.test_metric_name}", averaged_metric)
+
+        return averaged_loss, averaged_metric
 
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
