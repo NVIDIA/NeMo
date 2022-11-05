@@ -92,6 +92,7 @@ import librosa
 import soundfile
 import tqdm
 from datasets import Audio, IterableDataset, load_dataset
+from hydra.conf import HydraConf, RunDir
 from hydra.core.config_store import ConfigStore
 from omegaconf import OmegaConf
 
@@ -114,6 +115,8 @@ class HFDatasetConvertionConfig:
     # Placeholders. Generated internally.
     resolved_output_dir: str = ''
     split_output_dir: Optional[str] = None
+
+    hydra: HydraConf = HydraConf(run=RunDir(dir="."))
 
 
 def prepare_output_dirs(cfg: HFDatasetConvertionConfig):
@@ -306,6 +309,7 @@ def process_dataset(dataset: IterableDataset, cfg: HFDatasetConvertionConfig):
         basedir = cfg.resolved_output_dir
         manifest_filename = f"{cfg.path.replace('/', '_')}_manifest.json"
     else:
+        print("resolved output dir", cfg.resolved_output_dir, cfg.split_output_dir)
         basedir = cfg.split_output_dir
         split = os.path.split(cfg.split_output_dir)[-1]
         manifest_filename = f"{split}_{cfg.path.replace('/', '_')}_manifest.json"
@@ -345,6 +349,7 @@ def main(cfg: HFDatasetConvertionConfig):
             cache_dir=None,
             streaming=cfg.streaming,
             use_auth_token=cfg.use_auth_token,
+            keep_in_memory=True,
         )
 
     except Exception as e:
