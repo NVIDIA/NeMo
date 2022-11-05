@@ -449,7 +449,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     grad = word_embeddings_weight.grad
                 torch.distributed.all_reduce(grad, group=parallel_state.get_embedding_group())
 
-    def get_forward_output_and_loss_func(self, validation_step = False):
+    def get_forward_output_and_loss_func(self, validation_step=False):
         def fwd_output_and_loss_func(batch, model, checkpoint_activations_all_layers=None):
             if parallel_state.get_pipeline_model_parallel_world_size() == 1:
                 batch = [x.cuda(non_blocking=True) for x in batch]
@@ -480,17 +480,19 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             )
 
             def loss_func(output_tensor):
-                loss_for_mb = self.loss_func(loss_mask, output_tensor) 
+                loss_for_mb = self.loss_func(loss_mask, output_tensor)
                 if validation_step and not self.cfg.data.get('validation_drop_last', True):
-                    num_valid_samples_in_mb = int(loss_mask.sum()/loss_mask.numel() * loss_mask.shape[0])
+                    num_valid_samples_in_mb = int(loss_mask.sum() / loss_mask.numel() * loss_mask.shape[0])
                     loss_sum_for_mb = num_valid_samples_in_mb * loss_for_mb
                     loss_sum_for_mb_all_gpu = loss_sum_for_mb.clone().detach()
                     # Could potentially reduce num_valid_samples_in_microbatch and use that to aggregate instead of len(self._validation_ds)
-                    torch.distributed.all_reduce(loss_sum_for_mb_all_gpu, group=parallel_state.get_data_parallel_group())
+                    torch.distributed.all_reduce(
+                        loss_sum_for_mb_all_gpu, group=parallel_state.get_data_parallel_group()
+                    )
                     return loss_for_mb, {'loss_sum': loss_sum_for_mb_all_gpu}
                 else:
                     reduced_loss = average_losses_across_data_parallel_group([loss_for_mb])
-                    return loss_for_mb, {'avg': reduced_loss}                
+                    return loss_for_mb, {'avg': reduced_loss}
 
             return output_tensor, loss_func
 
@@ -542,7 +544,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         fwd_bwd_function = self._get_fwd_bwd_function()
 
         losses_reduced_per_micro_batch = fwd_bwd_function(
-            forward_step_func=self.get_forward_output_and_loss_func(validation_step = True),
+            forward_step_func=self.get_forward_output_and_loss_func(validation_step=True),
             batch=batch_for_pipeline,
             model=self.model,
             forward_only=True,
@@ -560,8 +562,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 return torch.concat(loss_tensors_list).mean()
             else:
                 # Get the total loss since micro batches sizes are not uniform
-                loss_sum_tensors_list = [loss_sum['loss_sum'] for loss_sum in losses_reduced_per_micro_batch if not loss_sum['loss_sum'].isnan()]
-                loss_sum = torch.concat(loss_sum_tensors_list).sum() if len(loss_sum_tensors_list) > 0 else torch.tensor(0.0)
+                loss_sum_tensors_list = [
+                    loss_sum['loss_sum']
+                    for loss_sum in losses_reduced_per_micro_batch
+                    if not loss_sum['loss_sum'].isnan()
+                ]
+                loss_sum = (
+                    torch.concat(loss_sum_tensors_list).sum() if len(loss_sum_tensors_list) > 0 else torch.tensor(0.0)
+                )
                 return loss_sum
         else:
             # we're not on the last pipeline stage so no losses
@@ -576,7 +584,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 # Compute the avg loss by total_loss across all samples / total number of samples
                 total_loss = torch.stack(outputs).sum()
                 avg_loss = total_loss / len(self._validation_ds)
-                averaged_loss = torch.tensor(avg_loss, dtype=torch.float32).cuda()   
+                averaged_loss = torch.tensor(avg_loss, dtype=torch.float32).cuda()
         else:
             averaged_loss = torch.tensor(0.0, dtype=torch.float32).cuda()
 

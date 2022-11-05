@@ -379,7 +379,7 @@ class GPTDataset(Dataset):
         tokens[tokens == -1] = 0
         labels[labels == -1] = 0
 
-        if (idx == -1): # Negative index comes when we pad the last batch in MegatronPretrainingBatchSampler
+        if idx == -1:  # Negative index comes when we pad the last batch in MegatronPretrainingBatchSampler
             loss_mask = torch.zeros_like(loss_mask)
 
         return {
