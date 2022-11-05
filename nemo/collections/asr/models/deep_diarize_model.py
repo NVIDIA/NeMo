@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import itertools
 from typing import Any, Dict, List, Optional, Union
 
 import hydra.utils
@@ -158,27 +159,28 @@ class DeepDiarizeModel(ModelPT):
         )
         self.mask_mem = self.cfg.mask_mem
         self.permutations = None
+        self.permutations_indices = None
+        self.cos = nn.CosineSimilarity(dim=1, eps=1e-6)
 
     def _mask_mems(self, mask: List[bool]):
         if self.mems is not None:
             for mem in self.mems:
                 mem[mask, :, :] = 0
 
-    def _permutation_mask(self, preds, y, memory_resets):
+    def _permutation_mask(self, preds, y):
         if self.permutations is None:
             # todo: assumption of two speakers
             self.permutations = torch.empty(preds.size(0), 2, dtype=torch.int).to(self.device)
 
-        for x, memory_reset in enumerate(memory_resets):
-            if memory_reset:
-                with torch.no_grad():
-                    calc_loss, permutation = permutation_invariant_training(
-                        preds[x].unsqueeze(0).transpose(1, 2),
-                        y[x].unsqueeze(0).transpose(1, 2),
-                        metric_func=self._calculate_train_loss,
-                        eval_func='min',
-                    )
-                self.permutations[x] = permutation
+        for x in range(preds.size(0)):
+            with torch.no_grad():
+                calc_loss, permutation = permutation_invariant_training(
+                    preds[x].unsqueeze(0).transpose(1, 2),
+                    y[x].unsqueeze(0).transpose(1, 2),
+                    metric_func=self._calculate_train_loss,
+                    eval_func='min',
+                )
+            self.permutations[x] = permutation
 
         for x, labels in enumerate(y):
             y[x] = torch.index_select(y[x], 1, self.permutations[x])
@@ -215,7 +217,7 @@ class DeepDiarizeModel(ModelPT):
         speaker_outputs = self.decoder(attractors, encoded_xl_features)
 
         if self.cfg.permute:
-            y = self._permutation_mask(speaker_outputs, y, memory_reset)
+            y = self._permutation_mask(speaker_outputs, y)
         loss = self._calculate_train_loss(speaker_outputs, y)
         existence_loss = self._calculate_attractor_loss(attractors, y)
 
@@ -229,14 +231,36 @@ class DeepDiarizeModel(ModelPT):
         )
         return loss + (self.cfg.existence_alpha * existence_loss)
 
+    def _process_attractors(self, chunk_attractors: torch.Tensor, attractors: Optional[torch.Tensor]):
+        if attractors is None:
+            return chunk_attractors
+        if self.permutations_indices is None:
+            self.permutation_indices = list(
+                torch.tensor(perm, device=self.device) for perm in itertools.permutations(range(self.num_speakers))
+            )
+        for x in range(attractors.size(0)):
+            anchor = attractors[x]
+            lowest, lowest_cos = None, 0
+            for permutation in self.permutation_indices:
+                permutated = torch.index_select(chunk_attractors[x], 0, permutation)
+                # is mean the right thing here?
+                similarity = self.cos(anchor.float(), permutated.float()).mean()
+                if similarity > lowest_cos:
+                    lowest = permutated
+                    lowest_cos = similarity
+            attractors[x] = (anchor + lowest) / 2
+        return attractors
+
     def validation_step(self, batch, batch_idx):
         inputs, input_lengths, y, annotations = batch
-        mems, speech_activity = None, None
+        mems, speech_activity, attractors = None, None, None
         for chunk, length in zip(inputs, input_lengths):
             sub_sample_x, model_lengths = self.sub_sample_layer(chunk, lengths=length.unsqueeze(0))
             encoded_xl_features, mems = self.transformer_feature_encoder(sub_sample_x, mems=mems)
             seq_mask = torch.ones(sub_sample_x.size(0), sub_sample_x.size(1)).to(self.device)
-            attractors, _ = self.eda_module(sub_sample_x, seq_mask)
+            chunk_attractors, _ = self.eda_module(self._shuffle(sub_sample_x, dim=1), seq_mask)
+
+            attractors = self._process_attractors(chunk_attractors, attractors)
 
             speaker_outputs = self.decoder(attractors, encoded_xl_features)
             speech_activity = (
