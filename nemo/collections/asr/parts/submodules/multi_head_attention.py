@@ -141,7 +141,7 @@ class MultiHeadAttention(nn.Module):
         key, value, query = self.update_cache(key=key, value=value, query=query, cache=cache, cache_next=cache_next)
 
         if torch.is_autocast_enabled():
-            (query, key, value) = (query.to(torch.float32), key.to(torch.float32), value.to(torch.float32))
+            query, key, value = query.to(torch.float32), key.to(torch.float32), value.to(torch.float32)
         with avoid_float16_autocast_context():
             q, k, v = self.forward_qkv(query, key, value)
             scores = torch.matmul(q, k.transpose(-2, -1)) / self.s_d_k
