@@ -13,9 +13,9 @@ from nemo.core import Dataset
 
 def _inference_collate_fn(batch):
     packed_batch = list(zip(*batch))
-    features, feature_length, fr_targets, targets = packed_batch
+    features, feature_length, fr_targets, annotations, segment_annotations = packed_batch
     assert len(features) == 1, "Currently inference/validation only supports a batch size of 1."
-    return features[0], feature_length[0], torch.cat(fr_targets[0], dim=0), targets[0]
+    return features[0], feature_length[0], torch.cat(fr_targets[0], dim=0), annotations[0], segment_annotations[0]
 
 
 class RTTMDataset(Dataset):
@@ -45,6 +45,14 @@ class RTTMDataset(Dataset):
             annotation[Segment(start, end)] = speaker
         return annotation
 
+    def _segment_annotation(self, annotation: Annotation, start_offset: float, duration: int) -> Annotation:
+        segment_annotations = Annotation()
+        end_duration = start_offset + duration
+        for segment, track_name, label in annotation.itertracks(yield_label=True):
+            if start_offset <= segment.start and segment.end <= end_duration:
+                segment_annotations[segment] = label
+        return segment_annotations
+
     def __getitem__(self, index):
         sample = self.collection[index]
         with open(sample.rttm_file) as f:
@@ -60,7 +68,7 @@ class RTTMDataset(Dataset):
         n_segments = math.ceil((total_annotated_duration - sample.offset) / self.segment_seconds)
         start_offset = sample.offset
 
-        segments, lengths, targets = [], [], []
+        segments, lengths, targets, segment_annotations = [], [], [], []
         for n_segment in range(n_segments):
             fr_level_target = assign_frame_level_spk_vector(
                 rttm_timestamps=rttm_timestamps,
@@ -81,8 +89,11 @@ class RTTMDataset(Dataset):
             segments.append(segment.transpose(1, 2))
             lengths.append(length)
             targets.append(fr_level_target)
+            segment_annotations.append(
+                self._segment_annotation(annotations, start_offset=start_offset, duration=self.segment_seconds)
+            )
             start_offset += self.segment_seconds
-        return segments, lengths, targets, annotations
+        return segments, lengths, targets, annotations, segment_annotations
 
     def _collate_fn(self, batch):
         return _inference_collate_fn(batch)

@@ -157,6 +157,27 @@ class DeepDiarizeModel(ModelPT):
             threshold=self.cfg.threshold,
             combine_segments_seconds=self.cfg.combine_segments_seconds,
         )
+        self.collar_der = DER(
+            seconds_per_frame=self.cfg.preprocessor.window_stride * self.cfg.subsampling,
+            min_seconds_for_segment=self.cfg.min_seconds_for_segment,
+            threshold=self.cfg.threshold,
+            combine_segments_seconds=self.cfg.combine_segments_seconds,
+            collar=0.25,
+        )
+        self.segment_der = DER(
+            seconds_per_frame=self.cfg.preprocessor.window_stride * self.cfg.subsampling,
+            min_seconds_for_segment=self.cfg.min_seconds_for_segment,
+            threshold=self.cfg.threshold,
+            combine_segments_seconds=self.cfg.combine_segments_seconds,
+        )
+        self.collar_ignore_overlap_der = DER(
+            seconds_per_frame=self.cfg.preprocessor.window_stride * self.cfg.subsampling,
+            min_seconds_for_segment=self.cfg.min_seconds_for_segment,
+            threshold=self.cfg.threshold,
+            combine_segments_seconds=self.cfg.combine_segments_seconds,
+            collar=0.25,
+            ignore_overlap=True,
+        )
         self.mask_mem = self.cfg.mask_mem
         self.permutations = None
         self.permutations_indices = None
@@ -252,9 +273,9 @@ class DeepDiarizeModel(ModelPT):
         return attractors
 
     def validation_step(self, batch, batch_idx):
-        inputs, input_lengths, y, annotations = batch
+        inputs, input_lengths, y, annotations, segment_annotations = batch
         mems, speech_activity, attractors = None, None, None
-        for chunk, length in zip(inputs, input_lengths):
+        for chunk, segment_annotation, length in zip(inputs, segment_annotations, input_lengths):
             sub_sample_x, model_lengths = self.sub_sample_layer(chunk, lengths=length.unsqueeze(0))
             encoded_xl_features, mems = self.transformer_feature_encoder(sub_sample_x, mems=mems)
             seq_mask = torch.ones(sub_sample_x.size(0), sub_sample_x.size(1)).to(self.device)
@@ -266,10 +287,16 @@ class DeepDiarizeModel(ModelPT):
             speech_activity = (
                 speaker_outputs if speech_activity is None else torch.cat((speech_activity, speaker_outputs), dim=1)
             )
+            self.segment_der(speaker_outputs.squeeze(0), segment_annotation)
         loss = self._calculate_val_loss(speech_activity, y)
         self.log('val_loss', loss, sync_dist=True)
         self.der(speech_activity.squeeze(0), annotations)
+        self.collar_der(speech_activity.squeeze(0), annotations)
+        self.collar_ignore_overlap_der(speech_activity.squeeze(0), annotations)
         self.log('DER', self.der, sync_dist=True)
+        self.log('Collar 0.25 DER', self.collar_der, sync_dist=True)
+        self.log('Segment DER', self.segment_der, sync_dist=True)
+        self.log('Ignore Overlap DER', self.collar_ignore_overlap_der, sync_dist=True)
 
     def _calculate_val_loss(self, logits, y):
         loss = self.loss(logits, y.unsqueeze(0))
