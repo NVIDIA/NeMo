@@ -182,6 +182,7 @@ class DeepDiarizeModel(ModelPT):
         self.permutations = None
         self.permutations_indices = None
         self.cos = nn.CosineSimilarity(dim=1, eps=1e-6)
+        self.train_attractors = None
 
     def _mask_mems(self, mask: List[bool]):
         if self.mems is not None:
@@ -228,13 +229,16 @@ class DeepDiarizeModel(ModelPT):
 
     def training_step(self, batch, batch_idx):
         train_x, train_lengths, y, memory_reset = batch
-        sub_sample_x, model_lengths = self.sub_sample_layer(train_x, lengths=train_lengths)
+        train_x, train_lengths = self.sub_sample_layer(train_x, lengths=train_lengths)
         if self.mask_mem:
             self._mask_mems(memory_reset)
-        encoded_xl_features, self.mems = self.transformer_feature_encoder(sub_sample_x, mems=self.mems)
+        encoded_xl_features, self.mems = self.transformer_feature_encoder(train_x, mems=self.mems)
         seq_mask = torch.ones(encoded_xl_features.size(0), encoded_xl_features.size(1)).to(self.device)
         # shuffle frames before generating attractors
         attractors, _ = self.eda_module(self._shuffle(encoded_xl_features, dim=1), seq_mask)
+        if self.cfg.process_attractors_in_training:
+            attractors = self._process_attractors(attractors, self.train_attractors)
+            self.train_attractors = attractors.clone().detach()
         speaker_outputs = self.decoder(attractors, encoded_xl_features)
 
         if self.cfg.permute:
@@ -276,10 +280,10 @@ class DeepDiarizeModel(ModelPT):
         inputs, input_lengths, y, annotations, segment_annotations = batch
         mems, speech_activity, attractors = None, None, None
         for chunk, segment_annotation, length in zip(inputs, segment_annotations, input_lengths):
-            sub_sample_x, model_lengths = self.sub_sample_layer(chunk, lengths=length.unsqueeze(0))
-            encoded_xl_features, mems = self.transformer_feature_encoder(sub_sample_x, mems=mems)
-            seq_mask = torch.ones(sub_sample_x.size(0), sub_sample_x.size(1)).to(self.device)
-            chunk_attractors, _ = self.eda_module(self._shuffle(sub_sample_x, dim=1), seq_mask)
+            chunk, length = self.sub_sample_layer(chunk, lengths=length.unsqueeze(0))
+            encoded_xl_features, mems = self.transformer_feature_encoder(chunk, mems=mems)
+            seq_mask = torch.ones(chunk.size(0), chunk.size(1)).to(self.device)
+            chunk_attractors, _ = self.eda_module(self._shuffle(chunk, dim=1), seq_mask)
 
             attractors = self._process_attractors(chunk_attractors, attractors)
 

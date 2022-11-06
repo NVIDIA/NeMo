@@ -12,6 +12,7 @@ model:
   d_model: 512
   chunk_seconds: ${chunk_seconds}
   subsampling: 8
+  process_attractors_in_training: False
 
   encoder:
     hidden_dim: 1024
