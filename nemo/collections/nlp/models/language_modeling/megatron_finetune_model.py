@@ -176,7 +176,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         return super().on_train_epoch_start()
 
     def training_step(self, batch, batch_idx):
-        global_batch_size_per_gpu = batc['text_enc'].size(0)
+        global_batch_size_per_gpu = batch['text_enc'].size(0)
         # This should happen only on the last batch of the dataset.
         if global_batch_size_per_gpu != self.cfg.data.train_ds.global_batch_size // parallel_state.get_data_parallel_world_size():
             app_state = AppState()
