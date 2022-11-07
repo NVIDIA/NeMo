@@ -87,22 +87,14 @@ class LinearWithBiasSkip(nn.Module):
             return F.linear(x, self.weight), self.bias
         return F.linear(x, self.weight, self.bias), None
 
+
 class ExportableMatchedScaleMaskSoftmax(nn.Module):
     def __init__(self, mod):
         super(ExportableMatchedScaleMaskSoftmax, self).__init__()
-        self.init_module(
-            mod.input_in_fp16,
-            mod.input_in_bf16,
-            mod.mask_func,
-            mod.softmax_in_fp32,
-            mod.scale
-        )
-    
-    def init_module(self, input_in_fp16,
-        input_in_bf16,
-        mask_func,
-        softmax_in_fp32,
-        scale,
+        self.init_module(mod.input_in_fp16, mod.input_in_bf16, mod.mask_func, mod.softmax_in_fp32, mod.scale)
+
+    def init_module(
+        self, input_in_fp16, input_in_bf16, mask_func, softmax_in_fp32, scale,
     ):
         self.input_in_fp16 = input_in_fp16
         self.input_in_bf16 = input_in_bf16
@@ -384,7 +376,6 @@ def simple_replace(BaseT: Type[nn.Module], DestT: Type[nn.Module]) -> Callable[[
     return expansion_fn
 
 
-
 def replace_MatchedScaleMaskSoftmax(n: nn.Module) -> Optional[nn.Linear]:
     """
     Replaces 
@@ -394,11 +385,10 @@ def replace_MatchedScaleMaskSoftmax(n: nn.Module) -> Optional[nn.Linear]:
         
     """
 
-    mod = ExportableMatchedScaleMaskSoftmax(
-        n.input_in_fp16, n.input_in_bf16, n.mask_func, n.softmax_in_fp32, n.scale
-    )
+    mod = ExportableMatchedScaleMaskSoftmax(n.input_in_fp16, n.input_in_bf16, n.mask_func, n.softmax_in_fp32, n.scale)
 
     return mod
+
 
 def wrap_module(BaseT: Type[nn.Module], DestT: Type[nn.Module]) -> Callable[[nn.Module], Optional[nn.Module]]:
     """
@@ -464,7 +454,7 @@ default_replacements = {
     "BatchNorm1d": wrap_module(nn.BatchNorm1d, CastToFloat),
     "BatchNorm2d": wrap_module(nn.BatchNorm2d, CastToFloat),
     "LayerNorm": wrap_module(nn.LayerNorm, CastToFloat),
-    "MatchedScaleMaskSoftmax": wrap_module(nn.Softmax, ExportableMatchedScaleMaskSoftmax)
+    "MatchedScaleMaskSoftmax": wrap_module(nn.Softmax, ExportableMatchedScaleMaskSoftmax),
 }
 
 

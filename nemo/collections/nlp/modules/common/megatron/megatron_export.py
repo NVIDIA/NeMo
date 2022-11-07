@@ -109,7 +109,11 @@ class DecEmb(torch.nn.Module, Exportable):
         # dec_input, dec_attn_mask, enc_output, enc_attn_mask | dec_input, dec_attn_mask, enc_output, enc_attn_mask
         _ = dec_mems
 
-        return self.decoder(dec_input, decoder_mask, encoder_embeddings.permute(1, 0, 2), encoder_mask).float().permute(1, 0, 2)
+        return (
+            self.decoder(dec_input, decoder_mask, encoder_embeddings.permute(1, 0, 2), encoder_mask)
+            .float()
+            .permute(1, 0, 2)
+        )
 
     def freeze(self):
         for param in self.parameters():
