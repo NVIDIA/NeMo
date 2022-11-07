@@ -50,7 +50,9 @@ class RTTMDataset(Dataset):
         end_duration = start_offset + duration
         for segment, track_name, label in annotation.itertracks(yield_label=True):
             if start_offset <= segment.start and segment.end <= end_duration:
-                segment_annotations[segment] = label
+                start = segment.start - start_offset
+                end = segment.end - start_offset
+                segment_annotations[Segment(start, end)] = label
         return segment_annotations
 
     def __getitem__(self, index):

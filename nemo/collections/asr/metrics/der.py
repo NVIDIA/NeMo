@@ -21,6 +21,7 @@ class DER(Metric):
         threshold: float,
         collar: float = 0.0,
         ignore_overlap: bool = False,
+        post_process: bool = True,
     ):
         super().__init__()
         self.seconds_per_frame = seconds_per_frame
@@ -29,6 +30,7 @@ class DER(Metric):
         self.collar = collar
         self.threshold = threshold
         self.ignore_overlap = ignore_overlap
+        self.post_process = post_process
         self.add_state('missed_detection', torch.tensor(0, dtype=torch.float), dist_reduce_fx='sum')
         self.add_state('confusion', torch.tensor(0, dtype=torch.float), dist_reduce_fx='sum')
         self.add_state('false_alarm', torch.tensor(0, dtype=torch.float), dist_reduce_fx='sum')
@@ -49,18 +51,20 @@ class DER(Metric):
                     if start is not None and end is not None:
                         annotation[Segment(start, end)] = speaker_label
                         start, end = None, None
-        # # combine smaller segments together
-        # # with same uri and modality as original
-        support = annotation.empty()
-        for label in annotation.labels():
-            # get timeline for current label
-            timeline = annotation.label_timeline(label, copy=True)
-            # fill the gaps shorter than combine_segments_seconds
-            timeline = timeline.support(self.combine_segments_seconds)
-            # reconstruct annotation with merged tracks
-            for segment in timeline.support():
-                if segment.end - segment.start >= self.min_seconds_for_segment:
-                    support[segment] = label
+
+        if self.post_process:
+            # # combine smaller segments together
+            # # with same uri and modality as original
+            support = annotation.empty()
+            for label in annotation.labels():
+                # get timeline for current label
+                timeline = annotation.label_timeline(label, copy=True)
+                # fill the gaps shorter than combine_segments_seconds
+                timeline = timeline.support(self.combine_segments_seconds)
+                # reconstruct annotation with merged tracks
+                for segment in timeline.support():
+                    if segment.end - segment.start >= self.min_seconds_for_segment:
+                        support[segment] = label
         return annotation
 
     def update(self, logits, annotations) -> None:

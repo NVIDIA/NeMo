@@ -230,9 +230,7 @@ class DeepDiarizeModel(ModelPT):
     def training_step(self, batch, batch_idx):
         train_x, train_lengths, y, memory_reset = batch
         train_x, train_lengths = self.sub_sample_layer(train_x, lengths=train_lengths)
-        if self.mask_mem:
-            self._mask_mems(memory_reset)
-        encoded_xl_features, self.mems = self.transformer_feature_encoder(train_x, mems=self.mems)
+        encoded_xl_features, _ = self.transformer_feature_encoder(train_x)
         seq_mask = torch.ones(encoded_xl_features.size(0), encoded_xl_features.size(1)).to(self.device)
         # shuffle frames before generating attractors
         attractors, _ = self.eda_module(self._shuffle(encoded_xl_features, dim=1), seq_mask)
@@ -278,16 +276,18 @@ class DeepDiarizeModel(ModelPT):
 
     def validation_step(self, batch, batch_idx):
         inputs, input_lengths, y, annotations, segment_annotations = batch
-        mems, speech_activity, attractors = None, None, None
+        # for x, mem in enumerate(self.mems):
+        #     self.mems[x] = torch.zeros(1, self.sub_sample_length, self.cfg.encoder.hidden_dim, device=self.device)
+        speech_activity, attractors = None, None
         for chunk, segment_annotation, length in zip(inputs, segment_annotations, input_lengths):
             chunk, length = self.sub_sample_layer(chunk, lengths=length.unsqueeze(0))
-            encoded_xl_features, mems = self.transformer_feature_encoder(chunk, mems=mems)
+            encoded_xl_features, _ = self.transformer_feature_encoder(chunk)
             seq_mask = torch.ones(chunk.size(0), chunk.size(1)).to(self.device)
             chunk_attractors, _ = self.eda_module(self._shuffle(chunk, dim=1), seq_mask)
 
-            attractors = self._process_attractors(chunk_attractors, attractors)
+            # attractors = self._process_attractors(chunk_attractors, attractors)
 
-            speaker_outputs = self.decoder(attractors, encoded_xl_features)
+            speaker_outputs = self.decoder(chunk_attractors, encoded_xl_features)
             speech_activity = (
                 speaker_outputs if speech_activity is None else torch.cat((speech_activity, speaker_outputs), dim=1)
             )
