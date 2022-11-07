@@ -79,3 +79,18 @@ class DER(Metric):
 
     def compute(self) -> Any:
         return (self.missed_detection + self.confusion + self.false_alarm) / self.total
+
+
+class MissedDetection(DER):
+    def compute(self) -> Any:
+        return self.missed_detection / self.total
+
+
+class Confusion(DER):
+    def compute(self) -> Any:
+        return self.confusion / self.total
+
+
+class FA(DER):
+    def compute(self) -> Any:
+        return self.false_alarm / self.total

@@ -26,7 +26,7 @@ from x_transformers import Decoder
 from nemo.collections.asr.data.deep_diarize.inference_data import RTTMDataset
 from nemo.collections.asr.data.deep_diarize.train_data import LocalRTTMStreamingSegmentsDataset, MultiStreamDataLoader
 from nemo.collections.asr.data.deep_diarize.train_tarred_data import TarredRTTMStreamingSegmentsDataset
-from nemo.collections.asr.metrics.der import DER
+from nemo.collections.asr.metrics.der import DER, FA, Confusion, MissedDetection
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.modules.deep_diarize_transformer import TransformerXL
 from nemo.collections.asr.modules.transformer import PerceiverEncoder, TransformerDecoder, TransformerEncoder
@@ -157,6 +157,24 @@ class DeepDiarizeModel(ModelPT):
             threshold=self.cfg.threshold,
             combine_segments_seconds=self.cfg.combine_segments_seconds,
         )
+        self.missed_detection = MissedDetection(
+            seconds_per_frame=self.cfg.preprocessor.window_stride * self.cfg.subsampling,
+            min_seconds_for_segment=self.cfg.min_seconds_for_segment,
+            threshold=self.cfg.threshold,
+            combine_segments_seconds=self.cfg.combine_segments_seconds,
+        )
+        self.false_alarm = FA(
+            seconds_per_frame=self.cfg.preprocessor.window_stride * self.cfg.subsampling,
+            min_seconds_for_segment=self.cfg.min_seconds_for_segment,
+            threshold=self.cfg.threshold,
+            combine_segments_seconds=self.cfg.combine_segments_seconds,
+        )
+        self.confusion = Confusion(
+            seconds_per_frame=self.cfg.preprocessor.window_stride * self.cfg.subsampling,
+            min_seconds_for_segment=self.cfg.min_seconds_for_segment,
+            threshold=self.cfg.threshold,
+            combine_segments_seconds=self.cfg.combine_segments_seconds,
+        )
         self.collar_der = DER(
             seconds_per_frame=self.cfg.preprocessor.window_stride * self.cfg.subsampling,
             min_seconds_for_segment=self.cfg.min_seconds_for_segment,
@@ -261,14 +279,20 @@ class DeepDiarizeModel(ModelPT):
 
             speaker_outputs = self.decoder(chunk_attractors, encoded_xl_features)
             self.segment_der(speaker_outputs.squeeze(0), segment_annotation)
+            self.missed_detection(speaker_outputs.squeeze(0), segment_annotation)
+            self.false_alarm(speaker_outputs.squeeze(0), segment_annotation)
+            self.confusion(speaker_outputs.squeeze(0), segment_annotation)
             loss += self._calculate_val_loss(speaker_outputs, fr_level_y)
             self.collar_der(speaker_outputs.squeeze(0), segment_annotation)
             self.collar_ignore_overlap_der(speaker_outputs.squeeze(0), segment_annotation)
 
         self.log('val_loss', loss / len(inputs), sync_dist=True)
-        self.log('Collar 0.25 DER', self.collar_der, sync_dist=True)
         self.log('Segment DER', self.segment_der, sync_dist=True)
+        self.log('Collar 0.25 DER', self.collar_der, sync_dist=True)
         self.log('Ignore Overlap DER', self.collar_ignore_overlap_der, sync_dist=True)
+        self.log('Missed Detection', self.missed_detection, sync_dist=True)
+        self.log('Confusion', self.confusion, sync_dist=True)
+        self.log('False Alarm', self.false_alarm, sync_dist=True)
 
     def _calculate_val_loss(self, logits, y):
         loss = self.loss(logits, y.unsqueeze(0))
