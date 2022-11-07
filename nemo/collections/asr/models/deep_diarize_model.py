@@ -178,16 +178,10 @@ class DeepDiarizeModel(ModelPT):
             collar=0.25,
             ignore_overlap=True,
         )
-        self.mask_mem = self.cfg.mask_mem
         self.permutations = None
         self.permutations_indices = None
         self.cos = nn.CosineSimilarity(dim=1, eps=1e-6)
         self.train_attractors = None
-
-    def _mask_mems(self, mask: List[bool]):
-        if self.mems is not None:
-            for mem in self.mems:
-                mem[mask, :, :] = 0
 
     def _permutation_mask(self, preds, y):
         if self.permutations is None:
@@ -254,50 +248,24 @@ class DeepDiarizeModel(ModelPT):
         )
         return loss + (self.cfg.existence_alpha * existence_loss)
 
-    def _process_attractors(self, chunk_attractors: torch.Tensor, attractors: Optional[torch.Tensor]):
-        if attractors is None:
-            return chunk_attractors
-        if self.permutations_indices is None:
-            self.permutation_indices = list(
-                torch.tensor(perm, device=self.device) for perm in itertools.permutations(range(self.num_speakers))
-            )
-        for x in range(attractors.size(0)):
-            anchor = attractors[x]
-            lowest, lowest_cos = None, 0
-            for permutation in self.permutation_indices:
-                permutated = torch.index_select(chunk_attractors[x], 0, permutation)
-                # is mean the right thing here?
-                similarity = self.cos(anchor.float(), permutated.float()).mean()
-                if similarity > lowest_cos:
-                    lowest = permutated
-                    lowest_cos = similarity
-            attractors[x] = (anchor + lowest) / 2
-        return attractors
-
     def validation_step(self, batch, batch_idx):
-        inputs, input_lengths, y, annotations, segment_annotations = batch
-        # for x, mem in enumerate(self.mems):
-        #     self.mems[x] = torch.zeros(1, self.sub_sample_length, self.cfg.encoder.hidden_dim, device=self.device)
-        speech_activity, attractors = None, None
-        for chunk, segment_annotation, length in zip(inputs, segment_annotations, input_lengths):
+        inputs, input_lengths, y, fr_level_ys, annotations, segment_annotations = batch
+        loss = 0
+        for chunk, fr_level_y, segment_annotation, length in zip(
+            inputs, fr_level_ys, segment_annotations, input_lengths
+        ):
             chunk, length = self.sub_sample_layer(chunk, lengths=length.unsqueeze(0))
             encoded_xl_features, _ = self.transformer_feature_encoder(chunk)
             seq_mask = torch.ones(chunk.size(0), chunk.size(1)).to(self.device)
             chunk_attractors, _ = self.eda_module(self._shuffle(chunk, dim=1), seq_mask)
 
-            # attractors = self._process_attractors(chunk_attractors, attractors)
-
             speaker_outputs = self.decoder(chunk_attractors, encoded_xl_features)
-            speech_activity = (
-                speaker_outputs if speech_activity is None else torch.cat((speech_activity, speaker_outputs), dim=1)
-            )
             self.segment_der(speaker_outputs.squeeze(0), segment_annotation)
-        loss = self._calculate_val_loss(speech_activity, y)
-        self.log('val_loss', loss, sync_dist=True)
-        self.der(speech_activity.squeeze(0), annotations)
-        self.collar_der(speech_activity.squeeze(0), annotations)
-        self.collar_ignore_overlap_der(speech_activity.squeeze(0), annotations)
-        self.log('DER', self.der, sync_dist=True)
+            loss += self._calculate_val_loss(speaker_outputs, fr_level_y)
+            self.collar_der(speaker_outputs.squeeze(0), segment_annotation)
+            self.collar_ignore_overlap_der(speaker_outputs.squeeze(0), segment_annotation)
+
+        self.log('val_loss', loss / len(inputs), sync_dist=True)
         self.log('Collar 0.25 DER', self.collar_der, sync_dist=True)
         self.log('Segment DER', self.segment_der, sync_dist=True)
         self.log('Ignore Overlap DER', self.collar_ignore_overlap_der, sync_dist=True)

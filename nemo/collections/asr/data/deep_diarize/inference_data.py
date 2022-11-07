@@ -15,7 +15,14 @@ def _inference_collate_fn(batch):
     packed_batch = list(zip(*batch))
     features, feature_length, fr_targets, annotations, segment_annotations = packed_batch
     assert len(features) == 1, "Currently inference/validation only supports a batch size of 1."
-    return features[0], feature_length[0], torch.cat(fr_targets[0], dim=0), annotations[0], segment_annotations[0]
+    return (
+        features[0],
+        feature_length[0],
+        torch.cat(fr_targets[0], dim=0),
+        fr_targets[0],
+        annotations[0],
+        segment_annotations[0],
+    )
 
 
 class RTTMDataset(Dataset):
