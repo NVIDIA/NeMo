@@ -30,12 +30,11 @@ class PartialConv1d(torch.nn.Conv1d):
         super(PartialConv1d, self).__init__(*args, **kwargs)
         weight_maskUpdater = torch.ones(1, 1, self.kernel_size[0])
         self.register_buffer("weight_maskUpdater", weight_maskUpdater, persistent=False)
-        slide_winsize = torch.tensor(self.weight_maskUpdater.shape[1] * self.weight_maskUpdater.shape[2])
+        slide_winsize = torch.tensor(
+            self.weight_maskUpdater.shape[1] * self.weight_maskUpdater.shape[2], requires_grad=False
+        )
         self.register_buffer("slide_winsize", slide_winsize, persistent=False)
 
-        if self.bias is not None:
-            bias_view = self.bias.view(1, self.out_channels, 1)
-            self.register_buffer('bias_view', bias_view, persistent=False)
         # caching part
         self.last_size = (-1, -1, -1)
 
@@ -72,7 +71,8 @@ class PartialConv1d(torch.nn.Conv1d):
         raw_out = self._conv_forward(input, self.weight, self.bias)
 
         if self.bias is not None:
-            output = torch.mul(raw_out - self.bias_view, mask_ratio) + self.bias_view
+            bias_view = self.bias.view(1, self.out_channels, 1)
+            output = torch.mul(raw_out - bias_view, mask_ratio) + bias_view
             output = torch.mul(output, update_mask)
         else:
             output = torch.mul(raw_out, mask_ratio)

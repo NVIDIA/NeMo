@@ -1684,7 +1684,9 @@ class SampledRNNTJoint(RNNTJoint):
             fused_batch_size=fused_batch_size,
         )
         self.n_samples = n_samples
-        self.register_buffer('blank_id', torch.tensor([self.num_classes_with_blank - 1]), persistent=False)
+        self.register_buffer(
+            'blank_id', torch.tensor([self.num_classes_with_blank - 1], requires_grad=False), persistent=False
+        )
 
     @typecheck()
     def forward(

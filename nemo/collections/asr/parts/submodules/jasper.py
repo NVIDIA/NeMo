@@ -516,7 +516,7 @@ class SqueezeExcite(nn.Module):
         self.max_len = max_len
         if seq_range is None:
             device = next(self.parameters()).device
-            seq_range = torch.arange(0, self.max_len, device=device)
+            seq_range = torch.arange(0, self.max_len, device=device).detach()
         if hasattr(self, 'seq_range'):
             self.seq_range = seq_range
         else:

@@ -281,11 +281,11 @@ class PositionalEncoding(torch.nn.Module):
         )
         pe[:, 0::2] = torch.sin(positions * div_term)
         pe[:, 1::2] = torch.cos(positions * div_term)
-        pe = pe.unsqueeze(0)
+        pe = pe.unsqueeze(0).detach()
         if hasattr(self, 'pe'):
             self.pe = pe
         else:
-            self.register_buffer('pe', pe, persistent=False)
+            self.register_buffer('pe', pe.detach(), persistent=False)
 
     def extend_pe(self, length, device):
         """Reset and extend the positional encodings if needed."""

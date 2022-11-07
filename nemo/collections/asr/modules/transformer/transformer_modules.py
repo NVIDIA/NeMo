@@ -55,7 +55,7 @@ class FixedPositionalEncoding(nn.Module):
         pos_enc[:, 0::2] = torch.sin(position * div_term)
         pos_enc[:, 1::2] = torch.cos(position * div_term)
         pos_enc.div_(math.sqrt(hidden_size))
-        self.register_buffer('pos_enc', pos_enc)
+        self.register_buffer('pos_enc', pos_enc.detach())
 
     def forward(self, position_ids):
         max_pos_id = position_ids.max()

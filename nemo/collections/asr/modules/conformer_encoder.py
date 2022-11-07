@@ -378,9 +378,9 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             att_mask = torch.logical_and(att_mask, chunked_limited_mask.unsqueeze(0))
 
         if hasattr(self, 'att_mask'):
-            self.att_mask = att_mask
+            self.att_mask = att_mask.detach()
         else:
-            self.register_buffer('att_mask', att_mask, persistent=False)
+            self.register_buffer('att_mask', att_mask.detach(), persistent=False)
 
     @typecheck()
     def forward(self, audio_signal, length, cache_last_channel=None, cache_last_time=None):

@@ -258,7 +258,7 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
         """
         self.max_audio_length = max_audio_length
         device = next(self.parameters()).device
-        seq_range = torch.arange(0, self.max_audio_length, device=device)
+        seq_range = torch.arange(0, self.max_audio_length, device=device).detach()
         if hasattr(self, 'seq_range'):
             self.seq_range = seq_range
         else:

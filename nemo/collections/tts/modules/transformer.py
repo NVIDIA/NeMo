@@ -35,7 +35,7 @@ class PositionalEmbedding(nn.Module):
         super(PositionalEmbedding, self).__init__()
         self.demb = demb
         inv_freq = 1 / (10000 ** (torch.arange(0.0, demb, 2.0) / demb))
-        self.register_buffer('inv_freq', inv_freq)
+        self.register_buffer('inv_freq', inv_freq.detach())
 
     def forward(self, pos_seq, bsz=None):
         #        sinusoid_inp = torch.ger(pos_seq, self.inv_freq)
