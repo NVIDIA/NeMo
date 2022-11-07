@@ -14,6 +14,7 @@
 import contextlib
 import copy
 import threading
+from typing import Iterable
 
 import pytorch_lightning as pl
 import torch
@@ -34,40 +35,59 @@ class EMA(Callback):
     Args:
         decay: The exponential decay used when calculating the moving average. Has to be between 0-1.
         validate_original_weights: Validate the original weights, as apposed to the EMA weights.
+        every_n_steps: Apply EMA every N steps.
         cpu_offload: Offload weights to CPU.
     """
 
-    def __init__(self, decay: float, validate_original_weights: bool = False, cpu_offload: bool = False):
+    def __init__(
+        self, decay: float, validate_original_weights: bool = False, every_n_steps: int = 1, cpu_offload: bool = False,
+    ):
         if not (0 <= decay <= 1):
             raise MisconfigurationException("EMA decay value must be between 0 and 1")
         self.decay = decay
         self.validate_original_weights = validate_original_weights
+        self.every_n_steps = every_n_steps
         self.cpu_offload = cpu_offload
 
-    def on_fit_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+    def on_train_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
         device = pl_module.device if not self.cpu_offload else torch.device('cpu')
-        trainer.optimizers = [EMAOptimizer(optim, device=device, decay=self.decay) for optim in trainer.optimizers]
+        trainer.optimizers = [
+            EMAOptimizer(
+                optim,
+                device=device,
+                decay=self.decay,
+                every_n_steps=self.every_n_steps,
+                current_step=trainer.global_step,
+            )
+            for optim in trainer.optimizers
+        ]
+
+    def on_validation_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+        if self._should_validate_ema_weights(trainer):
+            self.swap_model_weights(trainer)
+
+    def on_validation_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+        if self._should_validate_ema_weights(trainer):
+            self.swap_model_weights(trainer)
+
+    def on_test_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+        if self._should_validate_ema_weights(trainer):
+            self.swap_model_weights(trainer)
+
+    def on_test_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+        if self._should_validate_ema_weights(trainer):
+            self.swap_model_weights(trainer)
+
+    def _should_validate_ema_weights(self, trainer: "pl.Trainer") -> bool:
+        return not self.validate_original_weights and self._ema_initialized(trainer)
+
+    def _ema_initialized(self, trainer: "pl.Trainer") -> bool:
+        return any(isinstance(optimizer, EMAOptimizer) for optimizer in trainer.optimizers)
 
     def swap_model_weights(self, trainer: "pl.Trainer"):
         for optimizer in trainer.optimizers:
             assert isinstance(optimizer, EMAOptimizer)
             optimizer.switch_main_parameter_weights()
-
-    def on_validation_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
-        if not self.validate_original_weights:
-            self.swap_model_weights(trainer)
-
-    def on_validation_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
-        if not self.validate_original_weights:
-            self.swap_model_weights(trainer)
-
-    def on_test_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
-        if not self.validate_original_weights:
-            self.swap_model_weights(trainer)
-
-    def on_test_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
-        if not self.validate_original_weights:
-            self.swap_model_weights(trainer)
 
 
 @torch.no_grad()
@@ -127,7 +147,12 @@ class EMAOptimizer(torch.optim.Optimizer):
     """
 
     def __init__(
-        self, optimizer: torch.optim.Optimizer, device: torch.device, decay: float = 0.9999,
+        self,
+        optimizer: torch.optim.Optimizer,
+        device: torch.device,
+        decay: float = 0.9999,
+        every_n_steps: int = 1,
+        current_step: int = 0,
     ):
 
         # copy most of the `Optimizer` methods into this instance. `__del__` is skipped in case the optimizer has
@@ -138,6 +163,8 @@ class EMAOptimizer(torch.optim.Optimizer):
         self.optimizer = optimizer
         self.decay = decay
         self.device = device
+        self.current_step = current_step
+        self.every_n_steps = every_n_steps
 
         self.first_iteration = True
         self.rebuild_ema_params = True
@@ -146,7 +173,7 @@ class EMAOptimizer(torch.optim.Optimizer):
 
         self.ema_params = ()
 
-    def all_parameters(self):
+    def all_parameters(self) -> Iterable[torch.Tensor]:
         if isinstance(self.optimizer, MainParamsOptimizerWrapper):
             return (param for group in self.optimizer.float16_groups for param in group)
         return (param for group in self.param_groups for param in group['params'])
@@ -173,8 +200,13 @@ class EMAOptimizer(torch.optim.Optimizer):
         else:
             loss = self.optimizer.step(closure)
 
-        self.update()
+        if self._should_update_at_step():
+            self.update()
+        self.current_step += 1
         return loss
+
+    def _should_update_at_step(self) -> bool:
+        return self.current_step % self.every_n_steps == 0
 
     @torch.no_grad()
     def update(self):

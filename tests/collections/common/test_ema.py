@@ -26,6 +26,7 @@ from pytorch_lightning.utilities.exceptions import MisconfigurationException
 from pytorch_lightning.utilities.types import STEP_OUTPUT
 
 from nemo.collections.common.callbacks import EMA
+from nemo.collections.common.callbacks.ema import EMAOptimizer
 from nemo.core import ModelPT
 from nemo.utils.exp_manager import exp_manager
 from tests.collections.nlp.test_gpt_model import DEVICE_CAPABILITY
@@ -100,10 +101,16 @@ class TestEMAConfig:
         """Test to ensure that when we re-load the EMA callback, it loads the EMA weights correctly."""
         temp_path = os.path.join(tmpdir, 'saved_state')
 
+        def extract_ema_weights(ema_callback, pl_module, trainer):
+            ema_callback.swap_model_weights(trainer)
+            weights = [w.detach().clone() for w in pl_module.state_dict().values()]
+            ema_callback.swap_model_weights(trainer)
+            return weights
+
         class TerminateCallback(Callback):
             def on_train_epoch_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
                 ema_callback = [x for x in trainer.callbacks if isinstance(x, EMA)][0]
-                self.saved_ema_weights = ema_callback._ema_model_weights
+                self.saved_ema_weights = extract_ema_weights(ema_callback, pl_module, trainer)
                 self.pl_module_weights = list(pl_module.state_dict().values())
                 raise SystemExit
 
@@ -124,7 +131,7 @@ class TestEMAConfig:
         exp_manager(
             trainer,
             {
-                "ema": {"enable": True, "evaluate_ema_weights_instead": True},
+                "ema": {"enable": True},
                 "explicit_log_dir": str(temp_path),
                 "checkpoint_callback_params": {"filename": f"{{epoch}}-{{step}}"},
             },
@@ -141,9 +148,13 @@ class TestEMAConfig:
                 weights = list(pl_module.state_dict().values())
                 for x, y in zip(weights, terminate_callback.pl_module_weights):
                     assert torch.allclose(x.cpu(), y.cpu())
-                for x, y in zip(ema_callback._ema_model_weights, terminate_callback.saved_ema_weights):
+                current_ema_weights = extract_ema_weights(ema_callback, pl_module, trainer)
+                for x, y in zip(current_ema_weights, terminate_callback.saved_ema_weights):
                     assert torch.allclose(x.cpu(), y.cpu())
-                assert ema_callback._cur_step == 8
+
+                for optimizer in trainer.optimizers:
+                    assert isinstance(optimizer, EMAOptimizer)
+                    assert optimizer.current_step == 8
 
         trainer = Trainer(
             max_epochs=2,
@@ -157,7 +168,7 @@ class TestEMAConfig:
         exp_manager(
             trainer,
             {
-                "ema": {"enable": True, "evaluate_ema_weights_instead": True},
+                "ema": {"enable": True},
                 "explicit_log_dir": str(temp_path),
                 "checkpoint_callback_params": {"filename": f"{{epoch}}-{{step}}"},
             },
@@ -181,7 +192,7 @@ class TestEMAConfig:
         exp_manager(
             trainer,
             {
-                "ema": {"enable": True, "evaluate_ema_weights_instead": True},
+                "ema": {"enable": True},
                 "explicit_log_dir": str(temp_path),
                 "checkpoint_callback_params": {"filename": f"{{epoch}}-{{step}}"},
             },
@@ -404,7 +415,7 @@ class EMAAssertCallback(Callback):
         if ema_callback.evaluate_ema_weights_instead:
             # todo (sean): shouldn't use the weights buffer to check original weights
             self._original_weights = list(x.detach().clone() for x in ema_callback._weights_buffer)
-            if ema_callback.ema_initialized:
+            if ema_callback._ema_initialized:
                 for ema_weights, module_weights in zip(
                     ema_callback._ema_model_weights, pl_module.state_dict().values()
                 ):
@@ -414,6 +425,6 @@ class EMAAssertCallback(Callback):
         ema_callback = [x for x in trainer.callbacks if isinstance(x, EMA)][0]
         if ema_callback.evaluate_ema_weights_instead:
             model_weights = list(pl_module.state_dict().values())
-            if ema_callback.ema_initialized:
+            if ema_callback._ema_initialized:
                 for orig_weights, module_weights in zip(self._original_weights, model_weights):
                     torch.allclose(orig_weights, module_weights.cpu())
