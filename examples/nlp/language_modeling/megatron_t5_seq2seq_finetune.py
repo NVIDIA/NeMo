@@ -74,8 +74,8 @@ def _modify_config(t5_cfg, cfg, add_cfg_to_tree=False):
 
     return t5_cfg
 
-def load_from_nemo(cls, cfg, trainer, t5_cfg):
-    t5_cfg = _modify_config(t5_cfg, cfg, add_cfg_to_tree=False)
+def load_from_nemo(cls, cfg, trainer, t5_cfg, modify_confg_fn):
+    t5_cfg = modify_confg_fn(t5_cfg, cfg, add_cfg_to_tree=False)
     model = cls.restore_from(
         restore_path=cfg.model.restore_from_path,
         trainer=trainer,
@@ -84,7 +84,7 @@ def load_from_nemo(cls, cfg, trainer, t5_cfg):
     )
     return model
 
-def load_from_checkpoint_dir(cls, cfg, trainer):
+def load_from_checkpoint_dir(cls, cfg, trainer, modify_confg_fn):
     app_state = AppState()
     if cfg.model.tensor_model_parallel_size > 1 or cfg.model.pipeline_model_parallel_size > 1:
         app_state.model_parallel_size = cfg.model.tensor_model_parallel_size * cfg.model.pipeline_model_parallel_size
@@ -106,7 +106,7 @@ def load_from_checkpoint_dir(cls, cfg, trainer):
         )
     checkpoint_path = inject_model_parallel_rank(os.path.join(cfg.model.pretrained_checkpoint.checkpoint_dir, cfg.model.pretrained_checkpoint.checkpoint_name))
     hparams_file = OmegaConf.load(cfg.model.pretrained_checkpoint.hparams_file)
-    t5_cfg = _modify_config(hparams_file.cfg, cfg, add_cfg_to_tree=True)
+    t5_cfg = modify_confg_fn(hparams_file.cfg, cfg, add_cfg_to_tree=True)
     with tempfile.NamedTemporaryFile(suffix='.yaml') as f:
         OmegaConf.save(config=t5_cfg, f=f.name)
         model = cls.load_from_checkpoint(
@@ -115,6 +115,14 @@ def load_from_checkpoint_dir(cls, cfg, trainer):
             hparams_file=f.name,
         )
         return model
+
+def validate_checkpoint_loading_args(cfg):
+    if cfg.checkpoint_dir is None or not os.path.isdir(cfg.checkpoint_dir):
+        raise ValueError(f'Checkpoint directory {cfg.checkpoint_dir} does not exist or is not a directory.')
+    if cfg.checkpoint_name is None:
+        raise ValueError(f'Checkpoint name {cfg.checkpoint_name} is not valid.')
+    if cfg.hparams_file is None or not os.path.isfile(cfg.hparams_file):
+        raise ValueError(f'Hparams file {cfg.hparams_file} does not exist or is not a file.')
 
 @hydra_runner(config_path="conf", config_name="megatron_t5_config_finetune_glue_mnli")
 def main(cfg) -> None:
@@ -166,25 +174,28 @@ def main(cfg) -> None:
             t5_cfg = MegatronT5GLUEModel.restore_from(
                restore_path=cfg.model.restore_from_path, trainer=trainer, return_config=True
             )
-            model = load_from_nemo(MegatronT5GLUEModel, cfg, trainer, t5_cfg)
+            model = load_from_nemo(MegatronT5GLUEModel, cfg, trainer, t5_cfg, modify_confg_fn=_modify_config)
         else:
-            model = load_from_checkpoint_dir(MegatronT5GLUEModel, cfg, trainer)
+            validate_checkpoint_loading_args(cfg.model.pretrained_checkpoint)
+            model = load_from_checkpoint_dir(MegatronT5GLUEModel, cfg, trainer, modify_confg_fn=_modify_config)
     elif hasattr(cfg.model.data.train_ds, 'file_names'):
         if cfg.model.restore_from_path:
             t5_cfg = MegatronT0Model.restore_from(
                restore_path=cfg.model.restore_from_path, trainer=trainer, return_config=True
             )
-            model = load_from_nemo(MegatronT0Model, cfg, trainer, t5_cfg)
+            model = load_from_nemo(MegatronT0Model, cfg, trainer, t5_cfg, modify_confg_fn=_modify_config)
         else:
-            model = load_from_checkpoint_dir(MegatronT0Model, cfg, trainer, t5_cfg)
+            validate_checkpoint_loading_args(cfg.model.pretrained_checkpoint)
+            model = load_from_checkpoint_dir(MegatronT0Model, cfg, trainer, t5_cfg, modify_confg_fn=_modify_config)
     else:
         if cfg.model.restore_from_path:
             t5_cfg = MegatronT5FinetuneModel.restore_from(
                restore_path=cfg.model.restore_from_path, trainer=trainer, return_config=True
             )
-            model = load_from_nemo(MegatronT5FinetuneModel, cfg, trainer, t5_cfg)
+            model = load_from_nemo(MegatronT5FinetuneModel, cfg, trainer, t5_cfg, modify_confg_fn=_modify_config)
         else:
-            model = load_from_checkpoint_dir(MegatronT5FinetuneModel, cfg, trainer, t5_cfg)
+            validate_checkpoint_loading_args(cfg.model.pretrained_checkpoint)
+            model = load_from_checkpoint_dir(MegatronT5FinetuneModel, cfg, trainer, t5_cfg, modify_confg_fn=_modify_config)
 
     trainer.fit(model)
     trainer.validate(model)
