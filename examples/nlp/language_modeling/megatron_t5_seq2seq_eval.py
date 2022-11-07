@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from megatron_t5_seq2seq_finetune import load_from_checkpoint_dir, load_from_nemo, validate_checkpoint_loading_args
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks.timer import Timer
@@ -30,7 +31,7 @@ from nemo.collections.nlp.parts.nlp_overrides import (
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import StatelessTimer, exp_manager
-from megatron_t5_seq2seq_finetune import load_from_nemo, load_from_checkpoint_dir, validate_checkpoint_loading_args
+
 
 def _modify_config(t5_cfg, cfg, add_cfg_to_tree=False):
     """
@@ -111,7 +112,7 @@ def main(cfg) -> None:
     if hasattr(cfg.model.data.validation_ds, 'task_name'):
         if cfg.model.restore_from_path:
             t5_cfg = MegatronT5GLUEModel.restore_from(
-               restore_path=cfg.model.restore_from_path, trainer=trainer, return_config=True
+                restore_path=cfg.model.restore_from_path, trainer=trainer, return_config=True
             )
             model = load_from_nemo(MegatronT5GLUEModel, cfg, trainer, t5_cfg, modify_confg_fn=_modify_config)
         else:
@@ -120,7 +121,7 @@ def main(cfg) -> None:
     elif hasattr(cfg.model.data.validation_ds, 'file_names'):
         if cfg.model.restore_from_path:
             t5_cfg = MegatronT0Model.restore_from(
-               restore_path=cfg.model.restore_from_path, trainer=trainer, return_config=True
+                restore_path=cfg.model.restore_from_path, trainer=trainer, return_config=True
             )
             model = load_from_nemo(MegatronT0Model, cfg, trainer, t5_cfg, modify_confg_fn=_modify_config)
         else:
@@ -129,12 +130,14 @@ def main(cfg) -> None:
     else:
         if cfg.model.restore_from_path:
             t5_cfg = MegatronT5FinetuneModel.restore_from(
-               restore_path=cfg.model.restore_from_path, trainer=trainer, return_config=True
+                restore_path=cfg.model.restore_from_path, trainer=trainer, return_config=True
             )
             model = load_from_nemo(MegatronT5FinetuneModel, cfg, trainer, t5_cfg, modify_confg_fn=_modify_config)
         else:
             validate_checkpoint_loading_args(cfg.model.pretrained_checkpoint)
-            model = load_from_checkpoint_dir(MegatronT5FinetuneModel, cfg, trainer, t5_cfg, modify_confg_fn=_modify_config)
+            model = load_from_checkpoint_dir(
+                MegatronT5FinetuneModel, cfg, trainer, t5_cfg, modify_confg_fn=_modify_config
+            )
 
     model.freeze()
     trainer.validate(model)
