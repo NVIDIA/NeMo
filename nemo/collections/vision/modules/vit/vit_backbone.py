@@ -286,10 +286,16 @@ class VitBackbone(MegatronModule):
         else:
             hidden_states = input
 
+        # TODO (yuya): check if this should lives in preprocess
+        # [b s h] => [s b h]
+        hidden_states = hidden_states.transpose(0, 1).contiguous()
         hidden_states = self.transformer(hidden_states, None)
 
+        # [s b h] => [b s h]
         if self.single_token_output:
-            hidden_states = hidden_states[:, 0, :]
+            hidden_states = hidden_states[0]
+        else:
+            hidden_states = hidden_states.transpose(0, 1).contiguous()
 
         return hidden_states
 
