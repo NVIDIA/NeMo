@@ -1,3 +1,4 @@
+ipython
 latexcodec
 numpy
 sphinx>=3.0
