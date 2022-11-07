@@ -28,7 +28,7 @@ exp_manager:
   resume_ignore_no_checkpoint: True
   create_checkpoint_callback: True
   checkpoint_callback_params:
-    monitor: validation_exact_string_match
+    monitor: validation_${model.data.validation_ds.metric.name}
     save_top_k: 10
     mode: max
     always_save_nemo: False # TODO: add support

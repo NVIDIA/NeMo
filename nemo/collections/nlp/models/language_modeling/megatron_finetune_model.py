@@ -132,22 +132,9 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             self.setup_training_data()
 
     def _process_global_batch(self, global_batch):
-        """Process a list of microbatches into a global batch."""
-        # If there is no language information in the global batch (ex: English MNLI), we can use the parent global batch processor as is.
-        if 'lang' not in global_batch[0]:
-            return self._process_global_batch_without_megatron_batch_sampler(global_batch)
-
-        # For validation data (XNLI), we need to process the global batch and and then deal with language info separately.
-        else:
-            assert all(['lang' in micro_batch for micro_batch in global_batch])
-            langs_list = []
-            processed_global_batch = self._process_global_batch_without_megatron_batch_sampler(
-                [{k: v for k, v in micro_batch.items() if k != 'lang'} for micro_batch in global_batch]
-            )
-            for micro_batch in global_batch:
-                langs_list.extend(micro_batch['lang'])
-            processed_global_batch['lang'] = langs_list
-            return processed_global_batch
+        """Optionally processes a global batch."""
+        # TODO: maybe remove this now that we've refactored data batch sizes.
+        return global_batch
 
     def on_validation_epoch_start(self):
         app_state = AppState()
@@ -189,17 +176,15 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         return super().on_train_epoch_start()
 
     def training_step(self, batch, batch_idx):
-        micro_batch_size = batch[0]['text_enc'].size(0)
+        global_batch_size_per_gpu = batc['text_enc'].size(0)
         # This should happen only on the last batch of the dataset.
-        if micro_batch_size != self.cfg.data.train_ds.micro_batch_size:
+        if global_batch_size_per_gpu != self.cfg.data.train_ds.global_batch_size // parallel_state.get_data_parallel_world_size():
             app_state = AppState()
             _reconfigure_microbatch_calculator(
                 rank=app_state.global_rank,
                 rampup_batch_size=None,
-                global_batch_size=micro_batch_size
-                * parallel_state.get_data_parallel_world_size()
-                * get_num_microbatches(),
-                micro_batch_size=micro_batch_size,
+                global_batch_size=global_batch_size_per_gpu * parallel_state.get_data_parallel_world_size(),
+                micro_batch_size=global_batch_size_per_gpu // get_num_microbatches_per_batch(),
                 data_parallel_size=parallel_state.get_data_parallel_world_size(),
             )
         # At this point batch is a list of dictionaries where eatch dict is a microbatch.
@@ -264,17 +249,15 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         return pred, label
 
     def _reconfigure_and_process_inference_batch(self, batch):
-        micro_batch_size = batch[0]['text_enc'].size(0)
+        global_batch_size_per_gpu = batch['text_enc'].size(0)
         # This should happen only on the last batch of the dataset.
-        if micro_batch_size != self.cfg.data.validation_ds.micro_batch_size:
+        if global_batch_size_per_gpu != self.cfg.data.validation_ds.global_batch_size // parallel_state.get_data_parallel_world_size():
             app_state = AppState()
             _reconfigure_microbatch_calculator(
                 rank=app_state.global_rank,
                 rampup_batch_size=None,
-                global_batch_size=micro_batch_size
-                * parallel_state.get_data_parallel_world_size()
-                * get_num_microbatches(),
-                micro_batch_size=micro_batch_size,
+                global_batch_size=global_batch_size_per_gpu * parallel_state.get_data_parallel_world_size(),
+                micro_batch_size=global_batch_size_per_gpu // get_num_microbatches(),
                 data_parallel_size=parallel_state.get_data_parallel_world_size(),
             )
 
@@ -282,7 +265,6 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         # After the process_global_batch call, processed_batch will be a single dictionary containing the global batch.
         # This is required since the parent class expects a single global batch dictioanry.
         processed_batch = self._process_global_batch(batch)
-
         return processed_batch
 
     def inference_step(self, batch, batch_idx, mode, dataloader_idx=0):
@@ -525,20 +507,6 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         sampler = torch.utils.data.distributed.DistributedSampler(
             dataset, num_replicas=world_size, rank=rank, shuffle=shuffle
         )
-        # This check makes sure the val_check_interval is less than the number of global batches.
-        # Normally, PTL would do this check and properly account for gradient accumulation.
-        # But now, it is implicit in the apex fwd/bwd functions and so we need to check for this somewhere.
-        # The consequence of not doing this is that training loop will never run validation.
-        # NOTE: Prog bar is also broken as a result of this.
-        global_batch_size_per_gpu = micro_batch_size * get_num_microbatches()
-        if (
-            self.trainer.val_check_interval > (sampler.num_samples // global_batch_size_per_gpu)
-            and check_validation_interval
-        ):
-            raise ValueError(
-                f"trainer.val_check_interval {self.trainer.val_check_interval} is > number of global batches {sampler.num_samples // global_batch_size}"
-            )
-
         if isinstance(dataset, ConcatMapDataset):
             collate_fn = dataset.datasets[0].collate_fn
         else:
@@ -548,7 +516,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             dataset,
             collate_fn=collate_fn,
             sampler=sampler,
-            batch_size=micro_batch_size,
+            batch_size=global_batch_size // parallel_state.get_data_parallel_world_size(),
             num_workers=num_workers,
             pin_memory=pin_memory,
             drop_last=drop_last,
@@ -689,15 +657,3 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             return
         self._train_ds = self._build_train_dataset(self.cfg.data.train_ds)
         logging.info(f'Finished building datasets ...')
-
-    def on_train_start(self) -> None:
-        """PTL hook used to override DataFetcher with GlobalBatchDataFetcher """
-        self.trainer.fit_loop._data_fetcher = GlobalBatchDataFetcher()
-
-    def on_validation_start(self) -> None:
-        """PTL hook used to override DataFetcher with GlobalBatchDataFetcher """
-        self.trainer.fit_loop.epoch_loop.val_loop._data_fetcher = GlobalBatchDataFetcher()
-        self.trainer.validate_loop._data_fetcher = GlobalBatchDataFetcher()
-
-    def on_test_start(self) -> None:
-        self.trainer.test_loop._data_fetcher = GlobalBatchDataFetcher()
