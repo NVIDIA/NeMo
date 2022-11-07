@@ -50,6 +50,8 @@ class PartialConv1d(torch.nn.Conv1d):
                 mask = torch.ones(1, 1, input.shape[2], dtype=input.dtype, device=input.device)
             else:
                 mask = mask_in
+                input = torch.mul(input, mask)
+
             update_mask = F.conv1d(
                 mask,
                 self.weight_maskUpdater,
@@ -60,10 +62,10 @@ class PartialConv1d(torch.nn.Conv1d):
                 groups=1,
             )
             # for mixed precision training, change 1e-8 to 1e-6
-            mask_ratio = self.slide_winsize / (update_mask + 1e-6)
+            mask_ratio = self.slide_winsize / (update_mask + 1e-4)
             update_mask = torch.clamp(update_mask, 0, 1)
-            mask_ratio = torch.mul(mask_ratio.to(update_mask), update_mask)
-            return torch.mul(input, mask), mask_ratio, update_mask
+            mask_ratio = torch.mul(mask_ratio, update_mask)
+            return input, mask_ratio, update_mask
 
     def forward_aux(self, input: torch.Tensor, mask_ratio: torch.Tensor, update_mask: torch.Tensor) -> torch.Tensor:
         assert len(input.shape) == 3

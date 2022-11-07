@@ -784,11 +784,11 @@ class RadTTSModule(NeuralModule, Exportable):
         PartialConv1d.forward = PartialConv1d.forward_no_cache
         self.remove_norms()
         super()._prepare_for_export(**kwargs)
-        self.encoder = torch.jit.script(self.encoder)
-        self.v_pred_module.feat_pred_fn = torch.jit.script(self.v_pred_module.feat_pred_fn)
-        self.f0_pred_module.feat_pred_fn = torch.jit.script(self.f0_pred_module.feat_pred_fn)
-        self.energy_pred_module.feat_pred_fn = torch.jit.script(self.energy_pred_module.feat_pred_fn)
-        self.dur_pred_layer.feat_pred_fn = torch.jit.script(self.dur_pred_layer.feat_pred_fn)
+        self.encoder = self.encoder.script()
+        self.v_pred_module.feat_pred_fn = self.v_pred_module.feat_pred_fn.script()
+        self.f0_pred_module.feat_pred_fn = self.f0_pred_module.feat_pred_fn.script()
+        self.energy_pred_module.feat_pred_fn = self.energy_pred_module.feat_pred_fn.script()
+        self.dur_pred_layer.feat_pred_fn = self.dur_pred_layer.feat_pred_fn.script()
 
         if self.use_context_lstm:
             self.context_lstm = torch.jit.script(self.context_lstm)
