@@ -750,5 +750,5 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         return DecEmb(self.enc_dec_model.decoder_embedding, self.enc_dec_model.enc_dec_model.decoder, self.device)
 
     @property
-    def classifier(self):
+    def log_softmax(self):
         return TokensHeadEmb(self.enc_dec_model.decoder_embedding, self.enc_dec_model.tokens_head, self.device)
