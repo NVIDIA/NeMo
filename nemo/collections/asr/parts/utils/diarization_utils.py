@@ -20,7 +20,7 @@ import os
 from collections import OrderedDict as od
 from datetime import datetime
 from itertools import permutations
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Tuple
 
 import numpy as np
 from scipy.optimize import linear_sum_assignment

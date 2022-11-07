@@ -36,7 +36,7 @@ def permuted_input_test(hyp, ref, calculated):
     Randomly permute the input to see if evaluation result stays the same.
     """
     for hyp_permed in permutations(hyp):
-        cpWER, hyp_min, ref_str = calculate_session_cpWER(spk_hypothesis=hyp, spk_reference=ref)
+        cpWER, hyp_min, ref_str = calculate_session_cpWER(spk_hypothesis=hyp_permed, spk_reference=ref)
         diff = torch.abs(torch.tensor(calculated - cpWER))
         assert diff <= 1e-6
 
