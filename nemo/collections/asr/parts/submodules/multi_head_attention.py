@@ -37,7 +37,7 @@ import math
 import torch
 import torch.nn as nn
 
-from nemo.utils.export_utils import avoid_float16_autocast_context
+from nemo.utils import avoid_float16_autocast_context
 
 __all__ = [
     'RelPositionMultiHeadAttention',
