@@ -14,16 +14,17 @@
 
 import os
 import tempfile
+
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks.timer import Timer
 from pytorch_lightning.plugins.environments.torchelastic_environment import TorchElasticEnvironment
 from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
 
-from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.models.language_modeling.megatron_finetune_model import MegatronT5FinetuneModel
 from nemo.collections.nlp.models.language_modeling.megatron_glue_model import MegatronT5GLUEModel
 from nemo.collections.nlp.models.language_modeling.megatron_t0_model import MegatronT0Model
+from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
     MegatronHalfPrecisionPlugin,
@@ -32,9 +33,10 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     PipelineMixedPrecisionPlugin,
 )
 from nemo.core.config import hydra_runner
-from nemo.utils import logging, AppState
+from nemo.utils import AppState, logging
 from nemo.utils.exp_manager import StatelessTimer, exp_manager
 from nemo.utils.model_utils import inject_model_parallel_rank
+
 
 def _modify_config(t5_cfg, cfg, add_cfg_to_tree=False):
     """
@@ -65,7 +67,7 @@ def _modify_config(t5_cfg, cfg, add_cfg_to_tree=False):
         # XNLI has eval languages in the yaml config.
         if hasattr(cfg.model, 'eval_languages'):
             t5_cfg.eval_languages = cfg.model.eval_languages
-        
+
         # This is needed when modifying a hparam file directly to load `.ckpt` files.
         # This is not needed to modify the cfg in `.nemo` files.
         if add_cfg_to_tree:
@@ -73,6 +75,7 @@ def _modify_config(t5_cfg, cfg, add_cfg_to_tree=False):
             t5_cfg.cfg = t5_cfg
 
     return t5_cfg
+
 
 def load_from_nemo(cls, cfg, trainer, t5_cfg, modify_confg_fn):
     t5_cfg = modify_confg_fn(t5_cfg, cfg, add_cfg_to_tree=False)
@@ -83,6 +86,7 @@ def load_from_nemo(cls, cfg, trainer, t5_cfg, modify_confg_fn):
         save_restore_connector=NLPSaveRestoreConnector(),
     )
     return model
+
 
 def load_from_checkpoint_dir(cls, cfg, trainer, modify_confg_fn):
     app_state = AppState()
@@ -104,17 +108,16 @@ def load_from_checkpoint_dir(cls, cfg, trainer, modify_confg_fn):
             pipeline_model_parallel_size_=cfg.model.pipeline_model_parallel_size,
             pipeline_model_parallel_split_rank_=cfg.model.pipeline_model_parallel_split_rank,
         )
-    checkpoint_path = inject_model_parallel_rank(os.path.join(cfg.model.pretrained_checkpoint.checkpoint_dir, cfg.model.pretrained_checkpoint.checkpoint_name))
+    checkpoint_path = inject_model_parallel_rank(
+        os.path.join(cfg.model.pretrained_checkpoint.checkpoint_dir, cfg.model.pretrained_checkpoint.checkpoint_name)
+    )
     hparams_file = OmegaConf.load(cfg.model.pretrained_checkpoint.hparams_file)
     t5_cfg = modify_confg_fn(hparams_file.cfg, cfg, add_cfg_to_tree=True)
     with tempfile.NamedTemporaryFile(suffix='.yaml') as f:
         OmegaConf.save(config=t5_cfg, f=f.name)
-        model = cls.load_from_checkpoint(
-            checkpoint_path=checkpoint_path,
-            trainer=trainer,
-            hparams_file=f.name,
-        )
+        model = cls.load_from_checkpoint(checkpoint_path=checkpoint_path, trainer=trainer, hparams_file=f.name,)
         return model
+
 
 def validate_checkpoint_loading_args(cfg):
     if cfg.checkpoint_dir is None or not os.path.isdir(cfg.checkpoint_dir):
@@ -123,6 +126,7 @@ def validate_checkpoint_loading_args(cfg):
         raise ValueError(f'Checkpoint name {cfg.checkpoint_name} is not valid.')
     if cfg.hparams_file is None or not os.path.isfile(cfg.hparams_file):
         raise ValueError(f'Hparams file {cfg.hparams_file} does not exist or is not a file.')
+
 
 @hydra_runner(config_path="conf", config_name="megatron_t5_config_finetune_glue_mnli")
 def main(cfg) -> None:
@@ -172,7 +176,7 @@ def main(cfg) -> None:
     if hasattr(cfg.model.data.train_ds, 'task_name'):
         if cfg.model.restore_from_path:
             t5_cfg = MegatronT5GLUEModel.restore_from(
-               restore_path=cfg.model.restore_from_path, trainer=trainer, return_config=True
+                restore_path=cfg.model.restore_from_path, trainer=trainer, return_config=True
             )
             model = load_from_nemo(MegatronT5GLUEModel, cfg, trainer, t5_cfg, modify_confg_fn=_modify_config)
         else:
@@ -181,7 +185,7 @@ def main(cfg) -> None:
     elif hasattr(cfg.model.data.train_ds, 'file_names'):
         if cfg.model.restore_from_path:
             t5_cfg = MegatronT0Model.restore_from(
-               restore_path=cfg.model.restore_from_path, trainer=trainer, return_config=True
+                restore_path=cfg.model.restore_from_path, trainer=trainer, return_config=True
             )
             model = load_from_nemo(MegatronT0Model, cfg, trainer, t5_cfg, modify_confg_fn=_modify_config)
         else:
@@ -190,12 +194,14 @@ def main(cfg) -> None:
     else:
         if cfg.model.restore_from_path:
             t5_cfg = MegatronT5FinetuneModel.restore_from(
-               restore_path=cfg.model.restore_from_path, trainer=trainer, return_config=True
+                restore_path=cfg.model.restore_from_path, trainer=trainer, return_config=True
             )
             model = load_from_nemo(MegatronT5FinetuneModel, cfg, trainer, t5_cfg, modify_confg_fn=_modify_config)
         else:
             validate_checkpoint_loading_args(cfg.model.pretrained_checkpoint)
-            model = load_from_checkpoint_dir(MegatronT5FinetuneModel, cfg, trainer, t5_cfg, modify_confg_fn=_modify_config)
+            model = load_from_checkpoint_dir(
+                MegatronT5FinetuneModel, cfg, trainer, t5_cfg, modify_confg_fn=_modify_config
+            )
 
     trainer.fit(model)
     trainer.validate(model)
