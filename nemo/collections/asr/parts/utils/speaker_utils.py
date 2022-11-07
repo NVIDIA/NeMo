@@ -447,27 +447,32 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
         logging.warning("cuda=False, using CPU for Eigen decomposition. This might slow down the clustering process.")
         cuda = False
 
-    speaker_clustering = SpeakerClustering(cuda=cuda)
+    speaker_clustering = SpeakerClustering(maj_vote_spk_count=clustering_params.maj_vote_spk_count, cuda=cuda)
     
+    # If True, export torch script module and save it to the base folder.
+    if clustering_params.get('export_script_module', False):
+        speaker_clustering = torch.jit.script(speaker_clustering)
+        torch.jit.save(speaker_clustering, 'speaker_clustering_script.pt')
+
     for uniq_id, audio_rttm_values in tqdm(AUDIO_RTTM_MAP.items(), desc='clustering', leave=False):
+        uniq_embs_and_timestamps = embs_and_timestamps[uniq_id]
+
         if clustering_params.oracle_num_speakers:
             num_speakers = audio_rttm_values.get('num_speakers', None)
             if num_speakers is None:
                 raise ValueError("Provided option as oracle num of speakers but num_speakers in manifest is null")
         else:
             num_speakers = -1
-        uniq_embs_and_timestamps = embs_and_timestamps[uniq_id]
-        num_speakers = torch.tensor(num_speakers, dtype=torch.long)
 
         cluster_labels = speaker_clustering.forward(
             embeddings_in_scales=uniq_embs_and_timestamps['embeddings'],
             timestamps_in_scales=uniq_embs_and_timestamps['timestamps'],
             multiscale_segment_counts=uniq_embs_and_timestamps['multiscale_segment_counts'],
             multiscale_weights=uniq_embs_and_timestamps['multiscale_weights'],
-            oracle_num_speakers=num_speakers,
-            max_num_speakers=clustering_params.max_num_speakers,
-            max_rp_threshold=clustering_params.max_rp_threshold,
-            sparse_search_volume=clustering_params.sparse_search_volume,
+            oracle_num_speakers=torch.tensor(num_speakers, dtype=torch.long),
+            max_num_speakers=torch.tensor(clustering_params.max_num_speakers, dtype=torch.long),
+            max_rp_threshold=torch.tensor(clustering_params.max_rp_threshold),
+            sparse_search_volume=torch.tensor(clustering_params.sparse_search_volume, dtype=torch.long),
         )
 
         base_scale_idx = uniq_embs_and_timestamps['multiscale_segment_counts'].shape[0] - 1
