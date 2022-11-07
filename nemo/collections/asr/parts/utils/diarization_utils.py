@@ -879,9 +879,7 @@ class OfflineDiarWithASR:
                 start_point, end_point, speaker = diar_labels[turn_idx].split()
             stt_sec = round(refined_word_ts_stt_end[0], decimals)
             end_sec = round(refined_word_ts_stt_end[1], decimals)
-            word_dict_seq_list.append(
-                {'word': word, 'start_time': stt_sec, 'end_time': end_sec, 'speaker': speaker}
-            )
+            word_dict_seq_list.append({'word': word, 'start_time': stt_sec, 'end_time': end_sec, 'speaker': speaker})
         return word_dict_seq_list
 
     def _make_json_output(
