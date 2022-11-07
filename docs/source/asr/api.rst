@@ -54,9 +54,44 @@ Modules
     :show-inheritance:
     :members:
 
+.. _conformer-encoder-api:
+
 .. autoclass:: nemo.collections.asr.modules.ConformerEncoder
     :show-inheritance:
     :members:
+
+.. _squeezeformer-encoder-api:
+
+.. autoclass:: nemo.collections.asr.modules.SqueezeformerEncoder
+    :show-inheritance:
+    :members:
+
+.. _rnn-encoder-api:
+
+.. autoclass:: nemo.collections.asr.modules.RNNEncoder
+    :show-inheritance:
+    :members:
+
+.. _rnnt-decoder-api:
+
+.. autoclass:: nemo.collections.asr.modules.RNNTDecoder
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.modules.StatelessTransducerDecoder
+    :show-inheritance:
+    :members:
+
+.. _rnnt-joint-api:
+
+.. autoclass:: nemo.collections.asr.modules.RNNTJoint
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.modules.SampledRNNTJoint
+    :show-inheritance:
+    :members:
+
 
 
 Parts
@@ -89,10 +124,6 @@ Character Encoding Datasets
     :members:
 
 .. autoclass:: nemo.collections.asr.data.audio_to_text.TarredAudioToCharDataset
-    :show-inheritance:
-    :members:
-
-.. autoclass:: nemo.collections.asr.data.audio_to_text.AudioToCharWithDursF0Dataset
     :show-inheritance:
     :members:
 

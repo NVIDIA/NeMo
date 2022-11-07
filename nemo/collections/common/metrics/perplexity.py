@@ -26,7 +26,8 @@ class Perplexity(Metric):
     ``probs`` or ``logits`` to the :meth:`update` method. The class computes perplexities for distributions passed to 
     :meth:`update` method in ``probs`` or ``logits`` arguments and averages the perplexities. Reducing results between
     all workers is done via SUM operations.
-    See :doc:`PyTorch Lightning Metrics<pytorch-lightning:metrics>` for the metric usage instructions.
+    See `PyTorch Lightning Metrics <https://pytorch-lightning.readthedocs.io/en/stable/ecosystem/metrics.html>`_ for the metric usage instructions.
+
     Args:
         compute_on_step:
             Forward only calls ``update()`` and returns ``None`` if this is set to ``False``. default: ``True``
@@ -40,6 +41,8 @@ class Perplexity(Metric):
             If ``True`` values of :meth:`update` method parameters are checked. ``logits`` has to not contain NaNs and
             ``probs`` last dim has to be valid probability distribution.
     """
+
+    full_state_update = True
 
     def __init__(self, compute_on_step=True, dist_sync_on_step=False, process_group=None, validate_args=True):
         super().__init__(

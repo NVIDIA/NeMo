@@ -11,8 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import copy
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional, Union
 
@@ -24,13 +25,14 @@ from torchmetrics import Metric
 from nemo.collections.asr.metrics.wer import move_dimension_to_the_front
 from nemo.collections.asr.parts.submodules import rnnt_beam_decoding as beam_decode
 from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode
+from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceConfig, ConfidenceMixin
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
 from nemo.utils import logging
 
 __all__ = ['RNNTDecoding', 'RNNTWER']
 
 
-class AbstractRNNTDecoding(ABC):
+class AbstractRNNTDecoding(ConfidenceMixin):
     """
     Used for performing RNN-T auto-regressive decoding of the Decoder+Joint network given the encoder state.
 
@@ -67,11 +69,75 @@ class AbstractRNNTDecoding(ABC):
 
             word_seperator: Str token representing the seperator between words.
 
+            preserve_frame_confidence: Bool flag which preserves the history of per-frame confidence scores
+                generated during decoding (sample / batched). When set to true, the Hypothesis will contain
+                the non-null value for `frame_confidence` in it. Here, `alignments` is a List of List of ints.
+
+            confidence_cfg: A dict-like object which contains the following key-value pairs related to confidence
+                scores. In order to obtain hypotheses with confidence scores, please utilize
+                `rnnt_decoder_predictions_tensor` function with the `preserve_frame_confidence` flag set to True.
+
+                preserve_frame_confidence: Bool flag which preserves the history of per-frame confidence scores
+                    generated during decoding (sample / batched). When set to true, the Hypothesis will contain
+                    the non-null value for `frame_confidence` in it. Here, `alignments` is a List of List of floats.
+
+                    The length of the list corresponds to the Acoustic Length (T).
+                    Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more confidence scores.
+                    U is the number of target tokens for the current timestep Ti.
+                preserve_token_confidence: Bool flag which preserves the history of per-token confidence scores
+                    generated during greedy decoding (sample / batched). When set to true, the Hypothesis will contain
+                    the non-null value for `token_confidence` in it. Here, `token_confidence` is a List of floats.
+
+                    The length of the list corresponds to the number of recognized tokens.
+                preserve_word_confidence: Bool flag which preserves the history of per-word confidence scores
+                    generated during greedy decoding (sample / batched). When set to true, the Hypothesis will contain
+                    the non-null value for `word_confidence` in it. Here, `word_confidence` is a List of floats.
+
+                    The length of the list corresponds to the number of recognized words.
+                exclude_blank: Bool flag indicating that blank token confidence scores are to be excluded
+                    from the `token_confidence`.
+                aggregation: Which aggregation type to use for collapsing per-token confidence into per-word confidence.
+                    Valid options are `mean`, `min`, `max`, `prod`.
+                method_cfg: A dict-like object which contains the method name and settings to compute per-frame
+                    confidence scores.
+
+                    name: The method name (str).
+                        Supported values:
+                            - 'max_prob' for using the maximum token probability as a confidence.
+                            - 'entropy' for using a normalized entropy of a log-likelihood vector.
+
+                    entropy_type: Which type of entropy to use (str).
+                        Used if confidence_method_cfg.name is set to `entropy`.
+                        Supported values:
+                            - 'gibbs' for the (standard) Gibbs entropy. If the temperature α is provided,
+                                the formula is the following: H_α = -sum_i((p^α_i)*log(p^α_i)).
+                                Note that for this entropy, the temperature should comply the following inequality:
+                                1/log(V) <= α <= -1/log(1-1/V) where V is the model vocabulary size.
+                            - 'tsallis' for the Tsallis entropy with the Boltzmann constant one.
+                                Tsallis entropy formula is the following: H_α = 1/(α-1)*(1-sum_i(p^α_i)),
+                                where α is a parameter. When α == 1, it works like the Gibbs entropy.
+                                More: https://en.wikipedia.org/wiki/Tsallis_entropy
+                            - 'renui' for the Rényi entropy.
+                                Rényi entropy formula is the following: H_α = 1/(1-α)*log_2(sum_i(p^α_i)),
+                                where α is a parameter. When α == 1, it works like the Gibbs entropy.
+                                More: https://en.wikipedia.org/wiki/R%C3%A9nyi_entropy
+
+                    temperature: Temperature scale for logsoftmax (α for entropies). Here we restrict it to be > 0.
+                        When the temperature equals one, scaling is not applied to 'max_prob',
+                        and any entropy type behaves like the Shannon entropy: H = -sum_i(p_i*log(p_i))
+
+                    entropy_norm: A mapping of the entropy value to the interval [0,1].
+                        Supported values:
+                            - 'lin' for using the linear mapping.
+                            - 'exp' for using exponential mapping with linear shift.
+
             The config may further contain the following sub-dictionaries:
             "greedy":
                 max_symbols: int, describing the maximum number of target tokens to decode per
                     timestep during greedy decoding. Setting to larger values allows longer sentences
                     to be decoded, at the cost of increased execution time.
+                preserve_frame_confidence: Same as above, overrides above value.
+                confidence_method: Same as above, overrides confidence_cfg.method.
 
             "beam":
                 beam_size: int, defining the beam size for beam search. Must be >= 1.
@@ -130,6 +196,7 @@ class AbstractRNNTDecoding(ABC):
         self.cfg = decoding_cfg
         self.blank_id = blank_id
         self.compute_hypothesis_token_set = self.cfg.get("compute_hypothesis_token_set", False)
+        self.compute_langs = decoding_cfg.get('compute_langs', False)
         self.preserve_alignments = self.cfg.get('preserve_alignments', None)
         self.joint_fused_batch_size = self.cfg.get('fused_batch_size', None)
         self.compute_timestamps = self.cfg.get('compute_timestamps', None)
@@ -159,6 +226,19 @@ class AbstractRNNTDecoding(ABC):
         if self.compute_timestamps is True and self.preserve_alignments is False:
             raise ValueError("If `compute_timesteps` flag is set, then `preserve_alignments` flag must also be set.")
 
+        # initialize confidence-related fields
+        self._init_confidence(self.cfg.get('confidence_cfg', None))
+
+        # Update preserve frame confidence
+        if self.preserve_frame_confidence is False:
+            if self.cfg.strategy in ['greedy', 'greedy_batch']:
+                self.preserve_frame_confidence = self.cfg.greedy.get('preserve_frame_confidence', False)
+                self.confidence_method_cfg = self.cfg.greedy.get('confidence_method_cfg', None)
+
+            elif self.cfg.strategy in ['beam', 'tsd', 'alsd', 'maes']:
+                # Not implemented
+                pass
+
         if self.cfg.strategy == 'greedy':
 
             self.decoding = greedy_decode.GreedyRNNTInfer(
@@ -169,6 +249,8 @@ class AbstractRNNTDecoding(ABC):
                     self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
                 ),
                 preserve_alignments=self.preserve_alignments,
+                preserve_frame_confidence=self.preserve_frame_confidence,
+                confidence_method_cfg=self.confidence_method_cfg,
             )
 
         elif self.cfg.strategy == 'greedy_batch':
@@ -181,6 +263,8 @@ class AbstractRNNTDecoding(ABC):
                     self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
                 ),
                 preserve_alignments=self.preserve_alignments,
+                preserve_frame_confidence=self.preserve_frame_confidence,
+                confidence_method_cfg=self.confidence_method_cfg,
             )
 
         elif self.cfg.strategy == 'beam':
@@ -325,6 +409,11 @@ class AbstractRNNTDecoding(ABC):
                     hypotheses[hyp_idx] = self.compute_rnnt_timestamps(hypotheses[hyp_idx], timestamp_type)
 
             if return_hypotheses:
+                # greedy decoding, can get high-level confidence scores
+                if self.preserve_frame_confidence and (
+                    self.preserve_word_confidence or self.preserve_token_confidence
+                ):
+                    hypotheses = self.compute_confidence(hypotheses)
                 return hypotheses, None
 
             best_hyp_text = [h.text for h in hypotheses]
@@ -370,6 +459,44 @@ class AbstractRNNTDecoding(ABC):
 
         return hypotheses_list
 
+    def compute_confidence(self, hypotheses_list: List[Hypothesis]) -> List[Hypothesis]:
+        """
+        Computes high-level (per-token and/or per-word) confidence scores for a list of hypotheses.
+        Assumes that `frame_confidence` is present in the hypotheses.
+
+        Args:
+            hypotheses_list: List of Hypothesis.
+
+        Returns:
+            A list of hypotheses with high-level confidence scores.
+        """
+        if self.exclude_blank_from_confidence:
+            for hyp in hypotheses_list:
+                hyp.token_confidence = hyp.non_blank_frame_confidence
+        else:
+            for hyp in hypotheses_list:
+                offset = 0
+                token_confidence = []
+                if len(hyp.timestep) > 0:
+                    for ts, te in zip(hyp.timestep, hyp.timestep[1:] + [len(hyp.frame_confidence)]):
+                        if ts != te:
+                            # <blank> tokens are considered to belong to the last non-blank token, if any.
+                            token_confidence.append(
+                                self._aggregate_confidence(
+                                    [hyp.frame_confidence[ts][offset]]
+                                    + [fc[0] for fc in hyp.frame_confidence[ts + 1 : te]]
+                                )
+                            )
+                            offset = 0
+                        else:
+                            token_confidence.append(hyp.frame_confidence[ts][offset])
+                            offset += 1
+                hyp.token_confidence = token_confidence
+        if self.preserve_word_confidence:
+            for hyp in hypotheses_list:
+                hyp.word_confidence = self._aggregate_token_confidence(hyp)
+        return hypotheses_list
+
     @abstractmethod
     def decode_tokens_to_str(self, tokens: List[int]) -> str:
         """
@@ -394,6 +521,34 @@ class AbstractRNNTDecoding(ABC):
 
         Returns:
             A list of decoded tokens.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def decode_tokens_to_lang(self, tokens: List[int]) -> str:
+        """
+        Implemented by subclass in order to
+        compute the most likely language ID (LID) string given the tokens.
+
+        Args:
+            tokens: List of int representing the token ids.
+
+        Returns:
+            A decoded LID string.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def decode_ids_to_langs(self, tokens: List[int]) -> List[str]:
+        """
+        Implemented by subclass in order to
+        decode a token id list into language ID (LID) list.
+
+        Args:
+            tokens: List of int representing the token ids.
+
+        Returns:
+            A list of decoded LIDS.
         """
         raise NotImplementedError()
 
@@ -652,7 +807,7 @@ class AbstractRNNTDecoding(ABC):
                 if token != token_text:
                     # If there are any partially or fully built sub-word token ids, construct to text.
                     # Note: This is "old" subword, that occurs *after* current sub-word has started.
-                    if len(built_token) > 0:
+                    if built_token:
                         word_offsets.append(
                             {
                                 "word": decode_tokens_to_str(built_token),
@@ -674,16 +829,24 @@ class AbstractRNNTDecoding(ABC):
         # This is because we always skip the delay the injection of the first sub-word due to the loop
         # condition and check whether built token is ready or not.
         # Therefore without this forced injection, the start_offset appears as off by 1.
-        word_offsets[0]["start_offset"] = offsets[0]["start_offset"]
+        # This should only be done when these arrays contain more than one element.
+        if offsets and word_offsets:
+            word_offsets[0]["start_offset"] = offsets[0]["start_offset"]
 
         # If there are any remaining tokens left, inject them all into the final word offset.
-        # Note: The start offset of this token is the start time of the first token inside build_token.
-        # Note: The end offset of this token is the end time of the last token inside build_token
-        if len(built_token) > 0:
+        # The start offset of this token is the start time of the next token to process.
+        # The end offset of this token is the end time of the last token from offsets.
+        # Note that built_token is a flat list; but offsets contains a nested list which
+        # may have different dimensionality.
+        # As such, we can't rely on the length of the list of built_token to index offsets.
+        if built_token:
+            # start from the previous token index as this hasn't been committed to word_offsets yet
+            # if we still have content in built_token
+            start_offset = offsets[previous_token_index]["start_offset"]
             word_offsets.append(
                 {
                     "word": decode_tokens_to_str(built_token),
-                    "start_offset": offsets[-(len(built_token))]["start_offset"],
+                    "start_offset": start_offset,
                     "end_offset": offsets[-1]["end_offset"],
                 }
             )
@@ -719,11 +882,73 @@ class RNNTDecoding(AbstractRNNTDecoding):
                 Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more targets from a vocabulary.
                 U is the number of target tokens for the current timestep Ti.
 
+            confidence_cfg: A dict-like object which contains the following key-value pairs related to confidence
+                scores. In order to obtain hypotheses with confidence scores, please utilize
+                `rnnt_decoder_predictions_tensor` function with the `preserve_frame_confidence` flag set to True.
+
+                preserve_frame_confidence: Bool flag which preserves the history of per-frame confidence scores
+                    generated during decoding (sample / batched). When set to true, the Hypothesis will contain
+                    the non-null value for `frame_confidence` in it. Here, `alignments` is a List of List of floats.
+
+                    The length of the list corresponds to the Acoustic Length (T).
+                    Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more confidence scores.
+                    U is the number of target tokens for the current timestep Ti.
+                preserve_token_confidence: Bool flag which preserves the history of per-token confidence scores
+                    generated during greedy decoding (sample / batched). When set to true, the Hypothesis will contain
+                    the non-null value for `token_confidence` in it. Here, `token_confidence` is a List of floats.
+
+                    The length of the list corresponds to the number of recognized tokens.
+                preserve_word_confidence: Bool flag which preserves the history of per-word confidence scores
+                    generated during greedy decoding (sample / batched). When set to true, the Hypothesis will contain
+                    the non-null value for `word_confidence` in it. Here, `word_confidence` is a List of floats.
+
+                    The length of the list corresponds to the number of recognized words.
+                exclude_blank: Bool flag indicating that blank token confidence scores are to be excluded
+                    from the `token_confidence`.
+                aggregation: Which aggregation type to use for collapsing per-token confidence into per-word confidence.
+                    Valid options are `mean`, `min`, `max`, `prod`.
+                method_cfg: A dict-like object which contains the method name and settings to compute per-frame
+                    confidence scores.
+
+                    name: The method name (str).
+                        Supported values:
+                            - 'max_prob' for using the maximum token probability as a confidence.
+                            - 'entropy' for using a normalized entropy of a log-likelihood vector.
+
+                    entropy_type: Which type of entropy to use (str).
+                        Used if confidence_method_cfg.name is set to `entropy`.
+                        Supported values:
+                            - 'gibbs' for the (standard) Gibbs entropy. If the temperature α is provided,
+                                the formula is the following: H_α = -sum_i((p^α_i)*log(p^α_i)).
+                                Note that for this entropy, the temperature should comply the following inequality:
+                                1/log(V) <= α <= -1/log(1-1/V) where V is the model vocabulary size.
+                            - 'tsallis' for the Tsallis entropy with the Boltzmann constant one.
+                                Tsallis entropy formula is the following: H_α = 1/(α-1)*(1-sum_i(p^α_i)),
+                                where α is a parameter. When α == 1, it works like the Gibbs entropy.
+                                More: https://en.wikipedia.org/wiki/Tsallis_entropy
+                            - 'renui' for the Rényi entropy.
+                                Rényi entropy formula is the following: H_α = 1/(1-α)*log_2(sum_i(p^α_i)),
+                                where α is a parameter. When α == 1, it works like the Gibbs entropy.
+                                More: https://en.wikipedia.org/wiki/R%C3%A9nyi_entropy
+
+                    temperature: Temperature scale for logsoftmax (α for entropies). Here we restrict it to be > 0.
+                        When the temperature equals one, scaling is not applied to 'max_prob',
+                        and any entropy type behaves like the Shannon entropy: H = -sum_i(p_i*log(p_i))
+
+                    entropy_norm: A mapping of the entropy value to the interval [0,1].
+                        Supported values:
+                            - 'lin' for using the linear mapping.
+                            - 'exp' for using exponential mapping with linear shift.
+
             The config may further contain the following sub-dictionaries:
             "greedy":
                 max_symbols: int, describing the maximum number of target tokens to decode per
                     timestep during greedy decoding. Setting to larger values allows longer sentences
                     to be decoded, at the cost of increased execution time.
+
+                preserve_frame_confidence: Same as above, overrides above value.
+
+                confidence_method: Same as above, overrides confidence_cfg.method.
 
             "beam":
                 beam_size: int, defining the beam size for beam search. Must be >= 1.
@@ -750,7 +975,7 @@ class RNNTDecoding(AbstractRNNTDecoding):
                         By default, a float of 2.0 is used so that a target sequence can be at most twice
                         as long as the acoustic model output length T.
 
-                                maes_num_steps: Number of adaptive steps to take. From the paper, 2 steps is generally sufficient,
+                maes_num_steps: Number of adaptive steps to take. From the paper, 2 steps is generally sufficient,
                     and can be reduced to 1 to improve decoding speed while sacrificing some accuracy. int > 0.
 
                 maes_prefix_alpha: Maximum prefix length in prefix search. Must be an integer, and is advised to keep this as 1
@@ -785,6 +1010,18 @@ class RNNTDecoding(AbstractRNNTDecoding):
 
         super(RNNTDecoding, self).__init__(decoding_cfg=decoding_cfg, decoder=decoder, joint=joint, blank_id=blank_id)
 
+    def _aggregate_token_confidence(self, hypothesis: Hypothesis) -> List[float]:
+        """
+        Implemented by subclass in order to aggregate token confidence to a word-level confidence.
+
+        Args:
+            hypothesis: Hypothesis
+
+        Returns:
+            A list of word-level confidence scores.
+        """
+        return self._aggregate_token_confidence_chars(hypothesis.words, hypothesis.token_confidence)
+
     def decode_tokens_to_str(self, tokens: List[int]) -> str:
         """
         Implemented by subclass in order to decoder a token list into a string.
@@ -811,6 +1048,32 @@ class RNNTDecoding(AbstractRNNTDecoding):
         """
         token_list = [self.labels_map[c] for c in tokens if c != self.blank_id]
         return token_list
+
+    def decode_tokens_to_lang(self, tokens: List[int]) -> str:
+        """
+        Compute the most likely language ID (LID) string given the tokens.
+
+        Args:
+            tokens: List of int representing the token ids.
+
+        Returns:
+            A decoded LID string.
+        """
+        lang = self.tokenizer.ids_to_lang(tokens)
+        return lang
+
+    def decode_ids_to_langs(self, tokens: List[int]) -> List[str]:
+        """
+        Decode a token id list into language ID (LID) list.
+
+        Args:
+            tokens: List of int representing the token ids.
+
+        Returns:
+            A list of decoded LIDS.
+        """
+        lang_list = self.tokenizer.ids_to_text_and_langs(tokens)
+        return lang_list
 
 
 class RNNTWER(Metric):
@@ -843,7 +1106,7 @@ class RNNTWER(Metric):
         log_prediction: Whether to log a single decoded sample per call.
 
     Returns:
-        res: a tuple of 3 zero dimensional float32 ``torch.Tensor` objects: a WER score, a sum of Levenstein's
+        res: a tuple of 3 zero dimensional float32 ``torch.Tensor` objects: a WER score, a sum of Levenshtein's
             distances for all prediction - reference pairs, total number of words in all references.
     """
 
@@ -870,8 +1133,8 @@ class RNNTWER(Metric):
         targets: torch.Tensor,
         target_lengths: torch.Tensor,
     ) -> torch.Tensor:
-        words = 0.0
-        scores = 0.0
+        words = 0
+        scores = 0
         references = []
         with torch.no_grad():
             # prediction_cpu_tensor = tensors[0].long().cpu()
@@ -922,11 +1185,17 @@ class RNNTDecodingConfig:
     # preserve decoding alignments
     preserve_alignments: Optional[bool] = None
 
+    #  confidence config
+    confidence_cfg: ConfidenceConfig = ConfidenceConfig()
+
     # RNNT Joint fused batch size
     fused_batch_size: Optional[int] = None
 
     # compute RNNT time stamps
     compute_timestamps: Optional[bool] = None
+
+    # compute language IDs
+    compute_langs: bool = False
 
     # token representing word seperator
     word_seperator: str = " "

@@ -33,12 +33,29 @@
 Introduction
 ------------
 
-NVIDIA NeMo is a conversational AI toolkit built for researchers working on automatic speech recognition (ASR), natural language processing (NLP), and text-to-speech synthesis (TTS).
-The primary objective of NeMo is to help researchers from industry and academia to reuse prior work (code and pretrained models) and make it easier to create new `conversational AI models <https://developer.nvidia.com/conversational-ai#started>`_.
+NVIDIA NeMo is a conversational AI toolkit built for researchers working on automatic speech recognition (ASR), 
+text-to-speech synthesis (TTS), large language models (LLMs), and 
+natural language processing (NLP).
+The primary objective of NeMo is to help researchers from industry and academia to reuse prior work (code and pretrained models) 
+and make it easier to create new `conversational AI models <https://developer.nvidia.com/conversational-ai#started>`_.
 
-`Pre-trained NeMo models. <https://catalog.ngc.nvidia.com/models?query=nemo&orderBy=weightPopularDESC>`_ 
+All NeMo models are trained with `Lightning <https://github.com/Lightning-AI/lightning>`_ and 
+training is automatically scalable to 1000s of GPUs. 
+Additionally, NeMo Megatron LLM models can be trained up to 1 trillion parameters using tensor and pipeline model parallelism.
+NeMo models can be optimized for inference and deployed for production use-cases with `NVIDIA Riva <https://developer.nvidia.com/riva>`_.
 
-`Introductory video. <https://www.youtube.com/embed/wBgpMf_KQVw>`_
+Getting started with NeMo is simple.
+State of the Art pretrained NeMo models are freely available on `HuggingFace Hub <https://huggingface.co/models?library=nemo&sort=downloads&search=nvidia>`_ and
+`NVIDIA NGC <https://catalog.ngc.nvidia.com/models?query=nemo&orderBy=weightPopularDESC>`_.
+These models can be used to transcribe audio, synthesize speech, or translate text in a just a few lines of code.
+
+We have have extensive `tutorials <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/starthere/tutorials.html>`_ that 
+can all be run on `Google Colab <https://colab.research.google.com>`_.
+
+For advanced users that want to train NeMo models from scratch or finetune existing NeMo models 
+we have a full suite of `example scripts <https://github.com/NVIDIA/NeMo/tree/update_readme_into/examples>`_ that support multi-GPU/multi-node training.
+
+Also see our `introductory video <https://www.youtube.com/embed/wBgpMf_KQVw>`_ for a high level overview of NeMo.
 
 Key Features
 ------------
@@ -49,16 +66,19 @@ Key Features
         * Supports CTC and Transducer/RNNT losses/decoders
         * Beam Search decoding
         * `Language Modelling for ASR <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/asr_language_modeling.html>`_: N-gram LM in fusion with Beam Search decoding, Neural Rescoring with Transformer
-        * Streaming and Buffered ASR (CTC/Transducer) - `Chunked Inference Examples <https://github.com/NVIDIA/NeMo/tree/main/examples/asr/asr_chunked_inference>`_
+        * Streaming and Buffered ASR (CTC/Transducer) - `Chunked Inference Examples <https://github.com/NVIDIA/NeMo/tree/stable/examples/asr/asr_chunked_inference>`_
     * `Speech Classification and Speech Command Recognition <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/speech_classification/intro.html>`_: MatchboxNet (Command Recognition)
     * `Voice activity Detection (VAD) <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/speech_classification/models.html#marblenet-vad>`_: MarbleNet
     * `Speaker Recognition <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/speaker_recognition/intro.html>`_: TitaNet, ECAPA_TDNN, SpeakerNet
-    * `Speaker Diarization <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/speaker_diarization/intro.html>`_: TitaNet, ECAPA_TDNN, SpeakerNet
+    * `Speaker Diarization <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/speaker_diarization/intro.html>`_
+        * Clustering Diarizer: TitaNet, ECAPA_TDNN, SpeakerNet
+        * Neural Diarizer: MSDD (Multi-scale Diarization Decoder)
+    * `Speech Intent Detection and Slot Filling <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/speech_intent_slot/intro.html>`_: Conformer-Transformer
     * `Pretrained models on different languages. <https://ngc.nvidia.com/catalog/collections/nvidia:nemo_asr>`_: English, Spanish, German, Russian, Chinese, French, Italian, Polish, ...
     * `NGC collection of pre-trained speech processing models. <https://ngc.nvidia.com/catalog/collections/nvidia:nemo_asr>`_
 * Natural Language Processing
-    * `NeMo Megatron pre-training of Large Language Models <https://developer.nvidia.com/nemo-megatron-early-access>`_
-    * `Neural Machine Translation (NMT) <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/machine_translation.html>`_
+    * `NeMo Megatron pre-training of Large Language Models <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/nlp/nemo_megatron/intro.html>`_
+    * `Neural Machine Translation (NMT) <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/machine_translation/machine_translation.html>`_
     * `Punctuation and Capitalization <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/punctuation_and_capitalization.html>`_
     * `Token classification (named entity recognition) <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/token_classification.html>`_
     * `Text classification <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/text_classification.html>`_
@@ -68,14 +88,14 @@ Key Features
     * `Information retrieval <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/information_retrieval.html>`_
     * `Entity Linking <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/entity_linking.html>`_
     * `Dialogue State Tracking <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/sgd_qa.html>`_   
-    * `Prompt Learning <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/prompt_learning.html>`_
+    * `Prompt Learning <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/nemo_megatron/prompt_learning.html>`_
     * `NGC collection of pre-trained NLP models. <https://ngc.nvidia.com/catalog/collections/nvidia:nemo_nlp>`_
 * `Speech synthesis (TTS) <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/tts/intro.html#>`_
     * Spectrogram generation: Tacotron2, GlowTTS, TalkNet, FastPitch, FastSpeech2, Mixer-TTS, Mixer-TTS-X
     * Vocoders: WaveGlow, SqueezeWave, UniGlow, MelGAN, HiFiGAN, UnivNet
     * End-to-end speech generation: FastPitch_HifiGan_E2E, FastSpeech2_HifiGan_E2E
     * `NGC collection of pre-trained TTS models. <https://ngc.nvidia.com/catalog/collections/nvidia:nemo_tts>`_
-* `Tools <https://github.com/NVIDIA/NeMo/tree/main/tools>`_
+* `Tools <https://github.com/NVIDIA/NeMo/tree/stable/tools>`_
     * `Text Processing (text normalization and inverse text normalization) <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/text_normalization/intro.html>`_
     * `CTC-Segmentation tool <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/tools/ctc_segmentation.html>`_
     * `Speech Data Explorer <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/tools/speech_data_explorer.html>`_: a dash-based tool for interactive exploration of ASR/TTS datasets
@@ -194,16 +214,35 @@ Note that RNNT requires numba to be installed from conda.
   pip uninstall numba
   conda install -c conda-forge numba
 
-Megatron GPT
-~~~~~~~~~~~~
-Megatron GPT training requires NVIDIA Apex to be installed.
+NeMo Megatron
+~~~~~~~~~~~~~
+NeMo Megatron training requires NVIDIA Apex to be installed.
+Install it manually if not using the NVIDIA PyTorch container.
 
 .. code-block:: bash
 
-    git clone https://github.com/NVIDIA/apex
+    git clone https://github.com/ericharper/apex.git
     cd apex
-    git checkout 3c19f1061879394f28272a99a7ea26d58f72dace
-    pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" ./
+    git checkout nm_v1.11.0
+    pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" --global-option="--distributed_adam" --global-option="--deprecated_fused_adam" ./
+
+Transformer Engine
+~~~~~~~~~~~~~~~~~~
+NeMo Megatron GPT has been integrated with `NVIDIA Transformer Engine <https://github.com/NVIDIA/TransformerEngine>`_ 
+Transformer Engine enables FP8 training on NVIDIA Hopper GPUs.
+`Install <https://docs.nvidia.com/deeplearning/transformer-engine/user-guide/installation.html>`_ it manually if not using the NVIDIA PyTorch container.
+
+.. note::
+
+  Transformer Engine requires PyTorch to be built with CUDA 11.8.
+
+NeMo Text Processing
+~~~~~~~~~~~~~~~~~~~~
+NeMo Text Processing, specifically (Inverse) Text Normalization, requires `Pynini <https://pypi.org/project/pynini/>`_ to be installed.
+
+.. code-block:: bash
+
+    bash NeMo/nemo_text_processing/install_pynini.sh
 
 Docker containers:
 ~~~~~~~~~~~~~~~~~~
@@ -214,13 +253,13 @@ To build a nemo container with Dockerfile from a branch, please run
     DOCKER_BUILDKIT=1 docker build -f Dockerfile -t nemo:latest .
 
 
-If you chose to work with main branch, we recommend using NVIDIA's PyTorch container version 22.05-py3 and then installing from GitHub.
+If you chose to work with main branch, we recommend using NVIDIA's PyTorch container version 22.09-py3 and then installing from GitHub.
 
 .. code-block:: bash
 
     docker run --gpus all -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g \
     -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit \
-    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:22.05-py3
+    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:22.09-py3
 
 Examples
 --------
@@ -236,7 +275,7 @@ We welcome community contributions! Please refer to the  `CONTRIBUTING.md <https
 Publications
 ------------
 
-We provide an ever growing list of publications that utilize the NeMo framework. Please refer to `PUBLICATIONS.md <https://github.com/NVIDIA/NeMo/blob/main/PUBLICATIONS.md>`_. We welcome the addition of your own articles to this list !
+We provide an ever growing list of publications that utilize the NeMo framework. Please refer to `PUBLICATIONS.md <https://github.com/NVIDIA/NeMo/tree/stable/PUBLICATIONS.md>`_. We welcome the addition of your own articles to this list !
 
 Citation
 --------

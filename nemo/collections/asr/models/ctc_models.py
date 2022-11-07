@@ -15,7 +15,7 @@ import copy
 import json
 import os
 import tempfile
-from math import ceil
+from math import ceil, isclose
 from typing import Dict, List, Optional, Union
 
 import torch
@@ -30,6 +30,7 @@ from nemo.collections.asr.metrics.wer import WER, CTCDecoding, CTCDecodingConfig
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
 from nemo.collections.asr.parts.mixins import ASRModuleMixin
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
+from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.mixins import AccessMixin
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, LogprobsType, NeuralType, SpectrogramType
@@ -114,6 +115,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         logprobs: bool = False,
         return_hypotheses: bool = False,
         num_workers: int = 0,
+        channel_selector: Optional[ChannelSelectorType] = None,
     ) -> List[str]:
         """
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
@@ -128,6 +130,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             return_hypotheses: (bool) Either return hypotheses or text
                 With hypotheses can do some postprocessing like getting timestamp or rescoring
             num_workers: (int) number of workers for DataLoader
+            channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`.
 
         Returns:
             A list of transcriptions (or raw log probabilities if logprobs is True) in the same order as paths2audio_files
@@ -176,6 +179,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
                     'batch_size': batch_size,
                     'temp_dir': tmpdir,
                     'num_workers': num_workers,
+                    'channel_selector': channel_selector,
                 }
 
                 temporary_datalayer = self._setup_transcribe_dataloader(config)
@@ -331,6 +335,23 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         else:
             augmentor = None
 
+        is_concat = config.get('is_concat', False)
+        if is_concat:
+            if 'concat_sampling' in config and config['concat_sampling'] is None:
+                logging.warning(
+                    f"Concat dataset requires `contact_sampling` but it was not provided. Config: {config}"
+                )
+                return None
+            if not 'concat_probabilities' in config:
+                logging.warning(
+                    f"Concat dataset requires `contact_probabilities` list but it was not provided. Config: {config}"
+                )
+                return None
+            else:
+                if not isclose(sum(config['concat_probabilities']), 1, abs_tol=1e-6):
+                    logging.warning(f"`contact_probabilities` need to sum to 1. Config: {config}")
+                    return None
+
         # Automatically inject args from model config to dataloader config
         audio_to_text_dataset.inject_dataloader_value_from_model_config(self.cfg, config, key='sample_rate')
         audio_to_text_dataset.inject_dataloader_value_from_model_config(self.cfg, config, key='labels')
@@ -361,20 +382,35 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
                 return None
 
             shuffle_n = config.get('shuffle_n', 4 * config['batch_size']) if shuffle else 0
-            dataset = audio_to_text_dataset.get_tarred_dataset(
-                config=config,
-                shuffle_n=shuffle_n,
-                global_rank=self.global_rank,
-                world_size=self.world_size,
-                augmentor=augmentor,
-            )
+            if is_concat:
+                dataset = audio_to_text_dataset.get_concat_tarred_dataset(
+                    config=config,
+                    tokenizer=self.tokenizer,
+                    shuffle_n=shuffle_n,
+                    global_rank=self.global_rank,
+                    world_size=self.world_size,
+                    augmentor=augmentor,
+                )
+            else:
+                dataset = audio_to_text_dataset.get_tarred_dataset(
+                    config=config,
+                    tokenizer=self.tokenizer,
+                    shuffle_n=shuffle_n,
+                    global_rank=self.global_rank,
+                    world_size=self.world_size,
+                    augmentor=augmentor,
+                )
             shuffle = False
         else:
             if 'manifest_filepath' in config and config['manifest_filepath'] is None:
                 logging.warning(f"Could not load dataset as `manifest_filepath` was None. Provided config : {config}")
                 return None
-
-            dataset = audio_to_text_dataset.get_char_dataset(config=config, augmentor=augmentor)
+            if is_concat:
+                dataset = audio_to_text_dataset.get_concat_char_dataset(
+                    config=config, global_rank=self.global_rank, world_size=self.world_size, augmentor=augmentor
+                )
+            else:
+                dataset = audio_to_text_dataset.get_char_dataset(config=config, augmentor=augmentor)
 
         if hasattr(dataset, 'collate_fn'):
             collate_fn = dataset.collate_fn
@@ -634,7 +670,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         wer, wer_num, wer_denom = self._wer.compute()
         self._wer.reset()
 
-        self.log_dict({'global_step': torch.tensor(self.trainer.global_step, dtype=torch.float32)})
+        self.log('global_step', torch.tensor(self.trainer.global_step, dtype=torch.float32))
 
         return {
             'val_loss': loss_value,

@@ -4,8 +4,8 @@ manifest_filepath: "train_manifest.json"
 sup_data_path: "sup_data"
 sup_data_types: [ "align_prior_matrix", "pitch" ]
 whitelist_path: "nemo_text_processing/text_normalization/en/data/whitelist/lj_speech.tsv"
-phoneme_dict_path: "scripts/tts_dataset_files/cmudict-0.7b_nv22.07"
-heteronyms_path: "scripts/tts_dataset_files/heteronyms-030921"
+phoneme_dict_path: "scripts/tts_dataset_files/cmudict-0.7b_nv22.10"
+heteronyms_path: "scripts/tts_dataset_files/heteronyms-052722"
 
 dataset:
   _target_: nemo.collections.tts.torch.data.TTSDataset
@@ -39,13 +39,13 @@ dataset:
     punct_post_process: true
 
   text_tokenizer:
-    _target_: nemo.collections.tts.torch.tts_tokenizers.EnglishPhonemesTokenizer
+    _target_: nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.EnglishPhonemesTokenizer
     punct: true
     stresses: true
     chars: true
     apostrophe: true
     pad_with_space: true
     g2p:
-      _target_: nemo.collections.tts.torch.g2ps.EnglishG2p
+      _target_: nemo_text_processing.g2p.modules.EnglishG2p
       phoneme_dict: ${phoneme_dict_path}
       heteronyms: ${heteronyms_path}

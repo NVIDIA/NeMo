@@ -66,7 +66,7 @@ model:
     punct_post_process: true
 
   text_tokenizer:
-    _target_: nemo.collections.tts.torch.tts_tokenizers.GermanCharsTokenizer
+    _target_: nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.GermanCharsTokenizer
     punct: true
     apostrophe: true
     pad_with_space: true
@@ -234,6 +234,6 @@ exp_manager:
   create_tensorboard_logger: true
   create_checkpoint_callback: true
   checkpoint_callback_params:
-    monitor: v_loss
+    monitor: val_loss
   resume_if_exists: false
   resume_ignore_no_checkpoint: false
