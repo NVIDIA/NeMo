@@ -661,8 +661,10 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         # we can only log on one rank if it is rank zero so we broadcast from last rank
         torch.distributed.broadcast(averaged_loss, get_last_rank())
 
-        self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
-        logging.info(f'val_loss: {averaged_loss}')
+        if self.trainer.sanity_checking:
+            logging.info(f'val_loss: {averaged_loss}')
+        else:
+            self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
 
         # Save inference ready .nemo checkpoint version
         if self.cfg.get("save_nemo_on_validation_end", False):
