@@ -23,12 +23,12 @@ from omegaconf import DictConfig
 
 from nemo.collections.asr.data.audio_to_text_dataset import convert_to_config_list, get_chain_dataset
 from nemo.collections.asr.data.audio_to_text import expand_audio_filepaths
-from nemo.collections.asr.data.audio_to_label import _speech_collate_fn
+from nemo.collections.asr.data.audio_to_label import _speech_collate_fn, count_occurence
 from nemo.collections.asr.parts.preprocessing.segment import available_formats as valid_sf_formats
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.collections.common.parts.preprocessing import collections
-from nemo.core.classes import Dataset
+from nemo.core.classes import Dataset, IterableDataset
 from nemo.utils import logging
 
 __all__ = ["AudioToMultiLabelDataset"]
@@ -145,7 +145,7 @@ class AudioToMultiLabelDataset(Dataset):
         return _speech_collate_fn(batch, pad_id=0)
 
 
-class TarredAudioToMultiLabelDataset(Dataset):
+class TarredAudioToMultiLabelDataset(IterableDataset):
     def __init__(
         self,
         *,
@@ -174,7 +174,9 @@ class TarredAudioToMultiLabelDataset(Dataset):
             min_duration=min_duration,
             max_duration=max_duration,
             is_regression_task=is_regression_task,
+            index_by_file_id=True,
         )
+        self.file_occurence = count_occurence(self.collection.mapping)
 
         self.featurizer = WaveformFeaturizer(sample_rate=sample_rate, int_values=int_values, augmentor=augmentor)
         self.trim = trim_silence
@@ -390,7 +392,7 @@ def get_tarred_audio_multi_label_dataset(
             augmentor=augmentor,
             min_duration=cfg.get('min_duration', None),
             max_duration=cfg.get('max_duration', None),
-            trim=cfg.get('trim_silence', False),
+            trim_silence=cfg.get('trim_silence', False),
             is_regression_task=cfg.get('is_regression_task', False),
             delimiter=cfg.get("delimiter", None),
             shard_strategy=cfg.get('tarred_shard_strategy', 'scatter'),

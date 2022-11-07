@@ -288,7 +288,7 @@ class SpeechLabel(_Collection):
             else:
                 data.sort(key=lambda entity: entity.duration)
 
-        logging.info(f"Dataset loaded with total duration of {total_duration / 3600} hours.")
+        logging.info(f"Dataset loaded with {len(data)} items, total duration of {total_duration / 3600} hours.")
         logging.info(
             "Filtered duration for loading collection is %f.", duration_filtered,
         )

@@ -116,40 +116,39 @@ class EncDecMultiClassificationModel(EncDecClassificationModel):
         else:
             return CrossEntropyLoss(logits_ndim=3)
 
-    def _setup_dataloader_from_config(self, cfg: DictConfig):
-        OmegaConf.set_struct(cfg, False)
-        cfg.is_regression_task = self.is_regression_task
-        OmegaConf.set_struct(cfg, True)
+    def _setup_dataloader_from_config(self, config: DictConfig):
+        OmegaConf.set_struct(config, False)
+        config.is_regression_task = self.is_regression_task
+        OmegaConf.set_struct(config, True)
+        shuffle = config.get('shuffle', False)
 
-        if cfg.get('is_tarred', False):
-            if ('tarred_audio_filepaths' in cfg and cfg['tarred_audio_filepaths'] is None) or (
-                'manifest_filepath' in cfg and cfg['manifest_filepath'] is None
+        if config.get('is_tarred', False):
+            if ('tarred_audio_filepaths' in config and config['tarred_audio_filepaths'] is None) or (
+                'manifest_filepath' in config and config['manifest_filepath'] is None
             ):
                 raise ValueError(
                     "Could not load dataset as `manifest_filepath` is None or "
-                    f"`tarred_audio_filepaths` is None. Provided cfg : {cfg}"
+                    f"`tarred_audio_filepaths` is None. Provided cfg : {config}"
                 )
 
-            shuffle_n = cfg.get('shuffle_n', 4 * cfg['batch_size']) if shuffle else 0
+            shuffle_n = config.get('shuffle_n', 4 * config['batch_size']) if shuffle else 0
             dataset = get_tarred_audio_multi_label_dataset(
-                cfg=cfg, shuffle_n=shuffle_n, global_rank=self.global_rank, world_size=self.world_size,
+                cfg=config, shuffle_n=shuffle_n, global_rank=self.global_rank, world_size=self.world_size,
             )
             shuffle = False
         else:
-            if 'manifest_filepath' in cfg and cfg['manifest_filepath'] is None:
+            if 'manifest_filepath' in config and config['manifest_filepath'] is None:
                 raise ValueError(f"Could not load dataset as `manifest_filepath` is None. Provided cfg : {cfg}")
-
-            shuffle = cfg.get('shuffle', False)
-            dataset = get_audio_multi_label_dataset(cfg)
+            dataset = get_audio_multi_label_dataset(config)
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
-            batch_size=cfg.get("batch_size", 1),
+            batch_size=config.get("batch_size", 1),
             collate_fn=dataset.collate_fn,
-            drop_last=cfg.get('drop_last', False),
+            drop_last=config.get('drop_last', False),
             shuffle=shuffle,
-            num_workers=cfg.get('num_workers', 0),
-            pin_memory=cfg.get('pin_memory', False),
+            num_workers=config.get('num_workers', 0),
+            pin_memory=config.get('pin_memory', False),
         )
 
     def get_label_masks(self, labels, labels_len):
