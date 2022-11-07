@@ -178,7 +178,10 @@ class MegatronT5FinetuneModel(MegatronT5Model):
     def training_step(self, batch, batch_idx):
         global_batch_size_per_gpu = batc['text_enc'].size(0)
         # This should happen only on the last batch of the dataset.
-        if global_batch_size_per_gpu != self.cfg.data.train_ds.global_batch_size // parallel_state.get_data_parallel_world_size():
+        if (
+            global_batch_size_per_gpu
+            != self.cfg.data.train_ds.global_batch_size // parallel_state.get_data_parallel_world_size()
+        ):
             app_state = AppState()
             _reconfigure_microbatch_calculator(
                 rank=app_state.global_rank,
@@ -251,7 +254,10 @@ class MegatronT5FinetuneModel(MegatronT5Model):
     def _reconfigure_and_process_inference_batch(self, batch):
         global_batch_size_per_gpu = batch['text_enc'].size(0)
         # This should happen only on the last batch of the dataset.
-        if global_batch_size_per_gpu != self.cfg.data.validation_ds.global_batch_size // parallel_state.get_data_parallel_world_size():
+        if (
+            global_batch_size_per_gpu
+            != self.cfg.data.validation_ds.global_batch_size // parallel_state.get_data_parallel_world_size()
+        ):
             app_state = AppState()
             _reconfigure_microbatch_calculator(
                 rank=app_state.global_rank,
