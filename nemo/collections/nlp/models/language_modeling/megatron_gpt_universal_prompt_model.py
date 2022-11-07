@@ -374,6 +374,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
 
     def on_validation_start(self) -> None:
         self._overwrite_checkpointing_for_inference(False, None, None)
+        torch.distributed.barrier()
         return super().on_validation_start()
 
     def _overwrite_checkpointing_for_inference(
@@ -710,6 +711,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
             self.backup_activations_checkpoint_granularity,
             self.backup_activations_checkpoint_method,
         )
+        torch.distributed.barrier()
         return averaged_loss, averaged_metric
 
     def test_step(self, batch, batch_idx):
