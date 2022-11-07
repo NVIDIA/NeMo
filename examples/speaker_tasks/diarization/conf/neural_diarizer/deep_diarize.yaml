@@ -33,6 +33,7 @@ model:
     n_heads: 8
     n_layers: 4
     dropout: 0.1
+    cat_features: False
 
   warmup_ratio: 0.1
   mask_mem: False

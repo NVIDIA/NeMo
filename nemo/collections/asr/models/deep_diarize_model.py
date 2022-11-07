@@ -45,22 +45,35 @@ class DiarizeTransformerXLDecoder(torch.nn.Module):
         n_heads: int,
         n_layers: int,
         inner_dim: int,
+        cat_features: bool,
         dropout: float,
     ):
         super().__init__()
         self.seq_len = seq_len
+        self.cat_features = cat_features
         self.num_speakers = num_speakers
-        self.decoder = TransformerDecoder(
-            num_layers=n_layers,
-            hidden_size=hidden_dim,
-            inner_size=inner_dim,
-            num_attention_heads=n_heads,
-            attn_score_dropout=dropout,
-            attn_layer_dropout=dropout,
-            ffn_dropout=dropout,
-        )
-
-        self.projection = torch.nn.Linear(hidden_dim, 1)
+        if self.cat_features:
+            self.decoder = TransformerEncoder(
+                num_layers=n_layers,
+                hidden_size=hidden_dim * 2,
+                inner_size=inner_dim,
+                num_attention_heads=n_heads,
+                attn_score_dropout=dropout,
+                attn_layer_dropout=dropout,
+                ffn_dropout=dropout,
+            )
+            self.projection = torch.nn.Linear(hidden_dim * 2, 1)
+        else:
+            self.decoder = TransformerDecoder(
+                num_layers=n_layers,
+                hidden_size=hidden_dim,
+                inner_size=inner_dim,
+                num_attention_heads=n_heads,
+                attn_score_dropout=dropout,
+                attn_layer_dropout=dropout,
+                ffn_dropout=dropout,
+            )
+            self.projection = torch.nn.Linear(hidden_dim, 1)
         self.sigmoid = torch.nn.Sigmoid()
 
     def forward(self, attractors: torch.Tensor, encoded_xl_features: torch.Tensor) -> torch.Tensor:
@@ -75,6 +88,16 @@ class DiarizeTransformerXLDecoder(torch.nn.Module):
         # [B, K, N, H] -> [B * K, N, H]
         transformer_xl_encoded_features = transformer_xl_encoded_features.reshape(B * K, N, H)
         encoder_mask = torch.ones(B * K, N).to(attractors.device)
+
+        if self.cat_features:
+
+            input = torch.cat((transformer_xl_encoded_features, attractors), dim=-1)
+            encoder_mask = torch.ones(B * K, N).to(attractors.device)
+            output = self.decoder(encoder_states=input, encoder_mask=encoder_mask,)
+
+            # [B * K, N, H] -> [B * K, N] reshape to [B, N, K]
+            activities = self.projection(output).view(B, K, N).transpose(1, 2)
+            return activities.sigmoid()
 
         output = self.decoder(
             decoder_states=attractors,
@@ -144,6 +167,7 @@ class DeepDiarizeModel(ModelPT):
             n_layers=self.cfg.decoder.n_layers,
             inner_dim=self.cfg.decoder.inner_dim,
             dropout=self.cfg.decoder.dropout,
+            cat_features=self.cfg.decoder.cat_features,
         )
 
         self.loss = torch.nn.BCELoss()
