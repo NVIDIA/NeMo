@@ -106,7 +106,7 @@ def generate_grid_search_configs(
                 mod_gbs = gbs % (mbs * num_gpus / (tp * pp))
                 mod_att_heads = att_heads % tp
                 mod_layers = (multiplier * num_layers) % pp
-                if mod_gbs == 0 and mod_att_heads == 0 and mod_layers == 0:
+                if mod_gbs == 0 and mod_att_heads == 0 and mod_layers == 0 and (tp, pp) not in valid_tp_pp_list:
                     valid_tp_pp_list.append((tp, pp))
 
     # Generate grid search configs.
