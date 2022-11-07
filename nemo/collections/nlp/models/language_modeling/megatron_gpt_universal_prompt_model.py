@@ -83,8 +83,11 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         self.cfg = cfg
         # TODO: Enable amp_o2 training
         self.megatron_amp_o2 = False
+        self.sequence_parallel = self.cfg.get("sequence_parallel", False)
+        self.backup_sequence_parallel = self.cfg.get("sequence_parallel", False)
+        self.backup_activations_checkpoint_granularity = self.cfg.get("activations_checkpoint_granularity", None)
+        self.backup_activations_checkpoint_method = self.cfg.get('activations_checkpoint_method', None)
         self.load_frozen_model(self.cfg, trainer)
-
         self.pipeline_parallel = self.cfg.get('pipeline_model_parallel_size', 1) > 1
         self.tokenizer = self.frozen_model.tokenizer
         self.pad_token_id = self.tokenizer.pad_id if self.tokenizer.pad_id is not None else self.tokenizer.unk_id
@@ -201,7 +204,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
             frozen_model_cfg.micro_batch_size = self.cfg.micro_batch_size
             frozen_model_cfg.global_batch_size = self.cfg.global_batch_size
             frozen_model_cfg.precision = trainer.precision
-            frozen_model_cfg.sequence_parallel = self.cfg.get("sequence_parallel", False)
+            frozen_model_cfg.sequence_parallel = self.sequence_parallel
             frozen_model_cfg.activations_checkpoint_granularity = self.cfg.get(
                 "activations_checkpoint_granularity", None
             )
@@ -322,8 +325,8 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         # Get embeddings for text tokens and insert virtual token embeddings
         if self.frozen_model.model.pre_process:
             if inference and set_inference_key_value_memory:
-                all_input_ids = input_ids[0]
-                input_ids = input_ids[1]
+                all_input_ids = input_ids[0]  # all the input tokens, used to compute virtual token emb
+                input_ids = input_ids[1]  # the input token ids so far to generate the next token id
                 virtual_token_emb, _ = self.embed_input_train(all_input_ids, prompt_input_mask)
                 input_embeds = self.word_embeddings(input_ids).clone()
             elif inference and not set_inference_key_value_memory:
@@ -339,7 +342,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
             if virtual_token_emb is not None:
                 encoder_input = torch.concat([virtual_token_emb, encoder_input], axis=1)
             encoder_input = encoder_input.transpose(0, 1).contiguous()
-            if self.cfg.get("sequence_parallel", False):
+            if self.sequence_parallel:
                 encoder_input = tensor_parallel.mappings.scatter_to_sequence_parallel_region(encoder_input)
         else:
             encoder_input = None
@@ -369,13 +372,36 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
 
         return output
 
+    def on_validation_start(self) -> None:
+        self._overwrite_checkpointing_for_inference(False, None, None)
+        return super().on_validation_start()
+
+    def _overwrite_checkpointing_for_inference(
+        self, sequence_parallel, activations_checkpoint_granularity, activations_checkpoint_method
+    ):
+        self.cfg['sequence_parallel'] = sequence_parallel
+        self.cfg["activations_checkpoint_granularity"] = activations_checkpoint_granularity
+        self.cfg['activations_checkpoint_method'] = activations_checkpoint_method
+        for name, layer in self.named_modules():
+            if name.startswith('prompt_encoder'):
+                # skip prompt encoder module
+                continue
+            if hasattr(layer, 'sequence_parallel'):
+                layer.sequence_parallel = sequence_parallel
+            if hasattr(layer, "sequence_parallel_enabled"):
+                layer.sequence_parallel_enabled = sequence_parallel
+            if hasattr(layer, "activations_checkpoint_granularity"):
+                layer.activations_checkpoint_granularity = activations_checkpoint_granularity
+            if hasattr(layer, "activations_checkpoint_method"):
+                layer.activations_checkpoint_method = activations_checkpoint_method
+
     def fwd_bwd_step(self, batch, forward_only):
         """
             Dataloader produces a global batch which is turned into a list of microbatches.
             The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
         disable_autocast = False
-        sequence_parallel_enabled = self.cfg.get("sequence_parallel", False)
+        sequence_parallel_enabled = self.sequence_parallel
         # Get seq length of batch
         _, seq_length = batch[0].shape
         tensor_shape = [seq_length + self.cfg.perceiver.hidden_steps, self.cfg.micro_batch_size, self.hidden_size]
@@ -472,7 +498,10 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         self._train_ds = self.build_dataset(data_cfg=self.cfg.data.train_ds, is_train=True,)
         consumed_samples = self.compute_consumed_samples(0)
         self._train_dl = self.build_data_loader(
-            dataset=self._train_ds, data_cfg=self.cfg.data.train_ds, consumed_samples=consumed_samples,
+            dataset=self._train_ds,
+            data_cfg=self.cfg.data.train_ds,
+            sequence_parallel=self.sequence_parallel,
+            consumed_samples=consumed_samples,
         )
 
     def setup_validation_data(self, validation_data_config=None):
@@ -480,7 +509,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         self._validation_dl = []
         for dataset in self._validation_ds:
             eval_dl = self.build_data_loader(
-                dataset=dataset, data_cfg=self.cfg.data.validation_ds, consumed_samples=0,
+                dataset=dataset, data_cfg=self.cfg.data.validation_ds, sequence_parallel=False, consumed_samples=0,
             )
             self._validation_dl.append(eval_dl)
 
@@ -539,12 +568,12 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         else:
             return datasets
 
-    def build_data_loader(self, dataset, data_cfg, consumed_samples=0):
+    def build_data_loader(self, dataset, data_cfg, sequence_parallel, consumed_samples=0):
         if isinstance(dataset, BlendableDataset):
             collate_fun = dataset.datasets[0].collate_fn
         else:
             collate_fun = dataset.collate_fn
-        if self.cfg.get("sequence_parallel", False):
+        if sequence_parallel:
             collate_fn = partial(collate_fun, tp_workers=parallel_state.get_tensor_model_parallel_world_size())
         else:
             collate_fn = partial(collate_fun, tp_workers=0)
@@ -676,7 +705,11 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         elif mode == 'test':
             self.log("test_loss", averaged_loss)
             self.log(f"test_{self.test_metric_name}", averaged_metric)
-
+        self._overwrite_checkpointing_for_inference(
+            self.backup_sequence_parallel,
+            self.backup_activations_checkpoint_granularity,
+            self.backup_activations_checkpoint_method,
+        )
         return averaged_loss, averaged_metric
 
     def test_step(self, batch, batch_idx):
