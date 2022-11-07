@@ -340,6 +340,18 @@ def _tp_pp_mbs_grid_t5_80gb(model_size_in_b: float, valid_pp: List[int]) -> Tupl
         tp = [4, 8]
         pp = [x for x in valid_pp if 1 <= x <= 4]
         mbs = [1, 2, 4, 6, 8]
+    elif 43.0 < model_size_in_b <= 85.5:
+        tp = [4, 8]
+        pp = [x for x in valid_pp if 2 <= x <= 8]
+        mbs = [1, 2, 4, 6, 8]
+    elif 85.5 < model_size_in_b <= 165.5:
+        tp = [8]
+        pp = [x for x in valid_pp if 4 <= x <= 16]
+        mbs = [1, 2, 4, 6]
+    elif 165.5 < model_size_in_b <= 250:
+        tp = [8]
+        pp = [x for x in valid_pp if 4 <= x <= 32]
+        mbs = [1, 2, 4]
     return tp, pp, mbs
 
 
@@ -379,6 +391,18 @@ def _tp_pp_mbs_grid_t5_40gb(model_size_in_b: float, valid_pp: List[int]) -> Tupl
         tp = [4, 8]
         pp = [x for x in valid_pp if 1 <= x <= 8]
         mbs = [1, 2, 4, 6, 8]
+    elif 43.0 < model_size_in_b <= 85.5:
+        tp = [8]
+        pp = [x for x in valid_pp if 2 <= x <= 8]
+        mbs = [1, 2, 4, 6, 8]
+    elif 85.5 < model_size_in_b <= 165.5:
+        tp = [8]
+        pp = [x for x in valid_pp if 4 <= x <= 32]
+        mbs = [1, 2, 4]
+    elif 165.5 < model_size_in_b <= 250:
+        tp = [8]
+        pp = [x for x in valid_pp if 8 <= x <= 64]
+        mbs = [1, 2, 4]
     return tp, pp, mbs
 
 
