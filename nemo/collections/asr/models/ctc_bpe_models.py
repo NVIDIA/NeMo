@@ -641,5 +641,12 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_it_conformer_ctc_large/versions/1.13.0/files/stt_it_conformer_ctc_large.nemo",
         )
         results.append(model)
+        
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_ru_conformer_ctc_large",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_ru_conformer_ctc_large",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_ru_conformer_ctc_large/versions/1.13.0/files/stt_ru_conformer_ctc_large.nemo",
+        )
+        results.append(model)
 
         return results
