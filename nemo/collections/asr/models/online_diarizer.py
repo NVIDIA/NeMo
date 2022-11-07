@@ -89,6 +89,9 @@ except ImportError:
 __all__ = ['OnlineDiarizer']
 
 def timeit(method):
+    """
+    Monitor elapsed time of the corresponding function displaying the method name.
+    """
     def timed(*args, **kw):
         ts = time.time()
         result = method(*args, **kw)
@@ -98,7 +101,6 @@ def timeit(method):
             kw['log_time'][name] = int((te - ts) * 1000)
         else:
             logging.info('%2.2fms %r'%((te - ts) * 1000, method.__name__))
-            # pass
         return result
     return timed
 
@@ -166,7 +168,6 @@ def preprocess_mat(mat, symm=True, fill_diag_zero=True):
 
 def get_mapped_index(mat, index):
     return np.where(mat == index)[0][0]
-
 
 def get_merge_quantity(
     new_emb_n, 
@@ -279,7 +280,8 @@ def get_online_segments_from_slices(
         sigs_list.append(signal)
         sig_rangel_list.append([start_abs_sec, end_abs_sec])
         sig_indexes.append(seg_index_offset)
-    assert len(sigs_list) == len(sig_rangel_list) == len(sig_indexes)
+    if not len(sigs_list) == len(sig_rangel_list) == len(sig_indexes):
+        raise ValueError("Signal information lists have a mismatch.")
     return seg_index_offset, sigs_list, sig_rangel_list, sig_indexes
 
 def generate_cluster_labels(segment_ranges, cluster_labels):
@@ -444,7 +446,7 @@ def stitch_cluster_labels(Y_old, Y_new, with_history=True):
         matched_output = mapping_array[Y_new]
     return matched_output
 
-class OnlineClustering:
+class OnlineSpeakerClustering:
     def __init__(self, cfg_diarizer):
         self.max_num_speaker = cfg_diarizer.clustering.parameters.max_num_speakers
         self.max_rp_threshold = cfg_diarizer.clustering.parameters.max_rp_threshold
@@ -521,7 +523,7 @@ class OnlineClustering:
         est_num_of_spk = self.limit_frames_per_speaker(frame_index, est_num_of_spk)
         return est_num_of_spk, affinity_mat
 
-    def onlineCOSclustering(self, 
+    def forward(self, 
         emb: torch.Tensor,
         frame_index: int,
         cuda,
@@ -565,11 +567,13 @@ class OnlineDiarizer(ClusteringDiarizer):
         self._out_dir = self._cfg_diarizer.out_dir
         if not os.path.exists(self._out_dir):
             os.mkdir(self._out_dir)
-        
-        self._init_online_clustering_module()
-        self._init_memory_buffer_variables()
-        self._init_temporal_major_voting_module()
-        self._init_buffer_frame_timestamps()
+
+        if torch.cuda.is_available():
+            self.device = torch.device("cuda:0")
+        else:
+            self.device = torch.device("cpu")
+
+        self.reset()
         
         # Set speaker embedding model in eval mode
         self._speaker_model.eval()
@@ -585,7 +589,7 @@ class OnlineDiarizer(ClusteringDiarizer):
         self._init_buffer_frame_timestamps()
 
     def _init_online_clustering_module(self): 
-        self.online_clus = OnlineClustering(self.cfg.diarizer)
+        self.online_clus = OnlineSpeakerClustering(self.cfg.diarizer)
         self.max_num_speakers = self.online_clus.max_num_speaker
         self.base_scale_index = max(self.multiscale_args_dict['scale_dict'].keys())
         
@@ -672,19 +676,20 @@ class OnlineDiarizer(ClusteringDiarizer):
 
     def prepare_embedding_update(self, emb_in):
         """
-
         We only save the index and clustering label of each embedding.
 
-        Case-1
+        - Case-1: The very first step
             This else statement is for the very first diarization loop.
             This is the very first reduction frame.
-        Case-2
+
+        - Case-2: Number of embedding vectors is increased
             Since there are new embeddings, we push the same amount (new_emb_n)
             of old embeddings to the history buffer.
             We should also update self.history_buffer_seg_end which is a pointer.
                 update to history emb: emb_in[emb_idx_stt:emb_idx_end]
                 update to history label: self.Y_fullhist[label_stt:_end]
-        Case-3
+
+        - Case-3: Number of embedding vectors is decreased
             If the number of embeddings is decreased compared to the last trial,
             then skip embedding merging.
 
@@ -701,6 +706,7 @@ class OnlineDiarizer(ClusteringDiarizer):
             hist_curr_boundary_emb_idx = get_mapped_index(segment_indexes_mat, hist_curr_boundary)
             emb_hist = emb_in[:hist_curr_boundary_emb_idx]
             self.pre_merge_cluster_label = self.Y_fullhist[:hist_curr_boundary]
+
         # Case-2: Number of embedding vectors is increased, need to update history and its label
         elif self.total_segments_processed_count > self.max_embed_count:
             label_stt, label_end = self.history_buffer_seg_end, hist_curr_boundary
@@ -712,6 +718,7 @@ class OnlineDiarizer(ClusteringDiarizer):
             self.pre_merge_cluster_label = np.hstack(
                 (self.history_embedding_buffer_label, self.Y_fullhist[label_stt:label_end])
             )
+
         # Case-3: Number of embedding vectors is decreased
         # There will be no embedding update, so new_emb_n, emb_hist should be None
         else:
@@ -721,11 +728,12 @@ class OnlineDiarizer(ClusteringDiarizer):
 
     def make_constant_length_emb(self, emb_in):
         """
-        Edge case when the number of segments decreases and the number of embedding falls short for the labels.
-        ASR decoder occasionally returns less number of words compared to the previous frame. In this case,
-        we obtain fewer embedding vectors for the short period of time. To match the pre-defined length, yhe last
-        embedding vector is repeated to fill the voidness. The repeated embedding will be soon replaced by the actual
-        embeddings once the system takes new frames.
+        - Edge case when the number of segments decreases and the number of embedding falls short for the labels.
+        - ASR decoder occasionally returns less number of words compared to the previous frame.
+        - In this case, we obtain fewer embedding vectors for the short period of time. To match the pre-defined
+          length, the last embedding vector is repeated to fill the voidness.
+        - The repeated embedding will be soon replaced by the actual
+          embeddings once the system takes new frames.
         """
         segment_indexes_mat = np.array(self.segment_indexes[self.base_scale_index]).astype(int)
         curr_clustered_segments = np.where(segment_indexes_mat >= self.history_buffer_seg_end)[0]
@@ -760,35 +768,35 @@ class OnlineDiarizer(ClusteringDiarizer):
             self.history_n = 10
             self.current_n = 20
 
-        Step (1)
-        |-----------|ABCDEF--------------|
+            Step (1)
+            |-----------|ABCDEF--------------|
 
-        If we get two more segments, "NN" as in the description:
-        history buffer = 10
-        current buffer = 22
+            If we get two more segments, "NN" as in the description:
+            history buffer = 10
+            current buffer = 22
 
-        Step (2)
-        |-----------|ABCDEF--------------XY|
+            Step (2)
+            |-----------|ABCDEF--------------XY|
 
-        The newly accepted embeddings go through a queue (first embedding, first merged)
-        history buffer = 12
-        current buffer = 20
+            The newly accepted embeddings go through a queue (first embedding, first merged)
+            history buffer = 12
+            current buffer = 20
 
-        Step (3)
-        |-----------AB|CDEF--------------XY|
+            Step (3)
+            |-----------AB|CDEF--------------XY|
 
-        After merging (reducing) the embedding set:
-        history buffer = 10
-        current buffer = 20
+            After merging (reducing) the embedding set:
+            history buffer = 10
+            current buffer = 20
 
-        Step(3)
-        |==========|CDEF--------------XY|
+            Step (4)
+            |==========|CDEF--------------XY|
 
-        After clustering:
+            After clustering:
 
-        |0000011111|11110000110010010011|
+            |0000011111|11110000110010010011|
 
-        This label is self.Y_fullhist (shape is (history_n + current_n) )
+            This label is self.Y_fullhist (shape is (history_n + current_n) )
 
         self.history_buffer_seg_end (int):
             The total number of segments that have been merged from the beginning of the session.
@@ -806,6 +814,7 @@ class OnlineDiarizer(ClusteringDiarizer):
                 pre_merge_cluster_label=self.pre_merge_cluster_label,
                 min_segs_per_buffer=self._minimum_segments_per_buffer,
             )
+            
             # Merge the segments in the history buffer
             for spk_idx, target_num in enumerate(list(class_target_vol)):
                 result_emb, merged_cluster_labels = self.run_reducer(emb_hist, mat, spk_idx, target_num)
@@ -890,7 +899,7 @@ class OnlineDiarizer(ClusteringDiarizer):
             self.Y_fullhist = Y_out
         return Y_out
 
-    def remove_old_data(self, scale_idx):
+    def clear_memory(self, scale_idx):
         """
         Calculate how many segments should be removed from memory.
         """
@@ -957,7 +966,7 @@ class OnlineDiarizer(ClusteringDiarizer):
                 assert len(self.memory_cluster_labels) == len(self.memory_segment_ranges[scale_idx])
 
             # Remove unnecessary old values
-            self.remove_old_data(scale_idx)
+            self.clear_memory(scale_idx)
         
         assert len(self.embs_array[scale_idx]) == \
                len(self.segment_raw_audio[scale_idx]) == \
@@ -969,7 +978,6 @@ class OnlineDiarizer(ClusteringDiarizer):
         else:
             cluster_label_hyp = self.memory_cluster_labels
         return cluster_label_hyp
-       
     
     def _run_segmentation(
         self, audio_buffer, vad_timestamps, segment_raw_audio, segment_range_ts, segment_indexes, window, shift
@@ -1080,11 +1088,11 @@ class OnlineDiarizer(ClusteringDiarizer):
         _emb, _mat = _emb.cpu().numpy(), _mat.cpu().numpy()
         emb, reduced_labels, add_new = self.get_reduced_mat(_mat, _emb)
         emb = torch.tensor(emb).to(device)
-        Y_clus = self.online_clus.onlineCOSclustering(emb=emb,
-                                                      frame_index=self.frame_index,
-                                                      cuda=True,
-                                                      device=device,
-                                                     )
+        Y_clus = self.online_clus.forward(emb=emb,
+                                          frame_index=self.frame_index,
+                                          cuda=True,
+                                          device=device,
+                                         )
 
         Y_clus = Y_clus.cpu().numpy()
         total_cluster_labels = self.macth_labels(org_mat, Y_clus, add_new)
@@ -1092,7 +1100,7 @@ class OnlineDiarizer(ClusteringDiarizer):
 
     def get_interim_output(self, vad_ts):
         """
-        In case buffer is not filled or there is no speech activity in the input, generate temporary output. 
+        In case buffer is not filled or there is no speech activity in the input, generate temporary output.
         Args:
             vad_ts (list):
 
@@ -1107,6 +1115,11 @@ class OnlineDiarizer(ClusteringDiarizer):
         """
         See function `diarize()` in `ClusteringDiarizer` class.
 
+        1. Segmentation
+        2. Embedding Extraction
+        3. Online Clustering & Counting
+        4. Generate speaker labels
+
         Args:
             audio_buffer (np.ndarray):
 
@@ -1115,8 +1128,6 @@ class OnlineDiarizer(ClusteringDiarizer):
 
         Returns:
             diar_hyp (list):
-
-
         """
         # In case buffer is not filled or there is no speech activity in the input
         if self.buffer_start < 0 or len(vad_ts) == 0:
@@ -1125,7 +1136,7 @@ class OnlineDiarizer(ClusteringDiarizer):
         # Segmentation: (c.f. see `diarize` function in ClusteringDiarizer class)
         for scale_idx, (window, shift) in self.multiscale_args_dict['scale_dict'].items():
             
-            # Get subsegments for embedding extraction.
+            # Step 1: Get subsegments for embedding extraction.
             segment_ranges_str = self._run_segmentation(
                 audio_buffer,
                 vad_ts,
@@ -1136,7 +1147,7 @@ class OnlineDiarizer(ClusteringDiarizer):
                 shift,
             )
 
-            # Extract speaker embeddings from the extracted subsegment timestamps.
+            # Step 2: Extract speaker embeddings from the extracted subsegment timestamps.
             embeddings = self._extract_embeddings(
                 self.segment_raw_audio[scale_idx],
                 self.segment_range_ts[scale_idx],
@@ -1155,7 +1166,7 @@ class OnlineDiarizer(ClusteringDiarizer):
             self.multiscale_embeddings_and_timestamps, self.multiscale_args_dict
         )
         
-        # Clustering: Perform an online version of clustering algorithm
+        # Step 3: Clustering: Perform an online version of clustering algorithm
         total_cluster_labels = self.perform_online_clustering(
             embs_and_timestamps[self.uniq_id],
             cuda=True,
@@ -1164,7 +1175,7 @@ class OnlineDiarizer(ClusteringDiarizer):
         for scale_idx, (window, shift) in self.multiscale_args_dict['scale_dict'].items():
             cluster_label_hyp = self.save_history_data(scale_idx, total_cluster_labels)
         
-        # Generate RTTM style diarization labels from segment ranges and cluster labels
+        # Step 4: Generate RTTM style diarization labels from segment ranges and cluster labels
         diar_hyp = generate_cluster_labels(self.memory_segment_ranges[self.base_scale_index], cluster_label_hyp)
         return diar_hyp
    

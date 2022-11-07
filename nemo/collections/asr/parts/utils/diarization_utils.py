@@ -73,7 +73,7 @@ try:
 except ImportError:
     DIFF_MATCH_PATCH = False
 
-__all__ = ['ASR_DIAR_OFFLINE', 'ASR_DIAR_ONLINE']
+__all__ = ['OfflineDiarWithASR', 'OnlineDiarWithASR']
 
 
 def dump_json_to_file(file_path, riva_dict):
@@ -138,7 +138,7 @@ def get_speaker_error_match(ctm_error_dict, w_range, ctm_info_list, pred_info_li
     return error_count, align_error_list
 
 
-class ASR_DIAR_OFFLINE(object):
+class OfflineDiarWithASR(object):
     """
     A class designed for performing ASR and diarization together.
     """
@@ -1312,7 +1312,7 @@ class FrameBatchASR_Logits_Sample(FrameBatchASR_Logits):
         self.clear_buffer()
         self.reset()
 
-class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
+class OnlineDiarWithASR(OfflineDiarWithASR, ASR_TIMESTAMPS):
     def __init__(self, cfg):
         super().__init__(**cfg.diarizer)
         '''
