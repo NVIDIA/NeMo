@@ -119,8 +119,8 @@ def convert_word_dict_seq_to_text(word_dict_seq_list: List[Dict[str, float]]) ->
 
             Example:
             >>> word_dict_seq_list = \
-            >>> [{'word': 'right', 'start_time': 0.0, 'end_time': 0.04, 'speaker_label': 'speaker_0'},  
-                 {'word': 'and', 'start_time': 0.64, 'end_time': 0.68, 'speaker_label': 'speaker_1'},
+            >>> [{'word': 'right', 'start_time': 0.0, 'end_time': 0.04, 'speaker': 'speaker_0'},  
+                 {'word': 'and', 'start_time': 0.64, 'end_time': 0.68, 'speaker': 'speaker_1'},
                    ...],
     
     Returns:
@@ -139,7 +139,7 @@ def convert_word_dict_seq_to_text(word_dict_seq_list: List[Dict[str, float]]) ->
     """
     mix_hypothesis, per_spk_hyp_trans_dict = [], {}
     for word_dict in word_dict_seq_list:
-        spk = word_dict['speaker_label']
+        spk = word_dict['speaker']
         if spk not in per_spk_hyp_trans_dict:
             per_spk_hyp_trans_dict[spk] = []
         per_spk_hyp_trans_dict[spk].append(word_dict['word'])
@@ -861,9 +861,9 @@ class OfflineDiarWithASR:
                 List containing word by word dictionary containing word, timestamps and speaker labels.
 
                 Example:
-                >>> [{'word': 'right', 'start_time': 0.0, 'end_time': 0.04, 'speaker_label': 'speaker_0'},  
-                     {'word': 'and', 'start_time': 0.64, 'end_time': 0.68, 'speaker_label': 'speaker_1'},  
-                     {'word': 'i', 'start_time': 0.84, 'end_time': 0.88, 'speaker_label': 'speaker_1'},  
+                >>> [{'word': 'right', 'start_time': 0.0, 'end_time': 0.04, 'speaker': 'speaker_0'},  
+                     {'word': 'and', 'start_time': 0.64, 'end_time': 0.68, 'speaker': 'speaker_1'},  
+                     {'word': 'i', 'start_time': 0.84, 'end_time': 0.88, 'speaker': 'speaker_1'},  
                      ...]
         """
         if word_rfnd_ts is None:
@@ -880,7 +880,7 @@ class OfflineDiarWithASR:
             stt_sec = round(refined_word_ts_stt_end[0], decimals)
             end_sec = round(refined_word_ts_stt_end[1], decimals)
             word_dict_seq_list.append(
-                {'word': word, 'start_time': stt_sec, 'end_time': end_sec, 'speaker_label': speaker}
+                {'word': word, 'start_time': stt_sec, 'end_time': end_sec, 'speaker': speaker}
             )
         return word_dict_seq_list
 
@@ -903,9 +903,9 @@ class OfflineDiarWithASR:
                 List containing words and corresponding word timestamps in dictionary format.
 
                 Example:
-                >>> [{'word': 'right', 'start_time': 0.0, 'end_time': 0.04, 'speaker_label': 'speaker_0'},  
-                     {'word': 'and', 'start_time': 0.64, 'end_time': 0.68, 'speaker_label': 'speaker_1'},  
-                     {'word': 'i', 'start_time': 0.84, 'end_time': 0.88, 'speaker_label': 'speaker_1'},  
+                >>> [{'word': 'right', 'start_time': 0.0, 'end_time': 0.04, 'speaker': 'speaker_0'},  
+                     {'word': 'and', 'start_time': 0.64, 'end_time': 0.68, 'speaker': 'speaker_1'},  
+                     {'word': 'i', 'start_time': 0.84, 'end_time': 0.88, 'speaker': 'speaker_1'},  
                      ...]
 
         Returns:
@@ -921,14 +921,14 @@ class OfflineDiarWithASR:
                         'session_id': 'my_audio_01',
                         'transcription': 'right and i really think ...',
                         'speaker_count': 2,
-                        'words': [{'word': 'right', 'start_time': 0.0, 'end_time': 0.04, 'speaker_label': 'speaker_0'},  
-                                  {'word': 'and', 'start_time': 0.64, 'end_time': 0.68, 'speaker_label': 'speaker_1'},  
-                                  {'word': 'i', 'start_time': 0.84, 'end_time': 0.88, 'speaker_label': 'speaker_1'},  
+                        'words': [{'word': 'right', 'start_time': 0.0, 'end_time': 0.04, 'speaker': 'speaker_0'},  
+                                  {'word': 'and', 'start_time': 0.64, 'end_time': 0.68, 'speaker': 'speaker_1'},  
+                                  {'word': 'i', 'start_time': 0.84, 'end_time': 0.88, 'speaker': 'speaker_1'},  
                                   ...
                                   ]
-                        'sentences': [{'sentence': 'right',  'start_time': 0.0, 'end_time': 0.04, 'speaker_label': 'speaker_0'},
+                        'sentences': [{'sentence': 'right',  'start_time': 0.0, 'end_time': 0.04, 'speaker': 'speaker_0'},
                                       {'sentence': 'and i really think ...', 
-                                       'start_time': 0.92, 'end_time': 4.12, 'speaker_label': 'speaker_0'},
+                                       'start_time': 0.92, 'end_time': 4.12, 'speaker': 'speaker_0'},
                                       ...
                                       ]
                     }
@@ -946,7 +946,7 @@ class OfflineDiarWithASR:
         gecko_dict = self._init_session_gecko_dict()
 
         for k, word_dict in enumerate(word_dict_seq_list):
-            word, speaker = word_dict['word'], word_dict['speaker_label']
+            word, speaker = word_dict['word'], word_dict['speaker']
             word_seq_list.append(word)
             start_point, end_point = word_dict['start_time'], word_dict['end_time']
             if speaker != prev_speaker:
@@ -1081,7 +1081,7 @@ class OfflineDiarWithASR:
         word_seq_len = len(word_dict_seq_list)
         hyp_w_dict_list, spk_list = [], []
         for k, line_dict in enumerate(word_dict_seq_list):
-            word, spk_label = line_dict['word'], line_dict['speaker_label']
+            word, spk_label = line_dict['word'], line_dict['speaker']
             hyp_w_dict_list.append(word)
             spk_list.append(spk_label)
 
@@ -1103,7 +1103,7 @@ class OfflineDiarWithASR:
                 if log_p[p_order[0]] > log_p[p_order[1]] + self.realigning_lm_params['logprob_diff_threshold']:
                     if p_order[0] == 0:
                         spk_list[k] = org_spk_list[k + 1]
-                line_dict['speaker_label'] = spk_list[k]
+                line_dict['speaker'] = spk_list[k]
             realigned_list.append(line_dict)
         return realigned_list
 
@@ -1428,6 +1428,6 @@ class OfflineDiarWithASR:
                     'sentence': sentence['text'],
                     'start_time': sentence['start_point'],
                     'end_time': sentence['end_point'],
-                    'speaker_label': sentence['speaker'],
+                    'speaker': sentence['speaker'],
                 }
             )
