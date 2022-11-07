@@ -1102,7 +1102,7 @@ class SpeakerClustering(torch.nn.Module):
         self.sparse_search: bool = sparse_search
         self.parallelism: bool = parallelism
         self.cuda: bool = cuda
-        self.maj_vote_spk_count: bool= maj_vote_spk_count
+        self.maj_vote_spk_count: bool = maj_vote_spk_count
         self.embeddings_in_scales: List[torch.Tensor] = [torch.Tensor(0)]
         self.timestamps_in_scales: List[torch.Tensor] = [torch.Tensor(0)]
         self.device = torch.device("cuda") if self.cuda else torch.device("cpu")

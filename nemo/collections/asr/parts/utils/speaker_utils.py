@@ -448,7 +448,7 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
         cuda = False
 
     speaker_clustering = SpeakerClustering(maj_vote_spk_count=clustering_params.maj_vote_spk_count, cuda=cuda)
-    
+
     # If True, export torch script module and save it to the base folder.
     if clustering_params.get('export_script_module', False):
         speaker_clustering = torch.jit.script(speaker_clustering)
