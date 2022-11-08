@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import os
 from functools import partial
 from typing import Any, Optional
@@ -630,8 +631,11 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         self.frozen_model.model.parallel_output = False
 
         # Call same generate code as in MegatronGPT
+        # copy the model
+        # back_model_state = copy.deepcopy(self.state_dict())
+        # back_opt_state = copy.deepcopy(self.optimizers().state_dict())
         result = megatron_gpt_generate(
-            self.cuda(), (input_ids, context_lengths), self.tokenizer, length_params, sampling_params
+            self, (input_ids, context_lengths), self.tokenizer, length_params, sampling_params
         )
 
         number_tokens = [int(i.sum()) for i in batch[2]]
@@ -651,6 +655,9 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         for _, (pred, label) in enumerate(zip(preds_text, labels_text)):
             _ = metric(pred, label)
 
+        self.train()
+        # self.load_state_dict(back_model_state)
+        # self.optimizers().load_state_dict(back_opt_state)
         return {
             'loss': loss_mean,
             'preds': preds_text,
