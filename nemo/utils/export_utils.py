@@ -68,9 +68,7 @@ class CastToFloat(nn.Module):
         self.mod = mod
 
     def forward(self, x):
-        if torch.is_autocast_enabled():
-            ret = self.mod.forward(x.to(torch.float32)).to(x.dtype)
-        else:
+        with torch.autocast(device_type='cuda', dtype=x.dtype):
             ret = self.mod.forward(x)
         return ret
 

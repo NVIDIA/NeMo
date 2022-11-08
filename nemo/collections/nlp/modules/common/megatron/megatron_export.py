@@ -180,7 +180,7 @@ class EncEmb(torch.nn.Module, Exportable):
         enc_input = self.encoder_embedding(input_ids, position_ids, token_type_ids=None)
 
         # pass input through the encoder
-        return self.encoder(enc_input=enc_input, enc_attn_mask=encoder_mask,).type(torch.float32).permute(1, 0, 2)
+        return self.encoder(enc_input=enc_input, enc_attn_mask=encoder_mask,).permute(1, 0, 2)
 
     def input_example(self, max_batch=1, max_dim=30000, seq_len=6):
         seq_len = random.randint(0, 128)
