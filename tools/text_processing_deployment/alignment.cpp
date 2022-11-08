@@ -168,11 +168,4 @@ int main(int argc, char * argv[]) {
   cout << "inp indices: [" << start_index << ":" << end_index << "]" << endl;
   cout << "out indices: [" << get<0>(out_indices) << ":" << get<1>(out_indices) << "]" << endl;
   cout << "in: |" << input.substr(start_index, end_index - start_index) << "| out: |" << output_str.substr(get<0>(out_indices), (get<1>(out_indices)-get<0>(out_indices))) << "|" << endl;
-
-  
-
-  
-
-
-
 }
