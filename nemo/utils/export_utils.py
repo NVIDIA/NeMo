@@ -163,6 +163,20 @@ def to_onnxrt_input(ort_input_names, input_names, input_dict, input_list):
     return odict
 
 
+def verify_torchscript(model, output, input_examples, input_names, check_tolerance=0.01):
+    ts_model = torch.jit.load(output)
+
+    all_good = True
+    for input_example in input_examples:
+        input_list, input_dict = parse_input_example(input_example)
+        output_example = model.forward(*input_list, **input_dict)
+        # ts_input = to_onnxrt_input(ort_input_names, input_names, input_dict, input_list)
+        all_good = all_good and run_ts_and_compare(ts_model, input_list, input_dict, output_example, check_tolerance)
+    status = "SUCCESS" if all_good else "FAIL"
+    logging.info(f"Torchscript generated at {output} verified with torchscript forward : " + status)
+    return all_good
+
+
 def verify_runtime(model, output, input_examples, input_names, check_tolerance=0.01):
     onnx_model = onnx.load(output)
     ort_input_names = [node.name for node in onnx_model.graph.input]
@@ -189,6 +203,23 @@ def verify_runtime(model, output, input_examples, input_names, check_tolerance=0
     return all_good
 
 
+def run_ts_and_compare(ts_model, ts_input_list, ts_input_dict, output_example, check_tolerance=0.01):
+    # Verify the model can be read, and is valid
+    ts_out = ts_model(*ts_input_list, **ts_input_dict)
+
+    all_good = True
+    for i, out in enumerate(ts_out):
+        expected = output_example[i]
+
+        if torch.is_tensor(expected):
+            tout = out.to('cpu')
+            logging.info(f"Checking output {i}, shape: {expected.shape}:\n{expected}\n{tout}")
+            if not torch.allclose(tout, expected.cpu(), rtol=check_tolerance, atol=check_tolerance):
+                all_good = False
+                logging.info(f"onnxruntime results mismatch! PyTorch(expected):\n{expected}\nTorchScript:\n{tout}")
+    return all_good
+
+
 def run_ort_and_compare(sess, ort_input, output_example, check_tolerance=0.01):
     # Verify the model can be read, and is valid
     ort_out = sess.run(None, ort_input)
@@ -210,7 +241,7 @@ apex_available = True
 try:
     from apex.normalization.fused_layer_norm import FusedLayerNorm, MixedFusedLayerNorm
     from apex.contrib.layer_norm.layer_norm import FastLayerNorm
-    from apex.transformer.tensor_parallel.layers import RowParallelLinear
+    from apex.transformer.tensor_parallel.layers import RowParallelLinear, ColumnParallelLinear
     from apex.transformer.functional.fused_softmax import FusedScaleMaskSoftmax
 
     def replace_FusedLayerNorm(n: nn.Module) -> Optional[nn.BatchNorm2d]:
@@ -256,6 +287,24 @@ try:
         mod.load_state_dict(n_state)
         return mod
 
+    def replace_ParallelLinear(n: nn.Module) -> Optional[nn.Linear]:
+        """
+        Replaces Apex's ColumnParallelLinear or RowParallelLinear with nn.Linear
+        Args:
+           n: the nn.Module pytorch module to replace
+        Returns:
+           Equivalent Linear module
+        """
+        if not (isinstance(n, ColumnParallelLinear) or isinstance(n, RowParallelLinear)):
+            raise ValueError("This function can only change the ColumnParallelLinear or RowParallelLinear module.")
+
+        dev = next(n.parameters()).device
+        mod = LinearWithBiasSkip(n.weight, n.bias, n.skip_bias_add).to(dev)
+
+        n_state = n.state_dict()
+        mod.load_state_dict(n_state)
+        return mod
+
     def replace_FusedScaleMaskSoftmax(n: nn.Module) -> Optional[nn.Linear]:
         """
         Replaces Apex's FusedScaleMaskSoftmax with nn.LayerNorm. This is required for ONNX export.
@@ -278,7 +327,8 @@ try:
         "FusedLayerNorm": replace_FusedLayerNorm,
         "MixedFusedLayerNorm": replace_FusedLayerNorm,
         "FastLayerNorm": replace_FusedLayerNorm,
-        "RowParallelLinear": replace_RowParallelLinear,
+        "RowParallelLinear": replace_ParallelLinear,
+        "ColumnParallelLinear": replace_ParallelLinear,
         "FusedScaleMaskSoftmax": replace_FusedScaleMaskSoftmax,
     }
 

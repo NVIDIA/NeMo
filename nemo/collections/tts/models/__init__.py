@@ -20,20 +20,20 @@ from nemo.collections.tts.models.radtts import RadTTSModel
 from nemo.collections.tts.models.tacotron2 import Tacotron2Model
 from nemo.collections.tts.models.two_stages import GriffinLimModel, MelPsuedoInverseModel, TwoStagesModel
 from nemo.collections.tts.models.univnet import UnivNetModel
+from nemo.collections.tts.models.vits import VitsModel
 from nemo.collections.tts.models.waveglow import WaveGlowModel
 
 __all__ = [
-    "Tacotron2Model",
-    "WaveGlowModel",
-    "TwoStagesModel",
-    "GriffinLimModel",
-    "MelPsuedoInverseModel",
-    "HifiGanModel",
-    "FastPitchModel",
     "AlignerModel",
+    "FastPitchModel",
+    "GriffinLimModel",
+    "HifiGanModel",
+    "MelPsuedoInverseModel",
     "MixerTTSModel",
-    "VitsModel",
+    "RadTTSModel",
+    "Tacotron2Model",
+    "TwoStagesModel",
     "UnivNetModel",
     "VitsModel",
-    "RadTTSModel",
+    "WaveGlowModel",
 ]
