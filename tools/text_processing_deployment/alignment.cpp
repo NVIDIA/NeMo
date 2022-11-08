@@ -121,7 +121,7 @@ int main(int argc, char * argv[]) {
   LookaheadFst fst_(*(grm_->GetFst("tokenize_and_classify")));
 
   
-  string input = argv[2]; //"2615 Forest Av, 90501 CA, Santa Clara. 10kg, 12/16/2018, $123.25. 1 Aug 2016";
+  string input = argv[2];
   typedef fst::StringCompiler<StdArc> Compiler;
   typedef StdArc::StateId StateId;
   typedef fst::StringPrinter<StdArc> Printer;
