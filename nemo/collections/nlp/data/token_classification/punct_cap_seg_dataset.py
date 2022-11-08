@@ -7,7 +7,7 @@ import torch
 
 from nemo.collections.common.tokenizers import AutoTokenizer, TokenizerSpec
 from nemo.core import Dataset, typecheck
-from nemo.core.neural_types import IntType, LengthsType, NeuralType, StringType, TokenIndex
+from nemo.core.neural_types import IntType, LengthsType, NeuralType, StringType, ChannelType
 from nemo.utils import logging
 
 
@@ -53,7 +53,7 @@ class InferencePunctCapSegDataset(Dataset):
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
-            "folded_input_ids": NeuralType(("B", "T"), TokenIndex()),
+            "folded_input_ids": NeuralType(("B", "T"), ChannelType()),
             "folded_batch_ids": NeuralType(("B",), IntType()),
             "lengths": NeuralType(("B",), LengthsType()),
             "input_strings": [NeuralType(("B",), StringType())],
@@ -188,22 +188,22 @@ class PunctCapSegDataset(Dataset):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         if self._multipass:
             return {
-                "punc_input_ids": NeuralType(("B", "T"), TokenIndex()),
-                "cap_seg_input_ids": NeuralType(("B", "T"), TokenIndex()),
-                "punc_pre_target_ids": NeuralType(("B", "T", "D"), TokenIndex()),  # D == max_subtoken_len
-                "punc_post_target_ids": NeuralType(("B", "T", "D"), TokenIndex()),  # D == max_subtoken_len
-                "cap_target_ids": NeuralType(("B", "T", "D"), TokenIndex()),  # D == max_subtoken_len
-                "seg_target_ids": NeuralType(("B", "T"), TokenIndex()),
+                "punc_input_ids": NeuralType(("B", "T"), ChannelType()),
+                "cap_seg_input_ids": NeuralType(("B", "T"), ChannelType()),
+                "punc_pre_target_ids": NeuralType(("B", "T", "D"), ChannelType()),  # D == max_subtoken_len
+                "punc_post_target_ids": NeuralType(("B", "T", "D"), ChannelType()),  # D == max_subtoken_len
+                "cap_target_ids": NeuralType(("B", "T", "D"), ChannelType()),  # D == max_subtoken_len
+                "seg_target_ids": NeuralType(("B", "T"), ChannelType()),
                 "punct_lengths": NeuralType(("B",), LengthsType()),
                 "cap_seg_lengths": NeuralType(("B",), LengthsType()),
             }
         else:
             return {
-                "input_ids": NeuralType(("B", "T"), TokenIndex()),
-                "punc_pre_target_ids": NeuralType(("B", "T", "D"), TokenIndex()),  # D == max_subtoken_len
-                "punc_post_target_ids": NeuralType(("B", "T", "D"), TokenIndex()),  # D == max_subtoken_len
-                "cap_target_ids": NeuralType(("B", "T", "D"), TokenIndex()),  # D == max_subtoken_len
-                "seg_target_ids": NeuralType(("B", "T"), TokenIndex()),
+                "input_ids": NeuralType(("B", "T"), ChannelType()),
+                "punc_pre_target_ids": NeuralType(("B", "T", "D"), ChannelType()),  # D == max_subtoken_len
+                "punc_post_target_ids": NeuralType(("B", "T", "D"), ChannelType()),  # D == max_subtoken_len
+                "cap_target_ids": NeuralType(("B", "T", "D"), ChannelType()),  # D == max_subtoken_len
+                "seg_target_ids": NeuralType(("B", "T"), ChannelType()),
                 "lengths": NeuralType(("B",), LengthsType()),
             }
 

@@ -19,7 +19,7 @@ from nemo.collections.nlp.metrics.classification_report import ClassificationRep
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.core import PretrainedModelInfo, typecheck
-from nemo.core.neural_types import LengthsType, LogitsType, NeuralType, TokenIndex
+from nemo.core.neural_types import LengthsType, LogitsType, NeuralType, ChannelType
 from nemo.utils import logging
 
 
@@ -291,7 +291,7 @@ class PunctCapSegModel(NLPModel):
 
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
-        return {"input_ids": NeuralType(("B", "T"), TokenIndex()), "lengths": NeuralType(("B",), LengthsType())}
+        return {"input_ids": NeuralType(("B", "T"), ChannelType()), "lengths": NeuralType(("B",), LengthsType())}
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -555,7 +555,7 @@ class PunctCapSegModel(NLPModel):
             dataset=dataset,
             collate_fn=dataset.collate_fn,
             batch_size=config.get("batch_size", 16),
-            num_workers=config.get("num_workers", 8),
+            num_workers=config.get("num_workers", 0),
             pin_memory=config.get("pin_memory", False),
             drop_last=config.get("drop_last", False),
         )
