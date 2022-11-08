@@ -381,6 +381,8 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
 
     def on_validation_start(self) -> None:
         self._overwrite_checkpointing_for_inference(False, None, None)
+        self.back_model_state = copy.deepcopy(self.state_dict())
+        self.back_opt_state = copy.deepcopy(self.optimizers().state_dict())
         torch.distributed.barrier()
         return super().on_validation_start()
 
@@ -655,9 +657,6 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         for _, (pred, label) in enumerate(zip(preds_text, labels_text)):
             _ = metric(pred, label)
 
-        self.train()
-        # self.load_state_dict(back_model_state)
-        # self.optimizers().load_state_dict(back_opt_state)
         return {
             'loss': loss_mean,
             'preds': preds_text,
@@ -724,6 +723,9 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
             self.backup_activations_checkpoint_granularity,
             self.backup_activations_checkpoint_method,
         )
+        self.train()
+        self.load_state_dict(self.back_model_state)
+        self.optimizers().load_state_dict(self.back_opt_state)
         torch.distributed.barrier()
         return averaged_loss, averaged_metric
 
