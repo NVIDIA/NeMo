@@ -16,6 +16,7 @@ from abc import ABC
 from typing import List, Union
 
 import torch
+from pytorch_lightning.core.module import _jit_is_scripting
 from torch.onnx import TrainingMode
 
 from nemo.core.classes import typecheck
@@ -128,7 +129,7 @@ class Exportable(ABC):
             # Set module mode
             with torch.onnx.select_model_mode_for_export(
                 self, training
-            ), torch.inference_mode(), torch.jit.optimized_execution(True):
+            ), torch.inference_mode(), torch.jit.optimized_execution(True), _jit_is_scripting():
 
                 if input_example is None:
                     input_example = self.input_module.input_example()
