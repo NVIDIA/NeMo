@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
 import os
 from functools import partial
 from typing import Any, Optional
@@ -381,8 +380,6 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
 
     def on_validation_start(self) -> None:
         self._overwrite_checkpointing_for_inference(False, None, None)
-        self.back_model_state = copy.deepcopy(self.state_dict())
-        self.back_opt_state = copy.deepcopy(self.optimizers().state_dict())
         torch.distributed.barrier()
         return super().on_validation_start()
 
@@ -630,12 +627,6 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
             "compute_logprob": False,
         }
 
-        self.frozen_model.model.parallel_output = False
-
-        # Call same generate code as in MegatronGPT
-        # copy the model
-        # back_model_state = copy.deepcopy(self.state_dict())
-        # back_opt_state = copy.deepcopy(self.optimizers().state_dict())
         result = megatron_gpt_generate(
             self, (input_ids, context_lengths), self.tokenizer, length_params, sampling_params
         )
@@ -723,9 +714,6 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
             self.backup_activations_checkpoint_granularity,
             self.backup_activations_checkpoint_method,
         )
-        self.train()
-        self.load_state_dict(self.back_model_state)
-        self.optimizers().load_state_dict(self.back_opt_state)
         self.back_model_state = None
         self.back_opt_state = None
         torch.distributed.barrier()
