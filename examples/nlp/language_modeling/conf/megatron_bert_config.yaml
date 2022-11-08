@@ -12,7 +12,7 @@ trainer:
   max_epochs: -1 # PTL default. In practice we don't usually train for more than 1 epoch.
   max_steps: 100000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10
-  val_check_interval: 100
+  val_check_interval: 10
   limit_val_batches: 50
   limit_test_batches: 500
   accumulate_grad_batches: 1
@@ -42,9 +42,9 @@ exp_manager:
 model:
   # model parallelism 
   micro_batch_size: 4
-  global_batch_size: 8
+  global_batch_size: 16
   tensor_model_parallel_size: 1
-  pipeline_model_parallel_size: 1
+  pipeline_model_parallel_size: 2
 
   # model architecture
   encoder_seq_length: 512
@@ -61,7 +61,7 @@ model:
   make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
   pre_process: True # add embedding
   post_process: True # add pooler
-  bert_binary_head: True # BERT binary head
+  bert_binary_head: False # BERT binary head
 
   tokenizer:
     library: 'megatron'
@@ -100,7 +100,7 @@ model:
     #   - /raid/data/pile/my-gpt3_00_text_document
     #   - .5
     #   - /raid/data/pile/my-gpt3_01_text_document
-    data_prefix: ???
+    data_prefix: [/home/shanmugamr/data/Pile/mini_test]
     index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
     data_impl: mmap
     splits_string: 900,50,50

@@ -236,11 +236,6 @@ class MegatronBertModel(MegatronBaseModel):
         else:
             loss_mean = torch.tensor([0.0, 0.0]).cuda()
 
-        self._reduced_loss_buffer.append(loss_mean[0])
-        self._reduced_lm_loss_buffer.append(loss_mean[1])
-        if len(loss_mean) == 3:
-            self._reduced_sop_loss_buffer.append(loss_mean[2])
-
         if self.megatron_amp_o2 and self.cfg.get('pipeline_model_parallel_size', 1) > 1:
             # when using pipeline parallelism grads must be all-reduced after the pipeline (not asynchronously)
             self._optimizer.allreduce_main_grads()
@@ -262,13 +257,10 @@ class MegatronBertModel(MegatronBaseModel):
 
         if (batch_idx + 1) % self.trainer.accumulate_grad_batches == 0:
             # Reduced loss for logging.
-            average_reduced_loss = sum(self._reduced_loss_buffer) / len(self._reduced_loss_buffer)
-            self.log('reduced_train_loss', average_reduced_loss, prog_bar=True)
-            if len(self._reduced_sop_loss_buffer) > 0:
-                average_reduced_lm_loss = sum(self._reduced_lm_loss_buffer) / len(self._reduced_lm_loss_buffer)
-                average_reduced_sop_loss = sum(self._reduced_sop_loss_buffer) / len(self._reduced_sop_loss_buffer)
-                self.log('reduced_lm_train_loss', average_reduced_lm_loss, prog_bar=True)
-                self.log('reduced_sop_train_loss', average_reduced_sop_loss, prog_bar=True)
+            self.log('reduced_train_loss', loss_mean[0], prog_bar=True)
+            if len(loss_mean) > 2:
+                self.log('reduced_lm_train_loss', loss_mean[1], prog_bar=True)
+                self.log('reduced_sop_train_loss', loss_mean[2], prog_bar=True)
             lr = self._optimizer.param_groups[0]['lr']
             self.log('lr', lr)
             self.log('global_step', self.trainer.global_step, prog_bar=True)
@@ -277,9 +269,6 @@ class MegatronBertModel(MegatronBaseModel):
                 self.compute_consumed_samples(self.trainer.global_step - self.init_global_step),
                 prog_bar=True,
             )
-            self._reduced_loss_buffer = []
-            self._reduced_lm_loss_buffer = []
-            self._reduced_sop_loss_buffer = []
 
         return loss_mean[0]
 
