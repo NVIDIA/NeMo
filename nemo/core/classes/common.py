@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from functools import total_ordering
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Union
+from typing import Dict, Iterable, List, Optional, Tuple, Union
 
 import hydra
 import wrapt
@@ -859,7 +859,7 @@ class Model(Typing, Serialization, FileIO):
         return instance
 
     @classmethod
-    def _get_ngc_pretrained_model_info(cls, model_name: str, refresh_cache: bool = False) -> (type, str):
+    def _get_ngc_pretrained_model_info(cls, model_name: str, refresh_cache: bool = False) -> Tuple[type, str]:
         """
         Resolve the NGC model pretrained information given a model name.
         Assumes the model subclass implements the `list_available_models()` inherited method.
@@ -916,7 +916,7 @@ class Model(Typing, Serialization, FileIO):
         return class_, nemo_model_file_in_cache
 
     @classmethod
-    def _get_hf_hub_pretrained_model_info(cls, model_name: str, refresh_cache: bool = False) -> (type, str):
+    def _get_hf_hub_pretrained_model_info(cls, model_name: str, refresh_cache: bool = False) -> Tuple[type, str]:
         """
         Resolve the HuggingFace Hub model pretrained information given a model name.
         The model name must be of general syntax ``{source_repo}/{model_name}``.

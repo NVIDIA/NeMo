@@ -23,7 +23,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
 from shutil import copy, move
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import pytorch_lightning
 import torch
@@ -521,7 +521,7 @@ def check_resume(
 
 def check_explicit_log_dir(
     trainer: 'pytorch_lightning.Trainer', explicit_log_dir: [Path, str], exp_dir: str, name: str, version: str
-) -> (Path, str, str, str):
+) -> Tuple[Path, str, str, str]:
     """ Checks that the passed arguments are compatible with explicit_log_dir.
 
     Returns:
@@ -558,7 +558,7 @@ def get_log_dir(
     explicit_log_dir: str = None,
     use_datetime_version: bool = True,
     resume_if_exists: bool = False,
-) -> (Path, str, str, str):
+) -> Tuple[Path, str, str, str]:
     """
     Obtains the log_dir used for exp_manager.
 

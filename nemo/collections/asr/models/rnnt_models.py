@@ -17,7 +17,7 @@ import json
 import os
 import tempfile
 from math import ceil, isclose
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
@@ -217,7 +217,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         partial_hypothesis: Optional[List['Hypothesis']] = None,
         num_workers: int = 0,
         channel_selector: Optional[ChannelSelectorType] = None,
-    ) -> (List[str], Optional[List['Hypothesis']]):
+    ) -> Tuple[List[str], Optional[List['Hypothesis']]]:
         """
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
 

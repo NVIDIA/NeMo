@@ -17,7 +17,7 @@ import os
 from dataclasses import dataclass, is_dataclass
 from enum import Enum
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import List, Optional, Tuple, Union
 
 import wrapt
 
@@ -512,7 +512,7 @@ def resolve_subclass_pretrained_model_info(base_class) -> List['PretrainedModelI
     return list_of_models
 
 
-def check_lib_version(lib_name: str, checked_version: str, operator) -> (Optional[bool], str):
+def check_lib_version(lib_name: str, checked_version: str, operator) -> Tuple[Optional[bool], str]:
     """
     Checks if a library is installed, and if it is, checks the operator(lib.__version__, checked_version) as a result.
     This bool result along with a string analysis of result is returned.
