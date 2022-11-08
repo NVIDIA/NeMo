@@ -123,15 +123,15 @@ class BiLSTM(nn.Module):
         seq = nn.utils.rnn.pack_padded_sequence(
             context, lens.long().cpu(), batch_first=True, enforce_sorted=enforce_sorted
         )
-        if not torch.jit.is_scripting():
-            self.bilstm.flatten_parameters()
+        # if not torch.jit.is_scripting():
+        #    self.bilstm.flatten_parameters()
         ret, _ = self.bilstm(seq)
         return nn.utils.rnn.pad_packed_sequence(ret, batch_first=True)
 
     @torch.jit.export
     def lstm_sequence(self, seq: PackedSequence) -> Tuple[Tensor, Tensor]:
-        if not torch.jit.is_scripting():
-            self.bilstm.flatten_parameters()
+        # if not torch.jit.is_scripting():
+        #    self.bilstm.flatten_parameters()
         ret, _ = self.bilstm(seq)
         return nn.utils.rnn.pad_packed_sequence(ret, batch_first=True)
 
@@ -164,10 +164,10 @@ class ConvLSTMLinear(BiLSTM):
     ):
         super(ConvLSTMLinear, self).__init__(n_channels, int(n_channels // 2), 1)
         self.out_dim = out_dim
+        self.convolutions = nn.ModuleList()
 
         if n_layers > 0:
             self.dropout = nn.Dropout(p=p_dropout)
-            self.convolutions = nn.ModuleList()
 
         for i in range(n_layers):
             conv_layer = ConvNorm(
@@ -219,7 +219,7 @@ class ConvLSTMLinear(BiLSTM):
         ret = torch.nn.utils.rnn.pad_sequence(context_embedded, batch_first=True)
         return ret
 
-    @torch.jit.export
+    @torch.jit.ignore
     def masked_conv_to_sequence(self, context: Tensor, lens: Tensor, enforce_sorted: bool = False) -> PackedSequence:
         mask = get_mask_from_lengths_and_val(lens, context)
         mask = mask.unsqueeze(1)
@@ -232,23 +232,34 @@ class ConvLSTMLinear(BiLSTM):
         )
         return seq
 
-    def forward(self, context: Tensor, lens: Optional[Tensor] = None) -> Tensor:
-        if lens is None:
-            for conv in self.convolutions:
-                context = self.dropout(F.relu(conv(context)))
-            context = context.transpose(1, 2)
-            context, _ = self.bilstm(context)
-        else:
-            # borisf : does not match ADLR (values, lengths)
-            # seq = self.masked_conv_to_sequence(context, lens, enforce_sorted=False)
-            # borisf : does match ADLR
-            seq = self.conv_to_sequence(context, lens, enforce_sorted=False)
-            context, _ = self.lstm_sequence(seq)
+    def forward(self, context: Tensor, lens: Tensor) -> Tensor:
+        # borisf : does not match ADLR (values, lengths)
+        # seq = self.masked_conv_to_sequence(context, lens, enforce_sorted=False)
+        # borisf : does match ADLR
+        seq = self.conv_to_sequence(context, lens, enforce_sorted=False)
+        context, _ = self.lstm_sequence(seq)
 
         if self.dense is not None:
             context = self.dense(context).permute(0, 2, 1)
 
         return context
+
+    def script(self):
+        traced = nn.ModuleList()
+        for conv in self.convolutions:
+            if hasattr(conv, 'conv'):
+                w = conv.conv.weight
+            else:
+                print('------\n', self)
+                print(conv)
+                w = conv.weight
+            s = w.shape
+            rand_in = torch.ones(1, s[1], s[2], dtype=w.dtype, device=w.device)
+            # , torch.ones(1, 1, s[2], dtype=w.dtype, device=w.device))
+            traced.append(torch.jit.trace_module(conv, {"forward": rand_in}))
+            print('============\n')
+        self.convolutions = traced
+        return torch.jit.script(self)
 
 
 def getRadTTSEncoder(
