@@ -19,7 +19,7 @@ from nemo.collections.nlp.metrics.classification_report import ClassificationRep
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.core import PretrainedModelInfo, typecheck
-from nemo.core.neural_types import LengthsType, LogitsType, NeuralType, ChannelType
+from nemo.core.neural_types import ChannelType, LengthsType, LogitsType, NeuralType
 from nemo.utils import logging
 
 

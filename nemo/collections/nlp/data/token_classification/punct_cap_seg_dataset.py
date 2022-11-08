@@ -7,7 +7,7 @@ import torch
 
 from nemo.collections.common.tokenizers import AutoTokenizer, TokenizerSpec
 from nemo.core import Dataset, typecheck
-from nemo.core.neural_types import IntType, LengthsType, NeuralType, StringType, ChannelType
+from nemo.core.neural_types import ChannelType, IntType, LengthsType, NeuralType, StringType
 from nemo.utils import logging
 
 
