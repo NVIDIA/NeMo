@@ -86,10 +86,7 @@ class MegatronBertModel(MegatronBaseModel):
         self._reduced_sop_loss_buffer = []
 
         # build_model returns a list of modules which are used for interleaved pipeline parallelism
-        self.model = build_model(
-            model_provider_func=self.model_provider_func,
-            wrap_with_ddp=False,
-        )[0]
+        self.model = build_model(model_provider_func=self.model_provider_func, wrap_with_ddp=False,)[0]
 
         if self.megatron_amp_o2:
             self.model.cuda(torch.cuda.current_device())
@@ -148,7 +145,6 @@ class MegatronBertModel(MegatronBaseModel):
         return fwd_bwd_function
 
     def get_forward_output_and_loss_func(self):
-
         def fwd_output_and_loss_func(batch, model):
             if parallel_state.get_pipeline_model_parallel_world_size() == 1:
                 batch = [x.cuda(non_blocking=True) for x in batch]
@@ -505,7 +501,7 @@ class MegatronBertModel(MegatronBaseModel):
         )
 
         resume_checkpoint_path = self.trainer._checkpoint_connector.resume_from_checkpoint_fit_path
-        
+
         if resume_checkpoint_path:
             init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
         else:
