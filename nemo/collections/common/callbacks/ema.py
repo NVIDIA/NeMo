@@ -13,8 +13,11 @@
 # limitations under the License.
 import contextlib
 import copy
+import logging
+import os
 import threading
-from typing import Iterable
+import warnings
+from typing import Any, Dict, Iterable
 
 import pytorch_lightning as pl
 import torch
@@ -49,7 +52,7 @@ class EMA(Callback):
         self.every_n_steps = every_n_steps
         self.cpu_offload = cpu_offload
 
-    def on_train_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+    def on_fit_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
         device = pl_module.device if not self.cpu_offload else torch.device('cpu')
         trainer.optimizers = [
             EMAOptimizer(
@@ -88,6 +91,44 @@ class EMA(Callback):
         for optimizer in trainer.optimizers:
             assert isinstance(optimizer, EMAOptimizer)
             optimizer.switch_main_parameter_weights()
+
+    @contextlib.contextmanager
+    def save_original_optimizer_state(self, trainer: "pl.Trainer"):
+        for optimizer in trainer.optimizers:
+            assert isinstance(optimizer, EMAOptimizer)
+            optimizer.save_original_optimizer_state = True
+        try:
+            yield
+        finally:
+            for optimizer in trainer.optimizers:
+                optimizer.save_original_optimizer_state = False
+
+    def on_load_checkpoint(
+        self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", checkpoint: Dict[str, Any]
+    ) -> None:
+        checkpoint_callback = trainer.checkpoint_callback
+
+        if trainer.ckpt_path and checkpoint_callback is not None and 'NeMo' in type(checkpoint_callback).__name__:
+            ext = checkpoint_callback.FILE_EXTENSION
+            if trainer.ckpt_path.endswith(f'-EMA{ext}'):
+                logging.info(
+                    "loading EMA based weights. "
+                    "The callback will treat the loaded EMA weights as the main weights"
+                    " and create a new EMA copy when training."
+                )
+                return
+            ema_path = trainer.ckpt_path.replace(ext, f'-EMA{ext}')
+            if os.path.exists(ema_path):
+                ema_state_dict = torch.load(ema_path, map_location=torch.device('cpu'))
+                checkpoint['optimizer_states'] = ema_state_dict['optimizer_states']
+                del ema_state_dict
+                logging.info("EMA weights have been loaded successfully. Continuing training with saved EMA weights.")
+            else:
+                warnings.warn(
+                    "we were unable to find the associated EMA weights when re-loading, "
+                    "training will start with new EMA weights.",
+                    UserWarning,
+                )
 
 
 @torch.no_grad()
@@ -165,6 +206,7 @@ class EMAOptimizer(torch.optim.Optimizer):
         self.device = device
         self.current_step = current_step
         self.every_n_steps = every_n_steps
+        self.save_original_optimizer_state = False
 
         self.first_iteration = True
         self.rebuild_ema_params = True
@@ -272,6 +314,9 @@ class EMAOptimizer(torch.optim.Optimizer):
     def state_dict(self):
         self.join()
 
+        if self.save_original_optimizer_state:
+            return self.optimizer.state_dict()
+
         state_dict = {
             'opt': self.optimizer.state_dict(),
             'ema': self.ema_params,
@@ -283,6 +328,7 @@ class EMAOptimizer(torch.optim.Optimizer):
 
         self.optimizer.load_state_dict(state_dict['opt'])
         self.ema_params = tuple(param.to(self.device) for param in copy.deepcopy(state_dict['ema']))
+        self.rebuild_ema_params = False
 
     def add_param_group(self, param_group):
         self.optimizer.add_param_group(param_group)

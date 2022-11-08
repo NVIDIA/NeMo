@@ -32,7 +32,6 @@ from hydra.utils import get_original_cwd
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning.callbacks import Callback, ModelCheckpoint
 from pytorch_lightning.callbacks.timer import Interval, Timer
-from pytorch_lightning.loggers import LoggerCollection as _LoggerCollection
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from pytorch_lightning.loops import TrainingEpochLoop
 from pytorch_lightning.strategies.ddp import DDPStrategy
@@ -658,24 +657,6 @@ def get_git_diff():
         return "{}\n".format(err.output.decode("utf-8"))
 
 
-class LoggerList(_LoggerCollection):
-    """ A thin wrapper on Lightning's LoggerCollection such that name and version are better aligned with exp_manager
-    """
-
-    def __init__(self, _logger_iterable, nemo_name=None, nemo_version=""):
-        super().__init__(_logger_iterable)
-        self._nemo_name = nemo_name
-        self._nemo_version = nemo_version
-
-    @property
-    def name(self) -> str:
-        return self._nemo_name
-
-    @property
-    def version(self) -> str:
-        return self._nemo_version
-
-
 def configure_loggers(
     trainer: 'pytorch_lightning.Trainer',
     exp_dir: [Path, str],
@@ -718,9 +699,6 @@ def configure_loggers(
         logger_list.append(wandb_logger)
         logging.info("WandBLogger has been set up")
 
-    logger_list = (
-        LoggerList(logger_list, nemo_name=name, nemo_version=version) if len(logger_list) > 1 else logger_list[0]
-    )
     trainer._logger_connector.configure_logger(logger_list)
 
 
@@ -905,8 +883,10 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         return ema_callback
 
     def _save_checkpoint(self, trainer, filepath: str) -> None:
-        super()._save_checkpoint(trainer, filepath)
         ema_callback = self._get_ema_callback(trainer)
+        with ema_callback.save_original_optimizer_state(trainer):
+            super()._save_checkpoint(trainer, filepath)
+
         if ema_callback is not None:
             # save EMA copy of the model as well.
             ema_callback.swap_model_weights(trainer)
