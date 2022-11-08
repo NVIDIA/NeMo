@@ -49,7 +49,7 @@ As mentioned above, `BaseParallelProcessor.process_dataset_entry(data_entry)` is
 > The only exception to the above is in processors which are run at the start of processing when we are creating a manifest for the first time (such as `CreateInitialManifestMLS`, in which the `data_entry` variable is a string containing a line for that utterance from the original raw MLS transcript).
 
 The `DataEntry` class is a dataclass which contains 2 attributes:
-1. `data` is an Optional dictionary containing items which represent the JSON manifest entry. `data` can also be `None`. If a `.process_dataset_entry(data_entry)` method returns a `DataEntry` class where `data == None`, then that utterance will be dropped from the output manifest.
+1. `data` is an Optional dictionary containing items which represent the JSON manifest entry. `data` can also be `None`. If a `.process_dataset_entry(data_entry)` method returns a `DataEntry` class where `data is None`, then that utterance will be dropped from the output manifest.
 2. `metrics`, which can be of any type, and are `None` by default. This variable is used by some variables to record summary statistics about the changes made to the dataset, these metrics are aggregated and can be displayed once every utterance has been processed by the processor.
 
 ### What happends in `BaseParallelProcessor.process()`
