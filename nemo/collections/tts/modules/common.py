@@ -250,11 +250,14 @@ class ConvLSTMLinear(BiLSTM):
             if hasattr(conv, 'conv'):
                 w = conv.conv.weight
             else:
+                print('------\n', self)
+                print(conv)
                 w = conv.weight
             s = w.shape
             rand_in = torch.ones(1, s[1], s[2], dtype=w.dtype, device=w.device)
             # , torch.ones(1, 1, s[2], dtype=w.dtype, device=w.device))
             traced.append(torch.jit.trace_module(conv, {"forward": rand_in}))
+            print('============\n')
         self.convolutions = traced
         return torch.jit.script(self)
 

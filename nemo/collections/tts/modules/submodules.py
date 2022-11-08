@@ -61,8 +61,10 @@ class PartialConv1d(torch.nn.Conv1d):
                 dilation=self.dilation,
                 groups=1,
             )
-            # for mixed precision training, change 1e-8 to 1e-6
-            mask_ratio = self.slide_winsize / (update_mask + 1e-4)
+
+            update_mask_filled = torch.masked_fill(update_mask, update_mask == 0, self.slide_winsize)
+            mask_ratio = self.slide_winsize / (update_mask_filled)
+
             update_mask = torch.clamp(update_mask, 0, 1)
             mask_ratio = torch.mul(mask_ratio, update_mask)
             return input, mask_ratio, update_mask
