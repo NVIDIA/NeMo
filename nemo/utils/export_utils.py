@@ -376,11 +376,11 @@ def simple_replace(BaseT: Type[nn.Module], DestT: Type[nn.Module]) -> Callable[[
 
 def replace_MatchedScaleMaskSoftmax(n: nn.Module) -> Optional[nn.Linear]:
     """
-    Replaces 
+    Replaces MatchedScaleMaskSoftmax with exportable softmax layer
     Args:
-        n: 
+        n: module to replace
     Returns:
-        
+        exportable module
     """
 
     mod = ExportableMatchedScaleMaskSoftmax(n.input_in_fp16, n.input_in_bf16, n.mask_func, n.softmax_in_fp32, n.scale)
