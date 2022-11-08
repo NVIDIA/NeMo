@@ -331,7 +331,7 @@ class DeepDiarizeModel(ModelPT):
             self.log(name, metric, sync_dist=True)
 
         call_loss = self._calculate_val_loss(speech_activity, y)
-        self.log('call_val_loss', call_loss, sync_dist=True)
+        self.log('val_loss', call_loss, sync_dist=True)
         self.log('segment_val_loss', segment_loss / len(inputs), sync_dist=True)
 
     def _calculate_val_loss(self, logits, y):
