@@ -520,7 +520,7 @@ def check_resume(
 
 
 def check_explicit_log_dir(
-    trainer: 'pytorch_lightning.Trainer', explicit_log_dir: [Path, str], exp_dir: str, name: str, version: str
+    trainer: 'pytorch_lightning.Trainer', explicit_log_dir: Union[Path, str], exp_dir: str, name: str, version: str
 ) -> Tuple[Path, str, str, str]:
     """ Checks that the passed arguments are compatible with explicit_log_dir.
 
