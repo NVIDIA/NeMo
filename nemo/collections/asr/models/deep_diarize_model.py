@@ -315,7 +315,7 @@ class DeepDiarizeModel(ModelPT):
             if self.cfg.average_attractors:
                 attractors = self._process_attractors(chunk_attractors, attractors)
 
-            speaker_outputs = self.decoder(chunk_attractors, encoded_xl_features)
+            speaker_outputs = self.decoder(attractors, encoded_xl_features)
 
             for k, metric in self.segment_metrics.items():
                 metric(speaker_outputs.squeeze(0), segment_annotation)
