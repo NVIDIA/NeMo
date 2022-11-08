@@ -63,16 +63,16 @@ def _calculate_model_size(
         ) / 1e9
     elif model_name == "bert":
         model_size = (
-            12
-            * num_layers
-            * hidden_size**2
-            * (
-                1
-                + (13 / (12 * hidden_size))
-                + ((vocab_size + seq_length) / (12 * num_layers * hidden_size))
+            num_layers * (
+                ffn_size + hidden_size * (
+                    4 * hidden_size + 3 * att_heads + 2 * ffn_size + 6
+                )
             )
-            / 1e9
-        )
+            + hidden_size * (
+                    vocab_size + seq_length + hidden_size + 5
+                )
+        ) / 1e9
+
     else:
         raise NotImplementedError("Model name is not valid.")
 
@@ -186,8 +186,24 @@ def calculate_model_size_params(
     elif model_name == "bert":
         if model_size_in_b < 0.25:
             hs, att_h, lr = 768, 12, 6e-4
+        elif model_size_in_b < 0.5:
+            hs, att_h, lr = 1024, 16, 3e-4
+        elif model_size_in_b < 1:
+            hs, att_h, lr = 1536, 16, 2.5e-4
+        elif model_size_in_b < 2:
+            hs, att_h, lr = 2048, 16, 2e-4
+        elif model_size_in_b < 3:
+            hs, att_h, lr = 2560, 32, 1.6e-4
+        elif model_size_in_b < 4.5:
+            hs, att_h, lr = 3072, 32, 1.4e-4
+        elif model_size_in_b < 8:
+            hs, att_h, lr = 4096, 32, 1.2e-4
+        elif model_size_in_b < 15:
+            hs, att_h, lr = 5120, 40, 1e-4
+        elif model_size_in_b <= 25:
+            hs, att_h, lr = 6144, 48, 1e-4
         else:
-            raise ValueError("Model_size for BERT must be smaller than 1B parameters.")
+            raise ValueError("Model_size for BERT must be smaller than 25B parameters.")
 
     else:
         raise NotImplementedError("Model name is not valid.")

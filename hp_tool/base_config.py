@@ -325,24 +325,6 @@ def _gbs_tp_pp_t5_40gb(model_size_in_b: float) -> Tuple[int, int, int]:
         raise ValueError("No T5/mT5 model larger than 250B parameters is supported.")
     return gbs, tp, pp
 
-def _gbs_tp_pp_bert_40gb(model_size_in_b: float) -> Tuple[int, int, int]:
-    """
-    Outputs GBS, TP and PP values for any BERT model size for 40GB GPUs.
-
-    :param float model_size_in_b: the number of parameters in the model.
-    :returns: tuple (gbs, tp, pp)
-        WHERE
-        int gbs is the Global Batch Size to use for training.
-        int tp is the Tensor Parallelism value to use for training.
-        int pp is the Pipeline Parallelism value to use for training.
-    :raises ValueError: if the model_size_in_b is larger than the supported max model size.
-    """
-    if model_size_in_b <= 1.0:
-        gbs, tp, pp = 256, 1, 1
-    else:
-        raise ValueError("No BERT model larger than 1B parameters is supported.")
-    return gbs, tp, pp
-
 def _gbs_tp_pp_bert_80gb(model_size_in_b: float) -> Tuple[int, int, int]:
     """
     Outputs GBS, TP and PP values for any BERT model size for 80GB GPUs.
@@ -357,8 +339,42 @@ def _gbs_tp_pp_bert_80gb(model_size_in_b: float) -> Tuple[int, int, int]:
     """
     if model_size_in_b <= 1.0:
         gbs, tp, pp = 256, 1, 1
+    elif model_size_in_b <= 4.0:
+        gbs, tp, pp = 1024, 1, 1
+    elif model_size_in_b <= 8.0:
+        gbs, tp, pp = 2048, 2, 1
+    elif model_size_in_b <= 13.0:
+        gbs, tp, pp = 2048, 4, 1
+    elif model_size_in_b <= 25:
+        gbs, tp, pp = 2048, 8, 1
     else:
-        raise ValueError("No BERT model larger than 1B parameters is supported.")
+        raise ValueError("No BERT model larger than 25B parameters is supported.")
+    return gbs, tp, pp
+
+def _gbs_tp_pp_bert_40gb(model_size_in_b: float) -> Tuple[int, int, int]:
+    """
+    Outputs GBS, TP and PP values for any BERT model size for 40GB GPUs.
+
+    :param float model_size_in_b: the number of parameters in the model.
+    :returns: tuple (gbs, tp, pp)
+        WHERE
+        int gbs is the Global Batch Size to use for training.
+        int tp is the Tensor Parallelism value to use for training.
+        int pp is the Pipeline Parallelism value to use for training.
+    :raises ValueError: if the model_size_in_b is larger than the supported max model size.
+    """
+    if model_size_in_b <= 1.0:
+        gbs, tp, pp = 256, 1, 1
+    elif model_size_in_b <= 4.0:
+        gbs, tp, pp = 1024, 4, 1
+    elif model_size_in_b <= 8.0:
+        gbs, tp, pp = 2048, 8, 1
+    elif model_size_in_b <= 13.0:
+        gbs, tp, pp = 2048, 8, 2
+    elif model_size_in_b <= 25:
+        gbs, tp, pp = 2048, 8, 4
+    else:
+        raise ValueError("No BERT model larger than 25B parameters is supported.")
     return gbs, tp, pp
 
 
