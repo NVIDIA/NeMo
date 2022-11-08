@@ -9,7 +9,7 @@ from hp_tool.training_config import search_training_config
 from hp_tool.inference_sweep import search_inference_config
 
 
-SUPPORTED_MODELS = ["gpt3", "t5", "mt5"]
+SUPPORTED_MODELS = ["gpt3", "t5", "mt5", "bert"]
 
 
 def search_config(cfg: omegaconf.dictconfig.DictConfig, hydra_args: Optional[str] = None):

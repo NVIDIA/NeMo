@@ -85,7 +85,7 @@ def _estimate_model_size(
     """
     model_penalty = 0.87 if model_name == "mt5" else 1.0
     try:
-        if model_name in ["gpt3", "t5", "mt5"]:
+        if model_name in ["gpt3", "t5", "mt5", "bert"]:
             return round(
                 model_penalty
                 * (max_training_days * 3600 * 24 * gpu_count * tflops_per_gpu * 1e12)
@@ -123,7 +123,7 @@ def _estimate_training_time(
     """
     model_penalty = 1.15 if model_name == "mt5" else 1.0
     try:
-        if model_name in ["gpt3", "t5", "mt5"]:
+        if model_name in ["gpt3", "t5", "mt5", "bert"]:
             return round(
                 model_penalty
                 * (model_size_in_b * 1e9 * 8 * num_tokens_in_b * 1e9)
@@ -167,8 +167,13 @@ def _calculate_gbs_tp_pp(
             return _gbs_tp_pp_t5_80gb(model_size_in_b=model_size_in_b)
         elif gpu_memory_gb == 40:
             return _gbs_tp_pp_t5_40gb(model_size_in_b=model_size_in_b)
+    elif model_name == "bert":
+        if gpu_memory_gb == 80:
+            return _gbs_tp_pp_bert_80gb(model_size_in_b=model_size_in_b)
+        elif gpu_memory_gb == 40:
+            return _gbs_tp_pp_bert_40gb(model_size_in_b=model_size_in_b)
     else:
-        raise NotImplementedError("Only gpt3, t5 and mt5 are supported.")
+        raise NotImplementedError("Only gpt3, t5, mt5 and bert are supported.")
 
 
 def _gbs_tp_pp_gpt3_80gb(model_size_in_b: float) -> Tuple[int]:
@@ -320,6 +325,42 @@ def _gbs_tp_pp_t5_40gb(model_size_in_b: float) -> Tuple[int, int, int]:
         raise ValueError("No T5/mT5 model larger than 250B parameters is supported.")
     return gbs, tp, pp
 
+def _gbs_tp_pp_bert_40gb(model_size_in_b: float) -> Tuple[int, int, int]:
+    """
+    Outputs GBS, TP and PP values for any BERT model size for 40GB GPUs.
+
+    :param float model_size_in_b: the number of parameters in the model.
+    :returns: tuple (gbs, tp, pp)
+        WHERE
+        int gbs is the Global Batch Size to use for training.
+        int tp is the Tensor Parallelism value to use for training.
+        int pp is the Pipeline Parallelism value to use for training.
+    :raises ValueError: if the model_size_in_b is larger than the supported max model size.
+    """
+    if model_size_in_b <= 1.0:
+        gbs, tp, pp = 256, 1, 1
+    else:
+        raise ValueError("No BERT model larger than 1B parameters is supported.")
+    return gbs, tp, pp
+
+def _gbs_tp_pp_bert_80gb(model_size_in_b: float) -> Tuple[int, int, int]:
+    """
+    Outputs GBS, TP and PP values for any BERT model size for 80GB GPUs.
+
+    :param float model_size_in_b: the number of parameters in the model.
+    :returns: tuple (gbs, tp, pp)
+        WHERE
+        int gbs is the Global Batch Size to use for training.
+        int tp is the Tensor Parallelism value to use for training.
+        int pp is the Pipeline Parallelism value to use for training.
+    :raises ValueError: if the model_size_in_b is larger than the supported max model size.
+    """
+    if model_size_in_b <= 1.0:
+        gbs, tp, pp = 256, 1, 1
+    else:
+        raise ValueError("No BERT model larger than 1B parameters is supported.")
+    return gbs, tp, pp
+
 
 def generate_base_config(
         model_size_in_b: float,
@@ -418,6 +459,23 @@ def generate_base_config(
             #base_cfg["model"]["activations_checkpoint_granularity"] = "full"
             #base_cfg["model"]["activations_checkpoint_method"] = "block"
             #base_cfg["model"]["activations_checkpoint_num_layers"] = 0
+    elif model_name == "bert":
+        base_cfg["model"]["global_batch_size"] = int(gbs)
+        base_cfg["model"]["num_layers"] = int(layers)
+        base_cfg["model"]["hidden_size"] = int(hs)
+        base_cfg["model"]["num_attention_heads"] = int(att_h)
+        if ffn is not None:
+            base_cfg["model"]["ffn_hidden_size"] = int(ffn)
+        if kv is not None:
+            base_cfg["model"]["kv_channels"] = int(kv)
+        base_cfg["model"]["init_method_std"] = round(0.64 / math.sqrt(hs), 6)
+        base_cfg["model"]["optim"]["sched"]["warmup_steps"] = int(
+            0.0015 * base_cfg["trainer"]["max_steps"]
+        )
+        base_cfg["model"]["optim"]["sched"]["constant_steps"] = int(
+            0.166 * base_cfg["trainer"]["max_steps"]
+        )
+
     else:
         base_cfg["model"]["global_batch_size"] = int(gbs)
         base_cfg["model"]["encoder"]["num_layers"] = int(layers)

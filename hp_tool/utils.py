@@ -61,6 +61,18 @@ def _calculate_model_size(
                 + vocab_size
             )
         ) / 1e9
+    elif model_name == "bert":
+        model_size = (
+            12
+            * num_layers
+            * hidden_size**2
+            * (
+                1
+                + (13 / (12 * hidden_size))
+                + ((vocab_size + seq_length) / (12 * num_layers * hidden_size))
+            )
+            / 1e9
+        )
     else:
         raise NotImplementedError("Model name is not valid.")
 
@@ -171,6 +183,11 @@ def calculate_model_size_params(
             hs, att_h, ffn, kv = 12288, 96, 32768, 128
         else:
             raise ValueError("Model_size for mT5 must be smaller than 250B parameters.")
+    elif model_name == "bert":
+        if model_size_in_b < 0.25:
+            hs, att_h, lr = 768, 12, 6e-4
+        else:
+            raise ValueError("Model_size for BERT must be smaller than 1B parameters.")
 
     else:
         raise NotImplementedError("Model name is not valid.")
