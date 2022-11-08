@@ -726,6 +726,8 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         self.train()
         self.load_state_dict(self.back_model_state)
         self.optimizers().load_state_dict(self.back_opt_state)
+        self.back_model_state = None
+        self.back_opt_state = None
         torch.distributed.barrier()
         return averaged_loss, averaged_metric
 
