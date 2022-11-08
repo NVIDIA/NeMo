@@ -90,7 +90,6 @@ class DiarizeTransformerXLDecoder(torch.nn.Module):
         encoder_mask = torch.ones(B * K, N).to(attractors.device)
 
         if self.cat_features:
-
             input = torch.cat((transformer_xl_encoded_features, attractors), dim=-1)
             encoder_mask = torch.ones(B * K, N).to(attractors.device)
             output = self.decoder(encoder_states=input, encoder_mask=encoder_mask,)
@@ -175,55 +174,37 @@ class DeepDiarizeModel(ModelPT):
         self.sigmoid = torch.nn.Sigmoid()
         self.apply(self._init_weights)
         self.mems = None
-        self.der = DER(
-            seconds_per_frame=self.cfg.preprocessor.window_stride * self.cfg.subsampling,
-            min_seconds_for_segment=self.cfg.min_seconds_for_segment,
-            threshold=self.cfg.threshold,
-            combine_segments_seconds=self.cfg.combine_segments_seconds,
-        )
-        self.missed_detection = MissedDetection(
-            seconds_per_frame=self.cfg.preprocessor.window_stride * self.cfg.subsampling,
-            min_seconds_for_segment=self.cfg.min_seconds_for_segment,
-            threshold=self.cfg.threshold,
-            combine_segments_seconds=self.cfg.combine_segments_seconds,
-        )
-        self.false_alarm = FA(
-            seconds_per_frame=self.cfg.preprocessor.window_stride * self.cfg.subsampling,
-            min_seconds_for_segment=self.cfg.min_seconds_for_segment,
-            threshold=self.cfg.threshold,
-            combine_segments_seconds=self.cfg.combine_segments_seconds,
-        )
-        self.confusion = Confusion(
-            seconds_per_frame=self.cfg.preprocessor.window_stride * self.cfg.subsampling,
-            min_seconds_for_segment=self.cfg.min_seconds_for_segment,
-            threshold=self.cfg.threshold,
-            combine_segments_seconds=self.cfg.combine_segments_seconds,
-        )
-        self.collar_der = DER(
-            seconds_per_frame=self.cfg.preprocessor.window_stride * self.cfg.subsampling,
-            min_seconds_for_segment=self.cfg.min_seconds_for_segment,
-            threshold=self.cfg.threshold,
-            combine_segments_seconds=self.cfg.combine_segments_seconds,
-            collar=0.25,
-        )
-        self.segment_der = DER(
-            seconds_per_frame=self.cfg.preprocessor.window_stride * self.cfg.subsampling,
-            min_seconds_for_segment=self.cfg.min_seconds_for_segment,
-            threshold=self.cfg.threshold,
-            combine_segments_seconds=self.cfg.combine_segments_seconds,
-        )
-        self.collar_ignore_overlap_der = DER(
-            seconds_per_frame=self.cfg.preprocessor.window_stride * self.cfg.subsampling,
-            min_seconds_for_segment=self.cfg.min_seconds_for_segment,
-            threshold=self.cfg.threshold,
-            combine_segments_seconds=self.cfg.combine_segments_seconds,
-            collar=0.25,
-            ignore_overlap=True,
-        )
+
+        self.segment_metrics = self._create_der_metrics('segment')
+        self.call_metrics = self._create_der_metrics('call')
         self.permutations = None
         self.permutations_indices = None
         self.cos = nn.CosineSimilarity(dim=1, eps=1e-6)
         self.train_attractors = None
+
+    def _create_der_metrics(self, prefix: str = ''):
+        shared_params = dict(
+            seconds_per_frame=self.cfg.preprocessor.window_stride * self.cfg.subsampling,
+            min_seconds_for_segment=self.cfg.min_seconds_for_segment,
+            threshold=self.cfg.threshold,
+            combine_segments_seconds=self.cfg.combine_segments_seconds,
+        )
+        metrics = {
+            f'{prefix}_der': DER(**shared_params),
+            f'{prefix}_missed_detection': MissedDetection(**shared_params),
+            f'{prefix}_false_alarm': FA(**shared_params),
+            f'{prefix}_confusion': Confusion(**shared_params),
+            f'{prefix}_collar_der': DER(**shared_params, collar=0.25),
+            f'{prefix}_ignore_overlap_der': DER(**shared_params, collar=0.25, ignore_overlap=True),
+        }
+        for k, metric in metrics.items():
+            setattr(self, k, metric)
+        return metrics
+
+    def _mask_mems(self, mask: List[bool]):
+        if self.mems is not None:
+            for mem in self.mems:
+                mem[mask, :, :] = 0
 
     def _permutation_mask(self, preds, y):
         if self.permutations is None:
@@ -266,13 +247,14 @@ class DeepDiarizeModel(ModelPT):
     def training_step(self, batch, batch_idx):
         train_x, train_lengths, y, memory_reset = batch
         train_x, train_lengths = self.sub_sample_layer(train_x, lengths=train_lengths)
-        encoded_xl_features, _ = self.transformer_feature_encoder(train_x)
+        if self.cfg.mem_enabled:
+            self._mask_mems(memory_reset)
+            encoded_xl_features, self.mems = self.transformer_feature_encoder(train_x, mems=self.mems)
+        else:
+            encoded_xl_features, _ = self.transformer_feature_encoder(train_x)
         seq_mask = torch.ones(encoded_xl_features.size(0), encoded_xl_features.size(1)).to(self.device)
         # shuffle frames before generating attractors
         attractors, _ = self.eda_module(self._shuffle(encoded_xl_features, dim=1), seq_mask)
-        if self.cfg.process_attractors_in_training:
-            attractors = self._process_attractors(attractors, self.train_attractors)
-            self.train_attractors = attractors.clone().detach()
         speaker_outputs = self.decoder(attractors, encoded_xl_features)
 
         if self.cfg.permute:
@@ -290,33 +272,67 @@ class DeepDiarizeModel(ModelPT):
         )
         return loss + (self.cfg.existence_alpha * existence_loss)
 
+    def _process_attractors(self, chunk_attractors: torch.Tensor, attractors: Optional[torch.Tensor]):
+        if attractors is None:
+            return chunk_attractors
+        if self.permutations_indices is None:
+            self.permutation_indices = list(
+                torch.tensor(perm, device=self.device) for perm in itertools.permutations(range(self.num_speakers))
+            )
+        for x in range(attractors.size(0)):
+            anchor = attractors[x]
+            lowest, lowest_cos = None, 0
+            for permutation in self.permutation_indices:
+                permutated = torch.index_select(chunk_attractors[x], 0, permutation)
+                # is mean the right thing here?
+                similarity = self.cos(anchor.float(), permutated.float()).mean()
+                if similarity > lowest_cos:
+                    lowest = permutated
+                    lowest_cos = similarity
+            attractors[x] = (anchor + lowest) / 2
+        return attractors
+
     def validation_step(self, batch, batch_idx):
         inputs, input_lengths, y, fr_level_ys, annotations, segment_annotations = batch
-        loss = 0
+        segment_loss = 0
+        if self.cfg.mem_enabled:
+            mems = [
+                torch.zeros(1, self.sub_sample_length, self.cfg.encoder.hidden_dim, device=self.device)
+                for x in range(self.cfg.encoder.n_layers)
+            ]
+        speech_activity, attractors = None, None
         for chunk, fr_level_y, segment_annotation, length in zip(
             inputs, fr_level_ys, segment_annotations, input_lengths
         ):
             chunk, length = self.sub_sample_layer(chunk, lengths=length.unsqueeze(0))
-            encoded_xl_features, _ = self.transformer_feature_encoder(chunk)
+            if self.cfg.mem_enabled:
+                encoded_xl_features, mems = self.transformer_feature_encoder(chunk, mems=mems)
+            else:
+                encoded_xl_features, _ = self.transformer_feature_encoder(chunk)
             seq_mask = torch.ones(chunk.size(0), chunk.size(1)).to(self.device)
             chunk_attractors, _ = self.eda_module(self._shuffle(chunk, dim=1), seq_mask)
 
-            speaker_outputs = self.decoder(chunk_attractors, encoded_xl_features)
-            self.segment_der(speaker_outputs.squeeze(0), segment_annotation)
-            self.missed_detection(speaker_outputs.squeeze(0), segment_annotation)
-            self.false_alarm(speaker_outputs.squeeze(0), segment_annotation)
-            self.confusion(speaker_outputs.squeeze(0), segment_annotation)
-            loss += self._calculate_val_loss(speaker_outputs, fr_level_y)
-            self.collar_der(speaker_outputs.squeeze(0), segment_annotation)
-            self.collar_ignore_overlap_der(speaker_outputs.squeeze(0), segment_annotation)
+            if self.cfg.average_attractors:
+                attractors = self._process_attractors(chunk_attractors, attractors)
 
-        self.log('val_loss', loss / len(inputs), sync_dist=True)
-        self.log('Segment DER', self.segment_der, sync_dist=True)
-        self.log('Collar 0.25 DER', self.collar_der, sync_dist=True)
-        self.log('Ignore Overlap DER', self.collar_ignore_overlap_der, sync_dist=True)
-        self.log('Missed Detection', self.missed_detection, sync_dist=True)
-        self.log('Confusion', self.confusion, sync_dist=True)
-        self.log('False Alarm', self.false_alarm, sync_dist=True)
+            speaker_outputs = self.decoder(chunk_attractors, encoded_xl_features)
+
+            for k, metric in self.segment_metrics.items():
+                metric(speaker_outputs.squeeze(0), segment_annotation)
+            segment_loss += self._calculate_val_loss(speaker_outputs, fr_level_y)
+            speech_activity = (
+                speaker_outputs if speech_activity is None else torch.cat((speech_activity, speaker_outputs), dim=1)
+            )
+        for name, metric in self.call_metrics.items():
+            metric(speech_activity.squeeze(0), annotations)
+            self.log(name, metric, sync_dist=True)
+
+        for name, metric in self.segment_metrics.items():
+            self.log(name, metric, sync_dist=True)
+
+        call_loss = self._calculate_val_loss(speech_activity, y)
+        self.log('call_val_loss', call_loss, sync_dist=True)
+        self.log('segment_val_loss', segment_loss / len(inputs), sync_dist=True)
 
     def _calculate_val_loss(self, logits, y):
         loss = self.loss(logits, y.unsqueeze(0))

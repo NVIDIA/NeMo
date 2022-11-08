@@ -12,7 +12,6 @@ model:
   d_model: 512
   chunk_seconds: ${chunk_seconds}
   subsampling: 8
-  process_attractors_in_training: False
 
   encoder:
     hidden_dim: 1024
@@ -36,7 +35,8 @@ model:
     cat_features: False
 
   warmup_ratio: 0.1
-  mask_mem: False
+  mem_enabled: False
+  average_attractors: False
   permute: False
 
   existence_alpha: 0.1
