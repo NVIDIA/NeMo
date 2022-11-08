@@ -17,7 +17,7 @@ from dataclasses import dataclass
 
 import torch
 
-from nemo.core.classes.mixins import AccessMixin
+from nemo.core.classes.mixins import AccessMixin, AdapterModuleMixin
 
 
 class AbstractAdapterStrategy(ABC):

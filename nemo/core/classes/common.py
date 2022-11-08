@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple, Union
 
 import hydra
+import torch
 import wrapt
 from huggingface_hub import HfApi, HfFolder, ModelFilter, hf_hub_download
 from huggingface_hub.hf_api import ModelInfo
