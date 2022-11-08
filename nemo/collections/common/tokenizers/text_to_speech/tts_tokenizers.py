@@ -26,6 +26,7 @@ from nemo_text_processing.g2p.data.data_utils import (
 )
 
 from nemo.collections.common.tokenizers.text_to_speech.ipa_lexicon import get_ipa_punctuation_list
+from nemo.collections.tts.helpers.helpers import intersperse
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
@@ -519,6 +520,7 @@ class IPATokenizer(BaseTokenizer):
         oov=BaseTokenizer.OOV,
         sep='|',  # To be able to distinguish between symbols
         add_blank_at=None,
+        sep_with_space=False,
         pad_with_space=False,
         text_preprocessing_func=lambda text: english_text_preprocessing(text, lower=False),
     ):
@@ -534,6 +536,7 @@ class IPATokenizer(BaseTokenizer):
             sep: Separation token as string.
             add_blank_at: Add blank to labels in the specified order ("last") or after tokens (any non None),
              if None then no blank in labels.
+            sep_with_space: Whether to separate all tokens with spaces (used for VITS)
             pad_with_space: Whether to pad text with spaces at the beginning and at the end or not.
             text_preprocessing_func: Text preprocessing function for correct execution of the tokenizer.
              Basically, it replaces all non-unicode characters with unicode ones.
@@ -578,6 +581,7 @@ class IPATokenizer(BaseTokenizer):
 
         self.punct = punct
         self.pad_with_space = pad_with_space
+        self.sep_with_space = sep_with_space
 
         self.text_preprocessing_func = text_preprocessing_func
         self.g2p = g2p
@@ -621,7 +625,10 @@ class IPATokenizer(BaseTokenizer):
             while ps[-1] == space:
                 ps.pop()
 
-        if self.pad_with_space:
+        if self.sep_with_space:
+            ps = intersperse(ps, space)
+
+        if self.pad_with_space and not self.sep_with_space:
             ps = [space] + ps + [space]
 
         # Token index lookups

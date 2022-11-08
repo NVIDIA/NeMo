@@ -12,21 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.core import typecheck
 
-# typecheck.set_typecheck_enabled(False) 
-
+import contextlib
 import omegaconf
 import torch
 import wandb
 from hydra.utils import instantiate
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import WandbLogger
-from torch.cuda.amp import autocast, GradScaler
+from torch.cuda.amp import autocast
 from torch.nn import functional as F
 
-from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy, DistributedBucketSampler
+from nemo.collections.tts.helpers.helpers import (
+    slice_segments, 
+    clip_grad_value_, 
+    plot_spectrogram_to_numpy, 
+)
 from nemo.collections.tts.losses.vits_losses import (
     KlLoss, 
     FeatureMatchingLoss, 
@@ -34,17 +36,17 @@ from nemo.collections.tts.losses.vits_losses import (
     GeneratorLoss
 )
 from nemo.collections.tts.models.base import TextToWaveform
-from nemo.collections.tts.modules.vits_modules import (
-    MultiPeriodDiscriminator,
-    SynthesizerTrn,
-    audio_to_mel_torch,
-    clip_grad_value_,
-    slice_segments,
-    spec_to_mel_torch,
-)
+from nemo.collections.tts.modules.vits_modules import *# MultiPeriodDiscriminator
+from nemo.collections.tts.torch.data import DistributedBucketSampler
+from nemo.collections.tts.torch.tts_data_types import SpeakerID
 from nemo.core.classes.common import PretrainedModelInfo
-from nemo.core.optim.lr_scheduler import CosineAnnealing
 from nemo.utils import logging, model_utils
+
+HAVE_WANDB = True
+try:
+    import wandb
+except ModuleNotFoundError:
+    HAVE_WANDB = False
 
 class VitsModel(TextToWaveform):
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
@@ -66,66 +68,25 @@ class VitsModel(TextToWaveform):
 
         num_tokens = len(self.tokenizer.tokens)
         self.tokenizer_pad = self.tokenizer.pad
-        self.tokenizer_unk = self.tokenizer.oov
-
-        # self.scaler = GradScaler()
 
         super().__init__(cfg=cfg, trainer=trainer)
 
-        self.audio_to_melspec_precessor = instantiate(cfg.preprocessor, highfreq=cfg.train_ds.dataset.highfreq)
+        self.audio_to_melspec_processor = instantiate(cfg.preprocessor, highfreq=cfg.train_ds.dataset.highfreq)
 
         self.feat_matching_loss = FeatureMatchingLoss()
         self.disc_loss = DiscriminatorLoss()
         self.gen_loss = GeneratorLoss()
         self.kl_loss = KlLoss()
 
-        self.log_train_images = False
-        self.logged_real_samples = False
-        self._tb_logger = None
-        self.hann_window = None
-        self.sample_rate = cfg.sample_rate
-        self.hop_size = cfg.n_window_stride
-        self.n_fft = cfg.train_ds.dataset.n_fft
-        self.win_length = cfg.train_ds.dataset.win_length
-
-        # TODO: need to add SynthesizerTrn in config
-        self.net_g = SynthesizerTrn(
+        self.net_g = instantiate(cfg.synthesizer, 
             n_vocab=num_tokens,
-            spec_channels=cfg.train_ds.dataset.n_fft // 2 + 1,
-            segment_size=cfg.segment_size // cfg.train_ds.dataset.hop_length,
-            inter_channels=cfg.inter_channels,
-            hidden_channels=cfg.hidden_channels,
-            filter_channels=cfg.filter_channels,
-            n_heads=cfg.n_heads,
-            n_layers=cfg.n_layers,
-            kernel_size=cfg.pitch_embedding_kernel_size,
-            p_dropout=cfg.p_dropout,
-            padding_idx=self.tokenizer_pad,
-            resblock=cfg.generator.resblock,
-            resblock_kernel_sizes=cfg.generator.resblock_kernel_sizes,
-            resblock_dilation_sizes=cfg.generator.resblock_dilation_sizes,
-            upsample_rates=cfg.generator.upsample_rates,
-            upsample_initial_channel=cfg.generator.upsample_initial_channel,
-            upsample_kernel_sizes=cfg.generator.upsample_kernel_sizes,
-        )
+            spec_channels=cfg.n_fft // 2 + 1,
+            segment_size=cfg.segment_size // cfg.n_window_stride,
+            padding_idx=self.tokenizer_pad,)
+        
         self.net_d = MultiPeriodDiscriminator(cfg.use_spectral_norm)
+        
         self.automatic_optimization = False
-
-        window_fn = {
-            'hann': torch.hann_window,
-            'hamming': torch.hamming_window,
-            'blackman': torch.blackman_window,
-            'bartlett': torch.bartlett_window,
-            'none': None,
-        }.get(self.hann_window, None)
-
-        self.stft = lambda x: torch.stft(
-            input=x,
-            n_fft=self.n_fft,
-            hop_length=self.hop_size,
-            win_length=self.win_length,
-            window=window_fn(self.win_length, periodic=False).to(torch.float) if window_fn else None,
-        )
 
     def _setup_normalizer(self, cfg):
         if "text_normalizer" in cfg:
@@ -160,89 +121,69 @@ class VitsModel(TextToWaveform):
 
         self.tokenizer = instantiate(cfg.text_tokenizer, **text_tokenizer_kwargs)
 
-    def parse(self, str_input: str) -> torch.tensor:
-        # TODO: Implement
-        pass
+    def parse(self, text: str, normalize=True) -> torch.tensor:
+        if self.training:
+            logging.warning("parse() is meant to be called in eval mode.")
+        if normalize and self.text_normalizer_call is not None:
+            text = self.text_normalizer_call(text, **self.text_normalizer_call_kwargs)
+
+        eval_phon_mode = contextlib.nullcontext()
+        if hasattr(self.tokenizer, "set_phone_prob"):
+            eval_phon_mode = self.tokenizer.set_phone_prob(prob=1.0)
+
+        with eval_phon_mode:
+            tokens = self.tokenizer.encode(text)
+
+        return torch.tensor(tokens).long().unsqueeze(0).to(self.device)
 
     def configure_optimizers(self):
-        optim_g = torch.optim.AdamW(self.net_g.parameters(), self._cfg.lr, betas=self._cfg.betas, eps=self._cfg.eps, weight_decay=0.01)
-        optim_d = torch.optim.AdamW(self.net_d.parameters(), self._cfg.lr, betas=self._cfg.betas, eps=self._cfg.eps, weight_decay=0.01)
-        
-        max_steps=800000
-        min_lr = 1e-5
-        wu_ratio = 0.02
-        wu_steps = 16000
-        
-        # scheduler_g = CosineAnnealing(optimizer=optim_g, max_steps=max_steps, min_lr=min_lr, warmup_steps=wu_steps,)
-        # scheduler_d = CosineAnnealing(optimizer=optim_d, max_steps=max_steps, min_lr=min_lr)#, warmup_steps=1000,)
+        optim_config = self._cfg.optim.copy()
+        OmegaConf.set_struct(optim_config, False)
+        sched_config = optim_config.pop("sched", None)
+        OmegaConf.set_struct(optim_config, True)
 
-        scheduler_g = torch.optim.lr_scheduler.ExponentialLR(optim_g, gamma=self._cfg.lr_decay)
-        scheduler_d = torch.optim.lr_scheduler.ExponentialLR(optim_d, gamma=self._cfg.lr_decay)
+        optim_g = instantiate(optim_config, params=self.net_g.parameters(),)
+        optim_d = instantiate(optim_config, params=self.net_d.parameters(),)
         
-        scheduler_g_dict = {'scheduler': scheduler_g, 'interval': 'step'}
-        scheduler_d_dict = {'scheduler': scheduler_d, 'interval': 'step'}
-        
-        return [optim_g, optim_d], [scheduler_g_dict, scheduler_d_dict]
+        if sched_config is not None:
+            scheduler_d = torch.optim.lr_scheduler.ExponentialLR(optim_d, gamma=sched_config.lr_decay)
+            scheduler_g = torch.optim.lr_scheduler.ExponentialLR(optim_g, gamma=sched_config.lr_decay)
+            
+            scheduler_g_dict = {'scheduler': scheduler_g, 'interval': 'step'}
+            scheduler_d_dict = {'scheduler': scheduler_d, 'interval': 'step'}
+            return [optim_g, optim_d], [scheduler_g_dict, scheduler_d_dict]
+        else:
+            return [optim_g, optim_d]
 
-    # only for inference
-    def forward(self, batch, batch_idx, sid=None, noise_scale=1, length_scale=1, noise_scale_w=1., max_len=None):
-        with torch.no_grad():
-            (y, y_lengths, x, x_lengths) = batch
-            # remove else
-            x = x[:1]
-            x_lengths = x_lengths[:1]
+    # for inference
+    def forward(self, tokens, sid=None, noise_scale=1, length_scale=1, noise_scale_w=1., max_len=1000):
+        x_lengths = tokens.size(-1)
+        y_hat = self.net_g.infer(tokens, x_lengths, sid=sid, noise_scale=noise_scale,
+            length_scale=length_scale, noise_scale_w=noise_scale_w, max_len=max_len)[0]
 
-            y_hat, attn, mask, (z, z_p, m_p, logs_p) = self.net_g.infer(x, x_lengths, sid=sid, noise_scale=noise_scale,
-             length_scale=length_scale, noise_scale_w=noise_scale_w, max_len=1000)
-            y_hat_lengths = mask.sum([1, 2]).long() * self._cfg.n_window_stride
-        return y_hat, y_hat_lengths, (z, z_p, m_p, logs_p)
-
-    def get_spec(self, audio):
-        with torch.cuda.amp.autocast(enabled=False):
-            spec = self.stft(audio)
-            if spec.dtype in [torch.cfloat, torch.cdouble]:
-                spec = torch.view_as_real(spec)
-            spec = torch.sqrt(spec.pow(2).sum(-1) + 1e-9)
-        return spec
+        return y_hat
 
     def training_step(self, batch, batch_idx):
-        # get optimizers
-        optim_g, optim_d = self.optimizers()
+        speakers = None
+        if SpeakerID in self._train_dl.dataset.sup_data_types_set:
+            (y, y_lengths, x, x_lengths, speakers) = batch
+        else:
+            (y, y_lengths, x, x_lengths) = batch
 
-        (y, y_lengths, x, x_lengths) = batch
-
-        spec = self.get_spec(y)
-        spec_lengths = self.audio_to_melspec_precessor.get_seq_len(y_lengths)
-
+        spec, spec_lengths = self.audio_to_melspec_processor(y, y_lengths, linear_spec=True)
+        
         with autocast(enabled=True):
             y_hat, l_length, attn, ids_slice, x_mask, z_mask, (z, z_p, m_p, logs_p, m_q, logs_q) = self.net_g(
-                x, x_lengths, spec, spec_lengths
+                x, x_lengths, spec, spec_lengths, speakers
             )
 
-        mel = spec_to_mel_torch(
-            spec,
-            self._cfg.n_window_size,
-            self._cfg.n_mel_channels,
-            self._cfg.sample_rate,
-            self._cfg.mel_fmin,
-            self._cfg.mel_fmax,
-        )
-        y_mel = slice_segments(mel, ids_slice, self._cfg.segment_size // self.cfg.n_window_stride)
-
+        # y_mel = slice_segments(mel, ids_slice, self._cfg.segment_size // self.cfg.n_window_stride)
         y_hat = y_hat.float()
-        y_hat_mel = audio_to_mel_torch(
-            y_hat.squeeze(1),
-            self._cfg.n_window_size,
-            self._cfg.n_mel_channels,
-            self._cfg.sample_rate,
-            self.cfg.n_window_stride,
-            self._cfg.preprocessor.n_window_size,
-            self._cfg.mel_fmin,
-            self._cfg.mel_fmax,
-        )
 
-        y = torch.unsqueeze(y, 1)
-        y = slice_segments(y, ids_slice * self.cfg.n_window_stride, self._cfg.segment_size)
+        y_hat_mel, _ = self.audio_to_melspec_processor(y_hat.squeeze(1), y_lengths, linear_spec=False)        
+        
+        y = slice_segments(y.unsqueeze(1), ids_slice * self.cfg.n_window_stride, self._cfg.segment_size)
+        y_mel, _ = self.audio_to_melspec_processor(y.squeeze(1), y_lengths, linear_spec=False)
         
         with autocast(enabled=True):
             y_d_hat_r, y_d_hat_g, _, _ = self.net_d(y, y_hat.detach())
@@ -252,13 +193,15 @@ class VitsModel(TextToWaveform):
             disc_generated_outputs=y_d_hat_g)
             loss_disc_all = loss_disc
 
+        # get optimizers
+        optim_g, optim_d = self.optimizers()
         
         # train discriminator
         optim_d.zero_grad()
         self.manual_backward(loss_disc_all)
         norm_d = clip_grad_value_(self.net_d.parameters(), None)
         optim_d.step()
-            
+        
         with autocast(enabled=True):
             y_d_hat_r, y_d_hat_g, fmap_r, fmap_g = self.net_d(y, y_hat)
         # Generator
@@ -307,47 +250,53 @@ class VitsModel(TextToWaveform):
         self.log_dict(metrics, on_step=True, sync_dist=True)
 
     def validation_step(self, batch, batch_idx):
-        (y, y_lengths, x, x_lengths) = batch
+        speakers = None
+        # if SpeakerID in self._train_dl.dataset.sup_data_types_set:
+        if self.cfg.n_speakers > 1:
+            (y, y_lengths, x, x_lengths, speakers) = batch
+        else:
+            (y, y_lengths, x, x_lengths) = batch
 
-        y_hat, attn, mask, *_ = self.net_g.infer(x, x_lengths, max_len=1000)
+        if speakers == None:
+            print(speakers)
+        y_hat, attn, mask, *_ = self.net_g.infer(x, x_lengths, speakers, max_len=1000)
+
         y_hat = y_hat.squeeze()
-        y_hat_lengths = mask.sum([1, 2]).long() * self._cfg.train_ds.dataset.hop_length
+        y_hat_lengths = mask.sum([1, 2]).long() * self._cfg.validation_ds.dataset.hop_length
 
-        mel, mel_lengths = self.audio_to_melspec_precessor(y, y_lengths)
-        y_hat_mel, y_hat_mel_lengths = self.audio_to_melspec_precessor(y_hat, y_hat_lengths)
+        mel, mel_lengths = self.audio_to_melspec_processor(y, y_lengths)
+        y_hat_mel, y_hat_mel_lengths = self.audio_to_melspec_processor(y_hat, y_hat_lengths)
 
         # plot audio once per epoch
-        if batch_idx == 0:
+        if batch_idx == 0 and isinstance(self.logger, WandbLogger) and HAVE_WANDB:
             logger = self.logger.experiment
-            # print(logger, self.logger)
-            if logger is not None and isinstance(self.logger, WandbLogger):
-                specs = []
-                audios = []
+            specs = []
+            audios = []
 
-                specs += [
-                    wandb.Image(
-                        plot_spectrogram_to_numpy(mel[0, :, : mel_lengths[0]].cpu().numpy()), caption=f"val_mel_target",
-                    ),
-                    wandb.Image(
-                        plot_spectrogram_to_numpy(y_hat_mel[0, :, : y_hat_mel_lengths[0]].cpu().numpy()),
-                        caption=f"val_mel_predicted",
-                    ),
-                ]
+            specs += [
+                wandb.Image(
+                    plot_spectrogram_to_numpy(mel[0, :, : mel_lengths[0]].data.cpu().numpy()), caption=f"val_mel_target",
+                ),
+                wandb.Image(
+                    plot_spectrogram_to_numpy(y_hat_mel[0, :, : y_hat_mel_lengths[0]].data.cpu().numpy()),
+                    caption=f"val_mel_predicted",
+                ),
+            ]
 
-                audios += [
-                    wandb.Audio(
-                        y[0, : y_lengths[0]].data.cpu().to(torch.float).numpy(),
-                        caption=f"val_wav_target",
-                        sample_rate=self.sample_rate,
-                    ),
-                    wandb.Audio(
-                        y_hat[0, : y_hat_lengths[0]].data.cpu().to(torch.float).numpy(),
-                        caption=f"val_wav_predicted",
-                        sample_rate=self.sample_rate,
-                    ),
-                ]
+            audios += [
+                wandb.Audio(
+                    y[0, : y_lengths[0]].data.cpu().to(torch.float).numpy(),
+                    caption=f"val_wav_target",
+                    sample_rate=self._cfg.sample_rate,
+                ),
+                wandb.Audio(
+                    y_hat[0, : y_hat_lengths[0]].data.cpu().to(torch.float).numpy(),
+                    caption=f"val_wav_predicted",
+                    sample_rate=self._cfg.sample_rate,
+                ),
+            ]
 
-                logger.log({"specs": specs, "audios": audios})
+            logger.log({"specs": specs, "audios": audios})
 
     def _loader(self, cfg):
         try:
@@ -377,9 +326,7 @@ class VitsModel(TextToWaveform):
 
         train_sampler = DistributedBucketSampler(
             dataset,
-            self.cfg.train_ds.batch_sampler.batch_size,
-            self.cfg.train_ds.batch_sampler.boundaries,
-            shuffle=self.cfg.train_ds.batch_sampler.shuffle)
+            **self.cfg.train_ds.batch_sampler)
 
         dataloader = torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, batch_sampler=train_sampler, 
         **self.cfg.train_ds.dataloader_params,)
@@ -402,5 +349,4 @@ class VitsModel(TextToWaveform):
         return list_of_models
 
     def convert_text_to_waveform(self, *, tokens):
-        #  TODO: Convert text to waveforms
-        pass
+        return self(tokens).squeeze(1)

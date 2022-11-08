@@ -44,22 +44,22 @@ from torch.nn import functional as F
 from librosa.filters import mel as librosa_mel_fn
 from torch.nn.utils import weight_norm, remove_weight_norm, spectral_norm
 
+from nemo.collections.tts.modules.hifigan_modules import ResBlock1, ResBlock2, init_weights, get_padding
+from nemo.collections.tts.helpers.splines import piecewise_rational_quadratic_transform
 from nemo.collections.tts.modules.monotonic_align import maximum_path
-
-# TODO: need to do LARGE refactoring
-
+from nemo.collections.tts.helpers.helpers import convert_pad_shape, generate_path, get_mask_from_lengths, rand_slice_segments
 
 LRELU_SLOPE = 0.1
 
 
-def dynamic_range_compression_torch(x, C=1, clip_val=1e-5):
-    return torch.log(torch.clamp(x, min=clip_val) * C)
-
-
-def spectral_normalize_torch(magnitudes):
-    output = dynamic_range_compression_torch(magnitudes)
-    return output
-
+@torch.jit.script
+def fused_add_tanh_sigmoid_multiply(input_a, input_b, n_channels):
+    n_channels_int = n_channels[0]
+    in_act = input_a + input_b
+    t_act = torch.tanh(in_act[:, :n_channels_int, :])
+    s_act = torch.sigmoid(in_act[:, n_channels_int:, :])
+    acts = t_act * s_act
+    return acts
 
 class LayerNorm(nn.Module):
     def __init__(self, channels, eps=1e-5):
@@ -228,78 +228,6 @@ class WN(torch.nn.Module):
         for l in self.res_skip_layers:
             torch.nn.utils.remove_weight_norm(l)
 
-# TODO: reuse from hifigan if it is possible?
-class ResBlock1(torch.nn.Module):
-    def __init__(self, channels, kernel_size=3, dilation=(1, 3, 5)):
-        super(ResBlock1, self).__init__()
-        self.convs1 = nn.ModuleList([
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=dilation[0],
-                               padding=get_padding(kernel_size, dilation[0]))),
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=dilation[1],
-                               padding=get_padding(kernel_size, dilation[1]))),
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=dilation[2],
-                               padding=get_padding(kernel_size, dilation[2])))
-        ])
-        self.convs1.apply(init_weights)
-
-        self.convs2 = nn.ModuleList([
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=1,
-                               padding=get_padding(kernel_size, 1))),
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=1,
-                               padding=get_padding(kernel_size, 1))),
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=1,
-                               padding=get_padding(kernel_size, 1)))
-        ])
-        self.convs2.apply(init_weights)
-
-    def forward(self, x, x_mask=None):
-        for c1, c2 in zip(self.convs1, self.convs2):
-            xt = F.leaky_relu(x, LRELU_SLOPE)
-            if x_mask is not None:
-                xt = xt * x_mask
-            xt = c1(xt)
-            xt = F.leaky_relu(xt, LRELU_SLOPE)
-            if x_mask is not None:
-                xt = xt * x_mask
-            xt = c2(xt)
-            x = xt + x
-        if x_mask is not None:
-            x = x * x_mask
-        return x
-
-    def remove_weight_norm(self):
-        for l in self.convs1:
-            remove_weight_norm(l)
-        for l in self.convs2:
-            remove_weight_norm(l)
-
-# TODO: reuse from hifigan if it is possible?
-class ResBlock2(torch.nn.Module):
-    def __init__(self, channels, kernel_size=3, dilation=(1, 3)):
-        super(ResBlock2, self).__init__()
-        self.convs = nn.ModuleList([
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=dilation[0],
-                               padding=get_padding(kernel_size, dilation[0]))),
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=dilation[1],
-                               padding=get_padding(kernel_size, dilation[1])))
-        ])
-        self.convs.apply(init_weights)
-
-    def forward(self, x, x_mask=None):
-        for c in self.convs:
-            xt = F.leaky_relu(x, LRELU_SLOPE)
-            if x_mask is not None:
-                xt = xt * x_mask
-            xt = c(xt)
-            x = xt + x
-        if x_mask is not None:
-            x = x * x_mask
-        return x
-
-    def remove_weight_norm(self):
-        for l in self.convs:
-            remove_weight_norm(l)
-
 
 class Log(nn.Module):
     def forward(self, x, x_mask, reverse=False, **kwargs):
@@ -418,16 +346,18 @@ class ConvFlow(nn.Module):
         unnormalized_widths = h[..., :self.num_bins] / math.sqrt(self.filter_channels)
         unnormalized_heights = h[..., self.num_bins:2 * self.num_bins] / math.sqrt(self.filter_channels)
         unnormalized_derivatives = h[..., 2 * self.num_bins:]
-
-        x1, logabsdet = piecewise_rational_quadratic_transform(x1,
-                                                               unnormalized_widths,
-                                                               unnormalized_heights,
-                                                               unnormalized_derivatives,
-                                                               inverse=reverse,
-                                                               tails='linear',
-                                                               tail_bound=self.tail_bound
-                                                               )
-
+        
+        if x1.size(0) != 0:
+            x1, logabsdet = piecewise_rational_quadratic_transform(x1,
+                                                                unnormalized_widths,
+                                                                unnormalized_heights,
+                                                                unnormalized_derivatives,
+                                                                inverse=reverse,
+                                                                tails='linear',
+                                                                tail_bound=self.tail_bound
+                                                                )
+        else:
+            logdet = 0
         x = torch.cat([x0, x1], 1) * x_mask
         logdet = torch.sum(logabsdet * x_mask, [1, 2])
         if not reverse:
@@ -592,7 +522,7 @@ class TextEncoder(nn.Module):
     def forward(self, x, x_lengths):
         x = self.emb(x) * math.sqrt(self.hidden_channels) # [b, t, h]
         x = torch.transpose(x, 1, -1) # [b, h, t]
-        x_mask = torch.unsqueeze(sequence_mask(x_lengths, x.size(2)), 1).to(x.dtype)
+        x_mask = torch.unsqueeze(get_mask_from_lengths(x_lengths, x.size(2)), 1).to(x.dtype)
 
         x = self.encoder(x * x_mask, x_mask)
         stats = self.proj(x) * x_mask
@@ -657,7 +587,7 @@ class PosteriorEncoder(nn.Module):
         self.proj = nn.Conv1d(hidden_channels, out_channels * 2, 1)
 
     def forward(self, x, x_lengths, g=None):
-        x_mask = torch.unsqueeze(sequence_mask(x_lengths, x.size(2)), 1).to(x.dtype).to(device=x.device)
+        x_mask = torch.unsqueeze(get_mask_from_lengths(x_lengths, x.size(2)), 1).to(x.dtype).to(device=x.device)
         x = self.pre(x) * x_mask
         x = self.enc(x, x_mask, g=g)
         stats = self.proj(x) * x_mask
@@ -667,7 +597,6 @@ class PosteriorEncoder(nn.Module):
         z = (m + torch.randn_like(m) * torch.exp(logs)) * x_mask
         return z, m, logs, x_mask
 
-# TODO: reuse from hifigan if it is possible?
 class Generator(torch.nn.Module):
     def __init__(self, initial_channel, resblock, resblock_kernel_sizes, resblock_dilation_sizes, upsample_rates, upsample_initial_channel, upsample_kernel_sizes, gin_channels=0):
         super(Generator, self).__init__()
@@ -702,12 +631,9 @@ class Generator(torch.nn.Module):
         for i in range(self.num_upsamples):
             x = F.leaky_relu(x, LRELU_SLOPE)
             x = self.ups[i](x)
-            xs = None
+            xs = torch.zeros(x.shape, dtype=x.dtype, device=x.device)
             for j in range(self.num_kernels):
-                if xs is None:
-                    xs = self.resblocks[i*self.num_kernels+j](x)
-                else:
-                    xs += self.resblocks[i*self.num_kernels+j](x)
+                xs += self.resblocks[i*self.num_kernels+j](x)
             x = xs / self.num_kernels
         x = F.leaky_relu(x)
         x = self.conv_post(x)
@@ -722,7 +648,6 @@ class Generator(torch.nn.Module):
         for l in self.resblocks:
             l.remove_weight_norm()
 
-# TODO: reuse from hifigan if it is possible?
 class DiscriminatorP(torch.nn.Module):
     def __init__(self, period, kernel_size=5, stride=3, use_spectral_norm=False):
         super(DiscriminatorP, self).__init__()
@@ -790,7 +715,6 @@ class DiscriminatorS(torch.nn.Module):
 
         return x, fmap
 
-# TODO: reuse from hifigan if it is possible?
 class MultiPeriodDiscriminator(torch.nn.Module):
     def __init__(self, use_spectral_norm=False):
         super(MultiPeriodDiscriminator, self).__init__()
@@ -889,9 +813,8 @@ class SynthesizerTrn(nn.Module):
             self.emb_g = nn.Embedding(n_speakers, gin_channels)
 
     def forward(self, x, x_lengths, y, y_lengths, sid=None):
-
         x, m_p, logs_p, x_mask = self.enc_p(x, x_lengths)
-        if self.n_speakers > 0:
+        if self.n_speakers > 1:
             g = self.emb_g(sid).unsqueeze(-1) # [b, h, 1]
         else:
             g = None
@@ -930,7 +853,7 @@ class SynthesizerTrn(nn.Module):
 
     def infer(self, x, x_lengths, sid=None, noise_scale=1, length_scale=1, noise_scale_w=1., max_len=None):
         x, m_p, logs_p, x_mask = self.enc_p(x, x_lengths)
-        if self.n_speakers > 0:
+        if self.n_speakers > 1:
             g = self.emb_g(sid).unsqueeze(-1) # [b, h, 1]
         else:
             g = None
@@ -942,7 +865,7 @@ class SynthesizerTrn(nn.Module):
         w = torch.exp(logw) * x_mask * length_scale
         w_ceil = torch.ceil(w)
         y_lengths = torch.clamp_min(torch.sum(w_ceil, [1, 2]), 1).long()
-        y_mask = torch.unsqueeze(sequence_mask(y_lengths, None), 1).to(x_mask.dtype)
+        y_mask = torch.unsqueeze(get_mask_from_lengths(y_lengths, None), 1).to(x_mask.dtype)
         attn_mask = torch.unsqueeze(x_mask, 2) * torch.unsqueeze(y_mask, -1)
         attn = generate_path(w_ceil, attn_mask)
 
@@ -954,9 +877,9 @@ class SynthesizerTrn(nn.Module):
         o = self.dec((z * y_mask)[:,:,:max_len], g=g)
         return o, attn, y_mask, (z, z_p, m_p, logs_p)
 
-    # TODO: do we really need it? Can be used for emotions conversion
+    # Can be used for emotions conversion
     def voice_conversion(self, y, y_lengths, sid_src, sid_tgt):
-        assert self.n_speakers > 0, "n_speakers have to be larger than 0."
+        assert self.n_speakers > 1, "n_speakers have to be larger than 1."
         g_src = self.emb_g(sid_src).unsqueeze(-1)
         g_tgt = self.emb_g(sid_tgt).unsqueeze(-1)
         z, m_q, logs_q, y_mask = self.enc_q(y, y_lengths, g=g_src)
@@ -964,209 +887,6 @@ class SynthesizerTrn(nn.Module):
         z_hat = self.flow(z_p, y_mask, g=g_tgt, reverse=True)
         o_hat = self.dec(z_hat * y_mask, g=g_tgt)
         return o_hat, y_mask, (z, z_p, z_hat)
-
-##################
-# Mel_processing #
-##################
-
-mel_basis = {}
-hann_window = {}
-
-def spec_to_mel_torch(spec, n_fft, num_mels, sampling_rate, fmin, fmax):
-    global mel_basis
-    dtype_device = str(spec.dtype) + '_' + str(spec.device)
-    fmax_dtype_device = str(fmax) + '_' + dtype_device
-    if fmax_dtype_device not in mel_basis:
-        mel = librosa_mel_fn(sampling_rate, n_fft, num_mels, fmin, fmax)
-        mel_basis[fmax_dtype_device] = torch.from_numpy(mel).to(dtype=spec.dtype, device=spec.device)
-    spec = torch.matmul(mel_basis[fmax_dtype_device], spec)
-    spec = spectral_normalize_torch(spec)
-    return spec
-
-
-def audio_to_mel_torch(y, n_fft, num_mels, sampling_rate, hop_size, win_size, fmin, fmax, center=False):
-    if torch.min(y) < -1.:
-        print('min value is ', torch.min(y))
-    if torch.max(y) > 1.:
-        print('max value is ', torch.max(y))
-
-    global mel_basis, hann_window
-    dtype_device = str(y.dtype) + '_' + str(y.device)
-    fmax_dtype_device = str(fmax) + '_' + dtype_device
-    wnsize_dtype_device = str(win_size) + '_' + dtype_device
-    if fmax_dtype_device not in mel_basis:
-        mel = librosa_mel_fn(sampling_rate, n_fft, num_mels, fmin, fmax)
-        mel_basis[fmax_dtype_device] = torch.from_numpy(mel).to(dtype=y.dtype, device=y.device)
-    if wnsize_dtype_device not in hann_window:
-        hann_window[wnsize_dtype_device] = torch.hann_window(win_size).to(dtype=y.dtype, device=y.device)
-
-    y = torch.nn.functional.pad(y.unsqueeze(1), (int((n_fft-hop_size)/2), int((n_fft-hop_size)/2)), mode='reflect')
-    y = y.squeeze(1)
-
-    spec = torch.stft(y, n_fft, hop_length=hop_size, win_length=win_size, window=hann_window[wnsize_dtype_device],
-                      center=center, pad_mode='reflect', normalized=False, onesided=True)
-
-    spec = torch.sqrt(spec.pow(2).sum(-1) + 1e-6)
-
-    spec = torch.matmul(mel_basis[fmax_dtype_device], spec)
-    spec = spectral_normalize_torch(spec)
-
-    return spec
-
-
-###########
-# Commons #
-###########
-
-def init_weights(m, mean=0.0, std=0.01):
-    classname = m.__class__.__name__
-    if classname.find("Conv") != -1:
-        m.weight.data.normal_(mean, std)
-
-
-def get_padding(kernel_size, dilation=1):
-    return int((kernel_size*dilation - dilation)/2)
-
-
-def intersperse(lst, item):
-    result = [item] * (len(lst) * 2 + 1)
-    result[1::2] = lst
-    return result
-
-
-def kl_divergence(m_p, logs_p, m_q, logs_q):
-    """KL(P||Q)"""
-    kl = (logs_q - logs_p) - 0.5
-    kl += 0.5 * (torch.exp(2. * logs_p) + ((m_p - m_q)**2)) * torch.exp(-2. * logs_q)
-    return kl
-
-
-def rand_gumbel(shape):
-    """Sample from the Gumbel distribution, protect from overflows."""
-    uniform_samples = torch.rand(shape) * 0.99998 + 0.00001
-    return -torch.log(-torch.log(uniform_samples))
-
-
-def rand_gumbel_like(x):
-    g = rand_gumbel(x.size()).to(dtype=x.dtype, device=x.device)
-    return g
-
-
-def slice_segments(x, ids_str, segment_size=4):
-    ret = torch.zeros_like(x[:, :, :segment_size])
-    for i in range(x.size(0)):
-        idx_str = ids_str[i]
-        idx_end = idx_str + segment_size
-        ret[i] = x[i, :, idx_str:idx_end]
-    return ret
-
-
-def rand_slice_segments(x, x_lengths=None, segment_size=4):
-    b, d, t = x.size()
-    if x_lengths is None:
-        x_lengths = t
-    ids_str_max = x_lengths - segment_size + 1
-    ids_str_max = ids_str_max.to(device=x.device)
-    # torch.manual_seed(1)
-    # torch.cuda.manual_seed(1)
-    ids_str = (torch.rand([b]).to(device=x.device) * ids_str_max).to(dtype=torch.long)
-    ret = slice_segments(x, ids_str, segment_size)
-    return ret, ids_str
-
-
-def get_timing_signal_1d(
-        length, channels, min_timescale=1.0, max_timescale=1.0e4):
-    position = torch.arange(length, dtype=torch.float)
-    num_timescales = channels // 2
-    log_timescale_increment = (
-            math.log(float(max_timescale) / float(min_timescale)) /
-            (num_timescales - 1))
-    inv_timescales = min_timescale * torch.exp(
-            torch.arange(num_timescales, dtype=torch.float) * -log_timescale_increment)
-    scaled_time = position.unsqueeze(0) * inv_timescales.unsqueeze(1)
-    signal = torch.cat([torch.sin(scaled_time), torch.cos(scaled_time)], 0)
-    signal = F.pad(signal, [0, 0, 0, channels % 2])
-    signal = signal.view(1, channels, length)
-    return signal
-
-
-def add_timing_signal_1d(x, min_timescale=1.0, max_timescale=1.0e4):
-    b, channels, length = x.size()
-    signal = get_timing_signal_1d(length, channels, min_timescale, max_timescale)
-    return x + signal.to(dtype=x.dtype, device=x.device)
-
-
-def cat_timing_signal_1d(x, min_timescale=1.0, max_timescale=1.0e4, axis=1):
-    b, channels, length = x.size()
-    signal = get_timing_signal_1d(length, channels, min_timescale, max_timescale)
-    return torch.cat([x, signal.to(dtype=x.dtype, device=x.device)], axis)
-
-
-def subsequent_mask(length):
-    mask = torch.tril(torch.ones(length, length)).unsqueeze(0).unsqueeze(0)
-    return mask
-
-
-@torch.jit.script
-def fused_add_tanh_sigmoid_multiply(input_a, input_b, n_channels):
-    n_channels_int = n_channels[0]
-    in_act = input_a + input_b
-    t_act = torch.tanh(in_act[:, :n_channels_int, :])
-    s_act = torch.sigmoid(in_act[:, n_channels_int:, :])
-    acts = t_act * s_act
-    return acts
-
-
-def convert_pad_shape(pad_shape):
-    l = pad_shape[::-1]
-    pad_shape = [item for sublist in l for item in sublist]
-    return pad_shape
-
-
-def shift_1d(x):
-    x = F.pad(x, convert_pad_shape([[0, 0], [0, 0], [1, 0]]))[:, :, :-1]
-    return x
-
-# TODO: reuse from helpers get_mask_from_lengths?
-def sequence_mask(length, max_length=None):
-    if max_length is None:
-        max_length = length.max()
-    x = torch.arange(max_length, dtype=length.dtype, device=length.device)
-    return x.unsqueeze(0) < length.unsqueeze(1)
-
-
-def generate_path(duration, mask):
-    """
-    duration: [b, 1, t_x]
-    mask: [b, 1, t_y, t_x]
-    """
-    b, _, t_y, t_x = mask.shape
-    cum_duration = torch.cumsum(duration, -1)
-
-    cum_duration_flat = cum_duration.view(b * t_x)
-    path = sequence_mask(cum_duration_flat, t_y).to(mask.dtype)
-    path = path.view(b, t_x, t_y)
-    path = path - F.pad(path, convert_pad_shape([[0, 0], [1, 0], [0, 0]]))[:, :-1]
-    path = path.unsqueeze(1).transpose(2,3) * mask
-    return path
-
-
-def clip_grad_value_(parameters, clip_value, norm_type=2):
-    if isinstance(parameters, torch.Tensor):
-        parameters = [parameters]
-    parameters = list(filter(lambda p: p.grad is not None, parameters))
-    norm_type = float(norm_type)
-    if clip_value is not None:
-        clip_value = float(clip_value)
-
-    total_norm = 0
-    for p in parameters:
-        param_norm = p.grad.data.norm(norm_type)
-        total_norm += param_norm.item() ** norm_type
-        if clip_value is not None:
-            p.grad.data.clamp_(min=-clip_value, max=clip_value)
-    total_norm = total_norm ** (1. / norm_type)
-    return total_norm
 
 
 ##############
@@ -1462,196 +1182,3 @@ class FFN(nn.Module):
         padding = [[0, 0], [0, 0], [pad_l, pad_r]]
         x = F.pad(x, convert_pad_shape(padding))
         return x
-
-
-##############
-# Transforms #
-##############
-
-DEFAULT_MIN_BIN_WIDTH = 1e-3
-DEFAULT_MIN_BIN_HEIGHT = 1e-3
-DEFAULT_MIN_DERIVATIVE = 1e-3
-
-
-def piecewise_rational_quadratic_transform(inputs,
-                                           unnormalized_widths,
-                                           unnormalized_heights,
-                                           unnormalized_derivatives,
-                                           inverse=False,
-                                           tails=None,
-                                           tail_bound=1.,
-                                           min_bin_width=DEFAULT_MIN_BIN_WIDTH,
-                                           min_bin_height=DEFAULT_MIN_BIN_HEIGHT,
-                                           min_derivative=DEFAULT_MIN_DERIVATIVE):
-
-    if tails is None:
-        spline_fn = rational_quadratic_spline
-        spline_kwargs = {}
-    else:
-        spline_fn = unconstrained_rational_quadratic_spline
-        spline_kwargs = {
-            'tails': tails,
-            'tail_bound': tail_bound
-        }
-
-    outputs, logabsdet = spline_fn(
-            inputs=inputs,
-            unnormalized_widths=unnormalized_widths,
-            unnormalized_heights=unnormalized_heights,
-            unnormalized_derivatives=unnormalized_derivatives,
-            inverse=inverse,
-            min_bin_width=min_bin_width,
-            min_bin_height=min_bin_height,
-            min_derivative=min_derivative,
-            **spline_kwargs
-    )
-    return outputs, logabsdet
-
-
-def searchsorted(bin_locations, inputs, eps=1e-6):
-    bin_locations[..., -1] += eps
-    return torch.sum(
-        inputs[..., None] >= bin_locations,
-        dim=-1
-    ) - 1
-
-
-def unconstrained_rational_quadratic_spline(inputs,
-                                            unnormalized_widths,
-                                            unnormalized_heights,
-                                            unnormalized_derivatives,
-                                            inverse=False,
-                                            tails='linear',
-                                            tail_bound=1.,
-                                            min_bin_width=DEFAULT_MIN_BIN_WIDTH,
-                                            min_bin_height=DEFAULT_MIN_BIN_HEIGHT,
-                                            min_derivative=DEFAULT_MIN_DERIVATIVE):
-    inside_interval_mask = (inputs >= -tail_bound) & (inputs <= tail_bound)
-    outside_interval_mask = ~inside_interval_mask
-
-    outputs = torch.zeros_like(inputs)
-    logabsdet = torch.zeros_like(inputs)
-
-    if tails == 'linear':
-        unnormalized_derivatives = F.pad(unnormalized_derivatives, pad=(1, 1))
-        constant = np.log(np.exp(1 - min_derivative) - 1)
-        unnormalized_derivatives[..., 0] = constant
-        unnormalized_derivatives[..., -1] = constant
-
-        outputs[outside_interval_mask] = inputs[outside_interval_mask]
-        logabsdet[outside_interval_mask] = 0
-    else:
-        raise RuntimeError('{} tails are not implemented.'.format(tails))
-
-    outputs[inside_interval_mask], logabsdet[inside_interval_mask] = rational_quadratic_spline(
-        inputs=inputs[inside_interval_mask],
-        unnormalized_widths=unnormalized_widths[inside_interval_mask, :],
-        unnormalized_heights=unnormalized_heights[inside_interval_mask, :],
-        unnormalized_derivatives=unnormalized_derivatives[inside_interval_mask, :],
-        inverse=inverse,
-        left=-tail_bound, right=tail_bound, bottom=-tail_bound, top=tail_bound,
-        min_bin_width=min_bin_width,
-        min_bin_height=min_bin_height,
-        min_derivative=min_derivative
-    )
-
-    return outputs, logabsdet
-
-def rational_quadratic_spline(inputs,
-                              unnormalized_widths,
-                              unnormalized_heights,
-                              unnormalized_derivatives,
-                              inverse=False,
-                              left=0., right=1., bottom=0., top=1.,
-                              min_bin_width=DEFAULT_MIN_BIN_WIDTH,
-                              min_bin_height=DEFAULT_MIN_BIN_HEIGHT,
-                              min_derivative=DEFAULT_MIN_DERIVATIVE):
-    if torch.min(inputs) < left or torch.max(inputs) > right:
-        raise ValueError('Input to a transform is not within its domain')
-
-    num_bins = unnormalized_widths.shape[-1]
-
-    if min_bin_width * num_bins > 1.0:
-        raise ValueError('Minimal bin width too large for the number of bins')
-    if min_bin_height * num_bins > 1.0:
-        raise ValueError('Minimal bin height too large for the number of bins')
-
-    widths = F.softmax(unnormalized_widths, dim=-1)
-    widths = min_bin_width + (1 - min_bin_width * num_bins) * widths
-    cumwidths = torch.cumsum(widths, dim=-1)
-    cumwidths = F.pad(cumwidths, pad=(1, 0), mode='constant', value=0.0)
-    cumwidths = (right - left) * cumwidths + left
-    cumwidths[..., 0] = left
-    cumwidths[..., -1] = right
-    widths = cumwidths[..., 1:] - cumwidths[..., :-1]
-
-    derivatives = min_derivative + F.softplus(unnormalized_derivatives)
-
-    heights = F.softmax(unnormalized_heights, dim=-1)
-    heights = min_bin_height + (1 - min_bin_height * num_bins) * heights
-    cumheights = torch.cumsum(heights, dim=-1)
-    cumheights = F.pad(cumheights, pad=(1, 0), mode='constant', value=0.0)
-    cumheights = (top - bottom) * cumheights + bottom
-    cumheights[..., 0] = bottom
-    cumheights[..., -1] = top
-    heights = cumheights[..., 1:] - cumheights[..., :-1]
-
-    if inverse:
-        bin_idx = searchsorted(cumheights, inputs)[..., None]
-    else:
-        bin_idx = searchsorted(cumwidths, inputs)[..., None]
-
-    input_cumwidths = cumwidths.gather(-1, bin_idx)[..., 0]
-    input_bin_widths = widths.gather(-1, bin_idx)[..., 0]
-
-    input_cumheights = cumheights.gather(-1, bin_idx)[..., 0]
-    delta = heights / widths
-    input_delta = delta.gather(-1, bin_idx)[..., 0]
-
-    input_derivatives = derivatives.gather(-1, bin_idx)[..., 0]
-    input_derivatives_plus_one = derivatives[..., 1:].gather(-1, bin_idx)[..., 0]
-
-    input_heights = heights.gather(-1, bin_idx)[..., 0]
-
-    if inverse:
-        a = (((inputs - input_cumheights) * (input_derivatives
-                                             + input_derivatives_plus_one
-                                             - 2 * input_delta)
-              + input_heights * (input_delta - input_derivatives)))
-        b = (input_heights * input_derivatives
-             - (inputs - input_cumheights) * (input_derivatives
-                                              + input_derivatives_plus_one
-                                              - 2 * input_delta))
-        c = - input_delta * (inputs - input_cumheights)
-
-        discriminant = b.pow(2) - 4 * a * c
-        assert (discriminant >= 0).all()
-
-        root = (2 * c) / (-b - torch.sqrt(discriminant))
-        outputs = root * input_bin_widths + input_cumwidths
-
-        theta_one_minus_theta = root * (1 - root)
-        denominator = input_delta + ((input_derivatives + input_derivatives_plus_one - 2 * input_delta)
-                                     * theta_one_minus_theta)
-        derivative_numerator = input_delta.pow(2) * (input_derivatives_plus_one * root.pow(2)
-                                                     + 2 * input_delta * theta_one_minus_theta
-                                                     + input_derivatives * (1 - root).pow(2))
-        logabsdet = torch.log(derivative_numerator) - 2 * torch.log(denominator)
-
-        return outputs, -logabsdet
-    else:
-        theta = (inputs - input_cumwidths) / input_bin_widths
-        theta_one_minus_theta = theta * (1 - theta)
-
-        numerator = input_heights * (input_delta * theta.pow(2)
-                                     + input_derivatives * theta_one_minus_theta)
-        denominator = input_delta + ((input_derivatives + input_derivatives_plus_one - 2 * input_delta)
-                                     * theta_one_minus_theta)
-        outputs = input_cumheights + numerator / denominator
-
-        derivative_numerator = input_delta.pow(2) * (input_derivatives_plus_one * theta.pow(2)
-                                                     + 2 * input_delta * theta_one_minus_theta
-                                                     + input_derivatives * (1 - theta).pow(2))
-        logabsdet = torch.log(derivative_numerator) - 2 * torch.log(denominator)
-
-        return outputs, logabsdet

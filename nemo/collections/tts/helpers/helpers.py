@@ -141,7 +141,6 @@ def get_mask_from_lengths(lengths, max_len: Optional[int] = None):
     mask = (ids < lengths.unsqueeze(1)).bool()
     return mask
 
-
 @jit(nopython=True)
 def mas(attn_map, width=1):
     # assumes mel x text
@@ -561,109 +560,69 @@ def split_view(tensor, split_size: int, dim: int = 0):
     new_shape = cur_shape[:dim] + (tensor.shape[dim] // split_size, split_size) + cur_shape[dim + 1 :]
     return tensor.reshape(*new_shape)
 
-class DistributedBucketSampler(torch.utils.data.distributed.DistributedSampler):
+def slice_segments(x, ids_str, segment_size=4):
+    ret = torch.zeros_like(x[:, :, :segment_size])
+    for i in range(x.size(0)):
+        idx_str = ids_str[i]
+        idx_end = idx_str + segment_size
+        x_i = x[i]
+        if idx_end >= x.size(2):
+            # pad the sample if it is shorter than the segment size
+            x_i = torch.nn.functional.pad(x_i, (0, (idx_end + 1) - x.size(2)))
+        ret[i] = x_i[:, idx_str:idx_end]
+    return ret
+
+
+def rand_slice_segments(x, x_lengths=None, segment_size=4):
+    b, d, t = x.size()
+    if x_lengths is None:
+        x_lengths = t
+    ids_str_max = x_lengths - segment_size + 1
+    ids_str_max = ids_str_max.to(device=x.device)
+    ids_str = (torch.rand([b]).to(device=x.device) * ids_str_max).to(dtype=torch.long)
+    
+    ret = slice_segments(x, ids_str, segment_size)
+    
+    return ret, ids_str
+
+def clip_grad_value_(parameters, clip_value, norm_type=2):
+    if isinstance(parameters, torch.Tensor):
+        parameters = [parameters]
+    parameters = list(filter(lambda p: p.grad is not None, parameters))
+    norm_type = float(norm_type)
+    if clip_value is not None:
+        clip_value = float(clip_value)
+
+    total_norm = 0
+    for p in parameters:
+        param_norm = p.grad.data.norm(norm_type)
+        total_norm += param_norm.item() ** norm_type
+        if clip_value is not None:
+            p.grad.data.clamp_(min=-clip_value, max=clip_value)
+    total_norm = total_norm ** (1. / norm_type)
+    return total_norm
+
+def intersperse(lst, item):
+    result = [item] * (len(lst) * 2 + 1)
+    result[1::2] = lst
+    return result
+
+def convert_pad_shape(pad_shape):
+    l = pad_shape[::-1]
+    pad_shape = [item for sublist in l for item in sublist]
+    return pad_shape
+
+def generate_path(duration, mask):
     """
-    Maintain similar input lengths in a batch.
-    Length groups are specified by boundaries.
-    Ex) boundaries = [b1, b2, b3] -> any batch is included either {x | b1 < length(x) <=b2} or {x | b2 < length(x) <= b3}.
-  
-    It removes samples which are not included in the boundaries.
-    Ex) boundaries = [b1, b2, b3] -> any x s.t. length(x) <= b1 or length(x) > b3 are discarded.
+    duration: [b, 1, t_x]
+    mask: [b, 1, t_y, t_x]
     """
-    def __init__(self, dataset, batch_size, boundaries, num_replicas=None, rank=None, shuffle=True):
-        super().__init__(dataset, num_replicas=num_replicas, rank=rank, shuffle=shuffle)
-        self.lengths = dataset.lengths
-        self.batch_size = batch_size
-        self.boundaries = boundaries
+    b, _, t_y, t_x = mask.shape
+    cum_duration = torch.cumsum(duration, -1)
 
-        self.buckets, self.num_samples_per_bucket = self._create_buckets()
-        self.total_size = sum(self.num_samples_per_bucket)
-        self.num_samples = self.total_size // self.num_replicas
-
-    def _create_buckets(self):
-        buckets = [[] for _ in range(len(self.boundaries) - 1)]
-        for i in range(len(self.lengths)):
-            length = self.lengths[i]
-            idx_bucket = self._bisect(length)
-            if idx_bucket != -1:
-                buckets[idx_bucket].append(i)
-
-        for i in range(len(buckets) - 1, 0, -1):
-            if len(buckets[i]) == 0:
-                buckets.pop(i)
-                self.boundaries.pop(i+1)
-
-        num_samples_per_bucket = []
-        for i in range(len(buckets)):
-            len_bucket = len(buckets[i])
-            total_batch_size = self.num_replicas * self.batch_size
-            rem = (total_batch_size - (len_bucket % total_batch_size)) % total_batch_size
-            num_samples_per_bucket.append(len_bucket + rem)
-        return buckets, num_samples_per_bucket
-
-    def __iter__(self):
-      # deterministically shuffle based on epoch
-      g = torch.Generator()
-      g.manual_seed(self.epoch)
-      indices = []
-      if self.shuffle:
-          for bucket in self.buckets:
-              indices.append(torch.randperm(len(bucket), generator=g).tolist())
-      else:
-          for bucket in self.buckets:
-              indices.append(list(range(len(bucket))))
-
-      batches = []
-      for i in range(len(self.buckets)):
-          bucket = self.buckets[i]
-          len_bucket = len(bucket)
-          ids_bucket = indices[i]
-          num_samples_bucket = self.num_samples_per_bucket[i]
-
-          # add extra samples to make it evenly divisible
-          rem = num_samples_bucket - len_bucket
-          ids_bucket = ids_bucket + ids_bucket * (rem // len_bucket) + ids_bucket[:(rem % len_bucket)]
-
-          # subsample
-          ids_bucket = ids_bucket[self.rank::self.num_replicas]
-
-          # batching
-          for j in range(len(ids_bucket) // self.batch_size):
-              batch = [bucket[idx] for idx in ids_bucket[j*self.batch_size:(j+1)*self.batch_size]]
-              batches.append(batch)
-
-      if self.shuffle:
-          batch_ids = torch.randperm(len(batches), generator=g).tolist()
-          batches = [batches[i] for i in batch_ids]
-      self.batches = batches
-
-      assert len(self.batches) * self.batch_size == self.num_samples
-      return iter(self.batches)
-
-    def _bisect(self, x, lo=0, hi=None):
-      if hi is None:
-          hi = len(self.boundaries) - 1
-
-      if hi > lo:
-          mid = (hi + lo) // 2
-          if self.boundaries[mid] < x and x <= self.boundaries[mid+1]:
-              return mid
-          elif x <= self.boundaries[mid]:
-              return self._bisect(x, lo, mid)
-          else:
-              return self._bisect(x, mid + 1, hi)
-      else:
-          return -1
-
-    def __len__(self):
-        return self.num_samples // self.batch_size
-
-    def set_epoch(self, epoch: int) -> None:
-        """
-        Sets the epoch for this sampler. When :attr:`shuffle=True`, this ensures all replicas
-        use a different random ordering for each epoch. Otherwise, the next iteration of this
-        sampler will yield the same ordering.
-        Args:
-            epoch (int): Epoch number.
-        """
-        self.epoch = epoch
+    cum_duration_flat = cum_duration.view(b * t_x)
+    path = get_mask_from_lengths(cum_duration_flat, t_y).to(mask.dtype)
+    path = path.view(b, t_x, t_y)
+    path = path - torch.nn.functional.pad(path, convert_pad_shape([[0, 0], [1, 0], [0, 0]]))[:, :-1]
+    path = path.unsqueeze(1).transpose(2,3) * mask
+    return path

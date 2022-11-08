@@ -22,7 +22,6 @@ from pathlib import Path
 from typing import Callable, Dict, List, Optional, Union
 
 import librosa
-from nemo.collections.tts.modules.vits_modules import intersperse
 import numpy as np
 import torch
 from tqdm import tqdm
@@ -33,7 +32,7 @@ from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import (
     BaseTokenizer,
     EnglishCharsTokenizer,
     EnglishPhonemesTokenizer,
-    IPAPhonemesTokenizer,
+    IPATokenizer,
 )
 from nemo.collections.tts.torch.helpers import (
     BetaBinomialInterpolator,
@@ -106,7 +105,6 @@ class TTSDataset(Dataset):
         n_mels: int = 80,
         lowfreq: int = 0,
         highfreq: Optional[int] = None,
-        add_blank=True,
         **kwargs,
     ):
         """Dataset which can be used for training spectrogram generators and end-to-end TTS models.
@@ -177,7 +175,7 @@ class TTSDataset(Dataset):
         self.text_tokenizer = text_tokenizer
 
         self.phoneme_probability = None
-        if isinstance(self.text_tokenizer, IPAPhonemesTokenizer):
+        if isinstance(self.text_tokenizer, IPATokenizer):
             self.text_tokenizer_pad_id = text_tokenizer.pad
             self.tokens = text_tokenizer.tokens
             self.phoneme_probability = getattr(self.text_tokenizer, "phoneme_probability", None)
@@ -265,10 +263,6 @@ class TTSDataset(Dataset):
         self.data = TTSDataset.filter_files(data, ignore_file, min_duration, max_duration, total_duration)
         self.base_data_dir = get_base_dir([item["audio_filepath"] for item in self.data])
 
-        random.seed(1234)
-        random.shuffle(self.data)
-        
-        self.add_blank = add_blank
         # Initialize audio and mel related parameters
         self.sample_rate = sample_rate
         self.featurizer = WaveformFeaturizer(sample_rate=self.sample_rate)
@@ -502,14 +496,10 @@ class TTSDataset(Dataset):
 
         if "text_tokens" in sample:
             text = sample["text_tokens"]
-            if self.add_blank:
-                text = intersperse(text, 0)
             text = torch.tensor(text).long()
             text_length = torch.tensor(len(text)).long()
         else:
             tokenized = self.text_tokenizer(sample["normalized_text"])
-            if self.add_blank:
-                tokenized = intersperse(tokenized, 0)
             text = torch.tensor(tokenized).long()
             text_length = torch.tensor(len(tokenized)).long()
 
@@ -1038,307 +1028,110 @@ class VocoderDataset(Dataset):
     def __len__(self):
         return len(self.data)
 
-class VitsDataset(Dataset):
-    def __init__(
-        self,
-        manifest_filepath: Union[str, Path, List[str], List[Path]],
-        sample_rate: int,
-        text_tokenizer: Union[BaseTokenizer, Callable[[str], List[int]]],
-        tokens: Optional[List[str]] = None,
-        text_normalizer: Optional[Union[Normalizer, Callable[[str], str]]] = None,
-        text_normalizer_call_kwargs: Optional[Dict] = None,
-        text_tokenizer_pad_id: Optional[int] = None,
-        sup_data_types: Optional[List[str]] = None,
-        sup_data_path: Optional[Union[Path, str]] = None,
-        max_duration: Optional[float] = None,
-        min_duration: Optional[float] = 0.1,
-        ignore_file: Optional[Union[str, Path]] = None,
-        trim: bool = False,
-        n_fft: int = 1024,
-        win_length: Optional[int] = 1024,
-        hop_length: Optional[int] = 256,
-        n_mels: int = 80,
-        add_blank=True,
-        **kwargs,
-    ):
-        """Dataset which can be used for training spectrogram generators and end-to-end TTS models.
-        It loads main data types (audio, text) and specified supplementary data types (log mel, durations, align prior matrix, pitch, energy, speaker id).
-        Some of supplementary data types will be computed on the fly and saved in the sup_data_path if they did not exist before.
-        Saved folder can be changed for some supplementary data types (see keyword args section).
-        Arguments for supplementary data should be also specified in this class and they will be used from kwargs (see keyword args section).
-        Args:
-            manifest_filepath (Union[str, Path, List[str], List[Path]]): Path(s) to the .json manifests containing information on the
-                dataset. Each line in the .json file should be valid json. Note: the .json file itself is not valid
-                json. Each line should contain the following:
-                    "audio_filepath": <PATH_TO_WAV>,
-                    "text": <THE_TRANSCRIPT>,
-                    "normalized_text": <NORMALIZED_TRANSCRIPT> (Optional),
-                    "mel_filepath": <PATH_TO_LOG_MEL_PT> (Optional),
-                    "duration": <Duration of audio clip in seconds> (Optional)
-            sample_rate (int): The sample rate of the audio. Or the sample rate that we will resample all files to.
-            text_tokenizer (Optional[Union[BaseTokenizer, Callable[[str], List[int]]]]): BaseTokenizer or callable which represents text tokenizer.
-            tokens (Optional[List[str]]): Tokens from text_tokenizer. Should be specified if text_tokenizer is not BaseTokenizer.
-            text_normalizer (Optional[Union[Normalizer, Callable[[str], str]]]): Normalizer or callable which represents text normalizer.
-            text_normalizer_call_kwargs (Optional[Dict]): Additional arguments for text_normalizer function.
-            text_tokenizer_pad_id (Optional[int]): Index of padding. Should be specified if text_tokenizer is not BaseTokenizer.
-            sup_data_types (Optional[List[str]]): List of supplementary data types.
-            sup_data_path (Optional[Union[Path, str]]): A folder that contains or will contain supplementary data (e.g. pitch).
-            max_duration (Optional[float]): Max duration of audio clips in seconds. All samples exceeding this will be
-                pruned prior to training. Note: Requires "duration" to be set in the manifest file. It does not load
-                audio to compute duration. Defaults to None which does not prune.
-            min_duration (Optional[float]): Min duration of audio clips in seconds. All samples lower than this will be
-                pruned prior to training. Note: Requires "duration" to be set in the manifest file. It does not load
-                audio to compute duration. Defaults to None which does not prune.
-            ignore_file (Optional[Union[str, Path]]): The location of a pickle-saved list of audio paths
-                that will be pruned prior to training. Defaults to None which does not prune.
-            trim (Optional[bool]): Whether to apply librosa.effects.trim to the audio file. Defaults to False.
-            n_fft (int): The number of fft samples. Defaults to 1024
-            win_length (Optional[int]): The length of the stft windows. Defaults to None which uses n_fft.
-            hop_length (Optional[int]): The hope length between fft computations. Defaults to None which uses n_fft//4.
-            window (str): One of 'hann', 'hamming', 'blackman','bartlett', 'none'. Which corresponds to the
-                equivalent torch window function.
-            n_mels (int): The number of mel filters. Defaults to 80.
-            lowfreq (int): The lowfreq input to the mel filter calculation. Defaults to 0.
-            highfreq (Optional[int]): The highfreq input to the mel filter calculation. Defaults to None.
-        Keyword Args:
-            log_mel_folder (Optional[Union[Path, str]]): The folder that contains or will contain log mel spectrograms.
-            align_prior_matrix_folder (Optional[Union[Path, str]]): The folder that contains or will contain align prior matrices.
-            pitch_folder (Optional[Union[Path, str]]): The folder that contains or will contain pitch.
-            energy_folder (Optional[Union[Path, str]]): The folder that contains or will contain energy.
-            durs_file (Optional[str]): String path to pickled durations location.
-            durs_type (Optional[str]): Type of durations. Currently supported only "aligner-based".
-            use_beta_binomial_interpolator (Optional[bool]): Whether to use beta-binomial interpolator for calculating alignment prior matrix. Defaults to False.
-            pitch_fmin (Optional[float]): The fmin input to librosa.pyin. Defaults to librosa.note_to_hz('C2').
-            pitch_fmax (Optional[float]): The fmax input to librosa.pyin. Defaults to librosa.note_to_hz('C7').
-            pitch_mean (Optional[float]): The mean that we use to normalize the pitch.
-            pitch_std (Optional[float]): The std that we use to normalize the pitch.
-            pitch_norm (Optional[bool]): Whether to normalize pitch (via pitch_mean and pitch_std) or not.
-        """
-        super().__init__()
 
-        # Initialize text tokenizer
-        self.text_tokenizer = text_tokenizer
+class DistributedBucketSampler(torch.utils.data.distributed.DistributedSampler):
+    """
+    Maintain similar input lengths in a batch.
+    Length groups are specified by boundaries.
+    Ex) boundaries = [b1, b2, b3] -> any batch is included either {x | b1 < length(x) <=b2} or {x | b2 < length(x) <= b3}.
+  
+    It removes samples which are not included in the boundaries.
+    Ex) boundaries = [b1, b2, b3] -> any x s.t. length(x) <= b1 or length(x) > b3 are discarded.
+    """
+    def __init__(self, dataset, batch_size, boundaries, num_replicas=None, rank=None, shuffle=True):
+        super().__init__(dataset, num_replicas=num_replicas, rank=rank, shuffle=shuffle)
+        self.lengths = dataset.lengths
+        self.batch_size = batch_size
+        self.boundaries = boundaries
 
-        self.phoneme_probability = None
-        if isinstance(self.text_tokenizer, IPAPhonemesTokenizer):
-            self.text_tokenizer_pad_id = text_tokenizer.pad
-            self.tokens = text_tokenizer.tokens
-            self.phoneme_probability = getattr(self.text_tokenizer, "phoneme_probability", None)
-        else:
-            if text_tokenizer_pad_id is None:
-                raise ValueError(f"text_tokenizer_pad_id must be specified if text_tokenizer is not BaseTokenizer")
+        self.buckets, self.num_samples_per_bucket = self._create_buckets()
+        self.total_size = sum(self.num_samples_per_bucket)
+        self.num_samples = self.total_size // self.num_replicas
 
-            if tokens is None:
-                raise ValueError(f"tokens must be specified if text_tokenizer is not BaseTokenizer")
+    def _create_buckets(self):
+        buckets = [[] for _ in range(len(self.boundaries) - 1)]
+        for i in range(len(self.lengths)):
+            length = self.lengths[i]
+            idx_bucket = self._bisect(length)
+            if idx_bucket != -1:
+                buckets[idx_bucket].append(i)
 
-            self.text_tokenizer_pad_id = text_tokenizer_pad_id
-            self.tokens = tokens
-        self.cache_text = True if self.phoneme_probability is None else False
+        for i in range(len(buckets) - 1, 0, -1):
+            if len(buckets[i]) == 0:
+                buckets.pop(i)
+                self.boundaries.pop(i+1)
 
-        # Initialize text normalizer is specified
-        self.text_normalizer = text_normalizer
-        self.text_normalizer_call = (
-            self.text_normalizer.normalize if isinstance(self.text_normalizer, Normalizer) else self.text_normalizer
-        )
-        self.text_normalizer_call_kwargs = (
-            text_normalizer_call_kwargs if text_normalizer_call_kwargs is not None else {}
-        )
+        num_samples_per_bucket = []
+        for i in range(len(buckets)):
+            len_bucket = len(buckets[i])
+            total_batch_size = self.num_replicas * self.batch_size
+            rem = (total_batch_size - (len_bucket % total_batch_size)) % total_batch_size
+            num_samples_per_bucket.append(len_bucket + rem)
+        return buckets, num_samples_per_bucket
 
-        # Initialize and read manifest file(s), filter out data by duration and ignore_file, compute base dir
-        if isinstance(manifest_filepath, str):
-            manifest_filepath = [manifest_filepath]
-        self.manifest_filepath = manifest_filepath
-        self.lengths = []
+    def __iter__(self):
+      # deterministically shuffle based on epoch
+      g = torch.Generator()
+      g.manual_seed(self.epoch)
+      indices = []
+      if self.shuffle:
+          for bucket in self.buckets:
+              indices.append(torch.randperm(len(bucket), generator=g).tolist())
+      else:
+          for bucket in self.buckets:
+              indices.append(list(range(len(bucket))))
 
-        data = []
-        total_duration = 0
-        for manifest_file in self.manifest_filepath:
-            with open(Path(manifest_file).expanduser(), 'r') as f:
-                logging.info(f"Loading dataset from {manifest_file}.")
-                for line in tqdm(f):
-                    item = json.loads(line)
+      batches = []
+      for i in range(len(self.buckets)):
+          bucket = self.buckets[i]
+          len_bucket = len(bucket)
+          ids_bucket = indices[i]
+          num_samples_bucket = self.num_samples_per_bucket[i]
 
-                    file_info = {
-                        "audio_filepath": "../" + item["audio_filepath"],
-                        "original_text": item["text"],
-                        "mel_filepath": item["mel_filepath"] if "mel_filepath" in item else None,
-                        "duration": item["duration"] if "duration" in item else None,
-                    }
+          # add extra samples to make it evenly divisible
+          rem = num_samples_bucket - len_bucket
+          ids_bucket = ids_bucket + ids_bucket * (rem // len_bucket) + ids_bucket[:(rem % len_bucket)]
 
-                    if "normalized_text" not in item:
-                        text = item["text"]
-                        if self.text_normalizer is not None:
-                            text = self.text_normalizer_call(text, **self.text_normalizer_call_kwargs)
-                        file_info["normalized_text"] = text
-                    else:
-                        file_info["normalized_text"] = item["normalized_text"]
+          # subsample
+          ids_bucket = ids_bucket[self.rank::self.num_replicas]
 
-                    if self.cache_text:
-                        file_info["text_tokens"] = self.text_tokenizer(file_info["normalized_text"])
+          # batching
+          for j in range(len(ids_bucket) // self.batch_size):
+              batch = [bucket[idx] for idx in ids_bucket[j*self.batch_size:(j+1)*self.batch_size]]
+              batches.append(batch)
 
-                    if self.cache_text:
-                        file_info["text_tokens"] = self.text_tokenizer(file_info["normalized_text"])
+      if self.shuffle:
+          batch_ids = torch.randperm(len(batches), generator=g).tolist()
+          batches = [batches[i] for i in batch_ids]
+      self.batches = batches
 
-                    data.append(file_info)
-                    self.lengths.append(os.path.getsize(item["audio_filepath"]) // (2 * hop_length))
-                    if file_info["duration"] is None:
-                        logging.info(
-                            "Not all audio files have duration information. Duration logging will be disabled."
-                        )
-                        total_duration = None
+      assert len(self.batches) * self.batch_size == self.num_samples
+      return iter(self.batches)
 
-                    if total_duration is not None:
-                        total_duration += item["duration"]
+    def _bisect(self, x, lo=0, hi=None):
+      if hi is None:
+          hi = len(self.boundaries) - 1
 
-        logging.info(f"Loaded dataset with {len(data)} files.")
-        if total_duration is not None:
-            logging.info(f"Dataset contains {total_duration / 3600:.2f} hours.")
-
-        self.data = VitsDataset.filter_files(data, ignore_file, min_duration, max_duration, total_duration)
-        self.base_data_dir = get_base_dir([item["audio_filepath"] for item in self.data])
-
-        random.seed(1234)
-        random.shuffle(self.data)
-        
-        self.add_blank = add_blank
-        # Initialize audio and mel related parameters
-        self.sample_rate = sample_rate
-        self.featurizer = WaveformFeaturizer(sample_rate=self.sample_rate)
-        self.trim = trim
-
-        self.n_fft = n_fft
-        self.n_mels = n_mels
-
-
-
-    @staticmethod
-    def filter_files(data, ignore_file, min_duration, max_duration, total_duration):
-        if ignore_file:
-            logging.info(f"Using {ignore_file} to prune dataset.")
-            with open(Path(ignore_file).expanduser(), "rb") as f:
-                wavs_to_ignore = set(pickle.load(f))
-
-        filtered_data: List[Dict] = []
-        pruned_duration = 0 if total_duration is not None else None
-        pruned_items = 0
-        for item in data:
-            audio_path = item['audio_filepath']
-
-            # Prune data according to min/max_duration & the ignore file
-            if total_duration is not None:
-                if (min_duration and item["duration"] < min_duration) or (
-                    max_duration and item["duration"] > max_duration
-                ):
-                    pruned_duration += item["duration"]
-                    pruned_items += 1
-                    continue
-
-            if ignore_file and (audio_path in wavs_to_ignore):
-                pruned_items += 1
-                pruned_duration += item["duration"]
-                wavs_to_ignore.remove(audio_path)
-                continue
-
-            filtered_data.append(item)
-
-        logging.info(f"Pruned {pruned_items} files. Final dataset contains {len(filtered_data)} files")
-        if pruned_duration is not None:
-            logging.info(
-                f"Pruned {pruned_duration / 3600:.2f} hours. Final dataset contains "
-                f"{(total_duration - pruned_duration) / 3600:.2f} hours."
-            )
-
-        return filtered_data
-
-    def get_spec(self, audio):
-        with torch.cuda.amp.autocast(enabled=False):
-            spec = torch.stft(audio,
-            n_fft=self.n_fft,
-            hop_length=self.hop_len,
-            win_length=self.win_length,
-            window=torch.hann_window(self.win_length, periodic=False).to(torch.float),
-            return_complex=True)
-            
-            if spec.dtype in [torch.cfloat, torch.cdouble]:
-                spec = torch.view_as_real(spec)
-            spec = torch.sqrt(spec.pow(2).sum(-1) + 1e-9)
-        return spec
-
-    def intersperse(lst, item):
-        result = [item] * (len(lst) * 2 + 1)
-        result[1::2] = lst
-        return result
-
-    def __getitem__(self, index):
-        sample = self.data[index]
-
-        # Load audio
-        features = self.featurizer.process(sample["audio_filepath"], trim=self.trim)
-        audio, audio_length = features, torch.tensor(features.shape[0]).long()
-
-        tokenized = self.text_tokenizer(sample["normalized_text"])
-        tokenized = intersperse(tokenized, 0)
-        text = torch.tensor(tokenized).long()
-        text_length = torch.tensor(len(tokenized)).long()
-
-        return (
-            audio,
-            audio_length,
-            text,
-            text_length,
-        )
+      if hi > lo:
+          mid = (hi + lo) // 2
+          if self.boundaries[mid] < x and x <= self.boundaries[mid+1]:
+              return mid
+          elif x <= self.boundaries[mid]:
+              return self._bisect(x, lo, mid)
+          else:
+              return self._bisect(x, mid + 1, hi)
+      else:
+          return -1
 
     def __len__(self):
-        return len(self.data)
+        return self.num_samples // self.batch_size
 
-    def join_data(self, data_dict):
-        result = []
-        for data_type in MAIN_DATA_TYPES:
-            result.append(data_dict[data_type.name])
-
-            if issubclass(data_type, TTSDataType) and issubclass(data_type, WithLens):
-                result.append(data_dict[f"{data_type.name}_lens"])
-
-        return tuple(result)
-
-    def general_collate_fn(self, batch):
-        (
-            _,
-            audio_lengths,
-            _,
-            tokens_lengths,
-        ) = zip(*batch)
-
-        max_audio_len = max(audio_lengths).item()
-        max_tokens_len = max(tokens_lengths).item()
-
-        audios, tokens = [], []
-
-        for i, sample_tuple in enumerate(batch):
-            (
-                audio,
-                audio_len,
-                token,
-                token_len,
-            ) = sample_tuple
-
-            audio = general_padding(audio, audio_len.item(), max_audio_len)
-            audios.append(audio)
-
-            token = general_padding(token, token_len.item(), max_tokens_len, pad_value=self.text_tokenizer_pad_id)
-            tokens.append(token)
-
-
-        data_dict = {
-            "audio": torch.stack(audios),
-            "audio_lens": torch.stack(audio_lengths),
-            "text": torch.stack(tokens),
-            "text_lens": torch.stack(tokens_lengths),
-        }
-
-        return data_dict
-
-    def _collate_fn(self, batch):
-        data_dict = self.general_collate_fn(batch)
-        joined_data = self.join_data(data_dict)
-        return joined_data
+    def set_epoch(self, epoch: int) -> None:
+        """
+        Sets the epoch for this sampler. When :attr:`shuffle=True`, this ensures all replicas
+        use a different random ordering for each epoch. Otherwise, the next iteration of this
+        sampler will yield the same ordering.
+        Args:
+            epoch (int): Epoch number.
+        """
+        self.epoch = epoch

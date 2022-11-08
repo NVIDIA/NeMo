@@ -8,27 +8,32 @@ name: VITS
 
 train_dataset: ???
 validation_datasets: ???
-sup_data_path: null
-sup_data_types: null
+sup_data_path: ???
+sup_data_types: [speaker_id]
+
+pitch_fmin: 65.40639132514966
+pitch_fmax: 2093.004522404789
+
+sample_rate: 44100
+n_mel_channels: 80
+n_window_size: 2048
+n_window_stride: 512
+n_fft: 2048
+lowfreq: 0
+highfreq: null
+window: hann
 
 phoneme_dict_path: "scripts/tts_dataset_files/ipa_cmudict-0.7b_nv22.08.txt"
 heteronyms_path: "scripts/tts_dataset_files/heteronyms-052722"
 whitelist_path: "nemo_text_processing/text_normalization/en/data/whitelist/lj_speech.tsv"
 
-# Default values from librosa.pyin
-pitch_fmin: 65.40639132514966
-pitch_fmax: 2093.004522404789
-
-sample_rate: 22050
-n_mel_channels: 80
-n_window_size: 1024
-n_window_stride: 256
-n_fft: 1024
-lowfreq: 0
-highfreq: null
-window: hann
-
 model:
+  n_speakers: 13000
+  segment_size: 16384
+  c_mel: 45
+  c_kl: 1.
+  use_spectral_norm: false
+
   pitch_fmin: ${pitch_fmin}
   pitch_fmax: ${pitch_fmax}
 
@@ -40,14 +45,6 @@ model:
   lowfreq: ${lowfreq}
   highfreq: ${highfreq}
   window: ${window}
-  mel_fmin: 0.0
-  mel_fmax: null
-
-  n_speakers: 0
-  segment_size: 8192
-  c_mel: 45
-  c_kl: 1.
-  use_spectral_norm: false
 
   text_normalizer:
     _target_: nemo_text_processing.text_normalization.normalize.Normalizer
@@ -59,13 +56,13 @@ model:
     verbose: false
     punct_pre_process: true
     punct_post_process: true
-
+  
   text_tokenizer:
     _target_: nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.IPATokenizer
     punct: true
     apostrophe: true
     pad_with_space: false
-    sep_with_space: true
+    sep_with_space: false
     g2p:
       _target_: nemo_text_processing.g2p.modules.IPAG2P
       phoneme_dict: ${phoneme_dict_path}
@@ -102,7 +99,7 @@ model:
       pin_memory: false
 
     batch_sampler:
-      batch_size: 32
+      batch_size: 2
       boundaries: [32,300,400,500,600,700,800,900,1000]
       num_replicas: ${trainer.devices}
       shuffle: true
@@ -131,7 +128,7 @@ model:
     dataloader_params:
       drop_last: false
       shuffle: false
-      batch_size: 16
+      batch_size: 2
       num_workers: 4
       pin_memory: false
 
@@ -159,7 +156,7 @@ model:
     mag_power: 1.0
     exact_pad: true
     use_grads: true
-
+  
   synthesizer:
     _target_: nemo.collections.tts.modules.vits_modules.SynthesizerTrn
     inter_channels: 192
@@ -172,7 +169,7 @@ model:
     resblock: "1"
     resblock_kernel_sizes: [3,7,11]
     resblock_dilation_sizes: [[1,3,5], [1,3,5], [1,3,5]]
-    upsample_rates: [8,8,2,2]
+    upsample_rates: [8,8,4,2]
     upsample_initial_channel: 512
     upsample_kernel_sizes: [16,16,4,4]
     n_speakers: ${model.n_speakers}
@@ -205,7 +202,7 @@ trainer:
   check_val_every_n_epoch: 1
 
 exp_manager:
-  exp_dir: ../exps/vits_fp16_local
+  exp_dir: ../exps/vits_hifitts_fp16_local
   name: ${name}
   create_tensorboard_logger: false
   create_checkpoint_callback: true
@@ -214,7 +211,7 @@ exp_manager:
     mode: min
   create_wandb_logger: true
   wandb_logger_kwargs:
-    name: vits_fp16_local
+    name: vits_hifitts_fp16_local
     project: ${name}
     entity: nvidia
     resume: "allow"
