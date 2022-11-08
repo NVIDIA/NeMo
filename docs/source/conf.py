@@ -109,7 +109,9 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx.ext.autosectionlabel",
     "sphinxcontrib.bibtex",
-    # "sphinx_rtd_theme",
+    "sphinx_copybutton",
+    "IPython.sphinxext.ipython_console_highlighting",
+    "IPython.sphinxext.ipython_directive",
 ]
 
 bibtex_bibfiles = [
