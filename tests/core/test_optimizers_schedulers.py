@@ -20,6 +20,7 @@ import pytest
 import pytorch_lightning as pl
 import torch
 import torch.optim
+from pytorch_lightning.utilities import rank_zero_only
 
 from nemo.core import config, optim
 from nemo.core.optim.lr_scheduler import AVAILABLE_SCHEDULERS
@@ -85,7 +86,7 @@ class ExampleModel(pl.LightningModule):
 
 
 class Callback(pl.callbacks.Callback):
-    @pl.utilities.distributed.rank_zero_only
+    @rank_zero_only
     def on_train_end(self, trainer, module):
         count = module.my_opt.param_groups[0]['count']
         if trainer.global_step != count or trainer.global_step != module.max_steps:
