@@ -159,11 +159,13 @@ class MegatronBertModel(MegatronBaseModel):
                 elif parallel_state.is_pipeline_last_stage():
                     loss_mask = batch[3].cuda(non_blocking=True)
                     lm_labels = batch[4].cuda(non_blocking=True)
+                    sentence_order = batch[2].cuda(non_blocking=True)
                     padding_mask = batch[5].cuda(non_blocking=True)
-                    tokens, types, sentence_order = None, None, None
+                    tokens, types = None, None
                 else:
                     padding_mask = batch[5].cuda(non_blocking=True)
-                    tokens, types, sentence_order, loss_mask, lm_labels = None, None, None, None, None
+                    sentence_order = batch[2].cuda(non_blocking=True)
+                    tokens, types, loss_mask, lm_labels = None, None, None, None
 
             if not self.cfg.bert_binary_head:
                 types = None
