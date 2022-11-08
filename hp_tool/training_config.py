@@ -28,7 +28,7 @@ def search_training_config(
     :param float model_size_in_b: number of parameters in the model, if known.
     :param str model_name: name of the model to be trained: gpt3, t5, mt5...
     :param str hydra_args: hydra override arguments in string format.
-    :param omegaconf.dictconfig.DictConfig cfg: main hydra config object for the HP tool.
+    :param omegaconf.dictconfig.fDictConfig cfg: main hydra config object for the HP tool.
     :return: None
     """
     # Generate candidate configs.
@@ -76,6 +76,7 @@ def generate_grid_search_configs(
         else base_cfg["model"]["encoder"]["num_layers"]
     )
     act_granularity = base_cfg["model"].get("activations_checkpoint_granularity", "full")
+    act_method = base_cfg["model"].get("activations_checkpoint_method", "block")
 
     tp_list, pp_list, mbs_list = _calculate_tp_pp_mbs_grid(
         model_size_in_b=model_size_in_b,
@@ -89,19 +90,6 @@ def generate_grid_search_configs(
 
     max_minutes = train_cfg.get("max_minutes_per_run")
     max_steps = train_cfg.get("max_steps_per_run")
-
-    act_multiple = 1
-    if act_granularity == "full":
-        results_cfgs = [[] for _ in range(multiplier * num_layers + 1)]
-        if model_name != "gpt3":
-            if model_size_in_b < 1.0:
-                act_multiple = 2
-            elif 1.0 <= model_size_in_b < 26.0:
-                act_multiple = 4
-            else:
-                act_multiple = 8
-    else:
-        results_cfgs = [[]]
 
     valid_tp_pp_list = []
     for tp in tp_list:
@@ -118,56 +106,83 @@ def generate_grid_search_configs(
                 mod_gbs = gbs % (mbs * num_gpus / (tp * pp))
                 mod_att_heads = att_heads % tp
                 mod_layers = (multiplier * num_layers) % pp
-                if mod_gbs == 0 and mod_att_heads == 0 and mod_layers == 0:
+                if mod_gbs == 0 and mod_att_heads == 0 and mod_layers == 0 and (tp, pp) not in valid_tp_pp_list:
                     valid_tp_pp_list.append((tp, pp))
 
     # Generate grid search configs.
-    for tp in tp_list:
-        for pp in pp_list:
-            for mbs in mbs_list:
-                if act_granularity == "full":
-                    act_ckpt_layers = [
-                        x for x in range(multiplier * num_layers // pp + 1) if x % act_multiple == 0
-                    ]
-                    if act_layers is not None and act_layers != "auto":
-                        act_ckpt_layers = act_layers
-                    for act in act_ckpt_layers:
-                        new_cfg = utils.modify_cfg(
-                            base_cfg=base_cfg,
-                            act=act,
-                            tp=tp,
-                            pp=pp,
-                            mbs=mbs,
-                            max_minutes=max_minutes,
-                            max_steps=max_steps,
-                            num_nodes=num_nodes,
-                            model_name=model_name,
-                        )
-                        if new_cfg:  # Save candidate cfg.
-                            file_name = f"{model_name}_{model_size_in_b}b_{num_nodes}nodes_tp_{tp}_pp_{pp}_mbs_{mbs}_act_ckpt_{act}.yaml"
-                            results_cfgs[act].append(file_name)
-                            with open(f"{base_dir}/{file_name}", "w") as f:
-                                yaml.dump(new_cfg, f)
-                else:
-                    new_cfg = utils.modify_cfg(
-                        base_cfg=base_cfg,
-                        act=None,
-                        tp=tp,
-                        pp=pp,
-                        mbs=mbs,
-                        max_minutes=max_minutes,
-                        max_steps=max_steps,
-                        num_nodes=num_nodes,
-                        model_name=model_name,
-                    )
-                    if new_cfg:  # Save candidate cfg.
-                        file_name = f"{model_name}_{model_size_in_b}b_{num_nodes}nodes_tp_{tp}_pp_{pp}_mbs_{mbs}_act_ckpt_selective.yaml"
-                        results_cfgs[0].append(file_name)
-                        with open(f"{base_dir}/{file_name}", "w") as f:
-                            yaml.dump(new_cfg, f)
+    results_cfgs = [[] for _ in range(multiplier * num_layers + 1)]
+    for tp, pp in valid_tp_pp_list:
+        act_ckpt_layers, num_micro_batches_partial_act_ckpt, act_ckpt_layers_per_pipeline = _set_activations_checkpoint_params(tp, pp, num_layers, act_method, multiplier, model_size_in_b, model_name)
+        for mbs in mbs_list:
+                if act_layers is not None and act_layers != "auto":
+                    act_ckpt_layers = act_layers
+                for act in act_ckpt_layers:
+                    for num_mbs_act in num_micro_batches_partial_act_ckpt:
+                        for act_per_pipe in act_ckpt_layers_per_pipeline:
+                            new_cfg = utils.modify_cfg(
+                                base_cfg=base_cfg,
+                                act=act,
+                                num_mbs_act=num_mbs_act,
+                                act_per_pipe=act_per_pipe,
+                                tp=tp,
+                                pp=pp,
+                                mbs=mbs,
+                                max_minutes=max_minutes,
+                                max_steps=max_steps,
+                                num_nodes=num_nodes,
+                                model_name=model_name,
+                            )
+                            if new_cfg:  # Save candidate cfg.
+                                file_name = f"{model_name}_{model_size_in_b}b_{num_nodes}nodes_tp_{tp}_pp_{pp}_mbs_{mbs}_act_ckpt_{act}_num_mbs_act_{num_mbs_act}_act_per_pipe_{act_per_pipe}.yaml"
+                                results_cfgs[act].append(file_name)
+                                with open(f"{base_dir}/{file_name}", "w") as f:
+                                    yaml.dump(new_cfg, f)
 
     print("\nAll candidate configurations created correctly.\n")
+    print(results_cfgs)
     return base_dir, results_cfgs, num_nodes
+
+
+def _set_activations_checkpoint_params(tp, pp, num_layers, act_method, multiplier, model_size_in_b, model_name):
+    act_multiple = 2
+    if act_method == "block":
+        if 1.0 <= model_size_in_b < 26.0:
+            act_multiple = 4
+        elif 26.0 <= model_size_in_b:
+            if model_name != "gpt3":
+                act_multiple = 4
+            else:
+                act_multiple = 8
+
+    virtual_pipelines = 1
+    # Num micro batches with partial act ckpt
+    min_micro_b = 0
+    max_micro_b = pp
+    interval_micro_b = 1
+    # Act ckpt layers per pipeline
+    min_layers_per_pipe = 0
+    max_layers_per_pipe = 2
+    interval_layers_per_pipe = 1
+    if model_name == "gpt3" and pp > 2:  # Interleaved pipeline scheduling.
+        virtual_pipelines = num_layers // pp  # TODO: verify that this is the best value.
+        act_multiple = 1
+        max_micro_b = pp * (virtual_pipelines-1) + (pp-1) * 2 + 1
+        interval_micro_b = virtual_pipelines * 2
+        max_layers_per_pipe = 1
+
+    act_ckpt_layers, num_micro_batches_partial_act_ckpt, act_ckpt_layers_per_pipeline = [None], [None], [None]
+    if act_method == "block":
+        # Act ckpt num layers
+        act_ckpt_layers = range(0, multiplier * num_layers // pp // virtual_pipelines + 1, act_multiple) 
+
+        if pp > 1 and model_name == "gpt3":
+            # Num micro batches with partial act ckpt
+            num_micro_batches_partial_act_ckpt = range(min_micro_b, max_micro_b + 1, interval_micro_b)
+
+            # Act ckpt layers per pipeline
+            act_ckpt_layers_per_pipeline = range(min_layers_per_pipe, max_layers_per_pipe + 1, interval_layers_per_pipe)
+
+    return act_ckpt_layers, num_micro_batches_partial_act_ckpt, act_ckpt_layers_per_pipeline
 
 
 def _tp_pp_mbs_grid_gpt3_80gb(model_size_in_b: float, valid_pp: List[int]) -> Tuple[int, int, int]:
@@ -209,20 +224,20 @@ def _tp_pp_mbs_grid_gpt3_80gb(model_size_in_b: float, valid_pp: List[int]) -> Tu
         pp = [x for x in valid_pp if 1 <= x <= 16]
         mbs = [1, 2, 4, 8]
     elif 130.0 < model_size_in_b <= 195.0:
-        tp = [4, 8]
-        pp = [x for x in valid_pp if 2 <= x <= 16]
+        tp = [8]
+        pp = [x for x in valid_pp if 4 <= x <= 16]
         mbs = [1, 2, 4]
     elif 195.0 < model_size_in_b <= 395.0:
-        tp = [4, 8]
-        pp = [x for x in valid_pp if 2 <= x <= 32]
+        tp = [8]
+        pp = [x for x in valid_pp if 8 <= x <= 32]
         mbs = [1, 2, 4]
     elif 395.0 < model_size_in_b <= 790.0:
-        tp = [4, 8]
-        pp = [x for x in valid_pp if 4 <= x <= 100]
+        tp = [8]
+        pp = [x for x in valid_pp if 8 <= x <= 100]
         mbs = [1, 2, 4]
     elif 790.0 < model_size_in_b <= 1100.0:
-        tp = [4, 8]
-        pp = [x for x in valid_pp if 4 <= x <= 130]
+        tp = [8]
+        pp = [x for x in valid_pp if 16 <= x <= 130]
         mbs = [1, 2, 4]
     return tp, pp, mbs
 
@@ -325,6 +340,18 @@ def _tp_pp_mbs_grid_t5_80gb(model_size_in_b: float, valid_pp: List[int]) -> Tupl
         tp = [4, 8]
         pp = [x for x in valid_pp if 1 <= x <= 4]
         mbs = [1, 2, 4, 6, 8]
+    elif 43.0 < model_size_in_b <= 85.5:
+        tp = [4, 8]
+        pp = [x for x in valid_pp if 2 <= x <= 8]
+        mbs = [1, 2, 4, 6, 8]
+    elif 85.5 < model_size_in_b <= 165.5:
+        tp = [8]
+        pp = [x for x in valid_pp if 4 <= x <= 16]
+        mbs = [1, 2, 4, 6]
+    elif 165.5 < model_size_in_b <= 250:
+        tp = [8]
+        pp = [x for x in valid_pp if 4 <= x <= 32]
+        mbs = [1, 2, 4]
     return tp, pp, mbs
 
 
@@ -364,6 +391,18 @@ def _tp_pp_mbs_grid_t5_40gb(model_size_in_b: float, valid_pp: List[int]) -> Tupl
         tp = [4, 8]
         pp = [x for x in valid_pp if 1 <= x <= 8]
         mbs = [1, 2, 4, 6, 8]
+    elif 43.0 < model_size_in_b <= 85.5:
+        tp = [8]
+        pp = [x for x in valid_pp if 2 <= x <= 8]
+        mbs = [1, 2, 4, 6, 8]
+    elif 85.5 < model_size_in_b <= 165.5:
+        tp = [8]
+        pp = [x for x in valid_pp if 4 <= x <= 32]
+        mbs = [1, 2, 4]
+    elif 165.5 < model_size_in_b <= 250:
+        tp = [8]
+        pp = [x for x in valid_pp if 8 <= x <= 64]
+        mbs = [1, 2, 4]
     return tp, pp, mbs
 
 

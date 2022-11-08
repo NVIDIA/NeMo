@@ -273,8 +273,14 @@ def _gbs_tp_pp_t5_80gb(model_size_in_b: float) -> Tuple[int, int, int]:
         gbs, tp, pp = 1920, 8, 2
     elif model_size_in_b <= 43.0:
         gbs, tp, pp = 1920, 8, 4
+    elif model_size_in_b <= 85.5:
+        gbs, tp, pp = 1920, 8, 8
+    elif model_size_in_b <= 165.5:
+        gbs, tp, pp = 1920, 8, 16
+    elif model_size_in_b <= 250:
+        gbs, tp, pp = 1920, 8, 32
     else:
-        raise ValueError("No T5 model larger than 43B parameters is supported.")
+        raise ValueError("No T5/mT5 model larger than 250B parameters is supported.")
     return gbs, tp, pp
 
 
@@ -304,8 +310,14 @@ def _gbs_tp_pp_t5_40gb(model_size_in_b: float) -> Tuple[int, int, int]:
         gbs, tp, pp = 1920, 8, 4
     elif model_size_in_b <= 43.0:
         gbs, tp, pp = 1920, 8, 8
+    elif model_size_in_b <= 85.5:
+        gbs, tp, pp = 1920, 8, 16
+    elif model_size_in_b <= 165.5:
+        gbs, tp, pp = 1920, 8, 32
+    elif model_size_in_b <= 250:
+        gbs, tp, pp = 1920, 8, 64
     else:
-        raise ValueError("No T5 model larger than 43B parameters is supported.")
+        raise ValueError("No T5/mT5 model larger than 250B parameters is supported.")
     return gbs, tp, pp
 
 
@@ -390,11 +402,22 @@ def generate_base_config(
         base_cfg["model"]["optim"]["sched"]["constant_steps"] = int(
             0.166 * base_cfg["trainer"]["max_steps"]
         )
+        # Always use partial activation checkpointing with block.
+        # Search activations_checkpoint_num_layers to be between 0 and num_layers/PP. 
+        #     If using interleaved scheduling, activations_checkpoint_num_layers must be between 0 and num_layers/PP/Virtual_pipelines(VP).
+        # If using PP>1, we can also search for num_micro_batches_with_partial_activation_checkpoints.
+        #.    num_micro_batches_with_partial_activation_checkpoints must be a value between 0 and activations_checkpoint_num_layers (both included).
+        #
+        # num_micro_batches_with_partial_activation_checkpoints WILL NEED TO SEARCH. 
+        # Need to know the range(min, max, interval)
+        #
+        # activations_checkpoint_layers_per_pipeline WILL NEED TO SEARCH.
+        # range(min, max, interval)
         if model_size_in_b <= 13.0:
             base_cfg["model"]["sequence_parallel"] = False
-            base_cfg["model"]["activations_checkpoint_granularity"] = "full"
-            base_cfg["model"]["activations_checkpoint_method"] = "block"
-            base_cfg["model"]["activations_checkpoint_num_layers"] = 0
+            #base_cfg["model"]["activations_checkpoint_granularity"] = "full"
+            #base_cfg["model"]["activations_checkpoint_method"] = "block"
+            #base_cfg["model"]["activations_checkpoint_num_layers"] = 0
     else:
         base_cfg["model"]["global_batch_size"] = int(gbs)
         base_cfg["model"]["encoder"]["num_layers"] = int(layers)

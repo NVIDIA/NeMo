@@ -139,8 +139,14 @@ def calculate_model_size_params(
             hs, att_h, ffn = 5120, 80, 10880
         elif model_size_in_b < 43.0:
             hs, att_h, ffn = 6144, 96, 10880
+        elif model_size_in_b <= 85.5:
+            hs, att_h, ffn = 6144, 96, 16384
+        elif model_size_in_b <= 165.5:
+            hs, att_h, ffn, kv = 7680, 96, 20480, 128
+        elif model_size_in_b <= 250:
+            hs, att_h, ffn, kv = 12288, 96, 32768, 128
         else:
-            raise ValueError("Model_size for T5 must be smaller than 43B parameters.")
+            raise ValueError("Model_size for T5 must be smaller than 250B parameters.")
     elif model_name == "mt5":
         kv, lr = 64, 1e-4
         if model_size_in_b < 0.25:
@@ -157,8 +163,14 @@ def calculate_model_size_params(
             hs, att_h, ffn = 5120, 80, 10880
         elif model_size_in_b < 43.0:
             hs, att_h, ffn = 6144, 96, 10880
+        elif model_size_in_b <= 85.5:
+            hs, att_h, ffn = 6144, 96, 16384
+        elif model_size_in_b <= 165.5:
+            hs, att_h, ffn, kv = 7680, 96, 20480, 128
+        elif model_size_in_b <= 250:
+            hs, att_h, ffn, kv = 12288, 96, 32768, 128
         else:
-            raise ValueError("Model_size for mT5 must be smaller than 43B parameters.")
+            raise ValueError("Model_size for mT5 must be smaller than 250B parameters.")
 
     else:
         raise NotImplementedError("Model name is not valid.")
@@ -269,12 +281,14 @@ def generic_base_config(cfg: omegaconf.dictconfig.DictConfig, model_name: str = 
     return base_cfg
 
 
-def modify_cfg(base_cfg: dict, act: int, tp: int, pp: int, mbs: int, max_minutes: int, max_steps: int, num_nodes: int, model_name: str) -> dict:
+def modify_cfg(base_cfg: dict, act: int, num_mbs_act: int, act_per_pipe: int, tp: int, pp: int, mbs: int, max_minutes: int, max_steps: int, num_nodes: int, model_name: str) -> dict:
     """
     Modify the base configuration for the model with the new parameters that are specific to the current model, which the HP tool heuristics selected.
 
     :param dict base_cfg: base configuration for the current model, which will be modified in this function.
     :param int act: number of activation checkpointing layers to use for the model.
+    :param int num_mbs_act: 
+    :param int act_per_pipe: 
     :param int tp: Tensor Parallelism (TP) value to be set for the model.
     :param int pp: Pipeline Parallelism (PP) value to be set for the model.
     :param int mbs: Micro Batch Size (MBS) value to be set for the model.
@@ -292,11 +306,17 @@ def modify_cfg(base_cfg: dict, act: int, tp: int, pp: int, mbs: int, max_minutes
         else: 
             new_cfg["model"]["encoder"]["activations_checkpoint_num_layers"] = act // 2
             new_cfg["model"]["decoder"]["activations_checkpoint_num_layers"] = act // 2
-    else:
-        act = "selective"
+        
+    if num_mbs_act is not None and model_name == "gpt3":
+        new_cfg["model"]["num_micro_batches_with_partial_activation_checkpoints"] = num_mbs_act
+
+    if act_per_pipe is not None and model_name == "gpt3":
+        new_cfg["model"]["activations_checkpoint_layers_per_pipeline"] = act_per_pipe
+
     new_cfg["model"]["tensor_model_parallel_size"] = tp
     new_cfg["model"]["pipeline_model_parallel_size"] = pp
     new_cfg["model"]["micro_batch_size"] = mbs
+
     if model_name == "gpt3":
         att_heads = new_cfg["model"]["num_attention_heads"]
         num_layers = new_cfg["model"]["num_layers"]
@@ -315,15 +335,16 @@ def modify_cfg(base_cfg: dict, act: int, tp: int, pp: int, mbs: int, max_minutes
         # Valid config
         new_cfg["trainer"]["num_nodes"] = num_nodes  # Necessary for short single-node test.
         new_cfg["trainer"]["max_steps"] = max_steps
+        new_cfg["trainer"]["val_check_interval"] = max_steps
         days = max_minutes // 3600
         hours = (max_minutes % 3600) // 60
         mins = (max_minutes % 3600) % 60
         new_cfg["run"]["time_limit"] = f"{days}-{hours}:{mins}:00"
         new_cfg["run"][
             "name"
-        ] = f"{new_cfg['run']['name']}_{num_nodes}nodes_tp_{tp}_pp_{pp}_mbs_{mbs}_act_ckpt_{act}"
+        ] = f"{new_cfg['run']['name']}_{num_nodes}nodes_tp_{tp}_pp_{pp}_mbs_{mbs}_act_ckpt_{act}_num_mbs_act_{num_mbs_act}_act_per_pipe_{act_per_pipe}"
         print(
-            f"Valid config: GBS={gbs}, MBS={mbs}, TP={tp}, PP={pp}, act_ckpt_layers={act}. Adding to directory."
+            f"Valid config: GBS={gbs}, MBS={mbs}, TP={tp}, PP={pp}, act_ckpt_layers={act}, num_mbs_act={num_mbs_act}, act_per_pipe={act_per_pipe}. Adding to directory."
         )
         return new_cfg
     return None
