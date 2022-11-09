@@ -201,7 +201,6 @@ class T5PromptLearningDataset(BasePromptLearningDataset):
         dec_input = copy.deepcopy(orig_dec_input)
         dec_labels = copy.deepcopy(orig_dec_labels)
 
-
         taskname_ids = self.pad_taskname_ids(taskname_ids)
 
         enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask = self.pad_batch_and_build_loss_mask(

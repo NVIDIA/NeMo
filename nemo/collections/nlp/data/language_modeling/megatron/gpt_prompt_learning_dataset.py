@@ -125,7 +125,7 @@ class GPTPromptLearningDataset(Dataset):
 
         ex_id = -1
         for json_line in tqdm(dataset):
-            ex_id += 1
+            ex_id += 1  # (@adithyare) ex_id is just to track the example id it is not used as input to the model.
             # Read example dict or load the information for a single example from .json file
             if type(json_line) == dict:
                 doc = json_line
