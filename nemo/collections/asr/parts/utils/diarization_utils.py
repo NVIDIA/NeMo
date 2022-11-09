@@ -21,13 +21,8 @@ from datetime import datetime
 from typing import Dict, List, Tuple
 
 import numpy as np
-from scipy.optimize import linear_sum_assignment
 
-from nemo.collections.asr.metrics.der import (
-    calculate_session_cpWER,
-    calculate_session_cpWER_bruteforce,
-    concat_perm_word_error_rate
-)
+from nemo.collections.asr.metrics.der import concat_perm_word_error_rate
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.asr.models import ClusteringDiarizer
 from nemo.collections.asr.parts.utils.speaker_utils import (
@@ -154,9 +149,9 @@ def convert_word_dict_seq_to_text(word_dict_seq_list: List[Dict[str, float]]) ->
     return spk_hypothesis, mix_hypothesis
 
 
-def convert_word_dict_seq_to_ctm(word_dict_seq_list: List[Dict[str, float]], 
-                                 uniq_id: str = 'null', 
-                                 decimals: int = 3) -> Tuple[List[str], str]:
+def convert_word_dict_seq_to_ctm(
+    word_dict_seq_list: List[Dict[str, float]], uniq_id: str = 'null', decimals: int = 3
+) -> Tuple[List[str], str]:
     """
     Convert word_dict_seq_list into a list containing transcription in CTM format.
 
@@ -1254,4 +1249,3 @@ class OfflineDiarWithASR:
         """
         spk_set = [x.split(' ')[-1].strip() for x in labels]
         return len(set(spk_set))
-

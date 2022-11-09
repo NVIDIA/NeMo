@@ -17,15 +17,20 @@ from itertools import permutations
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
+from pyannote.core import Annotation, Segment, Timeline
+from pyannote.metrics.diarization import DiarizationErrorRate
 from scipy.optimize import linear_sum_assignment
 
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.utils import logging
 
-from pyannote.core import Annotation, Segment, Timeline
-from pyannote.metrics.diarization import DiarizationErrorRate
+__all__ = [
+    'score_labels',
+    'calculate_session_cpWER',
+    'calculate_session_cpWER_bruteforce',
+    'concat_perm_word_error_rate',
+]
 
-__all__ = ['score_labels', 'calculate_session_cpWER', 'calculate_session_cpWER_bruteforce', 'concat_perm_word_error_rate']
 
 def uem_timeline_from_file(uem_file, uniq_name=''):
     """
@@ -292,4 +297,3 @@ def concat_perm_word_error_rate(
         hyps_spk.append(min_hypothesis)
         refs_spk.append(concat_reference)
     return cpWER_values, hyps_spk, refs_spk
-
