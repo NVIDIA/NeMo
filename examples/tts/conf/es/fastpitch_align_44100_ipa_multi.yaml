@@ -1,4 +1,4 @@
-# This config contains the default values for training grapheme Spanish FastPitch model with aligner using
+# This config contains the default values for training multi-speaker IPA Spanish FastPitch model with aligner using
 # 44.1KHz sampling rate. If you want to train model on other dataset, you can change config values according
 # to your dataset. Most dataset-specific arguments are in the head of the config file, see below.
 
@@ -7,7 +7,7 @@ name: FastPitch
 train_dataset: ???
 validation_datasets: ???
 sup_data_path: ???
-sup_data_types: ["align_prior_matrix", "pitch"]
+sup_data_types: ["align_prior_matrix", "pitch", "speaker_id"]
 
 # Default values from librosa.pyin
 pitch_fmin: 65.40639132514966
@@ -26,14 +26,18 @@ lowfreq: 0
 highfreq: null
 window: hann
 
+phoneme_dict_path: ???
+
 model:
   learn_alignment: true
   bin_loss_warmup_epochs: 100
 
-  n_speakers: 1
+  n_speakers: ???
   max_token_duration: 75
   symbols_embedding_dim: 384
   pitch_embedding_kernel_size: 3
+  speaker_emb_condition_prosody: true
+  speaker_emb_condition_aligner: true
 
   pitch_fmin: ${pitch_fmin}
   pitch_fmax: ${pitch_fmax}
@@ -51,8 +55,19 @@ model:
   window: ${window}
 
   text_tokenizer:
-    _target_: nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.SpanishCharsTokenizer
+    _target_: nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.IPATokenizer
+    locale: es-ES
+    punct: true
+    apostrophe: true
     pad_with_space: true
+    g2p:
+      _target_: nemo_text_processing.g2p.modules.IPAG2P
+      locale: es-ES
+      phoneme_dict: ${phoneme_dict_path}
+      phoneme_probability: 0.5
+      ignore_ambiguous_words: false
+      use_chars: true
+      use_stresses: true
 
   train_ds:
     dataset:
