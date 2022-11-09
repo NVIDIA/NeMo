@@ -66,7 +66,7 @@ model:
     use_start_end_token: false
     max_duration_content: 16.7
     min_duration_content: 8.0
-    segment_max_duration: 5
+    segment_max_duration: 2
     sup_data_path: "/home/pneekhara/Datasets/SupData/val"
     pitch_augment: ${model.pitch_augment}
     cache_pitch_augment: true
@@ -172,7 +172,7 @@ trainer:
   devices: -1 # number of GPUs, -1 would use all available GPUs
   num_nodes: 1
   max_epochs: 1000
-  max_steps: null # computed at runtime if not set
+  max_steps: 500000 # computed at runtime if not set
   val_check_interval: 1.0 # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
   accelerator: auto
   strategy: ddp

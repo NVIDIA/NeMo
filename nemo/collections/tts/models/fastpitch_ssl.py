@@ -133,9 +133,9 @@ class FastPitchModel_SSL(ModelPT):
     def vocode_spectrogram(self, spectrogram):
         # spectrogram [C, T] numpy
         with torch.no_grad():
-            _spec = torch.from_numpy(spectrogram).unsqueeze(0).to(torch.float32)
+            _spec = torch.from_numpy(spectrogram).unsqueeze(0).to(torch.float32).to(self.device)
             wav_generated = self.non_trainable_models['vocoder'].generator(x=_spec)[0]
-            return wav_generated.numpy()
+            return wav_generated.cpu().numpy()
 
     @property
     def tb_logger(self):

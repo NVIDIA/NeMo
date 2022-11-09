@@ -279,9 +279,7 @@ class SSLDisentangler(ModelPT):
             )
 
         if for_export:
-            encoded, encoded_len = self.encoder.forward_for_export(
-                audio_signal=processed_signal, length=processed_signal_length
-            )  # b,c,t
+            encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)  # b,c,t
         else:
             encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)  # b,c,t
 
