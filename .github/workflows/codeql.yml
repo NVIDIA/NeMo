@@ -1,0 +1,42 @@
+name: "CodeQL"
+
+on:
+  push:
+    branches: [ "main", "gh-pages-src", "r0.8", "r0.8.1", "r0.10.0", "r1.0.0b3", "r1.0.0b4", "r1.0.0rc1", "r1.0.1", "r1.0.2", "r1.0.9", "r1.1.0", "r1.2.0", "r1.3.0", "r1.3.1", "r1.4.0", "r1.5.0-nltkfix", "r1.5.0", "r1.5.1", "r1.6.0", "r1.6.1", "r1.6.2", "r1.7.0", "r1.7.1", "r1.7.2", "r1.8.0", "r1.8.1_bugfix", "r1.8.1_fastpitch_bugfix", "r1.8.1", "r1.8.2", "r1.9.0", "r1.10.0-megamolbart", "r1.10.0-megamolbart-ea2", "r1.10.0", "r1.11.0-temp", "r1.11.0", "r1.11.1", "r1.12.0", "r1.13.0", "v1.0.0" ]
+  pull_request:
+    branches: [ "main" ]
+  schedule:
+    - cron: "10 7 * * 2"
+
+jobs:
+  analyze:
+    name: Analyze
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ python, javascript ]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v2
+        with:
+          languages: ${{ matrix.language }}
+          queries: +security-and-quality
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v2
+        if: ${{ matrix.language == 'python' || matrix.language == 'javascript' }}
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
+        with:
+          category: "/language:${{ matrix.language }}"
