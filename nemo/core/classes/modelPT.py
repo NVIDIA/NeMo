@@ -239,7 +239,7 @@ class ModelPT(LightningModule, Model):
             save_path: Path to .nemo file where model instance should be saved
         """
 
-        def maybe_make_save_dir(path: Path):
+        def maybe_make_save_dir(path: 'pathlib.Path'):
             if not path.parent.exists():
                 path.parent.mkdir(parents=True)
 

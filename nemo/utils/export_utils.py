@@ -213,7 +213,7 @@ try:
     from apex.transformer.tensor_parallel.layers import RowParallelLinear, ColumnParallelLinear
     from apex.transformer.functional.fused_softmax import FusedScaleMaskSoftmax
 
-    def replace_FusedLayerNorm(n: nn.Module) -> Optional[nn.LayerNorm]:
+    def replace_FusedLayerNorm(n: nn.Module) -> Optional[nn.BatchNorm2d]:
         """
         Replaces Apex's FusedLayerNorm with nn.LayerNorm. This is required for ONNX export.
         Args:
