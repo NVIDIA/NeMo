@@ -13,11 +13,219 @@
 # limitations under the License.
 import os
 from typing import List
-
+import torch
 from tqdm.auto import tqdm
-
+import json
+import os
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
 from nemo.utils import logging
+from nemo.collections.asr.models import ASRModel
+from nemo.collections.asr.parts.utils import rnnt_utils
+import nemo.collections.asr as nemo_asr
+from pathlib import Path
+
+
+def get_buffered_pred_feat_rnnt(mfst, asr, tokens_per_chunk, delay, model_stride_in_secs, batch_size):
+    hyps = []
+    refs = []
+    audio_filepaths = []
+
+    with open(mfst, "r") as mfst_f:
+        print("Parsing manifest files...")
+        for l in mfst_f:
+            row = json.loads(l.strip())
+            audio_filepaths.append(row['audio_filepath'])
+            refs.append(row['text'])
+
+    with torch.inference_mode():
+        with torch.cuda.amp.autocast():
+            batch = []
+            asr.sample_offset = 0
+            for idx in tqdm(range(len(audio_filepaths)), desc='Sample:', total=len(audio_filepaths)):
+                batch.append((audio_filepaths[idx], refs[idx]))
+
+                if len(batch) == batch_size:
+                    audio_files = [sample[0] for sample in batch]
+
+                    asr.reset()
+                    asr.read_audio_file(audio_files, delay, model_stride_in_secs)
+                    hyp_list = asr.transcribe(tokens_per_chunk, delay)
+                    hyps.extend(hyp_list)
+
+                    batch.clear()
+                    asr.sample_offset += batch_size
+
+            if len(batch) > 0:
+                asr.batch_size = len(batch)
+                asr.frame_bufferer.batch_size = len(batch)
+                asr.reset()
+
+                audio_files = [sample[0] for sample in batch]
+                asr.read_audio_file(audio_files, delay, model_stride_in_secs)
+                hyp_list = asr.transcribe(tokens_per_chunk, delay)
+                hyps.extend(hyp_list)
+
+                batch.clear()
+                asr.sample_offset += len(batch)
+
+    if os.environ.get('DEBUG', '0') in ('1', 'y', 't'):
+        for hyp, ref in zip(hyps, refs):
+            print("hyp:", hyp)
+            print("ref:", ref)
+
+    # wer = word_error_rate(hypotheses=hyps, references=refs)
+    # return hyps, refs, wer
+
+    wrapped_hyps = wrap_transcription(hyps)
+    return wrapped_hyps 
+
+  
+def get_buffered_pred_feat(mfst, asr, frame_len, tokens_per_chunk, delay, preprocessor_cfg, model_stride_in_secs, device):
+    # Create a preprocessor to convert audio samples into raw features,
+    # Normalization will be done per buffer in frame_bufferer
+    # Do not normalize whatever the model's preprocessor setting is
+    preprocessor_cfg.normalize = "None"
+    preprocessor = nemo_asr.models.EncDecCTCModelBPE.from_config_dict(preprocessor_cfg)
+    preprocessor.to(device)
+    hyps = []
+    # refs = []
+
+    with open(mfst, "r") as mfst_f:
+        for l in tqdm(mfst_f, desc="Sample:"):
+            asr.reset()
+            row = json.loads(l.strip())
+            # do not support partial audio
+            asr.read_audio_file(row['audio_filepath'], delay, model_stride_in_secs)
+            hyp = asr.transcribe(tokens_per_chunk, delay)
+            hyps.append(hyp)
+            # refs.append(row['text'])
+
+    # wer = word_error_rate(hypotheses=hyps, references=refs)
+    # return hyps, refs, wer
+
+    wrapped_hyps = wrap_transcription(hyps)
+    return wrapped_hyps 
+
+def wrap_transcription(hyps):
+    wrapped_hyps = []
+    for hyp in hyps:
+        hypothesis = rnnt_utils.Hypothesis(score=0.0, y_sequence=[], text=hyp)
+        wrapped_hyps.append(hypothesis)
+    return wrapped_hyps
+
+
+def setup_gpu(cfg):
+    # setup GPU
+    if cfg.cuda is None:
+        if torch.cuda.is_available():
+            device = [0]  # use 0th CUDA device
+            accelerator = 'gpu'
+        else:
+            device = 1
+            accelerator = 'cpu'
+    else:
+        device = [cfg.cuda]
+        accelerator = 'gpu'
+
+    map_location = torch.device('cuda:{}'.format(device[0]) if accelerator == 'gpu' else 'cpu')
+    return device, accelerator, map_location
+
+
+def setup_model(cfg, map_location):
+    if cfg.model_path is not None and cfg.model_path != "None" :
+        # restore model from .nemo file path
+        model_cfg = ASRModel.restore_from(restore_path=cfg.model_path, return_config=True)
+        classpath = model_cfg.target  # original class path
+        imported_class = model_utils.import_class_by_path(classpath)  # type: ASRModel
+        logging.info(f"Restoring model : {imported_class.__name__}")
+        asr_model = imported_class.restore_from(
+            restore_path=cfg.model_path, map_location=map_location
+        )  # type: ASRModel
+        model_name = os.path.splitext(os.path.basename(cfg.model_path))[0]
+    else:
+        # restore model by name
+        asr_model = ASRModel.from_pretrained(
+            model_name=cfg.pretrained_name, map_location=map_location
+        )  # type: ASRModel
+        model_name = cfg.pretrained_name
+
+    return asr_model, model_name    
+
+
+def prepare_audio_data(cfg):
+    # this part may need refactor alongsides with refactor of transcribe()
+    if cfg.audio_dir is not None and not cfg.append_pred:
+        filepaths = list(glob.glob(os.path.join(cfg.audio_dir, f"**/*.{cfg.audio_type}"), recursive=True))
+    else:
+        # get filenames from manifest
+        filepaths = []
+        if os.stat(cfg.dataset_manifest).st_size == 0:
+            logging.error(f"The input dataset_manifest {cfg.dataset_manifest} is empty. Exiting!")
+            return None
+
+        manifest_dir = Path(cfg.dataset_manifest).parent
+        with open(cfg.dataset_manifest, 'r') as f:
+            has_two_fields = []
+            for line in f:
+                item = json.loads(line)
+                if "offset" in item and "duration" in item:
+                    has_two_fields.append(True)
+                else:
+                    has_two_fields.append(False)
+                audio_file = Path(item['audio_filepath'])
+                if not audio_file.is_file() and not audio_file.is_absolute():
+                    audio_file = manifest_dir / audio_file
+                filepaths.append(str(audio_file.absolute()))
+        partial_audio = all(has_two_fields)
+    logging.info(f"\nTranscribing {len(filepaths)} files...\n")
+
+    return filepaths, partial_audio
+
+
+def compute_output_filename(cfg, model_name):
+    if cfg.output_filename is None:
+        # create default output filename
+        if cfg.audio_dir is not None:
+            cfg.output_filename = os.path.dirname(os.path.join(cfg.audio_dir, '.')) + '.json'
+        elif cfg.pred_name_postfix is not None:
+            cfg.output_filename = cfg.dataset_manifest.replace('.json', f'_{cfg.pred_name_postfix}.json')
+        else:
+            cfg.output_filename = cfg.dataset_manifest.replace('.json', f'_{model_name}.json')
+    return cfg
+
+
+def write_transcription(transcriptions, cfg, model_name, filepaths=None, compute_langs=False):
+    # write audio transcriptions
+    if cfg.append_pred:
+        logging.info(f'Transcripts will be written in "{cfg.output_filename}" file')
+        if cfg.pred_name_postfix is not None:
+            pred_by_model_name = cfg.pred_name_postfix
+        else:
+            pred_by_model_name = model_name
+        pred_text_attr_name = 'pred_text_' + pred_by_model_name
+    else:
+        pred_text_attr_name = 'pred_text'
+        
+    with open(cfg.output_filename, 'w', encoding='utf-8') as f:
+        if cfg.audio_dir is not None:
+            for idx, transcription in enumerate(transcriptions):
+                item = {'audio_filepath': filepaths[idx], pred_text_attr_name: transcription.text}
+                if compute_langs:
+                    item['pred_lang'] = transcription.langs
+                    item['pred_lang_chars'] = transcription.langs_chars
+                f.write(json.dumps(item) + "\n")
+        else:
+            with open(cfg.dataset_manifest, 'r') as fr:
+                for idx, line in enumerate(fr):
+                    item = json.loads(line)
+                    item[pred_text_attr_name] = transcriptions[idx].text
+
+                    if compute_langs:
+                        item['pred_lang'] = transcriptions[idx].langs
+                        item['pred_lang_chars'] = transcriptions[idx].langs_chars
+                    f.write(json.dumps(item) + "\n")
+                    
+    return cfg.output_filename
 
 
 def transcribe_partial_audio(
@@ -28,7 +236,6 @@ def transcribe_partial_audio(
     return_hypotheses: bool = False,
     num_workers: int = 0,
 ) -> List[str]:
-
     assert isinstance(asr_model, EncDecCTCModel), "Currently support CTC model only."
 
     if return_hypotheses and logprobs:
@@ -87,7 +294,7 @@ def transcribe_partial_audio(
                             current_hypotheses[idx].alignments = current_hypotheses[idx].y_sequence
 
                 hypotheses += current_hypotheses
-
+                
             del greedy_predictions
             del logits
             del test_batch
