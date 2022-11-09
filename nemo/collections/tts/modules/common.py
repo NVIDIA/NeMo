@@ -231,15 +231,15 @@ class ConvLSTMLinear(BiLSTM):
         )
         return seq
 
-    def forward(self, context: Tensor, in_lens: Optional[Tensor]) -> Tensor:
-        if in_lens is None:
-            lens = context.new_ones([context.shape[0]], dtype=torch.int) * context.shape[2]
+    def forward(self, context: Tensor, lens: Optional[Tensor] = None) -> Tensor:
+        if lens is None:
+            my_lens = context.new_ones([context.shape[0]], dtype=torch.int) * context.shape[2]
         else:
-            lens = in_lens
+            my_lens = in_lens
         # borisf : does not match ADLR (values, lengths)
         # seq = self.masked_conv_to_sequence(context, lens, enforce_sorted=False)
         # borisf : does match ADLR
-        seq = self.conv_to_sequence(context, lens, enforce_sorted=False)
+        seq = self.conv_to_sequence(context, my_lens, enforce_sorted=False)
         context, _ = self.lstm_sequence(seq)
 
         if self.dense is not None:
