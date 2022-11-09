@@ -204,6 +204,7 @@ def calculate_model_size_params(
             hs, att_h, lr = 6144, 48, 1e-4
         else:
             raise ValueError("Model_size for BERT must be smaller than 25B parameters.")
+        ffn = 4 * hs
 
     else:
         raise NotImplementedError("Model name is not valid.")
