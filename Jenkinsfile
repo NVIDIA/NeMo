@@ -225,7 +225,7 @@ pipeline {
         stage('Speech to Text EMA') {
           steps {
             sh 'python examples/asr/asr_ctc/speech_to_text_ctc.py \
-            --config-path="../conf/" --config-name="config"
+            --config-path="../conf/" --config-name="config" \
             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
             trainer.devices=2 \
