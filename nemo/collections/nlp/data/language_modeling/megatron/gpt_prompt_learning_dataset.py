@@ -321,7 +321,6 @@ class GPTPromptLearningDataset(Dataset):
         """ Prepares input_ids, labels, loss mask, attention_mask, and position ids for global batch """
         taskname_ids, input_ids, answer_starts = zip(*batch)
 
-
         # Pad taskname_ids to be the same length for the prompt encoder
         if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
             max_taskname_length = max(len(ids) for ids in taskname_ids)
