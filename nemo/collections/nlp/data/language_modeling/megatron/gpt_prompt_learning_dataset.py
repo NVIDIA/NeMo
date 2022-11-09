@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import json
 import os
 import pickle
@@ -319,7 +320,11 @@ class GPTPromptLearningDataset(Dataset):
 
     def collate_fn(self, batch, tp_workers=0):
         """ Prepares input_ids, labels, loss mask, attention_mask, and position ids for global batch """
-        taskname_ids, input_ids, answer_starts = zip(*batch)
+        orig_taskname_ids, orig_input_ids, orig_answer_starts = zip(*batch)
+        taskname_ids = copy.deepcopy(orig_taskname_ids)
+        input_ids = copy.deepcopy(orig_input_ids)
+        answer_starts = copy.deepcopy(orig_answer_starts)
+
 
         # Pad taskname_ids to be the same length for the prompt encoder
         if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
