@@ -1050,6 +1050,148 @@ class JasperBlock(nn.Module, AdapterModuleMixin, AccessMixin):
         return [out], lens
 
 
+class JasperAttentionBlock(JasperBlock):
+
+    def forward(self, input_: Tuple[List[Tensor], Optional[Tensor]]):
+        """
+        Forward pass of the module.
+
+        Args:
+            input_: The input is a tuple of two values - the preprocessed audio signal as well as the lengths
+                of the audio signal. The audio signal is padded to the shape [B, D, T] and the lengths are
+                a torch vector of length B.
+
+        Returns:
+            The output of the block after processing the input through `repeat` number of sub-blocks,
+            as well as the lengths of the encoded audio after padding/striding.
+        """
+        # type: (Tuple[List[Tensor], Optional[Tensor]]) -> Tuple[List[Tensor], Optional[Tensor]] # nopep8
+        lens_orig = None
+        xs = input_[0]
+        if len(input_) == 2:
+            xs, lens_orig = input_
+
+        # compute forward convolutions
+        out = xs[-1]
+
+        lens = lens_orig
+        for i, l in enumerate(self.mconv):
+            # if we're doing masked convolutions, we need to pass in and
+            # possibly update the sequence lengths
+            # if (i % 4) == 0 and self.conv_mask:
+            if isinstance(l, (MaskedConv1d, SqueezeExcite)):
+                out, lens = l(out, lens)
+            else:
+                out = l(out)
+
+        # compute the residuals
+        if self.res is not None:
+            for i, layer in enumerate(self.res):
+                res_out = xs[i]
+                for j, res_layer in enumerate(layer):
+                    if isinstance(res_layer, MaskedConv1d):
+                        res_out, _ = res_layer(res_out, lens_orig)
+                    else:
+                        res_out = res_layer(res_out)
+
+                if self.residual_mode == 'add' or self.residual_mode == 'stride_add':
+                    if PYTORCH_QUANTIZATION_AVAILABLE and self.quantize:
+                        out = self.residual_quantizer(out) + res_out
+                    elif not PYTORCH_QUANTIZATION_AVAILABLE and self.quantize:
+                        raise ImportError(
+                            "pytorch-quantization is not installed. Install from "
+                            "https://github.com/NVIDIA/TensorRT/tree/master/tools/pytorch-quantization."
+                        )
+                    else:
+                        out = out + res_out
+                else:
+                    out = torch.max(out, res_out)
+
+        # Call attention based adapter prior to activation and dropout
+            # Support ASR Adapters
+            if self.is_adapter_available():
+                adapter_data = {
+                    'data': out,
+                    'type': 'attention',
+                }
+
+                # Call the adapters
+                out = self.forward_enabled_adapters(adapter_data)
+                out = out['data']
+
+        # compute the output
+        out = self.mout(out)
+
+        # Support ASR Adapters
+        if self.is_adapter_available():
+            adapter_data = {
+                'data': out
+            }
+
+            # Call the adapters
+            out = self.forward_enabled_adapters(adapter_data)
+            out = out['data']
+
+        if self.is_access_enabled() and self.access_cfg.get('save_encoder_tensors', False):
+            self.register_accessible_tensor(name='encoder', tensor=out)
+
+        if self.res is not None and self.dense_residual:
+            return xs + [out], lens
+
+        return [out], lens
+
+    def forward_single_enabled_adapter_(
+        self,
+        input: dict,
+        adapter_module: torch.nn.Module,
+        *,
+        adapter_name: str,
+        adapter_strategy: 'nemo.core.classes.mixins.adapter_mixin_strategies.AbstractAdapterStrategy',
+    ):
+        """
+        Perform the forward step of a single adapter module on some input data.
+
+        **Note**: Subclasses can override this method to accommodate more complicate adapter forward steps.
+
+        Args:
+            input: A dictionary packed with info used for forward of a single adapter module.
+                Can contain the keys 'data', 'type' and additional info.
+                data - the input tensor
+                type - a str value used to derefence the adapter to check for.
+                The output tensor of the calling module is the input to the first adapter, whose output
+                is then chained to the next adapter until all adapters are consumed.
+            adapter_module: The adapter module that is currently required to perform the forward pass.
+            adapter_name: The resolved name of the adapter that is undergoing the current forward pass.
+            adapter_strategy: A subclass of `AbstractAdapterStrategy`, that determines how the
+                output of the adapter should be merged with the input, or if it should be merged at all.
+
+        Returns:
+            The result tensor, after the current active adapter has finished its forward pass.
+        """
+        # (input: torch.Tensor, adapter: torch.nn.Module, *, module: 'AdapterModuleMixin')
+        # unpack the data for next step
+        data = input['data']
+        forward_type = input.get('type', None)
+
+        data = data.transpose(1, 2)  # (B, T, C)
+
+        if forward_type is not None:
+            # If forward type is given, match the name as a substring to the class
+            # Only do forward pass if module matches, else skip it.
+            if forward_type in adapter_module.__class__.__name__.lower():
+                output = adapter_strategy(data, adapter_module, module=self)
+            else:
+                output = data
+        else:
+            output = adapter_strategy(data, adapter_module, module=self)
+
+        output = output.transpose(1, 2)  # (B, C, T)
+
+        # repack the result as input for next step
+        input['data'] = output
+        return input
+
+
 class ParallelBlock(nn.Module):
     """
     Computational module that computes several `blocks` independently from each other and aggregates the outputs.
