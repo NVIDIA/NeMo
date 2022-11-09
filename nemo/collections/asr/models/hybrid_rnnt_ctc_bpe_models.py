@@ -18,8 +18,8 @@ from typing import Dict, List, Optional, Union
 from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 
-from nemo.collections.asr.models.rnnt_models import EncDecRNNTBPEModel
 from nemo.collections.asr.metrics.wer_bpe import WERBPE, CTCBPEDecoding, CTCBPEDecodingConfig
+from nemo.collections.asr.models.rnnt_models import EncDecRNNTBPEModel
 from nemo.utils import logging, model_utils
 
 
@@ -87,10 +87,12 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTBPEModel):
         Returns: None
 
         """
-        super().__init__(new_tokenizer_dir=new_tokenizer_dir, new_tokenizer_type=new_tokenizer_type, decoding_cfg=decoding_cfg)
+        super().__init__(
+            new_tokenizer_dir=new_tokenizer_dir, new_tokenizer_type=new_tokenizer_type, decoding_cfg=decoding_cfg
+        )
 
         # set up CTC decoder if required
-        if ctc_decoding_cfg is not None: # or self.ctc_loss_weight > 0:
+        if ctc_decoding_cfg is not None:  # or self.ctc_loss_weight > 0:
             if hasattr(self, 'ctc_decoding'):
                 decoder_config = self.ctc_decoding.to_config_dict()
                 new_decoder_config = copy.deepcopy(decoder_config)
