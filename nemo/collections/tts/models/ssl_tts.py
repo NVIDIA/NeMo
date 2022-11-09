@@ -35,6 +35,7 @@ from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.optim.lr_scheduler import WarmupPolicy
 from nemo.utils import logging
+from nemo.utils.decorators import experimental
 
 
 def decode(tokenizer, token_list):
@@ -62,6 +63,7 @@ class GreedyCTCDecoder(torch.nn.Module):
         return indices, joined
 
 
+@experimental
 class SSLDisentangler(ModelPT):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         super().__init__(cfg=cfg, trainer=trainer)
@@ -150,10 +152,16 @@ class SSLDisentangler(ModelPT):
         return self._tb_logger
 
     def __setup_dataloader_from_config(self, data_config):
+
         if hasattr(self, '_text_tokenizer') and isinstance(self._text_tokenizer, BaseTokenizer):
             _text_tokenizer = self._text_tokenizer
+
         else:
+            if hasattr(self, '_text_tokenizer') and not isinstance(self._text_tokenizer, BaseTokenizer):
+                logging.warning(f"test_tokenizer is set but not a BaseTokenizer. Will be set to EnglishCharsTokenizer")
+
             _text_tokenizer = self._text_tokenizer = EnglishCharsTokenizer(add_blank_at="last")
+
         for task in self._cfg.downstream_heads.task_names:
             if task == 'speaker_verification':
                 sv_dataset = TTSData.TTSDataset(
@@ -281,8 +289,7 @@ class SSLDisentangler(ModelPT):
 
         return log_mel_normalized, mel_len
 
-    def _forward(self, input_signal=None, input_signal_length=None, for_export=False, normalize_content=True):
-
+    def forward(self, input_signal=None, input_signal_length=None, normalize_content=True):
         if self._cfg.get("preprocessing", "default") == "custom":
             processed_signal, processed_signal_length = self.get_mel_spectrogram(input_signal, input_signal_length)
         else:
@@ -290,10 +297,7 @@ class SSLDisentangler(ModelPT):
                 input_signal=input_signal, length=input_signal_length,
             )
 
-        if for_export:
-            encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)  # b,c,t
-        else:
-            encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)  # b,c,t
+        encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)  # b,c,t
 
         for task in self._cfg.downstream_heads.task_names:
             if task == "speaker_verification":
@@ -321,15 +325,11 @@ class SSLDisentangler(ModelPT):
             encoded_len,
         )
 
-    def forward(self, input_signal=None, input_signal_length=None):
-        return self._forward(input_signal=input_signal, input_signal_length=input_signal_length)
-
     def forward_for_export(self, input_signal=None, input_signal_length=None, normalize_content=True):
-        return self._forward(
-            input_signal=input_signal,
-            input_signal_length=input_signal_length,
-            for_export=True,
-            normalize_content=normalize_content,
+        # Same as forward right now. Earlier version of encoder had a different forward for export.
+        # This function is still kept for compatibility with older evaluation/inference scripts.
+        return self.forward(
+            input_signal=input_signal, input_signal_length=input_signal_length, normalize_content=normalize_content,
         )
 
     def training_step(self, batch, batch_idx):

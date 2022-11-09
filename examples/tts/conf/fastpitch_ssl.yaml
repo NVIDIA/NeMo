@@ -6,7 +6,7 @@ name: FastPitch
 
 train_dataset: ???
 validation_datasets: ???
-
+ssl_model_ckpt_path: ???
 hifi_ckpt_path: ???
 
 # LJSpeech stats (per frame)
@@ -24,7 +24,7 @@ lowfreq: 0
 highfreq: 8000
 window: hann
 
-ssl_model_ckpt_path: ???
+
 ssl_content_emb_type: "embedding_and_probs"
 speaker_stats_pitch_fp: null
 pitch_normalization: speaker_wise

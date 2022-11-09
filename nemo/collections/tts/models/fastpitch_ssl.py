@@ -13,6 +13,7 @@
 # limitations under the License.
 import os
 import random
+from logging import ERROR, getLogger
 from typing import Optional
 
 import torch
@@ -25,8 +26,8 @@ from nemo.collections.asr.parts.preprocessing import features
 from nemo.collections.tts.helpers.helpers import plot_multipitch_to_numpy, plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.fastpitchloss import DurationLoss, MelLoss, PitchLoss
 from nemo.collections.tts.models import ssl_tts
-from nemo.collections.tts.modules.transformer import mask_from_lens
 from nemo.collections.tts.modules.fastpitch import FastPitchModule, average_pitch
+from nemo.collections.tts.modules.transformer import mask_from_lens
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import MelSpectrogramType
@@ -34,9 +35,14 @@ from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging, model_utils
 from nemo.utils.decorators import experimental
 
+
 @experimental
 class FastPitchModel_SSL(ModelPT):
-    """FastPitch model (https://arxiv.org/abs/2006.06873) that is used to generate mel spectrogram from text."""
+    """
+    FastPitch based model that can synthesize mel spectrograms from content and speaker embeddings
+    obtained from SSLDisentangler. This model can be used for voice conversion by swapping the speaker embedding 
+    of a given source utterance, with the speaker embedding of a target speaker.
+    """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None, vocoder=None):
         # Convert to Hydra 1.0 compatible DictConfig
@@ -52,6 +58,7 @@ class FastPitchModel_SSL(ModelPT):
         self.bin_loss_warmup_epochs = cfg.get("bin_loss_warmup_epochs", 100)
         self.log_train_images = False
 
+        # Same defaults as FastPitch
         loss_scale = 0.1 if self.learn_alignment else 1.0
         dur_loss_scale = loss_scale
         pitch_loss_scale = loss_scale
@@ -76,7 +83,7 @@ class FastPitchModel_SSL(ModelPT):
         output_fft = instantiate(self._cfg.output_fft)
 
         duration_predictor = None
-        self.use_duration_predictor = cfg.get("use_duration_predictor")
+        self.use_duration_predictor = cfg.get("use_duration_predictor", False)
         if self.use_duration_predictor:
             assert self.encoder is not None, "use_encoder must be True if use_duration_predictor is True"
             # this means we are using unique tokens
@@ -93,6 +100,8 @@ class FastPitchModel_SSL(ModelPT):
 
         self.num_datasets = cfg.get("n_datasets", 1)
         if self.num_datasets > 1:
+            # Data ID conditining if num_datasets > 1. During inference, can set data_id to be that of the cleaner dataset.
+            # Maybe useful if we have clean and noisy datasets
             self.dataset_embedding_layer = torch.nn.Embedding(self.num_datasets, self._cfg.symbols_embedding_dim)
 
         self.fastpitch = FastPitchModule(
@@ -125,8 +134,12 @@ class FastPitchModel_SSL(ModelPT):
 
     def vocode_spectrogram(self, spectrogram):
         # spectrogram [C, T] numpy
+        if self.non_trainable_models['vocoder'] is None:
+            logging.error("Vocoder is none, should be instantiated as a HiFiGAN vocoder")
+
         with torch.no_grad():
-            _spec = torch.from_numpy(spectrogram).unsqueeze(0).to(torch.float32).to(self.device)
+            vocoder_device = self.non_trainable_models['vocoder'].device
+            _spec = torch.from_numpy(spectrogram).unsqueeze(0).to(torch.float32).to(vocoder_device)
             wav_generated = self.non_trainable_models['vocoder'].generator(x=_spec)[0]
             return wav_generated.cpu().numpy()
 
@@ -173,24 +186,13 @@ class FastPitchModel_SSL(ModelPT):
             enc_mask=enc_mask,
         )
 
-    @typecheck(output_types={"spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType())})
-    def generate_spectrogram(
-        self, tokens: 'torch.tensor', speaker: Optional[int] = None, pace: float = 1.0
-    ) -> torch.tensor:
-        if self.training:
-            logging.warning("generate_spectrogram() is meant to be called in eval mode.")
-        if isinstance(speaker, int):
-            speaker = torch.tensor([speaker]).to(self.device)
-        spect, *_ = self(text=tokens, durs=None, pitch=None, speaker=speaker, pace=pace)
-        return spect
-
     def compute_encoding(self, content_embedding, speaker_embedding, dataset_id=None):
         # content embedding is (B, C, T)
         # speaker embedding is (B, C)
         # pitch_contour is (B, T)
         content_embedding = content_embedding.permute(0, 2, 1)  # (B, C, T) -> (B, T, C)
         content_embedding_projected = self.content_projection_layer(content_embedding)
-        content_embedding_projected = content_embedding_projected.permute(0, 2, 1) # (B, T, C) -> (B, C, T)
+        content_embedding_projected = content_embedding_projected.permute(0, 2, 1)  # (B, T, C) -> (B, C, T)
         speaker_embedding_projected = self.speaker_projection_layer(speaker_embedding)
         speaker_embedding_repeated = speaker_embedding_projected[:, :, None].repeat(
             1, 1, content_embedding_projected.shape[2]
@@ -208,9 +210,15 @@ class FastPitchModel_SSL(ModelPT):
         return encoded
 
     def compute_speaker_loss(self, generated_mel, gt_speaker_embedding):
+        # Did not improve results so it is not currently used in ACE-VC.
+        if self.non_trainable_models['ssl_model'] is None:
+            logging.error(f"Please make sure ssl_model is not None.")
+
         ssl_model = self.non_trainable_models['ssl_model']
         ssl_model.to(self.device)
 
+        # 172 frames corresponds to 2 seconds of audio.
+        # TBD: Compute this from segment length STFT params of Conformer
         generated_mel_sliced = generated_mel[:, :, :172]
         generated_mel_len_batch = (
             torch.tensor([generated_mel_sliced.shape[-1] for _idx in range(generated_mel_sliced.shape[0])])
