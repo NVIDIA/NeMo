@@ -10,13 +10,13 @@ SDP is specifically intended for the use case when you have an existing dataset 
 
 ## Quick intro to Speech Dataset Processor
 
-* The steps to process a dataset are specified by a YAML file.
-* YAML file contains a list of processor classes & the args to pass into the constructor.
+* The steps to process a dataset are specified by a YAML config file.
+* The YAML config file contains a list of processor classes & the args to pass into the constructor.
 * Each processor class inputs an existing manifest (except for classes which create an 'initial' manifest from some external transcript file)  & outputs a modified version of the manifest. It may change other files in the process, e.g. resample audio.
 * To process a manifest, you need to list the chain of processors you wish to use.
 * If a processor is not included, you can make your own -> see more documation about that [here](https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/tools/speech_data_explorer.html).
 
-## Config file layout
+## YAML config file layout
 A simplified version of an SDP file can be:
 
 ```yaml
