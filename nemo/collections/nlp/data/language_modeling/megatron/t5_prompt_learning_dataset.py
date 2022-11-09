@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import enum
+import copy
 import json
 
 import torch
@@ -195,7 +195,12 @@ class T5PromptLearningDataset(BasePromptLearningDataset):
     def collate_fn(self, batch):
         """ Prepares enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids for global batch """
 
-        taskname_ids, enc_input, dec_input, dec_labels = zip(*batch)
+        orig_taskname_ids, orig_enc_input, orig_dec_input, orig_dec_labels = zip(*batch)
+        taskname_ids = copy.deepcopy(orig_taskname_ids)
+        enc_input = copy.deepcopy(orig_enc_input)
+        dec_input = copy.deepcopy(orig_dec_input)
+        dec_labels = copy.deepcopy(orig_dec_labels)
+
 
         taskname_ids = self.pad_taskname_ids(taskname_ids)
 
