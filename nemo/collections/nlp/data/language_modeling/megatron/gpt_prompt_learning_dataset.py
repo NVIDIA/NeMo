@@ -325,7 +325,6 @@ class GPTPromptLearningDataset(Dataset):
         input_ids = copy.deepcopy(orig_input_ids)
         answer_starts = copy.deepcopy(orig_answer_starts)
 
-
         # Pad taskname_ids to be the same length for the prompt encoder
         if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
             max_taskname_length = max(len(ids) for ids in taskname_ids)
