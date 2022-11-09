@@ -21,7 +21,7 @@ from nemo.core.classes.mixins import AccessMixin, AdapterModuleMixin
 
 
 class AbstractAdapterStrategy(ABC):
-    def forward(self, input: torch.Tensor, adapter: torch.nn.Module, *, module: AdapterModuleMixin):
+    def forward(self, input: torch.Tensor, adapter: torch.nn.Module, *, module: 'AdapterModuleMixin'):
         """
         Forward method that defines how the output of the adapter should be merged with the input, or if it
         should be merged at all.
@@ -72,7 +72,7 @@ class ResidualAddAdapterStrategy(AbstractAdapterStrategy):
         self.stochastic_depth = stochastic_depth
         self.l2_lambda = l2_lambda
 
-    def forward(self, input: torch.Tensor, adapter: torch.nn.Module, *, module: AdapterModuleMixin):
+    def forward(self, input: torch.Tensor, adapter: torch.nn.Module, *, module: 'AdapterModuleMixin'):
         """
         A basic strategy, comprising of a residual connection over the input, after forward pass by
         the underlying adapter.
