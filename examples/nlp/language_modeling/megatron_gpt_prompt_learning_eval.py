@@ -78,8 +78,9 @@ def main(cfg) -> None:
 
     # trainer required for restoring model parallel models
     trainer = Trainer(strategy=NLPDDPStrategy(), **cfg.trainer)
+    device_len = cfg.trainer.devices if isinstance(cfg.trainer.devices, int) else len(cfg.trainer.devices)
     assert (
-        cfg.trainer.devices * cfg.trainer.num_nodes
+        device_len * cfg.trainer.num_nodes
         == cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
     ), "devices * num_nodes should equal tensor_model_parallel_size * pipeline_model_parallel_size"
 
@@ -134,7 +135,7 @@ def main(cfg) -> None:
 
     _, dataloader = model.build_virtual_prompt_dataset(
         data=cfg.data_paths,
-        batch_size=64,
+        batch_size=2,
         max_seq_length=max_input_length,
         min_seq_length=model.cfg.data.get('min_seq_length', 1),
         add_bos=sampling_params["add_BOS"],
