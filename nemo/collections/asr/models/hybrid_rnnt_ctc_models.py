@@ -40,7 +40,7 @@ from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, L
 from nemo.utils import logging
 
 
-class EncDecJointRNNTCTCModel(EncDecRNNTModel):
+class EncDecHybridRNNTCTCModel(EncDecRNNTModel):
     """Base class for joint RNNT/CTC models."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):

@@ -1,4 +1,4 @@
-# It contains the default values for training a Conformer-Joint-Transducer-CTC ASR model, large size (~120M) with Transducer loss and char-based vocabulary.
+# It contains the default values for training a Conformer-Hybrid-Transducer-CTC ASR model, large size (~120M) with Transducer loss and char-based vocabulary.
 
 # Architecture and training config:
 # Default learning parameters in this config are set for effective batch size of 2K. To train it with smaller effective
@@ -20,7 +20,7 @@
 # Pre-trained models of Conformer-Transducer can be found here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/results.html
 # The checkpoint of the large model trained on NeMo ASRSET with this recipe can be found here: https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_conformer_transducer_large
 
-name: "Conformer-Transducer-Char"
+name: "Conformer-Hybrid-Transducer-CTC-Char"
 
 model:
   sample_rate: &sample_rate 16000
