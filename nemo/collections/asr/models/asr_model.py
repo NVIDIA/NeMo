@@ -54,7 +54,7 @@ class ASRModel(ModelPT, ABC):
         return {'test_loss': val_loss_mean, 'log': tensorboard_logs}
 
     @classmethod
-    def list_available_models(cls) -> List[PretrainedModelInfo]:
+    def list_available_models(cls) -> 'List[PretrainedModelInfo]':
         """
         This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
         Returns:
