@@ -335,7 +335,7 @@ def modify_cfg(base_cfg: dict, act: int, num_mbs_act: int, act_per_pipe: int, tp
     """
     new_cfg = copy.deepcopy(base_cfg)
     if act is not None:
-        if model_name == "gpt3":
+        if model_name in ["gpt3", "bert"]:
             new_cfg["model"]["activations_checkpoint_num_layers"] = act
         else: 
             new_cfg["model"]["encoder"]["activations_checkpoint_num_layers"] = act // 2
@@ -351,7 +351,7 @@ def modify_cfg(base_cfg: dict, act: int, num_mbs_act: int, act_per_pipe: int, tp
     new_cfg["model"]["pipeline_model_parallel_size"] = pp
     new_cfg["model"]["micro_batch_size"] = mbs
 
-    if model_name == "gpt3":
+    if model_name in ["gpt3", "bert"]:
         att_heads = new_cfg["model"]["num_attention_heads"]
         num_layers = new_cfg["model"]["num_layers"]
     else:
