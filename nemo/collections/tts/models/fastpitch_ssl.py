@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,22 +25,16 @@ from nemo.collections.asr.parts.preprocessing import features
 from nemo.collections.tts.helpers.helpers import plot_multipitch_to_numpy, plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.fastpitchloss import DurationLoss, MelLoss, PitchLoss
 from nemo.collections.tts.models import ssl_tts
+from nemo.collections.tts.modules.transformer import mask_from_lens
 from nemo.collections.tts.modules.fastpitch import FastPitchModule, average_pitch
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import MelSpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging, model_utils
+from nemo.utils.decorators import experimental
 
-
-def mask_from_lens(lens, max_len: Optional[int] = None):
-    if max_len is None:
-        max_len = lens.max()
-    ids = torch.arange(0, max_len, device=lens.device, dtype=lens.dtype)
-    mask = torch.lt(ids, lens.unsqueeze(1))
-    return mask
-
-
+@experimental
 class FastPitchModel_SSL(ModelPT):
     """FastPitch model (https://arxiv.org/abs/2006.06873) that is used to generate mel spectrogram from text."""
 
@@ -119,7 +113,6 @@ class FastPitchModel_SSL(ModelPT):
         if use_speaker_loss:
             if os.path.exists(self._cfg.ssl_model_ckpt_path):
                 print("Loading SSL model from ", self._cfg.ssl_model_ckpt_path)
-                # print("Device: ", self.device, self.fastpitch.device)
                 ssl_model = ssl_tts.SSLDisentangler.load_from_checkpoint(
                     self._cfg.ssl_model_ckpt_path, strict=False
                 ).cpu()
@@ -197,7 +190,7 @@ class FastPitchModel_SSL(ModelPT):
         # pitch_contour is (B, T)
         content_embedding = content_embedding.permute(0, 2, 1)  # (B, C, T) -> (B, T, C)
         content_embedding_projected = self.content_projection_layer(content_embedding)
-        content_embedding_projected = content_embedding_projected.permute(0, 2, 1)
+        content_embedding_projected = content_embedding_projected.permute(0, 2, 1) # (B, T, C) -> (B, C, T)
         speaker_embedding_projected = self.speaker_projection_layer(speaker_embedding)
         speaker_embedding_repeated = speaker_embedding_projected[:, :, None].repeat(
             1, 1, content_embedding_projected.shape[2]
@@ -477,8 +470,6 @@ class FastPitchModel_SSL(ModelPT):
         wavs = []
         for idx in range(_bs):
             mel_pred = mels_pred[idx].data.cpu().float().numpy()
-            # _mel_len = int(encoded_len[idx].item() * 4)
-            # mel_pred = mel_pred[:, :_mel_len]
             wav = self.vocode_spectrogram(mel_pred)
             wavs.append(wav)
 

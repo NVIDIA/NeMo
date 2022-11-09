@@ -21,8 +21,6 @@
 # With weight_decay=0.0, learning rate may need to get reduced to 2.0.
 
 name: "Conformer-SSL"
-phoneme_dict_path: "scripts/tts_dataset_files/cmudict-0.7b_nv22.01"
-heteronyms_path: "scripts/tts_dataset_files/heteronyms-030921"
 init_from_pretrained_model: "ssl_en_conformer_large"
 
 model:
@@ -36,8 +34,8 @@ model:
   preprocessing: "default" # default or custom (custom is same as fastpitch training)
   pad_multiple: 1
   train_ds:
-    manifest_speaker_verification_fp: "/home/pneekhara/NeMo2022/vox_train_10.json"
-    manifest_content_fp: "/home/pneekhara/NeMo2022/libri_val_formatted.json"
+    manifest_speaker_verification_fp: ???
+    manifest_content_fp: ???
     sample_rate: ${model.sample_rate}
     batch_size_content: 8 # you may increase batch_size if your memory allows
     batch_size_sv: 20
@@ -54,8 +52,8 @@ model:
     pad_multiple: ${model.pad_multiple}
 
   validation_ds:
-    manifest_speaker_verification_fp: "/home/pneekhara/NeMo2022/vox_val_10.json"
-    manifest_content_fp: "/home/pneekhara/NeMo2022/libri_val_formatted.json"
+    manifest_speaker_verification_fp: ???
+    manifest_content_fp: ???
     sample_rate: ${model.sample_rate}
     batch_size_content: 4 # you may increase batch_size if your memory allows
     batch_size_sv: 8
@@ -67,23 +65,10 @@ model:
     max_duration_content: 16.7
     min_duration_content: 8.0
     segment_max_duration: 2
-    sup_data_path: "/home/pneekhara/Datasets/SupData/val"
+    sup_data_path: ???
     pitch_augment: ${model.pitch_augment}
     cache_pitch_augment: true
     pad_multiple: ${model.pad_multiple}
-
-  # text_tokenizer:
-  #   _target_: nemo.collections.tts.torch.tts_tokenizers.EnglishPhonemesTokenizer
-  #   punct: true
-  #   stresses: true
-  #   chars: true
-  #   apostrophe: true
-  #   pad_with_space: true
-  #   g2p:
-  #     _target_: nemo.collections.tts.torch.g2ps.EnglishG2p
-  #     phoneme_dict: ${phoneme_dict_path}
-  #     heteronyms: ${heteronyms_path}
-  #     phoneme_probability: 0.5
 
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
@@ -154,8 +139,6 @@ model:
   optim_backbone:
     _target_: torch.optim.Adam
     lr: 5e-5
-    # optimizer arguments
-    # betas: [0.9, 0.98]
     sched:
       min_lr: 1e-6
       warmup_steps: 2000
@@ -177,10 +160,8 @@ trainer:
   accelerator: auto
   strategy: ddp
   accumulate_grad_batches: 1
-  # gradient_clip_val: 1.0
   precision: 32 # Should be set to 16 for O1 and O2 to enable the AMP.
   log_every_n_steps: 10  # Interval of logging.
-  # progress_bar_refresh_rate: 10
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
   num_sanity_val_steps: 0 # number of steps to perform validation steps for sanity check the validation process before starting the training, setting to 0 disables it
   check_val_every_n_epoch: 1 # number of evaluations on validation every n epochs

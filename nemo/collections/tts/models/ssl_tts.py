@@ -1,3 +1,16 @@
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import itertools
 from concurrent.futures import process
 from dataclasses import dataclass
@@ -137,7 +150,6 @@ class SSLDisentangler(ModelPT):
         return self._tb_logger
 
     def __setup_dataloader_from_config(self, data_config):
-        # _text_tokenizer = instantiate(self._cfg.text_tokenizer)
         if hasattr(self, '_text_tokenizer') and isinstance(self._text_tokenizer, BaseTokenizer):
             _text_tokenizer = self._text_tokenizer
         else:
@@ -370,7 +382,6 @@ class SSLDisentangler(ModelPT):
 
                 if self.pitch_augment:
                     augmented_signal = batch[key]['audio_shifted']
-                    # wav2= augmented_signal[0].cpu().detach().numpy()
                     if self.stop_gradient:
                         with torch.no_grad():
                             _, _, content_embedding_aug, content_log_probs_aug, _ = self.forward(
