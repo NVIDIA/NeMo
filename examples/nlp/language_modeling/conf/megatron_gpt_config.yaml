@@ -176,6 +176,7 @@ model:
     reset_attention_mask: False # Reset attention mask after end-of-document token
     eod_mask_loss: False # Mask loss for the end of document tokens
     validation_drop_last: True # Set to false if the last partial validation samples is to be consumed
+    no_seqlen_plus_one_input_tokens: False # Set to True to disable fetching (sequence length + 1) input tokens, instead get (sequence length) input tokens and mask the last token
 
   # Nsys profiling options
   nsys_profile:
