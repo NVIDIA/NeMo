@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@ from itertools import permutations
 import pytest
 import torch
 
-from nemo.collections.asr.parts.utils.diarization_utils import (
+from nemo.collections.asr.metrics.der import (
     calculate_session_cpWER,
     calculate_session_cpWER_bruteforce,
 )
