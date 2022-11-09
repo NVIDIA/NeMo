@@ -242,7 +242,7 @@ def calculate_session_cpWER(
                 [case2] 2/6 (2 substituion)
               brute force permutation based cpWER is:
                 [case1] 0
-                [case2] 2/6 (2 substituion)
+                [case2] 2/6 (2 substitution)
 
     Args:
         spk_hypothesis (list):
