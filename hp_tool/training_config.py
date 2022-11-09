@@ -425,12 +425,13 @@ def _tp_pp_mbs_grid_bert_80gb(model_size_in_b: float, valid_pp: List[int]) -> Tu
     elif 1.0 < model_size_in_b <= 4.0:
         tp = [1, 2, 4]
     elif 4.0 < model_size_in_b <= 8.0:
-        tp = [1, 2, 4]
+        tp = [2, 4, 8]
     elif 8.0 < model_size_in_b <= 13.0:
-        tp = [1, 2, 4, 8]
+        tp = [2, 4, 8]
+        mbs = [1, 2, 3, 4, 6]
     elif 13.0 < model_size_in_b <= 25.0:
-        tp = [1, 2, 4, 8]
-        pp = [x for x in valid_pp if x <= 4]
+        tp = [4, 8]
+        mbs = [1, 2, 3, 4]
     return tp, pp, mbs
 
 def _tp_pp_mbs_grid_bert_40gb(model_size_in_b: float, valid_pp: List[int]) -> Tuple[int, int, int]:
@@ -447,24 +448,20 @@ def _tp_pp_mbs_grid_bert_40gb(model_size_in_b: float, valid_pp: List[int]) -> Tu
     """
     tp = [1, 2, 4, 8]
     pp = [1]
-    mbs = [1, 2, 4, 6, 8, 10, 12, 16]
+    mbs = [1, 2, 4, 6, 8]
     if model_size_in_b <= 1.0:
         tp = [1, 2, 4]
-        mbs = [1, 2, 4, 8]
     elif 1.0 < model_size_in_b <= 4.0:
         tp = [1, 2, 4, 8]
-        mbs = [1, 2, 4, 8]
     elif 4.0 < model_size_in_b <= 8.0:
         tp = [4, 8]
-        pp = [1, 2]
         mbs = [1, 2, 4]
     elif 8.0 < model_size_in_b <= 13.0:
-        tp = [8]
-        pp = [1, 2, 4]
+        tp = [4, 8]
         mbs = [1, 2, 4]
     elif 13.0 < model_size_in_b <= 25.0:
-        tp = [2, 4, 8]
-        pp = [x for x in valid_pp if 1 <= x <= 8]
+        tp = [4, 8]
+        mbs = [1, 2]
     return tp, pp, mbs
 
 
@@ -560,8 +557,6 @@ def launch_grid_search_configs(base_dir: str, results_cfgs: List[int], model_nam
         for file_name in cfg_list:
             src_file = os.path.join(base_dir, file_name)
             dst_dir = os.path.join(bignlp_scripts_path, "conf/training", model_name, file_name)
-            print(src_file)
-            print(dst_dir)
             shutil.copyfile(src_file, dst_dir)
             job_id = train.run_training(file_name, model_name, results_dir, cfg)
             os.remove(dst_dir)
