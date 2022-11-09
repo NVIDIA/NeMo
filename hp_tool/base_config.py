@@ -339,7 +339,7 @@ def _gbs_tp_pp_bert_80gb(model_size_in_b: float) -> Tuple[int, int, int]:
     """
     if model_size_in_b <= 1.0:
         gbs, tp, pp = 256, 1, 1
-    elif model_size_in_b <= 4.0:
+    elif model_size_in_b <= 3.2:
         gbs, tp, pp = 1024, 1, 1
     elif model_size_in_b <= 8.0:
         gbs, tp, pp = 2048, 2, 1
@@ -365,7 +365,7 @@ def _gbs_tp_pp_bert_40gb(model_size_in_b: float) -> Tuple[int, int, int]:
     """
     if model_size_in_b <= 1.0:
         gbs, tp, pp = 256, 1, 1
-    elif model_size_in_b <= 4.0:
+    elif model_size_in_b <= 3.2:
         gbs, tp, pp = 1024, 4, 1
     elif model_size_in_b <= 8.0:
         gbs, tp, pp = 2048, 8, 1

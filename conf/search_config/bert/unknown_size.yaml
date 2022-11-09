@@ -3,7 +3,7 @@ train_settings:
   num_nodes: 8
   gpus_per_node: 8
   gpu_memory_gb: 80  # Memory per GPU, in GB. Currently 40GB and 80GB A100s supported.
-  max_training_days: 2 # unit in days
+  max_training_days: 7 # unit in days
   limit_search_runs: 100 # Max number of runs to be launched in parallel for grid search.
   output_top_n: 10  # The result will print the top N fastest training configs.
   max_steps_per_run: 50 # Max steps per run for the grid search.
