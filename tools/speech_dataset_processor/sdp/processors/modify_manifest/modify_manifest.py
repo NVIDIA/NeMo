@@ -62,10 +62,10 @@ class ModifyManifestTextProcessor(BaseParallelProcessor):
                 )
 
     @abstractmethod
-    def _process_dataset_entry(self, data_entry: Type[DataEntry]):
+    def _process_dataset_entry(self, data_entry):
         pass
 
-    def process_dataset_entry(self, data_entry: Type[DataEntry]):
+    def process_dataset_entry(self, data_entry):
         """Wrapper for 'process_dataset_entry' abstract method.
 
         Before 'process_dataset_entry' is called, the function
