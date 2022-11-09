@@ -296,7 +296,7 @@ class EncDecJointRNNTCTCModel(EncDecRNNTModel):
 
         """
         super().change_vocabulary(**kwargs)
-        if ctc_decoding_cfg is not None: # and self.ctc_loss_weight > 0:
+        if ctc_decoding_cfg is not None:  # and self.ctc_loss_weight > 0:
             if hasattr(self, 'ctc_decoder'):
                 decoder_config = self.ctc_decoder.to_config_dict()
                 new_decoder_config = copy.deepcopy(decoder_config)
@@ -471,7 +471,6 @@ class EncDecJointRNNTCTCModel(EncDecRNNTModel):
             if compute_wer:
                 tensorboard_logs.update({'training_batch_wer': wer})
 
-
         if self.ctc_loss_weight > 0:
             log_probs = self.ctc_decoder(encoder_output=encoded)
             ctc_loss = self.ctc_loss(
@@ -502,7 +501,7 @@ class EncDecJointRNNTCTCModel(EncDecRNNTModel):
         return {'loss': loss_value}
 
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
-        #TODO: fix it to support CTC decoding
+        # TODO: fix it to support CTC decoding
         signal, signal_len, transcript, transcript_len, sample_id = batch
 
         # forward() only performs encoder forward
