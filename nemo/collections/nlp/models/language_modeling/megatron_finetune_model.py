@@ -191,9 +191,6 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                 micro_batch_size=global_batch_size_per_gpu // get_num_microbatches(),
                 data_parallel_size=parallel_state.get_data_parallel_world_size(),
             )
-        # At this point batch is a list of dictionaries where eatch dict is a microbatch.
-        # After the process_global_batch call, batch will be a single dictionary containing the global batch.
-        # This is required since the parent class expects a single global batch dictioanry.
         batch = self._process_global_batch(batch)
         return super().training_step(batch, batch_idx)
 
