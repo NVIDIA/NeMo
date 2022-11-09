@@ -26,10 +26,10 @@ from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning.utilities import rank_zero_only
 from tqdm import tqdm
 
+from nemo.collections.asr.metrics.der import score_labels
 from nemo.collections.asr.models.classification_models import EncDecClassificationModel
 from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel
 from nemo.collections.asr.parts.mixins.mixins import DiarizationMixin
-from nemo.collections.asr.metrics.der import score_labels
 from nemo.collections.asr.parts.utils.speaker_utils import (
     audio_rttm_map,
     get_embs_and_timestamps,
