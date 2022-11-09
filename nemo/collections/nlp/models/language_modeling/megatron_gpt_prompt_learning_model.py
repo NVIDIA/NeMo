@@ -888,7 +888,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(batch, model):
             batch = [x.cuda(non_blocking=True) for x in batch]
-            input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids = batch
+            input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids, ex_ids = batch
             output_tensor = model(input_ids, position_ids, attention_mask, taskname_ids, labels, inference=False)
 
             if isinstance(output_tensor, tuple):

@@ -15,6 +15,7 @@
 import json
 import os
 import pickle
+import copy
 
 import torch
 from tqdm.auto import tqdm
@@ -122,8 +123,9 @@ class GPTPromptLearningDataset(Dataset):
         """
         skipped = 0
 
+        ex_id = -1
         for json_line in tqdm(dataset):
-
+            ex_id += 1
             # Read example dict or load the information for a single example from .json file
             if type(json_line) == dict:
                 doc = json_line
@@ -185,7 +187,7 @@ class GPTPromptLearningDataset(Dataset):
                 if answer_only_loss and self.for_train:
                     answer_start_idx = self._find_answer_start(taskname, input_ids, answer_field, doc)
 
-                self.examples.append((taskname_id, input_ids, answer_start_idx))
+                self.examples.append((taskname_id, input_ids, answer_start_idx, ex_id))
             else:
                 skipped += 1
 
@@ -319,7 +321,12 @@ class GPTPromptLearningDataset(Dataset):
 
     def collate_fn(self, batch, tp_workers=0):
         """ Prepares input_ids, labels, loss mask, attention_mask, and position ids for global batch """
-        taskname_ids, input_ids, answer_starts = zip(*batch)
+        orig_taskname_ids, orig_input_ids, orig_answer_starts, orig_ex_ids = zip(*batch)
+        taskname_ids = copy.deepcopy(orig_taskname_ids)
+        input_ids = copy.deepcopy(orig_input_ids)
+        answer_starts = copy.deepcopy(orig_answer_starts)
+        ex_ids = copy.deepcopy(orig_ex_ids)
+        ex_ids = torch.tensor(ex_ids)
 
         # Pad taskname_ids to be the same length for the prompt encoder
         if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
@@ -359,7 +366,7 @@ class GPTPromptLearningDataset(Dataset):
         attention_mask = attention_mask < 0.5
         position_ids = build_position_ids(input_ids)
 
-        return input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids
+        return input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids, ex_ids
 
     def pad_batch_and_build_loss_mask(self, input_ids, batch_max, answer_starts):
         """ Pad input_ids in batch to max batch length while building loss mask """
