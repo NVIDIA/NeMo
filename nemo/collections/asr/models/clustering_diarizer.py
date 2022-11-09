@@ -29,13 +29,13 @@ from tqdm import tqdm
 from nemo.collections.asr.models.classification_models import EncDecClassificationModel
 from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel
 from nemo.collections.asr.parts.mixins.mixins import DiarizationMixin
+from nemo.collections.asr.metrics.der import score_labels
 from nemo.collections.asr.parts.utils.speaker_utils import (
     audio_rttm_map,
     get_embs_and_timestamps,
     get_uniqname_from_filepath,
     parse_scale_configs,
     perform_clustering,
-    score_labels,
     segments_manifest_to_subsegments_manifest,
     validate_vad_manifest,
     write_rttm2manifest,

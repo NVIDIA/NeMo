@@ -14,17 +14,20 @@
 
 import copy
 import csv
-import itertools
 import json
 import os
 from collections import OrderedDict as od
 from datetime import datetime
-from itertools import permutations
 from typing import Dict, List, Tuple
 
 import numpy as np
 from scipy.optimize import linear_sum_assignment
 
+from nemo.collections.asr.metrics.der import (
+    calculate_session_cpWER,
+    calculate_session_cpWER_bruteforce,
+    concat_perm_word_error_rate
+)
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.asr.models import ClusteringDiarizer
 from nemo.collections.asr.parts.utils.speaker_utils import (
@@ -151,195 +154,42 @@ def convert_word_dict_seq_to_text(word_dict_seq_list: List[Dict[str, float]]) ->
     return spk_hypothesis, mix_hypothesis
 
 
-def calculate_session_cpWER_bruteforce(spk_hypothesis: List[str], spk_reference: List[str]) -> Tuple[float, str, str]:
+def convert_word_dict_seq_to_ctm(word_dict_seq_list: List[Dict[str, float]], 
+                                 uniq_id: str = 'null', 
+                                 decimals: int = 3) -> Tuple[List[str], str]:
     """
-    Calculate cpWER with actual permutations in bruteforce way when LSA algorithm cannot deliver the correct result.
+    Convert word_dict_seq_list into a list containing transcription in CTM format.
 
     Args:
-        spk_hypothesis (list):
-            List containing the hypothesis transcript for each speaker. A list containing the sequence
-            of words is assigned for each speaker.
+        word_dict_seq_list (list):
+            List containing words and corresponding word timestamps in dictionary format.
 
             Example:
-            >>> spk_hypothesis = ["hey how are you we that's nice", "i'm good yes hi is your sister"]
-
-        spk_reference (list):
-            List containing the reference transcript for each speaker. A list containing the sequence
-            of words is assigned for each speaker.
-
-            Example:
-            >>> spk_reference = ["hi how are you well that's nice", "i'm good yeah how is your sister"]
-
+            >>> word_dict_seq_list = \
+            >>> [{'word': 'right', 'start_time': 0.0, 'end_time': 0.34, 'speaker': 'speaker_0'},  
+                 {'word': 'and', 'start_time': 0.64, 'end_time': 0.81, 'speaker': 'speaker_1'},
+                   ...],
+    
     Returns:
-        cpWER (float):
-            cpWER value for the given session.
-        min_perm_hyp_trans (str):
-            Hypothesis transcript containing the permutation that minimizes WER. Words are separated by spaces.
-        ref_trans (str):
-            Reference transcript in an arbitrary permutation. Words are separated by spaces.
-    """
-    p_wer_list, permed_hyp_lists = [], []
-    ref_word_list = []
-
-    # Concatenate the hypothesis transcripts into a list
-    for spk_id, word_list in enumerate(spk_reference):
-        ref_word_list.append(word_list)
-    ref_trans = " ".join(ref_word_list)
-
-    # Calculate WER for every permutation
-    for hyp_word_list in permutations(spk_hypothesis):
-        hyp_trans = " ".join(hyp_word_list)
-        permed_hyp_lists.append(hyp_trans)
-
-        # Calculate a WER value of the permuted and concatenated transcripts
-        p_wer = word_error_rate(hypotheses=[hyp_trans], references=[ref_trans])
-        p_wer_list.append(p_wer)
-
-    # Find the lowest WER and its hypothesis transcript
-    argmin_idx = np.argmin(p_wer_list)
-    min_perm_hyp_trans = permed_hyp_lists[argmin_idx]
-    cpWER = p_wer_list[argmin_idx]
-    return cpWER, min_perm_hyp_trans, ref_trans
-
-
-def calculate_session_cpWER(
-    spk_hypothesis: List[str], spk_reference: List[str], use_lsa_only: bool = False
-) -> Tuple[float, str, str]:
-    """
-    Calculate a session-level concatenated minimum-permutation word error rate (cpWER) value. cpWER is
-    a scoring method that can evaluate speaker diarization and speech recognition performance at the same time.
-    cpWER is calculated by going through the following steps.
-
-    1. Concatenate all utterances of each speaker for both reference and hypothesis files.
-    2. Compute the WER between the reference and all possible speaker permutations of the hypothesis.
-    3. Pick the lowest WER among them (this is assumed to be the best permutation: `min_perm_hyp_trans`).
-
-    cpWER was proposed in the following article:
-        CHiME-6 Challenge: Tackling Multispeaker Speech Recognition for Unsegmented Recordings
-        https://arxiv.org/pdf/2004.09249.pdf
-
-    Implementation:
-        - Brute force permutation method for calculating cpWER has a time complexity of `O(n!)`.
-        - To reduce the computational burden, linear sum assignment (LSA) algorithm is applied
-          (also known as Hungarian algorithm) to find the permutation that leads to the lowest WER.
-        - In this implementation, instead of calculating all WER values for all permutation of hypotheses,
-          we only calculate WER values of (estimated number of speakers) x (reference number of speakers)
-          combinations with `O(n^2)`) time complexity and then select the permutation that yields the lowest
-          WER based on LSA algorithm.
-        - LSA algorithm has `O(n^3)` time complexity in the worst case.
-        - We cannot use LSA algorithm to find the best permutation when there are more hypothesis speakers
-          than reference speakers. In this case, we use the brute-force permutation method instead.
-
-          Example:
-              >>> transcript_A = ['a', 'b', 'c', 'd', 'e', 'f'] # 6 speakers
-              >>> transcript_B = ['a c b d', 'e f'] # 2 speakers
-
-              [case1] hypothesis is transcript_A, reference is transcript_B
-              [case2] hypothesis is transcript_B, reference is transcript_A
-
-              LSA algorithm based cpWER is:
-                [case1] 4/6 (4 deletion)
-                [case2] 2/6 (2 substitution)
-              brute force permutation based cpWER is:
-                [case1] 0
-                [case2] 2/6 (2 substitution)
-
-    Args:
-        spk_hypothesis (list):
-            List containing the hypothesis transcript for each speaker. A list containing the sequence
-            of words is assigned for each speaker.
+        ctm_lines_list (list):
+            List containing the hypothesis transcript in CTM format.
 
             Example:
-            >>> spk_hypothesis = ["hey how are you we that's nice", "i'm good yes hi is your sister"]
+            >>> ctm_lines_list= ["my_audio_01 speaker_0 0.0 0.34 right 0",
+                                  my_audio_01 speaker_0 0.64 0.81 and 0",
 
-        spk_reference (list):
-            List containing the reference transcript for each speaker. A list containing the sequence
-            of words is assigned for each speaker.
 
-            Example:
-            >>> spk_reference = ["hi how are you well that's nice", "i'm good yeah how is your sister"]
-
-    Returns:
-        cpWER (float):
-            cpWER value for the given session.
-        min_perm_hyp_trans (str):
-            Hypothesis transcript containing the permutation that minimizes WER. Words are separated by spaces.
-        ref_trans (str):
-            Reference transcript in an arbitrary permutation. Words are separated by spaces.
     """
-    # Get all pairs of (estimated num of spks) x (reference num of spks) combinations
-    hyp_ref_pair = [spk_hypothesis, spk_reference]
-    all_pairs = list(itertools.product(*hyp_ref_pair))
-
-    num_hyp_spks, num_ref_spks = len(spk_hypothesis), len(spk_reference)
-
-    if not use_lsa_only and num_ref_spks < num_hyp_spks:
-        # Brute force algorithm when there are more speakers in the hypothesis
-        cpWER, min_perm_hyp_trans, ref_trans = calculate_session_cpWER_bruteforce(spk_hypothesis, spk_reference)
-    else:
-        # Calculate WER for each speaker in hypothesis with reference
-        # There are (number of hyp speakers) x (number of ref speakers) combinations
-        lsa_wer_list = []
-        for (spk_hyp_trans, spk_ref_trans) in all_pairs:
-            spk_wer = word_error_rate(hypotheses=[spk_hyp_trans], references=[spk_ref_trans])
-            lsa_wer_list.append(spk_wer)
-
-        # Make a cost matrix and calculate a linear sum assignment on the cost matrix.
-        # Row is hypothesis index and column is reference index
-        cost_wer = np.array(lsa_wer_list).reshape([len(spk_hypothesis), len(spk_reference)])
-        row_hyp_ind, col_ref_ind = linear_sum_assignment(cost_wer)
-
-        # In case where hypothesis has more speakers, add words from residual speakers
-        hyp_permed = [spk_hypothesis[k] for k in np.argsort(col_ref_ind)]
-        min_perm_hyp_trans = " ".join(hyp_permed)
-
-        # Concatenate the reference transcripts into a string variable
-        ref_trans = " ".join(spk_reference)
-
-        # Calculate a WER value from the permutation that yields the lowest WER.
-        cpWER = word_error_rate(hypotheses=[min_perm_hyp_trans], references=[ref_trans])
-
-    return cpWER, min_perm_hyp_trans, ref_trans
-
-
-def concat_perm_word_error_rate(
-    spk_hypotheses: List[List[str]], spk_references: List[List[str]]
-) -> Tuple[List[float], List[str], List[str]]:
-    """
-    Launcher function for `calculate_session_cpWER`. Calculate session-level cpWER and average cpWER.
-    For detailed information about cpWER, see docstrings of `calculate_session_cpWER` function.
-
-    As opposed to `cpWER`, `WER` is the regular WER value where the hypothesis transcript contains
-    words in temporal order regardless of the speakers. `WER` value can be different from cpWER value,
-    depending on the speaker diarization results.
-
-    Args:
-        spk_hypotheses (list):
-            List containing the lists of speaker-separated hypothesis transcripts.
-        spk_references (list):
-            List containing the lists of speaker-separated reference transcripts.
-
-    Returns:
-        cpWER (float):
-            List containing cpWER values for each session
-        min_perm_hyp_trans (list):
-            List containing transcripts that lead to the minimum WER in string format
-        ref_trans (list):
-            List containing concatenated reference transcripts
-    """
-    if len(spk_hypotheses) != len(spk_references):
-        raise ValueError(
-            "In concatenated-minimum permutation word error rate calculation, "
-            "hypotheses and reference lists must have the same number of elements. But got arguments:"
-            f"{len(spk_hypotheses)} and {len(spk_references)} correspondingly"
-        )
-    cpWER_values, hyps_spk, refs_spk = [], [], []
-    for (spk_hypothesis, spk_reference) in zip(spk_hypotheses, spk_references):
-        cpWER, min_hypothesis, concat_reference = calculate_session_cpWER(spk_hypothesis, spk_reference)
-        cpWER_values.append(cpWER)
-        hyps_spk.append(min_hypothesis)
-        refs_spk.append(concat_reference)
-    return cpWER_values, hyps_spk, refs_spk
+    ctm_lines = []
+    confidence = 0
+    for word_dict in word_dict_seq_list:
+        spk = word_dict['speaker']
+        stt = word_dict['start_time']
+        dur = round(word_dict['end_time'] - word_dict['start_time'], decimals)
+        word = word_dict['word']
+        ctm_line_str = f"{uniq_id} {spk} {stt} {dur} {word} {confidence}"
+        ctm_lines.append(ctm_line_str)
+    return ctm_lines
 
 
 class OfflineDiarWithASR:
@@ -936,7 +786,7 @@ class OfflineDiarWithASR:
         prev_speaker = speaker
 
         sentences, terms_list = [], []
-        sentence = {'speaker': speaker, 'start_point': start_point, 'end_point': end_point, 'text': ''}
+        sentence = {'speaker': speaker, 'start_time': start_point, 'end_time': end_point, 'text': ''}
 
         n_spk = self.get_num_of_spk_from_labels(diar_labels)
         logging.info(f"Creating results for Session: {uniq_id} n_spk: {n_spk} ")
@@ -961,10 +811,10 @@ class OfflineDiarWithASR:
                 sentences.append(sentence)
 
                 # start construction of a new sentence
-                sentence = {'speaker': speaker, 'start_point': start_point, 'end_point': end_point, 'text': ''}
+                sentence = {'speaker': speaker, 'start_time': start_point, 'end_time': end_point, 'text': ''}
             else:
                 # correct the ending time
-                sentence['end_point'] = end_point
+                sentence['end_time'] = end_point
 
             stt_sec, end_sec = start_point, end_point
             terms_list.append({'start': stt_sec, 'end': end_sec, 'text': word, 'type': 'WORD'})
@@ -984,8 +834,8 @@ class OfflineDiarWithASR:
 
         # Speaker independent transcription
         session_trans_dict['transcription'] = ' '.join(word_seq_list)
-        # add sentences to the json array
-        self._add_sentences_to_dict(session_trans_dict, sentences)
+        # add sentences to transcription information dict
+        session_trans_dict['sentences'] = sentences
 
         self.write_and_log(uniq_id, session_trans_dict, audacity_label_words, gecko_dict, sentences)
         return session_trans_dict
@@ -1128,7 +978,6 @@ class OfflineDiarWithASR:
             for (audio_file_path, ctm_file_path) in zip(self.audio_file_list, self.ctm_file_list):
                 uniq_id = get_uniqname_from_filepath(audio_file_path)
                 uniq_id_list.append(uniq_id)
-
                 spk_hypothesis, mix_hypothesis = convert_word_dict_seq_to_text(trans_info_dict[uniq_id]['words'])
                 spk_reference, mix_reference = convert_ctm_to_text(ctm_file_path)
 
@@ -1338,8 +1187,8 @@ class OfflineDiarWithASR:
         for sentence in sentences:
             # extract info
             speaker = sentence['speaker']
-            start_point = sentence['start_point']
-            end_point = sentence['end_point']
+            start_point = sentence['start_time']
+            end_point = sentence['end_time']
             text = sentence['text']
 
             if self.params['colored_text']:
@@ -1406,26 +1255,3 @@ class OfflineDiarWithASR:
         spk_set = [x.split(' ')[-1].strip() for x in labels]
         return len(set(spk_set))
 
-    @staticmethod
-    def _add_sentences_to_dict(session_trans_dict, sentences):
-        """
-        Add information in the `sentence` variable to the result dictionary.
-
-        Args:
-            session_trans_dict (dict):
-                Dictionary containing the transcription output for a session.
-            sentences (list):
-                List containing dictionary variables containing word, word timestamps and speaker label.
-        """
-        # iterate over sentences
-        for sentence in sentences:
-
-            # save to session_trans_dict
-            session_trans_dict['sentences'].append(
-                {
-                    'sentence': sentence['text'],
-                    'start_time': sentence['start_point'],
-                    'end_time': sentence['end_point'],
-                    'speaker': sentence['speaker'],
-                }
-            )

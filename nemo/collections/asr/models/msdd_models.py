@@ -42,6 +42,7 @@ from nemo.collections.asr.models.clustering_diarizer import (
 )
 from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
+from nemo.collections.asr.metrics.der import score_labels
 from nemo.collections.asr.parts.utils.speaker_utils import (
     audio_rttm_map,
     get_embs_and_timestamps,
@@ -50,7 +51,6 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
     get_uniq_id_list_from_manifest,
     make_rttm_with_overlap,
     parse_scale_configs,
-    score_labels,
 )
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
@@ -858,7 +858,7 @@ class ClusterEmbedding:
 
         # If RTTM (ground-truth diarization annotation) files do not exist, scores is None.
         if scores is not None:
-            metric, speaker_mapping_dict = scores
+            metric, speaker_mapping_dict, _ = scores
         else:
             metric, speaker_mapping_dict = None, None
 
@@ -1100,9 +1100,9 @@ class NeuralDiarizer:
                     Examples: (0, 1, 2)
                 data[1]: Tensor containing estimaged sigmoid values.
                    [[0.0264, 0.9995],
-		            [0.0112, 1.0000],
-		            ...,
-		            [1.0000, 0.0512]]
+                    [0.0112, 1.0000],
+                    ...,
+                    [1.0000, 0.0512]]
 
         Returns:
             sum_pred (Tensor):
