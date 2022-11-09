@@ -17,7 +17,7 @@ from itertools import permutations
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
-from pyannote.core import Annotation, Segment, Timeline
+from pyannote.core import Segment, Timeline
 from pyannote.metrics.diarization import DiarizationErrorRate
 from scipy.optimize import linear_sum_assignment
 
