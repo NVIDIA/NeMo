@@ -23,7 +23,7 @@ from nemo.collections.common.parts.utils import activation_registry
 from nemo.core.classes.mixins import access_mixins, adapter_mixin_strategies
 
 
-class AbstractAdapterMixin(access_mixins.AccessMixin):
+class AbstractAdapterModuleMixin(access_mixins.AccessMixin):
     """
     Base class of Adapter Modules, providing common functionality to all Adapter Modules.
     """
@@ -56,7 +56,7 @@ class AbstractAdapterMixin(access_mixins.AccessMixin):
             raise AttributeError(f'`adapter_strategy` provided is invalid : {adapter_strategy}')
 
 
-class LinearAdapter(nn.Module, AbstractAdapterMixin):
+class LinearAdapter(nn.Module, AbstractAdapterModuleMixin):
 
     """
     Simple Linear Feedforward Adapter module with LayerNorm and singe hidden layer with activation function.
