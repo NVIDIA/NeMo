@@ -363,14 +363,18 @@ class GPTDataset(Dataset):
             for i in range(doc_index_f + 1, doc_index_l):
                 sample_list.append(self.indexed_dataset.get(self.doc_idx[i]))
             # And finally add the relevant portion of last document.
-            sample_list.append(self.indexed_dataset.get(self.doc_idx[doc_index_l], length=offset_l + self.add_extra_token))
+            sample_list.append(
+                self.indexed_dataset.get(self.doc_idx[doc_index_l], length=offset_l + self.add_extra_token)
+            )
             sample = np.concatenate(sample_list)
         if len(sample) != (self.seq_length + self.add_extra_token):
             logging.info(
                 F' > WARNING: Got sample of length: {len(sample)} for sequence length={self.seq_length+self.add_extra_token}, padding the sample to match sequence length'
             )
             sample = np.array(sample, dtype=np.int64)
-            sample = np.pad(sample, (0, self.seq_length + self.add_extra_token - len(sample)), mode='constant', constant_values=-1)
+            sample = np.pad(
+                sample, (0, self.seq_length + self.add_extra_token - len(sample)), mode='constant', constant_values=-1
+            )
         return sample.astype(np.int64)
 
     def __getitem__(self, idx):
@@ -505,7 +509,9 @@ def _build_index_mappings(
 
             else:
                 # Get the number of samples for the last epoch
-                num_samples_from_epochs_minus_one = ((num_epochs - 1) * tokens_per_epoch - add_extra_token) // seq_length
+                num_samples_from_epochs_minus_one = (
+                    (num_epochs - 1) * tokens_per_epoch - add_extra_token
+                ) // seq_length
                 last_epoch_num_samples = num_samples - num_samples_from_epochs_minus_one
                 assert last_epoch_num_samples >= 0, 'last epoch number of samples should be non-negative.'
                 num_samples_per_epoch = (tokens_per_epoch - add_extra_token) // seq_length
@@ -555,7 +561,9 @@ def _build_index_mappings(
                     f'Could not compile megatron dataset C++ helper functions and therefore cannot import helpers python file.'
                 )
 
-            sample_idx = helpers.build_sample_idx(sizes, doc_idx, seq_length, num_epochs, tokens_per_epoch, drop_last, add_extra_token)
+            sample_idx = helpers.build_sample_idx(
+                sizes, doc_idx, seq_length, num_epochs, tokens_per_epoch, drop_last, add_extra_token
+            )
             # sample_idx = _build_sample_idx(sizes, doc_idx, seq_length,
             #                              num_epochs, tokens_per_epoch, drop_last, add_extra_token)
             np.save(sample_idx_filename, sample_idx, allow_pickle=True)
@@ -607,7 +615,7 @@ def _num_tokens(documents, sizes):
     return np.sum(sizes[documents])
 
 
-def _num_epochs(tokens_per_epoch, seq_length, num_samples, add_extra_token = 1):
+def _num_epochs(tokens_per_epoch, seq_length, num_samples, add_extra_token=1):
     """Based on number of samples and sequence lenght, calculate how many
     epochs will be needed."""
     num_epochs = 0
