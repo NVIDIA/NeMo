@@ -67,6 +67,9 @@ def hydra_runner(
                 # Set run.dir ONLY for ExpManager "compatibility" - to be removed.
                 overrides.append("hydra.run.dir=.")
 
+                # Set working directory to the job's output directory
+                overrides.append("hydra.job.chdir=True")
+
                 # Check if user set the schema.
                 if schema is not None:
                     # Create config store.
