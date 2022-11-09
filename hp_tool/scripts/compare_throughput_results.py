@@ -60,12 +60,12 @@ def main(cfg):
         gbs = model_cfg.get("global_batch_size")
         enc_seq_len = (
             model_cfg.get("encoder_seq_length")
-            if model_name == "gpt3"
+            if model_name in ("gpt3", "bert")
             else model_cfg.get("seq_length")
         )
         dec_seq_len = data_cfg.get("seq_length_dec")
 
-        if model_name == "gpt3":
+        if model_name in ("gpt3", "bert"):
             hs = model_cfg.get("hidden_size")
             ffn_hs = None
             layers = model_cfg.get("num_layers")
@@ -192,7 +192,7 @@ def calculate_tflops(
         HW FLOPs =
         ((2*R3*M3*M3*(5*O3+4*P3)+6*R3*M3*N3*(O3+P3)+4*R3*M3*(O3*O3+P3*P3+O3*P3))*3*L3/2+6*R3*P3*M3*Q3)/(G3*H3)/1000000000000/F3
     """
-    if model_name == "gpt3":
+    if model_name in ("gpt3", "bert"):
         act_term = (
             4 * gbs * enc_seq_len * enc_seq_len * hs * layers
             if act_ckpt_layers == "selective"
