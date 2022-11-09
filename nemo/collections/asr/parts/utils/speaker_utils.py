@@ -416,6 +416,15 @@ def write_cluster_labels(base_scale_idx, lines_cluster_labels, out_rttm_dir):
         for clus_label_line in lines_cluster_labels:
             f.write(clus_label_line)
 
+def generate_cluster_labels(segment_ranges, cluster_labels):
+    lines = []
+    for idx, label in enumerate(cluster_labels):
+        tag = 'speaker_' + str(label)
+        stt, end = segment_ranges[idx]
+        lines.append(f"{stt} {end} {tag}")
+    cont_lines = get_contiguous_stamps(lines)
+    diar_hyp = merge_stamps(cont_lines)
+    return diar_hyp
 
 def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, clustering_params, use_torch_script=False):
     """
@@ -479,14 +488,8 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
         cluster_labels = cluster_labels.cpu().numpy()
         if len(cluster_labels) != timestamps.shape[0]:
             raise ValueError("Mismatch of length between cluster_labels and timestamps.")
-
-        lines = []
-        for idx, label in enumerate(cluster_labels):
-            tag = 'speaker_' + str(label)
-            lines.append(f"{timestamps[idx][0]:.3f} {timestamps[idx][1]:.3f} {tag}")
-
-        a = get_contiguous_stamps(lines)
-        labels = merge_stamps(a)
+        
+        labels = generate_cluster_labels(timestamps, cluster_labels)
 
         if out_rttm_dir:
             labels_to_rttmfile(labels, uniq_id, out_rttm_dir)
@@ -750,6 +753,17 @@ def combine_float_overlaps(ranges, decimals=5, margin=2):
     merged_ranges = [[int2fl(x[0] - margin, decimals), int2fl(x[1], decimals)] for x in merged_ranges]
     return merged_ranges
 
+# @torch.jit.script
+# def combine_int_overlaps(self, intervals: List[List[float]]) -> List[List[float]]:
+    # intervals.sort(key=lambda x: x.start)
+
+    # rst = []
+    # for interval in intervals:
+        # if not rst or interval.start > rst[-1].end:
+            # rst.append(interval)
+        # elif interval.end > rst[-1].end:
+            # rst[-1].end = interval.end
+    # return rst
 
 def combine_int_overlaps(ranges):
     """
@@ -815,9 +829,9 @@ def getMergedRanges(label_list_A: List, label_list_B: List, decimals: int = 3) -
     elif label_list_A != [] and label_list_B == []:
         return label_list_A
     else:
-        label_list_A = [[fl2int(x[0] + 1, decimals), fl2int(x[1], decimals)] for x in label_list_A]
-        label_list_B = [[fl2int(x[0] + 1, decimals), fl2int(x[1], decimals)] for x in label_list_B]
-        combined = combine_int_overlaps(label_list_A + label_list_B)
+        label_list_A_int = [[fl2int(x[0] + 1, decimals), fl2int(x[1], decimals)] for x in label_list_A]
+        label_list_B_int = [[fl2int(x[0] + 1, decimals), fl2int(x[1], decimals)] for x in label_list_B]
+        combined = combine_int_overlaps(label_list_A_int + label_list_B_int)
         return [[int2fl(x[0] - 1, decimals), int2fl(x[1], decimals)] for x in combined]
 
 

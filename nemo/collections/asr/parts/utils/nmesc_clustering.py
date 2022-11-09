@@ -423,7 +423,7 @@ def getCosAffinityMatrix(emb: torch.Tensor):
     sim_d = ScalerMinMax(sim_d)
     return sim_d
 
-def getTempInterpolMultiScaleCosAffinityMatrix(uniq_embs_and_timestamps: dict, device: torch.device = torch.device('cpu')):
+def XgetTempInterpolMultiScaleCosAffinityMatrix(uniq_embs_and_timestamps: dict, device: torch.device = torch.device('cpu')):
     """
     Calculate cosine similarity values among speaker embeddings for each scale then
     apply multiscale weights to calculate the fused similarity matrix.
@@ -468,6 +468,52 @@ def getTempInterpolMultiScaleCosAffinityMatrix(uniq_embs_and_timestamps: dict, d
         context_emb = context_emb.unsqueeze(0)
     fused_sim_d = getCosAffinityMatrix(context_emb)
     return fused_sim_d, context_emb, session_scale_mapping_dict
+
+def getTempInterpolMultiScaleCosAffinityMatrix(
+    multiscale_weights: torch.Tensor,
+    embeddings_in_scales: List[torch.Tensor],
+    timestamps_in_scales: List[torch.Tensor],
+    device: torch.device = torch.device('cpu'),
+):
+    """
+    Calculate cosine similarity values among speaker embeddings for each scale then
+    apply multiscale weights to calculate the fused similarity matrix.
+
+    Take the embedding from the scale (scale_interpolation_index-1)-th scale and find the indexes that are
+    in the range of [-half_scale, half_scale]. The distance to the center of the base-scale is used for
+    calculating the interpolation weight. The distance is squared then normalized to create an interpolation
+    weight vector interpol_w. Using the interpolation weight interpol_w and target embedding indexes target_bool,
+    interpolated embedding is calculated.
+
+    Args:
+        uniq_embs_and_timestamps: (dict)
+            The dictionary containing embeddings, timestamps and multiscale weights.
+            If uniq_embs_and_timestamps contains only one scale, single scale diarization
+            is performed.
+
+    Returns:
+        fused_sim_d (torch.tensor):
+            This function generates an affinity matrix that is obtained by calculating
+            the weighted sum of the affinity matrices from the different scales.
+        base_scale_emb (torch.tensor):
+            The base scale embedding (the embeddings from the finest scale)
+    """
+    rep_mat_list = []
+    multiscale_weights = multiscale_weights.to(device)
+    session_scale_mapping_dict = get_argmin_mat(timestamps_in_scales)
+    scale_list = list(range(len(timestamps_in_scales)))
+    for scale_idx in scale_list:
+        mapping_argmat = session_scale_mapping_dict[scale_idx]
+        emb_t = embeddings_in_scales[scale_idx].half().to(device)
+        mapping_argmat = mapping_argmat.to(device)
+        repeat_list = getRepeatedList(mapping_argmat, emb_t.shape[0], device=device).to(device)
+        rep_emb_t = torch.repeat_interleave(emb_t, repeats=repeat_list, dim=0)
+        rep_mat_list.append(rep_emb_t)
+    stacked_scale_embs = torch.stack(rep_mat_list)
+    context_emb = torch.matmul(stacked_scale_embs.permute(2, 1, 0), multiscale_weights.t().half()).squeeze().t()
+    if len(context_emb.shape) < 2:
+        context_emb = context_emb.unsqueeze(0)
+    return context_emb, session_scale_mapping_dict
 
 @torch.jit.script
 def getMultiScaleCosAffinityMatrix(
@@ -991,9 +1037,10 @@ class NMESC:
         self.max_N = torch.tensor(0)
         self.mat = mat
         self.p_value_list: torch.Tensor = self.min_p_value.unsqueeze(0)
-        self.device = device
         self.maj_vote_spk_count = maj_vote_spk_count
         self.parallelism = parallelism
+        self.cuda = cuda
+        self.device = device
 
     def forward(self):
         """
@@ -1099,6 +1146,9 @@ class NMESC:
         max_key = arg_sorted_idx[0]
         max_eig_gap = lambda_gap_list[max_key] / (torch.max(lambdas).item() + self.eps)
         g_p = (p_neighbors / self.mat.shape[0]) / (max_eig_gap + self.eps)
+        print("getEigRatio: ", "est_num_of_spk: ", est_num_of_spk)
+        if type(est_num_of_spk.item()) != int:
+            import ipdb; ipdb.set_trace()
         return torch.stack([g_p, est_num_of_spk])
 
     def getPvalueList(self):
@@ -1301,3 +1351,114 @@ class SpeakerClustering(torch.nn.Module):
         spectral_model = SpectralClustering(n_clusters=est_num_of_spk, cuda=self.cuda, device=self.device)
         Y = spectral_model.forward(affinity_mat)
         return Y
+
+class OnlineSpeakerClustering:
+    def __init__(self, 
+                max_num_speakers,
+                max_rp_threshold, 
+                sparse_search_volume,
+                ):
+        self.max_num_speaker = max_num_speakers
+        self.max_rp_threshold = max_rp_threshold
+        self.sparse_search_volume = sparse_search_volume
+        self.fixed_thres = None
+        self.p_value_skip_frame_thres = 50
+        self.p_update_freq = 5
+        self.min_spk_counting_buffer_size = 7
+        self.min_frame_per_spk = 20
+        self.p_value_queue_size = 3
+        self.num_spk_stat = []
+        self.p_value_hist = []
+
+    def onlineNMEanalysis(self, nmesc, frame_index):
+        """
+        To save the running time, the p-value is only estimated in the beginning of the session.
+        After switching to online mode, the system uses the most common estimated p-value.
+        Estimating p-value requires a plenty of computational resource. The less frequent estimation of
+        p-value can speed up the clustering algorithm by a huge margin.
+        Args:
+            nmesc: (NMESC)
+                nmesc instance.
+            isOnline: (bool)
+                Indicates whether the system is running on online mode or not.
+
+        Returns:
+            est_num_of_spk: (int)
+                The estimated number of speakers.
+            p_hat_value: (int)
+                The estimated p-value from NMESC method.
+        """
+        if len(self.p_value_hist) == 0 or \
+            (frame_index < self.p_value_skip_frame_thres and frame_index % self.p_update_freq == 0):
+            est_num_of_spk, p_hat_value = nmesc.forward()
+            self.p_value_hist.append(p_hat_value)
+            if len(self.p_value_hist) > self.p_value_queue_size:
+                self.p_value_hist.pop(0)
+        p_hat_value = max(self.p_value_hist, key=self.p_value_hist.count)
+        g_p, est_num_of_spk = nmesc.getEigRatio(p_hat_value)
+        return est_num_of_spk, p_hat_value
+    
+    def speaker_counter_buffer(self, est_num_of_spk):
+        """
+        Use a queue to avoid unstable speaker counting results.
+        """
+        if type(est_num_of_spk.item()) !=  int:
+            est_num_of_spk = int(est_num_of_spk.item())
+
+        self.num_spk_stat.append(est_num_of_spk)
+        if len(self.num_spk_stat) > self.min_spk_counting_buffer_size:
+            self.num_spk_stat.pop(0)
+        num_spks_bincount = torch.bincount(torch.tensor(self.num_spk_stat))
+        est_num_of_spk = torch.argmax(num_spks_bincount)
+        return est_num_of_spk
+
+    def limit_frames_per_speaker(self, frame_index, est_num_of_spk):
+        """
+        Limit the estimated number of speakers in proportion to the number of speakers.
+
+        Args:
+            est_num_of_spk (int): Estimated number of speakers
+        Returns:
+            (int) Estimated number of speakers capped by `self.min_frame_per_spk`
+        """
+        return min(est_num_of_spk, int(1 + frame_index// self.min_frame_per_spk))
+
+    def online_spk_num_estimation(self, emb, mat, nmesc, frame_index):
+        """
+        Online version of speaker estimation involves speaker counting buffer and application of per-speaker
+        frame count limit.
+
+        """
+        est_num_of_spk, p_hat_value = self.onlineNMEanalysis(nmesc, frame_index)
+        affinity_mat = getAffinityGraphMat(mat, p_hat_value)
+        est_num_of_spk = self.speaker_counter_buffer(est_num_of_spk)
+        est_num_of_spk = self.limit_frames_per_speaker(frame_index, est_num_of_spk)
+        return est_num_of_spk, affinity_mat
+
+    def forward(self, 
+        emb: torch.Tensor,
+        frame_index: int,
+        cuda,
+        device
+        ):
+        mat = getCosAffinityMatrix(emb)
+        if emb.shape[0] == 1:
+            return torch.zeros((1,), dtype=torch.int32)
+
+        nmesc = NMESC(
+            mat,
+            max_num_speaker=self.max_num_speaker,
+            max_rp_threshold=self.max_rp_threshold,
+            sparse_search=True,
+            maj_vote_spk_count=False,
+            sparse_search_volume=self.sparse_search_volume,
+            fixed_thres=self.fixed_thres,
+            nme_mat_size=256,
+            device=device,
+        )
+        
+        est_num_of_spk, affinity_mat = self.online_spk_num_estimation(emb, mat, nmesc, frame_index)
+        spectral_model = SpectralClustering(n_clusters=est_num_of_spk, cuda=cuda, device=device)
+        Y = spectral_model.forward(affinity_mat)
+        return Y
+

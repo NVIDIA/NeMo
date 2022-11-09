@@ -40,22 +40,21 @@ from nemo.collections.asr.models.classification_models import EncDecClassificati
 from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel
 from nemo.collections.asr.parts.mixins.mixins import DiarizationMixin
 from nemo.collections.asr.parts.utils.nmesc_clustering import (
+    OnlineSpeakerClustering,
     NMESC,
-    SpectralClustering,
-    getAffinityGraphMat,
     getCosAffinityMatrix,
-    getEnhancedSpeakerCount,
-    getMultiScaleCosAffinityMatrix,
+    split_input_data,
     getTempInterpolMultiScaleCosAffinityMatrix,
 )
 from nemo.collections.asr.parts.utils.speaker_utils import (
     audio_rttm_map,
-    combine_int_overlaps,
     fl2int,
+    generate_cluster_labels,
     get_contiguous_stamps,
     get_embs_and_timestamps,
     get_subsegments,
     get_uniqname_from_filepath,
+    combine_float_overlaps,
     getMergedRanges,
     getOverlapRange,
     getSubRangeList,
@@ -87,6 +86,19 @@ except ImportError:
 
 
 __all__ = ['OnlineDiarizer']
+
+def torch_adaptor(method):
+    def torch_adapt(*args, **kw):
+        args_out = []
+        for x in args:
+            args_out.append(torch.tensor(x))
+
+        returns = method(*args_out)
+        list_returns = []
+        for x in args:
+            list_returns.append(x.cpu().numpy().tolist())
+        return list_returns
+    return torch_adapt
 
 def timeit(method):
     """
@@ -128,7 +140,7 @@ def hungarian_algorithm(spk_count, U_set, cmm_P, cmm_Q, PmQ, QmP):
             mapping_array[x] = col_ind[x]
     return mapping_array
 
-def get_indices_for_merging(cmat, ndx, target_num):
+def get_closest_embeddings(cmat, ndx, target_num):
     """
     Get indeces of the embeddings we want to merge or drop.
 
@@ -138,15 +150,23 @@ def get_indices_for_merging(cmat, ndx, target_num):
         target_num: (int)
 
     Output:
-        tick2d: (numpy.array)
+        index_2d: (numpy.array)
     """
     comb_limit = int(ndx.shape[0] / 2)
     assert (
         target_num <= comb_limit
     ), f" target_num is {target_num}: {target_num} is bigger than comb_limit {comb_limit}"
+
+    cmat = preprocess_mat(cmat, symm=True, fill_diag_zero=True)
+    if np.trace(cmat) > 0:
+        raise ValueError("Trace of the affinity matrix should be 0 to exclude the self-affinity values.")
+    
+    # Sort the index to get the indices of the closest embedding vectors
     idx2d = np.unravel_index(np.argsort(cmat, axis=None)[::-1], cmat.shape)
     num_of_lower_half = int((cmat.shape[0] ** 2 - cmat.shape[0]) / 2)
     idx2d = (idx2d[0][:num_of_lower_half], idx2d[1][:num_of_lower_half])
+
+    # Until we get the targeted number, add the closest indices
     cdx, left_set, right_set, total_set = 0, [], [], []
     while len(left_set) < target_num and len(right_set) < target_num:
         Ldx, Rdx = idx2d[0][cdx], idx2d[1][cdx]
@@ -155,8 +175,8 @@ def get_indices_for_merging(cmat, ndx, target_num):
             right_set.append(Rdx)
             total_set = left_set + right_set
         cdx += 1
-    tick2d = np.array([left_set, right_set])
-    return tick2d
+    index_2d = np.array([left_set, right_set])
+    return index_2d
 
 
 def preprocess_mat(mat, symm=True, fill_diag_zero=True):
@@ -171,7 +191,7 @@ def get_mapped_index(mat, index):
 
 def get_merge_quantity(
     new_emb_n, 
-    pre_merge_cluster_label, 
+    pre_clus_labels, 
     min_segs_per_buffer
     ):
     """
@@ -186,12 +206,12 @@ def get_merge_quantity(
         new_emb_n: (int)
             the quantity of the newly obtained embedding from the new stream of input.
 
-        pre_merge_cluster_label: (np.array)
+        pre_clus_labels: (np.array)
             the speaker labels of (the history_embedding_buffer_emb) + (the new embeddings to be added)
     """
     targeted_total_n = new_emb_n
-    count_dict = Counter(pre_merge_cluster_label)
-    spk_freq_count = np.bincount(pre_merge_cluster_label)
+    count_dict = Counter(pre_clus_labels)
+    spk_freq_count = np.bincount(pre_clus_labels)
     class_vol = copy.deepcopy(spk_freq_count)
     emb_n_per_cluster = np.zeros_like(class_vol).astype(int)
     arg_max_spk_freq = np.argsort(spk_freq_count)[::-1]
@@ -211,40 +231,80 @@ def get_merge_quantity(
     return emb_n_per_cluster
 
 
-def run_reduction_alg(
-        cmat, 
-        tick2d, 
-        emb_ndx, 
-        cluster_labels
-        ):
+def merge_emb(index_2d, 
+              emb_ndx, 
+              pre_cluster_labels
+            ):
     """
 
 
     """
-    LI, RI = tick2d[0, :], tick2d[1, :]
-    LI_argdx = tick2d[0].argsort()
+    LI, RI = index_2d[0, :], index_2d[1, :]
+    LI_argdx = index_2d[0].argsort()
     LI, RI = LI[LI_argdx], RI[LI_argdx]
     result_emb = 0.5 * (emb_ndx[LI, :] + emb_ndx[RI, :])
-    merged_cluster_labels = cluster_labels[np.array(list(set(LI)))]
+    merged_clus_labels = pre_cluster_labels[np.array(list(set(LI)))]
     bypass_ndx = np.array(list(set(range(emb_ndx.shape[0])) - set(list(LI) + list(RI))))
     if len(bypass_ndx) > 0:
         result_emb = np.vstack((emb_ndx[bypass_ndx], result_emb))
-        merged_cluster_labels = np.hstack((cluster_labels[bypass_ndx], merged_cluster_labels))
-    return result_emb, merged_cluster_labels
+        merged_clus_labels = np.hstack((pre_cluster_labels[bypass_ndx], merged_clus_labels))
+    return result_emb, merged_clus_labels
+
+def run_reducer(pre_embs, target_spk_idx, target_num, pre_clus_labels):
+    """
+    Reduce the number of embedding vectors by merging the closest embedding vectors.
+    This reducing algorithm is based on the assumption that the closest embeddings are the most redundant
+    embedding vectors.
+
+    Args:
+        pre_embs (Tensor):
+            Potential Embedding vectors to be merged
+        affinity_mat (Tensor):
+            The affinity matrix of the `pre_embs`
+        target_spk_idx (int):
+            The targeted speaker index for merging
+        target_num (int):
+            The count of embeddings to be reduced
+        pre_clus_labels (list)
+            The original cluster (speaker) index
+
+    Returns:
+        result_emb (Tensor):
+            Set of merged embedding vectors
+        merged_clus_labels (list):
+            Cluster (speaker) labels for the merged embedding vectors
+    """
+    if pre_embs.shape[0] != pre_clus_labels.shape[0]:
+            raise ValueError("Dimension mismatch between `pre_embs` and `pre_clus_labels`.")
+    ndx = np.where(pre_clus_labels == target_spk_idx)[0]
+    if target_num > 0:
+        affinity_mat = getCosAffinityMatrix(torch.tensor(pre_embs)).cpu().numpy()
+        cmat = np.tril(affinity_mat[:, ndx][ndx, :]) # Get the lower triangle of the affinity_mat array
+        if cmat.shape[0] != ndx.shape[0]:
+            raise ValueError("Dimension mismatch between targeted speaker affinity `cmat` and targeted speaker index `ndx`.")
+
+        # Get the indices of the closest embedding vectors
+        index_2d = get_closest_embeddings(cmat, ndx, target_num)
+        spk_cluster_labels, emb_ndx = pre_clus_labels[ndx], pre_embs[ndx]
+
+        # Merge the embeddings targeted by the 2-dim indices `index_2d`
+        merged_embs, merged_clus_labels = merge_emb(index_2d, emb_ndx, spk_cluster_labels)
+        assert (ndx.shape[0] - target_num) == merged_embs.shape[0], "Reducer output is not matched to the target quantity"
+    else:
+        merged_embs = pre_embs[ndx]
+        merged_clus_labels = pre_clus_labels[ndx]
+    return merged_embs, merged_clus_labels
 
 
 def get_online_segments_from_slices(
     buffer_start,
     buffer_end,
     subsegments,
+    ind_offset,
     sig,
     window,
-    sigs_list,
-    sig_rangel_list,
-    sig_indexes,
-    seg_index_offset,
     sample_rate,
-    decimals,
+    decimals: int = 3,
 ):
     """
     Create short speech segments from sclices for online processing purpose.
@@ -256,43 +316,46 @@ def get_online_segments_from_slices(
         sig (FloatTensor): the tensor that contains input signal
 
     Returns:
-        sigs_list  (list): list of sliced input signal
-        audio_lengths (list): list of audio sample lengths
+        sigs_list  (list):
+            list of sliced input signal
+        audio_lengths (list):
+            list of audio sample lengths
     """
+    sig_rangel_list, sig_indexes, sigs_list = [], [], []
     slice_length = int(window * sample_rate)
     for (start_sec, dur) in subsegments:
         if start_sec > buffer_end:
             continue
-        seg_index_offset += 1
-        if (start_sec + dur) > (buffer_end - buffer_start):
-            end_sec = min(start_sec + dur, (buffer_end - buffer_start))
-        else:
-            end_sec = start_sec + dur
-        start_idx = int(start_sec * sample_rate)
-        end_idx = min(int(end_sec * sample_rate), slice_length + start_idx)
-        signal = sig[start_idx:end_idx]
+        ind_offset += 1
+
+        buffer_len = buffer_end - buffer_start
+        end_sec = start_sec + dur
+
+        if end_sec > buffer_len:
+            end_sec = min(end_sec, buffer_len)
+
+        signal = get_target_sig(sig, start_sec, end_sec, slice_length, sample_rate)
+        
         if len(signal) == 0:
             raise ValueError("len(signal) is zero. Signal length should not be zero.")
         if len(signal) < slice_length:
             signal = repeat_signal(signal, len(signal), slice_length)
+        
         start_abs_sec = round(float(buffer_start + start_sec), decimals)
         end_abs_sec = round(float(buffer_start + end_sec), decimals)
+        
         sigs_list.append(signal)
         sig_rangel_list.append([start_abs_sec, end_abs_sec])
-        sig_indexes.append(seg_index_offset)
+        sig_indexes.append(ind_offset)
     if not len(sigs_list) == len(sig_rangel_list) == len(sig_indexes):
         raise ValueError("Signal information lists have a mismatch.")
-    return seg_index_offset, sigs_list, sig_rangel_list, sig_indexes
 
-def generate_cluster_labels(segment_ranges, cluster_labels):
-    lines = []
-    for idx, label in enumerate(cluster_labels):
-        tag = 'speaker_' + str(label)
-        stt, end = segment_ranges[idx]
-        lines.append(f"{stt} {end} {tag}")
-    cont_lines = get_contiguous_stamps(lines)
-    diar_hyp = merge_stamps(cont_lines)
-    return diar_hyp
+    return ind_offset, sigs_list, sig_rangel_list, sig_indexes
+
+def get_target_sig(sig, start_sec, end_sec, slice_length, sample_rate):
+    start_idx = int(start_sec * sample_rate)
+    end_idx = min(int(end_sec * sample_rate), slice_length + start_idx)
+    return sig[start_idx:end_idx]
 
 
 def get_new_cursor_for_update(
@@ -317,6 +380,20 @@ def get_new_cursor_for_update(
         else:
             break
     return cursor_for_old_segments
+
+def check_ranges(range_list: List[List[float]]):
+    """
+    Check whether the range list has any faulty timestamp order.
+
+    Args:
+        range_list (list):
+            List containing the start and end time of the segments.
+            Example:
+                >>> range_list = [[0.5, 3.12], [3.51, 7.26], ... ]
+    """
+    for range_tup in range_list:
+        if range_tup[1] < range_tup[0]:
+            raise ValueError("Range start time should be preceding the end time but we got: {range_tup}")
 
 
 def get_speech_labels_for_update(
@@ -351,11 +428,14 @@ def get_speech_labels_for_update(
     )
 
     # Speech segments for embedding extractions
-    speech_label_for_new_segments = getMergedRanges(update_overlap_speech_labels, new_incoming_speech_labels)
+    speech_label_for_new_segments = combine_float_overlaps(update_overlap_speech_labels + new_incoming_speech_labels, margin=0)
 
     # Keep cumulative VAD labels for the future use
-    cumulative_speech_labels = getMergedRanges(cumulative_speech_labels, new_incoming_speech_labels)
+    cumulative_speech_labels = combine_float_overlaps(cumulative_speech_labels + new_incoming_speech_labels, margin=0)
 
+    # Check if there are any faulty timestamps
+    check_ranges(speech_label_for_new_segments)
+    check_ranges(cumulative_speech_labels)
     return speech_label_for_new_segments, cumulative_speech_labels
 
 
@@ -368,36 +448,35 @@ def get_segments_from_buffer(
     segment_indexes,
     window,
     shift,
-    decimals,
+    decimals: int = 2,
 ):
     sigs_list, sig_rangel_list, sig_indexes = [], [], []
     if len(segment_indexes) > 0:
-        seg_index_offset = segment_indexes[-1]
+        ind_offset = segment_indexes[-1]
     else:
-        seg_index_offset = -1
+        ind_offset = -1
 
-    for idx, range_t in enumerate(speech_labels_for_update):
-        range_t = [range_t[0] - buffer_start, range_t[1] - buffer_start]
-        range_t[0] = max(0, range_t[0])
+    for idx, range_spl in enumerate(speech_labels_for_update):
+        range_offs = [range_spl[0] - buffer_start, range_spl[1] - buffer_start]
+        range_t = [max(0, range_offs[0]), range_offs[1] ]
 
         subsegments = get_subsegments(
             offset=range_t[0], window=window, shift=shift, duration=(range_t[1] - range_t[0])
         )
         target_sig = torch.from_numpy(audio_buffer)
-        subsegment_output = get_online_segments_from_slices(
+        
+        ind_offset, sigs, ranges, inds = get_online_segments_from_slices(
             buffer_start=buffer_start,
             buffer_end=buffer_end,
             subsegments=subsegments,
             sig=target_sig,
             window=window,
-            sigs_list=sigs_list,
-            sig_rangel_list=sig_rangel_list,
-            sig_indexes=sig_indexes,
-            seg_index_offset=seg_index_offset,
+            ind_offset=ind_offset,
             sample_rate=sample_rate,
-            decimals=decimals,
         )
-        seg_index_offset, sigs_list, sig_rangel_list, sig_indexes = subsegment_output
+        sigs_list.extend(sigs)
+        sig_rangel_list.extend(ranges)
+        sig_indexes.extend(inds)
 
     assert len(sigs_list) == len(sig_rangel_list) == len(sig_indexes)
     return sigs_list, sig_rangel_list, sig_indexes
@@ -446,109 +525,6 @@ def stitch_cluster_labels(Y_old, Y_new, with_history=True):
         matched_output = mapping_array[Y_new]
     return matched_output
 
-class OnlineSpeakerClustering:
-    def __init__(self, cfg_diarizer):
-        self.max_num_speaker = cfg_diarizer.clustering.parameters.max_num_speakers
-        self.max_rp_threshold = cfg_diarizer.clustering.parameters.max_rp_threshold
-        self.sparse_search_volume = cfg_diarizer.clustering.parameters.sparse_search_volume
-        self.fixed_thres = None
-        self.p_value_skip_frame_thres = 50
-        self.p_update_freq = 5
-        self.min_spk_counting_buffer_size = 7
-        self.min_frame_per_spk = 20
-        self.p_value_queue_size = 3
-        self.num_spk_stat = []
-        self.p_value_hist = []
-
-    @timeit
-    def onlineNMEanalysis(self, nmesc, frame_index):
-        """
-        To save the running time, the p-value is only estimated in the beginning of the session.
-        After switching to online mode, the system uses the most common estimated p-value.
-        Estimating p-value requires a plenty of computational resource. The less frequent estimation of
-        p-value can speed up the clustering algorithm by a huge margin.
-        Args:
-            nmesc: (NMESC)
-                nmesc instance.
-            isOnline: (bool)
-                Indicates whether the system is running on online mode or not.
-
-        Returns:
-            est_num_of_spk: (int)
-                The estimated number of speakers.
-            p_hat_value: (int)
-                The estimated p-value from NMESC method.
-        """
-        if len(self.p_value_hist) == 0 or \
-            (frame_index < self.p_value_skip_frame_thres and frame_index % self.p_update_freq == 0):
-            est_num_of_spk, p_hat_value = nmesc.NMEanalysis()
-            self.p_value_hist.append(p_hat_value)
-            if len(self.p_value_hist) > self.p_value_queue_size:
-                self.p_value_hist.pop(0)
-        p_hat_value = max(self.p_value_hist, key=self.p_value_hist.count)
-        est_num_of_spk, g_p = nmesc.getEigRatio(p_hat_value)
-        return est_num_of_spk, p_hat_value
-    
-    def speaker_counter_buffer(self, est_num_of_spk):
-        """
-        Use a queue to avoid unstable speaker counting results.
-        """
-        self.num_spk_stat.append(est_num_of_spk)
-        if len(self.num_spk_stat) > self.min_spk_counting_buffer_size:
-            self.num_spk_stat.pop(0)
-        num_spks_bincount = torch.bincount(torch.tensor(self.num_spk_stat))
-        est_num_of_spk = torch.argmax(num_spks_bincount)
-        return est_num_of_spk
-
-    def limit_frames_per_speaker(self, frame_index, est_num_of_spk):
-        """
-        Limit the estimated number of speakers in proportion to the number of speakers.
-
-        Args:
-            est_num_of_spk (int): Estimated number of speakers
-        Returns:
-            (int) Estimated number of speakers capped by `self.min_frame_per_spk`
-        """
-        return min(est_num_of_spk, int(1 + frame_index// self.min_frame_per_spk))
-
-    def online_spk_num_estimation(self, emb, mat, nmesc, frame_index):
-        """
-        Online version of speaker estimation involves speaker counting buffer and application of per-speaker
-        frame count limit.
-
-        """
-        est_num_of_spk, p_hat_value = self.onlineNMEanalysis(nmesc, frame_index)
-        affinity_mat = getAffinityGraphMat(mat, p_hat_value)
-        est_num_of_spk = self.speaker_counter_buffer(est_num_of_spk)
-        est_num_of_spk = self.limit_frames_per_speaker(frame_index, est_num_of_spk)
-        return est_num_of_spk, affinity_mat
-
-    def forward(self, 
-        emb: torch.Tensor,
-        frame_index: int,
-        cuda,
-        device
-        ):
-        mat = getCosAffinityMatrix(emb)
-        if emb.shape[0] == 1:
-            return torch.zeros((1,), dtype=torch.int32)
-
-        nmesc = NMESC(
-            mat,
-            max_num_speaker=self.max_num_speaker,
-            max_rp_threshold=self.max_rp_threshold,
-            sparse_search=True,
-            maj_vote_spk_count=False,
-            sparse_search_volume=self.sparse_search_volume,
-            fixed_thres=self.fixed_thres,
-            NME_mat_size=256,
-            device=device,
-        )
-        
-        est_num_of_spk, affinity_mat = self.online_spk_num_estimation(emb, mat, nmesc, frame_index)
-        spectral_model = SpectralClustering(n_clusters=est_num_of_spk, cuda=cuda, device=device)
-        Y = spectral_model.predict(affinity_mat)
-        return Y
 
 
 class OnlineDiarizer(ClusteringDiarizer):
@@ -559,6 +535,7 @@ class OnlineDiarizer(ClusteringDiarizer):
 
         # Convert config to support Hydra 1.0+ instantiation
         self.uniq_id = None
+        self.decimals = 2
         self.AUDIO_RTTM_MAP = audio_rttm_map(self.cfg.diarizer.manifest_filepath)
         self.sample_rate = self.cfg.sample_rate
         self._cfg_diarizer = self.cfg.diarizer
@@ -578,18 +555,13 @@ class OnlineDiarizer(ClusteringDiarizer):
         # Set speaker embedding model in eval mode
         self._speaker_model.eval()
     
-    def reset(self):
-        """
-        Reset all the variables
-        """
-        self._init_segment_variables()
-        self._init_online_clustering_module()
-        self._init_memory_buffer_variables()
-        self._init_temporal_major_voting_module()
-        self._init_buffer_frame_timestamps()
-
-    def _init_online_clustering_module(self): 
-        self.online_clus = OnlineSpeakerClustering(self.cfg.diarizer)
+    def _init_online_clustering_module(self, clustering_params): 
+        self.online_clus = OnlineSpeakerClustering(
+                            max_num_speakers=clustering_params.max_num_speakers,
+                            max_rp_threshold=clustering_params.max_rp_threshold,
+                            sparse_search_volume=clustering_params.sparse_search_volume
+                            )
+                                
         self.max_num_speakers = self.online_clus.max_num_speaker
         self.base_scale_index = max(self.multiscale_args_dict['scale_dict'].keys())
         
@@ -600,10 +572,8 @@ class OnlineDiarizer(ClusteringDiarizer):
         self.Y_fullhist = []
         self.cumulative_speech_labels = []
 
-        self.embed_seg_len = self.multiscale_args_dict['scale_dict'][self.base_scale_index][0]
-        self.n_embed_seg_len = int(self.sample_rate * self.embed_seg_len)
+        self.n_embed_seg_len = int(self.sample_rate * self.multiscale_args_dict['scale_dict'][self.base_scale_index][0])
         self.max_embed_count = 0
-        self.decimals = 2
 
         self.MINIMUM_CLUS_BUFFER_SIZE = 32
         self.MINIMUM_HIST_BUFFER_SIZE = 32
@@ -648,7 +618,16 @@ class OnlineDiarizer(ClusteringDiarizer):
         self.buffer_start = 0.0
         self.buffer_end = 0.0
         self.buffer = None
-
+    
+    def reset(self):
+        """
+        Reset all the variables
+        """
+        self._init_segment_variables()
+        self._init_online_clustering_module(self._cfg_diarizer.clustering.parameters)
+        self._init_memory_buffer_variables()
+        self._init_temporal_major_voting_module()
+        self._init_buffer_frame_timestamps()
 
     @property
     def history_buffer_size(self, value):
@@ -676,13 +655,19 @@ class OnlineDiarizer(ClusteringDiarizer):
 
     def prepare_embedding_update(self, emb_in):
         """
+        This function performs the following tasks:
+            1. Decide whether to extract more embeddings or not (by setting `update_speaker_register`)
+        If we need update:
+            2. Calculate how many embeddings should be updated (set `new_emb_n` variable)
+            3. Update history embedding vectors and save it to `pre_embs`.
+
         We only save the index and clustering label of each embedding.
 
         - Case-1: The very first step
             This else statement is for the very first diarization loop.
             This is the very first reduction frame.
 
-        - Case-2: Number of embedding vectors is increased
+        - Case-2: Number of embedding vectors is increased, therefore we need to update.
             Since there are new embeddings, we push the same amount (new_emb_n)
             of old embeddings to the history buffer.
             We should also update self.history_buffer_seg_end which is a pointer.
@@ -693,38 +678,52 @@ class OnlineDiarizer(ClusteringDiarizer):
             If the number of embeddings is decreased compared to the last trial,
             then skip embedding merging.
 
+        Args:
+            emb_in (Tensor):
+
+        Returns:
+            update_speaker_register (bool):
+            new_emb_n (int):
+            pre_embs (Tensor):
         """
         segment_indexes_mat = np.array(self.segment_indexes[self.base_scale_index]).astype(int)
         self.total_segments_processed_count = segment_indexes_mat[-1] + 1
         hist_curr_boundary = self.total_segments_processed_count - self.current_n
-        new_emb_n, emb_hist = None, None
+        new_emb_n, pre_embs = None, None
         update_speaker_register = True
 
         # Case-1: The very first step
         if len(self.history_embedding_buffer_emb) == 0:
             new_emb_n = self.total_segments_processed_count - (self.current_n + self.history_n)
             hist_curr_boundary_emb_idx = get_mapped_index(segment_indexes_mat, hist_curr_boundary)
-            emb_hist = emb_in[:hist_curr_boundary_emb_idx]
-            self.pre_merge_cluster_label = self.Y_fullhist[:hist_curr_boundary]
+            pre_embs = emb_in[:hist_curr_boundary_emb_idx]
+            self.pre_clus_labels = self.Y_fullhist[:hist_curr_boundary]
 
         # Case-2: Number of embedding vectors is increased, need to update history and its label
         elif self.total_segments_processed_count > self.max_embed_count:
+            
+            # Calculate the number of new embedding vectors
             label_stt, label_end = self.history_buffer_seg_end, hist_curr_boundary
             new_emb_n = label_end - label_stt
             assert new_emb_n > 0, "new_emb_n should be a positve integer number."
+            
+            # Add embedding vectors to `pre_embs` so that we can merge it with reducer function.
             emb_idx_stt = get_mapped_index(segment_indexes_mat, label_stt)
             emb_idx_end = get_mapped_index(segment_indexes_mat, label_end)
-            emb_hist = np.vstack((self.history_embedding_buffer_emb, emb_in[emb_idx_stt:emb_idx_end]))
-            self.pre_merge_cluster_label = np.hstack(
+            pre_embs = np.vstack((self.history_embedding_buffer_emb, emb_in[emb_idx_stt:emb_idx_end]))
+            self.pre_clus_labels = np.hstack(
                 (self.history_embedding_buffer_label, self.Y_fullhist[label_stt:label_end])
             )
 
         # Case-3: Number of embedding vectors is decreased
-        # There will be no embedding update, so new_emb_n, emb_hist should be None
+        # There will be no embedding update, so new_emb_n, pre_embs should be None
         else:
             update_speaker_register = False
+
+        # Update the history buffer index
         self.history_buffer_seg_end = hist_curr_boundary
-        return update_speaker_register, new_emb_n, emb_hist
+
+        return update_speaker_register, new_emb_n, pre_embs
 
     def make_constant_length_emb(self, emb_in):
         """
@@ -732,8 +731,7 @@ class OnlineDiarizer(ClusteringDiarizer):
         - ASR decoder occasionally returns less number of words compared to the previous frame.
         - In this case, we obtain fewer embedding vectors for the short period of time. To match the pre-defined
           length, the last embedding vector is repeated to fill the voidness.
-        - The repeated embedding will be soon replaced by the actual
-          embeddings once the system takes new frames.
+        - The repeated embedding will be soon replaced by the actual embeddings once the system takes new frames.
         """
         segment_indexes_mat = np.array(self.segment_indexes[self.base_scale_index]).astype(int)
         curr_clustered_segments = np.where(segment_indexes_mat >= self.history_buffer_seg_end)[0]
@@ -745,23 +743,8 @@ class OnlineDiarizer(ClusteringDiarizer):
             emb_curr = emb_in[curr_clustered_segments]
         return emb_curr
 
-    def run_reducer(self, emb_hist, mat, spk_idx, target_num):
-        """
 
-        """
-        ndx = np.where(self.pre_merge_cluster_label == spk_idx)[0]
-        if target_num > 0:
-            cmat = np.tril(mat[:, ndx][ndx, :])
-            tick2d = get_indices_for_merging(cmat, ndx, target_num)
-            spk_cluster_labels, emb_ndx = self.pre_merge_cluster_label[ndx], emb_hist[ndx]
-            result_emb, merged_cluster_labels = run_reduction_alg(cmat, tick2d, emb_ndx, spk_cluster_labels)
-            assert (ndx.shape[0] - target_num) == result_emb.shape[0], "Reducer output is not matched to target quantity"
-        else:
-            result_emb = emb_hist[ndx]
-            merged_cluster_labels = self.pre_merge_cluster_label[ndx]
-        return result_emb, merged_cluster_labels
-
-    def reduce_embedding_sets(self, emb_in, mat):
+    def reduce_embedding_sets(self, emb_in):
         """
 
         Example:
@@ -803,23 +786,27 @@ class OnlineDiarizer(ClusteringDiarizer):
             (=hist_curr_boundary)
 
         """
-        update_speaker_register, new_emb_n, emb_hist = self.prepare_embedding_update(emb_in)
+        update_speaker_register, new_emb_n, pre_embs = self.prepare_embedding_update(emb_in)
 
         # Update the history/current_buffer boundary cursor
         total_emb, total_cluster_labels = [], []
 
         if update_speaker_register:
-            class_target_vol = get_merge_quantity(
-                new_emb_n=new_emb_n,
-                pre_merge_cluster_label=self.pre_merge_cluster_label,
-                min_segs_per_buffer=self._minimum_segments_per_buffer,
-            )
+            
+            # Calculate how many embedding vectors should be reduced per speaker
+            class_target_vol = get_merge_quantity(new_emb_n=new_emb_n,
+                                                  pre_clus_labels=self.pre_clus_labels,
+                                                  min_segs_per_buffer=self._minimum_segments_per_buffer)
             
             # Merge the segments in the history buffer
             for spk_idx, target_num in enumerate(list(class_target_vol)):
-                result_emb, merged_cluster_labels = self.run_reducer(emb_hist, mat, spk_idx, target_num)
-                total_emb.append(result_emb)
-                total_cluster_labels.append(merged_cluster_labels)
+                merged_embs, merged_clus_labels = run_reducer(pre_embs=pre_embs, 
+                                                              target_spk_idx=spk_idx, 
+                                                              target_num=target_num, 
+                                                              pre_clus_labels=self.pre_clus_labels)
+                total_emb.append(merged_embs)
+                total_cluster_labels.append(merged_clus_labels)
+            
             self.history_embedding_buffer_emb = np.vstack(total_emb)
             self.history_embedding_buffer_label = np.hstack(total_cluster_labels)
             assert (
@@ -847,15 +834,14 @@ class OnlineDiarizer(ClusteringDiarizer):
         return history_and_current_emb, history_and_current_labels, update_speaker_register
 
     @timeit
-    def get_reduced_mat(self, mat, emb):
+    def _get_reduced_mat(self, emb):
         """
         Choose whether we want to add embeddings to the memory or not.
         """
-        margin_seg_n = mat.shape[0] - (self.current_n + self.history_n)
+        margin_seg_n = emb.shape[0] - (self.current_n + self.history_n)
         if margin_seg_n > 0:
             self.isOnline = True
-            mat = preprocess_mat(mat, symm=True, fill_diag_zero=True)
-            merged_emb, cluster_labels, add_new = self.reduce_embedding_sets(emb, mat)
+            merged_emb, cluster_labels, add_new = self.reduce_embedding_sets(emb)
             assert merged_emb.shape[0] == len(cluster_labels)
         else:
             self.isOnline = False
@@ -863,15 +849,13 @@ class OnlineDiarizer(ClusteringDiarizer):
             cluster_labels, add_new = None, True
         return merged_emb, cluster_labels, add_new
 
-    def macth_labels(self, org_mat, Y_new, add_new):
+    def macth_labels(self, Y_new, add_new):
         """
         self.history_buffer_seg_end is a timestamp that tells to which point is history embedding contains from self.Y_fullhist.
         If embedding reducing is done correctly, we should discard  (0, self.history_n) amount and take
         (self.history_n, len(Y_new) ) from the new clustering output Y_new.
 
         Args:
-            org_mat (Tensor):
-
             Y_new (Tensor):
 
             add_new (bool):
@@ -882,24 +866,26 @@ class OnlineDiarizer(ClusteringDiarizer):
         """
         if self.isOnline:
             # Online clustering mode with history buffer
-            y_new_update_start = self.history_n
             Y_old = np.hstack((self.history_embedding_buffer_label, 
                                self.Y_fullhist[self.history_buffer_seg_end:])).astype(int)
+            
+            # Stitch the old history and new cluster labels
             Y_matched = stitch_cluster_labels(Y_old=Y_old, Y_new=Y_new, with_history=True)
             if add_new:
-                assert Y_matched[y_new_update_start:].shape[0] == self.current_n, "Update point sync is not correct."
-                Y_out = np.hstack((self.Y_fullhist[: self.history_buffer_seg_end], Y_matched[y_new_update_start:]))
+                if Y_matched[self.history_n:].shape[0] != self.current_n:
+                    raise ValueError("Update point sync is not correct.")
+                Y_out = np.hstack((self.Y_fullhist[:self.history_buffer_seg_end], Y_matched[self.history_n:]))
                 self.Y_fullhist = Y_out
             else:
                 # Do not update cumulative labels since there are no new segments.
-                Y_out = self.Y_fullhist[: org_mat.shape[0]]
+                Y_out = self.Y_fullhist[:Y_new.shape[0]]
         else:
             # If no memory is used, offline clustering is applied.
             Y_out = stitch_cluster_labels(Y_old=self.Y_fullhist, Y_new=Y_new, with_history=False)
             self.Y_fullhist = Y_out
         return Y_out
 
-    def clear_memory(self, scale_idx):
+    def _clear_memory(self, scale_idx):
         """
         Calculate how many segments should be removed from memory.
         """
@@ -915,12 +901,12 @@ class OnlineDiarizer(ClusteringDiarizer):
         self.segment_indexes[scale_idx] = self.segment_indexes[scale_idx][-keep_range:]
     
     @timeit    
-    def temporal_label_major_vote(self):
+    def _temporal_label_major_vote(self):
         """
         Take a majority voting for every segment on temporal steps. This feature significantly reduces the error coming
         from unstable speaker counting in the beginning of sessions.
         """
-        self.maj_vote_labels = []
+        maj_vote_labels = []
         for seg_idx in self.memory_segment_indexes[self.base_scale_index]:
             if seg_idx not in self.base_scale_label_dict:
                 self.base_scale_label_dict[seg_idx] = [self.memory_cluster_labels[seg_idx]]
@@ -929,8 +915,8 @@ class OnlineDiarizer(ClusteringDiarizer):
                     self.base_scale_label_dict[seg_idx].pop(0)
                 self.base_scale_label_dict[seg_idx].append(self.memory_cluster_labels[seg_idx])
 
-            self.maj_vote_labels.append(torch.mode(torch.tensor(self.base_scale_label_dict[seg_idx]))[0].item())
-        return self.maj_vote_labels
+            maj_vote_labels.append(torch.mode(torch.tensor(self.base_scale_label_dict[seg_idx]))[0].item())
+        return maj_vote_labels
 
     def save_history_data(
         self, scale_idx, total_cluster_labels
@@ -966,7 +952,7 @@ class OnlineDiarizer(ClusteringDiarizer):
                 assert len(self.memory_cluster_labels) == len(self.memory_segment_ranges[scale_idx])
 
             # Remove unnecessary old values
-            self.clear_memory(scale_idx)
+            self._clear_memory(scale_idx)
         
         assert len(self.embs_array[scale_idx]) == \
                len(self.segment_raw_audio[scale_idx]) == \
@@ -974,13 +960,20 @@ class OnlineDiarizer(ClusteringDiarizer):
                len(self.segment_range_ts[scale_idx])
         
         if self.use_temporal_label_major_vote:
-            cluster_label_hyp = self.temporal_label_major_vote()
+            cluster_label_hyp = self._temporal_label_major_vote()
         else:
             cluster_label_hyp = self.memory_cluster_labels
         return cluster_label_hyp
     
     def _run_segmentation(
-        self, audio_buffer, vad_timestamps, segment_raw_audio, segment_range_ts, segment_indexes, window, shift
+        self, 
+        audio_buffer, 
+        vad_timestamps, 
+        segment_raw_audio, 
+        segment_range_ts, 
+        segment_indexes, 
+        window, 
+        shift
     ):
         """
         Remove the old segments that overlap with the new frame (self.frame_start)
@@ -992,6 +985,7 @@ class OnlineDiarizer(ClusteringDiarizer):
 
         """
         if self.buffer_start >= 0:
+            # Check if this is the very first step
             if segment_raw_audio == [] and vad_timestamps != []:
                 vad_timestamps[0][0] = max(vad_timestamps[0][0], 0.0)
                 speech_labels_for_update = copy.deepcopy(vad_timestamps)
@@ -1011,6 +1005,8 @@ class OnlineDiarizer(ClusteringDiarizer):
                 )
 
             audio_buffer = copy.deepcopy(audio_buffer)
+            
+            # Collect the timeseries signal from the buffer
             sigs_list, sig_rangel_list, sig_indexes = get_segments_from_buffer(
                 self.buffer_start,
                 self.buffer_end,
@@ -1020,17 +1016,17 @@ class OnlineDiarizer(ClusteringDiarizer):
                 segment_indexes,
                 window,
                 shift,
-                self.decimals,
             )
             segment_raw_audio.extend(sigs_list)
             segment_range_ts.extend(sig_rangel_list)
             segment_indexes.extend(sig_indexes)
-        assert len(segment_raw_audio) == len(segment_range_ts) == len(segment_indexes)
-        segment_ranges_str = [f'{start:.3f} {end:.3f} ' for (start, end) in segment_range_ts]
-        return segment_ranges_str
+
+        if not len(segment_raw_audio) == len(segment_range_ts) == len(segment_indexes):
+            raise ValueError("Segment information has a mismatch in length.")
+        return segment_range_ts
 
     @torch.no_grad()
-    def run_embedding_extractor(self, audio_signal):
+    def _run_embedding_extractor(self, audio_signal):
         audio_signal = torch.stack(audio_signal).float().to(self.device)
         audio_signal_lens = torch.from_numpy(
             np.array([self.n_embed_seg_len for k in range(audio_signal.shape[0])])
@@ -1059,7 +1055,7 @@ class OnlineDiarizer(ClusteringDiarizer):
         end_idx = len(segment_ranges)
 
         if end_idx > stt_idx:
-            torch_embs = self.run_embedding_extractor(audio_signal[stt_idx:end_idx])
+            torch_embs = self._run_embedding_extractor(audio_signal[stt_idx:end_idx])
             if embeddings is None:
                 embeddings = torch_embs
             else:
@@ -1067,11 +1063,12 @@ class OnlineDiarizer(ClusteringDiarizer):
         elif end_idx < stt_idx:
             embeddings = embeddings[:len(segment_ranges)]
 
-        assert len(segment_ranges) == embeddings.shape[0], "Segment ranges and embeddings shapes do not match."
+        if len(segment_ranges) != embeddings.shape[0]: 
+            raise ValueError("Segment ranges and embeddings shapes do not match.")
         return embeddings
     
     @timeit
-    def perform_online_clustering(
+    def _perform_online_clustering(
         self,
         uniq_embs_and_timestamps,
         oracle_num_speakers=None,
@@ -1080,13 +1077,22 @@ class OnlineDiarizer(ClusteringDiarizer):
         device = torch.device("cuda") if cuda else torch.device("cpu")
 
         # Get base-scale (the highest index) information from uniq_embs_and_timestamps.
-        _mat, _emb, self.scale_mapping_dict = getTempInterpolMultiScaleCosAffinityMatrix(
-            uniq_embs_and_timestamps, device
+        embeddings_in_scales, timestamps_in_scales = split_input_data(
+                embeddings_in_scales=uniq_embs_and_timestamps['embeddings'],
+                timestamps_in_scales=uniq_embs_and_timestamps['timestamps'],
+                multiscale_segment_counts=uniq_embs_and_timestamps['multiscale_segment_counts'],
+        )
+       
+        _emb, self.scale_mapping_dict = getTempInterpolMultiScaleCosAffinityMatrix(
+            multiscale_weights=uniq_embs_and_timestamps['multiscale_weights'],
+            embeddings_in_scales=embeddings_in_scales,
+            timestamps_in_scales=timestamps_in_scales,
+            device=device
         )
 
-        org_mat = copy.deepcopy(_mat)
-        _emb, _mat = _emb.cpu().numpy(), _mat.cpu().numpy()
-        emb, reduced_labels, add_new = self.get_reduced_mat(_mat, _emb)
+        _emb = _emb.cpu().numpy()
+        emb, reduced_labels, add_new = self._get_reduced_mat(_emb)
+
         emb = torch.tensor(emb).to(device)
         Y_clus = self.online_clus.forward(emb=emb,
                                           frame_index=self.frame_index,
@@ -1095,10 +1101,10 @@ class OnlineDiarizer(ClusteringDiarizer):
                                          )
 
         Y_clus = Y_clus.cpu().numpy()
-        total_cluster_labels = self.macth_labels(org_mat, Y_clus, add_new)
+        total_cluster_labels = self.macth_labels(Y_clus, add_new)
         return total_cluster_labels
 
-    def get_interim_output(self, vad_ts):
+    def _get_interim_output(self, vad_ts):
         """
         In case buffer is not filled or there is no speech activity in the input, generate temporary output.
         Args:
@@ -1111,7 +1117,7 @@ class OnlineDiarizer(ClusteringDiarizer):
             return generate_cluster_labels(self.memory_segment_ranges[self.base_scale_index], self.memory_cluster_labels)
 
     @timeit
-    def diarize_step(self, audio_buffer, vad_ts):
+    def diarize_step(self, audio_buffer, vad_timestamps):
         """
         See function `diarize()` in `ClusteringDiarizer` class.
 
@@ -1123,51 +1129,52 @@ class OnlineDiarizer(ClusteringDiarizer):
         Args:
             audio_buffer (np.ndarray):
 
-            vad_ts (list):
+            vad_timestamps (list):
                 List containing VAD timestamps
 
         Returns:
             diar_hyp (list):
         """
         # In case buffer is not filled or there is no speech activity in the input
-        if self.buffer_start < 0 or len(vad_ts) == 0:
-            return self.get_interim_output(vad_ts)
+        if self.buffer_start < 0 or len(vad_timestamps) == 0:
+            return self._get_interim_output(vad_timestamps)
         
         # Segmentation: (c.f. see `diarize` function in ClusteringDiarizer class)
         for scale_idx, (window, shift) in self.multiscale_args_dict['scale_dict'].items():
             
             # Step 1: Get subsegments for embedding extraction.
-            segment_ranges_str = self._run_segmentation(
-                audio_buffer,
-                vad_ts,
-                self.segment_raw_audio[scale_idx],
-                self.segment_range_ts[scale_idx],
-                self.segment_indexes[scale_idx],
-                window,
-                shift,
+            segment_ranges = self._run_segmentation(
+                audio_buffer=audio_buffer,
+                vad_timestamps=vad_timestamps,
+                segment_raw_audio=self.segment_raw_audio[scale_idx],
+                segment_range_ts=self.segment_range_ts[scale_idx],
+                segment_indexes=self.segment_indexes[scale_idx],
+                window=window,
+                shift=shift,
             )
 
-            # Step 2: Extract speaker embeddings from the extracted subsegment timestamps.
+            # Step 2-1: Extract speaker embeddings from the extracted subsegment timestamps.
             embeddings = self._extract_embeddings(
-                self.segment_raw_audio[scale_idx],
-                self.segment_range_ts[scale_idx],
-                self.segment_indexes[scale_idx],
-                self.embs_array[scale_idx],
+                audio_signal=self.segment_raw_audio[scale_idx],
+                segment_ranges=self.segment_range_ts[scale_idx],
+                indexes=self.segment_indexes[scale_idx],
+                embeddings=self.embs_array[scale_idx],
             )
             
-            # Save the embeddings and segmentation timestamps in memory 
+            # Step 2-2:Save the embeddings and segmentation timestamps in memory 
             self.embs_array[scale_idx] = embeddings
+
             self.multiscale_embeddings_and_timestamps[scale_idx] = [
                 {self.uniq_id: embeddings},
-                {self.uniq_id: segment_ranges_str},
+                {self.uniq_id: segment_ranges},
             ]
-
+        
         embs_and_timestamps = get_embs_and_timestamps(
             self.multiscale_embeddings_and_timestamps, self.multiscale_args_dict
         )
         
         # Step 3: Clustering: Perform an online version of clustering algorithm
-        total_cluster_labels = self.perform_online_clustering(
+        total_cluster_labels = self._perform_online_clustering(
             embs_and_timestamps[self.uniq_id],
             cuda=True,
         )
