@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+from contextlib import nullcontext
 from enum import Enum
 from typing import Callable, Dict, Optional, Type
 
@@ -21,7 +22,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from nemo.utils import logging
+from nemo.utils import CastToFloat, logging
 
 try:
     import onnxruntime
@@ -43,36 +44,6 @@ _EXT_DICT = {
     ".ts": ExportFormat.TORCHSCRIPT,
     ".onnx": ExportFormat.ONNX,
 }
-
-
-def cast_tensor(x, from_dtype=torch.float16, to_dtype=torch.float32):
-    return x.to(dtype=to_dtype) if x.dtype == from_dtype else x
-
-
-def cast_all(x, from_dtype=torch.float16, to_dtype=torch.float32):
-    if isinstance(x, torch.Tensor):
-        return cast_tensor(x, from_dtype=from_dtype, to_dtype=to_dtype)
-    else:
-        if isinstance(x, dict):
-            new_dict = {}
-            for k in x.keys():
-                new_dict[k] = cast_all(x[k], from_dtype=from_dtype, to_dtype=to_dtype)
-            return new_dict
-        elif isinstance(x, tuple):
-            return tuple(cast_all(y, from_dtype=from_dtype, to_dtype=to_dtype) for y in x)
-
-
-class CastToFloat(nn.Module):
-    def __init__(self, mod):
-        super(CastToFloat, self).__init__()
-        self.mod = mod
-
-    def forward(self, x):
-        if torch.is_autocast_enabled():
-            ret = self.mod.forward(x.to(torch.float32)).to(x.dtype)
-        else:
-            ret = self.mod.forward(x)
-        return ret
 
 
 class LinearWithBiasSkip(nn.Module):
@@ -108,7 +79,7 @@ def exportable_ScaledMaskedSoftmax(input, mask, scale):
 def get_export_format(filename: str):
     _, ext = os.path.splitext(filename)
     try:
-        return _EXT_DICT[ext]
+        return _EXT_DICT[ext.lower()]
     except KeyError:
         raise ValueError(f"Export file {filename} extension does not correspond to any export format!")
 
@@ -186,12 +157,10 @@ def verify_runtime(model, output, input_examples, input_names, check_tolerance=0
         logging.warning(f"ONNX generated at {output}, not verified - please install onnxruntime_gpu package.\n")
         onnx.checker.check_model(onnx_model, full_check=True)
         return
-
+    del onnx_model
     onnx_session_opt = onnxruntime.SessionOptions()
     onnx_session_opt.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
-    sess = onnxruntime.InferenceSession(
-        onnx_model.SerializeToString(), sess_options=onnx_session_opt, providers=['CUDAExecutionProvider']
-    )
+    sess = onnxruntime.InferenceSession(output, sess_options=onnx_session_opt, providers=['CUDAExecutionProvider'])
     all_good = True
     for input_example in input_examples:
         input_list, input_dict = parse_input_example(input_example)
