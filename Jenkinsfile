@@ -229,6 +229,7 @@ pipeline {
             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
             trainer.devices=2 \
+            trainer.strategy="ddp" \
             trainer.accelerator="gpu" \
             +trainer.fast_dev_run=True \
             +exp_manager.ema.enable=True \
