@@ -489,13 +489,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         _ = self.inference_epoch_end(outputs, 'test', self.cfg.data.test_ds)
 
     def build_data_loader(
-        self,
-        dataset,
-        global_batch_size,
-        shuffle,
-        num_workers,
-        pin_memory,
-        drop_last,
+        self, dataset, global_batch_size, shuffle, num_workers, pin_memory, drop_last,
     ):
         """Buld dataloader given an input dataset."""
 
