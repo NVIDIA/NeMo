@@ -14,9 +14,19 @@
 
 from nemo.collections.asr.parts.submodules.adapters.multi_head_attention_adapter_module import (
     RelPositionMultiHeadAttentionAdapterConfig,
-    MultiHeadAttentionAdapter,
+    RelPositionalEncodingAdapter,
 )
 from nemo.collections.asr.parts.submodules.adapters.multi_head_attention_adapter_module import (
     MultiHeadAttentionAdapterConfig,
     MultiHeadAttentionAdapter,
+)
+
+from nemo.collections.asr.parts.submodules.adapters.multi_head_attention_adapter_module import (
+    PositionalEncodingAdapter,
+    PositionalEncodingAdapterConfig,
+)
+
+from nemo.collections.asr.parts.submodules.adapters.multi_head_attention_adapter_module import (
+    RelPositionalEncodingAdapter,
+    RelPositionalEncodingAdapterConfig,
 )

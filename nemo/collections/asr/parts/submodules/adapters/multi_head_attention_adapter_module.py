@@ -25,13 +25,70 @@ from nemo.collections.common.parts import adapter_modules
 from nemo.core.classes.mixins import adapter_mixin_strategies
 
 
+class MHAResidualAddAdapterStrategy(adapter_mixin_strategies.ResidualAddAdapterStrategy):
+    """
+    An implementation of residual addition of an adapter module with its input.
+    Supports stochastic depth regularization.
+    """
+
+    def forward(self, input: torch.Tensor, adapter: torch.nn.Module, *, module: 'AdapterModuleMixin'):
+        """
+        A basic strategy, comprising of a residual connection over the input, after forward pass by
+        the underlying adapter.
+
+        Args:
+            input: Original output tensor of the module, or the output of the previous adapter (if more than
+                one adapters are enabled).
+            adapter: The adapter module that is currently required to perform the forward pass.
+            module: The calling module, in its entirety. It is a module that implements `AdapterModuleMixin`,
+                therefore the strategy can access all other adapters in this module via `module.adapter_layer`.
+
+        Returns:
+            The result tensor, after one of the active adapters has finished its forward passes.
+        """
+        out = self.compute_output(input, adapter, module=module)
+
+        # If not in training mode, or probability of stochastic depth is 0, skip step.
+        p = self.stochastic_depth
+        if not module.training or p == 0.0:
+            pass
+        else:
+            out = self.apply_stochastic_depth(out, input['value'], adapter, module=module)
+
+        # Return the residual connection output = input + adapter(input)
+        result = input['value'] + out
+
+        # If l2_lambda is activated, register the loss value
+        self.compute_auxiliary_losses(result, input['value'], adapter, module=module)
+
+        return result
+
+    def compute_output(
+        self, input: torch.Tensor, adapter: torch.nn.Module, *, module: 'AdapterModuleMixin'
+    ) -> torch.Tensor:
+        if isinstance(input, (list, tuple)):
+            out = adapter(*input)
+        elif isinstance(input, dict):
+            out = adapter(**input)
+        else:
+            out = adapter(input)
+        return out
+
+
+@dataclass
+class MHAResidualAddAdapterStrategyConfig(adapter_mixin_strategies.ResidualAddAdapterStrategyConfig):
+    _target_: str = "{0}.{1}".format(
+        MHAResidualAddAdapterStrategy.__module__, MHAResidualAddAdapterStrategy.__name__
+    )  # mandatory field
+
+
 class MultiHeadAttentionAdapter(mha.MultiHeadAttention, adapter_modules.AbstractAdapterModuleMixin):
     def __init__(
         self,
         n_head: int,
         n_feat: int,
         dropout_rate: float,
-        adapter_strategy: adapter_mixin_strategies.ResidualAddAdapterStrategyConfig = None,
+        adapter_strategy: MHAResidualAddAdapterStrategy = None,
     ):
         super().__init__(n_head=n_head, n_feat=n_feat, dropout_rate=dropout_rate, max_cache_len=0)
 
@@ -61,13 +118,16 @@ class MultiHeadAttentionAdapter(mha.MultiHeadAttention, adapter_modules.Abstract
             self.linear_out.weight *= 0
             self.linear_out.bias *= 0
 
+    def get_default_strategy_config(self) -> 'dataclass':
+        return MHAResidualAddAdapterStrategyConfig()
+
 
 @dataclass
 class MultiHeadAttentionAdapterConfig:
     n_head: int
     n_feat: int
     dropout_rate: float = 0.0
-    adapter_strategy: Optional[Any] = adapter_mixin_strategies.ResidualAddAdapterStrategyConfig()
+    adapter_strategy: Optional[Any] = MHAResidualAddAdapterStrategyConfig()
     _target_: str = "{0}.{1}".format(MultiHeadAttentionAdapter.__module__, MultiHeadAttentionAdapter.__name__)
 
 
@@ -79,7 +139,7 @@ class RelPositionMultiHeadAttentionAdapter(
         n_head: int,
         n_feat: int,
         dropout_rate: float,
-        adapter_strategy: adapter_mixin_strategies.ResidualAddAdapterStrategyConfig = None,
+        adapter_strategy: MHAResidualAddAdapterStrategyConfig = None,
     ):
         super().__init__(
             n_head=n_head, n_feat=n_feat, dropout_rate=dropout_rate, pos_bias_u=None, pos_bias_v=None, max_cache_len=0
@@ -113,13 +173,16 @@ class RelPositionMultiHeadAttentionAdapter(
             self.pos_bias_u *= 0.0
             self.pos_bias_v *= 0.0
 
+    def get_default_strategy_config(self) -> 'dataclass':
+        return MHAResidualAddAdapterStrategyConfig()
+
 
 @dataclass
 class RelPositionMultiHeadAttentionAdapterConfig:
     n_head: int
     n_feat: int
     dropout_rate: float = 0.0
-    adapter_strategy: Optional[Any] = adapter_mixin_strategies.ResidualAddAdapterStrategyConfig()
+    adapter_strategy: Optional[Any] = MHAResidualAddAdapterStrategyConfig()
     _target_: str = "{0}.{1}".format(
         RelPositionMultiHeadAttentionAdapter.__module__, RelPositionMultiHeadAttentionAdapter.__name__
     )
@@ -156,9 +219,7 @@ class PositionalEncodingAdapterConfig:
     max_len: int = 5000
     xscale: float = 1.0
     adapter_strategy: Optional[Any] = adapter_mixin_strategies.ResidualAddAdapterStrategyConfig()
-    _target_: str = "{0}.{1}".format(
-        PositionalEncodingAdapter.__module__, PositionalEncodingAdapter.__name__
-    )
+    _target_: str = "{0}.{1}".format(PositionalEncodingAdapter.__module__, PositionalEncodingAdapter.__name__)
 
 
 class RelPositionalEncodingAdapter(mha.RelPositionalEncoding, adapter_modules.AbstractAdapterModuleMixin):
@@ -191,6 +252,4 @@ class RelPositionalEncodingAdapterConfig:
     max_len: int = 5000
     xscale: float = 1.0
     adapter_strategy: Optional[Any] = adapter_mixin_strategies.ResidualAddAdapterStrategyConfig()
-    _target_: str = "{0}.{1}".format(
-        RelPositionalEncodingAdapter.__module__, RelPositionalEncodingAdapter.__name__
-    )
+    _target_: str = "{0}.{1}".format(RelPositionalEncodingAdapter.__module__, RelPositionalEncodingAdapter.__name__)

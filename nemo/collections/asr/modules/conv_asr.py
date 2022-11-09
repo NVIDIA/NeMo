@@ -441,6 +441,9 @@ class ConvASRDecoder(NeuralModule, Exportable, adapter_mixins.AdapterModuleMixin
         )
         self.apply(lambda x: init_weights(x, mode=init_mode))
 
+        accepted_adapters = [adapter_utils.LINEAR_ADAPTER_CLASSPATH]
+        self.set_accepted_adapter_types(accepted_adapters)
+
     @typecheck()
     def forward(self, encoder_output):
         # Adapter module forward step

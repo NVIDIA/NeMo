@@ -40,7 +40,7 @@ class AbstractAdapterModuleMixin(access_mixins.AccessMixin):
         """
         # set default adapter strategy
         if adapter_strategy is None:
-            adapter_strategy = adapter_mixin_strategies.ResidualAddAdapterStrategyConfig()
+            adapter_strategy = self.get_default_strategy_config()
 
         if is_dataclass(adapter_strategy):
             adapter_strategy = OmegaConf.structured(adapter_strategy)
@@ -54,6 +54,12 @@ class AbstractAdapterModuleMixin(access_mixins.AccessMixin):
             self.adapter_strategy = adapter_strategy
         else:
             raise AttributeError(f'`adapter_strategy` provided is invalid : {adapter_strategy}')
+
+    def get_default_strategy_config(self) -> 'dataclass':
+        """
+        Returns a default adapter module strategy.
+        """
+        return adapter_mixin_strategies.ResidualAddAdapterStrategyConfig()
 
 
 class LinearAdapter(nn.Module, AbstractAdapterModuleMixin):

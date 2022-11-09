@@ -87,31 +87,52 @@ class ResidualAddAdapterStrategy(AbstractAdapterStrategy):
         Returns:
             The result tensor, after one of the active adapters has finished its forward passes.
         """
-        out = adapter(input)
-
-        # Perform stochastic depth if needed.
-        p = self.stochastic_depth
-        if p < 0.0 or p > 1.0:
-            raise ValueError(f"Stochastic depth probability has to be between 0 and 1, but got {p}")
+        out = self.compute_output(input, adapter, module=module)
 
         # If not in training mode, or probability of stochastic depth is 0, skip step.
+        p = self.stochastic_depth
         if not module.training or p == 0.0:
             pass
         else:
-            # Apply stochastic depth to the output of adapter.
-            keep_prob = 1.0 - p
-            shape = [1] * out.ndim
-            noise = torch.empty(shape, dtype=input.dtype, device=input.device)
-            noise = noise.bernoulli_(keep_prob)
-            if keep_prob > 0.0:  # Done to normalize activation for inference mode
-                noise.div_(keep_prob)
-
-            out = noise * out
+            out = self.apply_stochastic_depth(out, input, adapter, module=module)
 
         # Return the residual connection output = input + adapter(input)
         result = input + out
 
         # If l2_lambda is activated, register the loss value
+        self.compute_auxiliary_losses(result, input, adapter, module=module)
+
+        return result
+
+    def compute_output(
+        self, input: torch.Tensor, adapter: torch.nn.Module, *, module: 'AdapterModuleMixin'
+    ) -> torch.Tensor:
+        out = adapter(input)
+        return out
+
+    def apply_stochastic_depth(
+        self, output: torch.Tensor, input: torch.Tensor, adapter: torch.nn.Module, *, module: 'AdapterModuleMixin'
+    ):
+        # Perform stochastic depth if needed.
+        p = self.stochastic_depth
+        if p < 0.0 or p > 1.0:
+            raise ValueError(f"Stochastic depth probability has to be between 0 and 1, but got {p}")
+
+        # Apply stochastic depth to the output of adapter.
+        keep_prob = 1.0 - p
+        shape = [1] * output.ndim
+        noise = torch.empty(shape, dtype=output.dtype, device=output.device)
+        noise = noise.bernoulli_(keep_prob)
+        if keep_prob > 0.0:  # Done to normalize activation for inference mode
+            noise.div_(keep_prob)
+
+        output = noise * output
+
+        return output
+
+    def compute_auxiliary_losses(
+        self, output: torch.Tensor, input: torch.Tensor, adapter: torch.nn.Module, *, module: 'AdapterModuleMixin'
+    ):
         if module.training and self.l2_lambda > 0.0:
             if not isinstance(adapter, AccessMixin):
                 raise ValueError(f"Module {adapter.__class__.__name__} does not implement AccessMixin !")
@@ -125,10 +146,8 @@ class ResidualAddAdapterStrategy(AbstractAdapterStrategy):
                     # if l2 lambda is enabled, also enable AccessMixin
                     adapter.set_access_enabled(access_enabled=True)
 
-                    l2_loss = self.l2_lambda * (input - result).square().reshape(input.size(0), -1).sum(dim=-1).mean()
+                    l2_loss = self.l2_lambda * (input - output).square().reshape(input.size(0), -1).sum(dim=-1).mean()
                     adapter.register_accessible_tensor(name='adapter_loss', tensor=l2_loss)
-
-        return result
 
 
 @dataclass

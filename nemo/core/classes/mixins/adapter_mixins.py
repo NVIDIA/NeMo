@@ -155,8 +155,7 @@ class AdapterModuleMixin(ABC):
         The module with this mixin can define a list of adapter names that it will accept.
         This method should be called in the modules init method and set the adapter names the module will expect to be added.
         """
-        if hasattr(self, "_accepted_adapter_types"):
-            raise RuntimeError("accepted adapter types can only be set once.")
+        # Let user update and set accepted adapter types.
         self._accepted_adapter_types = [model_utils.import_class_by_path(s) for s in adapter_types]
 
     def get_accepted_adapter_types(self,) -> List[str]:
@@ -193,7 +192,9 @@ class AdapterModuleMixin(ABC):
                     break
             if not _pass_types:
                 raise ValueError(
-                    f"Config {cfg} creates adapter class {test} is not in the list of accepted adapter types."
+                    f"Config: \n{OmegaConf.to_yaml(cfg)}\n"
+                    f"It creates adapter class {test} is not in the list of accepted adapter types.\n"
+                    f"Accepted adapters: {[t for t in _types]}"
                 )
 
         # Convert to DictConfig from dict or Dataclass
