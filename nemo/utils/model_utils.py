@@ -59,7 +59,7 @@ class ArtifactItem:
     hashed_path: Optional[str] = None
 
 
-def resolve_dataset_name_from_cfg(cfg: 'DictConfig') -> str:
+def resolve_dataset_name_from_cfg(cfg: 'DictConfig') -> Optional[str]:
     """
     Parses items of the provided sub-config to find the first potential key that
     resolves to an existing file or directory.
