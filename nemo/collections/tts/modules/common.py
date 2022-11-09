@@ -219,7 +219,6 @@ class ConvLSTMLinear(BiLSTM):
         ret = torch.nn.utils.rnn.pad_sequence(context_embedded, batch_first=True)
         return ret
 
-    @torch.jit.ignore
     def masked_conv_to_sequence(self, context: Tensor, lens: Tensor, enforce_sorted: bool = False) -> PackedSequence:
         mask = get_mask_from_lengths_and_val(lens, context)
         mask = mask.unsqueeze(1)
@@ -232,7 +231,11 @@ class ConvLSTMLinear(BiLSTM):
         )
         return seq
 
-    def forward(self, context: Tensor, lens: Tensor) -> Tensor:
+    def forward(self, context: Tensor, in_lens: Optional[Tensor]) -> Tensor:
+        if in_lens is None:
+            lens = context.new_ones([context.shape[0]], dtype=torch.int) * context.shape[2]
+        else:
+            lens = in_lens
         # borisf : does not match ADLR (values, lengths)
         # seq = self.masked_conv_to_sequence(context, lens, enforce_sorted=False)
         # borisf : does match ADLR
@@ -250,14 +253,11 @@ class ConvLSTMLinear(BiLSTM):
             if hasattr(conv, 'conv'):
                 w = conv.conv.weight
             else:
-                print('------\n', self)
-                print(conv)
                 w = conv.weight
             s = w.shape
             rand_in = torch.ones(1, s[1], s[2], dtype=w.dtype, device=w.device)
             # , torch.ones(1, 1, s[2], dtype=w.dtype, device=w.device))
             traced.append(torch.jit.trace_module(conv, {"forward": rand_in}))
-            print('============\n')
         self.convolutions = traced
         return torch.jit.script(self)
 
