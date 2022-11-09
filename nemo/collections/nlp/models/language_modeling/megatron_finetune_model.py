@@ -182,12 +182,13 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             global_batch_size_per_gpu
             != self.cfg.data.train_ds.global_batch_size // parallel_state.get_data_parallel_world_size()
         ):
+            # NOTE: This should never really be called since `drop_last=True` is required for training datasets.
             app_state = AppState()
             _reconfigure_microbatch_calculator(
                 rank=app_state.global_rank,
                 rampup_batch_size=None,
                 global_batch_size=global_batch_size_per_gpu * parallel_state.get_data_parallel_world_size(),
-                micro_batch_size=global_batch_size_per_gpu // get_num_microbatches_per_batch(),
+                micro_batch_size=global_batch_size_per_gpu // get_num_microbatches(),
                 data_parallel_size=parallel_state.get_data_parallel_world_size(),
             )
         # At this point batch is a list of dictionaries where eatch dict is a microbatch.
@@ -258,12 +259,13 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             global_batch_size_per_gpu
             != self.cfg.data.validation_ds.global_batch_size // parallel_state.get_data_parallel_world_size()
         ):
+            # NOTE: This is reconfiguring to make sure there is no grad-acc for validation batches.
             app_state = AppState()
             _reconfigure_microbatch_calculator(
                 rank=app_state.global_rank,
                 rampup_batch_size=None,
                 global_batch_size=global_batch_size_per_gpu * parallel_state.get_data_parallel_world_size(),
-                micro_batch_size=global_batch_size_per_gpu // get_num_microbatches(),
+                micro_batch_size=global_batch_size_per_gpu,
                 data_parallel_size=parallel_state.get_data_parallel_world_size(),
             )
 
@@ -492,13 +494,11 @@ class MegatronT5FinetuneModel(MegatronT5Model):
     def build_data_loader(
         self,
         dataset,
-        micro_batch_size,
         global_batch_size,
         shuffle,
         num_workers,
         pin_memory,
         drop_last,
-        check_validation_interval,
     ):
         """Buld dataloader given an input dataset."""
 
@@ -528,13 +528,11 @@ class MegatronT5FinetuneModel(MegatronT5Model):
     def setup_training_data(self):
         self._train_dl = self.build_data_loader(
             self._train_ds,
-            micro_batch_size=self.cfg.data.train_ds.micro_batch_size,
             global_batch_size=self.cfg.data.train_ds.global_batch_size,
             shuffle=self.cfg.data.train_ds.shuffle,
             num_workers=self.cfg.data.train_ds.num_workers,
             pin_memory=self.cfg.data.train_ds.pin_memory,
             drop_last=self.cfg.data.train_ds.drop_last,
-            check_validation_interval=True,
         )
 
     def setup_eval_data(self, datasets, data_cfg):
@@ -542,13 +540,11 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         for dataset in datasets:
             eval_dl = self.build_data_loader(
                 dataset,
-                micro_batch_size=data_cfg.micro_batch_size,
                 global_batch_size=data_cfg.global_batch_size,
                 shuffle=data_cfg.shuffle,
                 num_workers=data_cfg.num_workers,
                 pin_memory=data_cfg.pin_memory,
                 drop_last=data_cfg.drop_last,
-                check_validation_interval=False,
             )
             dataloaders.append(eval_dl)
         return dataloaders
