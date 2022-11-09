@@ -168,7 +168,7 @@ class AdapterModuleMixin(ABC):
         else:
             return []
 
-    def get_from_adapter_layer(self, name: str):
+    def get_adapter_module(self, name: str):
         if hasattr(self, "adapter_layer"):
             return self.adapter_layer[name] if name in self.adapter_layer else None
         return None
