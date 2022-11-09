@@ -658,7 +658,7 @@ class Model(Typing, Serialization, FileIO):
 
     @classmethod
     @abstractmethod
-    def list_available_models(cls) -> Optional[PretrainedModelInfo]:
+    def list_available_models(cls) -> Optional[List[PretrainedModelInfo]]:
         """
         Should list all pre-trained models available via NVIDIA NGC cloud.
         Note: There is no check that requires model names and aliases to be unique. In the case of a collision, whatever

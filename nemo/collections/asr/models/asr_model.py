@@ -13,11 +13,12 @@
 # limitations under the License.
 import logging
 from abc import ABC, abstractmethod
-from typing import List, Optional, Union
+from typing import List
 
 import torch
 
 from nemo.core.classes import ModelPT
+from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.mixins import AccessMixin
 from nemo.utils import cast_all, logging, model_utils
@@ -53,7 +54,7 @@ class ASRModel(ModelPT, ABC):
         return {'test_loss': val_loss_mean, 'log': tensorboard_logs}
 
     @classmethod
-    def list_available_models(cls) -> 'List[PretrainedModelInfo]':
+    def list_available_models(cls) -> List[PretrainedModelInfo]:
         """
         This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
         Returns:
