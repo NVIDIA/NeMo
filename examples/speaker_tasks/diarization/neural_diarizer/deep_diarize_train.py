@@ -14,6 +14,7 @@
 
 import pytorch_lightning as pl
 from omegaconf import OmegaConf
+from torch import set_float32_matmul_precision
 
 from nemo.collections.asr.models.deep_diarize_model import DeepDiarizeModel
 from nemo.core.config import hydra_runner
@@ -46,6 +47,7 @@ python ./deep_diarize_train.py --config-path='../conf/neural_diarizer' --config-
 
 @hydra_runner(config_path="../conf/neural_diarizer", config_name="deep_diarize.yaml")
 def main(cfg):
+    set_float32_matmul_precision('medium')
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
