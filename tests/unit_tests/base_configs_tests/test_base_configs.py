@@ -60,6 +60,7 @@ class TestBaseConfigs:
           global_batch_size: 256
           tensor_model_parallel_size: 1
           pipeline_model_parallel_size: 1
+          virtual_pipeline_model_parallel_size: null
           resume_from_checkpoint: null
 
           # model architecture
@@ -82,8 +83,10 @@ class TestBaseConfigs:
           gradient_as_bucket_view: True
           gradient_accumulation_fusion: True
           activations_checkpoint_granularity: selective
-          activations_checkpoint_method: null
-          activations_checkpoint_num_layers: null
+          activations_checkpoint_method: block
+          activations_checkpoint_num_layers: 0
+          num_micro_batches_with_partial_activation_checkpoints: null
+          activations_checkpoint_layers_per_pipeline: null
 
           sequence_parallel: True
 
@@ -321,7 +324,7 @@ class TestBaseConfigs:
             gen_shape: False # Generate model and kernel details including input shapes
 
           optim:
-            name: fused_adam
+            name: distributed_fused_adam
             lr: 0.0001
             betas:
               - 0.9
@@ -541,7 +544,7 @@ class TestBaseConfigs:
             gen_shape: False # Generate model and kernel details including input shapes
 
           optim:
-            name: fused_adam
+            name: distributed_fused_adam
             lr: 0.0001
             betas:
               - 0.9
