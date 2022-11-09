@@ -111,13 +111,13 @@ class SchedulerNoOpCallback(Callback):
     def on_train_batch_end(self, trainer: pl.Trainer, pl_module, outputs, batch, batch_idx):
         # pl_module.max_steps is "original" max steps without trainer extra steps.
         if (trainer.global_step + 1) % 3 == 0 and (trainer.global_step + 1) < pl_module.max_steps:
-            schedulers = trainer.lr_schedulers
+            schedulers = trainer.lr_scheduler_configs
 
             for scheduler in schedulers:
                 # Decrement the counter by 2, then perform a scheduler.step() to perform a no-up
                 # as well as update the optimizer lr in all param groups
-                scheduler['scheduler'].last_epoch -= 2
-                scheduler['scheduler'].step()
+                scheduler.scheduler.last_epoch -= 2
+                scheduler.scheduler.step()
 
             # Increase the max step count by 1
             trainer.fit_loop.max_steps = trainer.fit_loop.max_steps + 1
