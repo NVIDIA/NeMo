@@ -239,7 +239,7 @@ def calculate_session_cpWER(
 
               LSA algorithm based cpWER is:
                 [case1] 4/6 (4 deletion)
-                [case2] 2/6 (2 substituion)
+                [case2] 2/6 (2 substitution)
               brute force permutation based cpWER is:
                 [case1] 0
                 [case2] 2/6 (2 substitution)
