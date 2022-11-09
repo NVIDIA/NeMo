@@ -61,7 +61,7 @@ For extracting embeddings from a single file:
 .. code-block:: python
 
   speaker_model = EncDecSpeakerLabelModel.from_pretrained(model_name="<pretrained_model_name or path/to/nemo/file>")
-  embs = speaker_model.get_embedding('audio_path')
+  embs = speaker_model.get_embedding('<audio_path>')
 
 For extracting embeddings from a bunch of files:
 
