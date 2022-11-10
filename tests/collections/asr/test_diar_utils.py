@@ -49,10 +49,10 @@ def generate_mock_emb(n_emb_per_spk, perturb_sigma, emb_dim):
 
 
 def generate_mock_data(
-    n_spk=2,
+    n_spks=2,
     spk_dur=3,
     emb_dim=192,
-    perturb_sigma=0.1,
+    perturb_sigma=0.01,
     ms_window=[1.5, 1.0, 0.5],
     ms_shift=[0.75, 0.5, 0.25],
     torch_seed=0,
@@ -60,7 +60,7 @@ def generate_mock_data(
 
     torch.manual_seed(torch_seed)
     segment_lists = []
-    spk_timestamps = [(spk_dur * k, spk_dur) for k in range(n_spk)]
+    spk_timestamps = [(spk_dur * k, spk_dur) for k in range(n_spks)]
     emb_list, seg_list = [], []
     multiscale_segment_counts = [0 for _ in range(len(ms_window))]
     for scale_idx, (window, shift) in enumerate(zip(ms_window, ms_shift)):
@@ -77,11 +77,11 @@ def generate_mock_data(
     multiscale_weights = torch.ones(len(ms_window)).unsqueeze(0)
     return emb_tensor, segm_tensor, multiscale_segment_counts, multiscale_weights, spk_timestamps
 
-
-def test_speaker_counting(n_spk=3, total_dur_sec=30, num_speakers=-1, max_num_speakers=5):
-    speaker_clustering_python = SpeakerClustering(maj_vote_spk_count=False, cuda=True)
-    each_spk_dur = float(total_dur_sec / n_spk)
-    em, ts, mc, mw, spk_ts = generate_mock_data(n_spk=n_spk, spk_dur=each_spk_dur)
+@pytest.mark.skip("test is not intended")
+def test_speaker_counting(n_spks=3, total_dur_sec=30, num_speakers=-1, max_num_speakers=5, cuda=True):
+    speaker_clustering_python = SpeakerClustering(maj_vote_spk_count=False, cuda=cuda)
+    each_spk_dur = float(total_dur_sec / n_spks)
+    em, ts, mc, mw, spk_ts = generate_mock_data(n_spks=n_spks, spk_dur=each_spk_dur)
     Y = speaker_clustering_python.forward(
         embeddings_in_scales=em,
         timestamps_in_scales=ts,
@@ -122,6 +122,7 @@ class TestDiarizationUtilFunctions:
         merged = combine_int_overlaps(intervals)
         assert check_range_values(target, merged)
 
+    @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_clus_script_export(self):
         exported_filename = 'speaker_clustering_script.pt'
@@ -133,9 +134,9 @@ class TestDiarizationUtilFunctions:
         os.remove(exported_filename)
         assert not os.path.exists(exported_filename)
         total_dur_sec = 30
-        n_spk = 3
-        each_spk_dur = float(total_dur_sec / n_spk)
-        em, ts, mc, mw, spk_ts = generate_mock_data(n_spk=n_spk, spk_dur=each_spk_dur)
+        n_spks = 3
+        each_spk_dur = float(total_dur_sec / n_spks)
+        em, ts, mc, mw, spk_ts = generate_mock_data(n_spks=n_spks, spk_dur=each_spk_dur)
 
         num_speakers = -1
         max_num_speakers = 8
@@ -157,27 +158,48 @@ class TestDiarizationUtilFunctions:
             oracle_num_speakers=torch.LongTensor([num_speakers]),
             max_num_speakers=torch.LongTensor([max_num_speakers]),
         )
+        assert len(set(Y_tjs.tolist())) == len(set(Y_py.tolist())) == n_spks
         assert all(Y_tjs == Y_py) == True, f"Script module and python module are showing different clustering results"
 
+    @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
-    def test_speaker_counting_2spk(self, n_spk=2):
-        est_n_spk = test_speaker_counting(n_spk=n_spk)
-        assert est_n_spk == n_spk, f"Clustering test failed at n_spk={n_spk} speaker test"
+    def test_speaker_counting_1_cpu(self, n_spks=1):
+        est_n_spk = test_speaker_counting(n_spks=n_spks, total_dur_sec=10, cuda=False)
+        assert est_n_spk == n_spks, f"Clustering test failed at n_spks={n_spks} speaker test"
+        est_n_spk = test_speaker_counting(n_spks=n_spks, total_dur_sec=20, cuda=False)
+        assert est_n_spk == n_spks, f"Clustering test failed at n_spks={n_spks} speaker test"
 
+    @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
-    def test_speaker_counting_3spk(self, n_spk=3):
-        est_n_spk = test_speaker_counting(n_spk=n_spk)
-        assert est_n_spk == n_spk, f"Clustering test failed at n_spk={n_spk} speaker test"
+    def test_speaker_counting_1spk_gpu(self, n_spks=1):
+        est_n_spk = test_speaker_counting(n_spks=n_spks, total_dur_sec=10)
+        assert est_n_spk == n_spks, f"Clustering test failed at n_spks={n_spks} speaker test"
+        est_n_spk = test_speaker_counting(n_spks=n_spks, total_dur_sec=20)
+        assert est_n_spk == n_spks, f"Clustering test failed at n_spks={n_spks} speaker test"
 
+    @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
-    def test_speaker_counting_4spk(self, n_spk=4):
-        est_n_spk = test_speaker_counting(n_spk=n_spk)
-        assert est_n_spk == n_spk, f"Clustering test failed at n_spk={n_spk} speaker test"
+    def test_speaker_counting_2spk_gpu(self, n_spks=2):
+        est_n_spk = test_speaker_counting(n_spks=n_spks)
+        assert est_n_spk == n_spks, f"Clustering test failed at n_spks={n_spks} speaker test"
 
+    @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
-    def test_speaker_counting_5spk(self, n_spk=5):
-        est_n_spk = test_speaker_counting(n_spk=n_spk)
-        assert est_n_spk == n_spk, f"Clustering test failed at n_spk={n_spk} speaker test"
+    def test_speaker_counting_3spk_gpu(self, n_spks=3):
+        est_n_spk = test_speaker_counting(n_spks=n_spks)
+        assert est_n_spk == n_spks, f"Clustering test failed at n_spks={n_spks} speaker test"
+
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.unit
+    def test_speaker_counting_4spk_gpu(self, n_spks=4):
+        est_n_spk = test_speaker_counting(n_spks=n_spks)
+        assert est_n_spk == n_spks, f"Clustering test failed at n_spks={n_spks} speaker test"
+
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.unit
+    def test_speaker_counting_5spk_gpu(self, n_spks=5):
+        est_n_spk = test_speaker_counting(n_spks=n_spks)
+        assert est_n_spk == n_spks, f"Clustering test failed at n_spks={n_spks} speaker test"
 
     def test_embedding_merge(self):
         # TODO
