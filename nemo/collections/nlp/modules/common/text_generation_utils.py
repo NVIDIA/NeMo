@@ -14,6 +14,8 @@
 
 """Utilities for generating text."""
 
+from collections.abc import Iterable
+
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -473,19 +475,19 @@ def generate(
         min_tokens_to_generate=min_tokens_to_generate,
     )
     special_tokens = set()
-    if tokenizer.pad_token is not None:
+    if hasattr(tokenizer, 'pad_token') and tokenizer.pad_token is not None:
         special_tokens.add(tokenizer.pad_token)
-    if tokenizer.eos_token is not None:
+    if hasattr(tokenizer, 'eos_token') and tokenizer.eos_token is not None:
         special_tokens.add(tokenizer.eos_token)
-    if tokenizer.bos_token is not None:
+    if hasattr(tokenizer, 'bos_token') and tokenizer.bos_token is not None:
         special_tokens.add(tokenizer.bos_token)
-    if tokenizer.cls_token is not None:
+    if hasattr(tokenizer, 'cls_token') and tokenizer.cls_token is not None:
         special_tokens.add(tokenizer.cls_token)
-    if tokenizer.unk_token is not None:
+    if hasattr(tokenizer, 'unk_token') and tokenizer.unk_token is not None:
         special_tokens.add(tokenizer.unk_token)
-    if tokenizer.sep_token is not None:
+    if hasattr(tokenizer, 'sep_token') and tokenizer.sep_token is not None:
         special_tokens.add(tokenizer.sep_token)
-    if tokenizer.mask_token is not None:
+    if hasattr(tokenizer, 'mask_token') and tokenizer.mask_token is not None:
         special_tokens.add(tokenizer.mask_token)
     if output is not None:
         decode_tokens, output_logits, full_logits = output
@@ -499,10 +501,15 @@ def generate(
             if not isinstance(tokenizer, TabularTokenizer):
                 words = []
                 for token in decode_token:
+                    if not isinstance(token, Iterable):
+                        token = [token]
                     word = tokenizer.ids_to_tokens(token)
-                    word = bytearray([tokenizer.tokenizer.byte_decoder[c] for c in word]).decode(
-                        'utf-8', errors='replace'
-                    )
+                    if isinstance(word, Iterable):
+                        word = word[0]
+                    if hasattr(tokenizer.tokenizer, 'byte_decoder'):
+                        word = bytearray([tokenizer.tokenizer.byte_decoder[c] for c in word]).decode(
+                            'utf-8', errors='replace'
+                        )
                     words.append(word)
                 resp_sentences_seg.append(words)
             else:
