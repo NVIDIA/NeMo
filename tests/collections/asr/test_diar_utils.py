@@ -191,6 +191,3 @@ class TestDiarizationUtilFunctions:
         # TODO
         pass
 
-    def test_clustering_export(self):
-        # TODO
-        pass
