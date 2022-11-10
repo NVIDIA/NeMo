@@ -35,13 +35,6 @@ def check_range_values(target, source):
     return all(bool_list)
 
 
-def check_labels(target, source):
-    bool_list = []
-    for x, y in zip(target, source):
-        bool_list.append(abs(x - y) < 1e-6)
-    return all(bool_list)
-
-
 def matrix(mat, torch=True):
     if torch:
         return torch.tensor(mat)
