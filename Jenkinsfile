@@ -622,12 +622,12 @@ pipeline {
       }
       failFast true
       parallel {
-        stage('ASR Adapters') {
+        stage('Linear Adapters') {
           steps {
             sh 'python examples/asr/asr_adapters/train_asr_adapter.py \
             model.pretrained_model="stt_en_conformer_ctc_small" \
             model.adapter.adapter_name="an4" \
-            model.adapter.in_features=176 \
+            model.adapter.linear.in_features=176 \
             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
             trainer.max_steps=5 \
@@ -636,6 +636,23 @@ pipeline {
             +trainer.fast_dev_run=True \
             exp_manager.exp_dir=examples/asr/speech_to_text_adapters_results'
             sh 'rm -rf examples/asr/speech_to_text_adapters_results'
+          }
+        }
+        stage('RelPos MHA Adapters') {
+          steps {
+            sh 'python examples/asr/asr_adapters/train_asr_adapter.py \
+            model.pretrained_model="stt_en_conformer_ctc_small" \
+            model.adapter.adapter_name="encoder:an4" \
+            model.adapter.adapter_type="tiny_attn" \
+            model.adapter.tiny_attn.n_feat=176 \
+            model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+            model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+            trainer.max_steps=5 \
+            trainer.devices=[0] \
+            trainer.accelerator="gpu" \
+            +trainer.fast_dev_run=True \
+            exp_manager.exp_dir=examples/asr/speech_to_text_adapters_mha_results'
+            sh 'rm -rf examples/asr/speech_to_text_adapters_mha_results'
           }
         }
 

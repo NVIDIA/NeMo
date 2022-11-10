@@ -188,10 +188,20 @@ def main(cfg):
     with open_dict(cfg.model.adapter):
         # Extract the name of the adapter (must be give for training)
         adapter_name = cfg.model.adapter.pop("adapter_name")
+        adapter_type = cfg.model.adapter.pop("adapter_type")
         adapter_module_name = cfg.model.adapter.pop("adapter_module_name", None)
         adapter_state_dict_name = cfg.model.adapter.pop("adapter_state_dict_name", None)
 
-        # augment adapter name with module name, if not provided by user
+        # Resolve the config of the specified `adapter_type`
+        if adapter_type not in cfg.model.adapter.keys():
+            raise ValueError(f"Adapter type ({adapter_type}) config could not be found. Adapter setup config - \n"
+                             f"{OmegaConf.to_yaml(cfg.model.adapter)}")
+
+        adapter_type_cfg = cfg.model.adapter[adapter_type]
+        print(f"Found `{adapter_type}` config :\n"
+              f"{OmegaConf.to_yaml(adapter_type_cfg)}")
+
+        # Augment adapter name with module name, if not provided by user
         if adapter_module_name is not None and ':' not in adapter_name:
             adapter_name = f'{adapter_module_name}:{adapter_name}'
 
@@ -200,7 +210,7 @@ def main(cfg):
         if adapter_global_cfg is not None:
             add_global_adapter_cfg(model, adapter_global_cfg)
 
-    model.add_adapter(adapter_name, cfg=cfg.model.adapter)
+    model.add_adapter(adapter_name, cfg=adapter_type_cfg)
     assert model.is_adapter_available()
 
     # Disable all other adapters, enable just the current adapter.
