@@ -73,8 +73,6 @@ class FastPitchModel_SSL(ModelPT):
 
         self.aligner = None
 
-        # can probably drop the preprocessor
-        self.preprocessor = instantiate(self._cfg.preprocessor)
         input_fft = None
         self.use_encoder = use_encoder = cfg.get("use_encoder", False)
         if use_encoder:
@@ -117,19 +115,6 @@ class FastPitchModel_SSL(ModelPT):
         )
 
         self.non_trainable_models = {}
-        use_speaker_loss = self._cfg.get("speaker_loss", False)
-        self.use_speaker_loss = use_speaker_loss
-        if use_speaker_loss:
-            if os.path.exists(self._cfg.ssl_model_ckpt_path):
-                print("Loading SSL model from ", self._cfg.ssl_model_ckpt_path)
-                ssl_model = ssl_tts.SSLDisentangler.load_from_checkpoint(
-                    self._cfg.ssl_model_ckpt_path, strict=False
-                ).cpu()
-                ssl_model.eval()
-                self.non_trainable_models['ssl_model'] = ssl_model
-            else:
-                print("SSL model ckpt does not exist")
-
         self.non_trainable_models['vocoder'] = vocoder
 
     def vocode_spectrogram(self, spectrogram):
@@ -209,37 +194,6 @@ class FastPitchModel_SSL(ModelPT):
 
         return encoded
 
-    def compute_speaker_loss(self, generated_mel, gt_speaker_embedding):
-        # Did not improve results so it is not currently used in ACE-VC.
-        if self.non_trainable_models['ssl_model'] is None:
-            logging.error(f"Please make sure ssl_model is not None.")
-
-        ssl_model = self.non_trainable_models['ssl_model']
-        ssl_model.to(self.device)
-
-        # 172 frames corresponds to 2 seconds of audio.
-        # TBD: Compute this from segment length STFT params of Conformer
-        generated_mel_sliced = generated_mel[:, :, :172]
-        generated_mel_len_batch = (
-            torch.tensor([generated_mel_sliced.shape[-1] for _idx in range(generated_mel_sliced.shape[0])])
-            .long()
-            .to(self.device)
-        )
-
-        normalized_mel = features.normalize_batch(generated_mel_sliced, generated_mel_len_batch, "per_feature")
-
-        encoded, _ = ssl_model.encoder(audio_signal=normalized_mel, length=generated_mel_len_batch)  # b,c,t
-        pred_speaker_embedding = ssl_model.downstream_nets['speaker_verification'](encoded[:, :, 0])
-        l2_norm = torch.norm(pred_speaker_embedding, p=2, dim=-1, keepdim=True)
-        speaker_embedding_normalized = pred_speaker_embedding / l2_norm
-
-        cosine_similarity = torch.nn.functional.cosine_similarity(
-            speaker_embedding_normalized, gt_speaker_embedding, dim=-1
-        ).mean()
-
-        speaker_loss = 1 - cosine_similarity
-        return speaker_loss
-
     def training_step(self, batch, batch_idx):
         content_embedding = batch["content_embedding"]
         encoded_len = batch["encoded_len"]
@@ -283,11 +237,6 @@ class FastPitchModel_SSL(ModelPT):
             pitch_loss = self.pitch_loss(pitch_predicted=pitch_pred, pitch_tgt=pitch, len=encoded_len)
             loss += pitch_loss
             self.log("t_pitch_loss", pitch_loss)
-
-        if self.use_speaker_loss:
-            speaker_loss = self.compute_speaker_loss(mels_pred, speaker_embedding)
-            loss += speaker_loss
-            self.log("t_speaker_loss", speaker_loss)
 
         self.log("t_loss", loss)
         self.log("t_mel_loss", mel_loss)
@@ -414,7 +363,7 @@ class FastPitchModel_SSL(ModelPT):
             self.tb_logger.add_audio("Generated Audio", wav_vocoded, self.global_step, 22050)
             self.log_train_images = True
 
-    def synthesize_wav(
+    def generate_wav(
         self,
         content_embedding,
         speaker_embedding,
@@ -447,6 +396,7 @@ class FastPitchModel_SSL(ModelPT):
         elif durs_gt is not None:
             durs = durs_gt
         else:
+            # by default, each ConformerSSL frame corresponds to 4 mel frames
             durs = torch.ones_like(enc_mask) * 4.0
 
         enc_mask = enc_mask[:, :, None]

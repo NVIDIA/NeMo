@@ -34,7 +34,6 @@ segment_speaker_embedding: true
 
 model:
   ssl_model_ckpt_path: ${ssl_model_ckpt_path}
-  speaker_loss: false
   use_encoder: true
   use_duration_predictor: ${use_unique_tokens}
   pitch_conditioning: true
@@ -113,29 +112,6 @@ model:
       batch_size: 2
       num_workers: 0
       pin_memory: true
-
-  preprocessor:
-    _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
-    features: ${model.n_mel_channels}
-    lowfreq: ${model.lowfreq}
-    highfreq: ${model.highfreq}
-    n_fft: ${model.n_fft}
-    n_window_size: ${model.n_window_size}
-    window_size: false
-    n_window_stride: ${model.n_window_stride}
-    window_stride: false
-    pad_to: 1
-    pad_value: 0
-    sample_rate: ${model.sample_rate}
-    window: ${model.window}
-    normalize: null
-    preemph: null
-    dither: 0.0
-    frame_splicing: 1
-    log: true
-    log_zero_guard_type: add
-    log_zero_guard_value: 1e-05
-    mag_power: 1.0
 
   # both encoder and decoder have same architecture, FFTransformerDecoder 
   encoder: #n_embed and padding_idx are added by the model
