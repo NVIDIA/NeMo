@@ -57,18 +57,12 @@ def hydra_runner(
                 # Get overriding args in dot string format
                 overrides = parsed_args.overrides  # type: list
 
-                # Disable the creation of .hydra subdir
-                # https://hydra.cc/docs/tutorials/basic/running_your_app/working_directory
-                overrides.append("hydra.output_subdir=null")
                 # Hydra logging outputs only to stdout (no log file).
                 # https://hydra.cc/docs/configure_hydra/logging
                 overrides.append("hydra/job_logging=stdout")
 
                 # Set run.dir ONLY for ExpManager "compatibility" - to be removed.
                 overrides.append("hydra.run.dir=.")
-
-                # Set working directory to the job's output directory
-                overrides.append("hydra.job.chdir=True")
 
                 # Check if user set the schema.
                 if schema is not None:
