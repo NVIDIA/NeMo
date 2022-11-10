@@ -24,6 +24,7 @@ from nemo.collections.asr.parts.submodules.multi_head_attention import (
 )
 from nemo.collections.asr.parts.utils.activations import Swish
 from nemo.collections.common.parts.utils import activation_registry
+from nemo.collections.common.parts import adapter_modules
 from nemo.core.classes.mixins import AccessMixin
 from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
 
@@ -154,6 +155,17 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
             x = None
         residual = residual + self.dropout(x)
 
+        if self.is_adapter_available():
+            # Call the MHA adapters
+            pack_ip = {
+                'x': residual,
+                'loc': 'mha',
+                'att_mask': att_mask,
+                'pos_emb': pos_emb,
+            }
+            pack_ip = self.forward_enabled_adapters(pack_ip)
+            residual = pack_ip['x']
+
         x = self.norm_conv(residual)
         x = self.conv(x, pad_mask=pad_mask, cache=cache_last_time, cache_next=cache_last_time_next)
         residual = residual + self.dropout(x)
@@ -168,8 +180,7 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
             # Call the adapters
             pack_ip = {
                 'x': x,
-                'att_mask': att_mask,
-                'pos_emb': pos_emb,
+                'loc': 'post',
             }
             pack_ip = self.forward_enabled_adapters(pack_ip)
             x = pack_ip['x']
@@ -195,7 +206,8 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         Args:
             input: Dictionary of packed tensors. The dict should contain at least
                 `x`: output tensor
-                `att_mask`: Attention mask
+                `loc`: Semantic location in module where this adapter was called
+                `att_mask`: Optional, Attention mask
                 `pos_emb`: Optional, Positional Embedding for Relative Positional Encoding.
                 The output tensor of the calling module is the input to the first adapter, whose output
                 is then chained to the next adapter until all adapters are consumed.
@@ -209,13 +221,14 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         """
         # (input: torch.Tensor, adapter: torch.nn.Module, *, module: 'AdapterModuleMixin')
         x = input['x']
-        att_mask = input['att_mask']
+        loc = input['loc']
+        att_mask = input.get('att_mask', None)
         pos_emb = input.get('pos_emb', None)
 
-        if not isinstance(adapter_module, MultiHeadAttention):
+        if isinstance(adapter_module, adapter_modules.LinearAdapter) and loc == 'post':
             output = adapter_strategy(x, adapter_module, module=self)
 
-        else:
+        elif isinstance(adapter_module, MultiHeadAttention) and loc == 'mha':
             if self.self_attention_model == 'rel_pos':
                 x = dict(query=x, key=x, value=x, mask=att_mask, pos_emb=pos_emb)
                 output = adapter_strategy(x, adapter_module, module=self)
@@ -226,6 +239,10 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
 
             else:
                 raise ValueError(f"Unsupported value of self_attention_model , provided {self.self_attention_model}!")
+
+        else:
+            # No adapter compatible, skip
+            output = x
 
         input['x'] = output
 

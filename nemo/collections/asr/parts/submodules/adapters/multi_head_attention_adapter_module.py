@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 from dataclasses import dataclass, is_dataclass
 from typing import Any, Optional
 
@@ -109,6 +110,7 @@ class MultiHeadAttentionAdapter(mha.MultiHeadAttention, adapter_modules.Abstract
                 raise ValueError(f"proj_dim ({proj_dim}) is not divisible by n_head ({n_head})")
 
             self.d_k = self.proj_dim // n_head
+            self.s_d_k = math.sqrt(self.d_k)
             self.linear_q = nn.Linear(n_feat, self.proj_dim)
             self.linear_k = nn.Linear(n_feat, self.proj_dim)
             self.linear_v = nn.Linear(n_feat, self.proj_dim)
@@ -180,6 +182,7 @@ class RelPositionMultiHeadAttentionAdapter(
                 raise ValueError(f"proj_dim ({proj_dim}) is not divisible by n_head ({n_head})")
 
             self.d_k = self.proj_dim // n_head
+            self.s_d_k = math.sqrt(self.d_k)
             self.linear_q = nn.Linear(n_feat, self.proj_dim)
             self.linear_k = nn.Linear(n_feat, self.proj_dim)
             self.linear_v = nn.Linear(n_feat, self.proj_dim)

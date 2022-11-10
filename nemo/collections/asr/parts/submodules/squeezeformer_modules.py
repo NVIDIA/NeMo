@@ -21,6 +21,7 @@ from nemo.collections.asr.parts.submodules.multi_head_attention import (
     MultiHeadAttention,
     RelPositionMultiHeadAttention,
 )
+from nemo.collections.common.parts import adapter_modules
 from nemo.core.classes.mixins import AccessMixin
 from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
 
@@ -152,6 +153,17 @@ class SqueezeformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         x = self.norm_self_att(x)
         residual = x
 
+        if self.is_adapter_available():
+            # Call the MHA adapters
+            pack_ip = {
+                'x': residual,
+                'loc': 'mha',
+                'att_mask': att_mask,
+                'pos_emb': pos_emb,
+            }
+            pack_ip = self.forward_enabled_adapters(pack_ip)
+            x = pack_ip['x']
+
         x = self.feed_forward1_scale(x)
         x = self.feed_forward1(x)
         x = residual + self.dropout(x) * self.fc_factor
@@ -173,8 +185,7 @@ class SqueezeformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
             # Call the adapters
             pack_ip = {
                 'x': x,
-                'att_mask': att_mask,
-                'pos_emb': pos_emb,
+                'loc': 'post',
             }
             pack_ip = self.forward_enabled_adapters(pack_ip)
             x = pack_ip['x']
@@ -200,7 +211,8 @@ class SqueezeformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         Args:
             input: Dictionary of packed tensors. The dict should contain at least
                 `x`: output tensor
-                `att_mask`: Attention mask
+                `loc`: Semantic location in module where this adapter was called
+                `att_mask`: Optional, Attention mask
                 `pos_emb`: Optional, Positional Embedding for Relative Positional Encoding.
                 The output tensor of the calling module is the input to the first adapter, whose output
                 is then chained to the next adapter until all adapters are consumed.
@@ -214,13 +226,14 @@ class SqueezeformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         """
         # (input: torch.Tensor, adapter: torch.nn.Module, *, module: 'AdapterModuleMixin')
         x = input['x']
-        att_mask = input['att_mask']
+        loc = input['loc']
+        att_mask = input.get('att_mask', None)
         pos_emb = input.get('pos_emb', None)
 
-        if not isinstance(adapter_module, MultiHeadAttention):
+        if isinstance(adapter_module, adapter_modules.LinearAdapter) and loc == 'post':
             output = adapter_strategy(x, adapter_module, module=self)
 
-        else:
+        elif isinstance(adapter_module, MultiHeadAttention) and loc == 'mha':
             if self.self_attention_model == 'rel_pos':
                 x = dict(query=x, key=x, value=x, mask=att_mask, pos_emb=pos_emb)
                 output = adapter_strategy(x, adapter_module, module=self)
@@ -231,6 +244,10 @@ class SqueezeformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
 
             else:
                 raise ValueError(f"Unsupported value of self_attention_model , provided {self.self_attention_model}!")
+
+        else:
+            # No adapter compatible, skip
+            output = x
 
         input['x'] = output
 
