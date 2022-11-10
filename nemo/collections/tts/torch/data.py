@@ -169,6 +169,10 @@ class TTSDataset(Dataset):
             pitch_mean (Optional[float]): The mean that we use to normalize the pitch.
             pitch_std (Optional[float]): The std that we use to normalize the pitch.
             pitch_norm (Optional[bool]): Whether to normalize pitch (via pitch_mean and pitch_std) or not.
+            segment_max_duration (Optional[float]): If audio length is greater than segment_max_duration, take a random segment of segment_max_duration (Used for SV task in SSLDisentangler)
+            pitch_augment (bool): Whether to apply pitch-shift transform and return a pitch-shifted audio. If set as False, audio_shifted will be None (used in SSLDisentangler)
+            cache_pitch_augment (bool): Whether to cache pitch augmented audio or not. Defaults to False (used in SSLDisentangler)
+            pad_multiple (int): If audio length is not divisible by pad_multiple, pad the audio with zeros to make it divisible by pad_multiple (used in SSLDisentangler)
         """
         super().__init__()
 
@@ -488,7 +492,7 @@ class TTSDataset(Dataset):
                 torch.save(audio_shifted, audio_shifted_path)
             return audio_shifted
 
-    def _pad_wav(self, wav):
+    def _pad_wav_to_multiple(self, wav):
         if self.pad_multiple > 1:
             if wav.shape[0] % self.pad_multiple != 0:
                 wav = torch.cat(
@@ -510,17 +514,18 @@ class TTSDataset(Dataset):
             and 'duration' in sample
             and sample['duration'] > self.segment_max_duration
         ):
+            # this case has been added for segmenting audio for speaker verification task of SSLDisentangler
             n_segments = int(self.segment_max_duration * self.sample_rate)
             features = AudioSegment.segment_from_file(
                 sample["audio_filepath"], target_sr=self.sample_rate, n_segments=n_segments, trim=self.trim
             )
             audio_shifted = None
-            if self.pitch_augment:
-                # should not get here, but just in case :P
-                audio_shifted = self.pitch_shift(features.samples, self.sample_rate, rel_audio_path_as_text_id)
+
+            # should not have pitch shift augmented data for speaker verification
+            assert not self.pitch_augment
 
             features = torch.tensor(features.samples)
-            features = self._pad_wav(features)
+            features = self._pad_wav_to_multiple(features)
             audio, audio_length = features, torch.tensor(features.shape[0]).long()
         else:
             features = self.featurizer.process(
@@ -532,7 +537,7 @@ class TTSDataset(Dataset):
                 trim_hop_length=self.trim_hop_length,
             )
 
-            features = self._pad_wav(features)
+            features = self._pad_wav_to_multiple(features)
             audio_shifted = None
             if self.pitch_augment:
                 audio_shifted = self.pitch_shift(
@@ -874,6 +879,7 @@ class MixerTTSXDataset(TTSDataset):
             speaker_id,
             voiced_mask,
             p_voiced,
+            _,  # audio_shifted (only needed for SSLDisentangler)
         ) = super().__getitem__(index)
 
         lm_tokens = None
