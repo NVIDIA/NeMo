@@ -4,7 +4,7 @@ import torch
 from pyannote.core import Annotation, Segment
 
 from nemo.collections.asr.data.audio_to_diar_label import extract_seg_info_from_rttm
-from nemo.collections.asr.data.deep_diarize.utils import assign_frame_level_spk_vector
+from nemo.collections.asr.data.deep_diarize.utils import ContextWindow, assign_frame_level_spk_vector
 from nemo.collections.asr.modules import AudioToMelSpectrogramPreprocessor
 from nemo.collections.asr.parts.preprocessing import WaveformFeaturizer
 from nemo.collections.common.parts.preprocessing.collections import DiarizationSpeechLabel
@@ -31,6 +31,7 @@ class RTTMDataset(Dataset):
         manifest_filepath: str,
         preprocessor: AudioToMelSpectrogramPreprocessor,
         featurizer: WaveformFeaturizer,
+        context_window: ContextWindow,
         window_stride: float,
         subsampling: int,
         segment_seconds: int,
@@ -40,6 +41,7 @@ class RTTMDataset(Dataset):
         )
         self.preprocessor = preprocessor
         self.featurizer = featurizer
+        self.context_window = context_window
         self.round_digits = 2
         self.frame_per_sec = int(1 / (window_stride * subsampling))
         self.subsampling = subsampling
@@ -95,7 +97,8 @@ class RTTMDataset(Dataset):
             length = torch.tensor(segment.shape[0]).long()
 
             segment, length = self.preprocessor.get_features(segment.unsqueeze_(0), length.unsqueeze_(0))
-            segments.append(segment.transpose(1, 2))
+            segment = self.context_window(segment.transpose(1, 2))
+            segments.append(segment)
             lengths.append(length)
             targets.append(fr_level_target)
             segment_annotations.append(

@@ -12,6 +12,8 @@ model:
   d_model: 512
   chunk_seconds: ${chunk_seconds}
   subsampling: 8
+  left_frames: 7
+  right_frames: 7
 
   encoder:
     hidden_dim: 1024

@@ -22,7 +22,7 @@ import torch
 from torch.utils.data import DataLoader, IterableDataset
 
 from nemo.collections.asr.data.audio_to_diar_label import extract_seg_info_from_rttm
-from nemo.collections.asr.data.deep_diarize.utils import assign_frame_level_spk_vector
+from nemo.collections.asr.data.deep_diarize.utils import ContextWindow, assign_frame_level_spk_vector
 from nemo.collections.asr.modules import AudioToMelSpectrogramPreprocessor
 from nemo.collections.asr.modules.audio_preprocessing import SpectrogramAugmentation
 from nemo.collections.asr.parts.preprocessing import WaveformFeaturizer
@@ -67,6 +67,7 @@ class RTTMStreamingSegmentsDataset(IterableDataset, ABC):
         preprocessor: AudioToMelSpectrogramPreprocessor,
         featurizer: WaveformFeaturizer,
         spec_augmentation: SpectrogramAugmentation,
+        context_window: ContextWindow,
         window_stride: float,
         subsampling: int,
         train_segment_seconds: int,
@@ -77,6 +78,7 @@ class RTTMStreamingSegmentsDataset(IterableDataset, ABC):
         self.preprocessor = preprocessor
         self.featurizer = featurizer
         self.spec_augmentation = spec_augmentation
+        self.context_window = context_window
         self.round_digits = 2
         self.max_spks = 2
         self.frame_per_sec = int(1 / (window_stride * subsampling))
@@ -140,6 +142,7 @@ class RTTMStreamingSegmentsDataset(IterableDataset, ABC):
         manifest_filepath: str,
         preprocessor: AudioToMelSpectrogramPreprocessor,
         featurizer: WaveformFeaturizer,
+        context_window: ContextWindow,
         spec_augmentation: SpectrogramAugmentation,
         window_stride: float,
         subsampling: int,
@@ -157,6 +160,7 @@ class RTTMStreamingSegmentsDataset(IterableDataset, ABC):
             manifest_filepath=manifest_filepath,
             num_workers=num_workers,
             preprocessor=preprocessor,
+            context_window=context_window,
             spec_augmentation=spec_augmentation,
             split_size=split_size,
             subsampling=subsampling,
@@ -172,6 +176,7 @@ class RTTMStreamingSegmentsDataset(IterableDataset, ABC):
         num_workers: int,
         preprocessor: AudioToMelSpectrogramPreprocessor,
         spec_augmentation: SpectrogramAugmentation,
+        context_window: ContextWindow,
         split_size: int,
         subsampling: int,
         train_segment_seconds: int,
@@ -196,6 +201,7 @@ class LocalRTTMStreamingSegmentsDataset(RTTMStreamingSegmentsDataset):
         preprocessor: AudioToMelSpectrogramPreprocessor,
         featurizer: WaveformFeaturizer,
         spec_augmentation: SpectrogramAugmentation,
+        context_window: ContextWindow,
         window_stride: float,
         subsampling: int,
         train_segment_seconds: int,
@@ -206,6 +212,7 @@ class LocalRTTMStreamingSegmentsDataset(RTTMStreamingSegmentsDataset):
             preprocessor,
             featurizer,
             spec_augmentation,
+            context_window,
             window_stride,
             subsampling,
             train_segment_seconds,
@@ -245,6 +252,9 @@ class LocalRTTMStreamingSegmentsDataset(RTTMStreamingSegmentsDataset):
                     train_segment.unsqueeze_(0), train_length.unsqueeze_(0)
                 )
 
+                # todo: this stacking procedure requires thought when combined with spec augment
+                train_segment = self.context_window(train_segment.transpose(1, 2)).transpose(1, 2)
+
                 train_segment = self.spec_augmentation(input_spec=train_segment, length=train_length)
 
                 yield train_segment, train_length, targets, start_segment
@@ -276,6 +286,7 @@ class LocalRTTMStreamingSegmentsDataset(RTTMStreamingSegmentsDataset):
         num_workers: int,
         preprocessor: AudioToMelSpectrogramPreprocessor,
         spec_augmentation: SpectrogramAugmentation,
+        context_window: ContextWindow,
         split_size: int,
         subsampling: int,
         train_segment_seconds: int,
@@ -289,6 +300,7 @@ class LocalRTTMStreamingSegmentsDataset(RTTMStreamingSegmentsDataset):
                 preprocessor=preprocessor,
                 featurizer=featurizer,
                 spec_augmentation=spec_augmentation,
+                context_window=context_window,
                 window_stride=window_stride,
                 subsampling=subsampling,
                 train_segment_seconds=train_segment_seconds,

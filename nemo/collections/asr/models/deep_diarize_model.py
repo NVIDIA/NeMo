@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import itertools
+import pdb
 from typing import Any, Dict, List, Optional, Union
 
 import hydra.utils
@@ -26,6 +27,7 @@ from x_transformers import Decoder
 from nemo.collections.asr.data.deep_diarize.inference_data import RTTMDataset
 from nemo.collections.asr.data.deep_diarize.train_data import LocalRTTMStreamingSegmentsDataset, MultiStreamDataLoader
 from nemo.collections.asr.data.deep_diarize.train_tarred_data import TarredRTTMStreamingSegmentsDataset
+from nemo.collections.asr.data.deep_diarize.utils import ContextWindow
 from nemo.collections.asr.metrics.der import DER, FA, Confusion, MissedDetection
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.modules.deep_diarize_transformer import TransformerXL
@@ -112,6 +114,10 @@ class DiarizeTransformerXLDecoder(torch.nn.Module):
 
 
 class DeepDiarizeModel(ModelPT):
+    @property
+    def feat_in(self) -> int:
+        return self.cfg.feat_in * (self.cfg.left_frames + self.cfg.right_frames + 1)
+
     @classmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:
         pass
@@ -126,7 +132,7 @@ class DeepDiarizeModel(ModelPT):
             subsampling="striding",
             subsampling_factor=self.cfg.subsampling,
             conv_channels=self.cfg.d_model,
-            feat_in=self.cfg.feat_in,
+            feat_in=self.feat_in,
             feat_out=self.cfg.d_model,
             is_causal=False,
         )
@@ -367,15 +373,16 @@ class DeepDiarizeModel(ModelPT):
             sample_rate=dataloader_cfg.sample_rate, int_values=dataloader_cfg.int_values, augmentor=None
         )
         preprocessor = hydra.utils.instantiate(self.cfg.preprocessor)
+        context_window = ContextWindow(left_frames=self.cfg.left_frames, right_frames=self.cfg.right_frames)
         # todo: will be written by validation, in this case it will always be the same, but just to be aware.
         self.train_sequence_length = preprocessor.featurizer.get_seq_len(
             (torch.tensor(self.cfg.chunk_seconds * dataloader_cfg.sample_rate, dtype=torch.float))
         )
         self.sub_sample_length = int(self.train_sequence_length / self.cfg.subsampling) + 1
-        return featurizer, preprocessor
+        return featurizer, preprocessor, context_window
 
     def setup_training_data(self, cfg: Optional[Union[DictConfig, Dict]]):
-        featurizer, preprocessor = self._setup_preprocessor(cfg)
+        featurizer, preprocessor, context_window = self._setup_preprocessor(cfg)
 
         spec_augmentation = ASRModel.from_config_dict(self.cfg.spec_augment)
 
@@ -384,6 +391,7 @@ class DeepDiarizeModel(ModelPT):
             manifest_filepath=cfg.manifest_filepath,
             preprocessor=preprocessor,
             featurizer=featurizer,
+            context_window=context_window,
             spec_augmentation=spec_augmentation,
             window_stride=self.cfg.preprocessor.window_stride,
             subsampling=self.cfg.subsampling,
@@ -394,11 +402,12 @@ class DeepDiarizeModel(ModelPT):
         self._train_dl = MultiStreamDataLoader(datasets)
 
     def setup_validation_data(self, cfg: Optional[Union[DictConfig, Dict]]):
-        featurizer, preprocessor = self._setup_preprocessor(cfg)
+        featurizer, preprocessor, context_window = self._setup_preprocessor(cfg)
         dataset = RTTMDataset(
             manifest_filepath=cfg.manifest_filepath,
             preprocessor=preprocessor,
             featurizer=featurizer,
+            context_window=context_window,
             window_stride=self.cfg.preprocessor.window_stride,
             subsampling=self.cfg.subsampling,
             segment_seconds=self.cfg.chunk_seconds,
