@@ -100,7 +100,7 @@ class FastPitchModel_SSL(ModelPT):
 
         self.num_datasets = cfg.get("n_datasets", 1)
         if self.num_datasets > 1:
-            # Data ID conditining if num_datasets > 1. During inference, can set data_id to be that of the cleaner dataset.
+            # Data ID conditioning if num_datasets > 1. During inference, can set data_id to be that of the cleaner dataset.
             # Maybe useful if we have clean and noisy datasets
             self.dataset_embedding_layer = torch.nn.Embedding(self.num_datasets, self._cfg.symbols_embedding_dim)
 

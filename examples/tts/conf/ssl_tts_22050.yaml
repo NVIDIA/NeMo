@@ -46,7 +46,7 @@ model:
     max_duration_content: 16.7
     min_duration_content: 8.0
     segment_max_duration: 2
-    sup_data_path: "/home/pneekhara/Datasets/SupData/train"
+    sup_data_path: ???
     pitch_augment: ${model.pitch_augment}
     cache_pitch_augment: true
     pad_multiple: ${model.pad_multiple}
