@@ -38,7 +38,7 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
 from nemo.utils import logging
 
 from nemo.collections.asr.parts.utils.decoder_timestamps_utils import FrameBatchASR_Logits, WERBPE_TS, ASR_TIMESTAMPS, WER_TS
-from nemo.collections.asr.parts.utils.speaker_utils import get_contiguous_stamps, merge_stamps, labels_to_pyannote_object, rttm_to_labels, labels_to_rttmfile, get_uniqname_from_filepath, get_embs_and_timestamps, get_subsegments, isOverlap, getOverlapRange, getMergedRanges, getSubRangeList, fl2int, int2fl, combine_int_overlaps
+from nemo.collections.asr.parts.utils.speaker_utils import get_contiguous_stamps, merge_stamps, labels_to_pyannote_object, rttm_to_labels, labels_to_rttmfile, get_uniqname_from_filepath, get_embs_and_timestamps, get_subsegments, isOverlap, getOverlapRange, getSubRangeList, fl2int, int2fl, combine_int_overlaps
 import torch
 from nemo.collections.asr.parts.utils.vad_utils import (
     generate_overlap_vad_seq,
@@ -1414,8 +1414,8 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASR_TIMESTAMPS):
         self.offline_mode = False
         self._cfg_diarizer = cfg.diarizer
         self.audio_queue_buffer = np.array([])
-        self.ASR_model_name = self._cfg_diarizer['asr']['model_path']
-        self.params = dict(self._cfg_diarizer['asr']['parameters'])
+        self.ASR_model_name = self._cfg_diarizer.asr.model_path
+        self.params = dict(self._cfg_diarizer.asr.parameters)
         self.params['round_float'] = 2
         self.params['use_cuda'] = True
         self.params['color'] = True
@@ -1431,7 +1431,15 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASR_TIMESTAMPS):
             self.cuda = False
 
         self.metric = None
+        
+        self._init_asr_params()
+        self._init_asr_model()
+        self._init_streaming_buffer_params()
+        self.reset()
 
+        write_txt(f"{self.diar._out_dir}/reset.flag", self.string_out.strip())
+
+    def _init_asr_params(self):
         # ASR parameters
         self.frame_len = float(self._cfg_diarizer.asr.parameters.frame_len)
         self.frame_overlap = float(self._cfg_diarizer.asr.parameters.frame_overlap)
@@ -1441,7 +1449,8 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASR_TIMESTAMPS):
         self.asr_batch_size = 1 # Streaming mode requires only one batch
         self.word_update_margin = 0.0  
         self.ROUND = 2
-
+    
+    def _init_asr_model(self):
         # Model initializations
         self.load_online_VAD_model(self.params)
         self.asr_model = self.set_asr_model()
@@ -1449,6 +1458,7 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASR_TIMESTAMPS):
         self.load_punctuation_model()
         self._init_diar_eval_variables()
 
+    def _init_streaming_buffer_params(self):
         # Streaming buffer parameters
         self.CHUNK_SIZE = int(self.frame_len*self.sample_rate)
         self.n_frame_len = int(self.frame_len * self.sample_rate)
@@ -1459,10 +1469,6 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASR_TIMESTAMPS):
         self.overlap_frames_count = int(self.n_frame_overlap/self.sample_rate)
 
         
-        self.reset()
-        write_txt(f"{self.diar._out_dir}/reset.flag", self.string_out.strip())
-
-    
     def get_audio_rttm_map(self, uniq_id):
         self.uniq_id = uniq_id
         self.AUDIO_RTTM_MAP = {self.uniq_id: self.AUDIO_RTTM_MAP[uniq_id]}
@@ -1528,7 +1534,6 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASR_TIMESTAMPS):
                 Dictionary containing word timestamps  from ASR decoding indexed by unique IDs.
             metric_results  (list):
                 Metric result from Pyannote package for online diarization evaluation.
-        Returns:
         """
         diar_hyp = {uniq_id: diar_hyp_list}
         word_hyp = {uniq_id: self.word_seq}
@@ -1599,6 +1604,7 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASR_TIMESTAMPS):
             diar_hyp, word_hyp, word_ts_hyp, self.metric.results_ = self.create_single_session(uniq_id, diar_hyp_list)
             total_riva_dict = self.get_transcript_with_speaker_labels(diar_hyp, word_hyp, word_ts_hyp, write_files=False)
             DER_result_dict = self.gather_eval_results(self.metric, self.mapping_dict, total_riva_dict, pred_labels=diar_hyp)
+            # TODO: Add online cpWER 
             cpWER=0
             string_out += self.DER_to_str(der_dict, der_stat_dict, cpWER)
         logging.info(
@@ -1835,33 +1841,39 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASR_TIMESTAMPS):
     @torch.no_grad()
     def run_step(self, frame=None):
         """
-        Launch streaming ASR decoder loop and online speaker diarization module.
+        Proceed a step for both streaming ASR decoder loop and online speaker diarization module.
 
         Args:
             frame (Tensor):
 
         Returns:
+            words (list):
+            word_timestamps (list):
+            diar_hyp (list):
 
         """
         # Save the input frame into audio buffer.
         self.audio_buffer = self.update_audio_frame_input(frame=frame, buffer=self.audio_buffer)
         
         # Run VAD decoder to get VAD-mask and VAD-timestamps
-        vad_mask, vad_ts = self.run_VAD_decoder_step(buffer=self.audio_buffer) 
+        vad_mask, vad_timestamps = self.run_VAD_decoder_step(buffer=self.audio_buffer) 
        
         # Run ASR decoder step to obatain word sequence (`words`) and word timestamps (`word_timestamps`)
         words, word_timestamps = self.run_ASR_decoder_step(buffer=self.audio_buffer, frame_mask=vad_mask)
    
         # Use ASR based VAD timestamp if no VAD timestamps are provided
-        if vad_ts is None:
-            vad_ts = self.get_VAD_from_ASR(word_ts=word_timestamps)
+        if vad_timestamps is None:
+            vad_timestamps = self.get_VAD_from_ASR(word_ts=word_timestamps)
         
         # Sync diarization frame index with ASR frame index
         self.update_launcher_timestamps()
        
         # Update the frame-timing info for diarizer then run diarization step
         self.transfer_frame_info_to_diarizer()
-        diar_hyp = self.diar.diarize_step(self.audio_buffer, vad_ts)
+        
+        audio_buffer_tensor = torch.tensor(self.audio_buffer)
+        vad_timestamps_tensor = torch.tensor(vad_timestamps)
+        diar_hyp = self.diar.diarize_step(audio_buffer_tensor, vad_timestamps_tensor)
 
         self.frame_index += 1
         return words, word_timestamps, diar_hyp

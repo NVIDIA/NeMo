@@ -581,24 +581,6 @@ def read_rttm_lines(rttm_file_path):
     lines = f.readlines()
     return lines
 
-
-def isOverlap(rangeA, rangeB):
-    """
-    Check whether two ranges have overlap.
-    Args:
-        rangeA (list, tuple):
-            List or tuple containing start and end value in float.
-        rangeB (list, tuple):
-            List or tuple containing start and end value in float.
-    Returns:
-        (bool):
-            Boolean that indicates whether the input ranges have overlap.
-    """
-    start1, end1 = rangeA
-    start2, end2 = rangeB
-    return end1 > start2 and end2 > start1
-
-
 def validate_vad_manifest(AUDIO_RTTM_MAP, vad_manifest):
     """
     This function will check the valid speech segments in the manifest file which is either
@@ -623,8 +605,25 @@ def validate_vad_manifest(AUDIO_RTTM_MAP, vad_manifest):
     if len(AUDIO_RTTM_MAP) == 0:
         raise ValueError("All files present in manifest contains silence, aborting next steps")
 
+@torch.jit.script
+def isOverlap(rangeA: List[float], rangeB: List[float]) -> bool:
+    """
+    Check whether two ranges have overlap.
+    Args:
+        rangeA (list, tuple):
+            List or tuple containing start and end value in float.
+        rangeB (list, tuple):
+            List or tuple containing start and end value in float.
+    Returns:
+        (bool):
+            Boolean that indicates whether the input ranges have overlap.
+    """
+    start1, end1 = rangeA[0], rangeA[1]
+    start2, end2 = rangeB[0], rangeB[1]
+    return end1 > start2 and end2 > start1
 
-def getOverlapRange(rangeA, rangeB):
+@torch.jit.script
+def getOverlapRange(rangeA: List[float], rangeB: List[float]):
     """
     Calculate the overlapping range between rangeA and rangeB.
     Args:
@@ -640,7 +639,81 @@ def getOverlapRange(rangeA, rangeB):
     return [max(rangeA[0], rangeB[0]), min(rangeA[1], rangeB[1])]
 
 
-def combine_float_overlaps(ranges, decimals=5, margin=2):
+@torch.jit.script
+def combine_int_overlaps(intervals_in: List[List[int]]) -> List[List[int]]:
+    """
+    Interval merging algorithm which has `O(N*logN)` time complexity.
+    Merge the range pairs if there is overlap exists between the given ranges.
+    This algorithm needs a sorted range list in terms of the start time.
+    Note that neighboring numbers lead to a merged range.
+    Example:
+        [(1, 10), (11, 20)] -> [(1, 20)]
+
+    Refer to the original code at https://stackoverflow.com/a/59378428
+
+    Args:
+        ranges(list):
+            List containing ranges.
+            Example: [(102, 103), (104, 109), (107, 120)]
+    Returns:
+        merged_list (list):
+            List containing the combined ranges.
+            Example: [(102, 120)]
+
+    """
+    num_intervals = len(intervals_in)
+    if num_intervals == 0:
+        return []
+    elif num_intervals == 1:
+        return intervals_in
+    else:
+
+        merged: List[List[int]] = []
+        stt1 : int = 0
+        stt2 : int = 0
+        end1 : int = 0
+        end2 : int = 0
+
+        intervals_in = [ [int(x[0]), int(x[1])] for x in intervals_in ]
+        interval_tensor: torch.Tensor = torch.tensor(intervals_in)
+        _sorted, _ = torch.sort(interval_tensor, dim=0)
+        _sorted_int: List[List[int]] = [ [int(x[0]), int(x[1])] for x in _sorted.cpu() ]
+        intervals: List[List[int]]= _sorted_int
+        
+        start,end=intervals[0][0],intervals[0][1]
+        for i in range(1,num_intervals):
+            stt1,end1=intervals[i-1][0], intervals[i-1][1]
+            stt2,end2=intervals[i][0], intervals[i][1]
+            if end>=stt2:
+                end=max(end2,end)
+            else:
+                start, end = int(start), int(end)
+                merged.append([start,end])
+                start=stt2
+                end=max(end2,end)
+
+        start, end = int(start), int(end)
+        merged.append([start,end])
+        return merged
+
+@torch.jit.script
+def fl2int(x: float, decimals: int =3) -> int:
+    """
+    Convert floating point number to integer.
+    """
+    return torch.round(torch.tensor([x * (10 ** decimals) ]), decimals=0).int().item()
+
+
+@torch.jit.script
+def int2fl(x: int, decimals: int =3) -> float:
+    """
+    Convert integer to floating point number.
+    """
+    return torch.round(torch.tensor([x / (10 ** decimals) ]), decimals=decimals).item()
+
+
+@torch.jit.script
+def combine_float_overlaps(ranges: List[List[float]], decimals: int = 5, margin: int = 2) -> List[List[float]]:
     """
     Combine overlaps with floating point numbers. Since neighboring integers are considered as continuous range,
     we need to add margin to the starting range before merging then subtract margin from the result range.
@@ -671,100 +744,20 @@ def combine_float_overlaps(ranges, decimals=5, margin=2):
             List containing the combined ranges.
             Example: [(10.2, 12.09)]
     """
-    ranges_int = []
+    ranges_int: List[List[int]] = []
+    merged_ranges_int: List[List[int]] = []
     for x in ranges:
-        stt, end = fl2int(x[0], decimals) + margin, fl2int(x[1], decimals)
-        if stt == end:
-            logging.warning(f"The range {stt}:{end} is too short to be combined thus skipped.")
-        else:
+        stt, end = int(fl2int(x[0], decimals) + margin), int(fl2int(x[1], decimals))
+        if stt < end:
             ranges_int.append([stt, end])
-    merged_ranges = combine_int_overlaps(ranges_int)
-    merged_ranges = [[int2fl(x[0] - margin, decimals), int2fl(x[1], decimals)] for x in merged_ranges]
-    return merged_ranges
-
-# @torch.jit.script
-# def combine_int_overlaps(self, intervals: List[List[float]]) -> List[List[float]]:
-    # intervals.sort(key=lambda x: x.start)
-
-    # rst = []
-    # for interval in intervals:
-        # if not rst or interval.start > rst[-1].end:
-            # rst.append(interval)
-        # elif interval.end > rst[-1].end:
-            # rst[-1].end = interval.end
-    # return rst
-
-def combine_int_overlaps(ranges):
-    """
-    Merge the range pairs if there is overlap exists between the given ranges.
-    This algorithm needs a sorted range list in terms of the start time.
-    Note that neighboring numbers lead to a merged range.
-    Example:
-        [(1, 10), (11, 20)] -> [(1, 20)]
-
-    Refer to the original code at https://stackoverflow.com/a/59378428
-
-    Args:
-        ranges(list):
-            List containing ranges.
-            Example: [(102, 103), (104, 109), (107, 120)]
-    Returns:
-        merged_list (list):
-            List containing the combined ranges.
-            Example: [(102, 120)]
-
-    """
-    ranges = sorted(ranges, key=lambda x: x[0])
-    merged_list = reduce(
-        lambda x, element: x[:-1:] + [(min(*x[-1], *element), max(*x[-1], *element))]
-        if x[-1][1] >= element[0] - 1
-        else x + [element],
-        ranges[1::],
-        ranges[0:1],
-    )
-    return merged_list
+    merged_ranges_int = combine_int_overlaps(ranges_int)
+    merged_ranges_float: List[List[float]] = []
+    merged_ranges_float = [[int2fl(x[0] - margin, decimals), int2fl(x[1], decimals)] for x in merged_ranges_int]
+    return merged_ranges_float
 
 
-def fl2int(x, decimals=3):
-    """
-    Convert floating point number to integer.
-    """
-    return int(round(x * pow(10, decimals)))
-
-
-def int2fl(x, decimals=3):
-    """
-    Convert integer to floating point number.
-    """
-    return round(float(x / pow(10, decimals)), int(decimals))
-
-
-def getMergedRanges(label_list_A: List, label_list_B: List, decimals: int = 3) -> List:
-    """
-    Calculate the merged ranges between label_list_A and label_list_B.
-
-    Args:
-        label_list_A (list):
-            List containing ranges (start and end values)
-        label_list_B (list):
-            List containing ranges (start and end values)
-    Returns:
-        (list):
-            List containing the merged ranges
-
-    """
-    if label_list_A == [] and label_list_B != []:
-        return label_list_B
-    elif label_list_A != [] and label_list_B == []:
-        return label_list_A
-    else:
-        label_list_A_int = [[fl2int(x[0] + 1, decimals), fl2int(x[1], decimals)] for x in label_list_A]
-        label_list_B_int = [[fl2int(x[0] + 1, decimals), fl2int(x[1], decimals)] for x in label_list_B]
-        combined = combine_int_overlaps(label_list_A_int + label_list_B_int)
-        return [[int2fl(x[0] - 1, decimals), int2fl(x[1], decimals)] for x in combined]
-
-
-def getSubRangeList(target_range, source_range_list) -> List:
+@torch.jit.script
+def getSubRangeList(target_range: List[float], source_range_list: List[List[float]]) -> List[List[float]]:
     """
     Get the ranges that has overlaps with the target range from the source_range_list.
 
@@ -788,10 +781,10 @@ def getSubRangeList(target_range, source_range_list) -> List:
             List containing the overlap between target_range and
             source_range_list.
     """
-    if target_range == []:
+    if len(target_range) == 0:
         return []
     else:
-        out_range = []
+        out_range: List[List[float]]= []
         for s_range in source_range_list:
             if isOverlap(s_range, target_range):
                 ovl_range = getOverlapRange(s_range, target_range)
