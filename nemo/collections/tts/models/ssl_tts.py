@@ -38,10 +38,6 @@ from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
 
-def decode(tokenizer, token_list):
-    return tokenizer.sep.join(tokenizer._id2token[t] for t in token_list)
-
-
 class GreedyCTCDecoder(torch.nn.Module):
     def __init__(self, labels, blank=0):
         super().__init__()
@@ -263,39 +259,11 @@ class SSLDisentangler(ModelPT):
         else:
             return [optim_backbone, optim_downstream]
 
-    def get_mel_spectrogram(self, audio, audio_len):
-        EPSILON = 1e-9
-        window_fn = torch.hann_window
-
-        stft_cfg = self._cfg.preprocessor
-        spec = torch.stft(
-            input=audio,
-            n_fft=stft_cfg.n_fft,
-            hop_length=stft_cfg.n_window_stride,
-            win_length=stft_cfg.n_window_size,
-            window=window_fn(stft_cfg.n_window_size, periodic=False).float().to(self.device) if window_fn else None,
-            return_complex=True,
-            center=True,
-        )
-
-        if spec.dtype in [torch.cfloat, torch.cdouble]:
-            spec = torch.view_as_real(spec)
-        spec = torch.sqrt(spec.pow(2).sum(-1) + EPSILON)
-
-        mel = torch.matmul(self.fb.to(spec.dtype), spec)
-        log_mel = torch.log(torch.clamp(mel, min=torch.finfo(mel.dtype).tiny))
-        mel_len = torch.ceil(audio_len / stft_cfg.n_window_stride).long()
-        log_mel_normalized = features.normalize_batch(log_mel, mel_len, "per_feature")
-
-        return log_mel_normalized, mel_len
-
     def forward(self, input_signal=None, input_signal_length=None, normalize_content=True):
-        if self._cfg.get("preprocessing", "default") == "custom":
-            processed_signal, processed_signal_length = self.get_mel_spectrogram(input_signal, input_signal_length)
-        else:
-            processed_signal, processed_signal_length = self.preprocessor_disentangler(
-                input_signal=input_signal, length=input_signal_length,
-            )
+
+        processed_signal, processed_signal_length = self.preprocessor_disentangler(
+            input_signal=input_signal, length=input_signal_length,
+        )
 
         encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)  # b,c,t
 
@@ -499,8 +467,8 @@ class SSLDisentangler(ModelPT):
                     item_log_prob = content_log_probs[:, _idx, :][: encoded_len[_idx]].cpu()
                     item_target = target[_idx][: target_len[_idx]].cpu()
                     _, predicted_str = self.ctc_decoder(item_log_prob)
-                    target_str = decode(self._text_tokenizer, item_target.tolist())
-
+                    tokenizer = self._text_tokenizer
+                    target_str = tokenizer.sep.join(tokenizer._id2token[t] for t in item_target.tolist())
                     ed = editdistance.eval(predicted_str, target_str)
                     if max(len(predicted_str), len(target_str)) > 0:
                         normalized_ed = (1.0 * ed) / max(len(predicted_str), len(target_str))

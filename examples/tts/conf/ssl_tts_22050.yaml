@@ -31,7 +31,6 @@ model:
   stop_gradient: false
   augment_ctc: true
   aug_loss_type: "cosine"
-  preprocessing: "default" # default or custom (custom is same as fastpitch training)
   pad_multiple: 1
   train_ds:
     manifest_speaker_verification_fp: ???
