@@ -706,6 +706,10 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         # Set values back to their training state to continue training
         self.virtual_prompt_style = current_virtual_prompt_style
         self.virtual_prompt_source = current_virtual_prompt_source
+        
+        # Set revert prompt table back to previous state
+        for taskname in current_new_tasks:
+            del self.prompt_table.prompt_table[taskname]
 
         with open_dict(self.cfg):
             self.cfg.existing_tasks = current_existing_tasks
