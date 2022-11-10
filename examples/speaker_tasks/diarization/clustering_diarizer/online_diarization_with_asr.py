@@ -12,7 +12,7 @@ import numpy as np
 
 seed_everything(42)
 
-@hydra_runner(config_path="conf", config_name="online_diarization_with_asr.yaml")
+@hydra_runner(config_path="../conf/inference", config_name="online_diar_infer_general.yaml")
 def main(cfg):
     diar = OnlineDiarizer(cfg)
     asr_diar = OnlineDiarWithASR(cfg=cfg)

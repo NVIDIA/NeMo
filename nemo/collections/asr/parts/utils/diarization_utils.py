@@ -985,7 +985,7 @@ class OfflineDiarWithASR:
         prev_speaker = speaker
 
         sentences, terms_list = [], []
-        sentence = {'speaker': speaker, 'start_point': start_point, 'end_point': end_point, 'text': ''}
+        sentence = {'speaker': speaker, 'start_time': start_point, 'end_time': end_point, 'text': ''}
 
         n_spk = self.get_num_of_spk_from_labels(diar_labels)
         logging.info(f"Creating results for Session: {uniq_id} n_spk: {n_spk} ")
@@ -1014,10 +1014,10 @@ class OfflineDiarWithASR:
                     sentences.append(sentence)
 
                 # start construction of a new sentence
-                sentence = {'speaker': speaker, 'start_point': start_point, 'end_point': end_point, 'text': ''}
+                sentence = {'speaker': speaker, 'start_time': start_point, 'end_time': end_point, 'text': ''}
             else:
                 # correct the ending time
-                sentence['end_point'] = end_point
+                sentence['end_time'] = end_point
 
             stt_sec, end_sec = start_point, end_point
             terms_list.append({'start': stt_sec, 'end': end_sec, 'text': word, 'type': 'WORD'})
@@ -1391,8 +1391,8 @@ class OfflineDiarWithASR:
         for sentence in sentences:
             # extract info
             speaker = sentence['speaker']
-            start_point = sentence['start_point']
-            end_point = sentence['end_point']
+            start_point = sentence['start_time']
+            end_point = sentence['end_time']
             text = sentence['text']
 
             if self.params['colored_text']:
@@ -1476,8 +1476,8 @@ class OfflineDiarWithASR:
             session_trans_dict['sentences'].append(
                 {
                     'sentence': sentence['text'],
-                    'start_time': sentence['start_point'],
-                    'end_time': sentence['end_point'],
+                    'start_time': sentence['start_time'],
+                    'end_time': sentence['end_time'],
                     'speaker': sentence['speaker'],
                 }
                 )
