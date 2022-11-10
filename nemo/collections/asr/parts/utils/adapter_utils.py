@@ -60,7 +60,6 @@ def update_adapter_cfg_input_dim(module: torch.nn.Module, cfg: DictConfig, *, mo
     cfg = convert_adapter_cfg_to_dict_config(cfg)
 
     input_dim_valid_keys = ['in_features', 'n_feat']
-    has_key = False
     input_key = None
 
     for key in input_dim_valid_keys:

@@ -14,6 +14,7 @@
 
 import math
 from collections import OrderedDict
+from omegaconf import DictConfig
 from typing import List, Optional
 
 import torch
@@ -23,6 +24,7 @@ import torch.nn as nn
 from nemo.collections.asr.parts.submodules.multi_head_attention import PositionalEncoding, RelPositionalEncoding
 from nemo.collections.asr.parts.submodules.squeezeformer_modules import SqueezeformerLayer
 from nemo.collections.asr.parts.submodules.subsampling import ConvSubsampling, StackingSubsampling, TimeReductionModule
+from nemo.collections.asr.parts.utils import adapter_utils
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.mixins import adapter_mixins
@@ -393,6 +395,7 @@ class SqueezeformerEncoderAdapter(SqueezeformerEncoder, adapter_mixins.AdapterMo
 
     # Higher level forwarding
     def add_adapter(self, name: str, cfg: dict):
+        cfg = self._update_adapter_cfg_input_dim(cfg)
         for conformer_layer in self.layers:  # type: adapter_mixins.AdapterModuleMixin
             conformer_layer.add_adapter(name, cfg)
 
@@ -410,6 +413,10 @@ class SqueezeformerEncoderAdapter(SqueezeformerEncoder, adapter_mixins.AdapterMo
 
         names = sorted(list(names))
         return names
+
+    def _update_adapter_cfg_input_dim(self, cfg: DictConfig):
+        cfg = adapter_utils.update_adapter_cfg_input_dim(self, cfg, module_dim=self.d_model)
+        return cfg
 
 
 """

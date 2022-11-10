@@ -27,18 +27,22 @@ from nemo.core.classes.mixins import adapter_mixin_strategies
 
 class MHAResidualAddAdapterStrategy(adapter_mixin_strategies.ResidualAddAdapterStrategy):
     """
-    An implementation of residual addition of an adapter module with its input.
-    Supports stochastic depth regularization.
+    An implementation of residual addition of an adapter module with its input for the MHA Adapters.
     """
 
     def forward(self, input: torch.Tensor, adapter: torch.nn.Module, *, module: 'AdapterModuleMixin'):
         """
         A basic strategy, comprising of a residual connection over the input, after forward pass by
-        the underlying adapter.
+        the underlying adapter. Additional work is done to pack and unpack the dictionary of inputs and outputs.
+
+        Note: The `value` tensor is added to the output of the attention adapter as the residual connection.
 
         Args:
-            input: Original output tensor of the module, or the output of the previous adapter (if more than
-                one adapters are enabled).
+            input: A dictionary of multiple input arguments for the adapter module.
+                `query`, `key`, `value`: Original output tensor of the module, or the output of the
+                 previous adapter (if more than one adapters are enabled).
+                 `mask`: Attention mask.
+                 `pos_emb`: Optional positional embedding for relative encoding.
             adapter: The adapter module that is currently required to perform the forward pass.
             module: The calling module, in its entirety. It is a module that implements `AdapterModuleMixin`,
                 therefore the strategy can access all other adapters in this module via `module.adapter_layer`.
@@ -116,7 +120,6 @@ class MultiHeadAttentionAdapter(mha.MultiHeadAttention, adapter_modules.Abstract
         # reset parameters for Q to be identity operation
         self.reset_parameters()
 
-    # Don't override forward
     # def forward(self, query, key, value, mask, pos_emb=None, cache=None, cache_next=None):
     #     """Compute 'Scaled Dot Product Attention'.
     #     Args:
