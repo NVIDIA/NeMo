@@ -77,6 +77,8 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
         layer_number_offset=0,  # this is use only for attention norm_factor scaling
         sequence_parallel=False,
         gradient_accumulation_fusion=False,
+        normalize_attention_scores=True,
+        megatron_legacy=False,
     ):
         super(MegatronRetrievalTransformerEncoderModule, self).__init__()
 
@@ -121,7 +123,7 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
             attention_dropout=attention_dropout,
             use_cpu_initialization=use_cpu_initialization,
             bias_activation_fusion=bias_activation_fusion,
-            bias_dropout_fusion=bias_dropout_add_fusion,
+            bias_dropout_add_fusion=bias_dropout_add_fusion,
             masked_softmax_fusion=masked_softmax_fusion,
             persist_layer_norm=persist_layer_norm,
             openai_gelu=openai_gelu,
@@ -135,6 +137,8 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
             layer_number_offset=layer_number_offset,
             sequence_parallel=sequence_parallel,
             gradient_accumulation_fusion=gradient_accumulation_fusion,
+            normalize_attention_scores=normalize_attention_scores,
+            megatron_legacy=megatron_legacy,
         )
         rot_dim = hidden_size // num_attention_heads if kv_channels is None else kv_channels
         # partial rotary embeddings, which is better than full rotary
@@ -347,6 +351,8 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
         layer_number_offset=0,  # this is use only for attention norm_factor scaling
         sequence_parallel=False,
         gradient_accumulation_fusion=False,
+        normalize_attention_scores=True,
+        megatron_legacy=False,
     ):
         super(MegatronRetrievalTransformerDecoderModule, self).__init__()
 
@@ -390,7 +396,7 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
             attention_dropout=attention_dropout,
             use_cpu_initialization=use_cpu_initialization,
             bias_activation_fusion=bias_activation_fusion,
-            bias_dropout_fusion=bias_dropout_add_fusion,
+            bias_dropout_add_fusion=bias_dropout_add_fusion,
             masked_softmax_fusion=masked_softmax_fusion,
             persist_layer_norm=persist_layer_norm,
             openai_gelu=openai_gelu,
@@ -404,6 +410,8 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
             layer_number_offset=layer_number_offset,
             sequence_parallel=sequence_parallel,
             gradient_accumulation_fusion=gradient_accumulation_fusion,
+            normalize_attention_scores=normalize_attention_scores,
+            megatron_legacy=megatron_legacy,
         )
         rot_dim = hidden_size // num_attention_heads if kv_channels is None else kv_channels
         # partial rotary embeddings, which is better than full rotary

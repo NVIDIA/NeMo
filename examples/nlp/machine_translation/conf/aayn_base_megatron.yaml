@@ -80,6 +80,9 @@ model:
   share_token_embeddings: True # If True share encoder/decoder embeddings
   share_decoder_tokens_head_embeddings: True # If True share decoder embeddings and decoder projection to logits
 
+  # token head
+  tokens_head_bias: True
+
   # precision
   native_amp_init_scale: 4294967296 # 2 ** 32
   native_amp_growth_interval: 1000
@@ -96,6 +99,7 @@ model:
     dataset_type: 'text_memmap' # Options ['bin_memmap', 'text_memmap']
     sampler: 'megatron' # Options ['megatron']. Note megatron samplers do not shuffle across epochs.
     objective: 'nmt' # Options ['nmt', 'nmt-xlm']
+    # NOTE: These ratios are used only when the objective is `nmt-xlm`
     sampling_ratios:
       x-masking: 0.17 # Extreme span masking task selection probability (either large spans or large masking prob)
       r-masking: 0.17 # T5-style random span masking task selection probability

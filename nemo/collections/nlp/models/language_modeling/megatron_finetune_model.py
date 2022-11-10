@@ -21,7 +21,7 @@ from nemo.collections.common.data import ConcatMapDataset
 from nemo.collections.common.metrics import MetricStringToTorchMetric
 from nemo.collections.common.metrics.classification_accuracy import ExactStringPerCategoryMatchMetric
 from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import SequenceToSequenceDataset
-from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
+from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model, T5Sentinel
 from nemo.collections.nlp.parts.nlp_overrides import GlobalBatchDataFetcher
 from nemo.utils import AppState, logging
 
@@ -183,6 +183,11 @@ class MegatronT5FinetuneModel(MegatronT5Model):
 
         return super().on_validation_epoch_end()
 
+    def on_train_epoch_start(self) -> None:
+        # Same logic as validation epoch end, but this may be need if there is no validation sanity check to trigger validation_epoch_end()
+        self.on_validation_epoch_end()
+        return super().on_train_epoch_start()
+
     def training_step(self, batch, batch_idx):
         micro_batch_size = batch[0]['text_enc'].size(0)
         # This should happen only on the last batch of the dataset.
@@ -258,9 +263,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
 
         return pred, label
 
-    def inference_step(self, batch, batch_idx, mode, dataloader_idx=0):
-        batch_has_lang_information = len(batch[0]) == 7
-
+    def _reconfigure_and_process_inference_batch(self, batch):
         micro_batch_size = batch[0]['text_enc'].size(0)
         # This should happen only on the last batch of the dataset.
         if micro_batch_size != self.cfg.data.validation_ds.micro_batch_size:
@@ -280,6 +283,14 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         # This is required since the parent class expects a single global batch dictioanry.
         processed_batch = self._process_global_batch(batch)
 
+        return processed_batch
+
+    def inference_step(self, batch, batch_idx, mode, dataloader_idx=0):
+        # Regular finetuning datasets will return a list of dicts for each microbatch. But T0 datasets will return a single dict for the global batch.
+        batch_has_lang_information = isinstance(batch, list) and len(batch[0]) == 7
+
+        processed_batch = self._reconfigure_and_process_inference_batch(batch)
+
         # Call parent validation step to get the loss.
         # NOTE: There could be extra keys in the processed_batch dictionary such as "langs" for XNLI, this will be ignored in the parent class.
         loss = super().validation_step(processed_batch, batch_idx)
@@ -289,9 +300,9 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         )
 
         # Special ids to text function to handle stripping <eos> and special tokens with sentencepiece tokenizers.
-        preds_text = self.ids_to_text(predicted_token_ids)
-        labels_text = self.ids_to_text(processed_batch['labels'])
-        input_text = self.ids_to_text(processed_batch['text_enc'])
+        preds_text = MegatronT5FinetuneModel.ids_to_text(predicted_token_ids, self.tokenizer)
+        labels_text = MegatronT5FinetuneModel.ids_to_text(processed_batch['labels'], self.tokenizer)
+        input_text = MegatronT5FinetuneModel.ids_to_text(processed_batch['text_enc'], self.tokenizer)
 
         if not batch_has_lang_information:
             categories = [None] * len(preds_text)
@@ -322,18 +333,26 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             'inputs': input_text,
         }
 
-    def ids_to_text(self, batch_ids):
+    @classmethod
+    def ids_to_text(cls, batch_ids, tokenizer):
         batch_ids = batch_ids.cpu().numpy().tolist()
         texts = []
         for ids in batch_ids:
-            if self.tokenizer.eos_id in ids:
-                idx = ids.index(self.tokenizer.eos_id)
+            if tokenizer.eos_id in ids:
+                idx = ids.index(tokenizer.eos_id)
+                ids = ids[:idx]
+
+            if (
+                len(tokenizer.text_to_ids(T5Sentinel.END.value)) == 1
+                and tokenizer.text_to_ids(T5Sentinel.END.value)[0] in ids
+            ):
+                idx = ids.index(tokenizer.text_to_ids(T5Sentinel.END.value)[0])
                 ids = ids[:idx]
 
             # Legacy sentencepiece detokenization still preserves special tokens which messes up exact string match.
-            if hasattr(self.tokenizer, 'special_token_to_id'):
-                ids = [id for id in ids if id not in self.tokenizer.special_token_to_id.values()]
-            text = self.tokenizer.ids_to_text(ids)
+            if hasattr(tokenizer, 'special_token_to_id'):
+                ids = [id for id in ids if id not in tokenizer.special_token_to_id.values()]
+            text = tokenizer.ids_to_text(ids)
             texts.append(text)
 
         return texts
@@ -468,13 +487,10 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         return averaged_loss, averaged_metric
 
     def write_predictions_to_file(self, outputs, output_file_path_prefix):
-        with open(output_file_path_prefix + "_inputs_preds_labels.json", "w") as f_json:
-            json_output = {
-                "inputs": outputs["inputs"],
-                "preds": outputs["preds"],
-                "labels": outputs["labels"],
-            }
-            json.dump(json_output, f_json)
+        with open(output_file_path_prefix + "_inputs_preds_labels.jsonl", "w") as f_json:
+            assert len(outputs['inputs']) == len(outputs['preds']) == len(outputs['labels'])
+            for i, p, l in zip(outputs['inputs'], outputs['preds'], outputs['labels']):
+                f_json.write(json.dumps({'input': i, 'pred': p, 'label': l}) + '\n')
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         return self.inference_step(batch, batch_idx, 'validation', dataloader_idx)

@@ -115,7 +115,8 @@ def english_text_preprocessing(text, lower=True):
 
 def _word_tokenize(words):
     """
-    Convert text (str) to List[Tuple[Union[str, List[str]], bool]] where every tuple denotes word representation and flag whether to leave unchanged or not.
+    Convert text (str) to List[Tuple[Union[str, List[str]], bool]] where every tuple denotes word representation and
+    flag whether to leave unchanged or not.
     Word can be one of: valid english word, any substring starts from | to | (unchangeable word) or punctuation marks.
     This function expects that unchangeable word is carefully divided by spaces (e.g. HH AH L OW).
     Unchangeable word will be splitted by space and represented as List[str], other cases are represented as str.
@@ -146,5 +147,17 @@ def ipa_word_tokenize(text):
     return _word_tokenize(words)
 
 
+def ipa_text_preprocessing(text):
+    return text.lower()
+
+
 def german_text_preprocessing(text):
+    return text.lower()
+
+
+def spanish_text_preprocessing(text):
+    return text.lower()
+
+
+def chinese_text_preprocessing(text):
     return text.lower()

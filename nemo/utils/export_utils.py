@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+from contextlib import nullcontext
 from enum import Enum
 from typing import Callable, Dict, Optional, Type
 
@@ -21,7 +22,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from nemo.utils import logging
+from nemo.utils import CastToFloat, logging
 
 try:
     import onnxruntime
@@ -43,36 +44,6 @@ _EXT_DICT = {
     ".ts": ExportFormat.TORCHSCRIPT,
     ".onnx": ExportFormat.ONNX,
 }
-
-
-def cast_tensor(x, from_dtype=torch.float16, to_dtype=torch.float32):
-    return x.to(dtype=to_dtype) if x.dtype == from_dtype else x
-
-
-def cast_all(x, from_dtype=torch.float16, to_dtype=torch.float32):
-    if isinstance(x, torch.Tensor):
-        return cast_tensor(x, from_dtype=from_dtype, to_dtype=to_dtype)
-    else:
-        if isinstance(x, dict):
-            new_dict = {}
-            for k in x.keys():
-                new_dict[k] = cast_all(x[k], from_dtype=from_dtype, to_dtype=to_dtype)
-            return new_dict
-        elif isinstance(x, tuple):
-            return tuple(cast_all(y, from_dtype=from_dtype, to_dtype=to_dtype) for y in x)
-
-
-class CastToFloat(nn.Module):
-    def __init__(self, mod):
-        super(CastToFloat, self).__init__()
-        self.mod = mod
-
-    def forward(self, x):
-        if torch.is_autocast_enabled():
-            ret = self.mod.forward(x.to(torch.float32)).to(x.dtype)
-        else:
-            ret = self.mod.forward(x)
-        return ret
 
 
 class LinearWithBiasSkip(nn.Module):
@@ -108,7 +79,7 @@ def exportable_ScaledMaskedSoftmax(input, mask, scale):
 def get_export_format(filename: str):
     _, ext = os.path.splitext(filename)
     try:
-        return _EXT_DICT[ext]
+        return _EXT_DICT[ext.lower()]
     except KeyError:
         raise ValueError(f"Export file {filename} extension does not correspond to any export format!")
 
@@ -163,6 +134,20 @@ def to_onnxrt_input(ort_input_names, input_names, input_dict, input_list):
     return odict
 
 
+def verify_torchscript(model, output, input_examples, input_names, check_tolerance=0.01):
+    ts_model = torch.jit.load(output)
+
+    all_good = True
+    for input_example in input_examples:
+        input_list, input_dict = parse_input_example(input_example)
+        output_example = model.forward(*input_list, **input_dict)
+        # ts_input = to_onnxrt_input(ort_input_names, input_names, input_dict, input_list)
+        all_good = all_good and run_ts_and_compare(ts_model, input_list, input_dict, output_example, check_tolerance)
+    status = "SUCCESS" if all_good else "FAIL"
+    logging.info(f"Torchscript generated at {output} verified with torchscript forward : " + status)
+    return all_good
+
+
 def verify_runtime(model, output, input_examples, input_names, check_tolerance=0.01):
     onnx_model = onnx.load(output)
     ort_input_names = [node.name for node in onnx_model.graph.input]
@@ -172,12 +157,10 @@ def verify_runtime(model, output, input_examples, input_names, check_tolerance=0
         logging.warning(f"ONNX generated at {output}, not verified - please install onnxruntime_gpu package.\n")
         onnx.checker.check_model(onnx_model, full_check=True)
         return
-
+    del onnx_model
     onnx_session_opt = onnxruntime.SessionOptions()
     onnx_session_opt.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
-    sess = onnxruntime.InferenceSession(
-        onnx_model.SerializeToString(), sess_options=onnx_session_opt, providers=['CUDAExecutionProvider']
-    )
+    sess = onnxruntime.InferenceSession(output, sess_options=onnx_session_opt, providers=['CUDAExecutionProvider'])
     all_good = True
     for input_example in input_examples:
         input_list, input_dict = parse_input_example(input_example)
@@ -186,6 +169,23 @@ def verify_runtime(model, output, input_examples, input_names, check_tolerance=0
         all_good = all_good and run_ort_and_compare(sess, ort_input, output_example, check_tolerance)
     status = "SUCCESS" if all_good else "FAIL"
     logging.info(f"ONNX generated at {output} verified with onnxruntime : " + status)
+    return all_good
+
+
+def run_ts_and_compare(ts_model, ts_input_list, ts_input_dict, output_example, check_tolerance=0.01):
+    # Verify the model can be read, and is valid
+    ts_out = ts_model(*ts_input_list, **ts_input_dict)
+
+    all_good = True
+    for i, out in enumerate(ts_out):
+        expected = output_example[i]
+
+        if torch.is_tensor(expected):
+            tout = out.to('cpu')
+            logging.info(f"Checking output {i}, shape: {expected.shape}:\n{expected}\n{tout}")
+            if not torch.allclose(tout, expected.cpu(), rtol=check_tolerance, atol=check_tolerance):
+                all_good = False
+                logging.info(f"onnxruntime results mismatch! PyTorch(expected):\n{expected}\nTorchScript:\n{tout}")
     return all_good
 
 
@@ -210,7 +210,7 @@ apex_available = True
 try:
     from apex.normalization.fused_layer_norm import FusedLayerNorm, MixedFusedLayerNorm
     from apex.contrib.layer_norm.layer_norm import FastLayerNorm
-    from apex.transformer.tensor_parallel.layers import RowParallelLinear
+    from apex.transformer.tensor_parallel.layers import RowParallelLinear, ColumnParallelLinear
     from apex.transformer.functional.fused_softmax import FusedScaleMaskSoftmax
 
     def replace_FusedLayerNorm(n: nn.Module) -> Optional[nn.BatchNorm2d]:
@@ -256,6 +256,24 @@ try:
         mod.load_state_dict(n_state)
         return mod
 
+    def replace_ParallelLinear(n: nn.Module) -> Optional[nn.Linear]:
+        """
+        Replaces Apex's ColumnParallelLinear or RowParallelLinear with nn.Linear
+        Args:
+           n: the nn.Module pytorch module to replace
+        Returns:
+           Equivalent Linear module
+        """
+        if not (isinstance(n, ColumnParallelLinear) or isinstance(n, RowParallelLinear)):
+            raise ValueError("This function can only change the ColumnParallelLinear or RowParallelLinear module.")
+
+        dev = next(n.parameters()).device
+        mod = LinearWithBiasSkip(n.weight, n.bias, n.skip_bias_add).to(dev)
+
+        n_state = n.state_dict()
+        mod.load_state_dict(n_state)
+        return mod
+
     def replace_FusedScaleMaskSoftmax(n: nn.Module) -> Optional[nn.Linear]:
         """
         Replaces Apex's FusedScaleMaskSoftmax with nn.LayerNorm. This is required for ONNX export.
@@ -278,7 +296,8 @@ try:
         "FusedLayerNorm": replace_FusedLayerNorm,
         "MixedFusedLayerNorm": replace_FusedLayerNorm,
         "FastLayerNorm": replace_FusedLayerNorm,
-        "RowParallelLinear": replace_RowParallelLinear,
+        "RowParallelLinear": replace_ParallelLinear,
+        "ColumnParallelLinear": replace_ParallelLinear,
         "FusedScaleMaskSoftmax": replace_FusedScaleMaskSoftmax,
     }
 

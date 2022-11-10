@@ -13,24 +13,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import abc
 import pathlib
 import random
 import re
 import time
+from abc import ABC, abstractmethod
 from collections import defaultdict
-from typing import Optional
+from typing import Callable, DefaultDict, List, Optional, Set, Tuple, Union
 
 import nltk
 import torch
-from nemo_text_processing.g2p.data.data_utils import english_word_tokenize
+from nemo_text_processing.g2p.data.data_utils import english_word_tokenize, ipa_word_tokenize
 
+from nemo.collections.common.tokenizers.text_to_speech.ipa_lexicon import validate_locale
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
 from nemo.utils.get_rank import is_global_rank_zero
 
 
-class BaseG2p(abc.ABC):
+class BaseG2p(ABC):
     def __init__(
         self,
         phoneme_dict=None,
@@ -50,7 +51,7 @@ class BaseG2p(abc.ABC):
         self.apply_to_oov_word = apply_to_oov_word
         self.mapping_file = mapping_file
 
-    @abc.abstractmethod
+    @abstractmethod
     def __call__(self, text: str) -> str:
         pass
 
@@ -150,7 +151,7 @@ class EnglishG2p(BaseG2p):
                 f"English g2p_dict will be used from nltk.corpus.cmudict.dict(), because phoneme_dict_path=None. "
                 "Note that nltk.corpus.cmudict.dict() has old version (0.6) of CMUDict. "
                 "You can use the latest official version of CMUDict (0.7b) with additional changes from NVIDIA directly from NeMo "
-                "using the path scripts/tts_dataset_files/cmudict-0.7b_nv22.07."
+                "using the path scripts/tts_dataset_files/cmudict-0.7b_nv22.10."
             )
 
             return nltk.corpus.cmudict.dict()
@@ -192,7 +193,7 @@ class EnglishG2p(BaseG2p):
         if re.search(r"[a-zA-ZÀ-ÿ\d]", word) is None:
             return list(word), True
 
-        # heteronym
+        # heteronyms
         if self.heteronyms is not None and word in self.heteronyms:
             return word, True
 
@@ -262,31 +263,28 @@ class IPAG2P(BaseG2p):
 
     def __init__(
         self,
-        phoneme_dict,
-        word_tokenize_func=english_word_tokenize,
-        apply_to_oov_word=None,
-        ignore_ambiguous_words=True,
-        heteronyms=None,
-        use_chars=False,
+        phoneme_dict: Union[str, pathlib.Path, dict],
+        locale: str = "en-US",
+        apply_to_oov_word: Optional[Callable[[str], str]] = None,
+        ignore_ambiguous_words: bool = True,
+        heteronyms: Optional[Union[str, pathlib.Path, List[str]]] = None,
+        use_chars: bool = False,
         phoneme_probability: Optional[float] = None,
         use_stresses: Optional[bool] = True,
         set_graphemes_upper: Optional[bool] = True,
         mapping_file: Optional[str] = None,
-    ):
+    ) -> None:
         """Generic IPA G2P module. This module converts words from grapheme to International Phonetic Alphabet representations.
         Optionally, it can ignore heteronyms, ambiguous words, or words marked as unchangeable by word_tokenize_func (see code for details).
         Ignored words are left unchanged or passed through apply_to_oov_word for handling.
-        
+
         Args:
-            phoneme_dict (str, Path, Dict): Path to file in CMUdict format or dictionary of CMUdict-like entries.
-                Must be given for IPA G2P. (Consider using scripts/tts_dataset_files/ipa_cmudict-0.7b_nv22.06.txt.)
-            word_tokenize_func: Function for tokenizing text to words.
-                It has to return List[Tuple[Union[str, List[str]], bool]] where every tuple denotes word
-                representation and flag whether to leave unchanged or not.
-                It is expected that unchangeable word representation will be represented as List[str], other
-                cases are represented as str.
-                It is useful to mark word as unchangeable which is already in phoneme representation.
-                Defaults to the English word tokenizer.
+            phoneme_dict (str, Path, Dict): Path to file in CMUdict format or a IPA dict object with CMUdict-like entries.
+                a dictionary file example: scripts/tts_dataset_files/ipa_cmudict-0.7b_nv22.06.txt;
+                a dictionary object example: {..., "WIRE": [["ˈ", "w", "a", "ɪ", "ɚ"], ["ˈ", "w", "a", "ɪ", "ɹ"]], ...}
+            locale: Locale used to determine default tokenization logic.
+                Supports ["en-US", "de-DE", "es-ES"]. Defaults to "en-US".
+                Specify None if implementing custom logic for a new locale.
             apply_to_oov_word: Function that will be applied to out of phoneme_dict word.
             ignore_ambiguous_words: Whether to not handle word via phoneme_dict with ambiguous phoneme sequences.
                 Defaults to True.
@@ -306,6 +304,9 @@ class IPAG2P(BaseG2p):
         self.phoneme_probability = phoneme_probability
         self._rng = random.Random()
 
+        if locale is not None:
+            validate_locale(locale)
+
         if not use_chars and self.phoneme_probability is not None:
             self.use_chars = True
             logging.warning(
@@ -315,40 +316,29 @@ class IPAG2P(BaseG2p):
         else:
             self.use_chars = use_chars
 
+        # parse the dictionary, update it, and generate symbol set.
         if isinstance(phoneme_dict, str) or isinstance(phoneme_dict, pathlib.Path):
-            # Load phoneme_dict from file path
-            self.phoneme_dict, self.symbols = self._parse_as_cmu_dict(phoneme_dict)
+            # load the dictionary file where there may exist a digit suffix after a word, which
+            # represents the pronunciation variant of that word.
+            phoneme_dict_obj = defaultdict(list)
+            _alt_re = re.compile(r"\([0-9]+\)")
+            with open(phoneme_dict, "r") as fdict:
+                for line in fdict:
+                    if len(line) and ('A' <= line[0] <= 'Z' or line[0] == "'"):
+                        parts = line.strip().split(maxsplit=1)
+                        word = re.sub(_alt_re, "", parts[0])
+                        prons = re.sub(r"\s+", "", parts[1])
+                        phoneme_dict_obj[word].append(list(prons))
         else:
             # Load phoneme_dict as dictionary object
-            logging.info("Loading phoneme_dict as a Dict object. Extracting valid symbols from values.")
-            self.phoneme_dict = phoneme_dict
+            logging.info("Loading phoneme_dict as a Dict object.")
+            phoneme_dict_obj = phoneme_dict
 
-            self.symbols = set()
-            for word, phonemes in phoneme_dict.items():
-                self.symbols.update(phonemes)
-                if self.use_chars:
-                    word_no_punct = self.PUNCT_REGEX.sub('', word)
-                    self.symbols.update(word_no_punct)
-
-            # Update dict to remove stresses if use_stresses=False
-            if not use_stresses:
-                for stress_symbol in self.STRESS_SYMBOLS:
-                    self.symbols.remove(stress_symbol)
-
-                updated_phoneme_dict = {}
-                for k, vs in self.phoneme_dict.items():
-                    new_vs = []
-                    for pron in vs:
-                        new_vs.append([symbol for symbol in pron if symbol not in self.STRESS_SYMBOLS])
-                    updated_phoneme_dict[k] = new_vs
-                self.phoneme_dict = updated_phoneme_dict
-
-            # Update dict keys if graphemes should be set to uppercase
-            if set_graphemes_upper:
-                updated_phoneme_dict = {}
-                for k, vs, in self.phoneme_dict.items():
-                    updated_phoneme_dict[k.upper()] = vs
-                self.phoneme_dict = updated_phoneme_dict
+        # verify if phoneme dict obj is empty
+        if phoneme_dict_obj:
+            self.phoneme_dict, self.symbols = self._normalize_dict(phoneme_dict_obj)
+        else:
+            raise ValueError(f"{phoneme_dict} contains no entries!")
 
         if apply_to_oov_word is None:
             logging.warning(
@@ -357,6 +347,14 @@ class IPAG2P(BaseG2p):
                 "This may be intended if phonemes and chars are both valid inputs, otherwise, "
                 "you may see unexpected deletions in your input."
             )
+
+        # word_tokenize_func returns a List[Tuple[Union[str, List[str]], bool]] where every tuple denotes
+        # a word representation (word or list tokens) and a flag indicating whether to process the word or
+        # leave it unchanged.
+        if locale == "en-US":
+            word_tokenize_func = english_word_tokenize
+        else:
+            word_tokenize_func = ipa_word_tokenize
 
         super().__init__(
             phoneme_dict=self.phoneme_dict,
@@ -375,63 +373,80 @@ class IPAG2P(BaseG2p):
             self.heteronyms = [het.upper() for het in self.heteronyms]
 
     @staticmethod
-    def _parse_file_by_lines(p):
+    def _parse_file_by_lines(p: Union[str, pathlib.Path]) -> List[str]:
         with open(p, 'r') as f:
             return [l.rstrip() for l in f.readlines()]
 
-    def _parse_as_cmu_dict(self, phoneme_dict_path):
-        """Loads IPA CMUdict, and generates a set of all valid symbols."""
+    def _normalize_dict(self, phoneme_dict_obj: dict) -> Tuple[DefaultDict[str, List[List[str]]], Set]:
+        """
+        Parse a python dict object according to the decision on word cases and removal of lexical stress markers.
+
+        Args:
+            phoneme_dict_obj (dict): a dictionary object.
+                e.g. {..., "WIRE": [["ˈ", "w", "a", "ɪ", "ɚ"], ["ˈ", "w", "a", "ɪ", "ɹ"]], ...}
+
+        Returns:
+            g2p_dict (dict): processed dict.
+            symbols (set): a IPA phoneme set, or its union with grapheme set.
+
+        """
         g2p_dict = defaultdict(list)
         symbols = set()
+        for word, prons in phoneme_dict_obj.items():
+            # update word cases.
+            if self.set_graphemes_upper:
+                word_new = word.upper()
+            else:
+                word_new = word.lower()
 
-        _alt_re = re.compile(r'\([0-9]+\)')
-        with open(phoneme_dict_path, 'r') as file:
-            for line in file:
-                if len(line) and ('A' <= line[0] <= 'Z' or line[0] == "'"):
-                    parts = line.split('  ')
-                    word = re.sub(_alt_re, '', parts[0])
-                    if self.set_graphemes_upper:
-                        word = word.upper()
-                    else:
-                        word = word.lower()
+            # add grapheme symbols if `use_chars=True`.
+            if self.use_chars:
+                # remove punctuations after a word.
+                word_no_punct = self.PUNCT_REGEX.sub('', word_new)
+                symbols.update(word_no_punct)
 
-                    pronunciation = parts[1].strip()
-                    if not self.use_stresses:
-                        for stress_symbol in self.STRESS_SYMBOLS:
-                            pronunciation = pronunciation.replace(stress_symbol, '')
-                    symbols.update(pronunciation)  # This will insert each char individually
-                    if self.use_chars:
-                        word_no_punct = self.PUNCT_REGEX.sub('', word)
-                        symbols.update(word_no_punct)
-                    g2p_dict[word].append(list(pronunciation))
+            # update phoneme symbols by removing lexical stress markers if `use_stresses=False`.
+            prons_new = list()
+            if not self.use_stresses:
+                for pron in prons:
+                    pron_no_stress = [symbol for symbol in pron if symbol not in self.STRESS_SYMBOLS]
+                    prons_new.append(pron_no_stress)
+                    symbols.update(pron_no_stress)
+            else:
+                prons_new = prons
+                for pron in prons:
+                    symbols.update(pron)  # This will insert each char individually
+
+            # update final dict
+            g2p_dict[word_new] = prons_new
 
         return g2p_dict, symbols
 
-    def add_symbols(self, symbols):
+    def add_symbols(self, symbols: str) -> None:
         """By default the G2P symbols will be inferred from the words & pronunciations in the phoneme_dict.
         Use this to add characters in the vocabulary that are not present in the phoneme_dict.
         """
         self.symbols.update(symbols)
 
-    def is_unique_in_phoneme_dict(self, word):
+    def is_unique_in_phoneme_dict(self, word: str) -> bool:
         return len(self.phoneme_dict[word]) == 1
 
-    def parse_one_word(self, word: str):
+    def parse_one_word(self, word: str) -> Tuple[List[str], bool]:
         """Returns parsed `word` and `status` (bool: False if word wasn't handled, True otherwise).
         """
         if self.set_graphemes_upper:
             word = word.upper()
 
         if self.phoneme_probability is not None and self._rng.random() > self.phoneme_probability:
-            return word, True
+            return list(word), True
 
         # Punctuation (assumes other chars have been stripped)
         if self.CHAR_REGEX.search(word) is None:
             return list(word), True
 
-        # Heteronym
+        # Heteronyms
         if self.heteronyms and word in self.heteronyms:
-            return word, True
+            return list(word), True
 
         # `'s` suffix (with apostrophe) - not in phoneme dict
         if (
@@ -471,9 +486,9 @@ class IPAG2P(BaseG2p):
         if self.apply_to_oov_word is not None:
             return self.apply_to_oov_word(word), True
         else:
-            return word, False
+            return list(word), False
 
-    def __call__(self, text):
+    def __call__(self, text: str) -> List[str]:
         words = self.word_tokenize_func(text)
 
         prons = []
@@ -496,3 +511,89 @@ class IPAG2P(BaseG2p):
             prons.extend(pron)
 
         return prons
+
+
+class ChineseG2p(BaseG2p):
+    def __init__(
+        self, phoneme_dict=None, word_tokenize_func=None, apply_to_oov_word=None, mapping_file: Optional[str] = None,
+    ):
+        """Chinese G2P module. This module first converts Chinese characters into pinyin sequences using pypinyin, then pinyin sequences would
+           be further converted into phoneme sequences using pinyin_dict_nv_22.10.txt dict file. For Chinese and English bilingual sentences, the English words
+           would be converted into letters.
+        Args:
+            phoneme_dict (str, Path, Dict): Path to pinyin_dict_nv_22.10.txt dict file.
+            word_tokenize_func: Function for tokenizing text to words.
+                It has to return List[Tuple[Union[str, List[str]], bool]] where every tuple denotes word representation and flag whether to leave unchanged or not.
+                It is expected that unchangeable word representation will be represented as List[str], other cases are represented as str.
+                It is useful to mark word as unchangeable which is already in phoneme representation.
+            apply_to_oov_word: Function that will be applied to out of phoneme_dict word.
+        """
+        assert phoneme_dict is not None, "Please set the phoneme_dict path."
+        phoneme_dict = (
+            self._parse_as_pinyin_dict(phoneme_dict)
+            if isinstance(phoneme_dict, str) or isinstance(phoneme_dict, pathlib.Path)
+            else phoneme_dict
+        )
+
+        if apply_to_oov_word is None:
+            logging.warning(
+                "apply_to_oov_word=None, This means that some of words will remain unchanged "
+                "if they are not handled by any of the rules in self.parse_one_word(). "
+                "This may be intended if phonemes and chars are both valid inputs, otherwise, "
+                "you may see unexpected deletions in your input."
+            )
+
+        super().__init__(
+            phoneme_dict=phoneme_dict,
+            word_tokenize_func=word_tokenize_func,
+            apply_to_oov_word=apply_to_oov_word,
+            mapping_file=mapping_file,
+        )
+        self.tones = {'1': '#1', '2': '#2', '3': '#3', '4': '#4', '5': '#5'}
+        from pypinyin import lazy_pinyin, Style
+
+        self._lazy_pinyin = lazy_pinyin
+        self._Style = Style
+
+    @staticmethod
+    def _parse_as_pinyin_dict(phoneme_dict_path):
+        """Loads pinyin dict file, and generates a set of all valid symbols."""
+        g2p_dict = defaultdict(list)
+        with open(phoneme_dict_path, 'r') as file:
+            for line in file:
+                parts = line.split('\t')
+                # let the key be lowercased, since pypinyin would give lower representation
+                pinyin = parts[0].lower()
+                pronunciation = parts[1].split()
+                pronunciation_with_sharp = ['#' + pron for pron in pronunciation]
+                g2p_dict[pinyin] = pronunciation_with_sharp
+        return g2p_dict
+
+    def __call__(self, text):
+        """
+        errors func handle below is to process the bilingual situation,
+        where English words would be split into letters.
+        e.g. 我今天去了Apple Store, 买了一个iPhone。
+        would return a list
+        ['wo3', 'jin1', 'tian1', 'qu4', 'le5', 'A', 'p', 'p', 'l', 'e',
+        ' ', 'S', 't', 'o', 'r', 'e', ',', ' ', 'mai3', 'le5', 'yi2',
+        'ge4', 'i', 'P', 'h', 'o', 'n', 'e', '。']
+        """
+        pinyin_seq = self._lazy_pinyin(
+            text,
+            style=self._Style.TONE3,
+            neutral_tone_with_five=True,
+            errors=lambda en_words: [letter for letter in en_words],
+        )
+        phoneme_seq = []
+        for pinyin in pinyin_seq:
+            if pinyin[-1] in self.tones:
+                assert pinyin[:-1] in self.phoneme_dict, pinyin[:-1]
+                phoneme_seq += self.phoneme_dict[pinyin[:-1]]
+                phoneme_seq.append(self.tones[pinyin[-1]])
+            # All pinyin would end up with a number in 1-5, which represents tones of the pinyin.
+            # For symbols which are not pinyin, e.g. English letters, Chinese puncts, we directly
+            # use them as inputs.
+            else:
+                phoneme_seq.append(pinyin)
+        return phoneme_seq
