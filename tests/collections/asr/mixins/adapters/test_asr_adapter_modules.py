@@ -22,9 +22,7 @@ from nemo.utils import config_utils
 
 def _create_masks(att_mask, max_audio_length, padding_length):
     # pad_mask is the masking to be used to ignore paddings
-    pad_mask = torch.arange(0, max_audio_length).expand(
-        padding_length.size(0), -1
-    ) < padding_length.unsqueeze(-1)
+    pad_mask = torch.arange(0, max_audio_length).expand(padding_length.size(0), -1) < padding_length.unsqueeze(-1)
 
     # pad_mask_for_att_mask is the mask which helps to ignore paddings
     pad_mask_for_att_mask = pad_mask.unsqueeze(1).repeat([1, max_audio_length, 1])
@@ -38,6 +36,7 @@ def _create_masks(att_mask, max_audio_length, padding_length):
     att_mask = ~att_mask
 
     return pad_mask, att_mask
+
 
 def get_mask(lengths: torch.Tensor):
     max_seq_len = lengths.max()
@@ -114,13 +113,16 @@ class TestASRAdapterModules:
 
     @pytest.mark.unit
     @pytest.mark.parametrize('n_head', [1, 2, 10])
-    def test_mha_adapter_init(self, n_head):
+    @pytest.mark.parametrize('proj_dim', [None, -1])
+    def test_mha_adapter_init(self, n_head, proj_dim):
         torch.random.manual_seed(0)
         x = torch.randn(2, 32, 50)
         lengths = torch.randint(1, x.size(1), size=(x.size(0),))
         lengths[torch.randint(0, x.size(0), size=(1,))[0]] = x.size(1)
 
-        adapter = adapter_modules.MultiHeadAttentionAdapter(n_head=n_head, n_feat=50, dropout_rate=0.0)
+        adapter = adapter_modules.MultiHeadAttentionAdapter(
+            n_head=n_head, n_feat=50, dropout_rate=0.0, proj_dim=proj_dim
+        )
 
         pad_mask, att_mask = get_mask(lengths)
 
@@ -130,17 +132,21 @@ class TestASRAdapterModules:
                 assert adapter.linear_out.bias.sum() == 0
 
             out = adapter(x, x, x, att_mask)
-            assert out.sum() <= 1e-8
+            assert out.sum().abs() <= 1e-8
+            assert out.shape == x.shape
 
     @pytest.mark.unit
     @pytest.mark.parametrize('n_head', [1, 2, 10])
-    def test_relmha_adapter_init(self, n_head):
+    @pytest.mark.parametrize('proj_dim', [None, -1])
+    def test_relmha_adapter_init(self, n_head, proj_dim):
         torch.random.manual_seed(0)
         x = torch.randn(2, 32, 50)
         lengths = torch.randint(1, x.size(1), size=(x.size(0),))
         lengths[torch.randint(0, x.size(0), size=(1,))[0]] = x.size(1)
 
-        adapter = adapter_modules.RelPositionMultiHeadAttentionAdapter(n_head=n_head, n_feat=50, dropout_rate=0.0)
+        adapter = adapter_modules.RelPositionMultiHeadAttentionAdapter(
+            n_head=n_head, n_feat=50, dropout_rate=0.0, proj_dim=proj_dim
+        )
         relpos_enc = adapter_modules.RelPositionalEncodingAdapter(d_model=50)
 
         pad_mask, att_mask = get_mask(lengths)
@@ -153,42 +159,68 @@ class TestASRAdapterModules:
 
             _, pos_emb = relpos_enc(x)
             out = adapter(x, x, x, att_mask, pos_emb)
-            assert out.sum() <= 1e-8
+            assert out.sum().abs() <= 1e-8
+            assert out.shape == x.shape
 
     @pytest.mark.unit
-    def test_linear_adapter_dropout(self):
+    def test_abspos_encoding_init(self):
         torch.random.manual_seed(0)
-        x = torch.randn(2, 50)
+        x = torch.randn(2, 32, 50)
+        lengths = torch.randint(1, x.size(1), size=(x.size(0),))
+        lengths[torch.randint(0, x.size(0), size=(1,))[0]] = x.size(1)
 
-        adapter = adapter_modules.LinearAdapter(in_features=50, dim=5, dropout=0.5)
+        relpos_enc = adapter_modules.PositionalEncodingAdapter(d_model=50)
+
+        relpos_enc.extend_pe(lengths.max(), device='cpu')
 
         with torch.no_grad():
-            assert adapter.module[-1].weight.sum() == 0
-            if hasattr(adapter.module[-1], 'bias') and adapter.module[-1].bias is not None:
-                assert adapter.module[-1].bias.sum() == 0
-
-            out = adapter(x)
-            assert out.sum() <= 1e-8
+            out, pos_emb = relpos_enc(x)
+            assert (out - x).sum().abs() <= 1e-8
+            assert out.shape == x.shape
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('norm_position', ['pre', 'post'])
-    def test_linear_adapter_norm_position(self, norm_position):
+    def test_relpos_encoding_init(self):
         torch.random.manual_seed(0)
-        x = torch.randn(2, 50)
+        x = torch.randn(2, 32, 50)
+        lengths = torch.randint(1, x.size(1), size=(x.size(0),))
+        lengths[torch.randint(0, x.size(0), size=(1,))[0]] = x.size(1)
 
-        adapter = adapter_modules.LinearAdapter(in_features=50, dim=5, norm_position=norm_position)
+        relpos_enc = adapter_modules.RelPositionalEncodingAdapter(d_model=50)
+
+        relpos_enc.extend_pe(lengths.max(), device='cpu')
 
         with torch.no_grad():
-            assert adapter.module[-1].weight.sum() == 0
-            if hasattr(adapter.module[-1], 'bias') and adapter.module[-1].bias is not None:
-                assert adapter.module[-1].bias.sum() == 0
-
-            out = adapter(x)
-            assert out.sum() <= 1e-8
+            out, pos_emb = relpos_enc(x)
+            assert (out - x).sum().abs() <= 1e-8
+            assert out.shape == x.shape
 
     @pytest.mark.unit
-    def test_linear_adapter_strategy(self):
-        adapter = adapter_modules.LinearAdapter(in_features=50, dim=5)
+    def test_mha_adapter_strategy(self):
+        adapter = adapter_modules.MultiHeadAttentionAdapter(n_head=1, n_feat=50, dropout_rate=0.0)
+        assert hasattr(adapter, 'adapter_strategy')
+        assert adapter.adapter_strategy is not None
+        # assert default strategy is set
+        assert isinstance(adapter.adapter_strategy, adapter_modules.MHAResidualAddAdapterStrategy)
+
+    @pytest.mark.unit
+    def test_relpos_mha_adapter_strategy(self):
+        adapter = adapter_modules.RelPositionMultiHeadAttentionAdapter(n_head=1, n_feat=50, dropout_rate=0.0)
+        assert hasattr(adapter, 'adapter_strategy')
+        assert adapter.adapter_strategy is not None
+        # assert default strategy is set
+        assert isinstance(adapter.adapter_strategy, adapter_modules.MHAResidualAddAdapterStrategy)
+
+    @pytest.mark.unit
+    def test_abspos_encoding_adapter_strategy(self):
+        adapter = adapter_modules.PositionalEncodingAdapter(d_model=50)
+        assert hasattr(adapter, 'adapter_strategy')
+        assert adapter.adapter_strategy is not None
+        # assert default strategy is set
+        assert isinstance(adapter.adapter_strategy, adapter_mixin_strategies.ResidualAddAdapterStrategy)
+
+    @pytest.mark.unit
+    def test_relpos_encoding_adapter_strategy(self):
+        adapter = adapter_modules.RelPositionalEncodingAdapter(d_model=50)
         assert hasattr(adapter, 'adapter_strategy')
         assert adapter.adapter_strategy is not None
         # assert default strategy is set

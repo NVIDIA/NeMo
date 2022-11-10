@@ -100,7 +100,7 @@ def model():
 
 
 @pytest.fixture()
-def conformer_ctc():
+def conformer_ctc_adapter():
     preprocessor = {'_target_': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor'}
     encoder = {
         '_target_': 'nemo.collections.asr.modules.ConformerEncoderAdapter',
@@ -109,6 +109,66 @@ def conformer_ctc():
         'n_layers': 2,
         'd_model': 128,
         'subsampling': 'striding',
+        'subsampling_factor': 4,
+        'self_attention_model': 'rel_pos',
+        'n_heads': 4,
+        'conv_kernel_size': 31,
+    }
+
+    decoder = {
+        '_target_': 'nemo.collections.asr.modules.ConvASRDecoder',
+        'feat_in': 128,
+        'num_classes': 28,
+        'vocabulary': [
+            ' ',
+            'a',
+            'b',
+            'c',
+            'd',
+            'e',
+            'f',
+            'g',
+            'h',
+            'i',
+            'j',
+            'k',
+            'l',
+            'm',
+            'n',
+            'o',
+            'p',
+            'q',
+            'r',
+            's',
+            't',
+            'u',
+            'v',
+            'w',
+            'x',
+            'y',
+            'z',
+            "'",
+        ],
+    }
+    modelConfig = DictConfig(
+        {'preprocessor': DictConfig(preprocessor), 'encoder': DictConfig(encoder), 'decoder': DictConfig(decoder)}
+    )
+
+    model_instance = EncDecCTCModel(cfg=modelConfig)
+    return model_instance
+
+
+@pytest.fixture()
+def squeezeformer_ctc_adapter():
+    preprocessor = {'_target_': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor'}
+    encoder = {
+        '_target_': 'nemo.collections.asr.modules.SqueezeformerEncoderAdapter',
+        'feat_in': 64,
+        'feat_out': -1,
+        'n_layers': 2,
+        'd_model': 128,
+        'time_reduce_idx': 1,
+        'subsampling': 'dw_striding',
         'subsampling_factor': 4,
         'self_attention_model': 'rel_pos',
         'n_heads': 4,
@@ -279,12 +339,19 @@ class TestASRAdapterMixin:
         assert new_num_params > original_num_params
 
     @pytest.mark.unit
-    def test_asr_model_constructor_mha_adapter(self, conformer_ctc):
-        model = conformer_ctc
-        original_num_params = model.num_weights
+    def test_conformer_constructor_mha_adapter(self, conformer_ctc_adapter):
+        original_num_params = conformer_ctc_adapter.num_weights
 
-        model.add_adapter(name='adapter_0', cfg=get_adapter_cfg(atype='relmha'))
-        new_num_params = model.num_weights
+        conformer_ctc_adapter.add_adapter(name='adapter_0', cfg=get_adapter_cfg(atype='relmha'))
+        new_num_params = conformer_ctc_adapter.num_weights
+        assert new_num_params > original_num_params
+
+    @pytest.mark.unit
+    def test_squeezeformer_constructor_mha_adapter(self, squeezeformer_ctc_adapter):
+        original_num_params = squeezeformer_ctc_adapter.num_weights
+
+        squeezeformer_ctc_adapter.add_adapter(name='adapter_0', cfg=get_adapter_cfg(atype='relmha'))
+        new_num_params = squeezeformer_ctc_adapter.num_weights
         assert new_num_params > original_num_params
 
     @pytest.mark.unit
@@ -371,17 +438,32 @@ class TestASRAdapterMixin:
         assert torch.mean(torch.abs(origial_output - new_output)) < 1e-5
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('name', ['adapter_0', ])  # 'encoder:adapter_0', 'decoder:adapter_0'
-    def test_asr_forward_mha(self, conformer_ctc, name):
-        conformer_ctc.eval()
+    @pytest.mark.parametrize('name', ['adapter_0', 'encoder:adapter_0'])
+    def test_conformer_forward_mha(self, conformer_ctc_adapter, name):
+        conformer_ctc_adapter.eval()
         torch.random.manual_seed(0)
         input_signal = torch.randn(2, 512)
         input_signal_length = torch.tensor([512, 512], dtype=torch.int32)
 
-        origial_output = conformer_ctc(input_signal=input_signal, input_signal_length=input_signal_length)[0]
+        origial_output = conformer_ctc_adapter(input_signal=input_signal, input_signal_length=input_signal_length)[0]
 
-        conformer_ctc.add_adapter(name=name, cfg=get_adapter_cfg(in_features=128, atype='mha'))
-        new_output = conformer_ctc(input_signal=input_signal, input_signal_length=input_signal_length)[0]
+        conformer_ctc_adapter.add_adapter(name=name, cfg=get_adapter_cfg(in_features=128, atype='mha'))
+        new_output = conformer_ctc_adapter(input_signal=input_signal, input_signal_length=input_signal_length)[0]
+
+        assert torch.mean(torch.abs(origial_output - new_output)) < 1e-5
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize('name', ['adapter_0', 'encoder:adapter_0'])
+    def test_squeezeformer_forward_mha(self, squeezeformer_ctc_adapter, name):
+        squeezeformer_ctc_adapter.eval()
+        torch.random.manual_seed(0)
+        input_signal = torch.randn(2, 512)
+        input_signal_length = torch.tensor([512, 512], dtype=torch.int32)
+
+        origial_output = squeezeformer_ctc_adapter(input_signal=input_signal, input_signal_length=input_signal_length)[0]
+
+        squeezeformer_ctc_adapter.add_adapter(name=name, cfg=get_adapter_cfg(in_features=128, atype='mha'))
+        new_output = squeezeformer_ctc_adapter(input_signal=input_signal, input_signal_length=input_signal_length)[0]
 
         assert torch.mean(torch.abs(origial_output - new_output)) < 1e-5
 
