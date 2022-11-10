@@ -98,6 +98,8 @@ class MultiHeadAttentionAdapter(mha.MultiHeadAttention, adapter_modules.Abstract
     ):
         super().__init__(n_head=n_head, n_feat=n_feat, dropout_rate=dropout_rate, max_cache_len=0)
 
+        self.pre_norm = nn.LayerNorm(n_feat)
+
         # Set the projection dim to number of heads automatically
         if proj_dim is not None and proj_dim < 1:
             proj_dim = n_head
@@ -122,24 +124,31 @@ class MultiHeadAttentionAdapter(mha.MultiHeadAttention, adapter_modules.Abstract
         # reset parameters for Q to be identity operation
         self.reset_parameters()
 
-    # def forward(self, query, key, value, mask, pos_emb=None, cache=None, cache_next=None):
-    #     """Compute 'Scaled Dot Product Attention'.
-    #     Args:
-    #         query (torch.Tensor): (batch, time1, size)
-    #         key (torch.Tensor): (batch, time2, size)
-    #         value(torch.Tensor): (batch, time2, size)
-    #         mask (torch.Tensor): (batch, time1, time2)
-    #         cache (torch.Tensor) : (cache_nums, batch, time_cache, size)
-    #         cache_next (torch.Tensor) : (cache_nums, batch, time_cache_next, size)
-    #
-    #     returns:
-    #         output (torch.Tensor): transformed `value` (batch, time1, d_model) weighted by the query dot key attention
-    #     """
+    def forward(self, query, key, value, mask, pos_emb=None, cache=None, cache_next=None):
+        """Compute 'Scaled Dot Product Attention'.
+        Args:
+            query (torch.Tensor): (batch, time1, size)
+            key (torch.Tensor): (batch, time2, size)
+            value(torch.Tensor): (batch, time2, size)
+            mask (torch.Tensor): (batch, time1, time2)
+            cache (torch.Tensor) : (cache_nums, batch, time_cache, size)
+            cache_next (torch.Tensor) : (cache_nums, batch, time_cache_next, size)
+
+        returns:
+            output (torch.Tensor): transformed `value` (batch, time1, d_model) weighted by the query dot key attention
+        """
+        # Need to perform duplicate computations as at this point the tensors have been
+        # separated by the adapter forward
+        query = self.pre_norm(query)
+        key = self.pre_norm(key)
+        value = self.pre_norm(value)
+
+        return super().forward(query, key, value, mask, pos_emb, cache=cache, cache_next=cache_next)
 
     def reset_parameters(self):
         with torch.no_grad():
-            self.linear_out.weight *= 0
-            self.linear_out.bias *= 0
+            nn.init.zeros_(self.linear_out.weight)
+            nn.init.zeros_(self.linear_out.bias)
 
     def get_default_strategy_config(self) -> 'dataclass':
         return MHAResidualAddAdapterStrategyConfig()
@@ -170,6 +179,8 @@ class RelPositionMultiHeadAttentionAdapter(
             n_head=n_head, n_feat=n_feat, dropout_rate=dropout_rate, pos_bias_u=None, pos_bias_v=None, max_cache_len=0
         )
 
+        self.pre_norm = nn.LayerNorm(n_feat)
+
         # Set the projection dim to number of heads automatically
         if proj_dim is not None and proj_dim < 1:
             proj_dim = n_head
@@ -187,7 +198,7 @@ class RelPositionMultiHeadAttentionAdapter(
             self.linear_k = nn.Linear(n_feat, self.proj_dim)
             self.linear_v = nn.Linear(n_feat, self.proj_dim)
             self.linear_out = nn.Linear(self.proj_dim, n_feat)
-            self.linear_pos = nn.Linear(n_feat, self.proj_dim)
+            self.linear_pos = nn.Linear(n_feat, self.proj_dim, bias=False)
             self.pos_bias_u = nn.Parameter(torch.FloatTensor(self.h, self.d_k))
             self.pos_bias_v = nn.Parameter(torch.FloatTensor(self.h, self.d_k))
 
@@ -197,27 +208,40 @@ class RelPositionMultiHeadAttentionAdapter(
         # reset parameters for Q to be identity operation
         self.reset_parameters()
 
-    # def forward(self, query, key, value, mask, pos_emb, cache=None, cache_next=None):
-    #     """Compute 'Scaled Dot Product Attention' with rel. positional encoding.
-    #     Args:
-    #         query (torch.Tensor): (batch, time1, size)
-    #         key (torch.Tensor): (batch, time2, size)
-    #         value(torch.Tensor): (batch, time2, size)
-    #         mask (torch.Tensor): (batch, time1, time2)
-    #         pos_emb (torch.Tensor) : (batch, time1, size)
-    #         cache (torch.Tensor) : (cache_nums, batch, time_cache, size)
-    #         cache_next (torch.Tensor) : (cache_nums, batch, time_cache_next, size)
-    #     Returns:
-    #         output (torch.Tensor): transformed `value` (batch, time1, d_model) weighted by the query dot key attention
-    #     """
+    def forward(self, query, key, value, mask, pos_emb, cache=None, cache_next=None):
+        """Compute 'Scaled Dot Product Attention' with rel. positional encoding.
+        Args:
+            query (torch.Tensor): (batch, time1, size)
+            key (torch.Tensor): (batch, time2, size)
+            value(torch.Tensor): (batch, time2, size)
+            mask (torch.Tensor): (batch, time1, time2)
+            pos_emb (torch.Tensor) : (batch, time1, size)
+            cache (torch.Tensor) : (cache_nums, batch, time_cache, size)
+            cache_next (torch.Tensor) : (cache_nums, batch, time_cache_next, size)
+        Returns:
+            output (torch.Tensor): transformed `value` (batch, time1, d_model) weighted by the query dot key attention
+        """
+        # Need to perform duplicate computations as at this point the tensors have been
+        # separated by the adapter forward
+        query = self.pre_norm(query)
+        key = self.pre_norm(key)
+        value = self.pre_norm(value)
+
+        return super().forward(query, key, value, mask, pos_emb, cache=cache, cache_next=cache_next)
 
     def reset_parameters(self):
         with torch.no_grad():
-            self.linear_out.weight *= 0.0
-            self.linear_out.bias *= 0.0
+            nn.init.zeros_(self.linear_out.weight)
+            nn.init.zeros_(self.linear_out.bias)
 
-            self.pos_bias_u *= 0.0
-            self.pos_bias_v *= 0.0
+            # NOTE: This exact procedure apparently highly important.
+            # Above operation is safe to do as self.linear_out.weight *= 0.0 (similar for bias)
+            # However:
+            # DO NOT REPLACE BELOW WITH self.pos_bias_u *= 0.0 OR self.pos_bias_v *= 0.0
+            # For some reason at init sometimes it will cause the value of the tensor to become NaN
+            # All operations to compute matrix_ac and matrix_bd will then fail.
+            nn.init.zeros_(self.pos_bias_u)
+            nn.init.zeros_(self.pos_bias_v)
 
     def get_default_strategy_config(self) -> 'dataclass':
         return MHAResidualAddAdapterStrategyConfig()
