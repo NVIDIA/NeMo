@@ -167,14 +167,6 @@ class Exportable(ABC):
                     jitted_model.save(output)
                     assert os.path.exists(output)
 
-                    if check_trace:
-                        if isinstance(check_trace, bool):
-                            check_trace_input = [input_example]
-                        else:
-                            check_trace_input = check_trace
-
-                        verify_torchscript(jitted_model, output, check_trace_input, input_names, check_tolerance)
-
                 elif format == ExportFormat.ONNX:
                     # dynamic axis is a mapping from input/output_name => list of "dynamic" indices
                     if dynamic_axes is None:

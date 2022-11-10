@@ -38,6 +38,10 @@ class PartialConv1d(torch.nn.Conv1d):
         # caching part
         self.last_size = (-1, -1, -1)
 
+        if self.bias is not None:
+            bias_view = self.bias.clone().detach().reshape(1, self.out_channels, 1)
+            self.register_buffer("bias_view", bias_view, persistent=False)
+
         update_mask = torch.ones(1, 1, 1)
         self.register_buffer('update_mask', update_mask, persistent=False)
         mask_ratio = torch.ones(1, 1, 1)
@@ -75,7 +79,10 @@ class PartialConv1d(torch.nn.Conv1d):
         raw_out = self._conv_forward(input, self.weight, self.bias)
 
         if self.bias is not None:
-            bias_view = self.bias.view(1, self.out_channels, 1)
+            if torch.jit.is_scripting():
+                bias_view = self.bias_view
+            else:
+                bias_view = self.bias.view(1, self.out_channels, 1)
             output = torch.mul(raw_out - bias_view, mask_ratio) + bias_view
             output = torch.mul(output, update_mask)
         else:

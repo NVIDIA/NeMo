@@ -199,6 +199,8 @@ class RadTTSModule(NeuralModule, Exportable):
         self.decoder_use_unvoiced_bias = kwargs['decoder_use_unvoiced_bias']
         self.ap_pred_log_f0 = ap_pred_log_f0
         self.ap_use_unvoiced_bias = kwargs['ap_use_unvoiced_bias']
+        self.prepared_for_export = False
+
         if 'atn' in include_modules or 'dec' in include_modules:
             if self.learn_alignments:
                 self.attention = ConvAttention(n_mel_channels, self.n_speaker_dim, n_text_dim)
@@ -613,7 +615,7 @@ class RadTTSModule(NeuralModule, Exportable):
         spk_vec_text = self.encode_speaker(speaker_id_text)
         spk_vec_attributes = self.encode_speaker(speaker_id_attributes)
         txt_enc, _ = self.encode_text(text, in_lens)
-        print("txt_enc: ", txt_enc.shape)
+        # print("txt_enc: ", txt_enc.shape)
 
         if dur is None:
             # get token durations
@@ -784,14 +786,23 @@ class RadTTSModule(NeuralModule, Exportable):
         PartialConv1d.forward = PartialConv1d.forward_no_cache
         self.remove_norms()
         super()._prepare_for_export(**kwargs)
-        self.encoder = self.encoder.script()
-        self.v_pred_module.feat_pred_fn = self.v_pred_module.feat_pred_fn.script()
-        self.f0_pred_module.feat_pred_fn = self.f0_pred_module.feat_pred_fn.script()
-        self.energy_pred_module.feat_pred_fn = self.energy_pred_module.feat_pred_fn.script()
-        self.dur_pred_layer.feat_pred_fn = self.dur_pred_layer.feat_pred_fn.script()
+        if self.prepared_for_export:
+            return
+        self.encoder = torch.jit.script(self.encoder)
+        self.v_pred_module.feat_pred_fn = torch.jit.script(self.v_pred_module.feat_pred_fn)
+        if hasattr(self, 'f0_pred_module'):
+            self.f0_pred_module.feat_pred_fn = torch.jit.script(self.f0_pred_module.feat_pred_fn)
+        if hasattr(self, 'energy_pred_module'):
+            self.energy_pred_module.feat_pred_fn = torch.jit.script(self.energy_pred_module.feat_pred_fn)
+        if hasattr(self, 'dur_pred_layer'):
+            self.dur_pred_layer.feat_pred_fn = torch.jit.script(self.dur_pred_layer.feat_pred_fn)
 
         if self.use_context_lstm:
             self.context_lstm = torch.jit.script(self.context_lstm)
+        self.prepared_for_export = True
+
+    def _export_teardown(self):
+        PartialConv1d.forward = PartialConv1d.forward_with_cache
 
     def input_example(self, max_batch=1, max_dim=256):
         """
@@ -802,7 +813,7 @@ class RadTTSModule(NeuralModule, Exportable):
         par = next(self.parameters())
         sz = (max_batch, max_dim)
         inp = torch.randint(0, 16, sz, device=par.device, dtype=torch.int64)
-        lens = torch.randint(0, max_dim, (max_batch,), device=par.device, dtype=torch.int)
+        lens = torch.randint(16, max_dim, (max_batch,), device=par.device, dtype=torch.int)
         speaker = torch.randint(0, 1, (max_batch,), device=par.device, dtype=torch.int64)
         inputs = {
             'text': inp,

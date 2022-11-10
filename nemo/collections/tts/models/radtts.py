@@ -407,17 +407,3 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
 
     def forward_for_export(self, text, lens, speaker_id, speaker_id_text, speaker_id_attributes):
         return self.model.forward_for_export(text, lens, speaker_id, speaker_id_text, speaker_id_attributes)
-
-    def get_export_subnet(self, subnet=None):
-        return self.model.get_export_subnet(subnet)
-
-    def _prepare_for_export(self, **kwargs):
-        """
-        Override this method to prepare module for export. This is in-place operation.
-        Base version does common necessary module replacements (Apex etc)
-        """
-        PartialConv1d.forward = PartialConv1d.forward_no_cache
-        super()._prepare_for_export(**kwargs)
-
-    def _export_teardown(self):
-        PartialConv1d.forward = PartialConv1d.forward_with_cache
