@@ -87,7 +87,7 @@ model:
   activations_checkpoint_layers_per_pipeline: null
 
   ## Sequence Parallelism
-  sequence_parallel: False
+  sequence_parallel: True
 
   tokenizer:
     library: 'megatron'
