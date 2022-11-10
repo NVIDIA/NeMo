@@ -88,9 +88,27 @@ class MultiHeadAttentionAdapter(mha.MultiHeadAttention, adapter_modules.Abstract
         n_head: int,
         n_feat: int,
         dropout_rate: float,
+        proj_dim: Optional[int] = None,
         adapter_strategy: MHAResidualAddAdapterStrategy = None,
     ):
         super().__init__(n_head=n_head, n_feat=n_feat, dropout_rate=dropout_rate, max_cache_len=0)
+
+        # Set the projection dim to number of heads automatically
+        if proj_dim is not None and proj_dim < 1:
+            proj_dim = n_head
+
+        self.proj_dim = proj_dim
+
+        # Recompute weights for projection dim
+        if self.proj_dim is not None:
+            if self.proj_dim % n_head != 0:
+                raise ValueError(f"proj_dim ({proj_dim}) is not divisible by n_head ({n_head})")
+
+            self.d_k = self.proj_dim // n_head
+            self.linear_q = nn.Linear(n_feat, self.proj_dim)
+            self.linear_k = nn.Linear(n_feat, self.proj_dim)
+            self.linear_v = nn.Linear(n_feat, self.proj_dim)
+            self.linear_out = nn.Linear(self.proj_dim, n_feat)
 
         # Setup adapter strategy
         self.setup_adapter_strategy(adapter_strategy)
@@ -127,6 +145,7 @@ class MultiHeadAttentionAdapterConfig:
     n_head: int
     n_feat: int
     dropout_rate: float = 0.0
+    proj_dim: Optional[int] = None
     adapter_strategy: Optional[Any] = MHAResidualAddAdapterStrategyConfig()
     _target_: str = "{0}.{1}".format(MultiHeadAttentionAdapter.__module__, MultiHeadAttentionAdapter.__name__)
 
@@ -139,11 +158,32 @@ class RelPositionMultiHeadAttentionAdapter(
         n_head: int,
         n_feat: int,
         dropout_rate: float,
+        proj_dim: Optional[int] = None,
         adapter_strategy: MHAResidualAddAdapterStrategyConfig = None,
     ):
         super().__init__(
             n_head=n_head, n_feat=n_feat, dropout_rate=dropout_rate, pos_bias_u=None, pos_bias_v=None, max_cache_len=0
         )
+
+        # Set the projection dim to number of heads automatically
+        if proj_dim is not None and proj_dim < 1:
+            proj_dim = n_head
+
+        self.proj_dim = proj_dim
+
+        # Recompute weights for projection dim
+        if self.proj_dim is not None:
+            if self.proj_dim % n_head != 0:
+                raise ValueError(f"proj_dim ({proj_dim}) is not divisible by n_head ({n_head})")
+
+            self.d_k = self.proj_dim // n_head
+            self.linear_q = nn.Linear(n_feat, self.proj_dim)
+            self.linear_k = nn.Linear(n_feat, self.proj_dim)
+            self.linear_v = nn.Linear(n_feat, self.proj_dim)
+            self.linear_out = nn.Linear(self.proj_dim, n_feat)
+            self.linear_pos = nn.Linear(n_feat, self.proj_dim)
+            self.pos_bias_u = nn.Parameter(torch.FloatTensor(self.h, self.d_k))
+            self.pos_bias_v = nn.Parameter(torch.FloatTensor(self.h, self.d_k))
 
         # Setup adapter strategy
         self.setup_adapter_strategy(adapter_strategy)
@@ -182,6 +222,7 @@ class RelPositionMultiHeadAttentionAdapterConfig:
     n_head: int
     n_feat: int
     dropout_rate: float = 0.0
+    proj_dim: Optional[int] = None
     adapter_strategy: Optional[Any] = MHAResidualAddAdapterStrategyConfig()
     _target_: str = "{0}.{1}".format(
         RelPositionMultiHeadAttentionAdapter.__module__, RelPositionMultiHeadAttentionAdapter.__name__
