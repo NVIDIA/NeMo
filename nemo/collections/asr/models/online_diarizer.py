@@ -46,6 +46,7 @@ from nemo.collections.asr.parts.utils.nmesc_clustering import (
     split_input_data,
     getTempInterpolMultiScaleCosAffinityMatrix,
 )
+# from nemo.collections.asr.metric.der import score_labels
 from nemo.collections.asr.parts.utils.speaker_utils import (
     audio_rttm_map,
     fl2int,
@@ -64,7 +65,6 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
     labels_to_rttmfile,
     merge_stamps,
     rttm_to_labels,
-    score_labels,
 )
 from nemo.collections.asr.parts.utils.vad_utils import (
     generate_overlap_vad_seq,

@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,10 +17,7 @@ from itertools import permutations
 import pytest
 import torch
 
-from nemo.collections.asr.parts.utils.diarization_utils import (
-    calculate_session_cpWER,
-    calculate_session_cpWER_bruteforce,
-)
+from nemo.collections.asr.metrics.der import calculate_session_cpWER, calculate_session_cpWER_bruteforce
 
 
 def word_count(spk_transcript):
@@ -36,7 +33,7 @@ def permuted_input_test(hyp, ref, calculated):
     Randomly permute the input to see if evaluation result stays the same.
     """
     for hyp_permed in permutations(hyp):
-        cpWER, hyp_min, ref_str = calculate_session_cpWER(spk_hypothesis=hyp, spk_reference=ref)
+        cpWER, hyp_min, ref_str = calculate_session_cpWER(spk_hypothesis=hyp_permed, spk_reference=ref)
         diff = torch.abs(torch.tensor(calculated - cpWER))
         assert diff <= 1e-6
 
