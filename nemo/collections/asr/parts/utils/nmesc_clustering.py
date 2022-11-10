@@ -102,7 +102,7 @@ def getEuclideanDistance(
     return dis
 
 
-#@torch.jit.script
+@torch.jit.script
 def kmeans_plusplus_torch(
     X: torch.Tensor,
     n_clusters: int,
@@ -187,7 +187,7 @@ def kmeans_plusplus_torch(
     return centers, indices
 
 
-#@torch.jit.script
+@torch.jit.script
 def kmeans_torch(
     X: torch.Tensor,
     num_clusters: int,
@@ -287,7 +287,7 @@ def getTheLargestComponent(affinity_mat: torch.Tensor, seg_index: int, device: t
     connected_nodes = torch.zeros(num_of_segments, dtype=torch.bool).to(device)
     nodes_to_explore = torch.zeros(num_of_segments, dtype=torch.bool).to(device)
 
-    nodes_to_explore[seg_index] = torch.tensor(True).to(device)
+    nodes_to_explore[seg_index] = True
     for k in range(num_of_segments):
         last_num_component = connected_nodes.sum()
         torch.logical_or(connected_nodes, nodes_to_explore, out=connected_nodes)
@@ -425,52 +425,6 @@ def getCosAffinityMatrix(emb: torch.Tensor) -> torch.Tensor:
     sim_d = cos_similarity(emb, emb)
     sim_d = ScalerMinMax(sim_d)
     return sim_d
-
-def XgetTempInterpolMultiScaleCosAffinityMatrix(uniq_embs_and_timestamps: dict, device: torch.device = torch.device('cpu')):
-    """
-    Calculate cosine similarity values among speaker embeddings for each scale then
-    apply multiscale weights to calculate the fused similarity matrix.
-
-    Take the embedding from the scale (scale_interpolation_index-1)-th scale and find the indexes that are
-    in the range of [-half_scale, half_scale]. The distance to the center of the base-scale is used for
-    calculating the interpolation weight. The distance is squared then normalized to create an interpolation
-    weight vector interpol_w. Using the interpolation weight interpol_w and target embedding indexes target_bool,
-    interpolated embedding is calculated.
-
-    Args:
-        uniq_embs_and_timestamps: (dict)
-            The dictionary containing embeddings, timestamps and multiscale weights.
-            If uniq_embs_and_timestamps contains only one scale, single scale diarization
-            is performed.
-
-    Returns:
-        fused_sim_d (torch.tensor):
-            This function generates an affinity matrix that is obtained by calculating
-            the weighted sum of the affinity matrices from the different scales.
-        base_scale_emb (torch.tensor):
-            The base scale embedding (the embeddings from the finest scale)
-    """
-    uniq_scale_dict = uniq_embs_and_timestamps['scale_dict']
-    base_scale_idx = max(uniq_scale_dict.keys())
-    base_scale_emb = uniq_scale_dict[base_scale_idx]['embeddings']
-    multiscale_weights = uniq_embs_and_timestamps['multiscale_weights'].float().to(device)
-    score_mat_list, repeated_tensor_list = [], []
-    session_scale_mapping_dict = get_argmin_mat(uniq_scale_dict)
-    rep_mat_list = []
-    for scale_idx in sorted(uniq_scale_dict.keys()):
-        mapping_argmat = session_scale_mapping_dict[scale_idx]
-        emb_t = uniq_scale_dict[scale_idx]['embeddings'].half().to(device)
-        mapping_argmat = mapping_argmat.to(device)
-    
-        repeat_list = getRepeatedList(mapping_argmat, torch.tensor(emb_t.shape[0])).to(device)
-        rep_emb_t = torch.repeat_interleave(emb_t, repeats=repeat_list, dim=0)
-        rep_mat_list.append(rep_emb_t)
-    stacked_scale_embs = torch.stack(rep_mat_list)
-    context_emb = torch.matmul(stacked_scale_embs.permute(2, 1, 0), multiscale_weights.t().half()).squeeze().t()
-    if len(context_emb.shape) < 2:
-        context_emb = context_emb.unsqueeze(0)
-    fused_sim_d = getCosAffinityMatrix(context_emb)
-    return fused_sim_d, context_emb, session_scale_mapping_dict
 
 def getTempInterpolMultiScaleCosAffinityMatrix(
     multiscale_weights: torch.Tensor,
@@ -636,8 +590,8 @@ def addAnchorEmb(emb: torch.Tensor, anchor_sample_n: int, anchor_spk_n: int, sig
     sigma = torch.tensor(sigma).to(emb.device)
     new_emb_list = []
     for _ in range(anchor_spk_n):
-        emb_m = torch.tile(torch.randn(1, emb_dim), (anchor_sample_n, 1)).to(emb.device)
-        emb_noise = torch.randn(anchor_sample_n, emb_dim).T.to(std_org.device)
+        emb_m = torch.tile(torch.randn(1, emb_dim), (anchor_sample_n, 1))
+        emb_noise = torch.randn(anchor_sample_n, emb_dim).T
         emb_noise = torch.matmul(
             torch.diag(std_org), emb_noise / torch.max(torch.abs(emb_noise), dim=0)[0].unsqueeze(0)
         ).T
@@ -690,7 +644,7 @@ def getEnhancedSpeakerCount(
     est_num_of_spk_list: List[int] = []
     for seed in range(random_test_count):
         torch.manual_seed(seed)
-        emb_aug = addAnchorEmb(emb, anchor_sample_n, anchor_spk_n, sigma, device)
+        emb_aug = addAnchorEmb(emb, anchor_sample_n, anchor_spk_n, sigma)
         mat = getCosAffinityMatrix(emb_aug)
         nmesc = NMESC(
             mat,
@@ -771,7 +725,7 @@ def estimateNumofSpeakers(
     return num_of_spk, lambdas, lambda_gap
 
 
-# @torch.jit.script
+@torch.jit.script
 class SpectralClustering:
     """
     Perform spectral clustering by calculating spectral embeddings then run k-means clustering
@@ -884,7 +838,7 @@ class SpectralClustering:
         return embedding[:n_spks].T
 
 
-# @torch.jit.script
+@torch.jit.script
 class NMESC:
     """
     Normalized Maximum Eigengap based Spectral Clustering (NME-SC)
@@ -985,8 +939,8 @@ class NMESC:
         self.max_N = torch.tensor(0)
         self.mat: torch.Tensor = mat
         self.p_value_list: torch.Tensor = self.min_p_value.unsqueeze(0)
-        self.cuda = cuda
-        self.device = device
+        self.cuda: bool = cuda
+        self.device: torch.device = device
         self.maj_vote_spk_count: bool = maj_vote_spk_count
         self.parallelism: bool = parallelism
 
@@ -1328,9 +1282,9 @@ class SpeakerClustering(torch.nn.Module):
 
 class OnlineSpeakerClustering:
     def __init__(self, 
-                max_num_speakers,
-                max_rp_threshold, 
-                sparse_search_volume,
+                max_num_speakers: int,
+                max_rp_threshold: float, 
+                sparse_search_volume: int,
                 ):
         self.max_num_speaker = max_num_speakers
         self.max_rp_threshold = max_rp_threshold
@@ -1344,7 +1298,7 @@ class OnlineSpeakerClustering:
         self.num_spk_stat = []
         self.p_value_hist = []
 
-    def onlineNMEanalysis(self, nmesc, frame_index):
+    def onlineNMEanalysis(self, nmesc: NMESC, frame_index: int) -> Tuple[torch.LongTensor, torch.Tensor]:
         """
         To save the running time, the p-value is only estimated in the beginning of the session.
         After switching to online mode, the system uses the most common estimated p-value.
@@ -1372,7 +1326,7 @@ class OnlineSpeakerClustering:
         g_p, est_num_of_spk = nmesc.getEigRatio(p_hat_value)
         return est_num_of_spk, p_hat_value
     
-    def speaker_counter_buffer(self, est_num_of_spk):
+    def speaker_counter_buffer(self, est_num_of_spk: int) -> int:
         """
         Use a queue to avoid unstable speaker counting results.
         """
@@ -1386,7 +1340,7 @@ class OnlineSpeakerClustering:
         est_num_of_spk = torch.argmax(num_spks_bincount)
         return est_num_of_spk
 
-    def limit_frames_per_speaker(self, frame_index, est_num_of_spk):
+    def limit_frames_per_speaker(self, frame_index: int, est_num_of_spk: int) -> int:
         """
         Limit the estimated number of speakers in proportion to the number of speakers.
 
@@ -1412,8 +1366,8 @@ class OnlineSpeakerClustering:
     def forward(self, 
         emb: torch.Tensor,
         frame_index: int,
-        cuda,
-        device
+        cuda: bool,
+        device: torch.device
         ):
         mat = getCosAffinityMatrix(emb)
         if emb.shape[0] == 1:
