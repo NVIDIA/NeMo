@@ -406,9 +406,9 @@ class HifiGanModel(Vocoder, Exportable):
             pretrained_model_name="tts_es_hifigan_ft_fastpitch_multispeaker",
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_es_multispeaker_fastpitchhifigan/versions/1.14.0/files/tts_es_hifigan_ft_fastpitch_multispeaker.nemo",
             description="This model is trained on the audio from 6 crowdsourced Latin American Spanish OpenSLR "
-                        "datasets and finetuned on the mel-spectrograms generated from the FastPitch checkpoint "
-                        "`tts_es_fastpitch_multispeaker`. This model has been tested on generating male and female "
-                        "Spanish voices with Latin American accents.",
+            "datasets and finetuned on the mel-spectrograms generated from the FastPitch checkpoint "
+            "`tts_es_fastpitch_multispeaker`. This model has been tested on generating male and female "
+            "Spanish voices with Latin American accents.",
             class_=cls,
         )
         list_of_models.append(model)
