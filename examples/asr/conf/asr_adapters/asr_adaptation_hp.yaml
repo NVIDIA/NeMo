@@ -201,7 +201,7 @@ exp_manager:
   # Add a unique name for all hyperparameter arguments to allow continued training.
   # NOTE: It is necessary to add all hyperparameter arguments to the name !
   # This ensures successful restoration of model runs in case HP search crashes.
-  name: ${name}-lr-${model.optim.lr}-adim-${model.adapter.dim}-sd-${model.adapter.adapter_strategy.stochastic_depth}
+  name: ${name}-lr-${model.optim.lr}-adim-${model.adapter.linear.dim}-sd-${model.adapter.linear.adapter_strategy.stochastic_depth}
 
   create_tensorboard_logger: true
   create_checkpoint_callback: true

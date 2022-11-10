@@ -14,6 +14,7 @@
 
 import copy
 import os
+from functools import lru_cache
 from dataclasses import dataclass, is_dataclass
 from enum import Enum
 from pathlib import Path
@@ -461,6 +462,7 @@ def maybe_update_config_version(cfg: 'DictConfig'):
     return cfg
 
 
+@lru_cache(maxsize=1024)
 def import_class_by_path(path: str):
     """
     Recursive import of class by path string.

@@ -14,7 +14,7 @@
 
 from abc import ABC
 from dataclasses import dataclass, is_dataclass
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union, Set
 
 import torch
 import torch.nn as nn
@@ -150,28 +150,6 @@ class AdapterModuleMixin(ABC):
     adapter_global_cfg_key = "global_cfg"
     adapter_metadata_cfg_key = "adapter_meta_cfg"
 
-    def set_accepted_adapter_types(self, adapter_types: List[str]) -> None:
-        """
-        The module with this mixin can define a list of adapter names that it will accept.
-        This method should be called in the modules init method and set the adapter names the module will expect to be added.
-        """
-        # Let user update and set accepted adapter types.
-        self._accepted_adapter_types = [model_utils.import_class_by_path(s) for s in adapter_types]
-
-    def get_accepted_adapter_types(self,) -> List[str]:
-        """
-        Returns the list of accepted adapter types.
-        """
-        if hasattr(self, '_accepted_adapter_types'):
-            return self._accepted_adapter_types
-        else:
-            return []
-
-    def get_adapter_module(self, name: str):
-        if hasattr(self, "adapter_layer"):
-            return self.adapter_layer[name] if name in self.adapter_layer else None
-        return None
-
     def add_adapter(self, name: str, cfg: DictConfig):
         """
         Add an Adapter module to this module.
@@ -181,11 +159,11 @@ class AdapterModuleMixin(ABC):
             cfg: A DictConfig or Dataclass that contains at the bare minimum `__target__` to instantiate a
                 new Adapter module.
         """
-        _types = self.get_accepted_adapter_types()
+        adapter_types = self.get_accepted_adapter_types()
         _pass_types = False
-        if len(_types) > 0:
+        if len(adapter_types) > 0:
             test = model_utils.import_class_by_path(cfg._target_)
-            for _type in _types:
+            for _type in adapter_types:
                 # TODO: (@adithyare) should revisit if subclass is the best check...
                 if issubclass(test, _type):
                     _pass_types = True
@@ -194,7 +172,7 @@ class AdapterModuleMixin(ABC):
                 raise ValueError(
                     f"Config: \n{OmegaConf.to_yaml(cfg)}\n"
                     f"It creates adapter class {test} is not in the list of accepted adapter types.\n"
-                    f"Accepted adapters: {[t for t in _types]}"
+                    f"Accepted adapters: {[t for t in adapter_types]}"
                 )
 
         # Convert to DictConfig from dict or Dataclass
@@ -307,6 +285,9 @@ class AdapterModuleMixin(ABC):
         if hasattr(self, 'adapter_layer'):
             available_module_names.update(list(self.adapter_layer.keys()))
 
+        # populate list of allowed adapter classes
+        adapter_types = self.get_accepted_adapter_types()
+
         enabled_adapters = []
         for name, config in self.adapter_cfg.items():
             # Skip the global adapter config
@@ -315,11 +296,41 @@ class AdapterModuleMixin(ABC):
 
             # If name is in the current available modules, and it is enabled in the config
             if name in available_module_names and self.adapter_cfg[name]['enabled']:
-                enabled_adapters.append(name)
+                # Check if type is supported (if available) and is an enabled adapter
+                if len(adapter_types) > 0:
+                    module = self.get_adapter_module(name)
+                    if module in adapter_types:
+                        enabled_adapters.append(name)
+
+                else:
+                    # Ignore type checking and fall back to adding all enabled adapters
+                    enabled_adapters.append(name)
 
         return enabled_adapters
 
-    # Inherited methods that dont need to be overridden
+    # Inherited methods that don't need to be overridden
+
+    def get_adapter_module(self, name: str):
+        if hasattr(self, "adapter_layer"):
+            return self.adapter_layer[name] if name in self.adapter_layer else None
+        return None
+
+    def set_accepted_adapter_types(self, adapter_types: List[str]) -> None:
+        """
+        The module with this mixin can define a list of adapter names that it will accept.
+        This method should be called in the modules init method and set the adapter names the module will expect to be added.
+        """
+        # Let user update and set accepted adapter types.
+        self._accepted_adapter_types = set([model_utils.import_class_by_path(s) for s in adapter_types])
+
+    def get_accepted_adapter_types(self,) -> Set[type]:
+        """
+        Returns the list of accepted adapter types.
+        """
+        if hasattr(self, '_accepted_adapter_types'):
+            return self._accepted_adapter_types
+        else:
+            return set([])
 
     def unfreeze_enabled_adapters(self, freeze_batchnorm: bool = True) -> None:
         """
