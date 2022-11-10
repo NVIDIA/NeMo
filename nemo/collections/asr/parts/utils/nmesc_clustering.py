@@ -1114,11 +1114,11 @@ class SpeakerClustering(torch.nn.Module):
         multiscale_segment_counts: torch.LongTensor,
         multiscale_weights: torch.Tensor,
         oracle_num_speakers: torch.LongTensor,
-        max_rp_threshold: torch.Tensor = torch.tensor(0.15),
-        max_num_speakers: torch.LongTensor = torch.tensor(8, dtype=torch.long),
-        enhanced_count_thres: torch.LongTensor = torch.tensor(80, dtype=torch.long),
-        sparse_search_volume: torch.LongTensor = torch.tensor(30, dtype=torch.long),
-        fixed_thres: torch.Tensor = torch.tensor(-1.0),
+        max_num_speakers: torch.LongTensor,
+        enhanced_count_thres: torch.LongTensor = torch.LongTensor([80]),
+        sparse_search_volume: torch.LongTensor = torch.LongTensor([30]),
+        max_rp_threshold: torch.Tensor = torch.Tensor([0.15]),
+        fixed_thres: torch.Tensor = torch.Tensor([-1.0]),
     ) -> torch.LongTensor:
         """
         Calculate affinity matrix using timestamps and speaker embeddings, run NME analysis to estimate the best
@@ -1176,6 +1176,14 @@ class SpeakerClustering(torch.nn.Module):
             Y (Tensor):
                 Speaker label for each segment.
         """
+
+        oracle_num_speakers = int(oracle_num_speakers.item())
+        max_num_speakers = int(max_num_speakers.item())
+        enhanced_count_thres = int(enhanced_count_thres.item())
+        sparse_search_volume = int(sparse_search_volume.item())
+        max_rp_threshold = float(max_rp_threshold.item())
+        fixed_thres = float(fixed_thres.item())
+
         self.embeddings_in_scales, self.timestamps_in_scales = split_input_data(
             embeddings_in_scales, timestamps_in_scales, multiscale_segment_counts
         )
@@ -1199,11 +1207,11 @@ class SpeakerClustering(torch.nn.Module):
 
         nmesc = NMESC(
             mat,
-            max_num_speakers=int(max_num_speakers.item()),
-            max_rp_threshold=float(max_rp_threshold.item()),
+            max_num_speakers=max_num_speakers,
+            max_rp_threshold=max_rp_threshold,
             sparse_search=self.sparse_search,
-            sparse_search_volume=int(sparse_search_volume.item()),
-            fixed_thres=float(fixed_thres.item()),
+            sparse_search_volume=sparse_search_volume,
+            fixed_thres=fixed_thres,
             nme_mat_size=self.nme_mat_size,
             maj_vote_spk_count=self.maj_vote_spk_count,
             parallelism=self.parallelism,
@@ -1221,7 +1229,7 @@ class SpeakerClustering(torch.nn.Module):
 
         # n_clusters is number of speakers estimated from spectral clustering.
         if oracle_num_speakers > 0:
-            n_clusters = int(oracle_num_speakers.item())
+            n_clusters = oracle_num_speakers
         elif est_num_of_spk_enhanced > 0:
             n_clusters = int(est_num_of_spk_enhanced.item())
         else:
