@@ -235,7 +235,7 @@ class ConvLSTMLinear(BiLSTM):
         if lens is None:
             my_lens = context.new_ones([context.shape[0]], dtype=torch.int) * context.shape[2]
         else:
-            my_lens = in_lens
+            my_lens = lens
         # borisf : does not match ADLR (values, lengths)
         # seq = self.masked_conv_to_sequence(context, lens, enforce_sorted=False)
         # borisf : does match ADLR
