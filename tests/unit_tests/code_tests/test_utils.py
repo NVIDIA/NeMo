@@ -32,6 +32,10 @@ class TestCalculateModelSize:
             (250000, 512, 4096, 24, 10240, 64, 64, "mt5", 11.9),
             (250000, 512, 5120, 36, 10880, 64, 80, "mt5", 24.65),
             (250000, 512, 6144, 48, 10880, 64, 96, "mt5", 42.65),
+            # BERT tests
+            (30522, 512, 768, 12, 768*4, None, 12, "bert", 0.11),
+            (30522, 512, 2560, 48, 2560*4, None, 40, "bert", 4.0),
+            (30522, 512, 6144, 44, 6144*4, None, 96, "bert", 20.0),
         ],
     )
     def test_calculate_model_size(self, vocab, seq_len, hs, layers, ffn, kv, att, model_name, expected):
@@ -94,6 +98,10 @@ class TestCalculatemodelSizeParams:
             (11.9, 250000, 512, "mt5", {"layers": 24, "hs": 4096, "att": 64, "ffn": 10240, "kv": 64, "lr": 0.0001}),
             (24.65, 250000, 512, "mt5", {"layers": 36, "hs": 5120, "att": 80, "ffn": 10880, "kv": 64, "lr": 0.0001}),
             (42.65, 250000, 512, "mt5", {"layers": 48, "hs": 6144, "att": 96, "ffn": 10880, "kv": 64, "lr": 0.0001}),
+            # BERT tests
+            (0.11, 30522, 512, "bert", {"layers": 12, "hs": 768, "att": 12, "ffn": None, "kv": None, "lr": 2e-4}),
+            (4.0, 30522, 512, "bert", {"layers": 48, "hs": 2560, "att": 40, "ffn": None, "kv": None, "lr": 1.e-4}),
+            (20.0, 30522, 512, "bert", {"layers": 48, "hs": 6144, "att": 96, "ffn": None, "kv": None, "lr": 1e-4}),
         ],
     )
     def test_calculate_model_size_params(self, model_size, vocab, seq_len, model_name, expected):

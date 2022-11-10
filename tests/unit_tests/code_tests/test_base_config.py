@@ -86,6 +86,10 @@ class TestEstimateTrainingTime:
             (11.9, 20 * 8, 140, 1000, "mt5", 56.6),
             (24.65, 40 * 8, 140, 1000, "mt5", 58.6),
             (42.54, 40 * 8, 140, 1000, "mt5", 101.1),
+            # BERT tests
+            (0.11, 8 * 8, 140, 300, "bert", 0.34),
+            (4, 16 * 8, 140, 300, "bert", 6.2),
+            (20, 64 * 8, 140, 300, "bert", 7.75),
         ],
     )
     def test_estimate_training_time(
@@ -147,6 +151,12 @@ class TestCalculateGbsTpPp:
             (13.0, "mt5", (1920, 8, 1)),
             (20.0, "mt5", (1920, 8, 2)),
             (40.0, "mt5", (1920, 8, 4)),
+            # BERT tests
+            (0.11, "bert", (256, 1, 1)),
+            (3.0, "bert", (1024, 1, 1)),
+            (6.0, "bert", (2048, 2, 1)),
+            (13.0, "bert", (2048, 4, 1)),
+            (20.0, "bert", (2048, 8, 1)),
         ],
     )
     def test_calculate_gbs_tp_pp(self, model_size, model_name, expected):
@@ -230,7 +240,7 @@ class TestGenerateBaseconfig:
             assert not out_cfg["exp_manager"]["create_wandb_logger"], "exp_manager.create_wandb_logger should be False."
 
         # Model parameters
-        if model_name == "gpt3":
+        if model_name in ["gpt3", "bert"]:
             assert out_cfg["model"]["num_layers"] == expected["num_layers"]
             assert out_cfg["model"]["hidden_size"] == expected["hs"]
             assert out_cfg["model"]["num_attention_heads"] == expected["att_heads"]
