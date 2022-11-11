@@ -147,7 +147,26 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         )
         return super().on_validation_epoch_start()
 
+    def on_test_epoch_start(self):
+        app_state = AppState()
+        _reconfigure_microbatch_calculator(
+            rank=app_state.global_rank,
+            rampup_batch_size=None,
+            global_batch_size=self.cfg.data.test_ds.global_batch_size,
+            micro_batch_size=self.cfg.data.test_ds.micro_batch_size,
+            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+        )
+        return super().on_test_epoch_start()
+
+    def on_test_epoch_end(self):
+        self.on_inference_epoch_end(self.cfg.data.test_ds)
+        return super().on_test_epoch_end()
+
     def on_validation_epoch_end(self):
+        self.on_inference_epoch_end(self.cfg.data.validation_ds)
+        return super().on_validation_epoch_end()
+
+    def on_inference_epoch_end(self, ds):
         app_state = AppState()
         if hasattr(self, "_train_ds"):
             _reconfigure_microbatch_calculator(
@@ -163,12 +182,10 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             _reconfigure_microbatch_calculator(
                 rank=app_state.global_rank,
                 rampup_batch_size=None,
-                global_batch_size=self.cfg.data.validation_ds.global_batch_size,
-                micro_batch_size=self.cfg.data.validation_ds.micro_batch_size,
+                global_batch_size=ds.global_batch_size,
+                micro_batch_size=ds.micro_batch_size,
                 data_parallel_size=parallel_state.get_data_parallel_world_size(),
             )
-
-        return super().on_validation_epoch_end()
 
     def on_train_epoch_start(self) -> None:
         # Same logic as validation epoch end, but this may be need if there is no validation sanity check to trigger validation_epoch_end()
@@ -249,12 +266,12 @@ class MegatronT5FinetuneModel(MegatronT5Model):
 
         return pred, label
 
-    def _reconfigure_and_process_inference_batch(self, batch):
+    def _reconfigure_and_process_inference_batch(self, batch, ds_config):
         global_batch_size_per_gpu = batch['text_enc'].size(0)
         # This should happen only on the last batch of the dataset.
         if (
             global_batch_size_per_gpu
-            != self.cfg.data.validation_ds.global_batch_size // parallel_state.get_data_parallel_world_size()
+            != ds_config.global_batch_size // parallel_state.get_data_parallel_world_size()
         ):
             # NOTE: This is reconfiguring to make sure there is no grad-acc for validation batches.
             app_state = AppState()
@@ -273,7 +290,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         # Regular finetuning datasets will return a list of dicts for each microbatch. But T0 datasets will return a single dict for the global batch.
         batch_has_lang_information = isinstance(batch, list) and len(batch[0]) == 7
 
-        processed_batch = self._reconfigure_and_process_inference_batch(batch)
+        processed_batch = self._reconfigure_and_process_inference_batch(batch, self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds)
 
         # Call parent validation step to get the loss.
         # NOTE: There could be extra keys in the processed_batch dictionary such as "langs" for XNLI, this will be ignored in the parent class.
@@ -301,8 +318,8 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                 pred=pred,
                 label=label,
                 metric_name=self.val_metric_name if mode == 'validation' else self.test_metric_name,
-                class_labels=self.cfg.data.validation_ds.metric.get('class_labels', None),
-                labels_are_strings=self.cfg.data.validation_ds.metric.get('labels_are_strings', False),
+                class_labels=self.cfg.data.validation_ds.metric.get('class_labels', None) if mode == 'validation' else self.cfg.data.test_ds.metric.get('class_labels', None),
+                labels_are_strings=self.cfg.data.validation_ds.metric.get('labels_are_strings', False) if mode == 'validation' else self.cfg.data.test_ds.metric.get('labels_are_strings', False),
             )
             if batch_has_lang_information:
                 _ = metric(pred, label, category)
