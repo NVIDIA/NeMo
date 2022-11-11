@@ -677,7 +677,7 @@ class OfflineDiarWithASR:
         trans_info_dict = {}
         if self.fix_word_ts_with_VAD:
             if self.frame_VAD == {}:
-                logging.info(
+                logging.warning(
                     f"VAD timestamps are not provided. Fixing word timestamps without VAD. Please check the hydra configurations."
                 )
             word_ts_refined = self._compensate_word_ts_list(self.audio_file_list, word_ts_hyp)
