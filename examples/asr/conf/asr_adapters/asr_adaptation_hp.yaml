@@ -201,7 +201,12 @@ exp_manager:
   # Add a unique name for all hyperparameter arguments to allow continued training.
   # NOTE: It is necessary to add all hyperparameter arguments to the name !
   # This ensures successful restoration of model runs in case HP search crashes.
+
+  ### `linear` adapter experiment name ###
   name: ${name}-lr-${model.optim.lr}-adim-${model.adapter.linear.dim}-sd-${model.adapter.linear.adapter_strategy.stochastic_depth}
+
+  ### `tiny_attn` adapter experiment name ###
+  # name: ${name}-lr-${model.optim.lr}-pdim-${model.adapter.tiny_attn.proj_dim}-nhead-${model.adapter.tiny_attn.n_head}-sd-${model.adapter.tiny_attn.adapter_strategy.stochastic_depth}
 
   create_tensorboard_logger: true
   create_checkpoint_callback: true
@@ -238,10 +243,18 @@ hydra:
     subdir: "."
 
   sweeper:
+    ### `linear` adapter configuration ###
     params:  # place all the parameters you wish to search over here (corresponding to the rest of the config)
       model.optim.lr: 0.001,0.0001
       model.adapter.linear.dim: 32,64,96,128
       model.adapter.linear.adapter_strategy.stochastic_depth: 0.0,0.5,0.6,0.7,0.8,0.9
+
+    ### `tiny_attn` adapter configuration ###
+#    params:
+#      model.optim.lr: 0.001,0.0001
+#      model.adapter.tiny_attn.n_head: 1  # Note if you use > 1 heads, the *minimum* proj_dim below should match your *max* n_head !
+#      model.adapter.tiny_attn.proj_dim: 1,8,16,32,64  # 1,4,8,16,32,64
+#      model.adapter.tiny_attn.adapter_strategy.stochastic_depth: 0.0,0.5,0.6,0.7,0.8,0.9
 
   # Arguments to the hyperparameter runner
   launcher:
