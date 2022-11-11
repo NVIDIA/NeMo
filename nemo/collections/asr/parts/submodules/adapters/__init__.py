@@ -13,25 +13,14 @@
 # limitations under the License.
 
 from nemo.collections.asr.parts.submodules.adapters.multi_head_attention_adapter_module import (
-    MHAResidualAddAdapterStrategyConfig,
     MHAResidualAddAdapterStrategy,
-)
-
-from nemo.collections.asr.parts.submodules.adapters.multi_head_attention_adapter_module import (
-    RelPositionMultiHeadAttentionAdapterConfig,
-    RelPositionMultiHeadAttentionAdapter,
-)
-from nemo.collections.asr.parts.submodules.adapters.multi_head_attention_adapter_module import (
-    MultiHeadAttentionAdapterConfig,
+    MHAResidualAddAdapterStrategyConfig,
     MultiHeadAttentionAdapter,
-)
-
-from nemo.collections.asr.parts.submodules.adapters.multi_head_attention_adapter_module import (
-    PositionalEncodingAdapterConfig,
+    MultiHeadAttentionAdapterConfig,
     PositionalEncodingAdapter,
-)
-
-from nemo.collections.asr.parts.submodules.adapters.multi_head_attention_adapter_module import (
-    RelPositionalEncodingAdapterConfig,
+    PositionalEncodingAdapterConfig,
     RelPositionalEncodingAdapter,
+    RelPositionalEncodingAdapterConfig,
+    RelPositionMultiHeadAttentionAdapter,
+    RelPositionMultiHeadAttentionAdapterConfig,
 )

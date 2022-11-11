@@ -196,12 +196,12 @@ class SqueezeformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         return x
 
     def forward_single_enabled_adapter_(
-            self,
-            input: dict,
-            adapter_module: torch.nn.Module,
-            *,
-            adapter_name: str,
-            adapter_strategy: 'nemo.core.classes.mixins.adapter_mixin_strategies.AbstractAdapterStrategy',
+        self,
+        input: dict,
+        adapter_module: torch.nn.Module,
+        *,
+        adapter_name: str,
+        adapter_strategy: 'nemo.core.classes.mixins.adapter_mixin_strategies.AbstractAdapterStrategy',
     ):
         """
         Perform the forward step of a single adapter module on some input data.

@@ -19,7 +19,6 @@ from omegaconf import DictConfig, OmegaConf
 
 from nemo.utils import logging
 
-
 # Constants
 LINEAR_ADAPTER_CLASSPATH = "nemo.collections.common.parts.adapter_modules.LinearAdapter"
 MHA_ADAPTER_CLASSPATH = (

@@ -18,14 +18,13 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from nemo.collections.asr.models import ASRModel, EncDecCTCModel, EncDecRNNTModel
 from nemo.collections.asr.parts.submodules.adapters import multi_head_attention_adapter_module
-from nemo.collections.common.parts import adapter_modules
 from nemo.collections.asr.parts.utils import adapter_utils
+from nemo.collections.common.parts import adapter_modules
 from nemo.core.classes.mixins.access_mixins import AccessMixin
 from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin, get_registered_adapter
-from nemo.utils import model_utils
 from nemo.core.utils import numba_utils
 from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
-from nemo.utils import config_utils
+from nemo.utils import config_utils, model_utils
 
 NUMBA_RNNT_LOSS_AVAILABLE = numba_utils.numba_cpu_is_supported(
     __NUMBA_MINIMUM_VERSION__
@@ -295,7 +294,9 @@ def get_adapter_cfg(in_features=50, dim=100, norm_pos='pre', atype='linear', **k
     if atype == 'linear':
         cfg = adapter_modules.LinearAdapterConfig(in_features=in_features, dim=dim, norm_position=norm_pos)
     elif atype == 'mha':
-        cfg = multi_head_attention_adapter_module.MultiHeadAttentionAdapterConfig(n_head=kwargs.get('n_head', 1), n_feat=in_features)
+        cfg = multi_head_attention_adapter_module.MultiHeadAttentionAdapterConfig(
+            n_head=kwargs.get('n_head', 1), n_feat=in_features
+        )
     elif atype == 'relmha':
         cfg = multi_head_attention_adapter_module.RelPositionMultiHeadAttentionAdapterConfig(
             n_head=kwargs.get('n_head', 1), n_feat=in_features
@@ -460,7 +461,9 @@ class TestASRAdapterMixin:
         input_signal = torch.randn(2, 512)
         input_signal_length = torch.tensor([512, 512], dtype=torch.int32)
 
-        origial_output = squeezeformer_ctc_adapter(input_signal=input_signal, input_signal_length=input_signal_length)[0]
+        origial_output = squeezeformer_ctc_adapter(input_signal=input_signal, input_signal_length=input_signal_length)[
+            0
+        ]
 
         squeezeformer_ctc_adapter.add_adapter(name=name, cfg=get_adapter_cfg(in_features=128, atype='mha'))
         new_output = squeezeformer_ctc_adapter(input_signal=input_signal, input_signal_length=input_signal_length)[0]

@@ -17,9 +17,9 @@ from dataclasses import dataclass, is_dataclass
 from typing import Any, Optional
 
 import torch
-from torch import nn as nn
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
+from torch import nn as nn
 
 from nemo.collections.asr.parts.submodules import multi_head_attention as mha
 from nemo.collections.common.parts import adapter_modules

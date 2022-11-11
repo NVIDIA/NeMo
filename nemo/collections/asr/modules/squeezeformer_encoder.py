@@ -14,12 +14,12 @@
 
 import math
 from collections import OrderedDict
-from omegaconf import DictConfig
 from typing import List, Optional
 
 import torch
 import torch.distributed
 import torch.nn as nn
+from omegaconf import DictConfig
 
 from nemo.collections.asr.parts.submodules.multi_head_attention import PositionalEncoding, RelPositionalEncoding
 from nemo.collections.asr.parts.submodules.squeezeformer_modules import SqueezeformerLayer
