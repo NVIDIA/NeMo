@@ -123,15 +123,15 @@ class BiLSTM(nn.Module):
         seq = nn.utils.rnn.pack_padded_sequence(
             context, lens.long().cpu(), batch_first=True, enforce_sorted=enforce_sorted
         )
-        if not (torch.jit.is_tracing() or torch.jit.is_scripting()):
-            self.bilstm.flatten_parameters()
+        # if not (torch.jit.is_tracing() or torch.jit.is_scripting()):
+        #    self.bilstm.flatten_parameters()
         ret, _ = self.bilstm(seq)
         return nn.utils.rnn.pad_packed_sequence(ret, batch_first=True)
 
     @torch.jit.export
     def lstm_sequence(self, seq: PackedSequence) -> Tuple[Tensor, Tensor]:
-        if not (torch.jit.is_tracing() or torch.jit.is_scripting()):
-            self.bilstm.flatten_parameters()
+        # if not (torch.jit.is_tracing() or torch.jit.is_scripting()):
+        #    self.bilstm.flatten_parameters()
         ret, _ = self.bilstm(seq)
         return nn.utils.rnn.pad_packed_sequence(ret, batch_first=True)
 
@@ -237,10 +237,11 @@ class ConvLSTMLinear(BiLSTM):
         else:
             my_lens = lens
         # borisf : does not match ADLR (values, lengths)
-        # seq = self.masked_conv_to_sequence(context, lens, enforce_sorted=False)
-        # borisf : does match ADLR
-        seq = self.conv_to_sequence(context, my_lens, enforce_sorted=False)
+        context, my_lens, unsort_ids = sort_tensor(context, my_lens)
+        # seq = self.masked_conv_to_sequence(context, my_lens, enforce_sorted=True)
+        seq = self.conv_to_sequence(context, my_lens, enforce_sorted=True)
         context, _ = self.lstm_sequence(seq)
+        context = context[unsort_ids]
 
         if self.dense is not None:
             context = self.dense(context).permute(0, 2, 1)
