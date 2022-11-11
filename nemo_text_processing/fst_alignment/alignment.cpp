@@ -1,3 +1,15 @@
+//Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+//Licensed under the Apache License, Version 2.0 (the "License");
+//you may not use this file except in compliance with the License.
+//You may obtain a copy of the License at
+//  http://www.apache.org/licenses/LICENSE-2.0
+//Unless required by applicable law or agreed to in writing, software
+//distributed under the License is distributed on an "AS IS" BASIS,
+//WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//See the License for the specific language governing permissions and
+//limitations under the License.
+
+
 #include <fstream>
 #include <fst/fstlib.h>
 #include <thrax/thrax.h>
@@ -11,21 +23,30 @@ using fst::StdFst;
 using namespace std;
 typedef StdArcLookAheadFst LookaheadFst;
 
-"""
-This file takes 1. FST path 2. entire string 3. start position of substring 4. end (exclusive) position of substring
-and prints 1. mapped output string 2. start and end indices of mapped substring
 
-Usage: 
+// This file takes 1. FST path 2. entire string 3. start position of substring 4. end (exclusive) position of substring
+// and prints 1. mapped output string 2. start and end indices of mapped substring
 
-g++ -std=gnu++11 -I<path to env>/include/ alignment.cpp -lfst -lthrax -ldl -L<path to env>/lib && ./a.out <fst file> \"2615 Forest Av, 1 Aug 2016\" 22 26
+// Usage: 
 
-Output:
-inp string: |2615 Forest Av, 1 Aug 2016|
-out string: |twenty six fifteen Forest Avenue , the first of august twenty sixteen|
-inp indices: [22:26]
-out indices: [55:69]
-in: |2016| out: |twenty sixteen|
-"""
+// g++ -std=gnu++11 -I<path to env>/include/ alignment.cpp -lfst -lthrax -ldl -L<path to env>/lib 
+// ./a.out <fst file> "tokenize_and_classify" "2615 Forest Av, 1 Aug 2016" 22 26
+
+// Output:
+// inp string: |2615 Forest Av, 1 Aug 2016|
+// out string: |twenty six fifteen Forest Avenue , the first of august twenty sixteen|
+// inp indices: [22:26]
+// out indices: [55:69]
+// in: |2016| out: |twenty sixteen|
+
+// Disclaimer: The heuristic algorithm relies on monotonous alignment and can fail in certain situations,
+// e.g. when word pieces are reordered by the fst, e.g. 
+
+// ./a.out <fst file> "tokenize_and_classify" "$1" 0 1
+// inp string: |$1|
+// out string: |one dollar|
+// inp indices: [0:1] out indices: [0:3]
+// in: |$| out: |one|
 
 // to prevent compiler error, not actually called
 namespace fst {
@@ -109,19 +130,21 @@ tuple<int, int> indexed_map_to_output(const vector<tuple<char, char>> &alignment
 }
 
 int main(int argc, char * argv[]) {
-  if (argc != 5)
+  if (argc != 6)
   {
-    printf("\n Please provide 4 input arguments, 1st is the path to fst, 2nd the full string in quotes, 3rd is start index of word, 4th is exclusive end index of word.");
+    printf("\n Please provide 4 input arguments, 1st is the path to fst, 2nd the fst rule name, "
+    "3rd the full string in quotes, 4th is start index of word, 5th is exclusive end index of word.");
     return 1;
   }
   unique_ptr<GrmManager> grm_;
   grm_.reset(new GrmManager);
   string grm_file=argv[1];
+  string grm_rule=argv[2];
   grm_->LoadArchive(grm_file);
-  LookaheadFst fst_(*(grm_->GetFst("tokenize_and_classify")));
+  LookaheadFst fst_(*(grm_->GetFst(grm_rule)));
 
   
-  string input = argv[2];
+  string input = argv[3];
   typedef fst::StringCompiler<StdArc> Compiler;
   typedef StdArc::StateId StateId;
   typedef fst::StringPrinter<StdArc> Printer;
@@ -159,11 +182,11 @@ int main(int argc, char * argv[]) {
     output_str += get<1>(i);
   }
 
-  int start_index = atoi(argv[3]);
-  int end_index = atoi(argv[4]);
+  int start_index = atoi(argv[4]);
+  int end_index = atoi(argv[5]);
   
   tuple<int, int>  out_indices = indexed_map_to_output(alignment, start_index, end_index); 
-  cout << "inp string: |" << argv[2] << "|" << endl;
+  cout << "inp string: |" << argv[3] << "|" << endl;
   cout << "out string: |" << output_str << "|" << endl;
   cout << "inp indices: [" << start_index << ":" << end_index << "]" << endl;
   cout << "out indices: [" << get<0>(out_indices) << ":" << get<1>(out_indices) << "]" << endl;

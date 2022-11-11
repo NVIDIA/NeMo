@@ -1,7 +1,21 @@
-import os
-import string
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
 from argparse import ArgumentParser
 from typing import List
+from nemo.utils import logging
 
 import pynini
 from pynini import Far
@@ -10,12 +24,15 @@ from nemo.utils import logging
 
 
 """
-This files takes 1. FST path 2. entire string 3. start position of substring 4. end (exclusive) position of substring
-and returns 1. mapped output string 2. start and end indices of mapped substring
+This files takes 1. Far file containing a fst graph created by TN or ITN 2. entire string.
+Optionally: 3. start position of substring 4. end (exclusive) position of substring
+and returns input output mapping of all words in the string bounded by whitespace. 
+If start and end position specified returns
+1. mapped output string 2. start and end indices of mapped substring
 
 Usage: 
 
-python alignment.py <fst file> \"2615 Forest Av, 1 Aug 2016\" 22 26
+python alignment.py --fst=<fst file> --text=\"2615 Forest Av, 1 Aug 2016\" --rule=\"tokenize_and_classify\" --start=22 --end=26
 
 Output:
 inp string: |2615 Forest Av, 1 Aug 2016|
@@ -23,15 +40,46 @@ out string: |twenty six fifteen Forest Avenue , the first of august twenty sixte
 inp indices: [22:26]
 out indices: [55:69]
 in: |2016| out: |twenty sixteen|
+
+
+python alignment.py --fst=<fst file> --text=\"2615 Forest Av, 1 Aug 2016\" --rule=\"tokenize_and_classify\"
+
+Output:
+inp string: |2615 Forest Av, 1 Aug 2016|
+out string: |twenty six fifteen Forest Avenue , the first of august twenty sixteen|
+inp indices: [0:4] out indices: [0:18]
+in: |2615| out: |twenty six fifteen|
+inp indices: [5:11] out indices: [19:25]
+in: |Forest| out: |Forest|
+inp indices: [12:15] out indices: [26:34]
+in: |Av,| out: |Avenue ,|
+inp indices: [16:17] out indices: [39:44]
+in: |1| out: |first|
+inp indices: [18:21] out indices: [48:54]
+in: |Aug| out: |august|
+inp indices: [22:26] out indices: [55:69]
+in: |2016| out: |twenty sixteen|
+
+
+Disclaimer: The heuristic algorithm relies on monotonous alignment and can fail in certain situations,
+e.g. when word pieces are reordered by the fst:
+
+
+python alignment.py --fst=<fst file> --text=\"$1\" --rule=\"tokenize_and_classify\" --start=0 --end=1
+inp string: |$1|
+out string: |one dollar|
+inp indices: [0:1] out indices: [0:3]
+in: |$| out: |one|
 """
 
 
 def parse_args():
     args = ArgumentParser("map substring to output with FST")
-    args.add_argument("fst", help="FAR file containing FST", type=str)
-    args.add_argument("--text", help="input string", type=str, default="2615 Forest Av, 1 Aug 2016")
-    args.add_argument("--start", help="start index of substring to be mapped", type=int, default=22)
-    args.add_argument("--end", help="end index of substring to be mapped", type=int, default=26)
+    args.add_argument("--fst", help="FAR file containing FST", type=str, required=True)
+    args.add_argument("--rule", help="rule name in FAR file containing FST", type=str, default='tokenize_and_classify', required=False)
+    args.add_argument("--text", help="input string", type=str, default="2615 Forest Av, 90601 CA, Santa Clara. 10kg, 12/16/2018, $123.25. 1 Aug 2016.")
+    args.add_argument("--start", help="start index of substring to be mapped", type=int, required=False)
+    args.add_argument("--end", help="end index of substring to be mapped", type=int, required=False)
     return args.parse_args()
 
 
@@ -39,12 +87,34 @@ EPS = "<eps>"
 WHITE_SPACE = "\u23B5"
 
 
+def get_word_segments(text: str) -> List[List[int]]:
+    """
+    Returns word segments from given text based on white space in form of list of index spans.
+    """
+    spans = []
+    cur_span = [0]
+    for idx, ch in enumerate(text):
+        if len(cur_span) == 0 and ch != " ":
+            cur_span.append(idx)
+        elif ch == " ":
+            cur_span.append(idx)
+            assert len(cur_span) == 2
+            spans.append(cur_span)
+            cur_span = []
+        elif idx == len(text) - 1:
+            idx += 1
+            cur_span.append(idx)
+            assert len(cur_span) == 2
+            spans.append(cur_span)
+    return spans
+
+
 def create_symbol_table() -> pynini.SymbolTable:
     """
     Creates and returns Pynini SymbolTable used to label alignment with ascii instead of integers
     """
     table = pynini.SymbolTable()
-    for num in range(34, 200):
+    for num in range(34, 200): # ascii alphanum + letter range
         table.add_symbol(chr(num), num)
     table.add_symbol(EPS, 0)
     table.add_symbol(WHITE_SPACE, 32)
@@ -63,8 +133,8 @@ def get_string_alignment(fst: pynini.Fst, input_text: str, symbol_table: pynini.
 
     ilabels = paths.ilabels()
     olabels = paths.olabels()
-    # print(paths.istring())
-    # print(paths.ostring())
+    logging.debug(paths.istring())
+    logging.debug(paths.ostring())
     output = list(zip([symbol_table.find(x) for x in ilabels], [symbol_table.find(x) for x in olabels]))
     paths.next()
     assert paths.done()
@@ -152,14 +222,23 @@ def indexed_map_to_output(alignment: List[tuple], start: int, end: int):
 if __name__ == '__main__':
     logging.setLevel(logging.INFO)
     args = parse_args()
-    fst = Far(args.fst, mode='r')['tokenize_and_classify']
+    fst = Far(args.fst, mode='r')
+    try:
+        fst = fst[args.rule]
+    except:
+        raise ValueError(f"{args.rule} not found. Please specify valid --rule argument.")
     input_text = args.text
 
     table = create_symbol_table()
     alignment, output_text = get_string_alignment(fst=fst, input_text=input_text, symbol_table=table)
-    start, end = indexed_map_to_output(start=args.start, end=args.end, alignment=alignment)
     print(f"inp string: |{args.text}|")
     print(f"out string: |{output_text}|")
-    print(f"inp indices: [{args.start}:{args.end}]")
-    print(f"out indices: [{start}:{end}]")
-    print(f"in: |{input_text[args.start:args.end]}| out: |{output_text[start:end]}|")
+    
+    if args.start is None:
+        indices = get_word_segments(input_text)
+    else:
+        indices = [(args.start, args.end)]
+    for x in indices:
+        start, end = indexed_map_to_output(start=x[0], end=x[1], alignment=alignment)
+        print(f"inp indices: [{x[0]}:{x[1]}] out indices: [{start}:{end}]")
+        print(f"in: |{input_text[x[0]:x[1]]}| out: |{output_text[start:end]}|")
