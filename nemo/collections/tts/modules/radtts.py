@@ -783,14 +783,14 @@ class RadTTSModule(NeuralModule, Exportable):
     # Methods for model exportability
     def _prepare_for_export(self, **kwargs):
         print(kwargs)
-        PartialConv1d.forward = PartialConv1d.forward_for_script
+        # PartialConv1d.forward = PartialConv1d.forward_for_script
         self.remove_norms()
         super()._prepare_for_export(**kwargs)
         if self.prepared_for_export:
             return
-        for m in self.modules():
-            if isinstance(m, PartialConv1d):
-                PartialConv1d.update_bias_view(m)
+        # for m in self.modules():
+        #    if isinstance(m, PartialConv1d):
+        #        PartialConv1d.update_bias_view(m)
 
         self.encoder = torch.jit.script(self.encoder)
         self.v_pred_module.feat_pred_fn = torch.jit.script(self.v_pred_module.feat_pred_fn)
