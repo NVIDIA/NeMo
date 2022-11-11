@@ -112,6 +112,7 @@ class ConvNorm(torch.nn.Module):
         w_init_gain='linear',
         use_partial_padding=False,
         use_weight_norm=False,
+        norm_fn=None,
     ):
         super(ConvNorm, self).__init__()
         if padding is None:
@@ -136,13 +137,19 @@ class ConvNorm(torch.nn.Module):
         torch.nn.init.xavier_uniform_(self.conv.weight, gain=torch.nn.init.calculate_gain(w_init_gain))
         if self.use_weight_norm:
             self.conv = torch.nn.utils.weight_norm(self.conv)
+        if norm_fn is not None:
+            self.norm = norm_fn(out_channels, affine=True)
+        else:
+            self.norm = None
 
     def forward(self, signal, mask=None):
         if self.use_partial_padding:
-            conv_signal = self.conv(signal, mask)
+            ret = self.conv(signal, mask)
         else:
-            conv_signal = self.conv(signal)
-        return conv_signal
+            ret = self.conv(signal)
+        if self.norm is not None:
+            ret = self.norm(ret)
+        return ret
 
 
 class LocationLayer(torch.nn.Module):

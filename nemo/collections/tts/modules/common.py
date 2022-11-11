@@ -180,6 +180,7 @@ class ConvLSTMLinear(BiLSTM):
                 w_init_gain='relu',
                 use_weight_norm=False,
                 use_partial_padding=use_partial_padding,
+                norm_fn=norm_fn,
             )
             if norm_fn is not None:
                 print("Applying {} norm to {}".format(norm_fn, conv_layer))
