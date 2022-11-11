@@ -15,7 +15,6 @@
 
 from argparse import ArgumentParser
 from typing import List
-from nemo.utils import logging
 
 import pynini
 from pynini import Far
@@ -76,8 +75,19 @@ in: |$| out: |one|
 def parse_args():
     args = ArgumentParser("map substring to output with FST")
     args.add_argument("--fst", help="FAR file containing FST", type=str, required=True)
-    args.add_argument("--rule", help="rule name in FAR file containing FST", type=str, default='tokenize_and_classify', required=False)
-    args.add_argument("--text", help="input string", type=str, default="2615 Forest Av, 90601 CA, Santa Clara. 10kg, 12/16/2018, $123.25. 1 Aug 2016.")
+    args.add_argument(
+        "--rule",
+        help="rule name in FAR file containing FST",
+        type=str,
+        default='tokenize_and_classify',
+        required=False,
+    )
+    args.add_argument(
+        "--text",
+        help="input string",
+        type=str,
+        default="2615 Forest Av, 90601 CA, Santa Clara. 10kg, 12/16/2018, $123.25. 1 Aug 2016.",
+    )
     args.add_argument("--start", help="start index of substring to be mapped", type=int, required=False)
     args.add_argument("--end", help="end index of substring to be mapped", type=int, required=False)
     return args.parse_args()
@@ -114,7 +124,7 @@ def create_symbol_table() -> pynini.SymbolTable:
     Creates and returns Pynini SymbolTable used to label alignment with ascii instead of integers
     """
     table = pynini.SymbolTable()
-    for num in range(34, 200): # ascii alphanum + letter range
+    for num in range(34, 200):  # ascii alphanum + letter range
         table.add_symbol(chr(num), num)
     table.add_symbol(EPS, 0)
     table.add_symbol(WHITE_SPACE, 32)
@@ -233,7 +243,7 @@ if __name__ == '__main__':
     alignment, output_text = get_string_alignment(fst=fst, input_text=input_text, symbol_table=table)
     print(f"inp string: |{args.text}|")
     print(f"out string: |{output_text}|")
-    
+
     if args.start is None:
         indices = get_word_segments(input_text)
     else:
