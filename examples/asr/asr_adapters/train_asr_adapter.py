@@ -21,10 +21,11 @@ python train_asr_adapter.py \
     model.pretrained_model=null \
     model.nemo_model=null \
     model.adapter.adapter_name=<Unique adapter name> \
+    model.adapter.adapter_type="<linear, tiny_attn, or others from config sub-sections of `adapter`>" \
     model.adapter.adapter_module_name=<null, or str module. Type: encoder, decoder, joint, or multiple with + between them> \
-    model.adapter.in_features=<dimension of the layer outputs of the model> \
-    model.adapter.dim=32 \
-    model.adapter.dropout=0.0 \
+    model.adapter.linear.in_features=<dimension of the layer outputs of the model> \
+    model.adapter.linear.dim=32 \
+    model.adapter.linear.dropout=0.0 \
     model.train_ds.manifest_filepath=<Path to manifest> \
     model.train_ds.batch_size=16 \
     model.validation_ds.manifest_filepath=<Path to manifest> \
@@ -46,8 +47,9 @@ python train_asr_adapter.py \
     model.pretrained_model=null \
     model.nemo_model=null \
     model.adapter.adapter_name=<Unique adapter name> \
+    model.adapter.adapter_type="<linear, tiny_attn, or others from config sub-sections of `adapter`>" \
     model.adapter.adapter_module_name=<null, or str module. Type: encoder, decoder, joint, or multiple with + between them> \
-    model.adapter.in_features=<dimension of the layer outputs of the model> \
+    model.adapter.linear.in_features=<dimension of the layer outputs of the model> \
     model.train_ds.manifest_filepath=<Path to manifest> \
     model.train_ds.batch_size=16 \
     model.validation_ds.manifest_filepath=<Path to manifest> \
@@ -79,7 +81,6 @@ For documentation on existing pretrained models, please visit -
 https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/results.html
 
 """
-import glob
 import os
 from dataclasses import is_dataclass
 
