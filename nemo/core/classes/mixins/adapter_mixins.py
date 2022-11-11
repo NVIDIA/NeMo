@@ -315,6 +315,17 @@ class AdapterModuleMixin(ABC):
     # Inherited methods that don't need to be overridden
 
     def get_adapter_module(self, name: str):
+        """
+        Gets an adapter module by name if possible, otherwise returns None.
+
+        Args:
+            name: A str name (resolved or not) corresponding to an Adapter.
+
+        Returns:
+            An nn.Module if the name could be resolved and matched, otherwise None/
+        """
+        _, name = self.resolve_adapter_module_name_(name)
+
         if hasattr(self, "adapter_layer"):
             return self.adapter_layer[name] if name in self.adapter_layer else None
         return None
@@ -323,13 +334,20 @@ class AdapterModuleMixin(ABC):
         """
         The module with this mixin can define a list of adapter names that it will accept.
         This method should be called in the modules init method and set the adapter names the module will expect to be added.
+
+        Args:
+            adapter_types: A list of str paths that correspond to classes. The class paths will be instantiated to
+                ensure that the class path is correct.
         """
         # Let user update and set accepted adapter types.
         self._accepted_adapter_types = set([model_utils.import_class_by_path(s) for s in adapter_types])
 
     def get_accepted_adapter_types(self,) -> Set[type]:
         """
-        Returns the list of accepted adapter types.
+        Utility function to get the set of all classes that are accepted by the module.
+
+        Returns:
+            Returns the set of accepted adapter types as classes, otherwise an empty set.
         """
         if hasattr(self, '_accepted_adapter_types'):
             return self._accepted_adapter_types
