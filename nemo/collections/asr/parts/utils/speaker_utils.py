@@ -464,18 +464,20 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
         else:
             num_speakers = -1
 
-        cluster_labels = speaker_clustering.forward(
-            embeddings_in_scales=uniq_embs_and_timestamps['embeddings'],
-            timestamps_in_scales=uniq_embs_and_timestamps['timestamps'],
-            multiscale_segment_counts=uniq_embs_and_timestamps['multiscale_segment_counts'],
-            multiscale_weights=uniq_embs_and_timestamps['multiscale_weights'],
-            oracle_num_speakers=torch.LongTensor([num_speakers]),
-            max_num_speakers=torch.LongTensor([clustering_params.max_num_speakers]),
-            enhanced_count_thres=torch.LongTensor([80]),
-            sparse_search_volume=torch.LongTensor([clustering_params.sparse_search_volume]),
-            max_rp_threshold=torch.tensor([clustering_params.max_rp_threshold]),
-            fixed_thres=torch.tensor([-1.0]),
-        )
+        clustering_param_dict = {
+            'embeddings': uniq_embs_and_timestamps['embeddings'],
+            'timestamps': uniq_embs_and_timestamps['timestamps'],
+            'multiscale_segment_counts': uniq_embs_and_timestamps['multiscale_segment_counts'],
+            'multiscale_weights': uniq_embs_and_timestamps['multiscale_weights'],
+            'oracle_num_speakers': torch.LongTensor([num_speakers]),
+            'max_num_speakers': torch.LongTensor([clustering_params.max_num_speakers]),
+            'enhanced_count_thres': torch.LongTensor([80]),
+            'sparse_search_volume': torch.LongTensor([clustering_params.sparse_search_volume]),
+            'max_rp_threshold': torch.tensor([clustering_params.max_rp_threshold]),
+            'fixed_thres': torch.tensor([-1.0]),
+        }
+
+        cluster_labels = speaker_clustering.forward(clustering_param_dict)
 
         base_scale_idx = uniq_embs_and_timestamps['multiscale_segment_counts'].shape[0] - 1
         timestamps = speaker_clustering.timestamps_in_scales[base_scale_idx]
