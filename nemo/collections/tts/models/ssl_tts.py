@@ -61,6 +61,15 @@ class GreedyCTCDecoder(torch.nn.Module):
 
 @experimental
 class SSLDisentangler(ModelPT):
+    """
+    SSLDisentangler is a Conformer based model for extracting disentangled content and speaker embeddings
+    from audio waveform. This model uses a pre-trained Conformer SSL model. To extract the linguistic content 
+    and speaker representations using our pre-trained Conformer, we add two randomly initialized downstream 
+    heads and perform multi-task fine-tuning for speech recognition and speaker verification. These 
+    representations can be used by FastPitchModel_SSL for voice conversion by swapping the speaker embedding 
+    of a given source utterance, with the speaker embedding of a target speaker.
+    """
+
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         super().__init__(cfg=cfg, trainer=trainer)
         self.preprocessor_disentangler = SSLDisentangler.from_config_dict(self._cfg.preprocessor)
