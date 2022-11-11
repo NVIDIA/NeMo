@@ -38,6 +38,7 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
 from nemo.utils import logging
 
 from nemo.collections.asr.parts.utils.decoder_timestamps_utils import FrameBatchASR_Logits, WERBPE_TS, ASR_TIMESTAMPS, WER_TS
+from nemo.collections.asr.metrics.der import score_labels, get_partial_ref_labels, get_online_DER_stats
 from nemo.collections.asr.parts.utils.speaker_utils import get_contiguous_stamps, merge_stamps, labels_to_pyannote_object, rttm_to_labels, labels_to_rttmfile, get_uniqname_from_filepath, get_embs_and_timestamps, get_subsegments, isOverlap, getOverlapRange, getSubRangeList, fl2int, int2fl, combine_int_overlaps
 import torch
 from nemo.collections.asr.parts.utils.vad_utils import (
@@ -1352,7 +1353,6 @@ def add_timestamp_offset(words, word_ts, offset):
             words_adj.append(w)
     return words_adj, word_ts_adj
 
-from nemo.collections.asr.metrics.der import score_labels, get_partial_ref_labels, get_online_DER_stats
 
 @timeit
 def get_wer_feat_logit_single(samples, frame_asr, frame_len, tokens_per_chunk, delay, model_stride_in_secs, frame_mask):
