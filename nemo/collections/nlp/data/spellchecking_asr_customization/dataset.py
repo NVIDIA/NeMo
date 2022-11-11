@@ -42,6 +42,10 @@ class SpellcheckingAsrCustomizationDataset(Dataset):
             "input_ids": NeuralType(('B', 'T'), ChannelType()),
             "input_mask": NeuralType(('B', 'T'), MaskType()),
             "segment_ids": NeuralType(('B', 'T'), ChannelType()),
+            "input_ids_for_subwords": NeuralType(('B', 'T'), ChannelType()),
+            "input_mask_for_subwords": NeuralType(('B', 'T'), MaskType()),
+            "segment_ids_for_subwords": NeuralType(('B', 'T'), ChannelType()),
+            "character_pos_to_subword_pos": NeuralType(('B', 'T'), ChannelType()),
             "labels_mask": NeuralType(('B', 'T'), MaskType()),
             "labels": NeuralType(('B', 'T'), LabelsType()),
             "spans": NeuralType(('B', 'T', 'C'), IntType()),
@@ -62,10 +66,25 @@ class SpellcheckingAsrCustomizationDataset(Dataset):
         input_ids = np.array(example.features["input_ids"])
         input_mask = np.array(example.features["input_mask"])
         segment_ids = np.array(example.features["segment_ids"])
+        input_ids_for_subwords = np.array(example.features["input_ids_for_subwords"])
+        input_mask_for_subwords = np.array(example.features["input_mask_for_subwords"])
+        segment_ids_for_subwords = np.array(example.features["segment_ids_for_subwords"])
+        character_pos_to_subword_pos = np.array(example.features["character_pos_to_subword_pos"])
         labels_mask = np.array(example.features["labels_mask"])
         labels = np.array(example.features["labels"])
         spans = np.array(example.features["spans"])
-        return input_ids, input_mask, segment_ids, labels_mask, labels, spans
+        return (
+            input_ids,
+            input_mask,
+            segment_ids,
+            input_ids_for_subwords,
+            input_mask_for_subwords,
+            segment_ids_for_subwords,
+            character_pos_to_subword_pos,
+            labels_mask,
+            labels,
+            spans
+        )
 
 
 class SpellcheckingAsrCustomizationTestDataset(Dataset):
@@ -85,6 +104,10 @@ class SpellcheckingAsrCustomizationTestDataset(Dataset):
             "input_ids": NeuralType(('B', 'T'), ChannelType()),
             "input_mask": NeuralType(('B', 'T'), MaskType()),
             "segment_ids": NeuralType(('B', 'T'), ChannelType()),
+            "input_ids_for_subwords": NeuralType(('B', 'T'), ChannelType()),
+            "input_mask_for_subwords": NeuralType(('B', 'T'), MaskType()),
+            "segment_ids_for_subwords": NeuralType(('B', 'T'), ChannelType()),
+            "character_pos_to_subword_pos": NeuralType(('B', 'T'), ChannelType()),
         }
 
     def __init__(self, sents: List[str], example_builder: BertExampleBuilder) -> None:
@@ -112,4 +135,16 @@ class SpellcheckingAsrCustomizationTestDataset(Dataset):
         input_ids = np.array(example.features["input_ids"])
         input_mask = np.array(example.features["input_mask"])
         segment_ids = np.array(example.features["segment_ids"])
-        return input_ids, input_mask, segment_ids
+        input_ids_for_subwords = np.array(example.features["input_ids_for_subwords"])
+        input_mask_for_subwords = np.array(example.features["input_mask_for_subwords"])
+        segment_ids_for_subwords = np.array(example.features["segment_ids_for_subwords"])
+        character_pos_to_subword_pos = np.array(example.features["character_pos_to_subword_pos"])
+        return (
+            input_ids,
+            input_mask,
+            segment_ids,
+            input_ids_for_subwords,
+            input_mask_for_subwords,
+            segment_ids_for_subwords,
+            character_pos_to_subword_pos
+        )
