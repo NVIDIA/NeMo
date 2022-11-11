@@ -15,7 +15,7 @@
 
 from omegaconf import OmegaConf
 
-from nemo.collections.asr.parts.utils.decoder_timestamps_utils import ASR_TIMESTAMPS
+from nemo.collections.asr.parts.utils.decoder_timestamps_utils import ASRDecoderTimeStamps
 from nemo.collections.asr.parts.utils.diarization_utils import OfflineDiarWithASR
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
@@ -49,13 +49,13 @@ def main(cfg):
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
 
     # ASR inference for words and word timestamps
-    asr_ts_decoder = ASR_TIMESTAMPS(cfg.diarizer)
-    asr_model = asr_ts_decoder.set_asr_model()
-    word_hyp, word_ts_hyp = asr_ts_decoder.run_ASR(asr_model)
+    asr_decoder_ts = ASRDecoderTimeStamps(cfg.diarizer)
+    asr_model = asr_decoder_ts.set_asr_model()
+    word_hyp, word_ts_hyp = asr_decoder_ts.run_ASR(asr_model)
 
     # Create a class instance for matching ASR and diarization results
     asr_diar_offline = OfflineDiarWithASR(cfg.diarizer)
-    asr_diar_offline.word_ts_anchor_offset = asr_ts_decoder.word_ts_anchor_offset
+    asr_diar_offline.word_ts_anchor_offset = asr_decoder_ts.word_ts_anchor_offset
 
     # Diarization inference for speaker labels
     diar_hyp, diar_score = asr_diar_offline.run_diarization(cfg, word_ts_hyp)

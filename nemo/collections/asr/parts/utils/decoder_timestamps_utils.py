@@ -30,7 +30,7 @@ from nemo.collections.asr.parts.utils.streaming_utils import AudioFeatureIterato
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging
 
-__all__ = ['ASR_TIMESTAMPS']
+__all__ = ['ASRDecoderTimeStamps']
 
 try:
     from pyctcdecode import build_ctcdecoder
@@ -286,7 +286,7 @@ class FrameBatchASR_Logits(FrameBatchASR):
         return self.greedy_merge(self.unmerged), self.unmerged, self.unmerged_logprobs
 
 
-class ASR_TIMESTAMPS:
+class ASRDecoderTimeStamps:
     """
     A class designed for extracting word timestamps while the ASR decoding process.
     This class contains a few setups for a slew of NeMo ASR models such as QuartzNet, CitriNet and ConformerCTC models.
