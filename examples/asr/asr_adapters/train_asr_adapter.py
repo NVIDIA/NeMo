@@ -90,7 +90,7 @@ from nemo.collections.asr.models import ASRModel
 from nemo.core import adapter_mixins
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
-from nemo.utils.exp_manager import exp_manager
+from nemo.utils.exp_manager import exp_manager, clean_exp_ckpt
 
 
 def update_model_config_to_support_adapter(model_cfg, current_cfg):
@@ -194,12 +194,13 @@ def main(cfg):
 
         # Resolve the config of the specified `adapter_type`
         if adapter_type not in cfg.model.adapter.keys():
-            raise ValueError(f"Adapter type ({adapter_type}) config could not be found. Adapter setup config - \n"
-                             f"{OmegaConf.to_yaml(cfg.model.adapter)}")
+            raise ValueError(
+                f"Adapter type ({adapter_type}) config could not be found. Adapter setup config - \n"
+                f"{OmegaConf.to_yaml(cfg.model.adapter)}"
+            )
 
         adapter_type_cfg = cfg.model.adapter[adapter_type]
-        print(f"Found `{adapter_type}` config :\n"
-              f"{OmegaConf.to_yaml(adapter_type_cfg)}")
+        print(f"Found `{adapter_type}` config :\n" f"{OmegaConf.to_yaml(adapter_type_cfg)}")
 
         # Augment adapter name with module name, if not provided by user
         if adapter_module_name is not None and ':' not in adapter_name:
@@ -244,12 +245,7 @@ def main(cfg):
     if 'delete_ckpt_after_train' in cfg:
         delete_ckpt_after_train = cfg.delete_ckpt_after_train
         if delete_ckpt_after_train:
-            logging.info("Deleting *.ckpt files after training to preserve storage space...")
-
-            ckpt_files = glob.glob(os.path.join(exp_log_dir, "checkpoints", "*.ckpt"))
-            for filepath in ckpt_files:
-                logging.info(f"Deleting file : {filepath}")
-                os.remove(filepath)
+            clean_exp_ckpt(exp_log_dir, remove_ckpt=True)
 
 
 if __name__ == '__main__':
