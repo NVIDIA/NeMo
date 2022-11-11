@@ -37,6 +37,13 @@ class TestCalculateTpPpMbsGrid:
             (11.9, 24, "mt5", {"tensor_parallel_sizes": "auto", "pipeline_parallel_sizes": "auto", "micro_batch_sizes": "auto", "gpu_memory_gb": 80}, {"tp": [4,8], "pp": [1], "mbs": [2,4,6,8,12,16,24]}),
             (24.65, 36, "mt5", {"tensor_parallel_sizes": "auto", "pipeline_parallel_sizes": "auto", "micro_batch_sizes": "auto", "gpu_memory_gb": 80}, {"tp": [4,8], "pp": [1,2], "mbs": [1,2,4,6,8]}),
             (42.54, 48, "mt5", {"tensor_parallel_sizes": "auto", "pipeline_parallel_sizes": "auto", "micro_batch_sizes": "auto", "gpu_memory_gb": 80}, {"tp": [4,8], "pp": [1,2,4], "mbs": [1,2,4,6,8]}),
+            # BERT tests
+            (0.11, 12, "bert", {"tensor_parallel_sizes": [1,2,4,5], "pipeline_parallel_sizes": [2,4,8], "micro_batch_sizes": [4,8,32], "gpu_memory_gb": 80}, {"tp": [1,2,4,5], "pp": [2,4,8], "mbs": [4,8,32]}),
+            (0.11, 12, "bert", {"tensor_parallel_sizes": "auto", "pipeline_parallel_sizes": "auto", "micro_batch_sizes": "auto", "gpu_memory_gb": 80}, {"tp": [1,2], "pp": [1], "mbs": [1,2,3,4,6,8]}),
+            (2.5, 24, "bert", {"tensor_parallel_sizes": "auto", "pipeline_parallel_sizes": "auto", "micro_batch_sizes": "auto", "gpu_memory_gb": 80}, {"tp": [1,2,4], "pp": [1], "mbs": [1,2,3,4,6,8]}),
+            (5.0, 24, "bert", {"tensor_parallel_sizes": "auto", "pipeline_parallel_sizes": "auto", "micro_batch_sizes": "auto", "gpu_memory_gb": 80}, {"tp": [2,4,8], "pp": [1], "mbs": [1,2,3,4,6,8]}),
+            (10.0, 24, "bert", {"tensor_parallel_sizes": "auto", "pipeline_parallel_sizes": "auto", "micro_batch_sizes": "auto", "gpu_memory_gb": 80}, {"tp": [2,4,8], "pp": [1], "mbs": [1,2,3,4,6]}),
+            (20.0, 48, "bert", {"tensor_parallel_sizes": "auto", "pipeline_parallel_sizes": "auto", "micro_batch_sizes": "auto", "gpu_memory_gb": 80}, {"tp": [4,8], "pp": [1,2,4], "mbs": [1,2,3,4]}),
         ],
     )
     def test_calculate_tp_pp_mbs_grid(self, model_size, layers, model_name, train_cfg, expected):

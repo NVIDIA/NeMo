@@ -100,8 +100,8 @@ class TestCalculatemodelSizeParams:
             (42.65, 250000, 512, "mt5", {"layers": 48, "hs": 6144, "att": 96, "ffn": 10880, "kv": 64, "lr": 0.0001}),
             # BERT tests
             (0.11, 30522, 512, "bert", {"layers": 12, "hs": 768, "att": 12, "ffn": None, "kv": None, "lr": 2e-4}),
-            (4.0, 30522, 512, "bert", {"layers": 48, "hs": 2560, "att": 40, "ffn": None, "kv": None, "lr": 1.e-4}),
-            (20.0, 30522, 512, "bert", {"layers": 48, "hs": 6144, "att": 96, "ffn": None, "kv": None, "lr": 1e-4}),
+            (4.0, 30522, 512, "bert", {"layers": 48, "hs": 2560, "att": 32, "ffn": None, "kv": None, "lr": 1e-4}),
+            (20.0, 30522, 512, "bert", {"layers": 48, "hs": 6144, "att": 48, "ffn": None, "kv": None, "lr": 1e-4}),
         ],
     )
     def test_calculate_model_size_params(self, model_size, vocab, seq_len, model_name, expected):
