@@ -97,7 +97,9 @@ class RTTMDataset(Dataset):
             length = torch.tensor(segment.shape[0]).long()
 
             segment, length = self.preprocessor.get_features(segment.unsqueeze_(0), length.unsqueeze_(0))
-            segment = self.context_window(segment.transpose(1, 2))
+
+            segment = self.context_window(segment.transpose(1, 2).squeeze(0)).unsqueeze(0)
+
             segments.append(segment)
             lengths.append(length)
             targets.append(fr_level_target)

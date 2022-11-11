@@ -11,9 +11,9 @@ model:
   feat_in: 80
   d_model: 512
   chunk_seconds: ${chunk_seconds}
-  subsampling: 8
-  left_frames: 0
-  right_frames: 0
+  subsampling: 10
+  context_size: 7
+  conv_subsampling: False
 
   encoder:
     hidden_dim: 1024

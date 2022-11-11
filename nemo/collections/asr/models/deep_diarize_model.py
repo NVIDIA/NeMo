@@ -116,7 +116,7 @@ class DiarizeTransformerXLDecoder(torch.nn.Module):
 class DeepDiarizeModel(ModelPT):
     @property
     def feat_in(self) -> int:
-        return self.cfg.feat_in * (self.cfg.left_frames + self.cfg.right_frames + 1)
+        return self.cfg.feat_in * ((self.cfg.context_size * 2) + 1)
 
     @classmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:
@@ -128,14 +128,17 @@ class DeepDiarizeModel(ModelPT):
         self.num_speakers = self.cfg.num_speakers
 
         # apply the same sub-sampling as conformer to reduce the time dimension.
-        self.sub_sample_layer = ConvSubsampling(
-            subsampling="striding",
-            subsampling_factor=self.cfg.subsampling,
-            conv_channels=self.cfg.d_model,
-            feat_in=self.feat_in,
-            feat_out=self.cfg.d_model,
-            is_causal=False,
-        )
+        if self.cfg.conv_subsampling:
+            self.sub_sample_layer = ConvSubsampling(
+                subsampling="striding",
+                subsampling_factor=self.cfg.subsampling,
+                conv_channels=self.cfg.d_model,
+                feat_in=self.feat_in,
+                feat_out=self.cfg.d_model,
+                is_causal=False,
+            )
+        else:
+            self.sub_sample_layer = torch.nn.Linear(self.feat_in, self.cfg.d_model)
 
         self.transformer_feature_encoder = TransformerXL(
             max_seq_len=self.sub_sample_length,
@@ -252,7 +255,10 @@ class DeepDiarizeModel(ModelPT):
 
     def training_step(self, batch, batch_idx):
         train_x, train_lengths, y, memory_reset = batch
-        train_x, train_lengths = self.sub_sample_layer(train_x, lengths=train_lengths)
+        if self.cfg.conv_subsampling:
+            train_x, train_lengths = self.sub_sample_layer(train_x, lengths=train_lengths)
+        else:
+            train_x = self.sub_sample_layer(train_x)
         if self.cfg.mem_enabled:
             self._mask_mems(memory_reset)
             encoded_xl_features, self.mems = self.transformer_feature_encoder(train_x, mems=self.mems)
@@ -310,7 +316,11 @@ class DeepDiarizeModel(ModelPT):
         for chunk, fr_level_y, segment_annotation, length in zip(
             inputs, fr_level_ys, segment_annotations, input_lengths
         ):
-            chunk, length = self.sub_sample_layer(chunk, lengths=length.unsqueeze(0))
+            if self.cfg.conv_subsampling:
+                chunk, length = self.sub_sample_layer(chunk, lengths=length.unsqueeze(0))
+            else:
+                chunk = self.sub_sample_layer(chunk)
+
             if self.cfg.mem_enabled:
                 encoded_xl_features, mems = self.transformer_feature_encoder(chunk, mems=mems)
             else:
@@ -373,7 +383,10 @@ class DeepDiarizeModel(ModelPT):
             sample_rate=dataloader_cfg.sample_rate, int_values=dataloader_cfg.int_values, augmentor=None
         )
         preprocessor = hydra.utils.instantiate(self.cfg.preprocessor)
-        context_window = ContextWindow(left_frames=self.cfg.left_frames, right_frames=self.cfg.right_frames)
+        context_window = ContextWindow(
+            context_size=self.cfg.context_size,
+            subsampling=self.cfg.subsampling if not self.cfg.conv_subsampling else 1,
+        )
         # todo: will be written by validation, in this case it will always be the same, but just to be aware.
         self.train_sequence_length = preprocessor.featurizer.get_seq_len(
             (torch.tensor(self.cfg.chunk_seconds * dataloader_cfg.sample_rate, dtype=torch.float))

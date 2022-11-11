@@ -253,8 +253,8 @@ class LocalRTTMStreamingSegmentsDataset(RTTMStreamingSegmentsDataset):
                 )
 
                 # todo: this stacking procedure requires thought when combined with spec augment
-                train_segment = self.context_window(train_segment.transpose(1, 2)).transpose(1, 2)
-
+                train_segment = self.context_window(train_segment.transpose(1, 2).squeeze(0)).unsqueeze(0)
+                train_segment = train_segment.transpose(1, 2)
                 train_segment = self.spec_augmentation(input_spec=train_segment, length=train_length)
 
                 yield train_segment, train_length, targets, start_segment

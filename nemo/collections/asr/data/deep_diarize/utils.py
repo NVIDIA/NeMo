@@ -1,59 +1,49 @@
+import numpy as np
 import torch
+
+
+def subsample(T, subsampling=1):
+    T_ss = T[::subsampling]
+    return T_ss
+
+
+def splice(x: torch.Tensor, context_size=0):
+    """ Frame splicing
+    Args:
+        x: feature
+            (n_frames, n_featdim)-shaped numpy array
+        context_size:
+            number of frames concatenated on left-side
+            if context_size = 5, 11 frames are concatenated.
+    Returns:
+        Y_spliced: spliced feature
+            (n_frames, n_featdim * (2 * context_size + 1))-shaped
+    """
+    Y = x.numpy()
+    Y_pad = np.pad(Y, [(context_size, context_size), (0, 0)], 'constant')
+    Y_spliced = np.lib.stride_tricks.as_strided(
+        np.ascontiguousarray(Y_pad),
+        (Y.shape[0], Y.shape[1] * (2 * context_size + 1)),
+        (Y.itemsize * Y.shape[1], Y.itemsize),
+        writeable=False,
+    )
+    return torch.tensor(Y_spliced, dtype=x.dtype, device=x.device)
 
 
 class ContextWindow(torch.nn.Module):
     def __init__(
-        self, left_frames=0, right_frames=0,
+        self, context_size: int = 0, subsampling: int = 1,
     ):
         super().__init__()
-        self.left_frames = left_frames
-        self.right_frames = right_frames
-        self.context_len = self.left_frames + self.right_frames + 1
-        self.kernel_len = 2 * max(self.left_frames, self.right_frames) + 1
-
-        # Kernel definition
-        self.kernel = torch.eye(self.context_len, self.kernel_len)
-
-        if self.right_frames > self.left_frames:
-            lag = self.right_frames - self.left_frames
-            self.kernel = torch.roll(self.kernel, lag, 1)
-
-        self.first_call = True
+        self.context_size = context_size
+        self.subsampling = subsampling
 
     @torch.no_grad()
     def forward(self, x):
-        """Returns the tensor with the surrounding context.
-        Arguments
-        ---------
-        x : tensor
-            A batch of tensors.
-        """
-
-        x = x.transpose(1, 2)
-
-        if self.first_call is True:
-            self.first_call = False
-            self.kernel = (
-                self.kernel.repeat(x.shape[1], 1, 1).view(x.shape[1] * self.context_len, self.kernel_len,).unsqueeze(1)
-            )
-
-        # Managing multi-channel case
-        or_shape = x.shape
-        if len(or_shape) == 4:
-            x = x.reshape(or_shape[0] * or_shape[2], or_shape[1], or_shape[3])
-
-        # Compute context (using the estimated convolutional kernel)
-        cw_x = torch.nn.functional.conv1d(
-            x, self.kernel.to(x.device), groups=x.shape[1], padding=max(self.left_frames, self.right_frames),
-        )
-
-        # Retrieving the original dimensionality (for multi-channel case)
-        if len(or_shape) == 4:
-            cw_x = cw_x.reshape(or_shape[0], cw_x.shape[1], or_shape[2], cw_x.shape[-1])
-
-        cw_x = cw_x.transpose(1, 2)
-
-        return cw_x
+        if self.context_size > 0:
+            x = splice(x, context_size=self.context_size)
+            x = subsample(x, subsampling=self.subsampling)
+        return x
 
 
 def assign_frame_level_spk_vector(
