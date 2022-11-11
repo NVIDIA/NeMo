@@ -107,8 +107,21 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
         # self.bert_model = BertModel(configuration)
 
     @typecheck()
-    def forward(self, input_ids, input_mask, segment_ids):
+    def forward(
+        self,
+        input_ids,
+        input_mask,
+        segment_ids,
+        input_ids_for_subwords,
+        input_mask_for_subwords,
+        segment_ids_for_subwords,
+        character_pos_to_subword_pos
+    ):
         src_hiddens = self.bert_model(input_ids=input_ids, token_type_ids=segment_ids, attention_mask=input_mask)
+        src_hiddens_for_subwords = self.bert_model(input_ids=input_ids_for_subwords, token_type_ids=segment_ids_for_subwords, attention_mask=input_mask_for_subwords)
+        # copies subword embeddings fo each character of the corresponding subword 
+        src_hiddens_2 = src_hiddens_for_subwords[character_pos_to_subword_pos]
+        src_hiddens = torch.cat((src_hiddens, src_hiddens_2), 2)
         logits = self.logits(hidden_states=src_hiddens)
         return logits
 
@@ -119,8 +132,27 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
         passed in as `batch`.
         """
 
-        input_ids, input_mask, segment_ids, labels_mask, labels, _ = batch
-        logits = self.forward(input_ids=input_ids, input_mask=input_mask, segment_ids=segment_ids)
+        (
+            input_ids,
+            input_mask,
+            segment_ids,
+            input_ids_for_subwords,
+            input_mask_for_subwords,
+            segment_ids_for_subwords,
+            character_pos_to_subword_pos,
+            labels_mask,
+            labels,
+            _
+        ) = batch
+        logits = self.forward(
+            input_ids=input_ids,
+            input_mask=input_mask,
+            segment_ids=segment_ids,
+            input_ids_for_subwords=input_ids_for_subwords,
+            input_mask_for_subwords=input_mask_for_subwords,
+            segment_ids_for_subwords=segment_ids_for_subwords,
+            character_pos_to_subword_pos=character_pos_to_subword_pos
+        )
         loss = self.loss_fn(logits=logits, labels=labels, loss_mask=labels_mask)
         lr = self._optimizer.param_groups[0]['lr']
         self.log('train_loss', loss)
@@ -133,8 +165,27 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
         """
-        input_ids, input_mask, segment_ids, labels_mask, labels, spans = batch
-        logits = self.forward(input_ids=input_ids, input_mask=input_mask, segment_ids=segment_ids)
+        (
+            input_ids,
+            input_mask,
+            segment_ids,
+            input_ids_for_subwords,
+            input_mask_for_subwords,
+            segment_ids_for_subwords,
+            character_pos_to_subword_pos,
+            labels_mask,
+            labels,
+            spans
+        ) = batch
+        logits = self.forward(
+            input_ids=input_ids,
+            input_mask=input_mask,
+            segment_ids=segment_ids,
+            input_ids_for_subwords=input_ids_for_subwords,
+            input_mask_for_subwords=input_mask_for_subwords,
+            segment_ids_for_subwords=segment_ids_for_subwords,
+            character_pos_to_subword_pos=character_pos_to_subword_pos
+        )
         tag_preds = torch.argmax(logits, dim=2)
 
         # Update tag classification_report
@@ -226,12 +277,24 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
         infer_datalayer = self._setup_infer_dataloader(dataloader_cfg, sents)
 
         batch = next(iter(infer_datalayer))
-        input_ids, input_mask, segment_ids = batch
+        (
+            input_ids,
+            input_mask,
+            segment_ids,
+            input_ids_for_subwords,
+            input_mask_for_subwords,
+            segment_ids_for_subwords,
+            character_pos_to_subword_pos
+        ) = batch
 
         tag_logits = self.forward(
             input_ids=input_ids.to(self.device),
             input_mask=input_mask.to(self.device),
             segment_ids=segment_ids.to(self.device),
+            input_ids_for_subwords=input_ids_for_subwords.to(self.device),
+            input_mask_for_subwords=input_mask_for_subwords.to(self.device),
+            segment_ids_for_subwords=segment_ids_for_subwords.to(self.device),
+            character_pos_to_subword_pos=character_pos_to_subword_pos.to(self.device)
         )
 
         all_preds = []
@@ -243,7 +306,6 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
             # this mask is required by get_token_labels
             example.features["labels_mask"] = [0] + [1] * (len(tag_preds) - 2) + [0]
             example.features["labels"] = tag_preds
-            tags = [self.id_2_tag[label_id] for label_id in example.get_token_labels("labels")]
             letters = hyp.split(" ")
             candidates = ref.split(";")
             report_str = ""

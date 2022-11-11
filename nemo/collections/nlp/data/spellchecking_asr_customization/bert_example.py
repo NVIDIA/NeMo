@@ -22,7 +22,7 @@ from typing import Dict, List, Optional, Tuple, Union
 from transformers import PreTrainedTokenizerBase
 
 
-"""Build BERT Examples from asr hypothesis, customization candidate, target labels, span info.
+"""Build BERT Examples from asr hypothesis, customization candidates, target labels, span info.
 """
 
 
@@ -38,6 +38,10 @@ class BertExample(object):
         input_ids: List[int],
         input_mask: List[int],
         segment_ids: List[int],
+        input_ids_for_subwords: List[int],
+        input_mask_for_subwords: List[int],
+        segment_ids_for_subwords: List[int],
+        character_pos_to_subword_pos: List[int],
         labels_mask: List[int],
         labels: List[int],
         spans: List[Tuple[int, int, int]],
@@ -46,9 +50,18 @@ class BertExample(object):
         """Inputs to the example wrapper
 
         Args:
-            input_ids: indices of tokens which constitute batches of masked text segments
-            input_mask: bool tensor with 0s in place of source tokens to be masked
-            segment_ids: bool tensor with 0's and 1's to denote the text segment type
+            input_ids: indices of single characters (treated as subwords)
+            input_mask: list of bools with 0s in place of input_ids to be masked
+            segment_ids: list of ints from 0 to 10 to denote the text segment type (
+                0 - for tokens of ASR hypothesis, 
+                1 - for tokens of the first candidate
+                ...
+                10 - for tokens of the tenth candidate
+            )
+            input_ids_for_subwords: indices of real subwords (as tokenized by bert tokenizer)
+            input_mask_for_subwords: list of bools with 0s in place of input_ids_for_subwords to be masked
+            segment_ids_for_subwords: same as segment_ids but for input_ids_for_subwords
+            character_pos_to_subword_pos: list of size=len(input_ids), value=(position of corresponding subword in input_ids_for_subwords) 
             labels_mask: bool tensor with 0s in place of label tokens to be masked
             labels: indices of semiotic classes which should be predicted from each of the
                 corresponding input tokens
@@ -61,14 +74,27 @@ class BertExample(object):
             and input_len == len(segment_ids)
             and input_len == len(labels_mask)
             and input_len == len(labels)
+            and input_len == len(character_pos_to_subword_pos)
         ):
             raise ValueError('All feature lists should have the same length ({})'.format(input_len))
+
+        input_len_for_subwords = len(input_ids_for_subwords)
+        if not (
+            input_len_for_subwords == len(input_mask_for_subwords)
+            and input_len_for_subwords == len(segment_ids_for_subwords)
+        ):
+            raise ValueError('All feature lists for subwords should have the same length ({})'.format(input_len_for_subwords))
+
 
         self.features = OrderedDict(
             [
                 ("input_ids", input_ids),
                 ("input_mask", input_mask),
                 ("segment_ids", segment_ids),
+                ("input_ids_for_subwords", input_ids_for_subwords),
+                ("input_mask_for_subwords", input_mask_for_subwords),
+                ("segment_ids_for_subwords", segment_ids_for_subwords),
+                ("character_pos_to_subword_pos", character_pos_to_subword_pos),
                 ("labels_mask", labels_mask),
                 ("labels", labels),
                 ("spans", spans),
@@ -85,16 +111,33 @@ class BertExample(object):
             pad_token_id: input_ids feature is padded with this ID, other features
                 with ID 0.
         """
-        pad_len = max_seq_length - len(self.features['input_ids'])
+        max_seq_length_for_subwords = max_seq_length // 3
+        pad_length = max_seq_length - len(self.features['input_ids'])
+        pad_length_for_subwords = max_seq_length_for_subwords - len(self.features['input_ids_for_subwords'])
         self.features["spans"].extend([(-1, -1, -1)] * (max_spans_length - len(self.features["spans"])))
         for key in self.features:
             if key == "spans":
                 continue
-            pad_id = pad_token_id if (key == "input_ids") else 0
+            pad_id = 0
+            if key == "input_ids" or key == "input_ids_for_subwords":
+                pad_id = pad_token_id
+            elif key == "character_pos_to_subword_pos":
+                pad_id = -1
+
+            max_len = max_seq_length
+            pad_len = pad_length
+            if (
+                key == "input_ids_for_subwords"
+                or key == "input_mask_for_subwords"
+                or key == "segment_ids_for_subwords"
+            ):
+                max_len = max_seq_length_for_subwords
+                pad_len = pad_length_for_subwords
+
             self.features[key].extend([pad_id] * pad_len)
-            if len(self.features[key]) != max_seq_length:
+            if len(self.features[key]) != max_len:
                 raise ValueError(
-                    "{} has length {} (should be {}).".format(key, len(self.features[key]), max_seq_length)
+                    "{} has length {} (should be {}).".format(key, len(self.features[key]), max_len)
                 )
 
     def get_token_labels(self, features_key: str) -> List[int]:
@@ -136,111 +179,6 @@ class BertExampleBuilder(object):
         self._pad_id = self._tokenizer.pad_token_id
         self._keep_tag_id = 0
 
-    def build_bert_example_simple(
-        self, hyp: str, ref: str, target: Optional[str] = None, span_info: Optional[str] = None, infer: bool = False
-    ) -> Optional[BertExample]:
-        """Constructs a BERT Example.
-
-        Args:
-            hyp: Hypothesis text.
-            ref: Candidate customization variant
-            target: String of labels or None when building an example during inference.
-            span_info: String or None
-            infer: inference mode
-        Returns:
-            BertExample, or None if the conversion from text to tags was infeasible
-        """
-        # Compute target labels.
-        if (target is not None) and (not infer):
-            tags = list(map(int, target.split()))
-            if not tags:
-                return None
-        else:
-            # If target is not provided, we set all target labels to 0.
-            tags = [0 for _ in hyp.split()]
-        hyp_tokens, labels, token_start_indices = self._split_to_wordpieces_with_labels(hyp.split(), tags)
-        ref_tokens, ref_start_indices = self._split_to_wordpieces(ref.split())
-
-        input_tokens = ["[CLS]"] + hyp_tokens + ["[SEP]"] + ref_tokens + ["[SEP]"]
-        labels_mask = [0] + [1] * len(labels) + [0] + [0] * len(ref_tokens) + [0]
-        labels = [0] + labels + [0] + [0] * len(ref_tokens) + [0]
-
-        input_ids = self._tokenizer.convert_tokens_to_ids(input_tokens)
-        input_mask = [1] * len(input_ids)
-        segment_ids = [0] + [0] * len(hyp_tokens) + [0] + [1] * len(ref_tokens) + [1]
-
-        if len(input_ids) != len(segment_ids):
-            raise ValueError(
-                "len(input_ids)="
-                + str(len(input_ids))
-                + " is different from len(segment_ids)="
-                + str(len(segment_ids))
-            )
-
-        if "PLAIN" not in self._semiotic_classes:
-            raise KeyError("PLAIN should be in self._semiotic_classes")
-        plain_cid = self._semiotic_classes["PLAIN"]
-        semiotic_labels = [plain_cid] * len(labels)  # we use the same mask for semiotic labels as for tag labels
-
-        spans = []
-
-        if span_info is not None:
-            # e.g. span_info="CUSTOM 0 5;CUSTOM 9 12"
-            # translate class name to its id, translate coords from tokens to wordpieces
-            span_info_parts = span_info.split(";")
-            previous_end = 0
-            for p in span_info_parts:
-                if p == "":
-                    break
-                c, start, end = p.split(" ")
-                if c not in self._semiotic_classes:
-                    raise KeyError("c=" + c + " not found in self._semiotic_classes")
-                cid = self._semiotic_classes[c]
-                start = int(start)
-                end = int(end)
-                if start >= len(token_start_indices):
-                    raise IndexError(
-                        "start=" + str(start) + " is outside len(token_start_indices)=" + str(len(token_start_indices))
-                    )
-                while previous_end < start:
-                    subtoken_start = token_start_indices[previous_end]
-                    subtoken_end = (
-                        token_start_indices[previous_end + 1]
-                        if previous_end + 1 < len(token_start_indices)
-                        else len(input_ids) - 1
-                    )
-                    spans.append((plain_cid, subtoken_start, subtoken_end))
-                    previous_end += 1
-                subtoken_start = token_start_indices[start]
-                subtoken_end = token_start_indices[end] if end < len(token_start_indices) else len(hyp_tokens) + 1
-                if subtoken_end >= self._max_seq_length:  # possible if input_ids gets truncated to the max_seq_length
-                    break
-                spans.append((cid, subtoken_start, subtoken_end))
-                previous_end = end
-            while previous_end < len(token_start_indices):
-                subtoken_start = token_start_indices[previous_end]
-                subtoken_end = (
-                    token_start_indices[previous_end + 1]
-                    if previous_end + 1 < len(token_start_indices)
-                    else len(input_ids) - 1
-                )
-                spans.append((plain_cid, subtoken_start, subtoken_end))
-                previous_end += 1
-        if len(input_ids) > self._max_seq_length or len(spans) > self._max_spans_length:
-            return None
-        example = BertExample(
-            input_ids=input_ids,
-            input_mask=input_mask,
-            segment_ids=segment_ids,
-            labels_mask=labels_mask,
-            labels=labels,
-            spans=spans,
-            default_label=0,
-        )
-        example.pad_to_max_length(self._max_seq_length, self._max_spans_length, self._pad_id)
-        # pdb.set_trace()
-        return example
-
     def build_bert_example(
         self, hyp: str, ref: str, target: Optional[str] = None, span_info: Optional[str] = None, infer: bool = False
     ) -> Optional[BertExample]:
@@ -255,38 +193,51 @@ class BertExampleBuilder(object):
         Returns:
             BertExample, or None if the conversion from text to tags was infeasible
         """
+        span_info_parts = span_info.split(";")
+        target_parts = target.split(" ")
+        if len(span_info_parts) != len(target_parts):
+            raise ValueError(
+                "len(span_info_parts)="
+                + str(len(span_info_parts))
+                + " is different from len(target_parts)="
+                + str(len(target_parts))
+            )
+
         tags = [0 for _ in hyp.split()]
         if target is not None and span_info is not None and len(span_info) > 0:
-            for p, t in zip(span_info.split(";"), target.split(" ")):
+            for p, t in zip(span_info_parts, target_parts):
                 c, start, end = p.split(" ")
                 start = int(start)
                 end = int(end)
                 tags[start:end] = [int(t) for i in range(end - start)]
 
-        hyp_tokens, labels, token_start_indices = self._split_to_wordpieces_with_labels(hyp.split(), tags)
-        references = ref.split(";")
-        all_ref_tokens = []
-        all_ref_segment_ids = []
-        for i in range(len(references)):
-            ref_tokens, _ = self._split_to_wordpieces(references[i].split())
-            all_ref_tokens.extend(ref_tokens + ["[SEP]"])
-            all_ref_segment_ids.extend([i + 1] * (len(ref_tokens) + 1))
+        # get input features for characters
+        (
+            input_ids,
+            input_mask,
+            segment_ids,
+            labels_mask,
+            labels,
+            hyp_tokens,
+            token_start_indices
+        ) = self._get_input_features(hyp=hyp, ref=ref, tags=tags) 
 
-        input_tokens = ["[CLS]"] + hyp_tokens + ["[SEP]"] + all_ref_tokens  # ends with [SEP]
-        labels_mask = [0] + [1] * len(labels) + [0] + [0] * len(all_ref_tokens)
-        labels = [0] + labels + [0] + [0] * len(all_ref_tokens)
+        # get input features for words 
+        hyp_with_words = hyp.replace(" ", "").replace("_", " ")
+        ref_with_words = ref.replace(" ", "").replace("_", " ")
+        (
+            input_ids_for_subwords,
+            input_mask_for_subwords,
+            segment_ids_for_subwords,
+            _,
+            _,
+            hyp_tokens_for_words,
+            _
+        ) = self._get_input_features(hyp=hyp_with_words, ref=ref_with_words, tags=None) 
 
-        input_ids = self._tokenizer.convert_tokens_to_ids(input_tokens)
-        input_mask = [1] * len(input_ids)
-        segment_ids = [0] + [0] * len(hyp_tokens) + [0] + all_ref_segment_ids
-
-        if len(input_ids) != len(segment_ids):
-            raise ValueError(
-                "len(input_ids)="
-                + str(len(input_ids))
-                + " is different from len(segment_ids)="
-                + str(len(segment_ids))
-            )
+        character_pos_to_subword_pos = [-1 for _ in input_ids]
+        #for i in range(len(character_pos_to_subword_pos)):
+        pdb.set_trace() 
 
         if "PLAIN" not in self._semiotic_classes:
             raise KeyError("PLAIN should be in self._semiotic_classes")
@@ -342,12 +293,58 @@ class BertExampleBuilder(object):
             input_ids=input_ids,
             input_mask=input_mask,
             segment_ids=segment_ids,
+            input_ids_for_subwords=input_ids_for_subwords,
+            input_mask_for_subwords=input_mask_for_subwords,
+            segment_ids_for_subwords=segment_ids_for_subwords,
+            character_pos_to_subword_pos=character_pos_to_subword_pos,
             labels_mask=labels_mask,
             labels=labels,
             spans=spans,
             default_label=0,
         )
         return example
+
+    def _get_input_features(
+        self, hyp: str, ref: str, tags: List[int]
+    ) -> Tuple[List[int], List[int], List[int], List[int], List[int], List[str], List[int]]:
+        if tags is None:
+            hyp_tokens, token_start_indices = self._split_to_wordpieces(hyp.split())
+        else:
+            hyp_tokens, labels, token_start_indices = self._split_to_wordpieces_with_labels(hyp.split(), tags)
+        references = ref.split(";")
+        all_ref_tokens = []
+        all_ref_segment_ids = []
+        for i in range(len(references)):
+            ref_tokens, _ = self._split_to_wordpieces(references[i].split())
+            all_ref_tokens.extend(ref_tokens + ["[SEP]"])
+            all_ref_segment_ids.extend([i + 1] * (len(ref_tokens) + 1))
+
+        input_tokens = ["[CLS]"] + hyp_tokens + ["[SEP]"] + all_ref_tokens  # ends with [SEP]
+        input_ids = self._tokenizer.convert_tokens_to_ids(input_tokens)
+        input_mask = [1] * len(input_ids)
+        segment_ids = [0] + [0] * len(hyp_tokens) + [0] + all_ref_segment_ids
+        if len(input_ids) != len(segment_ids):
+            raise ValueError(
+                "len(input_ids)="
+                + str(len(input_ids))
+                + " is different from len(segment_ids)="
+                + str(len(segment_ids))
+            )
+
+        labels_mask = []
+        labels = []
+        if tags:
+            labels_mask = [0] + [1] * len(labels) + [0] + [0] * len(all_ref_tokens)
+            labels = [0] + labels + [0] + [0] * len(all_ref_tokens)
+        return (
+            input_ids,
+            input_mask,
+            segment_ids,
+            labels_mask,
+            labels,
+            hyp_tokens,
+            token_start_indices
+        ) 
 
     def _split_to_wordpieces_with_labels(
         self, tokens: List[str], labels: List[int]
