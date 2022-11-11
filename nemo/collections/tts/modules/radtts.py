@@ -669,9 +669,8 @@ class RadTTSModule(NeuralModule, Exportable):
         # replication pad, because ungrouping with different group sizes
         # may lead to mismatched lengths
         # FIXME: use replication pad
-        print("V mask, energy_avg, f0, f0_bias: ", voiced_mask.shape, energy_avg.shape, f0.shape, f0_bias.shape)
         (energy_avg, f0) = pad_energy_avg_and_f0(energy_avg, f0, max_out_len)
-        print("V mask, energy_avg, f0, f0_bias: ", voiced_mask.shape, energy_avg.shape, f0.shape, f0_bias.shape)
+        # print("V mask, energy_avg, f0, f0_bias: ", voiced_mask.shape, energy_avg.shape, f0.shape, f0_bias.shape)
 
         context_w_spkvec = self.preprocess_context(
             txt_enc_time_expanded, spk_vec, out_lens, f0 * voiced_mask + f0_bias, energy_avg
@@ -783,11 +782,16 @@ class RadTTSModule(NeuralModule, Exportable):
 
     # Methods for model exportability
     def _prepare_for_export(self, **kwargs):
-        PartialConv1d.forward = PartialConv1d.forward_no_cache
+        print(kwargs)
+        PartialConv1d.forward = PartialConv1d.forward_for_script
         self.remove_norms()
         super()._prepare_for_export(**kwargs)
         if self.prepared_for_export:
             return
+        for m in self.modules():
+            if isinstance(m, PartialConv1d):
+                PartialConv1d.update_bias_view(m)
+
         self.encoder = torch.jit.script(self.encoder)
         self.v_pred_module.feat_pred_fn = torch.jit.script(self.v_pred_module.feat_pred_fn)
         if hasattr(self, 'f0_pred_module'):
@@ -800,9 +804,6 @@ class RadTTSModule(NeuralModule, Exportable):
         if self.use_context_lstm:
             self.context_lstm = torch.jit.script(self.context_lstm)
         self.prepared_for_export = True
-
-    def _export_teardown(self):
-        PartialConv1d.forward = PartialConv1d.forward_with_cache
 
     def input_example(self, max_batch=1, max_dim=256):
         """
@@ -833,8 +834,8 @@ class RadTTSModule(NeuralModule, Exportable):
             text,
             speaker_id_text=speaker_id_text,
             speaker_id_attributes=speaker_id_attributes,
-            sigma=0.0,
-            sigma_txt=0.0,
+            sigma=0.7,
+            sigma_txt=0.7,
             sigma_f0=1.0,
             sigma_energy=1.0,
             f0_mean=145.0,

@@ -30,23 +30,26 @@ class PartialConv1d(torch.nn.Conv1d):
         super(PartialConv1d, self).__init__(*args, **kwargs)
         weight_maskUpdater = torch.ones(1, 1, self.kernel_size[0])
         self.register_buffer("weight_maskUpdater", weight_maskUpdater, persistent=False)
-        slide_winsize = torch.tensor(
-            self.weight_maskUpdater.shape[1] * self.weight_maskUpdater.shape[2], requires_grad=False
-        )
-        self.register_buffer("slide_winsize", slide_winsize, persistent=False)
+        self.slide_winsize = self.kernel_size[0]
 
         # caching part
         self.last_size = (-1, -1, -1)
-
-        if self.bias is not None:
-            bias_view = self.bias.clone().detach().reshape(1, self.out_channels, 1)
-            self.register_buffer("bias_view", bias_view, persistent=False)
 
         update_mask = torch.ones(1, 1, 1)
         self.register_buffer('update_mask', update_mask, persistent=False)
         mask_ratio = torch.ones(1, 1, 1)
         self.register_buffer('mask_ratio', mask_ratio, persistent=False)
         self.partial: bool = True
+
+    def update_bias_view(self):
+        """
+        To be called before jit.script(), to set up an alias for self.bias
+        to work around TorchScript bug resolving Optional[Tensor]
+        """
+        if self.bias is not None:
+            self.bias_view = self.bias.view(1, self.out_channels, 1)
+        else:
+            self.bias_view = None
 
     def calculate_mask(self, input: torch.Tensor, mask_in: Optional[torch.Tensor]):
         with torch.no_grad():
@@ -73,16 +76,15 @@ class PartialConv1d(torch.nn.Conv1d):
             mask_ratio = torch.mul(mask_ratio, update_mask)
             return input, mask_ratio, update_mask
 
-    def forward_aux(self, input: torch.Tensor, mask_ratio: torch.Tensor, update_mask: torch.Tensor) -> torch.Tensor:
+    def forward_aux_script(
+        self, input: torch.Tensor, mask_ratio: torch.Tensor, update_mask: torch.Tensor
+    ) -> torch.Tensor:
         assert len(input.shape) == 3
 
         raw_out = self._conv_forward(input, self.weight, self.bias)
 
         if self.bias is not None:
-            if torch.jit.is_scripting():
-                bias_view = self.bias_view
-            else:
-                bias_view = self.bias.view(1, self.out_channels, 1)
+            bias_view = self.bias_view
             output = torch.mul(raw_out - bias_view, mask_ratio) + bias_view
             output = torch.mul(output, update_mask)
         else:
@@ -90,9 +92,22 @@ class PartialConv1d(torch.nn.Conv1d):
 
         return output
 
-    @torch.jit.ignore
+    def forward_aux(self, input: torch.Tensor, mask_ratio: torch.Tensor, update_mask: torch.Tensor) -> torch.Tensor:
+        assert len(input.shape) == 3
+
+        raw_out = self._conv_forward(input, self.weight, self.bias)
+
+        if self.bias is not None:
+            bias_view = self.bias.view(1, self.out_channels, 1)
+            output = torch.mul(raw_out - bias_view, mask_ratio) + bias_view
+            output = torch.mul(output, update_mask)
+        else:
+            output = torch.mul(raw_out, mask_ratio)
+
+        return output
+
     def forward_with_cache(self, input: torch.Tensor, mask_in: Optional[torch.Tensor] = None) -> torch.Tensor:
-        use_cache = not (torch.jit.is_tracing() or torch.onnx.is_in_onnx_export())
+        use_cache = self.partial and not torch.jit.is_tracing()
         cache_hit = use_cache and mask_in is None and self.last_size == input.shape
         if cache_hit:
             mask_ratio = self.mask_ratio
@@ -101,15 +116,15 @@ class PartialConv1d(torch.nn.Conv1d):
             input, mask_ratio, update_mask = self.calculate_mask(input, mask_in)
             if use_cache:
                 # if a mask is input, or tensor shape changed, update mask ratio
-                self.last_size = tuple(input.shape)
+                self.last_size = (input.shape[0], input.shape[1], input.shape[2])
                 self.update_mask = update_mask
                 self.mask_ratio = mask_ratio
         return self.forward_aux(input, mask_ratio, update_mask)
 
-    def forward_no_cache(self, input: torch.Tensor, mask_in: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def forward_for_script(self, input: torch.Tensor, mask_in: Optional[torch.Tensor] = None) -> torch.Tensor:
         if self.partial:
             input, mask_ratio, update_mask = self.calculate_mask(input, mask_in)
-            return self.forward_aux(input, mask_ratio, update_mask)
+            return self.forward_aux_script(input, mask_ratio, update_mask)
         else:
             if mask_in is not None:
                 input = torch.mul(input, mask_in)
