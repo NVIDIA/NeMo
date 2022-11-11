@@ -171,7 +171,8 @@ class AdapterModuleMixin(ABC):
             if not _pass_types:
                 raise ValueError(
                     f"Config: \n{OmegaConf.to_yaml(cfg)}\n"
-                    f"It creates adapter class {test} is not in the list of accepted adapter types.\n"
+                    f"It creates adapter class {test} \n"
+                    f"that is not in the list of accepted adapter types.\n"
                     f"Accepted adapters: {[t for t in adapter_types]}"
                 )
 
@@ -299,8 +300,11 @@ class AdapterModuleMixin(ABC):
                 # Check if type is supported (if available) and is an enabled adapter
                 if len(adapter_types) > 0:
                     module = self.get_adapter_module(name)
-                    if module in adapter_types:
-                        enabled_adapters.append(name)
+
+                    for adapter_type in adapter_types:
+                        if isinstance(module, adapter_type):
+                            enabled_adapters.append(name)
+                            break
 
                 else:
                     # Ignore type checking and fall back to adding all enabled adapters

@@ -14,6 +14,7 @@
 
 from abc import ABC
 from dataclasses import dataclass
+from typing import Any, List, Tuple, Dict, Union
 
 import torch
 
@@ -49,6 +50,66 @@ class AbstractAdapterStrategy(ABC):
 
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
+
+
+class ReturnResultAdapterStrategy(AbstractAdapterStrategy):
+    """
+    An implementation of an adapter strategy that simply returns the result of the adapter.
+    Supports stochastic
+    """
+
+    def forward(self, input: torch.Tensor, adapter: torch.nn.Module, *, module: 'AdapterModuleMixin'):
+        """
+        A basic strategy, which simply returns the result of the adapter's calculation as the output.
+
+        Args:
+            input: Original output tensor of the module, or the output of the previous adapter (if more than
+                one adapters are enabled).
+            adapter: The adapter module that is currently required to perform the forward pass.
+            module: The calling module, in its entirety. It is a module that implements `AdapterModuleMixin`,
+                therefore the strategy can access all other adapters in this module via `module.adapter_layer`.
+
+        Returns:
+            The result tensor, after one of the active adapters has finished its forward passes.
+        """
+        result = self.compute_output(input, adapter, module=module)
+
+        return result
+
+    def compute_output(
+        self,
+        input: Union[torch.Tensor, List[torch.Tensor], Tuple[torch.Tensor], Dict[str, Any]],
+        adapter: torch.nn.Module,
+        *,
+        module: 'AdapterModuleMixin',
+    ) -> torch.Tensor:
+        """
+        Compute the output of a single adapter to some input.
+
+        Args:
+            input: Original output tensor of the module, or the output of the previous adapter (if more than
+                one adapters are enabled).
+            adapter: The adapter module that is currently required to perform the forward pass.
+            module: The calling module, in its entirety. It is a module that implements `AdapterModuleMixin`,
+                therefore the strategy can access all other adapters in this module via `module.adapter_layer`.
+
+        Returns:
+            The result tensor, after one of the active adapters has finished its forward passes.
+        """
+        if isinstance(input, (list, tuple)):
+            out = adapter(*input)
+        elif isinstance(input, dict):
+            out = adapter(**input)
+        else:
+            out = adapter(input)
+        return out
+
+
+@dataclass
+class ReturnResultAdapterStrategyConfig:
+    _target_: str = "{0}.{1}".format(
+        ReturnResultAdapterStrategy.__module__, ReturnResultAdapterStrategy.__name__
+    )  # mandatory field
 
 
 class ResidualAddAdapterStrategy(AbstractAdapterStrategy):
@@ -107,12 +168,39 @@ class ResidualAddAdapterStrategy(AbstractAdapterStrategy):
     def compute_output(
         self, input: torch.Tensor, adapter: torch.nn.Module, *, module: 'AdapterModuleMixin'
     ) -> torch.Tensor:
+        """
+        Compute the output of a single adapter to some input.
+
+        Args:
+            input: Original output tensor of the module, or the output of the previous adapter (if more than
+                one adapters are enabled).
+            adapter: The adapter module that is currently required to perform the forward pass.
+            module: The calling module, in its entirety. It is a module that implements `AdapterModuleMixin`,
+                therefore the strategy can access all other adapters in this module via `module.adapter_layer`.
+
+        Returns:
+            The result tensor, after one of the active adapters has finished its forward passes.
+        """
         out = adapter(input)
         return out
 
     def apply_stochastic_depth(
         self, output: torch.Tensor, input: torch.Tensor, adapter: torch.nn.Module, *, module: 'AdapterModuleMixin'
     ):
+        """
+        Compute and apply stochastic depth if probability is greater than 0.
+
+        Args:
+            output: The result tensor, after one of the active adapters has finished its forward passes.
+            input: Original output tensor of the module, or the output of the previous adapter (if more than
+                one adapters are enabled).
+            adapter: The adapter module that is currently required to perform the forward pass.
+            module: The calling module, in its entirety. It is a module that implements `AdapterModuleMixin`,
+                therefore the strategy can access all other adapters in this module via `module.adapter_layer`.
+
+        Returns:
+            The result tensor, after stochastic depth has been potentially applied to it.
+        """
         # Perform stochastic depth if needed.
         p = self.stochastic_depth
         if p < 0.0 or p > 1.0:
@@ -133,6 +221,17 @@ class ResidualAddAdapterStrategy(AbstractAdapterStrategy):
     def compute_auxiliary_losses(
         self, output: torch.Tensor, input: torch.Tensor, adapter: torch.nn.Module, *, module: 'AdapterModuleMixin'
     ):
+        """
+        Compute any auxiliary losses and preserve it in the tensor registry.
+
+        Args:
+            output: The result tensor, after one of the active adapters has finished its forward passes.
+            input: Original output tensor of the module, or the output of the previous adapter (if more than
+                one adapters are enabled).
+            adapter: The adapter module that is currently required to perform the forward pass.
+            module: The calling module, in its entirety. It is a module that implements `AdapterModuleMixin`,
+                therefore the strategy can access all other adapters in this module via `module.adapter_layer`.
+        """
         if module.training and self.l2_lambda > 0.0:
             if not isinstance(adapter, AccessMixin):
                 raise ValueError(f"Module {adapter.__class__.__name__} does not implement AccessMixin !")

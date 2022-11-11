@@ -175,7 +175,7 @@ class TestASRAdapterModules:
 
         with torch.no_grad():
             out, pos_emb = relpos_enc(x)
-            assert (out - x).sum().abs() <= 1e-8
+            assert (out - pos_emb - x).sum().abs() <= 1e-5
             assert out.shape == x.shape
 
     @pytest.mark.unit
@@ -216,7 +216,7 @@ class TestASRAdapterModules:
         assert hasattr(adapter, 'adapter_strategy')
         assert adapter.adapter_strategy is not None
         # assert default strategy is set
-        assert isinstance(adapter.adapter_strategy, adapter_mixin_strategies.ResidualAddAdapterStrategy)
+        assert isinstance(adapter.adapter_strategy, adapter_mixin_strategies.ReturnResultAdapterStrategy)
 
     @pytest.mark.unit
     def test_relpos_encoding_adapter_strategy(self):
@@ -224,4 +224,4 @@ class TestASRAdapterModules:
         assert hasattr(adapter, 'adapter_strategy')
         assert adapter.adapter_strategy is not None
         # assert default strategy is set
-        assert isinstance(adapter.adapter_strategy, adapter_mixin_strategies.ResidualAddAdapterStrategy)
+        assert isinstance(adapter.adapter_strategy, adapter_mixin_strategies.ReturnResultAdapterStrategy)

@@ -333,11 +333,8 @@ class TestASRAdapterMixin:
 
     @pytest.mark.unit
     def test_asr_model_constructor_mha_adapter(self, model):
-        original_num_params = model.num_weights
-
-        model.add_adapter(name='adapter_0', cfg=get_adapter_cfg(atype='mha'))
-        new_num_params = model.num_weights
-        assert new_num_params > original_num_params
+        with pytest.raises(ValueError):
+            model.add_adapter(name='adapter_0', cfg=get_adapter_cfg(atype='mha'))
 
     @pytest.mark.unit
     def test_conformer_constructor_mha_adapter(self, conformer_ctc_adapter):

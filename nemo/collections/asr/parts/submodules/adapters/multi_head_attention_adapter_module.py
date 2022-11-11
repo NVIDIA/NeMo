@@ -260,13 +260,30 @@ class RelPositionMultiHeadAttentionAdapterConfig:
 
 
 class PositionalEncodingAdapter(mha.PositionalEncoding, adapter_modules.AbstractAdapterModuleMixin):
+
+    """
+    Absolute positional embedding adapter.
+
+    .. note::
+
+        Absolute positional embedding value is added to the input tensor *without residual connection* !
+        Therefore, the input is changed, if you only require the positional embedding, drop the returned `x` !
+
+    Args:
+        d_model (int): The input dimension of x.
+        max_len (int): The max sequence length.
+        xscale (float): The input scaling factor. Defaults to 1.0.
+        adapter_strategy (AbstractAdapterStrategy): An adapter strategy. NOTE: Since this is a positional encoding,
+            it will not add a residual !
+    """
     def __init__(
         self,
         d_model: int,
         max_len: int = 5000,
         xscale=1.0,
-        adapter_strategy: adapter_mixin_strategies.ResidualAddAdapterStrategyConfig = None,
+        adapter_strategy: adapter_mixin_strategies.ReturnResultAdapterStrategyConfig = None,
     ):
+
         super().__init__(
             d_model=d_model, dropout_rate=0.0, max_len=max_len, xscale=xscale, dropout_rate_emb=0.0,
         )
@@ -274,14 +291,8 @@ class PositionalEncodingAdapter(mha.PositionalEncoding, adapter_modules.Abstract
         # Setup adapter strategy
         self.setup_adapter_strategy(adapter_strategy)
 
-    # def forward(self, x: torch.Tensor):
-    #     """Adds positional encoding.
-    #     Args:
-    #         x (torch.Tensor): Input. Its shape is (batch, time, feature_size)
-    #     Returns:
-    #         x+pos_emb (torch.Tensor): Its shape is (batch, time, feature_size)
-    #         pos_emb (torch.Tensor): Its shape is (1, time, feature_size)
-    #     """
+    def get_default_strategy_config(self) -> 'dataclass':
+        return adapter_mixin_strategies.ReturnResultAdapterStrategyConfig()
 
 
 @dataclass
@@ -294,27 +305,35 @@ class PositionalEncodingAdapterConfig:
 
 
 class RelPositionalEncodingAdapter(mha.RelPositionalEncoding, adapter_modules.AbstractAdapterModuleMixin):
+    """
+    Relative positional encoding for TransformerXL's layers
+    See : Appendix B in https://arxiv.org/abs/1901.02860
+
+    .. note::
+
+        Relative positional embedding value is **not** added to the input tensor !
+        Therefore, the input should be updated changed, if you only require the positional embedding, drop the returned `x` !
+
+    Args:
+        d_model (int): embedding dim
+        max_len (int): maximum input length
+        xscale (bool): whether to scale the input by sqrt(d_model)
+        adapter_strategy:
+    """
     def __init__(
         self,
         d_model: int,
         max_len: int = 5000,
         xscale=1.0,
-        adapter_strategy: adapter_mixin_strategies.ResidualAddAdapterStrategyConfig = None,
+        adapter_strategy: adapter_mixin_strategies.ReturnResultAdapterStrategyConfig = None,
     ):
         super().__init__(d_model=d_model, dropout_rate=0.0, max_len=max_len, xscale=xscale, dropout_rate_emb=0.0)
 
         # Setup adapter strategy
         self.setup_adapter_strategy(adapter_strategy)
 
-    # def forward(self, x, cache_len=0):
-    #     """Compute positional encoding.
-    #     Args:
-    #         x (torch.Tensor): Input. Its shape is (batch, time, feature_size)
-    #         cache_len (int): the size of the cache which is used to shift positions
-    #     Returns:
-    #         x (torch.Tensor): Its shape is (batch, time, feature_size)
-    #         pos_emb (torch.Tensor): Its shape is (1, time, feature_size)
-    #     """
+    def get_default_strategy_config(self) -> 'dataclass':
+        return adapter_mixin_strategies.ReturnResultAdapterStrategyConfig()
 
 
 @dataclass
