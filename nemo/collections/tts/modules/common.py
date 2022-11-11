@@ -246,6 +246,20 @@ class ConvLSTMLinear(BiLSTM):
 
         return context
 
+    def script(self):
+        traced = nn.ModuleList()
+        for conv in self.convolutions:
+            if hasattr(conv, 'conv'):
+                w = conv.conv.weight
+            else:
+                w = conv.weight
+            s = w.shape
+            rand_in = torch.ones(1, s[1], s[2], dtype=w.dtype, device=w.device)
+            # , torch.ones(1, 1, s[2], dtype=w.dtype, device=w.device))
+            traced.append(torch.jit.trace_module(conv, {"forward": rand_in}))
+        self.convolutions = traced
+        return torch.jit.script(self)
+
 
 def getRadTTSEncoder(
     encoder_n_convolutions=3,

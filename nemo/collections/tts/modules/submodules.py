@@ -31,15 +31,17 @@ class PartialConv1d(torch.nn.Conv1d):
         self.multi_channel = False
         self.return_mask = False
         super(PartialConv1d, self).__init__(*args, **kwargs)
+        weight_maskUpdater = torch.ones(1, 1, self.kernel_size[0])
+        self.register_buffer("weight_maskUpdater", weight_maskUpdater, persistent=False)
 
-        self.weight_maskUpdater = torch.ones(1, 1, self.kernel_size[0])
+        # self.weight_maskUpdater = torch.ones(1, 1, self.kernel_size[0])
         self.slide_winsize = self.weight_maskUpdater.shape[1] * self.weight_maskUpdater.shape[2]
 
         self.last_size = (None, None, None)
         self.update_mask = None
         self.mask_ratio = None
 
-    def forward(self, input: torch.Tensor, mask_in: Tuple[int, int, int] = None):
+    def forward(self, input, mask_in=None):
         assert len(input.shape) == 3
         # borisf: disabled cache for export
         use_cache = not (torch.jit.is_tracing() or torch.onnx.is_in_onnx_export())
@@ -50,10 +52,8 @@ class PartialConv1d(torch.nn.Conv1d):
             # if a mask is input, or tensor shape changed, update mask ratio
         else:
             with torch.no_grad():
-                if self.weight_maskUpdater.type() != input.type():
-                    self.weight_maskUpdater = self.weight_maskUpdater.to(input)
                 if mask_in is None:
-                    mask = torch.ones(1, 1, input.shape[2]).to(input)
+                    mask = torch.ones(1, 1, input.shape[2], dtype=input.dtype, device=input.device)
                 else:
                     mask = mask_in
                 update_mask = F.conv1d(
