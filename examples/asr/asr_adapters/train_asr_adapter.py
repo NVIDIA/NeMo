@@ -90,7 +90,7 @@ from nemo.collections.asr.models import ASRModel
 from nemo.core import adapter_mixins
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
-from nemo.utils.exp_manager import exp_manager, clean_exp_ckpt
+from nemo.utils.exp_manager import clean_exp_ckpt, exp_manager
 
 
 def update_model_config_to_support_adapter(model_cfg, current_cfg):

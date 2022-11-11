@@ -313,6 +313,7 @@ class PositionalEncodingAdapter(mha.PositionalEncoding, adapter_modules.Abstract
             An adapter composition function object.
             NOTE: Since this is a positional encoding, it will not add a residual !
     """
+
     def __init__(
         self,
         d_model: int,
@@ -357,6 +358,7 @@ class RelPositionalEncodingAdapter(mha.RelPositionalEncoding, adapter_modules.Ab
         xscale (bool): whether to scale the input by sqrt(d_model)
         adapter_strategy: By default, ReturnResultAdapterStrategyConfig. An adapter composition function object.
     """
+
     def __init__(
         self,
         d_model: int,

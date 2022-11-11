@@ -14,7 +14,7 @@
 
 from abc import ABC
 from dataclasses import dataclass
-from typing import Any, List, Tuple, Dict, Union
+from typing import Any, Dict, List, Tuple, Union
 
 import torch
 
