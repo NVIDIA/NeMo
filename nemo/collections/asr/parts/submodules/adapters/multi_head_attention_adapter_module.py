@@ -13,12 +13,10 @@
 # limitations under the License.
 
 import math
-from dataclasses import dataclass, is_dataclass
+from dataclasses import dataclass
 from typing import Any, Optional
 
 import torch
-from hydra.utils import instantiate
-from omegaconf import OmegaConf
 from torch import nn as nn
 
 from nemo.collections.asr.parts.submodules import multi_head_attention as mha
@@ -71,6 +69,19 @@ class MHAResidualAddAdapterStrategy(adapter_mixin_strategies.ResidualAddAdapterS
     def compute_output(
         self, input: torch.Tensor, adapter: torch.nn.Module, *, module: 'AdapterModuleMixin'
     ) -> torch.Tensor:
+        """
+        Compute the output of a single adapter to some input.
+
+        Args:
+            input: Original output tensor of the module, or the output of the previous adapter (if more than
+                one adapters are enabled).
+            adapter: The adapter module that is currently required to perform the forward pass.
+            module: The calling module, in its entirety. It is a module that implements `AdapterModuleMixin`,
+                therefore the strategy can access all other adapters in this module via `module.adapter_layer`.
+
+        Returns:
+            The result tensor, after one of the active adapters has finished its forward passes.
+        """
         if isinstance(input, (list, tuple)):
             out = adapter(*input)
         elif isinstance(input, dict):
@@ -88,6 +99,18 @@ class MHAResidualAddAdapterStrategyConfig(adapter_mixin_strategies.ResidualAddAd
 
 
 class MultiHeadAttentionAdapter(mha.MultiHeadAttention, adapter_modules.AbstractAdapterModuleMixin):
+    """Multi-Head Attention layer of Transformer.
+     Args:
+         n_head (int): number of heads
+         n_feat (int): size of the features
+         dropout_rate (float): dropout rate
+         proj_dim (int, optional): Optional integer value for projection before computing attention.
+            If None, then there is no projection (equivalent to proj_dim = n_feat).
+            If > 0, then will project the n_feat to proj_dim before calculating attention.
+            If <0, then will equal n_head, so that each head has a projected dimension of 1.
+        adapter_strategy: By default, MHAResidualAddAdapterStrategyConfig. An adapter composition function object.
+     """
+
     def __init__(
         self,
         n_head: int,
@@ -167,6 +190,19 @@ class MultiHeadAttentionAdapterConfig:
 class RelPositionMultiHeadAttentionAdapter(
     mha.RelPositionMultiHeadAttention, adapter_modules.AbstractAdapterModuleMixin
 ):
+    """Multi-Head Attention layer of Transformer-XL with support of relative positional encoding.
+    Paper: https://arxiv.org/abs/1901.02860
+    Args:
+        n_head (int): number of heads
+        n_feat (int): size of the features
+        dropout_rate (float): dropout rate
+        proj_dim (int, optional): Optional integer value for projection before computing attention.
+            If None, then there is no projection (equivalent to proj_dim = n_feat).
+            If > 0, then will project the n_feat to proj_dim before calculating attention.
+            If <0, then will equal n_head, so that each head has a projected dimension of 1.
+        adapter_strategy: By default, MHAResidualAddAdapterStrategyConfig. An adapter composition function object.
+    """
+
     def __init__(
         self,
         n_head: int,
@@ -273,8 +309,9 @@ class PositionalEncodingAdapter(mha.PositionalEncoding, adapter_modules.Abstract
         d_model (int): The input dimension of x.
         max_len (int): The max sequence length.
         xscale (float): The input scaling factor. Defaults to 1.0.
-        adapter_strategy (AbstractAdapterStrategy): An adapter strategy. NOTE: Since this is a positional encoding,
-            it will not add a residual !
+        adapter_strategy (AbstractAdapterStrategy): By default, ReturnResultAdapterStrategyConfig.
+            An adapter composition function object.
+            NOTE: Since this is a positional encoding, it will not add a residual !
     """
     def __init__(
         self,
@@ -318,7 +355,7 @@ class RelPositionalEncodingAdapter(mha.RelPositionalEncoding, adapter_modules.Ab
         d_model (int): embedding dim
         max_len (int): maximum input length
         xscale (bool): whether to scale the input by sqrt(d_model)
-        adapter_strategy:
+        adapter_strategy: By default, ReturnResultAdapterStrategyConfig. An adapter composition function object.
     """
     def __init__(
         self,
