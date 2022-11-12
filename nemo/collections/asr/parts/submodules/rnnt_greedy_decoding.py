@@ -333,10 +333,10 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
                 v, k = logp.max(0)
                 k = k.item()  # K is the label at timestep t_s in inner loop, s >= 0.
 
-                if k == self._blank_index:
-                    print("HERE BLANK")
-                else:
-                    print("HERE", k)
+#                if k == self._blank_index:
+#                    print("HERE BLANK")
+#                else:
+#                    print("HERE", k)
 
                 if self.preserve_alignments:
                     # insert logprobs into last timestep
