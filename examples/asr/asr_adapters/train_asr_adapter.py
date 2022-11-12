@@ -246,7 +246,8 @@ def main(cfg):
     if 'delete_ckpt_after_train' in cfg:
         delete_ckpt_after_train = cfg.delete_ckpt_after_train
         if delete_ckpt_after_train:
-            clean_exp_ckpt(exp_log_dir, remove_ckpt=True)
+            # Remove PTL ckpt file, and potentially also remove .nemo file to conserve storage space.
+            clean_exp_ckpt(exp_log_dir, remove_ckpt=True, remove_nemo=False)
 
 
 if __name__ == '__main__':
