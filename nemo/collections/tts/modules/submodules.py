@@ -130,52 +130,31 @@ class PartialConv1d(torch.nn.Conv1d):
     """
 
     def __init__(self, *args, **kwargs):
-
         super(PartialConv1d, self).__init__(*args, **kwargs)
         weight_maskUpdater = torch.ones(1, 1, self.kernel_size[0])
         self.register_buffer("weight_maskUpdater", weight_maskUpdater, persistent=False)
-
-        # self.weight_maskUpdater = torch.ones(1, 1, self.kernel_size[0])
         self.slide_winsize = self.weight_maskUpdater.shape[1] * self.weight_maskUpdater.shape[2]
 
-        self.last_size = (None, None, None)
-        self.update_mask = None
-        self.mask_ratio = None
-
     def forward(self, input, mask_in=None):
-        assert len(input.shape) == 3
-        # borisf: disabled cache for export
-        use_cache = mask_in is None and not torch.jit.is_tracing()
-        cache_hit = use_cache and self.last_size == tuple(input.shape)
-        if cache_hit:
-            mask_ratio = self.mask_ratio
-            update_mask = self.update_mask
-            # if a mask is input, or tensor shape changed, update mask ratio
-        else:
-            with torch.no_grad():
-                if mask_in is None:
-                    mask = torch.ones(1, 1, input.shape[2], dtype=input.dtype, device=input.device)
-                else:
-                    mask = mask_in
-                    input = torch.mul(input, mask)
-                update_mask = F.conv1d(
-                    mask,
-                    self.weight_maskUpdater,
-                    bias=None,
-                    stride=self.stride,
-                    padding=self.padding,
-                    dilation=self.dilation,
-                    groups=1,
-                )
-                update_mask_filled = torch.masked_fill(update_mask, update_mask == 0, self.slide_winsize)
-                mask_ratio = self.slide_winsize / update_mask_filled
-                update_mask = torch.clamp(update_mask, 0, 1)
-                mask_ratio = torch.mul(mask_ratio, update_mask)
-            if use_cache:
-                print("Cache use")
-                self.last_size = tuple(input.shape)
-                self.update_mask = update_mask
-                self.mask_ratio = mask_ratio
+        with torch.no_grad():
+            if mask_in is None:
+                mask = torch.ones(1, 1, input.shape[2], dtype=input.dtype, device=input.device)
+            else:
+                mask = mask_in
+                input = torch.mul(input, mask)
+            update_mask = F.conv1d(
+                mask,
+                self.weight_maskUpdater,
+                bias=None,
+                stride=self.stride,
+                padding=self.padding,
+                dilation=self.dilation,
+                groups=1,
+            )
+            update_mask_filled = torch.masked_fill(update_mask, update_mask == 0, self.slide_winsize)
+            mask_ratio = self.slide_winsize / update_mask_filled
+            update_mask = torch.clamp(update_mask, 0, 1)
+            mask_ratio = torch.mul(mask_ratio, update_mask)
 
         raw_out = super(PartialConv1d, self).forward(input)
         if self.bias is not None:
