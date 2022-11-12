@@ -367,7 +367,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
         if self.preserve_alignments:
             if len(hypothesis.alignments[-1]) == 0:
                 del hypothesis.alignments[-1]
-        print("HERE EOS")
+#        print("HERE EOS")
 
         # Unpack the hidden states
         hypothesis.dec_state = self.decoder.batch_select_state(hypothesis.dec_state, 0)
