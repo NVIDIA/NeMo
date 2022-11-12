@@ -63,10 +63,10 @@ class GreedyCTCDecoder(torch.nn.Module):
 class SSLDisentangler(ModelPT):
     """
     SSLDisentangler is a Conformer based model for extracting disentangled content and speaker embeddings
-    from audio waveform. This model uses a pre-trained Conformer SSL model. To extract the linguistic content 
-    and speaker representations using our pre-trained Conformer, we add two randomly initialized downstream 
-    heads and perform multi-task fine-tuning for speech recognition and speaker verification. These 
-    representations can be used by FastPitchModel_SSL for voice conversion by swapping the speaker embedding 
+    from an audio waveform. This model uses a pre-trained Conformer SSL model. To extract the linguistic content 
+    and speaker representations using a pre-trained Conformer, two randomly initialized downstream 
+    heads are added and the entire setup is finetuned in multi-task manner for speech recognition and speaker verification. 
+    These representations can be used by FastPitchModel_SSL for voice conversion by swapping the speaker embedding 
     of a given source utterance, with the speaker embedding of a target speaker.
     """
 
@@ -169,6 +169,7 @@ class SSLDisentangler(ModelPT):
 
         for task in self._cfg.downstream_heads.task_names:
             if task == 'speaker_verification':
+                # this is for training downstream head to extract speaker embedding from audio
                 sv_dataset = TTSData.TTSDataset(
                     manifest_filepath=data_config['manifest_speaker_verification_fp'],
                     sample_rate=self._cfg.sample_rate,
@@ -187,7 +188,8 @@ class SSLDisentangler(ModelPT):
                     pin_memory=data_config.get('pin_memory', False),
                 )
 
-            if task == 'content':
+            elif task == 'content':
+                # this is for training downstream head to extract content embedding from audio
                 content_dataset = TTSData.TTSDataset(
                     manifest_filepath=data_config['manifest_content_fp'],
                     sample_rate=self._cfg.sample_rate,
@@ -207,6 +209,9 @@ class SSLDisentangler(ModelPT):
                     num_workers=data_config.get('num_workers_content', 0),
                     pin_memory=data_config.get('pin_memory', False),
                 )
+
+            else:
+                raise ValueError(f"{task} is not a valid task. Task must be speaker_verification or content.")
 
         loaders = {"sv": sv_loader, "content": content_loader}
         return loaders
