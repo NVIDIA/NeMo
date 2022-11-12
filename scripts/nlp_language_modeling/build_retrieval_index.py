@@ -149,7 +149,7 @@ def process_sentence_chunks(
         logging.info(f"Use {use_num_docs} out of {num_docs} docs to build index")
         total_chunks = ds._index._chunk_id_start[min(use_num_docs, num_docs - 1)]
     logging.info(f"{total_chunks} chunks are used to build the index")
-
+    start = 0
     if stage is None or stage == 0:
         beg = time.time()
         # only prepare the warmup batch for stage None and stage 0
