@@ -138,7 +138,7 @@ class SpellcheckingAsrCustomizationTestDataset(Dataset):
         input_ids_for_subwords = np.array(example.features["input_ids_for_subwords"])
         input_mask_for_subwords = np.array(example.features["input_mask_for_subwords"])
         segment_ids_for_subwords = np.array(example.features["segment_ids_for_subwords"])
-        character_pos_to_subword_pos = np.array(example.features["character_pos_to_subword_pos"])
+        character_pos_to_subword_pos = np.array(example.features["character_pos_to_subword_pos"], dtype=np.int64)
         return (
             input_ids,
             input_mask,
