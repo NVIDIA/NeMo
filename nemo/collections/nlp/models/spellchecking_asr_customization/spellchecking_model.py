@@ -122,6 +122,7 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
         src_hiddens_for_subwords = self.bert_model(input_ids=input_ids_for_subwords, token_type_ids=segment_ids_for_subwords, attention_mask=input_mask_for_subwords)
         # copies subword embeddings fo each character of the corresponding subword 
         index = character_pos_to_subword_pos.unsqueeze(-1).expand((-1, -1, src_hiddens_for_subwords.shape[2]))
+        pdb.set_trace()
         src_hiddens_2 = torch.gather(src_hiddens_for_subwords, 1, index)
         src_hiddens = torch.cat((src_hiddens, src_hiddens_2), 2)
         logits = self.logits(hidden_states=src_hiddens)
