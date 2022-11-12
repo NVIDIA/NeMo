@@ -172,6 +172,7 @@ class PartialConv1d(torch.nn.Conv1d):
                 update_mask = torch.clamp(update_mask, 0, 1)
                 mask_ratio = torch.mul(mask_ratio, update_mask)
             if use_cache:
+                print("Cache use")
                 self.last_size = tuple(input.shape)
                 self.update_mask = update_mask
                 self.mask_ratio = mask_ratio
