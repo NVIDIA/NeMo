@@ -121,8 +121,6 @@ class BertExample(object):
             pad_id = 0
             if key == "input_ids" or key == "input_ids_for_subwords":
                 pad_id = pad_token_id
-            elif key == "character_pos_to_subword_pos":
-                pad_id = -1
 
             max_len = max_seq_length
             pad_len = pad_length
