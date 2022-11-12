@@ -299,10 +299,12 @@ class BertExampleBuilder(object):
             if j_offset >= len(subword):
                 j += 1
                 j_offset = 0
-                if subword[j].startswith("##"):
+                if j >= len(tokens_for_subwords):
+                    break
+                if tokens_for_subwords[j].startswith("##"):
                     j_offset = 2
         # check that all subword tokens are processed
-        if j != len(tokens_for_subwords):
+        if j < len(tokens_for_subwords):
             raise IndexError(
                 "j="
                 + str(j)
