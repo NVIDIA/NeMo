@@ -78,7 +78,6 @@ def generate_mock_data(
     return emb_tensor, segm_tensor, multiscale_segment_counts, multiscale_weights, spk_timestamps
 
 
-@pytest.mark.skip("helper function")
 def test_speaker_counting(n_spks=3, total_dur_sec=30, num_speakers=-1, max_num_speakers=5, cuda=True):
     speaker_clustering_python = SpeakerClustering(maj_vote_spk_count=False, cuda=cuda)
     each_spk_dur = float(total_dur_sec / n_spks)
