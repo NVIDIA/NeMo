@@ -314,8 +314,6 @@ class BertExampleBuilder(object):
                 + str(len(tokens_for_subwords))
             )
 
-        pdb.set_trace() 
-
         if "PLAIN" not in self._semiotic_classes:
             raise KeyError("PLAIN should be in self._semiotic_classes")
         plain_cid = self._semiotic_classes["PLAIN"]
@@ -384,6 +382,8 @@ class BertExampleBuilder(object):
     def _get_input_features(
         self, hyp: str, ref: str, tags: List[int]
     ) -> Tuple[List[int], List[int], List[int], List[int], List[int], List[str], List[int]]:
+        labels_mask = []
+        labels = []
         if tags is None:
             hyp_tokens, token_start_indices = self._split_to_wordpieces(hyp.split())
         else:
@@ -408,8 +408,6 @@ class BertExampleBuilder(object):
                 + str(len(segment_ids))
             )
 
-        labels_mask = []
-        labels = []
         if tags:
             labels_mask = [0] + [1] * len(labels) + [0] + [0] * len(all_ref_tokens)
             labels = [0] + labels + [0] + [0] * len(all_ref_tokens)
