@@ -122,7 +122,7 @@ class TestDiarizationUtilFunctions:
         target = [[1, 5]]
         merged = combine_int_overlaps(intervals)
         assert check_range_values(target, merged)
-    
+
     def test_embedding_merge(self):
         # TODO
         pass
@@ -135,6 +135,7 @@ class TestSpeakerClustering:
         - script module export
         - speaker counting feature
     """
+
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_clus_script_export(self):

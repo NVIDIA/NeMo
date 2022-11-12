@@ -1133,18 +1133,18 @@ class SpeakerClustering(torch.nn.Module):
         max_rp_threshold = float(param_dict['max_rp_threshold'].item())
         fixed_thres = float(param_dict['fixed_thres'].item())
 
-        return self.forward_infer(embeddings_in_scales=embeddings_in_scales,
-                                  timestamps_in_scales=timestamps_in_scales,
-                                  multiscale_segment_counts=multiscale_segment_counts,
-                                  multiscale_weights=multiscale_weights,
-                                  oracle_num_speakers=oracle_num_speakers,
-                                  max_rp_threshold=max_rp_threshold,
-                                  max_num_speakers=max_num_speakers,
-                                  enhanced_count_thres=enhanced_count_thres,
-                                  sparse_search_volume=sparse_search_volume,
-                                  fixed_thres=fixed_thres
-                                )
-
+        return self.forward_infer(
+            embeddings_in_scales=embeddings_in_scales,
+            timestamps_in_scales=timestamps_in_scales,
+            multiscale_segment_counts=multiscale_segment_counts,
+            multiscale_weights=multiscale_weights,
+            oracle_num_speakers=oracle_num_speakers,
+            max_rp_threshold=max_rp_threshold,
+            max_num_speakers=max_num_speakers,
+            enhanced_count_thres=enhanced_count_thres,
+            sparse_search_volume=sparse_search_volume,
+            fixed_thres=fixed_thres,
+        )
 
     def forward_infer(
         self,
@@ -1154,7 +1154,7 @@ class SpeakerClustering(torch.nn.Module):
         multiscale_weights: torch.Tensor,
         oracle_num_speakers: int = -1,
         max_rp_threshold: float = 0.15,
-        max_num_speakers: int = 8, 
+        max_num_speakers: int = 8,
         enhanced_count_thres: int = 80,
         sparse_search_volume: int = 30,
         fixed_thres: float = -1.0,

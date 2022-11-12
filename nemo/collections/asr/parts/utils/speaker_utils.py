@@ -473,7 +473,7 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
             max_num_speakers=int(clustering_params.max_num_speakers),
             max_rp_threshold=float(clustering_params.max_rp_threshold),
             sparse_search_volume=int(clustering_params.sparse_search_volume),
-	    )
+        )
 
         base_scale_idx = uniq_embs_and_timestamps['multiscale_segment_counts'].shape[0] - 1
         timestamps = speaker_clustering.timestamps_in_scales[base_scale_idx]
