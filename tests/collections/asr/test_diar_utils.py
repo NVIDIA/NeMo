@@ -78,12 +78,12 @@ def generate_mock_data(
     return emb_tensor, segm_tensor, multiscale_segment_counts, multiscale_weights, spk_timestamps
 
 
-@pytest.mark.skip("test is not intended")
+@pytest.mark.skip("helper function")
 def test_speaker_counting(n_spks=3, total_dur_sec=30, num_speakers=-1, max_num_speakers=5, cuda=True):
     speaker_clustering_python = SpeakerClustering(maj_vote_spk_count=False, cuda=cuda)
     each_spk_dur = float(total_dur_sec / n_spks)
     em, ts, mc, mw, spk_ts = generate_mock_data(n_spks=n_spks, spk_dur=each_spk_dur)
-    Y = speaker_clustering_python.forward(
+    Y = speaker_clustering_python.forward_infer(
         embeddings_in_scales=em,
         timestamps_in_scales=ts,
         multiscale_segment_counts=mc,
@@ -99,7 +99,7 @@ class TestDiarizationUtilFunctions:
     Tests diarization and speaker-task related utils.
     Test functions include:
         - Segment interval merging function
-        - Clustering algorithm
+        - Embedding merging
     """
 
     @pytest.mark.unit
@@ -122,15 +122,27 @@ class TestDiarizationUtilFunctions:
         target = [[1, 5]]
         merged = combine_int_overlaps(intervals)
         assert check_range_values(target, merged)
+    
+    def test_embedding_merge(self):
+        # TODO
+        pass
 
+
+class TestSpeakerClustering:
+    """
+    Test speaker clustering module
+    Test functions include:
+        - script module export
+        - speaker counting feature
+    """
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_clus_script_export(self):
         exported_filename = 'speaker_clustering_script.pt'
         speaker_clustering_python = SpeakerClustering(maj_vote_spk_count=False, cuda=True)
-        speaker_clustering_scripted = torch.jit.script(speaker_clustering_python)
-        torch.jit.save(speaker_clustering_scripted, exported_filename)
-        speaker_clustering_scripted_loaded = torch.load(exported_filename)
+        speaker_clustering_scripted_source = torch.jit.script(speaker_clustering_python)
+        torch.jit.save(speaker_clustering_scripted_source, exported_filename)
+        speaker_clustering_scripted = torch.load(exported_filename)
         assert os.path.exists(exported_filename)
         os.remove(exported_filename)
         assert not os.path.exists(exported_filename)
@@ -142,7 +154,7 @@ class TestDiarizationUtilFunctions:
         num_speakers = -1
         max_num_speakers = 8
 
-        Y_tjs = speaker_clustering_scripted.forward(
+        Y_tjs = speaker_clustering_scripted.forward_infer(
             embeddings_in_scales=em,
             timestamps_in_scales=ts,
             multiscale_segment_counts=mc,
@@ -151,7 +163,7 @@ class TestDiarizationUtilFunctions:
             max_num_speakers=torch.LongTensor([max_num_speakers]),
         )
 
-        Y_py = speaker_clustering_python.forward(
+        Y_py = speaker_clustering_python.forward_infer(
             embeddings_in_scales=em,
             timestamps_in_scales=ts,
             multiscale_segment_counts=mc,
@@ -201,10 +213,6 @@ class TestDiarizationUtilFunctions:
     def test_speaker_counting_5spk_gpu(self, n_spks=5):
         est_n_spk = test_speaker_counting(n_spks=n_spks)
         assert est_n_spk == n_spks, f"Clustering test failed at n_spks={n_spks} speaker test"
-
-    def test_embedding_merge(self):
-        # TODO
-        pass
 
     def test_offline_clustering(self):
         # TODO

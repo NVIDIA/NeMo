@@ -1108,7 +1108,57 @@ class SpeakerClustering(torch.nn.Module):
         self.device = torch.device("cuda") if self.cuda else torch.device("cpu")
 
     def forward(self, param_dict: Dict[str, torch.Tensor]) -> torch.LongTensor:
+        """
+        Function designed for inference in exported script format.
 
+        Args:
+            param_dict (dict):
+                    Dictionary containing the arguments for speaker clustering.
+                    See `forward_infer` function for the argument information.
+
+            Returns:
+                (LongTensor):
+                    Speaker label for each segment.
+
+        """
+        embeddings_in_scales = param_dict['embeddings']
+        timestamps_in_scales = param_dict['timestamps']
+        multiscale_segment_counts = param_dict['multiscale_segment_counts']
+        multiscale_weights = param_dict['multiscale_weights']
+
+        oracle_num_speakers = int(param_dict['oracle_num_speakers'].item())
+        max_num_speakers = int(param_dict['max_num_speakers'].item())
+        enhanced_count_thres = int(param_dict['enhanced_count_thres'].item())
+        sparse_search_volume = int(param_dict['sparse_search_volume'].item())
+        max_rp_threshold = float(param_dict['max_rp_threshold'].item())
+        fixed_thres = float(param_dict['fixed_thres'].item())
+
+        return self.forward_infer(embeddings_in_scales=embeddings_in_scales,
+                                  timestamps_in_scales=timestamps_in_scales,
+                                  multiscale_segment_counts=multiscale_segment_counts,
+                                  multiscale_weights=multiscale_weights,
+                                  oracle_num_speakers=oracle_num_speakers,
+                                  max_rp_threshold=max_rp_threshold,
+                                  max_num_speakers=max_num_speakers,
+                                  enhanced_count_thres=enhanced_count_thres,
+                                  sparse_search_volume=sparse_search_volume,
+                                  fixed_thres=fixed_thres
+                                )
+
+
+    def forward_infer(
+        self,
+        embeddings_in_scales: torch.Tensor,
+        timestamps_in_scales: torch.Tensor,
+        multiscale_segment_counts: torch.LongTensor,
+        multiscale_weights: torch.Tensor,
+        oracle_num_speakers: int = -1,
+        max_rp_threshold: float = 0.15,
+        max_num_speakers: int = 8, 
+        enhanced_count_thres: int = 80,
+        sparse_search_volume: int = 30,
+        fixed_thres: float = -1.0,
+    ) -> torch.LongTensor:
         """
         Calculate affinity matrix using timestamps and speaker embeddings, run NME analysis to estimate the best
         p-value and perform spectral clustering based on the estimated p-value and the calculated affinity matrix.
@@ -1171,19 +1221,6 @@ class SpeakerClustering(torch.nn.Module):
             Y (Tensor):
                 Speaker label for each segment.
         """
-
-        embeddings_in_scales = param_dict['embeddings']
-        timestamps_in_scales = param_dict['timestamps']
-        multiscale_segment_counts = param_dict['multiscale_segment_counts']
-        multiscale_weights = param_dict['multiscale_weights']
-
-        oracle_num_speakers = int(param_dict['oracle_num_speakers'].item())
-        max_num_speakers = int(param_dict['max_num_speakers'].item())
-        enhanced_count_thres = int(param_dict['enhanced_count_thres'].item())
-        sparse_search_volume = int(param_dict['sparse_search_volume'].item())
-        max_rp_threshold = float(param_dict['max_rp_threshold'].item())
-        fixed_thres = float(param_dict['fixed_thres'].item())
-
         self.embeddings_in_scales, self.timestamps_in_scales = split_input_data(
             embeddings_in_scales, timestamps_in_scales, multiscale_segment_counts
         )
@@ -1229,7 +1266,7 @@ class SpeakerClustering(torch.nn.Module):
 
         # n_clusters is number of speakers estimated from spectral clustering.
         if oracle_num_speakers > 0:
-            n_clusters = oracle_num_speakers
+            n_clusters = int(oracle_num_speakers)
         elif est_num_of_spk_enhanced > 0:
             n_clusters = int(est_num_of_spk_enhanced.item())
         else:
