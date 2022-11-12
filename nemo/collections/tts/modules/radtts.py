@@ -183,9 +183,7 @@ class RadTTSModule(NeuralModule, Exportable):
         self.speaker_embedding = torch.nn.Embedding(n_speakers, self.n_speaker_dim)
         self.embedding = torch.nn.Embedding(n_text, n_text_dim)
         self.flows = torch.nn.ModuleList()
-        self.encoder = getRadTTSEncoder(
-            encoder_embedding_dim=n_text_dim, norm_fn=nn.InstanceNorm1d, lstm_norm_fn=text_encoder_lstm_norm
-        )
+        self.encoder = getRadTTSEncoder(encoder_embedding_dim=n_text_dim, lstm_norm_fn=text_encoder_lstm_norm)
         self.dummy_speaker_embedding = dummy_speaker_embedding
         self.learn_alignments = learn_alignments
         self.affine_activation = affine_activation
@@ -782,16 +780,10 @@ class RadTTSModule(NeuralModule, Exportable):
 
     # Methods for model exportability
     def _prepare_for_export(self, **kwargs):
-        print(kwargs)
-        # PartialConv1d.forward = PartialConv1d.forward_for_script
         self.remove_norms()
         super()._prepare_for_export(**kwargs)
         if self.prepared_for_export:
             return
-        # for m in self.modules():
-        #    if isinstance(m, PartialConv1d):
-        #        PartialConv1d.update_bias_view(m)
-
         self.encoder = self.encoder.script()
         self.v_pred_module.feat_pred_fn = self.v_pred_module.feat_pred_fn.script()
         if hasattr(self, 'f0_pred_module'):
@@ -834,8 +826,8 @@ class RadTTSModule(NeuralModule, Exportable):
             text,
             speaker_id_text=speaker_id_text,
             speaker_id_attributes=speaker_id_attributes,
-            sigma=0.0,
-            sigma_txt=0.0,
+            sigma=0.7,
+            sigma_txt=0.7,
             sigma_f0=1.0,
             sigma_energy=1.0,
             f0_mean=145.0,

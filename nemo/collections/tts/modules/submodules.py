@@ -12,11 +12,114 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Tuple
+from typing import Optional, Tuple
 
 import torch
+from torch import Tensor
 from torch.autograd import Variable
 from torch.nn import functional as F
+
+
+def masked_instance_norm(
+    input: Tensor,
+    mask: Tensor,
+    running_mean: Optional[Tensor],
+    running_var: Optional[Tensor],
+    weight: Optional[Tensor],
+    bias: Optional[Tensor],
+    use_input_stats: bool,
+    momentum: float,
+    eps: float = 1e-5,
+) -> Tensor:
+    r"""Applies Masked Instance Normalization for each channel in each data sample in a batch.
+
+    See :class:`~MaskedInstanceNorm1d` for details.
+    """
+    if not use_input_stats and (running_mean is None or running_var is None):
+        raise ValueError('Expected running_mean and running_var to be not None when use_input_stats=False')
+
+    shape = input.shape
+    b, c = shape[:2]
+
+    num_dims = len(shape[2:])
+    _dims = tuple(range(-num_dims, 0))
+    _slice = (...,) + (None,) * num_dims
+
+    running_mean_ = running_mean[None, :].repeat(b, 1) if running_mean is not None else None
+    running_var_ = running_var[None, :].repeat(b, 1) if running_mean is not None else None
+
+    if use_input_stats:
+        lengths = mask.sum(_dims)
+        mean = (input * mask).sum(_dims) / lengths  # (N, C)
+        var = (((input - mean[_slice]) * mask) ** 2).sum(_dims) / lengths  # (N, C)
+
+        if running_mean is not None:
+            running_mean_.mul_(1 - momentum).add_(momentum * mean.detach())
+            running_mean.copy_(running_mean_.view(b, c).mean(0, keepdim=False))
+        if running_var is not None:
+            running_var_.mul_(1 - momentum).add_(momentum * var.detach())
+            running_var.copy_(running_var_.view(b, c).mean(0, keepdim=False))
+    else:
+        mean, var = running_mean_.view(b, c), running_var_.view(b, c)
+
+    out = (input - mean[_slice]) / torch.sqrt(var[_slice] + eps)  # (N, C, ...)
+
+    if weight is not None and bias is not None:
+        out = out * weight[None, :][_slice] + bias[None, :][_slice]
+
+    return out
+
+
+class MaskedInstanceNorm1d(torch.nn.InstanceNorm1d):
+    r"""Applies Instance Normalization over a masked 3D input
+    (a mini-batch of 1D inputs with additional channel dimension)..
+
+    See documentation of :class:`~torch.nn.InstanceNorm1d` for details.
+
+    Shape:
+        - Input: :math:`(N, C, L)`
+        - Mask: :math:`(N, 1, L)`
+        - Output: :math:`(N, C, L)` (same shape as input)
+    """
+
+    def __init__(
+        self,
+        num_features: int,
+        eps: float = 1e-5,
+        momentum: float = 0.1,
+        affine: bool = False,
+        track_running_stats: bool = False,
+    ) -> None:
+        super(MaskedInstanceNorm1d, self).__init__(num_features, eps, momentum, affine, track_running_stats)
+
+    def forward(self, input: Tensor, mask: Tensor = None) -> Tensor:
+        self._check_input_dim(input)
+        if mask is not None:
+            self._check_input_dim(mask)
+
+        if mask is None:
+            return F.instance_norm(
+                input,
+                self.running_mean,
+                self.running_var,
+                self.weight,
+                self.bias,
+                self.training or not self.track_running_stats,
+                self.momentum,
+                self.eps,
+            )
+        else:
+            return masked_instance_norm(
+                input,
+                mask,
+                self.running_mean,
+                self.running_var,
+                self.weight,
+                self.bias,
+                self.training or not self.track_running_stats,
+                self.momentum,
+                self.eps,
+            )
 
 
 class PartialConv1d(torch.nn.Conv1d):
@@ -145,10 +248,14 @@ class ConvNorm(torch.nn.Module):
     def forward(self, signal, mask=None):
         if self.use_partial_padding:
             ret = self.conv(signal, mask)
+            if self.norm is not None:
+                ret = self.norm(ret, mask)
         else:
+            if mask is not None:
+                signal = signal * mask
             ret = self.conv(signal)
-        if self.norm is not None:
-            ret = self.norm(ret)
+            if self.norm is not None:
+                ret = self.norm(ret)
         return ret
 
 
