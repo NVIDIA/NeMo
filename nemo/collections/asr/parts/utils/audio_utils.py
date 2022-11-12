@@ -45,7 +45,7 @@ def get_samples(audio_file: str, target_sr: int = 16000):
         samples = f.read()
         if sample_rate != target_sr:
             samples = librosa.core.resample(samples, orig_sr=sample_rate, target_sr=target_sr)
-        samples = samples.transpose()
+        samples = samples.transpose().astype('float32')
         del f
     return samples
 
