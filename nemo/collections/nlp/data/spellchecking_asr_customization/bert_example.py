@@ -231,12 +231,87 @@ class BertExampleBuilder(object):
             segment_ids_for_subwords,
             _,
             _,
-            hyp_tokens_for_words,
+            _,
             _
         ) = self._get_input_features(hyp=hyp_with_words, ref=ref_with_words, tags=None) 
 
         character_pos_to_subword_pos = [-1 for _ in input_ids]
-        #for i in range(len(character_pos_to_subword_pos)):
+        ## Example:
+        ##   hyp_tokens_for_words = ['pe', '##lle', '##vi', '##bra', '##tions', 'of', 'peace' ... 'world']
+        ##   input_ids_for_subwords = [101, 21877, 6216, 5737, 10024, ..., 9311, 102, 27046, 102, 12525 ...]
+        ##   hyp_tokens = ['p', 'e', 'l', 'l', 'e', 'v', 'i', 'b', 'r', 'a', 't', 'i', 'o', 'n', 's', '_', 'o', 'f', '_', 'p', 'e', 'a', 'c', 'e', '_' ... ]
+        
+        ## ['[CLS]', 'p', 'e', 'l', 'l', 'e', 'v', 'i', 'b', 'r', 'a', 't', 'i', 'o', 'n', 's', '_', 'o', 'f', '_', ..., '[SEP]' 
+        tokens = self._tokenizer.convert_ids_to_tokens(input_ids)
+        ##  ['[CLS]', 'pe', '##lle', '##vi', '##bra', '##tions', 'of', 'peace', ..., 'tent', '[SEP]', 'thru', '[SEP]', 'mister', '##ia', '[SEP]', 'r', 'v', 'g', '[SEP]', 'af', '##p', '[SEP]', 'dans', 'la', 'pea', '##u', '[SEP]', 'anthony', 'lester', '[SEP]', 'k', '##x', '##ok', '[SEP]', 'anthony', 'le', '##rew', '[SEP]', 'anthony', 'les', '##pes', '[SEP]', 'han', '##ey', '[SEP]']
+        tokens_for_subwords = self._tokenizer.convert_ids_to_tokens(input_ids_for_subwords)
+        j = 0  # index for tokens_for_subwords
+        j_offset = 0  # current letter index within subword
+        for i in range(len(tokens)):
+            character = tokens[i]
+            subword = tokens_for_subwords[j]
+            if character == "[CLS]" and subword == "[CLS]":
+                character_pos_to_subword_pos[i] = j
+                j += 1
+                continue
+            if character == "[SEP]" and subword == "[SEP]":
+                character_pos_to_subword_pos[i] = j
+                j += 1
+                continue
+            if character == "[CLS]" or character == "[SEP]" or subword == "[CLS]" or subword == "[SEP]":
+                raise IndexError(
+                    "character["
+                    + str(i)
+                    + "]="
+                    + character
+                    + "; subword["
+                    + str(j)
+                    + ";="
+                    + subword
+                    + "subwords="
+                    + str(tokens_for_subwords)
+                )
+            # at this point we expect that 
+            #    subword either 1) is a normal first token of a word or 2) starts with "##" (not first word token)
+            #    character either 1) is a normal character or 2) is a space character "_"
+            if character == "_":
+                character_pos_to_subword_pos[i] = j - 1  # space is assigned to previous subtoken
+                continue
+            if j_offset < len(subword):
+                if character == subword[j_offset]:
+                    character_pos_to_subword_pos[i] = j
+                    j_offset += 1
+                else:
+                    raise IndexError(
+                        "character mismatch:"
+                        + "i="
+                        + str(i)
+                        + "j="
+                        + str(j)
+                        + "j_offset="
+                        + str(j_offset)
+                        + "; len(tokens)="
+                        + str(len(tokens))
+                        + "; len(subwords)="
+                        + str(len(tokens_for_subwords))
+                    )
+            # if subword is finished, increase j
+            if j_offset >= len(subword):
+                j += 1
+                j_offset = 0
+                if subword[j].startswith("##"):
+                    j_offset = 2
+        # check that all subword tokens are processed
+        if j != len(tokens_for_subwords):
+            raise IndexError(
+                "j="
+                + str(j)
+                + "; len(tokens)="
+                + str(len(tokens))
+                + "; len(subwords)="
+                + str(len(tokens_for_subwords))
+            )
+
         pdb.set_trace() 
 
         if "PLAIN" not in self._semiotic_classes:
