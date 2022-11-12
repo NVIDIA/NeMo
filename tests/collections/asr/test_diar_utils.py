@@ -41,12 +41,10 @@ def matrix(mat, torch=True):
     else:
         return np.array(mat)
 
-
 def generate_mock_emb(n_emb_per_spk, perturb_sigma, emb_dim):
     """Generate a set of artificial embedding vectors from random numbers
     """
     return torch.rand(1, emb_dim).repeat(n_emb_per_spk, 1) + perturb_sigma * torch.rand(n_emb_per_spk, emb_dim)
-
 
 def generate_mock_data(
     n_spks=2,
@@ -77,9 +75,10 @@ def generate_mock_data(
     multiscale_weights = torch.ones(len(ms_window)).unsqueeze(0)
     return emb_tensor, segm_tensor, multiscale_segment_counts, multiscale_weights, spk_timestamps
 
-
+@pytest.mark.run_only_on('GPU')
 def test_speaker_counting(n_spks=3, total_dur_sec=30, num_speakers=-1, max_num_speakers=5, cuda=True):
     speaker_clustering_python = SpeakerClustering(maj_vote_spk_count=False, cuda=cuda)
+    assert isinstance(speaker_clustering_python, SpeakerClustering)
     each_spk_dur = float(total_dur_sec / n_spks)
     em, ts, mc, mw, spk_ts = generate_mock_data(n_spks=n_spks, spk_dur=each_spk_dur)
     Y = speaker_clustering_python.forward_infer(
@@ -91,7 +90,6 @@ def test_speaker_counting(n_spks=3, total_dur_sec=30, num_speakers=-1, max_num_s
         max_num_speakers=torch.LongTensor([max_num_speakers]),
     )
     return len(set(Y.tolist()))
-
 
 class TestDiarizationUtilFunctions:
     """
@@ -173,6 +171,7 @@ class TestSpeakerClustering:
         )
         assert len(set(Y_tjs.tolist())) == len(set(Y_py.tolist())) == n_spks
         assert all(Y_tjs == Y_py) == True, f"Script module and python module are showing different clustering results"
+
 
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
