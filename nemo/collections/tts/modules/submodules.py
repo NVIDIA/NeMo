@@ -131,8 +131,6 @@ class PartialConv1d(torch.nn.Conv1d):
 
     def __init__(self, *args, **kwargs):
 
-        self.multi_channel = False
-        self.return_mask = False
         super(PartialConv1d, self).__init__(*args, **kwargs)
         weight_maskUpdater = torch.ones(1, 1, self.kernel_size[0])
         self.register_buffer("weight_maskUpdater", weight_maskUpdater, persistent=False)
@@ -147,8 +145,8 @@ class PartialConv1d(torch.nn.Conv1d):
     def forward(self, input, mask_in=None):
         assert len(input.shape) == 3
         # borisf: disabled cache for export
-        use_cache = False  # not (torch.jit.is_tracing() or torch.onnx.is_in_onnx_export())
-        cache_hit = False  # use_cache and mask_in is None and self.last_size == tuple(input.shape)
+        use_cache = mask_in is None and not torch.jit.is_tracing()
+        cache_hit = use_cache and self.last_size == tuple(input.shape)
         if cache_hit:
             mask_ratio = self.mask_ratio
             update_mask = self.update_mask
@@ -159,6 +157,7 @@ class PartialConv1d(torch.nn.Conv1d):
                     mask = torch.ones(1, 1, input.shape[2], dtype=input.dtype, device=input.device)
                 else:
                     mask = mask_in
+                    input = torch.mul(input, mask)
                 update_mask = F.conv1d(
                     mask,
                     self.weight_maskUpdater,
@@ -168,8 +167,8 @@ class PartialConv1d(torch.nn.Conv1d):
                     dilation=self.dilation,
                     groups=1,
                 )
-                # for mixed precision training, change 1e-8 to 1e-6
-                mask_ratio = self.slide_winsize / (update_mask + 1e-6)
+                update_mask_filled = torch.masked_fill(update_mask, update_mask == 0, self.slide_winsize)
+                mask_ratio = self.slide_winsize / update_mask_filled
                 update_mask = torch.clamp(update_mask, 0, 1)
                 mask_ratio = torch.mul(mask_ratio, update_mask)
             if use_cache:
@@ -177,7 +176,7 @@ class PartialConv1d(torch.nn.Conv1d):
                 self.update_mask = update_mask
                 self.mask_ratio = mask_ratio
 
-        raw_out = super(PartialConv1d, self).forward(torch.mul(input, mask) if mask_in is not None else input)
+        raw_out = super(PartialConv1d, self).forward(input)
         if self.bias is not None:
             bias_view = self.bias.view(1, self.out_channels, 1)
             output = torch.mul(raw_out - bias_view, mask_ratio) + bias_view
@@ -185,10 +184,7 @@ class PartialConv1d(torch.nn.Conv1d):
         else:
             output = torch.mul(raw_out, mask_ratio)
 
-        if self.return_mask:
-            return output, update_mask
-        else:
-            return output
+        return output
 
 
 class LinearNorm(torch.nn.Module):
