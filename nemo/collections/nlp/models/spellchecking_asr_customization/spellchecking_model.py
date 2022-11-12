@@ -93,8 +93,9 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
 
         self.hidden_size = cfg.hidden_size
 
+        # hidden size is doubled because we concatenate bert for characters and for subwords
         self.logits = TokenClassifier(
-            self.hidden_size, num_classes=self.num_labels, num_layers=1, log_softmax=False, dropout=0.1
+            self.hidden_size*2, num_classes=self.num_labels, num_layers=1, log_softmax=False, dropout=0.1
         )
 
         self.loss_fn = CrossEntropyLoss(logits_ndim=3)
@@ -123,7 +124,6 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
         index = character_pos_to_subword_pos.unsqueeze(-1).expand((-1, -1, src_hiddens_for_subwords.shape[2]))
         src_hiddens_2 = torch.gather(src_hiddens_for_subwords, 1, index)
         src_hiddens = torch.cat((src_hiddens, src_hiddens_2), 2)
-        pdb.set_trace()
         logits = self.logits(hidden_states=src_hiddens)
         return logits
 
