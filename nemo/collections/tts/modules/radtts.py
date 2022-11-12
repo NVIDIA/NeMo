@@ -61,9 +61,9 @@ def pad_energy_avg_and_f0(energy_avg, f0, max_out_len):
 def adjust_f0(f0, f0_mean, f0_std, vmask_bool):
     if f0_mean > 0.0:
         f0_mu, f0_sigma = f0[vmask_bool].mean(), f0[vmask_bool].std()
-        f0[vmask_bool] = (f0[vmask_bool] - f0_mu) / f0_sigma
+        f0[vmask_bool] = ((f0[vmask_bool] - f0_mu) / f0_sigma).to(dtype=f0.dtype)
         f0_std = f0_std if f0_std > 0 else f0_sigma
-        f0[vmask_bool] = f0[vmask_bool] * f0_std + f0_mean
+        f0[vmask_bool] = (f0[vmask_bool] * f0_std + f0_mean).to(dtype=f0.dtype)
     return f0
 
 
@@ -722,8 +722,7 @@ class RadTTSModule(NeuralModule, Exportable):
         voiced_mask = voiced_mask[:, :, : f0.shape[-1]]
         if self.ap_pred_log_f0:
             # if variable is set, decoder sees linear f0
-            # mask = f0 > 0.0 if voiced_mask is None else voiced_mask.bool()
-            f0[voiced_mask] = torch.exp(f0[voiced_mask]).to(f0)
+            f0 = torch.exp(f0).to(dtype=f0.dtype)
         f0[~voiced_mask] = 0.0
         return f0
 
@@ -826,8 +825,8 @@ class RadTTSModule(NeuralModule, Exportable):
             text,
             speaker_id_text=speaker_id_text,
             speaker_id_attributes=speaker_id_attributes,
-            sigma=0.7,
-            sigma_txt=0.7,
+            sigma=0.0,
+            sigma_txt=0.0,
             sigma_f0=1.0,
             sigma_energy=1.0,
             f0_mean=145.0,

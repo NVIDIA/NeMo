@@ -163,7 +163,6 @@ class ConvLSTMLinear(BiLSTM):
         lstm_norm_fn="spectral",
     ):
         super(ConvLSTMLinear, self).__init__(n_channels, int(n_channels // 2), 1)
-        self.out_dim = out_dim
         self.convolutions = nn.ModuleList()
 
         if n_layers > 0:
@@ -187,7 +186,6 @@ class ConvLSTMLinear(BiLSTM):
             if norm_fn is not None:
                 print("Applying {} norm to {}".format(norm_fn, conv_layer))
             else:
-                # conv_layer = torch.nn.utils.weight_norm(conv_layer.conv)
                 print("Applying weight norm to {}".format(conv_layer))
             self.convolutions.append(conv_layer)
 
@@ -214,7 +212,6 @@ class ConvLSTMLinear(BiLSTM):
         my_lens = lens
         context, my_lens, unsort_ids = sort_tensor(context, my_lens)
         seq = self.masked_conv_to_sequence(context, my_lens, enforce_sorted=True)
-        # seq = self.conv_to_sequence(context, my_lens, enforce_sorted=True)
         context, _ = self.lstm_sequence(seq)
         context = context[unsort_ids]
 
@@ -225,19 +222,17 @@ class ConvLSTMLinear(BiLSTM):
 
     def script(self):
         traced = nn.ModuleList()
+        return torch.jit.script(self)
+
         for conv in self.convolutions:
-            if hasattr(conv, 'conv'):
-                w = conv.conv.weight
-            else:
-                w = conv.weight
+            w = conv.conv.weight
             s = w.shape
             rand_in = (
-                torch.ones(1, s[1], s[2], dtype=w.dtype, device=w.device),
-                torch.ones(1, 1, s[2], dtype=w.dtype, device=w.device),
+                torch.ones(4, s[1], s[2], dtype=w.dtype, device=w.device),
+                torch.ones(4, 1, s[2], dtype=w.dtype, device=w.device),
             )
             traced.append(torch.jit.trace_module(conv, {"forward": rand_in}))
         self.convolutions = traced
-        return torch.jit.script(self)
 
 
 def getRadTTSEncoder(

@@ -20,7 +20,7 @@ from torch.autograd import Variable
 from torch.nn import functional as F
 
 
-def masked_instance_norm(
+def masked_instance_norm0(
     input: Tensor,
     mask: Tensor,
     running_mean: Optional[Tensor],
@@ -38,20 +38,29 @@ def masked_instance_norm(
     if not use_input_stats and (running_mean is None or running_var is None):
         raise ValueError('Expected running_mean and running_var to be not None when use_input_stats=False')
 
+    print(running_mean, running_var, weight, bias, use_input_stats, momentum)
+
     shape = input.shape
     b, c = shape[:2]
 
-    num_dims = len(shape[2:])
-    _dims = tuple(range(-num_dims, 0))
-    _slice = (...,) + (None,) * num_dims
+    num_dims = 1  # len(shape[2:])
+    # _dims = tuple(range(-num_dims, 0))
 
-    running_mean_ = running_mean[None, :].repeat(b, 1) if running_mean is not None else None
-    running_var_ = running_var[None, :].repeat(b, 1) if running_mean is not None else None
+    # _slice = (...,) + (None,) * num_dims
+    # print (_dims, _slice)
+    if running_mean is not None:
+        running_mean_ = running_mean[None, :].repeat(b, 1)
+    else:
+        running_mean_ = None
+    if running_var is not None:
+        running_var_ = running_var[None, :].repeat(b, 1)
+    else:
+        running_var_ = None
 
     if use_input_stats:
-        lengths = mask.sum(_dims)
-        mean = (input * mask).sum(_dims) / lengths  # (N, C)
-        var = (((input - mean[_slice]) * mask) ** 2).sum(_dims) / lengths  # (N, C)
+        lengths = mask.sum((-1,))
+        mean = (input * mask).sum((-1,)) / lengths  # (N, C)
+        var = (((input - mean[(..., None)]) * mask) ** 2).sum((-1,)) / lengths  # (N, C)
 
         if running_mean is not None:
             running_mean_.mul_(1 - momentum).add_(momentum * mean.detach())
@@ -62,10 +71,36 @@ def masked_instance_norm(
     else:
         mean, var = running_mean_.view(b, c), running_var_.view(b, c)
 
-    out = (input - mean[_slice]) / torch.sqrt(var[_slice] + eps)  # (N, C, ...)
+    out = (input - mean[(..., None)]) / torch.sqrt(var[(..., None)] + eps)  # (N, C, ...)
 
-    if weight is not None and bias is not None:
-        out = out * weight[None, :][_slice] + bias[None, :][_slice]
+    out = out * weight[None, :][(..., None)] + bias[None, :][(..., None)]
+
+    return out
+
+
+def masked_instance_norm(
+    input: Tensor, mask: Tensor, weight: Tensor, bias: Tensor, momentum: float, eps: float = 1e-5,
+) -> Tensor:
+    r"""Applies Masked Instance Normalization for each channel in each data sample in a batch.
+
+    See :class:`~MaskedInstanceNorm1d` for details.
+    """
+    shape = input.shape
+    b, c = shape[:2]
+
+    num_dims = 1  # len(shape[2:])
+    # _dims = tuple(range(-num_dims, 0))
+
+    # _slice = (...,) + (None,) * num_dims
+    # print (_dims, _slice)
+
+    lengths = mask.sum((-1,))
+    mean = (input * mask).sum((-1,)) / lengths  # (N, C)
+    var = (((input - mean[(..., None)]) * mask) ** 2).sum((-1,)) / lengths  # (N, C)
+
+    out = (input - mean[(..., None)]) / torch.sqrt(var[(..., None)] + eps)  # (N, C, ...)
+
+    out = out * weight[None, :][(..., None)] + bias[None, :][(..., None)]
 
     return out
 
@@ -92,34 +127,8 @@ class MaskedInstanceNorm1d(torch.nn.InstanceNorm1d):
     ) -> None:
         super(MaskedInstanceNorm1d, self).__init__(num_features, eps, momentum, affine, track_running_stats)
 
-    def forward(self, input: Tensor, mask: Tensor = None) -> Tensor:
-        self._check_input_dim(input)
-        if mask is not None:
-            self._check_input_dim(mask)
-
-        if mask is None:
-            return F.instance_norm(
-                input,
-                self.running_mean,
-                self.running_var,
-                self.weight,
-                self.bias,
-                self.training or not self.track_running_stats,
-                self.momentum,
-                self.eps,
-            )
-        else:
-            return masked_instance_norm(
-                input,
-                mask,
-                self.running_mean,
-                self.running_var,
-                self.weight,
-                self.bias,
-                self.training or not self.track_running_stats,
-                self.momentum,
-                self.eps,
-            )
+    def forward(self, input: Tensor, mask: Tensor) -> Tensor:
+        return masked_instance_norm(input, mask, self.weight, self.bias, self.momentum, self.eps,)
 
 
 class PartialConv1d(torch.nn.Conv1d):
@@ -129,13 +138,16 @@ class PartialConv1d(torch.nn.Conv1d):
     this affect.
     """
 
+    __constants__ = ['slide_winsize']
+    slide_winsize: float
+
     def __init__(self, *args, **kwargs):
         super(PartialConv1d, self).__init__(*args, **kwargs)
         weight_maskUpdater = torch.ones(1, 1, self.kernel_size[0])
         self.register_buffer("weight_maskUpdater", weight_maskUpdater, persistent=False)
         self.slide_winsize = self.weight_maskUpdater.shape[1] * self.weight_maskUpdater.shape[2]
 
-    def forward(self, input, mask_in=None):
+    def forward(self, input, mask_in):
         with torch.no_grad():
             if mask_in is None:
                 mask = torch.ones(1, 1, input.shape[2], dtype=input.dtype, device=input.device)
@@ -156,7 +168,8 @@ class PartialConv1d(torch.nn.Conv1d):
             update_mask = torch.clamp(update_mask, 0, 1)
             mask_ratio = torch.mul(mask_ratio, update_mask)
 
-        raw_out = super(PartialConv1d, self).forward(input)
+        raw_out = self._conv_forward(input, self.weight, self.bias)
+
         if self.bias is not None:
             bias_view = self.bias.view(1, self.out_channels, 1)
             output = torch.mul(raw_out - bias_view, mask_ratio) + bias_view
@@ -179,6 +192,9 @@ class LinearNorm(torch.nn.Module):
 
 
 class ConvNorm(torch.nn.Module):
+    __constants__ = ['use_partial_padding']
+    use_partial_padding: bool
+
     def __init__(
         self,
         in_channels,
@@ -197,12 +213,9 @@ class ConvNorm(torch.nn.Module):
         if padding is None:
             assert kernel_size % 2 == 1
             padding = int(dilation * (kernel_size - 1) / 2)
-        self.kernel_size = kernel_size
-        self.dilation = dilation
         self.use_partial_padding = use_partial_padding
-        self.use_weight_norm = use_weight_norm
         conv_fn = torch.nn.Conv1d
-        if self.use_partial_padding:
+        if use_partial_padding:
             conv_fn = PartialConv1d
         self.conv = conv_fn(
             in_channels,
@@ -214,7 +227,7 @@ class ConvNorm(torch.nn.Module):
             bias=bias,
         )
         torch.nn.init.xavier_uniform_(self.conv.weight, gain=torch.nn.init.calculate_gain(w_init_gain))
-        if self.use_weight_norm:
+        if use_weight_norm:
             self.conv = torch.nn.utils.weight_norm(self.conv)
         if norm_fn is not None:
             self.norm = norm_fn(out_channels, affine=True)
