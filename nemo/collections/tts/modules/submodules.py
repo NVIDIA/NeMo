@@ -147,8 +147,8 @@ class PartialConv1d(torch.nn.Conv1d):
     def forward(self, input, mask_in=None):
         assert len(input.shape) == 3
         # borisf: disabled cache for export
-        use_cache = not (torch.jit.is_tracing() or torch.onnx.is_in_onnx_export())
-        cache_hit = use_cache and mask_in is None and self.last_size == tuple(input.shape)
+        use_cache = False  # not (torch.jit.is_tracing() or torch.onnx.is_in_onnx_export())
+        cache_hit = False  # use_cache and mask_in is None and self.last_size == tuple(input.shape)
         if cache_hit:
             mask_ratio = self.mask_ratio
             update_mask = self.update_mask
