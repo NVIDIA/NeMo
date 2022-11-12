@@ -235,7 +235,7 @@ class BertExampleBuilder(object):
             _
         ) = self._get_input_features(hyp=hyp_with_words, ref=ref_with_words, tags=None) 
 
-        character_pos_to_subword_pos = [-1 for _ in input_ids]
+        character_pos_to_subword_pos = [0 for _ in input_ids]
         ## Example:
         ##   hyp_tokens_for_words = ['pe', '##lle', '##vi', '##bra', '##tions', 'of', 'peace' ... 'world']
         ##   input_ids_for_subwords = [101, 21877, 6216, 5737, 10024, ..., 9311, 102, 27046, 102, 12525 ...]
