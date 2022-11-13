@@ -12,7 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> virajkarandikar/vkarandikar_fix_clustering
 import os
 from itertools import permutations
 
@@ -21,7 +24,10 @@ import pytest
 import torch
 
 from nemo.collections.asr.parts.utils.nmesc_clustering import SpeakerClustering
+<<<<<<< HEAD
 from nemo.collections.asr.models.online_diarizer import stitch_cluster_labels, get_minimal_indices
+=======
+>>>>>>> virajkarandikar/vkarandikar_fix_clustering
 from nemo.collections.asr.parts.utils.speaker_utils import (
     combine_float_overlaps,
     combine_int_overlaps,
@@ -33,6 +39,7 @@ def check_range_values(target, source):
     bool_list = []
     for tgt, src in zip(target, source):
         for x, y in zip(src, tgt):
+<<<<<<< HEAD
             bool_list.append(abs(x-y) < 1e-6)
     return all(bool_list)
 
@@ -43,16 +50,31 @@ def check_labels(target, source):
     return all(bool_list)
 
 def matrix(mat, torch=False):
+=======
+            bool_list.append(abs(x - y) < 1e-6)
+    return all(bool_list)
+
+
+def matrix(mat, torch=True):
+>>>>>>> virajkarandikar/vkarandikar_fix_clustering
     if torch:
         return torch.tensor(mat)
     else:
         return np.array(mat)
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> virajkarandikar/vkarandikar_fix_clustering
 def generate_mock_emb(n_emb_per_spk, perturb_sigma, emb_dim):
     """Generate a set of artificial embedding vectors from random numbers
     """
     return torch.rand(1, emb_dim).repeat(n_emb_per_spk, 1) + perturb_sigma * torch.rand(n_emb_per_spk, emb_dim)
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> virajkarandikar/vkarandikar_fix_clustering
 def generate_mock_data(
     n_spks=2,
     spk_dur=3,
@@ -99,9 +121,19 @@ def test_speaker_counting(n_spks=3, total_dur_sec=30, num_speakers=-1, max_num_s
     )
     return len(set(Y.tolist()))
 
+<<<<<<< HEAD
 class TestDiarizationUtilFunctions:
     """
     Tests for cpWER calculation.
+=======
+
+class TestDiarizationUtilFunctions:
+    """
+    Tests diarization and speaker-task related utils.
+    Test functions include:
+        - Segment interval merging function
+        - Embedding merging
+>>>>>>> virajkarandikar/vkarandikar_fix_clustering
     """
 
     @pytest.mark.unit
@@ -113,13 +145,19 @@ class TestDiarizationUtilFunctions:
 
     @pytest.mark.unit
     def test_combine_int_overlaps(self):
+<<<<<<< HEAD
         intervals = [[1,3],[2,6],[8,10],[15,18]]
         target = [[1,6],[8,10],[15,18]]
+=======
+        intervals = [[1, 3], [2, 6], [8, 10], [15, 18]]
+        target = [[1, 6], [8, 10], [15, 18]]
+>>>>>>> virajkarandikar/vkarandikar_fix_clustering
         merged = combine_int_overlaps(intervals)
         assert check_range_values(target, merged)
 
     @pytest.mark.unit
     def test_combine_int_overlaps_edge(self):
+<<<<<<< HEAD
         intervals = [[1,4],[4,5]]
         target = [[1,5]]
         merged = combine_int_overlaps(intervals)
@@ -184,6 +222,16 @@ class TestDiarizationUtilFunctions:
         
         # # TODO
         # pass
+=======
+        intervals = [[1, 4], [4, 5]]
+        target = [[1, 5]]
+        merged = combine_int_overlaps(intervals)
+        assert check_range_values(target, merged)
+
+    def test_embedding_merge(self):
+        # TODO
+        pass
+>>>>>>> virajkarandikar/vkarandikar_fix_clustering
 
 
 class TestSpeakerClustering:
@@ -280,4 +328,7 @@ class TestSpeakerClustering:
     def test_online_clustering(self):
         # TODO
         pass
+<<<<<<< HEAD
 
+=======
+>>>>>>> virajkarandikar/vkarandikar_fix_clustering

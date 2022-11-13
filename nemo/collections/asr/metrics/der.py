@@ -137,7 +137,6 @@ def get_online_DER_stats(DER, CER, FA, MISS, diar_eval_count, der_stat_dict, dec
     der_stat_dict['max_CER'] = round(max(der_dict['CER'], der_stat_dict['max_CER']), deci)
     return der_dict, der_stat_dict
 
-
 def calculate_session_cpWER_bruteforce(spk_hypothesis: List[str], spk_reference: List[str]) -> Tuple[float, str, str]:
     """
     Calculate cpWER with actual permutations in brute-force way when LSA algorithm cannot deliver the correct result.

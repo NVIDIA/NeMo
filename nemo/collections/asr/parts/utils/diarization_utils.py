@@ -178,6 +178,7 @@ def convert_word_dict_seq_to_text(word_dict_seq_list: List[Dict[str, float]]) ->
     mix_hypothesis = " ".join(mix_hypothesis)
     return spk_hypothesis, mix_hypothesis
 
+
 def convert_word_dict_seq_to_ctm(
     word_dict_seq_list: List[Dict[str, float]], uniq_id: str = 'null', decimals: int = 3
 ) -> Tuple[List[str], str]:
@@ -255,7 +256,7 @@ class OfflineDiarWithASR:
             Dictionary containing the input manifest information
         color_palette (dict):
             Dictionary containing the ANSI color escape codes for each speaker label (speaker index)
-    """
+   """ 
     def __init__(self, cfg_diarizer):
         self.cfg_diarizer = cfg_diarizer
         self.params = cfg_diarizer.asr.parameters
@@ -348,6 +349,28 @@ class OfflineDiarWithASR:
                 self.punctuation_model = nemo_nlp.models.PunctuationCapitalizationModel.from_pretrained(self.punctuation_model_path)
         else:
             self.punctuation_model = None
+
+    def _init_session_trans_dict(self, uniq_id: str, n_spk: int):
+        """
+        Initialize json (in dictionary variable) formats for session level result and Gecko style json.
+
+        Returns:
+            (dict): Session level result dictionary variable
+        """
+        return od(
+            {
+                'status': 'initialized',
+                'session_id': uniq_id,
+                'transcription': '',
+                'speaker_count': n_spk,
+                'words': [],
+                'sentences': [],
+            }
+        )
+
+    def _init_session_gecko_dict(self):
+        """
+        Initialize a dictionary format for Gecko style json.
 
     def _init_session_trans_dict(self, uniq_id: str, n_spk: int):
         """
@@ -645,7 +668,6 @@ class OfflineDiarWithASR:
 
             enhanced_word_ts_dict[uniq_id] = enhanced_word_ts_buffer
         return enhanced_word_ts_dict
-
 
     def get_transcript_with_speaker_labels(
         self, diar_hyp: Dict[str, List[str]], word_hyp: Dict[str, List[str]], word_ts_hyp: Dict[str, List[float]]
@@ -1297,7 +1319,6 @@ class OfflineDiarWithASR:
         Args:
             labels (list):
                 List containing segment start and end timestamp and speaker labels.
-
                 Example:
                 >>> labels = ["15.25 21.82 speaker_0", "21.18 29.51 speaker_1", ... ]
 

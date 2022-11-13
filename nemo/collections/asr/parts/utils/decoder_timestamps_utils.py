@@ -309,12 +309,12 @@ class ASRDecoderTimeStamps:
     This class contains a few setups for a slew of NeMo ASR models such as QuartzNet, CitriNet and ConformerCTC models.
     """
 
-    def __init__(self, **cfg_diarizer):
-        self.manifest_filepath = cfg_diarizer['manifest_filepath']
-        self.params = cfg_diarizer['asr']['parameters']
-        self.ctc_decoder_params = cfg_diarizer['asr']['ctc_decoder_parameters']
-        self.ASR_model_name = cfg_diarizer['asr']['model_path']
-        self.nonspeech_threshold = self.params['asr_based_vad_threshold']
+    def __init__(self, cfg_diarizer):
+        self.manifest_filepath = cfg_diarizer.manifest_filepath
+        self.params = cfg_diarizer.asr.parameters
+        self.ctc_decoder_params = cfg_diarizer.asr.ctc_decoder_parameters
+        self.ASR_model_name = cfg_diarizer.asr.model_path
+        self.nonspeech_threshold = self.params.asr_based_vad_threshold
         self.root_path = None
         self.run_ASR = None
         self.encdec_class = None
