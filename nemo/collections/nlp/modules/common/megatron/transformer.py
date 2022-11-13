@@ -299,7 +299,7 @@ class SwitchMLP(MegatronModule):
         self.router = torch.nn.Linear(kwargs['hidden_size'], num_experts)
         self.experts = torch.nn.ModuleList([ParallelMLP(**kwargs) for _ in range(num_experts)])
     
-    def foward(self, hidden_states):
+    def forward(self, hidden_states):
         hidden_shape = hidden_states.shape
         route = self.router(hidden_states).view(-1, self.num_experts)
         if self.training: 
