@@ -934,8 +934,8 @@ class TestAdapterModelMixin:
             assert (original_state_dict[ogkey] - restored_state_dict[newkey]).abs().mean() < 1e-6
 
     @pytest.mark.unit
-    @pytest.mark.parametrize("decoder", ["adapter_0", ])  # "decoder:adapter_0"
-    @pytest.mark.parametrize("encoder", ["adapter_1", ])  # "encoder:adapter_1"
+    @pytest.mark.parametrize("decoder", ["adapter_0",])  # "decoder:adapter_0"
+    @pytest.mark.parametrize("encoder", ["adapter_1",])  # "encoder:adapter_1"
     def test_multiple_save_load_adapter_with_multiple_load(self, decoder, encoder):
         # create a model config, but do not add global_cfg to it
         # we want to test just module level adapter
