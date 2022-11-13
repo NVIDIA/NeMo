@@ -887,7 +887,7 @@ def segments_manifest_to_subsegments_manifest(
     return subsegments_manifest_file
 
 
-def get_subsegments(offset: float, window: float, shift: float, duration: float):
+def get_subsegments(offset: float, window: float, shift: float, duration: float) -> List[List[float]]:
     """
     Return subsegments from a segment of audio file
     Args:
@@ -898,7 +898,7 @@ def get_subsegments(offset: float, window: float, shift: float, duration: float)
     Returns:
         subsegments (List[tuple[float, float]]): subsegments generated for the segments as list of tuple of start and duration of each subsegment
     """
-    subsegments = []
+    subsegments: List[List[float]] = []
     start = offset
     slice_end = start + duration
     base = math.ceil((duration - window) / shift)
@@ -907,7 +907,7 @@ def get_subsegments(offset: float, window: float, shift: float, duration: float)
         end = start + window
         if end > slice_end:
             end = slice_end
-        subsegments.append((start, end - start))
+        subsegments.append([start, end - start])
         start = offset + (slice_id + 1) * shift
 
     return subsegments
