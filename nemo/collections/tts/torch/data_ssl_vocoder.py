@@ -143,9 +143,10 @@ class SSLVocoderDataset(Dataset):
 
         self.ssl_model = ssl_tts.SSLDisentangler.load_from_checkpoint(ssl_model_ckpt_path, strict=False).cpu()
         with open_dict(self.ssl_model.cfg):
+            # To get the expected number of down-sampled time-steps from the encoder.
             self.ssl_model.cfg.preprocessor.exact_pad = True
         self.ssl_model.preprocessor = hydra.utils.instantiate(self.ssl_model.cfg.preprocessor)
-        # preproecessor is called preprocessor_disentangler in the multitask conformer
+        # preprocessor is called preprocessor_disentangler in the multitask conformer
         self.ssl_model.preprocessor_disentangler = self.ssl_model.preprocessor
         self.ssl_model.eval()
 
@@ -482,6 +483,8 @@ class SSLVocoderDataset(Dataset):
                     final_content_embedding = content_log_probs
                 elif self.ssl_content_emb_type == "embedding_and_probs":
                     final_content_embedding = torch.cat([content_embedding, content_probs], dim=0)
+                else:
+                    raise ValueError(f"Unknown content embedding type {self.ssl_content_emb_type}")
 
                 if self.use_unique_tokens:
                     token_predictions = torch.argmax(content_probs, dim=0)
