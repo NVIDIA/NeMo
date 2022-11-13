@@ -196,6 +196,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 num_self_attention_per_cross_attention=encoder_cfg.get('num_self_attention_per_cross_attention', 1),
                 megatron_legacy=encoder_cfg.get('megatron_legacy', False),
                 normalize_attention_scores=encoder_cfg.get('normalize_attention_scores', True),
+                num_moe_experts=encoder_cfg.get('num_moe_experts', 1),
             )
 
         if add_decoder:
@@ -300,6 +301,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 parent_model_type=ModelType.encoder_and_decoder,
                 megatron_legacy=decoder_cfg.get('megatron_legacy', False),
                 normalize_attention_scores=decoder_cfg.get('normalize_attention_scores', True),
+                num_moe_experts=encoder_cfg.get('num_moe_experts', 1),
             )
 
         self.enc_dec_model = MegatronTransformerEncoderDecoderModule(

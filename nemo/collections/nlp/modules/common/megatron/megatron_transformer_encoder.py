@@ -77,6 +77,7 @@ class MegatronTransformerEncoderModule(MegatronModule, Exportable, MegatronEncod
         parent_model_type=ModelType.encoder_or_decoder,
         megatron_legacy=False,
         normalize_attention_scores=True,
+        num_moe_experts=1,
     ):
         super(MegatronTransformerEncoderModule, self).__init__()
 
@@ -137,6 +138,7 @@ class MegatronTransformerEncoderModule(MegatronModule, Exportable, MegatronEncod
             gradient_accumulation_fusion=False,  # TODO: This has to be False for enc-dec models for now.
             megatron_legacy=megatron_legacy,
             normalize_attention_scores=normalize_attention_scores,
+            num_moe_experts=num_moe_experts,
         )
         self._model_key = 'model'
 
