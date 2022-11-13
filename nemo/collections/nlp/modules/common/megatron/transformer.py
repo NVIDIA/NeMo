@@ -296,7 +296,7 @@ class SwitchMLP(MegatronModule):
 
         self.num_experts = num_experts
         self.route_algo = SwitchMLP.sinkhorn
-        self.router = torch.nn.Linear(kwargs.hidden_size, num_experts)
+        self.router = torch.nn.Linear(kwargs['hidden_size'], num_experts)
         self.experts = torch.nn.ModuleList([ParallelMLP(**kwargs) for _ in range(num_experts)])
     
     def foward(self, hidden_states):
