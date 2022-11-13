@@ -798,8 +798,15 @@ class AdapterModelPTMixin(AdapterModuleMixin):
                         # This is because one name can be shared within one model by multiple adapters bearing
                         # a common name. This can occur when the adapter is common to a module which has multiple
                         # layers and blocks, all of which require an adapter.
-                        state_dict = module.state_dict()
-                        output_dict[key].append(state_dict)
+                        adapter_module = module.get_adapter_module(adapter_name)
+                        if adapter_module is not None:
+                            adapter_state_dict = module.adapter_layer.state_dict()
+                            state_dict = {}
+                            for k, v in adapter_state_dict.items():
+                                if adapter_name in k:
+                                    state_dict[k] = v
+
+                            output_dict[key].append(state_dict)
 
         # Preserve the binary OmegaConf dictionary of the model's adapter config
         output_dict['__cfg__'] = self.cfg.adapters
@@ -895,7 +902,9 @@ class AdapterModelPTMixin(AdapterModuleMixin):
                     and hasattr(module, 'adapter_name')
                     and module.adapter_name == adapter_name
                 ):
-                    modules_to_load.append(module)
+                    adapter_module = module.get_adapter_module(adapter_name)
+                    if adapter_module is not None:
+                        modules_to_load.append(module.adapter_layer)
 
             # Assert that the number of states in the state dict matches the newly created adapter
             if len(adapter_state) != len(modules_to_load):
