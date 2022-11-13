@@ -41,6 +41,7 @@ class StatsPoolLayer(nn.Module):
     Raises:
         ValueError if an unsupported pooling mode is specified.
     """
+
     def __init__(self, feat_in: int, pool_mode: str = 'xvector', eps: float = 1e-10, biased: bool = True):
         super().__init__()
         supported_modes = {"xvector", "tap"}
@@ -87,11 +88,7 @@ class StatsPoolLayer(nn.Module):
 
 @torch.jit.script_if_tracing
 def make_mask(lengths: torch.Tensor, ndims: int, valid_ones: bool = True) -> torch.Tensor:
-    mask = (
-        torch.arange(lengths.max(), device=lengths.device)
-        .repeat(lengths.shape[0], 1)
-        .lt(lengths.unsqueeze(-1))
-    )
+    mask = torch.arange(lengths.max(), device=lengths.device).repeat(lengths.shape[0], 1).lt(lengths.unsqueeze(-1))
     for _ in range(ndims - mask.dim()):
         mask = mask.unsqueeze(1)
     if not valid_ones:
