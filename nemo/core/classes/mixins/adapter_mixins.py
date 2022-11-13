@@ -789,17 +789,18 @@ class AdapterModelPTMixin(AdapterModuleMixin):
                 # It must have the attribute `adapter_name`.
                 # It must match the adapter name provided by the user.
                 for module in self.modules():
-                    if (
-                        isinstance(module, AdapterModuleMixin)
-                        and hasattr(module, 'adapter_name')
-                        and module.adapter_name == adapter_name
-                    ):
+                    if isinstance(module, AdapterModuleMixin):
                         # If all match, extract the state dict into a list of state dicts.
                         # This is because one name can be shared within one model by multiple adapters bearing
                         # a common name. This can occur when the adapter is common to a module which has multiple
                         # layers and blocks, all of which require an adapter.
                         adapter_module = module.get_adapter_module(adapter_name)
                         if adapter_module is not None:
+                            # If the module was found, then extract the entire adapter ModuleDict state_dict(),
+                            # Then select only the parts of the state dict that correspond to the current adapter_name.
+                            # This is done so that it preserves the relation ship of the module name : parameters
+                            # inside of the state dict.
+                            # It will be normalized in the corresponding `load_adapters()` call.
                             adapter_state_dict = module.adapter_layer.state_dict()
                             state_dict = {}
                             for k, v in adapter_state_dict.items():
@@ -897,14 +898,10 @@ class AdapterModelPTMixin(AdapterModuleMixin):
             # between state dict and the adapters parameters will be allowed.
             modules_to_load = []  # type: List[torch.nn.Module]
             for module in self.modules():
-                if (
-                    isinstance(module, AdapterModuleMixin)
-                    and hasattr(module, 'adapter_name')
-                    and module.adapter_name == adapter_name
-                ):
+                if isinstance(module, AdapterModuleMixin):
                     adapter_module = module.get_adapter_module(adapter_name)
                     if adapter_module is not None:
-                        modules_to_load.append(module.adapter_layer)
+                        modules_to_load.append(adapter_module)
 
             # Assert that the number of states in the state dict matches the newly created adapter
             if len(adapter_state) != len(modules_to_load):
@@ -916,7 +913,18 @@ class AdapterModelPTMixin(AdapterModuleMixin):
 
             # For the pair of (adapter_state_in_checkpoint, adapter_in_model), restore the weights
             for state, module in zip(adapter_state, modules_to_load):
-                module.load_state_dict(state, strict=strict)
+                # Note that state is a list of multiple state dicts for 1:1 Module mapping.
+                # However, the state_dict keys are of the form `adapter_name.<module hierarchy with dots>`.
+                # We therefore strip the `adapter_name.` part of the state dict
+                # And then directly load each module with its 1:1 state dict.
+                sub_dict = {}
+                for k, v in state.items():
+                    if adapter_name in k:
+                        k_ = k.replace(f"{adapter_name}.", "")
+                        sub_dict[k_] = v
+
+                module.load_state_dict(sub_dict, strict=strict)
+                del sub_dict
 
             # delete the dictionaries to preserve memory for next adapter
             del adapter_state, modules_to_load
