@@ -12,10 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-<<<<<<< HEAD
-
-=======
->>>>>>> virajkarandikar/vkarandikar_fix_clustering
 import os
 from itertools import permutations
 
@@ -23,11 +19,19 @@ import numpy as np
 import pytest
 import torch
 
-from nemo.collections.asr.parts.utils.nmesc_clustering import SpeakerClustering
-<<<<<<< HEAD
-from nemo.collections.asr.models.online_diarizer import stitch_cluster_labels, get_minimal_indices
-=======
->>>>>>> virajkarandikar/vkarandikar_fix_clustering
+from nemo.collections.asr.parts.utils.nmesc_clustering import (
+        SpeakerClustering, 
+        split_input_data,
+        getCosAffinityMatrix
+)
+
+from nemo.collections.asr.models.online_diarizer import (
+        stitch_cluster_labels, 
+        get_minimal_indices,
+        get_closest_embeddings,
+        merge_emb,
+        run_reducer
+)
 from nemo.collections.asr.parts.utils.speaker_utils import (
     combine_float_overlaps,
     combine_int_overlaps,
@@ -39,7 +43,6 @@ def check_range_values(target, source):
     bool_list = []
     for tgt, src in zip(target, source):
         for x, y in zip(src, tgt):
-<<<<<<< HEAD
             bool_list.append(abs(x-y) < 1e-6)
     return all(bool_list)
 
@@ -49,32 +52,17 @@ def check_labels(target, source):
         bool_list.append(abs(x-y) < 1e-6)
     return all(bool_list)
 
-def matrix(mat, torch=False):
-=======
-            bool_list.append(abs(x - y) < 1e-6)
-    return all(bool_list)
-
-
-def matrix(mat, torch=True):
->>>>>>> virajkarandikar/vkarandikar_fix_clustering
-    if torch:
+def matrix(mat, use_tensor=True):
+    if use_tensor:
         return torch.tensor(mat)
     else:
         return np.array(mat)
 
-<<<<<<< HEAD
-=======
-
->>>>>>> virajkarandikar/vkarandikar_fix_clustering
 def generate_mock_emb(n_emb_per_spk, perturb_sigma, emb_dim):
     """Generate a set of artificial embedding vectors from random numbers
     """
     return torch.rand(1, emb_dim).repeat(n_emb_per_spk, 1) + perturb_sigma * torch.rand(n_emb_per_spk, emb_dim)
 
-<<<<<<< HEAD
-=======
-
->>>>>>> virajkarandikar/vkarandikar_fix_clustering
 def generate_mock_data(
     n_spks=2,
     spk_dur=3,
@@ -90,6 +78,7 @@ def generate_mock_data(
     spk_timestamps = [(spk_dur * k, spk_dur) for k in range(n_spks)]
     emb_list, seg_list = [], []
     multiscale_segment_counts = [0 for _ in range(len(ms_window))]
+    ground_truth = []
     for scale_idx, (window, shift) in enumerate(zip(ms_window, ms_shift)):
         for spk_idx, (offset, dur) in enumerate(spk_timestamps):
             segments = get_subsegments(offset=offset, window=window, shift=shift, duration=dur)
@@ -97,12 +86,16 @@ def generate_mock_data(
             seg_list.extend(segments)
             emb_list.append(emb)
             multiscale_segment_counts[scale_idx] += emb.shape[0]
+   
+            if scale_idx == len(multiscale_segment_counts)-1:
+                ground_truth.extend([spk_idx] * emb.shape[0])
 
     emb_tensor = torch.concat(emb_list)
     multiscale_segment_counts = torch.tensor(multiscale_segment_counts)
     segm_tensor = torch.tensor(seg_list)
     multiscale_weights = torch.ones(len(ms_window)).unsqueeze(0)
-    return emb_tensor, segm_tensor, multiscale_segment_counts, multiscale_weights, spk_timestamps
+    ground_truth = torch.tensor(ground_truth)
+    return emb_tensor, segm_tensor, multiscale_segment_counts, multiscale_weights, spk_timestamps, ground_truth
 
 
 @pytest.mark.run_only_on('GPU')
@@ -110,7 +103,7 @@ def test_speaker_counting(n_spks=3, total_dur_sec=30, num_speakers=-1, max_num_s
     speaker_clustering_python = SpeakerClustering(maj_vote_spk_count=False, cuda=cuda)
     assert isinstance(speaker_clustering_python, SpeakerClustering)
     each_spk_dur = float(total_dur_sec / n_spks)
-    em, ts, mc, mw, spk_ts = generate_mock_data(n_spks=n_spks, spk_dur=each_spk_dur)
+    em, ts, mc, mw, spk_ts, gt = generate_mock_data(n_spks=n_spks, spk_dur=each_spk_dur)
     Y = speaker_clustering_python.forward_infer(
         embeddings_in_scales=em,
         timestamps_in_scales=ts,
@@ -121,21 +114,13 @@ def test_speaker_counting(n_spks=3, total_dur_sec=30, num_speakers=-1, max_num_s
     )
     return len(set(Y.tolist()))
 
-<<<<<<< HEAD
-class TestDiarizationUtilFunctions:
-    """
-    Tests for cpWER calculation.
-=======
-
 class TestDiarizationUtilFunctions:
     """
     Tests diarization and speaker-task related utils.
     Test functions include:
         - Segment interval merging function
         - Embedding merging
->>>>>>> virajkarandikar/vkarandikar_fix_clustering
     """
-
     @pytest.mark.unit
     def test_combine_float_overlaps(self):
         intervals = [[0.25, 1.7], [1.5, 3.0], [2.8, 5.0], [5.5, 10.0]]
@@ -145,36 +130,30 @@ class TestDiarizationUtilFunctions:
 
     @pytest.mark.unit
     def test_combine_int_overlaps(self):
-<<<<<<< HEAD
-        intervals = [[1,3],[2,6],[8,10],[15,18]]
-        target = [[1,6],[8,10],[15,18]]
-=======
         intervals = [[1, 3], [2, 6], [8, 10], [15, 18]]
         target = [[1, 6], [8, 10], [15, 18]]
->>>>>>> virajkarandikar/vkarandikar_fix_clustering
         merged = combine_int_overlaps(intervals)
         assert check_range_values(target, merged)
 
     @pytest.mark.unit
     def test_combine_int_overlaps_edge(self):
-<<<<<<< HEAD
-        intervals = [[1,4],[4,5]]
-        target = [[1,5]]
+        intervals = [[1, 4], [4, 5]]
+        target = [[1, 5]]
         merged = combine_int_overlaps(intervals)
         assert check_range_values(target, merged)
-    
+
     @pytest.mark.unit
     def test_minimal_index(self):
-        Y = [3, 3, 3, 4, 4, 5]
+        Y = matrix([3, 3, 3, 4, 4, 5], use_tensor=False)
         min_Y = get_minimal_indices(Y)
         target = matrix([0, 0, 0, 1, 1, 2])
         assert check_labels(target, min_Y)
 
     @pytest.mark.unit
-    def test_stitch_cluster_labels(self):
-        N = 3
-        Y_old = np.zeros(2*N,).astype(int)
-        Y_new = np.zeros(2*N,).astype(int) + 1
+    def test_stitch_cluster_labels_simple(self):
+        Y_old = matrix([0,0,0,0,0,0])
+        Y_new = matrix([0,0,0,0,0,0]) + 1
+        # Y_old, Y_new = torch.from_numpy(Y_old), torch.from_numpy(Y_new)
         target = matrix( [0,0,0,0,0,0] )
         result = stitch_cluster_labels(Y_old, Y_new)
         assert check_labels(target, result)
@@ -193,6 +172,8 @@ class TestDiarizationUtilFunctions:
         result = stitch_cluster_labels(Y_old, Y_new)
         assert check_labels(target, result)
         
+    @pytest.mark.unit
+    def test_stitch_cluster_labels_advanced(self, N=3):
         Y_old = matrix( [0] * N + [1] * N + [2] * N )
         Y_new = matrix( [1] * N + [2] * N + [3] * N )
         target= matrix( [0, 0, 0, 1, 1, 1, 2, 2, 2] )
@@ -216,22 +197,45 @@ class TestDiarizationUtilFunctions:
         target= matrix( [0, 0, 0, 1, 1, 1, 2, 2, 2, 0, 1, 3, 0, 1, 3] )
         result = stitch_cluster_labels(Y_old, Y_new)
         assert check_labels(target, result)
+   
+    @pytest.mark.unit
+    def test_embedding_merger(self):
+        em, ts, mc, mw, spk_ts, gt = generate_mock_data(n_spks=2, spk_dur=2, perturb_sigma=0.1)
+        em_s, ts_s = split_input_data(em, ts, mc)
+        base_scale_idx = len(em_s) - 1
+        target_spk = 0
+        target_num = 3
+        pre_clus_labels = gt
+        ndx = torch.where(pre_clus_labels == target_spk)[0]
+        pre_embs = em_s[base_scale_idx]
+        affinity_mat = getCosAffinityMatrix(pre_embs)
+        cmat = torch.tril(affinity_mat[:, ndx][ndx, :]) 
+        # Check the dimension of the selected affinity values
+        assert cmat.shape[0] == cmat.shape[1] == torch.sum(pre_clus_labels == target_spk).item()
+        index_2d = get_closest_embeddings(cmat, ndx, target_num)
+        # Check the most closest affinity value
+        assert torch.max(cmat.flatten()) == cmat[index_2d[0, 0], index_2d[1, 0]]
+        spk_cluster_labels, emb_ndx = pre_clus_labels[ndx], pre_embs[ndx]
+        merged_embs, merged_clus_labels = merge_emb(index_2d, 
+                                                    emb_ndx, 
+                                                    spk_cluster_labels)
+        # Check the number of merged embeddings and labels
+        assert (torch.sum(gt == target_spk).item() - target_num) == merged_clus_labels.shape[0]
     
-    def test_embedding_merge(self):
-        em, ts, mc, mw, spk_ts = generate_mock_data(n_spks=n_spks, spk_dur=each_spk_dur)
-        
-        # # TODO
-        # pass
-=======
-        intervals = [[1, 4], [4, 5]]
-        target = [[1, 5]]
-        merged = combine_int_overlaps(intervals)
-        assert check_range_values(target, merged)
-
-    def test_embedding_merge(self):
-        # TODO
-        pass
->>>>>>> virajkarandikar/vkarandikar_fix_clustering
+    @pytest.mark.unit
+    def test_embedding_reducer(self):
+        em, ts, mc, mw, spk_ts, gt = generate_mock_data(n_spks=2, spk_dur=10)
+        em_s, ts_s = split_input_data(em, ts, mc)
+        base_scale_idx = len(em_s) - 1
+        target_spk = 0
+        target_num = 10
+        merged_embs, merged_clus_labels = run_reducer(
+                                            pre_embs=em_s[base_scale_idx],
+                                            target_spk_idx=target_spk, 
+                                            target_num=target_num, 
+                                            pre_clus_labels=gt
+                                            )
+        assert (torch.sum(gt == target_spk).item() - target_num) == merged_clus_labels.shape[0]
 
 
 class TestSpeakerClustering:
@@ -256,7 +260,7 @@ class TestSpeakerClustering:
         total_dur_sec = 30
         n_spks = 3
         each_spk_dur = float(total_dur_sec / n_spks)
-        em, ts, mc, mw, spk_ts = generate_mock_data(n_spks=n_spks, spk_dur=each_spk_dur)
+        em, ts, mc, mw, spk_ts, gt = generate_mock_data(n_spks=n_spks, spk_dur=each_spk_dur)
 
         num_speakers = -1
         max_num_speakers = 8
@@ -328,7 +332,3 @@ class TestSpeakerClustering:
     def test_online_clustering(self):
         # TODO
         pass
-<<<<<<< HEAD
-
-=======
->>>>>>> virajkarandikar/vkarandikar_fix_clustering

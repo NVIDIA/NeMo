@@ -22,7 +22,7 @@ import tempfile
 import time
 from collections import Counter
 from copy import deepcopy
-from typing import List, Optional
+from typing import List, Set, Optional, Tuple
 
 import librosa
 import numpy as np
@@ -46,9 +46,10 @@ from nemo.collections.asr.parts.utils.nmesc_clustering import (
     split_input_data,
     getTempInterpolMultiScaleCosAffinityMatrix,
 )
-# from nemo.collections.asr.metric.der import score_labels
+import torch.nn.functional as F
 from nemo.collections.asr.parts.utils.speaker_utils import (
     audio_rttm_map,
+    parse_scale_configs,
     fl2int,
     generate_cluster_labels,
     get_contiguous_stamps,
@@ -126,13 +127,118 @@ def hungarian_algorithm(spk_count, U_set, cmm_P, cmm_Q, PmQ, QmP):
             mapping_array[x] = col_ind[x]
     return mapping_array
 
+
+def get_minimal_indices(Y_new):
+    """
+    Force the unique indices of the labels to use the lowest numbers.
+
+    Example:
+        >>> Y_new = [3, 3, 3, 4, 4, 5]
+        >>> get_minimal_indices(Y_new)
+            [0, 0, 0, 1, 1, 2]
+    
+    Args:
+
+    Returns:
+
+    """
+    Y_new_enlisted = np.array(list(set(Y_new)))
+    sequence = np.arange(np.max(Y_new_enlisted)+1)
+    sequence[Y_new_enlisted] = np.arange(len(Y_new_enlisted))
+    return sequence[Y_new]
+
+
+@timeit
+def stitch_cluster_labels(Y_old, Y_new, with_history=True):
+    """
+    Run Hungarian algorithm (linear sum assignment) to find the best permutation mapping between
+    the cumulated labels in history and the new clustering output labels.
+
+    Args:
+        Y_cumul (Tensor):
+            Cumulated diarization labels. This will be concatenated with history embedding speaker label
+            then compared with the predicted label Y_new.
+
+        Y_new (Tensor):
+            Contains predicted labels for reduced history embeddings concatenated with the predicted label.
+            Permutation is not matched yet.
+
+    Returns:
+        mapping_array[Y] (Tensor):
+            An output numpy array where the input Y_new is mapped with mapping_array.
+
+    """
+    Y_old  = Y_old.cpu().numpy()
+    Y_new = Y_new.cpu().numpy()
+
+    Y_new = get_minimal_indices(Y_new)
+    if len(Y_old) == 0:
+        matched_output = Y_new
+    else:
+        spk_count = max(len(set(Y_old)), len(set(Y_new)))
+        P_raw, Q_raw = Y_old.astype(int), Y_new.astype(int)
+        U_set = set(P_raw) | set(Q_raw)
+        min_len = min(P_raw.shape[0], Q_raw.shape[0])
+        P, Q = P_raw[:min_len], Q_raw[:min_len]
+        PmQ, QmP = set(P) - set(Q), set(Q) - set(P)
+
+        # P and Q occasionally have no common labels which means totally flipped (0<->1) labels.
+        # This should be differentiated from the second case.
+        if len(U_set) == 1:
+            # When two speaker vectors are exactly the same: No need to encode.
+            mapping_array = np.array([0, 0])
+        else:
+            # Run Hungarian algorithm if there are more than one speaker in universal set U.
+            mapping_array = hungarian_algorithm(spk_count, U_set, P, Q, PmQ, QmP)
+        matched_output = mapping_array[Y_new]
+    matched_output = torch.tensor(matched_output)
+    return matched_output
+
+@torch.jit.script
+def unravel_index(
+    indices: torch.LongTensor,
+    shape: List[int],
+) -> List[torch.LongTensor]:
+    r"""Converts flat indices into unraveled coordinates in a target shape.
+
+    This is a `torch` implementation of `numpy.unravel_index`.
+
+    Args:
+        indices: A tensor of indices, (*, N).
+        shape: The targeted shape, (D,).
+
+    Returns:
+        unravel coordinates, (*, N, D).
+    """
+
+    shape = torch.tensor(shape)
+    indices = indices % shape.prod()  
+
+    coord = torch.zeros(indices.size() + shape.size(), dtype=torch.int)
+
+    for i, dim in enumerate(reversed(shape)):
+        coord[..., i] = indices % dim
+        indices = torch.div(indices, dim, rounding_mode='trunc')
+
+    idx2d = coord.flip(-1)
+    return [idx2d[:, k] for k in range(idx2d.shape[1])]
+
+@torch.jit.script
+def preprocess_mat(mat, symm: bool=True, fill_diag_zero: bool=True):
+    if symm:
+        mat = 0.5 * (mat + mat.T)
+    if fill_diag_zero:
+        mat.fill_diagonal_(0)
+    return mat
+
+@torch.jit.script
 def get_closest_embeddings(cmat, ndx, target_num: int):
     """
     Get indeces of the embeddings we want to merge or drop.
 
     Args:
-        cmat: (np.array)
-        ndx: (np.array)
+        cmat: (Tensor)
+        ndx: (Tensor)
         target_num: (int)
 
     Output:
@@ -143,42 +249,41 @@ def get_closest_embeddings(cmat, ndx, target_num: int):
         target_num <= comb_limit
     ), f" target_num is {target_num}: {target_num} is bigger than comb_limit {comb_limit}"
 
-    cmat = preprocess_mat(cmat, symm=True, fill_diag_zero=True)
-    if np.trace(cmat) > 0:
+    cmat = preprocess_mat(cmat, symm=False, fill_diag_zero=True)
+    # if np.trace(cmat) > 0:
+    if torch.trace(cmat) > 0:
         raise ValueError("Trace of the affinity matrix should be 0 to exclude the self-affinity values.")
     
     # Sort the index to get the indices of the closest embedding vectors
-    idx2d = np.unravel_index(np.argsort(cmat, axis=None)[::-1], cmat.shape)
+    indices = torch.argsort(cmat.flatten(), descending=True)
+    idx2d = unravel_index(indices=indices, shape=cmat.shape)
     num_of_lower_half = int((cmat.shape[0] ** 2 - cmat.shape[0]) / 2)
     idx2d = (idx2d[0][:num_of_lower_half], idx2d[1][:num_of_lower_half])
 
     # Until we get the targeted number, add the closest indices
-    cdx, left_set, right_set, total_set = 0, [], [], []
+    cdx: int = 0
+    left_set:List[int] = []
+    right_set:List[int] = []
+    total_set:List[int] = []
     while len(left_set) < target_num and len(right_set) < target_num:
-        Ldx, Rdx = idx2d[0][cdx], idx2d[1][cdx]
+        Ldx, Rdx = int(idx2d[0][cdx]), int(idx2d[1][cdx])
         if (not Ldx in total_set) and (not Rdx in total_set):
             left_set.append(Ldx)
             right_set.append(Rdx)
             total_set = left_set + right_set
         cdx += 1
-    index_2d = np.array([left_set, right_set])
+    index_2d = torch.tensor([left_set, right_set])
     return index_2d
 
+@torch.jit.script
+def get_mapped_index(mat: torch.Tensor, index: int):
+    return torch.where(mat == index)[0][0]
 
-def preprocess_mat(mat, symm=True, fill_diag_zero=True):
-    if symm:
-        mat = 0.5 * (mat + mat.T)
-    if fill_diag_zero:
-        np.fill_diagonal(mat, 0)
-    return mat
-
-def get_mapped_index(mat, index):
-    return np.where(mat == index)[0][0]
-
+@torch.jit.script
 def get_merge_quantity(
-    new_emb_n, 
-    pre_clus_labels, 
-    min_segs_per_buffer
+        new_emb_n: int, 
+        pre_clus_labels: torch.Tensor, 
+        min_segs_per_buffer: int,
     ):
     """
     Determine which embeddings we need to reduce or merge in history buffer.
@@ -192,20 +297,20 @@ def get_merge_quantity(
         new_emb_n: (int)
             the quantity of the newly obtained embedding from the new stream of input.
 
-        pre_clus_labels: (np.array)
+        pre_clus_labels: (Tensor)
             the speaker labels of (the history_embedding_buffer_emb) + (the new embeddings to be added)
     """
     targeted_total_n = new_emb_n
-    count_dict = Counter(pre_clus_labels)
-    spk_freq_count = np.bincount(pre_clus_labels)
-    class_vol = copy.deepcopy(spk_freq_count)
-    emb_n_per_cluster = np.zeros_like(class_vol).astype(int)
-    arg_max_spk_freq = np.argsort(spk_freq_count)[::-1]
+    spk_label_size = len(torch.unique(pre_clus_labels))
+    spk_freq_count = torch.bincount(pre_clus_labels)
+    class_vol = spk_freq_count
+    emb_n_per_cluster = torch.zeros_like(class_vol)
+    arg_max_spk_freq = torch.argsort(spk_freq_count, descending=True)
     count = 0
-    while np.sum(emb_n_per_cluster) < targeted_total_n:
-        recurr_idx = np.mod(count, len(count_dict))
-        curr_idx = arg_max_spk_freq[recurr_idx]
-        margin = (spk_freq_count[curr_idx] - emb_n_per_cluster[curr_idx]) - min_segs_per_buffer
+    while int(torch.sum(emb_n_per_cluster)) < targeted_total_n:
+        recurr_idx = count %spk_label_size
+        curr_idx = int(arg_max_spk_freq[recurr_idx])
+        margin = int((spk_freq_count[curr_idx] - emb_n_per_cluster[curr_idx]) - min_segs_per_buffer)
         if margin > 0:
             target_number = min(margin, new_emb_n)
             emb_n_per_cluster[curr_idx] += target_number
@@ -216,27 +321,45 @@ def get_merge_quantity(
     ), "emb_n_per_cluster does not match with targeted number new_emb_n."
     return emb_n_per_cluster
 
-
-def merge_emb(index_2d, 
-              emb_ndx, 
-              pre_cluster_labels
-            ):
+@torch.jit.script
+def merge_emb(
+        index_2d: torch.Tensor, 
+        emb_ndx: torch.Tensor, 
+        pre_cluster_labels: torch.Tensor
+        ):
     """
 
+    Args:
+        index_2d (Tensor):
+        emb_ndx (Tensor):
+        pre_cluster_labels (Tensor):
 
     """
     LI, RI = index_2d[0, :], index_2d[1, :]
     LI_argdx = index_2d[0].argsort()
     LI, RI = LI[LI_argdx], RI[LI_argdx]
     result_emb = 0.5 * (emb_ndx[LI, :] + emb_ndx[RI, :])
-    merged_clus_labels = pre_cluster_labels[np.array(list(set(LI)))]
-    bypass_ndx = np.array(list(set(range(emb_ndx.shape[0])) - set(list(LI) + list(RI))))
+    merged_clus_labels = pre_cluster_labels[torch.unique(LI)]
+    
+    selected_inds: List[int] = [ int(k) for k in torch.hstack((LI, RI)) ]
+    bypass_ndx_list: List[int] = []
+    for k in range(emb_ndx.shape[0]):
+        if k not in selected_inds:
+            bypass_ndx_list.append(k)
+    bypass_ndx = torch.tensor(bypass_ndx_list)
     if len(bypass_ndx) > 0:
-        result_emb = np.vstack((emb_ndx[bypass_ndx], result_emb))
-        merged_clus_labels = np.hstack((pre_cluster_labels[bypass_ndx], merged_clus_labels))
+        result_emb = torch.vstack((emb_ndx[bypass_ndx], result_emb))
+        merged_clus_labels = torch.hstack((pre_cluster_labels[bypass_ndx], merged_clus_labels))
+
     return result_emb, merged_clus_labels
 
-def run_reducer(pre_embs, target_spk_idx, target_num, pre_clus_labels):
+# @torch.jit.script
+def run_reducer(
+    pre_embs: torch.Tensor, 
+    target_spk_idx: int, 
+    target_num: int, 
+    pre_clus_labels: torch.Tensor
+    ):
     """
     Reduce the number of embedding vectors by merging the closest embedding vectors.
     This reducing algorithm is based on the assumption that the closest embeddings are the most redundant
@@ -261,11 +384,15 @@ def run_reducer(pre_embs, target_spk_idx, target_num, pre_clus_labels):
             Cluster (speaker) labels for the merged embedding vectors
     """
     if pre_embs.shape[0] != pre_clus_labels.shape[0]:
-            raise ValueError("Dimension mismatch between `pre_embs` and `pre_clus_labels`.")
-    ndx = np.where(pre_clus_labels == target_spk_idx)[0]
+        raise ValueError("Dimension mismatch between `pre_embs` and `pre_clus_labels`.")
+    
+    ndx = torch.where(pre_clus_labels == target_spk_idx)[0]
     if target_num > 0:
-        affinity_mat = getCosAffinityMatrix(torch.tensor(pre_embs)).cpu().numpy()
-        cmat = np.tril(affinity_mat[:, ndx][ndx, :]) # Get the lower triangle of the affinity_mat array
+        if target_num > (ndx.shape[0] // 2):
+            raise ValueError(f"target_num {target_num} is larger than the half of targeted speaker's labels {ndx.shape[0]//2}")
+        affinity_mat = getCosAffinityMatrix(pre_embs)
+        # Get the lower triangle of the affinity_mat array
+        cmat = torch.tril(affinity_mat[:, ndx][ndx, :]) 
         if cmat.shape[0] != ndx.shape[0]:
             raise ValueError("Dimension mismatch between targeted speaker affinity `cmat` and targeted speaker index `ndx`.")
 
@@ -283,16 +410,127 @@ def run_reducer(pre_embs, target_spk_idx, target_num, pre_clus_labels):
         merged_clus_labels = pre_clus_labels[ndx]
     return merged_embs, merged_clus_labels
 
+@torch.jit.script
+def get_target_sig(
+            sig, 
+            start_sec: float, 
+            end_sec: float, 
+            slice_length: int, 
+            sample_rate: int,
+            ):
+    """
+    Extract time-series signal from the given audio buffer based on the start and end
+    timestamps.
 
+    Args:
+
+    Returns:
+
+    """
+    start_idx = int(start_sec * sample_rate)
+    end_idx = min(int(end_sec * sample_rate), int(slice_length + start_idx))
+    return sig[start_idx:end_idx]
+
+@torch.jit.script
+def check_ranges(range_list: List[List[float]]):
+    """
+    Check whether the range list has any faulty timestamp order.
+
+    Args:
+        range_list (list):
+            List containing the start and end time of the segments.
+            Example:
+                >>> range_list = [[0.5, 3.12], [3.51, 7.26], ... ]
+    """
+    for range_tup in range_list:
+        if range_tup[1] < range_tup[0]:
+            raise ValueError("Range start time should be preceding the end time but we got: {range_tup}")
+
+@torch.jit.script
+def tensor_to_list(range_tensor: torch.Tensor) -> List[List[float]]:
+    """Force the list elements to be float type.
+    """
+    return [ [float(range_tensor[k][0]), float(range_tensor[k][1])] for k in range(range_tensor.shape[0]) ]
+
+@torch.jit.script
+def get_speech_labels_for_update(
+    frame_start: float, 
+    buffer_end: float, 
+    vad_timestamps: torch.Tensor, 
+    cumulative_speech_labels: torch.Tensor, 
+    cursor_for_old_segments: float,
+):
+    """
+    Bring the new speech labels from the current buffer. Then
+
+    1. Concatenate the old speech labels from self.cumulative_speech_labels for the overlapped region.
+        - This goes to new_speech_labels.
+    2. Update the new 1 sec of speech label (speech_label_for_new_segments) to self.cumulative_speech_labels.
+    3. Return the speech label from cursor_for_old_segments to buffer end.
+
+    """
+    update_overlap_range: List[float] = []
+    if cursor_for_old_segments < frame_start:
+        update_overlap_range = [float(cursor_for_old_segments), float(frame_start)]
+
+    # Get VAD timestamps that are in (frame_start, buffer_end) range
+    vad_timestamps = tensor_to_list(vad_timestamps)
+    new_incoming_speech_labels = getSubRangeList(
+        target_range=[float(frame_start), float(buffer_end)], source_range_list=vad_timestamps
+    )
+    
+    # Update the speech label by including overlapping region with the previous output
+    cumulative_speech_labels = tensor_to_list(cumulative_speech_labels)
+    update_overlap_speech_labels = getSubRangeList(
+        target_range=update_overlap_range, source_range_list=cumulative_speech_labels
+    )
+
+    # Speech segments for embedding extractions
+    speech_label_for_new_segments = combine_float_overlaps(update_overlap_speech_labels + new_incoming_speech_labels, margin=0)
+
+    # Keep cumulative VAD labels for the future use
+    cumulative_speech_labels = combine_float_overlaps(cumulative_speech_labels + new_incoming_speech_labels, margin=0)
+
+    # Check if there are any faulty timestamps
+    check_ranges(speech_label_for_new_segments)
+    check_ranges(cumulative_speech_labels)
+    speech_label_for_new_segments = torch.tensor(speech_label_for_new_segments)
+    cumulative_speech_labels = torch.tensor(cumulative_speech_labels)
+    return speech_label_for_new_segments, cumulative_speech_labels
+
+
+@torch.jit.script
+def get_new_cursor_for_update(
+        frame_start: float, 
+        segment_range_ts: List[List[float]], 
+    ):
+    """
+    Remove the old segments that overlap with the new frame (self.frame_start)
+    cursor_for_old_segments is set to the onset of the t_range popped lastly.
+    """
+    cursor_for_old_segments = frame_start
+    cursor_index: int = len(segment_range_ts) 
+    count = 0
+    while True and len(segment_range_ts) > 0:
+        t_range = segment_range_ts[-1*(count+1)]
+        if frame_start <= t_range[1]:
+            count+=1
+            cursor_for_old_segments = t_range[0]
+        else:
+            break
+    cursor_index = len(segment_range_ts) - count
+    return cursor_for_old_segments, cursor_index
+
+
+@torch.jit.script
 def get_online_segments_from_slices(
-    buffer_start,
-    buffer_end,
-    subsegments,
-    ind_offset,
+    buffer_start: float,
+    buffer_end: float,
+    subsegments: List[List[float]],
+    ind_offset: int,
     sig,
-    window,
-    sample_rate,
-    decimals: int = 3,
+    window: float,
+    sample_rate: int,
 ):
     """
     Create short speech segments from sclices for online processing purpose.
@@ -309,18 +547,22 @@ def get_online_segments_from_slices(
         audio_lengths (list):
             list of audio sample lengths
     """
-    sig_rangel_list, sig_indexes, sigs_list = [], [], []
-    slice_length = int(window * sample_rate)
-    for (start_sec, dur) in subsegments:
+    sig_rangel_list: List[List[float]] = []
+    sig_indexes: List[int] = []
+    sigs_list: List[torch.Tensor] = []
+    slice_length: int = int(window * sample_rate)
+    end_sec: float = 0.0
+    for subseg in subsegments:
+        start_sec, dur = subseg[0], subseg[1]
         if start_sec > buffer_end:
             continue
         ind_offset += 1
 
         buffer_len = buffer_end - buffer_start
-        end_sec = start_sec + dur
+        end_sec = float(start_sec + dur)
 
         if end_sec > buffer_len:
-            end_sec = min(end_sec, buffer_len)
+            end_sec = float(min(end_sec, buffer_len))
 
         signal = get_target_sig(sig, start_sec, end_sec, slice_length, sample_rate)
         
@@ -329,8 +571,8 @@ def get_online_segments_from_slices(
         if len(signal) < slice_length:
             signal = repeat_signal(signal, len(signal), slice_length)
         
-        start_abs_sec = round(float(buffer_start + start_sec), decimals)
-        end_abs_sec = round(float(buffer_start + end_sec), decimals)
+        start_abs_sec = buffer_start + start_sec
+        end_abs_sec = buffer_start + end_sec
         
         sigs_list.append(signal)
         sig_rangel_list.append([start_abs_sec, end_abs_sec])
@@ -340,137 +582,48 @@ def get_online_segments_from_slices(
 
     return ind_offset, sigs_list, sig_rangel_list, sig_indexes
 
-def get_target_sig(sig, start_sec, end_sec, slice_length, sample_rate):
-    start_idx = int(start_sec * sample_rate)
-    end_idx = min(int(end_sec * sample_rate), slice_length + start_idx)
-    return sig[start_idx:end_idx]
 
-
-def get_new_cursor_for_update(
-        frame_start, 
-        segment_raw_audio, 
-        segment_range_ts, 
-        segment_indexes):
-    """
-    Remove the old segments that overlap with the new frame (self.frame_start)
-    cursor_for_old_segments is set to the onset of the t_range popped lastly.
-    """
-    cursor_for_old_segments = frame_start
-    while True and len(segment_raw_audio) > 0:
-        t_range = segment_range_ts[-1]
-
-        mid = np.mean(t_range)
-        if frame_start <= t_range[1]:
-            segment_range_ts.pop()
-            segment_raw_audio.pop()
-            segment_indexes.pop()
-            cursor_for_old_segments = t_range[0]
-        else:
-            break
-    return cursor_for_old_segments
-
-def check_ranges(range_list: List[List[float]]):
-    """
-    Check whether the range list has any faulty timestamp order.
-
-    Args:
-        range_list (list):
-            List containing the start and end time of the segments.
-            Example:
-                >>> range_list = [[0.5, 3.12], [3.51, 7.26], ... ]
-    """
-    for range_tup in range_list:
-        if range_tup[1] < range_tup[0]:
-            raise ValueError("Range start time should be preceding the end time but we got: {range_tup}")
-
-def make_float_range(range_list) -> List[List[float]]:
-    """Force the list elements to be float type.
-    """
-    return [ [float(x[0]), float(x[1])] for x in range_list ]
-
-def get_speech_labels_for_update(
-    frame_start, 
-    buffer_end, 
-    vad_timestamps, 
-    cumulative_speech_labels, 
-    cursor_for_old_segments
-):
-    """
-    Bring the new speech labels from the current buffer. Then
-
-    1. Concatenate the old speech labels from self.cumulative_speech_labels for the overlapped region.
-        - This goes to new_speech_labels.
-    2. Update the new 1 sec of speech label (speech_label_for_new_segments) to self.cumulative_speech_labels.
-    3. Return the speech label from cursor_for_old_segments to buffer end.
-
-    """
-    if cursor_for_old_segments < frame_start:
-        update_overlap_range = [float(cursor_for_old_segments), float(frame_start)]
-    else:
-        update_overlap_range = []
-
-    # Get VAD timestamps that are in (frame_start, buffer_end) range
-    vad_timestamps = make_float_range(vad_timestamps)
-    new_incoming_speech_labels = getSubRangeList(
-        target_range=[float(frame_start), float(buffer_end)], source_range_list=vad_timestamps
-    )
-    
-    # Update the speech label by including overlapping region with the previous output
-    cumulative_speech_labels = make_float_range(cumulative_speech_labels)
-    update_overlap_speech_labels = getSubRangeList(
-        target_range=update_overlap_range, source_range_list=cumulative_speech_labels
-    )
-
-    # Speech segments for embedding extractions
-    update_overlap_speech_labels = make_float_range(update_overlap_speech_labels)
-    new_incoming_speech_labels = make_float_range(new_incoming_speech_labels)
-    speech_label_for_new_segments = combine_float_overlaps(update_overlap_speech_labels + new_incoming_speech_labels, margin=0)
-
-    # Keep cumulative VAD labels for the future use
-    cumulative_speech_labels = combine_float_overlaps(cumulative_speech_labels + new_incoming_speech_labels, margin=0)
-
-    # Check if there are any faulty timestamps
-    check_ranges(speech_label_for_new_segments)
-    check_ranges(cumulative_speech_labels)
-    return speech_label_for_new_segments, cumulative_speech_labels
-
-
+@torch.jit.script
 def get_segments_from_buffer(
-    buffer_start,
-    buffer_end,
-    sample_rate,
-    speech_labels_for_update,
-    audio_buffer,
-    segment_indexes,
-    window,
-    shift,
-    decimals: int = 2,
+    buffer_start: float,
+    buffer_end: float,
+    sample_rate: int,
+    speech_labels_for_update: torch.Tensor,
+    audio_buffer: torch.Tensor,
+    segment_indexes: List[int],
+    window: float,
+    shift: float,
 ):
-    sigs_list, sig_rangel_list, sig_indexes = [], [], []
+    sigs_list: List[torch.Tensor] = []
+    sig_rangel_list: List[List[float]]= []
+    sig_indexes: List[int] = []
     if len(segment_indexes) > 0:
         ind_offset = segment_indexes[-1]
     else:
         ind_offset = -1
 
     for idx, range_spl in enumerate(speech_labels_for_update):
-        range_offs = [range_spl[0] - buffer_start, range_spl[1] - buffer_start]
+        range_offs = [float(range_spl[0].item() - buffer_start), float(range_spl[1].item() - buffer_start)]
         range_t = [max(0, range_offs[0]), range_offs[1] ]
 
         subsegments = get_subsegments(
-            offset=range_t[0], window=window, shift=shift, duration=(range_t[1] - range_t[0])
+            offset=range_t[0], 
+            window=window, 
+            shift=shift, 
+            duration=(range_t[1] - range_t[0]),
         )
-        # target_sig = torch.from_numpy(audio_buffer)
-        target_sig = audio_buffer
         
         ind_offset, sigs, ranges, inds = get_online_segments_from_slices(
             buffer_start=buffer_start,
             buffer_end=buffer_end,
             subsegments=subsegments,
-            sig=target_sig,
+            sig=audio_buffer,
             window=window,
             ind_offset=ind_offset,
             sample_rate=sample_rate,
         )
+
+        # import ipdb; ipdb.set_trace()
         sigs_list.extend(sigs)
         sig_rangel_list.extend(ranges)
         sig_indexes.extend(inds)
@@ -478,74 +631,18 @@ def get_segments_from_buffer(
     assert len(sigs_list) == len(sig_rangel_list) == len(sig_indexes)
     return sigs_list, sig_rangel_list, sig_indexes
 
-def get_minimal_indices(Y_new):
-    """
-    Force the unique indices of the labels to use the lowest numbers.
-
-    Example:
-        >>> Y_new = [3, 3, 3, 4, 4, 5]
-        >>> get_minimal_indices(Y_new)
-            [0, 0, 0, 1, 1, 2]
-    
-    Args:
-
-    Returns:
-
-    """
-    Y_new_enlisted = np.array(list(set(Y_new)))
-    sequence = bb = np.arange(np.max(Y_new_enlisted)+1)
-    sequence[Y_new_enlisted] = np.arange(len(Y_new_enlisted))
-    return sequence[Y_new]
-
-
-@timeit
-def stitch_cluster_labels(Y_old, Y_new, with_history=True):
-    """
-    Run Hungarian algorithm (linear sum assignment) to find the best permuation mapping between
-    the cumulated labels in history and the new clustering output labels.
-
-    Args:
-        Y_cumul (np.array):
-            Cumulated diarization labels. This will be concatenated with history embedding speaker label
-            then compared with the predicted label Y_new.
-
-        Y_new (np.array):
-            Contains predicted labels for reduced history embeddings concatenated with the predicted label.
-            Permutation is not matched yet.
-
-    Returns:
-        mapping_array[Y] (np.array):
-            An output numpy array where the input Y_new is mapped with mapping_array.
-
-    """
-    Y_new = get_minimal_indices(Y_new)
-    if len(Y_old) == 0:
-        matched_output = Y_new
-    else:
-        spk_count = max(len(set(Y_old)), len(set(Y_new)))
-        P_raw, Q_raw = Y_old.astype(int), Y_new.astype(int)
-        U_set = set(P_raw) | set(Q_raw)
-        min_len = min(P_raw.shape[0], Q_raw.shape[0])
-        P, Q = P_raw[:min_len], Q_raw[:min_len]
-        PmQ, QmP = set(P) - set(Q), set(Q) - set(P)
-
-        # P and Q occasionally have no common labels which means totally flipped (0<->1) labels.
-        # This should be differentiated from the second case.
-        if len(U_set) == 1:
-            # When two speaker vectors are exactly the same: No need to encode.
-            mapping_array = np.array([0, 0])
-        else:
-            # Run Hungarian algorithm if there are more than one speaker in universal set U.
-            mapping_array = hungarian_algorithm(spk_count, U_set, P, Q, PmQ, QmP)
-        matched_output = mapping_array[Y_new]
-    return matched_output
-
-
 class OnlineDiarizer(ClusteringDiarizer):
     def __init__(self, cfg: DictConfig):
         super().__init__(cfg)
         self.cfg = model_utils.convert_model_config_to_dict_config(cfg)
         cfg = model_utils.maybe_update_config_version(cfg)
+        self._diarizer_params = self.cfg.diarizer
+        
+        self.multiscale_args_dict = parse_scale_configs(
+            self._diarizer_params.speaker_embeddings.parameters.window_length_in_sec,
+            self._diarizer_params.speaker_embeddings.parameters.shift_length_in_sec,
+            self._diarizer_params.speaker_embeddings.parameters.multiscale_weights,
+        )
 
         # Convert config to support Hydra 1.0+ instantiation
         self.uniq_id = None
@@ -601,7 +698,7 @@ class OnlineDiarizer(ClusteringDiarizer):
         self.memory_segment_ranges = {key: [] for key in self.multiscale_args_dict['scale_dict'].keys()}
         self.memory_segment_indexes = {key: [] for key in self.multiscale_args_dict['scale_dict'].keys()}
         self.memory_cluster_labels = np.array([])
-        self.Y_fullhist = []
+        self.Y_fullhist = torch.tensor([])
         self.cumulative_speech_labels = []
 
     def _init_temporal_major_voting_module(self):
@@ -669,7 +766,8 @@ class OnlineDiarizer(ClusteringDiarizer):
             value >= self.MINIMUM_HIST_BUFFER_SIZE
         ), f"Online diarization history buffer should be bigger than {self.MINIMUM_HIST_BUFFER_SIZE}"
         self.history_n = value  # How many segments we want to use as history buffer
-
+    
+    # @torch.jit.script
     def prepare_embedding_update(self, emb_in):
         """
         This function performs the following tasks:
@@ -703,16 +801,16 @@ class OnlineDiarizer(ClusteringDiarizer):
             new_emb_n (int):
             pre_embs (Tensor):
         """
-        segment_indexes_mat = np.array(self.segment_indexes[self.base_scale_index]).astype(int)
-        self.total_segments_processed_count = segment_indexes_mat[-1] + 1
-        hist_curr_boundary = self.total_segments_processed_count - self.current_n
+        _segment_indexes_mat = torch.tensor(self.segment_indexes[self.base_scale_index])
+        self.total_segments_processed_count = int(_segment_indexes_mat[-1] + 1)
+        hist_curr_boundary = int(self.total_segments_processed_count - self.current_n)
         new_emb_n, pre_embs = None, None
         update_speaker_register = True
 
         # Case-1: The very first step
         if len(self.history_embedding_buffer_emb) == 0:
             new_emb_n = self.total_segments_processed_count - (self.current_n + self.history_n)
-            hist_curr_boundary_emb_idx = get_mapped_index(segment_indexes_mat, hist_curr_boundary)
+            hist_curr_boundary_emb_idx = int(get_mapped_index(_segment_indexes_mat, hist_curr_boundary))
             pre_embs = emb_in[:hist_curr_boundary_emb_idx]
             self.pre_clus_labels = self.Y_fullhist[:hist_curr_boundary]
 
@@ -725,10 +823,10 @@ class OnlineDiarizer(ClusteringDiarizer):
             assert new_emb_n > 0, "new_emb_n should be a positve integer number."
             
             # Add embedding vectors to `pre_embs` so that we can merge it with reducer function.
-            emb_idx_stt = get_mapped_index(segment_indexes_mat, label_stt)
-            emb_idx_end = get_mapped_index(segment_indexes_mat, label_end)
-            pre_embs = np.vstack((self.history_embedding_buffer_emb, emb_in[emb_idx_stt:emb_idx_end]))
-            self.pre_clus_labels = np.hstack(
+            emb_idx_stt = int(get_mapped_index(_segment_indexes_mat, label_stt))
+            emb_idx_end = int(get_mapped_index(_segment_indexes_mat, label_end))
+            pre_embs = torch.vstack((self.history_embedding_buffer_emb, emb_in[emb_idx_stt:emb_idx_end]))
+            self.pre_clus_labels = torch.hstack(
                 (self.history_embedding_buffer_label, self.Y_fullhist[label_stt:label_end])
             )
 
@@ -755,11 +853,10 @@ class OnlineDiarizer(ClusteringDiarizer):
         if emb_in[curr_clustered_segments].shape[0] < self.current_n:
             delta_count = self.current_n - emb_in[curr_clustered_segments].shape[0]
             fill_in_emb = np.tile(emb_in[curr_clustered_segments][-1], (delta_count, 1))
-            emb_curr = np.vstack((emb_in[curr_clustered_segments], fill_in_emb))
+            emb_curr = torch.vstack((emb_in[curr_clustered_segments], fill_in_emb))
         else:
             emb_curr = emb_in[curr_clustered_segments]
         return emb_curr
-
 
     def reduce_embedding_sets(self, emb_in):
         """
@@ -824,8 +921,8 @@ class OnlineDiarizer(ClusteringDiarizer):
                 total_emb.append(merged_embs)
                 total_cluster_labels.append(merged_clus_labels)
             
-            self.history_embedding_buffer_emb = np.vstack(total_emb)
-            self.history_embedding_buffer_label = np.hstack(total_cluster_labels)
+            self.history_embedding_buffer_emb = torch.vstack(total_emb)
+            self.history_embedding_buffer_label = torch.hstack(total_cluster_labels)
             assert (
                 self.history_embedding_buffer_emb.shape[0] == self.history_n
             ), f"History embedding size is not maintained correctly."
@@ -841,8 +938,8 @@ class OnlineDiarizer(ClusteringDiarizer):
         # from the previous clustering result.
         total_cluster_labels.append(self.Y_fullhist[-self.current_n :])
 
-        history_and_current_emb = np.vstack(total_emb)
-        history_and_current_labels = np.hstack(total_cluster_labels)
+        history_and_current_emb = torch.vstack(total_emb)
+        history_and_current_labels = torch.hstack(total_cluster_labels)
         assert history_and_current_emb.shape[0] == len(history_and_current_labels)
 
         self.max_embed_count = max(
@@ -866,7 +963,7 @@ class OnlineDiarizer(ClusteringDiarizer):
             cluster_labels, add_new = None, True
         return merged_emb, cluster_labels, add_new
 
-    def macth_labels(self, Y_new, add_new):
+    def macth_labels(self, Y_new: torch.Tensor, add_new: bool, isOnline: bool):
         """
         self.history_buffer_seg_end is a timestamp that tells to which point is history embedding contains from self.Y_fullhist.
         If embedding reducing is done correctly, we should discard  (0, self.history_n) amount and take
@@ -881,17 +978,18 @@ class OnlineDiarizer(ClusteringDiarizer):
                 acquired cluster labels.
 
         """
-        if self.isOnline:
+        if isOnline:
             # Online clustering mode with history buffer
-            Y_old = np.hstack((self.history_embedding_buffer_label, 
-                               self.Y_fullhist[self.history_buffer_seg_end:])).astype(int)
+            Y_old = torch.hstack((self.history_embedding_buffer_label, 
+                               self.Y_fullhist[self.history_buffer_seg_end:]))
             
             # Stitch the old history and new cluster labels
             Y_matched = stitch_cluster_labels(Y_old=Y_old, Y_new=Y_new, with_history=True)
+
             if add_new:
                 if Y_matched[self.history_n:].shape[0] != self.current_n:
                     raise ValueError("Update point sync is not correct.")
-                Y_out = np.hstack((self.Y_fullhist[:self.history_buffer_seg_end], Y_matched[self.history_n:]))
+                Y_out = torch.hstack((self.Y_fullhist[:self.history_buffer_seg_end], Y_matched[self.history_n:]))
                 self.Y_fullhist = Y_out
             else:
                 # Do not update cumulative labels since there are no new segments.
@@ -959,7 +1057,7 @@ class OnlineDiarizer(ClusteringDiarizer):
             global_idx = max(self.memory_segment_indexes[scale_idx]) - self.memory_margin
 
             # convert global index global_idx to buffer index buffer_idx
-            segment_indexes_mat = np.array(self.segment_indexes[scale_idx]).astype(int)
+            segment_indexes_mat = torch.tensor(self.segment_indexes[scale_idx])
             buffer_idx = get_mapped_index(segment_indexes_mat, global_idx)
 
             self.memory_segment_ranges[scale_idx][global_idx:] = \
@@ -987,13 +1085,13 @@ class OnlineDiarizer(ClusteringDiarizer):
     @timeit
     def _run_segmentation(
         self, 
-        audio_buffer, 
-        vad_timestamps, 
-        segment_raw_audio, 
-        segment_range_ts, 
-        segment_indexes, 
-        window, 
-        shift
+        audio_buffer: torch.Tensor, 
+        vad_timestamps: torch.Tensor, 
+        segment_raw_audio: List[List[float]], 
+        segment_range_ts: List[List[float]], 
+        segment_indexes: List[int], 
+        window: float, 
+        shift: float
     ):
         """
         Remove the old segments that overlap with the new frame (self.frame_start)
@@ -1010,12 +1108,18 @@ class OnlineDiarizer(ClusteringDiarizer):
                 vad_timestamps[0][0] = max(vad_timestamps[0][0], 0.0)
                 speech_labels_for_update = copy.deepcopy(vad_timestamps)
                 self.cumulative_speech_labels = speech_labels_for_update
-
             else:
-                cursor_for_old_segments = get_new_cursor_for_update(
-                    self.frame_start, segment_raw_audio, segment_range_ts, segment_indexes
+                cursor_for_old_segments, cursor_index = get_new_cursor_for_update(
+                    self.frame_start, 
+                    segment_range_ts, 
                 )
-
+                
+                segment_range_ts = segment_range_ts[:cursor_index]
+                segment_raw_audio = segment_raw_audio[:cursor_index]
+                segment_indexes = segment_indexes[:cursor_index]
+                if not len(segment_raw_audio) == len(segment_range_ts) == len(segment_indexes):
+                    raise ValueError("Scale-wise segment information has a mismatch in length.")
+                
                 speech_labels_for_update, self.cumulative_speech_labels = get_speech_labels_for_update(
                     self.frame_start,
                     self.buffer_end,
@@ -1024,32 +1128,31 @@ class OnlineDiarizer(ClusteringDiarizer):
                     cursor_for_old_segments,
                 )
 
-            audio_buffer = copy.deepcopy(audio_buffer)
-            
             # Collect the timeseries signal from the buffer
             sigs_list, sig_rangel_list, sig_indexes = get_segments_from_buffer(
-                self.buffer_start,
-                self.buffer_end,
-                self.sample_rate,
-                speech_labels_for_update,
-                audio_buffer,
-                segment_indexes,
-                window,
-                shift,
+                buffer_start=self.buffer_start,
+                buffer_end=self.buffer_end,
+                sample_rate=self.sample_rate,
+                speech_labels_for_update=speech_labels_for_update,
+                audio_buffer=audio_buffer,
+                segment_indexes=segment_indexes,
+                window=window,
+                shift=shift,
             )
+
             segment_raw_audio.extend(sigs_list)
             segment_range_ts.extend(sig_rangel_list)
             segment_indexes.extend(sig_indexes)
 
         if not len(segment_raw_audio) == len(segment_range_ts) == len(segment_indexes):
             raise ValueError("Segment information has a mismatch in length.")
-        return segment_range_ts
+        return segment_raw_audio, segment_range_ts, segment_indexes
 
     @torch.no_grad()
     def _run_embedding_extractor(self, audio_signal):
         audio_signal = torch.stack(audio_signal).float().to(self.device)
-        audio_signal_lens = torch.from_numpy(
-            np.array([self.n_embed_seg_len for k in range(audio_signal.shape[0])])
+        audio_signal_lens = torch.tensor(
+                [self.n_embed_seg_len for k in range(audio_signal.shape[0])]
         ).to(self.device)
         _, torch_embs = self._speaker_model.forward(
             input_signal=audio_signal, input_signal_length=audio_signal_lens
@@ -1110,19 +1213,21 @@ class OnlineDiarizer(ClusteringDiarizer):
             device=device
         )
 
-        _emb = _emb.cpu().numpy()
-        emb, reduced_labels, add_new = self._get_reduced_mat(_emb)
+        reduced_emb, reduced_labels, add_new = self._get_reduced_mat(_emb)
 
-        emb = torch.tensor(emb).to(device)
-        Y_clus = self.online_clus.forward(emb=emb,
-                                          frame_index=self.frame_index,
-                                          cuda=True,
-                                          device=device,
-                                         )
+        Y_clus = self.online_clus.forward(
+                                    emb=reduced_emb,
+                                    frame_index=self.frame_index,
+                                    cuda=True,
+                                    device=device,
+                                    )
 
-        Y_clus = Y_clus.cpu().numpy()
-        total_cluster_labels = self.macth_labels(Y_clus, add_new)
-        return total_cluster_labels
+        merged_clus_labels = self.macth_labels(Y_clus, add_new, self.isOnline)
+        
+        for scale_idx, (window, shift) in self.multiscale_args_dict['scale_dict'].items():
+            cluster_label_hyp = self.save_history_data(scale_idx, merged_clus_labels)
+        
+        return cluster_label_hyp
 
     def _get_interim_output(self, vad_ts):
         """
@@ -1163,7 +1268,7 @@ class OnlineDiarizer(ClusteringDiarizer):
         for scale_idx, (window, shift) in self.multiscale_args_dict['scale_dict'].items():
             
             # Step 1: Get subsegments for embedding extraction.
-            segment_ranges = self._run_segmentation(
+            audio_sigs, segment_ranges, range_inds = self._run_segmentation(
                 audio_buffer=audio_buffer,
                 vad_timestamps=vad_timestamps,
                 segment_raw_audio=self.segment_raw_audio[scale_idx],
@@ -1172,6 +1277,9 @@ class OnlineDiarizer(ClusteringDiarizer):
                 window=window,
                 shift=shift,
             )
+            self.segment_raw_audio[scale_idx] = audio_sigs
+            self.segment_range_ts[scale_idx] = segment_ranges
+            self.segment_indexes[scale_idx] = range_inds
 
             # Step 2-1: Extract speaker embeddings from the extracted subsegment timestamps.
             embeddings = self._extract_embeddings(
@@ -1194,13 +1302,10 @@ class OnlineDiarizer(ClusteringDiarizer):
         )
         
         # Step 3: Clustering: Perform an online version of clustering algorithm
-        total_cluster_labels = self._perform_online_clustering(
+        cluster_label_hyp = self._perform_online_clustering(
             embs_and_timestamps[self.uniq_id],
             cuda=True,
         )
-        
-        for scale_idx, (window, shift) in self.multiscale_args_dict['scale_dict'].items():
-            cluster_label_hyp = self.save_history_data(scale_idx, total_cluster_labels)
         
         # Step 4: Generate RTTM style diarization labels from segment ranges and cluster labels
         diar_hyp = generate_cluster_labels(self.memory_segment_ranges[self.base_scale_index], cluster_label_hyp)
