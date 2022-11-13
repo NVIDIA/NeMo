@@ -31,9 +31,11 @@ pitch_normalization: speaker_wise
 use_unique_tokens: true
 speaker_conditioning_type: per_sample
 segment_speaker_embedding: true
+ssl_downsampling_factor: 4 # How many mel-spectrogram frames map to one content embedding in the SSL model
 
 model:
   ssl_model_ckpt_path: ${ssl_model_ckpt_path}
+  ssl_downsampling_factor: ${ssl_downsampling_factor}
   use_encoder: true
   use_duration_predictor: ${use_unique_tokens}
   pitch_conditioning: true
@@ -76,6 +78,7 @@ model:
       speaker_stats_pitch_fp: ${speaker_stats_pitch_fp}
       min_duration: 0.5
       max_duration: 16.0
+      ssl_downsampling_factor: ${ssl_downsampling_factor}
       use_unique_tokens: ${use_unique_tokens}
       speaker_conditioning_type: ${speaker_conditioning_type}
       segment_speaker_embedding: ${segment_speaker_embedding}
@@ -102,6 +105,7 @@ model:
       speaker_stats_pitch_fp: ${speaker_stats_pitch_fp}
       min_duration: 0.5
       max_duration: 16.0
+      ssl_downsampling_factor: ${ssl_downsampling_factor}
       use_unique_tokens: ${use_unique_tokens}
       speaker_conditioning_type: ${speaker_conditioning_type}
       segment_speaker_embedding: ${segment_speaker_embedding}

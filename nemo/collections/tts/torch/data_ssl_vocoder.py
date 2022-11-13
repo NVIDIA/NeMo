@@ -30,6 +30,7 @@ class SSLVocoderDataset(Dataset):
         ssl_content_emb_type: str,
         max_duration: Optional[float] = None,
         min_duration: Optional[float] = None,
+        ssl_downsampling_factor: Optional[int] = 4,
         ignore_file: Optional[Union[str, Path]] = None,
         trim: Optional[bool] = False,
         pitch_conditioning: Optional[bool] = False,
@@ -44,22 +45,50 @@ class SSLVocoderDataset(Dataset):
         speaker_conditioning_type: Optional[str] = "per_sample",  # per_sample, mean, interpolate,
         segment_speaker_embedding: Optional[bool] = False,
     ):
-        """Dataset which can be used for training and fine-tuning vocoder with pre-computed mel-spectrograms.
+        """Dataset used for training FastPitchModel_SSL model.
         Args:
             manifest_filepath (Union[str, Path, List[str], List[Path]]): Path(s) to the .json manifests containing
             information on the dataset. Each line in the .json file should be valid json. Note: the .json file itself
             is not valid json. Each line should contain the following:
                 "audio_filepath": <PATH_TO_WAV>,
-                "duration": <Duration of audio clip in seconds> (Optional),
-                "mel_filepath": <PATH_TO_LOG_MEL> (Optional, can be in .npy (numpy.save) or .pt (torch.save) format)
+                "speaker" : <SPEAKER NUM>
+                "duration": <Duration of audio clip in seconds> (Optional)
             sample_rate (int): The sample rate of the audio. Or the sample rate that we will resample all files to.
+            ssl_model_ckpt_path (Union[str, Path]): Path to trained SSLDisentangler checkpoint
+            ssl_content_emb_type (str): One of ["probs", "embedding", "log_probs", "embedding_and_probs"]. 
+                Indicated which output to use as content embedding.
             max_duration (Optional[float]): Max duration of audio clips in seconds. All samples exceeding this will be
                 pruned prior to training. Note: Requires "duration" to be set in the manifest file. It does not load
                 audio to compute duration. Defaults to None which does not prune.
             min_duration (Optional[float]): Min duration of audio clips in seconds. All samples lower than this will be
                 pruned prior to training. Note: Requires "duration" to be set in the manifest file. It does not load
                 audio to compute duration. Defaults to None which does not prune.
-            trim (bool): Whether to apply librosa.effects.trim to the audio file. Defaults to False.
+            ssl_downsampling_factor (Optional(int)): Indicates how many mel-spectrogram frames map to one content embedding in the SSL model.
+                Defaults to 4.
+            ignore_file (Optional[Union[str, Path]]): The location of a pickle-saved list of audio paths
+                that will be pruned prior to training. Defaults to None which does not prune.
+            trim (bool): Whether to apply `librosa.effects.trim` to trim leading and trailing silence from an audio
+                signal. Defaults to False.
+            pitch_conditioning (bool): Whether to load pitch contour or not
+            pitch_mean (Optional[float]): If using global normalization, normalize using these statistics. 
+                Also used if speaker stats are not available for the given speaker
+            pitch_std (Optional[float]): If using global normalization, normalize using these statistics. 
+                Also used if speaker stats are not available for the given speaker
+            pitch_normalization (str): Can be one of ['speaker_wise', 'global', 'none']. Indicates the kind of pitch normalization.
+            sup_data_dir (Optional[Union[str, Path]]): Data directory containing pre-computed embeddings/statistics. If set as 
+            recache_data (Optional[bool]): If set as true, creates a fresh data directory. 
+            normalize_content (Optional[bool]): Whether to L2-normalize content embedding. Defaults to true.
+            speaker_stats_pitch_fp (Optional[Union[str, Path]]): Path to the json containing speaker pitch stats. 
+                If set as None, tries to lookup for a default filename (speaker_pitch_stats.json) in sup_data_dir. 
+                Needed if we use pitch_normalization is "speaker_wise"
+            use_unique_tokens (Optional[bool]): Whether to group content embeddings with same predicted token or not. 
+                If set as False, content embeddings are not grouped and target duration for each time-step is the same (defaults to 4).
+                If set as True, the trained model can potentially adapt speaking rate as per the target speaker. 
+            speaker_conditioning_type (Optional[str]): Can be one of ["per_sample", "mean", "interpolate"]. Defaults to "per_sample"
+                per_sample: Speaker embedding computed from the same utterance
+                mean: Speaker embedding for all utterances of a given speaker is the same and equal to the mean speaker embedding. 
+                interpolate: Interpolate b/w per_sample and mean speaker embedding.
+            segment_speaker_embedding Optional[bool]: Whether to compute speaker embedding by segmenting the utterance into 2 second chunks or not. 
         """
         super().__init__()
 
@@ -110,6 +139,7 @@ class SSLVocoderDataset(Dataset):
         self.featurizer = WaveformFeaturizer(sample_rate=sample_rate)
         self.sample_rate = sample_rate
         self.trim = trim
+        self.ssl_downsampling_factor = ssl_downsampling_factor
 
         self.ssl_model = ssl_tts.SSLDisentangler.load_from_checkpoint(ssl_model_ckpt_path, strict=False).cpu()
         with open_dict(self.ssl_model.cfg):
@@ -127,6 +157,13 @@ class SSLVocoderDataset(Dataset):
 
         downsampling_rate_wav_to_mel = ssl_cfg.preprocessor.n_window_stride  # 256
         downsampling_rate_mel_to_ssl = ssl_cfg.encoder.subsampling_factor  # 4
+
+        assert (
+            downsampling_rate_mel_to_ssl == self.ssl_downsampling_factor
+        ), "subsampling_factor of SSL {} does not match specified ssl_downsampling_factor {}".format(
+            downsampling_rate_mel_to_ssl, self.ssl_downsampling_factor
+        )
+
         self.pad_multiple = downsampling_rate_wav_to_mel * downsampling_rate_mel_to_ssl
 
         self.ssl_frame_length = ssl_cfg.preprocessor.n_window_size
@@ -173,9 +210,10 @@ class SSLVocoderDataset(Dataset):
             self.speaker_stats = {}
             if speaker_stats_pitch_fp is None:
                 speaker_stats_pitch_fp = os.path.join(sup_data_dir, "speaker_pitch_stats.json")
-                print("speaker_stats_pitch_fp: {}".format(speaker_stats_pitch_fp))
 
-            assert os.path.exists(speaker_stats_pitch_fp), "speaker_stats_pitch_fp does not exist"
+            assert os.path.exists(speaker_stats_pitch_fp), "speaker_stats_pitch_fp {} does not exist".format(
+                speaker_stats_pitch_fp
+            )
 
             with open(speaker_stats_pitch_fp, "r") as f:
                 speaker_stats_raw = json.load(f)
@@ -386,7 +424,7 @@ class SSLVocoderDataset(Dataset):
                 duration = torch.load(duration_fp)
             else:
                 # default duration is 4 frames per embedding
-                duration = torch.ones(content_embedding.shape[1]) * 4.0
+                duration = torch.ones(content_embedding.shape[1]) * self.ssl_downsampling_factor
             return content_embedding, speaker_embedding, encoded_len, duration
         else:
             with torch.no_grad():
@@ -426,7 +464,7 @@ class SSLVocoderDataset(Dataset):
 
                 speaker_embedding_normalized = speaker_embedding_normalized[0].detach()
                 content_embedding = content_embedding[0].detach()
-                content_log_probs = content_log_probs[:, 0, :].detach()  # (content lob prob is (t, b, c))
+                content_log_probs = content_log_probs[:, 0, :].detach()  # (content log prob is (t, b, c))
                 encoded_len = encoded_len[0].detach()
                 content_embedding = content_embedding[: encoded_len.item()]
                 content_embedding = content_embedding.t()
@@ -434,7 +472,7 @@ class SSLVocoderDataset(Dataset):
                 content_log_probs = content_log_probs.t()
                 content_probs = torch.exp(content_log_probs)
 
-                duration = torch.ones(content_embedding.shape[1]) * 4.0
+                duration = torch.ones(content_embedding.shape[1]) * self.ssl_downsampling_factor
 
                 if self.ssl_content_emb_type == "probs":
                     final_content_embedding = content_probs
@@ -447,7 +485,6 @@ class SSLVocoderDataset(Dataset):
 
                 if self.use_unique_tokens:
                     token_predictions = torch.argmax(content_probs, dim=0)
-                    # print("token predictions:", token_predictions)
                     content_buffer = [final_content_embedding[:, 0]]
                     unique_content_embeddings = []
                     unique_tokens = []
@@ -456,20 +493,19 @@ class SSLVocoderDataset(Dataset):
                         if token_predictions[_t] == token_predictions[_t - 1]:
                             content_buffer.append(final_content_embedding[:, _t])
                         else:
-                            durations.append(len(content_buffer) * 4)
+                            durations.append(len(content_buffer) * self.ssl_downsampling_factor)
                             unique_content_embeddings.append(torch.mean(torch.stack(content_buffer), dim=0))
                             content_buffer = [final_content_embedding[:, _t]]
                             unique_tokens.append(token_predictions[_t].item())
 
                     if len(content_buffer) > 0:
-                        durations.append(len(content_buffer) * 4)
+                        durations.append(len(content_buffer) * self.ssl_downsampling_factor)
                         unique_content_embeddings.append(torch.mean(torch.stack(content_buffer), dim=0))
                         unique_tokens.append(token_predictions[_t].item())
 
                     unique_content_embedding = torch.stack(unique_content_embeddings)
                     final_content_embedding = unique_content_embedding.t()
                     duration = torch.tensor(durations).float()
-                    # print("duration ds", duration)
                     encoded_len = torch.tensor(final_content_embedding.shape[1]).long()
 
                 torch.save(final_content_embedding, content_emb_fp)
@@ -504,11 +540,6 @@ class SSLVocoderDataset(Dataset):
 
         return audio_ssl, audio_ssl_length, audio, audio_length
 
-    def _is_valid_pitch_contour(self, pitch_contour):
-        if pitch_contour.dtype != torch.float32:
-            return False
-        return True
-
     def __getitem__(self, index):
         sample = self.data[index]
         rel_audio_path = Path(sample["audio_filepath"]).relative_to(self.base_data_dir).with_suffix("")
@@ -521,6 +552,7 @@ class SSLVocoderDataset(Dataset):
         pitch_contour = None
         if self.pitch_conditioning:
             # [:-1] makes the pitch contour length = audio length/hop size, must be a better way to do this
+            # Without [:-1], the pitch contour is 1 sample longer than expected.
             pitch_contour = self.get_pitch_contour(audio_ssl[:-1], rel_audio_path_as_text_id)
 
         content_embedding, speaker_embedding, encoded_len, duration = self.get_ssl_features(
@@ -560,14 +592,13 @@ class SSLVocoderDataset(Dataset):
                     mean = self.pitch_mean
                     std = self.pitch_std
 
-                # print("normalizing pitch using mean {} and std {}".format(mean, std))
                 pitch_contour = pitch_contour - mean
                 pitch_contour[pitch_contour == -mean] = 0.0
                 pitch_contour = pitch_contour / std
 
-            if not self._is_valid_pitch_contour(pitch_contour):
-                print("invalid pitch contour for", sample["audio_filepath"])
-                print("Setting pitch contour to 0")
+            if pitch_contour.dtype != torch.float32:
+                logging.warning("invalid pitch contour for {}".format(sample["audio_filepath"]))
+                logging.warning("Setting pitch contour to 0")
                 pitch_contour = torch.zeros(mel_spectrogram.shape[1])
 
         item = {
