@@ -81,6 +81,7 @@ class SSLDisentangler(ModelPT):
         for task in self._cfg.downstream_heads.task_names:
 
             if task == 'speaker_verification':
+                # setting up downstream heads and loss functions for speaker verification task
                 in_dim = self._cfg.encoder.d_model
                 out_dim = self._cfg.downstream_heads.speaker_embed_size
                 num_speakers = self._cfg.downstream_heads.num_speakers
@@ -89,6 +90,7 @@ class SSLDisentangler(ModelPT):
                 self.sv_loss = AngularSoftmaxLoss(scale=30, margin=0.4)
 
             elif task == 'content':
+                # setting up downstream heads and loss functions for text/content recognition task
                 in_dim = self._cfg.encoder.d_model
                 out_dim = self._cfg.downstream_heads.content_embed_size
                 num_chars = len(self._text_tokenizer.tokens)  # list of english tokens
@@ -105,6 +107,9 @@ class SSLDisentangler(ModelPT):
                 self.mse_loss = nn.MSELoss()
 
                 self.ctc_decoder = GreedyCTCDecoder(self._text_tokenizer.tokens, self._text_tokenizer.blank)
+
+            else:
+                raise ValueError(f"{task} is not a valid task. Task must be speaker_verification or content.")
 
         self.automatic_optimization = False
 
@@ -169,7 +174,6 @@ class SSLDisentangler(ModelPT):
 
         for task in self._cfg.downstream_heads.task_names:
             if task == 'speaker_verification':
-                # this is for training downstream head to extract speaker embedding from audio
                 sv_dataset = TTSData.TTSDataset(
                     manifest_filepath=data_config['manifest_speaker_verification_fp'],
                     sample_rate=self._cfg.sample_rate,
@@ -189,7 +193,6 @@ class SSLDisentangler(ModelPT):
                 )
 
             elif task == 'content':
-                # this is for training downstream head to extract content embedding from audio
                 content_dataset = TTSData.TTSDataset(
                     manifest_filepath=data_config['manifest_content_fp'],
                     sample_rate=self._cfg.sample_rate,
@@ -298,6 +301,9 @@ class SSLDisentangler(ModelPT):
                 content_logits = self.content_linear(content_embedding)
                 content_log_probs = content_logits.log_softmax(dim=2)
                 content_log_probs = content_log_probs.permute(1, 0, 2)  # t,b,c for ctc
+
+            else:
+                raise ValueError(f"{task} is not a valid task. Task must be speaker_verification or content.")
 
         return (
             speaker_logits,
