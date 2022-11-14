@@ -22,7 +22,7 @@ class TestIPAG2P:
 
     PHONEME_DICT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "phoneme_dict")
     PHONEME_DICT_PATH_DE = os.path.join(PHONEME_DICT_DIR, "test_dict_de.txt")
-    PHONEME_DICT_PATH_EN = os.path.join(PHONEME_DICT_DIR, "test_dict.txt")
+    PHONEME_DICT_PATH_EN = os.path.join(PHONEME_DICT_DIR, "test_dict_en.txt")
     PHONEME_DICT_PATH_ES = os.path.join(PHONEME_DICT_DIR, "test_dict_es.txt")
 
     @staticmethod
@@ -32,7 +32,8 @@ class TestIPAG2P:
         apply_to_oov_word=lambda x: x,
         use_chars=False,
         phoneme_probability=None,
-        set_graphemes_upper=True,
+        grapheme_case="upper",
+        grapheme_prefix="#",
     ):
         return IPAG2P(
             phoneme_dict,
@@ -40,7 +41,8 @@ class TestIPAG2P:
             apply_to_oov_word=apply_to_oov_word,
             use_chars=use_chars,
             phoneme_probability=phoneme_probability,
-            set_graphemes_upper=set_graphemes_upper,
+            grapheme_case=grapheme_case,
+            grapheme_prefix=grapheme_prefix,
         )
 
     @pytest.mark.run_only_on('CPU')
@@ -72,10 +74,10 @@ class TestIPAG2P:
     def test_normalize_dict_with_graphemes_and_phonemes(self):
         # fmt: off
         expected_symbols = {
-            'H', 'E', 'L', 'L', 'O',
-            'W', 'O', 'R', 'L', 'D',
-            'L', 'E', 'A', 'D',
-            'N', 'V', 'I', 'D', 'I', 'A',
+            '#H', '#E', '#L', '#L', '#O',
+            '#W', '#O', '#R', '#L', '#D',
+            '#L', '#E', '#A', '#D',
+            '#N', '#V', '#I', '#D', '#I', '#A',
             'h', 'ə', 'ˈ', 'ɫ', 'o', 'ʊ',
             'ˈ', 'w', 'ɝ', 'ɫ', 'd',
             'ˈ', 'l', 'ɛ', 'd',
@@ -98,7 +100,7 @@ class TestIPAG2P:
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     def test_forward_call(self):
-        input_text = "Hello world."
+        input_text = "Hello world. "
         expected_output = [char for char in "həˈɫoʊ ˈwɝɫd."]
         g2p = self._create_g2p()
 
@@ -125,7 +127,7 @@ class TestIPAG2P:
     @pytest.mark.unit
     def test_forward_call_with_oov_word(self):
         input_text = "Hello Kitty!"
-        expected_output = [char for char in "həˈɫoʊ KITTY!"]
+        expected_output = list("həˈɫoʊ") + [" "] + list("KITTY") + ["!"]
         g2p = self._create_g2p()
 
         phonemes = g2p(input_text)
@@ -135,7 +137,7 @@ class TestIPAG2P:
     @pytest.mark.unit
     def test_forward_call_with_oov_func(self):
         input_text = "Hello Kitty!"
-        expected_output = [char for char in "həˈɫoʊ test!"]
+        expected_output = list("həˈɫoʊ") + [" "] + list("test!")
         g2p = self._create_g2p(apply_to_oov_word=lambda x: "test")
 
         phonemes = g2p(input_text)
@@ -145,8 +147,8 @@ class TestIPAG2P:
     @pytest.mark.unit
     def test_forward_call_with_graphemes_uppercase(self):
         input_text = "Hello world."
-        expected_output = [char for char in input_text.upper()]
-        g2p = self._create_g2p(use_chars=True, phoneme_probability=0.0)
+        expected_output = ["#" + char for char in input_text.upper()]
+        g2p = self._create_g2p(use_chars=True, phoneme_probability=0.0, grapheme_case="upper")
 
         phonemes = g2p(input_text)
         assert phonemes == expected_output
@@ -155,8 +157,18 @@ class TestIPAG2P:
     @pytest.mark.unit
     def test_forward_call_with_graphemes_lowercase(self):
         input_text = "Hello world."
-        expected_output = [char for char in input_text.lower()]
-        g2p = self._create_g2p(use_chars=True, phoneme_probability=0.0, set_graphemes_upper=False)
+        expected_output = ["#" + char for char in input_text.lower()]
+        g2p = self._create_g2p(use_chars=True, phoneme_probability=0.0, grapheme_case="lower")
+
+        phonemes = g2p(input_text)
+        assert phonemes == expected_output
+
+    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.unit
+    def test_forward_call_with_graphemes_mixed_case(self):
+        input_text = "Hello world."
+        expected_output = ["#" + char for char in input_text]
+        g2p = self._create_g2p(use_chars=True, phoneme_probability=0.0, grapheme_case="mixed")
 
         phonemes = g2p(input_text)
         assert phonemes == expected_output
@@ -165,7 +177,7 @@ class TestIPAG2P:
     @pytest.mark.unit
     def test_forward_call_with_escaped_characters(self):
         input_text = "Hello |wo rld|."
-        expected_output = ["h", "ə", "ˈ", "ɫ", "o", "ʊ", " ", "wo", "rld", "."]
+        expected_output = ["h", "ə", "ˈ", "ɫ", "o", "ʊ", " ", "#wo", "#rld", "."]
         g2p = self._create_g2p()
 
         phonemes = g2p(input_text)

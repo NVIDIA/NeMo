@@ -53,6 +53,9 @@ class BaseTokenizer(ABC):
         super().__init__()
 
         tokens = list(tokens)
+        # TODO @xueyang: in general, IDs of pad, sil, blank, and oov are preserved ahead instead of dynamically
+        #  assigned according to the number of tokens. The downside of using dynamical assignment leads to different IDs
+        #  for each.
         self.pad, tokens = len(tokens), tokens + [pad]  # Padding
 
         if add_blank_at is not None:
@@ -582,22 +585,30 @@ class IPATokenizer(BaseTokenizer):
         else:
             self.text_preprocessing_func = any_locale_text_preprocessing
 
-    def encode(self, text):
+    def encode(self, text: str) -> List[int]:
         """See base class for more information."""
-
+        # normalize the input text with "NFC" form.
         text = self.text_preprocessing_func(text)
-        g2p_text = self.g2p(text)  # Double-check this
+
+        # transliterate the text into phoneme sequences and/or grapheme sequences.
+        g2p_text = self.g2p(text)
+
         return self.encode_from_g2p(g2p_text, text)
 
-    def encode_from_g2p(self, g2p_text: List[str], raw_text: Optional[str] = None):
+    def encode_from_g2p(self, g2p_text: List[str], raw_text: Optional[str] = None) -> List[int]:
         """
-        Encodes text that has already been run through G2P.
-        Called for encoding to tokens after text preprocessing and G2P.
+        Tokenize the `g2p_text` that has been already run through G2P. Each item in the `g2p_text` would be encoded as
+        one of the integer IDs predefined in `self._token2id`. Note that this function should be called after
+        `self.text_preprocessing_func` and `self.g2p` functions
 
         Args:
-            g2p_text: G2P's output, could be a mixture of phonemes and graphemes,
-                e.g. "see OOV" -> ['ˈ', 's', 'i', ' ', 'O', 'O', 'V']
-            raw_text: original raw input
+            g2p_text (List[str]): a sequence of tokens from G2P's output. It could be a sequence of phonemes, a sequence
+                of graphemes, or a mixture of both. For example, `['ˈ', 's', 'i', ' ', '#O', '#O', '#V']`, which is the
+                G2P's output of the text "see OOV".
+            raw_text (str): the original text after calling `self.text_preprocessing_func`. it is optional. It is only
+                used to deliver a warning message that some graphemes from the original text are skipped.
+
+        Returns: a list of integer IDs that tokenize the `g2p_text`.
         """
         ps, space, tokens = [], self.tokens[self.space], set(self.tokens)
         for p in g2p_text:
@@ -610,7 +621,7 @@ class IPATokenizer(BaseTokenizer):
             elif (p in self.punct_list) and self.punct:
                 # Add punct
                 ps.append(p)
-            elif p != space:
+            else:
                 message = f"Text: [{''.join(g2p_text)}] contains unknown char/phoneme: [{p}]."
                 if raw_text is not None:
                     message += f"Original text: [{raw_text}]. Symbol will be skipped."
