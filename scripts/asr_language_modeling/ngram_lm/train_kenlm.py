@@ -81,6 +81,16 @@ def main():
     parser.add_argument(
         "--do_lowercase", action='store_true', help="Whether to apply lower case conversion on the training text"
     )
+    parser.add_argument(
+        "-T", default=None, help="Provide non-default temporary directory for KenLM's lmplz. Useful if /tmp runs out of space during training."
+    )
+    parser.add_argument(
+        "--limit_vocab_file", default=None, help="see lmplz --limit_vocab_file documentation. https://github.com/kpu/kenlm/blob/bcd4af619a2fa45f5876d8855f7876cc09f663af/lm/builder/lmplz_main.cc#L107"
+    )
+    parser.add_argument(
+        "--encoding_level_override", default=None,
+        help="NeMo's ctc beam search implementation does not support KenLM modeling words (the so-called 'char' encoding) for acoustic models that predict subpiece units. Rather, it makes KenLM model the individual subword units instead. However, https://github.com/nvidia-riva/riva-asrlib-decoder does support this. If you happen to be using that decoder, set --encoding_level_override=char when using a subword model."
+    )
     args = parser.parse_args()
 
     """ TOKENIZER SETUP """
@@ -94,12 +104,15 @@ def main():
         )
         model = nemo_asr.models.ASRModel.from_pretrained(args.nemo_model_file, map_location=torch.device('cpu'))
 
-    encoding_level = kenlm_utils.SUPPORTED_MODELS.get(type(model).__name__, None)
-    if not encoding_level:
-        logging.warning(
-            f"Model type '{type(model).__name__}' may not be supported. Would try to train a char-level LM."
-        )
-        encoding_level = 'char'
+    if args.encoding_level_override is not None:
+        encoding_level = args.encoding_level_override
+    else:
+        encoding_level = kenlm_utils.SUPPORTED_MODELS.get(type(model).__name__, None)
+        if not encoding_level:
+            logging.warning(
+                f"Model type '{type(model).__name__}' may not be supported. Would try to train a char-level LM."
+            )
+            encoding_level = 'char'
 
     """ DATASET SETUP """
     logging.info(f"Encoding the train file '{args.train_file}' ...")
@@ -136,7 +149,14 @@ def main():
         "--arpa",
         arpa_file,
         discount_arg,
+        "--skip_symbols",
     ]
+    if args.T:
+        kenlm_args.extend(["-T", args.T])
+    if args.limit_vocab_file:
+        kenlm_args.extend(["--limit_vocab_file", args.limit_vocab_file])
+
+    logging.info("GALVEZ: " + " ".join(kenlm_args))
 
     ret = subprocess.run(kenlm_args, capture_output=False, text=True, stdout=sys.stdout, stderr=sys.stderr)
     if ret.returncode != 0:
@@ -156,8 +176,6 @@ def main():
 
     os.remove(encoded_train_file)
     logging.info(f"Deleted the temporary encoded training file '{encoded_train_file}'.")
-    os.remove(arpa_file)
-    logging.info(f"Deleted the arpa file '{arpa_file}'.")
 
 
 if __name__ == '__main__':
