@@ -60,8 +60,9 @@ def pad_energy_avg_and_f0(energy_avg, f0, max_out_len):
 
 def adjust_f0(f0, f0_mean, f0_std, vmask_bool):
     if f0_mean > 0.0:
-        f0_mu, f0_sigma = f0[vmask_bool].mean(), f0[vmask_bool].std()
-        f0[vmask_bool] = ((f0[vmask_bool] - f0_mu) / f0_sigma).to(dtype=f0.dtype)
+        masked_f0 = f0[vmask_bool]
+        f0_mu, f0_sigma = torch.std_mean(masked_f0)
+        f0[vmask_bool] = ((masked_f0 - f0_mu) / f0_sigma).to(dtype=f0.dtype)
         f0_std = f0_std if f0_std > 0 else f0_sigma
         f0[vmask_bool] = (f0[vmask_bool] * f0_std + f0_mean).to(dtype=f0.dtype)
     return f0
@@ -411,18 +412,18 @@ class RadTTSModule(NeuralModule, Exportable):
 
         return (dfeats_R + dfeats_L) * 0.5
 
-    def apply_voice_mask_to_text(self, text_enc, voiced_mask):
+    def apply_voice_mask_to_text(self, text_enc, voiced_mask_bool):
         """
         text_enc: b x C x N
-        voiced_mask: b x N
+        voiced_mask_bool: b x N
         """
-        voiced_mask = voiced_mask.unsqueeze(1)
+        voiced_mask_bool = voiced_mask_bool.unsqueeze(1)
         voiced_embedding_s = self.v_embeddings.weight[0:1, :, None]
         unvoiced_embedding_s = self.v_embeddings.weight[1:2, :, None]
         voiced_embedding_b = self.v_embeddings.weight[2:3, :, None]
         unvoiced_embedding_b = self.v_embeddings.weight[3:4, :, None]
-        scale = torch.sigmoid(voiced_embedding_s * voiced_mask + unvoiced_embedding_s * (1 - voiced_mask))
-        bias = 0.1 * torch.tanh(voiced_embedding_b * voiced_mask + unvoiced_embedding_b * (1 - voiced_mask))
+        scale = torch.sigmoid(torch.where(voiced_mask_bool, voiced_embedding_s, unvoiced_embedding_s))
+        bias = 0.1 * torch.tanh(torch.where(voiced_mask_bool, voiced_embedding_b, unvoiced_embedding_b))
         return text_enc * scale + bias
 
     def forward(
@@ -464,10 +465,11 @@ class RadTTSModule(NeuralModule, Exportable):
 
         f0_bias = 0
         # unvoiced bias forward pass
+        voiced_mask_bool = voiced_mask.bool()
         if self.use_unvoiced_bias:
             f0_bias = self.unvoiced_bias_module(context.permute(0, 2, 1))
             f0_bias = -f0_bias[..., 0]
-            f0_bias = f0_bias * (~voiced_mask.bool()).float()
+            f0_bias.mask_fill(voiced_mask_bool, 0.0)
 
         # mel decoder forward pass
         if 'dec' in self.include_modules:
@@ -534,13 +536,13 @@ class RadTTSModule(NeuralModule, Exportable):
 
                 # affine transform context using voiced mask
                 if self.ap_use_voiced_embeddings:
-                    text_enc_time_expanded = self.apply_voice_mask_to_text(text_enc_time_expanded, voiced_mask)
+                    text_enc_time_expanded = self.apply_voice_mask_to_text(text_enc_time_expanded, voiced_mask_bool)
             if self.ap_use_unvoiced_bias:  # whether to use the unvoiced bias in the attribute predictor
                 f0_target = torch.detach(f0 * voiced_mask + f0_bias)
             else:
                 f0_target = torch.detach(f0)
             # fit to log f0 in f0 predictor
-            f0_target[voiced_mask.bool()] = torch.log(f0_target[voiced_mask.bool()])
+            f0_target[voiced_mask_bool] = torch.log(f0_target[voiced_mask_bool])
             f0_target = f0_target / 6  # scale to ~ [0, 1] in log space
             energy_avg = energy_avg * 2 - 1  # scale to ~ [-1, 1]
 
@@ -636,7 +638,8 @@ class RadTTSModule(NeuralModule, Exportable):
                 # get logits
                 voiced_mask = self.v_pred_module.infer(None, txt_enc_time_expanded, spk_vec_attributes, lens=out_lens)
                 voiced_mask = torch.sigmoid(voiced_mask[:, 0]) > 0.5
-                voiced_mask = voiced_mask.float()
+        else:
+            voiced_mask = voiced_mask.bool()
 
         ap_txt_enc_time_expanded = txt_enc_time_expanded
         # voice mask augmentation only used for attribute prediction
@@ -648,14 +651,14 @@ class RadTTSModule(NeuralModule, Exportable):
         if self.use_unvoiced_bias:
             f0_bias = self.unvoiced_bias_module(txt_enc_time_expanded.permute(0, 2, 1))
             f0_bias = -f0_bias[..., 0]
-            f0_bias = f0_bias * (~voiced_mask.bool()).float()
+            f0_bias.masked_fill_(voiced_mask, 0.0)
 
         if f0 is None:
             n_f0_feature_channels = 2 if self.use_first_order_features else 1
             z_f0 = torch.normal(txt_enc.new_zeros(batch_size, n_f0_feature_channels, max_out_len)) * sigma_f0
             f0 = self.infer_f0(z_f0, ap_txt_enc_time_expanded, spk_vec_attributes, voiced_mask, out_lens)[:, 0]
 
-        f0 = adjust_f0(f0, f0_mean, f0_std, voiced_mask.to(dtype=bool))
+        f0 = adjust_f0(f0, f0_mean, f0_std, voiced_mask)
 
         if energy_avg is None:
             n_energy_feature_channels = 2 if self.use_first_order_features else 1
@@ -671,7 +674,7 @@ class RadTTSModule(NeuralModule, Exportable):
         # print("V mask, energy_avg, f0, f0_bias: ", voiced_mask.shape, energy_avg.shape, f0.shape, f0_bias.shape)
 
         context_w_spkvec = self.preprocess_context(
-            txt_enc_time_expanded, spk_vec, out_lens, f0 * voiced_mask + f0_bias, energy_avg
+            txt_enc_time_expanded, spk_vec, out_lens, f0.masked_fill(~voiced_mask, 0.0) + f0_bias, energy_avg
         )
 
         residual = torch.normal(txt_enc.new_zeros(batch_size, 80 * self.n_group_size, torch.max(n_groups))) * sigma
@@ -701,8 +704,6 @@ class RadTTSModule(NeuralModule, Exportable):
     def infer_f0(self, residual, txt_enc_time_expanded, spk_vec, voiced_mask=None, lens=None):
         f0 = self.f0_pred_module.infer(residual, txt_enc_time_expanded, spk_vec, lens)
 
-        if voiced_mask is not None and len(voiced_mask.shape) == 2:
-            voiced_mask = voiced_mask[:, None]
         # constants
         if self.ap_pred_log_f0:
             if self.use_first_order_features:
@@ -718,12 +719,15 @@ class RadTTSModule(NeuralModule, Exportable):
             voiced_mask = f0 > 0.0
         else:
             voiced_mask = voiced_mask.bool()
-        # due to grouping, f0 might be 1 frame short
-        voiced_mask = voiced_mask[:, :, : f0.shape[-1]]
+            if len(voiced_mask.shape) == 2:
+                voiced_mask = voiced_mask[:, None]
+                # due to grouping, f0 might be 1 frame short
+                voiced_mask = voiced_mask[:, :, : f0.shape[-1]]
+
         if self.ap_pred_log_f0:
             # if variable is set, decoder sees linear f0
             f0 = torch.exp(f0).to(dtype=f0.dtype)
-        f0[~voiced_mask] = 0.0
+        f0.masked_fill(~voiced_mask, 0.0)
         return f0
 
     def infer_energy(self, residual, txt_enc_time_expanded, spk_vec, lens):
