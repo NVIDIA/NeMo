@@ -260,14 +260,11 @@ class VitsModel(TextToWaveform):
 
     def validation_step(self, batch, batch_idx):
         speakers = None
-        # if SpeakerID in self._train_dl.dataset.sup_data_types_set:
         if self.cfg.n_speakers > 1:
             (y, y_lengths, x, x_lengths, speakers) = batch
         else:
             (y, y_lengths, x, x_lengths) = batch
 
-        if speakers == None:
-            print(speakers)
         y_hat, attn, mask, *_ = self.net_g.infer(x, x_lengths, speakers, max_len=1000)
 
         y_hat = y_hat.squeeze()
