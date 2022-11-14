@@ -368,10 +368,6 @@ class OfflineDiarWithASR:
             }
         )
 
-    def _init_session_gecko_dict(self):
-        """
-        Initialize a dictionary format for Gecko style json.
-
     def _init_session_trans_dict(self, uniq_id: str, n_spk: int):
         """
         Initialize json (in dictionary variable) formats for session level result and Gecko style json.
@@ -912,6 +908,8 @@ class OfflineDiarWithASR:
         session_trans_dict['transcription'] = ' '.join(word_seq_list)
         # add sentences to transcription information dict
         session_trans_dict['sentences'] = sentences
+       
+        # Skip logging and saving of results if the system is in streaming mode.
         if not self.is_streaming:
             self.write_and_log(uniq_id, session_trans_dict, audacity_label_words, gecko_dict, sentences)
         return session_trans_dict
@@ -1466,7 +1464,19 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASRDecoderTimeStamps):
         write_txt(f"{self.diar._out_dir}/reset.flag", self.string_out.strip())
 
     def _init_asr_params(self):
-        # ASR parameters
+        """
+        Initialize ASR parameters based on hydra config.
+
+        Attributes:
+            frame_len (float):
+            frame_overlap (float):
+            word_ts_anchor_offset (float):
+            max_word_ts_length_in_sec (float):
+            asr_based_vad_threshold (float):
+            asr_batch_size (int):
+            word_update_margin (float):
+            decimals (int):
+        """
         self.frame_len = float(self._cfg_diarizer.asr.parameters.frame_len)
         self.frame_overlap = float(self._cfg_diarizer.asr.parameters.frame_overlap)
         self.word_ts_anchor_offset = float(self._cfg_diarizer.asr.parameters.word_ts_anchor_offset)
@@ -1474,10 +1484,15 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASRDecoderTimeStamps):
         self.asr_based_vad_threshold = self._cfg_diarizer.asr.parameters.asr_based_vad_threshold
         self.asr_batch_size = 1 # Streaming mode requires only one batch
         self.word_update_margin = 0.0  
-        self.ROUND = 2
+        self.decimals = 2
     
     def _init_asr_model(self):
-        # Model initializations
+        """
+        Model initializations
+        
+        Attributes:
+            asr_model (NeMo ASR models):
+        """
         self.load_online_VAD_model(self.params)
         self.asr_model = self.set_asr_model()
         self._init_FrameBatchASR()
@@ -1485,7 +1500,9 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASRDecoderTimeStamps):
         self._init_diar_eval_variables()
 
     def _init_streaming_buffer_params(self):
-        # Streaming buffer parameters
+        """
+        Streaming buffer parameters
+        """
         self.CHUNK_SIZE = int(self.frame_len*self.sample_rate)
         self.n_frame_len = int(self.frame_len * self.sample_rate)
         self.n_frame_overlap = int(self.frame_overlap * self.sample_rate)
@@ -1675,12 +1692,12 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASRDecoderTimeStamps):
         enhanced_word_ts_buffer = []
         for k, word_ts in enumerate(word_ts_seq_list):
             if k < N - 1:
-                word_len = round(word_ts[1] - word_ts[0], self.ROUND)
-                len_to_next_word = round(word_ts_seq_list[k + 1][0] - word_ts[0] - 0.01, self.ROUND)
+                word_len = round(word_ts[1] - word_ts[0], self.decimals)
+                len_to_next_word = round(word_ts_seq_list[k + 1][0] - word_ts[0] - 0.01, self.decimals)
                 vad_est_len = len_to_next_word
                 min_candidate = min(vad_est_len, len_to_next_word)
                 fixed_word_len = max(min(self.max_word_ts_length_in_sec, min_candidate), word_len)
-                enhanced_word_ts_buffer.append([word_ts[0], round(word_ts[0] + fixed_word_len, self.ROUND)])
+                enhanced_word_ts_buffer.append([word_ts[0], round(word_ts[0] + fixed_word_len, self.decimals)])
             else:
                 enhanced_word_ts_buffer.append([word_ts[0], word_ts[1]])
         return enhanced_word_ts_buffer
@@ -1776,12 +1793,17 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASRDecoderTimeStamps):
     def update_launcher_timestamps(self):
         """
         Update buffer length, start and end timestamps for frame and buffer.
+
+        Attributes:
+            total_buffer_len_sec (float):
+
+            buffer_end (float):
+
+            frame_start (float):
         """
-        new_bufflen_sec = self.n_frame_len / self.sample_rate
-        n_buffer_samples = int(len(self.audio_buffer)/self.sample_rate)
-        total_buffer_len_sec = len(self.audio_buffer)/self.sample_rate
-        self.buffer_end = round(self.buffer_start + total_buffer_len_sec, self.ROUND)
-        self.frame_start = round(self.buffer_start + int(self.n_frame_overlap/self.sample_rate), self.ROUND)
+        self.total_buffer_len_sec = len(self.audio_buffer)/self.sample_rate
+        self.buffer_end = round(self.buffer_start + self.total_buffer_len_sec, self.decimals)
+        self.frame_start = round(self.buffer_start + int(self.n_frame_overlap/self.sample_rate), self.decimals)
 
     def streaming_step(self, frame):
         loop_start_time = time.time()
@@ -1850,18 +1872,29 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASRDecoderTimeStamps):
         self.diar.total_buffer_in_secs = self.total_buffer_in_secs
 
     def reset(self):
-        '''
-        Reset frame_history and decoder's state
-        '''
+        """
+        Reset frame_history and decoder's state.
+
+        Attributes:
+            string_out = ""
+            frame_index = 0
+            frame_start = 0
+            buffer_start = None
+            launcher_end_time = 0.0 
+            audio_buffer=np.zeros(shape=self.audio_buffer.shape, dtype=np.float32)
+            prev_char = ''
+            word_seq = []
+            word_ts_seq = []
+        """
         self.string_out = ""
-        self.frame_index = 0
-        self.frame_start = 0
+        self.frame_index: int = 0
+        self.frame_start: float = 0.0
         self.buffer_start = None
         self.launcher_end_time = 0.0 
         self.audio_buffer=np.zeros(shape=self.audio_buffer.shape, dtype=np.float32)
-        self.prev_char = ''
-        self.word_seq = []
-        self.word_ts_seq = []
+        self.prev_char: str = ''
+        self.word_seq: List[str] = []
+        self.word_ts_seq: List[List[float]] = []
 
     
     @torch.no_grad()

@@ -104,7 +104,14 @@ def timeit(method):
     return timed
 
 
-def hungarian_algorithm(spk_count, U_set, cmm_P, cmm_Q, PmQ, QmP):
+def hungarian_algorithm(
+    spk_count, 
+    U_set, 
+    cmm_P, 
+    cmm_Q, 
+    PmQ, 
+    QmP
+    ):
     """
     Use one-hot encodding to find the best match.
 
@@ -154,6 +161,7 @@ def stitch_cluster_labels(Y_old, Y_new, with_history=True):
     Run Hungarian algorithm (linear sum assignment) to find the best permutation mapping between
     the cumulated labels in history and the new clustering output labels.
 
+
     Args:
         Y_cumul (Tensor):
             Cumulated diarization labels. This will be concatenated with history embedding speaker label
@@ -168,6 +176,7 @@ def stitch_cluster_labels(Y_old, Y_new, with_history=True):
             An output numpy array where the input Y_new is mapped with mapping_array.
 
     """
+    # TODO: This function needs to be converted to a fully torch.jit.script-able function.
     Y_old  = Y_old.cpu().numpy()
     Y_new = Y_new.cpu().numpy()
 
@@ -224,7 +233,11 @@ def unravel_index(
     return [idx2d[:, k] for k in range(idx2d.shape[1])]
 
 @torch.jit.script
-def preprocess_mat(mat, symm: bool=True, fill_diag_zero: bool=True):
+def preprocess_mat(
+    mat: torch.Tensor, 
+    symm: bool=True, 
+    fill_diag_zero: bool=True
+    ):
     if symm:
         mat = 0.5 * (mat + mat.T)
     if fill_diag_zero:
@@ -281,9 +294,9 @@ def get_mapped_index(mat: torch.Tensor, index: int):
 
 @torch.jit.script
 def get_merge_quantity(
-        new_emb_n: int, 
-        pre_clus_labels: torch.Tensor, 
-        min_segs_per_buffer: int,
+    new_emb_n: int, 
+    pre_clus_labels: torch.Tensor, 
+    min_segs_per_buffer: int,
     ):
     """
     Determine which embeddings we need to reduce or merge in history buffer.
@@ -323,10 +336,10 @@ def get_merge_quantity(
 
 @torch.jit.script
 def merge_emb(
-        index_2d: torch.Tensor, 
-        emb_ndx: torch.Tensor, 
-        pre_cluster_labels: torch.Tensor
-        ):
+    index_2d: torch.Tensor, 
+    emb_ndx: torch.Tensor, 
+    pre_cluster_labels: torch.Tensor
+    ):
     """
 
     Args:
@@ -353,7 +366,7 @@ def merge_emb(
 
     return result_emb, merged_clus_labels
 
-# @torch.jit.script
+@torch.jit.script
 def run_reducer(
     pre_embs: torch.Tensor, 
     target_spk_idx: int, 
@@ -475,12 +488,12 @@ def get_speech_labels_for_update(
 
     # Get VAD timestamps that are in (frame_start, buffer_end) range
     vad_timestamps = tensor_to_list(vad_timestamps)
+    cumulative_speech_labels = tensor_to_list(cumulative_speech_labels)
     new_incoming_speech_labels = getSubRangeList(
         target_range=[float(frame_start), float(buffer_end)], source_range_list=vad_timestamps
     )
     
     # Update the speech label by including overlapping region with the previous output
-    cumulative_speech_labels = tensor_to_list(cumulative_speech_labels)
     update_overlap_speech_labels = getSubRangeList(
         target_range=update_overlap_range, source_range_list=cumulative_speech_labels
     )
@@ -705,7 +718,6 @@ class OnlineDiarizer(ClusteringDiarizer):
         self.use_temporal_label_major_vote = False
         self.temporal_label_major_vote_buffer_size = 11
         self.base_scale_label_dict = {}
-
     
     def _init_segment_variables(self):
         self.embs_array = {self.uniq_id: {}}
@@ -767,7 +779,6 @@ class OnlineDiarizer(ClusteringDiarizer):
         ), f"Online diarization history buffer should be bigger than {self.MINIMUM_HIST_BUFFER_SIZE}"
         self.history_n = value  # How many segments we want to use as history buffer
     
-    # @torch.jit.script
     def prepare_embedding_update(self, emb_in):
         """
         This function performs the following tasks:
@@ -860,6 +871,7 @@ class OnlineDiarizer(ClusteringDiarizer):
 
     def reduce_embedding_sets(self, emb_in):
         """
+        Merge the given embedding vectors based on the calculate affinity matrix.
 
         Example:
             self.history_n = 10
@@ -963,7 +975,12 @@ class OnlineDiarizer(ClusteringDiarizer):
             cluster_labels, add_new = None, True
         return merged_emb, cluster_labels, add_new
 
-    def macth_labels(self, Y_new: torch.Tensor, add_new: bool, isOnline: bool):
+    def macth_labels(
+        self, 
+        Y_new: torch.Tensor, 
+        add_new: bool, 
+        isOnline: bool
+        ):
         """
         self.history_buffer_seg_end is a timestamp that tells to which point is history embedding contains from self.Y_fullhist.
         If embedding reducing is done correctly, we should discard  (0, self.history_n) amount and take
@@ -1034,7 +1051,9 @@ class OnlineDiarizer(ClusteringDiarizer):
         return maj_vote_labels
 
     def save_history_data(
-        self, scale_idx, total_cluster_labels
+        self, 
+        scale_idx: int, 
+        total_cluster_labels: torch.Tensor,
     ):
         """
         - Clustering is done for (hist_N + curr_N) number of embeddings.

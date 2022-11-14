@@ -150,7 +150,7 @@ class TestDiarizationUtilFunctions:
         assert check_labels(target, min_Y)
 
     @pytest.mark.unit
-    def test_stitch_cluster_labels_simple(self):
+    def test_stitch_cluster_labels_label_switch(self):
         Y_old = matrix([0,0,0,0,0,0])
         Y_new = matrix([0,0,0,0,0,0]) + 1
         # Y_old, Y_new = torch.from_numpy(Y_old), torch.from_numpy(Y_new)
@@ -158,6 +158,8 @@ class TestDiarizationUtilFunctions:
         result = stitch_cluster_labels(Y_old, Y_new)
         assert check_labels(target, result)
         
+    @pytest.mark.unit
+    def test_stitch_cluster_labels_label_many_to_one(self):
         Y_old = matrix([0,1,2,3,4,5])
         Y_new = matrix([0,0,0,0,0,0])
         target = matrix([0,0,0,0,0,0])
@@ -165,6 +167,8 @@ class TestDiarizationUtilFunctions:
         result = stitch_cluster_labels(Y_old, Y_new)
         assert check_labels(target, result)
         
+    @pytest.mark.unit
+    def test_stitch_cluster_labels_label_one_to_many(self):
         Y_old = matrix([0,0,0,0,0,0])
         Y_new = matrix([0,1,2,3,4,5])
         target = matrix([0,1,2,3,4,5])
@@ -173,25 +177,31 @@ class TestDiarizationUtilFunctions:
         assert check_labels(target, result)
         
     @pytest.mark.unit
-    def test_stitch_cluster_labels_advanced(self, N=3):
+    def test_stitch_cluster_labels_one_label_replaced(self, N=3):
         Y_old = matrix( [0] * N + [1] * N + [2] * N )
         Y_new = matrix( [1] * N + [2] * N + [3] * N )
         target= matrix( [0, 0, 0, 1, 1, 1, 2, 2, 2] )
         result = stitch_cluster_labels(Y_old, Y_new)
         assert check_labels(target, result)
         
+    @pytest.mark.unit
+    def test_stitch_cluster_labels_confusion_error(self, N=3):
         Y_old = matrix( [0] * N + [1] * (N-1)+ [2] * (N+1))
         Y_new = matrix( [1] * N + [2] * N +    [3] * N )
         target= matrix( [0, 0, 0, 1, 1, 1, 2, 2, 2] )
         result = stitch_cluster_labels(Y_old, Y_new)
         assert check_labels(target, result)
         
+    @pytest.mark.unit
+    def test_stitch_cluster_labels_speaker_more_speakers(self, N=3):
         Y_old = matrix( [0] * N + [1] * (N-1)+ [2] * (N+1) + [0, 0, 0])
         Y_new = matrix( [1] * N + [0] * N +    [2] * N     + [4, 5, 6])
         target= matrix( [0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 4, 5] )
         result = stitch_cluster_labels(Y_old, Y_new)
         assert check_labels(target, result)
 
+    @pytest.mark.unit
+    def test_stitch_cluster_labels_speaker_longer_sequence(self, N=3):
         Y_old = matrix( [0] * N + [1] * N + [2] * N + [0, 0, 0])
         Y_new = matrix( [1] * N + [2] * N + [0] * N + [1, 2, 3, 1, 2, 3])
         target= matrix( [0, 0, 0, 1, 1, 1, 2, 2, 2, 0, 1, 3, 0, 1, 3] )
