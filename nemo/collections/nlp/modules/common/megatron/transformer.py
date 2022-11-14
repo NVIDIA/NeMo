@@ -304,7 +304,6 @@ class SwitchMLP(MegatronModule):
         route = self.router(hidden_states).view(-1, self.num_experts)
         if self.training: 
             with torch.no_grad():
-                print ("val:", route.detach().to(dtype=torch.float32))
                 norm_route = self.route_algo(route.detach().to(dtype=torch.float32)) # explicit fp32 conversion for stability
                 _, max_ind = torch.max(norm_route, dim=1)
             route = torch.sigmoid(route)
@@ -351,9 +350,9 @@ class SwitchMLP(MegatronModule):
         return output_total, output_bias_total
 
     @classmethod
-    def sinkhorn(cost, tol=0.0001):
+    def sinkhorn(cls, cost, tol=0.0001):
         "Megatron-LMs sinkhorn implementation"
-        print ("cost:", cost)
+
         cost = torch.exp(cost)
         d0 = torch.ones(cost.size(0), device=cost.device, dtype=cost.dtype)
         d1 = torch.ones(cost.size(1), device=cost.device, dtype=cost.dtype)
