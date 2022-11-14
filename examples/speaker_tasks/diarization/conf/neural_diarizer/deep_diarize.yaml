@@ -59,6 +59,15 @@ model:
     batch_size: 32
     tarred: False
     shuffle: False
+    augmentor:
+      noise:
+        manifest_path: ???
+        prob: 0.2
+        min_snr_db: 10
+        max_snr_db: 20
+      impulse:
+        prob: 0.2
+        manifest_path: ???
 
   validation_ds:
     manifest_filepath: ??

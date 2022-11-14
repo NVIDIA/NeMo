@@ -32,6 +32,7 @@ from nemo.collections.asr.metrics.der import DER, FA, Confusion, MissedDetection
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.modules.deep_diarize_transformer import TransformerXL
 from nemo.collections.asr.modules.transformer import PerceiverEncoder, TransformerDecoder, TransformerEncoder
+from nemo.collections.asr.parts.preprocessing import process_augmentations
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.submodules.subsampling import ConvSubsampling
 from nemo.core import PretrainedModelInfo
@@ -379,8 +380,9 @@ class DeepDiarizeModel(ModelPT):
         self._optimizer_param_groups = param_groups
 
     def _setup_preprocessor(self, dataloader_cfg):
+        augmentor = process_augmentations(dataloader_cfg['augmentor']) if 'augmentor' in dataloader_cfg else None
         featurizer = WaveformFeaturizer(
-            sample_rate=dataloader_cfg.sample_rate, int_values=dataloader_cfg.int_values, augmentor=None
+            sample_rate=dataloader_cfg.sample_rate, int_values=dataloader_cfg.int_values, augmentor=augmentor
         )
         preprocessor = hydra.utils.instantiate(self.cfg.preprocessor)
         context_window = ContextWindow(
