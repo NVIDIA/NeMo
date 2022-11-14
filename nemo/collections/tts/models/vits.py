@@ -36,11 +36,14 @@ from nemo.collections.tts.losses.vits_losses import (
     GeneratorLoss
 )
 from nemo.collections.tts.models.base import TextToWaveform
-from nemo.collections.tts.modules.vits_modules import *# MultiPeriodDiscriminator
+from nemo.collections.tts.modules.vits_modules import MultiPeriodDiscriminator
 from nemo.collections.tts.torch.data import DistributedBucketSampler
 from nemo.collections.tts.torch.tts_data_types import SpeakerID
 from nemo.core.classes.common import PretrainedModelInfo
+from nemo.core.optim.lr_scheduler import CosineAnnealing
 from nemo.utils import logging, model_utils
+
+
 
 HAVE_WANDB = True
 try:
@@ -146,9 +149,13 @@ class VitsModel(TextToWaveform):
         optim_d = instantiate(optim_config, params=self.net_d.parameters(),)
         
         if sched_config is not None:
-            scheduler_d = torch.optim.lr_scheduler.ExponentialLR(optim_d, gamma=sched_config.lr_decay)
-            scheduler_g = torch.optim.lr_scheduler.ExponentialLR(optim_g, gamma=sched_config.lr_decay)
-            
+            if sched_config.name == 'ExponentialLR':
+                scheduler_d = torch.optim.lr_scheduler.ExponentialLR(optim_d, gamma=sched_config.lr_decay)
+                scheduler_g = torch.optim.lr_scheduler.ExponentialLR(optim_g, gamma=sched_config.lr_decay)
+            elif sched_config.name == 'CosineAnnealing':
+                scheduler_g = CosineAnnealing(optimizer=optim_g, max_steps=sched_config.max_steps, min_lr=sched_config.min_lr,)
+                scheduler_d = CosineAnnealing(optimizer=optim_d, max_steps=sched_config.max_steps, min_lr=sched_config.min_lr,)
+
             scheduler_g_dict = {'scheduler': scheduler_g, 'interval': 'step'}
             scheduler_d_dict = {'scheduler': scheduler_d, 'interval': 'step'}
             return [optim_g, optim_d], [scheduler_g_dict, scheduler_d_dict]
@@ -221,10 +228,12 @@ class VitsModel(TextToWaveform):
         optim_g.step()
 
         schedulers = self.lr_schedulers()
-        if schedulers is not None and self.trainer.is_last_batch:
+        if schedulers is not None:
             sch1, sch2 = schedulers
-            sch1.step()
-            sch2.step()
+            if self.trainer.is_last_batch and isinstance(sch1, 'torch.optim.lr_scheduler.ExponentialLR') \
+            or isinstance(sch1, 'CosineAnnealing'):
+                sch1.step()
+                sch2.step()
 
         metrics = {
             "loss_gen": loss_gen,

@@ -182,8 +182,9 @@ model:
     eps: 1e-9
   
     sched:
-      name: ExponentialLR
-      lr_decay: 0.999875
+      name: CosineAnnealing
+      max_steps: 1000000
+      min_lr: 1e-5
 
 trainer:
   num_nodes: 1

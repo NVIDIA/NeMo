@@ -65,7 +65,7 @@ model:
     punct: true
     apostrophe: true
     pad_with_space: false
-    sep_with_space: true
+    sep_with_space: false
     g2p:
       _target_: nemo_text_processing.g2p.modules.IPAG2P
       phoneme_dict: ${phoneme_dict_path}
@@ -205,7 +205,7 @@ trainer:
   check_val_every_n_epoch: 1
 
 exp_manager:
-  exp_dir: ../exps/vits_fp16_local
+  exp_dir: ???
   name: ${name}
   create_tensorboard_logger: false
   create_checkpoint_callback: true
@@ -214,7 +214,7 @@ exp_manager:
     mode: min
   create_wandb_logger: true
   wandb_logger_kwargs:
-    name: vits_fp16_local
+    name: ???
     project: ${name}
     entity: nvidia
     resume: "allow"
