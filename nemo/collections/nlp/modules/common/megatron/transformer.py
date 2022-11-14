@@ -316,10 +316,21 @@ class SwitchMLP(MegatronModule):
 
         hidden_states = hidden_states.view(-1, hidden_shape[-1])
 
-        output_total = torch.empty_like(hidden_states)
-        output_bias_total = torch.empty_like(hidden_states)
+        local_indices = (max_ind == 0).nonzero()
+        hidden = hidden_states[local_indices,:]
+        output, output_bias = self.experts[0](hidden)
+        output_bias = output_bias.expand_as(output)
+
+        output_total = torch.empty_like(hidden_states, dtype=output.dtype)
+        output_bias_total = torch.empty_like(hidden_states, dtype=output_bias.dtype)
+
+        output_total[local_indices,:] = output
+        output_bias_total[local_indices,:] = output_bias
+
 
         for expert_num, expert in enumerate(self.experts):
+            if expert_num == 0:
+                continue
             local_indices = (max_ind == expert_num).nonzero()
             hidden = hidden_states[local_indices,:]
             print ("Hidden:", hidden.dtype)
@@ -1624,7 +1635,6 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 layernorm_input = normalization_output
         # MLP.
         mlp_output, mlp_bias = self.mlp(normalization_output)
-        print ("Dtypes:", mlp_output.dtype, mlp_bias.dtype)
 
         residual = layernorm_input
 
