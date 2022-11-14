@@ -1206,6 +1206,8 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         sequence_parallel=False,
         normalize_attention_scores=True,
         num_moe_experts=1,
+        moe_frequency=1,
+        moe_dropout=0.0,
     ):
         super(ParallelTransformerLayer_, self).__init__()
 
@@ -1216,7 +1218,6 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
             kv_channels = hidden_size // num_attention_heads
 
         self.layer_number = layer_number
-        print ("Layer num:", self.layer_number)
         self.layer_type = layer_type
         self.bias = bias
         self.transformer_block_type = transformer_block_type
@@ -1414,7 +1415,8 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 self.post_inter_attention_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
 
         # MLP
-        if num_moe_experts > 1:
+        if num_moe_experts > 1 and self.layer_number % moe_frequency == 0:
+            print ("MoE at layer:", self.layer_number)
             self.mlp = SwitchMLP(
                 num_experts=num_moe_experts,
                 init_method=init_method,
@@ -1433,7 +1435,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 persist_layer_norm=persist_layer_norm,
                 sequence_parallel=sequence_parallel,
                 gradient_accumulation_fusion=gradient_accumulation_fusion,
-                dropout=ffn_dropout,
+                dropout=moe_dropout,
             )
         else:
             self.mlp = ParallelMLP(
@@ -1698,6 +1700,8 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
         gradient_accumulation_fusion=False,
         normalize_attention_scores=True,
         num_moe_experts=1,
+        moe_frequency=1,
+        moe_dropout=0.0,
     ):
         super(ParallelTransformerLayer, self).__init__(
             init_method=init_method,
@@ -1735,6 +1739,8 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
             gradient_accumulation_fusion=gradient_accumulation_fusion,
             normalize_attention_scores=normalize_attention_scores,
             num_moe_experts=num_moe_experts,
+            moe_frequency=moe_frequency,
+            moe_dropout=moe_dropout,
         )
 
         if precision == 32:
@@ -1952,6 +1958,8 @@ class ParallelTransformer(MegatronModule):
         use_emha=False,
         normalize_attention_scores=True,
         num_moe_experts=1,
+        moe_frequency=1,
+        moe_dropout=0.0,
     ):
         super(ParallelTransformer, self).__init__()
 
@@ -2119,6 +2127,8 @@ class ParallelTransformer(MegatronModule):
                     sequence_parallel=sequence_parallel,
                     normalize_attention_scores=normalize_attention_scores,
                     num_moe_experts=num_moe_experts,
+                    moe_frequency=moe_frequency,
+                    moe_dropout=moe_dropout,
                 )
 
         if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:

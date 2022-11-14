@@ -83,6 +83,8 @@ def get_decoder_model(
     sequence_parallel=False,
     gradient_accumulation_fusion=False,
     num_moe_experts=1,
+    moe_frequency=1,
+    moe_dropout=0.0,
 ):
     """Build language model and return along with the key to save."""
 
@@ -136,6 +138,8 @@ def get_decoder_model(
             megatron_legacy=megatron_legacy,
             normalize_attention_scores=normalize_attention_scores,
             num_moe_experts=num_moe_experts,
+            moe_frequency=moe_frequency,
+            moe_dropout=moe_dropout,
         )
     elif arch == "retro":
         decoder = MegatronRetrievalTransformerDecoderModule(
