@@ -86,12 +86,12 @@ class PartialConv1d(torch.nn.Conv1d):
         self.slide_winsize = self.weight_maskUpdater.shape[1] * self.weight_maskUpdater.shape[2]
 
     def forward(self, input, mask_in):
+        if mask_in is None:
+            mask = torch.ones(1, 1, input.shape[2], dtype=input.dtype, device=input.device)
+        else:
+            mask = mask_in
+            input = torch.mul(input, mask)
         with torch.no_grad():
-            if mask_in is None:
-                mask = torch.ones(1, 1, input.shape[2], dtype=input.dtype, device=input.device)
-            else:
-                mask = mask_in
-                input = torch.mul(input, mask)
             update_mask = F.conv1d(
                 mask,
                 self.weight_maskUpdater,
