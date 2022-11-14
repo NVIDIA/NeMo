@@ -1624,6 +1624,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 layernorm_input = normalization_output
         # MLP.
         mlp_output, mlp_bias = self.mlp(normalization_output)
+        print ("Dtypes:", mlp_output.dtype, mlp_bias.dtype)
 
         residual = layernorm_input
 
