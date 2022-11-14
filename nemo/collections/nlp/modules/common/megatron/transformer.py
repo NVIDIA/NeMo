@@ -322,8 +322,12 @@ class SwitchMLP(MegatronModule):
         for expert_num, expert in enumerate(self.experts):
             local_indices = (max_ind == expert_num).nonzero()
             hidden = hidden_states[local_indices,:]
+            print ("Hidden:", hidden.dtype)
+            print ("OPT:", output_total.dtype, output_bias_total.dtype)
             output, output_bias = expert(hidden)
+            print ("OP:", output.dtype, output_bias.dtype)
             output_bias = output_bias.expand_as(output)
+            print ("OP:", output.dtype, output_bias.dtype)
             output_total[local_indices,:] = output
             output_bias_total[local_indices,:] = output_bias
         
