@@ -82,14 +82,19 @@ def main():
         "--do_lowercase", action='store_true', help="Whether to apply lower case conversion on the training text"
     )
     parser.add_argument(
-        "-T", default=None, help="Provide non-default temporary directory for KenLM's lmplz. Useful if /tmp runs out of space during training."
+        "-T",
+        default=None,
+        help="Provide non-default temporary directory for KenLM's lmplz. Useful if /tmp runs out of space during training.",
     )
     parser.add_argument(
-        "--limit_vocab_file", default=None, help="see lmplz --limit_vocab_file documentation. https://github.com/kpu/kenlm/blob/bcd4af619a2fa45f5876d8855f7876cc09f663af/lm/builder/lmplz_main.cc#L107"
+        "--limit_vocab_file",
+        default=None,
+        help="see lmplz --limit_vocab_file documentation. https://github.com/kpu/kenlm/blob/bcd4af619a2fa45f5876d8855f7876cc09f663af/lm/builder/lmplz_main.cc#L107",
     )
     parser.add_argument(
-        "--encoding_level_override", default=None,
-        help="NeMo's ctc beam search implementation does not support KenLM modeling words (the so-called 'char' encoding) for acoustic models that predict subpiece units. Rather, it makes KenLM model the individual subword units instead. However, https://github.com/nvidia-riva/riva-asrlib-decoder does support this. If you happen to be using that decoder, set --encoding_level_override=char when using a subword model."
+        "--encoding_level_override",
+        default=None,
+        help="NeMo's ctc beam search implementation does not support KenLM modeling words (the so-called 'char' encoding) for acoustic models that predict subpiece units. Rather, it makes KenLM model the individual subword units instead. However, https://github.com/nvidia-riva/riva-asrlib-decoder does support this. If you happen to be using that decoder, set --encoding_level_override=char when using a subword model.",
     )
     args = parser.parse_args()
 
