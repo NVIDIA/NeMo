@@ -44,7 +44,7 @@ def get_mask_from_lengths_and_val(lengths, val):
     max_len = val.shape[-1]
     ids = torch.arange(0, max_len, device=lengths.device)
     mask = ids < lengths.unsqueeze(1)
-    return mask.float()
+    return mask
 
 
 @torch.jit.script
@@ -195,10 +195,10 @@ class ConvLSTMLinear(BiLSTM):
 
     def masked_conv_to_sequence(self, context: Tensor, lens: Tensor, enforce_sorted: bool = False) -> PackedSequence:
         mask = get_mask_from_lengths_and_val(lens, context)
-        mask = mask.unsqueeze(1)
+        mask = mask.to(dtype=context.dtype).unsqueeze(1)
         for conv in self.convolutions:
             context = self.dropout(F.relu(conv(context, mask)))
-        context = torch.mul(context, mask)
+
         context = context.transpose(1, 2)
         seq = torch.nn.utils.rnn.pack_padded_sequence(
             context, lens.long().cpu(), batch_first=True, enforce_sorted=enforce_sorted
@@ -206,12 +206,8 @@ class ConvLSTMLinear(BiLSTM):
         return seq
 
     def forward(self, context: Tensor, lens: Tensor) -> Tensor:
-        # if lens is None:
-        #    my_lens = context.new_ones([context.shape[0]], dtype=torch.int) * context.shape[2]
-        # else:
-        my_lens = lens
-        context, my_lens, unsort_ids = sort_tensor(context, my_lens)
-        seq = self.masked_conv_to_sequence(context, my_lens, enforce_sorted=True)
+        context, lens, unsort_ids = sort_tensor(context, lens)
+        seq = self.masked_conv_to_sequence(context, lens, enforce_sorted=True)
         context, _ = self.lstm_sequence(seq)
         context = context[unsort_ids]
 

@@ -61,7 +61,7 @@ def pad_energy_avg_and_f0(energy_avg, f0, max_out_len):
 def adjust_f0(f0, f0_mean, f0_std, vmask_bool):
     if f0_mean > 0.0:
         masked_f0 = f0[vmask_bool]
-        f0_mu, f0_sigma = torch.std_mean(masked_f0)
+        f0_sigma, f0_mu = torch.std_mean(masked_f0)
         f0[vmask_bool] = ((masked_f0 - f0_mu) / f0_sigma).to(dtype=f0.dtype)
         f0_std = f0_std if f0_std > 0 else f0_sigma
         f0[vmask_bool] = (f0[vmask_bool] * f0_std + f0_mean).to(dtype=f0.dtype)

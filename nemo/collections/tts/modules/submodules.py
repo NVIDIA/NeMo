@@ -20,59 +20,6 @@ from torch.autograd import Variable
 from torch.nn import functional as F
 
 
-def masked_instance_norm0(
-    input: Tensor,
-    mask: Tensor,
-    running_mean: Optional[Tensor],
-    running_var: Optional[Tensor],
-    weight: Optional[Tensor],
-    bias: Optional[Tensor],
-    use_input_stats: bool,
-    momentum: float,
-    eps: float = 1e-5,
-) -> Tensor:
-    r"""Applies Masked Instance Normalization for each channel in each data sample in a batch.
-
-    See :class:`~MaskedInstanceNorm1d` for details.
-    """
-    if not use_input_stats and (running_mean is None or running_var is None):
-        raise ValueError('Expected running_mean and running_var to be not None when use_input_stats=False')
-
-    print(running_mean, running_var, weight, bias, use_input_stats, momentum)
-
-    shape = input.shape
-    b, c = shape[:2]
-    num_dims = 1
-    if running_mean is not None:
-        running_mean_ = running_mean[None, :].repeat(b, 1)
-    else:
-        running_mean_ = None
-    if running_var is not None:
-        running_var_ = running_var[None, :].repeat(b, 1)
-    else:
-        running_var_ = None
-
-    if use_input_stats:
-        lengths = mask.sum((-1,))
-        mean = (input * mask).sum((-1,)) / lengths  # (N, C)
-        var = (((input - mean[(..., None)]) * mask) ** 2).sum((-1,)) / lengths  # (N, C)
-
-        if running_mean is not None:
-            running_mean_.mul_(1 - momentum).add_(momentum * mean.detach())
-            running_mean.copy_(running_mean_.view(b, c).mean(0, keepdim=False))
-        if running_var is not None:
-            running_var_.mul_(1 - momentum).add_(momentum * var.detach())
-            running_var.copy_(running_var_.view(b, c).mean(0, keepdim=False))
-    else:
-        mean, var = running_mean_.view(b, c), running_var_.view(b, c)
-
-    out = (input - mean[(..., None)]) / torch.sqrt(var[(..., None)] + eps)  # (N, C, ...)
-
-    out = out * weight[None, :][(..., None)] + bias[None, :][(..., None)]
-
-    return out
-
-
 def masked_instance_norm(
     input: Tensor, mask: Tensor, weight: Tensor, bias: Tensor, momentum: float, eps: float = 1e-5,
 ) -> Tensor:
