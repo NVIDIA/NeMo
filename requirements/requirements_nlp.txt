@@ -5,6 +5,7 @@ fasttext
 flask_restful
 ftfy
 gdown
+gradio==3.4.0
 h5py
 ijson
 inflect
@@ -17,4 +18,3 @@ pangu
 rapidfuzz
 sacrebleu[ja]
 sentence_transformers
-gradio==3.4.0
