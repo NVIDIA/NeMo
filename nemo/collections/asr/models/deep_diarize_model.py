@@ -265,9 +265,9 @@ class DeepDiarizeModel(ModelPT):
             encoded_xl_features, self.mems = self.transformer_feature_encoder(train_x, mems=self.mems)
         else:
             encoded_xl_features, _ = self.transformer_feature_encoder(train_x)
-        seq_mask = torch.ones(encoded_xl_features.size(0), encoded_xl_features.size(1)).to(self.device)
+        seq_mask = torch.ones(train_x.size(0), train_x.size(1)).to(self.device)
         # shuffle frames before generating attractors
-        attractors, _ = self.eda_module(self._shuffle(encoded_xl_features, dim=1), seq_mask)
+        attractors, _ = self.eda_module(self._shuffle(train_x, dim=1), seq_mask)
         speaker_outputs = self.decoder(attractors, encoded_xl_features)
 
         if self.cfg.permute:
