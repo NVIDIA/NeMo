@@ -308,11 +308,9 @@ class SwitchMLP(MegatronModule):
                 _, max_ind = torch.max(norm_route, dim=1)
             route = torch.sigmoid(route)
             max_prob = route[torch.arange(route.size(0)), max_ind]
-            print ("Train BinCount:", torch.bincount(max_ind))
         else:
             route = torch.sigmoid(route)
             max_prob, max_ind = torch.max(route, dim=1)
-            print ("Eval BinCount:", torch.bincount(max_ind))
         max_prob = torch.unsqueeze(max_prob, 1)
 
         hidden_states = hidden_states.view(-1, hidden_shape[-1])
@@ -1417,7 +1415,6 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
 
         # MLP
         if num_moe_experts > 1 and self.layer_number % moe_frequency == 0:
-            print ("MoE at layer:", self.layer_number)
             self.mlp = SwitchMLP(
                 num_experts=num_moe_experts,
                 init_method=init_method,
