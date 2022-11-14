@@ -54,7 +54,7 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
         # TODO: load configs params
         # TODO: Throw away perceiver decoder to reduce memory?
         if self.cfg.retriever.type == 'perceiver':
-            # load the perceiver
+            # Load the perceiver model
             pretrained_cfg = MegatronBARTModel.restore_from(cfg.retriever.get("encoder_path"), trainer=trainer, return_config=True)
             OmegaConf.set_struct(pretrained_cfg, True)
             with open_dict(pretrained_cfg):
@@ -68,12 +68,14 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
                         override_config_path=pretrained_cfg,
                         save_restore_connector=NLPSaveRestoreConnector(),
                     )
+            del self.retrieval_encoder.enc_dec_model.enc_dec_model.decoder
             self.retrieval_encoder.freeze()
         else:
             self.retrieval_encoder = None
 
     def build_train_valid_test_datasets(self):
         """Builds the train, validation, and test datasets."""
+        
         self._train_without_neighbors_ds = self.build_memmap_dataset_from_config(self._cfg.train_ds)
         self._retrieval_ds = self.build_memmap_dataset_from_config(
             self._cfg.retrieval_ds,
@@ -88,48 +90,35 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
             self._cfg.train_ds.num_neighbors,
         )
 
-        if self._cfg.validation_ds.get("dataset_type", "text") != "text":
-            raise ValueError(f"Validation dataset type must be 'text', found {self._cfg.validation_ds.dataset_type}")
-
-        # ! see if there are any modifications to be made here for diff b/w train and val
-        # ! especially get_item or collate_fn could be different for em
-        # return src_ids, src_mask, tgt_ids, tgt_mask, labels format vs dictionary in text_mmap
-        self._validation_ds = MTEncDecModel._setup_eval_dataset_from_config(
-            cfg=self._cfg.validation_ds,
-            multilingual=self.multilingual,
-            multilingual_ids=self.multilingual_ids,
-            encoder_tokenizer=self.encoder_tokenizer,
-            decoder_tokenizer=self.decoder_tokenizer,
-        )
-        # TODO: Change this to self._validation_without_neighbors_ds
-        # if isinstance(self._validation_without_neighbors_ds, List):
-        #     self._validation_ds = []
-        #     for idx, ds in enumerate(self._validation_without_neighbors_ds):
-        #         self._validation_ds.append(RetrievalSeq2Seq(
-        #             ds,
-        #             self._retrieval_ds,
-        #             self._cfg.validation_ds.nn_mapping[idx],
-        #             self._cfg.validation_ds.num_neighbors,
-        #         ))
-        # else:
-        #     self._validation_ds = RetrievalSeq2Seq(
-        #         self._validation_without_neighbors_ds,
-        #         self._retrieval_ds,
-        #         self._cfg.validation_ds.nn_mapping,
-        #         self._cfg.validation_ds.num_neighbors,
-        #     )
-
+        if self._cfg.validation_ds.get("dataset_type", "text_memmap") != "text_memmap":
+            raise ValueError(f"Validation dataset must be text_memmap for RetrievalNMT models, found {self._cfg.validation_ds.dataset_type}")
+        
+        self._validation_without_neighbors_ds = self.build_memmap_dataset_from_config(self._cfg.validation_ds)
+        
+        if isinstance(self._validation_without_neighbors_ds, List):
+            self._validation_ds = []
+            for idx, ds in enumerate(self._validation_without_neighbors_ds):
+                self._validation_ds.append(RetrievalSeq2Seq(
+                    ds,
+                    self._retrieval_ds,
+                    self._cfg.validation_ds.nn_mapping[idx],
+                    self._cfg.validation_ds.num_neighbors,
+                ))
+        else:
+            self._validation_ds = RetrievalSeq2Seq(
+                self._validation_without_neighbors_ds,
+                self._retrieval_ds,
+                self._cfg.validation_ds.nn_mapping,
+                self._cfg.validation_ds.num_neighbors,
+            )
+        import ipdb; ipdb.set_trace()
         # Test data config is optional.
         if hasattr(self._cfg, 'test_ds'):
-            if self._cfg.validation_ds.get("dataset_type", "text") != "text":
-                raise ValueError(f"Test dataset type must be 'text', found {self._cfg.test_ds.dataset_type}")
-            self._test_without_neighbors_ds = MTEncDecModel._setup_eval_dataset_from_config(
-                cfg=self._cfg.validation_ds,
-                multilingual=self.multilingual,
-                multilingual_ids=self.multilingual_ids,
-                encoder_tokenizer=self.encoder_tokenizer,
-                decoder_tokenizer=self.decoder_tokenizer,
-            )
+            if self._cfg.test_ds.get("dataset_type", "text_memmap") != "text_memmap":
+                raise ValueError(f"Test dataset type must be 'text_memmap', found {self._cfg.test_ds.dataset_type}")
+            
+            self._test_without_neighbors_ds = self.build_memmap_dataset_from_config(self._cfg.test_ds)
+            
             if isinstance(self._test_without_neighbors_ds, List):
                 self._test_ds = []
                 for idx,ds in enumerate(self._test_without_neighbors_ds):
@@ -148,22 +137,7 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
                 )
 
     def process_global_batch_for_text_translation_datasets(self, batch):
-        #TODO: See how to modify this for retrievals. This is called in eval_step
-        """Override parent process_batch since TranslationDataset does not return dictionaries."""
-        # Convert each microbatch into a dictionary.
-        src_ids, src_mask, tgt_ids, tgt_mask, labels = batch
-        # ! for vanilla retrieval can just add src_ids and nn_ids here only to make it work
-        batch = {
-            'text_enc': src_ids,
-            'text_dec': tgt_ids,
-            'labels': labels,
-            'enc_mask': src_mask.long(),  # super().process_batch() expects torch.int64
-            'dec_mask': tgt_mask.long(),  # super().process_batch() expects torch.int64
-            'loss_mask': tgt_mask.long(),  # super().process_batch() expects torch.int64
-        }
-
-        # Parent function will pad microbatches to the same length.
-        return self._process_global_batch_without_megatron_batch_sampler([batch], tokenizer=self.encoder_tokenizer)
+        return self.process_global_batch(batch)
 
     def process_global_batch(self, global_batch):
         output = [
@@ -184,7 +158,7 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
                 output.append(global_batch["nn_tgt_mask_list"][idx])
             return output
 
-    def get_forward_output_and_loss_func(self, val=False):
+    def get_forward_output_and_loss_func(self):
         """
             This function is used to create a closure that is passed to the apex fwd/bwd functions.
             Overrided from enc_dec_model.py
@@ -259,6 +233,8 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
         
         def fwd_output_and_loss_func_concat(batch, model):
             raise NotImplementedError
+            # TODO: Figure out the logic for shiftign and fixing the padding and adding new tokens. 
+            # Probably a better idea to just add them in the get_item in the RetrievalSeq2Seq
             batch = [x.cuda(non_blocking=True) for x in batch]
             encoder_input_ids, decoder_input_ids, loss_mask, lm_labels, encoder_attn_mask, decoder_attn_mask, nn_src_list_ids, nn_tgt_list = batch
             # ! for retrieval embeddings figure out how to do this
@@ -285,31 +261,7 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
 
             return output, loss_func
 
-        def fwd_output_and_loss_func(batch, model):
-            batch = [x.cuda(non_blocking=True) for x in batch]
-            encoder_input_ids, decoder_input_ids, loss_mask, lm_labels, encoder_attn_mask, decoder_attn_mask = batch
-            # ! invoke model embedding lookup 
-            # concentate 
-            output = model(
-                encoder_input_ids,  # enc_input_ids
-                encoder_attn_mask,  # enc_attn_mask
-                decoder_input_ids,  # dec_input_ids
-                decoder_attn_mask,  # dec_attn_mask
-                None,  # token_type_ids
-                lm_labels,  # labels
-            )
-
-            def loss_func(output_tensor):
-                loss = self.loss_func(loss_mask, output_tensor)
-                reduced_loss = average_losses_across_data_parallel_group([loss])
-                return loss, {'avg': reduced_loss}
-
-            return output, loss_func
-        
-        if val is True:
-            # TODO how to call super output and loss func insteaad
-            return fwd_output_and_loss_func
-        elif self.cfg.retriever.get('type', False) == 'text':
+        if self.cfg.retriever.get('type', False) == 'text':
             return fwd_output_and_loss_func_concat
         elif self.cfg.retriever.get('type', False) == 'perceiver':
             return fwd_output_and_loss_func_perceiver
@@ -318,42 +270,47 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
             
 class RetrievalSeq2Seq(Dataset):
     """
-    This class defines dataset for retrieval Seq2Seq model."""
+    This class defines dataset for retrieval Seq2Seq model.    
+    """
 
     def __init__(
         self,
-        train_text_memmap_dataset,
+        seq2seq_text_memmap_dataset,
         retrieval_text_memmap_dataset,
         nn_mapping,
         num_neighbors = 10,
     ):
-        self.train_text_memmap_dataset = train_text_memmap_dataset
+        """
+        seq2seq_text_memmap_dataset (TextMemmapSequenceToSequenceDataset): The seq2seq dataset train/eval
+        retrieval_text_memmap_dataset (TextMemmapSequenceToSequenceDataset): The retrieval dataset
+        nn_mapping (np_array): The mapping of the seq2seq dataset to the retrieval dataset
+        """
+        self.seq2seq_text_memmap_dataset = seq2seq_text_memmap_dataset
         self.retrieval_text_memmap_dataset = retrieval_text_memmap_dataset
         self.num_neighbors = num_neighbors
 
         # Select only the number of nns specified
         self.nn_mapping = np.load(nn_mapping)[:, :num_neighbors]
 
-        # len(self.train_text_memmap_dataset.src_indexed_dataset) is oversampled 
-        assert len(self.train_text_memmap_dataset.src_indexed_dataset) == len(self.nn_mapping)
-        # TODO: Figure out how to do this for eval set
+        # len(self.seq2seq_text_memmap_dataset) is oversampled so use the src_indexed_dataset
+        assert len(self.seq2seq_text_memmap_dataset.src_indexed_dataset) == len(self.nn_mapping)
     
     def __len__(self):
-        return len(self.train_text_memmap_dataset)
+        return len(self.seq2seq_text_memmap_dataset.src_indexed_dataset)
     
     def __getitem__(self, idx):
         # Output format is a tuple of ((src, tgt), [list of neighbors in (src,tgt) format]))])
         return {
-            'text_enc': self.train_text_memmap_dataset[idx]['text_enc'],
-            'text_dec': self.train_text_memmap_dataset[idx]['text_dec'],
-            'labels': self.train_text_memmap_dataset[idx]['labels'],
+            'text_enc': self.seq2seq_text_memmap_dataset[idx]['text_enc'],
+            'text_dec': self.seq2seq_text_memmap_dataset[idx]['text_dec'],
+            'labels': self.seq2seq_text_memmap_dataset[idx]['labels'],
             'nn_src_list': [self.retrieval_text_memmap_dataset[self.nn_mapping[idx][i]]['text_enc'] for i in range(self.num_neighbors)],
             'nn_tgt_list': [self.retrieval_text_memmap_dataset[self.nn_mapping[idx][i]]['text_dec'] for i in range(self.num_neighbors)]
         }
 
     def collate_fn(self, batch):
         # This is where the batch is being created so modify this for retrieval case
-        output = self.train_text_memmap_dataset.collate_fn(batch)
+        output = self.seq2seq_text_memmap_dataset.collate_fn(batch)
 
         retrieval_encoder_input_src_list = []
         retrieval_encoder_input_tgt_list = []
@@ -372,6 +329,7 @@ class RetrievalSeq2Seq(Dataset):
 
             max_retrieval_input_tgt_length = max([len(item) for item in retrieval_input_tgt]) if retrieval_input_tgt else 0
             max_retrieval_input_src_length = max([len(item) for item in retrieval_input_src]) if retrieval_input_src else 0
+
 
             retrieval_input_src = [item + [self.retrieval_text_memmap_dataset.src_tokenizer.pad_id] * (max_retrieval_input_src_length - len(item)) for item in retrieval_input_src]
             retrieval_input_tgt = [item + [self.retrieval_text_memmap_dataset.tgt_tokenizer.pad_id] * (max_retrieval_input_tgt_length - len(item)) for item in retrieval_input_tgt]

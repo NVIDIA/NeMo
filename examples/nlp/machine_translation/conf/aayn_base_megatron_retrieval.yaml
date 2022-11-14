@@ -4,11 +4,9 @@ defaults:
 
 name: megatron_nmt_retrieval
 
-do_training: True # set to False if only preprocessing data
 do_testing: False # set to True to run evaluation on test data after training
 
 model:
-  global_batch_size: 64
   retriever:
     type: 'perceiver' # choices 'perceiver' 'text'
     latent_size: int = 64 # perceiver latents size to use
@@ -24,11 +22,14 @@ model:
     # TODO uncomment this to val retrieval augmented model
     nn_mapping: null # file with indices of nns to retrieve fro val
     num_neighbors: 3 # number of nearest neighbors to append
+    concat_sampling_probabilities: null # only used with ConcatTranslationDataset # hack for textmemmap dataset
   
   test_ds:
     retrieval: True # train retrieval augmented model
     nn_mapping: null
     num_neighbors: 3 # number of nearest neighbors to append
+    concat_sampling_probabilities: null # only used with ConcatTranslationDataset # hack for textmemmap dataset
+
 
   retrieval_ds:
     src_file_name: null

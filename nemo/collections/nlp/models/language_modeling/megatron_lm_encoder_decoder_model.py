@@ -686,7 +686,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         """
         return_values - if given, returns a dictionary with given keys and corresponding values
         """
-        batch_for_pipeline = self.process_global_batch(batch)[:6]
+        batch_for_pipeline = self.process_global_batch(batch)
         encoder_seq_length = batch_for_pipeline[0].size(1)
         decoder_seq_length = batch_for_pipeline[1].size(1)
 
@@ -694,7 +694,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
             losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
-                forward_step_func=self.get_forward_output_and_loss_func(val=True),
+                forward_step_func=self.get_forward_output_and_loss_func(),
                 batch=batch_for_pipeline,
                 model=self.enc_dec_model,
                 forward_only=True,
@@ -705,7 +705,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             )
         else:
             losses_reduced_per_micro_batch = forward_backward_no_pipelining(
-                forward_step_func=self.get_forward_output_and_loss_func(val=True),
+                forward_step_func=self.get_forward_output_and_loss_func(),
                 batch=batch_for_pipeline,
                 model=self.enc_dec_model,
                 forward_only=True,
@@ -1069,6 +1069,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             )
 
         # Reset microbatch calculator to what it was before decoding.
+        global_batch_per_gpu = 512
         if reconfigure_microbatch:
             _reconfigure_microbatch_calculator(
                 rank=app_state.global_rank,
