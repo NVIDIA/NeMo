@@ -308,10 +308,11 @@ class SwitchMLP(MegatronModule):
                 _, max_ind = torch.max(norm_route, dim=1)
             route = torch.sigmoid(route)
             max_prob = route[torch.arange(route.size(0)), max_ind]
+            print ("Train BinCount:", torch.bincount(max_ind))
         else:
             route = torch.sigmoid(route)
             max_prob, max_ind = torch.max(route, dim=1)
-
+            print ("Eval BinCount:", torch.bincount(max_ind))
         max_prob = torch.unsqueeze(max_prob, 1)
 
         hidden_states = hidden_states.view(-1, hidden_shape[-1])
