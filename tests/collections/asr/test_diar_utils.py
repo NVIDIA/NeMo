@@ -86,8 +86,8 @@ def test_speaker_counting(n_spks=3, total_dur_sec=30, num_speakers=-1, max_num_s
         timestamps_in_scales=ts,
         multiscale_segment_counts=mc,
         multiscale_weights=mw,
-        oracle_num_speakers=torch.LongTensor([num_speakers]),
-        max_num_speakers=torch.LongTensor([max_num_speakers]),
+        oracle_num_speakers=num_speakers,
+        max_num_speakers=max_num_speakers,
     )
     return len(set(Y.tolist()))
 
@@ -151,26 +151,58 @@ class TestSpeakerClustering:
 
         num_speakers = -1
         max_num_speakers = 8
+        sparse_search_volume = 10
+        max_rp_threshold = 0.15
+        fixed_thres = -1.0  
+        enhanced_count_thres = 80
 
-        Y_tjs = speaker_clustering_scripted.forward_infer(
-            embeddings_in_scales=em,
-            timestamps_in_scales=ts,
-            multiscale_segment_counts=mc,
-            multiscale_weights=mw,
-            oracle_num_speakers=torch.LongTensor([num_speakers]),
-            max_num_speakers=torch.LongTensor([max_num_speakers]),
-        )
-
+        # Function call for NeMo python pipeline (unexported) in python 
         Y_py = speaker_clustering_python.forward_infer(
             embeddings_in_scales=em,
             timestamps_in_scales=ts,
             multiscale_segment_counts=mc,
             multiscale_weights=mw,
-            oracle_num_speakers=torch.LongTensor([num_speakers]),
-            max_num_speakers=torch.LongTensor([max_num_speakers]),
+            oracle_num_speakers=num_speakers,
+            max_num_speakers=max_num_speakers,
+            enhanced_count_thres=enhanced_count_thres,
+            sparse_search_volume=sparse_search_volume,
+            max_rp_threshold=max_rp_threshold,
+            fixed_thres=fixed_thres,
         )
-        assert len(set(Y_tjs.tolist())) == len(set(Y_py.tolist())) == n_spks
-        assert all(Y_tjs == Y_py) == True, f"Script module and python module are showing different clustering results"
+        
+        # Function call for exported module but in python 
+        Y_tjs = speaker_clustering_scripted.forward_infer(
+            embeddings_in_scales=em,
+            timestamps_in_scales=ts,
+            multiscale_segment_counts=mc,
+            multiscale_weights=mw,
+            oracle_num_speakers=num_speakers,
+            max_num_speakers=max_num_speakers,
+            enhanced_count_thres=enhanced_count_thres,
+            sparse_search_volume=sparse_search_volume,
+            max_rp_threshold=max_rp_threshold,
+            fixed_thres=fixed_thres,
+        )
+
+        clustering_param_dict = {
+            'embeddings': em,
+            'timestamps': ts,
+            'multiscale_segment_counts': mc,
+            'multiscale_weights': mw,
+            'oracle_num_speakers': torch.LongTensor([num_speakers]),
+            'max_num_speakers': torch.LongTensor([max_num_speakers]),
+            'enhanced_count_thres': torch.LongTensor([enhanced_count_thres]),
+            'sparse_search_volume': torch.LongTensor([sparse_search_volume]),
+            'max_rp_threshold': torch.tensor([max_rp_threshold]),
+            'fixed_thres': torch.tensor([fixed_thres]),
+        }
+        
+        # Function call for an exported module in Triton server environment
+        Y_prd = speaker_clustering_scripted.forward(clustering_param_dict)
+        
+        # All three types of function call should generate exactly the same output.
+        assert len(set(Y_tjs.tolist())) == len(set(Y_py.tolist())) == len(set(Y_prd.tolist())) == n_spks
+        assert all(Y_tjs == Y_py) == all(Y_py == Y_prd) == True, f"Script module and python module are showing different clustering results"
 
 
     @pytest.mark.run_only_on('CPU')
