@@ -525,7 +525,8 @@ class TTSDataset(Dataset):
             assert not self.pitch_augment
 
             features = torch.tensor(features.samples)
-            features = self._pad_wav_to_multiple(features)
+            if self.pad_multiple > 1:
+                features = self._pad_wav_to_multiple(features)
             audio, audio_length = features, torch.tensor(features.shape[0]).long()
         else:
             features = self.featurizer.process(
@@ -537,7 +538,8 @@ class TTSDataset(Dataset):
                 trim_hop_length=self.trim_hop_length,
             )
 
-            features = self._pad_wav_to_multiple(features)
+            if self.pad_multiple > 1:
+                features = self._pad_wav_to_multiple(features)
             audio_shifted = None
             if self.pitch_augment:
                 audio_shifted = self.pitch_shift(
