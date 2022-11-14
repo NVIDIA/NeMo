@@ -469,7 +469,7 @@ class RadTTSModule(NeuralModule, Exportable):
         if self.use_unvoiced_bias:
             f0_bias = self.unvoiced_bias_module(context.permute(0, 2, 1))
             f0_bias = -f0_bias[..., 0]
-            f0_bias.mask_fill(voiced_mask_bool, 0.0)
+            f0_bias.masked_fill_(voiced_mask_bool, 0.0)
 
         # mel decoder forward pass
         if 'dec' in self.include_modules:
@@ -727,7 +727,7 @@ class RadTTSModule(NeuralModule, Exportable):
         if self.ap_pred_log_f0:
             # if variable is set, decoder sees linear f0
             f0 = torch.exp(f0).to(dtype=f0.dtype)
-        f0.masked_fill(~voiced_mask, 0.0)
+        f0.masked_fill_(~voiced_mask, 0.0)
         return f0
 
     def infer_energy(self, residual, txt_enc_time_expanded, spk_vec, lens):
