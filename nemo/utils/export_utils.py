@@ -68,10 +68,11 @@ class CastToFloat(nn.Module):
         self.mod = mod
 
     def forward(self, x):
-        with torch.autocast(device_type='cuda', dtype=x.dtype):
+        if torch.is_autocast_enabled():
+            ret = self.mod.forward(x.to(torch.float32)).to(x.dtype)
+        else:
             ret = self.mod.forward(x)
         return ret
-
 
 class LinearWithBiasSkip(nn.Module):
     def __init__(self, weight, bias, skip_bias_add):
@@ -205,7 +206,7 @@ def verify_runtime(model, output, input_examples, input_names, check_tolerance=0
         return
 
     onnx_session_opt = onnxruntime.SessionOptions()
-    onnx_session_opt.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_BASIC
+    onnx_session_opt.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
     sess = onnxruntime.InferenceSession(
         onnx_model.SerializeToString(), sess_options=onnx_session_opt, providers=['CUDAExecutionProvider']
     )
