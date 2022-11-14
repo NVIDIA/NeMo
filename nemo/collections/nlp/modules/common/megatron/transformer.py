@@ -2439,7 +2439,7 @@ class ParallelTransformer(MegatronModule):
         if self.post_process:
             # only apply the final_layernorm for pre-ln
             if self.transformer_block_type != 'post_ln':
-                output = self.final_layernorm(hidden_states)
+                output = self.final_layernorm(hidden_states.float()).to(dtype=output.dtype)
 
         if get_key_value:
             output = [output, presents]
