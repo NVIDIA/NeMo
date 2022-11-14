@@ -1216,6 +1216,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
             kv_channels = hidden_size // num_attention_heads
 
         self.layer_number = layer_number
+        print ("Layer num:", self.layer_number)
         self.layer_type = layer_type
         self.bias = bias
         self.transformer_block_type = transformer_block_type
