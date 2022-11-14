@@ -160,7 +160,9 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
         # T5-related construction
         if tokenizer_cfg.library == 'huggingface' or tokenizer_cfg.library == 'megatron':
             additional_tokens = {
-                'additional_special_tokens': [f'<extra_id_{i}>' for i in range(tokenizer_cfg.get('num_sentinel_tokens', 0))]
+                'additional_special_tokens': [
+                    f'<extra_id_{i}>' for i in range(tokenizer_cfg.get('num_sentinel_tokens', 0))
+                ]
             }
             if dataset_type == "ul2":
                 mask_types = ['r', 's', 'x']
