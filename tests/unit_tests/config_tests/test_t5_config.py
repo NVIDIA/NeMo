@@ -21,6 +21,8 @@ class TestT5Config:
           logs: ${base_results_dir}/${search_config_value}_${.gpu_memory_gb}gb
           tensor_parallel_sizes: auto
           pipeline_parallel_sizes: auto
+          min_model_parallel_size: auto  # auto to use our recommendation, or a value for the minimum desired parallelism
+          max_model_parallel_size: auto  # auto to use our recommendation, or a value for the maximum desired parallelism
           micro_batch_sizes: auto
           act_ckpt_layers: auto
         """
@@ -48,6 +50,8 @@ class TestT5Config:
           logs: ${base_results_dir}/${search_config_value}_${.gpu_memory_gb}gb
           tensor_parallel_sizes: auto
           pipeline_parallel_sizes: auto
+          min_model_parallel_size: auto  # auto to use our recommendation, or a value for the minimum desired parallelism
+          max_model_parallel_size: auto  # auto to use our recommendation, or a value for the maximum desired parallelism
           micro_batch_sizes: auto
           act_ckpt_layers: auto
 """
@@ -75,6 +79,8 @@ class TestT5Config:
           logs: ${base_results_dir}/${search_config_value}_${.gpu_memory_gb}gb
           tensor_parallel_sizes: auto
           pipeline_parallel_sizes: auto
+          min_model_parallel_size: auto  # auto to use our recommendation, or a value for the minimum desired parallelism
+          max_model_parallel_size: auto  # auto to use our recommendation, or a value for the maximum desired parallelism
           micro_batch_sizes: auto
           act_ckpt_layers: auto
 """
@@ -102,6 +108,8 @@ class TestT5Config:
           logs: ${base_results_dir}/${search_config_value}_${.gpu_memory_gb}gb
           tensor_parallel_sizes: auto
           pipeline_parallel_sizes: auto
+          min_model_parallel_size: auto  # auto to use our recommendation, or a value for the minimum desired parallelism
+          max_model_parallel_size: auto  # auto to use our recommendation, or a value for the maximum desired parallelism
           micro_batch_sizes: auto
           act_ckpt_layers: auto
 """
@@ -129,6 +137,8 @@ class TestT5Config:
           logs: ${base_results_dir}/${search_config_value}_${.gpu_memory_gb}gb
           tensor_parallel_sizes: auto
           pipeline_parallel_sizes: auto
+          min_model_parallel_size: auto  # auto to use our recommendation, or a value for the minimum desired parallelism
+          max_model_parallel_size: auto  # auto to use our recommendation, or a value for the maximum desired parallelism
           micro_batch_sizes: auto
           act_ckpt_layers: auto
 """

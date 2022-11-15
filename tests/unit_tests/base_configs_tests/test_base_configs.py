@@ -80,6 +80,7 @@ class TestBaseConfigs:
           post_process: True
           persist_layer_norm: True
           gradient_as_bucket_view: True
+          sync_batch_comm: False
   
           # Fusion
           grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce
@@ -247,6 +248,7 @@ class TestBaseConfigs:
           megatron_amp_O2: True # use AMP with O2 style mixed precision instead of native amp on-the-fly weight autocasting.
           grad_allreduce_chunk_size_mb: 125
           gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
+          sync_batch_comm: False
 
           seq_length: 512
           max_position_embeddings: ${.seq_length}
@@ -282,7 +284,8 @@ class TestBaseConfigs:
             onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
             fp32_residual_connection: False # Use FP32 for residual connections.
             # activations checkpointing
-            activations_checkpoint_method: null # 'uniform', 'block'
+            activations_checkpoint_granularity: full
+            activations_checkpoint_method: block # 'uniform', 'block'
             activations_checkpoint_num_layers: 0
 
           decoder:
@@ -316,7 +319,8 @@ class TestBaseConfigs:
             onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
             fp32_residual_connection: False # Use FP32 for residual connections.
             # activations checkpointing
-            activations_checkpoint_method: null # 'uniform', 'block'
+            activations_checkpoint_granularity: full
+            activations_checkpoint_method: block # 'uniform', 'block'
             activations_checkpoint_num_layers: 0
 
           tokenizer:
@@ -468,6 +472,7 @@ class TestBaseConfigs:
           megatron_amp_O2: True # use AMP with O2 style mixed precision instead of native amp on-the-fly weight autocasting.
           grad_allreduce_chunk_size_mb: 125
           gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
+          sync_batch_comm: False
 
           seq_length: 512
           max_position_embeddings: ${.seq_length}
@@ -503,7 +508,8 @@ class TestBaseConfigs:
             onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
             fp32_residual_connection: False # Use FP32 for residual connections.
             # activations checkpointing
-            activations_checkpoint_method: null # 'uniform', 'block'
+            activations_checkpoint_granularity: full
+            activations_checkpoint_method: block # 'uniform', 'block'
             activations_checkpoint_num_layers: 0
 
           decoder:
@@ -537,7 +543,8 @@ class TestBaseConfigs:
             onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
             fp32_residual_connection: False # Use FP32 for residual connections.
             # activations checkpointing
-            activations_checkpoint_method: null # 'uniform', 'block'
+            activations_checkpoint_granularity: full
+            activations_checkpoint_method: block # 'uniform', 'block'
             activations_checkpoint_num_layers: 0
 
           tokenizer:
