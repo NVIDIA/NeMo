@@ -707,6 +707,12 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         self.virtual_prompt_style = current_virtual_prompt_style
         self.virtual_prompt_source = current_virtual_prompt_source
 
+        # Revert prompt table back to previous state
+        if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING and self.frozen_model.model.pre_process:
+            for taskname in current_new_tasks:
+                if taskname in self.prompt_table.prompt_table:
+                    del self.prompt_table.prompt_table[taskname]
+
         with open_dict(self.cfg):
             self.cfg.existing_tasks = current_existing_tasks
             self.cfg.new_tasks = current_new_tasks
@@ -986,7 +992,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
         # Call same generate code as in MegatronGPT
         return megatron_gpt_generate(
-            self.cuda(), processed_inputs, self.tokenizer, length_params, sampling_params, task_ids
+            self.cuda(), processed_inputs, self.tokenizer, length_params, sampling_params, task_ids=task_ids
         )
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
