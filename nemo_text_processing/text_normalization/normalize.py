@@ -281,7 +281,7 @@ class Normalizer:
             return text
         text = pynini.escape(text)
         tagged_lattice = self.find_tags(text)
-        tagged_text = self.select_tag(tagged_lattice)
+        tagged_text = Normalizer.select_tag(tagged_lattice)
         if verbose:
             print(tagged_text)
         self.parser(tagged_text)
@@ -299,7 +299,7 @@ class Normalizer:
                     break
             if verbalizer_lattice is None:
                 raise ValueError(f"No permutations were generated from tokens {s}")
-            output += ' ' + self.select_verbalizer(verbalizer_lattice)
+            output += ' ' + Normalizer.select_verbalizer(verbalizer_lattice)
         output = SPACE_DUP.sub(' ', output[1:])
 
         if self.lang == "en" and hasattr(self, 'post_processor'):
