@@ -45,6 +45,7 @@ _EXT_DICT = {
     ".onnx": ExportFormat.ONNX,
 }
 
+
 def cast_tensor(x, from_dtype=torch.float16, to_dtype=torch.float32):
     return x.to(dtype=to_dtype) if x.dtype == from_dtype else x
 
@@ -73,6 +74,7 @@ class CastToFloat(nn.Module):
         else:
             ret = self.mod.forward(x)
         return ret
+
 
 class LinearWithBiasSkip(nn.Module):
     def __init__(self, weight, bias, skip_bias_add):
