@@ -411,18 +411,18 @@ class RadTTSModule(NeuralModule, Exportable):
 
         return (dfeats_R + dfeats_L) * 0.5
 
-    def apply_voice_mask_to_text(self, text_enc, voiced_mask_bool):
+    def apply_voice_mask_to_text(self, text_enc, voiced_mask):
         """
         text_enc: b x C x N
-        voiced_mask_bool: b x N
+        voiced_mask: b x N
         """
-        voiced_mask_bool = voiced_mask_bool.unsqueeze(1)
+        voiced_mask = voiced_mask.unsqueeze(1)
         voiced_embedding_s = self.v_embeddings.weight[0:1, :, None]
         unvoiced_embedding_s = self.v_embeddings.weight[1:2, :, None]
         voiced_embedding_b = self.v_embeddings.weight[2:3, :, None]
         unvoiced_embedding_b = self.v_embeddings.weight[3:4, :, None]
-        scale = torch.sigmoid(torch.where(voiced_mask_bool, voiced_embedding_s, unvoiced_embedding_s))
-        bias = 0.1 * torch.tanh(torch.where(voiced_mask_bool, voiced_embedding_b, unvoiced_embedding_b))
+        scale = torch.sigmoid(voiced_embedding_s * voiced_mask + unvoiced_embedding_s * (1 - voiced_mask))
+        bias = 0.1 * torch.tanh(voiced_embedding_b * voiced_mask + unvoiced_embedding_b * (1 - voiced_mask))
         return text_enc * scale + bias
 
     def forward(
@@ -535,7 +535,7 @@ class RadTTSModule(NeuralModule, Exportable):
 
                 # affine transform context using voiced mask
                 if self.ap_use_voiced_embeddings:
-                    text_enc_time_expanded = self.apply_voice_mask_to_text(text_enc_time_expanded, voiced_mask_bool)
+                    text_enc_time_expanded = self.apply_voice_mask_to_text(text_enc_time_expanded, voiced_mask)
             if self.ap_use_unvoiced_bias:  # whether to use the unvoiced bias in the attribute predictor
                 f0_target = torch.detach(f0 * voiced_mask + f0_bias)
             else:
@@ -810,7 +810,7 @@ class RadTTSModule(NeuralModule, Exportable):
         par = next(self.parameters())
         sz = (max_batch, max_dim)
         inp = torch.randint(0, 16, sz, device=par.device, dtype=torch.int64)
-        lens = torch.randint(16, max_dim, (max_batch,), device=par.device, dtype=torch.int)
+        lens = torch.randint(0, max_dim, (max_batch,), device=par.device, dtype=torch.int)
         speaker = torch.randint(0, 1, (max_batch,), device=par.device, dtype=torch.int64)
         inputs = {
             'text': inp,
