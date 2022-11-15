@@ -23,7 +23,7 @@ from nemo.collections.asr.models.rnnt_bpe_models import EncDecRNNTBPEModel
 from nemo.utils import logging, model_utils
 
 
-class EncDecHybridRNNTCTCBPEModel(EncDecRNNTBPEModel):
+class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel):
     """Base class for encoder decoder RNNT-based models with auxiliary CTC decoder/loss and subword tokenization."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
@@ -156,8 +156,9 @@ class EncDecHybridRNNTCTCBPEModel(EncDecRNNTBPEModel):
         """
         if decoder_type is None or decoder_type == 'rnnt':
             super().__init__(decoding_cfg=decoding_cfg)
-        else:
-            assert decoder_type == 'ctc' and hasattr(self, 'ctc_decoding')
+        elif decoder_type == 'ctc':
+            if not hasattr(self, 'ctc_decoding'):
+                raise ValueError("The model does not have the ctc_decoding module and therefore does not support ctc decoding.")
             if decoding_cfg is None:
                 # Assume same decoding config as before
                 logging.info("No `decoding_cfg` passed when changing decoding strategy, using internal config")
@@ -183,3 +184,5 @@ class EncDecHybridRNNTCTCBPEModel(EncDecRNNTBPEModel):
 
             self.use_rnnt_decoder = False
             logging.info(f"Changed decoding strategy to \n{OmegaConf.to_yaml(self.cfg.ctc_decoding.decoding)}")
+        else:
+            raise ErrorValue(f"decoder_type={decoder_type} is not supported. Supported values: [ctc,rnnt]")
