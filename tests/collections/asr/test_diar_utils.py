@@ -20,18 +20,17 @@ import pytest
 import torch
 
 from nemo.collections.asr.parts.utils.nmesc_clustering import (
-        SpeakerClustering, 
-        split_input_data,
-        getCosAffinityMatrix
+    SpeakerClustering, 
+    split_input_data,
+    getCosAffinityMatrix,
+    get_closest_embeddings,
+    hungarian_algorithm,
+    get_minimal_indices,
+    stitch_cluster_labels,
+    merge_emb,
+    run_reducer,
 )
 
-from nemo.collections.asr.models.online_diarizer import (
-        stitch_cluster_labels, 
-        get_minimal_indices,
-        get_closest_embeddings,
-        merge_emb,
-        run_reducer
-)
 from nemo.collections.asr.parts.utils.speaker_utils import (
     combine_float_overlaps,
     combine_int_overlaps,
@@ -144,7 +143,7 @@ class TestDiarizationUtilFunctions:
 
     @pytest.mark.unit
     def test_minimal_index(self):
-        Y = matrix([3, 3, 3, 4, 4, 5], use_tensor=False)
+        Y = matrix([3, 3, 3, 4, 4, 5], use_tensor=True)
         min_Y = get_minimal_indices(Y)
         target = matrix([0, 0, 0, 1, 1, 2])
         assert check_labels(target, min_Y)

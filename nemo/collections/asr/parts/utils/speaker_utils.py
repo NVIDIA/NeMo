@@ -28,6 +28,7 @@ from pyannote.core import Annotation, Segment
 from tqdm import tqdm
 
 from nemo.collections.asr.parts.utils.nmesc_clustering import SpeakerClustering, get_argmin_mat, split_input_data
+from nemo.collections.asr.data.audio_to_label import repeat_signal
 from nemo.utils import logging
 
 """
@@ -911,6 +912,229 @@ def get_subsegments(offset: float, window: float, shift: float, duration: float)
         start = offset + (slice_id + 1) * shift
 
     return subsegments
+
+@torch.jit.script
+def get_target_sig(
+            sig, 
+            start_sec: float, 
+            end_sec: float, 
+            slice_length: int, 
+            sample_rate: int,
+            ):
+    """
+    Extract time-series signal from the given audio buffer based on the start and end
+    timestamps.
+
+    Args:
+
+    Returns:
+
+    """
+    start_idx = int(start_sec * sample_rate)
+    end_idx = min(int(end_sec * sample_rate), int(slice_length + start_idx))
+    return sig[start_idx:end_idx]
+
+@torch.jit.script
+def check_ranges(range_list: List[List[float]]):
+    """
+    Check whether the range list has any faulty timestamp order.
+
+    Args:
+        range_list (list):
+            List containing the start and end time of the segments.
+            Example:
+                >>> range_list = [[0.5, 3.12], [3.51, 7.26], ... ]
+    """
+    for range_tup in range_list:
+        if range_tup[1] < range_tup[0]:
+            raise ValueError("Range start time should be preceding the end time but we got: {range_tup}")
+
+@torch.jit.script
+def tensor_to_list(range_tensor: torch.Tensor) -> List[List[float]]:
+    """
+    For online segmentation. Force the list elements to be float type.
+    """
+    return [ [float(range_tensor[k][0]), float(range_tensor[k][1])] for k in range(range_tensor.shape[0]) ]
+
+@torch.jit.script
+def get_speech_labels_for_update(
+    frame_start: float, 
+    buffer_end: float, 
+    vad_timestamps: torch.Tensor, 
+    cumulative_speech_labels: torch.Tensor, 
+    cursor_for_old_segments: float,
+):
+    """
+    Bring the new speech labels from the current buffer. Then
+
+    1. Concatenate the old speech labels from self.cumulative_speech_labels for the overlapped region.
+        - This goes to new_speech_labels.
+    2. Update the new 1 sec of speech label (speech_label_for_new_segments) to self.cumulative_speech_labels.
+    3. Return the speech label from cursor_for_old_segments to buffer end.
+
+    """
+    update_overlap_range: List[float] = []
+    if cursor_for_old_segments < frame_start:
+        update_overlap_range = [float(cursor_for_old_segments), float(frame_start)]
+
+    # Get VAD timestamps that are in (frame_start, buffer_end) range
+    vad_timestamps = tensor_to_list(vad_timestamps)
+    cumulative_speech_labels = tensor_to_list(cumulative_speech_labels)
+    new_incoming_speech_labels = getSubRangeList(
+        target_range=[float(frame_start), float(buffer_end)], source_range_list=vad_timestamps
+    )
+    
+    # Update the speech label by including overlapping region with the previous output
+    update_overlap_speech_labels = getSubRangeList(
+        target_range=update_overlap_range, source_range_list=cumulative_speech_labels
+    )
+
+    # Speech segments for embedding extractions
+    speech_label_for_new_segments = combine_float_overlaps(update_overlap_speech_labels + new_incoming_speech_labels, margin=0)
+
+    # Keep cumulative VAD labels for the future use
+    cumulative_speech_labels = combine_float_overlaps(cumulative_speech_labels + new_incoming_speech_labels, margin=0)
+
+    # Check if there are any faulty timestamps
+    check_ranges(speech_label_for_new_segments)
+    check_ranges(cumulative_speech_labels)
+    speech_label_for_new_segments = torch.tensor(speech_label_for_new_segments)
+    cumulative_speech_labels = torch.tensor(cumulative_speech_labels)
+    return speech_label_for_new_segments, cumulative_speech_labels
+
+
+@torch.jit.script
+def get_new_cursor_for_update(
+        frame_start: float, 
+        segment_range_ts: List[List[float]], 
+    ):
+    """
+    For online speaker diarization.
+    Remove the old segments that overlap with the new frame (self.frame_start)
+    cursor_for_old_segments is set to the onset of the t_range popped lastly.
+    """
+    cursor_for_old_segments = frame_start
+    cursor_index: int = len(segment_range_ts) 
+    count = 0
+    while True and len(segment_range_ts) > 0:
+        t_range = segment_range_ts[-1*(count+1)]
+        if frame_start <= t_range[1]:
+            count+=1
+            cursor_for_old_segments = t_range[0]
+        else:
+            break
+    cursor_index = len(segment_range_ts) - count
+    return cursor_for_old_segments, cursor_index
+
+
+@torch.jit.script
+def get_online_segments_from_slices(
+    buffer_start: float,
+    buffer_end: float,
+    subsegments: List[List[float]],
+    ind_offset: int,
+    sig,
+    window: float,
+    sample_rate: int,
+):
+    """
+    Create short speech segments from sclices for online processing purpose.
+
+    Args:
+        slices (int): the number of slices to be created
+        slice_length (int): the lenghth of each slice
+        shift (int): the amount of slice window shift
+        sig (FloatTensor): the tensor that contains input signal
+
+    Returns:
+        sigs_list  (list):
+            list of sliced input signal
+        audio_lengths (list):
+            list of audio sample lengths
+    """
+    sig_rangel_list: List[List[float]] = []
+    sig_indexes: List[int] = []
+    sigs_list: List[torch.Tensor] = []
+    slice_length: int = int(window * sample_rate)
+    end_sec: float = 0.0
+    for subseg in subsegments:
+        start_sec, dur = subseg[0], subseg[1]
+
+        if start_sec > buffer_end:
+            continue
+        ind_offset += 1
+
+        buffer_len = buffer_end - buffer_start
+        end_sec = float(start_sec + dur)
+
+        if end_sec > buffer_len:
+            end_sec = float(min(end_sec, buffer_len))
+
+        signal = get_target_sig(sig, start_sec, end_sec, slice_length, sample_rate)
+        
+        if len(signal) == 0:
+            raise ValueError("len(signal) is zero. Signal length should not be zero.")
+        if len(signal) < slice_length:
+            signal = repeat_signal(signal, len(signal), slice_length)
+        
+        start_abs_sec = buffer_start + start_sec
+        end_abs_sec = buffer_start + end_sec
+        
+        sigs_list.append(signal)
+        sig_rangel_list.append([start_abs_sec, end_abs_sec])
+        sig_indexes.append(ind_offset)
+    if not len(sigs_list) == len(sig_rangel_list) == len(sig_indexes):
+        raise ValueError("Signal information lists have a mismatch.")
+
+    return ind_offset, sigs_list, sig_rangel_list, sig_indexes
+
+
+@torch.jit.script
+def get_online_subsegments_from_buffer(
+    buffer_start: float,
+    buffer_end: float,
+    sample_rate: int,
+    speech_labels_for_update: torch.Tensor,
+    audio_buffer: torch.Tensor,
+    segment_indexes: List[int],
+    window: float,
+    shift: float,
+):
+    sigs_list: List[torch.Tensor] = []
+    sig_rangel_list: List[List[float]]= []
+    sig_indexes: List[int] = []
+    if len(segment_indexes) > 0:
+        ind_offset = segment_indexes[-1]
+    else:
+        ind_offset = -1
+
+    for idx, range_spl in enumerate(speech_labels_for_update):
+        range_offs = [float(range_spl[0].item() - buffer_start), float(range_spl[1].item() - buffer_start)]
+        range_t = [max(0, range_offs[0]), range_offs[1] ]
+
+        subsegments = get_subsegments(
+            offset=range_t[0], 
+            window=window, 
+            shift=shift, 
+            duration=(range_t[1] - range_t[0]),
+        )
+        
+        ind_offset, sigs, ranges, inds = get_online_segments_from_slices(
+            buffer_start=buffer_start,
+            buffer_end=buffer_end,
+            subsegments=subsegments,
+            sig=audio_buffer,
+            window=window,
+            ind_offset=ind_offset,
+            sample_rate=sample_rate,
+        )
+
+        sigs_list.extend(sigs)
+        sig_rangel_list.extend(ranges)
+        sig_indexes.extend(inds)
+
+    assert len(sigs_list) == len(sig_rangel_list) == len(sig_indexes)
+    return sigs_list, sig_rangel_list, sig_indexes
 
 
 def get_scale_mapping_argmat(uniq_embs_and_timestamps: Dict[str, dict]) -> Dict[int, torch.Tensor]:
