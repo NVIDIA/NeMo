@@ -159,7 +159,7 @@ train.gpt3.126m_8node_100steps:
     NUM_NODES: 8
     TIME_LIMIT: "20:00"
 
-train.gpt3.5b_5node_100steps:
+train.gpt3.5b_4node_100steps:
   stage: gpt3_configs
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
@@ -169,7 +169,7 @@ train.gpt3.5b_5node_100steps:
     NUM_NODES: 4
     TIME_LIMIT: "4:00:00"
 
-train.gpt3.5b_20node_100steps:
+train.gpt3.5b_16node_100steps:
   stage: gpt3_configs
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
@@ -179,7 +179,7 @@ train.gpt3.5b_20node_100steps:
     NUM_NODES: 16
     TIME_LIMIT: "4:00:00"
 
-train.gpt3.20b_20node_100steps:
+train.gpt3.20b_16node_100steps:
   stage: gpt3_configs
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
@@ -189,7 +189,7 @@ train.gpt3.20b_20node_100steps:
     NUM_NODES: 16
     TIME_LIMIT: "3:00:00"
 
-train.gpt3.20b_80node_100steps:
+train.gpt3.20b_64node_100steps:
   stage: gpt3_configs
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
@@ -199,7 +199,7 @@ train.gpt3.20b_80node_100steps:
     NUM_NODES: 64
     TIME_LIMIT: "3:00:00"
 
-train.gpt3.40b_20node_100steps:
+train.gpt3.40b_32node_100steps:
   stage: gpt3_configs
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
@@ -210,7 +210,7 @@ train.gpt3.40b_20node_100steps:
     TIME_LIMIT: "3:00:00"
 
 
-train.gpt3.40b_80node_100steps:
+train.gpt3.40b_128node_100steps:
   stage: gpt3_configs
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
