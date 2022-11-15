@@ -12,8 +12,8 @@ whitelist_path: "nemo_text_processing/text_normalization/en/data/whitelist/tts.t
 
 # these frame-wise values depend on pitch_fmin and pitch_fmax, you can get values
 # by running `scripts/dataset_processing/tts/extract_sup_data.py`
-pitch_mean: ???  # e.g. 212.35873413085938 for LJSpeech
-pitch_std:  ???  # e.g.  68.52806091308594 for LJSpeech
+pitch_mean: 145.0  # e.g. 212.35873413085938 for LJSpeech
+pitch_std:  30.0  # e.g.  68.52806091308594 for LJSpeech
 
 # default values from librosa.pyin
 pitch_fmin: 65.40639132514966
