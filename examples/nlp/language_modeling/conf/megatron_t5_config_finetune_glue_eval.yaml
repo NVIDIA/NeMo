@@ -28,7 +28,7 @@ model:
       global_batch_size: 1
       micro_batch_size: 1
       shuffle: False
-      num_workers: 0
+      num_workers: 4
       pin_memory: True
       max_seq_length: 512
       drop_last: False
