@@ -78,6 +78,7 @@ def _get_year_graph():
     def _get_thousands_graph():
         graph_ties = _get_ties_graph()
         graph_hundred_component = (graph_digit + delete_space + pynutil.delete("hundred")) | pynutil.insert("0")
+        optional_end = pynini.closure(pynutil.delete("and "), 0, 1)
         graph = (
             graph_digit
             + delete_space
@@ -85,7 +86,7 @@ def _get_year_graph():
             + delete_space
             + graph_hundred_component
             + delete_space
-            + (graph_teen | graph_ties)
+            + (graph_teen | graph_ties | (pynutil.insert("0") + graph_digit))
         )
         return graph
 
@@ -118,6 +119,7 @@ class DateFst(GraphFst):
 
         ordinal_graph = ordinal.graph
         year_graph = _get_year_graph()
+
         YEAR_WEIGHT = 0.001
         year_graph = pynutil.add_weight(year_graph, YEAR_WEIGHT)
         month_graph = _get_month_graph()
