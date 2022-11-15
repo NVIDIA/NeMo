@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+from contextlib import nullcontext
 from enum import Enum
 from typing import Callable, Dict, Optional, Type
 
@@ -21,7 +22,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from nemo.utils import logging
+from nemo.utils import CastToFloat, logging
 
 try:
     import onnxruntime
@@ -44,35 +45,6 @@ _EXT_DICT = {
     ".onnx": ExportFormat.ONNX,
 }
 
-
-def cast_tensor(x, from_dtype=torch.float16, to_dtype=torch.float32):
-    return x.to(dtype=to_dtype) if x.dtype == from_dtype else x
-
-
-def cast_all(x, from_dtype=torch.float16, to_dtype=torch.float32):
-    if isinstance(x, torch.Tensor):
-        return cast_tensor(x, from_dtype=from_dtype, to_dtype=to_dtype)
-    else:
-        if isinstance(x, dict):
-            new_dict = {}
-            for k in x.keys():
-                new_dict[k] = cast_all(x[k], from_dtype=from_dtype, to_dtype=to_dtype)
-            return new_dict
-        elif isinstance(x, tuple):
-            return tuple(cast_all(y, from_dtype=from_dtype, to_dtype=to_dtype) for y in x)
-
-
-class CastToFloat(nn.Module):
-    def __init__(self, mod):
-        super(CastToFloat, self).__init__()
-        self.mod = mod
-
-    def forward(self, x):
-        if torch.is_autocast_enabled():
-            ret = self.mod.forward(x.to(torch.float32)).to(x.dtype)
-        else:
-            ret = self.mod.forward(x)
-        return ret
 
 class LinearWithBiasSkip(nn.Module):
     def __init__(self, weight, bias, skip_bias_add):
@@ -126,7 +98,7 @@ class ExportableMatchedScaleMaskSoftmax(nn.Module):
 def get_export_format(filename: str):
     _, ext = os.path.splitext(filename)
     try:
-        return _EXT_DICT[ext]
+        return _EXT_DICT[ext.lower()]
     except KeyError:
         raise ValueError(f"Export file {filename} extension does not correspond to any export format!")
 
@@ -204,7 +176,7 @@ def verify_runtime(model, output, input_examples, input_names, check_tolerance=0
         logging.warning(f"ONNX generated at {output}, not verified - please install onnxruntime_gpu package.\n")
         onnx.checker.check_model(onnx_model, full_check=True)
         return
-
+    del onnx_model
     onnx_session_opt = onnxruntime.SessionOptions()
     onnx_session_opt.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
     sess = onnxruntime.InferenceSession(
@@ -262,7 +234,7 @@ try:
     from apex.transformer.tensor_parallel.layers import RowParallelLinear, ColumnParallelLinear
     from apex.transformer.functional.fused_softmax import FusedScaleMaskSoftmax
 
-    def replace_FusedLayerNorm(n: nn.Module) -> Optional[nn.BatchNorm2d]:
+    def replace_FusedLayerNorm(n: nn.Module) -> Optional[nn.LayerNorm]:
         """
         Replaces Apex's FusedLayerNorm with nn.LayerNorm. This is required for ONNX export.
         Args:
@@ -270,19 +242,16 @@ try:
         Returns:
            Equivalent LayerNorm module
         """
-        if (
-            not isinstance(n, FusedLayerNorm)
-            and not isinstance(n, FastLayerNorm)
-            and not isinstance(n, MixedFusedLayerNorm)
-        ):
+
+        p = next(n.parameters())
+        if isinstance(n, FusedLayerNorm) or isinstance(n, MixedFusedLayerNorm):
+            shape, eps, affine = n.normalized_shape, n.eps, n.elementwise_affine
+        elif isinstance(n, FastLayerNorm):
+            shape, eps, affine = n.weight.shape, n.epsilon, True
+        else:
             return None
 
-        dev = next(n.parameters()).device
-        if isinstance(n, FusedLayerNorm) or isinstance(n, MixedFusedLayerNorm):
-            mod = nn.LayerNorm(n.normalized_shape, eps=n.eps, elementwise_affine=n.elementwise_affine,).to(dev)
-        elif isinstance(n, FastLayerNorm):
-            mod = nn.LayerNorm(n.weight.shape, eps=n.epsilon, elementwise_affine=True,).to(dev)
-
+        mod = nn.LayerNorm(shape, eps=eps, elementwise_affine=affine, device=p.device, dtype=p.dtype)
         n_state = n.state_dict()
         mod.load_state_dict(n_state)
         return mod
@@ -299,7 +268,7 @@ try:
             raise ValueError("This function can only change the RowParallelLinear module.")
 
         dev = next(n.parameters()).device
-        mod = LinearWithBiasSkip(n.weight, n.bias, n.skip_bias_add).to(dev)
+        mod = LinearWithBiasSkip(n.weight, n.bias, n.skip_bias_add).to(device=dev)
 
         n_state = n.state_dict()
         mod.load_state_dict(n_state)
