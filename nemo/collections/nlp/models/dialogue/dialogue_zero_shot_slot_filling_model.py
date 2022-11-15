@@ -29,7 +29,7 @@ from nemo.collections.nlp.data.dialogue.dataset.dialogue_zero_shot_slot_filling_
 from nemo.collections.nlp.data.intent_slot_classification import IntentSlotDataDesc
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.metrics.dialogue_metrics import DialogueClassificationMetrics
-from nemo.collections.nlp.models.dialogue.onnx_module import OnnxModule
+from nemo.collections.nlp.models.dialogue.zero_shot_module import ZeroShotModule
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import get_huggingface_lm_model
 from nemo.core import PretrainedModelInfo
@@ -57,15 +57,7 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
             self._set_data_desc_to_cfg(cfg, cfg.dataset.data_dir, cfg.train_ds, cfg.validation_ds)
         # init superclass
         super().__init__(cfg=cfg, trainer=trainer)
-
-        # Initialize MultiLayerPerceptron for predicting IOB class
-        # self.bio_mlp = MultiLayerPerceptron(
-        #     hidden_size=self.hidden_size, num_classes=3, num_layers=2, activation='relu', log_softmax=True,
-        # )
-
-        # self.mention_projection_mlp = torch.nn.Linear(self.hidden_size, 300, bias=False, device=self.device)
-        # self.description_projection_mlp = torch.nn.Linear(self.hidden_size, 300, bias=False, device=self.device)
-        self.onnx_layer = OnnxModule(hidden_size=self.hidden_size)
+        self.zero_shot_layer = ZeroShotModule(hidden_size=self.hidden_size)
 
         # Initialize slot description
         self._set_slot_descriptions(cfg.dataset.data_dir)
@@ -218,7 +210,7 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
                 input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
             )
 
-        return self.onnx_layer(bio_slot_labels, hidden_states, entity_type_embeddings)
+        return self.zero_shot_layer(bio_slot_labels, hidden_states, entity_type_embeddings)
 
     def predict(
         self, texts: Union[str, List[str]], entity_types_descriptions: List[str] = None
@@ -340,13 +332,16 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
         loss = self.total_loss(loss_1=bio_slot_loss, loss_2=slot_loss_mention_and_description)
         return loss
 
-    def on_fit_start(self) -> None:
+    def to(self, device):
         self.description_embeddings = self.description_embeddings.to(self.device)
-        self.onnx_layer = self.onnx_layer.to(self.device)
+        self.zero_shot_layer = self.zero_shot_layer.to(self.device)
+        return super().to(device)
 
-    def on_fit_end(self) -> None:
-        self.description_embeddings = self.description_embeddings.to(self.device)
-        self.onnx_layer = self.onnx_layer.to(self.device)
+    def on_fit_start(self) -> None:
+        self.to(self.device)
+
+    def on_test_start(self) -> None:
+        self.to(self.device)
 
     def training_step(self, batch, batch_idx):
         """
