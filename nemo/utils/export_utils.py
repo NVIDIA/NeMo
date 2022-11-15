@@ -45,6 +45,34 @@ _EXT_DICT = {
     ".onnx": ExportFormat.ONNX,
 }
 
+def cast_tensor(x, from_dtype=torch.float16, to_dtype=torch.float32):
+    return x.to(dtype=to_dtype) if x.dtype == from_dtype else x
+
+
+def cast_all(x, from_dtype=torch.float16, to_dtype=torch.float32):
+    if isinstance(x, torch.Tensor):
+        return cast_tensor(x, from_dtype=from_dtype, to_dtype=to_dtype)
+    else:
+        if isinstance(x, dict):
+            new_dict = {}
+            for k in x.keys():
+                new_dict[k] = cast_all(x[k], from_dtype=from_dtype, to_dtype=to_dtype)
+            return new_dict
+        elif isinstance(x, tuple):
+            return tuple(cast_all(y, from_dtype=from_dtype, to_dtype=to_dtype) for y in x)
+
+
+class CastToFloat(nn.Module):
+    def __init__(self, mod):
+        super(CastToFloat, self).__init__()
+        self.mod = mod
+
+    def forward(self, x):
+        if torch.is_autocast_enabled():
+            ret = self.mod.forward(x.to(torch.float32)).to(x.dtype)
+        else:
+            ret = self.mod.forward(x)
+        return ret
 
 class LinearWithBiasSkip(nn.Module):
     def __init__(self, weight, bias, skip_bias_add):
@@ -178,7 +206,7 @@ def verify_runtime(model, output, input_examples, input_names, check_tolerance=0
         return
     del onnx_model
     onnx_session_opt = onnxruntime.SessionOptions()
-    onnx_session_opt.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_BASIC
+    onnx_session_opt.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
     sess = onnxruntime.InferenceSession(
         onnx_model.SerializeToString(), sess_options=onnx_session_opt, providers=['CUDAExecutionProvider']
     )
