@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import os
-from itertools import permutations
 
 import numpy as np
 import pytest
@@ -24,7 +23,6 @@ from nemo.collections.asr.parts.utils.nmesc_clustering import (
     split_input_data,
     getCosAffinityMatrix,
     get_closest_embeddings,
-    hungarian_algorithm,
     get_minimal_indices,
     stitch_cluster_labels,
     merge_emb,
@@ -50,12 +48,13 @@ def check_labels(target, source):
     for x, y in zip(target, source):
         bool_list.append(abs(x-y) < 1e-6)
     return all(bool_list)
-
-def matrix(mat, use_tensor=True):
+    
+def matrix(mat, use_tensor=True, dtype=torch.long):
     if use_tensor:
-        return torch.tensor(mat)
+        mat = torch.Tensor(mat).to(dtype)
     else:
-        return np.array(mat)
+        mat = np.array(mat)
+    return mat
 
 def generate_mock_emb(n_emb_per_spk, perturb_sigma, emb_dim):
     """Generate a set of artificial embedding vectors from random numbers
@@ -73,7 +72,6 @@ def generate_mock_data(
 ):
 
     torch.manual_seed(torch_seed)
-    segment_lists = []
     spk_timestamps = [(spk_dur * k, spk_dur) for k in range(n_spks)]
     emb_list, seg_list = [], []
     multiscale_segment_counts = [0 for _ in range(len(ms_window))]
@@ -102,16 +100,17 @@ def test_speaker_counting(n_spks=3, total_dur_sec=30, num_speakers=-1, max_num_s
     speaker_clustering_python = SpeakerClustering(maj_vote_spk_count=False, cuda=cuda)
     assert isinstance(speaker_clustering_python, SpeakerClustering)
     each_spk_dur = float(total_dur_sec / n_spks)
-    em, ts, mc, mw, spk_ts, gt = generate_mock_data(n_spks=n_spks, spk_dur=each_spk_dur)
+    em, ts, mc, mw, _, _= generate_mock_data(n_spks=n_spks, spk_dur=each_spk_dur)
     Y = speaker_clustering_python.forward_infer(
         embeddings_in_scales=em,
         timestamps_in_scales=ts,
         multiscale_segment_counts=mc,
         multiscale_weights=mw,
-        oracle_num_speakers=torch.LongTensor([num_speakers]),
-        max_num_speakers=torch.LongTensor([max_num_speakers]),
+        oracle_num_speakers=num_speakers,
+        max_num_speakers=max_num_speakers,
     )
     return len(set(Y.tolist()))
+
 
 class TestDiarizationUtilFunctions:
     """
@@ -143,7 +142,7 @@ class TestDiarizationUtilFunctions:
 
     @pytest.mark.unit
     def test_minimal_index(self):
-        Y = matrix([3, 3, 3, 4, 4, 5], use_tensor=True)
+        Y = matrix([3, 3, 3, 4, 4, 5])
         min_Y = get_minimal_indices(Y)
         target = matrix([0, 0, 0, 1, 1, 2])
         assert check_labels(target, min_Y)
@@ -152,7 +151,6 @@ class TestDiarizationUtilFunctions:
     def test_stitch_cluster_labels_label_switch(self):
         Y_old = matrix([0,0,0,0,0,0])
         Y_new = matrix([0,0,0,0,0,0]) + 1
-        # Y_old, Y_new = torch.from_numpy(Y_old), torch.from_numpy(Y_new)
         target = matrix( [0,0,0,0,0,0] )
         result = stitch_cluster_labels(Y_old, Y_new)
         assert check_labels(target, result)
@@ -262,7 +260,7 @@ class TestSpeakerClustering:
         speaker_clustering_python = SpeakerClustering(maj_vote_spk_count=False, cuda=True)
         speaker_clustering_scripted_source = torch.jit.script(speaker_clustering_python)
         torch.jit.save(speaker_clustering_scripted_source, exported_filename)
-        speaker_clustering_scripted = torch.load(exported_filename)
+        speaker_clustering_scripted = torch.jit.load(exported_filename)
         assert os.path.exists(exported_filename)
         os.remove(exported_filename)
         assert not os.path.exists(exported_filename)
@@ -270,29 +268,62 @@ class TestSpeakerClustering:
         n_spks = 3
         each_spk_dur = float(total_dur_sec / n_spks)
         em, ts, mc, mw, spk_ts, gt = generate_mock_data(n_spks=n_spks, spk_dur=each_spk_dur)
-
         num_speakers = -1
         max_num_speakers = 8
+        enhanced_count_thres=80
+        sparse_search_volume=10
+        max_rp_threshold=0.15
+        fixed_thres=-1.0
 
-        Y_tjs = speaker_clustering_scripted.forward_infer(
-            embeddings_in_scales=em,
-            timestamps_in_scales=ts,
-            multiscale_segment_counts=mc,
-            multiscale_weights=mw,
-            oracle_num_speakers=torch.LongTensor([num_speakers]),
-            max_num_speakers=torch.LongTensor([max_num_speakers]),
-        )
-
+        # Function call for NeMo python pipeline (unexported) in python
         Y_py = speaker_clustering_python.forward_infer(
             embeddings_in_scales=em,
             timestamps_in_scales=ts,
             multiscale_segment_counts=mc,
             multiscale_weights=mw,
-            oracle_num_speakers=torch.LongTensor([num_speakers]),
-            max_num_speakers=torch.LongTensor([max_num_speakers]),
+            oracle_num_speakers=num_speakers,
+            max_num_speakers=max_num_speakers,
+            enhanced_count_thres=enhanced_count_thres,
+            sparse_search_volume=sparse_search_volume,
+            max_rp_threshold=max_rp_threshold,
+            fixed_thres=fixed_thres,
         )
-        assert len(set(Y_tjs.tolist())) == len(set(Y_py.tolist())) == n_spks
-        assert all(Y_tjs == Y_py) == True, f"Script module and python module are showing different clustering results"
+
+        # Function call for exported module but in python
+        Y_tjs = speaker_clustering_scripted.forward_infer(
+            embeddings_in_scales=em,
+            timestamps_in_scales=ts,
+            multiscale_segment_counts=mc,
+            multiscale_weights=mw,
+            oracle_num_speakers=num_speakers,
+            max_num_speakers=max_num_speakers,
+            enhanced_count_thres=enhanced_count_thres,
+            sparse_search_volume=sparse_search_volume,
+            max_rp_threshold=max_rp_threshold,
+            fixed_thres=fixed_thres,
+        )
+
+        clustering_param_dict = {
+            'embeddings': em,
+            'timestamps': ts,
+            'multiscale_segment_counts': mc,
+            'multiscale_weights': mw,
+            'oracle_num_speakers': torch.LongTensor([num_speakers]),
+            'max_num_speakers': torch.LongTensor([max_num_speakers]),
+            'enhanced_count_thres': torch.LongTensor([enhanced_count_thres]),
+            'sparse_search_volume': torch.LongTensor([sparse_search_volume]),
+            'max_rp_threshold': torch.tensor([max_rp_threshold]),
+            'fixed_thres': torch.tensor([fixed_thres]),
+        }
+
+        # Function call for an exported module in Triton server environment
+        Y_prd = speaker_clustering_scripted.forward(clustering_param_dict)
+
+        # All three types of function call should generate exactly the same output.
+        assert len(set(Y_tjs.tolist())) == len(set(Y_py.tolist())) == len(set(Y_prd.tolist())) == n_spks
+        assert (
+            all(Y_tjs == Y_py) == all(Y_py == Y_prd) == True
+        ), f"Script module and python module are showing different clustering results"
 
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit

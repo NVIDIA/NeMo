@@ -1338,7 +1338,7 @@ def hungarian_algorithm(
     return mapping_array
 
 
-def get_minimal_indices(Y_new):
+def get_minimal_indices(Y_new: torch.Tensor) -> torch.Tensor:
     """
     Force the unique indices of the labels to use the lowest numbers.
 
@@ -1352,7 +1352,7 @@ def get_minimal_indices(Y_new):
     Returns:
 
     """
-    Y_new_enlisted = torch.unique(Y_new).sort()[0]
+    Y_new_enlisted = torch.unique(Y_new).sort()[0].to(torch.long)
     sequence = torch.arange(torch.max(Y_new_enlisted)+1)
     sequence[Y_new_enlisted] = torch.arange(len(Y_new_enlisted))
     return sequence[Y_new]
