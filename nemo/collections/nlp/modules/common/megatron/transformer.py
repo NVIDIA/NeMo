@@ -316,7 +316,17 @@ class SwitchMLP(MegatronModule):
 
         self.num_experts = num_experts
         self.route_algo = SwitchMLP.sinkhorn
-        self.router = torch.nn.Linear(hidden_size, num_experts)
+        self.router = tensor_parallel.RowParallelLinear(
+            hidden_size,
+            num_experts,
+            input_is_parallel=False,
+            init_method=init_method,
+            skip_bias_add=False,
+            use_cpu_initialization=use_cpu_initialization,
+            bias=bias,
+            sequence_parallel_enabled=sequence_parallel,
+            gradient_accumulation_fusion=gradient_accumulation_fusion,
+        )
 
         mlp_args = {
             'init_method': init_method,
@@ -341,7 +351,7 @@ class SwitchMLP(MegatronModule):
 
     def forward(self, hidden_states):
         hidden_shape = hidden_states.shape
-        route = self.router(hidden_states).view(-1, self.num_experts)
+        route, _ = self.router(hidden_states).view(-1, self.num_experts)
         if self.training:
             with torch.no_grad():
                 norm_route = self.route_algo(
