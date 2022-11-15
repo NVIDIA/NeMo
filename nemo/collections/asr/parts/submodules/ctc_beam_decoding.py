@@ -1,0 +1,377 @@
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from dataclasses import dataclass
+from typing import List, Optional, Tuple, Union
+
+import os
+import torch
+from omegaconf import DictConfig
+
+from nemo.collections.asr.parts.utils import rnnt_utils
+from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodConfig
+from nemo.core.classes import Typing, typecheck
+from nemo.core.neural_types import HypothesisType, LengthsType, LogprobsType, NeuralType
+from nemo.utils import logging
+
+
+def pack_hypotheses(
+    hypotheses: List[rnnt_utils.NBestHypotheses], logitlen: torch.Tensor,
+) -> List[rnnt_utils.NBestHypotheses]:
+
+    if logitlen is not None:
+        if hasattr(logitlen, 'cpu'):
+            logitlen_cpu = logitlen.to('cpu')
+        else:
+            logitlen_cpu = logitlen
+
+    for idx, hyp in enumerate(hypotheses):  # type: rnnt_utils.NBestHypotheses
+        for candidate_idx, cand in enumerate(hyp.n_best_hypotheses):
+            cand.y_sequence = torch.tensor(cand.y_sequence, dtype=torch.long)
+
+            if logitlen is not None:
+                cand.length = logitlen_cpu[idx]
+
+            if cand.dec_state is not None:
+                cand.dec_state = _states_to_device(cand.dec_state)
+
+    return hypotheses
+
+
+def _states_to_device(dec_state, device='cpu'):
+    if torch.is_tensor(dec_state):
+        dec_state = dec_state.to(device)
+
+    elif isinstance(dec_state, (list, tuple)):
+        dec_state = tuple(_states_to_device(dec_i, device) for dec_i in dec_state)
+
+    return dec_state
+
+
+class AbstractBeamCTCInfer(Typing):
+    """A greedy CTC decoder.
+
+    Provides a common abstraction for sample level and batch level greedy decoding.
+
+    Args:
+        blank_index: int index of the blank token. Can be 0 or len(vocabulary).
+        preserve_alignments: Bool flag which preserves the history of logprobs generated during
+            decoding (sample / batched). When set to true, the Hypothesis will contain
+            the non-null value for `logprobs` in it. Here, `logprobs` is a torch.Tensors.
+        compute_timestamps: A bool flag, which determines whether to compute the character/subword, or
+                word based timestamp mapping the output log-probabilities to discrite intervals of timestamps.
+                The timestamps will be available in the returned Hypothesis.timestep as a dictionary.
+        preserve_frame_confidence: Bool flag which preserves the history of per-frame confidence scores
+            generated during decoding. When set to true, the Hypothesis will contain
+            the non-null value for `frame_confidence` in it. Here, `frame_confidence` is a List of floats.
+        confidence_method_cfg: A dict-like object which contains the method name and settings to compute per-frame
+            confidence scores.
+
+            name: The method name (str).
+                Supported values:
+                    - 'max_prob' for using the maximum token probability as a confidence.
+                    - 'entropy' for using a normalized entropy of a log-likelihood vector.
+
+            entropy_type: Which type of entropy to use (str). Used if confidence_method_cfg.name is set to `entropy`.
+                Supported values:
+                    - 'gibbs' for the (standard) Gibbs entropy. If the temperature α is provided,
+                        the formula is the following: H_α = -sum_i((p^α_i)*log(p^α_i)).
+                        Note that for this entropy, the temperature should comply the following inequality:
+                        1/log(V) <= α <= -1/log(1-1/V) where V is the model vocabulary size.
+                    - 'tsallis' for the Tsallis entropy with the Boltzmann constant one.
+                        Tsallis entropy formula is the following: H_α = 1/(α-1)*(1-sum_i(p^α_i)),
+                        where α is a parameter. When α == 1, it works like the Gibbs entropy.
+                        More: https://en.wikipedia.org/wiki/Tsallis_entropy
+                    - 'renui' for the Rényi entropy.
+                        Rényi entropy formula is the following: H_α = 1/(1-α)*log_2(sum_i(p^α_i)),
+                        where α is a parameter. When α == 1, it works like the Gibbs entropy.
+                        More: https://en.wikipedia.org/wiki/R%C3%A9nyi_entropy
+
+            temperature: Temperature scale for logsoftmax (α for entropies). Here we restrict it to be > 0.
+                When the temperature equals one, scaling is not applied to 'max_prob',
+                and any entropy type behaves like the Shannon entropy: H = -sum_i(p_i*log(p_i))
+
+            entropy_norm: A mapping of the entropy value to the interval [0,1].
+                Supported values:
+                    - 'lin' for using the linear mapping.
+                    - 'exp' for using exponential mapping with linear shift.
+
+    """
+
+    @property
+    def input_types(self):
+        """Returns definitions of module input ports.
+        """
+        return {
+            "decoder_output": NeuralType(('B', 'T', 'D'), LogprobsType()),
+            "decoder_lengths": NeuralType(tuple('B'), LengthsType()),
+        }
+
+    @property
+    def output_types(self):
+        """Returns definitions of module output ports.
+        """
+        return {"predictions": [NeuralType(elements_type=HypothesisType())]}
+
+    def __init__(self, blank_id: int, beam_size: int):
+        self.blank_id = blank_id
+
+        if beam_size < 1:
+            raise ValueError("Beam search size cannot be less than 1!")
+
+        self.beam_size = beam_size
+
+        # Variables set by corresponding setter methods
+        self.vocab = None
+        self.decoding_type = None
+
+    def set_vocabulary(self, vocab: List[str]):
+        self.vocab = vocab
+
+    def set_decoding_type(self, decoding_type: str):
+        decoding_type = decoding_type.lower()
+        supported_types = ['char', 'subword']
+
+        if decoding_type not in supported_types:
+            raise ValueError(
+                f"Unsupported decoding type. Supported types = {supported_types}.\n" f"Given = {decoding_type}"
+            )
+
+        self.decoding_type = decoding_type
+
+    @typecheck()
+    def forward(
+        self, decoder_output: torch.Tensor, decoder_lengths: torch.Tensor,
+    ) -> Tuple[List[Union[rnnt_utils.Hypothesis, rnnt_utils.NBestHypotheses]]]:
+        raise NotImplementedError()
+
+    def __call__(self, *args, **kwargs):
+        return self.forward(*args, **kwargs)
+
+
+class BeamCTCInfer(AbstractBeamCTCInfer):
+    """A greedy CTC decoder.
+
+    Provides a common abstraction for sample level and batch level greedy decoding.
+
+    Args:
+        blank_index: int index of the blank token. Can be 0 or len(vocabulary).
+        preserve_alignments: Bool flag which preserves the history of logprobs generated during
+            decoding (sample / batched). When set to true, the Hypothesis will contain
+            the non-null value for `logprobs` in it. Here, `logprobs` is a torch.Tensors.
+        compute_timestamps: A bool flag, which determines whether to compute the character/subword, or
+                word based timestamp mapping the output log-probabilities to discrite intervals of timestamps.
+                The timestamps will be available in the returned Hypothesis.timestep as a dictionary.
+        preserve_frame_confidence: Bool flag which preserves the history of per-frame confidence scores
+            generated during decoding. When set to true, the Hypothesis will contain
+            the non-null value for `frame_confidence` in it. Here, `frame_confidence` is a List of floats.
+        confidence_method_cfg: A dict-like object which contains the method name and settings to compute per-frame
+            confidence scores.
+
+            name: The method name (str).
+                Supported values:
+                    - 'max_prob' for using the maximum token probability as a confidence.
+                    - 'entropy' for using a normalized entropy of a log-likelihood vector.
+
+            entropy_type: Which type of entropy to use (str). Used if confidence_method_cfg.name is set to `entropy`.
+                Supported values:
+                    - 'gibbs' for the (standard) Gibbs entropy. If the temperature α is provided,
+                        the formula is the following: H_α = -sum_i((p^α_i)*log(p^α_i)).
+                        Note that for this entropy, the temperature should comply the following inequality:
+                        1/log(V) <= α <= -1/log(1-1/V) where V is the model vocabulary size.
+                    - 'tsallis' for the Tsallis entropy with the Boltzmann constant one.
+                        Tsallis entropy formula is the following: H_α = 1/(α-1)*(1-sum_i(p^α_i)),
+                        where α is a parameter. When α == 1, it works like the Gibbs entropy.
+                        More: https://en.wikipedia.org/wiki/Tsallis_entropy
+                    - 'renui' for the Rényi entropy.
+                        Rényi entropy formula is the following: H_α = 1/(1-α)*log_2(sum_i(p^α_i)),
+                        where α is a parameter. When α == 1, it works like the Gibbs entropy.
+                        More: https://en.wikipedia.org/wiki/R%C3%A9nyi_entropy
+
+            temperature: Temperature scale for logsoftmax (α for entropies). Here we restrict it to be > 0.
+                When the temperature equals one, scaling is not applied to 'max_prob',
+                and any entropy type behaves like the Shannon entropy: H = -sum_i(p_i*log(p_i))
+
+            entropy_norm: A mapping of the entropy value to the interval [0,1].
+                Supported values:
+                    - 'lin' for using the linear mapping.
+                    - 'exp' for using exponential mapping with linear shift.
+
+    """
+
+    def __init__(
+        self,
+        blank_id: int,
+        beam_size: int,
+        search_type: str = "default",
+        return_best_hypothesis: bool = True,
+        preserve_alignments: bool = False,
+        beam_alpha: float = 1.0,
+        beam_beta: float = 0.0,
+        kenlm_path: str = None,
+    ):
+        super().__init__(blank_id=blank_id, beam_size=beam_size)
+
+        self.search_type = search_type
+        self.return_best_hypothesis = return_best_hypothesis
+        self.preserve_alignments = preserve_alignments
+        self.vocab = None  # This must be set by specific method by user before calling forward() !
+
+        if search_type == "default":
+            self.search_algorithm = self.default_beam_search
+        else:
+            raise NotImplementedError(
+                f"The search type ({search_type}) supplied is not supported!\n" f"Please use one of : (default, nemo)"
+            )
+
+        self.beam_alpha = beam_alpha
+        self.beam_beta = beam_beta
+
+        # Default beam search args
+        self.kenlm_path = kenlm_path
+
+        # Default beam search scorer
+        self.default_beam_scorer = None
+        self.token_offset = 0
+
+    @typecheck()
+    def forward(
+        self, decoder_output: torch.Tensor, decoder_lengths: torch.Tensor,
+    ) -> Tuple[List[Union[rnnt_utils.Hypothesis, rnnt_utils.NBestHypotheses]]]:
+        """Returns a list of hypotheses given an input batch of the encoder hidden embedding.
+        Output token is generated auto-repressively.
+
+        Args:
+            decoder_output: A tensor of size (batch, timesteps, features) or (batch, timesteps) (each timestep is a label).
+            decoder_lengths: list of int representing the length of each sequence
+                output sequence.
+
+        Returns:
+            packed list containing batch number of sentences (Hypotheses).
+        """
+        if self.vocab is None:
+            raise RuntimeError("Please set the vocabulary with `set_vocabulary()` before calling this function.")
+
+        if self.decoding_type is None:
+            raise ValueError("Please set the decoding type with `set_decoding_type()` before calling this function.")
+
+        with torch.inference_mode():
+            # Process each sequence independently
+            prediction_cpu_tensor = decoder_output.cpu()
+
+            if prediction_cpu_tensor.ndim < 3 or prediction_cpu_tensor.ndim > 3:
+                raise ValueError(
+                    f"`decoder_output` must be a tensor of shape [B, T, V] (log probs, float). "
+                    f"Provided shape = {prediction_cpu_tensor.shape}"
+                )
+
+            # determine type of input - logprobs or labels
+            out_len = decoder_lengths if decoder_lengths is not None else None
+            hypotheses = self.search_algorithm(prediction_cpu_tensor, out_len)
+
+            # Pack results into Hypotheses
+            packed_result = pack_hypotheses(hypotheses, decoder_lengths)
+
+            # Pack the result
+            if self.return_best_hypothesis and isinstance(packed_result[0], rnnt_utils.NBestHypotheses):
+                packed_result = [res.n_best_hypotheses[0] for res in packed_result]  # type: Hypothesis
+
+        return (packed_result,)
+
+    @torch.no_grad()
+    def default_beam_search(
+        self, x: torch.Tensor, out_len: torch.Tensor
+    ) -> List[Union[rnnt_utils.Hypothesis, rnnt_utils.NBestHypotheses]]:
+        """
+
+        Args:
+            x: Tensor of shape [B, T, V+1]
+            out_len:
+
+        Returns:
+
+        """
+        if self.default_beam_scorer is None:
+            # Check for filepath
+            if self.kenlm_path is None or not os.path.exists(self.kenlm_path):
+                raise FileNotFoundError(
+                    f"KenLM binary file not found at : {self.kenlm_path}. "
+                    f"Please set a valid path in the decoding config."
+                )
+
+            # perform token offset for subword models
+            if self.decoding_type == 'subword':
+                vocab = [chr(idx + self.token_offset) for idx in range(len(self.vocab))]
+            else:
+                # char models
+                vocab = self.vocab
+
+            # Must import at runtime to avoid circular dependency due to module level import.
+            from nemo.collections.asr.modules.beam_search_decoder import BeamSearchDecoderWithLM
+            self.default_beam_scorer = BeamSearchDecoderWithLM(
+                vocab=vocab,
+                lm_path=self.kenlm_path,
+                beam_width=self.beam_size,
+                alpha=self.beam_alpha,
+                beta=self.beam_beta,
+                num_cpus=max(1, os.cpu_count()),
+                input_tensor=False,
+            )
+
+        with typecheck.disable_checks():
+            data = [x[sample_id, :out_len[sample_id], :].softmax(dim=-1) for sample_id in range(len(x))]
+            beams_batch = self.default_beam_scorer.forward(log_probs=data, log_probs_length=None)
+
+        nbest_hypotheses = []
+        for beams_idx, beams in enumerate(beams_batch):
+            hypotheses = []
+            for candidate_idx, candidate in enumerate(beams):
+                hypothesis = rnnt_utils.Hypothesis(
+                    score=0.0, y_sequence=[], dec_state=None, timestep=[], last_token=None
+                )
+
+                if self.decoding_type == 'subword':
+                    pred_token_ids = [ord(c) - self.token_offset for c in candidate[1]]
+                else:
+                    pred_token_ids = candidate[1]
+
+                hypothesis.y_sequence = pred_token_ids
+                hypothesis.score = candidate[0]
+
+                if self.preserve_alignments:
+                    hypothesis.alignments = x[beams_idx][: out_len[beams_idx]]
+
+                hypotheses.append(hypothesis)
+
+            hypotheses = rnnt_utils.NBestHypotheses(hypotheses)
+            nbest_hypotheses.append(hypotheses)
+
+        return nbest_hypotheses
+
+    def set_decoding_type(self, decoding_type: str):
+        super().set_decoding_type(decoding_type)
+
+        if self.decoding_type == 'subword':
+            self.token_offset = 100
+
+
+@dataclass
+class BeamCTCInferConfig:
+    beam_size: int
+    search_type: str = 'default'
+    preserve_alignments: bool = False
+    return_best_hypothesis: bool = True
+    beam_alpha: float = 1.0
+    beam_beta: float = 0.0
+    kenlm_path: Optional[str] = None
