@@ -121,7 +121,7 @@ pipeline {
       }
     }
 
-    stage('L0: Unit Tests Speech Dataset Processor') {
+    stage('L0: Unit Tests Speech Data Processor') {
       when {
         anyOf {
           branch 'r1.13.0'
@@ -129,8 +129,8 @@ pipeline {
         }
       }
       steps {
-        sh 'pip install -r tools/speech_dataset_processor/requirements.txt'
-        sh 'cd tools/speech_dataset_processor && CUDA_VISIBLE_DEVICES="" pytest tests -m "not pleasefixme"'
+        sh 'pip install -r tools/speech_data_processor/requirements.txt'
+        sh 'cd tools/speech_data_processor && CUDA_VISIBLE_DEVICES="" pytest tests -m "not pleasefixme"'
       }
     }
 
