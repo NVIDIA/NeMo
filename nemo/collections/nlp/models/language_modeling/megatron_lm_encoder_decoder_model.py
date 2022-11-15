@@ -1069,7 +1069,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             )
 
         # Reset microbatch calculator to what it was before decoding.
-        global_batch_per_gpu = 512
+        global_batch_per_gpu = 64
         if reconfigure_microbatch:
             _reconfigure_microbatch_calculator(
                 rank=app_state.global_rank,

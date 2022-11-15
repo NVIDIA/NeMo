@@ -24,12 +24,20 @@ from nemo.collections.nlp.models.machine_translation.megatron_nmt_model import M
 from nemo.collections.nlp.models.language_modeling.megatron_bart_model import MegatronBARTModel
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
-from nemo.utils import logging
+from nemo.utils import logging, AppState, logging, timers
 
 from nemo.collections.nlp.modules.common.megatron.utils import (
     build_position_ids,
     average_losses_across_data_parallel_group
 )
+
+try:
+    from apex.transformer import parallel_state
+    from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
+
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
 
 __all__ = ['MegatronNMTRetrievalModel']
 
@@ -93,7 +101,8 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
         if self._cfg.validation_ds.get("dataset_type", "text_memmap") != "text_memmap":
             raise ValueError(f"Validation dataset must be text_memmap for RetrievalNMT models, found {self._cfg.validation_ds.dataset_type}")
         
-        self._validation_without_neighbors_ds = self.build_memmap_dataset_from_config(self._cfg.validation_ds)
+        #! FIX tHIS
+        self._validation_without_neighbors_ds = self.build_memmap_dataset_from_config(self._cfg.validation_ds, retrieval_dataset=False)
         
         if isinstance(self._validation_without_neighbors_ds, List):
             self._validation_ds = []
@@ -111,7 +120,6 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
                 self._cfg.validation_ds.nn_mapping,
                 self._cfg.validation_ds.num_neighbors,
             )
-        import ipdb; ipdb.set_trace()
         # Test data config is optional.
         if hasattr(self._cfg, 'test_ds'):
             if self._cfg.test_ds.get("dataset_type", "text_memmap") != "text_memmap":
@@ -191,6 +199,7 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
             for idx in range(self.num_neighbors):
                 # Iterate over the neighbors and get the embeddings
 
+                # TODO: Can club all those calls into one but at the risk of extra padding
                 nn_src_ids = batch[6 + (idx * 4) + 0]
                 nn_tgt_ids = batch[6 + (idx * 4) + 1]
                 nn_src_mask = batch[6 + (idx * 4) + 2]
@@ -267,6 +276,60 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
             return fwd_output_and_loss_func_perceiver
         else:
             raise NotImplementedError
+    
+    def eval_step(self, batch, batch_idx, dataloader_idx):
+        """"
+        batch comes from collate of RetrievalSeq2Seq and is a dict and is properly formatted.
+        """
+
+        # Eval step requires text datasets so we need to reconfigure MBS on each batch.
+        app_state = AppState()
+
+        _reconfigure_microbatch_calculator(
+            rank=app_state.global_rank,
+            rampup_batch_size=None,
+            global_batch_size=batch['text_enc'].size(0) * parallel_state.get_data_parallel_world_size(),
+            micro_batch_size=batch['text_enc'].size(0),
+            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+        )
+        # This returns the averaged loss across data-parallel groups.
+        # gotta call super of super
+        reduced_loss = super(MegatronNMTModel, self).validation_step(batch, batch_idx)
+        tokens_enc, labels, enc_mask = batch['text_enc'], batch['labels'], batch['enc_mask']
+
+        # Q Take care of this. Look at p-tuning 
+        predicted_tokens_ids, _ = self.decode(
+            tokens_enc,
+            enc_mask,
+            tokens_enc.size(1)
+            + self._cfg.max_generation_delta,  # Generate up to src-length + max generation delta. TODO: Implement better stopping when everything hits <EOS>.
+            tokenizer=self.decoder_tokenizer,
+        )
+
+        if self.multilingual:
+            source_processor = self.source_processor_list[dataloader_idx]
+            target_processor = self.target_processor_list[dataloader_idx]
+        else:
+            source_processor = self.source_processor
+            target_processor = self.target_processor
+
+        # Post-process the translations and inputs to log.
+        preds = self.postprocess_outputs(
+            outputs=predicted_tokens_ids, tokenizer=self.decoder_tokenizer, processor=target_processor,
+        )
+        labels = self.postprocess_outputs(
+            outputs=labels, tokenizer=self.decoder_tokenizer, processor=target_processor,
+        )
+        encoder_inputs = self.postprocess_outputs(
+            outputs=tokens_enc, tokenizer=self.encoder_tokenizer, processor=source_processor,
+        )
+
+        return {
+            'inputs': encoder_inputs,
+            'translations': preds,
+            'ground_truths': labels,
+            'loss': reduced_loss,
+        }
             
 class RetrievalSeq2Seq(Dataset):
     """

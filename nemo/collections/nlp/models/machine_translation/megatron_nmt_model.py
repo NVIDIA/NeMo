@@ -278,6 +278,10 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         rank = parallel_state.get_data_parallel_rank()
         world_size = parallel_state.get_data_parallel_world_size()
         dataloaders = []
+        if not isinstance(dataset, ListConfig):
+            # Ques: This is a hack for dataloader
+            # TODO: Setup collate_fn properly
+            dataset = [dataset]
         for _dataset in dataset:
             sampler = torch.utils.data.distributed.DistributedSampler(
                 _dataset, num_replicas=world_size, rank=rank, shuffle=False
@@ -285,8 +289,9 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             dataloaders.append(
                 torch.utils.data.DataLoader(
                     dataset=_dataset,
-                    batch_size=1,
+                    batch_size=32,
                     sampler=sampler,
+                    collate_fn=_dataset.collate_fn,
                     num_workers=cfg.get("num_workers", 0),
                     pin_memory=cfg.get("pin_memory", False),
                     drop_last=cfg.get("drop_last", False),
@@ -416,7 +421,9 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
         if hasattr(self, '_test_ds'):
-            self._test_dl = self._setup_eval_dataloader_from_config(cfg=test_data_config, dataset=self._test_ds)
+            self._test_dl = self._setup_eval_dataloader_from_config(
+                cfg=test_data_config, dataset=self._test_ds
+            )
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         if hasattr(self, '_train_ds'):

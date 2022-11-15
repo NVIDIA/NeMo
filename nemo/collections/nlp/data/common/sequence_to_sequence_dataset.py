@@ -190,8 +190,10 @@ class IndexedSequenceToSequenceDataset(SequenceToSequenceDataset):
             idx, _, _ = self.samples_mapping[idx]
             if isinstance(idx, np.uint32):
                 idx = idx.item()
-
-        assert idx < len(self.src_indexed_dataset)
+        try:
+            assert idx < len(self.src_indexed_dataset)
+        except:
+            import ipdb;ipdb.set_trace()
         src = self.src_indexed_dataset[idx]
         if len(src) > self.max_src_seq_length - 2:
             src = src[: self.max_src_seq_length - 2]
