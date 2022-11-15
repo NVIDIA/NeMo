@@ -13,7 +13,7 @@ from nemo.core import Dataset
 
 def _inference_collate_fn(batch):
     packed_batch = list(zip(*batch))
-    features, feature_length, fr_targets, annotations, segment_annotations = packed_batch
+    features, feature_length, fr_targets, annotations, segment_annotations, full_segments = packed_batch
     assert len(features) == 1, "Currently inference/validation only supports a batch size of 1."
     return (
         features[0],
@@ -22,6 +22,7 @@ def _inference_collate_fn(batch):
         fr_targets[0],
         annotations[0],
         segment_annotations[0],
+        full_segments[0],
     )
 
 
@@ -79,6 +80,8 @@ class RTTMDataset(Dataset):
         n_segments = math.ceil((total_annotated_duration - sample.offset) / self.segment_seconds)
         start_offset = sample.offset
 
+        full_segment, _ = self._load_audio_segment(sample, total_annotated_duration, start_offset)
+
         segments, lengths, targets, segment_annotations = [], [], [], []
         for n_segment in range(n_segments):
             fr_level_target = assign_frame_level_spk_vector(
@@ -92,13 +95,8 @@ class RTTMDataset(Dataset):
                 end_duration=start_offset + self.segment_seconds,
                 speakers=speakers,
             )
-            segment = self.featurizer.process(sample.audio_file, offset=start_offset, duration=self.segment_seconds)
-
-            length = torch.tensor(segment.shape[0]).long()
-
-            segment, length = self.preprocessor.get_features(segment.unsqueeze_(0), length.unsqueeze_(0))
-
-            segment = self.context_window(segment.transpose(1, 2).squeeze(0)).unsqueeze(0)
+            duration = self.segment_seconds
+            segment, length = self._load_audio_segment(sample, duration, start_offset)
 
             segments.append(segment)
             lengths.append(length)
@@ -107,7 +105,14 @@ class RTTMDataset(Dataset):
                 self._segment_annotation(annotations, start_offset=start_offset, duration=self.segment_seconds)
             )
             start_offset += self.segment_seconds
-        return segments, lengths, targets, annotations, segment_annotations
+        return segments, lengths, targets, annotations, segment_annotations, full_segment
+
+    def _load_audio_segment(self, sample, duration: float, start_offset: float):
+        segment = self.featurizer.process(sample.audio_file, offset=start_offset, duration=duration)
+        length = torch.tensor(segment.shape[0]).long()
+        segment, length = self.preprocessor.get_features(segment.unsqueeze_(0), length.unsqueeze_(0))
+        segment = self.context_window(segment.transpose(1, 2).squeeze(0)).unsqueeze(0)
+        return segment, length
 
     def _collate_fn(self, batch):
         return _inference_collate_fn(batch)
