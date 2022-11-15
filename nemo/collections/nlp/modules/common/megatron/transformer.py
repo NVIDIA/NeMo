@@ -292,8 +292,8 @@ class SwitchMLP(MegatronModule):
     Curently supports Sinkhorn based expert routing."""
 
     def __init__(
-        self, 
-        num_experts, 
+        self,
+        num_experts,
         init_method,
         output_layer_init_method,
         hidden_size,
