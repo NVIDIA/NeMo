@@ -64,6 +64,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel):
         else:
             self.ctc_loss_weight = 0.0
 
+        self.use_rnnt_decoder = True
         super().__init__(cfg=cfg, trainer=trainer)
 
     @torch.no_grad()

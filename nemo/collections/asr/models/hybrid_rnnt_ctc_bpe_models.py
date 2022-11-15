@@ -64,6 +64,8 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel):
                 log_prediction=self.cfg.get("log_prediction", False),
             )
 
+        self.use_rnnt_decoder = True
+
     def change_vocabulary(
         self,
         new_tokenizer_dir: Union[str, DictConfig],
@@ -158,7 +160,9 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel):
             super().__init__(decoding_cfg=decoding_cfg)
         elif decoder_type == 'ctc':
             if not hasattr(self, 'ctc_decoding'):
-                raise ValueError("The model does not have the ctc_decoding module and therefore does not support ctc decoding.")
+                raise ValueError(
+                    "The model does not have the ctc_decoding module and therefore does not support ctc decoding."
+                )
             if decoding_cfg is None:
                 # Assume same decoding config as before
                 logging.info("No `decoding_cfg` passed when changing decoding strategy, using internal config")
