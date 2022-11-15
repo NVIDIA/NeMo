@@ -358,11 +358,11 @@ class MegatronBertModel(MegatronBaseModel):
 
         lm_loss_ = lm_loss_.float()
         loss_mask = loss_mask.float()
-        
+
         # Sometimes when the number of tokens is very small, none of the tokens get masked for prediction. In that case loss mask is all zeros
         if loss_mask.sum() == 0:
-            lm_loss = torch.sum(lm_loss_.view(-1))* 0.0
-        else : 
+            lm_loss = torch.sum(lm_loss_.view(-1)) * 0.0
+        else:
             lm_loss = torch.sum(lm_loss_.view(-1) * loss_mask.reshape(-1)) / loss_mask.sum()
 
         if sop_logits is not None:
