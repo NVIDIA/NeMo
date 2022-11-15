@@ -230,8 +230,8 @@ class VitsModel(TextToWaveform):
         schedulers = self.lr_schedulers()
         if schedulers is not None:
             sch1, sch2 = schedulers
-            if self.trainer.is_last_batch and isinstance(sch1, 'torch.optim.lr_scheduler.ExponentialLR') \
-            or isinstance(sch1, 'CosineAnnealing'):
+            if self.trainer.is_last_batch and isinstance(sch1, torch.optim.lr_scheduler.ExponentialLR) \
+            or isinstance(sch1, CosineAnnealing):
                 sch1.step()
                 sch2.step()
 
