@@ -25,12 +25,12 @@ from tqdm.auto import tqdm
 
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
 from nemo.collections.asr.losses.rnnt import resolve_rnnt_default_loss_name
+from nemo.collections.asr.models.rnnt_models import EncDecRNNTModel
 from nemo.collections.asr.modules.rnnt import RNNTDecoderJoint
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.classes.mixins import AccessMixin
 from nemo.utils import logging
-from nemo.collections.asr.models.rnnt_models import EncDecRNNTModel
 
 
 class EncDecHybridRNNTCTCModel(EncDecRNNTModel):
