@@ -356,7 +356,7 @@ class RadTTSModule(NeuralModule, Exportable):
                     context_w_spkvec = torch.cat((context_w_spkvec, energy_avg), 1)
 
             unfolded_out_lens = out_lens // self.n_group_size
-            context_lstm_padded_output, _ = self.context_lstm.lstm_tensor(
+            context_lstm_padded_output = self.context_lstm.sort_and_lstm_tensor(
                 context_w_spkvec.transpose(1, 2), unfolded_out_lens
             )
             context_w_spkvec = context_lstm_padded_output.transpose(1, 2)
@@ -680,8 +680,8 @@ class RadTTSModule(NeuralModule, Exportable):
 
         # map from z sample to data
         num_steps_to_exit = len(self.exit_steps)
-        mel = residual[:, num_steps_to_exit * self.n_early_size :]
-        remaining_residual = residual[:, : num_steps_to_exit * self.n_early_size]
+        # mel = residual[:, num_steps_to_exit * self.n_early_size :]
+        remaining_residual, mel = torch.tensor_split(residual, [num_steps_to_exit * self.n_early_size,], dim=1)
 
         for i, flow_step in enumerate(reversed(self.flows)):
             curr_step = self.n_flows - i - 1
@@ -689,8 +689,10 @@ class RadTTSModule(NeuralModule, Exportable):
             if num_steps_to_exit > 0 and curr_step == self.exit_steps[num_steps_to_exit - 1]:
                 # concatenate the next chunk of z
                 num_steps_to_exit = num_steps_to_exit - 1
-                residual_to_add = remaining_residual[:, num_steps_to_exit * self.n_early_size :]
-                remaining_residual = remaining_residual[:, : num_steps_to_exit * self.n_early_size]
+                # residual_to_add = remaining_residual[:, num_steps_to_exit * self.n_early_size :]
+                remaining_residual, residual_to_add = torch.tensor_split(
+                    remaining_residual, [num_steps_to_exit * self.n_early_size,], dim=1
+                )
                 mel = torch.cat((residual_to_add, mel), 1)
 
         if self.n_group_size > 1:
