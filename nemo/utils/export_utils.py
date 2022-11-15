@@ -141,7 +141,7 @@ def verify_torchscript(model, output, input_examples, input_names, check_toleran
     for input_example in input_examples:
         input_list, input_dict = parse_input_example(input_example)
         output_example = model.forward(*input_list, **input_dict)
-        # ts_input = to_onnxrt_input(ort_input_names, input_names, input_dict, input_list)
+
         all_good = all_good and run_ts_and_compare(ts_model, input_list, input_dict, output_example, check_tolerance)
     status = "SUCCESS" if all_good else "FAIL"
     logging.info(f"Torchscript generated at {output} verified with torchscript forward : " + status)
@@ -182,7 +182,7 @@ def run_ts_and_compare(ts_model, ts_input_list, ts_input_dict, output_example, c
 
         if torch.is_tensor(expected):
             tout = out.to('cpu')
-            logging.info(f"Checking output {i}, shape: {expected.shape}:\n{expected}\n{tout}")
+            logging.debug(f"Checking output {i}, shape: {expected.shape}:\n{expected}\n{tout}")
             if not torch.allclose(tout, expected.cpu(), rtol=check_tolerance, atol=check_tolerance):
                 all_good = False
                 logging.info(f"onnxruntime results mismatch! PyTorch(expected):\n{expected}\nTorchScript:\n{tout}")
@@ -198,7 +198,7 @@ def run_ort_and_compare(sess, ort_input, output_example, check_tolerance=0.01):
 
         if torch.is_tensor(expected):
             tout = torch.from_numpy(out)
-            logging.info(f"Checking output {i}, shape: {expected.shape}:\n{expected}\n{tout}")
+            logging.debug(f"Checking output {i}, shape: {expected.shape}:\n{expected}\n{tout}")
             if not torch.allclose(tout, expected.cpu(), rtol=check_tolerance, atol=100 * check_tolerance):
                 all_good = False
                 logging.info(f"onnxruntime results mismatch! PyTorch(expected):\n{expected}\nONNXruntime:\n{tout}")

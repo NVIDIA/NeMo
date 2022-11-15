@@ -147,12 +147,14 @@ class Exportable(ABC):
                 output_names = self.output_names
                 output_example = tuple(self.forward(*input_list, **input_dict))
 
+                if check_trace:
+                    if isinstance(check_trace, bool):
+                        check_trace_input = [input_example]
+                    else:
+                        check_trace_input = check_trace
+
                 if format == ExportFormat.TORCHSCRIPT:
-                    if check_trace:
-                        if isinstance(check_trace, bool):
-                            check_trace_input = {"forward": tuple(input_list) + tuple(input_dict.values())}
-                        else:
-                            check_trace_input = check_trace
+
                     jitted_model = torch.jit.trace_module(
                         self,
                         {"forward": tuple(input_list) + tuple(input_dict.values())},
@@ -168,11 +170,6 @@ class Exportable(ABC):
                     assert os.path.exists(output)
 
                     if check_trace:
-                        if isinstance(check_trace, bool):
-                            check_trace_input = [input_example]
-                        else:
-                            check_trace_input = check_trace
-
                         verify_torchscript(jitted_model, output, check_trace_input, input_names, check_tolerance)
 
                 elif format == ExportFormat.ONNX:
@@ -196,10 +193,6 @@ class Exportable(ABC):
                     )
 
                     if check_trace:
-                        if isinstance(check_trace, bool):
-                            check_trace_input = [input_example]
-                        else:
-                            check_trace_input = check_trace
                         verify_runtime(self, output, check_trace_input, input_names)
                 else:
                     raise ValueError(f'Encountered unknown export format {format}.')

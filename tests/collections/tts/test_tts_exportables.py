@@ -43,6 +43,9 @@ def radtts_model():
     cfg.model.train_ds.dataset.sup_data_path = "dummy.json"
     cfg.model.validation_ds.dataset.manifest_filepath = "dummy.json"
     cfg.model.validation_ds.dataset.sup_data_path = "dummy.json"
+    cfg.pitch_mean = 212.35
+    cfg.pitch_std = 68.52
+
     app_state = AppState()
     app_state.is_model_being_restored = True
     model = RadTTSModel(cfg=cfg.model)
@@ -77,8 +80,3 @@ class TestExportable:
         with tempfile.TemporaryDirectory() as tmpdir:
             filename = os.path.join(tmpdir, 'rad.ts')
             model.export(output=filename, verbose=True, check_trace=True)
-
-
-if __name__ == "__main__":
-    t = TestExportable()
-    t.test_RadTTSModel_export_to_torchscript(radtts_model())

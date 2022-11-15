@@ -59,12 +59,11 @@ def pad_energy_avg_and_f0(energy_avg, f0, max_out_len):
 
 def adjust_f0(f0, f0_mean, f0_std, vmask_bool):
     if f0_mean > 0.0:
-        masked_f0 = f0[vmask_bool]
-        f0_sigma, f0_mu = torch.std_mean(masked_f0)
-        f0[vmask_bool] = ((masked_f0 - f0_mu) / f0_sigma).to(dtype=f0.dtype)
+        f0_sigma, f0_mu = torch.std_mean(f0[vmask_bool])
+        f0 = ((f0 - f0_mu) / f0_sigma).to(dtype=f0.dtype)
         f0_std = f0_std if f0_std > 0 else f0_sigma
-        f0[vmask_bool] = (f0[vmask_bool] * f0_std + f0_mean).to(dtype=f0.dtype)
-    return f0
+        f0 = (f0 * f0_std + f0_mean).to(dtype=f0.dtype)
+    return f0.masked_fill(~vmask_bool, 0.0)
 
 
 class FlowStep(nn.Module):
@@ -636,9 +635,10 @@ class RadTTSModule(NeuralModule, Exportable):
             if self.use_vpred_module:
                 # get logits
                 voiced_mask = self.v_pred_module.infer(None, txt_enc_time_expanded, spk_vec_attributes, lens=out_lens)
-                voiced_mask = torch.sigmoid(voiced_mask[:, 0]) > 0.5
+                voiced_mask_bool = torch.sigmoid(voiced_mask[:, 0]) > 0.5
+                voiced_mask = voiced_mask_bool.to(dur.dtype)
         else:
-            voiced_mask = voiced_mask.bool()
+            voiced_mask_bool = voiced_mask.bool()
 
         ap_txt_enc_time_expanded = txt_enc_time_expanded
         # voice mask augmentation only used for attribute prediction
@@ -650,14 +650,13 @@ class RadTTSModule(NeuralModule, Exportable):
         if self.use_unvoiced_bias:
             f0_bias = self.unvoiced_bias_module(txt_enc_time_expanded.permute(0, 2, 1))
             f0_bias = -f0_bias[..., 0]
-            f0_bias.masked_fill_(voiced_mask, 0.0)
 
         if f0 is None:
             n_f0_feature_channels = 2 if self.use_first_order_features else 1
             z_f0 = torch.normal(txt_enc.new_zeros(batch_size, n_f0_feature_channels, max_out_len)) * sigma_f0
-            f0 = self.infer_f0(z_f0, ap_txt_enc_time_expanded, spk_vec_attributes, voiced_mask, out_lens)[:, 0]
+            f0 = self.infer_f0(z_f0, ap_txt_enc_time_expanded, spk_vec_attributes, voiced_mask_bool, out_lens)[:, 0]
 
-        f0 = adjust_f0(f0, f0_mean, f0_std, voiced_mask)
+        f0 = adjust_f0(f0, f0_mean, f0_std, voiced_mask_bool)
 
         if energy_avg is None:
             n_energy_feature_channels = 2 if self.use_first_order_features else 1
@@ -673,7 +672,7 @@ class RadTTSModule(NeuralModule, Exportable):
         # print("V mask, energy_avg, f0, f0_bias: ", voiced_mask.shape, energy_avg.shape, f0.shape, f0_bias.shape)
 
         context_w_spkvec = self.preprocess_context(
-            txt_enc_time_expanded, spk_vec, out_lens, f0.masked_fill(~voiced_mask, 0.0) + f0_bias, energy_avg
+            txt_enc_time_expanded, spk_vec, out_lens, (f0 + f0_bias) * voiced_mask, energy_avg
         )
 
         residual = torch.normal(txt_enc.new_zeros(batch_size, 80 * self.n_group_size, torch.max(n_groups))) * sigma
@@ -719,7 +718,6 @@ class RadTTSModule(NeuralModule, Exportable):
         if voiced_mask is None:
             voiced_mask = f0 > 0.0
         else:
-            voiced_mask = voiced_mask.bool()
             if len(voiced_mask.shape) == 2:
                 voiced_mask = voiced_mask[:, None]
                 # due to grouping, f0 might be 1 frame short
@@ -810,7 +808,7 @@ class RadTTSModule(NeuralModule, Exportable):
         par = next(self.parameters())
         sz = (max_batch, max_dim)
         inp = torch.randint(0, 16, sz, device=par.device, dtype=torch.int64)
-        lens = torch.randint(0, max_dim, (max_batch,), device=par.device, dtype=torch.int)
+        lens = torch.randint(16, max_dim, (max_batch,), device=par.device, dtype=torch.int)
         speaker = torch.randint(0, 1, (max_batch,), device=par.device, dtype=torch.int64)
         inputs = {
             'text': inp,
