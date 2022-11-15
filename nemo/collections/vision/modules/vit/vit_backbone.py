@@ -289,13 +289,12 @@ class VitBackbone(MegatronModule):
             hidden_states = input
 
         # 0 represents masking, 1 represents not masking
-        attention_mask = torch.zeros(
-            [1, 1, hidden_states.shape[0], hidden_states.shape[0]],
-            device=hidden_states.device,
-            dtype=torch.bool,
-        )
-        # attention_mask = None
-        hidden_states = self.transformer(hidden_states, attention_mask)
+        # attention_mask = torch.zeros(
+        #     [1, 1, hidden_states.shape[0], hidden_states.shape[0]],
+        #     device=hidden_states.device,
+        #     dtype=torch.bool,
+        # )
+        hidden_states = self.transformer(hidden_states, None)
 
         if self.post_process:
             # [s b h] => [b s h]
