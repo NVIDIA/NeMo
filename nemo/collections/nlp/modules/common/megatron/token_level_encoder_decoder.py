@@ -196,6 +196,9 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 num_self_attention_per_cross_attention=encoder_cfg.get('num_self_attention_per_cross_attention', 1),
                 megatron_legacy=encoder_cfg.get('megatron_legacy', False),
                 normalize_attention_scores=encoder_cfg.get('normalize_attention_scores', True),
+                num_moe_experts=encoder_cfg.get('num_moe_experts', 1),
+                moe_frequency=encoder_cfg.get('moe_frequency', 1),
+                moe_dropout=encoder_cfg.get('moe_dropout', 0.0),
             )
 
         if add_decoder:
@@ -300,6 +303,9 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 parent_model_type=ModelType.encoder_and_decoder,
                 megatron_legacy=decoder_cfg.get('megatron_legacy', False),
                 normalize_attention_scores=decoder_cfg.get('normalize_attention_scores', True),
+                num_moe_experts=decoder_cfg.get('num_moe_experts', 1),
+                moe_frequency=decoder_cfg.get('moe_frequency', 1),
+                moe_dropout=decoder_cfg.get('moe_dropout', 0.0),
             )
 
         self.enc_dec_model = MegatronTransformerEncoderDecoderModule(
@@ -406,9 +412,9 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         dec_attn_mask=None,
         token_type_ids=None,
         labels=None,
-        enc_output=None,
+        enc_output=None,  # Result of running the entire encoder
         enc_output_attn_mask=None,
-        enc_input=None,
+        enc_input=None,  # Result of running encoder embedding only
         output_enc_hidden_only=False,
     ):
         """
