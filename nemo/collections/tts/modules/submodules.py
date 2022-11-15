@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional, Tuple
+from typing import Tuple
 
 import torch
 from torch import Tensor
@@ -28,9 +28,6 @@ def masked_instance_norm(
     See :class:`~MaskedInstanceNorm1d` for details.
     """
     shape = input.shape
-    b, c = shape[:2]
-
-    num_dims = 1
 
     lengths = mask.sum((-1,))
     mean = (input * mask).sum((-1,)) / lengths  # (N, C)
@@ -101,9 +98,8 @@ class PartialConv1d(torch.nn.Conv1d):
                 dilation=self.dilation,
                 groups=1,
             )
-            # update_mask_filled = torch.masked_fill(update_mask, update_mask == 0, self.slide_winsize)
-            mask_ratio = self.slide_winsize / (update_mask + 1e-6)
-            # mask_ratio = self.slide_winsize / update_mask_filled
+            update_mask_filled = torch.masked_fill(update_mask, update_mask == 0, self.slide_winsize)
+            mask_ratio = self.slide_winsize / update_mask_filled
             update_mask = torch.clamp(update_mask, 0, 1)
             mask_ratio = torch.mul(mask_ratio, update_mask)
 

@@ -28,7 +28,6 @@ from nemo.utils.export_utils import (
     parse_input_example,
     replace_for_export,
     verify_runtime,
-    verify_torchscript,
     wrap_forward_method,
 )
 
