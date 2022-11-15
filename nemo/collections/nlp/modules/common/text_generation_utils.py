@@ -497,13 +497,17 @@ def generate(
             else:
                 words = tokenizer.text_to_tokens(sentence)
                 resp_sentences_seg.append(words)
+
         # offsets calculation
         all_offsets = []
         for item in resp_sentences_seg:
             offsets = [0]
             for index, token in enumerate(item):
                 if index != len(item) - 1:
-                    offsets.append(len(token) + offsets[-1])
+                    if token in special_tokens:
+                        offsets.append(offsets[-1])
+                    else:
+                        offsets.append(len(token) + offsets[-1])
             all_offsets.append(offsets)
 
         output = {}
