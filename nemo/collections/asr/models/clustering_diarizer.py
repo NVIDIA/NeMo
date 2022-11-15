@@ -26,6 +26,7 @@ from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning.utilities import rank_zero_only
 from tqdm import tqdm
 
+from nemo.collections.asr.metrics.der import score_labels
 from nemo.collections.asr.models.classification_models import EncDecClassificationModel
 from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel
 from nemo.collections.asr.parts.mixins.mixins import DiarizationMixin
@@ -35,7 +36,6 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
     get_uniqname_from_filepath,
     parse_scale_configs,
     perform_clustering,
-    score_labels,
     segments_manifest_to_subsegments_manifest,
     validate_vad_manifest,
     write_rttm2manifest,
@@ -106,7 +106,6 @@ class ClusteringDiarizer(Model, DiarizationMixin):
 
         # Clustering params
         self._cluster_params = self._diarizer_params.clustering.parameters
-
         self._device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     @classmethod
@@ -367,8 +366,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                     self.time_stamps[uniq_name] = []
                 start = dic['offset']
                 end = start + dic['duration']
-                stamp = '{:.3f} {:.3f} '.format(start, end)
-                self.time_stamps[uniq_name].append(stamp)
+                self.time_stamps[uniq_name].append([start, end])
 
         if self._speaker_params.save_embeddings:
             embedding_dir = os.path.join(self._speaker_dir, 'embeddings')
@@ -444,8 +442,6 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             out_rttm_dir=out_rttm_dir,
             clustering_params=self._cluster_params,
         )
-
-        # TODO Resegmentation -> Coming Soon
 
         # Scoring
         score = score_labels(

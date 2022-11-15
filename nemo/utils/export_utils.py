@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+from contextlib import nullcontext
 from enum import Enum
 from typing import Callable, Dict, Optional, Type
 
@@ -21,7 +22,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from nemo.utils import logging
+from nemo.utils import CastToFloat, logging
 
 try:
     import onnxruntime
@@ -43,7 +44,6 @@ _EXT_DICT = {
     ".ts": ExportFormat.TORCHSCRIPT,
     ".onnx": ExportFormat.ONNX,
 }
-
 
 def cast_tensor(x, from_dtype=torch.float16, to_dtype=torch.float32):
     return x.to(dtype=to_dtype) if x.dtype == from_dtype else x
@@ -73,7 +73,6 @@ class CastToFloat(nn.Module):
         else:
             ret = self.mod.forward(x)
         return ret
-
 
 class LinearWithBiasSkip(nn.Module):
     def __init__(self, weight, bias, skip_bias_add):
@@ -127,7 +126,7 @@ class ExportableMatchedScaleMaskSoftmax(nn.Module):
 def get_export_format(filename: str):
     _, ext = os.path.splitext(filename)
     try:
-        return _EXT_DICT[ext]
+        return _EXT_DICT[ext.lower()]
     except KeyError:
         raise ValueError(f"Export file {filename} extension does not correspond to any export format!")
 
@@ -205,7 +204,7 @@ def verify_runtime(model, output, input_examples, input_names, check_tolerance=0
         logging.warning(f"ONNX generated at {output}, not verified - please install onnxruntime_gpu package.\n")
         onnx.checker.check_model(onnx_model, full_check=True)
         return
-
+    del onnx_model
     onnx_session_opt = onnxruntime.SessionOptions()
     onnx_session_opt.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
     sess = onnxruntime.InferenceSession(
