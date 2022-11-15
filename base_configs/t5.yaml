@@ -63,6 +63,7 @@ model:
   make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
   pre_process: True # add embedding
   post_process: True # add pooler
+  sync_batch_comm: False
 
   megatron_amp_O2: True # use AMP with O2 style mixed precision instead of native amp on-the-fly weight autocasting.
   grad_allreduce_chunk_size_mb: 125
@@ -102,7 +103,8 @@ model:
     onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
     fp32_residual_connection: False # Use FP32 for residual connections.
     # activations checkpointing
-    activations_checkpoint_method: null # 'uniform', 'block'
+    activations_checkpoint_granularity: full
+    activations_checkpoint_method: block # 'uniform', 'block'
     activations_checkpoint_num_layers: 0
 
   decoder:
@@ -136,7 +138,8 @@ model:
     onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
     fp32_residual_connection: False # Use FP32 for residual connections.
     # activations checkpointing
-    activations_checkpoint_method: null # 'uniform', 'block'
+    activations_checkpoint_granularity: full
+    activations_checkpoint_method: block # 'uniform', 'block'
     activations_checkpoint_num_layers: 0
 
   tokenizer:

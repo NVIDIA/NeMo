@@ -78,7 +78,7 @@ def generate_grid_search_configs(
     act_granularity = base_cfg["model"].get("activations_checkpoint_granularity", "full")
     act_method = base_cfg["model"].get("activations_checkpoint_method", "block")
 
-    tp_list, pp_list, mbs_list = _calculate_tp_pp_mbs_grid(
+    tp_list, pp_list, mbs_list, min_model_parallel, max_model_parallel = _calculate_tp_pp_mbs_grid(
         model_size_in_b=model_size_in_b,
         num_layers=num_layers,
         model_name=model_name,
@@ -106,13 +106,13 @@ def generate_grid_search_configs(
                 mod_gbs = gbs % (mbs * num_gpus / (tp * pp))
                 mod_att_heads = att_heads % tp
                 mod_layers = (multiplier * num_layers) % pp
-                if mod_gbs == 0 and mod_att_heads == 0 and mod_layers == 0 and (tp, pp) not in valid_tp_pp_list:
+                if mod_gbs == 0 and mod_att_heads == 0 and mod_layers == 0 and (tp, pp) not in valid_tp_pp_list and  min_model_parallel <= tp*pp <= max_model_parallel:
                     valid_tp_pp_list.append((tp, pp))
 
     # Generate grid search configs.
     results_cfgs = [[] for _ in range(multiplier * num_layers + 1)]
     for tp, pp in valid_tp_pp_list:
-        act_ckpt_layers, num_micro_batches_partial_act_ckpt, act_ckpt_layers_per_pipeline = _set_activations_checkpoint_params(tp, pp, num_layers, act_method, multiplier, model_size_in_b, model_name)
+        virtual_pipelines, act_ckpt_layers, num_micro_batches_partial_act_ckpt, act_ckpt_layers_per_pipeline = _set_activations_checkpoint_params(tp, pp, num_layers, act_method, multiplier, model_size_in_b, model_name)
         for mbs in mbs_list:
                 if act_layers is not None and act_layers != "auto":
                     act_ckpt_layers = act_layers
@@ -126,6 +126,7 @@ def generate_grid_search_configs(
                                 act_per_pipe=act_per_pipe,
                                 tp=tp,
                                 pp=pp,
+                                virtual_pipelines=virtual_pipelines,
                                 mbs=mbs,
                                 max_minutes=max_minutes,
                                 max_steps=max_steps,
@@ -139,22 +140,24 @@ def generate_grid_search_configs(
                                     yaml.dump(new_cfg, f)
 
     print("\nAll candidate configurations created correctly.\n")
-    print(results_cfgs)
     return base_dir, results_cfgs, num_nodes
 
 
 def _set_activations_checkpoint_params(tp, pp, num_layers, act_method, multiplier, model_size_in_b, model_name):
-    act_multiple = 2
+    act_multiple = 4 // pp
     if act_method == "block":
-        if 1.0 <= model_size_in_b < 26.0:
-            act_multiple = 4
+        if 1.0 <= model_size_in_b < 11.3:
+            act_multiple = 8 // pp
+        elif 11.3 <= model_size_in_b < 26.0:
+            act_multiple = 16 // pp
         elif 26.0 <= model_size_in_b:
             if model_name != "gpt3":
-                act_multiple = 4
+                act_multiple = 8 // pp
             else:
-                act_multiple = 8
+                act_multiple = 8 // pp
+    act_multiple = max(act_multiple, 1)
 
-    virtual_pipelines = 1
+    virtual_pipelines = None
     # Num micro batches with partial act ckpt
     min_micro_b = 0
     max_micro_b = pp
@@ -173,7 +176,10 @@ def _set_activations_checkpoint_params(tp, pp, num_layers, act_method, multiplie
     act_ckpt_layers, num_micro_batches_partial_act_ckpt, act_ckpt_layers_per_pipeline = [None], [None], [None]
     if act_method == "block":
         # Act ckpt num layers
-        act_ckpt_layers = range(0, multiplier * num_layers // pp // virtual_pipelines + 1, act_multiple) 
+        if virtual_pipelines is None:
+            act_ckpt_layers = range(0, multiplier * num_layers // pp + 1, act_multiple)
+        else:
+            act_ckpt_layers = range(0, multiplier * num_layers // pp // virtual_pipelines + 1, act_multiple) 
 
         if pp > 1 and model_name == "gpt3":
             # Num micro batches with partial act ckpt
@@ -182,7 +188,7 @@ def _set_activations_checkpoint_params(tp, pp, num_layers, act_method, multiplie
             # Act ckpt layers per pipeline
             act_ckpt_layers_per_pipeline = range(min_layers_per_pipe, max_layers_per_pipe + 1, interval_layers_per_pipe)
 
-    return act_ckpt_layers, num_micro_batches_partial_act_ckpt, act_ckpt_layers_per_pipeline
+    return virtual_pipelines, act_ckpt_layers, num_micro_batches_partial_act_ckpt, act_ckpt_layers_per_pipeline
 
 
 def _tp_pp_mbs_grid_gpt3_80gb(model_size_in_b: float, valid_pp: List[int]) -> Tuple[int, int, int]:
@@ -200,6 +206,8 @@ def _tp_pp_mbs_grid_gpt3_80gb(model_size_in_b: float, valid_pp: List[int]) -> Tu
     tp = [1, 2, 4, 8]
     pp = [1]
     mbs = [1, 2, 3, 4, 6, 8]
+    min_model_parallel = 1
+    max_model_parallel = 8
     if model_size_in_b <= 1.0:
         tp = [1, 2]
     elif 1.0 < model_size_in_b <= 4.0:
@@ -209,37 +217,54 @@ def _tp_pp_mbs_grid_gpt3_80gb(model_size_in_b: float, valid_pp: List[int]) -> Tu
     elif 8.0 < model_size_in_b <= 13.0:
         tp = [1, 2, 4, 8]
     elif 13.0 < model_size_in_b <= 23.0:
-        tp = [1, 2, 4, 8]
-        pp = [x for x in valid_pp if x <= 4]
+        tp = [1, 2, 4]
+        pp = [x for x in valid_pp if 1 <= x <= 4]
+        mbs = [1, 2, 4]
+        min_model_parallel = 4
+        max_model_parallel = 8
     elif 23.0 < model_size_in_b <= 45.0:
         tp = [2, 4, 8]
         pp = [x for x in valid_pp if 1 <= x <= 4]
-        mbs = [1, 2, 4, 8]
+        mbs = [1, 2, 4]
+        min_model_parallel = 8
+        max_model_parallel = 32
     elif 45.0 < model_size_in_b <= 95:
         tp = [2, 4, 8]
         pp = [x for x in valid_pp if 1 <= x <= 8]
         mbs = [1, 2, 4, 8]
+        min_model_parallel = 8
+        max_model_parallel = 64
     elif 95.0 < model_size_in_b <= 130.0:
         tp = [2, 4, 8]
         pp = [x for x in valid_pp if 1 <= x <= 16]
         mbs = [1, 2, 4, 8]
+        min_model_parallel = 16
+        max_model_parallel = 128
     elif 130.0 < model_size_in_b <= 195.0:
         tp = [8]
         pp = [x for x in valid_pp if 4 <= x <= 16]
         mbs = [1, 2, 4]
+        min_model_parallel = 32
+        max_model_parallel = 256
     elif 195.0 < model_size_in_b <= 395.0:
         tp = [8]
         pp = [x for x in valid_pp if 8 <= x <= 32]
         mbs = [1, 2, 4]
+        min_model_parallel = 64
+        max_model_parallel = 512
     elif 395.0 < model_size_in_b <= 790.0:
         tp = [8]
         pp = [x for x in valid_pp if 8 <= x <= 100]
         mbs = [1, 2, 4]
+        min_model_parallel = 128
+        max_model_parallel = 1024
     elif 790.0 < model_size_in_b <= 1100.0:
         tp = [8]
         pp = [x for x in valid_pp if 16 <= x <= 130]
         mbs = [1, 2, 4]
-    return tp, pp, mbs
+        min_model_parallel = 256
+        max_model_parallel = 2048
+    return tp, pp, mbs, min_model_parallel, max_model_parallel
 
 
 def _tp_pp_mbs_grid_gpt3_40gb(model_size_in_b: float, valid_pp: List[int]) -> Tuple[int, int, int]:
@@ -257,6 +282,8 @@ def _tp_pp_mbs_grid_gpt3_40gb(model_size_in_b: float, valid_pp: List[int]) -> Tu
     tp = [1, 2, 4, 8]
     pp = [1]
     mbs = [1, 2, 4, 6, 8, 10, 12, 16]
+    min_model_parallel = 1
+    max_model_parallel = 8
     if model_size_in_b <= 1.0:
         tp = [1, 2, 4]
         mbs = [1, 2, 4, 8]
@@ -264,45 +291,64 @@ def _tp_pp_mbs_grid_gpt3_40gb(model_size_in_b: float, valid_pp: List[int]) -> Tu
         tp = [1, 2, 4, 8]
         mbs = [1, 2, 4, 8]
     elif 4.0 < model_size_in_b <= 8.0:
-        tp = [4, 8]
+        tp = [2, 4, 8]
         pp = [1, 2]
         mbs = [1, 2, 4]
+        min_model_parallel = 2
     elif 8.0 < model_size_in_b <= 13.0:
-        tp = [8]
+        tp = [4, 8]
         pp = [1, 2, 4]
         mbs = [1, 2, 4]
+        min_model_parallel = 4
+        max_model_parallel = 32
     elif 13.0 < model_size_in_b <= 23.0:
         tp = [2, 4, 8]
         pp = [x for x in valid_pp if 1 <= x <= 8]
+        min_model_parallel = 8
+        max_model_parallel = 64
     elif 23.0 < model_size_in_b <= 45.0:
         tp = [4, 8]
         pp = [x for x in valid_pp if 1 <= x <= 12]
         mbs = [1, 2, 4]
+        min_model_parallel = 16
+        max_model_parallel = 128
     elif 45.0 < model_size_in_b <= 95:
         tp = [4, 8]
         pp = [x for x in valid_pp if 1 <= x <= 16]
         mbs = [1, 2, 4]
+        min_model_parallel = 16
+        max_model_parallel = 256
     elif 95.0 < model_size_in_b <= 130.0:
         tp = [4, 8]
         pp = [x for x in valid_pp if 2 <= x <= 26]
         mbs = [1, 2]
+        min_model_parallel = 32
+        max_model_parallel = 512
     elif 130.0 < model_size_in_b <= 195.0:
         tp = [4, 8]
         pp = [x for x in valid_pp if 2 <= x <= 32]
         mbs = [1, 2]
+        min_model_parallel = 64
+        max_model_parallel = 1024
     elif 195.0 < model_size_in_b <= 395.0:
         tp = [4, 8]
         pp = [x for x in valid_pp if 4 <= x <= 64]
         mbs = [1, 2]
+        min_model_parallel = 128
+        max_model_parallel = 2048
     elif 395.0 < model_size_in_b <= 790.0:
         tp = [4, 8]
         pp = [x for x in valid_pp if 8 <= x <= 128]
         mbs = [1, 2]
+        min_model_parallel = 256
+        max_model_parallel = 4096
     elif 790.0 < model_size_in_b <= 1100.0:
         tp = [4, 8]
         pp = [x for x in valid_pp if 8 <= x <= 192]
         mbs = [1, 2]
-    return tp, pp, mbs
+        min_model_parallel = 512
+        max_model_parallel = 8192
+    return tp, pp, mbs, min_model_parallel, max_model_parallel
 
 
 def _tp_pp_mbs_grid_t5_80gb(model_size_in_b: float, valid_pp: List[int]) -> Tuple[int, int, int]:
@@ -320,6 +366,8 @@ def _tp_pp_mbs_grid_t5_80gb(model_size_in_b: float, valid_pp: List[int]) -> Tupl
     tp = [1, 2, 4, 8]
     pp = [1]
     mbs = [1, 2, 4, 6, 8, 12, 16]
+    min_model_parallel = 1
+    max_model_parallel = 8
     if model_size_in_b <= 1.0:
         tp = [1, 2]
         mbs = [16, 32, 64, 128]
@@ -336,23 +384,33 @@ def _tp_pp_mbs_grid_t5_80gb(model_size_in_b: float, valid_pp: List[int]) -> Tupl
         tp = [4, 8]
         pp = [x for x in valid_pp if 1 <= x <= 2]
         mbs = [1, 2, 4, 6, 8]
+        min_model_parallel = 4
+        max_model_parallel = 16
     elif 25.9 < model_size_in_b <= 43.0:
         tp = [4, 8]
         pp = [x for x in valid_pp if 1 <= x <= 4]
         mbs = [1, 2, 4, 6, 8]
+        min_model_parallel = 8
+        max_model_parallel = 32
     elif 43.0 < model_size_in_b <= 85.5:
         tp = [4, 8]
         pp = [x for x in valid_pp if 2 <= x <= 8]
         mbs = [1, 2, 4, 6, 8]
+        min_model_parallel = 16
+        max_model_parallel = 64
     elif 85.5 < model_size_in_b <= 165.5:
         tp = [8]
         pp = [x for x in valid_pp if 4 <= x <= 16]
         mbs = [1, 2, 4, 6]
+        min_model_parallel = 32
+        max_model_parallel = 128
     elif 165.5 < model_size_in_b <= 250:
         tp = [8]
         pp = [x for x in valid_pp if 4 <= x <= 32]
         mbs = [1, 2, 4]
-    return tp, pp, mbs
+        min_model_parallel = 64
+        max_model_parallel = 256
+    return tp, pp, mbs, min_model_parallel, max_model_parallel
 
 
 def _tp_pp_mbs_grid_t5_40gb(model_size_in_b: float, valid_pp: List[int]) -> Tuple[int, int, int]:
@@ -370,6 +428,8 @@ def _tp_pp_mbs_grid_t5_40gb(model_size_in_b: float, valid_pp: List[int]) -> Tupl
     tp = [1, 2, 4, 8]
     pp = [1]
     mbs = [1, 2, 4, 6, 8, 12, 16]
+    min_model_parallel = 1
+    max_model_parallel = 8
     if model_size_in_b <= 1.0:
         tp = [1, 2]
         mbs = [16, 32, 64, 128]
@@ -383,27 +443,39 @@ def _tp_pp_mbs_grid_t5_40gb(model_size_in_b: float, valid_pp: List[int]) -> Tupl
         tp = [4, 8]
         pp = [x for x in valid_pp if 1 <= x <= 2]
         mbs = [2, 4, 6, 8, 12, 16]
+        min_model_parallel = 4
+        max_model_parallel = 16
     elif 14.5 < model_size_in_b <= 25.9:
         tp = [4, 8]
         pp = [x for x in valid_pp if 1 <= x <= 8]
         mbs = [1, 2, 4, 6, 8]
+        min_model_parallel = 8
+        max_model_parallel = 32
     elif 25.9 < model_size_in_b <= 43.0:
         tp = [4, 8]
         pp = [x for x in valid_pp if 1 <= x <= 8]
         mbs = [1, 2, 4, 6, 8]
+        min_model_parallel = 16
+        max_model_parallel = 32
     elif 43.0 < model_size_in_b <= 85.5:
         tp = [8]
         pp = [x for x in valid_pp if 2 <= x <= 8]
         mbs = [1, 2, 4, 6, 8]
+        min_model_parallel = 32
+        max_model_parallel = 64
     elif 85.5 < model_size_in_b <= 165.5:
         tp = [8]
         pp = [x for x in valid_pp if 4 <= x <= 32]
         mbs = [1, 2, 4]
+        min_model_parallel = 64
+        max_model_parallel = 128
     elif 165.5 < model_size_in_b <= 250:
         tp = [8]
         pp = [x for x in valid_pp if 8 <= x <= 64]
         mbs = [1, 2, 4]
-    return tp, pp, mbs
+        min_model_parallel = 128
+        max_model_parallel = 256
+    return tp, pp, mbs, min_model_parallel, max_model_parallel
 
 
 def _calculate_tp_pp_mbs_grid(model_size_in_b: float, num_layers: int, model_name: str, train_cfg: omegaconf.dictconfig.DictConfig) -> Tuple[int, int, int]:
@@ -420,10 +492,13 @@ def _calculate_tp_pp_mbs_grid(model_size_in_b: float, num_layers: int, model_nam
         int tp is the Tensor Parallelism value to use for training.
         int pp is the Pipeline Parallelism value to use for training.
         int mbs is the Micro Batch Size to use for training.
+        int min_model_parallel is the minimum parallelism level needed.
     :raises NotImplementedError: if the model_name is not one of the supported models.
     """
     tp_sizes = train_cfg.get("tensor_parallel_sizes")
     pp_sizes = train_cfg.get("pipeline_parallel_sizes")
+    min_model_parallel_size = train_cfg.get("min_model_parallel_size")
+    max_model_parallel_size = train_cfg.get("max_model_parallel_size")
     mbs_sizes = train_cfg.get("micro_batch_sizes")
     gpu_memory_gb = train_cfg.get("gpu_memory_gb")
 
@@ -435,20 +510,20 @@ def _calculate_tp_pp_mbs_grid(model_size_in_b: float, num_layers: int, model_nam
 
     if model_name == "gpt3":
         if gpu_memory_gb == 80:
-            tp, pp, mbs = _tp_pp_mbs_grid_gpt3_80gb(
+            tp, pp, mbs, min_model_parallel, max_model_parallel = _tp_pp_mbs_grid_gpt3_80gb(
                 model_size_in_b=model_size_in_b, valid_pp=valid_pp
             )
         elif gpu_memory_gb == 40:
-            tp, pp, mbs = _tp_pp_mbs_grid_gpt3_40gb(
+            tp, pp, mbs, min_model_parallel, max_model_parallel = _tp_pp_mbs_grid_gpt3_40gb(
                 model_size_in_b=model_size_in_b, valid_pp=valid_pp
             )
     elif model_name in ["t5", "mt5"]:
         if gpu_memory_gb == 80:
-            tp, pp, mbs = _tp_pp_mbs_grid_t5_80gb(
+            tp, pp, mbs, min_model_parallel, max_model_parallel = _tp_pp_mbs_grid_t5_80gb(
                 model_size_in_b=model_size_in_b, valid_pp=valid_pp
             )
         elif gpu_memory_gb == 40:
-            tp, pp, mbs = _tp_pp_mbs_grid_t5_40gb(
+            tp, pp, mbs, min_model_parallel, max_model_parallel = _tp_pp_mbs_grid_t5_40gb(
                 model_size_in_b=model_size_in_b, valid_pp=valid_pp
             )
     else:
@@ -461,7 +536,11 @@ def _calculate_tp_pp_mbs_grid(model_size_in_b: float, num_layers: int, model_nam
         pp = pp_sizes
     if mbs_sizes is not None and mbs_sizes != "auto":
         mbs = mbs_sizes
-    return tp, pp, mbs
+    if min_model_parallel_size is not None and min_model_parallel_size != "auto":
+        min_model_parallel = min_model_parallel_size
+    if max_model_parallel_size is not None and max_model_parallel_size != "auto":
+        max_model_parallel = max_model_parallel_size
+    return tp, pp, mbs, min_model_parallel, max_model_parallel
 
 
 def launch_grid_search_configs(base_dir: str, results_cfgs: List[int], model_name: str, cfg: omegaconf.dictconfig.DictConfig) -> List[int]:

@@ -14,6 +14,8 @@ train_settings:
   logs: ${base_results_dir}/${search_config_value}_${.gpu_memory_gb}gb  # Example base_results_dir/gpt3/126m
   tensor_parallel_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8]
   pipeline_parallel_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8, 10]
+  min_model_parallel_size: auto  # auto to use our recommendation, or a value for the minimum desired parallelism
+  max_model_parallel_size: auto  # auto to use our recommendation, or a value for the maximum desired parallelism
   micro_batch_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8, 16]
  
 inference_settings:
