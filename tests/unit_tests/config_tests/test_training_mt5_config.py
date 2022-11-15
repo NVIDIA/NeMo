@@ -111,6 +111,7 @@ model:
     onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
     fp32_residual_connection: False # Use FP32 for residual connections.
     # activations checkpointing
+    activations_checkpoint_granularity: full
     activations_checkpoint_method: null # 'uniform', 'block'
     activations_checkpoint_num_layers: 0
 
@@ -145,6 +146,7 @@ model:
     onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
     fp32_residual_connection: False # Use FP32 for residual connections.
     # activations checkpointing
+    activations_checkpoint_granularity: full
     activations_checkpoint_method: null # 'uniform', 'block'
     activations_checkpoint_num_layers: 0
 
@@ -328,6 +330,7 @@ model:
     onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
     fp32_residual_connection: False # Use FP32 for residual connections.
     # activations checkpointing
+    activations_checkpoint_granularity: full
     activations_checkpoint_method: null # 'uniform', 'block'
     activations_checkpoint_num_layers: 0
 
@@ -362,6 +365,7 @@ model:
     onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
     fp32_residual_connection: False # Use FP32 for residual connections.
     # activations checkpointing
+    activations_checkpoint_granularity: full
     activations_checkpoint_method: null # 'uniform', 'block'
     activations_checkpoint_num_layers: 0
 
@@ -545,6 +549,7 @@ model:
     onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
     fp32_residual_connection: False # Use FP32 for residual connections.
     # activations checkpointing
+    activations_checkpoint_granularity: full
     activations_checkpoint_method: null # 'uniform', 'block'
     activations_checkpoint_num_layers: 0
 
@@ -579,6 +584,7 @@ model:
     onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
     fp32_residual_connection: False # Use FP32 for residual connections.
     # activations checkpointing
+    activations_checkpoint_granularity: full
     activations_checkpoint_method: null # 'uniform', 'block'
     activations_checkpoint_num_layers: 0
 
