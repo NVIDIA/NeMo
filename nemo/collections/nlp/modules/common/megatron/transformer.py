@@ -291,13 +291,53 @@ class SwitchMLP(MegatronModule):
     
     Curently supports Sinkhorn based expert routing."""
 
-    def __init__(self, num_experts, **kwargs):
+    def __init__(
+        self, 
+        num_experts, 
+        init_method,
+        output_layer_init_method,
+        hidden_size,
+        ffn_hidden_size,
+        use_cpu_initialization=False,
+        bias_activation_fusion=True,
+        openai_gelu=False,
+        onnx_safe=False,
+        activation='gelu',
+        bias=True,
+        transformer_block_type='pre_ln',
+        normalization='layernorm',
+        layernorm_epsilon=1e-5,
+        persist_layer_norm=False,
+        sequence_parallel=False,
+        gradient_accumulation_fusion=False,
+        dropout=0.0,
+    ):
         super(SwitchMLP, self).__init__()
 
         self.num_experts = num_experts
         self.route_algo = SwitchMLP.sinkhorn
-        self.router = torch.nn.Linear(kwargs['hidden_size'], num_experts)
-        self.experts = torch.nn.ModuleList([ParallelMLP(**kwargs) for _ in range(num_experts)])
+        self.router = torch.nn.Linear(hidden_size, num_experts)
+
+        mlp_args = {
+            init_method: init_method,
+            output_layer_init_method: output_layer_init_method,
+            hidden_size: hidden_size,
+            ffn_hidden_size: ffn_hidden_size,
+            use_cpu_initialization: use_cpu_initialization,
+            bias_activation_fusion: bias_activation_fusion,
+            openai_gelu: openai_gelu,
+            onnx_safe: onnx_safe,
+            activation: activation,
+            bias: bias,
+            transformer_block_type: transformer_block_type,
+            normalization: normalization,
+            layernorm_epsilon: layernorm_epsilon,
+            persist_layer_norm: persist_layer_norm,
+            sequence_parallel: sequence_parallel,
+            gradient_accumulation_fusion: gradient_accumulation_fusion,
+            dropout: dropout,
+        }
+        self.experts = torch.nn.ModuleList([ParallelMLP(**mlp_args) for _ in range(num_experts)])
 
     def forward(self, hidden_states):
         hidden_shape = hidden_states.shape
@@ -2055,6 +2095,7 @@ class ParallelTransformer(MegatronModule):
                 num_layers % parallel_state.get_pipeline_model_parallel_world_size() == 0
             ), 'num_layers must be divisible by pipeline_model_parallel_size'
 
+        assert moe_frequency <= num_layers, 'MoE frequency must be <= number of transformer layers'
         # TODO: Add similar assert for encoder-decoder.
 
         self.num_layers = self.get_num_layers(num_layers)
