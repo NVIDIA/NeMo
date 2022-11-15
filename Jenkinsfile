@@ -51,8 +51,6 @@ pipeline {
       }
     }
 
-<<<<<<< HEAD
-=======
     // Removed `torch_tts` install option from NeMo>=1.7.0
     // Will add test back if/when we decide to support it again
     // stage('Torch TTS unit tests') {
@@ -72,7 +70,6 @@ pipeline {
     //   }
     // }
 
->>>>>>> upstream/davidm/riva_transition
     stage('NeMo Installation') {
       steps {
         sh './reinstall.sh release'

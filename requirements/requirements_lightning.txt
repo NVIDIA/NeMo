@@ -1,6 +1,3 @@
-<<<<<<< HEAD
-=======
->>>>>>> upstream/davidm/riva_transition
 hydra-core>=1.2.0,<1.3
 omegaconf>=2.2,<2.3
 pytorch-lightning>=1.7.0,<1.8
