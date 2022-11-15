@@ -351,7 +351,8 @@ class SwitchMLP(MegatronModule):
 
     def forward(self, hidden_states):
         hidden_shape = hidden_states.shape
-        route, _ = self.router(hidden_states).view(-1, self.num_experts)
+        route, _ = self.router(hidden_states)
+        route = route.view(-1, self.num_experts)
         if self.training:
             with torch.no_grad():
                 norm_route = self.route_algo(
