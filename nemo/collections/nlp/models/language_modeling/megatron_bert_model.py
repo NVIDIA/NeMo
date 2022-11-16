@@ -360,6 +360,7 @@ class MegatronBertModel(MegatronBaseModel):
         loss_mask = loss_mask.float()
 
         # Sometimes when the number of tokens is very small, none of the tokens get masked for prediction. In that case loss mask is all zeros
+        # i.e Happens when the entire batch is masked out (Practically when MBS=1 or 2, and the number of tokens in each batch is < 7 )
         if loss_mask.sum() == 0:
             lm_loss = torch.sum(lm_loss_.view(-1)) * 0.0
         else:
