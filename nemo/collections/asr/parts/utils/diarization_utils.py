@@ -532,8 +532,7 @@ class OfflineDiarWithASR:
 
     @staticmethod
     def gather_eval_results(
-        metric, 
-        mapping_dict: Dict[str, str], 
+        diar_score,
         audio_rttm_map_dict: Dict[str, Dict[str, str]],
         trans_info_dict: Dict[str, Dict[str, float]], 
         root_path: str,
@@ -557,6 +556,7 @@ class OfflineDiarWithASR:
             der_results (dict):
                 Dictionary containing scores for each audio file along with aggregated results
         """
+        metric, mapping_dict, _ = diar_score
         results = metric.results_
         der_results = {}
         count_correct_spk_counting = 0
@@ -924,7 +924,6 @@ class OfflineDiarWithASR:
         session_trans_dict['transcription'] = ' '.join(word_seq_list)
         # add sentences to transcription information dict
         session_trans_dict['sentences'] = sentences
-
         self.write_and_log(uniq_id, session_trans_dict, audacity_label_words, gecko_dict, sentences)
         return session_trans_dict
 
@@ -1045,24 +1044,26 @@ class OfflineDiarWithASR:
 
     @staticmethod
     def evaluate(
-        trans_info_dict: Dict[str, Dict[str, float]],
         audio_file_list: List[str],
-        ref_ctm_file_list: List[str],
+        hyp_trans_info_dict: Dict[str, Dict[str, float]],
         hyp_ctm_file_list: List[str] = None,
+        ref_ctm_file_list: List[str] = None,
         ) -> Dict[str, Dict[str, float]]:
         """
         Evaluate the result transcripts based on the provided CTM file. WER and cpWER are calculated to assess
         the performance of ASR system and diarization at the same time.
 
         Args:
-            trans_info_dict (dict):
-                Dictionary containing overall results of diarization and ASR inference from all sessions.
             audio_file_list (list):
-
-            ref_ctm_file_list (list):
-
+                List containing file path to the input audio files.
+            hyp_trans_info_dict (dict):
+                Dictionary containing the hypothesis transcriptions for all sessions.
             hyp_ctm_file_list (list):
+                List containing file paths of the hypothesis transcriptions in CTM format for all sessions.
+            ref_ctm_file_list (list):
+                List containing file paths of the reference transcriptions in CTM format for all sessions.
 
+            Note: Either `hyp_trans_info_dict` or `hyp_ctm_file_list` should be provided.
 
         Returns:
             wer_results (dict):
@@ -1070,7 +1071,7 @@ class OfflineDiarWithASR:
         """
         wer_results = {}
 
-        if len(ref_ctm_file_list) > 0:
+        if ref_ctm_file_list is not None:
             spk_hypotheses, spk_references = [], []
             mix_hypotheses, mix_references = [], []
             WER_values, uniq_id_list = [], []
@@ -1080,13 +1081,17 @@ class OfflineDiarWithASR:
                 uniq_id_list.append(uniq_id)
                 if uniq_id != get_uniqname_from_filepath(ctm_file_path):
                     raise ValueError("audio_file_list has mismatch in uniq_id with ctm_file_path")
+
+                # Either hypothesis CTM file or hyp_trans_info_dict should be provided
                 if hyp_ctm_file_list is not None: 
                     if uniq_id == get_uniqname_from_filepath(hyp_ctm_file_list[k]):
                         spk_hypothesis, mix_hypothesis = convert_ctm_to_text(hyp_ctm_file_list[k])
                     else:
                         raise ValueError("Hypothesis CTM files are provided but uniq_id is mismatched")
+                elif hyp_trans_info_dict is not None and uniq_id in hyp_trans_info_dict:
+                    spk_hypothesis, mix_hypothesis = convert_word_dict_seq_to_text(hyp_trans_info_dict[uniq_id]['words'])
                 else:
-                    spk_hypothesis, mix_hypothesis = convert_word_dict_seq_to_text(trans_info_dict[uniq_id]['words'])
+                    raise ValueError("Hypothesis information is not provided in the correct format.")
 
                 spk_reference, mix_reference = convert_ctm_to_text(ctm_file_path)
 
@@ -1134,7 +1139,8 @@ class OfflineDiarWithASR:
         der_results: Dict[str, Dict[str, float]], 
         wer_results: Dict[str, Dict[str, float]],
         root_path: str,
-        csv_columns: List[str]
+        csv_columns: List[str],
+        csv_file_name: str = "ctm_eval.csv"
     ):
         """
         This function is for development use when a CTM file is provided.
@@ -1145,11 +1151,12 @@ class OfflineDiarWithASR:
                 Dictionary containing session-by-session results of ASR and diarization in terms of
                 WER and cpWER.
         """
-        target_path = f"{root_path}/pred_rttms/ctm_eval.csv"
-        logging.info(f"Writing {target_path}")
+        target_path = f"{root_path}/pred_rttms"
+        os.makedirs(target_path, exist_ok=True)
+        logging.info(f"Writing {target_path}/{csv_file_name}")
         total_result_jsons = get_total_result_dict(der_results, wer_results, csv_columns)
         try:
-            with open(target_path, 'w') as csvfile:
+            with open(f"{target_path}/{csv_file_name}", 'w') as csvfile:
                 writer = csv.DictWriter(csvfile, fieldnames=csv_columns)
                 writer.writeheader()
                 for data in total_result_jsons:
@@ -1218,9 +1225,11 @@ class OfflineDiarWithASR:
             string_out = self._break_lines(string_out)
 
         session_trans_dict["status"] = "success"
+        ctm_lines_list = convert_word_dict_seq_to_ctm(session_trans_dict['words'])
 
         dump_json_to_file(f'{self.root_path}/pred_rttms/{uniq_id}.json', session_trans_dict)
         dump_json_to_file(f'{self.root_path}/pred_rttms/{uniq_id}_gecko.json', gecko_dict)
+        write_txt(f'{self.root_path}/pred_rttms/{uniq_id}.ctm', '\n'.join(ctm_lines_list))
         write_txt(f'{self.root_path}/pred_rttms/{uniq_id}.txt', string_out.strip())
         write_txt(f'{self.root_path}/pred_rttms/{uniq_id}.w.label', '\n'.join(audacity_label_words))
 
