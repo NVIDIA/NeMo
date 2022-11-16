@@ -25,11 +25,6 @@ from distutils import cmd as distutils_cmd
 from distutils import log as distutils_log
 from itertools import chain
 
-# TODO: need to discuss how to do it correctly
-# from distutils.core import setup
-# from Cython.Build import cythonize
-# import numpy
-
 import setuptools
 
 spec = importlib.util.spec_from_file_location('package_info', 'nemo/package_info.py')
@@ -141,16 +136,6 @@ extras_require['slu'] = list(chain([extras_require['slu'], extras_require['asr']
 
 tests_requirements = extras_require["test"]
 
-###############################################################################
-#                              Monotonic Align                                #
-# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% #
-
-# TODO: need to discuss how to do it correctly
-# setup(
-#     name='monotonic_align',
-#     ext_modules=cythonize("nemo/collections/tts/modules/monotonic_align/core.pyx"),
-#     include_dirs=[numpy.get_include()],
-# )
 
 ###############################################################################
 #                            Code style checkers                              #

@@ -17,7 +17,7 @@ ${PIP} uninstall -y nemo_tts
 ${PIP} uninstall -y nemo_simple_gan
 ${PIP} uninstall -y nemo_cv
 
-${PIP} install -U setuptools==59.5.0
+${PIP} install -U setuptools
 
 if [ ! -z "${NVIDIA_PYTORCH_VERSION}" ]
 

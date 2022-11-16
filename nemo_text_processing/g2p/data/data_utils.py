@@ -30,7 +30,6 @@ _synoglyphs = {
 }
 SYNOGLYPH2ASCII = {g: asc for asc, glyphs in _synoglyphs.items() for g in glyphs}
 
-
 # Example of parsing by groups via _WORDS_RE.
 # Groups:
 # 1st group -- valid english words,
@@ -103,7 +102,7 @@ def remove_punctuation(text: str, exclude: List[str] = None):
     return text.strip()
 
 
-def english_text_preprocessing(text, lower=True, abbreviations=True):
+def english_text_preprocessing(text, lower=True):
     text = unicode(text)
     text = ''.join(char for char in unicodedata.normalize('NFD', text) if unicodedata.category(char) != 'Mn')
     text = ''.join(char if char not in SYNOGLYPH2ASCII else SYNOGLYPH2ASCII[char] for char in text)

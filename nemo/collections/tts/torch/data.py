@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import functools
 import json
 import math
 import os
@@ -54,7 +53,6 @@ from nemo.collections.tts.torch.tts_data_types import (
     Voiced_mask,
     WithLens,
 )
-
 from nemo.core.classes import Dataset
 from nemo.utils import logging
 
@@ -243,6 +241,7 @@ class TTSDataset(Dataset):
 
                     data.append(file_info)
                     self.lengths.append(os.path.getsize(item["audio_filepath"]) // (2 * hop_length))
+                    
                     if file_info["duration"] is None:
                         logging.info(
                             "Not all audio files have duration information. Duration logging will be disabled."
@@ -453,7 +452,6 @@ class TTSDataset(Dataset):
     def get_spec(self, audio):
         with torch.cuda.amp.autocast(enabled=False):
             spec = self.stft(audio)
-            
             if spec.dtype in [torch.cfloat, torch.cdouble]:
                 spec = torch.view_as_real(spec)
             spec = torch.sqrt(spec.pow(2).sum(-1) + EPSILON)
@@ -468,7 +466,6 @@ class TTSDataset(Dataset):
 
     def __getitem__(self, index):
         sample = self.data[index]
-        audio_path_as_text_id = sample["audio_filepath"].replace("/", "-").split(".")[0]
 
         # Let's keep audio name and all internal directories in rel_audio_path_as_text_id to avoid any collisions
         rel_audio_path = Path(sample["audio_filepath"]).relative_to(self.base_data_dir).with_suffix("")

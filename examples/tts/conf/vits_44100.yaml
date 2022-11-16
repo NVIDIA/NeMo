@@ -203,18 +203,12 @@ trainer:
   check_val_every_n_epoch: 1
 
 exp_manager:
-  exp_dir: ../exps/vits_hifitts_fp16_local
+  exp_dir: ???
   name: ${name}
-  create_tensorboard_logger: false
+  create_tensorboard_logger: true
   create_checkpoint_callback: true
   checkpoint_callback_params:
     monitor: loss_gen_all
     mode: min
-  create_wandb_logger: true
-  wandb_logger_kwargs:
-    name: vits_hifitts_fp16_local
-    project: ${name}
-    entity: nvidia
-    resume: "allow"
   resume_if_exists: false
   resume_ignore_no_checkpoint: false
