@@ -19,11 +19,11 @@ from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 
 from nemo.collections.asr.metrics.wer_bpe import WERBPE, CTCBPEDecoding, CTCBPEDecodingConfig
-from nemo.collections.asr.models.rnnt_bpe_models import EncDecHybridRNNTCTCModel
+from nemo.collections.asr.models.rnnt_bpe_models import EncDecRNNTBPEModel
 from nemo.utils import logging, model_utils
 
 
-class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel):
+class EncDecHybridRNNTCTCBPEModel(EncDecRNNTBPEModel):
     """Base class for encoder decoder RNNT-based models with auxiliary CTC decoder/loss and subword tokenization."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
