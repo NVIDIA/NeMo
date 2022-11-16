@@ -21,7 +21,7 @@ variable-length utterances to a fixed-length embedding (tvector). TitaNet is a s
     .. image:: images/titanet_network.png
         :align: center
         :alt: speakernet model
-        :width: 800px
+        :scale: 50%
 
 SpeakerNet models can be instantiated using the :class:`~nemo.collections.asr.models.EncDecSpeakerLabelModel` class.
 
@@ -39,7 +39,7 @@ model has B blocks, each with R sub-blocks. Each sub-block applies the following
     .. image:: images/ICASPP_SpeakerNet.png
         :align: center
         :alt: speakernet model
-        :width: 800px
+        :scale: 40%
 
 Top level acoustic Features, obtained from the output of
 encoder are used to compute intermediate features that are

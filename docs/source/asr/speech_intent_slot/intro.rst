@@ -6,7 +6,7 @@ Speech Intent Classification and Slot Filling
 
 .. image:: images/example.png
         :align: center
-        :width: 800px
+        :scale: 50%
         :alt: slurp_example
 
 

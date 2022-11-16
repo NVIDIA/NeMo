@@ -10,7 +10,7 @@ The grammars written with NeMo can be exported into an `OpenFST <https://www.ope
     .. image:: images/deployment_pipeline.png
         :align: center
         :alt: Deployment pipeline
-        :width: 800px
+        :scale: 50%
 
 
 Requirements

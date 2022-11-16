@@ -41,7 +41,7 @@ Audio-based TN can be used to normalize ASR training data.
     .. image:: images/task_overview.png
         :align: center
         :alt: Text TN and ITN
-        :width: 800px
+        :scale: 50%
 
 
 Installation
@@ -81,7 +81,7 @@ The context-aware version :cite:`textprocessing-norm-bakhturina2022shallow` is a
     .. image:: images/shallow_fusion.png
         :align: center
         :alt: Text Shallow Fusion of WFST and LM
-        :width: 800px
+        :scale: 80%
 
 
 .. code-block:: bash
