@@ -119,7 +119,6 @@ class DateFst(GraphFst):
 
         ordinal_graph = ordinal.graph
         year_graph = _get_year_graph()
-
         YEAR_WEIGHT = 0.001
         year_graph = pynutil.add_weight(year_graph, YEAR_WEIGHT)
         month_graph = _get_month_graph()
