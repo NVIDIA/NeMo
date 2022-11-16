@@ -310,7 +310,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
             custom_sync_context_handler=custom_sync_context_handler,
             sequence_parallel_enabled=self.cfg.get('sequence_parallel', False),
-            sync_batch_comm=self.cfg.get('sync_batch_comm', True),
+            sync_batch_comm=self.cfg.get('sync_batch_comm', False),
             num_micro_batches_with_partial_activation_checkpoints=self.cfg.get(
                 'num_micro_batches_with_partial_activation_checkpoints', None
             ),
@@ -556,7 +556,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             tensor_shape=tensor_shape,
             dtype=self.autocast_dtype,
             sequence_parallel_enabled=self.cfg.get('sequence_parallel', False),
-            sync_batch_comm=self.cfg.get('sync_batch_comm', True),
+            sync_batch_comm=self.cfg.get('sync_batch_comm', False),
         )
 
         # only the last stage of the pipeline returns losses
@@ -777,7 +777,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             else:
                 self.model.sync_initial_word_embeddings()
 
-        self.setup_transformer_engine_tp_groups()
+        if self.cfg.get('transformer_engine', False):
+            self.setup_transformer_engine_tp_groups()
 
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds'):
@@ -832,7 +833,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 self.trainer.strategy.launcher.launch(dummy, trainer=self.trainer)
             self.trainer.strategy.setup_environment()
 
-            self.setup_transformer_engine_tp_groups()
+            if self.cfg.get('transformer_engine', False):
+                self.setup_transformer_engine_tp_groups()
 
         # set the default sampling params if it is None.
         # default do greedy sampling
