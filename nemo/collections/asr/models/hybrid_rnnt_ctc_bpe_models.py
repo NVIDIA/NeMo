@@ -19,11 +19,12 @@ from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 
 from nemo.collections.asr.metrics.wer_bpe import WERBPE, CTCBPEDecoding, CTCBPEDecodingConfig
-from nemo.collections.asr.models.rnnt_bpe_models import EncDecRNNTBPEModel
+from nemo.collections.asr.models.hybrid_rnnt_ctc_models import EncDecHybridRNNTCTCModel
 from nemo.utils import logging, model_utils
+from nemo.core.classes.common import PretrainedModelInfo
 
 
-class EncDecHybridRNNTCTCBPEModel(EncDecRNNTBPEModel):
+class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel):
     """Base class for encoder decoder RNNT-based models with auxiliary CTC decoder/loss and subword tokenization."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
@@ -190,3 +191,14 @@ class EncDecHybridRNNTCTCBPEModel(EncDecRNNTBPEModel):
             logging.info(f"Changed decoding strategy to \n{OmegaConf.to_yaml(self.cfg.ctc_decoding.decoding)}")
         else:
             raise ErrorValue(f"decoder_type={decoder_type} is not supported. Supported values: [ctc,rnnt]")
+
+    @classmethod
+    def list_available_models(cls) -> Optional[PretrainedModelInfo]:
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+
+        Returns:
+            List of available pre-trained models.
+        """
+        results = []
+        return results
