@@ -1,23 +1,21 @@
-Comparison tool for ASR Models 
-====================
+Comparison tool for ASR Models
+==============================
 
-Comparison tool is integrated in SDE feature, that allows to visualize predictions of different models.
+The Comparison Tool (CT) allows to compare predictions of different ASR models at word accuracy level. 
 
 +--------------------------------------------------------------------------------------------------------------------------+
-| **Comparation tool features:**                                                                                                        |
+| **Comparison tool features:**                                                                                            |
 +--------------------------------------------------------------------------------------------------------------------------+
-| navigation across the dataset using an interactive datatable that supports sorting and filtering                         |
+| navigation across dataset's vocabulary using an interactive datatable that supports sorting and filtering                |
 +--------------------------------------------------------------------------------------------------------------------------+
-| inspection of individual words on the plot             |
+| interactive visualization of model's accuracy                                                                            |
 +--------------------------------------------------------------------------------------------------------------------------+
-| Corner cases detection                                |
-+--------------------------------------------------------------------------------------------------------------------------+
-| Visual Comparison of Two Model Predictions                                           |
+| visual comparison of predictions of different models                                                                     |
 +--------------------------------------------------------------------------------------------------------------------------+
 
 Getting Started
 ---------------
-As comparison tool integrated in SDE, it could be found at `NeMo/tools/speech_data_explorer <https://github.com/NVIDIA/NeMo/tree/main/tools/speech_data_explorer>`__.
+The Comparison Tool is integrated in NeMo Speech Data Explorer (SDE) that could be found at `NeMo/tools/speech_data_explorer <https://github.com/NVIDIA/NeMo/tree/main/tools/speech_data_explorer>`__.
 
 Please install the SDE requirements:
 
@@ -51,7 +49,7 @@ Then run:
     --names_compared, -nc names of the two fields that will be compared, example: pred_text_contextnet pred_text_conformer.
     --show_statistics, -shst field name for which you want to see statistics (optional). Example: pred_text_contextnet.
 
-Comparison tool (in SDE) takes as an input a JSON manifest file (that describes speech datasets in NeMo). It should contain the following fields:
+CT takes a JSON manifest file (that describes speech datasets in NeMo) as an input. It should contain the following fields:
 
 * `audio_filepath` (path to audio file)
 * `duration` (duration of the audio file in seconds)
@@ -62,13 +60,12 @@ Comparison tool (in SDE) takes as an input a JSON manifest file (that describes 
 SDE supports any extra custom fields in the JSON manifest. If the field is numeric, then SDE can visualize its distribution across utterances.
 
 JSON manifest has attribute `pred_text`, SDE interprets it as a predicted ASR transcript and computes error analysis metrics.
-If you want SDE to analyse another prediction field - use --show_statistics argument.
-
+If you want SDE to analyse another prediction field, then please use `--show_statistics` argument.
 
 User Interface
 --------------
 
-SDE application has tree pages if --names_compared argument is not empy:
+SDE has three pages if `--names_compared` argument is not empty:
 
 * `Statistics` (to display global statistics and aggregated error metrics)
 
@@ -85,7 +82,7 @@ SDE application has tree pages if --names_compared argument is not empy:
         :width: 800px
         :alt: SDE Statistics
 
-* `Comparison tool` (To visually explore predictions)
+* `Comparison tool` (to explore predictions at word level)
 
     .. image:: images/scrsh_2.png
         :align: center
@@ -93,8 +90,7 @@ SDE application has tree pages if --names_compared argument is not empy:
         :alt: Comparison tool
 
 
-Plotly Dash Datatable provides core CT's interactive features (navigation, filtering, and sorting).
-Comparison tool has one datatable:
+CT has an interactive datatable for dataset's vocabulary (that supports navigation, filtering, and sorting):
 
 
 * Data (that visualizes all dataset's words and adds each one's accuracy)
@@ -104,9 +100,9 @@ Comparison tool has one datatable:
         :width: 800px
         :alt: Data
 
-CT supports all operations, that present in SDE and in addition "or" and "and" operations
+CT supports all operations, that present in SDE, and allows combination of filtering expressions with "or" and "and" operations
 
-* filtering (by entering a filtering expression in a cell below the header's cell): CT supports all operations, that present in SDE, and, in addition, "or" and "and" operations
+* filtering (by entering a filtering expression in a cell below the header's cell)
 
     .. image:: images/scrsh_4.png
         :align: center
@@ -124,7 +120,7 @@ If there is a pre-trained ASR model, then the JSON manifest file can be extended
     python examples/asr/transcribe_speech.py pretrained_name=<ASR_MODEL_NAME> dataset_manifest=<JSON_FILENAME> append_pred=False pred_name_postfix=<model_name_1>
     
 
-More information about transcribe_speech cold be found inside it's code: `NeMo/examples/asr/transcribe_speech.py <https://github.com/NVIDIA/NeMo/blob/main/examples/asr/transcribe_speech.py>`__.
+More information about transcribe_speech parameters is available in the code: `NeMo/examples/asr/transcribe_speech.py <https://github.com/NVIDIA/NeMo/blob/main/examples/asr/transcribe_speech.py>`__.
 .
 
     .. image:: images/scrsh_2.png
@@ -132,31 +128,26 @@ More information about transcribe_speech cold be found inside it's code: `NeMo/e
         :width: 800px
         :alt: fields
 
-Fields 1 and 2 are responsible for what will be displayed on the horizontal and vertical axes
+Fields 1 and 2 are responsible for what will be displayed on the horizontal and vertical axes.
 
 Fields 3 and 4 allow you to convert any available numeric parameter into color and size, respectively.
 
-Fields 5 and 6 are responsible for point spacing. With a high probability, some points will have the same coordinates on both axes, in which case there will be an overlap, and in order to be able to explore each point, the possibility of their separation was added
-
-.
+Fields 5 and 6 are responsible for point spacing. Some data points might have the same coordinates on both axes, in which case there will be an overlap, and in order to be able to explore each point, the option for their spreading was added.
 
     .. image:: images/scrsh_5.png
         :align: center
         :width: 800px
         :alt: dot spacing
 
-Point spacing works as follows: a small random value is added to all point coordinates, the value of which is limited by the "radius" parameter, which can be set manually
-
-.
+Point spacing works as follows: a small random value is added to all point coordinates, the value of which is limited by the "radius" parameter, which can be set manually.
 
     .. image:: images/scrsh_9.png
         :align: center
         :width: 800px
         :alt: Example
 
-Initially, the accuracy on the word of the first model is displayed along the axes, from the second, in this case, all points lying above the diagonal will have a higher accuracy on the model displayed on the vertical axis,
-and all points below the diagonal will have a better quality on the model displayed on the horizontal axis
+In this case, all points lying above the diagonal have higher accuracy with the model displayed on the vertical axis, and all points below the diagonal were recognized better with the model displayed on the horizontal axis.
 
-Points marked with circles should be explored first
+Points marked with circles should be explored first.
 
 Words in the first quarter were well recognized by both models, and conversely, words in the third quarter were poorly recognized by both models.
