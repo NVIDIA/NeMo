@@ -145,7 +145,8 @@ class TestTrainingGPT3Config:
         
           optim:
             name: distributed_fused_adam
-            bucket_cap_mb: ${training.model.grad_allreduce_chunk_size_mb}
+            bucket_cap_mb: 200
+            contiguous_grad_buffer: True
             lr: 6e-4
             weight_decay: 0.1 
             betas: 
@@ -378,7 +379,8 @@ class TestTrainingGPT3Config:
         
           optim:
             name: distributed_fused_adam
-            bucket_cap_mb: ${training.model.grad_allreduce_chunk_size_mb}
+            bucket_cap_mb: 200
+            contiguous_grad_buffer: True
             lr: 1.6e-4
             weight_decay: 0.1 
             betas: 
@@ -610,7 +612,8 @@ class TestTrainingGPT3Config:
         
           optim:
             name: distributed_fused_adam
-            bucket_cap_mb: ${training.model.grad_allreduce_chunk_size_mb}
+            bucket_cap_mb: 200
+            contiguous_grad_buffer: True
             lr: 1.4e-4
             weight_decay: 0.1 
             betas: 
@@ -842,7 +845,8 @@ class TestTrainingGPT3Config:
         
           optim:
             name: distributed_fused_adam
-            bucket_cap_mb: ${training.model.grad_allreduce_chunk_size_mb}
+            bucket_cap_mb: 200
+            contiguous_grad_buffer: True
             lr: 1.1e-4
             weight_decay: 0.1 
             betas: 
@@ -1074,7 +1078,8 @@ class TestTrainingGPT3Config:
         
           optim:
             name: distributed_fused_adam
-            bucket_cap_mb: ${training.model.grad_allreduce_chunk_size_mb}
+            bucket_cap_mb: 200
+            contiguous_grad_buffer: True
             lr: 0.9e-4
             weight_decay: 0.1 
             betas: 

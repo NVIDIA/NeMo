@@ -184,7 +184,8 @@ model:
 
   optim:
     name: distributed_fused_adam
-    bucket_cap_mb: ${training.model.grad_allreduce_chunk_size_mb}
+    bucket_cap_mb: 200
+    contiguous_grad_buffer: True
     lr: 0.0001
     betas:
       - 0.9
@@ -404,7 +405,8 @@ model:
 
   optim:
     name: distributed_fused_adam
-    bucket_cap_mb: ${training.model.grad_allreduce_chunk_size_mb}
+    bucket_cap_mb: 200
+    contiguous_grad_buffer: True
     lr: 0.0001
     betas:
       - 0.9
@@ -624,7 +626,8 @@ model:
 
   optim:
     name: distributed_fused_adam
-    bucket_cap_mb: ${training.model.grad_allreduce_chunk_size_mb}
+    bucket_cap_mb: 200
+    contiguous_grad_buffer: True
     lr: 0.0001
     betas:
       - 0.9
