@@ -29,7 +29,6 @@ from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.classes.mixins import AccessMixin
 from nemo.utils import logging
-from nemo.core.classes.common import PretrainedModelInfo
 
 
 class EncDecHybridRNNTCTCModel(EncDecRNNTModel):

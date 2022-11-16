@@ -20,8 +20,8 @@ from pytorch_lightning import Trainer
 
 from nemo.collections.asr.metrics.wer_bpe import WERBPE, CTCBPEDecoding, CTCBPEDecodingConfig
 from nemo.collections.asr.models.hybrid_rnnt_ctc_models import EncDecHybridRNNTCTCModel
-from nemo.utils import logging, model_utils
 from nemo.core.classes.common import PretrainedModelInfo
+from nemo.utils import logging, model_utils
 
 
 class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel):
