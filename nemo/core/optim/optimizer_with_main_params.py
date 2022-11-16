@@ -217,7 +217,8 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
                         num_elements[i] = num_elements.get(i, 0) + param.data.nelement()
 
                 # Allocate gradient memory buffers for each data type
-                self._main_grad_buffers[i] = GradBucket(num_elements[i], self._grad_allreduce_chunk_size_mb)
+                if any(param.requires_grad for param in param_group['params']):
+                    self._main_grad_buffers[i] = GradBucket(num_elements[i], self._grad_allreduce_chunk_size_mb)
 
         # Three groups of parameters:
         self.float16_groups = []  # original float16 parameters
