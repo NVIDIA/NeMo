@@ -12,6 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+import signal
+import sys
+import time
+
 import pytorch_lightning as pl
 
 from nemo.collections.common.callbacks import LogEpochTimeCallback
@@ -19,6 +24,12 @@ from nemo.collections.tts.models.radtts import RadTTSModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
+
+
+def handle_pdb(sig, frame):
+    import pdb
+
+    pdb.Pdb().set_trace(frame)
 
 
 def freeze(model):
@@ -59,6 +70,7 @@ def prepare_model_weights(model, unfreeze_modules):
 
 @hydra_runner(config_path="conf", config_name="rad-tts_dec")
 def main(cfg):
+    signal.signal(signal.SIGUSR1, handle_pdb)
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get('exp_manager', None))
     model = RadTTSModel(cfg=cfg.model, trainer=trainer)
