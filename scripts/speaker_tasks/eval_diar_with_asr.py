@@ -17,19 +17,8 @@ import argparse
 import json
 import os
 
-import librosa as l
-import numpy as np
-import soundfile as sf
-import sox
-from sklearn.model_selection import StratifiedShuffleSplit
-from tqdm.contrib.concurrent import process_map
 
 
-
-from nemo.collections.asr.parts.utils.diarization_utils import (
-convert_ctm_to_text,
-
-)
 from nemo.collections.asr.parts.utils.speaker_utils import (
 get_uniqname_from_filepath,
 rttm_to_labels,
@@ -38,8 +27,8 @@ labels_to_pyannote_object,
 
 from nemo.collections.asr.parts.utils.diarization_utils import OfflineDiarWithASR 
 from nemo.collections.asr.parts.utils.manifest_utils import read_file
-from nemo.collections.asr.metrics.der import concat_perm_word_error_rate, score_labels
-from nemo.collections.asr.metrics.wer import word_error_rate
+from nemo.collections.asr.metrics.der import score_labels
+
 
 """
 Evaluation script for diarization with ASR.
@@ -49,27 +38,27 @@ session-level DER, WER, cpWER and speaker counting accuracies are evaluated.
 
 Use CTM files to calculate WER and cpWER
 ```
-python /eval_diar_with_asr.py \
+python eval_diar_with_asr.py \
  --hyp_rttm_list="/path/to/hypothesis_rttm_filepaths.list" \
  --ref_rttm_list="/path/to/reference_rttm_filepaths.list" \
- --ref_ctm_list="/path/to/reference_ctm_filepaths.list" \
  --hyp_ctm_list="/path/to/hypothesis_ctm_filepaths.list" \
+ --ref_ctm_list="/path/to/reference_ctm_filepaths.list" \
  --root_path="/path/to/output/directory"
 ```
 
 Use .json files to calculate WER and cpWER
 ```
-python /eval_diar_with_asr.py \
+python eval_diar_with_asr.py \
  --hyp_rttm_list="/path/to/hypothesis_rttm_filepaths.list" \
  --ref_rttm_list="/path/to/reference_rttm_filepaths.list" \
- --ref_ctm_list="/path/to/reference_ctm_filepaths.list" \
  --hyp_json_list="/path/to/hypothesis_json_filepaths.list" \
+ --ref_ctm_list="/path/to/reference_ctm_filepaths.list" \
  --root_path="/path/to/output/directory"
 ```
 
 Only use RTTMs to calculate DER
 ```
-python /eval_diar_with_asr.py \
+python eval_diar_with_asr.py \
  --hyp_rttm_list="/path/to/hypothesis_rttm_filepaths.list" \
  --ref_rttm_list="/path/to/reference_rttm_filepaths.list" \
  --root_path="/path/to/output/directory"
