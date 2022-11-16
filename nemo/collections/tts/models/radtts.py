@@ -158,7 +158,7 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         loss_outputs['binarization_loss'] = (binarization_loss, 1.0)
 
         for k, (v, w) in loss_outputs.items():
-            self.log("train/" + k, loss_outputs[k][0], on_step=True, sync_dist=True)
+            self.log("train/" + k, loss_outputs[k][0], on_step=True)
 
         return {'loss': loss}
 
