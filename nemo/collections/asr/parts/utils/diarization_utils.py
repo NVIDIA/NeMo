@@ -188,9 +188,7 @@ def convert_word_dict_seq_to_ctm(
 
 
 def get_total_result_dict(
-    der_results: Dict[str, Dict[str, float]], 
-    wer_results: Dict[str, Dict[str, float]],
-    csv_columns: List[str],
+    der_results: Dict[str, Dict[str, float]], wer_results: Dict[str, Dict[str, float]], csv_columns: List[str],
 ):
     """
     Merge WER results and DER results into a single dictionary variable.
@@ -240,6 +238,7 @@ def get_audacity_label(word: str, stt_sec: float, end_sec: float, speaker: str) 
     """
     spk = speaker.split('_')[-1]
     return f'{stt_sec}\t{end_sec}\t[{spk}] {word}'
+
 
 def get_num_of_spk_from_labels(labels: List[str]) -> int:
     """
@@ -427,7 +426,9 @@ class OfflineDiarWithASR:
         """
         self.VAD_RTTM_MAP = {}
         for idx, (uniq_id, word_timestamps) in enumerate(word_ts_dict.items()):
-            speech_labels_float = self.get_speech_labels_from_decoded_prediction(word_timestamps, self.nonspeech_threshold)
+            speech_labels_float = self.get_speech_labels_from_decoded_prediction(
+                word_timestamps, self.nonspeech_threshold
+            )
             speech_labels = self.get_str_speech_labels(speech_labels_float)
             output_path = os.path.join(self.root_path, 'pred_rttms')
             if not os.path.exists(output_path):
@@ -437,10 +438,8 @@ class OfflineDiarWithASR:
 
     @staticmethod
     def get_speech_labels_from_decoded_prediction(
-        self, 
-        input_word_ts: List[float],
-        nonspeech_threshold: float,
-        ) -> List[float]:
+        self, input_word_ts: List[float], nonspeech_threshold: float,
+    ) -> List[float]:
         """
         Extract speech labels from the ASR output (decoded predictions)
 
@@ -534,9 +533,9 @@ class OfflineDiarWithASR:
     def gather_eval_results(
         diar_score,
         audio_rttm_map_dict: Dict[str, Dict[str, str]],
-        trans_info_dict: Dict[str, Dict[str, float]], 
+        trans_info_dict: Dict[str, Dict[str, float]],
         root_path: str,
-        decimals: int = 4
+        decimals: int = 4,
     ) -> Dict[str, Dict[str, float]]:
         """
         Gather diarization evaluation results from pyannote DiarizationErrorRate metric object.
@@ -683,10 +682,7 @@ class OfflineDiarWithASR:
         return enhanced_word_ts_dict
 
     def get_transcript_with_speaker_labels(
-        self, 
-        diar_hyp: Dict[str, List[str]], 
-        word_hyp: Dict[str, List[str]], 
-        word_ts_hyp: Dict[str, List[float]]
+        self, diar_hyp: Dict[str, List[str]], word_hyp: Dict[str, List[str]], word_ts_hyp: Dict[str, List[float]]
     ) -> Dict[str, Dict[str, float]]:
         """
         Match the diarization result with the ASR output.
@@ -1048,7 +1044,7 @@ class OfflineDiarWithASR:
         hyp_trans_info_dict: Dict[str, Dict[str, float]],
         hyp_ctm_file_list: List[str] = None,
         ref_ctm_file_list: List[str] = None,
-        ) -> Dict[str, Dict[str, float]]:
+    ) -> Dict[str, Dict[str, float]]:
         """
         Evaluate the result transcripts based on the provided CTM file. WER and cpWER are calculated to assess
         the performance of ASR system and diarization at the same time.
@@ -1083,13 +1079,15 @@ class OfflineDiarWithASR:
                     raise ValueError("audio_file_list has mismatch in uniq_id with ctm_file_path")
 
                 # Either hypothesis CTM file or hyp_trans_info_dict should be provided
-                if hyp_ctm_file_list is not None: 
+                if hyp_ctm_file_list is not None:
                     if uniq_id == get_uniqname_from_filepath(hyp_ctm_file_list[k]):
                         spk_hypothesis, mix_hypothesis = convert_ctm_to_text(hyp_ctm_file_list[k])
                     else:
                         raise ValueError("Hypothesis CTM files are provided but uniq_id is mismatched")
                 elif hyp_trans_info_dict is not None and uniq_id in hyp_trans_info_dict:
-                    spk_hypothesis, mix_hypothesis = convert_word_dict_seq_to_text(hyp_trans_info_dict[uniq_id]['words'])
+                    spk_hypothesis, mix_hypothesis = convert_word_dict_seq_to_text(
+                        hyp_trans_info_dict[uniq_id]['words']
+                    )
                 else:
                     raise ValueError("Hypothesis information is not provided in the correct format.")
 
@@ -1133,14 +1131,14 @@ class OfflineDiarWithASR:
         for start, end in speech_labels_float:
             speech_labels.append("{:.3f} {:.3f} speech".format(start, end))
         return speech_labels
-    
+
     @staticmethod
     def write_session_level_result_in_csv(
-        der_results: Dict[str, Dict[str, float]], 
+        der_results: Dict[str, Dict[str, float]],
         wer_results: Dict[str, Dict[str, float]],
         root_path: str,
         csv_columns: List[str],
-        csv_file_name: str = "ctm_eval.csv"
+        csv_file_name: str = "ctm_eval.csv",
     ):
         """
         This function is for development use when a CTM file is provided.
@@ -1163,7 +1161,7 @@ class OfflineDiarWithASR:
                     writer.writerow(data)
         except IOError:
             logging.info("I/O error has occurred while writing a csv file.")
-    
+
     def _break_lines(self, string_out: str, max_chars_in_line: int = 90) -> str:
         """
         Break the lines in the transcript.
@@ -1306,4 +1304,3 @@ class OfflineDiarWithASR:
             string_out += f'{color}{time_str}{speaker}: {text}\n'
 
         return string_out
-

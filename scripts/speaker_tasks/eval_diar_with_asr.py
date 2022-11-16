@@ -17,17 +17,14 @@ import argparse
 import json
 import os
 
-
-
-from nemo.collections.asr.parts.utils.speaker_utils import (
-get_uniqname_from_filepath,
-rttm_to_labels,
-labels_to_pyannote_object,
-)
-
-from nemo.collections.asr.parts.utils.diarization_utils import OfflineDiarWithASR 
-from nemo.collections.asr.parts.utils.manifest_utils import read_file
 from nemo.collections.asr.metrics.der import score_labels
+from nemo.collections.asr.parts.utils.diarization_utils import OfflineDiarWithASR
+from nemo.collections.asr.parts.utils.manifest_utils import read_file
+from nemo.collections.asr.parts.utils.speaker_utils import (
+    get_uniqname_from_filepath,
+    labels_to_pyannote_object,
+    rttm_to_labels,
+)
 
 
 """
@@ -65,11 +62,13 @@ python eval_diar_with_asr.py \
 ```
 
 """
+
+
 def get_pyannote_objs_from_rttms(rttm_file_path_list):
     """Generate PyAnnote objects from RTTM file list
     """
     pyannote_obj_list = []
-    for rttm_file in rttm_file_path_list: 
+    for rttm_file in rttm_file_path_list:
         rttm_file = rttm_file.strip()
         if rttm_file is not None and os.path.exists(rttm_file):
             uniq_id = get_uniqname_from_filepath(rttm_file)
@@ -85,11 +84,12 @@ def make_meta_dict(hyp_rttm_list, ref_rttm_list):
     meta_dict = {}
     for k, rttm_file in enumerate(ref_rttm_list):
         uniq_id = get_uniqname_from_filepath(rttm_file)
-        meta_dict[uniq_id] = {"rttm_filepath":rttm_file.strip()}
+        meta_dict[uniq_id] = {"rttm_filepath": rttm_file.strip()}
         if hyp_rttm_list is not None:
             hyp_rttm_file = hyp_rttm_list[k]
-            meta_dict[uniq_id].update({"hyp_rttm_filepath":hyp_rttm_file.strip()})
+            meta_dict[uniq_id].update({"hyp_rttm_filepath": hyp_rttm_file.strip()})
     return meta_dict
+
 
 def make_trans_info_dict(hyp_json_list_path):
     """Create `trans_info_dict` from the `.json` files
@@ -103,16 +103,18 @@ def make_trans_info_dict(hyp_json_list_path):
         trans_info_dict[uniq_id] = json_data
     return trans_info_dict
 
+
 def read_file_path(list_path):
     """Read file path and strip to remove line change symbol
     """
-    return sorted([ x.strip() for x in read_file(list_path) ])
+    return sorted([x.strip() for x in read_file(list_path)])
+
 
 def evaluate_der(audio_rttm_map_dict, all_reference, all_hypothesis, diar_eval_mode):
     """Evaluate with a selected diarization evaluation scheme
     """
     eval_settings = []
-    if diar_eval_mode =="fair":
+    if diar_eval_mode == "fair":
         eval_settings = [(0.25, False)]
     elif diar_eval_mode == "forgiving":
         eval_settings = [(0.25, True)]
@@ -124,12 +126,15 @@ def evaluate_der(audio_rttm_map_dict, all_reference, all_hypothesis, diar_eval_m
         raise ValueError("`diar_eval_mode` variable contains an unsupported value")
 
     for collar, ignore_overlap in eval_settings:
-        diar_score = score_labels(AUDIO_RTTM_MAP=audio_rttm_map_dict, 
-                                 all_reference=all_reference,
-                                 all_hypothesis=all_hypothesis, 
-                                 collar=collar, 
-                                 ignore_overlap=ignore_overlap)
+        diar_score = score_labels(
+            AUDIO_RTTM_MAP=audio_rttm_map_dict,
+            all_reference=all_reference,
+            all_hypothesis=all_hypothesis,
+            collar=collar,
+            ignore_overlap=ignore_overlap,
+        )
     return diar_score
+
 
 def main(
     hyp_rttm_list_path: str,
@@ -139,7 +144,7 @@ def main(
     hyp_json_list_path: str,
     diar_eval_mode: str = "all",
     root_path: str = "./",
-    ):
+):
 
     # Read filepath list files
     hyp_rttm_list = read_file_path(hyp_rttm_list_path) if hyp_rttm_list_path else None
@@ -154,65 +159,96 @@ def main(
 
     all_hypothesis = get_pyannote_objs_from_rttms(hyp_rttm_list)
     all_reference = get_pyannote_objs_from_rttms(ref_rttm_list)
-    
-    diar_score = evaluate_der(audio_rttm_map_dict=audio_rttm_map_dict, 
-                             all_reference=all_reference,
-                             all_hypothesis=all_hypothesis,
-                             diar_eval_mode=diar_eval_mode,
-                             )
-    
+
+    diar_score = evaluate_der(
+        audio_rttm_map_dict=audio_rttm_map_dict,
+        all_reference=all_reference,
+        all_hypothesis=all_hypothesis,
+        diar_eval_mode=diar_eval_mode,
+    )
+
     # Get session-level diarization error rate and speaker counting error
-    der_results = OfflineDiarWithASR.gather_eval_results(diar_score=diar_score, 
-                                                       audio_rttm_map_dict=audio_rttm_map_dict,
-                                                       trans_info_dict=trans_info_dict,
-                                                       root_path=root_path)
+    der_results = OfflineDiarWithASR.gather_eval_results(
+        diar_score=diar_score,
+        audio_rttm_map_dict=audio_rttm_map_dict,
+        trans_info_dict=trans_info_dict,
+        root_path=root_path,
+    )
 
     if ref_ctm_list is not None:
         # Calculate WER and cpWER if reference CTM files exist
         if hyp_ctm_list is not None:
-            wer_results = OfflineDiarWithASR.evaluate(audio_file_list=hyp_rttm_list,
-                                                    hyp_trans_info_dict=None,
-                                                    hyp_ctm_file_list=hyp_ctm_list,
-                                                    ref_ctm_file_list=ref_ctm_list,
-                                                    )
+            wer_results = OfflineDiarWithASR.evaluate(
+                audio_file_list=hyp_rttm_list,
+                hyp_trans_info_dict=None,
+                hyp_ctm_file_list=hyp_ctm_list,
+                ref_ctm_file_list=ref_ctm_list,
+            )
         elif hyp_json_list is not None:
-            wer_results = OfflineDiarWithASR.evaluate(audio_file_list=hyp_rttm_list,
-                                                    hyp_trans_info_dict=trans_info_dict, 
-                                                    hyp_ctm_file_list=None,
-                                                    ref_ctm_file_list=ref_ctm_list)
+            wer_results = OfflineDiarWithASR.evaluate(
+                audio_file_list=hyp_rttm_list,
+                hyp_trans_info_dict=trans_info_dict,
+                hyp_ctm_file_list=None,
+                ref_ctm_file_list=ref_ctm_list,
+            )
         else:
             raise ValueError("Hypothesis information is not provided in the correct format.")
     else:
         wer_results = {}
 
     # Print average DER, WER and cpWER
-    OfflineDiarWithASR.print_errors(der_results=der_results, 
-                                    wer_results=wer_results)
+    OfflineDiarWithASR.print_errors(der_results=der_results, wer_results=wer_results)
 
     # Save detailed session-level evaluation results in `root_path`.
-    OfflineDiarWithASR.write_session_level_result_in_csv(der_results=der_results, 
-                                                       wer_results=wer_results, 
-                                                       root_path=root_path,
-                                                       csv_columns=OfflineDiarWithASR.get_csv_columns())
+    OfflineDiarWithASR.write_session_level_result_in_csv(
+        der_results=der_results,
+        wer_results=wer_results,
+        root_path=root_path,
+        csv_columns=OfflineDiarWithASR.get_csv_columns(),
+    )
     return None
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--hyp_rttm_list", help="path to the filelist of hypothesis RTTM files", type=str, required=True, default=None)
-    parser.add_argument("--ref_rttm_list", help="path to the filelist of reference RTTM files", type=str, required=True, default=None)
-    parser.add_argument("--hyp_ctm_list", help="path to the filelist of hypothesis CTM files", type=str, required=False, default=None)
-    parser.add_argument("--ref_ctm_list", help="path to the filelist of reference CTM files", type=str, required=False, default=None)
-    parser.add_argument("--hyp_json_list", help="(Optional) path to the filelist of hypothesis JSON files", type=str, required=False, default=None)
-    parser.add_argument("--diar_eval_mode", help='evaluation mode: "all", "fair", "forgiving", "full"', type=str, required=False, default="all")
-    parser.add_argument("--root_path", help='directory for saving result files', type=str, required=False, default="./")
+    parser.add_argument(
+        "--hyp_rttm_list", help="path to the filelist of hypothesis RTTM files", type=str, required=True, default=None
+    )
+    parser.add_argument(
+        "--ref_rttm_list", help="path to the filelist of reference RTTM files", type=str, required=True, default=None
+    )
+    parser.add_argument(
+        "--hyp_ctm_list", help="path to the filelist of hypothesis CTM files", type=str, required=False, default=None
+    )
+    parser.add_argument(
+        "--ref_ctm_list", help="path to the filelist of reference CTM files", type=str, required=False, default=None
+    )
+    parser.add_argument(
+        "--hyp_json_list",
+        help="(Optional) path to the filelist of hypothesis JSON files",
+        type=str,
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
+        "--diar_eval_mode",
+        help='evaluation mode: "all", "fair", "forgiving", "full"',
+        type=str,
+        required=False,
+        default="all",
+    )
+    parser.add_argument(
+        "--root_path", help='directory for saving result files', type=str, required=False, default="./"
+    )
 
     args = parser.parse_args()
 
-    main(args.hyp_rttm_list,
-         args.ref_rttm_list, 
-         args.hyp_ctm_list, 
-         args.ref_ctm_list, 
-         args.hyp_json_list, 
-         args.diar_eval_mode, 
-         args.root_path, 
+    main(
+        args.hyp_rttm_list,
+        args.ref_rttm_list,
+        args.hyp_ctm_list,
+        args.ref_ctm_list,
+        args.hyp_json_list,
+        args.diar_eval_mode,
+        args.root_path,
     )
