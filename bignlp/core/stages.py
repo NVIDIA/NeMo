@@ -308,7 +308,7 @@ class BigNLPStage:
         if ntasks_per_node is None:
             ntasks_per_node = self.stage_cfg.trainer.get("devices", 1)
         return "CUDA_VISIBLE_DEVICES=0,4,2,6,1,5,3,7" \
-            if ntasks_per_node == 8 else ""
+            if ntasks_per_node == 8 else f"CUDA_VISIBLE_DEVICES={','.join(map(str, range(ntasks_per_node)))}"
 
     @property
     def _cuda_device_max_connections(self) -> str:
