@@ -1527,8 +1527,11 @@ pipeline {
         anyOf {
           branch 'r1.13.0'
           changeRequest target: 'r1.13.0'
+        }
+      }
       failFast true
       parallel {
+        stage ('Text Classification with BERT Test') {
           steps {
             sh 'cd examples/nlp/text_classification && \
             python text_classification_with_bert.py \
