@@ -1677,7 +1677,6 @@ train.mt5.170m_tp2_pp4_2node_100steps:
   needs:
     - build-BigNLP
 
-
 convert.mt5.170m_tp2_pp4:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
@@ -1694,39 +1693,39 @@ convert.mt5.170m_tp2_pp4:
   needs:
     - train.mt5.170m_tp2_pp4_2node_100steps
 
-finetune.mt5.170m_tp2_pp4_2node_100steps_squad_ckpt:
-  <<: *bignlp-LUNA-test-LAUNCHER-refactored
-  variables:
-    <<: [*VARS, *LUNA_VARS]
-    RUN_STAGE: finetune
-    RUN_MODEL: mt5
-    RUN_MODEL_SIZE: 170m
-    UPSTREAM_RUN_NAME: train_mt5_170m_tp2_pp4_2node_100steps
-    TP_SIZE: 2
-    PP_SIZE: 4
-    MAX_STEPS: 100
-    NUM_NODES: 2
-    TIME_LIMIT: "01:00:00"
-    TEST_LEVEL: L0
-    TEST_TASK: squad_ckpt
-  needs:
-    - train.mt5.170m_tp2_pp4_2node_100steps
+# finetune.mt5.170m_tp2_pp4_2node_100steps_squad_ckpt:
+#   <<: *bignlp-LUNA-test-LAUNCHER-refactored
+#   variables:
+#     <<: [*VARS, *LUNA_VARS]
+#     RUN_STAGE: finetune
+#     RUN_MODEL: mt5
+#     RUN_MODEL_SIZE: 170m
+#     UPSTREAM_RUN_NAME: train_mt5_170m_tp2_pp4_2node_100steps
+#     TP_SIZE: 2
+#     PP_SIZE: 4
+#     MAX_STEPS: 100
+#     NUM_NODES: 2
+#     TIME_LIMIT: "01:00:00"
+#     TEST_LEVEL: L0
+#     TEST_TASK: squad_ckpt
+#   needs:
+#     - train.mt5.170m_tp2_pp4_2node_100steps
 
-eval.mt5.170m_tp2_pp4_squad_ckpt:
-  <<: *bignlp-LUNA-test-LAUNCHER-refactored
-  variables:
-    <<: [*VARS, *LUNA_VARS]
-    RUN_STAGE: eval
-    TEST_TASK: squad_ckpt
-    RUN_MODEL: mt5
-    RUN_MODEL_SIZE: 170m
-    TIME_LIMIT: "1:00:00"
-    TP_SIZE: 2
-    PP_SIZE: 4
-    FINETUNE_JOB_DIR: finetune_mt5_170m_tp2_pp4_2node_100steps_squad_ckpt
-    TEST_LEVEL: L0
-  needs:
-    - finetune.mt5.170m_tp2_pp4_2node_100steps_squad_ckpt
+# eval.mt5.170m_tp2_pp4_squad_ckpt:
+#   <<: *bignlp-LUNA-test-LAUNCHER-refactored
+#   variables:
+#     <<: [*VARS, *LUNA_VARS]
+#     RUN_STAGE: eval
+#     TEST_TASK: squad_ckpt
+#     RUN_MODEL: mt5
+#     RUN_MODEL_SIZE: 170m
+#     TIME_LIMIT: "1:00:00"
+#     TP_SIZE: 2
+#     PP_SIZE: 4
+#     FINETUNE_JOB_DIR: finetune_mt5_170m_tp2_pp4_2node_100steps_squad_ckpt
+#     TEST_LEVEL: L0
+#   needs:
+#     - finetune.mt5.170m_tp2_pp4_2node_100steps_squad_ckpt
 
 finetune.mt5.170m_tp2_pp4_2node_100steps_xquad:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
