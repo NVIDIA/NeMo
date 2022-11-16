@@ -235,7 +235,7 @@ class Invertible1x1ConvLUS(torch.nn.Module):
     def __init__(self, c):
         super(Invertible1x1ConvLUS, self).__init__()
         # Sample a random orthonormal matrix to initialize weights
-        W = torch.qr(torch.FloatTensor(c, c).normal_())[0]
+        W, _ = torch.linalg.qr(torch.FloatTensor(c, c).normal_())
         # Ensure determinant is 1.0 not -1.0
         if torch.det(W) < 0:
             W[:, 0] = -1 * W[:, 0]
