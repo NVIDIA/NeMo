@@ -437,7 +437,6 @@ class OfflineDiarWithASR:
 
     @staticmethod
     def get_speech_labels_from_decoded_prediction(
-        self, 
         input_word_ts: List[float],
         nonspeech_threshold: float,
         ) -> List[float]:
@@ -924,7 +923,7 @@ class OfflineDiarWithASR:
         session_trans_dict['transcription'] = ' '.join(word_seq_list)
         # add sentences to transcription information dict
         session_trans_dict['sentences'] = sentences
-        self.write_and_log(uniq_id, session_trans_dict, audacity_label_words, gecko_dict, sentences)
+        self._write_and_log(uniq_id, session_trans_dict, audacity_label_words, gecko_dict, sentences)
         return session_trans_dict
 
     def _get_realignment_ranges(self, k: int, word_seq_len: int) -> Tuple[int, int]:
@@ -1196,7 +1195,7 @@ class OfflineDiarWithASR:
         return_string_out = '\n'.join(return_string_out)
         return return_string_out
 
-    def write_and_log(
+    def _write_and_log(
         self,
         uniq_id: str,
         session_trans_dict: Dict[str, Dict[str, float]],

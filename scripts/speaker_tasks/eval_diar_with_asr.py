@@ -112,14 +112,14 @@ def evaluate_der(audio_rttm_map_dict, all_reference, all_hypothesis, diar_eval_m
     """Evaluate with a selected diarization evaluation scheme
     """
     eval_settings = []
-    if diar_eval_mode =="fair":
+    if diar_eval_mode == "full":
+        eval_settings = [(0.0, False)]
+    elif diar_eval_mode =="fair":
         eval_settings = [(0.25, False)]
     elif diar_eval_mode == "forgiving":
         eval_settings = [(0.25, True)]
-    elif diar_eval_mode == "full":
-        eval_settings = [(0.0, False)]
     elif diar_eval_mode == "all":
-        eval_settings = [(0.25, True), (0.0, False), (0.25, False)]
+        eval_settings = [(0.0, False), (0.25, False), (0.25, True)]
     else:
         raise ValueError("`diar_eval_mode` variable contains an unsupported value")
 
