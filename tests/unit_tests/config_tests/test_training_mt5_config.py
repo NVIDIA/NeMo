@@ -165,6 +165,7 @@ model:
 
   # miscellaneous
   seed: 1234
+  sync_batch_comm: False
   use_cpu_initialization: False # Init weights on the CPU (slow for large models)
   apex_transformer_log_level: 30 # Python logging level displays logs with severity greater than or equal to this
 
@@ -384,6 +385,7 @@ model:
 
   # miscellaneous
   seed: 1234
+  sync_batch_comm: False
   use_cpu_initialization: False # Init weights on the CPU (slow for large models)
   apex_transformer_log_level: 30 # Python logging level displays logs with severity greater than or equal to this
 
@@ -603,6 +605,7 @@ model:
 
   # miscellaneous
   seed: 1234
+  sync_batch_comm: False
   use_cpu_initialization: False # Init weights on the CPU (slow for large models)
   apex_transformer_log_level: 30 # Python logging level displays logs with severity greater than or equal to this
 

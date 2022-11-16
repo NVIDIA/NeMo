@@ -129,6 +129,7 @@ class TestTrainingGPT3Config:
         
           # miscellaneous
           seed: 1234
+          sync_batch_comm: False
           use_cpu_initialization: False # Init weights on the CPU (slow for large models)
           onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
           apex_transformer_log_level: 30 # Python logging level displays logs with severity greater than or equal to this
@@ -361,6 +362,7 @@ class TestTrainingGPT3Config:
         
           # miscellaneous
           seed: 1234
+          sync_batch_comm: False
           use_cpu_initialization: False # Init weights on the CPU (slow for large models)
           onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
           apex_transformer_log_level: 30 # Python logging level displays logs with severity greater than or equal to this
@@ -592,6 +594,7 @@ class TestTrainingGPT3Config:
         
           # miscellaneous
           seed: 1234
+          sync_batch_comm: False
           use_cpu_initialization: False # Init weights on the CPU (slow for large models)
           onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
           apex_transformer_log_level: 30 # Python logging level displays logs with severity greater than or equal to this
@@ -823,6 +826,7 @@ class TestTrainingGPT3Config:
         
           # miscellaneous
           seed: 1234
+          sync_batch_comm: False
           use_cpu_initialization: False # Init weights on the CPU (slow for large models)
           onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
           apex_transformer_log_level: 30 # Python logging level displays logs with severity greater than or equal to this
@@ -1054,6 +1058,7 @@ class TestTrainingGPT3Config:
         
           # miscellaneous
           seed: 1234
+          sync_batch_comm: False
           use_cpu_initialization: False # Init weights on the CPU (slow for large models)
           onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
           apex_transformer_log_level: 30 # Python logging level displays logs with severity greater than or equal to this
