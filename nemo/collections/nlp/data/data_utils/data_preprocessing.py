@@ -184,17 +184,16 @@ def get_label_stats(labels, outfile="stats.tsv", verbose=True):
     """
     labels = Counter(labels)
     total = sum(labels.values())
-    out = open(outfile, "w")
-    i = 0
-    freq_dict = {}
     label_frequencies = labels.most_common()
-    for k, v in label_frequencies:
-        out.write(f"{k}\t\t{round(v/total,5)}\t\t{v}\n")
-        if verbose and i < 3:
-            logging.info(f"label: {k}, {v} out of {total} ({(v / total)*100.0:.2f}%).")
-        i += 1
-        freq_dict[k] = v
 
+    if not os.path.exists(outfile):
+        out = open(outfile, "w")
+        for i, (k, v) in enumerate(label_frequencies):
+            out.write(f"{k}\t\t{round(v/total,5)}\t\t{v}\n")
+            if verbose and i < 3:
+                logging.info(f"label: {k}, {v} out of {total} ({(v / total)*100.0:.2f}%).")
+
+    freq_dict = dict(label_frequencies)
     return total, freq_dict, max(labels.keys())
 
 

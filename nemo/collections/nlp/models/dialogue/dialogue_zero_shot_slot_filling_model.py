@@ -140,11 +140,12 @@ class DialogueZeroShotSlotFillingModel(NLPModel):
     @staticmethod
     def _save_label_ids(label_ids: Dict[str, int], filename: str) -> None:
         """This method saves label ids map to a file"""
-        with open(filename, 'w') as out:
-            labels, _ = zip(*sorted(label_ids.items(), key=lambda x: x[1]))
-            out.write('\n'.join(labels))
-            logging.info(f'Labels: {label_ids}')
-            logging.info(f'Labels mapping saved to : {out.name}')
+        if not os.path.exists(filename):
+            with open(filename, 'w') as out:
+                labels, _ = zip(*sorted(label_ids.items(), key=lambda x: x[1]))
+                out.write('\n'.join(labels))
+                logging.info(f'Labels: {label_ids}')
+                logging.info(f'Labels mapping saved to : {out.name}')
 
     def _setup_losses_and_classification_report(self):
         """Method reconfigures the classifier depending on the settings of model cfg.data_desc"""
