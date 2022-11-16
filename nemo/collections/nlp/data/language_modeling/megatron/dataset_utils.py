@@ -235,7 +235,7 @@ def create_masked_lm_predictions(
 
     num_to_predict = min(max_predictions_per_seq, max(1, int(round(len(tokens) * masked_lm_prob))))
     if num_to_predict < 1:
-        logging.warn(
+        logging.warning(
             F'Number of tokens is : {len(tokens)} and mask_probability is {masked_lm_prob}. None of the tokens will be masked'
         )
 
