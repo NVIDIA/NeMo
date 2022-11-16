@@ -27,14 +27,10 @@ def masked_instance_norm(
 
     See :class:`~MaskedInstanceNorm1d` for details.
     """
-    shape = input.shape
-
     lengths = mask.sum((-1,))
     mean = (input * mask).sum((-1,)) / lengths  # (N, C)
     var = (((input - mean[(..., None)]) * mask) ** 2).sum((-1,)) / lengths  # (N, C)
-
     out = (input - mean[(..., None)]) / torch.sqrt(var[(..., None)] + eps)  # (N, C, ...)
-
     out = out * weight[None, :][(..., None)] + bias[None, :][(..., None)]
 
     return out
