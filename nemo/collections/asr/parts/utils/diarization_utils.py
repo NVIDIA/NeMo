@@ -438,9 +438,8 @@ class OfflineDiarWithASR:
 
     @staticmethod
     def get_speech_labels_from_decoded_prediction(
-        input_word_ts: List[float],
-        nonspeech_threshold: float,
-        ) -> List[float]:
+        input_word_ts: List[float], nonspeech_threshold: float,
+    ) -> List[float]:
         """
         Extract speech labels from the ASR output (decoded predictions)
 

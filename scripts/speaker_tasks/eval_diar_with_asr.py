@@ -116,7 +116,7 @@ def evaluate_der(audio_rttm_map_dict, all_reference, all_hypothesis, diar_eval_m
     eval_settings = []
     if diar_eval_mode == "full":
         eval_settings = [(0.0, False)]
-    elif diar_eval_mode =="fair":
+    elif diar_eval_mode == "fair":
         eval_settings = [(0.25, False)]
     elif diar_eval_mode == "forgiving":
         eval_settings = [(0.25, True)]
