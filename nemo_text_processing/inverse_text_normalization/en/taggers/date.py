@@ -86,7 +86,7 @@ def _get_year_graph():
             + delete_space
             + graph_hundred_component
             + delete_space
-            + (graph_teen | graph_ties | (pynutil.insert("0") + graph_digit))
+            + (graph_teen | graph_ties | (optional_end + pynutil.insert("0") + graph_digit))
         )
         return graph
 
