@@ -885,6 +885,46 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
         self.frozen_model.model.set_input_tensor(input_tensor)
 
+    def loss_func(self, loss_mask, output_tensor):
+        # Cross entropy loss term
+        losses = output_tensor.float()
+        loss_mask = loss_mask.view(-1).float()
+        cross_entropy_loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()  # sequence level nll
+
+        # Assuming you're only training one task at a time for now
+        taskname = self.new_tasks[0]
+    
+        # Get virtual token embeddings from prompt encoder
+        if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
+            taskname_id = torch.cuda.LongTensor([self.tokenizer.text_to_ids(taskname)])
+            taskname_embeddings = self.word_embeddings(taskname_id)
+            virtual_token_embeds = self.prompt_encoder(taskname_embeddings=taskname_embeddings).squeeze()
+        else:
+            raise NotImplementedError
+    
+        # Add regularization term, minimize similarity between virtual prompt vectors
+        def sim_matrix(a, b, eps=1e-8):
+            """
+            added eps for numerical stability
+            """
+            a_n, b_n = a.norm(dim=1)[:, None], b.norm(dim=1)[:, None]
+            a_norm = a / torch.clamp(a_n, min=eps)
+            b_norm = b / torch.clamp(b_n, min=eps)
+            sim_mt = torch.mm(a_norm, b_norm.transpose(0, 1))
+
+            return sim_mt
+
+        angle_cosines = sim_matrix(virtual_token_embeds, virtual_token_embeds)
+        reg_term = torch.sum(torch.abs(angle_cosines))
+    
+        # Combine losses
+        alpha = 0.50
+        beta = 5e-4
+        loss = (alpha * cross_entropy_loss) + (beta * reg_term)
+        logging.info(f'Cross entropy loss: {cross_entropy_loss}, Reg_term: {reg_term}')
+
+        return loss
+
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(batch, model):
             batch = [x.cuda(non_blocking=True) for x in batch]
@@ -895,7 +935,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 output_tensor, _ = output_tensor
 
             def loss_func(output_tensor):
-                loss = self.frozen_model.loss_func(loss_mask, output_tensor)
+                loss = self.loss_func(loss_mask, output_tensor)
                 reduced_loss = average_losses_across_data_parallel_group([loss])
                 return loss, {'avg': reduced_loss}
 
