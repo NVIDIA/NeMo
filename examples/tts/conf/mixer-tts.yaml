@@ -4,9 +4,9 @@
 
 name: Mixer-TTS
 
-train_dataset: "ljspeech_ds/LJSpeech-1.1/train_manifest.json"
-validation_datasets: "ljspeech_ds/LJSpeech-1.1/val_manifest.json"
-sup_data_path: "ljspeech_ds/LJSpeech-1.1/"
+train_dataset: ???
+validation_datasets: ???
+sup_data_path: ???
 sup_data_types: [ "align_prior_matrix", "pitch" ]
 
 # Default values from librosa.pyin
