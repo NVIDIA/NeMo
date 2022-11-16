@@ -44,7 +44,6 @@ from sklearn.metrics import accuracy_score, roc_auc_score
 from src.multi_classification_models import EncDecMultiClassificationModel
 from src.vad_utils import align_labels_to_frames, generate_vad_frame_pred, generate_vad_segment_table, prepare_manifest
 
-from nemo.collections.asr.parts.utils.speaker_utils import write_rttm2manifest
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 

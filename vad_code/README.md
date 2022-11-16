@@ -419,3 +419,74 @@ with noise aug, 22 epochs
         accuracy                           0.80  22009304
        macro avg       0.79      0.70      0.72  22009304
     weighted avg       0.79      0.80      0.78  22009304
+
+
+
+
+
+######## Small fisher
+NeMo I 2022-11-09 11:30:53 infer_vad_multi:100] ====================================================
+[NeMo I 2022-11-09 11:30:53 infer_vad_multi:101] Finalizing individual results...
+[NeMo I 2022-11-09 11:31:16 infer_vad_multi:116] ================= ava_eval_10ms =================
+[NeMo I 2022-11-09 11:31:16 infer_vad_multi:117] AUROC: 0.8946
+[NeMo I 2022-11-09 11:31:16 infer_vad_multi:118] Classification report with threshold=0.50
+[NeMo I 2022-11-09 11:31:16 infer_vad_multi:119]               precision    recall  f1-score   support
+    
+               0       0.79      0.82      0.81   5061417
+               1       0.84      0.82      0.83   5919315
+    
+        accuracy                           0.82  10980732
+       macro avg       0.82      0.82      0.82  10980732
+    weighted avg       0.82      0.82      0.82  10980732
+    
+[NeMo I 2022-11-09 11:31:16 infer_vad_multi:125] Detection Error Rate: DetER=38.0097, False Alarm=33.4534, Miss=4.5564
+[NeMo I 2022-11-09 11:31:16 infer_vad_multi:126] ==========================================
+    
+    
+[NeMo I 2022-11-09 11:31:26 infer_vad_multi:116] ================= ami_eval_10ms =================
+[NeMo I 2022-11-09 11:31:26 infer_vad_multi:117] AUROC: 0.9508
+[NeMo I 2022-11-09 11:31:26 infer_vad_multi:118] Classification report with threshold=0.50
+[NeMo I 2022-11-09 11:31:26 infer_vad_multi:119]               precision    recall  f1-score   support
+    
+               0       0.48      0.97      0.64    762396
+               1       0.99      0.81      0.89   4238736
+    
+        accuracy                           0.83   5001132
+       macro avg       0.73      0.89      0.77   5001132
+    weighted avg       0.91      0.83      0.85   5001132
+    
+[NeMo I 2022-11-09 11:31:26 infer_vad_multi:125] Detection Error Rate: DetER=8.9453, False Alarm=3.3318, Miss=5.6134
+[NeMo I 2022-11-09 11:31:26 infer_vad_multi:126] ==========================================
+    
+    
+[NeMo I 2022-11-09 11:31:38 infer_vad_multi:116] ================= ch120_CH109_10ms =================
+[NeMo I 2022-11-09 11:31:38 infer_vad_multi:117] AUROC: 0.9170
+[NeMo I 2022-11-09 11:31:38 infer_vad_multi:118] Classification report with threshold=0.50
+[NeMo I 2022-11-09 11:31:38 infer_vad_multi:119]               precision    recall  f1-score   support
+    
+               0       0.75      0.59      0.66    799798
+               1       0.94      0.97      0.95   5227642
+    
+        accuracy                           0.92   6027440
+       macro avg       0.84      0.78      0.81   6027440
+    weighted avg       0.91      0.92      0.92   6027440
+    
+[NeMo I 2022-11-09 11:31:38 infer_vad_multi:125] Detection Error Rate: DetER=12.6619, False Alarm=12.2312, Miss=0.4307
+[NeMo I 2022-11-09 11:31:38 infer_vad_multi:126] ==========================================
+    
+    
+[NeMo I 2022-11-09 11:31:38 infer_vad_multi:128] ================== Aggregrated Results ===================
+[NeMo I 2022-11-09 11:31:38 infer_vad_multi:132] ============================================================
+[NeMo I 2022-11-09 11:31:38 infer_vad_multi:133]  DetER=12.6619, False Alarm=12.2312, Miss=0.4307
+[NeMo I 2022-11-09 11:31:38 infer_vad_multi:134] ============================================================
+[NeMo I 2022-11-09 11:32:26 infer_vad_multi:139] AUROC: 0.9067
+[NeMo I 2022-11-09 11:32:26 infer_vad_multi:140] Classification report with threshold=0.50
+[NeMo I 2022-11-09 11:32:26 infer_vad_multi:141] 
+                  precision    recall  f1-score   support
+    
+               0       0.72      0.81      0.76   6623611
+               1       0.91      0.87      0.89  15385693
+    
+        accuracy                           0.85  22009304
+       macro avg       0.82      0.84      0.83  22009304
+    weighted avg       0.86      0.85      0.85  22009304

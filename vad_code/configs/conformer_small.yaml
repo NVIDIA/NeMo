@@ -121,20 +121,26 @@ model:
 
   optim:
     name: adamw
-    lr: 1e-3
+    lr: 5.0
     # optimizer arguments
     betas: [0.9, 0.98]
     weight_decay: 1e-3
 
     # scheduler setup
     sched:
-      name: PolynomialHoldDecayAnnealing
-      # Scheduler params
-      power: 2.0
-      warmup_ratio: 0.05
-      hold_ratio: 0.45
-      min_lr: 0.00001
-      last_epoch: -1
+      name: NoamAnnealing
+      d_model: ${model.encoder.d_model}
+      # scheduler config override
+      warmup_steps: 10000
+      warmup_ratio: null
+      min_lr: 1e-6
+      # name: PolynomialHoldDecayAnnealing
+      # # Scheduler params
+      # power: 2.0
+      # warmup_ratio: 0.05
+      # hold_ratio: 0.45
+      # min_lr: 0.00001
+      # last_epoch: -1
 
 trainer:
   devices: -1 # number of gpus, -1 to use all gpus

@@ -1,8 +1,8 @@
 #!/bin/bash
 curr_dir=${pwd}
 
-proj_name="Stream_VAD"
-exp_dir="drc_Multilang_sgdlr1e-3_wd1e-4_augx_b128_gacc1_ep50_w8"
+proj_name="Frame_VAD"
+exp_dir="drc_Multilang_sgdlr1e-2_wd1e-3_augx_b512_gacc1_ep50_ns_wce_td_n4"
 
 proj_dir=/gpfs/fs1/projects/ent_aiapps/users/heh/results/${proj_name}
 source_dir=${proj_dir}/${exp_dir}/${exp_dir}/checkpoints/

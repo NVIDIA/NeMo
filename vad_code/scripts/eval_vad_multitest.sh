@@ -4,9 +4,12 @@
 # ckpt_dir="./nemo_experiments/${proj_name}/${exp_dir}"
 
 # exp_dir="marblenet_3x2x64_mandarin_40ms_all"
-exp_dir="marblenet_3x2x64_multilang_40ms_all_noise"
+# exp_dir="marblenet_3x2x64_multilang_40ms_all_noise"
+proj_name="Frame_VAD"
+exp_dir="drc_Multilang_sgdlr1e-2_wd1e-3_augx_b512_gacc1_ep50_ns_wce_td_n4"
 
-ckpt_dir="./nemo_experiments/${exp_dir}/checkpoints"
+# ckpt_dir="./nemo_experiments/${exp_dir}/checkpoints"
+ckpt_dir="./nemo_experiments/${proj_name}/${exp_dir}"
 
 model_path="${ckpt_dir}/${exp_dir}-averaged.nemo"
 data_dir=./manifests_test
