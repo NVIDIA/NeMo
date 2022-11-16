@@ -274,6 +274,8 @@ class AbstractCTCDecoding(ConfidenceMixin):
         if self.compute_timestamps is None:
             if self.cfg.strategy in ['greedy']:
                 self.compute_timestamps = self.cfg.greedy.get('compute_timestamps', False)
+            elif self.cfg.strategy in ['beam']:
+                self.compute_timestamps = self.cfg.beam.get('compute_timestamps', False)
 
         # initialize confidence-related fields
         self._init_confidence(self.cfg.get('confidence_cfg', None))
@@ -300,12 +302,32 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 search_type='default',
                 return_best_hypothesis=self.cfg.beam.get('return_best_hypothesis', True),
                 preserve_alignments=self.preserve_alignments,
+                compute_timestamps=self.compute_timestamps,
                 beam_alpha=self.cfg.beam.get('beam_alpha', 1.0),
                 beam_beta=self.cfg.beam.get('beam_beta', 0.0),
                 kenlm_path=self.cfg.beam.get('kenlm_path', None),
             )
 
-            self.override_fold_consecutive_value = False
+            self.decoding.override_fold_consecutive_value = False
+
+        elif self.cfg.strategy == 'pyctcdecode':
+
+            # NOTE: Currently not supported
+            self.decoding = ctc_beam_decoding.BeamCTCInfer(
+                blank_id=blank_id,
+                beam_size=self.cfg.beam.get('beam_size', 1),
+                search_type='pyctcdecode',
+                return_best_hypothesis=self.cfg.beam.get('return_best_hypothesis', True),
+                preserve_alignments=self.preserve_alignments,
+                compute_timestamps=self.compute_timestamps,
+                beam_alpha=self.cfg.beam.get('beam_alpha', 1.0),
+                beam_beta=self.cfg.beam.get('beam_beta', 0.0),
+                kenlm_path=self.cfg.beam.get('kenlm_path', None),
+                # pyctcdecode_cfg=self.cfg.beam.get('pyctcdecode_cfg', None),
+            )
+
+            self.decoding.override_fold_consecutive_value = False
+
         else:
             raise ValueError(
                 f"Incorrect decoding strategy supplied. Must be one of {possible_strategies}\n"
@@ -344,14 +366,17 @@ class AbstractCTCDecoding(ConfidenceMixin):
         if isinstance(decoder_outputs, torch.Tensor):
             decoder_outputs = move_dimension_to_the_front(decoder_outputs, self.batch_dim_index)
 
-        if hasattr(self, 'override_fold_consecutive_value'):
+        if (
+            hasattr(self.decoding, 'override_fold_consecutive_value')
+            and self.decoding.override_fold_consecutive_value is not None
+        ):
             logging.info(
                 f"Beam search requires that consecutive ctc tokens are not folded. \n"
                 f"Overriding provided value of `fold_consecutive` = {fold_consecutive} to "
-                f"{self.override_fold_consecutive_value}",
+                f"{self.decoding.override_fold_consecutive_value}",
                 mode=logging_mode.ONCE,
             )
-            fold_consecutive = self.override_fold_consecutive_value
+            fold_consecutive = self.decoding.override_fold_consecutive_value
 
         with torch.inference_mode():
             # Resolve the forward step of the decoding strategy
