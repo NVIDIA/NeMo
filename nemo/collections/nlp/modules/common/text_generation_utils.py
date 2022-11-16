@@ -16,10 +16,7 @@
 
 from collections.abc import Iterable
 
-<<<<<<< HEAD
 import numpy as np
-=======
->>>>>>> main
 import torch
 import torch.nn.functional as F
 
