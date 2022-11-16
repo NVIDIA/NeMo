@@ -64,10 +64,24 @@ def main(cfg):
     # If RTTM is provided and DER evaluation
     if diar_score is not None:
         metric, mapping_dict, _ = diar_score
-        der_results = asr_diar_offline.gather_eval_results(metric, mapping_dict, trans_info_dict)
-        wer_results = asr_diar_offline.evaluate(trans_info_dict)
-        asr_diar_offline.print_errors(der_results, wer_results)
+         
+        der_results = asr_diar_offline.gather_eval_results(metric=metric, 
+                                                           audio_rttm_map_dict=asr_diar_offline.AUDIO_RTTM_MAP,
+                                                           mapping_dict=mapping_dict,
+                                                           trans_info_dict=trans_info_dict,
+                                                           root_path=asr_diar_offline.root_path)
+        
+        wer_results = asr_diar_offline.evaluate(trans_info_dict=trans_info_dict, 
+                                                audio_file_list=asr_diar_offline.audio_file_list,
+                                                ref_ctm_file_list=asr_diar_offline.ctm_file_list)
+        
+        asr_diar_offline.print_errors(der_results=der_results, 
+                                      wer_results=wer_results)
 
+        asr_diar_offline.write_session_level_result_in_csv(der_results=der_results, 
+                                                           wer_results=wer_results, 
+                                                           root_path=asr_diar_offline.root_path, 
+                                                           csv_columns=asr_diar_offline.csv_columns)
 
 if __name__ == '__main__':
     main()
