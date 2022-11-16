@@ -16,7 +16,10 @@
 
 from collections.abc import Iterable
 
+<<<<<<< HEAD
 import numpy as np
+=======
+>>>>>>> main
 import torch
 import torch.nn.functional as F
 
@@ -515,6 +518,7 @@ def generate(
             else:
                 words = tokenizer.text_to_tokens(sentence)
                 resp_sentences_seg.append(words)
+
         # offsets calculation
         all_offsets = []
         for item in resp_sentences_seg:
