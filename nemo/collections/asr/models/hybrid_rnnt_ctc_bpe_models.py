@@ -23,7 +23,7 @@ from nemo.collections.asr.models.rnnt_bpe_models import EncDecRNNTBPEModel
 from nemo.utils import logging, model_utils
 
 
-class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel):
+class EncDecHybridRNNTCTCBPEModel(EncDecRNNTCTCModel):
     """Base class for encoder decoder RNNT-based models with auxiliary CTC decoder/loss and subword tokenization."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
