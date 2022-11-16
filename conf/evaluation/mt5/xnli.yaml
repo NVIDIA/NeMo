@@ -26,6 +26,10 @@ exp_manager:
 
 model:
   restore_from_path: ${evaluation.run.fine_tuning_dir}/results/checkpoints/megatron_mt5_glue_xnli.nemo # Path to a finetuned mT5 .nemo file
+  pretrained_checkpoint:
+    checkpoint_dir: null # Path to a folder that contains a .ckpt file
+    checkpoint_name: null # Name of the .ckpt file within the checkpoint_dir.
+    hparams_file: null # Path to a .yaml file that contains the hyperparameters of the checkpoint.
   gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
   megatron_amp_O2: False # Enable O2 optimization for megatron amp
   eval_languages: ['fr', 'de', 'en', 'es'] # List of languages to evaluate zero-shot XNLI performance. Full language list: ar,bg,de,el,en,es,fr,hi,ru,sw,th,tr,ur,vi,zh

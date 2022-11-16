@@ -32,6 +32,10 @@ class TestEvaluationmT5Config:
         
         model:
           restore_from_path: ${evaluation.run.fine_tuning_dir}/results/checkpoints/megatron_mt5_xquad.nemo # Path to a finetuned mT5 .nemo file
+          pretrained_checkpoint:
+            checkpoint_dir: null # Path to a folder that contains a .ckpt file
+            checkpoint_name: null # Name of the .ckpt file within the checkpoint_dir.
+            hparams_file: null # Path to a .yaml file that contains the hyperparameters of the checkpoint.
           gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
           megatron_amp_O2: False # Enable O2 optimization for megatron amp
           tensor_model_parallel_size: 1
@@ -113,6 +117,10 @@ class TestEvaluationT5Config:
         
         model:
           restore_from_path: ${evaluation.run.fine_tuning_dir}/results/checkpoints/megatron_t5_squad.nemo # Path to a finetuned T5 .nemo file
+          pretrained_checkpoint:
+            checkpoint_dir: null # Path to a folder that contains a .ckpt file
+            checkpoint_name: null # Name of the .ckpt file within the checkpoint_dir.
+            hparams_file: null # Path to a .yaml file that contains the hyperparameters of the checkpoint.
           gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
           megatron_amp_O2: False # Enable O2 optimization for megatron amp
           tensor_model_parallel_size: 1

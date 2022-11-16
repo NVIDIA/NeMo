@@ -53,6 +53,10 @@ class TestFinetuningmT5Config:
         
         model: # For different fine_tuning tasks, tuning the hyper parameters accordingly
           restore_from_path: ${fine_tuning.run.convert_dir}/results/megatron_mt5.nemo # Path to a trained mt5 .nemo file
+          pretrained_checkpoint:
+            checkpoint_dir: null # Path to a folder that contains a .ckpt file
+            checkpoint_name: null # Name of the .ckpt file within the checkpoint_dir.
+            hparams_file: null # Path to a .yaml file that contains the hyperparameters of the checkpoint.
           tensor_model_parallel_size: 1
           pipeline_model_parallel_size: 1
           pipeline_model_parallel_split_rank: ${divide_floor:${.pipeline_model_parallel_size}, 2}
@@ -178,6 +182,10 @@ class TestFinetuningT5Config:
         
         model: # For different fine_tuning tasks, tuning the hyper parameters accordingly; below is only for MNLI
           restore_from_path: ${fine_tuning.run.convert_dir}/results/megatron_t5.nemo # Path to a trained T5 .nemo file
+          pretrained_checkpoint:
+            checkpoint_dir: null # Path to a folder that contains a .ckpt file
+            checkpoint_name: null # Name of the .ckpt file within the checkpoint_dir.
+            hparams_file: null # Path to a .yaml file that contains the hyperparameters of the checkpoint.
           tensor_model_parallel_size: 1
           pipeline_model_parallel_size: 1
           pipeline_model_parallel_split_rank: ${divide_floor:${.pipeline_model_parallel_size}, 2}

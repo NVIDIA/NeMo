@@ -4,6 +4,25 @@ if [[ "$TEST_TASK" = "xquad_real" ]]; then
   # Should come in here for the test prompt_learn.gpt3.126m_tp1_pp1_1node_squad_real
   # We need container mounts and LANGUAGE MODEL PATH from the config at gitlab ci yaml file
   params+=("container_mounts=[${CONTAINER_MOUNTS}]")
+elif [[ "$TEST_TASK" = "xquad_ckpt" ]]; then
+    if [[ $MAX_STEPS -le 100 ]]; then # If greater than hundred we use defaults set in the training config file.
+    LOG_EVERY_N_STEPS=`expr $MAX_STEPS / 100`
+    VAL_CHECK_INTERVAL=`expr $MAX_STEPS / 5`
+    params+=(fine_tuning.trainer.log_every_n_steps=$LOG_EVERY_N_STEPS)
+    params+=(fine_tuning.trainer.val_check_interval=$VAL_CHECK_INTERVAL)
+    if [[ ! -z "$RUN_NAME_SUFFIX" ]]; then export UPSTREAM_RUN_NAME=${UPSTREAM_RUN_NAME}_${RUN_NAME_SUFFIX}; fi
+    LANGUAGE_MODEL_PATH=null
+    TRAIN_DIR=${BASE_RESULTS_DIR}/${UPSTREAM_RUN_NAME}
+    CHECKPOINT_DIR=${TRAIN_DIR}/results/checkpoints
+    CHECKPOINT_NAME=$(ls -tr ${CHECKPOINT_DIR}/* | tail -1)
+    HPARAMS_FILE=${TRAIN_DIR}/results/hparams.yaml
+    params+=(fine_tuning.model.pretrained_checkpoint.checkpoint_dir=$CHECKPOINT_DIR)
+    params+=(fine_tuning.model.pretrained_checkpoint.checkpoint_name=${CHECKPOINT_NAME})
+    params+=(fine_tuning.model.pretrained_checkpoint.hparams_file=$HPARAMS_FILE)
+  fi
+  if [[ ! -z $LOCAL_NEMO_PATH ]]; then
+    params+=("container_mounts=[${LOCAL_NEMO_PATH}:/opt/bignlp/NeMo]")
+  fi
 else
   if [[ $MAX_STEPS -le 100 ]]; then # If greater than hundred we use defaults set in the training config file.
     LOG_EVERY_N_STEPS=`expr $MAX_STEPS / 100`
