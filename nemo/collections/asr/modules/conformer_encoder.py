@@ -33,6 +33,7 @@ from nemo.collections.asr.parts.submodules.multi_head_attention import (
 from nemo.collections.asr.parts.submodules.subsampling import (
     ConvSubsampling,
     StackingSubsampling,
+    MaxPoolSubsampling,
     SubsamplingReductionModule,
 )
 from nemo.collections.asr.parts.utils import adapter_utils
@@ -58,7 +59,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         d_model (int): the hidden size of the model
         feat_out (int): the size of the output features
             Defaults to -1 (means feat_out is d_model)
-        subsampling (str): the method of subsampling, choices=['vggnet', 'striding']
+        subsampling (str): the method of subsampling, choices=['vggnet', 'striding', 'stacking', 'stacking_norm', 'pooling']
             Defaults to striding.
         subsampling_factor (int): the subsampling factor which should be power of 2
             Defaults to 4.
@@ -255,6 +256,12 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
                     feat_in=feat_in,
                     feat_out=d_model,
                     norm=True if subsampling == 'stacking_norm' else False,
+                )
+            elif subsampling == 'pooling':
+                self.pre_encode = MaxPoolSubsampling( 
+                    subsampling_factor=subsampling_factor,
+                    feat_in=feat_in,
+                    feat_out=d_model,
                 )
             else:
                 self.pre_encode = ConvSubsampling(

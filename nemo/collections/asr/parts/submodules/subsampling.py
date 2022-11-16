@@ -58,6 +58,34 @@ class StackingSubsampling(torch.nn.Module):
         lengths = torch.div(lengths + pad_size, self.subsampling_factor, rounding_mode='floor')
         return x, lengths
 
+class MaxPoolSubsampling(torch.nn.Module):
+    """1D Maxpool subsampling
+    Args:
+        subsampling_factor (int): The subsampling factor
+        feat_in (int): size of the input features
+        feat_out (int): size of the output features
+    """
+
+    def __init__(self, subsampling_factor, feat_in, feat_out):
+
+        self.subsampling = nn.MaxPool1d(kernel_size = subsampling_factor)
+        self.subsampling_factor = subsampling_factor
+        self.proj_out = torch.nn.Linear(feat_in, feat_out)
+
+    def forward(self, x, lengths):
+        b, t, h = x.size()
+        pad_size = (self.subsampling_factor - (t % self.subsampling_factor)) % self.subsampling_factor
+        lengths = torch.div(lengths + pad_size, self.subsampling_factor, rounding_mode='floor')
+
+        x = torch.nn.functional.pad(x, (0, 0, 0, pad_size))
+
+        x = torch.transpose(x, 1, 2)  # [B, T, C] => [B, C, T]
+        x = self.subsampling(x)
+        x = torch.transpose(x, 1, 2)  # [B, C, T] => [B, T, C]
+
+        x = self.proj_out(x)
+        
+        return x, lengths
 
 class ConvSubsampling(torch.nn.Module):
     """Convolutional subsampling which supports VGGNet and striding approach introduced in:
