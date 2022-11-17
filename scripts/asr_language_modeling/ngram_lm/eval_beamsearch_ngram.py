@@ -20,16 +20,33 @@
 # encodings and models which is detected automatically from the type of the model.
 # You may train the LM model with 'scripts/ngram_lm/train_kenlm.py'.
 
-USAGE: python eval_beamsearch_ngram.py nemo_model_file=<path to the .nemo file of the model> \
-                                       input_manifest=<path to the evaluation JSON manifest file \
-                                       kenlm_model_file=<path to the binary KenLM model> \
-                                       beam_width=[<list of the beam widths, separated with commas>] \
-                                       beam_alpha=[<list of the beam alphas, separated with commas>] \
-                                       beam_beta=[<list of the beam betas, separated with commas>] \
-                                       preds_output_folder=<optional folder to store the predictions> \
-                                       decoding_mode=beamsearch_ngram
-                                       ...
+# Config Help
 
+To discover all arguments of the script, please run :
+python eval_beamsearch_ngram.py --help
+python eval_beamsearch_ngram.py --cfg job
+
+# USAGE
+
+python eval_beamsearch_ngram.py nemo_model_file=<path to the .nemo file of the model> \
+           input_manifest=<path to the evaluation JSON manifest file \
+           kenlm_model_file=<path to the binary KenLM model> \
+           beam_width=[<list of the beam widths, separated with commas>] \
+           beam_alpha=[<list of the beam alphas, separated with commas>] \
+           beam_beta=[<list of the beam betas, separated with commas>] \
+           preds_output_folder=<optional folder to store the predictions> \
+           probs_cache_file=null \
+           decoding_mode=beamsearch_ngram
+           ...
+
+
+# Grid Search for Hyper parameters
+
+For grid search, you can provide a list of arguments as follows -
+
+           beam_width=[4,8,16,....] \
+           beam_alpha=[-2.0,-1.0,...,1.0,2.0] \
+           beam_beta=[-1.0,-0.5,0.0,...,1.0] \
 
 # You may find more info on how to use this script at:
 # https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/asr_language_modeling.html
@@ -37,53 +54,36 @@ USAGE: python eval_beamsearch_ngram.py nemo_model_file=<path to the .nemo file o
 """
 
 
-"""
-
-python eval_beamsearch_ngram.py nemo_model_file="/home/smajumdar/PycharmProjects/nemo-eval/nemo_beta_eval/asrset/pretrained/nemo/Conformer-CTC/v3.0/stt_en_conformer_ctc_large.nemo" \
-                                input_manifest="/home/smajumdar/PycharmProjects/nemo-eval/nemo_beta_eval/librispeech/manifests/test_other.json" \
-                                kenlm_model_file="/media/smajumdar/data/Datasets/ASR_SET_LM/ASR_SET_3.0/lm" \
-                                beam_width=[4,8,16,32,64,128] \
-                                beam_alpha=[1.0] \
-                                beam_beta=[0.0] \
-                                preds_output_folder="/media/smajumdar/data/Datasets/ASR_SET_LM/ASR_SET_3.0/" \
-                                decoding_mode=beamsearch_ngram
-
-
-"""
-
-# Please check train_kenlm.py to find out why we need TOKEN_OFFSET for BPE-based models
-TOKEN_OFFSET = 100
-
 import contextlib
 import json
 import os
 import pickle
 from pathlib import Path
 from dataclasses import dataclass, is_dataclass, field
-from omegaconf import OmegaConf, MISSING, open_dict
-from typing import List, Optional, Union
+from omegaconf import OmegaConf, MISSING
+from typing import List, Optional
 
 import editdistance
-import kenlm_utils
 import numpy as np
 import torch
 from sklearn.model_selection import ParameterGrid
 from tqdm.auto import tqdm
 
-import nemo
 import nemo.collections.asr as nemo_asr
+from nemo.collections.asr.parts.submodules import ctc_beam_decoding
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
 # fmt: off
+
 
 @dataclass
 class EvalBeamSearchNGramConfig:
     """
     Evaluate an ASR model with beam search decoding and n-gram KenLM language model.
     """
-    nemo_model_file: Optional[str] = None  # The path of the '.nemo' file of the ASR model
-    pretrained_name: Optional[str] = None  # The name of a pretrained model (ngc / huggingface)
+    # # The path of the '.nemo' file of the ASR model or the name of a pretrained model (ngc / huggingface)
+    nemo_model_file: str = MISSING
 
     # File paths
     input_manifest: str = MISSING  # The manifest file of the evaluation set
@@ -107,32 +107,46 @@ class EvalBeamSearchNGramConfig:
     beam_alpha: List[float] = field(default_factory=lambda: [1.0])  # The alpha parameter or list of the alphas for the beam search decoding
     beam_beta: List[float] = field(default_factory=lambda: [0.0])  # The beta parameter or list of the betas for the beam search decoding
 
+    decoding_strategy: str = "beam"  # Supports only beam for now
+    decoding: ctc_beam_decoding.BeamCTCInferConfig = ctc_beam_decoding.BeamCTCInferConfig(beam_size=128)
+
+
 # fmt: on
 
 
 def beam_search_eval(
-    all_probs,
-    target_transcripts,
-    vocab,
-    ids_to_text_func=None,
-    preds_output_file=None,
-    lm_path=None,
-    beam_alpha=1.0,
-    beam_beta=0.0,
-    beam_width=128,
-    beam_batch_size=128,
-    progress_bar=True,
+    model: nemo_asr.models.ASRModel,
+    cfg: EvalBeamSearchNGramConfig,
+    all_probs: List[torch.Tensor],
+    target_transcripts: List[str],
+    preds_output_file: str = None,
+    lm_path: str = None,
+    beam_alpha: float = 1.0,
+    beam_beta: float = 0.0,
+    beam_width: int = 128,
+    beam_batch_size: int = 128,
+    progress_bar: bool = True,
 ):
-    # creating the beam search decoder
-    beam_search_lm = nemo_asr.modules.BeamSearchDecoderWithLM(
-        vocab=vocab,
-        beam_width=beam_width,
-        alpha=beam_alpha,
-        beta=beam_beta,
-        lm_path=lm_path,
-        num_cpus=max(os.cpu_count(), 1),
-        input_tensor=False,
-    )
+    level = logging.getEffectiveLevel()
+    logging.setLevel(logging.CRITICAL)
+    # Reset config
+    model.change_decoding_strategy(None)
+
+    # Override the beam search config with current search candidate configuration
+    cfg.decoding.beam_size = beam_width
+    cfg.decoding.beam_alpha = beam_alpha
+    cfg.decoding.beam_beta = beam_beta
+    cfg.decoding.return_best_hypothesis = False
+    cfg.decoding.kenlm_path = cfg.kenlm_model_file
+
+    # Update model's decoding strategy config
+    model.cfg.decoding.strategy = cfg.decoding_strategy
+    model.cfg.decoding.beam = cfg.decoding
+
+    # Update model's decoding strategy
+    model.change_decoding_strategy(model.cfg.decoding)
+    logging.setLevel(level)
+
     wer_dist_first = cer_dist_first = 0
     wer_dist_best = cer_dist_best = 0
     words_count = 0
@@ -151,9 +165,21 @@ def beam_search_eval(
         it = range(int(np.ceil(len(all_probs) / beam_batch_size)))
     for batch_idx in it:
         # disabling type checking
-        with nemo.core.typecheck.disable_checks():
-            probs_batch = all_probs[batch_idx * beam_batch_size : (batch_idx + 1) * beam_batch_size]
-            beams_batch = beam_search_lm.forward(log_probs=probs_batch, log_probs_length=None,)
+        # with nemo.core.typecheck.disable_checks():
+        probs_batch = all_probs[batch_idx * beam_batch_size : (batch_idx + 1) * beam_batch_size]
+        probs_lens = torch.tensor([prob.shape[0] for prob in probs_batch])
+        with torch.no_grad():
+            packed_batch = torch.zeros(len(probs_batch), max(probs_lens), probs_batch[0].shape[-1], device='cpu')
+
+            for prob_index in range(len(probs_batch)):
+                packed_batch[prob_index, : probs_lens[prob_index], :] = torch.tensor(
+                    probs_batch[prob_index], device=packed_batch.device, dtype=packed_batch.dtype
+                )
+
+            _, beams_batch = model.decoding.ctc_decoder_predictions_tensor(
+                packed_batch, decoder_lengths=probs_lens, return_hypotheses=True,
+            )
+        # beams_batch = beam_search_lm.forward(log_probs=probs_batch, log_probs_length=None,)
 
         for beams_idx, beams in enumerate(beams_batch):
             target = target_transcripts[sample_idx + beams_idx]
@@ -162,12 +188,8 @@ def beam_search_eval(
             words_count += len(target_split_w)
             chars_count += len(target_split_c)
             wer_dist_min = cer_dist_min = 10000
-            for candidate_idx, candidate in enumerate(beams):
-                if ids_to_text_func is not None:
-                    # For BPE encodings, need to shift by TOKEN_OFFSET to retrieve the original sub-word ids
-                    pred_text = ids_to_text_func([ord(c) - TOKEN_OFFSET for c in candidate[1]])
-                else:
-                    pred_text = candidate[1]
+            for candidate_idx, candidate in enumerate(beams):  # type: (int, ctc_beam_decoding.rnnt_utils.Hypothesis)
+                pred_text = candidate.text
                 pred_split_w = pred_text.split()
                 wer_dist = editdistance.eval(target_split_w, pred_split_w)
                 pred_split_c = list(pred_text)
@@ -181,7 +203,7 @@ def beam_search_eval(
                     wer_dist_first += wer_dist
                     cer_dist_first += cer_dist
 
-                score = candidate[0]
+                score = candidate.score
                 if preds_output_file:
                     out_file.write('{}\t{}\n'.format(pred_text, score))
             wer_dist_best += wer_dist_min
@@ -211,7 +233,7 @@ def beam_search_eval(
     )
     logging.info(f"=================================================================================")
 
-    return (wer_dist_first / words_count, cer_dist_first / chars_count)
+    return wer_dist_first / words_count, cer_dist_first / chars_count
 
 
 @hydra_runner(config_path=None, config_name='EvalBeamSearchNGramConfig', schema=EvalBeamSearchNGramConfig)
@@ -272,7 +294,8 @@ def main(cfg: EvalBeamSearchNGramConfig):
         with autocast():
             with torch.no_grad():
                 all_logits = asr_model.transcribe(audio_file_paths, batch_size=cfg.acoustic_batch_size, logprobs=True)
-        all_probs = [kenlm_utils.softmax(logits) for logits in all_logits]
+
+        all_probs = all_logits
         if cfg.probs_cache_file:
             logging.info(f"Writing pickle files of probabilities at '{cfg.probs_cache_file}'...")
             with open(cfg.probs_cache_file, 'wb') as f_dump:
@@ -302,20 +325,7 @@ def main(cfg: EvalBeamSearchNGramConfig):
 
     logging.info('Greedy WER/CER = {:.2%}/{:.2%}'.format(wer_dist_greedy / words_count, cer_dist_greedy / chars_count))
 
-    encoding_level = kenlm_utils.SUPPORTED_MODELS.get(type(asr_model).__name__, None)
-    if not encoding_level:
-        logging.warning(
-            f"Model type '{type(asr_model).__name__}' may not be supported. Would try to train a char-level LM."
-        )
-        encoding_level = 'char'
-
-    vocab = asr_model.decoder.vocabulary
-    ids_to_text_func = None
-    if encoding_level == "subword":
-        vocab = [chr(idx + TOKEN_OFFSET) for idx in range(len(vocab))]
-        ids_to_text_func = asr_model.tokenizer.ids_to_text
-    # delete the model to free the memory
-    del asr_model
+    asr_model = asr_model.to('cpu')
 
     if cfg.decoding_mode == "beamsearch_ngram":
         if not os.path.exists(cfg.kenlm_model_file):
@@ -354,10 +364,10 @@ def main(cfg: EvalBeamSearchNGramConfig):
                 preds_output_file = None
 
             candidate_wer, candidate_cer = beam_search_eval(
+                asr_model,
+                cfg,
                 all_probs=all_probs,
                 target_transcripts=target_transcripts,
-                vocab=vocab,
-                ids_to_text_func=ids_to_text_func,
                 preds_output_file=preds_output_file,
                 lm_path=lm_path,
                 beam_width=hp["beam_width"],

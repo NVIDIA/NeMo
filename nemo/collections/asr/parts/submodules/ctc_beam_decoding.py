@@ -462,6 +462,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
     def set_decoding_type(self, decoding_type: str):
         super().set_decoding_type(decoding_type)
 
+        # Please check train_kenlm.py in scripts/asr_language_modeling/ to find out why we need TOKEN_OFFSET for BPE-based models
         if self.decoding_type == 'subword':
             self.token_offset = 100
 
