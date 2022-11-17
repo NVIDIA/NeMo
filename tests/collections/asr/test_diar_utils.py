@@ -19,16 +19,15 @@ import pytest
 import torch
 
 from nemo.collections.asr.parts.utils.nmesc_clustering import (
-    SpeakerClustering, 
-    split_input_data,
-    getCosAffinityMatrix,
+    SpeakerClustering,
     get_closest_embeddings,
     get_minimal_indices,
-    stitch_cluster_labels,
+    getCosAffinityMatrix,
     merge_emb,
     run_reducer,
+    split_input_data,
+    stitch_cluster_labels,
 )
-
 from nemo.collections.asr.parts.utils.speaker_utils import (
     combine_float_overlaps,
     combine_int_overlaps,
@@ -40,15 +39,17 @@ def check_range_values(target, source):
     bool_list = []
     for tgt, src in zip(target, source):
         for x, y in zip(src, tgt):
-            bool_list.append(abs(x-y) < 1e-6)
+            bool_list.append(abs(x - y) < 1e-6)
     return all(bool_list)
+
 
 def check_labels(target, source):
     bool_list = []
     for x, y in zip(target, source):
-        bool_list.append(abs(x-y) < 1e-6)
+        bool_list.append(abs(x - y) < 1e-6)
     return all(bool_list)
-    
+
+
 def matrix(mat, use_tensor=True, dtype=torch.long):
     if use_tensor:
         mat = torch.Tensor(mat).to(dtype)
@@ -56,10 +57,12 @@ def matrix(mat, use_tensor=True, dtype=torch.long):
         mat = np.array(mat)
     return mat
 
+
 def generate_mock_emb(n_emb_per_spk, perturb_sigma, emb_dim):
     """Generate a set of artificial embedding vectors from random numbers
     """
     return torch.rand(1, emb_dim).repeat(n_emb_per_spk, 1) + perturb_sigma * torch.rand(n_emb_per_spk, emb_dim)
+
 
 def generate_mock_data(
     n_spks=2,
@@ -83,8 +86,8 @@ def generate_mock_data(
             seg_list.extend(segments)
             emb_list.append(emb)
             multiscale_segment_counts[scale_idx] += emb.shape[0]
-   
-            if scale_idx == len(multiscale_segment_counts)-1:
+
+            if scale_idx == len(multiscale_segment_counts) - 1:
                 ground_truth.extend([spk_idx] * emb.shape[0])
 
     emb_tensor = torch.concat(emb_list)
@@ -100,7 +103,7 @@ def test_speaker_counting(n_spks=3, total_dur_sec=30, num_speakers=-1, max_num_s
     speaker_clustering_python = SpeakerClustering(maj_vote_spk_count=False, cuda=cuda)
     assert isinstance(speaker_clustering_python, SpeakerClustering)
     each_spk_dur = float(total_dur_sec / n_spks)
-    em, ts, mc, mw, _, _= generate_mock_data(n_spks=n_spks, spk_dur=each_spk_dur)
+    em, ts, mc, mw, _, _ = generate_mock_data(n_spks=n_spks, spk_dur=each_spk_dur)
     Y = speaker_clustering_python.forward_infer(
         embeddings_in_scales=em,
         timestamps_in_scales=ts,
@@ -119,6 +122,7 @@ class TestDiarizationUtilFunctions:
         - Segment interval merging function
         - Embedding merging
     """
+
     @pytest.mark.unit
     def test_combine_float_overlaps(self):
         intervals = [[0.25, 1.7], [1.5, 3.0], [2.8, 5.0], [5.5, 10.0]]
@@ -149,62 +153,62 @@ class TestDiarizationUtilFunctions:
 
     @pytest.mark.unit
     def test_stitch_cluster_labels_label_switch(self):
-        Y_old = matrix([0,0,0,0,0,0])
-        Y_new = matrix([0,0,0,0,0,0]) + 1
-        target = matrix( [0,0,0,0,0,0] )
+        Y_old = matrix([0, 0, 0, 0, 0, 0])
+        Y_new = matrix([0, 0, 0, 0, 0, 0]) + 1
+        target = matrix([0, 0, 0, 0, 0, 0])
         result = stitch_cluster_labels(Y_old, Y_new)
         assert check_labels(target, result)
-        
+
     @pytest.mark.unit
     def test_stitch_cluster_labels_label_many_to_one(self):
-        Y_old = matrix([0,1,2,3,4,5])
-        Y_new = matrix([0,0,0,0,0,0])
-        target = matrix([0,0,0,0,0,0])
-        with_history=False
+        Y_old = matrix([0, 1, 2, 3, 4, 5])
+        Y_new = matrix([0, 0, 0, 0, 0, 0])
+        target = matrix([0, 0, 0, 0, 0, 0])
+        with_history = False
         result = stitch_cluster_labels(Y_old, Y_new)
         assert check_labels(target, result)
-        
+
     @pytest.mark.unit
     def test_stitch_cluster_labels_label_one_to_many(self):
-        Y_old = matrix([0,0,0,0,0,0])
-        Y_new = matrix([0,1,2,3,4,5])
-        target = matrix([0,1,2,3,4,5])
-        with_history=False
+        Y_old = matrix([0, 0, 0, 0, 0, 0])
+        Y_new = matrix([0, 1, 2, 3, 4, 5])
+        target = matrix([0, 1, 2, 3, 4, 5])
+        with_history = False
         result = stitch_cluster_labels(Y_old, Y_new)
         assert check_labels(target, result)
-        
+
     @pytest.mark.unit
     def test_stitch_cluster_labels_one_label_replaced(self, N=3):
-        Y_old = matrix( [0] * N + [1] * N + [2] * N )
-        Y_new = matrix( [1] * N + [2] * N + [3] * N )
-        target= matrix( [0, 0, 0, 1, 1, 1, 2, 2, 2] )
+        Y_old = matrix([0] * N + [1] * N + [2] * N)
+        Y_new = matrix([1] * N + [2] * N + [3] * N)
+        target = matrix([0, 0, 0, 1, 1, 1, 2, 2, 2])
         result = stitch_cluster_labels(Y_old, Y_new)
         assert check_labels(target, result)
-        
+
     @pytest.mark.unit
     def test_stitch_cluster_labels_confusion_error(self, N=3):
-        Y_old = matrix( [0] * N + [1] * (N-1)+ [2] * (N+1))
-        Y_new = matrix( [1] * N + [2] * N +    [3] * N )
-        target= matrix( [0, 0, 0, 1, 1, 1, 2, 2, 2] )
+        Y_old = matrix([0] * N + [1] * (N - 1) + [2] * (N + 1))
+        Y_new = matrix([1] * N + [2] * N + [3] * N)
+        target = matrix([0, 0, 0, 1, 1, 1, 2, 2, 2])
         result = stitch_cluster_labels(Y_old, Y_new)
         assert check_labels(target, result)
-        
+
     @pytest.mark.unit
     def test_stitch_cluster_labels_speaker_more_speakers(self, N=3):
-        Y_old = matrix( [0] * N + [1] * (N-1)+ [2] * (N+1) + [0, 0, 0])
-        Y_new = matrix( [1] * N + [0] * N +    [2] * N     + [4, 5, 6])
-        target= matrix( [0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 4, 5] )
+        Y_old = matrix([0] * N + [1] * (N - 1) + [2] * (N + 1) + [0, 0, 0])
+        Y_new = matrix([1] * N + [0] * N + [2] * N + [4, 5, 6])
+        target = matrix([0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 4, 5])
         result = stitch_cluster_labels(Y_old, Y_new)
         assert check_labels(target, result)
 
     @pytest.mark.unit
     def test_stitch_cluster_labels_speaker_longer_sequence(self, N=3):
-        Y_old = matrix( [0] * N + [1] * N + [2] * N + [0, 0, 0])
-        Y_new = matrix( [1] * N + [2] * N + [0] * N + [1, 2, 3, 1, 2, 3])
-        target= matrix( [0, 0, 0, 1, 1, 1, 2, 2, 2, 0, 1, 3, 0, 1, 3] )
+        Y_old = matrix([0] * N + [1] * N + [2] * N + [0, 0, 0])
+        Y_new = matrix([1] * N + [2] * N + [0] * N + [1, 2, 3, 1, 2, 3])
+        target = matrix([0, 0, 0, 1, 1, 1, 2, 2, 2, 0, 1, 3, 0, 1, 3])
         result = stitch_cluster_labels(Y_old, Y_new)
         assert check_labels(target, result)
-   
+
     @pytest.mark.unit
     def test_embedding_merger(self):
         em, ts, mc, mw, spk_ts, gt = generate_mock_data(n_spks=2, spk_dur=2, perturb_sigma=0.1)
@@ -216,19 +220,17 @@ class TestDiarizationUtilFunctions:
         ndx = torch.where(pre_clus_labels == target_spk)[0]
         pre_embs = em_s[base_scale_idx]
         affinity_mat = getCosAffinityMatrix(pre_embs)
-        cmat = torch.tril(affinity_mat[:, ndx][ndx, :]) 
+        cmat = torch.tril(affinity_mat[:, ndx][ndx, :])
         # Check the dimension of the selected affinity values
         assert cmat.shape[0] == cmat.shape[1] == torch.sum(pre_clus_labels == target_spk).item()
         index_2d = get_closest_embeddings(cmat, ndx, target_num)
         # Check the most closest affinity value
         assert torch.max(cmat.flatten()) == cmat[index_2d[0, 0], index_2d[1, 0]]
         spk_cluster_labels, emb_ndx = pre_clus_labels[ndx], pre_embs[ndx]
-        merged_embs, merged_clus_labels = merge_emb(index_2d, 
-                                                    emb_ndx, 
-                                                    spk_cluster_labels)
+        merged_embs, merged_clus_labels = merge_emb(index_2d, emb_ndx, spk_cluster_labels)
         # Check the number of merged embeddings and labels
         assert (torch.sum(gt == target_spk).item() - target_num) == merged_clus_labels.shape[0]
-    
+
     @pytest.mark.unit
     def test_embedding_reducer(self):
         em, ts, mc, mw, spk_ts, gt = generate_mock_data(n_spks=2, spk_dur=10)
@@ -237,11 +239,8 @@ class TestDiarizationUtilFunctions:
         target_spk = 0
         target_num = 10
         merged_embs, merged_clus_labels = run_reducer(
-                                            pre_embs=em_s[base_scale_idx],
-                                            target_spk_idx=target_spk, 
-                                            target_num=target_num, 
-                                            pre_clus_labels=gt
-                                            )
+            pre_embs=em_s[base_scale_idx], target_spk_idx=target_spk, target_num=target_num, pre_clus_labels=gt
+        )
         assert (torch.sum(gt == target_spk).item() - target_num) == merged_clus_labels.shape[0]
 
 
@@ -270,10 +269,10 @@ class TestSpeakerClustering:
         em, ts, mc, mw, spk_ts, gt = generate_mock_data(n_spks=n_spks, spk_dur=each_spk_dur)
         num_speakers = -1
         max_num_speakers = 8
-        enhanced_count_thres=80
-        sparse_search_volume=10
-        max_rp_threshold=0.15
-        fixed_thres=-1.0
+        enhanced_count_thres = 80
+        sparse_search_volume = 10
+        max_rp_threshold = 0.15
+        fixed_thres = -1.0
 
         # Function call for NeMo python pipeline (unexported) in python
         Y_py = speaker_clustering_python.forward_infer(

@@ -16,9 +16,7 @@ import copy
 import math
 from typing import Dict, List, Tuple, Type, Union
 
-import librosa
 import numpy as np
-import soundfile as sf
 import torch
 from omegaconf import OmegaConf
 
@@ -26,6 +24,7 @@ import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import WER, CTCDecoding, CTCDecodingConfig
 from nemo.collections.asr.metrics.wer_bpe import WERBPE, CTCBPEDecoding, CTCBPEDecodingConfig
 from nemo.collections.asr.models import EncDecCTCModel, EncDecCTCModelBPE
+from nemo.collections.asr.parts.utils.audio_utils import get_samples
 from nemo.collections.asr.parts.utils.speaker_utils import audio_rttm_map, get_uniqname_from_filepath
 from nemo.collections.asr.parts.utils.streaming_utils import AudioFeatureIterator, FrameBatchASR
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
@@ -223,22 +222,6 @@ def get_wer_feat_logit(audio_file_path, asr, frame_len, tokens_per_chunk, delay,
     return hyp, tokens, log_prob
 
 
-def get_samples(audio_file, target_sr=16000):
-    """
-    Read the samples from the given audio_file path.
-    """
-    with sf.SoundFile(audio_file, 'r') as f:
-        dtype = 'int16'
-        sample_rate = f.samplerate
-        samples = f.read(dtype=dtype)
-        if sample_rate != target_sr:
-            samples = librosa.core.resample(samples, sample_rate, target_sr)
-        samples = samples.astype('float32') / 32768
-        samples = samples.transpose()
-        del f
-    return samples
-
-
 class FrameBatchASR_Logits(FrameBatchASR):
     """
     A class for streaming frame-based ASR.
@@ -396,12 +379,12 @@ class ASRDecoderTimeStamps:
         kenlm_model = self.ctc_decoder_params['pretrained_language_model']
         logging.info(f"Loading language model : {self.ctc_decoder_params['pretrained_language_model']}")
 
-        if 'EncDecCTCModel' in str(type(asr_model)):
-            labels = asr_model.decoder.vocabulary
-        elif 'EncDecCTCModelBPE' in str(type(asr_model)):
+        if 'EncDecCTCModelBPE' in str(type(asr_model)):
             vocab = asr_model.tokenizer.tokenizer.get_vocab()
             labels = list(vocab.keys())
             labels[0] = "<unk>"
+        elif 'EncDecCTCModel' in str(type(asr_model)):
+            labels = asr_model.decoder.vocabulary
         else:
             raise ValueError(f"Cannot find a vocabulary or tokenizer for: {self.params['self.ASR_model_name']}")
 
@@ -420,9 +403,9 @@ class ASRDecoderTimeStamps:
 
         Returns:
             words_dict (dict):
-                Dictionary of the sequence of words from hypothesis.
+                Dictionary containing the sequence of words from hypothesis.
             word_ts_dict (dict):
-                Dictionary of the time-stamps of words.
+                Dictionary containing the time-stamps of words.
         """
         words_dict, word_ts_dict = {}, {}
 
@@ -475,15 +458,15 @@ class ASRDecoderTimeStamps:
 
         Args:
             trans (list):
-                List of character output (str).
+                List containing the character output (str).
             char_ts (list):
-                List of timestamps (int) for each character.
+                List containing the timestamps (int) for each character.
 
         Returns:
             trans (list):
-                List of the cleaned character output.
+                List containing the cleaned character output.
             char_ts (list):
-                List of the cleaned timestamps for each character.
+                List containing the cleaned timestamps for each character.
         """
         assert (len(trans) > 0) and (len(char_ts) > 0)
         assert len(trans) == len(char_ts)
@@ -504,33 +487,36 @@ class ASRDecoderTimeStamps:
 
         Args:
             trans (list):
-                List of character output (str).
+                List containing the character output (str).
             char_ts (list):
-                List of timestamps of the characters.
+                List containing the timestamps of the characters.
             time_stride (float):
                 The size of stride of the model in second.
 
         Returns:
             spaces_in_sec (list):
-                List of the ranges of spaces
+                List containing the ranges of spaces
             word_list (list):
-                List of the words from ASR inference.
+                List containing the words from ASR inference.
         """
+        blank = ' '
+        spaces_in_sec, word_list = [], []
+        stt_idx = 0
         assert (len(trans) > 0) and (len(char_ts) > 0), "Transcript and char_ts length should not be 0."
         assert len(trans) == len(char_ts), "Transcript and timestamp lengths do not match."
 
-        spaces_in_sec, word_list = [], []
-        stt_idx = 0
+        # If there is a blank, update the time stamps of the space and the word.
         for k, s in enumerate(trans):
-            if s == ' ':
+            if s == blank:
                 spaces_in_sec.append(
                     [round(char_ts[k] * time_stride, 2), round((char_ts[k + 1] - 1) * time_stride, 2)]
                 )
                 word_list.append(trans[stt_idx:k])
                 stt_idx = k + 1
-        if len(trans) > stt_idx and trans[stt_idx] != ' ':
-            word_list.append(trans[stt_idx:])
 
+        # Add the last word
+        if len(trans) > stt_idx and trans[stt_idx] != blank:
+            word_list.append(trans[stt_idx:])
         return spaces_in_sec, word_list
 
     def run_ASR_CitriNet_CTC(self, asr_model: Type[EncDecCTCModelBPE]) -> Tuple[Dict, Dict]:
@@ -543,9 +529,9 @@ class ASRDecoderTimeStamps:
 
         Returns:
             words_dict (dict):
-                Dictionary of the sequence of words from hypothesis.
+                Dictionary containing the sequence of words from hypothesis.
             word_ts_dict (dict):
-                Dictionary of the timestamps of hypothesis words.
+                Dictionary containing the timestamps of hypothesis words.
         """
         words_dict, word_ts_dict = {}, {}
 
@@ -602,16 +588,16 @@ class ASRDecoderTimeStamps:
         # Disable config overwriting
         OmegaConf.set_struct(cfg.preprocessor, True)
 
-        self.onset_delay = (
+        onset_delay = (
             math.ceil(((self.total_buffer_in_secs - self.chunk_len_in_sec) / 2) / self.model_stride_in_secs) + 1
         )
-        self.mid_delay = math.ceil(
+        mid_delay = math.ceil(
             (self.chunk_len_in_sec + (self.total_buffer_in_secs - self.chunk_len_in_sec) / 2)
             / self.model_stride_in_secs
         )
-        self.tokens_per_chunk = math.ceil(self.chunk_len_in_sec / self.model_stride_in_secs)
+        tokens_per_chunk = math.ceil(self.chunk_len_in_sec / self.model_stride_in_secs)
 
-        return self.onset_delay, self.mid_delay, self.tokens_per_chunk
+        return onset_delay, mid_delay, tokens_per_chunk
 
     def run_ASR_BPE_CTC(self, asr_model: Type[EncDecCTCModelBPE]) -> Tuple[Dict, Dict]:
         """
@@ -623,9 +609,9 @@ class ASRDecoderTimeStamps:
 
         Returns:
             words_dict (dict):
-                Dictionary of the sequence of words from hypothesis.
+                Dictionary containing the sequence of words from hypothesis.
             word_ts_dict (dict):
-                Dictionary of the time-stamps of words.
+                Dictionary containing the time-stamps of words.
         """
         torch.manual_seed(0)
         torch.set_grad_enabled(False)
@@ -702,18 +688,26 @@ class ASRDecoderTimeStamps:
 
         Returns:
             word_timestamps (list):
-                List of the timestamps for the resulting words.
+                List containing the timestamps for the resulting words.
         """
+        end_stamp = min(end_stamp, (char_ts[-1] + 2))
         start_stamp_in_sec = round(char_ts[0] * self.model_stride_in_secs, 2)
         end_stamp_in_sec = round(end_stamp * self.model_stride_in_secs, 2)
-        word_timetamps_middle = [
-            [round(spaces_in_sec[k][1], 2), round(spaces_in_sec[k + 1][0], 2),] for k in range(len(spaces_in_sec) - 1)
-        ]
-        word_timestamps = (
-            [[start_stamp_in_sec, round(spaces_in_sec[0][0], 2)]]
-            + word_timetamps_middle
-            + [[round(spaces_in_sec[-1][1], 2), end_stamp_in_sec]]
-        )
+
+        # In case of one word output with no space information.
+        if len(spaces_in_sec) == 0:
+            word_timestamps = [[start_stamp_in_sec, end_stamp_in_sec]]
+        elif len(spaces_in_sec) > 0:
+            # word_timetamps_middle should be an empty list if len(spaces_in_sec) == 1.
+            word_timetamps_middle = [
+                [round(spaces_in_sec[k][1], 2), round(spaces_in_sec[k + 1][0], 2),]
+                for k in range(len(spaces_in_sec) - 1)
+            ]
+            word_timestamps = (
+                [[start_stamp_in_sec, round(spaces_in_sec[0][0], 2)]]
+                + word_timetamps_middle
+                + [[round(spaces_in_sec[-1][1], 2), end_stamp_in_sec]]
+            )
         return word_timestamps
 
     def run_pyctcdecode(
@@ -731,9 +725,9 @@ class ASRDecoderTimeStamps:
                 The beam width parameter for beam search decodring.
         Returns:
             hyp_words (list):
-                List of words in the hypothesis.
+                List containing the words in the hypothesis.
             word_ts (list):
-                List of word timestamps from the decoder.
+                List containing the word timestamps from the decoder.
         """
         beams = self.beam_search_decoder.decode_beams(logprob, beam_width=self.ctc_decoder_params['beam_width'])
         word_ts_beam, words_beam = [], []

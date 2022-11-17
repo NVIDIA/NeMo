@@ -1490,12 +1490,10 @@ def embedding_normalize(embs, use_std=False, eps=1e-10):
     return embs
 
 
-
 @torch.jit.script
 class OnlineSegmentor:
     """
     Online Segmentor for online (streaming) diarizer.
-
     """
     def __init__(self, sample_rate: int):
         """

@@ -15,52 +15,13 @@
 import copy
 import csv
 import json
-import math
 import os
-import time
 from collections import OrderedDict as od
 from datetime import datetime
-from typing import Dict, List, Tuple, Type, Union
+from typing import Dict, List, Tuple
 
 import numpy as np
-import torch
 
-# , FrameBatchVAD
-from omegaconf import OmegaConf
-from sklearn.preprocessing import OneHotEncoder
-
-import nemo.collections.asr as nemo_asr
-from nemo.collections import nlp as nemo_nlp
-from nemo.collections.asr.metrics.der import (
-    concat_perm_word_error_rate,
-    get_online_DER_stats,
-    get_partial_ref_labels,
-    score_labels,
-)
-from nemo.collections.asr.metrics.wer import word_error_rate
-from nemo.collections.asr.models import ClusteringDiarizer, OnlineDiarizer
-from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
-from nemo.collections.asr.models.ctc_models import EncDecCTCModel
-from nemo.collections.asr.parts.utils.decoder_timestamps_utils import (
-    WERBPE_TS,
-    ASRDecoderTimeStamps,
-    FrameBatchASR_Logits,
-)
-from nemo.collections.asr.parts.utils.speaker_utils import (
-    audio_rttm_map,
-    get_uniqname_from_filepath,
-    labels_to_pyannote_object,
-    labels_to_rttmfile,
-    rttm_to_labels,
-    write_rttm2manifest,
-)
-from nemo.collections.asr.parts.utils.streaming_utils import AudioFeatureIterator, FrameBatchASR
-from nemo.collections.asr.parts.utils.vad_utils import (
-    generate_overlap_vad_seq,
-    generate_vad_segment_table,
-    get_vad_stream_status,
-    prepare_manifest,
-)
 from nemo.utils import logging
 
 try:
@@ -327,7 +288,7 @@ class OfflineDiarWithASR:
             Dictionary containing the input manifest information
         color_palette (dict):
             Dictionary containing the ANSI color escape codes for each speaker label (speaker index)
-   """
+    """
 
     def __init__(self, cfg_diarizer):
         self.cfg_diarizer = cfg_diarizer
@@ -345,22 +306,19 @@ class OfflineDiarWithASR:
         self.run_ASR = None
         self.realigning_lm = None
         self.ctm_exists = False
-        self.is_streaming = False
         self.frame_VAD = {}
 
         self.make_file_lists()
 
-        self.color_palette = self.get_color_palette()
-        self.csv_columns = self.get_csv_columns()
 
     @staticmethod
     def get_color_palette() -> Dict[str, str]:
         return {
             'speaker_0': '\033[1;32m',
             'speaker_1': '\033[1;34m',
-            'speaker_2': '\033[1;32m',
-            'speaker_3': '\033[1;35m',
-            'speaker_4': '\033[1;31m',
+            'speaker_2': '\033[1;30m',
+            'speaker_3': '\033[1;31m',
+            'speaker_4': '\033[1;35m',
             'speaker_5': '\033[1;36m',
             'speaker_6': '\033[1;37m',
             'speaker_7': '\033[1;30m',
@@ -416,41 +374,6 @@ class OfflineDiarWithASR:
         self.stt_end_tokens = ['</s>', '<s>']
         logging.info(f"Loading LM for realigning: {self.realigning_lm_params['arpa_language_model']}")
         return arpa.loadf(self.realigning_lm_params['arpa_language_model'])[0]
-
-    def load_punctuation_model(self):
-        """
-        Load punctuation model in .nemo format or model name on NGC.
-        """
-        self.punctuation_model_path = self.cfg_diarizer['asr']['parameters']['punctuation_model_path']
-        if self.punctuation_model_path is not None:
-            if '.nemo' in self.punctuation_model_path.lower():
-                self.punctuation_model = nemo_nlp.models.PunctuationCapitalizationModel.restore_from(
-                    self.punctuation_model_path
-                )
-            else:
-                self.punctuation_model = nemo_nlp.models.PunctuationCapitalizationModel.from_pretrained(
-                    self.punctuation_model_path
-                )
-        else:
-            self.punctuation_model = None
-
-    def _init_session_trans_dict(self, uniq_id: str, n_spk: int):
-        """
-        Initialize json (in dictionary variable) formats for session level result and Gecko style json.
-
-        Returns:
-            (dict): Session level result dictionary variable
-        """
-        return od(
-            {
-                'status': 'initialized',
-                'session_id': uniq_id,
-                'transcription': '',
-                'speaker_count': n_spk,
-                'words': [],
-                'sentences': [],
-            }
-        )
 
     def _init_session_trans_dict(self, uniq_id: str, n_spk: int):
         """
@@ -655,18 +578,6 @@ class OfflineDiarWithASR:
             }
             count_correct_spk_counting += int(est_n_spk == ref_n_spk)
 
-        if metric['total'] > 0.01:
-            DER, CER, FA, MISS = (
-                abs(metric),
-                metric['confusion'] / metric['total'],
-                metric['false alarm'] / metric['total'],
-                metric['missed detection'] / metric['total'],
-            )
-            speaker_counting_acc = count_correct_spk_counting / len(metric.results_)
-        else:
-            DER, CER, FA, MISS = 100, 100, 100, 100
-            speaker_counting_acc = 0.0
-
         DER, CER, FA, MISS = (
             abs(metric),
             metric['confusion'] / metric['total'],
@@ -678,7 +589,7 @@ class OfflineDiarWithASR:
             "CER": CER,
             "FA": FA,
             "MISS": MISS,
-            "spk_counting_acc": speaker_counting_acc,
+            "spk_counting_acc": count_correct_spk_counting / len(metric.results_),
         }
 
         return der_results
@@ -968,12 +879,8 @@ class OfflineDiarWithASR:
                 # remove trailing space in text
                 sentence['text'] = sentence['text'].strip()
 
-                if self.punctuation_model and self.offline_mode:
-                    sentence['text'] = ' '.join(self.punctuate_words(sentence['text'].split()))
-
-                # store the current sentence
-                if len(sentence['text']) > 0:
-                    sentences.append(sentence)
+                # store last sentence
+                sentences.append(sentence)
 
                 # start construction of a new sentence
                 sentence = {'speaker': speaker, 'start_time': start_point, 'end_time': end_point, 'text': ''}
@@ -984,6 +891,7 @@ class OfflineDiarWithASR:
             stt_sec, end_sec = start_point, end_point
             terms_list.append({'start': stt_sec, 'end': end_sec, 'text': word, 'type': 'WORD'})
 
+            # add current word to sentence
             sentence['text'] += word.strip() + ' '
 
             audacity_label_words.append(get_audacity_label(word, stt_sec, end_sec, speaker))
@@ -994,7 +902,6 @@ class OfflineDiarWithASR:
         # note that we need to add the very last sentence.
         sentence['text'] = sentence['text'].strip()
         sentences.append(sentence)
-
         gecko_dict['monologues'].append({'speaker': {'name': None, 'id': speaker}, 'terms': terms_list})
 
         # Speaker independent transcription
@@ -1064,6 +971,7 @@ class OfflineDiarWithASR:
                 f"word_ts_anchor_pos: {self.params['word_ts_anchor']} is not a supported option. Using the default 'start' option."
             )
             word_pos = word_ts_stt_end[0]
+
         word_pos = word_pos + self.word_ts_anchor_offset
         return word_pos
 
@@ -1415,6 +1323,7 @@ class OfflineDiarWithASR:
         Args:
             labels (list):
                 List containing segment start and end timestamp and speaker labels.
+
                 Example:
                 >>> labels = ["15.25 21.82 speaker_0", "21.18 29.51 speaker_1", ... ]
 

@@ -90,6 +90,8 @@ class OnlineDiarizer(ClusteringDiarizer):
 
         self.reset()
 
+        # Initialize an online segmentor module
+        self.online_segmentor = OnlineSegmentor(self.cfg.sample_rate)
         # Set speaker embedding model in eval mode
         self._speaker_model.eval()
 
@@ -399,7 +401,6 @@ class OnlineDiarizer(ClusteringDiarizer):
                 Speaker label hypothesis from the start of the session to the current position
         """
         self._transfer_timestamps_to_segmentor()
-        
         # In case buffer is not filled or there is no speech activity in the input
         if self.buffer_start < 0 or len(vad_timestamps) == 0:
             return self._get_interim_output()
