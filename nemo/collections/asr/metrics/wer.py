@@ -1145,9 +1145,6 @@ class CTCDecodingConfig:
     # compute ctc time stamps
     compute_timestamps: Optional[bool] = None
 
-    #  confidence config
-    confidence_cfg: ConfidenceConfig = ConfidenceConfig()
-
     # token representing word seperator
     word_seperator: str = " "
 
@@ -1162,3 +1159,6 @@ class CTCDecodingConfig:
 
     # beam decoding config
     beam: ctc_beam_decoding.BeamCTCInferConfig = ctc_beam_decoding.BeamCTCInferConfig(beam_size=4)
+
+    #  confidence config
+    confidence_cfg: ConfidenceConfig = ConfidenceConfig()
