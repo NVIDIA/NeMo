@@ -34,7 +34,7 @@ python speech_to_text_buffered_infer_rnnt.py \
     total_buffer_in_secs=4.0 \
     chunk_len_in_secs=1.6 \
     model_stride=4 \
-    batch_size=32 
+    batch_size=32
 
 # Longer Common Subsequence (LCS) Merge algorithm
 
