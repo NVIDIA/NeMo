@@ -24,6 +24,7 @@ from nemo.collections.asr.models.hybrid_rnnt_ctc_models import EncDecHybridRNNTC
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging, model_utils
+from nemo.collections.asr.metrics.rnnt_wer_bpe import RNNTBPEWER, RNNTBPEDecoding
 
 
 class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
