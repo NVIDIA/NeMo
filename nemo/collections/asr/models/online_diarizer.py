@@ -30,14 +30,12 @@ from nemo.collections.asr.parts.utils.nmesc_clustering import (
     getTempInterpolMultiScaleCosAffinityMatrix,
     split_input_data,
 )
-from nemo.collections.asr.parts.utils.speaker_utils import (
+from nemo.collections.asr.parts.utils.speaker_utils import (  # get_new_cursor_for_update,; get_speech_labels_for_update,
     OnlineSegmentor,
     audio_rttm_map,
     generate_cluster_labels,
     get_embs_and_timestamps,
-    # get_new_cursor_for_update,
     get_online_subsegments_from_buffer,
-    # get_speech_labels_for_update,
 )
 from nemo.utils import logging, model_utils
 
@@ -72,6 +70,7 @@ def timeit(method):
 
     return timed
 
+
 class OnlineDiarizer(ClusteringDiarizer):
     def __init__(self, cfg: DictConfig):
         super().__init__(cfg)
@@ -98,7 +97,7 @@ class OnlineDiarizer(ClusteringDiarizer):
             self.device = torch.device("cpu")
 
         self.reset()
-       
+
         # Initialize an online segmentor module
         self.online_segmentor = OnlineSegmentor(self.cfg.sample_rate)
         # Set speaker embedding model in eval mode
@@ -211,10 +210,7 @@ class OnlineDiarizer(ClusteringDiarizer):
         return maj_vote_labels
 
     def save_history_data(
-        self, 
-        scale_idx: int, 
-        total_cluster_labels: torch.Tensor, 
-        isOnline: bool,
+        self, scale_idx: int, total_cluster_labels: torch.Tensor, isOnline: bool,
     ):
         """
         - Clustering is done for (hist_N + curr_N) number of embeddings.
@@ -371,7 +367,7 @@ class OnlineDiarizer(ClusteringDiarizer):
             diar_hyp (list):
         """
         self.transfer_timestamps_to_segmentor()
-        
+
         # In case buffer is not filled or there is no speech activity in the input
         if self.buffer_start < 0 or len(vad_timestamps) == 0:
             return self._get_interim_output(vad_timestamps)
