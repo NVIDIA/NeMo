@@ -27,7 +27,7 @@ from nemo.collections.asr.parts.utils.nmesc_clustering import (
     getTempInterpolMultiScaleCosAffinityMatrix,
     split_input_data,
 )
-from nemo.collections.asr.parts.utils.speaker_utils import (
+from nemo.collections.asr.parts.utils.speaker_utils import (  # get_new_cursor_for_update,; get_speech_labels_for_update,
     OnlineSegmentor,
     audio_rttm_map,
     generate_cluster_labels,
@@ -64,6 +64,7 @@ def timeit(method):
 
     return timed
 
+
 class OnlineDiarizer(ClusteringDiarizer):
     def __init__(self, cfg: DictConfig):
         super().__init__(cfg)
@@ -90,6 +91,8 @@ class OnlineDiarizer(ClusteringDiarizer):
 
         self.reset()
 
+        # Initialize an online segmentor module
+        self.online_segmentor = OnlineSegmentor(self.cfg.sample_rate)
         # Set speaker embedding model in eval mode
         self._speaker_model.eval()
 
@@ -215,10 +218,7 @@ class OnlineDiarizer(ClusteringDiarizer):
         return maj_vote_labels
 
     def save_history_data(
-        self, 
-        scale_idx: int, 
-        total_cluster_labels: torch.Tensor, 
-        isOnline: bool,
+        self, scale_idx: int, total_cluster_labels: torch.Tensor, isOnline: bool,
     ):
         """
         Save the temporary input to the class memory buffer.
@@ -399,7 +399,7 @@ class OnlineDiarizer(ClusteringDiarizer):
                 Speaker label hypothesis from the start of the session to the current position
         """
         self._transfer_timestamps_to_segmentor()
-        
+
         # In case buffer is not filled or there is no speech activity in the input
         if self.buffer_start < 0 or len(vad_timestamps) == 0:
             return self._get_interim_output()
