@@ -29,7 +29,7 @@ from nemo.collections.nlp.modules.common.megatron.retrieval_transformer import (
     MegatronRetrievalTransformerEncoderModule,
 )
 from nemo.collections.nlp.modules.common.megatron.rotary_pos_embedding import RotaryEmbedding
-from nemo.collections.nlp.modules.common.megatron.transformer import ParallelChunkedCrossAttention
+from nemo.collections.nlp.modules.common.megatron.attention import ParallelChunkedCrossAttention
 from nemo.collections.nlp.modules.common.megatron.utils import (
     build_attention_mask_3d,
     init_method_normal,
