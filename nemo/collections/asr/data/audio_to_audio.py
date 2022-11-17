@@ -639,6 +639,8 @@ class AudioToTargetWithReferenceDataset(BaseAudioDataset):
                                    with the input signal, so the same subsegment will be loaded as for
                                    input and target. If False, reference signal will be loaded independently
                                    from input and target.
+        reference_duration: Optional, can be used to set a fixed duration of the reference utterance. If `None`,
+                            complete audio file will be loaded.
     """
 
     def __init__(
@@ -656,7 +658,8 @@ class AudioToTargetWithReferenceDataset(BaseAudioDataset):
         input_channel_selector: Optional[int] = None,
         target_channel_selector: Optional[int] = None,
         reference_channel_selector: Optional[int] = None,
-        reference_is_synchronized: bool = True,  # can be disable when reference is an enrollment utterance
+        reference_is_synchronized: bool = True,
+        reference_duration: Optional[float] = None,
     ):
         self.audio_to_manifest_key = {
             'input': input_key,
@@ -667,6 +670,7 @@ class AudioToTargetWithReferenceDataset(BaseAudioDataset):
         self.target_channel_selector = target_channel_selector
         self.reference_channel_selector = reference_channel_selector
         self.reference_is_synchronized = reference_is_synchronized
+        self.reference_duration = reference_duration
 
         super().__init__(
             manifest_filepath=manifest_filepath,
@@ -760,7 +764,7 @@ class AudioToTargetWithReferenceDataset(BaseAudioDataset):
             reference_signal = load_samples(
                 audio_file=reference_file,
                 sample_rate=self.sample_rate,
-                duration=None,  # TODO: add reference_duration to __init__
+                duration=self.reference_duration,
                 channel_selector=self.reference_channel_selector,
             )
 

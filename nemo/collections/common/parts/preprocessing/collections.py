@@ -887,30 +887,6 @@ class AudioCollection(Audio):
         Returns:
             Dictionary with audio_files, duration, and offset.
         """
-        # Utility function
-        def get_full_path(audio_file: str, manifest_file: str) -> str:
-            """ # TODO move to some utility module, since this is
-                       relatively general general
-
-            Get full path to audio_file.
-            If path in `audio_file` is not pointing to a valid file and it
-            is a relative path, we assume that the path is relative to
-            manifest_dir.
-            """
-            audio_file = Path(audio_file)
-            manifest_dir = Path(manifest_file).parent
-
-            if (len(str(audio_file)) < 255) and not audio_file.is_file() and not audio_file.is_absolute():
-                # assume the path in manifest is relative to manifest_dir
-                audio_file_path = manifest_dir / audio_file
-                if audio_file_path.is_file():
-                    audio_file = str(audio_file_path.absolute())
-                else:
-                    audio_file = os.path.expanduser(audio_file)
-            else:
-                audio_file = os.path.expanduser(audio_file)
-            return audio_file
-
         # Local utility function
         def get_audio_file(item: Dict, manifest_key: Union[str, List[str]]):
             """Get item[key] if key is string, or a list
@@ -951,11 +927,11 @@ class AudioCollection(Audio):
             # Get full path to audio file(s)
             if isinstance(audio_file, str):
                 # This dictionary entry points to a single file
-                audio_files[audio_key] = get_full_path(audio_file, manifest_file)
+                audio_files[audio_key] = manifest.get_full_path(audio_file, manifest_file)
             elif isinstance(audio_file, Iterable):
                 # This dictionary entry points to multiple files
                 # Get the files and keep the list structure for this key
-                audio_files[audio_key] = [get_full_path(f, manifest_file) for f in audio_file]
+                audio_files[audio_key] = [manifest.get_full_path(f, manifest_file) for f in audio_file]
             elif audio_key == 'target' and audio_file is None:
                 # For inference, we don't need the target
                 audio_files[audio_key] = None

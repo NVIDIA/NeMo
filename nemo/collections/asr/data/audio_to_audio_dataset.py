@@ -62,6 +62,7 @@ def get_audio_to_target_with_reference_dataset(config: dict) -> audio_to_audio.A
         target_channel_selector=config.get('target_channel_selector', None),
         reference_channel_selector=config.get('reference_channel_selector', None),
         reference_is_synchronized=config.get('reference_is_synchronized', True),
+        reference_duration=config.get('reference_duration', None),
     )
     return dataset
 

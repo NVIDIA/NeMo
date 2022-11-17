@@ -381,7 +381,11 @@ def pow2db(power: float, eps: Optional[float] = 1e-16) -> float:
 
 def get_segment_start(signal: np.ndarray, segment: np.ndarray) -> int:
     """Get starting point of `segment` in `signal`.
-    We assume that `segment` is a part of `signal`.
+    We assume that `segment` is a sub-segment of `signal`.
+    For example, `signal` may be a 10 second audio signal,
+    and `segment` could be the signal between 2 seconds and
+    5 seconds. This function will then return the index of
+    the sample where `segment` starts (at 2 seconds).
 
     Args:
         signal: numpy array with shape (num_samples,)
