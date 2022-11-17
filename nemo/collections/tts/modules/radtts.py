@@ -30,7 +30,7 @@ from nemo.collections.tts.modules.common import (
     Invertible1x1ConvLUS,
     LinearNorm,
     get_mask_from_lengths,
-    getRadTTSEncoder,
+    get_radtts_encoder,
 )
 from nemo.core.classes import Exportable, NeuralModule
 from nemo.core.neural_types.elements import Index, LengthsType, MelSpectrogramType, TokenDurationType, TokenIndex
@@ -143,8 +143,6 @@ class RadTTSModule(NeuralModule, Exportable):
         n_flows,
         n_conv_layers_per_step,
         n_mel_channels,
-        n_hidden,
-        mel_encoder_n_hidden,
         dummy_speaker_embedding,
         n_early_size,
         n_early_every,
@@ -182,7 +180,7 @@ class RadTTSModule(NeuralModule, Exportable):
         self.speaker_embedding = torch.nn.Embedding(n_speakers, self.n_speaker_dim)
         self.embedding = torch.nn.Embedding(n_text, n_text_dim)
         self.flows = torch.nn.ModuleList()
-        self.encoder = getRadTTSEncoder(encoder_embedding_dim=n_text_dim, lstm_norm_fn=text_encoder_lstm_norm)
+        self.encoder = get_radtts_encoder(encoder_embedding_dim=n_text_dim)
         self.dummy_speaker_embedding = dummy_speaker_embedding
         self.learn_alignments = learn_alignments
         self.affine_activation = affine_activation
@@ -191,12 +189,10 @@ class RadTTSModule(NeuralModule, Exportable):
         self.use_context_lstm = bool(use_context_lstm)
         self.context_lstm_norm = context_lstm_norm
         self.context_lstm_w_f0_and_energy = context_lstm_w_f0_and_energy
-        # self.length_regulator = LengthRegulator()
         self.use_first_order_features = bool(use_first_order_features)
         self.decoder_use_unvoiced_bias = kwargs['decoder_use_unvoiced_bias']
         self.ap_pred_log_f0 = ap_pred_log_f0
         self.ap_use_unvoiced_bias = kwargs['ap_use_unvoiced_bias']
-        self.prepared_for_export = False
 
         if 'atn' in include_modules or 'dec' in include_modules:
             if self.learn_alignments:
@@ -215,12 +211,6 @@ class RadTTSModule(NeuralModule, Exportable):
                     n_in_context_lstm = n_f0_dims + n_energy_avg_dims + n_text_dim
                     n_in_context_lstm *= n_group_size
                     n_in_context_lstm += self.n_speaker_dim
-
-                    n_context_hidden = n_f0_dims + n_energy_avg_dims + n_text_dim
-                    n_context_hidden = n_context_hidden * n_group_size / 2
-                    n_context_hidden = self.n_speaker_dim + n_context_hidden
-                    n_context_hidden = int(n_context_hidden)
-
                     n_flowstep_cond_dims = self.n_speaker_dim + n_text_dim * n_group_size
 
                 self.context_lstm = BiLSTM(
@@ -476,7 +466,6 @@ class RadTTSModule(NeuralModule, Exportable):
                 # sometimes referred to as the "squeeze" operation
                 # invert this by calling self.fold(mel_or_z)
                 mel = self.unfold(mel.unsqueeze(-1))
-            z_out = []
             # where context is folded
             # mask f0 in case values are interpolated
             context_w_spkvec = self.preprocess_context(
@@ -601,8 +590,6 @@ class RadTTSModule(NeuralModule, Exportable):
         voiced_mask=None,
     ):
 
-        # print ("Text, lens: ", text.shape, in_lens.shape)
-
         batch_size = text.shape[0]
         n_tokens = text.shape[1]
         spk_vec = self.encode_speaker(speaker_id)
@@ -613,7 +600,6 @@ class RadTTSModule(NeuralModule, Exportable):
         spk_vec_text = self.encode_speaker(speaker_id_text)
         spk_vec_attributes = self.encode_speaker(speaker_id_attributes)
         txt_enc, _ = self.encode_text(text, in_lens)
-        # print("txt_enc: ", txt_enc.shape)
 
         if dur is None:
             # get token durations
@@ -624,9 +610,7 @@ class RadTTSModule(NeuralModule, Exportable):
             dur = dur[:, 0]
             dur = dur.clamp(0, token_duration_max)
 
-        # get attributes f0, energy, vpred, etc)
         txt_enc_time_expanded, out_lens = regulate_len(dur, txt_enc.transpose(1, 2), pace)
-        # print ("txt_enc_time_expanded, out_lens, dur: ", txt_enc_time_expanded.shape, out_lens, dur)
         n_groups = torch.div(out_lens, self.n_group_size, rounding_mode='floor')
         max_out_len = torch.max(out_lens)
 
@@ -669,7 +653,6 @@ class RadTTSModule(NeuralModule, Exportable):
         # may lead to mismatched lengths
         # FIXME: use replication pad
         (energy_avg, f0) = pad_energy_avg_and_f0(energy_avg, f0, max_out_len)
-        # print("V mask, energy_avg, f0, f0_bias: ", voiced_mask.shape, energy_avg.shape, f0.shape, f0_bias.shape)
 
         context_w_spkvec = self.preprocess_context(
             txt_enc_time_expanded, spk_vec, out_lens, (f0 + f0_bias) * voiced_mask, energy_avg
@@ -679,7 +662,6 @@ class RadTTSModule(NeuralModule, Exportable):
 
         # map from z sample to data
         num_steps_to_exit = len(self.exit_steps)
-        # mel = residual[:, num_steps_to_exit * self.n_early_size :]
         remaining_residual, mel = torch.tensor_split(residual, [num_steps_to_exit * self.n_early_size,], dim=1)
 
         for i, flow_step in enumerate(reversed(self.flows)):
@@ -688,7 +670,6 @@ class RadTTSModule(NeuralModule, Exportable):
             if num_steps_to_exit > 0 and curr_step == self.exit_steps[num_steps_to_exit - 1]:
                 # concatenate the next chunk of z
                 num_steps_to_exit = num_steps_to_exit - 1
-                # residual_to_add = remaining_residual[:, num_steps_to_exit * self.n_early_size :]
                 remaining_residual, residual_to_add = torch.tensor_split(
                     remaining_residual, [num_steps_to_exit * self.n_early_size,], dim=1
                 )
@@ -696,8 +677,6 @@ class RadTTSModule(NeuralModule, Exportable):
 
         if self.n_group_size > 1:
             mel = self.fold(mel)
-
-        # print ("mel=", mel.shape, "out_lens=", out_lens, "dur=", dur.shape)
 
         return {'mel': mel, 'out_lens': out_lens, 'dur': dur, 'f0': f0, 'energy_avg': energy_avg}
 
@@ -784,20 +763,6 @@ class RadTTSModule(NeuralModule, Exportable):
     def _prepare_for_export(self, **kwargs):
         self.remove_norms()
         super()._prepare_for_export(**kwargs)
-        if self.prepared_for_export:
-            return
-        self.encoder = torch.jit.script(self.encoder)
-        self.v_pred_module.feat_pred_fn = torch.jit.script(self.v_pred_module.feat_pred_fn)
-        if hasattr(self, 'f0_pred_module'):
-            self.f0_pred_module.feat_pred_fn = torch.jit.script(self.f0_pred_module.feat_pred_fn)
-        if hasattr(self, 'energy_pred_module'):
-            self.energy_pred_module.feat_pred_fn = torch.jit.script(self.energy_pred_module.feat_pred_fn)
-        if hasattr(self, 'dur_pred_layer'):
-            self.dur_pred_layer.feat_pred_fn = torch.jit.script(self.dur_pred_layer.feat_pred_fn)
-
-        if self.use_context_lstm:
-            self.context_lstm = torch.jit.script(self.context_lstm)
-        self.prepared_for_export = True
 
     def input_example(self, max_batch=1, max_dim=256):
         """

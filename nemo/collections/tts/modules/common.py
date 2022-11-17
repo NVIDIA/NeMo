@@ -123,16 +123,22 @@ class BiLSTM(nn.Module):
         seq = nn.utils.rnn.pack_padded_sequence(
             context, lens.long().cpu(), batch_first=True, enforce_sorted=enforce_sorted
         )
-        if not torch.jit.is_scripting():
+        if not (torch.jit.is_scripting() or torch.jit.is_tracing()):
             self.bilstm.flatten_parameters()
-        ret, _ = self.bilstm(seq)
+        if hasattr(self.bilstm, 'forward'):
+            ret, _ = self.bilstm.forward(seq)
+        else:
+            ret, _ = self.bilstm.forward_1(seq)
         return nn.utils.rnn.pad_packed_sequence(ret, batch_first=True)
 
     @torch.jit.export
     def lstm_sequence(self, seq: PackedSequence) -> Tuple[Tensor, Tensor]:
-        if not torch.jit.is_scripting():
+        if not (torch.jit.is_scripting() or torch.jit.is_tracing()):
             self.bilstm.flatten_parameters()
-        ret, _ = self.bilstm(seq)
+        if hasattr(self.bilstm, 'forward'):
+            ret, _ = self.bilstm.forward(seq)
+        elif hasattr(self.bilstm, 'forward_1'):
+            ret, _ = self.bilstm.forward_1(seq)
         return nn.utils.rnn.pad_packed_sequence(ret, batch_first=True)
 
     @torch.jit.export
@@ -155,7 +161,6 @@ class ConvLSTMLinear(BiLSTM):
         p_dropout=0.1,
         use_partial_padding=False,
         norm_fn=None,
-        lstm_norm_fn="spectral",
     ):
         super(ConvLSTMLinear, self).__init__(n_channels, int(n_channels // 2), 1)
         self.convolutions = nn.ModuleList()
@@ -212,12 +217,8 @@ class ConvLSTMLinear(BiLSTM):
         return context
 
 
-def getRadTTSEncoder(
-    encoder_n_convolutions=3,
-    encoder_embedding_dim=512,
-    encoder_kernel_size=5,
-    norm_fn=MaskedInstanceNorm1d,
-    lstm_norm_fn=None,
+def get_radtts_encoder(
+    encoder_n_convolutions=3, encoder_embedding_dim=512, encoder_kernel_size=5, norm_fn=MaskedInstanceNorm1d,
 ):
     return ConvLSTMLinear(
         in_dim=encoder_embedding_dim,
@@ -227,7 +228,6 @@ def getRadTTSEncoder(
         p_dropout=0.5,
         use_partial_padding=True,
         norm_fn=norm_fn,
-        lstm_norm_fn=lstm_norm_fn,
     )
 
 

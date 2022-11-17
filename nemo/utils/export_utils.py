@@ -15,7 +15,7 @@
 import os
 from contextlib import nullcontext
 from enum import Enum
-from typing import Callable, Dict, Optional, Type
+from typing import Callable, Dict, List, Optional, Type
 
 import onnx
 import torch
@@ -386,10 +386,20 @@ def replace_modules(
     return model
 
 
+def script_module(m: nn.Module):
+    m1 = torch.jit.script(m)
+    return m1
+
+
 default_replacements = {
     "BatchNorm1d": wrap_module(nn.BatchNorm1d, CastToFloat),
     "BatchNorm2d": wrap_module(nn.BatchNorm2d, CastToFloat),
     "LayerNorm": wrap_module(nn.LayerNorm, CastToFloat),
+}
+
+script_replacements = {
+    "BiLSTM": script_module,
+    "ConvLSTMLinear": script_module,
 }
 
 
@@ -405,3 +415,5 @@ def replace_for_export(model: nn.Module) -> nn.Module:
     """
     replace_modules(model, default_Apex_replacements)
     replace_modules(model, default_replacements)
+    # This one has to be the last
+    replace_modules(model, script_replacements)
