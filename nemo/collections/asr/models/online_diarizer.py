@@ -34,13 +34,14 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
 )
 from nemo.utils import logging, model_utils
 
-
 __all__ = ['OnlineDiarizer']
+
 
 def timeit(method):
     """
     Monitor elapsed time of the corresponding function displaying the method name.
     """
+
     def timed(*args, **kwargs):
         ts = time.time()
         result = method(*args, **kwargs)
@@ -53,6 +54,7 @@ def timeit(method):
         return result
 
     return timed
+
 
 class OnlineDiarizer(ClusteringDiarizer):
     def __init__(self, cfg: DictConfig):
@@ -206,10 +208,7 @@ class OnlineDiarizer(ClusteringDiarizer):
         return maj_vote_labels
 
     def save_history_data(
-        self, 
-        scale_idx: int, 
-        total_cluster_labels: torch.Tensor, 
-        isOnline: bool,
+        self, scale_idx: int, total_cluster_labels: torch.Tensor, isOnline: bool,
     ):
         """
         Save the temporary input to the class memory buffer.
@@ -357,10 +356,7 @@ class OnlineDiarizer(ClusteringDiarizer):
             )[0]
 
     @timeit
-    def diarize_step(
-        self, 
-        audio_buffer: torch.Tensor, 
-        vad_timestamps: torch.Tensor):
+    def diarize_step(self, audio_buffer: torch.Tensor, vad_timestamps: torch.Tensor):
         """
         A function for a unit diarization step. A diarization step goes through the following steps:
         
