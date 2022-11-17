@@ -239,11 +239,15 @@ def get_concat_tarred_dataset(
         An instance of ConcatDataset containing one or more TarredAudioToBPEDatasets or TarredAudioToCharDatasets.
     """
 
+    tarred_audio_filepaths = config['tarred_audio_filepaths']
     manifest_filepaths = config['manifest_filepath']
     datasets = []
-    for manifest_filepath in manifest_filepaths:
+    for dataset_idx, (tarred_audio_filepath, manifest_filepath) in enumerate(
+        zip(tarred_audio_filepaths, manifest_filepaths)
+    ):
         conf = copy.deepcopy(config)
         conf['manifest_filepath'] = manifest_filepath
+        conf['tarred_audio_filepaths'] = tarred_audio_filepath
         dataset = get_tarred_dataset(
             config=conf,
             tokenizer=tokenizer,
