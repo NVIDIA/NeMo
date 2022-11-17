@@ -19,7 +19,6 @@ from copy import deepcopy
 import numpy as np
 import torch
 from omegaconf import DictConfig
-from tqdm import tqdm
 
 from nemo.collections.asr.models import ClusteringDiarizer
 from nemo.collections.asr.parts.utils.nmesc_clustering import (
@@ -27,33 +26,21 @@ from nemo.collections.asr.parts.utils.nmesc_clustering import (
     getTempInterpolMultiScaleCosAffinityMatrix,
     split_input_data,
 )
-from nemo.utils import logging, model_utils
-
-from nemo.collections.asr.parts.utils.speaker_utils import (  # get_new_cursor_for_update,; get_speech_labels_for_update,
+from nemo.collections.asr.parts.utils.speaker_utils import (
     OnlineSegmentor,
     audio_rttm_map,
     generate_cluster_labels,
     get_embs_and_timestamps,
 )
-
-try:
-    from torch.cuda.amp import autocast
-except ImportError:
-    from contextlib import contextmanager
-
-    @contextmanager
-    def autocast(enabled=None):
-        yield
+from nemo.utils import logging, model_utils
 
 
 __all__ = ['OnlineDiarizer']
-
 
 def timeit(method):
     """
     Monitor elapsed time of the corresponding function displaying the method name.
     """
-
     def timed(*args, **kwargs):
         ts = time.time()
         result = method(*args, **kwargs)
@@ -67,12 +54,10 @@ def timeit(method):
 
     return timed
 
-
 class OnlineDiarizer(ClusteringDiarizer):
     def __init__(self, cfg: DictConfig):
         super().__init__(cfg)
         self.cfg = model_utils.convert_model_config_to_dict_config(cfg)
-        cfg = model_utils.maybe_update_config_version(cfg)
         self._diarizer_params = self.cfg.diarizer
         self.base_scale_index = max(self.multiscale_args_dict['scale_dict'].keys())
 
@@ -221,7 +206,10 @@ class OnlineDiarizer(ClusteringDiarizer):
         return maj_vote_labels
 
     def save_history_data(
-        self, scale_idx: int, total_cluster_labels: torch.Tensor, isOnline: bool,
+        self, 
+        scale_idx: int, 
+        total_cluster_labels: torch.Tensor, 
+        isOnline: bool,
     ):
         """
         Save the temporary input to the class memory buffer.
@@ -369,7 +357,10 @@ class OnlineDiarizer(ClusteringDiarizer):
             )
 
     @timeit
-    def diarize_step(self, audio_buffer: torch.Tensor, vad_timestamps: torch.Tensor):
+    def diarize_step(
+        self, 
+        audio_buffer: torch.Tensor, 
+        vad_timestamps: torch.Tensor):
         """
         A function for a unit diarization step. A diarization step goes through the following steps:
         
@@ -399,7 +390,6 @@ class OnlineDiarizer(ClusteringDiarizer):
                 Speaker label hypothesis from the start of the session to the current position
         """
         self._transfer_timestamps_to_segmentor()
-
         # In case buffer is not filled or there is no speech activity in the input
         if self.buffer_start < 0 or len(vad_timestamps) == 0:
             return self._get_interim_output()
