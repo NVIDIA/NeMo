@@ -36,7 +36,7 @@ from typing import Dict, List, Tuple
 import numpy as np
 import torch
 from scipy.optimize import linear_sum_assignment
-from sklearn.metrics.pairwise import cosine_similarity, linear_kernel
+from sklearn.metrics.pairwise import linear_kernel
 from sklearn.preprocessing import OneHotEncoder
 from torch.linalg import eigh, eigvalsh
 
@@ -863,7 +863,7 @@ def preprocess_mat(mat: torch.Tensor, symm: bool = True, fill_diag_zero: bool = 
 
 
 @torch.jit.script
-def get_closest_embeddings(cmat, ndx, target_num: int):
+def get_closest_embeddings(cmat: torch.Tensor, ndx: torch.Tensor, target_num: int):
     """
     Get indeces of the embeddings we want to merge or drop.
 
@@ -913,7 +913,9 @@ def get_mapped_index(mat: torch.Tensor, index: int) -> int:
 
 @torch.jit.script
 def get_merge_quantity(
-    new_emb_n: int, pre_clus_labels: torch.Tensor, min_segs_per_buffer: int,
+    new_emb_n: int, 
+    pre_clus_labels: torch.Tensor, 
+    min_segs_per_buffer: int,
 ):
     """
     Determine which embeddings we need to reduce or merge in history buffer.
@@ -953,7 +955,11 @@ def get_merge_quantity(
 
 
 @torch.jit.script
-def merge_emb(index_2d: torch.Tensor, emb_ndx: torch.Tensor, pre_cluster_labels: torch.Tensor):
+def merge_emb(
+    index_2d: torch.Tensor, 
+    emb_ndx: torch.Tensor, 
+    pre_cluster_labels: torch.Tensor
+    ):
     """
 
     Args:
@@ -982,7 +988,12 @@ def merge_emb(index_2d: torch.Tensor, emb_ndx: torch.Tensor, pre_cluster_labels:
 
 
 @torch.jit.script
-def run_reducer(pre_embs: torch.Tensor, target_spk_idx: int, target_num: int, pre_clus_labels: torch.Tensor):
+def run_reducer(
+    pre_embs: torch.Tensor, 
+    target_spk_idx: int, 
+    target_num: int, 
+    pre_clus_labels: torch.Tensor, 
+    ):
     """
     Reduce the number of embedding vectors by merging the closest embedding vectors.
     This reducing algorithm is based on the assumption that the closest embeddings are the most redundant
@@ -1029,9 +1040,8 @@ def run_reducer(pre_embs: torch.Tensor, target_spk_idx: int, target_num: int, pr
 
         # Merge the embeddings targeted by the 2-dim indices `index_2d`
         merged_embs, merged_clus_labels = merge_emb(index_2d, emb_ndx, spk_cluster_labels)
-        assert (ndx.shape[0] - target_num) == merged_embs.shape[
-            0
-        ], "Reducer output is not matched to the target quantity"
+        if (ndx.shape[0] - target_num) != merged_embs.shape[0]:
+            raise ValueError("Reducer output is not matched to the target quantity")
     else:
         merged_embs = pre_embs[ndx]
         merged_clus_labels = pre_clus_labels[ndx]
@@ -1729,7 +1739,7 @@ class OnlineSpeakerClustering:
         est_num_of_spk = self.limit_frames_per_speaker(frame_index, est_num_of_spk)
         return est_num_of_spk, affinity_mat
 
-    def prepare_embedding_update(self, emb_in):
+    def prepare_embedding_update(self, emb_in, base_segment_indexes):
         """
         This function performs the following tasks:
             1. Decide whether to extract more embeddings or not (by setting `update_speaker_register`)
@@ -1762,7 +1772,7 @@ class OnlineSpeakerClustering:
             new_emb_n (int):
             pre_embs (Tensor):
         """
-        _segment_indexes_mat = torch.tensor(self.base_segment_indexes)
+        _segment_indexes_mat = torch.tensor(base_segment_indexes)
         self.total_segments_processed_count = int(_segment_indexes_mat[-1] + 1)
         hist_curr_boundary = int(self.total_segments_processed_count - self.current_n)
         new_emb_n, pre_embs = None, None
@@ -1801,7 +1811,7 @@ class OnlineSpeakerClustering:
 
         return update_speaker_register, new_emb_n, pre_embs
 
-    def make_constant_length_emb(self, emb_in):
+    def make_constant_length_emb(self, emb_in, base_segment_indexes):
         """
         - Edge case when the number of segments decreases and the number of embedding falls short for the labels.
         - ASR decoder occasionally returns less number of words compared to the previous frame.
@@ -1809,17 +1819,19 @@ class OnlineSpeakerClustering:
           length, the last embedding vector is repeated to fill the voidness.
         - The repeated embedding will be soon replaced by the actual embeddings once the system takes new frames.
         """
-        segment_indexes_mat = np.array(self.base_segment_indexes).astype(int)
-        curr_clustered_segments = np.where(segment_indexes_mat >= self.history_buffer_seg_end)[0]
+        segment_indexes_mat = torch.tensor(base_segment_indexes)
+        curr_clustered_segments = torch.where(segment_indexes_mat >= self.history_buffer_seg_end)[0]
+
+        # Check if the current buffer result is falling short compared to `self.current_n`.
         if emb_in[curr_clustered_segments].shape[0] < self.current_n:
             delta_count = self.current_n - emb_in[curr_clustered_segments].shape[0]
-            fill_in_emb = np.tile(emb_in[curr_clustered_segments][-1], (delta_count, 1))
+            fill_in_emb = torch.tile(emb_in[curr_clustered_segments][-1], (delta_count, 1))
             emb_curr = torch.vstack((emb_in[curr_clustered_segments], fill_in_emb))
         else:
             emb_curr = emb_in[curr_clustered_segments]
         return emb_curr
 
-    def reduce_embedding_sets(self, emb_in):
+    def reduce_embedding_sets(self, emb_in, base_segment_indexes):
         """
         Merge the given embedding vectors based on the calculate affinity matrix.
 
@@ -1862,7 +1874,7 @@ class OnlineSpeakerClustering:
             (=hist_curr_boundary)
 
         """
-        update_speaker_register, new_emb_n, pre_embs = self.prepare_embedding_update(emb_in)
+        update_speaker_register, new_emb_n, pre_embs = self.prepare_embedding_update(emb_in, base_segment_indexes)
 
         # Update the history/current_buffer boundary cursor
         total_emb, total_cluster_labels = [], []
@@ -1897,7 +1909,7 @@ class OnlineSpeakerClustering:
             total_cluster_labels.append(self.history_embedding_buffer_label)
 
         # `emb_curr` is the incumbent set of embeddings which is the the latest.
-        emb_curr = self.make_constant_length_emb(emb_in)
+        emb_curr = self.make_constant_length_emb(emb_in, base_segment_indexes)
         total_emb.append(emb_curr)
 
         # Before perform clustering, we attach the current_n number of estimated speaker labels
@@ -1916,11 +1928,10 @@ class OnlineSpeakerClustering:
         """
         Choose whether we want to add embeddings to the memory or not.
         """
-        self.base_segment_indexes = base_segment_indexes
         margin_seg_n = emb.shape[0] - (self.current_n + self.history_n)
         if margin_seg_n > 0:
             self.isOnline = True
-            merged_emb, add_new = self.reduce_embedding_sets(emb)
+            merged_emb, add_new = self.reduce_embedding_sets(emb, base_segment_indexes)
         else:
             self.isOnline = False
             merged_emb = emb
