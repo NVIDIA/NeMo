@@ -913,9 +913,7 @@ def get_mapped_index(mat: torch.Tensor, index: int) -> int:
 
 @torch.jit.script
 def get_merge_quantity(
-    new_emb_n: int, 
-    pre_clus_labels: torch.Tensor, 
-    min_segs_per_buffer: int,
+    new_emb_n: int, pre_clus_labels: torch.Tensor, min_segs_per_buffer: int,
 ):
     """
     Determine which embeddings we need to reduce or merge in history buffer.
@@ -955,11 +953,7 @@ def get_merge_quantity(
 
 
 @torch.jit.script
-def merge_emb(
-    index_2d: torch.Tensor, 
-    emb_ndx: torch.Tensor, 
-    pre_cluster_labels: torch.Tensor
-    ):
+def merge_emb(index_2d: torch.Tensor, emb_ndx: torch.Tensor, pre_cluster_labels: torch.Tensor):
     """
 
     Args:
@@ -989,11 +983,8 @@ def merge_emb(
 
 @torch.jit.script
 def run_reducer(
-    pre_embs: torch.Tensor, 
-    target_spk_idx: int, 
-    target_num: int, 
-    pre_clus_labels: torch.Tensor, 
-    ):
+    pre_embs: torch.Tensor, target_spk_idx: int, target_num: int, pre_clus_labels: torch.Tensor,
+):
     """
     Reduce the number of embedding vectors by merging the closest embedding vectors.
     This reducing algorithm is based on the assumption that the closest embeddings are the most redundant

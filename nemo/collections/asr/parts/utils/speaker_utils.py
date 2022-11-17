@@ -919,6 +919,7 @@ def get_subsegments(offset: float, window: float, shift: float, duration: float)
 
     return subsegments
 
+
 @torch.jit.script
 def get_target_sig(
     sig, start_sec: float, end_sec: float, slice_length: int, sample_rate: int,
@@ -953,12 +954,14 @@ def check_ranges(range_tensor):
         if range_tup[1] < range_tup[0]:
             raise ValueError("Range start time should be preceding the end time but we got: {range_tup}")
 
+
 @torch.jit.script
 def tensor_to_list(range_tensor: torch.Tensor) -> List[List[float]]:
     """
     For online segmentation. Force the list elements to be float type.
     """
     return [[float(range_tensor[k][0]), float(range_tensor[k][1])] for k in range(range_tensor.shape[0])]
+
 
 @torch.jit.script
 def get_speech_labels_for_update(
@@ -1494,6 +1497,7 @@ class OnlineSegmentor:
     """
     Online Segmentor for online (streaming) diarizer.
     """
+
     def __init__(self, sample_rate: int):
         """
         Attributes:
@@ -1508,13 +1512,12 @@ class OnlineSegmentor:
             cumulative_speech_labels (Tensor):
                 Torch tensor matrix containing culmulative VAD (speech activity) timestamps
         """
-        self.frame_start: float= 0.0
-        self.buffer_start: float= 0.0
-        self.buffer_end: float= 0.0
+        self.frame_start: float = 0.0
+        self.buffer_start: float = 0.0
+        self.buffer_end: float = 0.0
         self.sample_rate: int = sample_rate
         self.cumulative_speech_labels: torch.Tensor = torch.tensor([])
 
-    
     def run_online_segmentation(
         self,
         audio_buffer: torch.Tensor,
@@ -1556,7 +1559,7 @@ class OnlineSegmentor:
                     vad_timestamps,
                     cursor_for_old_segments,
                 )
-            
+
             # Collect the timeseries signal from the buffer
             sigs_list, sig_rangel_list, sig_indexes = get_online_subsegments_from_buffer(
                 buffer_start=self.buffer_start,
@@ -1576,4 +1579,3 @@ class OnlineSegmentor:
         if not len(segment_raw_audio) == len(segment_range_ts) == len(segment_indexes):
             raise ValueError("Segment information has a mismatch in length.")
         return segment_raw_audio, segment_range_ts, segment_indexes
-
