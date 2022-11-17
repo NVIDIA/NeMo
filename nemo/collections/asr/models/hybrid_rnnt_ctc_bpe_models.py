@@ -102,7 +102,7 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
             ctc_decoding_cfg = self.cfg.aux_ctc.get('decoding', None)
             if ctc_decoding_cfg is None:
                 ctc_decoding_cfg = OmegaConf.structured(CTCBPEDecodingConfig)
-                with open_dict(self.cfg.ctc_decoding):
+                with open_dict(self.cfg.aux_ctc):
                     self.cfg.aux_ctc.decoding = ctc_decoding_cfg
             self.ctc_decoding = CTCBPEDecoding(self.cfg.ctc_decoding.decoder, tokenizer=self.tokenizer)
 
