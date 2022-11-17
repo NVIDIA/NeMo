@@ -36,7 +36,7 @@ from typing import Dict, List, Tuple
 import numpy as np
 import torch
 from scipy.optimize import linear_sum_assignment
-from sklearn.metrics.pairwise import cosine_similarity, linear_kernel
+from sklearn.metrics.pairwise import linear_kernel
 from sklearn.preprocessing import OneHotEncoder
 from torch.linalg import eigh, eigvalsh
 
