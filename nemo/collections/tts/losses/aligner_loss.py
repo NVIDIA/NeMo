@@ -53,11 +53,17 @@ class ForwardSumLoss(Loss):
         attn_logprob = attn_logprob.permute(1, 0, 2)
 
         # Add blank label
-        attn_logprob = F.pad(input=attn_logprob, pad=(1, 0, 0, 0, 0, 0), value=self.blank_logprob)
+        attn_logprob = F.pad(
+            input=attn_logprob, 
+            pad=(1, 0, 0, 0, 0, 0), 
+            value=self.blank_logprob)
 
         # Convert to log probabilities
         # Note: Mask out probs beyond key_len
-        key_inds = torch.arange(max_key_len + 1, device=attn_logprob.device, dtype=torch.long)
+        key_inds = torch.arange(
+            max_key_len + 1, 
+            device=attn_logprob.device, 
+            dtype=torch.long)
         attn_logprob.masked_fill_(
             key_inds.view(1, 1, -1) > key_lens.view(1, -1, 1), -float("inf")  # key_inds >= key_lens+1
         )
