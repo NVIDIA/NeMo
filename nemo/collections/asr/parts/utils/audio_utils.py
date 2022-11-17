@@ -407,11 +407,15 @@ def calculate_sdr(
     target: np.ndarray,
     scale_invariant: bool = False,
     remove_mean: bool = True,
+    sdr_max: Optional[float] = None,
     eps: float = 1e-10,
 ) -> float:
     """Calculate signal-to-distortion ratio.
 
-        SDR = 10 * log10( ||t||_2^2 / ||e-t||_2^2
+        SDR = 10 * log10( ||t||_2^2 / (||e-t||_2^2 + alpha * ||t||^2)
+
+    where
+        alpha = 10^(-sdr_max/10)
 
     Optionally, apply scale-invariant scaling to target signal.
 
@@ -434,6 +438,9 @@ def calculate_sdr(
 
     target_pow = np.mean(np.abs(target) ** 2)
     distortion_pow = np.mean(np.abs(estimate - target) ** 2)
+
+    if sdr_max is not None:
+        distortion_pow = distortion_pow + 10 ** (-sdr_max / 10) * target_pow
 
     sdr = 10 * np.log10(target_pow / (distortion_pow + eps) + eps)
     return sdr

@@ -91,6 +91,9 @@ class ProcessConfig:
     batch_size: int = 1
     num_workers: int = 0
 
+    # Override model config
+    override_config_path: Optional[str] = None  # path to a yaml config that will override the internal config file
+
     # Set `cuda` to int to define CUDA device. If 'None', will look for CUDA
     # device anyway, and do inference on CPU only if CUDA device is not found.
     # If `cuda` is a negative number, inference will be on CPU only.
@@ -136,7 +139,7 @@ def main(cfg: ProcessConfig) -> ProcessConfig:
         imported_class = model_utils.import_class_by_path(classpath)  # type: AudioProcessingModel
         logging.info(f"Restoring model : {imported_class.__name__}")
         audio_processing_model = imported_class.restore_from(
-            restore_path=cfg.model_path, map_location=map_location
+            restore_path=cfg.model_path, override_config_path=cfg.override_config_path, map_location=map_location
         )  # type: AudioProcessingModel
         model_name = os.path.splitext(os.path.basename(cfg.model_path))[0]
     else:

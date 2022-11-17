@@ -14,7 +14,7 @@
 import json
 import os
 import tempfile
-from typing import Dict, List, Optional, Union
+from typing import Dict, Iterable, List, Optional, Union
 
 import librosa
 import soundfile as sf
@@ -23,7 +23,8 @@ from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from tqdm import tqdm
 
-from nemo.collections.asr.data import audio_to_audio_dataset, audio_to_text_dataset
+from nemo.collections.asr.data import audio_to_audio_dataset
+from nemo.collections.asr.data.audio_to_text_dataset import inject_dataloader_value_from_model_config
 from nemo.collections.asr.models.audio_processing_model import AudioProcessingModel
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
@@ -36,7 +37,14 @@ __all__ = ['EncMaskDecAudioProcessingModel']
 
 @experimental
 class EncMaskDecAudioProcessingModel(AudioProcessingModel):
-    """Class for encoder-mask-decoder audio processing models."""
+    """Class for encoder-mask-decoder audio processing models.
+
+    The model consists of the following blocks:
+        - encoder: transforms input multi-channel audio signal into an encoded representation, e.g., STFT
+        - mask: mask estimator
+        - processor: mask-based processor, combining encoded input and mask
+        - decoder: transforms processor output into the time domain, e.g., iSTFT
+    """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         # Get global rank and total number of GPU workers for IterableDataset partitioning, if applicable
@@ -47,15 +55,28 @@ class EncMaskDecAudioProcessingModel(AudioProcessingModel):
 
         super().__init__(cfg=cfg, trainer=trainer)
         self.sample_rate = self._cfg.sample_rate
-        self.num_outputs = self._cfg.num_outputs
+
+        # Setup processing modules
         self.encoder = EncMaskDecAudioProcessingModel.from_config_dict(self._cfg.encoder)
         self.mask = EncMaskDecAudioProcessingModel.from_config_dict(self._cfg.mask)
         self.processor = EncMaskDecAudioProcessingModel.from_config_dict(self._cfg.processor)
         self.decoder = EncMaskDecAudioProcessingModel.from_config_dict(self._cfg.decoder)
+
+        # Setup loss
         self.loss = EncMaskDecAudioProcessingModel.from_config_dict(self._cfg.loss)
 
         # Setup optional Optimization flags
         self.setup_optimization_flags()
+
+    def get_processing_modules(self) -> Iterable[torch.nn.Module]:
+        """Yield processing modules which should be frozen for inference.
+
+        Returns:
+            Iterable of modules.
+        """
+        for module in [self.encoder, self.mask, self.processor, self.decoder]:
+            if module is not None:
+                yield module
 
     @torch.no_grad()
     def process(
@@ -67,7 +88,8 @@ class EncMaskDecAudioProcessingModel(AudioProcessingModel):
         input_channel_selector: Optional[ChannelSelectorType] = None,
     ) -> List[str]:
         """
-        # TODO
+        Process audio files provided in paths2audio_files.
+        Processed signals will be saved in output_dir.
 
         Args:
             paths2audio_files: (a list) of paths to audio files. \
@@ -96,11 +118,10 @@ class EncMaskDecAudioProcessingModel(AudioProcessingModel):
         try:
             # Switch model to evaluation mode
             self.eval()
+
             # Freeze modules
-            self.encoder.freeze()
-            self.mask.freeze()
-            self.processor.freeze()
-            self.decoder.freeze()
+            for module in self.get_processing_modules():
+                module.freeze()
 
             logging_level = logging.get_verbosity()
             logging.set_verbosity(logging.WARNING)
@@ -114,9 +135,6 @@ class EncMaskDecAudioProcessingModel(AudioProcessingModel):
                         entry = {'input_filepath': audio_file, 'duration': librosa.get_duration(filename=audio_file)}
                         fp.write(json.dumps(entry) + '\n')
 
-                assert (
-                    batch_size == 1
-                ), f'batch_size is constrained to 1, since input_length is currently not supported by all modules'
                 config = {
                     'manifest_filepath': temporary_manifest_filepath,
                     'input_key': 'input_filepath',
@@ -133,7 +151,7 @@ class EncMaskDecAudioProcessingModel(AudioProcessingModel):
                 # DataLoader for the input files
                 temporary_dataloader = self._setup_process_dataloader(config)
 
-                # Indexing of the original files, used to form output file name
+                # Indexing of the original files, used to form the output file name
                 file_idx = 0
 
                 # Process batches
@@ -171,27 +189,22 @@ class EncMaskDecAudioProcessingModel(AudioProcessingModel):
             # set mode back to its original value
             self.train(mode=mode)
             if mode is True:
-                self.encoder.unfreeze()
-                self.mask.unfreeze()
-                self.processor.unfreeze()
-                self.decoder.unfreeze()
+                for module in self.get_processing_modules():
+                    module.unfreeze()
             logging.set_verbosity(logging_level)
 
         return paths2processed_files
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
-        if 'augmentor' in config:
-            raise NotImplementedError('Augmentations not implemented')
 
         is_concat = config.get('is_concat', False)
         if is_concat:
             raise NotImplementedError('Concat not implemented')
 
-        # TODO: below should be moved from `audio_to_text_dataset` to some utility module?
+        # TODO:
+        # Consider moving `inject` from `audio_to_text_dataset` to a utility module?
         # Automatically inject args from model config to dataloader config
-        audio_to_text_dataset.inject_dataloader_value_from_model_config(self.cfg, config, key='sample_rate')
-
-        shuffle = config['shuffle']
+        inject_dataloader_value_from_model_config(self.cfg, config, key='sample_rate')
 
         # Instantiate tarred dataset loader or normal dataset loader
         if config.get('is_tarred', False):
@@ -213,7 +226,7 @@ class EncMaskDecAudioProcessingModel(AudioProcessingModel):
             batch_size=config['batch_size'],
             collate_fn=collate_fn,
             drop_last=config.get('drop_last', False),
-            shuffle=shuffle,
+            shuffle=config['shuffle'],
             num_workers=config.get('num_workers', 0),
             pin_memory=config.get('pin_memory', False),
         )
@@ -314,9 +327,7 @@ class EncMaskDecAudioProcessingModel(AudioProcessingModel):
             "input_signal": NeuralType(
                 ('B', 'T', 'C'), AudioSignal(freq=self.sample_rate)
             ),  # multi-channel format, channel dimension can be 1 for single-channel audio
-            "input_length": NeuralType(
-                tuple('B'), LengthsType()
-            ),  # multi-channel format, channel dimension can be 1 for single-channel audio
+            "input_length": NeuralType(tuple('B'), LengthsType()),
         }
 
     @property
@@ -358,22 +369,19 @@ class EncMaskDecAudioProcessingModel(AudioProcessingModel):
 
         Returns:
         """
-        # TODO: use input_length to mask estimation on padded parts
-        # This is not critical for training, since we can load fixed-length segments for training.
-        # However, it's necessary for some cases, e.g., batched inference.
-        batch_length = input_signal.shape[1]
+        batch_length = input_signal.size(1)
 
         # Encoder
-        encoded = self.encoder(input=input_signal)
+        encoded, encoded_length = self.encoder(input=input_signal, input_length=input_length)
 
         # Mask estimator
-        mask = self.mask(input=encoded)
+        mask, _ = self.mask(input=encoded, input_length=encoded_length)
 
         # Mask-based processor in the encoded domain
-        enhanced = self.processor(input=encoded, mask=mask)
+        enhanced, enhanced_length = self.processor(input=encoded, input_length=encoded_length, mask=mask)
 
         # Decoder
-        enhanced = self.decoder(input=enhanced)
+        enhanced, _ = self.decoder(input=enhanced, input_length=enhanced_length)
 
         # Trim or pad the estimated signal to match input length
         enhanced = self.match_batch_length(signal=enhanced, batch_length=batch_length)
@@ -402,7 +410,7 @@ class EncMaskDecAudioProcessingModel(AudioProcessingModel):
 
         return {'loss': loss_value, 'log': tensorboard_logs}
 
-    def validation_step(self, batch, batch_idx, dataloader_idx=0):
+    def evaluation_step(self, batch, batch_idx, dataloader_idx: int = 0, tag: str = 'val'):
         input_signal, input_length, target_signal, target_length = batch
 
         # Expand channel dimension, if necessary
@@ -419,7 +427,7 @@ class EncMaskDecAudioProcessingModel(AudioProcessingModel):
         self.log('global_step', torch.tensor(self.trainer.global_step, dtype=torch.float32))
 
         return {
-            'val_loss': loss_value,
+            f'{tag}_loss': loss_value,
         }
 
     def test_dataloader(self):

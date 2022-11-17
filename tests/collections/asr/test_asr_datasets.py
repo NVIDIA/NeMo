@@ -1586,6 +1586,12 @@ class TestAudioDatasets:
                         item_signal, golden_signal, atol=atol
                     ).all(), f'Test 3: Failed for example {n}, signal {signal} (random seed {random_seed})'
 
+            # Test 4:
+            # - Test collate_fn
+            batch_size = 16
+            batch = [dataset.__getitem__(n) for n in range(batch_size)]
+            batched = dataset.collate_fn(batch)
+
     @pytest.mark.unit
     def test_audio_to_target_with_embedding_dataset(self):
         """Test AudioWithTargetWithEmbeddingDataset.
@@ -1709,6 +1715,12 @@ class TestAudioDatasets:
                     assert np.isclose(
                         item_factory_signal, golden_signal, atol=atol
                     ).all(), f'Test 1: Failed for factory example {n}, signal {signal} (random seed {random_seed})'
+
+            # Test 2:
+            # - Test collate_fn
+            batch_size = 16
+            batch = [dataset.__getitem__(n) for n in range(batch_size)]
+            batched = dataset.collate_fn(batch)
 
 
 class TestUtilityFunctions:

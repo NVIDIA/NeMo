@@ -16,7 +16,7 @@
 # Training the model
 
 Basic run (on CPU for 50 epochs):
-    python examples/asr/experimental/audio_processing/audio_to_audio_enc_mask_dec.py \
+    python examples/asr/experimental/audio_processing/speech_enhancement.py \
         # (Optional: --config-path=<path to dir of configs> --config-name=<name of config without .yaml>) \
         model.train_ds.manifest_filepath="<path to manifest file>" \
         model.validation_ds.manifest_filepath="<path to manifest file>" \
@@ -35,7 +35,7 @@ from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 
-@hydra_runner(config_path="./conf", config_name="enc_mask_dec")
+@hydra_runner(config_path="./conf", config_name="multichannel_enhancement")
 def main(cfg):
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg, resolve=True)}')
 
@@ -51,8 +51,10 @@ def main(cfg):
 
     # Run on test data, if available
     if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.manifest_filepath is not None:
-        if model.prepare_test(trainer):
-            trainer.test(model)
+        if trainer.is_global_zero:
+            trainer = pl.Trainer(devices=1, accelerator=cfg.trainer.accelerator)
+            if model.prepare_test(trainer):
+                trainer.test(model)
 
 
 if __name__ == '__main__':

@@ -1,4 +1,4 @@
-name: "audio_to_audio_enc_mask_dec"
+name: "multichannel_enhancement"
 
 model:
   sample_rate: 16000
@@ -9,10 +9,10 @@ model:
     manifest_filepath: ???
     input_key: audio_filepath
     target_key: target_filepath
-    target_channel_selector: 0 # Target is the first channel from target_key
-    audio_duration: 4.0 # seconds, audio segment duration for training
+    target_channel_selector: 0 # Target is the first channel from files in target_key
+    audio_duration: 4.0 # In seconds, audio segment duration for training
     random_offset: True
-    min_duration: ${model.train_ds.audio_duration} # TODO: keep this until we propagate input_length through all estimators
+    min_duration: ${model.train_ds.audio_duration}
     batch_size: 32
     shuffle: true
     num_workers: 8
@@ -23,7 +23,7 @@ model:
     input_key: audio_filepath
     target_key: target_filepath
     target_channel_selector: 0
-    batch_size: 1 # TODO: keep this until we propagate input_length through all estimators
+    batch_size: 1
     shuffle: false
     num_workers: 4
     pin_memory: true
@@ -33,7 +33,7 @@ model:
     input_key: audio_filepath
     target_key: target_filepath
     target_channel_selector: 0
-    batch_size: 1 # TODO: keep this until we propagate input_length through all estimators
+    batch_size: 1
     shuffle: false
     num_workers: 4
     pin_memory: true
@@ -61,12 +61,11 @@ model:
   processor:
     # Mask-based multi-channel processor
     _target_: nemo.collections.asr.modules.audio_modules.MaskBasedBeamformer # Mask-based multi-channel processing
-    # _target_: nemo.collections.asr.modules.audio_modules.MaskReferenceChannel # Scalar masking
     ref_channel: 0
 
   loss:
     _target_: nemo.collections.asr.losses.SDRLoss
-    # scale_invariant: True # Use scale-invariant SDR loss
+    scale_invariant: True
     # weight: [0.8, 0.2] # Loss weight for multi-channel output
     
   optim:

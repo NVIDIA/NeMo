@@ -15,9 +15,9 @@
 import abc
 import math
 import random
-from collections import OrderedDict
+from collections import OrderedDict, namedtuple
 from dataclasses import dataclass
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Callable, Dict, List, Optional, Tuple, Type, Union
 
 import librosa
 import numpy as np
@@ -687,15 +687,14 @@ class BaseAudioDataset(Dataset):
         """Returns definitions of module output ports.
         """
 
-    def __init__(
-        self, collection: collections.Audio, audio_processor: Callable,
-    ):
+    def __init__(self, collection: collections.Audio, audio_processor: Callable, output_type: Type[namedtuple]):
         """Instantiates an audio dataset.
         """
         super().__init__()
 
         self.collection = collection
         self.audio_processor = audio_processor
+        self.output_type = output_type
 
     def num_channels(self, signal_key) -> int:
         """Returns the number of channels for a particular signal in
@@ -757,7 +756,12 @@ class BaseAudioDataset(Dataset):
     def _collate_fn(self, batch) -> Tuple[torch.Tensor]:
         """Collate items in a batch.
         """
-        return _audio_collate_fn(batch)
+        return self.output_type(*_audio_collate_fn(batch))
+
+
+AudioToTargetExample = namedtuple(
+    typename='AudioToTargetExample', field_names='input_signal input_length target_signal target_length'
+)
 
 
 @experimental
@@ -839,9 +843,7 @@ class AudioToTargetDataset(BaseAudioDataset):
             channel_selectors=[input_channel_selector, target_channel_selector],
         )
 
-        super().__init__(
-            collection=collection, audio_processor=audio_processor,
-        )
+        super().__init__(collection=collection, audio_processor=audio_processor, output_type=AudioToTargetExample)
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -867,6 +869,12 @@ class AudioToTargetDataset(BaseAudioDataset):
             target_signal=sc_audio_type if self.num_channels('target_signal') == 1 else mc_audio_type,
             target_length=NeuralType(('B',), LengthsType()),
         )
+
+
+AudioToTargetWithReferenceExample = namedtuple(
+    typename='AudioToTargetWithReferenceExample',
+    field_names='input_signal input_length target_signal target_length reference_signal reference_length',
+)
 
 
 @experimental
@@ -975,7 +983,7 @@ class AudioToTargetWithReferenceDataset(BaseAudioDataset):
             )
 
         super().__init__(
-            collection=collection, audio_processor=audio_processor,
+            collection=collection, audio_processor=audio_processor, output_type=AudioToTargetWithReferenceExample
         )
 
     @property
@@ -1006,6 +1014,12 @@ class AudioToTargetWithReferenceDataset(BaseAudioDataset):
             reference_signal=sc_audio_type if self.num_channels('reference_signal') == 1 else mc_audio_type,
             reference_length=NeuralType(('B',), LengthsType()),
         )
+
+
+AudioToTargetWithEmbeddingExample = namedtuple(
+    typename='AudioToTargetWithEmbeddingExample',
+    field_names='input_signal input_length target_signal target_length embedding_vector embedding_length',
+)
 
 
 @experimental
@@ -1086,7 +1100,7 @@ class AudioToTargetWithEmbeddingDataset(BaseAudioDataset):
         audio_processor.embedding_setup = SignalSetup(signals=['embedding_vector'])
 
         super().__init__(
-            collection=collection, audio_processor=audio_processor,
+            collection=collection, audio_processor=audio_processor, output_type=AudioToTargetWithEmbeddingExample
         )
 
     @property

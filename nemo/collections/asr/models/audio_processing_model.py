@@ -49,31 +49,25 @@ class AudioProcessingModel(ModelPT, ABC):
         pass
 
     @abstractmethod
-    def validation_step(self, batch, batch_idx, dataloader_idx=0):
+    def evaluation_step(self, batch, batch_idx, dataloader_idx=0):
         pass
 
+    def validation_step(self, batch, batch_idx, dataloader_idx: int = 0):
+        return self.evaluation_step(batch, batch_idx, dataloader_idx, 'val')
+
     def test_step(self, batch, batch_idx, dataloader_idx=0):
-        """Use validation step to run test step.
-        """
-        logs = self.validation_step(batch, batch_idx, dataloader_idx=dataloader_idx)
+        return self.evaluation_step(batch, batch_idx, dataloader_idx, 'test')
 
-        test_logs = dict()
-
-        for key, value in logs.items():
-            test_key = key.replace('val_', 'test_')
-            test_logs[test_key] = value
-
-        return test_logs
+    def multi_evaluation_epoch_end(self, outputs, dataloader_idx: int = 0, tag: str = 'val'):
+        loss_mean = torch.stack([x[f'{tag}_loss'] for x in outputs]).mean()
+        tensorboard_logs = {f'{tag}_loss': loss_mean}
+        return {f'{tag}_loss': loss_mean, 'log': tensorboard_logs}
 
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
-        val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
-        tensorboard_logs = {'val_loss': val_loss_mean}
-        return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
+        return self.multi_evaluation_epoch_end(outputs, dataloader_idx, 'val')
 
     def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
-        val_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
-        tensorboard_logs = {'test_loss': val_loss_mean}
-        return {'test_loss': val_loss_mean, 'log': tensorboard_logs}
+        return self.multi_evaluation_epoch_end(outputs, dataloader_idx, 'test')
 
     @classmethod
     def list_available_models(cls) -> 'List[PretrainedModelInfo]':
