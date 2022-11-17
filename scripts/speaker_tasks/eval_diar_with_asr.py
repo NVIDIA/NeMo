@@ -247,7 +247,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--diar_eval_mode",
-        help='evaluation mode: "all", "fair", "forgiving", "full"',
+        help='evaluation mode: "all", "full", "fair", "forgiving"',
         type=str,
         required=False,
         default="all",
