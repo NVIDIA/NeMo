@@ -42,6 +42,7 @@ except (ImportError, ModuleNotFoundError):
     # fake missing classes with None attributes
     ModelType = AttnMaskType = AttnType = LayerType = ApexGuardDefaults()
 
+
 class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
     """MLP.
 

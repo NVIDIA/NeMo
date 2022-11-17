@@ -57,6 +57,7 @@ except (ImportError, ModuleNotFoundError):
         hyperparameters: transformer hyperparameters
 """
 
+
 class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
     """Parallel self-attention layer abstract class.
 
