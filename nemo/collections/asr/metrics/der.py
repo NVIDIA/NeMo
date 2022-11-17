@@ -103,41 +103,9 @@ def score_labels(
         return metric, mapping_dict, itemized_errors
     else:
         logging.warning(
-            "check if each ground truth RTTMs were present in provided manifest file. Skipping calculation of Diariazation Error Rate"
+            "Check if each ground truth RTTMs were present in the provided manifest file. Skipping calculation of Diariazation Error Rate"
         )
         return None
-
-
-def get_partial_ref_labels(pred_labels, ref_labels):
-    last_pred_time = float(pred_labels[-1].split()[1])
-    ref_labels_out = []
-    for label in ref_labels:
-        start, end, speaker = label.split()
-        start, end = float(start), float(end)
-        if last_pred_time <= start:
-            pass
-        elif start < last_pred_time <= end:
-            label = f"{start} {last_pred_time} {speaker}"
-            ref_labels_out.append(label)
-        elif end < last_pred_time:
-            ref_labels_out.append(label)
-    return ref_labels_out
-
-
-def get_online_DER_stats(DER, CER, FA, MISS, diar_eval_count, der_stat_dict, deci=3):
-    der_dict = {
-        "DER": round(100 * DER, deci),
-        "CER": round(100 * CER, deci),
-        "FA": round(100 * FA, deci),
-        "MISS": round(100 * MISS, deci),
-    }
-    der_stat_dict['cum_DER'] += DER
-    der_stat_dict['cum_CER'] += CER
-    der_stat_dict['avg_DER'] = round(100 * der_stat_dict['cum_DER'] / diar_eval_count, deci)
-    der_stat_dict['avg_CER'] = round(100 * der_stat_dict['cum_CER'] / diar_eval_count, deci)
-    der_stat_dict['max_DER'] = round(max(der_dict['DER'], der_stat_dict['max_DER']), deci)
-    der_stat_dict['max_CER'] = round(max(der_dict['CER'], der_stat_dict['max_CER']), deci)
-    return der_dict, der_stat_dict
 
 
 def calculate_session_cpWER_bruteforce(spk_hypothesis: List[str], spk_reference: List[str]) -> Tuple[float, str, str]:
