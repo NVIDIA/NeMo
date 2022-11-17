@@ -167,7 +167,7 @@ class Exportable(ABC):
                     if verbose:
                         logging.info(f"JIT code:\n{jitted_model.code}")
                     jitted_model.save(output)
-                    assert os.path.exists(output)
+                    jitted_model = torch.jit.load(output)
 
                     if check_trace:
                         verify_torchscript(jitted_model, output, check_trace_input, input_names, check_tolerance)
