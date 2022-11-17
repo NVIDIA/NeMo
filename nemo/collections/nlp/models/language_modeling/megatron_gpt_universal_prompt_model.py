@@ -785,8 +785,6 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
             }
 
             input_tokens, length_tensor = batch
-            self.frozen_model.model.parallel_output = False
-
             # Call same generate code as in MegatronGPT
             return megatron_gpt_generate(
                 self.cuda(), (input_tokens, length_tensor), self.tokenizer, length_params, sampling_params

@@ -55,6 +55,8 @@ def main(cfg) -> None:
         with open_dict(prompt_learning_cfg):
             prompt_learning_cfg.language_model_path = cfg.gpt_model_file
             prompt_learning_cfg.sequence_parallel = False
+            prompt_learning_cfg.activations_checkpoint_granularity = None
+            prompt_learning_cfg.activations_checkpoint_method = None
 
     # Load prompt tuned model, virtual_prompt_model_file must be provided in config
     # Now load prompt learning model with frozen gpt model base
@@ -79,37 +81,15 @@ def main(cfg) -> None:
             model.trainer.strategy.launcher.launch(placeholder, trainer=model.trainer)
         model.trainer.strategy.setup_environment()
 
-    length_params: LengthParam = {
-        "max_length": cfg.inference.tokens_to_generate,
-        "min_length": cfg.inference.min_tokens_to_generate,
-    }
+    if cfg.data.test_ds.file_names:
+        eval_ds = model.build_dataset(data_cfg=cfg.data.test_ds, is_train=False,)
+        eval_dl = []
+        for dataset in eval_ds:
+            eval_dl = model.build_data_loader(
+                dataset=dataset, data_cfg=cfg.data.test_ds, sequence_parallel=False, consumed_samples=0,
+            )
+            eval_dl.append(eval_dl)
 
-    sampling_params: SamplingParam = {
-        "use_greedy": cfg.inference.greedy,
-        "temperature": cfg.inference.temperature,
-        "top_k": cfg.inference.top_k,
-        "top_p": cfg.inference.top_p,
-        "repetition_penalty": cfg.inference.repetition_penalty,
-        "add_BOS": cfg.inference.add_BOS,
-        "all_probs": cfg.inference.all_probs,
-        "compute_logprob": cfg.inference.compute_logprob,
-    }
-
-    max_input_length = model.frozen_model.cfg.encoder_seq_length - length_params["max_length"]
-
-    if cfg.data_paths:
-        _, dataloader = model.build_virtual_prompt_dataset(
-            data=cfg.data_paths,
-            batch_size=cfg.batch_size,
-            max_seq_length=max_input_length,
-            min_seq_length=model.cfg.data.get('min_seq_length', 1),
-            add_bos=sampling_params["add_BOS"],
-            add_eos=False,
-            for_train=False,
-            tokens_to_generate=length_params["max_length"],
-            drop_last=False,
-            shuffle=False,
-        )
         config = OmegaConf.to_container(cfg.inference)
         model.set_inference_config(config)
         response = trainer.predict(model, dataloader)

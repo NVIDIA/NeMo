@@ -22,8 +22,8 @@ tensor_model_parallel_size: 1
 pipeline_model_parallel_size: 1
 gpt_model_file: null  # GPT nemo file path
 prompt_encoder_model_file: ??? # path to prompt encoder model file
-pred_file_path: ??? # Path will model predictions will be written
-data_paths: # paths to .jsonl files you want to perform inference on
+# pred_file_path: ??? # Path will model predictions will be written
+# data_paths: # paths to .jsonl files you want to perform inference on
 batch_size: 16
 server: False
 port: 5555
@@ -31,3 +31,16 @@ web_server: False # whether launch the web inference server
 share: False  # whether create a public URL
 username: test # user name for web client
 password: test2  # password for web client
+data:
+  test_ds:
+    file_names: null # Path to a list of JSONL files corresponding to the source data.
+    shuffle: False
+    num_workers: 8
+    names: null # Names of the corresponding datasets used to log metrics.
+    pin_memory: True
+    max_seq_length: 2048
+    drop_last: False # TODO: Figure out if there is a way to avoid dropping last.
+    seed: 1234
+    add_eos: True
+    add_bos: True
+    answer_only_loss: True 

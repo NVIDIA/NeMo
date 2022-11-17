@@ -17,7 +17,7 @@ import os
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_universal_prompt_model import (
-    MegatronGPTUniversalPromptLearningModel
+    MegatronGPTUniversalPromptLearningModel,
 )
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
