@@ -31,12 +31,13 @@ from nemo.collections.asr.parts.utils.nmesc_clustering import (
     split_input_data,
 )
 from nemo.collections.asr.parts.utils.speaker_utils import (
+    OnlineSegmentor,
     audio_rttm_map,
     generate_cluster_labels,
     get_embs_and_timestamps,
-    get_new_cursor_for_update,
+    # get_new_cursor_for_update,
     get_online_subsegments_from_buffer,
-    get_speech_labels_for_update,
+    # get_speech_labels_for_update,
 )
 from nemo.utils import logging, model_utils
 
@@ -58,19 +59,18 @@ def timeit(method):
     Monitor elapsed time of the corresponding function displaying the method name.
     """
 
-    def timed(*args, **kw):
+    def timed(*args, **kwargs):
         ts = time.time()
-        result = method(*args, **kw)
+        result = method(*args, **kwargs)
         te = time.time()
-        if 'log_time' in kw:
-            name = kw.get('log_name', method.__name__.upper())
-            kw['log_time'][name] = int((te - ts) * 1000)
+        if 'log_time' in kwargs:
+            name = kwargs.get('log_name', method.__name__.upper())
+            kwargs['log_time'][name] = int((te - ts) * 1000)
         else:
             logging.info('%2.2fms %r' % ((te - ts) * 1000, method.__name__))
         return result
 
     return timed
-
 
 class OnlineDiarizer(ClusteringDiarizer):
     def __init__(self, cfg: DictConfig):
@@ -98,7 +98,9 @@ class OnlineDiarizer(ClusteringDiarizer):
             self.device = torch.device("cpu")
 
         self.reset()
-
+       
+        # Initialize an online segmentor module
+        self.online_segmentor = OnlineSegmentor(self.cfg.sample_rate)
         # Set speaker embedding model in eval mode
         self._speaker_model.eval()
 
@@ -152,6 +154,13 @@ class OnlineDiarizer(ClusteringDiarizer):
         self.buffer_end = 0.0
         self.buffer = None
 
+    def transfer_timestamps_to_segmentor(self):
+        self.online_segmentor.frame_index = self.frame_index
+        self.online_segmentor.frame_start = self.frame_start
+        self.online_segmentor.buffer_start = self.buffer_start
+        self.online_segmentor.buffer_end = self.buffer_end
+        self.online_segmentor.total_buffer_in_secs = self.total_buffer_in_secs
+
     def reset(self):
         """
         Reset all the variables
@@ -202,7 +211,10 @@ class OnlineDiarizer(ClusteringDiarizer):
         return maj_vote_labels
 
     def save_history_data(
-        self, scale_idx: int, total_cluster_labels: torch.Tensor, isOnline: bool,
+        self, 
+        scale_idx: int, 
+        total_cluster_labels: torch.Tensor, 
+        isOnline: bool,
     ):
         """
         - Clustering is done for (hist_N + curr_N) number of embeddings.
@@ -253,69 +265,6 @@ class OnlineDiarizer(ClusteringDiarizer):
         else:
             cluster_label_hyp = self.memory_cluster_labels
         return cluster_label_hyp
-
-    @timeit
-    def _run_online_segmentation(
-        self,
-        audio_buffer: torch.Tensor,
-        vad_timestamps: torch.Tensor,
-        segment_raw_audio: List[List[float]],
-        segment_range_ts: List[List[float]],
-        segment_indexes: List[int],
-        window: float,
-        shift: float,
-    ):
-        """
-        Remove the old segments that overlap with the new frame (self.frame_start)
-        cursor_for_old_segments is pointing at the onset of the t_range popped most recently.
-
-        Frame is in the middle of the buffer.
-
-        |___Buffer___[   Frame   ]___Buffer___|
-
-        """
-        if self.buffer_start >= 0:
-            # Check if this is the very first step
-            if segment_raw_audio == [] and vad_timestamps != []:
-                vad_timestamps[0][0] = max(vad_timestamps[0][0], 0.0)
-                speech_labels_for_update = copy.deepcopy(vad_timestamps)
-                self.cumulative_speech_labels = speech_labels_for_update
-            else:
-                cursor_for_old_segments, cursor_index = get_new_cursor_for_update(self.frame_start, segment_range_ts,)
-
-                segment_range_ts = segment_range_ts[:cursor_index]
-                segment_raw_audio = segment_raw_audio[:cursor_index]
-                segment_indexes = segment_indexes[:cursor_index]
-                if not len(segment_raw_audio) == len(segment_range_ts) == len(segment_indexes):
-                    raise ValueError("Scale-wise segment information has a mismatch in length.")
-
-                speech_labels_for_update, self.cumulative_speech_labels = get_speech_labels_for_update(
-                    self.frame_start,
-                    self.buffer_end,
-                    self.cumulative_speech_labels,
-                    vad_timestamps,
-                    cursor_for_old_segments,
-                )
-
-            # Collect the timeseries signal from the buffer
-            sigs_list, sig_rangel_list, sig_indexes = get_online_subsegments_from_buffer(
-                buffer_start=self.buffer_start,
-                buffer_end=self.buffer_end,
-                sample_rate=self.sample_rate,
-                speech_labels_for_update=speech_labels_for_update,
-                audio_buffer=audio_buffer,
-                segment_indexes=segment_indexes,
-                window=window,
-                shift=shift,
-            )
-
-            segment_raw_audio.extend(sigs_list)
-            segment_range_ts.extend(sig_rangel_list)
-            segment_indexes.extend(sig_indexes)
-
-        if not len(segment_raw_audio) == len(segment_range_ts) == len(segment_indexes):
-            raise ValueError("Segment information has a mismatch in length.")
-        return segment_raw_audio, segment_range_ts, segment_indexes
 
     @torch.no_grad()
     def _run_embedding_extractor(self, audio_signal):
@@ -421,6 +370,8 @@ class OnlineDiarizer(ClusteringDiarizer):
         Returns:
             diar_hyp (list):
         """
+        self.transfer_timestamps_to_segmentor()
+        
         # In case buffer is not filled or there is no speech activity in the input
         if self.buffer_start < 0 or len(vad_timestamps) == 0:
             return self._get_interim_output(vad_timestamps)
@@ -429,7 +380,7 @@ class OnlineDiarizer(ClusteringDiarizer):
         for scale_idx, (window, shift) in self.multiscale_args_dict['scale_dict'].items():
 
             # Step 1: Get subsegments for embedding extraction.
-            audio_sigs, segment_ranges, range_inds = self._run_online_segmentation(
+            audio_sigs, segment_ranges, range_inds = self.online_segmentor.run_online_segmentation(
                 audio_buffer=audio_buffer,
                 vad_timestamps=vad_timestamps,
                 segment_raw_audio=self.segment_raw_audio[scale_idx],
