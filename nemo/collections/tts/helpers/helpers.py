@@ -131,8 +131,7 @@ def binarize_attention_parallel(attn, in_lens, out_lens):
         """
     with torch.no_grad():
         log_attn_cpu = torch.log(attn.data).cpu().numpy()
-        attn_out = b_mas(log_attn_cpu, in_lens.cpu().numpy(),
-                            out_lens.cpu().numpy(), width=1)
+        attn_out = b_mas(log_attn_cpu, in_lens.cpu().numpy(), out_lens.cpu().numpy(), width=1)
     return torch.from_numpy(attn_out).to(attn.device)
 
 
@@ -185,18 +184,17 @@ def mas_width1(log_attn_map):
     for i in range(1, log_p.shape[0]):
         prev_log1 = neg_inf
         for j in range(log_p.shape[1]):
-            prev_log2 = log_p[i-1, j]
+            prev_log2 = log_p[i - 1, j]
             log_p[i, j] += max(prev_log1, prev_log2)
             prev_log1 = prev_log2
-
 
     # now backtrack
     opt = np.zeros_like(log_p)
     one = opt.dtype.type(1)
-    j = log_p.shape[1]-1
-    for i in range(log_p.shape[0]-1, 0, -1):
+    j = log_p.shape[1] - 1
+    for i in range(log_p.shape[0] - 1, 0, -1):
         opt[i, j] = one
-        if log_p[i-1, j-1] >= log_p[i-1, j]:
+        if log_p[i - 1, j - 1] >= log_p[i - 1, j]:
             j -= 1
             if j == 0:
                 opt[1:i, j] = one
