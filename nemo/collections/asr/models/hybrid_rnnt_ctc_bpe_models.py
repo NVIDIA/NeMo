@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import copy
-from typing import Dict, List, Optional, Union
+from typing import Optional, Union
 
 from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
@@ -22,16 +22,63 @@ from nemo.collections.asr.metrics.wer_bpe import WERBPE, CTCBPEDecoding, CTCBPED
 from nemo.collections.asr.models.hybrid_rnnt_ctc_models import EncDecHybridRNNTCTCModel
 from nemo.utils import logging, model_utils
 from nemo.core.classes.common import PretrainedModelInfo
+from nemo.collections.asr.parts.mixins import ASRBPEMixin
 
 
-class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel):
+class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
     """Base class for encoder decoder RNNT-based models with auxiliary CTC decoder/loss and subword tokenization."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         # Convert to Hydra 1.0 compatible DictConfig
-        super().__init__(cfg=cfg, trainer=trainer)
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
         cfg = model_utils.maybe_update_config_version(cfg)
+
+        # Tokenizer is necessary for this model
+        if 'tokenizer' not in cfg:
+            raise ValueError("`cfg` must have `tokenizer` config to create a tokenizer !")
+
+        if not isinstance(cfg, DictConfig):
+            cfg = OmegaConf.create(cfg)
+
+        # Setup the tokenizer
+        self._setup_tokenizer(cfg.tokenizer)
+
+        # Initialize a dummy vocabulary
+        vocabulary = self.tokenizer.tokenizer.get_vocab()
+
+        # Set the new vocabulary
+        with open_dict(cfg):
+            cfg.labels = ListConfig(list(vocabulary))
+
+        with open_dict(cfg.decoder):
+            cfg.decoder.vocab_size = len(vocabulary)
+
+        with open_dict(cfg.joint):
+            cfg.joint.num_classes = len(vocabulary)
+            cfg.joint.vocabulary = ListConfig(list(vocabulary))
+            cfg.joint.jointnet.encoder_hidden = cfg.model_defaults.enc_hidden
+            cfg.joint.jointnet.pred_hidden = cfg.model_defaults.pred_hidden
+
+        super().__init__(cfg=cfg, trainer=trainer)
+
+        # Setup decoding object
+        self.decoding = RNNTBPEDecoding(
+            decoding_cfg=self.cfg.decoding, decoder=self.decoder, joint=self.joint, tokenizer=self.tokenizer,
+        )
+
+        # Setup wer object
+        self.wer = RNNTBPEWER(
+            decoding=self.decoding,
+            batch_dim_index=0,
+            use_cer=self._cfg.get('use_cer', False),
+            log_prediction=self._cfg.get('log_prediction', True),
+            dist_sync_on_step=True,
+        )
+
+        # Setup fused Joint step if flag is set
+        if self.joint.fuse_loss_wer:
+            self.joint.set_loss(self.loss)
+            self.joint.set_wer(self.wer)
 
         # setup auxiliary CTC decoder if needed
         if 'aux_ctc' in cfg:

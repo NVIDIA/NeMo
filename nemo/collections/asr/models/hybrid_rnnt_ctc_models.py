@@ -26,45 +26,48 @@ from tqdm.auto import tqdm
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
 from nemo.collections.asr.models.rnnt_models import EncDecRNNTModel
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
-from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.classes.mixins import AccessMixin
 from nemo.utils import logging
 from nemo.core.classes.common import PretrainedModelInfo
+from nemo.collections.asr.parts.mixins import ASRBPEMixin
 
 
-class EncDecHybridRNNTCTCModel(EncDecRNNTModel):
+class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin):
     """Base class for joint RNNT/CTC models."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+        super().__init__(cfg=cfg, trainer=trainer)
+        cfg = model_utils.convert_model_config_to_dict_config(cfg)
+        cfg = model_utils.maybe_update_config_version(cfg)
 
-        if 'aux_ctc' in self.cfg:
-            self.ctc_decoder = EncDecRNNTModel.from_config_dict(self.cfg.aux_ctc.decoder)
-            self.ctc_loss_weight = self.cfg.aux_ctc.get("ctc_loss_weight", 0.5)
+        if 'aux_ctc' in cfg:
+            self.ctc_decoder = EncDecRNNTModel.from_config_dict(cfg.aux_ctc.decoder)
+            self.ctc_loss_weight = cfg.aux_ctc.get("ctc_loss_weight", 0.5)
 
             self.ctc_loss = CTCLoss(
                 num_classes=self.ctc_decoder.num_classes_with_blank - 1,
                 zero_infinity=True,
-                reduction=self.cfg.aux_ctc.get("ctc_reduction", "mean_batch"),
+                reduction=cfg.aux_ctc.get("ctc_reduction", "mean_batch"),
             )
 
-            ctc_decoding_cfg = self.cfg.aux_ctc.get('decoding', None)
+            ctc_decoding_cfg = cfg.aux_ctc.get('decoding', None)
             if ctc_decoding_cfg is None:
                 ctc_decoding_cfg = OmegaConf.structured(CTCDecodingConfig)
-                with open_dict(self.cfg.ctc_decoding):
-                    self.cfg.aux_ctc.decoding = ctc_decoding_cfg
+                with open_dict(cfg.ctc_decoding):
+                    cfg.aux_ctc.decoding = ctc_decoding_cfg
 
-            self.ctc_decoding = CTCDecoding(self.cfg.aux_ctc.decoding, vocabulary=self.ctc_decoder.vocabulary)
+            self.ctc_decoding = CTCDecoding(cfg.aux_ctc.decoding, vocabulary=self.ctc_decoder.vocabulary)
             self.ctc_wer = WER(
                 decoding=self.ctc_decoding,
-                use_cer=self.cfg.aux_ctc.get('use_cer', False),
+                use_cer=cfg.aux_ctc.get('use_cer', False),
                 dist_sync_on_step=True,
-                log_prediction=self.cfg.get("log_prediction", False),
+                log_prediction=cfg.get("log_prediction", False),
             )
         else:
             self.ctc_loss_weight = 0.0
 
         self.use_rnnt_decoder = True
-        super().__init__(cfg=cfg, trainer=trainer)
+
 
     @torch.no_grad()
     def transcribe(
