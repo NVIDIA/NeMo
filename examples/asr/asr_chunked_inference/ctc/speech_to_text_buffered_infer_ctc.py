@@ -31,10 +31,11 @@ python speech_to_text_buffered_infer_ctc.py \
 
 # NOTE:
     You can use `DEBUG=1 python speech_to_text_buffered_infer_ctc.py ...` to print out the
-    ground truth text and predictions of the model.
+    predictions of the model, and ground-truth text if presents in manifest.
 """
 import contextlib
 import copy
+import glob
 import json
 import math
 import os
@@ -107,6 +108,12 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     if cfg.audio_dir is None and cfg.dataset_manifest is None:
         raise ValueError("Both cfg.audio_dir and cfg.dataset_manifest cannot be None!")
 
+    filepaths = None
+    manifest = cfg.dataset_manifest
+    if cfg.audio_dir is not None:
+        filepaths = list(glob.glob(os.path.join(cfg.audio_dir, f"**/*.{cfg.audio_type}"), recursive=True))
+        manifest = None  # ignore dataset_manifest if audio_dir and dataset_manifest both presents
+
     device, accelerator, map_location = setup_gpu(cfg)
     logging.info(f"Inference will be done on device : {device}")
 
@@ -160,8 +167,8 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     frame_asr = FrameBatchASR(
         asr_model=asr_model, frame_len=chunk_len, total_buffer=cfg.total_buffer_in_secs, batch_size=cfg.batch_size,
     )
+
     hyps = get_buffered_pred_feat(
-        cfg.dataset_manifest,
         frame_asr,
         chunk_len,
         tokens_per_chunk,
@@ -169,8 +176,10 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         model_cfg.preprocessor,
         model_stride_in_secs,
         asr_model.device,
+        manifest,
+        filepaths,
     )
-    output_filename = write_transcription(hyps, cfg, model_name, filepaths=None, compute_langs=False)
+    output_filename = write_transcription(hyps, cfg, model_name, filepaths=filepaths, compute_langs=False)
     logging.info(f"Finished writing predictions to {output_filename}!")
 
     return cfg

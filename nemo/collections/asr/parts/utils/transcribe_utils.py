@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import glob
 import json
 import os
 from pathlib import Path
@@ -29,7 +30,13 @@ from nemo.utils import logging
 
 
 def get_buffered_pred_feat_rnnt(
-    mfst: str, asr: FrameBatchASR, tokens_per_chunk: int, delay: int, model_stride_in_secs: int, batch_size: int
+    asr: FrameBatchASR,
+    tokens_per_chunk: int,
+    delay: int,
+    model_stride_in_secs: int,
+    batch_size: int,
+    manifest: str = None,
+    filepaths: List[list] = None,
 ) -> List[rnnt_utils.Hypothesis]:
     """
     Moved from examples/asr/asr_chunked_inference/rnnt/speech_to_text_buffered_infer_rnnt.py
@@ -37,25 +44,31 @@ def get_buffered_pred_feat_rnnt(
     """
     hyps = []
     refs = []
-    audio_filepaths = []
 
-    with open(mfst, "r") as mfst_f:
-        print("Parsing manifest files...")
-        for l in mfst_f:
-            row = json.loads(l.strip())
-            audio_filepaths.append(row['audio_filepath'])
-            if 'text' in row:
-                refs.append(row['text'])
+    if filepaths and manifest:
+        raise ValueError("Please select either filepaths or manifest")
+    if filepaths is None and manifest is None:
+        raise ValueError("Either filepaths or manifest shoud not be None")
+
+    if manifest:
+        filepaths = []
+        with open(manifest, "r") as mfst_f:
+            print("Parsing manifest files...")
+            for l in mfst_f:
+                row = json.loads(l.strip())
+                filepaths.append(row['audio_filepath'])
+                if 'text' in row:
+                    refs.append(row['text'])
 
     with torch.inference_mode():
         with torch.cuda.amp.autocast():
             batch = []
             asr.sample_offset = 0
-            for idx in tqdm(range(len(audio_filepaths)), desc='Sample:', total=len(audio_filepaths)):
-                batch.append((audio_filepaths[idx], refs[idx]))
+            for idx in tqdm(range(len(filepaths)), desc='Sample:', total=len(filepaths)):
+                batch.append((filepaths[idx]))
 
                 if len(batch) == batch_size:
-                    audio_files = [sample[0] for sample in batch]
+                    audio_files = [sample for sample in batch]
 
                     asr.reset()
                     asr.read_audio_file(audio_files, delay, model_stride_in_secs)
@@ -70,7 +83,7 @@ def get_buffered_pred_feat_rnnt(
                 asr.frame_bufferer.batch_size = len(batch)
                 asr.reset()
 
-                audio_files = [sample[0] for sample in batch]
+                audio_files = [sample for sample in batch]
                 asr.read_audio_file(audio_files, delay, model_stride_in_secs)
                 hyp_list = asr.transcribe(tokens_per_chunk, delay)
                 hyps.extend(hyp_list)
@@ -79,16 +92,20 @@ def get_buffered_pred_feat_rnnt(
                 asr.sample_offset += len(batch)
 
     if os.environ.get('DEBUG', '0') in ('1', 'y', 't'):
-        for hyp, ref in zip(hyps, refs):
-            print("hyp:", hyp)
-            print("ref:", ref)
+        if len(ref) == 0:
+            print("ground-truth text does not present!")
+            for hyp in hyps:
+                print("hyp:", hyp)
+        else:
+            for hyp, ref in zip(hyps, refs):
+                print("hyp:", hyp)
+                print("ref:", ref)
 
     wrapped_hyps = wrap_transcription(hyps)
     return wrapped_hyps
 
 
 def get_buffered_pred_feat(
-    mfst: str,
     asr: FrameBatchASR,
     frame_len: float,
     tokens_per_chunk: int,
@@ -96,6 +113,8 @@ def get_buffered_pred_feat(
     preprocessor_cfg: DictConfig,
     model_stride_in_secs: int,
     device: Union[List[int], int],
+    manifest: str = None,
+    filepaths: List[list] = None,
 ) -> List[rnnt_utils.Hypothesis]:
     """
     Moved from examples/asr/asr_chunked_inference/ctc/speech_to_text_buffered_infer_ctc.py
@@ -110,21 +129,38 @@ def get_buffered_pred_feat(
     hyps = []
     refs = []
 
-    with open(mfst, "r") as mfst_f:
-        for l in tqdm(mfst_f, desc="Sample:"):
+    if filepaths and manifest:
+        raise ValueError("Please select either filepaths or manifest")
+    if filepaths is None and manifest is None:
+        raise ValueError("Either filepaths or manifest shoud not be None")
+
+    if filepaths:
+        for l in tqdm(filepaths, desc="Sample:"):
             asr.reset()
-            row = json.loads(l.strip())
-            if 'text' in row:
-                refs.append(row['text'])
-            # do not support partial audio
-            asr.read_audio_file(row['audio_filepath'], delay, model_stride_in_secs)
+            asr.read_audio_file(l, delay, model_stride_in_secs)
             hyp = asr.transcribe(tokens_per_chunk, delay)
             hyps.append(hyp)
+    else:
+        with open(manifest, "r") as mfst_f:
+            for l in tqdm(mfst_f, desc="Sample:"):
+                asr.reset()
+                row = json.loads(l.strip())
+                if 'text' in row:
+                    refs.append(row['text'])
+                # do not support partial audio
+                asr.read_audio_file(row['audio_filepath'], delay, model_stride_in_secs)
+                hyp = asr.transcribe(tokens_per_chunk, delay)
+                hyps.append(hyp)
 
     if os.environ.get('DEBUG', '0') in ('1', 'y', 't'):
-        for hyp, ref in zip(hyps, refs):
-            print("hyp:", hyp)
-            print("ref:", ref)
+        if len(ref) == 0:
+            print("ground-truth text does not present!")
+            for hyp in hyps:
+                print("hyp:", hyp)
+        else:
+            for hyp, ref in zip(hyps, refs):
+                print("hyp:", hyp)
+                print("ref:", ref)
 
     wrapped_hyps = wrap_transcription(hyps)
     return wrapped_hyps
@@ -180,7 +216,9 @@ def setup_model(cfg: DictConfig, map_location: torch.device) -> Tuple[ASRModel, 
 
 def prepare_audio_data(cfg: DictConfig) -> Tuple[List[str], bool]:
     """ Prepare audio data and decide whether it's partial_audio condition. """
-    # this part may need refactor alongsides with refactor of transcribe()
+    # this part may need refactor alongsides with refactor of transcribe
+    partial_audio = False
+
     if cfg.audio_dir is not None and not cfg.append_pred:
         filepaths = list(glob.glob(os.path.join(cfg.audio_dir, f"**/*.{cfg.audio_type}"), recursive=True))
     else:

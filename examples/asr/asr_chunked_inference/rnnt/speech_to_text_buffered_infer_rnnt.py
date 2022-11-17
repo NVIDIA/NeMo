@@ -52,11 +52,11 @@ python speech_to_text_buffered_infer_rnnt.py \
     lcs_alignment_dir=<OPTIONAL: Some path to store the LCS alignments> 
 
 # NOTE:
-    You can use `DEBUG=1 python speech_to_text_buffered_infer_rnnt.py ...` to print out the
-    ground truth text and predictions of the model.
-
+    You can use `DEBUG=1 python speech_to_text_buffered_infer_ctc.py ...` to print out the
+    predictions of the model, and ground-truth text if presents in manifest.
 """
 import copy
+import glob
 import json
 import math
 import os
@@ -138,6 +138,12 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     if cfg.audio_dir is None and cfg.dataset_manifest is None:
         raise ValueError("Both cfg.audio_dir and cfg.dataset_manifest cannot be None!")
 
+    filepaths = None
+    manifest = cfg.dataset_manifest
+    if cfg.audio_dir is not None:
+        filepaths = list(glob.glob(os.path.join(cfg.audio_dir, f"**/*.{cfg.audio_type}"), recursive=True))
+        manifest = None  # ignore dataset_manifest if audio_dir and dataset_manifest both presents
+
     device, accelerator, map_location = setup_gpu(cfg)
 
     logging.info(f"Inference will be done on device : {device}")
@@ -217,15 +223,16 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         raise ValueError("Invalid choice of merge algorithm for transducer buffered inference.")
 
     hyps = get_buffered_pred_feat_rnnt(
-        mfst=cfg.dataset_manifest,
         asr=frame_asr,
         tokens_per_chunk=tokens_per_chunk,
         delay=mid_delay,
         model_stride_in_secs=model_stride_in_secs,
         batch_size=cfg.batch_size,
+        manifest=manifest,
+        filepaths=filepaths,
     )
 
-    output_filename = write_transcription(hyps, cfg, model_name, filepaths=None, compute_langs=False)
+    output_filename = write_transcription(hyps, cfg, model_name, filepaths=filepaths, compute_langs=False)
     logging.info(f"Finished writing predictions to {output_filename}!")
 
     return cfg

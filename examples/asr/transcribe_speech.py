@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import contextlib
-import glob
 import json
 import os
 from dataclasses import dataclass, is_dataclass
@@ -136,7 +135,6 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     trainer = pl.Trainer(devices=device, accelerator=accelerator)
     asr_model.set_trainer(trainer)
     asr_model = asr_model.eval()
-    partial_audio = False
 
     # collect additional transcription information
     return_hypotheses = True
