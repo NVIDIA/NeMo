@@ -13,27 +13,24 @@
 # limitations under the License.
 import json
 import os
-from typing import List, Union, Tuple
+from pathlib import Path
+from typing import List, Tuple, Union
+
 import torch
+from omegaconf import DictConfig
 from tqdm.auto import tqdm
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
 from nemo.collections.asr.parts.utils import rnnt_utils
-import nemo.collections.asr as nemo_asr
-from pathlib import Path
-from omegaconf import DictConfig
 from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR
+from nemo.utils import logging
+
 
 def get_buffered_pred_feat_rnnt(
-    mfst: str, 
-    asr: FrameBatchASR,
-    tokens_per_chunk: int,
-    delay: int, 
-    model_stride_in_secs: int, 
-    batch_size: int
-    ) -> List[rnnt_utils.Hypothesis]:
+    mfst: str, asr: FrameBatchASR, tokens_per_chunk: int, delay: int, model_stride_in_secs: int, batch_size: int
+) -> List[rnnt_utils.Hypothesis]:
     """
     Moved from examples/asr/asr_chunked_inference/rnnt/speech_to_text_buffered_infer_rnnt.py
     Write all information presented in input manifest to output manifest and removed WER calculation.
@@ -90,17 +87,16 @@ def get_buffered_pred_feat_rnnt(
     return wrapped_hyps
 
 
-  
 def get_buffered_pred_feat(
-    mfst: str, 
+    mfst: str,
     asr: FrameBatchASR,
     frame_len: float,
-    tokens_per_chunk: int, 
-    delay: int, 
-    preprocessor_cfg: DictConfig, 
-    model_stride_in_secs: int, 
-    device: Union[List[int], int]
-    ) -> List[rnnt_utils.Hypothesis]:
+    tokens_per_chunk: int,
+    delay: int,
+    preprocessor_cfg: DictConfig,
+    model_stride_in_secs: int,
+    device: Union[List[int], int],
+) -> List[rnnt_utils.Hypothesis]:
     """
     Moved from examples/asr/asr_chunked_inference/ctc/speech_to_text_buffered_infer_ctc.py
     Write all information presented in input manifest to output manifest and removed WER calculation.
@@ -124,12 +120,12 @@ def get_buffered_pred_feat(
             asr.read_audio_file(row['audio_filepath'], delay, model_stride_in_secs)
             hyp = asr.transcribe(tokens_per_chunk, delay)
             hyps.append(hyp)
-            
+
     if os.environ.get('DEBUG', '0') in ('1', 'y', 't'):
         for hyp, ref in zip(hyps, refs):
             print("hyp:", hyp)
             print("ref:", ref)
-            
+
     wrapped_hyps = wrap_transcription(hyps)
     return wrapped_hyps
 
@@ -160,9 +156,9 @@ def setup_gpu(cfg: DictConfig) -> Tuple[Union[List[int], int], str, torch.device
     return device, accelerator, map_location
 
 
-def setup_model(cfg: DictConfig, map_location: torch.device) -> Tuple[ASRModel,str]:
+def setup_model(cfg: DictConfig, map_location: torch.device) -> Tuple[ASRModel, str]:
     """ Setup model from cfg and return model and model name for next step """
-    if cfg.model_path is not None and cfg.model_path != "None" :
+    if cfg.model_path is not None and cfg.model_path != "None":
         # restore model from .nemo file path
         model_cfg = ASRModel.restore_from(restore_path=cfg.model_path, return_config=True)
         classpath = model_cfg.target  # original class path
@@ -227,11 +223,12 @@ def compute_output_filename(cfg: DictConfig, model_name: str) -> DictConfig:
 
 
 def write_transcription(
-    transcriptions: List[str], 
+    transcriptions: List[str],
     cfg: DictConfig,
-    model_name: str, 
-    filepaths:List[str] = None, 
-    compute_langs: bool = False) -> str:
+    model_name: str,
+    filepaths: List[str] = None,
+    compute_langs: bool = False,
+) -> str:
     """ Write generated transcription to output file. """
     if cfg.append_pred:
         logging.info(f'Transcripts will be written in "{cfg.output_filename}" file')

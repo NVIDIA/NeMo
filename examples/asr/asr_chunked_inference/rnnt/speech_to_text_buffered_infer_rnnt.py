@@ -103,10 +103,10 @@ class TranscriptionConfig:
     pred_name_postfix: Optional[str] = None  # If you need to use another model name, rather than standard one.
 
     # Chunked configs
-    chunk_len_in_secs: float = 1.6 # Chunk length in seconds
-    total_buffer_in_secs: float = 4.0 # Length of buffer (chunk + left and right padding) in seconds 
-    model_stride: int = 8 # Model downsampling factor, 8 for Citrinet models and 4 for Conformer models",
-    
+    chunk_len_in_secs: float = 1.6  # Chunk length in seconds
+    total_buffer_in_secs: float = 4.0  # Length of buffer (chunk + left and right padding) in seconds
+    model_stride: int = 8  # Model downsampling factor, 8 for Citrinet models and 4 for Conformer models",
+
     # Set `cuda` to int to define CUDA device. If 'None', will look for CUDA
     # device anyway, and do inference on CPU only if CUDA device is not found.
     # If `cuda` is a negative number, inference will be on CPU only.
@@ -216,7 +216,6 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     else:
         raise ValueError("Invalid choice of merge algorithm for transducer buffered inference.")
 
-    # hyps, refs, wer = get_wer_feat_rnnt(
     hyps = get_buffered_pred_feat_rnnt(
         mfst=cfg.dataset_manifest,
         asr=frame_asr,
