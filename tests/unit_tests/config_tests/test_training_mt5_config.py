@@ -112,7 +112,7 @@ model:
     fp32_residual_connection: False # Use FP32 for residual connections.
     # activations checkpointing
     activations_checkpoint_granularity: full
-    activations_checkpoint_method: null # 'uniform', 'block'
+    activations_checkpoint_method: block # 'uniform', 'block'
     activations_checkpoint_num_layers: 0
 
   decoder:
@@ -147,7 +147,7 @@ model:
     fp32_residual_connection: False # Use FP32 for residual connections.
     # activations checkpointing
     activations_checkpoint_granularity: full
-    activations_checkpoint_method: null # 'uniform', 'block'
+    activations_checkpoint_method: block # 'uniform', 'block'
     activations_checkpoint_num_layers: 0
 
   tokenizer:
@@ -333,7 +333,7 @@ model:
     fp32_residual_connection: False # Use FP32 for residual connections.
     # activations checkpointing
     activations_checkpoint_granularity: full
-    activations_checkpoint_method: null # 'uniform', 'block'
+    activations_checkpoint_method: block # 'uniform', 'block'
     activations_checkpoint_num_layers: 0
 
   decoder:
@@ -368,7 +368,7 @@ model:
     fp32_residual_connection: False # Use FP32 for residual connections.
     # activations checkpointing
     activations_checkpoint_granularity: full
-    activations_checkpoint_method: null # 'uniform', 'block'
+    activations_checkpoint_method: block # 'uniform', 'block'
     activations_checkpoint_num_layers: 0
 
   tokenizer:
@@ -554,7 +554,7 @@ model:
     fp32_residual_connection: False # Use FP32 for residual connections.
     # activations checkpointing
     activations_checkpoint_granularity: full
-    activations_checkpoint_method: null # 'uniform', 'block'
+    activations_checkpoint_method: block # 'uniform', 'block'
     activations_checkpoint_num_layers: 0
 
   decoder:
@@ -589,7 +589,7 @@ model:
     fp32_residual_connection: False # Use FP32 for residual connections.
     # activations checkpointing
     activations_checkpoint_granularity: full
-    activations_checkpoint_method: null # 'uniform', 'block'
+    activations_checkpoint_method: block # 'uniform', 'block'
     activations_checkpoint_num_layers: 0
 
   tokenizer:
