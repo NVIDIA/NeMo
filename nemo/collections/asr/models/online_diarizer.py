@@ -27,13 +27,14 @@ from nemo.collections.asr.parts.utils.nmesc_clustering import (
     getTempInterpolMultiScaleCosAffinityMatrix,
     split_input_data,
 )
+from nemo.utils import logging, model_utils
+
 from nemo.collections.asr.parts.utils.speaker_utils import (  # get_new_cursor_for_update,; get_speech_labels_for_update,
     OnlineSegmentor,
     audio_rttm_map,
     generate_cluster_labels,
     get_embs_and_timestamps,
 )
-from nemo.utils import logging, model_utils
 
 try:
     from torch.cuda.amp import autocast
@@ -47,10 +48,12 @@ except ImportError:
 
 __all__ = ['OnlineDiarizer']
 
+
 def timeit(method):
     """
     Monitor elapsed time of the corresponding function displaying the method name.
     """
+
     def timed(*args, **kwargs):
         ts = time.time()
         result = method(*args, **kwargs)
@@ -366,10 +369,7 @@ class OnlineDiarizer(ClusteringDiarizer):
             )
 
     @timeit
-    def diarize_step(
-        self, 
-        audio_buffer: torch.Tensor, 
-        vad_timestamps: torch.Tensor):
+    def diarize_step(self, audio_buffer: torch.Tensor, vad_timestamps: torch.Tensor):
         """
         A function for a unit diarization step. A diarization step goes through the following steps:
         
