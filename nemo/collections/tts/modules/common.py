@@ -126,20 +126,14 @@ class BiLSTM(nn.Module):
         )
         if not (torch.jit.is_scripting() or torch.jit.is_tracing()):
             self.bilstm.flatten_parameters()
-        if hasattr(self.bilstm, 'forward'):
-            ret, _ = self.bilstm.forward(seq)
-        else:
-            ret, _ = self.bilstm.forward_1(seq)
+        ret, _ = self.bilstm(seq)
         return nn.utils.rnn.pad_packed_sequence(ret, batch_first=True)
 
     @torch.jit.export
     def lstm_sequence(self, seq: PackedSequence) -> Tuple[Tensor, Tensor]:
         if not (torch.jit.is_scripting() or torch.jit.is_tracing()):
             self.bilstm.flatten_parameters()
-        if hasattr(self.bilstm, 'forward'):
-            ret, _ = self.bilstm.forward(seq)
-        elif hasattr(self.bilstm, 'forward_1'):
-            ret, _ = self.bilstm.forward_1(seq)
+        ret, _ = self.bilstm(seq)
         return nn.utils.rnn.pad_packed_sequence(ret, batch_first=True)
 
     @torch.jit.export
