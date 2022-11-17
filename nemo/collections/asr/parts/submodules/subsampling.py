@@ -68,6 +68,8 @@ class MaxPoolSubsampling(torch.nn.Module):
 
     def __init__(self, subsampling_factor, feat_in, feat_out):
 
+        super(MaxPoolSubsampling, self).__init__()
+        
         self.subsampling = nn.MaxPool1d(kernel_size = subsampling_factor)
         self.subsampling_factor = subsampling_factor
         self.proj_out = torch.nn.Linear(feat_in, feat_out)
