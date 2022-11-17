@@ -65,23 +65,19 @@ model:
   
   train_ds:
     dataset:
-      _target_: nemo.collections.tts.torch.data_ssl_vocoder.SSLVocoderDataset
+      _target_: nemo.collections.tts.torch.data.FastPitchSSLDataset
       manifest_filepath: ${train_dataset}
       sample_rate: ${model.sample_rate}
-      ssl_model_ckpt_path: ${ssl_model_ckpt_path}
       ssl_content_emb_type: ${ssl_content_emb_type}
       pitch_conditioning: true
       pitch_normalization: ${pitch_normalization}
       pitch_mean: ${pitch_mean}
       pitch_std: ${pitch_std}
-      recache_data: false
       speaker_stats_pitch_fp: ${speaker_stats_pitch_fp}
       min_duration: 0.5
       max_duration: 16.0
-      ssl_downsampling_factor: ${ssl_downsampling_factor}
-      use_unique_tokens: ${use_unique_tokens}
+      pad_multiple: 1024
       speaker_conditioning_type: ${speaker_conditioning_type}
-      segment_speaker_embedding: ${segment_speaker_embedding}
 
     dataloader_params:
       drop_last: false
@@ -92,23 +88,19 @@ model:
 
   validation_ds:
     dataset:
-      _target_: nemo.collections.tts.torch.data_ssl_vocoder.SSLVocoderDataset
+      _target_: nemo.collections.tts.torch.data.FastPitchSSLDataset
       manifest_filepath: ${validation_datasets}
       sample_rate: ${model.sample_rate}
-      ssl_model_ckpt_path: ${ssl_model_ckpt_path}
       ssl_content_emb_type: ${ssl_content_emb_type}
       pitch_conditioning: true
       pitch_normalization: ${pitch_normalization}
       pitch_mean: ${pitch_mean}
       pitch_std: ${pitch_std}
-      recache_data: false
       speaker_stats_pitch_fp: ${speaker_stats_pitch_fp}
       min_duration: 0.5
       max_duration: 16.0
-      ssl_downsampling_factor: ${ssl_downsampling_factor}
-      use_unique_tokens: ${use_unique_tokens}
+      pad_multiple: 1024
       speaker_conditioning_type: ${speaker_conditioning_type}
-      segment_speaker_embedding: ${segment_speaker_embedding}
 
     dataloader_params:
       drop_last: false

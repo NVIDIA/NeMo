@@ -142,9 +142,11 @@ def get_ssl_features_disentangled(
 
     elif emb_type == "embedding_and_probs":
         final_content_embedding = torch.cat([content_embedding, content_probs], dim=0)
-    
+
     else:
-        raise ValueError(f"{emb_type} is not valid. Valid emb_type includes probs, embedding, log_probs or embedding_and_probs.")
+        raise ValueError(
+            f"{emb_type} is not valid. Valid emb_type includes probs, embedding, log_probs or embedding_and_probs."
+        )
 
     duration = torch.ones(final_content_embedding.shape[1]) * 4.0
     if use_unique_tokens:
@@ -253,9 +255,9 @@ def main():
 
             pitch_contour1 = None
             if not compute_pitch:
-                pitch_contour1 = get_pitch_contour(load_wav(source_audio_path, wav_featurizer), compute_mean_std=True, sample_rate=fpssl_sample_rate)[
-                    None
-                ]
+                pitch_contour1 = get_pitch_contour(
+                    load_wav(source_audio_path, wav_featurizer), compute_mean_std=True, sample_rate=fpssl_sample_rate
+                )[None]
                 pitch_contour1 = pitch_contour1.to(device)
 
             wav_generated = fastpitch_model.generate_wav(
