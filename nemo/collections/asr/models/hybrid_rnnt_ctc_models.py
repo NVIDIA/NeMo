@@ -24,12 +24,14 @@ from pytorch_lightning import Trainer
 from tqdm.auto import tqdm
 
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
+from nemo.collections.asr.losses.ctc import CTCLoss
+from nemo.collections.asr.metrics.wer import WER, CTCDecoding, CTCDecodingConfig
 from nemo.collections.asr.models.rnnt_models import EncDecRNNTModel
-from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
-from nemo.core.classes.mixins import AccessMixin
-from nemo.utils import logging
-from nemo.core.classes.common import PretrainedModelInfo
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
+from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
+from nemo.core.classes.common import PretrainedModelInfo
+from nemo.core.classes.mixins import AccessMixin
+from nemo.utils import logging, model_utils
 
 
 class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin):
@@ -41,6 +43,22 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin):
         cfg = model_utils.maybe_update_config_version(cfg)
 
         if 'aux_ctc' in cfg:
+            with open_dict(cfg.aux_ctc):
+                if "feat_in" not in cfg.aux_ctc.decoder or (
+                    not cfg.aux_ctc.decoder.feat_in and hasattr(self.encoder, '_feat_out')
+                ):
+                    cfg.aux_ctc.decoder.feat_in = self.encoder._feat_out
+                if "feat_in" not in cfg.aux_ctc.decoder or not cfg.aux_ctc.decoder.feat_in:
+                    raise ValueError("param feat_in of the decoder's config is not set!")
+
+                if cfg.aux_ctc.decoder.num_classes < 1 and cfg.aux_ctc.decoder.vocabulary is not None:
+                    logging.info(
+                        "\nReplacing placeholder number of classes ({}) with actual number of classes - {}".format(
+                            cfg.aux_ctc.decoder.num_classes, len(cfg.aux_ctc.decoder.vocabulary)
+                        )
+                    )
+                    cfg.aux_ctc.decoder["num_classes"] = len(cfg.aux_ctc.decoder.vocabulary)
+
             self.ctc_decoder = EncDecRNNTModel.from_config_dict(cfg.aux_ctc.decoder)
             self.ctc_loss_weight = cfg.aux_ctc.get("ctc_loss_weight", 0.5)
 
@@ -53,7 +71,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin):
             ctc_decoding_cfg = cfg.aux_ctc.get('decoding', None)
             if ctc_decoding_cfg is None:
                 ctc_decoding_cfg = OmegaConf.structured(CTCDecodingConfig)
-                with open_dict(cfg.ctc_decoding):
+                with open_dict(cfg.aux_ctc):
                     cfg.aux_ctc.decoding = ctc_decoding_cfg
 
             self.ctc_decoding = CTCDecoding(cfg.aux_ctc.decoding, vocabulary=self.ctc_decoder.vocabulary)
@@ -67,7 +85,6 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin):
             self.ctc_loss_weight = 0.0
 
         self.use_rnnt_decoder = True
-
 
     @torch.no_grad()
     def transcribe(
