@@ -26,7 +26,7 @@ Streaming inference will use small chunk sizes (0.1 to 0.25 seconds) + some addi
 # Middle Token merge algorithm
 
 python speech_to_text_buffered_infer_rnnt.py \
-    model_path \
+    model_path=null \
     pretrained_name=null \
     audio_dir="<remove or path to folder of audio files>" \
     dataset_manifest="<remove or path to manifest>" \
@@ -39,7 +39,7 @@ python speech_to_text_buffered_infer_rnnt.py \
 # Longer Common Subsequence (LCS) Merge algorithm
 
 python speech_to_text_buffered_infer_rnnt.py \
-    model_path \
+    model_path=null \
     pretrained_name=null \
     audio_dir="<remove or path to folder of audio files>" \
     dataset_manifest="<remove or path to manifest>" \
@@ -103,13 +103,10 @@ class TranscriptionConfig:
     pred_name_postfix: Optional[str] = None  # If you need to use another model name, rather than standard one.
 
     # Chunked configs
-    chunk_len_in_secs: float = 1.6  # Chunk length in seconds
-    total_buffer_in_secs: float = 4.0  # Length of buffer (chunk + left and right padding) in seconds
-    model_stride: int = 8  # Model downsampling factor, 8 for Citrinet models and 4 for Conformer models",
-
-    # Set to True to output language ID information
-    # compute_langs: bool = False
-
+    chunk_len_in_secs: float = 1.6 # Chunk length in seconds
+    total_buffer_in_secs: float = 4.0 # Length of buffer (chunk + left and right padding) in seconds 
+    model_stride: int = 8 # Model downsampling factor, 8 for Citrinet models and 4 for Conformer models",
+    
     # Set `cuda` to int to define CUDA device. If 'None', will look for CUDA
     # device anyway, and do inference on CPU only if CUDA device is not found.
     # If `cuda` is a negative number, inference will be on CPU only.

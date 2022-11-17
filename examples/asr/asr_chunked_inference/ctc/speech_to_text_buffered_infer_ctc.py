@@ -28,6 +28,10 @@ python speech_to_text_buffered_infer_ctc.py \
     chunk_len_in_secs=1.6 \
     model_stride=4 \
     batch_size=32 \
+
+# NOTE:
+    You can use `DEBUG=1 python speech_to_text_buffered_infer_ctc.py ...` to print out the
+    ground truth text and predictions of the model.
 """
 import contextlib
 import copy
@@ -77,12 +81,9 @@ class TranscriptionConfig:
     pred_name_postfix: Optional[str] = None  # If you need to use another model name, rather than standard one.
 
     # Chunked configs
-    chunk_len_in_secs: float = 1.6  # Chunk length in seconds
-    total_buffer_in_secs: float = 4.0  # Length of buffer (chunk + left and right padding) in seconds
-    model_stride: int = 8  # Model downsampling factor, 8 for Citrinet models and 4 for Conformer models",
-
-    # # Set to True to output language ID information
-    # compute_langs: bool = False
+    chunk_len_in_secs: float = 1.6 # Chunk length in seconds
+    total_buffer_in_secs: float = 4.0 # Length of buffer (chunk + left and right padding) in seconds 
+    model_stride: int = 8 # Model downsampling factor, 8 for Citrinet models and 4 for Conformer models",
 
     # Set `cuda` to int to define CUDA device. If 'None', will look for CUDA
     # device anyway, and do inference on CPU only if CUDA device is not found.
@@ -161,7 +162,6 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     frame_asr = FrameBatchASR(
         asr_model=asr_model, frame_len=chunk_len, total_buffer=cfg.total_buffer_in_secs, batch_size=cfg.batch_size,
     )
-    #     hyps, refs, wer = get_wer_feat(
     hyps = get_buffered_pred_feat(
         cfg.dataset_manifest,
         frame_asr,
@@ -172,7 +172,6 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         model_stride_in_secs,
         asr_model.device,
     )
-
     output_filename = write_transcription(hyps, cfg, model_name, filepaths=None, compute_langs=False)
     logging.info(f"Finished writing predictions to {output_filename}!")
 

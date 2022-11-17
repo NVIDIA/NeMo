@@ -13,9 +13,7 @@
 # limitations under the License.
 import json
 import os
-from pathlib import Path
-from typing import List
-
+from typing import List, Union, Tuple
 import torch
 from tqdm.auto import tqdm
 
@@ -23,10 +21,23 @@ import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
 from nemo.collections.asr.parts.utils import rnnt_utils
-from nemo.utils import logging
+import nemo.collections.asr as nemo_asr
+from pathlib import Path
+from omegaconf import DictConfig
+from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR
 
-
-def get_buffered_pred_feat_rnnt(mfst, asr, tokens_per_chunk, delay, model_stride_in_secs, batch_size):
+def get_buffered_pred_feat_rnnt(
+    mfst: str, 
+    asr: FrameBatchASR,
+    tokens_per_chunk: int,
+    delay: int, 
+    model_stride_in_secs: int, 
+    batch_size: int
+    ) -> List[rnnt_utils.Hypothesis]:
+    """
+    Moved from examples/asr/asr_chunked_inference/rnnt/speech_to_text_buffered_infer_rnnt.py
+    Write all information presented in input manifest to output manifest and removed WER calculation.
+    """
     hyps = []
     refs = []
     audio_filepaths = []
@@ -36,7 +47,8 @@ def get_buffered_pred_feat_rnnt(mfst, asr, tokens_per_chunk, delay, model_stride
         for l in mfst_f:
             row = json.loads(l.strip())
             audio_filepaths.append(row['audio_filepath'])
-            refs.append(row['text'])
+            if 'text' in row:
+                refs.append(row['text'])
 
     with torch.inference_mode():
         with torch.cuda.amp.autocast():
@@ -74,16 +86,25 @@ def get_buffered_pred_feat_rnnt(mfst, asr, tokens_per_chunk, delay, model_stride
             print("hyp:", hyp)
             print("ref:", ref)
 
-    # wer = word_error_rate(hypotheses=hyps, references=refs)
-    # return hyps, refs, wer
-
     wrapped_hyps = wrap_transcription(hyps)
     return wrapped_hyps
 
 
+  
 def get_buffered_pred_feat(
-    mfst, asr, frame_len, tokens_per_chunk, delay, preprocessor_cfg, model_stride_in_secs, device
-):
+    mfst: str, 
+    asr: FrameBatchASR,
+    frame_len: float,
+    tokens_per_chunk: int, 
+    delay: int, 
+    preprocessor_cfg: DictConfig, 
+    model_stride_in_secs: int, 
+    device: Union[List[int], int]
+    ) -> List[rnnt_utils.Hypothesis]:
+    """
+    Moved from examples/asr/asr_chunked_inference/ctc/speech_to_text_buffered_infer_ctc.py
+    Write all information presented in input manifest to output manifest and removed WER calculation.
+    """
     # Create a preprocessor to convert audio samples into raw features,
     # Normalization will be done per buffer in frame_bufferer
     # Do not normalize whatever the model's preprocessor setting is
@@ -91,26 +112,30 @@ def get_buffered_pred_feat(
     preprocessor = nemo_asr.models.EncDecCTCModelBPE.from_config_dict(preprocessor_cfg)
     preprocessor.to(device)
     hyps = []
-    # refs = []
+    refs = []
 
     with open(mfst, "r") as mfst_f:
         for l in tqdm(mfst_f, desc="Sample:"):
             asr.reset()
             row = json.loads(l.strip())
+            if 'text' in row:
+                refs.append(row['text'])
             # do not support partial audio
             asr.read_audio_file(row['audio_filepath'], delay, model_stride_in_secs)
             hyp = asr.transcribe(tokens_per_chunk, delay)
             hyps.append(hyp)
-            # refs.append(row['text'])
-
-    # wer = word_error_rate(hypotheses=hyps, references=refs)
-    # return hyps, refs, wer
-
+            
+    if os.environ.get('DEBUG', '0') in ('1', 'y', 't'):
+        for hyp, ref in zip(hyps, refs):
+            print("hyp:", hyp)
+            print("ref:", ref)
+            
     wrapped_hyps = wrap_transcription(hyps)
     return wrapped_hyps
 
 
-def wrap_transcription(hyps):
+def wrap_transcription(hyps: list[str]) -> List[rnnt_utils.Hypothesis]:
+    """ Wrap transcription to the expected format in func write_transcription """
     wrapped_hyps = []
     for hyp in hyps:
         hypothesis = rnnt_utils.Hypothesis(score=0.0, y_sequence=[], text=hyp)
@@ -118,8 +143,8 @@ def wrap_transcription(hyps):
     return wrapped_hyps
 
 
-def setup_gpu(cfg):
-    # setup GPU
+def setup_gpu(cfg: DictConfig) -> Tuple[Union[List[int], int], str, torch.device]:
+    """ setup GPU and return necessary information """
     if cfg.cuda is None:
         if torch.cuda.is_available():
             device = [0]  # use 0th CUDA device
@@ -135,8 +160,9 @@ def setup_gpu(cfg):
     return device, accelerator, map_location
 
 
-def setup_model(cfg, map_location):
-    if cfg.model_path is not None and cfg.model_path != "None":
+def setup_model(cfg: DictConfig, map_location: torch.device) -> Tuple[ASRModel,str]:
+    """ Setup model from cfg and return model and model name for next step """
+    if cfg.model_path is not None and cfg.model_path != "None" :
         # restore model from .nemo file path
         model_cfg = ASRModel.restore_from(restore_path=cfg.model_path, return_config=True)
         classpath = model_cfg.target  # original class path
@@ -156,7 +182,8 @@ def setup_model(cfg, map_location):
     return asr_model, model_name
 
 
-def prepare_audio_data(cfg):
+def prepare_audio_data(cfg: DictConfig) -> Tuple[List[str], bool]:
+    """ Prepare audio data and decide whether it's partial_audio condition. """
     # this part may need refactor alongsides with refactor of transcribe()
     if cfg.audio_dir is not None and not cfg.append_pred:
         filepaths = list(glob.glob(os.path.join(cfg.audio_dir, f"**/*.{cfg.audio_type}"), recursive=True))
@@ -186,7 +213,8 @@ def prepare_audio_data(cfg):
     return filepaths, partial_audio
 
 
-def compute_output_filename(cfg, model_name):
+def compute_output_filename(cfg: DictConfig, model_name: str) -> DictConfig:
+    """ Compute filename of output manifest and update cfg"""
     if cfg.output_filename is None:
         # create default output filename
         if cfg.audio_dir is not None:
@@ -198,8 +226,13 @@ def compute_output_filename(cfg, model_name):
     return cfg
 
 
-def write_transcription(transcriptions, cfg, model_name, filepaths=None, compute_langs=False):
-    # write audio transcriptions
+def write_transcription(
+    transcriptions: List[str], 
+    cfg: DictConfig,
+    model_name: str, 
+    filepaths:List[str] = None, 
+    compute_langs: bool = False) -> str:
+    """ Write generated transcription to output file. """
     if cfg.append_pred:
         logging.info(f'Transcripts will be written in "{cfg.output_filename}" file')
         if cfg.pred_name_postfix is not None:
@@ -240,6 +273,7 @@ def transcribe_partial_audio(
     return_hypotheses: bool = False,
     num_workers: int = 0,
 ) -> List[str]:
+
     assert isinstance(asr_model, EncDecCTCModel), "Currently support CTC model only."
 
     if return_hypotheses and logprobs:

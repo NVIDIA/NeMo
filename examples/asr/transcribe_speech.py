@@ -17,8 +17,6 @@ import glob
 import json
 import os
 from dataclasses import dataclass, is_dataclass
-
-# from pathlib import Path
 from typing import Optional
 
 import pytorch_lightning as pl
