@@ -350,11 +350,11 @@ class OnlineDiarizer(ClusteringDiarizer):
             (Tensor): Speaker labels based on the previously saved segments and speaker labels 
         """
         if len(self.memory_cluster_labels) == 0 or self.buffer_start < 0:
-            return generate_cluster_labels([[0.0, self.total_buffer_in_secs]], [0])
+            return generate_cluster_labels([[0.0, self.total_buffer_in_secs]], [0])[0]
         else:
             return generate_cluster_labels(
                 self.memory_segment_ranges[self.base_scale_index], self.memory_cluster_labels
-            )
+            )[0]
 
     @timeit
     def diarize_step(
@@ -435,5 +435,5 @@ class OnlineDiarizer(ClusteringDiarizer):
         cluster_label_hyp = self._perform_online_clustering(embs_and_timestamps[self.uniq_id], cuda=True,)
 
         # Step 4: Generate RTTM style diarization labels from segment ranges and cluster labels
-        diar_hyp = generate_cluster_labels(self.memory_segment_ranges[self.base_scale_index], cluster_label_hyp)
+        diar_hyp, _ = generate_cluster_labels(self.memory_segment_ranges[self.base_scale_index], cluster_label_hyp)
         return diar_hyp

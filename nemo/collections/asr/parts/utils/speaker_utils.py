@@ -407,7 +407,7 @@ def generate_cluster_labels(segment_ranges, cluster_labels):
         lines.append(f"{stt} {end} {tag}")
     cont_lines = get_contiguous_stamps(lines)
     diar_hyp = merge_stamps(cont_lines)
-    return diar_hyp
+    return diar_hyp, lines
 
 
 def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, clustering_params):
@@ -473,7 +473,7 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
         if len(cluster_labels) != timestamps.shape[0]:
             raise ValueError("Mismatch of length between cluster_labels and timestamps.")
 
-        labels = generate_cluster_labels(timestamps, cluster_labels)
+        labels, lines = generate_cluster_labels(timestamps, cluster_labels)
 
         if out_rttm_dir:
             labels_to_rttmfile(labels, uniq_id, out_rttm_dir)
@@ -675,9 +675,7 @@ def combine_int_overlaps(intervals_in: List[List[int]]) -> List[List[int]]:
     else:
 
         merged: List[List[int]] = []
-        # stt1: int = 0
-        # stt2: int = 0
-        end1: int = 0
+        stt2: int = 0
         end2: int = 0
 
         intervals_in = [[int(x[0]), int(x[1])] for x in intervals_in]
@@ -688,7 +686,6 @@ def combine_int_overlaps(intervals_in: List[List[int]]) -> List[List[int]]:
 
         start, end = intervals[0][0], intervals[0][1]
         for i in range(1, num_intervals):
-            stt1, end1 = intervals[i - 1][0], intervals[i - 1][1]
             stt2, end2 = intervals[i][0], intervals[i][1]
             if end >= stt2:
                 end = max(end2, end)
