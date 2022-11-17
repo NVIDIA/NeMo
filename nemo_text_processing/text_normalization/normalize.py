@@ -45,6 +45,20 @@ SPACE_DUP = re.compile(' {2,}')
 
 
 class Normalizer:
+    """
+    Normalizer class that converts text from written to spoken form.
+    Useful for TTS preprocessing.
+
+    Args:
+        input_case: expected input capitalization
+        lang: language specifying the TN rules, by default: English
+        cache_dir: path to a dir with .far grammar file. Set to None to avoid using cache.
+        overwrite_cache: set to True to overwrite .far files
+        whitelist: path to a file with whitelist replacements
+        post_process: WFST-based post processing, e.g. to remove extra spaces added during TN.
+            Note: punct_post_process flag in normalize() supports all languages.
+    """
+
     def __init__(
         self,
         input_case: str,
@@ -56,19 +70,6 @@ class Normalizer:
         lm: bool = False,
         post_process: bool = True,
     ):
-        """
-        Normalizer class that converts text from written to spoken form.
-        Useful for TTS preprocessing.
-
-        Args:
-            input_case: expected input capitalization
-            lang: language specifying the TN rules, by default: English
-            cache_dir: path to a dir with .far grammar file. Set to None to avoid using cache.
-            overwrite_cache: set to True to overwrite .far files
-            whitelist: path to a file with whitelist replacements
-            post_process: WFST-based post-processing, e.g. to remove extra spaces added during TN.
-                Note: punct_post_process flag in normalize() supports all languages.
-        """
         assert input_case in ["lower_cased", "cased"]
 
         self.post_processor = None
