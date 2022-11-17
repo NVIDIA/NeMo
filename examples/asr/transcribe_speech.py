@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import contextlib
-import json
 import os
 from dataclasses import dataclass, is_dataclass
 from typing import Optional
@@ -35,7 +34,7 @@ from nemo.collections.asr.parts.utils.transcribe_utils import (
 )
 from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
 from nemo.core.config import hydra_runner
-from nemo.utils import logging, model_utils
+from nemo.utils import logging
 
 
 """

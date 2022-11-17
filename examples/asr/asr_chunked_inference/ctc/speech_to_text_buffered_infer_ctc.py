@@ -36,20 +36,14 @@ python speech_to_text_buffered_infer_ctc.py \
 import contextlib
 import copy
 import glob
-import json
 import math
 import os
-from argparse import ArgumentParser
 from dataclasses import dataclass, is_dataclass
 from typing import Optional
 
 import torch
 from omegaconf import OmegaConf
-from tqdm import tqdm
 
-from nemo.collections.asr.metrics.rnnt_wer import RNNTDecodingConfig
-from nemo.collections.asr.metrics.wer import CTCDecodingConfig, word_error_rate
-from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR
 from nemo.collections.asr.parts.utils.transcribe_utils import (
     compute_output_filename,

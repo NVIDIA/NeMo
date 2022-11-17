@@ -166,7 +166,7 @@ def get_buffered_pred_feat(
     return wrapped_hyps
 
 
-def wrap_transcription(hyps: list[str]) -> List[rnnt_utils.Hypothesis]:
+def wrap_transcription(hyps: List[str]) -> List[rnnt_utils.Hypothesis]:
     """ Wrap transcription to the expected format in func write_transcription """
     wrapped_hyps = []
     for hyp in hyps:
