@@ -11,18 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os
-from typing import List
-import torch
-from tqdm.auto import tqdm
 import json
 import os
-from nemo.collections.asr.models.ctc_models import EncDecCTCModel
-from nemo.utils import logging
-from nemo.collections.asr.models import ASRModel
-from nemo.collections.asr.parts.utils import rnnt_utils
-import nemo.collections.asr as nemo_asr
 from pathlib import Path
+from typing import List
+
+import torch
+from tqdm.auto import tqdm
+
+import nemo.collections.asr as nemo_asr
+from nemo.collections.asr.models import ASRModel
+from nemo.collections.asr.models.ctc_models import EncDecCTCModel
+from nemo.collections.asr.parts.utils import rnnt_utils
+from nemo.utils import logging
 
 
 def get_buffered_pred_feat_rnnt(mfst, asr, tokens_per_chunk, delay, model_stride_in_secs, batch_size):
@@ -77,10 +78,12 @@ def get_buffered_pred_feat_rnnt(mfst, asr, tokens_per_chunk, delay, model_stride
     # return hyps, refs, wer
 
     wrapped_hyps = wrap_transcription(hyps)
-    return wrapped_hyps 
+    return wrapped_hyps
 
-  
-def get_buffered_pred_feat(mfst, asr, frame_len, tokens_per_chunk, delay, preprocessor_cfg, model_stride_in_secs, device):
+
+def get_buffered_pred_feat(
+    mfst, asr, frame_len, tokens_per_chunk, delay, preprocessor_cfg, model_stride_in_secs, device
+):
     # Create a preprocessor to convert audio samples into raw features,
     # Normalization will be done per buffer in frame_bufferer
     # Do not normalize whatever the model's preprocessor setting is
@@ -104,7 +107,8 @@ def get_buffered_pred_feat(mfst, asr, frame_len, tokens_per_chunk, delay, prepro
     # return hyps, refs, wer
 
     wrapped_hyps = wrap_transcription(hyps)
-    return wrapped_hyps 
+    return wrapped_hyps
+
 
 def wrap_transcription(hyps):
     wrapped_hyps = []
@@ -132,7 +136,7 @@ def setup_gpu(cfg):
 
 
 def setup_model(cfg, map_location):
-    if cfg.model_path is not None and cfg.model_path != "None" :
+    if cfg.model_path is not None and cfg.model_path != "None":
         # restore model from .nemo file path
         model_cfg = ASRModel.restore_from(restore_path=cfg.model_path, return_config=True)
         classpath = model_cfg.target  # original class path
@@ -149,7 +153,7 @@ def setup_model(cfg, map_location):
         )  # type: ASRModel
         model_name = cfg.pretrained_name
 
-    return asr_model, model_name    
+    return asr_model, model_name
 
 
 def prepare_audio_data(cfg):
@@ -205,7 +209,7 @@ def write_transcription(transcriptions, cfg, model_name, filepaths=None, compute
         pred_text_attr_name = 'pred_text_' + pred_by_model_name
     else:
         pred_text_attr_name = 'pred_text'
-        
+
     with open(cfg.output_filename, 'w', encoding='utf-8') as f:
         if cfg.audio_dir is not None:
             for idx, transcription in enumerate(transcriptions):
@@ -224,7 +228,7 @@ def write_transcription(transcriptions, cfg, model_name, filepaths=None, compute
                         item['pred_lang'] = transcriptions[idx].langs
                         item['pred_lang_chars'] = transcriptions[idx].langs_chars
                     f.write(json.dumps(item) + "\n")
-                    
+
     return cfg.output_filename
 
 
@@ -294,7 +298,7 @@ def transcribe_partial_audio(
                             current_hypotheses[idx].alignments = current_hypotheses[idx].y_sequence
 
                 hypotheses += current_hypotheses
-                
+
             del greedy_predictions
             del logits
             del test_batch

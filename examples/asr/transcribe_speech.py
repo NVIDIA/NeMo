@@ -17,6 +17,7 @@ import glob
 import json
 import os
 from dataclasses import dataclass, is_dataclass
+
 # from pathlib import Path
 from typing import Optional
 
@@ -26,14 +27,15 @@ from omegaconf import OmegaConf
 
 from nemo.collections.asr.metrics.rnnt_wer import RNNTDecodingConfig
 from nemo.collections.asr.metrics.wer import CTCDecodingConfig
-
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
-from nemo.collections.asr.parts.utils.transcribe_utils import (setup_gpu, 
-                                                               setup_model, 
-                                                               prepare_audio_data,
-                                                               compute_output_filename, 
-                                                               write_transcription,
-                                                               transcribe_partial_audio)
+from nemo.collections.asr.parts.utils.transcribe_utils import (
+    compute_output_filename,
+    prepare_audio_data,
+    setup_gpu,
+    setup_model,
+    transcribe_partial_audio,
+    write_transcription,
+)
 from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
 from nemo.core.config import hydra_runner
 from nemo.utils import logging, model_utils
@@ -132,7 +134,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
 
     device, accelerator, map_location = setup_gpu(cfg)
     asr_model, model_name = setup_model(cfg, map_location)
- 
+
     trainer = pl.Trainer(devices=device, accelerator=accelerator)
     asr_model.set_trainer(trainer)
     asr_model = asr_model.eval()
@@ -156,19 +158,20 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
 
     # prepare audio filepaths and decide wether it's partical audio
     filepaths, partial_audio = prepare_audio_data(cfg)
-    
+
     # setup AMP (optional)
     if cfg.amp and torch.cuda.is_available() and hasattr(torch.cuda, 'amp') and hasattr(torch.cuda.amp, 'autocast'):
         logging.info("AMP enabled!\n")
         autocast = torch.cuda.amp.autocast
     else:
+
         @contextlib.contextmanager
         def autocast():
             yield
-            
+
     # Compute output filename
     cfg = compute_output_filename(cfg, model_name)
-    
+
     # if transcripts should not be overwritten, and already exists, skip re-transcription step and return
     if not cfg.overwrite_transcripts and os.path.exists(cfg.output_filename):
         logging.info(
@@ -213,12 +216,13 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     # if transcriptions form a tuple (from RNNT), extract just "best" hypothesis
     if type(transcriptions) == tuple and len(transcriptions) == 2:
         transcriptions = transcriptions[0]
-        
+
     # write audio transcriptions
     output_filename = write_transcription(transcriptions, cfg, model_name, filepaths, compute_langs)
     logging.info(f"Finished writing predictions to {output_filename}!")
-    
+
     return cfg
+
 
 if __name__ == '__main__':
     main()  # noqa pylint: disable=no-value-for-parameter

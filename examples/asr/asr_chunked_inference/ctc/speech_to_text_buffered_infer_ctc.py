@@ -35,22 +35,28 @@ import json
 import math
 import os
 from argparse import ArgumentParser
-from typing import Optional
 from dataclasses import dataclass, is_dataclass
+from typing import Optional
+
 import torch
 from omegaconf import OmegaConf
 from tqdm import tqdm
 
-# import nemo.collections.asr as nemo_asr
-from nemo.collections.asr.metrics.wer import word_error_rate
-from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR
-from nemo.utils import logging
-from nemo.collections.asr.models import ASRModel
-from nemo.collections.asr.parts.utils.transcribe_utils import setup_gpu, setup_model, get_buffered_pred_feat, write_transcription, compute_output_filename
 from nemo.collections.asr.metrics.rnnt_wer import RNNTDecodingConfig
-from nemo.collections.asr.metrics.wer import CTCDecodingConfig
 
+# import nemo.collections.asr as nemo_asr
+from nemo.collections.asr.metrics.wer import CTCDecodingConfig, word_error_rate
+from nemo.collections.asr.models import ASRModel
+from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR
+from nemo.collections.asr.parts.utils.transcribe_utils import (
+    compute_output_filename,
+    get_buffered_pred_feat,
+    setup_gpu,
+    setup_model,
+    write_transcription,
+)
 from nemo.core.config import hydra_runner
+from nemo.utils import logging
 
 can_gpu = torch.cuda.is_available()
 
@@ -69,12 +75,12 @@ class TranscriptionConfig:
     num_workers: int = 0
     append_pred: bool = False  # Sets mode of work, if True it will add new field transcriptions.
     pred_name_postfix: Optional[str] = None  # If you need to use another model name, rather than standard one.
-    
+
     # Chunked configs
-    chunk_len_in_secs: float = 1.6 # Chunk length in seconds
-    total_buffer_in_secs: float = 4.0 # Length of buffer (chunk + left and right padding) in seconds 
-    model_stride: int = 8 # Model downsampling factor, 8 for Citrinet models and 4 for Conformer models",
-    
+    chunk_len_in_secs: float = 1.6  # Chunk length in seconds
+    total_buffer_in_secs: float = 4.0  # Length of buffer (chunk + left and right padding) in seconds
+    model_stride: int = 8  # Model downsampling factor, 8 for Citrinet models and 4 for Conformer models",
+
     # # Set to True to output language ID information
     # compute_langs: bool = False
 
@@ -93,7 +99,7 @@ class TranscriptionConfig:
 def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
     torch.set_grad_enabled(False)
-    
+
     if is_dataclass(cfg):
         cfg = OmegaConf.structured(cfg)
 
@@ -106,7 +112,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     logging.info(f"Inference will be done on device : {device}")
 
     asr_model, model_name = setup_model(cfg, map_location)
-    
+
     model_cfg = copy.deepcopy(asr_model._cfg)
     OmegaConf.set_struct(model_cfg.preprocessor, False)
     # some changes for streaming scenario
@@ -124,10 +130,11 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         logging.info("AMP enabled!\n")
         autocast = torch.cuda.amp.autocast
     else:
+
         @contextlib.contextmanager
         def autocast():
             yield
-            
+
     # Compute output filename
     cfg = compute_output_filename(cfg, model_name)
 
@@ -146,7 +153,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     model_stride_in_secs = feature_stride * cfg.model_stride
     total_buffer = cfg.total_buffer_in_secs
     chunk_len = float(cfg.chunk_len_in_secs)
-    
+
     tokens_per_chunk = math.ceil(chunk_len / model_stride_in_secs)
     mid_delay = math.ceil((chunk_len + (total_buffer - chunk_len) / 2) / model_stride_in_secs)
     logging.info(f"tokens_per_chunk is {tokens_per_chunk}, mid_delay is {mid_delay}")
@@ -154,7 +161,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     frame_asr = FrameBatchASR(
         asr_model=asr_model, frame_len=chunk_len, total_buffer=cfg.total_buffer_in_secs, batch_size=cfg.batch_size,
     )
-#     hyps, refs, wer = get_wer_feat(
+    #     hyps, refs, wer = get_wer_feat(
     hyps = get_buffered_pred_feat(
         cfg.dataset_manifest,
         frame_asr,
@@ -165,11 +172,12 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         model_stride_in_secs,
         asr_model.device,
     )
-    
+
     output_filename = write_transcription(hyps, cfg, model_name, filepaths=None, compute_langs=False)
     logging.info(f"Finished writing predictions to {output_filename}!")
-       
+
     return cfg
+
 
 if __name__ == '__main__':
     main()  # noqa pylint: disable=no-value-for-parameter

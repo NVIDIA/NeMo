@@ -61,24 +61,31 @@ import json
 import math
 import os
 from argparse import ArgumentParser
+from dataclasses import dataclass, is_dataclass
 from typing import Optional
 
 import torch
 import tqdm
 from omegaconf import OmegaConf, open_dict
-from dataclasses import dataclass, is_dataclass
+
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.asr.parts.utils.streaming_utils import (
     BatchedFrameASRRNNT,
     LongestCommonSubsequenceBatchedFrameASRRNNT,
 )
-from nemo.utils import logging
-from nemo.collections.asr.parts.utils.transcribe_utils import setup_gpu, setup_model, get_buffered_pred_feat_rnnt, write_transcription, compute_output_filename
-
+from nemo.collections.asr.parts.utils.transcribe_utils import (
+    compute_output_filename,
+    get_buffered_pred_feat_rnnt,
+    setup_gpu,
+    setup_model,
+    write_transcription,
+)
 from nemo.core.config import hydra_runner
+from nemo.utils import logging
 
 can_gpu = torch.cuda.is_available()
+
 
 @dataclass
 class TranscriptionConfig:
@@ -94,12 +101,12 @@ class TranscriptionConfig:
     num_workers: int = 0
     append_pred: bool = False  # Sets mode of work, if True it will add new field transcriptions.
     pred_name_postfix: Optional[str] = None  # If you need to use another model name, rather than standard one.
-    
+
     # Chunked configs
-    chunk_len_in_secs: float = 1.6 # Chunk length in seconds
-    total_buffer_in_secs: float = 4.0 # Length of buffer (chunk + left and right padding) in seconds 
-    model_stride: int = 8 # Model downsampling factor, 8 for Citrinet models and 4 for Conformer models",
-    
+    chunk_len_in_secs: float = 1.6  # Chunk length in seconds
+    total_buffer_in_secs: float = 4.0  # Length of buffer (chunk + left and right padding) in seconds
+    model_stride: int = 8  # Model downsampling factor, 8 for Citrinet models and 4 for Conformer models",
+
     # Set to True to output language ID information
     # compute_langs: bool = False
 
@@ -111,21 +118,21 @@ class TranscriptionConfig:
 
     # Recompute model transcription, even if the output folder exists with scores.
     overwrite_transcripts: bool = True
-    
-    # Decoding configs 
-    max_steps_per_timestep: int = 5 #'Maximum number of tokens decoded per acoustic timestep'
-    stateful_decoding: bool = False # Whether to perform stateful decoding
+
+    # Decoding configs
+    max_steps_per_timestep: int = 5  #'Maximum number of tokens decoded per acoustic timestep'
+    stateful_decoding: bool = False  # Whether to perform stateful decoding
 
     # Merge algorithm for transducers
-    merge_algo: Optional[str] = 'middle' # choices=['middle', 'lcs'], choice of algorithm to apply during inference.
-    lcs_alignment_dir: Optional[str] = None #Path to a directory to store LCS algo alignments
+    merge_algo: Optional[str] = 'middle'  # choices=['middle', 'lcs'], choice of algorithm to apply during inference.
+    lcs_alignment_dir: Optional[str] = None  # Path to a directory to store LCS algo alignments
 
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
 def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
     torch.set_grad_enabled(False)
-    
+
     if is_dataclass(cfg):
         cfg = OmegaConf.structured(cfg)
 
@@ -224,8 +231,9 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
 
     output_filename = write_transcription(hyps, cfg, model_name, filepaths=None, compute_langs=False)
     logging.info(f"Finished writing predictions to {output_filename}!")
-       
+
     return cfg
+
 
 if __name__ == '__main__':
     main()  # noqa pylint: disable=no-value-for-parameter
