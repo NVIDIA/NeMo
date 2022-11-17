@@ -33,6 +33,21 @@ Calculates Diarization Error Rate (DER) with RTTM files and WER and cpWER with C
 In the output ctm_eval.csv file in the output folder,
 session-level DER, WER, cpWER and speaker counting accuracies are evaluated.
 
+- Evaluation mode
+
+diar_eval_mode: "full":
+    DIHARD challenge style evaluation, the most strict way of evaluating diarization
+    (collar, ignore_overlap) = (0.0, False)
+diar_eval_mode: "fair":
+    Evaluation setup used in VoxSRC challenge
+    (collar, ignore_overlap) = (0.25, False)
+diar_eval_mode: "forgiving":
+    Traditional evaluation setup
+    (collar, ignore_overlap) = (0.25, True)
+diar_eval_mode == "all":
+    Compute all three modes (default)
+
+
 Use CTM files to calculate WER and cpWER
 ```
 python eval_diar_with_asr.py \
