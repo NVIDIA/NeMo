@@ -306,6 +306,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         encoder_seq_length = batch_for_pipeline[0].size(1)
         decoder_seq_length = batch_for_pipeline[1].size(1)
         tensor_shape = [encoder_seq_length, get_micro_batch_size(), self.cfg.encoder.hidden_size]
+        import ipdb; ipdb.set_trace()
 
         # handle asynchronous grad reduction
         if self.with_distributed_adam:

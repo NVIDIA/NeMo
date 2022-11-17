@@ -94,8 +94,12 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             for lng in unique_langs:
                 self.special_tokens["<" + lng + ">"] = "<" + lng + ">"
         elif isinstance(self.src_language, ListConfig):
+            if self.objective == 'nmt-xlm':
+                raise ValueError(f"Both src_language and tgt_language need to be lists for objective {self.objective}")
             pass
         elif isinstance(self.tgt_language, ListConfig):
+            if self.objective == 'nmt-xlm':
+                raise ValueError(f"Both src_language and tgt_language need to be lists for objective {self.objective}")
             for lng in self.tgt_language:
                 self.special_tokens["<" + lng + ">"] = "<" + lng + ">"
         else:
@@ -175,10 +179,10 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             else 0.0,
             decoder_model_name=self._cfg.encoder_tokenizer.get('type', None),
             decoder_r2l=self._cfg.decoder_tokenizer.get('r2l', False),
-            special_tokens=self.special_tokens,
             encoder_sentencepiece_legacy=self._cfg.encoder_tokenizer.get('sentencepiece_legacy', False),
             decoder_sentencepiece_legacy=self._cfg.decoder_tokenizer.get('sentencepiece_legacy', False),
         )
+        import ipdb; ipdb.set_trace()
 
         # Set up pre and post processors as well.
         if self.multilingual:
@@ -190,6 +194,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                 src_language=self.src_language,
                 tgt_language=self.tgt_language,
                 encoder_tokenizer=self.encoder_tokenizer,  # Multilingual training requires shared tokenizers.
+                decoder_tokenizer=self.decoder_tokenizer,
                 encoder_tokenizer_library=self.encoder_tokenizer_library,
                 decoder_tokenizer_library=self.decoder_tokenizer_library,
             )
@@ -206,14 +211,15 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                 # This happens only when restoring a pre-trained model. We need to add all of the special tokens that were added while pre-training to avoid a checkpoint shape mismatch while restoring.
                 MegatronT5Model.add_special_tokens_to_tokenizer(
                     tokenizer=self.encoder_tokenizer,
-                    library=self.cfg.encoder_tokenizer.library,
+                    tokenizer_cfg=self.cfg.encoder_tokenizer,
                     dataset_type=self.cfg.data.dataset_type,
                 )
                 MegatronT5Model.add_special_tokens_to_tokenizer(
                     tokenizer=self.decoder_tokenizer,
-                    library=self.cfg.decoder_tokenizer.library,
+                    tokenizer_cfg=self.cfg.decoder_tokenizer,
                     dataset_type=self.cfg.data.dataset_type,
                 )
+
         if self.cfg.train_ds.get('objective', 'nmt') == 'nmt-xlm':
             if self.cfg.encoder_tokenizer.library != 'sentencepiece':
                 raise ValueError(
@@ -224,15 +230,20 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                     f"NMT-XLM objective requires sentencepiece tokenizer, but got decoder tokenizer library : {self.cfg.decoder_tokenizer.library}"
                 )
             MegatronT5Model.add_special_tokens_to_tokenizer(
-                tokenizer=self.encoder_tokenizer, library=self.cfg.encoder_tokenizer.library, dataset_type='ul2',
+                tokenizer=self.encoder_tokenizer,
+                tokenizer_cfg=self.cfg.encoder_tokenizer,
+                dataset_type='ul2',
             )
             MegatronT5Model.add_special_tokens_to_tokenizer(
-                tokenizer=self.decoder_tokenizer, library=self.cfg.encoder_tokenizer.library, dataset_type='ul2',
+                tokenizer=self.decoder_tokenizer,
+                tokenizer_cfg=self.cfg.decoder_tokenizer,
+                dataset_type='ul2',
             )
             _ = MTEncDecModel.setup_multilingual_ids_and_processors(
                 src_language=self.src_language,
                 tgt_language=self.tgt_language,
                 encoder_tokenizer=self.encoder_tokenizer,  # Multilingual training requires shared tokenizers.
+                decoder_tokenizer=self.decoder_tokenizer,
                 encoder_tokenizer_library=self.encoder_tokenizer_library,
                 decoder_tokenizer_library=self.decoder_tokenizer_library,
             )
@@ -560,7 +571,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                 decoder_tokenizer=self.decoder_tokenizer,
             )
 
-    def _instantiate_dataset(self, cfg, src_file, tgt_file, num_samples, prepend_id=None):
+    def _instantiate_dataset(self, cfg, src_file, tgt_file, src_language, tgt_language, num_samples, prepend_id=None):
         if cfg.dataset_type == 'bin_memmap':
             if cfg.get("objective", "nmt") == "nmt":
                 dataset = BinarizedMemmapSequenceToSequenceDataset(
@@ -580,8 +591,8 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                     tgt_dataset_prefix=tgt_file,
                     src_tokenizer=self.encoder_tokenizer,
                     tgt_tokenizer=self.decoder_tokenizer,
-                    src_language=self.src_language,
-                    tgt_language=self.tgt_language,
+                    src_language=src_language,
+                    tgt_language=tgt_language,
                     max_src_seq_length=cfg.max_seq_length // 2,
                     max_tgt_seq_length=cfg.max_seq_length // 2,
                     max_seq_length_dec=cfg.max_seq_length,
@@ -607,8 +618,8 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                     tgt_file_name=tgt_file,
                     src_tokenizer=self.encoder_tokenizer,
                     tgt_tokenizer=self.decoder_tokenizer,
-                    src_language=self.src_language,
-                    tgt_language=self.tgt_language,
+                    src_language=src_language,
+                    tgt_language=tgt_language,
                     max_src_seq_length=cfg.max_seq_length // 2,
                     max_tgt_seq_length=cfg.max_seq_length // 2,
                     max_seq_length_dec=cfg.max_seq_length,
@@ -676,6 +687,8 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                     tgt_file=tgt_file,
                     num_samples=num_samples,
                     prepend_id=self.multilingual_ids[idx],
+                    src_language=self.src_language if not isinstance(self.src_language, ListConfig) else self.src_language[idx],
+                    tgt_language=self.tgt_language if not isinstance(self.tgt_language, ListConfig) else self.tgt_language[idx],
                 )
                 datasets.append(dataset)
             dataset = BlendableDataset(

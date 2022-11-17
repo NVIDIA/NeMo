@@ -277,7 +277,7 @@ class UL2Dataset(T5Dataset):
     @classmethod
     def _prepend_mask_type_token(cls, tokenizer, sample, token):
         token_id = tokenizer.text_to_ids(token)
-        assert len(token_id) == 1
+        assert len(token_id) == 1, token
         token_id = token_id[0]
         text_enc = np.concatenate([[token_id], sample['text_enc']])
         sample['text_enc'] = text_enc

@@ -147,6 +147,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                 self.src_language,
                 self.tgt_language,
                 self.encoder_tokenizer,
+                self.decoder_tokenizer,
                 self.encoder_tokenizer_library,
                 self.decoder_tokenizer_library,
             )
@@ -257,14 +258,14 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
 
     @classmethod
     def setup_multilingual_ids_and_processors(
-        cls, src_language, tgt_language, encoder_tokenizer, encoder_tokenizer_library, decoder_tokenizer_library
+        cls, src_language, tgt_language, encoder_tokenizer, decoder_tokenizer, encoder_tokenizer_library, decoder_tokenizer_library
     ):
         multilingual_ids = []
 
         # Determine all of the language IDs that need to be added as special tokens.
         if isinstance(src_language, ListConfig) and isinstance(tgt_language, ListConfig):
             assert len(src_language) == len(tgt_language)
-            all_languages = tgt_language
+            all_languages = list(set(tgt_language + src_language))
         elif isinstance(tgt_language, ListConfig):
             all_languages = tgt_language
         elif not isinstance(src_language, ListConfig) and not isinstance(tgt_language, ListConfig):
@@ -279,6 +280,10 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             for lng in all_languages:
                 if len(encoder_tokenizer.text_to_ids(f"<{lng}>")) != 1:
                     encoder_tokenizer.add_special_tokens({f"<{lng}>": f"<{lng}>"})
+                if len(decoder_tokenizer.text_to_ids(f"<{lng}>")) != 1:
+                    decoder_tokenizer.add_special_tokens({f"<{lng}>": f"<{lng}>"})
+                # Make sure that we are adding the same language ID to both tokenizers. If this assert fails it means the tokenizers were different to begin with.
+                assert encoder_tokenizer.text_to_ids(f"<{lng}>")[0] == decoder_tokenizer.text_to_ids(f"<{lng}>")[0]
                 multilingual_ids.append(encoder_tokenizer.text_to_ids(f"<{lng}>")[0])
         else:
             for lng in src_language:
