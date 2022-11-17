@@ -1,3 +1,17 @@
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import argparse
 import os
 
@@ -12,21 +26,21 @@ from nemo.collections.tts.torch.helpers import get_base_dir
 
 def load_wav(wav_path, wav_featurizer, pad_multiple=1024):
     wav = wav_featurizer.process(wav_path)
-    if wav.shape[0 % pad_multiple] != 0:
+    if (wav.shape[0] % pad_multiple) != 0:
         wav = torch.cat([wav, torch.zeros(pad_multiple - wav.shape[0] % pad_multiple, dtype=torch.float)])
     wav = wav[:-1]
 
     return wav
 
 
-def get_pitch_contour(wav, pitch_mean=None, pitch_std=None, compute_mean_std=False):
+def get_pitch_contour(wav, pitch_mean=None, pitch_std=None, compute_mean_std=False, sample_rate=22050):
     f0, _, _ = librosa.pyin(
         wav.numpy(),
         fmin=librosa.note_to_hz('C2'),
         fmax=librosa.note_to_hz('C7'),
         frame_length=1024,
         hop_length=256,
-        sr=22050,
+        sr=sample_rate,
         center=True,
         fill_na=0.0,
     )
@@ -79,9 +93,7 @@ def get_speaker_embedding(ssl_model, wav_featurizer, audio_paths, duration=None,
 
     signal_batch = torch.stack(all_segments)
     print("signal batch", signal_batch.shape)
-    # print("signal batch", signal_batch.shape)
-    signal_length_batch = torch.stack([torch.tensor(signal_batch.shape[1]) for _i in range(len(all_segments))])
-    # print("signal length", signal_length_batch.shape)
+    signal_length_batch = torch.stack([torch.tensor(signal_batch.shape[1]) for _ in range(len(all_segments))])
     signal_batch = signal_batch.to(device)
     signal_length_batch = signal_length_batch.to(device)
     _, speaker_embeddings, _, _, _ = ssl_model.forward_for_export(
@@ -95,9 +107,15 @@ def get_speaker_embedding(ssl_model, wav_featurizer, audio_paths, duration=None,
     return speaker_embedding[None]
 
 
-def get_ssl_features_disentsngled(
+def get_ssl_features_disentangled(
     ssl_model, wav_featurizer, audio_path, emb_type="embedding_and_probs", use_unique_tokens=False, device="cpu"
 ):
+    """
+    Extracts content embedding, speaker embedding and duration tokens to be used as inputs for FastPitchModel_SSL 
+    synthesizer. Content embedding and speaker embedding extracted using SSLDisentangler model.
+    Can specify content embedding type to include only 
+
+    """
     wav = load_wav(audio_path, wav_featurizer)
     audio_signal = wav[None]
     audio_signal_length = torch.tensor([wav.shape[0]])
@@ -124,11 +142,13 @@ def get_ssl_features_disentsngled(
 
     elif emb_type == "embedding_and_probs":
         final_content_embedding = torch.cat([content_embedding, content_probs], dim=0)
+    
+    else:
+        raise ValueError(f"{emb_type} is not valid. Valid emb_type includes probs, embedding, log_probs or embedding_and_probs.")
 
     duration = torch.ones(final_content_embedding.shape[1]) * 4.0
     if use_unique_tokens:
         token_predictions = torch.argmax(content_probs, dim=0)
-        # print("token predictions:", token_predictions)
         content_buffer = [final_content_embedding[:, 0]]
         unique_content_embeddings = []
         unique_tokens = []
@@ -204,8 +224,9 @@ def main():
     fastpitch_model = fastpitch_model.to(device)
     fastpitch_model.eval()
     fastpitch_model.non_trainable_models = {'vocoder': vocoder}
+    fpssl_sample_rate = fastpitch_model._cfg.sample_rate
 
-    wav_featurizer = WaveformFeaturizer(sample_rate=22050, int_values=False, augmentor=None)
+    wav_featurizer = WaveformFeaturizer(sample_rate=fpssl_sample_rate, int_values=False, augmentor=None)
 
     use_unique_tokens = args.use_unique_tokens == 1
     compute_pitch = args.compute_pitch == 1
@@ -217,7 +238,7 @@ def main():
         out_path = source_target_out[2]
 
         with torch.no_grad():
-            content_embedding1, _, duration1 = get_ssl_features_disentsngled(
+            content_embedding1, _, duration1 = get_ssl_features_disentangled(
                 ssl_model,
                 wav_featurizer,
                 source_audio_path,
@@ -232,7 +253,7 @@ def main():
 
             pitch_contour1 = None
             if not compute_pitch:
-                pitch_contour1 = get_pitch_contour(load_wav(source_audio_path, wav_featurizer), compute_mean_std=True)[
+                pitch_contour1 = get_pitch_contour(load_wav(source_audio_path, wav_featurizer), compute_mean_std=True, sample_rate=fpssl_sample_rate)[
                     None
                 ]
                 pitch_contour1 = pitch_contour1.to(device)
@@ -247,7 +268,7 @@ def main():
                 dataset_id=0,
             )
             wav_generated = wav_generated[0][0]
-            soundfile.write(out_path, wav_generated, 22050)
+            soundfile.write(out_path, wav_generated, fpssl_sample_rate)
 
 
 if __name__ == "__main__":
