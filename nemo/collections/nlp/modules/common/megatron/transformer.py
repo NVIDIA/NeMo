@@ -24,6 +24,7 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     AdapterName,
     ParallelLinearAdapterConfig,
 )
+from nemo.collections.nlp.modules.common.megatron.attention import ParallelAttention, ParallelChunkedCrossAttention
 from nemo.collections.nlp.modules.common.megatron.fused_bias_dropout_add import (
     bias_dropout_add,
     bias_dropout_add_fused_inference,
@@ -33,9 +34,8 @@ from nemo.collections.nlp.modules.common.megatron.fused_bias_dropout_add import 
 from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import get_layer_norm
 from nemo.collections.nlp.modules.common.megatron.layer_norm_1p import LayerNorm1P
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
-from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.attention import ParallelAttention, ParallelChunkedCrossAttention
 from nemo.collections.nlp.modules.common.megatron.mlp import ParallelMLP, SwitchMLP
+from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 from nemo.core import adapter_mixins
 from nemo.utils import logging
@@ -88,6 +88,7 @@ except:
     tensor of the same size. We use the following arguments:
         hyperparameters: transformer hyperparameters
 """
+
 
 def get_bias_dropout_add(training):
     def _bias_dropout_add(x, bias, residual, prob):
