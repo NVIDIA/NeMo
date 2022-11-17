@@ -2080,7 +2080,7 @@ class ParallelTransformer(MegatronModule):
         self.fp8_interval = fp8_interval
         self.fp8_amax_history_len = fp8_amax_history_len
         self.fp8_amax_compute_algo = fp8_amax_compute_algo
-        self.reduce_amax=reduce_amax
+        self.reduce_amax = reduce_amax
 
         self.fp8_recipe = None
 
