@@ -388,11 +388,16 @@ class SlurmLauncher(Launcher):
         in_valid_parameters = sorted(set(kwargs) - set(defaults))
         if in_valid_parameters:
             string = "\n  - ".join(f"{x} (default: {repr(y)})" for x, y in sorted(defaults.items()))
-            raise ValueError(
-                f"Unavailable parameter(s): {in_valid_parameters}\nValid parameters are:\n  - {string}"
+            logger.warning(
+                f"Unrecognized sbatch parameter(s): {in_valid_parameters}. Use at your own risk.\n\nValid parameters are:\n  - {string}"
             )
 
-        self.parameters.update(kwargs)
+        self.parameters.update(
+            {k: v for k, v in kwargs.items() if k not in in_valid_parameters}
+        )
+        self.parameters.update(
+            {"additional_parameters": {k: kwargs[k] for k in in_valid_parameters}} ,
+        )
         self.parameters = self._convert_parameters(self.parameters)
 
     def _submit_command(
