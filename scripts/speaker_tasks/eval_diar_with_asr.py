@@ -17,7 +17,7 @@ import argparse
 import json
 import os
 
-from nemo.collections.asr.metrics.der import score_labels
+from nemo.collections.asr.metrics.der import score_labels, evaluate_der
 from nemo.collections.asr.parts.utils.diarization_utils import OfflineDiarWithASR
 from nemo.collections.asr.parts.utils.manifest_utils import read_file
 from nemo.collections.asr.parts.utils.speaker_utils import (
@@ -35,13 +35,13 @@ session-level DER, WER, cpWER and speaker counting accuracies are evaluated.
 
 - Evaluation mode
 
-diar_eval_mode: "full":
+diar_eval_mode == "full":
     DIHARD challenge style evaluation, the most strict way of evaluating diarization
     (collar, ignore_overlap) = (0.0, False)
-diar_eval_mode: "fair":
+diar_eval_mode == "fair":
     Evaluation setup used in VoxSRC challenge
     (collar, ignore_overlap) = (0.25, False)
-diar_eval_mode: "forgiving":
+diar_eval_mode == "forgiving":
     Traditional evaluation setup
     (collar, ignore_overlap) = (0.25, True)
 diar_eval_mode == "all":
@@ -123,32 +123,6 @@ def read_file_path(list_path):
     """Read file path and strip to remove line change symbol
     """
     return sorted([x.strip() for x in read_file(list_path)])
-
-
-def evaluate_der(audio_rttm_map_dict, all_reference, all_hypothesis, diar_eval_mode):
-    """Evaluate with a selected diarization evaluation scheme
-    """
-    eval_settings = []
-    if diar_eval_mode == "full":
-        eval_settings = [(0.0, False)]
-    elif diar_eval_mode == "fair":
-        eval_settings = [(0.25, False)]
-    elif diar_eval_mode == "forgiving":
-        eval_settings = [(0.25, True)]
-    elif diar_eval_mode == "all":
-        eval_settings = [(0.0, False), (0.25, False), (0.25, True)]
-    else:
-        raise ValueError("`diar_eval_mode` variable contains an unsupported value")
-
-    for collar, ignore_overlap in eval_settings:
-        diar_score = score_labels(
-            AUDIO_RTTM_MAP=audio_rttm_map_dict,
-            all_reference=all_reference,
-            all_hypothesis=all_hypothesis,
-            collar=collar,
-            ignore_overlap=ignore_overlap,
-        )
-    return diar_score
 
 
 def main(
