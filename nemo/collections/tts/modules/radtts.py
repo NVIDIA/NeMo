@@ -346,9 +346,7 @@ class RadTTSModule(NeuralModule, Exportable):
                     context_w_spkvec = torch.cat((context_w_spkvec, energy_avg), 1)
 
             unfolded_out_lens = out_lens // self.n_group_size
-            context_lstm_padded_output = self.context_lstm.sort_and_lstm_tensor(
-                context_w_spkvec.transpose(1, 2), unfolded_out_lens
-            )
+            context_lstm_padded_output = self.context_lstm(context_w_spkvec.transpose(1, 2), unfolded_out_lens)
             context_w_spkvec = context_lstm_padded_output.transpose(1, 2)
 
         if not self.context_lstm_w_f0_and_energy:
