@@ -109,7 +109,7 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
             # Setup CTC WER
             self.ctc_wer = WERBPE(
                 decoding=self.ctc_decoding,
-                use_cer=self.cfg.ctc_decoding.get('use_cer', False),
+                use_cer=self.cfg.aux_ctc.get('use_cer', False),
                 dist_sync_on_step=True,
                 log_prediction=self.cfg.get("log_prediction", False),
             )
