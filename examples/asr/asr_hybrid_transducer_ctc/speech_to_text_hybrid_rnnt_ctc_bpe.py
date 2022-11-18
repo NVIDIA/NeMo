@@ -32,15 +32,14 @@ python <NEMO_ROOT>/scripts/tokenizers/process_asr_text_tokenizer.py \
 
 # Training the model
 ```sh
-python speech_to_text_rnnt_bpe.py \
+python speech_to_text_hybrid_rnnt_ctc_bpe.py \
     # (Optional: --config-path=<path to dir of configs> --config-name=<name of config without .yaml>) \
     model.train_ds.manifest_filepath=<path to train manifest> \
     model.validation_ds.manifest_filepath=<path to val/test manifest> \
     model.tokenizer.dir=<path to directory of tokenizer (not full path to the vocab file!)> \
     model.tokenizer.type=<either bpe or wpe> \
+    model.aux_ctc.ctc_loss_weight=0.3 \
     trainer.devices=-1 \
-    trainer.accelerator="gpu" \
-    trainer.strategy="ddp" \
     trainer.max_epochs=100 \
     model.optim.name="adamw" \
     model.optim.lr=0.001 \

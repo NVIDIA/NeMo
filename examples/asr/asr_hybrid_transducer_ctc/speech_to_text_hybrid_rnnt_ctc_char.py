@@ -40,17 +40,19 @@ Override some args of optimizer:
     model.train_ds.manifest_filepath="./an4/train_manifest.json" \
     model.validation_ds.manifest_filepath="./an4/test_manifest.json" \
     trainer.devices=2 \
+    model.aux_ctc.ctc_loss_weight=0.3 \
     trainer.precision=16 \
     trainer.max_epochs=2 \
     model.optim.betas=[0.8,0.5] \
     model.optim.weight_decay=0.0001
 
 Override optimizer entirely
-    python speech_to_text_rnnt.py \
+    python speech_to_text_hybrid_rnnt_ctc.py \
     --config-path="../conf/conformer/hybrid_transducer_ctc/conformer_hybrid_transducer_ctc" \
     --config-name="config_rnnt" \
     model.train_ds.manifest_filepath="./an4/train_manifest.json" \
     model.validation_ds.manifest_filepath="./an4/test_manifest.json" \
+    model.aux_ctc.ctc_loss_weight=0.3 \
     trainer.devices=2 \
     trainer.precision=16 \
     trainer.max_epochs=2 \
