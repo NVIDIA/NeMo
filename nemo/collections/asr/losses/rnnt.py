@@ -47,7 +47,7 @@ except (ImportError, ModuleNotFoundError):
     WARP_RNNT_AVAILABLE = False
 
 try:
-    from nemo.collections.asr.parts.numba.rnnt_loss import RNNTLossNumba
+    from nemo.collections.asr.parts.numba.rnnt_loss import RNNTLossNumba, MultiblankRNNTLossNumba
 
     NUMBA_RNNT_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):
@@ -87,6 +87,13 @@ RNNT_LOSS_RESOLVER = {
         is_available=NUMBA_RNNT_AVAILABLE,
         installation_msg=NUMBA_INSTALLATION_MESSAGE,
     ),
+    "multiblank_rnnt": RNNTLossConfig(
+        loss_name="multiblank_rnnt",
+        lib_name="numba",
+        min_version='0.53.0',
+        is_available=NUMBA_RNNT_AVAILABLE,
+        installation_msg=NUMBA_INSTALLATION_MESSAGE,
+    ),
     "pytorch": RNNTLossConfig(
         loss_name="pytorch",
         lib_name="pytorch",
@@ -112,7 +119,7 @@ def resolve_rnnt_default_loss_name() -> str:
     return RNNT_LOSS_RESOLVER['default'].loss_name
 
 
-def resolve_rnnt_loss(loss_name: str, blank_idx: int, big_blank_idx_list: list, blank_duration_list: list, loss_kwargs: dict = None, sigma: float = 0.0) -> torch.nn.Module:
+def resolve_rnnt_loss(loss_name: str, blank_idx: int, loss_kwargs: dict = None) -> torch.nn.Module:
     loss_function_names = list(RNNT_LOSS_RESOLVER.keys())
 
     if loss_name not in loss_function_names:
@@ -169,11 +176,23 @@ def resolve_rnnt_loss(loss_name: str, blank_idx: int, big_blank_idx_list: list, 
     elif loss_name == 'warprnnt_numba':
         fastemit_lambda = loss_kwargs.pop('fastemit_lambda', 0.0)
         clamp = loss_kwargs.pop('clamp', -1.0)
-        loss_func = RNNTLossNumba(blank=blank_idx, big_blank_list=big_blank_idx_list, blank_duration_list=blank_duration_list, reduction='none', fastemit_lambda=fastemit_lambda, clamp=clamp, sigma=sigma)
+        loss_func = RNNTLossNumba(blank=blank_idx, reduction='none', fastemit_lambda=fastemit_lambda, clamp=clamp)
         _warn_unused_additional_kwargs(loss_name, loss_kwargs)
 
-    elif loss_name == 'pytorch':
-        loss_func = RNNTLossPytorch(blank=blank_idx, big_blank_list=big_blank_idx_list, blank_duration_list=blank_duration_list, reduction='none')
+    elif loss_name == 'multiblank_rnnt':
+        fastemit_lambda = loss_kwargs.pop('fastemit_lambda', 0.0)
+        big_blank_idx_list = loss_kwargs.pop('big_blakn_idx_list', None)
+        blank_duration_list = loss_kwargs.pop('blank_duration_list', None)
+        sgma = loss_kwargs.pop('sigma', 0.0)
+        clamp = loss_kwargs.pop('clamp', -1.0)
+        loss_func = MultiblankRNNTLossNumba(blank=blank_idx, big_blank_list=big_blank_idx_list, blank_duration_list=blank_duration_list, reduction='none', fastemit_lambda=fastemit_lambda, clamp=clamp, sigma=sigma)
+        _warn_unused_additional_kwargs(loss_name, loss_kwargs)
+
+
+    elif loss_name == 'multiblank_rnnt_pytorch':
+        big_blank_idx_list = loss_kwargs.pop('big_blakn_idx_list', None)
+        blank_duration_list = loss_kwargs.pop('blank_duration_list', None)
+        loss_func = MultiblankRNNTLossPytorch(blank=blank_idx, big_blank_list=big_blank_idx_list, blank_duration_list=blank_duration_list, reduction='none')
 
     else:
         raise ValueError(
@@ -182,7 +201,7 @@ def resolve_rnnt_loss(loss_name: str, blank_idx: int, big_blank_idx_list: list, 
 
     return loss_func
 
-class RNNTLossPytorch(Loss):
+class MultiblankRNNTLossPytorch(Loss):
     @property
     def input_types(self):
         """Input types definitions for CTCLoss.
@@ -308,7 +327,7 @@ class RNNTLoss(Loss):
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self, num_classes, blank_duration_list, reduction: str = 'mean_batch', loss_name: str = "default", loss_kwargs=None, sigma: float = 0.0):
+    def __init__(self, num_classes, reduction: str = 'mean_batch', loss_name: str = "default", loss_kwargs=None):
         """
         RNN-T Loss function based on https://github.com/HawkAaron/warp-transducer.
         Optionally, can utilize a numba implementation of the same loss without having to compile the loss,
@@ -362,12 +381,9 @@ class RNNTLoss(Loss):
             raise ValueError('`reduction` must be one of [mean, sum, mean_batch]')
 
         self._blank = num_classes
-#        self._big_blank = num_classes + 1
-#        self._huge_blank = num_classes + 2
-        self._sigma = sigma
         self._blank_duration_list = blank_duration_list
         self.reduction = reduction
-        self._loss = resolve_rnnt_loss(loss_name, blank_idx=self._blank, big_blank_idx_list=list(range(num_classes + 1, num_classes + len(blank_duration_list) + 1)), blank_duration_list=self._blank_duration_list, loss_kwargs=loss_kwargs, sigma=sigma)
+        self._loss = resolve_rnnt_loss(loss_name, blank_idx=self._blank, loss_kwargs=loss_kwargs)
 
     @typecheck()
     def forward(self, log_probs, targets, input_lengths, target_lengths):
@@ -425,14 +441,18 @@ class RNNTLoss(Loss):
         return loss
 
 if __name__ == "__main__":
-#    B, T, U, V = 2, 32, 16, 256
     B, T, U, V = 3, 11, 7, 5 
-#    B, T, U, V = 3, 3, 3, 3
 
-    duration=2
+    blank_duration_list = [2, 4, 8]
+    big_blank_idx_list=list(range(V, V + len(blank_duration_list)))
+    sigma = 0.05
+    args = {}
+    args['blank_duration_list'] = blank_duration_list
+    args['big_blank_idx_list'] = big_blank_idx_list
+    args['sigma'] = sigma
 
-    Loss = RNNTLossPytorch(V - 3, blank_duration=duration, reduction='mean')
-    Loss2 = RNNTLoss(V - 3, blank_duration_list=[duration, 2 * duration], reduction='mean_batch', loss_name='warprnnt_numba')
+    Loss = MultiblankRNNTLossPytorch(V, blank_duration=blank_duration_list, reduction='mean')
+    Loss2 = RNNTLoss(V, reduction='mean_batch', loss_name='warprnnt_numba', loss_kwargs=args)
 
     for t in range(1000):
         acts = torch.rand([B, T, U, V]) - 0.5
@@ -463,8 +483,5 @@ if __name__ == "__main__":
         loss2.backward()
 
         print("loss diff", float(loss - loss2))
-        print("grad norm diff per element", float(torch.norm(acts.grad - grad1) / (B * T * U * V)))
-#        print("they are")
-#        print(acts.grad)
-#        print(grad1)
+        print("grad norm diff per element", float(torch.norm(acts.grad - grad1)))
 

@@ -125,12 +125,12 @@ class AbstractRNNTDecoding(ABC):
         blank_id: The id of the RNNT blank token.
     """
 
-    def __init__(self, decoding_cfg, decoder, joint, blank_id: int, big_blank_id_list: list, big_blank_duration_list: list):
+    def __init__(self, decoding_cfg, decoder, joint, blank_id: int):
         super(AbstractRNNTDecoding, self).__init__()
         self.cfg = decoding_cfg
         self.blank_id = blank_id
-        self.big_blank_id_list = big_blank_id_list
-        self.big_blank_duration_list = big_blank_duration_list
+        self.big_blank_id_list = self.cfg.get("big_blank_id_list", None)
+        self.big_blank_duration_list = self.cfg.get("big_blank_duration_list", None)
         self.compute_hypothesis_token_set = self.cfg.get("compute_hypothesis_token_set", False)
         self.preserve_alignments = self.cfg.get('preserve_alignments', None)
         self.joint_fused_batch_size = self.cfg.get('fused_batch_size', None)
@@ -162,30 +162,50 @@ class AbstractRNNTDecoding(ABC):
             raise ValueError("If `compute_timesteps` flag is set, then `preserve_alignments` flag must also be set.")
 
         if self.cfg.strategy == 'greedy':
-
-            self.decoding = greedy_decode.GreedyRNNTInfer(
-                decoder_model=decoder,
-                joint_model=joint,
-                blank_index=self.blank_id,
-                big_blank_duration_list=self.big_blank_duration_list,
-                max_symbols_per_step=(
-                    self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
-                ),
-                preserve_alignments=self.preserve_alignments,
-            )
+            if self.big_blank_id_list is not None:
+                self.decoding = greedy_decode.GreedyMultiblankRNNTInfer(
+                    decoder_model=decoder,
+                    joint_model=joint,
+                    blank_index=self.blank_id,
+                    big_blank_duration_list=self.big_blank_duration_list,
+                    max_symbols_per_step=(
+                        self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
+                    ),
+                    preserve_alignments=self.preserve_alignments,
+                )
+            else:
+                self.decoding = greedy_decode.GreedyRNNTInfer(
+                    decoder_model=decoder,
+                    joint_model=joint,
+                    blank_index=self.blank_id,
+                    max_symbols_per_step=(
+                        self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
+                    ),
+                    preserve_alignments=self.preserve_alignments,
+                )
 
         elif self.cfg.strategy == 'greedy_batch':
-
-            self.decoding = greedy_decode.GreedyBatchedRNNTInfer(
-                decoder_model=decoder,
-                joint_model=joint,
-                blank_index=self.blank_id,
-                big_blank_duration_list=self.big_blank_duration_list,
-                max_symbols_per_step=(
-                    self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
-                ),
-                preserve_alignments=self.preserve_alignments,
-            )
+            if self.big_blank_id_list is not None:
+                self.decoding = greedy_decode.GreedyBatchedMultiblankRNNTInfer(
+                    decoder_model=decoder,
+                    joint_model=joint,
+                    blank_index=self.blank_id,
+                    big_blank_duration_list=self.big_blank_duration_list,
+                    max_symbols_per_step=(
+                        self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
+                    ),
+                    preserve_alignments=self.preserve_alignments,
+                )
+            else:
+                self.decoding = greedy_decode.GreedyBatchedRNNTInfer(
+                    decoder_model=decoder,
+                    joint_model=joint,
+                    blank_index=self.blank_id,
+                    max_symbols_per_step=(
+                        self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
+                    ),
+                    preserve_alignments=self.preserve_alignments,
+                )
 
         elif self.cfg.strategy == 'beam':
 
@@ -286,9 +306,14 @@ class AbstractRNNTDecoding(ABC):
         """
         # Compute hypotheses
         with torch.inference_mode():
-            hypotheses_list = self.decoding(
-                encoder_output=encoder_output, encoded_lengths=encoded_lengths, duration=self.cfg.duration, partial_hypotheses=partial_hypotheses
-            )  # type: [List[Hypothesis]]
+            if self.big_blank_idx_list is not None:
+                hypotheses_list = self.decoding(
+                    encoder_output=encoder_output, encoded_lengths=encoded_lengths, duration=self.cfg.duration, partial_hypotheses=partial_hypotheses
+                )  # type: [List[Hypothesis]]
+            else:
+                hypotheses_list = self.decoding(
+                    encoder_output=encoder_output, encoded_lengths=encoded_lengths, partial_hypotheses=partial_hypotheses
+                )  # type: [List[Hypothesis]]
 
             # extract the hypotheses
             hypotheses_list = hypotheses_list[0]  # type: List[Hypothesis]
@@ -353,7 +378,10 @@ class AbstractRNNTDecoding(ABC):
 
             # RNN-T sample level is already preprocessed by implicit RNNT decoding
             # Simply remove any blank tokens
-            prediction = [p for p in prediction if p != self.blank_id and p not in self.big_blank_id_list]
+            if self.big_blank_idx_list is not None:
+                prediction = [p for p in prediction if p != self.blank_id and p not in self.big_blank_id_list]
+            else:
+                prediction = [p for p in prediction if p != self.blank_id]
 
             # De-tokenize the integer tokens; if not computing timestamps
             if self.compute_timestamps is True:
@@ -821,7 +849,10 @@ class RNNTDecoding(AbstractRNNTDecoding):
         Returns:
             A list of decoded tokens.
         """
-        token_list = [self.labels_map[c] for c in tokens if c != self.blank_id and c != self.big_blank_id and c != self.huge_blank_id]
+        if self.big_blank_idx_list is not None:
+            token_list = [self.labels_map[c] for c in tokens if c != self.blank_id and c not in self.big_blank_idx_list]
+        else:
+            token_list = [self.labels_map[c] for c in tokens if c != self.blank_id]
         return token_list
 
 

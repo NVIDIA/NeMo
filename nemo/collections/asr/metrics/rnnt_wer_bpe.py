@@ -125,13 +125,10 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
     def __init__(self, decoding_cfg, decoder, joint, tokenizer: TokenizerSpec):
         blank_id = tokenizer.tokenizer.vocab_size
 
-        big_blank_duration_list = decoding_cfg.big_blank_duration_list
-
-        big_blank_id_list = list(range(tokenizer.tokenizer.vocab_size + 1, tokenizer.tokenizer.vocab_size + len(big_blank_duration_list) + 1))
         self.tokenizer = tokenizer
 
         super(RNNTBPEDecoding, self).__init__(
-            decoding_cfg=decoding_cfg, decoder=decoder, joint=joint, blank_id=blank_id, big_blank_id_list=big_blank_id_list, big_blank_duration_list=big_blank_duration_list
+            decoding_cfg=decoding_cfg, decoder=decoder, joint=joint, blank_id=blank_id
         )
 
     def decode_tokens_to_str(self, tokens: List[int]) -> str:
