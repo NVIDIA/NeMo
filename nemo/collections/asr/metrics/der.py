@@ -61,8 +61,8 @@ def score_labels(
 
     Args:
         AUDIO_RTTM_MAP (dict): Dictionary containing information provided from manifestpath
-        all_reference (list[uniq_name,annotation]): reference annotations for score calculation
-        all_hypothesis (list[uniq_name,annotation]): hypothesis annotations for score calculation
+        all_reference (list[uniq_name,Annotation]): reference annotations for score calculation
+        all_hypothesis (list[uniq_name,Annotation]): hypothesis annotations for score calculation
 
     Returns:
         metric (pyannote.DiarizationErrorRate): Pyannote Diarization Error Rate metric object. This object contains detailed scores of each audiofile.
