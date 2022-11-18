@@ -493,19 +493,26 @@ def _tp_pp_mbs_grid_bert_80gb(model_size_in_b: float, valid_pp: List[int]) -> Tu
     tp = [1, 2, 4, 8]
     pp = [1]
     mbs = [1, 2, 3, 4, 6, 8]
+    min_model_parallel = 1
+    max_model_parallel = 8
     if model_size_in_b <= 1.0:
         tp = [1, 2]
     elif 1.0 < model_size_in_b <= 4.0:
         tp = [1, 2, 4]
     elif 4.0 < model_size_in_b <= 8.0:
         tp = [2, 4, 8]
+        min_model_parallel = 2
     elif 8.0 < model_size_in_b <= 13.0:
         tp = [2, 4, 8]
         mbs = [1, 2, 3, 4, 6]
+        min_model_parallel = 4
+        max_model_parallel = 32
     elif 13.0 < model_size_in_b <= 25.0:
         tp = [4, 8]
         mbs = [1, 2, 3, 4]
-    return tp, pp, mbs
+        min_model_parallel = 8
+        max_model_parallel = 64
+    return tp, pp, mbs, min_model_parallel, max_model_parallel
 
 def _tp_pp_mbs_grid_bert_40gb(model_size_in_b: float, valid_pp: List[int]) -> Tuple[int, int, int]:
     """
@@ -535,7 +542,9 @@ def _tp_pp_mbs_grid_bert_40gb(model_size_in_b: float, valid_pp: List[int]) -> Tu
     elif 13.0 < model_size_in_b <= 25.0:
         tp = [4, 8]
         mbs = [1, 2]
-    return tp, pp, mbs
+        min_model_parallel = 4
+        max_model_parallel = 8
+    return tp, pp, mbs, min_model_parallel, max_model_parallel
 
 
 def _calculate_tp_pp_mbs_grid(model_size_in_b: float, num_layers: int, model_name: str, train_cfg: omegaconf.dictconfig.DictConfig) -> Tuple[int, int, int]:
@@ -588,11 +597,11 @@ def _calculate_tp_pp_mbs_grid(model_size_in_b: float, num_layers: int, model_nam
             )
     elif model_name == "bert":
         if gpu_memory_gb == 80:
-            tp, pp, mbs = _tp_pp_mbs_grid_bert_80gb(
+            tp, pp, mbs, min_model_parallel, max_model_parallel = _tp_pp_mbs_grid_bert_80gb(
                 model_size_in_b=model_size_in_b, valid_pp=valid_pp
             )
         elif gpu_memory_gb == 40:
-            tp, pp, mbs = _tp_pp_mbs_grid_bert_40gb(
+            tp, pp, mbs, min_model_parallel, max_model_parallel = _tp_pp_mbs_grid_bert_40gb(
                 model_size_in_b=model_size_in_b, valid_pp=valid_pp
             )
     else:
