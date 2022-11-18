@@ -315,7 +315,7 @@ def generic_base_config(cfg: omegaconf.dictconfig.DictConfig, model_name: str = 
     return base_cfg
 
 
-def modify_cfg(base_cfg: dict, act: int, num_mbs_act: int, act_per_pipe: int, tp: int, pp: int, mbs: int, max_minutes: int, max_steps: int, num_nodes: int, model_name: str) -> dict:
+def modify_cfg(base_cfg: dict, act: int, num_mbs_act: int, act_per_pipe: int, tp: int, pp: int, virtual_pipelines: int, mbs: int, max_minutes: int, max_steps: int, num_nodes: int, model_name: str) -> dict:
     """
     Modify the base configuration for the model with the new parameters that are specific to the current model, which the HP tool heuristics selected.
 
@@ -325,6 +325,7 @@ def modify_cfg(base_cfg: dict, act: int, num_mbs_act: int, act_per_pipe: int, tp
     :param int act_per_pipe: 
     :param int tp: Tensor Parallelism (TP) value to be set for the model.
     :param int pp: Pipeline Parallelism (PP) value to be set for the model.
+    :param int virtual_pipelines: Virtual Pipelines value to be set for the model.
     :param int mbs: Micro Batch Size (MBS) value to be set for the model.
     :param int max_minutes: maximum amount of time to run this model for.
     :param int max_steps: maximum number of steps to run this model for.
@@ -346,6 +347,9 @@ def modify_cfg(base_cfg: dict, act: int, num_mbs_act: int, act_per_pipe: int, tp
 
     if act_per_pipe is not None and model_name == "gpt3":
         new_cfg["model"]["activations_checkpoint_layers_per_pipeline"] = act_per_pipe
+
+    if virtual_pipelines is not None and model_name == "gpt3":
+        new_cfg["model"]["virtual_pipeline_model_parallel_size"] = virtual_pipelines
 
     new_cfg["model"]["tensor_model_parallel_size"] = tp
     new_cfg["model"]["pipeline_model_parallel_size"] = pp

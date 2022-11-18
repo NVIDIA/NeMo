@@ -8,7 +8,7 @@ class TestBaseConfigs:
         run:
           name: gpt3_126m
           results_dir: ${base_results_dir}/${.name}
-          time_limit: "1-12:00:00"
+          time_limit: "1-00:00:00"
           dependency: "singleton"
 
         trainer:
@@ -21,7 +21,7 @@ class TestBaseConfigs:
           replace_sampler_ddp: False
           max_epochs: null
           max_steps: 600000
-          max_time: "01:11:30:00"
+          max_time: "00:23:30:00"
           log_every_n_steps: 1
           val_check_interval: 50
           limit_val_batches: 1
@@ -60,6 +60,7 @@ class TestBaseConfigs:
           global_batch_size: 256
           tensor_model_parallel_size: 1
           pipeline_model_parallel_size: 1
+          virtual_pipeline_model_parallel_size: null
           resume_from_checkpoint: null
 
           # model architecture
@@ -78,12 +79,21 @@ class TestBaseConfigs:
           pre_process: True
           post_process: True
           persist_layer_norm: True
-          grad_div_ar_fusion: True
           gradient_as_bucket_view: True
-          gradient_accumulation_fusion: True
+          sync_batch_comm: False
+  
+          # Fusion
+          grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce
+          gradient_accumulation_fusion: True # Fuse weight gradient accumulation to GEMMs
+          bias_activation_fusion: True # Use a kernel that fuses the bias addition from weight matrices with the subsequent activation function.
+          bias_dropout_add_fusion: True # Use a kernel that fuses the bias addition, dropout and residual connection addition.
+          masked_softmax_fusion: True # Use a kernel that fuses the attention softmax with it's mask.
+
           activations_checkpoint_granularity: selective
-          activations_checkpoint_method: null
-          activations_checkpoint_num_layers: null
+          activations_checkpoint_method: block
+          activations_checkpoint_num_layers: 0
+          num_micro_batches_with_partial_activation_checkpoints: null
+          activations_checkpoint_layers_per_pipeline: null
 
           sequence_parallel: True
 
@@ -106,14 +116,35 @@ class TestBaseConfigs:
           megatron_amp_O2: True
           grad_allreduce_chunk_size_mb: 125
 
+          ## Transformer Engine
+          transformer_engine: False
+          fp8: False # enables fp8 in TransformerLayer forward
+          fp8_e4m3: False # sets fp8_format = recipe.Format.E4M3
+          fp8_hybrid: False # sets fp8_format = recipe.Format.HYBRID
+          fp8_margin: 0 # scaling margin
+          fp8_interval: 1 # scaling update interval
+          fp8_amax_history_len: 1 # Number of steps for which amax history is recorded per tensor
+          fp8_amax_compute_algo: most_recent # 'most_recent' or 'max'. Algorithm for computing amax from history
+          use_emha: False
+
           # miscellaneous
           seed: 1234
           use_cpu_initialization: False
           onnx_safe: False
           apex_transformer_log_level: 30
 
+          # Nsys profiling options
+          nsys_profile:
+            enabled: False
+            trace: [nvtx,cuda]
+            start_step: 10  # Global batch to start profiling
+            end_step: 10 # Global batch to end profiling
+            ranks: [0] # Global rank IDs to profile
+            gen_shape: False # Generate model and kernel details including input shapes
+
           optim:
             name: distributed_fused_adam
+            bucket_cap_mb: ${training.model.grad_allreduce_chunk_size_mb}
             lr: 6e-4
             weight_decay: 0.1
             betas:
@@ -217,6 +248,7 @@ class TestBaseConfigs:
           megatron_amp_O2: True # use AMP with O2 style mixed precision instead of native amp on-the-fly weight autocasting.
           grad_allreduce_chunk_size_mb: 125
           gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
+          sync_batch_comm: False
 
           seq_length: 512
           max_position_embeddings: ${.seq_length}
@@ -252,7 +284,8 @@ class TestBaseConfigs:
             onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
             fp32_residual_connection: False # Use FP32 for residual connections.
             # activations checkpointing
-            activations_checkpoint_method: null # 'uniform', 'block'
+            activations_checkpoint_granularity: full
+            activations_checkpoint_method: block # 'uniform', 'block'
             activations_checkpoint_num_layers: 0
 
           decoder:
@@ -286,7 +319,8 @@ class TestBaseConfigs:
             onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
             fp32_residual_connection: False # Use FP32 for residual connections.
             # activations checkpointing
-            activations_checkpoint_method: null # 'uniform', 'block'
+            activations_checkpoint_granularity: full
+            activations_checkpoint_method: block # 'uniform', 'block'
             activations_checkpoint_num_layers: 0
 
           tokenizer:
@@ -321,7 +355,8 @@ class TestBaseConfigs:
             gen_shape: False # Generate model and kernel details including input shapes
 
           optim:
-            name: fused_adam
+            name: distributed_fused_adam
+            bucket_cap_mb: ${training.model.grad_allreduce_chunk_size_mb}
             lr: 0.0001
             betas:
               - 0.9
@@ -437,6 +472,7 @@ class TestBaseConfigs:
           megatron_amp_O2: True # use AMP with O2 style mixed precision instead of native amp on-the-fly weight autocasting.
           grad_allreduce_chunk_size_mb: 125
           gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
+          sync_batch_comm: False
 
           seq_length: 512
           max_position_embeddings: ${.seq_length}
@@ -472,7 +508,8 @@ class TestBaseConfigs:
             onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
             fp32_residual_connection: False # Use FP32 for residual connections.
             # activations checkpointing
-            activations_checkpoint_method: null # 'uniform', 'block'
+            activations_checkpoint_granularity: full
+            activations_checkpoint_method: block # 'uniform', 'block'
             activations_checkpoint_num_layers: 0
 
           decoder:
@@ -506,7 +543,8 @@ class TestBaseConfigs:
             onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
             fp32_residual_connection: False # Use FP32 for residual connections.
             # activations checkpointing
-            activations_checkpoint_method: null # 'uniform', 'block'
+            activations_checkpoint_granularity: full
+            activations_checkpoint_method: block # 'uniform', 'block'
             activations_checkpoint_num_layers: 0
 
           tokenizer:
@@ -541,7 +579,8 @@ class TestBaseConfigs:
             gen_shape: False # Generate model and kernel details including input shapes
 
           optim:
-            name: fused_adam
+            name: distributed_fused_adam
+            bucket_cap_mb: ${training.model.grad_allreduce_chunk_size_mb}
             lr: 0.0001
             betas:
               - 0.9

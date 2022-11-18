@@ -1,7 +1,7 @@
 variables: &VARS
   HP_REGISTRY: "gitlab-master.nvidia.com:5005/dl/joc/bignlp-hp-tool"
   HP_REGISTRY_SRUN: "gitlab-master.nvidia.com#dl/joc/bignlp-hp-tool"
-  HP_BASE_TRAINING_IMAGE: "nvcr.io/nvidian/bignlp-train:22.09-db86d0c7"
+  HP_BASE_TRAINING_IMAGE: "nvcr.io/nvidian/bignlp-train:22.10-43e7d344"
   BUILD_IMAGE_TRAINING_NAME_SRUN: ${HP_REGISTRY_SRUN}/bignlp_training_hp_tool:pipe.${CI_PIPELINE_ID}
   HP_CI_PATH: "/lustre/fsw/joc/big_nlp/hp_tool_ci"
   PIPELINE_DIR: "${HP_CI_PATH}/${CI_PIPELINE_ID}"
