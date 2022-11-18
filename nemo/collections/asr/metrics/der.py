@@ -108,12 +108,7 @@ def score_labels(
         return None
 
 
-def evaluate_der(
-    audio_rttm_map_dict,
-    all_reference,
-    all_hypothesis, 
-    diar_eval_mode='all'
-    ):
+def evaluate_der(audio_rttm_map_dict, all_reference, all_hypothesis, diar_eval_mode='all'):
     """
     Evaluate with a selected diarization evaluation scheme
 
