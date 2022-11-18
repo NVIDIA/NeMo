@@ -169,6 +169,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
             attention_dropout=attention_dropout,
             sequence_parallel=sequence_parallel,
             normalize_attention_scores=normalize_attention_scores,
+            multi_query_attention=False
         )
 
         # Output.
@@ -665,7 +666,7 @@ class ParallelMultiQueryAttention(MegatronModule):
         gradient_accumulation_fusion=False,
         normalize_attention_scores=True,
     ):
-        super(ParallelAttention, self).__init__()
+        super(ParallelMultiQueryAttention, self).__init__()
 
         self.layer_number = max(1, layer_number)
         self.attention_type = attention_type
@@ -710,14 +711,12 @@ class ParallelMultiQueryAttention(MegatronModule):
         )
 
         # TODO: 2 * key_projection_size is probably << hidden size for large models. Probably is inefficient for TP. Switch to RowParallel?
-        self.key_value = tensor_parallel.ColumnParallelLinear(
+        self.key_value = tensor_parallel.RowParallelLinear(
             hidden_size,
             2 * key_projection_size,
-            gather_output=False,
             init_method=init_method,
             bias=bias,
             sequence_parallel_enabled=sequence_parallel,
-            no_async_tensor_model_parallel_allreduce=no_async_tensor_model_parallel_allreduce,
             gradient_accumulation_fusion=gradient_accumulation_fusion,
         )
 
@@ -734,6 +733,7 @@ class ParallelMultiQueryAttention(MegatronModule):
             attention_dropout=attention_dropout,
             sequence_parallel=sequence_parallel,
             normalize_attention_scores=normalize_attention_scores,
+            multi_query_attention=True
         )
 
         # Output.
@@ -911,48 +911,22 @@ class ParallelMultiQueryAttention(MegatronModule):
         # Query, Key, and Value
         # =====================
 
-        if self.attention_type == AttnType.self_attn:
-            # Attention head [sq, b, h] --> [sq, b, kv_channels * heads]
-            query_layer, _ = self.query(hidden_states)
+        key_value_inputs = hidden_states if AttnType.self_attn else encoder_output
+        # Attention head [sq, b, h] --> [sq, b, kv_channels * heads]
+        query_layer, _ = self.query(hidden_states)
 
-            # [sq, b, hp] --> [sq, b, np, hn]
-            new_tensor_shape = query_layer.size()[:-1] + (
-                self.num_attention_heads_per_partition,
-                self.hidden_size_per_attention_head,
-            )
-            query_layer = query_layer.view(*new_tensor_shape)
+        # [sq, b, hp] --> [sq, b, np, hn]
+        new_tensor_shape = query_layer.size()[:-1] + (
+            self.num_attention_heads_per_partition,
+            self.hidden_size_per_attention_head,
+        )
+        query_layer = query_layer.view(*new_tensor_shape)
 
-            # Attention heads [sq, b, h] --> [sq, b, kv_channels * 2 (multi-query uses 1 head for k,v)]
-            mixed_kv_layer, _ = self.key_value(hidden_states)
+        # Attention heads [sq, b, h] --> [sq, b, kv_channels * 2 (multi-query uses 1 head for k,v)]
+        mixed_kv_layer, _ = self.key_value(key_value_inputs)
 
-            # [sk, b, (np * 2 * hn)] --> [sk, b, np, 2 * hn]
-            new_tensor_shape = mixed_kv_layer.size()[:-1] + (1, 2 * self.hidden_size_per_attention_head)
-            mixed_kv_layer = mixed_kv_layer.view(*new_tensor_shape)
-
-            # [sk, b, np, 2 * hn] --> 2 [sk, b, np, hn]
-            (key_layer, value_layer) = tensor_parallel.split_tensor_along_last_dim(mixed_kv_layer, 2)
-        else:
-            # Attention heads [sk, b, h] --> [sk, b, (np * 2 * hn)]
-            mixed_kv_layer, _ = self.key_value(encoder_output)
-
-            # [sk, b, (np * 2 * hn)] --> [sk, b, np, 2 * hn]
-            new_tensor_shape = mixed_kv_layer.size()[:-1] + (
-                self.num_attention_heads_per_partition,
-                2 * self.hidden_size_per_attention_head,
-            )
-            mixed_kv_layer = mixed_kv_layer.view(*new_tensor_shape)
-
-            # [sk, b, np, 2 * hn] --> 2 [sk, b, np, hn]
-            (key_layer, value_layer) = tensor_parallel.split_tensor_along_last_dim(mixed_kv_layer, 2)
-
-            # Attention head [sq, b, h] --> [sq, b, hp]
-            query_layer, _ = self.query(hidden_states)
-            # [sq, b, hp] --> [sq, b, np, hn]
-            new_tensor_shape = query_layer.size()[:-1] + (
-                self.num_attention_heads_per_partition,
-                self.hidden_size_per_attention_head,
-            )
-            query_layer = query_layer.view(*new_tensor_shape)
+        # [sk, b, np, 2 * hn] --> 2 [sk, b, np, hn]
+        (key_layer, value_layer) = tensor_parallel.split_tensor_along_last_dim(mixed_kv_layer, 2)
 
         # ===================================================
         # Adjust key, value, and attention mask for inference
@@ -1048,6 +1022,7 @@ class CoreAttention(MegatronModule):
         attention_dropout=0.1,
         sequence_parallel=False,
         normalize_attention_scores=True,
+        multi_query_attention=False,
     ):
 
         super(CoreAttention, self).__init__()
@@ -1055,6 +1030,7 @@ class CoreAttention(MegatronModule):
         self.precision = precision
         self.fp16 = precision == 16
         self.bf16 = precision == 'bf16'
+        self.multi_query_attention = multi_query_attention
 
         self.apply_query_key_layer_scaling = apply_query_key_layer_scaling
         self.attention_softmax_in_fp32 = False
@@ -1123,7 +1099,7 @@ class CoreAttention(MegatronModule):
         # Raw attention scores. [b, np, s, s]
         # ===================================
 
-        # [b, np, sq, sk]
+        # [b, num_query_heads_per_partition, query_seq_len, key_seq_len]
         output_size = (query_layer.size(1), query_layer.size(2), query_layer.size(0), key_layer.size(0))
 
         # TODO: figure out how to do this
@@ -1138,31 +1114,39 @@ class CoreAttention(MegatronModule):
             # otherwise, only relative positional embedding takes effect
             # value_layer = apply_rotary_pos_emb(value_layer, k_pos_emb)
 
-        # [sq, b, np, hn] -> [sq, b * np, hn]
-        query_layer = query_layer.view(output_size[2], output_size[0] * output_size[1], -1)
-        # [sk, b, np, hn] -> [sk, b * np, hn]
-        key_layer = key_layer.view(output_size[3], output_size[0] * output_size[1], -1)
+        # If not multi-query attention merge dimensions for BMM. Multi-query attention uses einsum for now.
+        if not self.multi_query_attention:
+            # [sq, b, np, hn] -> [sq, b * np, hn]
+            query_layer = query_layer.view(output_size[2], output_size[0] * output_size[1], -1)
+            # [sk, b, np, hn] -> [sk, b * np, hn]
+            key_layer = key_layer.view(output_size[3], output_size[0] * output_size[1], -1)
 
-        # preallocting input tensor: [b * np, sq, sk]
-        matmul_input_buffer = torch.empty(
-            output_size[0] * output_size[1],
-            output_size[2],
-            output_size[3],
-            dtype=query_layer.dtype,
-            device=torch.cuda.current_device(),
-        )
+        if self.multi_query_attention:
+            # query_layer: [sq, b, np, hn] -> [b, np, sq, hn]
+            # key_layer: [sk, b, hn] -> [b, sk, hn]
+            attention_scores = torch.einsum('bhnk,bmk->bhnm', query_layer.permute(1, 2, 0, 3), key_layer.transpose(0, 1))
+            if self.normalize_attention_scores:
+                attention_scores /= self.norm_factor
+        else:
+            # preallocting input tensor: [b * np, sq, sk]
+            matmul_input_buffer = torch.empty(
+                output_size[0] * output_size[1],
+                output_size[2],
+                output_size[3],
+                dtype=query_layer.dtype,
+                device=torch.cuda.current_device(),
+            )
 
-        # Raw attention scores. [b * np, sq, sk]
-        matmul_result = torch.baddbmm(
-            matmul_input_buffer,
-            query_layer.transpose(0, 1),  # [b * np, sq, hn]
-            key_layer.transpose(0, 1).transpose(1, 2),  # [b * np, hn, sk]
-            beta=0.0,
-            alpha=(1.0 / self.norm_factor) if self.normalize_attention_scores else 1.0,
-        )
-
-        # change view to [b, np, sq, sk]
-        attention_scores = matmul_result.view(*output_size)
+            # Raw attention scores. [b * np, sq, sk]
+            matmul_result = torch.baddbmm(
+                matmul_input_buffer,
+                query_layer.transpose(0, 1),  # [b * np, sq, hn]
+                key_layer.transpose(0, 1).transpose(1, 2),  # [b * np, hn, sk]
+                beta=0.0,
+                alpha=(1.0 / self.norm_factor) if self.normalize_attention_scores else 1.0,
+            )
+            # change view to [b, np, sq, sk]
+            attention_scores = matmul_result.view(*output_size)
 
         if relative_position_bias is not None:
             attention_scores += relative_position_bias[
@@ -1209,20 +1193,24 @@ class CoreAttention(MegatronModule):
         # value_layer -> context layer.
         # [sk, b, np, hn] --> [b, np, sq, hn]
 
-        # context layer shape: [b, np, sq, hn]
-        output_size = (value_layer.size(1), value_layer.size(2), query_layer.size(0), value_layer.size(3))
+        if self.multi_query_attention:
+            # [b, np, sq, sk] * [b, sk, hn] -> [b, np, sq, hn]
+            context_layer = torch.einsum('bhnm,bmk->bhnk', attention_probs, value_layer.transpose(1, 0))
+        else:
+            # context layer shape: [b, np, sq, hn]
+            output_size = (value_layer.size(1), value_layer.size(2), query_layer.size(0), value_layer.size(3))
 
-        # change view [sk, b * np, hn]
-        value_layer = value_layer.view(value_layer.size(0), output_size[0] * output_size[1], -1)
+            # change view [sk, b * np, hn]
+            value_layer = value_layer.view(value_layer.size(0), output_size[0] * output_size[1], -1)
 
-        # change view [b * np, sq, sk]
-        attention_probs = attention_probs.view(output_size[0] * output_size[1], output_size[2], -1)
+            # change view [b * np, sq, sk]
+            attention_probs = attention_probs.view(output_size[0] * output_size[1], output_size[2], -1)
 
-        # matmul: [b * np, sq, hn]
-        context_layer = torch.bmm(attention_probs, value_layer.transpose(0, 1))
+            # matmul: [b * np, sq, hn]
+            context_layer = torch.bmm(attention_probs, value_layer.transpose(0, 1))
 
-        # change view [b, np, sq, hn]
-        context_layer = context_layer.view(*output_size)
+            # change view [b, np, sq, hn]
+            context_layer = context_layer.view(*output_size)
 
         if headscale_tensor is not None:
             context_layer = context_layer * headscale_tensor

@@ -69,6 +69,7 @@ model:
   pre_process: True # add embedding
   post_process: True # add pooler
   persist_layer_norm: True # Use of persistent fused layer norm kernel.
+  multi_query_attention: False # Use multi-query attention
 
   tokenizer:
     library: 'megatron'

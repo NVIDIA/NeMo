@@ -175,6 +175,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             ),
             normalization=self.cfg.get('normalization', 'layernorm'),
             layernorm_epsilon=self.cfg.get('layernorm_epsilon', 1e-5),
+            multi_query_attention=self.cfg.get('multi_query_attention', False),
             onnx_safe=self.cfg.get('onnx_safe', False),
             bias_activation_fusion=self.cfg.get('bias_activation_fusion', True),
             bias_dropout_add_fusion=self.cfg.get('bias_dropout_add_fusion', True),

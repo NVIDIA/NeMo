@@ -24,7 +24,7 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     AdapterName,
     ParallelLinearAdapterConfig,
 )
-from nemo.collections.nlp.modules.common.megatron.attention import ParallelAttention, ParallelChunkedCrossAttention
+from nemo.collections.nlp.modules.common.megatron.attention import ParallelAttention, ParallelChunkedCrossAttention, ParallelMultiQueryAttention
 from nemo.collections.nlp.modules.common.megatron.fused_bias_dropout_add import (
     bias_dropout_add,
     bias_dropout_add_fused_inference,
@@ -127,6 +127,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         apply_query_key_layer_scaling=True,
         kv_channels=None,
         layernorm_epsilon=1e-5,
+        multi_query_attention=False,
         hidden_dropout=0.1,
         persist_layer_norm=False,
         use_cpu_initialization=False,
@@ -165,6 +166,7 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
         self.bias = bias
         self.transformer_block_type = transformer_block_type
         self.set_accepted_adapter_types([LinearAdapterConfig._target_, ParallelLinearAdapterConfig._target_])
+        self.multi_query_attention = multi_query_attention
 
         if not bias and bias_dropout_add_fusion:
             raise ValueError(
@@ -199,29 +201,55 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
             else:
                 self.input_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
 
-            self.self_attention = ParallelAttention(
-                init_method=init_method,
-                output_layer_init_method=output_layer_init_method,
-                layer_number=layer_number,
-                num_attention_heads=num_attention_heads,
-                hidden_size=hidden_size,
-                attention_type=AttnType.self_attn,
-                attn_mask_type=self_attn_mask_type,
-                precision=precision,
-                apply_query_key_layer_scaling=apply_query_key_layer_scaling,
-                kv_channels=kv_channels,
-                use_cpu_initialization=use_cpu_initialization,
-                masked_softmax_fusion=masked_softmax_fusion,
-                attention_dropout=attention_dropout,
-                layer_type=layer_type,
-                megatron_legacy=megatron_legacy,
-                bias=bias,
-                headscale=headscale,
-                activations_checkpoint_granularity=activations_checkpoint_granularity,
-                sequence_parallel=sequence_parallel,
-                gradient_accumulation_fusion=gradient_accumulation_fusion,
-                normalize_attention_scores=normalize_attention_scores,
-            )
+            if self.multi_query_attention:
+                self.self_attention = ParallelMultiQueryAttention(
+                    init_method=init_method,
+                    output_layer_init_method=output_layer_init_method,
+                    layer_number=layer_number,
+                    num_attention_heads=num_attention_heads,
+                    hidden_size=hidden_size,
+                    attention_type=AttnType.self_attn,
+                    attn_mask_type=self_attn_mask_type,
+                    precision=precision,
+                    apply_query_key_layer_scaling=apply_query_key_layer_scaling,
+                    kv_channels=kv_channels,
+                    use_cpu_initialization=use_cpu_initialization,
+                    masked_softmax_fusion=masked_softmax_fusion,
+                    attention_dropout=attention_dropout,
+                    layer_type=layer_type,
+                    megatron_legacy=megatron_legacy,
+                    bias=bias,
+                    headscale=headscale,
+                    activations_checkpoint_granularity=activations_checkpoint_granularity,
+                    sequence_parallel=sequence_parallel,
+                    gradient_accumulation_fusion=gradient_accumulation_fusion,
+                    normalize_attention_scores=normalize_attention_scores,
+                )
+            else:
+                # Regular Multi-Head Attention
+                self.self_attention = ParallelAttention(
+                    init_method=init_method,
+                    output_layer_init_method=output_layer_init_method,
+                    layer_number=layer_number,
+                    num_attention_heads=num_attention_heads,
+                    hidden_size=hidden_size,
+                    attention_type=AttnType.self_attn,
+                    attn_mask_type=self_attn_mask_type,
+                    precision=precision,
+                    apply_query_key_layer_scaling=apply_query_key_layer_scaling,
+                    kv_channels=kv_channels,
+                    use_cpu_initialization=use_cpu_initialization,
+                    masked_softmax_fusion=masked_softmax_fusion,
+                    attention_dropout=attention_dropout,
+                    layer_type=layer_type,
+                    megatron_legacy=megatron_legacy,
+                    bias=bias,
+                    headscale=headscale,
+                    activations_checkpoint_granularity=activations_checkpoint_granularity,
+                    sequence_parallel=sequence_parallel,
+                    gradient_accumulation_fusion=gradient_accumulation_fusion,
+                    normalize_attention_scores=normalize_attention_scores,
+                )
 
             if transformer_block_type == 'normformer':
                 if normalization == 'layernorm':
@@ -265,27 +293,50 @@ class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixi
                 self.post_attention_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
 
         if self.layer_type == LayerType.decoder or self.layer_type == LayerType.retrieval_encoder:
-            self.inter_attention = ParallelAttention(
-                init_method=init_method,
-                output_layer_init_method=output_layer_init_method,
-                layer_number=layer_number,
-                num_attention_heads=num_attention_heads,
-                hidden_size=hidden_size,
-                attention_type=AttnType.cross_attn,
-                attn_mask_type=AttnMaskType.padding,
-                precision=precision,
-                apply_query_key_layer_scaling=apply_query_key_layer_scaling,
-                kv_channels=kv_channels,
-                use_cpu_initialization=use_cpu_initialization,
-                masked_softmax_fusion=masked_softmax_fusion,
-                attention_dropout=attention_dropout,
-                megatron_legacy=megatron_legacy,
-                bias=bias,
-                headscale=headscale,
-                sequence_parallel=sequence_parallel,
-                gradient_accumulation_fusion=gradient_accumulation_fusion,
-                normalize_attention_scores=normalize_attention_scores,
-            )
+            if self.multi_query_attention:
+                self.inter_attention = ParallelMultiQueryAttention(
+                    init_method=init_method,
+                    output_layer_init_method=output_layer_init_method,
+                    layer_number=layer_number,
+                    num_attention_heads=num_attention_heads,
+                    hidden_size=hidden_size,
+                    attention_type=AttnType.cross_attn,
+                    attn_mask_type=AttnMaskType.padding,
+                    precision=precision,
+                    apply_query_key_layer_scaling=apply_query_key_layer_scaling,
+                    kv_channels=kv_channels,
+                    use_cpu_initialization=use_cpu_initialization,
+                    masked_softmax_fusion=masked_softmax_fusion,
+                    attention_dropout=attention_dropout,
+                    megatron_legacy=megatron_legacy,
+                    bias=bias,
+                    headscale=headscale,
+                    sequence_parallel=sequence_parallel,
+                    gradient_accumulation_fusion=gradient_accumulation_fusion,
+                    normalize_attention_scores=normalize_attention_scores,
+                )
+            else:
+                self.inter_attention = ParallelAttention(
+                    init_method=init_method,
+                    output_layer_init_method=output_layer_init_method,
+                    layer_number=layer_number,
+                    num_attention_heads=num_attention_heads,
+                    hidden_size=hidden_size,
+                    attention_type=AttnType.cross_attn,
+                    attn_mask_type=AttnMaskType.padding,
+                    precision=precision,
+                    apply_query_key_layer_scaling=apply_query_key_layer_scaling,
+                    kv_channels=kv_channels,
+                    use_cpu_initialization=use_cpu_initialization,
+                    masked_softmax_fusion=masked_softmax_fusion,
+                    attention_dropout=attention_dropout,
+                    megatron_legacy=megatron_legacy,
+                    bias=bias,
+                    headscale=headscale,
+                    sequence_parallel=sequence_parallel,
+                    gradient_accumulation_fusion=gradient_accumulation_fusion,
+                    normalize_attention_scores=normalize_attention_scores,
+                )
             # Normformer normalization
             if transformer_block_type == 'normformer':
                 if normalization == 'layernorm':
@@ -620,6 +671,7 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
         apply_query_key_layer_scaling=True,
         kv_channels=None,
         layernorm_epsilon=1e-5,
+        multi_query_attention=False,
         hidden_dropout=0.1,
         bias_dropout_add_fusion=True,
         persist_layer_norm=False,
@@ -659,6 +711,7 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
             apply_query_key_layer_scaling=apply_query_key_layer_scaling,
             kv_channels=kv_channels,
             layernorm_epsilon=layernorm_epsilon,
+            multi_query_attention=multi_query_attention,
             hidden_dropout=hidden_dropout,
             bias_dropout_add_fusion=bias_dropout_add_fusion,
             persist_layer_norm=persist_layer_norm,
@@ -866,6 +919,7 @@ class ParallelTransformer(MegatronModule):
         activations_checkpoint_method=None,
         activations_checkpoint_num_layers=None,
         layernorm_epsilon=1e-5,
+        multi_query_attention=False,
         hidden_dropout=0.1,
         attention_dropout=0.1,
         ffn_dropout=0.0,
@@ -1048,6 +1102,7 @@ class ParallelTransformer(MegatronModule):
                     precision=precision,
                     fp32_residual_connection=fp32_residual_connection,
                     layernorm_epsilon=layernorm_epsilon,
+                    multi_query_attention=multi_query_attention,
                     hidden_dropout=hidden_dropout,
                     attention_dropout=attention_dropout,
                     ffn_dropout=ffn_dropout,
