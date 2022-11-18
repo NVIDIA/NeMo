@@ -632,6 +632,401 @@ class ParallelChunkedCrossAttention(MegatronModule):
         return out, bias
 
 
+class ParallelMultiQueryAttention(MegatronModule):
+    """Parallel multi-query attention layer abstract class.
+
+    Implements: https://arxiv.org/abs/1911.02150
+
+    This layer takes input with size [s, b, h]
+    and returns output of the same size.
+    """
+
+    def __init__(
+        self,
+        init_method,
+        output_layer_init_method,
+        layer_number,
+        num_attention_heads,
+        hidden_size,
+        attention_type=AttnType.self_attn,
+        attn_mask_type=AttnMaskType.padding,
+        precision=16,
+        apply_query_key_layer_scaling=True,
+        kv_channels=None,
+        use_cpu_initialization=False,
+        masked_softmax_fusion=True,
+        attention_dropout=0.1,
+        layer_type=None,
+        megatron_legacy=False,
+        bias=True,
+        headscale=False,
+        activations_checkpoint_granularity=None,
+        sequence_parallel=False,
+        gradient_accumulation_fusion=False,
+        normalize_attention_scores=True,
+    ):
+        super(ParallelAttention, self).__init__()
+
+        self.layer_number = max(1, layer_number)
+        self.attention_type = attention_type
+        self.attn_mask_type = attn_mask_type
+        self.normalize_attention_scores = normalize_attention_scores
+
+        self.megatron_legacy = megatron_legacy
+        assert not self.megatron_legacy
+
+        if kv_channels is None:
+            assert (
+                hidden_size % num_attention_heads == 0
+            ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
+            kv_channels = hidden_size // num_attention_heads
+        query_projection_size = kv_channels * num_attention_heads
+        # For multi-query attention projected query shapes are [s, b, h, kv_channels]
+        # projected key and value shapes are [s, b, 1, kv_channels]
+        key_projection_size = kv_channels
+
+        # Per attention head and per partition values.
+        world_size = parallel_state.get_tensor_model_parallel_world_size()
+        self.hidden_size_per_attention_head = safe_divide(query_projection_size, num_attention_heads)
+        self.num_attention_heads_per_partition = safe_divide(num_attention_heads, world_size)
+        self.num_attention_heads_partition_offset = (
+            self.num_attention_heads_per_partition * parallel_state.get_tensor_model_parallel_rank()
+        )
+
+        no_async_tensor_model_parallel_allreduce = (
+            parallel_state.get_tensor_model_parallel_world_size() == 1 or sequence_parallel
+        )
+
+        # Strided linear layer.
+        self.query = tensor_parallel.ColumnParallelLinear(
+            hidden_size,
+            query_projection_size,
+            gather_output=False,
+            init_method=init_method,
+            bias=bias,
+            sequence_parallel_enabled=sequence_parallel,
+            no_async_tensor_model_parallel_allreduce=no_async_tensor_model_parallel_allreduce,
+            gradient_accumulation_fusion=gradient_accumulation_fusion,
+        )
+
+        # TODO: 2 * key_projection_size is probably << hidden size for large models. Probably is inefficient for TP. Switch to RowParallel?
+        self.key_value = tensor_parallel.ColumnParallelLinear(
+            hidden_size,
+            2 * key_projection_size,
+            gather_output=False,
+            init_method=init_method,
+            bias=bias,
+            sequence_parallel_enabled=sequence_parallel,
+            no_async_tensor_model_parallel_allreduce=no_async_tensor_model_parallel_allreduce,
+            gradient_accumulation_fusion=gradient_accumulation_fusion,
+        )
+
+        self.core_attention = CoreAttention(
+            layer_number=self.layer_number,
+            num_attention_heads=num_attention_heads,
+            hidden_size=hidden_size,
+            attention_type=self.attention_type,
+            attn_mask_type=self.attn_mask_type,
+            precision=precision,
+            apply_query_key_layer_scaling=apply_query_key_layer_scaling,
+            kv_channels=kv_channels,
+            masked_softmax_fusion=masked_softmax_fusion,
+            attention_dropout=attention_dropout,
+            sequence_parallel=sequence_parallel,
+            normalize_attention_scores=normalize_attention_scores,
+        )
+
+        # Output.
+        self.dense = tensor_parallel.RowParallelLinear(
+            query_projection_size,
+            hidden_size,
+            input_is_parallel=True,
+            init_method=output_layer_init_method,
+            skip_bias_add=True,
+            use_cpu_initialization=use_cpu_initialization,
+            bias=bias,
+            sequence_parallel_enabled=sequence_parallel,
+            gradient_accumulation_fusion=gradient_accumulation_fusion,
+        )
+
+        self.headscale = headscale
+        if headscale:
+            self.head_scale_tensor = torch.nn.Parameter(
+                torch.ones(1, self.num_attention_heads_per_partition, 1, 1), requires_grad=True
+            )
+
+        # Inference key-value memory
+        self.inference_key_memory = None
+        self.inference_value_memory = None
+        self.inference_current_sequence_len = 0
+
+        # relative position embedding
+        self.layer_type = layer_type
+
+    def _checkpointed_attention_forward(
+        self,
+        query_layer,
+        key_layer,
+        value_layer,
+        attention_mask,
+        rotary_pos_emb=None,
+        relative_position_bias=None,
+        headscale_tensor=None,
+    ):
+        """Forward method with activation checkpointing."""
+
+        def custom_forward(*inputs):
+            if len(inputs) == 7:
+                query_layer = inputs[0]
+                key_layer = inputs[1]
+                value_layer = inputs[2]
+                attention_mask = inputs[3]
+                rotary_pos_emb = inputs[4]
+                relative_position_bias = inputs[5]
+                headscale_tensor = inputs[6]
+            elif len(inputs) == 8:
+                query_layer = inputs[0]
+                key_layer = inputs[1]
+                value_layer = inputs[2]
+                attention_mask = inputs[3]
+                rotary_pos_emb = (inputs[4], inputs[5])
+                relative_position_bias = inputs[6]
+                headscale_tensor = inputs[7]
+            else:
+                raise ValueError('unexpected number of inputs')
+            output_ = self.core_attention(
+                query_layer,
+                key_layer,
+                value_layer,
+                attention_mask,
+                rotary_pos_emb=rotary_pos_emb,
+                relative_position_bias=relative_position_bias,
+                headscale_tensor=headscale_tensor,
+            )
+            return output_
+
+        if rotary_pos_emb is None:
+            rot_tuple = (rotary_pos_emb,)
+        else:
+            rot_tuple = (rotary_pos_emb[0], rotary_pos_emb[1])
+
+        hidden_states = tensor_parallel.checkpoint(
+            custom_forward,
+            False,
+            query_layer,
+            key_layer,
+            value_layer,
+            attention_mask,
+            *rot_tuple,
+            relative_position_bias,
+            headscale_tensor,
+        )
+
+        return hidden_states
+
+    def _allocate_memory(self, inference_max_sequence_len, batch_size, dtype):
+        return torch.empty(
+            inference_max_sequence_len,
+            batch_size,
+            self.num_attention_heads_per_partition,
+            self.hidden_size_per_attention_head,
+            dtype=dtype,
+            device=torch.cuda.current_device(),
+        )
+
+    def _transpose_last_dim(self, mixed_layer, num_splits, num_splits_first):
+        input_shape = mixed_layer.size()
+        if num_splits_first:
+            """[s, b, num_splits * np * hn]
+            -->(view) [s, b, num_splits, np, hn]
+            -->(tranpose) [s, b, np, num_splits, hn]
+            -->(view) [s, b, np * num_splits * hn] """
+
+            intermediate_shape = input_shape[:-1] + (
+                num_splits,
+                self.num_attention_heads_per_partition,
+                self.hidden_size_per_attention_head,
+            )
+
+            mixed_layer = mixed_layer.view(*intermediate_shape)
+            mixed_layer = mixed_layer.transpose(-2, -3).contiguous()
+        else:
+            """[s, b, np * hn * num_splits]
+            -->(view) [s, b, np, hn, num_splits]
+            -->(tranpose) [s, b, np, num_splits, hn]
+            -->(view) [s, b, np * num_splits * hn] """
+
+            intermediate_shape = input_shape[:-1] + (
+                self.num_attention_heads_per_partition,
+                self.hidden_size_per_attention_head,
+                num_splits,
+            )
+
+            mixed_layer = mixed_layer.view(*intermediate_shape)
+            mixed_layer = mixed_layer.transpose(-1, -2).contiguous()
+        mixed_layer = mixed_layer.view(*input_shape)
+
+        return mixed_layer
+
+    def forward(
+        self,
+        hidden_states,
+        attention_mask,
+        layer_past=None,
+        get_key_value=False,
+        encoder_output=None,
+        set_inference_key_value_memory=False,
+        inference_max_sequence_len=None,
+        rotary_pos_emb=None,  # rotary positional embedding
+        relative_position_bias=None,
+        checkpoint_core_attention=False,
+    ):
+        # hidden_states: [sq, b, h]
+
+        # =================================================
+        # Pre-allocate memory for key-values for inference.
+        # =================================================
+        if set_inference_key_value_memory:
+            assert inference_max_sequence_len and inference_max_sequence_len > 0
+            self.inference_key_memory = self._allocate_memory(
+                inference_max_sequence_len, hidden_states.size(1), hidden_states.dtype
+            )
+            self.inference_value_memory = self._allocate_memory(
+                inference_max_sequence_len, hidden_states.size(1), hidden_states.dtype
+            )
+            self.inference_current_sequence_len = 0
+
+        # Some consistency check.
+        if inference_max_sequence_len:
+            assert self.inference_current_sequence_len < self.inference_key_memory.size(0)
+            assert inference_max_sequence_len == self.inference_key_memory.size(0)
+        # This is added for safety. In case inference_max_sequence_len
+        # is not provided, make sure there is no potential memory left
+        # from previous inference.
+        if not inference_max_sequence_len:
+            self.inference_key_memory = None
+            self.inference_value_memory = None
+
+        # =====================
+        # Query, Key, and Value
+        # =====================
+
+        if self.attention_type == AttnType.self_attn:
+            # Attention head [sq, b, h] --> [sq, b, kv_channels * heads]
+            query_layer, _ = self.query(hidden_states)
+
+            # [sq, b, hp] --> [sq, b, np, hn]
+            new_tensor_shape = query_layer.size()[:-1] + (
+                self.num_attention_heads_per_partition,
+                self.hidden_size_per_attention_head,
+            )
+            query_layer = query_layer.view(*new_tensor_shape)
+
+            # Attention heads [sq, b, h] --> [sq, b, kv_channels * 2 (multi-query uses 1 head for k,v)]
+            mixed_kv_layer, _ = self.key_value(hidden_states)
+
+            # [sk, b, (np * 2 * hn)] --> [sk, b, np, 2 * hn]
+            new_tensor_shape = mixed_kv_layer.size()[:-1] + (1, 2 * self.hidden_size_per_attention_head)
+            mixed_kv_layer = mixed_kv_layer.view(*new_tensor_shape)
+
+            # [sk, b, np, 2 * hn] --> 2 [sk, b, np, hn]
+            (key_layer, value_layer) = tensor_parallel.split_tensor_along_last_dim(mixed_kv_layer, 2)
+        else:
+            # Attention heads [sk, b, h] --> [sk, b, (np * 2 * hn)]
+            mixed_kv_layer, _ = self.key_value(encoder_output)
+
+            # [sk, b, (np * 2 * hn)] --> [sk, b, np, 2 * hn]
+            new_tensor_shape = mixed_kv_layer.size()[:-1] + (
+                self.num_attention_heads_per_partition,
+                2 * self.hidden_size_per_attention_head,
+            )
+            mixed_kv_layer = mixed_kv_layer.view(*new_tensor_shape)
+
+            # [sk, b, np, 2 * hn] --> 2 [sk, b, np, hn]
+            (key_layer, value_layer) = tensor_parallel.split_tensor_along_last_dim(mixed_kv_layer, 2)
+
+            # Attention head [sq, b, h] --> [sq, b, hp]
+            query_layer, _ = self.query(hidden_states)
+            # [sq, b, hp] --> [sq, b, np, hn]
+            new_tensor_shape = query_layer.size()[:-1] + (
+                self.num_attention_heads_per_partition,
+                self.hidden_size_per_attention_head,
+            )
+            query_layer = query_layer.view(*new_tensor_shape)
+
+        # ===================================================
+        # Adjust key, value, and attention mask for inference
+        # ===================================================
+
+        # duplicate the pos_emb for self attention
+        if rotary_pos_emb is not None:
+            rotary_pos_emb = rotary_pos_emb if isinstance(rotary_pos_emb, tuple) else ((rotary_pos_emb,) * 2)
+
+        if inference_max_sequence_len:
+            # Adjust the range variables.
+            start = self.inference_current_sequence_len
+            self.inference_current_sequence_len += key_layer.size(0)
+            end = self.inference_current_sequence_len
+            # Copy key and values.
+            self.inference_key_memory[start:end, ...] = key_layer
+            self.inference_value_memory[start:end, ...] = value_layer
+            key_layer = self.inference_key_memory[:end, ...]
+            value_layer = self.inference_value_memory[:end, ...]
+            # Adjust attention mask
+            attention_mask = attention_mask[..., start:end, :end]
+            # adjust the key rotary positional embedding
+            if rotary_pos_emb is not None:
+                q_pos_emb, k_pos_emb = rotary_pos_emb
+                if not set_inference_key_value_memory:
+                    # In inference, we compute one token at a time.
+                    # Select the correct positional embedding.
+                    q_pos_emb = q_pos_emb[end - 1 : end]
+                k_pos_emb = k_pos_emb[:end, :, :, :]
+                rotary_pos_emb = (q_pos_emb, k_pos_emb)
+
+        if layer_past is not None:
+            past_key, past_value = layer_past
+            key_layer = torch.cat((past_key.type_as(key_layer), key_layer), dim=0)
+            value_layer = torch.cat((past_value.type_as(value_layer), value_layer), dim=0)
+
+        if get_key_value:
+            present = (key_layer, value_layer)
+
+        if checkpoint_core_attention:
+            context_layer = self._checkpointed_attention_forward(
+                query_layer,
+                key_layer,
+                value_layer,
+                attention_mask,
+                rotary_pos_emb=rotary_pos_emb,
+                relative_position_bias=relative_position_bias,
+                headscale_tensor=self.head_scale_tensor if self.headscale else None,
+            )
+        else:
+            context_layer = self.core_attention(
+                query_layer,
+                key_layer,
+                value_layer,
+                attention_mask,
+                layer_past=layer_past,
+                get_key_value=get_key_value,
+                rotary_pos_emb=rotary_pos_emb,
+                relative_position_bias=relative_position_bias,
+                headscale_tensor=self.head_scale_tensor if self.headscale else None,
+            )
+
+        # =================
+        # Output. [sq, b, h]
+        # =================
+
+        output, bias = self.dense(context_layer)
+
+        if get_key_value:
+            output = [output, present]
+
+        return output, bias
+
+
 class CoreAttention(MegatronModule):
     """ Region where selective activation recomputation is applied.
         See Figure 3. in Reducing Activation Recomputation in Large Transformer Models
