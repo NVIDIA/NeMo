@@ -92,7 +92,7 @@ def get_buffered_pred_feat_rnnt(
                 asr.sample_offset += len(batch)
 
     if os.environ.get('DEBUG', '0') in ('1', 'y', 't'):
-        if len(ref) == 0:
+        if len(refs) == 0:
             print("ground-truth text does not present!")
             for hyp in hyps:
                 print("hyp:", hyp)
@@ -153,7 +153,7 @@ def get_buffered_pred_feat(
                 hyps.append(hyp)
 
     if os.environ.get('DEBUG', '0') in ('1', 'y', 't'):
-        if len(ref) == 0:
+        if len(refs) == 0:
             print("ground-truth text does not present!")
             for hyp in hyps:
                 print("hyp:", hyp)
