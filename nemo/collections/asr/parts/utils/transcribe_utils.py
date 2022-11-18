@@ -175,23 +175,6 @@ def wrap_transcription(hyps: List[str]) -> List[rnnt_utils.Hypothesis]:
     return wrapped_hyps
 
 
-def setup_gpu(cfg: DictConfig) -> Tuple[Union[List[int], int], str, torch.device]:
-    """ setup GPU and return necessary information """
-    if cfg.cuda is None:
-        if torch.cuda.is_available():
-            device = [0]  # use 0th CUDA device
-            accelerator = 'gpu'
-        else:
-            device = 1
-            accelerator = 'cpu'
-    else:
-        device = [cfg.cuda]
-        accelerator = 'gpu'
-
-    map_location = torch.device('cuda:{}'.format(device[0]) if accelerator == 'gpu' else 'cpu')
-    return device, accelerator, map_location
-
-
 def setup_model(cfg: DictConfig, map_location: torch.device) -> Tuple[ASRModel, str]:
     """ Setup model from cfg and return model and model name for next step """
     if cfg.model_path is not None and cfg.model_path != "None":

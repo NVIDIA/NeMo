@@ -27,7 +27,6 @@ from nemo.collections.asr.models.ctc_models import EncDecCTCModel
 from nemo.collections.asr.parts.utils.transcribe_utils import (
     compute_output_filename,
     prepare_audio_data,
-    setup_gpu,
     setup_model,
     transcribe_partial_audio,
     write_transcription,
@@ -128,7 +127,20 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     if cfg.audio_dir is None and cfg.dataset_manifest is None:
         raise ValueError("Both cfg.audio_dir and cfg.dataset_manifest cannot be None!")
 
-    device, accelerator, map_location = setup_gpu(cfg)
+    # setup GPU
+    if cfg.cuda is None:
+        if torch.cuda.is_available():
+            device = [0]  # use 0th CUDA device
+            accelerator = 'gpu'
+        else:
+            device = 1
+            accelerator = 'cpu'
+    else:
+        device = [cfg.cuda]
+        accelerator = 'gpu'
+    map_location = torch.device('cuda:{}'.format(device[0]) if accelerator == 'gpu' else 'cpu')
+    logging.info(f"Inference will be done on device : {device}")
+
     asr_model, model_name = setup_model(cfg, map_location)
 
     trainer = pl.Trainer(devices=device, accelerator=accelerator)
