@@ -26,7 +26,7 @@ SOUND_VELOCITY = 343.0  # m/s
 ChannelSelectorType = Union[int, Iterable[int], str]
 
 
-def get_samples(audio_file: str, target_sr: int = 16000, dtype: str ='float32'):
+def get_samples(audio_file: str, target_sr: int = 16000, dtype: str = 'float32'):
     """
     Read the samples from the given audio_file path. If not specified, the input audio file is automatically
     resampled to 16kHz.
