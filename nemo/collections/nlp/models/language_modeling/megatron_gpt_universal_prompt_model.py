@@ -195,9 +195,6 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         for i, pcfg in enumerate(self.cfg.perceiver):
             if pcfg.trainable:
                 virtual_prompt_params['params'].extend([param for param in self.prompt_encoder[i].parameters()])
-            else:
-                for param in self.prompt_encoder[i].parameters():
-                    param.requires_grad = False
         self._optimizer_param_groups = (virtual_prompt_params,)
 
     def load_frozen_model(self, cfg, trainer):
@@ -506,8 +503,16 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
             output_init = scaled_init_method_normal(init_method_std, perceiver_conf['num_layers'])
             perceiver_conf['init_method'] = encoder_init
             perceiver_conf['output_layer_init_method'] = output_init
+            trainable = perceiver_conf['trainable']
             del perceiver_conf['trainable']
             module = UniversalPromptEncoder(perceiver_conf, output_dim=self.frozen_model.cfg.hidden_size)
+            if not trainable:
+                for param in module.parameters():
+                    # no grad
+                    param.requires_grad = False
+                    # zero out parameters
+                    if init_method_std == 0.0:
+                        param.zero_()
             self.prompt_encoder.append(module)
 
 
