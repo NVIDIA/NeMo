@@ -515,6 +515,7 @@ def generate(
             else:
                 words = tokenizer.text_to_tokens(sentence)
                 resp_sentences_seg.append(words)
+
         # offsets calculation
         all_offsets = []
         for item in resp_sentences_seg:
