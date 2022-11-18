@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import threading
+from functools import partial
 
 import torch
 from apex.transformer import parallel_state
@@ -30,9 +31,38 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import Leng
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.core.config import hydra_runner
 
+try:
+    from apex.transformer import parallel_state
+
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
 
 """
 """
+
+
+def build_data_loader(dataset, data_cfg, batch_size):
+    """Buld dataloader given an input dataset."""
+    collate_fun = dataset.collate_fn
+    collate_fn = partial(collate_fun, tp_workers=0)
+
+    # Make distributed dataloader
+    rank = parallel_state.get_data_parallel_rank()
+    data_parallel_size = parallel_state.get_data_parallel_world_size()
+    sampler = torch.utils.data.distributed.DistributedSampler(
+        dataset, num_replicas=data_parallel_size, rank=rank, shuffle=False,
+    )
+    # Torch dataloader.
+    return torch.utils.data.DataLoader(
+        dataset,
+        sampler=sampler,
+        batch_size=batch_size,
+        drop_last=data_cfg.drop_last,
+        num_workers=data_cfg.num_workers,
+        pin_memory=data_cfg.pin_memory,
+        collate_fn=collate_fn,
+    )
 
 
 @hydra_runner(config_path="conf", config_name="megatron_gpt_universal_prompt_learning_inference")
@@ -83,19 +113,17 @@ def main(cfg) -> None:
 
     if cfg.data.test_ds.file_names:
         eval_ds = model.build_dataset(data_cfg=cfg.data.test_ds, is_train=False,)
-        eval_dl = []
+        eval_dls = []
         for dataset in eval_ds:
-            eval_dl = model.build_data_loader(
-                dataset=dataset, data_cfg=cfg.data.test_ds, sequence_parallel=False, consumed_samples=0,
-            )
-            eval_dl.append(eval_dl)
+            eval_dl = build_data_loader(dataset=dataset, data_cfg=cfg.data.test_ds, batch_size=cfg.batch_size,)
+            eval_dls.append(eval_dl)
 
         config = OmegaConf.to_container(cfg.inference)
-        model.set_inference_config(config)
-        response = trainer.predict(model, dataloader)
+        model.set_inference_config(config, cfg.data.test_ds)
+        response = trainer.predict(model, eval_dls)
 
         print("***************************")
-        print(response)
+        # print(response)
         print("***************************")
 
     # Third method of running text generation, use inference server

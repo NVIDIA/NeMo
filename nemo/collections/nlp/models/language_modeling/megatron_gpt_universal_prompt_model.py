@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import itertools
+import json
 import os
 from functools import partial
 from typing import Any, Optional
@@ -42,7 +44,10 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     init_method_normal,
     scaled_init_method_normal,
 )
-from nemo.collections.nlp.modules.common.text_generation_utils import megatron_gpt_generate
+from nemo.collections.nlp.modules.common.text_generation_utils import (
+    get_model_parallel_src_rank,
+    megatron_gpt_generate,
+)
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam, TextGeneration
 from nemo.collections.nlp.modules.common.universal_prompt_encoder import UniversalPromptEncoder
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
@@ -492,7 +497,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
             init_consumed_samples = 0
         self.init_consumed_samples = init_consumed_samples
 
-        if stage == 'test' or stage == 'predict':
+        if stage == 'test' or stage == 'predict' or stage == 'validate':
             return
 
         if self.frozen_model.model.pre_process:
@@ -602,12 +607,26 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
             pin_memory=data_cfg.pin_memory,
         )
 
+    def _get_predicted_text(self, number_tokens, context_lengths, batch, result):
+        preds_text = []
+        labels_text = []
+        for bid in range(len(number_tokens)):
+            start_id = context_lengths[bid]
+            pred_text_tokens = result['token_ids'][bid][start_id:]
+            pred_text = self.frozen_model.tokenizer.ids_to_text(pred_text_tokens)
+            label_text_tokens = batch[1][bid][start_id - 1 : start_id + number_tokens[bid] - 1]
+            label_text = self.frozen_model.tokenizer.ids_to_text(label_text_tokens)
+            preds_text.append(pred_text.strip())
+            labels_text.append(label_text.strip())
+        return preds_text, labels_text
+
     def validation_step(self, batch, batch_idx, dataloader_idx):
         loss_mean = self.fwd_bwd_step(batch, forward_only=True)
         torch.distributed.broadcast(loss_mean, get_last_rank())
         # run inference
         input_ids = batch[0]
-        input_ids = torch.nn.functional.pad(input_ids, (0, 1, 0, 0))
+        # add two as buffer
+        input_ids = torch.nn.functional.pad(input_ids, (0, 1 + 2, 0, 0))
         context_lengths = batch[-1]
         token_to_gen = batch[0].shape[1] - context_lengths.max() + 1
 
@@ -632,27 +651,23 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         )
 
         number_tokens = [int(i.sum()) for i in batch[2]]
-
-        preds_text = []
-        labels_text = []
-        for bid in range(len(number_tokens)):
-            start_id = context_lengths[bid]
-            pred_text_tokens = result['token_ids'][bid][start_id : start_id + number_tokens[bid]]
-            pred_text = self.frozen_model.tokenizer.ids_to_text(pred_text_tokens)
-            label_text_tokens = batch[1][bid][start_id - 1 : start_id + number_tokens[bid] - 1]
-            label_text = self.frozen_model.tokenizer.ids_to_text(label_text_tokens)
-            preds_text.append(pred_text.strip())
-            labels_text.append(label_text.strip())
-
+        preds_text, labels_text = self._get_predicted_text(number_tokens, context_lengths, batch, result)
         metric = self.val_metric[dataloader_idx]
         for _, (pred, label) in enumerate(zip(preds_text, labels_text)):
-            _ = metric(pred, label)
+            _ = metric(pred.lower(), label.lower())
 
         return {
             'loss': loss_mean,
             'preds': preds_text,
             'labels': labels_text,
         }
+
+    def set_inference_config(self, inference_config, data_cfg):
+        self._inference_config = inference_config
+        self._test_data_cfg = data_cfg
+
+    def get_inference_config(self):
+        return self._inference_config
 
     def _determine_log_key(self, data_config, dataloader_idx, metric_name, mode):
         # Function that determines whether to log based on the user provided name of the dataset or the dataloader index.
@@ -669,9 +684,11 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
             return base_key + f"dataloader{dataloader_idx}"
 
     def validation_epoch_end(self, outputs):
+        return self.common_epoch_end(outputs, 'validation')
+
+    def common_epoch_end(self, outputs, mode='validation'):
         averaged_loss = []
         averaged_metric = []
-        mode = 'validation'
         metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
         # Log metrics for each provided validation/test dataset.
         for dataloader_idx, output in enumerate(outputs):
@@ -723,8 +740,34 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         return self.validation_step(batch, batch_idx)
 
     def test_epoch_end(self, outputs):
-        averaged_loss = average_losses_across_data_parallel_group(outputs)
-        logging.info(f'test_loss: {averaged_loss[0]}')
+        return self.common_epoch_end(outputs, 'test')
+
+    def on_predict_epoch_end(self, outputs):
+        inputs = {}
+        labels = {}
+        preds = {}
+        for dataloader_idx, output in enumerate(outputs):
+            inputs_list = inputs.get(dataloader_idx, [])
+            labels_list = labels.get(dataloader_idx, [])
+            preds_list = preds.get(dataloader_idx, [])
+            inputs_list.extend([i['input'] for i in output])
+            labels_list.extend([i['labels'] for i in output])
+            preds_list.extend([i['preds'] for i in output])
+            inputs_list = list(itertools.chain(*inputs_list))
+            labels_list = list(itertools.chain(*labels_list))
+            preds_list = list(itertools.chain(*preds_list))
+            if torch.distributed.get_rank() == get_model_parallel_src_rank():
+                dp_rank = parallel_state.get_data_parallel_rank()
+                if self._test_data_cfg.output_filepath:
+                    task_name = self._test_data_cfg.names[dataloader_idx]
+                    contents = []
+                    for i, l, p in zip(inputs_list, labels_list, preds_list):
+                        item = {'input': i, 'output': p, 'gt': l}
+                        item_str = json.dumps(item)
+                        contents.append(item_str)
+                    with open(f'{dp_rank}_' + self._test_data_cfg.output_filepath + task_name + '.json', 'w') as f:
+                        f.write('\n'.join(contents))
+        return inputs, labels, preds
 
     def on_train_end(self):
         pass
@@ -768,8 +811,13 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         if inference_config is None:
             return None
         else:
+            input_ids = batch[0]
+            # add two as buffer
+            input_ids = torch.nn.functional.pad(input_ids, (0, 1 + 2, 0, 0))
+            context_lengths = batch[-1]
+            token_to_gen = input_ids.shape[1] - context_lengths.max() + 1
             length_params: LengthParam = {
-                "max_length": inference_config["tokens_to_generate"],
+                "max_length": token_to_gen,
                 "min_length": inference_config["min_tokens_to_generate"],
             }
 
@@ -784,11 +832,23 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
                 "compute_logprob": inference_config["compute_logprob"],
             }
 
-            input_tokens, length_tensor = batch
+            input_texts = []
+            for bid in range(len(input_ids)):
+                input_text = self.tokenizer.ids_to_text(input_ids[bid][: context_lengths[bid]])
+                input_texts.append(input_text)
+
             # Call same generate code as in MegatronGPT
-            return megatron_gpt_generate(
-                self.cuda(), (input_tokens, length_tensor), self.tokenizer, length_params, sampling_params
+            result = megatron_gpt_generate(
+                self.cuda(), (input_ids, context_lengths), self.tokenizer, length_params, sampling_params
             )
+
+            number_tokens = [int(i.sum()) for i in batch[2]]
+            preds_text, labels_text = self._get_predicted_text(number_tokens, context_lengths, batch, result)
+            return {
+                'preds': preds_text,
+                'labels': labels_text,
+                'input': input_texts,
+            }
 
     def backward(self, *args, **kwargs):
         """ LightningModule hook to do backward.

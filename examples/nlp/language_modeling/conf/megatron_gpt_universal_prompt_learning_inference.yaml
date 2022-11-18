@@ -44,3 +44,4 @@ data:
     add_eos: True
     add_bos: True
     answer_only_loss: True 
+    output_filepath: null # eval output file paths
