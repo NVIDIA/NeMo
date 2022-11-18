@@ -72,8 +72,8 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
         self.wer = RNNTBPEWER(
             decoding=self.decoding,
             batch_dim_index=0,
-            use_cer=self._cfg.get('use_cer', False),
-            log_prediction=self._cfg.get('log_prediction', True),
+            use_cer=self.cfg.get('use_cer', False),
+            log_prediction=self.cfg.get('log_prediction', True),
             dist_sync_on_step=True,
         )
 
@@ -83,20 +83,20 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
             self.joint.set_wer(self.wer)
 
         # setup auxiliary CTC decoder if needed
-        if 'aux_ctc' in cfg:
-            with open_dict(cfg):
+        if 'aux_ctc' in self.cfg:
+            with open_dict(self.cfg):
                 if self.tokenizer_type == "agg":
-                    cfg.aux_ctc.decoder.vocabulary = ListConfig(vocabulary)
+                    self.cfg.aux_ctc.decoder.vocabulary = ListConfig(vocabulary)
                 else:
-                    cfg.aux_ctc.decoder.vocabulary = ListConfig(list(vocabulary.keys()))
+                    self.cfg.aux_ctc.decoder.vocabulary = ListConfig(list(vocabulary.keys()))
 
-            if cfg.aux_ctc.decoder["num_classes"] < 1:
+            if self.cfg.aux_ctc.decoder["num_classes"] < 1:
                 logging.info(
                     "\nReplacing placholder number of classes ({}) with actual number of classes - {}".format(
-                        cfg.aux_ctc.decoder["num_classes"], len(vocabulary)
+                        self.cfg.aux_ctc.decoder["num_classes"], len(vocabulary)
                     )
                 )
-                cfg.aux_ctc.decoder["num_classes"] = len(vocabulary)
+                self.cfg.aux_ctc.decoder["num_classes"] = len(vocabulary)
 
             # Setup CTC decoding
             ctc_decoding_cfg = self.cfg.aux_ctc.get('decoding', None)

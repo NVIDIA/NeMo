@@ -38,48 +38,48 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin):
     """Base class for joint RNNT/CTC models."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        super().__init__(cfg=cfg, trainer=trainer)
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
         cfg = model_utils.maybe_update_config_version(cfg)
+        super().__init__(cfg=cfg, trainer=trainer)
 
-        if 'aux_ctc' in cfg:
-            with open_dict(cfg.aux_ctc):
-                if "feat_in" not in cfg.aux_ctc.decoder or (
-                    not cfg.aux_ctc.decoder.feat_in and hasattr(self.encoder, '_feat_out')
+        if 'aux_ctc' in self.cfg:
+            with open_dict(self.cfg.aux_ctc):
+                if "feat_in" not in self.cfg.aux_ctc.decoder or (
+                    not self.cfg.aux_ctc.decoder.feat_in and hasattr(self.encoder, '_feat_out')
                 ):
-                    cfg.aux_ctc.decoder.feat_in = self.encoder._feat_out
-                if "feat_in" not in cfg.aux_ctc.decoder or not cfg.aux_ctc.decoder.feat_in:
+                    self.cfg.aux_ctc.decoder.feat_in = self.encoder._feat_out
+                if "feat_in" not in self.cfg.aux_ctc.decoder or not self.cfg.aux_ctc.decoder.feat_in:
                     raise ValueError("param feat_in of the decoder's config is not set!")
 
-                if cfg.aux_ctc.decoder.num_classes < 1 and cfg.aux_ctc.decoder.vocabulary is not None:
+                if self.cfg.aux_ctc.decoder.num_classes < 1 and self.cfg.aux_ctc.decoder.vocabulary is not None:
                     logging.info(
                         "\nReplacing placeholder number of classes ({}) with actual number of classes - {}".format(
-                            cfg.aux_ctc.decoder.num_classes, len(cfg.aux_ctc.decoder.vocabulary)
+                            self.cfg.aux_ctc.decoder.num_classes, len(self.cfg.aux_ctc.decoder.vocabulary)
                         )
                     )
-                    cfg.aux_ctc.decoder["num_classes"] = len(cfg.aux_ctc.decoder.vocabulary)
+                    self.cfg.aux_ctc.decoder["num_classes"] = len(self.cfg.aux_ctc.decoder.vocabulary)
 
-            self.ctc_decoder = EncDecRNNTModel.from_config_dict(cfg.aux_ctc.decoder)
-            self.ctc_loss_weight = cfg.aux_ctc.get("ctc_loss_weight", 0.5)
+            self.ctc_decoder = EncDecRNNTModel.from_config_dict(self.cfg.aux_ctc.decoder)
+            self.ctc_loss_weight = self.cfg.aux_ctc.get("ctc_loss_weight", 0.5)
 
             self.ctc_loss = CTCLoss(
                 num_classes=self.ctc_decoder.num_classes_with_blank - 1,
                 zero_infinity=True,
-                reduction=cfg.aux_ctc.get("ctc_reduction", "mean_batch"),
+                reduction=self.cfg.aux_ctc.get("ctc_reduction", "mean_batch"),
             )
 
-            ctc_decoding_cfg = cfg.aux_ctc.get('decoding', None)
+            ctc_decoding_cfg = self.cfg.aux_ctc.get('decoding', None)
             if ctc_decoding_cfg is None:
                 ctc_decoding_cfg = OmegaConf.structured(CTCDecodingConfig)
-                with open_dict(cfg.aux_ctc):
-                    cfg.aux_ctc.decoding = ctc_decoding_cfg
+                with open_dict(self.cfg.aux_ctc):
+                    self.cfg.aux_ctc.decoding = ctc_decoding_cfg
 
-            self.ctc_decoding = CTCDecoding(cfg.aux_ctc.decoding, vocabulary=self.ctc_decoder.vocabulary)
+            self.ctc_decoding = CTCDecoding(self.cfg.aux_ctc.decoding, vocabulary=self.ctc_decoder.vocabulary)
             self.ctc_wer = WER(
                 decoding=self.ctc_decoding,
-                use_cer=cfg.aux_ctc.get('use_cer', False),
+                use_cer=self.cfg.aux_ctc.get('use_cer', False),
                 dist_sync_on_step=True,
-                log_prediction=cfg.get("log_prediction", False),
+                log_prediction=self.cfg.get("log_prediction", False),
             )
         else:
             self.ctc_loss_weight = 0.0
