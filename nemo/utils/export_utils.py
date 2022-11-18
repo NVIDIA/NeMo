@@ -402,6 +402,11 @@ script_replacements = {
     "ConvLSTMLinear": script_module,
 }
 
+script_replacements = {
+    "BiLSTM": script_module,
+    "ConvLSTMLinear": script_module,
+}
+
 
 def replace_for_export(model: nn.Module) -> nn.Module:
     """
