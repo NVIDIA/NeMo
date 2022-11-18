@@ -122,22 +122,30 @@ class BiLSTM(nn.Module):
         seq = nn.utils.rnn.pack_padded_sequence(
             context, lens.long().cpu(), batch_first=True, enforce_sorted=enforce_sorted
         )
-        return self.lstm_sequence(seq)
+        if not (torch.jit.is_scripting() or torch.jit.is_tracing()):
+            self.bilstm.flatten_parameters()
+        if hasattr(self.bilstm, 'forward'):
+            ret, _ = self.bilstm.forward(seq)
+        else:
+            ret, _ = self.bilstm.forward_1(seq)
+        return nn.utils.rnn.pad_packed_sequence(ret, batch_first=True)
 
     def lstm_sequence(self, seq: PackedSequence) -> Tuple[Tensor, Tensor]:
         if not (torch.jit.is_scripting() or torch.jit.is_tracing()):
             self.bilstm.flatten_parameters()
-        ret, _ = self.bilstm(seq)
+        if hasattr(self.bilstm, 'forward'):
+            ret, _ = self.bilstm.forward(seq)
+        elif hasattr(self.bilstm, 'forward_1'):
+            ret, _ = self.bilstm.forward_1(seq)
         return nn.utils.rnn.pad_packed_sequence(ret, batch_first=True)
 
-    def forward(self, context: Tensor, lens: Tensor) -> Tensor:
+    @torch.jit.export
+    def sort_and_lstm_tensor(self, context: Tensor, lens: Tensor) -> Tensor:
         context, lens_sorted, unsort_ids = sort_tensor(context, lens)
-        dtype = context.dtype
-        # this is only needed for Torchscript to run in Triton
-        # (https://github.com/pytorch/pytorch/issues/89241)
-        with torch.cuda.amp.autocast(enabled=False):
-            ret = self.lstm_tensor(context.to(dtype=torch.float32), lens_sorted, enforce_sorted=True)
-        return ret[0].to(dtype=dtype)[unsort_ids]
+        seq = nn.utils.rnn.pack_padded_sequence(
+            context, lens_sorted.long().cpu(), batch_first=True, enforce_sorted=True
+        )
+        return self.lstm_sequence(seq)[0][unsort_ids]
 
 
 class ConvLSTMLinear(nn.Module):
@@ -152,8 +160,7 @@ class ConvLSTMLinear(nn.Module):
         use_partial_padding=False,
         norm_fn=None,
     ):
-        super(ConvLSTMLinear, self).__init__()
-        self.bilstm = BiLSTM(n_channels, int(n_channels // 2), 1)
+        super(ConvLSTMLinear, self).__init__(n_channels, int(n_channels // 2), 1)
         self.convolutions = nn.ModuleList()
 
         if n_layers > 0:
@@ -184,14 +191,24 @@ class ConvLSTMLinear(nn.Module):
         if out_dim is not None:
             self.dense = nn.Linear(n_channels, out_dim)
 
-    def forward(self, context: Tensor, lens: Tensor) -> Tensor:
+    def masked_conv_to_sequence(self, context: Tensor, lens: Tensor, enforce_sorted: bool = False) -> PackedSequence:
         mask = get_mask_from_lengths_and_val(lens, context)
         mask = mask.to(dtype=context.dtype).unsqueeze(1)
         for conv in self.convolutions:
             context = self.dropout(F.relu(conv(context, mask)))
+
         context = context.transpose(1, 2)
-        # Apply Bidirectional LSTM
-        context = self.bilstm(context, lens)
+        seq = torch.nn.utils.rnn.pack_padded_sequence(
+            context, lens.long().cpu(), batch_first=True, enforce_sorted=enforce_sorted
+        )
+        return seq
+
+    def forward(self, context: Tensor, lens: Tensor) -> Tensor:
+        context, lens, unsort_ids = sort_tensor(context, lens)
+        seq = self.masked_conv_to_sequence(context, lens, enforce_sorted=True)
+        context, _ = self.lstm_sequence(seq)
+        context = context[unsort_ids]
+
         if self.dense is not None:
             context = self.dense(context).permute(0, 2, 1)
         return context

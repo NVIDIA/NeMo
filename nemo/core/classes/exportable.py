@@ -128,7 +128,7 @@ class Exportable(ABC):
             # Set module mode
             with torch.onnx.select_model_mode_for_export(
                 self, training
-            ), torch.inference_mode(), torch.no_grad(), torch.jit.optimized_execution(True), _jit_is_scripting():
+            ), torch.inference_mode(), torch.no_grad(), torch.jit.optimized_execution(True):
 
                 if input_example is None:
                     input_example = self.input_module.input_example()
