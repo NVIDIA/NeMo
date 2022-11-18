@@ -29,7 +29,7 @@ exp_manager:
   resume_ignore_no_checkpoint: True
   create_checkpoint_callback: True
   checkpoint_callback_params:
-    monitor: val_loss
+    monitor: validation_exact_string_match
     save_top_k: 2
     mode: max
     always_save_nemo: False # TODO: add support
