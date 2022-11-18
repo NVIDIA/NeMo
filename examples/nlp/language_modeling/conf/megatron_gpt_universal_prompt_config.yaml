@@ -95,35 +95,64 @@ model:
         num_classes: null
 
   perceiver:
-    init_method_std: 0.02 # Standard deviation of the zero mean normal distribution used for weight initialization.')
+    - init_method_std: 0.02 # Standard deviation of the zero mean normal distribution used for weight initialization.')
+      hidden_size: 768
+      ffn_hidden_size: 3072 # Transformer FFN hidden size. Usually 4 * hidden_size.
+      num_layers: 4 #
+      num_attention_heads: 12
+      apply_query_key_layer_scaling: False # scale Q * K^T by 1 / layer-number.
+      kv_channels: null # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
+      hidden_dropout: 0.1 # Dropout probability for hidden state transformer.
+      attention_dropout: 0.1 # Dropout probability in the attention layer.
+      precision: 16
+      fp32_residual_connection: False # Use FP32 for residual connections.
+      activations_checkpoint_method: null # 'uniform', 'block'
+      activations_checkpoint_num_layers: 1 
 
-    hidden_size: 768
-    ffn_hidden_size: 3072 # Transformer FFN hidden size. Usually 4 * hidden_size.
-    num_layers: 4 #
-    num_attention_heads: 12
-    apply_query_key_layer_scaling: False # scale Q * K^T by 1 / layer-number.
-    kv_channels: null # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
-    hidden_dropout: 0.1 # Dropout probability for hidden state transformer.
-    attention_dropout: 0.1 # Dropout probability in the attention layer.
-    precision: 16
-    fp32_residual_connection: False # Use FP32 for residual connections.
-    activations_checkpoint_method: null # 'uniform', 'block'
-    activations_checkpoint_num_layers: 1 
+      layernorm_epsilon: 1e-5
+      persist_layer_norm: True # Use of persistent fused layer norm kernel.
+      bias_activation_fusion: True # Use a kernel that fuses the bias addition from weight matrices with the subsequent activation function.
+      masked_softmax_fusion: True # Use a kernel that fuses the attention softmax with it's mask.
+      bias_dropout_add_fusion: True # Use a kernel that fuses the bias addition, dropout and residual connection addition.
+      bias: True # Whether to use bias terms in all weight matrices.
 
-    layernorm_epsilon: 1e-5
-    persist_layer_norm: True # Use of persistent fused layer norm kernel.
-    bias_activation_fusion: True # Use a kernel that fuses the bias addition from weight matrices with the subsequent activation function.
-    masked_softmax_fusion: True # Use a kernel that fuses the attention softmax with it's mask.
-    bias_dropout_add_fusion: True # Use a kernel that fuses the bias addition, dropout and residual connection addition.
-    bias: True # Whether to use bias terms in all weight matrices.
+      openai_gelu: False # Use OpenAI's GELU instead of the default GeLU
+      onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
+      activation: 'gelu' # Options ['gelu', 'geglu', 'swiglu', 'reglu']
+      normalization: 'rmsnorm' # Normalization layer to use. Options are 'layernorm', 'rmsnorm'
+      headscale: False # Whether to learn extra parameters that scale the output of the each self-attention head.
+      transformer_block_type: 'pre_ln' # Options ['pre_ln', 'post_ln', 'normformer']
+      hidden_steps: 32 # AKA virtual token length
+      trainable: True  # whether the weights are trainable or not
+    - init_method_std: 0.0 # Standard deviation of the zero mean normal distribution used for weight initialization.')
+      hidden_size: 768
+      ffn_hidden_size: 3072 # Transformer FFN hidden size. Usually 4 * hidden_size.
+      num_layers: 4 #
+      num_attention_heads: 12
+      apply_query_key_layer_scaling: False # scale Q * K^T by 1 / layer-number.
+      kv_channels: null # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
+      hidden_dropout: 0.1 # Dropout probability for hidden state transformer.
+      attention_dropout: 0.1 # Dropout probability in the attention layer.
+      precision: 16
+      fp32_residual_connection: False # Use FP32 for residual connections.
+      activations_checkpoint_method: null # 'uniform', 'block'
+      activations_checkpoint_num_layers: 1 
 
-    openai_gelu: False # Use OpenAI's GELU instead of the default GeLU
-    onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
-    activation: 'gelu' # Options ['gelu', 'geglu', 'swiglu', 'reglu']
-    normalization: 'rmsnorm' # Normalization layer to use. Options are 'layernorm', 'rmsnorm'
-    headscale: False # Whether to learn extra parameters that scale the output of the each self-attention head.
-    transformer_block_type: 'pre_ln' # Options ['pre_ln', 'post_ln', 'normformer']
-    hidden_steps: 32 # AKA virtual token length
+      layernorm_epsilon: 1e-5
+      persist_layer_norm: True # Use of persistent fused layer norm kernel.
+      bias_activation_fusion: True # Use a kernel that fuses the bias addition from weight matrices with the subsequent activation function.
+      masked_softmax_fusion: True # Use a kernel that fuses the attention softmax with it's mask.
+      bias_dropout_add_fusion: True # Use a kernel that fuses the bias addition, dropout and residual connection addition.
+      bias: True # Whether to use bias terms in all weight matrices.
+
+      openai_gelu: False # Use OpenAI's GELU instead of the default GeLU
+      onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
+      activation: 'gelu' # Options ['gelu', 'geglu', 'swiglu', 'reglu']
+      normalization: 'rmsnorm' # Normalization layer to use. Options are 'layernorm', 'rmsnorm'
+      headscale: False # Whether to learn extra parameters that scale the output of the each self-attention head.
+      transformer_block_type: 'pre_ln' # Options ['pre_ln', 'post_ln', 'normformer']
+      hidden_steps: 16 # AKA virtual token length
+      trainable: False  # whether the weights are trainable or not
 
   optim:
     name: fused_adam

@@ -284,7 +284,7 @@ class UniversalPromptLearningModelTextGenerationStrategy(TextGenerationStrategy)
     def __init__(self, model):
         super().__init__(model)
         self.forward_model = self.model
-        self.vlen = self.model.cfg.perceiver.hidden_steps
+        self.vlen = self.model.virtual_token_length
 
     def forward_step(self, batch, tensor_shape):
 

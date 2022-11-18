@@ -117,6 +117,13 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
     def _metrics_require_string2category_map(self):
         return set(["f1", "accuracy", "average_precision"])
 
+    @property
+    def virtual_token_length(self):
+        vlen = 0
+        for pcfg in self.cfg.perceiver:
+            vlen += pcfg.hidden_steps
+        return vlen
+
     def setup_metric(self, data_cfg):
         # XNLI is a special case.
         metric_name = "exact_string_match"
@@ -185,7 +192,12 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         Passes only prompt table and prompt encoder params to the optimizer.
         """
         virtual_prompt_params = {'params': []}
-        virtual_prompt_params['params'].extend([param for param in self.prompt_encoder.parameters()])
+        for i, pcfg in enumerate(self.cfg.perceiver):
+            if pcfg.trainable:
+                virtual_prompt_params['params'].extend([param for param in self.prompt_encoder[i].parameters()])
+            else:
+                for param in self.prompt_encoder[i].parameters():
+                    param.requires_grad = False
         self._optimizer_param_groups = (virtual_prompt_params,)
 
     def load_frozen_model(self, cfg, trainer):
@@ -284,10 +296,17 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         discrete_token_embeds = self.word_embeddings(discrete_token_ids).clone()
         # [b, s, d] -> [s, b, d]
         prompt_input_emb = discrete_token_embeds.transpose(0, 1).contiguous()
-        virtual_token_embeds = self.prompt_encoder(prompt_input_emb, prompt_input_mask)
-        # [b, s, d] -> [s, b, d]
-        virtual_token_embeds = virtual_token_embeds.transpose(0, 1).contiguous()
-        return virtual_token_embeds, discrete_token_embeds
+        v_embeds_list = []
+        for i, p_encoder in enumerate(self.prompt_encoder):
+            if not self.cfg.perceiver[i].trainable:
+                # make sure p_encoder in eval mode
+                p_encoder.eval()
+            virtual_token_embeds = p_encoder(prompt_input_emb, prompt_input_mask)
+            #  [s, b, d] -> [b, s, d]
+            virtual_token_embeds = virtual_token_embeds.transpose(0, 1).contiguous()
+            v_embeds_list.append(virtual_token_embeds)
+        v_embeds = torch.concat(v_embeds_list, axis=1)
+        return v_embeds, discrete_token_embeds
 
     def training_step(self, batch, batch_idx):
         # we zero grads here because we also call backward in the apex fwd/bwd functions
@@ -416,7 +435,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         sequence_parallel_enabled = self.sequence_parallel
         # Get seq length of batch
         _, seq_length = batch[0].shape
-        tensor_shape = [seq_length + self.cfg.perceiver.hidden_steps, self.cfg.micro_batch_size, self.hidden_size]
+        tensor_shape = [seq_length + self.virtual_token_length, self.cfg.micro_batch_size, self.hidden_size]
 
         if self.pipeline_parallel:
             losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
@@ -458,8 +477,8 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         def fwd_output_and_loss_func(batch, model):
             batch = [x.cuda(non_blocking=True) for x in batch]
             input_ids, labels, loss_mask, position_ids, attention_mask, prompt_input_mask, answer_starts = batch
-            labels = F.pad(labels, (self.cfg.perceiver.hidden_steps, 0, 0, 0), value=0)
-            loss_mask = F.pad(loss_mask, (self.cfg.perceiver.hidden_steps, 0, 0, 0), value=0)
+            labels = F.pad(labels, (self.virtual_token_length, 0, 0, 0), value=0)
+            loss_mask = F.pad(loss_mask, (self.virtual_token_length, 0, 0, 0), value=0)
             output_tensor = model(input_ids, position_ids, attention_mask, prompt_input_mask, labels, inference=False)
 
             if isinstance(output_tensor, tuple):
@@ -478,14 +497,19 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         """
         Init the prompt encoder needed for universal prompt encoder
         """
-        perceiver_conf = OmegaConf.to_container(self.cfg.perceiver)
-        init_method_std = self.cfg.perceiver.init_method_std
-        del perceiver_conf['init_method_std']
-        encoder_init = init_method_normal(init_method_std)
-        output_init = scaled_init_method_normal(init_method_std, self.cfg.perceiver.num_layers)
-        perceiver_conf['init_method'] = encoder_init
-        perceiver_conf['output_layer_init_method'] = output_init
-        self.prompt_encoder = UniversalPromptEncoder(perceiver_conf, output_dim=self.frozen_model.cfg.hidden_size)
+        perceiver_confs = OmegaConf.to_container(self.cfg.perceiver)
+        self.prompt_encoder = torch.nn.ModuleList()
+        for perceiver_conf in perceiver_confs:
+            init_method_std = perceiver_conf['init_method_std']
+            del perceiver_conf['init_method_std']
+            encoder_init = init_method_normal(init_method_std)
+            output_init = scaled_init_method_normal(init_method_std, perceiver_conf['num_layers'])
+            perceiver_conf['init_method'] = encoder_init
+            perceiver_conf['output_layer_init_method'] = output_init
+            del perceiver_conf['trainable']
+            module = UniversalPromptEncoder(perceiver_conf, output_dim=self.frozen_model.cfg.hidden_size)
+            self.prompt_encoder.append(module)
+
 
     def setup(self, stage=None):
         # NOTE: super().__init__ will try and setup train/val/test datasets, but we sidestep this using a if self._train_ds is not None condition
@@ -564,7 +588,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
                 tokenizer=self.tokenizer,
                 answer_only_loss=data_cfg.get('answer_only_loss', True),
                 pad_token_id=self.pad_token_id,
-                virtual_token_len=self.cfg.perceiver.hidden_steps,
+                virtual_token_len=self.virtual_token_length,
                 max_seq_length=data_cfg.max_seq_length,
                 add_bos=data_cfg.get("add_bos", False),
                 add_eos=data_cfg.get("add_eos", False),
