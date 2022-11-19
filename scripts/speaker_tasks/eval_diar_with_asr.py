@@ -17,7 +17,7 @@ import argparse
 import json
 import os
 
-from nemo.collections.asr.metrics.der import evaluate_der, score_labels
+from nemo.collections.asr.metrics.der import evaluate_der
 from nemo.collections.asr.parts.utils.diarization_utils import OfflineDiarWithASR
 from nemo.collections.asr.parts.utils.manifest_utils import read_file
 from nemo.collections.asr.parts.utils.speaker_utils import (
