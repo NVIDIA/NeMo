@@ -220,25 +220,13 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin):
 
         """
         super().change_vocabulary(**kwargs)
-        if ctc_decoding_cfg is not None:
-            if hasattr(self, 'ctc_decoder'):
-                decoder_config = self.ctc_decoder.to_config_dict()
-                new_decoder_config = copy.deepcopy(decoder_config)
 
-                del self.ctc_decoder
-                del self.ctc_loss
-            else:
-                new_decoder_config = self.cfg.aux_ctc.decoder
-
-            new_decoder_config['vocabulary'] = new_vocabulary
-            new_decoder_config['num_classes'] = len(new_vocabulary)
-
-            self.ctc_decoder = EncDecCTCModel.from_config_dict(new_decoder_config)
-            self.ctc_loss = CTCLoss(
-                num_classes=self.ctc_decoder.num_classes_with_blank - 1,
-                zero_infinity=True,
-                reduction=self.cfg.aux_ctc.get("ctc_reduction", "mean_batch"),
-            )
+        # set up the new tokenizer for the CTC decoder
+        if hasattr(self, 'ctc_decoder'):
+            if ctc_decoding_cfg is None:
+                # Assume same decoding config as before
+                logging.info("No `ctc_decoding_cfg` passed when changing decoding strategy, using internal config")
+                ctc_decoding_cfg = self.cfg.ctc_decoding
 
             # Assert the decoding config with all hyper parameters
             ctc_decoding_cls = OmegaConf.structured(CTCDecodingConfig)
@@ -249,17 +237,16 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin):
 
             self.ctc_wer = WER(
                 decoding=self.ctc_decoding,
-                use_cer=self.cfg.aux_ctc.get('use_cer', False),
+                use_cer=self.ctc_wer.use_cer,
+                log_prediction=self.ctc_wer.log_prediction,
                 dist_sync_on_step=True,
-                log_prediction=self.cfg.get("log_prediction", False),
             )
 
             # Update config
-            with open_dict(self.cfg.ctc_aux.decoder):
-                self.cfg.ctc_aux.decoder = new_decoder_config
-
-            with open_dict(self.cfg.ctc_aux.decoding):
+            with open_dict(self.cfg.ctc_decoding):
                 self.cfg.ctc_aux.decoding = ctc_decoding_cfg
+
+            logging.info(f"Changed the tokenizer of the CTC decoder to {self.ctc_decoder.vocabulary} vocabulary.")
 
     def change_decoding_strategy(self, decoding_cfg: DictConfig, decoder_type: str = None):
         """
