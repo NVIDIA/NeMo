@@ -94,7 +94,7 @@ RNNT_LOSS_RESOLVER = {
         is_available=NUMBA_RNNT_AVAILABLE,
         installation_msg=NUMBA_INSTALLATION_MESSAGE,
     ),
-    "pytorch": RNNTLossConfig(
+    "multiblank_rnnt_pytorch": RNNTLossConfig(
         loss_name="pytorch",
         lib_name="pytorch",
         min_version='0.0',
@@ -181,18 +181,17 @@ def resolve_rnnt_loss(loss_name: str, blank_idx: int, loss_kwargs: dict = None) 
 
     elif loss_name == 'multiblank_rnnt':
         fastemit_lambda = loss_kwargs.pop('fastemit_lambda', 0.0)
-        big_blank_idx_list = loss_kwargs.pop('big_blank_idx_list', None)
-        blank_duration_list = loss_kwargs.pop('blank_duration_list', None)
-        sgma = loss_kwargs.pop('sigma', 0.0)
         clamp = loss_kwargs.pop('clamp', -1.0)
-        loss_func = MultiblankRNNTLossNumba(blank=blank_idx, big_blank_list=big_blank_idx_list, blank_duration_list=blank_duration_list, reduction='none', fastemit_lambda=fastemit_lambda, clamp=clamp, sigma=sigma)
+        big_blank_durations = loss_kwargs.pop('big_blank_durations', None)
+        sigma = loss_kwargs.pop('sigma', 0.0)
+        loss_func = MultiblankRNNTLossNumba(blank=blank_idx, big_blank_durations=big_blank_durations, reduction='none', fastemit_lambda=fastemit_lambda, clamp=clamp, sigma=sigma)
         _warn_unused_additional_kwargs(loss_name, loss_kwargs)
 
-
     elif loss_name == 'multiblank_rnnt_pytorch':
-        big_blank_idx_list = loss_kwargs.pop('big_blakn_idx_list', None)
-        blank_duration_list = loss_kwargs.pop('blank_duration_list', None)
-        loss_func = MultiblankRNNTLossPytorch(blank=blank_idx, big_blank_list=big_blank_idx_list, blank_duration_list=blank_duration_list, reduction='none')
+        big_blank_durations = loss_kwargs.pop('big_blank_durations', None)
+        sigma = loss_kwargs.pop('sigma', 0.0)
+        big_blank_labels = [blank_idx + 1 + i for i in range(len(big_blank_durations))]
+        loss_func = MultiblankRNNTLossPytorch(blank=blank_idx, big_blank_durations=big_blank_durations, reduction='none', sigma=sigma)
 
     else:
         raise ValueError(
@@ -221,17 +220,16 @@ class MultiblankRNNTLossPytorch(Loss):
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self, blank, blank_duration, reduction):
+    def __init__(self, blank, big_blank_durations, reduction, sigma):
         super().__init__()
         self.blank = blank
-        self.big_blank = 1 + blank
-        self.huge_blank = 2 + blank
-        self.blank_duration = blank_duration
+        self.big_blank_durations = big_blank_durations
         self.reduction = reduction
+        self.sigma = sigma
 
     @typecheck()
     def forward(self, acts, labels, act_lens, label_lens):
-        acts = torch.log_softmax(acts, -1)
+        acts = torch.log_softmax(acts, -1) - self.sigma
         forward_logprob = self.compute_forward_prob(acts, labels, act_lens, label_lens)
         return -forward_logprob
 
@@ -248,7 +246,7 @@ class MultiblankRNNTLossPytorch(Loss):
                     else:
                         log_alpha[:, t, u] = log_alpha[:, t-1, u] + acts[:, t-1, 0, self.blank] 
 
-                        for i, d in enumerate(self.blank_duration):
+                        for i, d in enumerate(self.big_blank_durations):
                             if t >= d: 
                                 tt = log_alpha[:, t - d, u] + acts[:, t - d, 0, self.blank + 1 + i]
                                 log_alpha[:, t, u] = torch.logsumexp(torch.stack([1.0 * log_alpha[:, t, u], tt]), dim=0)
@@ -263,7 +261,7 @@ class MultiblankRNNTLossPytorch(Loss):
                             log_alpha[:, t, u-1] + torch.gather(acts[:, t, u-1], dim=1, index=labels[:,u-1].view(-1,1).type(torch.int64) ).reshape(-1)
                         ]), dim=0)
 
-                        for i, d in enumerate(self.blank_duration):
+                        for i, d in enumerate(self.big_blank_durations):
                             if t >= d: 
                                 tt = log_alpha[:, t - d, u] + acts[:, t - d, u, self.blank + 1 + i]
                                 log_alpha[:, t, u] = torch.logsumexp(torch.stack([1.0 * log_alpha[:, t, u], tt]), dim=0)
@@ -272,7 +270,7 @@ class MultiblankRNNTLossPytorch(Loss):
         for b in range(B):
             to_append = log_alpha[b, act_lens[b]-1, label_lens[b]] + acts[b, act_lens[b]-1, label_lens[b], self.blank]
 
-            for i, d in enumerate(self.blank_duration):
+            for i, d in enumerate(self.big_blank_durations):
                 if act_lens[b] >= d: 
                     tt = log_alpha[b, act_lens[b] - d, label_lens[b]] + acts[b, act_lens[b] - d, label_lens[b], self.blank + 1 + i]
                     to_append = torch.logsumexp(torch.stack([1.0 * to_append, tt]), dim=0)
@@ -280,7 +278,6 @@ class MultiblankRNNTLossPytorch(Loss):
             log_probs.append(to_append)
 
         log_prob = torch.stack(log_probs) 
-
         return log_prob
 
 class RNNTLoss(Loss):
@@ -417,22 +414,26 @@ class RNNTLoss(Loss):
 
 if __name__ == "__main__":
     B, T, U, V = 1, 11, 7, 5 
-    B, T, U, V = 1, 2, 2, 2  # V is number of non blank labels
-    B, T, U, V = 8, 64, 32, 128   # V is number of non blank labels
+    B, T, U, V = 1, 2, 2, 2         # V is number of non blank labels
+    B, T, U, V = 1, 2, 2, 2         # V is number of non blank labels
+    B, T, U, V = 1, 92, 32, 1280    # V is number of non blank labels
 
-    blank_duration_list = [2, 4, 8]
-    big_blank_idx_list=list(range(V + 1, V + 1 + len(blank_duration_list)))
+    big_blank_durations = [2, 4, 8]
+    big_blank_idx_list=list(range(V + 1, V + 1 + len(big_blank_durations)))
     sigma = 0.0
     args = {}
-    args['blank_duration_list'] = blank_duration_list
-    args['big_blank_idx_list'] = big_blank_idx_list
+    args['big_blank_durations'] = big_blank_durations
     args['sigma'] = sigma
 
-    Loss = MultiblankRNNTLossPytorch(V, blank_duration=blank_duration_list, reduction='mean')
-    Loss2 = RNNTLoss(V, reduction='mean_batch', loss_name='multiblank_rnnt', loss_kwargs=args)
+    args2 = {}
+    args2['big_blank_durations'] = big_blank_durations
+    args2['sigma'] = sigma
+
+    Loss = RNNTLoss(V, reduction='mean_batch', loss_name='multiblank_rnnt_pytorch', loss_kwargs=args)
+    Loss2 = RNNTLoss(V, reduction='mean_batch', loss_name='multiblank_rnnt', loss_kwargs=args2)
 
     for t in range(128):
-        acts = torch.rand([B, T, U, V + 1 + len(blank_duration_list)]) - 0.5
+        acts = torch.rand([B, T, U, V + 1 + len(big_blank_durations)]) - 0.5
         acts = torch.nn.Parameter(acts * 5, requires_grad=True)
 
         labels = torch.randint(low=0, high=V - 1, size=[B, U])
@@ -449,7 +450,7 @@ if __name__ == "__main__":
 
         labels = labels.contiguous()
 
-        loss = Loss(acts=logits, labels=labels, act_lens=act_lens, label_lens=label_lens)
+        loss = Loss(log_probs=logits, targets=labels, input_lengths=act_lens, target_lengths=label_lens)
         loss = torch.mean(loss)
         loss.backward()
         grad1 = torch.clone(acts.grad)

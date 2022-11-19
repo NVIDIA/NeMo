@@ -535,7 +535,6 @@ def compute_multiblank_alphas_kernel(
 
         llForward[b] = loglike
 
-
 @cuda.jit()
 def compute_multiblank_betas_kernel(
     acts: torch.Tensor,

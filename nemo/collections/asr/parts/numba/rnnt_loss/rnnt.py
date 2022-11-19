@@ -248,8 +248,7 @@ def multiblank_rnnt_loss_gpu(
     costs: torch.Tensor,
     grads: torch.Tensor,
     blank_label: int,
-    big_blank_label_list: list,
-    blank_duration_list: list,
+    big_blank_durations: list,
     fastemit_lambda: float,
     clamp: float,
     num_threads: int,
@@ -297,13 +296,14 @@ def multiblank_rnnt_loss_gpu(
     cuda.select_device(acts.device.index)
     gpu_workspace = torch.zeros(gpu_size, device=acts.device, dtype=acts.dtype, requires_grad=False)
 
-    merged_list = list(big_blank_label_list) + list(blank_duration_list)
+    big_blank_labels = [blank_label + 1 + i for i in range(len(big_blank_durations))]
+    merged_list = list(big_blank_labels) + list(big_blank_durations)
 
-    big_blank_workspace = torch.zeros(2 * len(big_blank_label_list), device=acts.device, dtype=torch.long, requires_grad=False)
+    big_blank_workspace = torch.zeros(2 * len(big_blank_labels), device=acts.device, dtype=torch.long, requires_grad=False)
 
-    for i in range(0, len(big_blank_label_list)):
-        big_blank_workspace[i] = big_blank_label_list[i]
-        big_blank_workspace[i + len(big_blank_label_list)] = blank_duration_list[i]
+    for i in range(0, len(big_blank_labels)):
+        big_blank_workspace[i] = big_blank_labels[i]
+        big_blank_workspace[i + len(big_blank_labels)] = big_blank_durations[i]
 
     ### VIEW TENSORS AS VECTORS FOR POINTER INDEXING ###
     acts, acts_shape = rnnt_helper.flatten_tensor(acts)
@@ -315,7 +315,7 @@ def multiblank_rnnt_loss_gpu(
         alphabet_size=alphabet_size,
         workspace=gpu_workspace,
         big_blank_workspace=big_blank_workspace,
-        num_big_blanks=len(big_blank_label_list),
+        num_big_blanks=len(big_blank_labels),
         blank=blank_label,
         fastemit_lambda=fastemit_lambda,
         clamp=clamp,
