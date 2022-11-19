@@ -771,8 +771,8 @@ class RadTTSModule(NeuralModule, Exportable):
         """
         par = next(self.parameters())
         sz = (max_batch, max_dim)
-        inp = torch.randint(0, 16, sz, device=par.device, dtype=torch.int64)
-        lens = torch.randint(16, max_dim, (max_batch,), device=par.device, dtype=torch.int)
+        inp = torch.randint(16, 32, sz, device=par.device, dtype=torch.int64)
+        lens = torch.randint(max_dim // 4, max_dim // 2, (max_batch,), device=par.device, dtype=torch.int)
         speaker = torch.randint(0, 1, (max_batch,), device=par.device, dtype=torch.int64)
         inputs = {
             'text': inp,
