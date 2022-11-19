@@ -306,14 +306,9 @@ class AbstractRNNTDecoding(ABC):
         """
         # Compute hypotheses
         with torch.inference_mode():
-            if self.big_blank_idx_list is not None:
-                hypotheses_list = self.decoding(
-                    encoder_output=encoder_output, encoded_lengths=encoded_lengths, duration=self.cfg.duration, partial_hypotheses=partial_hypotheses
-                )  # type: [List[Hypothesis]]
-            else:
-                hypotheses_list = self.decoding(
-                    encoder_output=encoder_output, encoded_lengths=encoded_lengths, partial_hypotheses=partial_hypotheses
-                )  # type: [List[Hypothesis]]
+            hypotheses_list = self.decoding(
+                encoder_output=encoder_output, encoded_lengths=encoded_lengths, partial_hypotheses=partial_hypotheses
+            )  # type: [List[Hypothesis]]
 
             # extract the hypotheses
             hypotheses_list = hypotheses_list[0]  # type: List[Hypothesis]
@@ -378,10 +373,7 @@ class AbstractRNNTDecoding(ABC):
 
             # RNN-T sample level is already preprocessed by implicit RNNT decoding
             # Simply remove any blank tokens
-            if self.big_blank_idx_list is not None:
-                prediction = [p for p in prediction if p != self.blank_id and p not in self.big_blank_id_list]
-            else:
-                prediction = [p for p in prediction if p != self.blank_id]
+            prediction = [p for p in prediction if p < self.blank_id]
 
             # De-tokenize the integer tokens; if not computing timestamps
             if self.compute_timestamps is True:
@@ -823,7 +815,7 @@ class RNNTDecoding(AbstractRNNTDecoding):
         blank_id = len(vocabulary)
         self.labels_map = dict([(i, vocabulary[i]) for i in range(len(vocabulary))])
 
-        super(RNNTDecoding, self).__init__(decoding_cfg=decoding_cfg, decoder=decoder, joint=joint, blank_id=blank_id, big_blank_id_list=list(range(blank_id + 1, blank_id + len(decoding_cfg.big_blank_duration_list) + 1)), big_blank_duration_list=decoding_cfg.big_blank_duration_list)
+        super(RNNTDecoding, self).__init__(decoding_cfg=decoding_cfg, decoder=decoder, joint=joint, blank_id=blank_id)
 
     def decode_tokens_to_str(self, tokens: List[int]) -> str:
         """

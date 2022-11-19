@@ -189,7 +189,6 @@ def rnnt_loss_gpu(
     cuda.select_device(acts.device.index)
     gpu_workspace = torch.zeros(gpu_size, device=acts.device, dtype=acts.dtype, requires_grad=False)
 
-    merged_list = list(big_blank_label_list) + list(blank_duration_list)
 
     ### VIEW TENSORS AS VECTORS FOR POINTER INDEXING ###
     acts, acts_shape = rnnt_helper.flatten_tensor(acts)
@@ -237,11 +236,6 @@ def rnnt_loss_gpu(
 
     del gpu_workspace, wrapper
     return True
-
-
-
-
-
 
 
 
@@ -305,16 +299,11 @@ def multiblank_rnnt_loss_gpu(
 
     merged_list = list(big_blank_label_list) + list(blank_duration_list)
 
-#    print("HERE merged_list", merged_list)
-
     big_blank_workspace = torch.zeros(2 * len(big_blank_label_list), device=acts.device, dtype=torch.long, requires_grad=False)
-#    big_blank_workspace = torch.LongTensor(merged_list, device=acts.device, dtype=torch.long, requires_grad=False)
 
     for i in range(0, len(big_blank_label_list)):
         big_blank_workspace[i] = big_blank_label_list[i]
         big_blank_workspace[i + len(big_blank_label_list)] = blank_duration_list[i]
-
-#    print("HERE big_blank_workspace", big_blank_workspace)
 
     ### VIEW TENSORS AS VECTORS FOR POINTER INDEXING ###
     acts, acts_shape = rnnt_helper.flatten_tensor(acts)

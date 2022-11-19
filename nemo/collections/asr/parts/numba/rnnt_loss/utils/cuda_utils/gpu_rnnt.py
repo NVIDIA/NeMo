@@ -155,7 +155,7 @@ class GPURNNT:
         if training:
             grads *= 0.0  # zero grads
 
-        used_offset, (denom, alphas, betas, llForward, llBackward, BBLabels, BBDuations) = self._prepare_workspace()
+        used_offset, (denom, alphas, betas, llForward, llBackward) = self._prepare_workspace()
 
         ######## START EXECUTION ########
         self.log_softmax(acts, denom)
@@ -164,7 +164,6 @@ class GPURNNT:
         gpu_rnnt_kernel.compute_alphas_kernel[self.minibatch_, self.maxU_, self.stream_, 0](
             acts,
             denom,
-            self.sigma,
             alphas,
             llForward,
             input_lengths,
@@ -175,9 +174,6 @@ class GPURNNT:
             self.maxU_,
             self.alphabet_size_,
             self.blank_,
-            BBLabels,
-            BBDuations,
-            self.num_big_blanks,
         )
 
         if training:
@@ -185,7 +181,6 @@ class GPURNNT:
             gpu_rnnt_kernel.compute_betas_kernel[self.minibatch_, self.maxU_, self.stream_, 0](
                 acts,
                 denom,
-                self.sigma,
                 betas,
                 llBackward,
                 input_lengths,
@@ -196,9 +191,6 @@ class GPURNNT:
                 self.maxU_,
                 self.alphabet_size_,
                 self.blank_,
-                BBLabels,
-                BBDuations,
-                self.num_big_blanks,
             )
 
             # Compute gradient
@@ -208,7 +200,6 @@ class GPURNNT:
                 grads,
                 acts,
                 denom,
-                self.sigma,
                 alphas,
                 betas,
                 llForward,
@@ -220,9 +211,6 @@ class GPURNNT:
                 self.maxU_,
                 self.alphabet_size_,
                 self.blank_,
-                BBLabels,
-                BBDuations,
-                self.num_big_blanks,
                 self.fastemit_lambda_,
                 self.clamp_,
             )
@@ -302,12 +290,10 @@ class GPURNNT:
         llBackward = self.gpu_workspace[used_offset : used_offset + self.minibatch_]
         used_offset += self.minibatch_
 
-        BBLabels = self.big_blank_workspace[0:self.num_big_blanks]
-        BBDurations = self.big_blank_workspace[self.num_big_blanks:2* self.num_big_blanks]
+        return used_offset, (denom, alphas, betas, llForward, llBackward)
 
-        return used_offset, (denom, alphas, betas, llForward, llBackward, BBLabels, BBDurations,)
 
-class MultblankGPURNNT(GPURNNT):
+class MultiblankGPURNNT(GPURNNT):
     def __init__(
         self,
         sigma: float,
@@ -369,37 +355,6 @@ class MultblankGPURNNT(GPURNNT):
         else:
             self.num_threads_ = numba.get_num_threads()
 
-    def log_softmax(self, acts: torch.Tensor, denom: torch.Tensor):
-        """
-        Computes the log softmax denominator of the input activation tensor
-        and stores the result in denom.
-
-        Args:
-            acts: Activation tensor of shape [B, T, U, V+1]. The input must be represented as a flat tensor
-                of shape [B * T * U * (V+1)] to allow pointer indexing.
-            denom: A zero tensor of same shape as acts.
-
-        Updates:
-            This kernel inplace updates the `denom` tensor
-        """
-        # // trans_acts + pred_acts -> log_softmax denominator
-        reduce.reduce_max(
-            acts,
-            denom,
-            rows=self.alphabet_size_,
-            cols=self.minibatch_ * self.maxT_ * self.maxU_,
-            minus=False,
-            stream=self.stream_,
-        )
-
-        reduce.reduce_exp(
-            acts,
-            denom,
-            rows=self.alphabet_size_,
-            cols=self.minibatch_ * self.maxT_ * self.maxU_,
-            minus=True,
-            stream=self.stream_,
-        )
 
     def compute_cost_and_score(
         self,

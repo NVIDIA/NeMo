@@ -454,6 +454,7 @@ def compute_multiblank_alphas_kernel(
     T = xlen[b]  # select AM length of current sample
     U = ylen[b] + 1  # select target length of current sample, +1 for the blank token
 
+
     labels: torch.Tensor = mlabels[b]  # mb label start point, equivalent to mlabels + b * (maxU - 1)
     offset = b * maxT * maxU  # pointer indexing offset
 
@@ -515,7 +516,6 @@ def compute_multiblank_alphas_kernel(
                             big_blank_no_emit
                         )
 
-
         # sync across all B=b and U=u
         cuda.syncthreads()
 
@@ -532,7 +532,6 @@ def compute_multiblank_alphas_kernel(
                     denom, acts, maxT, maxU, alphabet_size, b, T - big_blank_duration[i], U - 1, big_blank_number[i]
                 ) - sigma
                 loglike = rnnt_helper.log_sum_exp(loglike, big_blank_loglike)
-
 
         llForward[b] = loglike
 
@@ -671,7 +670,6 @@ def compute_multiblank_betas_kernel(
     # log-likelihood of backward pass.
     if u == 0:
         llBackward[b] = betas[offset]
-
 
 @cuda.jit()
 def compute_multiblank_grad_kernel(

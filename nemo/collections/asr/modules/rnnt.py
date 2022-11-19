@@ -1173,6 +1173,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
         self,
         jointnet: Dict[str, Any],
         num_classes: int,
+        num_extra_outputs: int,
         vocabulary: Optional[List] = None,
         log_softmax: Optional[bool] = None,
         preserve_memory: bool = False,
@@ -1215,8 +1216,8 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
         self.pred_hidden = jointnet['pred_hidden']
         self.joint_hidden = jointnet['joint_hidden']
         self.activation = jointnet['activation']
-        self.num_big_blanks = jointnet['num_big_blanks']
-        self._num_classes = num_classes + 1 + num_big_blanks  # add 2 for two blank symbols
+        self.num_extra_outputs = num_extra_outputs
+        self._num_classes = num_classes + 1 + num_extra_outputs  # add 2 for two blank symbols
 
         # Optional arguments
         dropout = jointnet.get('dropout', 0.0)

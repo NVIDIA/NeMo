@@ -107,7 +107,10 @@ class _MultiblankRNNTNumba(Function):
         if clamp < 0:
             raise ValueError("`clamp` must be 0.0 or positive float value.")
 
-        loss_func = rnnt.rnnt_loss_gpu if is_cuda else rnnt.rnnt_loss_cpu
+        if is_cuda:
+            loss_func = rnnt.multiblank_rnnt_loss_gpu
+        else:
+            exit(-1)
         grads = torch.zeros_like(acts) if acts.requires_grad else None
         minibatch_size = acts.size(0)
         costs = torch.zeros(minibatch_size, device=acts.device, dtype=acts.dtype)
@@ -269,7 +272,7 @@ class MultiblankRNNTLossNumba(Module):
     """
 
     def __init__(self, blank=0, big_blank_list=[], blank_duration_list=[], reduction='mean', fastemit_lambda: float = 0.0, clamp: float = -1, sigma: float = 0.0):
-        super(RNNTLossNumba, self).__init__()
+        super(MultiblankRNNTLossNumba, self).__init__()
         self.blank = blank
         self.big_blank_list = big_blank_list
 
