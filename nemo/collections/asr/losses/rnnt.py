@@ -172,8 +172,25 @@ def resolve_rnnt_loss(loss_name: str, blank_idx: int, big_blank_idx_list: list, 
         loss_func = RNNTLossNumba(blank=blank_idx, big_blank_list=big_blank_idx_list, blank_duration_list=blank_duration_list, reduction='none', fastemit_lambda=fastemit_lambda, clamp=clamp, sigma=sigma)
         _warn_unused_additional_kwargs(loss_name, loss_kwargs)
 
+<<<<<<< HEAD
     elif loss_name == 'pytorch':
         loss_func = RNNTLossPytorch(blank=blank_idx, big_blank_list=big_blank_idx_list, blank_duration_list=blank_duration_list, reduction='none')
+=======
+    elif loss_name == 'multiblank_rnnt':
+        fastemit_lambda = loss_kwargs.pop('fastemit_lambda', 0.0)
+        big_blank_idx_list = loss_kwargs.pop('big_blank_idx_list', None)
+        blank_duration_list = loss_kwargs.pop('blank_duration_list', None)
+        sgma = loss_kwargs.pop('sigma', 0.0)
+        clamp = loss_kwargs.pop('clamp', -1.0)
+        loss_func = MultiblankRNNTLossNumba(blank=blank_idx, big_blank_list=big_blank_idx_list, blank_duration_list=blank_duration_list, reduction='none', fastemit_lambda=fastemit_lambda, clamp=clamp, sigma=sigma)
+        _warn_unused_additional_kwargs(loss_name, loss_kwargs)
+
+
+    elif loss_name == 'multiblank_rnnt_pytorch':
+        big_blank_idx_list = loss_kwargs.pop('big_blakn_idx_list', None)
+        blank_duration_list = loss_kwargs.pop('blank_duration_list', None)
+        loss_func = MultiblankRNNTLossPytorch(blank=blank_idx, big_blank_list=big_blank_idx_list, blank_duration_list=blank_duration_list, reduction='none')
+>>>>>>> runable
 
     else:
         raise ValueError(
@@ -227,63 +244,39 @@ class RNNTLossPytorch(Loss):
                     if t == 0:
                         log_alpha[:, t, u] = 0.0
                     else:
-                        tmp = log_alpha[:, t-1, u] + acts[:, t-1, 0, self.blank] 
-                        if t >= self.blank_duration:
-                            tt = log_alpha[:, t-self.blank_duration, u] + acts[:, t-self.blank_duration, 0, self.big_blank]
-                            tmp2 = torch.logsumexp(torch.stack([tmp, tt]), dim=0)
-#                            log_alpha[:, t, u] = torch.logsumexp(torch.stack([tmp, tt]), dim=0)
-                            if t >= 2 * self.blank_duration:
-                                tt = log_alpha[:, t-2 * self.blank_duration, u] + acts[:, t-2*self.blank_duration, 0, self.huge_blank]
-                                log_alpha[:, t, u] = torch.logsumexp(torch.stack([tmp2, tt]), dim=0)
-                            else:
-                                log_alpha[:, t, u] = tmp2
+                        log_alpha[:, t, u] = log_alpha[:, t-1, u] + acts[:, t-1, 0, self.blank] 
 
-                        else:
-                            log_alpha[:, t, u] = tmp
+                        for i, d in enumerate(self.blank_duration):
+                            if t >= d: 
+                                tt = log_alpha[:, t - d, u] + acts[:, t - d, 0, self.blank + 1 + i]
+                                log_alpha[:, t, u] = torch.logsumexp(torch.stack([1.0 * log_alpha[:, t, u], tt]), dim=0)
                             
                 else:
                     if t == 0:
                         gathered = torch.gather(acts[:, t, u-1], dim=1, index=labels[:,u-1].view(-1,1).type(torch.int64) ).reshape(-1)
                         log_alpha[:, t, u] = log_alpha[:, t,u-1] + gathered.cuda()
                     else:
-                        tmp = torch.logsumexp(torch.stack([
+                        log_alpha[:, t, u] = torch.logsumexp(torch.stack([
                             log_alpha[:, t-1, u] + acts[:, t-1, u, self.blank],
                             log_alpha[:, t, u-1] + torch.gather(acts[:, t, u-1], dim=1, index=labels[:,u-1].view(-1,1).type(torch.int64) ).reshape(-1)
                         ]), dim=0)
-                        if t >= self.blank_duration:
-                            tmp2 = torch.logsumexp(torch.stack([
-                                tmp,
-                                log_alpha[:, t-self.blank_duration, u] + acts[:, t-self.blank_duration, u, self.big_blank],
-                            ]), dim=0)
-                            if t >= 2 * self.blank_duration:
-                                log_alpha[:, t, u] = torch.logsumexp(torch.stack([
-                                    tmp2,
-                                    log_alpha[:, t-2*self.blank_duration, u] + acts[:, t-2*self.blank_duration, u, self.huge_blank],
-                                ]), dim=0)
-                            else:
-                                log_alpha[:, t, u] = tmp2
-                        else:
-                            log_alpha[:, t, u] = tmp
+
+                        for i, d in enumerate(self.blank_duration):
+                            if t >= d: 
+                                tt = log_alpha[:, t - d, u] + acts[:, t - d, u, self.blank + 1 + i]
+                                log_alpha[:, t, u] = torch.logsumexp(torch.stack([1.0 * log_alpha[:, t, u], tt]), dim=0)
 
         log_probs = []
         for b in range(B):
-            tt = log_alpha[b, act_lens[b]-1, label_lens[b]] + acts[b, act_lens[b]-1, label_lens[b], self.blank]
-            if act_lens[b] >= self.blank_duration:
-                jj = log_alpha[b, act_lens[b]-self.blank_duration, label_lens[b]] + acts[b, act_lens[b]-self.blank_duration, label_lens[b], self.big_blank]
-                tt = torch.logsumexp(torch.stack([
-                      tt, jj
-                ]), dim=0)
-                if act_lens[b] >= 2 * self.blank_duration:
-                    kk = log_alpha[b, act_lens[b]-2 * self.blank_duration, label_lens[b]] + acts[b, act_lens[b]-2 * self.blank_duration, label_lens[b], self.huge_blank]
-                    to_append = torch.logsumexp(torch.stack([
-                          tt, kk
-                    ]), dim=0)
-                else:
-                    to_append = tt
+            to_append = log_alpha[b, act_lens[b]-1, label_lens[b]] + acts[b, act_lens[b]-1, label_lens[b], self.blank]
+
+            for i, d in enumerate(self.blank_duration):
+                if act_lens[b] >= d: 
+                    tt = log_alpha[b, act_lens[b] - d, label_lens[b]] + acts[b, act_lens[b] - d, label_lens[b], self.blank + 1 + i]
+                    to_append = torch.logsumexp(torch.stack([1.0 * to_append, tt]), dim=0)
                 
-                log_probs.append(to_append)
-            else:
-                log_probs.append(tt)
+            log_probs.append(to_append)
+
         log_prob = torch.stack(log_probs) 
 
         return log_prob
@@ -362,8 +355,6 @@ class RNNTLoss(Loss):
             raise ValueError('`reduction` must be one of [mean, sum, mean_batch]')
 
         self._blank = num_classes
-        self._sigma = sigma
-        self._blank_duration_list = blank_duration_list
         self.reduction = reduction
         self._loss = resolve_rnnt_loss(loss_name, blank_idx=self._blank, big_blank_idx_list=list(range(num_classes + 1, num_classes + len(blank_duration_list) + 1)), blank_duration_list=self._blank_duration_list, loss_kwargs=loss_kwargs, sigma=sigma)
 
@@ -423,20 +414,26 @@ class RNNTLoss(Loss):
         return loss
 
 if __name__ == "__main__":
-#    B, T, U, V = 2, 32, 16, 256
-    B, T, U, V = 3, 11, 7, 5 
-#    B, T, U, V = 3, 3, 3, 3
+    B, T, U, V = 1, 11, 7, 5 
+    B, T, U, V = 1, 2, 2, 2  # V is number of non blank labels
+    B, T, U, V = 8, 64, 32, 128   # V is number of non blank labels
 
-    duration=2
+    blank_duration_list = [2, 4, 8]
+    big_blank_idx_list=list(range(V + 1, V + 1 + len(blank_duration_list)))
+    sigma = 0.0
+    args = {}
+    args['blank_duration_list'] = blank_duration_list
+    args['big_blank_idx_list'] = big_blank_idx_list
+    args['sigma'] = sigma
 
-    Loss = RNNTLossPytorch(V - 3, blank_duration=duration, reduction='mean')
-    Loss2 = RNNTLoss(V - 3, blank_duration_list=[duration, 2 * duration], reduction='mean_batch', loss_name='warprnnt_numba')
+    Loss = MultiblankRNNTLossPytorch(V, blank_duration=blank_duration_list, reduction='mean')
+    Loss2 = RNNTLoss(V, reduction='mean_batch', loss_name='multiblank_rnnt', loss_kwargs=args)
 
-    for t in range(1000):
-        acts = torch.rand([B, T, U, V]) - 0.5
+    for t in range(128):
+        acts = torch.rand([B, T, U, V + 1 + len(blank_duration_list)]) - 0.5
         acts = torch.nn.Parameter(acts * 5, requires_grad=True)
 
-        labels = torch.randint(low=0, high=V, size=[B, U])
+        labels = torch.randint(low=0, high=V - 1, size=[B, U])
         act_lens = torch.randint(low=1, high=T + 1, size=[B])
         label_lens = torch.randint(low=1, high=U + 1, size=[B]) - 1
         act_lens[0] = T
