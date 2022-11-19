@@ -131,9 +131,6 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         self.duration_loss_fn = DurationLoss(loss_scale=dur_loss_scale)
         self.energy_loss_fn = EnergyLoss(loss_scale=energy_loss_scale)
 
-        if "pitch_stats_path" in cfg:
-            self.register_artifact("pitch_stats_path", cfg.pitch_stats_path)
-
         self.aligner = None
         if self.learn_alignment:
             self.aligner = instantiate(self._cfg.alignment_module)

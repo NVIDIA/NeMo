@@ -164,7 +164,8 @@ class TTSDataset(Dataset):
             pitch_fmax (Optional[float]): The fmax input to librosa.pyin. Defaults to librosa.note_to_hz('C7').
             pitch_mean (Optional[float]): The mean that we use to normalize the pitch.
             pitch_std (Optional[float]): The std that we use to normalize the pitch.
-            pitch_norm (Optional[bool]): Whether to normalize pitch (via pitch_mean and pitch_std) or not.
+            pitch_norm (Optional[bool]): Whether to normalize pitch or not. If True, requires providing either
+                pitch_stats_path or (pitch_mean and pitch_std).
             pitch_stats_path (Optional[Path, str]): Path to file containing speaker level pitch statistics.
         """
         super().__init__()
@@ -421,15 +422,13 @@ class TTSDataset(Dataset):
 
         if self.pitch_norm:
             # XOR to validate that both or neither pitch mean and std are provided
-            if (self.pitch_mean is None) != (self.pitch_std is None):
-                raise ValueError(f"Found only 1 of (pitch_mean, pitch_std): ({self.pitch_mean}, {self.pitch_std})")
+            assert (self.pitch_mean is None) == (self.pitch_std is None), \
+                f"Found only 1 of (pitch_mean, pitch_std): ({self.pitch_mean}, {self.pitch_std})"
 
             # XOR to validate that exactly 1 of (pitch_mean, pitch_std) or pitch_stats_path is provided.
-            if (self.pitch_mean is None) == (pitch_stats_path is None):
-                raise ValueError(
-                    f"pitch_norm requires exactly 1 of (pitch_mean, pitch_std) or pitch_stats_path. "
-                    f"Provided: ({self.pitch_mean}, {self.pitch_std}) and {pitch_stats_path}"
-                )
+            assert (self.pitch_mean is None) != (pitch_stats_path is None), \
+                f"pitch_norm requires exactly 1 of (pitch_mean, pitch_std) or pitch_stats_path. " \
+                f"Provided: ({self.pitch_mean}, {self.pitch_std}) and {pitch_stats_path}"
 
         if pitch_stats_path is not None:
             with open(Path(pitch_stats_path), 'r', encoding="utf-8") as pitch_f:

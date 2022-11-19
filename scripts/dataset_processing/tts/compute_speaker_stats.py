@@ -42,7 +42,7 @@ from nemo.utils import logging
 
 def get_args():
     parser = argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter, description="Compute speaker level pitch statistics .",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter, description="Compute speaker level pitch statistics.",
     )
     parser.add_argument(
         "--manifest_path", required=True, type=Path, help="Path to training manifest.",
@@ -73,6 +73,11 @@ def main():
     sup_data_path = args.sup_data_path
     pitch_stats_path = args.pitch_stats_path
 
+    pitch_data_path = Path(os.path.join(sup_data_path, Pitch.name))
+    if not os.path.exists(pitch_data_path):
+        raise ValueError(f"Pitch directory {pitch_data_path} does not exist. Make sure 'sup_data_path' is correct "
+                         f"and that you have computed the pitch using extract_sup_data.py")
+
     entries = read_manifest(manifest_path)
 
     audio_paths = [entry["audio_filepath"] for entry in entries]
@@ -81,7 +86,7 @@ def main():
     global_pitch_values = []
     speaker_pitch_values = defaultdict(list)
     for entry in tqdm(entries):
-        pitch_path = get_sup_data_file_path(entry, base_dir, sup_data_path, Pitch.name)
+        pitch_path = get_sup_data_file_path(entry, base_dir, pitch_data_path)
         if not os.path.exists(pitch_path):
             logging.warning(f"Unable to find pitch file for {entry}")
             continue

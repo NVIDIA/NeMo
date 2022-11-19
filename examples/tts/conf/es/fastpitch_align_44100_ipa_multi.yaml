@@ -41,8 +41,6 @@ model:
   pitch_fmin: ${pitch_fmin}
   pitch_fmax: ${pitch_fmax}
 
-  pitch_stats_path: ${pitch_stats_path}
-
   sample_rate: ${sample_rate}
   n_mel_channels: ${n_mel_channels}
   n_window_size: ${n_window_size}
@@ -88,7 +86,7 @@ model:
       pitch_fmin: ${model.pitch_fmin}
       pitch_fmax: ${model.pitch_fmax}
       pitch_norm: true
-      pitch_stats_path: ${model.pitch_stats_path}
+      pitch_stats_path: ${pitch_stats_path}
 
     dataloader_params:
       drop_last: false
@@ -118,7 +116,7 @@ model:
       pitch_fmin: ${model.pitch_fmin}
       pitch_fmax: ${model.pitch_fmax}
       pitch_norm: true
-      pitch_stats_path: ${model.pitch_stats_path}
+      pitch_stats_path: ${pitch_stats_path}
 
     dataloader_params:
       drop_last: false
