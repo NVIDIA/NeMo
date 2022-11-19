@@ -317,7 +317,7 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
 
             # Setup fused Joint step
             if self.joint.fuse_loss_wer or (
-                    self.decoding.joint_fused_batch_size is not None and self.decoding.joint_fused_batch_size > 0
+                self.decoding.joint_fused_batch_size is not None and self.decoding.joint_fused_batch_size > 0
             ):
                 self.joint.set_loss(self.loss)
                 self.joint.set_wer(self.wer)
@@ -356,7 +356,9 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
                 self.cfg.ctc_decoding.decoding = decoding_cfg
 
             self.use_rnnt_decoder = False
-            logging.info(f"Changed decoding strategy of the CTC decoder to \n{OmegaConf.to_yaml(self.cfg.ctc_decoding.decoding)}")
+            logging.info(
+                f"Changed decoding strategy of the CTC decoder to \n{OmegaConf.to_yaml(self.cfg.ctc_decoding.decoding)}"
+            )
         else:
             raise ErrorValue(f"decoder_type={decoder_type} is not supported. Supported values: [ctc,rnnt]")
 
