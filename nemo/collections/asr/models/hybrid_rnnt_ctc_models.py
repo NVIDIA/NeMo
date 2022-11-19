@@ -12,11 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
 import json
 import os
 import tempfile
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
