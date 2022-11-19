@@ -821,7 +821,7 @@ class RNNTDecoding(AbstractRNNTDecoding):
         Returns:
             A list of decoded tokens.
         """
-        token_list = [self.labels_map[c] for c in tokens if c != self.blank_id and c != self.big_blank_id and c != self.huge_blank_id]
+        token_list = [self.labels_map[c] for c in tokens if c < self.blank_id]
         return token_list
 
 
@@ -870,7 +870,6 @@ class RNNTWER(Metric):
         self.use_cer = use_cer
         self.log_prediction = log_prediction
         self.blank_id = self.decoding.blank_id
-        self.big_blank_id_list = self.decoding.big_blank_id_list
         self.labels_map = self.decoding.labels_map
 
         self.add_state("scores", default=torch.tensor(0), dist_reduce_fx='sum', persistent=False)

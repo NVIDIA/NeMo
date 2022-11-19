@@ -181,10 +181,10 @@ class _GreedyRNNTInfer(Typing):
 
             if log_normalize is None:
                 if not logits.is_cuda:  # Use log softmax only if on CPU
-                    logits = logits.log_softmax(dim=len(logits.shape) - 3)
+                    logits = logits.log_softmax(dim=len(logits.shape) - 1)
             else:
                 if log_normalize:
-                    logits = logits.log_softmax(dim=len(logits.shape) - 3)
+                    logits = logits.log_softmax(dim=len(logits.shape) - 1)
 
         return logits
 

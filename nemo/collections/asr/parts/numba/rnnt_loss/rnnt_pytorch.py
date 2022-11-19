@@ -39,7 +39,7 @@ __all__ = ['rnnt_loss', 'RNNTLossNumba']
 
 class _RNNTNumba(Function):
     @staticmethod
-    def forward(ctx, acts, labels, act_lens, label_lens, blank, big_blank_list, blank_duration_list, reduction, fastemit_lambda, clamp, sigma):
+    def forward(ctx, acts, labels, act_lens, label_lens, blank, big_blank_durations, reduction, fastemit_lambda, clamp, sigma):
         """
         log_probs: Tensor of (batch x seqLength x labelLength x outputDim) containing output from network
         labels: 2 dimensional Tensor containing all the targets of the batch with zero padded
@@ -70,8 +70,7 @@ class _RNNTNumba(Function):
             costs=costs,
             grads=grads,
             blank_label=blank,
-            big_blank_label_list=big_blank_list,
-            blank_duration_list=blank_duration_list,
+            big_blank_durations=big_blank_durations,
             fastemit_lambda=fastemit_lambda,
             clamp=clamp,
             num_threads=0,
@@ -97,7 +96,7 @@ class _RNNTNumba(Function):
 
 
 def rnnt_loss(
-    acts, labels, act_lens, label_lens, blank=0, big_blank_list=[], blank_duration_list=[], reduction='mean', fastemit_lambda: float = 0.0, clamp: float = 0.0
+    acts, labels, act_lens, label_lens, blank=0, reduction='mean', fastemit_lambda: float = 0.0, clamp: float = 0.0
 ):
     """RNN Transducer Loss (functional form)
     Args:
@@ -124,7 +123,37 @@ def rnnt_loss(
         # log_softmax is computed within GPU version.
         acts = torch.nn.functional.log_softmax(acts, -1)
 
-    return _RNNTNumba.apply(acts, labels, act_lens, label_lens, blank, big_blank_list, blank_duration_list, reduction, fastemit_lambda, clamp)
+    return _RNNTNumba.apply(acts, labels, act_lens, label_lens, blank, reduction, fastemit_lambda, clamp)
+
+def multiblank_rnnt_loss(
+    acts, labels, act_lens, label_lens, blank=0, big_blank_durations=[], reduction='mean', fastemit_lambda: float = 0.0, clamp: float = 0.0
+):
+    """RNN Transducer Loss (functional form)
+    Args:
+        acts: Tensor of (batch x seqLength x labelLength x outputDim) containing output from network
+        labels: 2 dimensional Tensor containing all the targets of the batch with zero padded
+        act_lens: Tensor of size (batch) containing size of each output sequence from the network
+        label_lens: Tensor of (batch) containing label length of each example
+        blank (int, optional): blank label. Default: 0.
+        reduction (string, optional): Specifies the reduction to apply to the output:
+            'none' | 'mean' | 'sum'. 'none': no reduction will be applied,
+            'mean': the output losses will be divided by the target lengths and
+            then the mean over the batch is taken. Default: 'mean'
+    """
+    if not acts.is_cuda:
+        # Since CPU requires log_softmax to be computed explicitly, we need to perform grad clipping
+        # *after* we have obtained the gradients of loss(logsoftmax()).
+        # This is highly wasteful since it requires a copy of the entire joint tensor which is expensive.
+        # CUDA version is much more efficient since it performs an inplace logsoftmax, and therefore
+        # can inplace clamp the gradient.
+        if clamp > 0.0:
+            acts = cpu_rnnt.LogSoftmaxGradModification.apply(acts, clamp)
+
+        # NOTE manually done log_softmax for CPU version,
+        # log_softmax is computed within GPU version.
+        acts = torch.nn.functional.log_softmax(acts, -1)
+
+    return _MultiblankRNNTNumba.apply(acts, labels, act_lens, label_lens, blank, big_blank_durations, reduction, fastemit_lambda, clamp)
 
 
 class RNNTLossNumba(Module):
@@ -140,13 +169,9 @@ class RNNTLossNumba(Module):
         clamp: Float value. When set to value >= 0.0, will clamp the gradient to [-clamp, clamp].
     """
 
-    def __init__(self, blank=0, big_blank_list=[], blank_duration_list=[], reduction='mean', fastemit_lambda: float = 0.0, clamp: float = -1, sigma: float = 0.0):
-        super(MultiblankRNNTLossNumba, self).__init__()
+    def __init__(self, blank=0, reduction='mean', fastemit_lambda: float = 0.0, clamp: float = -1):
+        super(RNNTLossNumba, self).__init__()
         self.blank = blank
-        self.big_blank_list = big_blank_list
-
-        print("HERE big_blank_list", big_blank_list)
-        self.blank_duration_list = blank_duration_list
         self.fastemit_lambda = fastemit_lambda
         self.clamp = float(clamp) if clamp > 0 else 0.0
         self.reduction = reduction
@@ -173,7 +198,56 @@ class RNNTLossNumba(Module):
             acts = torch.nn.functional.log_softmax(acts, -1)
 
         return self.loss(
-            acts, labels, act_lens, label_lens, self.blank, self.big_blank_list, self.blank_duration_list, self.reduction, self.fastemit_lambda, self.clamp, self.sigma
+            acts, labels, act_lens, label_lens, self.blank, self.reduction, self.fastemit_lambda, self.clamp
+        )
+
+
+
+class MultiblankRNNTLossNumba(Module):
+    """
+    Parameters:
+        blank (int, optional): blank label. Default: 0.
+        reduction (string, optional): Specifies the reduction to apply to the output:
+            'none' | 'mean' | 'sum'. 'none': no reduction will be applied,
+            'mean': the output losses will be divided by the target lengths and
+            then the mean over the batch is taken. Default: 'mean'
+        fastemit_lambda: Float scaling factor for FastEmit regularization. Refer to
+                FastEmit: Low-latency Streaming ASR with Sequence-level Emission Regularization.
+        clamp: Float value. When set to value >= 0.0, will clamp the gradient to [-clamp, clamp].
+    """
+
+    def __init__(self, blank=0, big_blank_durations=[], reduction='mean', fastemit_lambda: float = 0.0, clamp: float = -1, sigma: float = 0.0):
+        super(MultiblankRNNTLossNumba, self).__init__()
+        self.blank = blank
+        self.big_blank_list = [blank + 1 + i for i in range(len(big_blank_durations))]
+        self.big_blank_durations = big_blank_durations
+        self.fastemit_lambda = fastemit_lambda
+        self.clamp = float(clamp) if clamp > 0 else 0.0
+        self.reduction = reduction
+        self.loss = _RNNTNumba.apply
+
+    def forward(self, acts, labels, act_lens, label_lens):
+        """
+        log_probs: Tensor of (batch x seqLength x labelLength x outputDim) containing output from network
+        labels: 2 dimensional Tensor containing all the targets of the batch with zero padded
+        act_lens: Tensor of size (batch) containing size of each output sequence from the network
+        label_lens: Tensor of (batch) containing label length of each example
+        """
+        if not acts.is_cuda:
+            # Since CPU requires log_softmax to be computed explicitly, we need to perform grad clipping
+            # *after* we have obtained the gradients of loss(logsoftmax()).
+            # This is highly wasteful since it requires a copy of the entire joint tensor which is expensive.
+            # CUDA version is much more efficient since it performs an inplace logsoftmax, and therefore
+            # can inplace clamp the gradient.
+            if self.clamp > 0.0:
+                acts = cpu_rnnt.LogSoftmaxGradModification.apply(acts, self.clamp)
+
+            # NOTE manually done log_softmax for CPU version,
+            # log_softmax is computed within GPU version.
+            acts = torch.nn.functional.log_softmax(acts, -1)
+
+        return self.loss(
+            acts, labels, act_lens, label_lens, self.blank, self.big_blank_durations, self.reduction, self.fastemit_lambda, self.clamp, self.sigma
         )
 
 
