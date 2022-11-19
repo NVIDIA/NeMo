@@ -34,7 +34,7 @@ from nemo.utils import logging, model_utils
 
 
 class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin):
-    """Base class for joint RNNT/CTC models."""
+    """Base class for hybrid RNNT/CTC models."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
