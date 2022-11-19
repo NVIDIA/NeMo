@@ -139,9 +139,94 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
         Returns: None
 
         """
-        super().__init__(
-            new_tokenizer_dir=new_tokenizer_dir, new_tokenizer_type=new_tokenizer_type, decoding_cfg=decoding_cfg
+        if isinstance(new_tokenizer_dir, DictConfig):
+            if new_tokenizer_type == 'agg':
+                new_tokenizer_cfg = new_tokenizer_dir
+            else:
+                raise ValueError(
+                    f'New tokenizer dir should be a string unless the tokenizer is `agg`, but this tokenizer type is: {new_tokenizer_type}'
+                )
+        else:
+            new_tokenizer_cfg = None
+
+        if new_tokenizer_cfg is not None:
+            tokenizer_cfg = new_tokenizer_cfg
+        else:
+            if not os.path.isdir(new_tokenizer_dir):
+                raise NotADirectoryError(
+                    f'New tokenizer dir must be non-empty path to a directory. But I got: {new_tokenizer_dir}'
+                )
+
+            if new_tokenizer_type.lower() not in ('bpe', 'wpe'):
+                raise ValueError(f'New tokenizer type must be either `bpe` or `wpe`')
+
+            tokenizer_cfg = OmegaConf.create({'dir': new_tokenizer_dir, 'type': new_tokenizer_type})
+
+        # Setup the tokenizer
+        self._setup_tokenizer(tokenizer_cfg)
+
+        # Initialize a dummy vocabulary
+        vocabulary = self.tokenizer.tokenizer.get_vocab()
+
+        joint_config = self.joint.to_config_dict()
+        new_joint_config = copy.deepcopy(joint_config)
+        if self.tokenizer_type == "agg":
+            new_joint_config["vocabulary"] = ListConfig(vocabulary)
+        else:
+            new_joint_config["vocabulary"] = ListConfig(list(vocabulary.keys()))
+
+        new_joint_config['num_classes'] = len(vocabulary)
+        del self.joint
+        self.joint = EncDecRNNTBPEModel.from_config_dict(new_joint_config)
+
+        decoder_config = self.decoder.to_config_dict()
+        new_decoder_config = copy.deepcopy(decoder_config)
+        new_decoder_config.vocab_size = len(vocabulary)
+        del self.decoder
+        self.decoder = EncDecRNNTBPEModel.from_config_dict(new_decoder_config)
+
+        del self.loss
+        self.loss = RNNTLoss(num_classes=self.joint.num_classes_with_blank - 1)
+
+        if decoding_cfg is None:
+            # Assume same decoding config as before
+            decoding_cfg = self.cfg.decoding
+
+        # Assert the decoding config with all hyper parameters
+        decoding_cls = OmegaConf.structured(RNNTBPEDecodingConfig)
+        decoding_cls = OmegaConf.create(OmegaConf.to_container(decoding_cls))
+        decoding_cfg = OmegaConf.merge(decoding_cls, decoding_cfg)
+
+        self.decoding = RNNTBPEDecoding(
+            decoding_cfg=decoding_cfg, decoder=self.decoder, joint=self.joint, tokenizer=self.tokenizer,
         )
+
+        self.wer = RNNTBPEWER(
+            decoding=self.decoding,
+            batch_dim_index=self.wer.batch_dim_index,
+            use_cer=self.wer.use_cer,
+            log_prediction=self.wer.log_prediction,
+            dist_sync_on_step=True,
+        )
+
+        # Setup fused Joint step
+        if self.joint.fuse_loss_wer or (
+            self.decoding.joint_fused_batch_size is not None and self.decoding.joint_fused_batch_size > 0
+        ):
+            self.joint.set_loss(self.loss)
+            self.joint.set_wer(self.wer)
+
+        # Update config
+        with open_dict(self.cfg.joint):
+            self.cfg.joint = new_joint_config
+
+        with open_dict(self.cfg.decoder):
+            self.cfg.decoder = new_decoder_config
+
+        with open_dict(self.cfg.decoding):
+            self.cfg.decoding = decoding_cfg
+
+        logging.info(f"Changed RNNT decoder to output to {self.joint.vocabulary} vocabulary.")
 
         # set up CTC decoder if required
         if ctc_decoding_cfg is not None:  # or self.ctc_loss_weight > 0:
@@ -168,13 +253,6 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
                 reduction=self.cfg.ctc_decoding.get("ctc_reduction", "mean_batch"),
             )
 
-            if ctc_decoding_cfg is None:
-                ctc_decoding_cfg = self.cfg.ctc_decoding.get('decoding', None)
-            if ctc_decoding_cfg is None:
-                ctc_decoding_cfg = OmegaConf.structured(CTCBPEDecodingConfig)
-                with open_dict(self.cfg.ctc_decoding):
-                    self.cfg.ctc_decoding.decoder = ctc_decoding_cfg
-
             # Assert the decoding config with all hyper parameters
             ctc_decoding_cls = OmegaConf.structured(CTCBPEDecodingConfig)
             ctc_decoding_cls = OmegaConf.create(OmegaConf.to_container(ctc_decoding_cls))
@@ -190,11 +268,12 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
             )
 
             # Update config
-            with open_dict(self.cfg.ctc_decoding.decoder):
-                self.cfg.ctc_decoding.decoder = new_decoder_config
+            with open_dict(self.cfg.ctc_aux.decoder):
+                self.cfg.ctc_aux.decoder = new_decoder_config
 
-            with open_dict(self.cfg.ctc_decoding.decoding):
-                self.cfg.ctc_decoding.decoding = ctc_decoding_cfg
+            with open_dict(self.cfg.ctc_aux.decoding):
+                self.cfg.ctc_aux.decoding = ctc_decoding_cfg
+            logging.info(f"Changed CTC decoder to output to {self.ctc_decoder.vocabulary} vocabulary.")
 
     def change_decoding_strategy(self, decoding_cfg: DictConfig, decoder_type: str = None):
         """

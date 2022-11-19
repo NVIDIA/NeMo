@@ -16,7 +16,7 @@ import copy
 import json
 import os
 import tempfile
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional
 
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
@@ -220,7 +220,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin):
 
         """
         super().change_vocabulary(**kwargs)
-        if ctc_decoding_cfg is not None:  # and self.ctc_loss_weight > 0:
+        if ctc_decoding_cfg is not None:
             if hasattr(self, 'ctc_decoder'):
                 decoder_config = self.ctc_decoder.to_config_dict()
                 new_decoder_config = copy.deepcopy(decoder_config)
@@ -240,13 +240,6 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin):
                 reduction=self.cfg.aux_ctc.get("ctc_reduction", "mean_batch"),
             )
 
-            if ctc_decoding_cfg is None:
-                ctc_decoding_cfg = self.cfg.aux_ctc.get('decoding', None)
-            if ctc_decoding_cfg is None:
-                ctc_decoding_cfg = OmegaConf.structured(CTCDecodingConfig)
-                with open_dict(self.cfg.ctc):
-                    self.cfg.aux_ctc.decoding = ctc_decoding_cfg
-
             # Assert the decoding config with all hyper parameters
             ctc_decoding_cls = OmegaConf.structured(CTCDecodingConfig)
             ctc_decoding_cls = OmegaConf.create(OmegaConf.to_container(ctc_decoding_cls))
@@ -262,11 +255,11 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin):
             )
 
             # Update config
-            with open_dict(self.cfg.ctc.decoder):
-                self.cfg.ctc.decoder = new_decoder_config
+            with open_dict(self.cfg.ctc_aux.decoder):
+                self.cfg.ctc_aux.decoder = new_decoder_config
 
-            with open_dict(self.cfg.ctc.decoding):
-                self.cfg.ctc.decoding = ctc_decoding_cfg
+            with open_dict(self.cfg.ctc_aux.decoding):
+                self.cfg.ctc_aux.decoding = ctc_decoding_cfg
 
     def change_decoding_strategy(self, decoding_cfg: DictConfig, decoder_type: str = None):
         """
