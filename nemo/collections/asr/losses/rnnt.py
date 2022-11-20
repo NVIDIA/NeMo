@@ -229,7 +229,6 @@ class MultiblankRNNTLossPytorch(Loss):
 
     @typecheck()
     def forward(self, acts, labels, act_lens, label_lens):
-#        print("pytorch sigma", self.sigma)
         acts = torch.log_softmax(acts, -1) - self.sigma
         forward_logprob = self.compute_forward_prob(acts, labels, act_lens, label_lens)
         return -forward_logprob
@@ -245,12 +244,10 @@ class MultiblankRNNTLossPytorch(Loss):
                     if t == 0:
                         log_alpha[:, t, u] = 0.0
                     else:
-#                        print("pytorch scores", log_alpha[:, t-1, u], acts[:, t-1, 0, self.blank] )
                         log_alpha[:, t, u] = log_alpha[:, t-1, u] + acts[:, t-1, 0, self.blank] 
 
                         for i, d in enumerate(self.big_blank_durations):
                             if t >= d: 
-#                                print("pytorch scores", log_alpha[:, t - d, u], acts[:, t - d, 0, self.blank + 1 + i])
                                 tt = log_alpha[:, t - d, u] + acts[:, t - d, 0, self.blank + 1 + i]
                                 log_alpha[:, t, u] = torch.logsumexp(torch.stack([1.0 * log_alpha[:, t, u], tt]), dim=0)
                             
@@ -268,7 +265,6 @@ class MultiblankRNNTLossPytorch(Loss):
                             if t >= d: 
                                 tt = log_alpha[:, t - d, u] + acts[:, t - d, u, self.blank + 1 + i]
                                 log_alpha[:, t, u] = torch.logsumexp(torch.stack([1.0 * log_alpha[:, t, u], tt]), dim=0)
-#                print("pytorch alpha", 0, t, u, float(log_alpha[0, t, u]))
 
         log_probs = []
         for b in range(B):
@@ -420,11 +416,12 @@ if __name__ == "__main__":
     B, T, U, V = 1, 11, 7, 5 
     B, T, U, V = 1, 2, 2, 2         # V is number of non blank labels
     B, T, U, V = 1, 3, 3, 5         # V is number of non blank labels
-    B, T, U, V = 8, 64, 32, 128    # V is number of non blank labels
+    B, T, U, V = 8, 264, 32, 128    # V is number of non blank labels
 
-    big_blank_durations = [2, 4, 8]
-    big_blank_idx_list=list(range(V + 1, V + 1 + len(big_blank_durations)))
-    sigma = 0.05
+    big_blank_durations = [2,3,4,5,6,7,8]
+    big_blank_durations = [2]
+#    big_blank_durations = []
+    sigma = 0.1
     args = {}
     args['big_blank_durations'] = big_blank_durations
     args['sigma'] = sigma
@@ -434,7 +431,7 @@ if __name__ == "__main__":
     args2['sigma'] = sigma
 
     Loss = RNNTLoss(V, reduction='mean_batch', loss_name='multiblank_rnnt_pytorch', loss_kwargs=args)
-    Loss2 = RNNTLoss(V, reduction='mean_batch', loss_name='multiblank_rnnt', loss_kwargs=args2)
+    Loss2 = RNNTLoss(V, reduction='mean_batch', loss_name='multiblank_rnnt', loss_kwargs=args2) if len(big_blank_durations) > 0 else RNNTLoss(V, reduction='mean_batch', loss_name='warprnnt_numba', loss_kwargs=args2)
 
     for t in range(22):
         acts = torch.rand([B, T, U, V + 1 + len(big_blank_durations)]) - 0.5
@@ -464,6 +461,6 @@ if __name__ == "__main__":
         
         loss2.backward()
 
-        print("loss diff", float(loss - loss2))
+        print("loss diff", float(loss - loss2), float(loss), float(loss2))
         print("grad norm diff per element", float(torch.norm(acts.grad - grad1)))
 

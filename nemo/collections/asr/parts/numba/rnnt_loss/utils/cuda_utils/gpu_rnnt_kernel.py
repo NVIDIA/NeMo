@@ -415,7 +415,6 @@ def compute_multiblank_alphas_kernel(
     maxU: int,
     alphabet_size: int,
     blank_: int,
-    big_blank_number: torch.Tensor,
     big_blank_duration: torch.Tensor,
     num_big_blanks: int,
 ):
@@ -477,16 +476,13 @@ def compute_multiblank_alphas_kernel(
                 alphas[offset + t * maxU + u] = alphas[offset + (t - 1) * maxU + u] + logp(
                     denom, acts, maxT, maxU, alphabet_size, b, t - 1, 0, blank_
                 ) - sigma
-#                print("KERNAL", alphas[offset + (t - 1) * maxU + u], logp(
-#                    denom, acts, maxT, maxU, alphabet_size, b, t - 1, 0, blank_
-#                ) - sigma)
 
                 for i in range(num_big_blanks):
                     if t >= big_blank_duration[i]:
                         alphas[offset + t * maxU + u] = rnnt_helper.log_sum_exp(
                             alphas[offset + t * maxU + u],
                             alphas[offset + (t - big_blank_duration[i]) * maxU + u] + logp(
-                              denom, acts, maxT, maxU, alphabet_size, b, t - big_blank_duration[i], 0, big_blank_number[i]
+                              denom, acts, maxT, maxU, alphabet_size, b, t - big_blank_duration[i], 0, blank_ + 1 + i
                             ) - sigma
                         )
 
@@ -511,7 +507,7 @@ def compute_multiblank_alphas_kernel(
                 for i in range(num_big_blanks):
                     if t >= big_blank_duration[i]:
                         big_blank_no_emit = alphas[offset + (t - big_blank_duration[i]) * maxU + u] + logp(
-                            denom, acts, maxT, maxU, alphabet_size, b, t - big_blank_duration[i], u, big_blank_number[i]
+                            denom, acts, maxT, maxU, alphabet_size, b, t - big_blank_duration[i], u, blank_ + 1 + i
                         ) - sigma
                         alphas[offset + t * maxU + u] = rnnt_helper.log_sum_exp(
                             alphas[offset + t * maxU + u],
@@ -532,7 +528,7 @@ def compute_multiblank_alphas_kernel(
         for i in range(num_big_blanks):
             if T >= big_blank_duration[i]:
                 big_blank_loglike = alphas[offset + (T - big_blank_duration[i]) * maxU + U - 1] + logp(
-                    denom, acts, maxT, maxU, alphabet_size, b, T - big_blank_duration[i], U - 1, big_blank_number[i]
+                    denom, acts, maxT, maxU, alphabet_size, b, T - big_blank_duration[i], U - 1, blank_ + 1 + i
                 ) - sigma
                 loglike = rnnt_helper.log_sum_exp(loglike, big_blank_loglike)
 
@@ -553,7 +549,6 @@ def compute_multiblank_betas_kernel(
     maxU: int,
     alphabet_size: int,
     blank_: int,
-    big_blank_number: torch.Tensor,
     big_blank_duration: torch.Tensor,
     num_big_blanks: int,
 ):
@@ -603,7 +598,7 @@ def compute_multiblank_betas_kernel(
             if T >= big_blank_duration[i] and big_blank_duration[i] == 1:
                 betas[offset + (T - 1) * maxU + U - 1] = rnnt_helper.log_sum_exp(
                     betas[offset + (T - 1) * maxU + U - 1],
-                    logp(denom, acts, maxT, maxU, alphabet_size, b, T - 1, U - 1, big_blank_number[i]) - sigma
+                    logp(denom, acts, maxT, maxU, alphabet_size, b, T - 1, U - 1, blank_ + 1 + i) - sigma
                 )
 
     # sync until all betas are initialized
@@ -626,14 +621,14 @@ def compute_multiblank_betas_kernel(
                         betas[offset + t * maxU + U - 1] = rnnt_helper.log_sum_exp(
                             betas[offset + t * maxU + U - 1],
                             betas[offset + (t + big_blank_duration[i]) * maxU + U - 1] + logp(
-                              denom, acts, maxT, maxU, alphabet_size, b, t, U - 1, big_blank_number[i]
+                              denom, acts, maxT, maxU, alphabet_size, b, t, U - 1, blank_ + 1 + i
                             ) - sigma
                         )
                     elif t + big_blank_duration[i] == T and big_blank_duration[i] != 1:
                         betas[offset + t * maxU + U - 1] = rnnt_helper.log_sum_exp(
                             betas[offset + t * maxU + U - 1],
                             logp(
-                              denom, acts, maxT, maxU, alphabet_size, b, t, U - 1, big_blank_number[i]
+                              denom, acts, maxT, maxU, alphabet_size, b, t, U - 1, blank_ + 1 + i
                             ) - sigma
                         )
 
@@ -658,7 +653,7 @@ def compute_multiblank_betas_kernel(
                 for i in range(num_big_blanks):
                     if t < T - big_blank_duration[i]:
                         big_blank_no_emit = betas[offset + (t + big_blank_duration[i]) * maxU + u] + logp(
-                            denom, acts, maxT, maxU, alphabet_size, b, t, u, big_blank_number[i]
+                            denom, acts, maxT, maxU, alphabet_size, b, t, u, blank_ + 1 + i
                         ) - sigma
                         betas[offset + t * maxU + u] = rnnt_helper.log_sum_exp(
                             betas[offset + t * maxU + u],
@@ -690,7 +685,6 @@ def compute_multiblank_grad_kernel(
     maxU: int,
     alphabet_size: int,
     blank_: int,
-    big_blank_number: torch.Tensor,
     big_blank_duration: torch.Tensor,
     num_big_blanks: int,
     fastemit_lambda: float,
@@ -788,7 +782,7 @@ def compute_multiblank_grad_kernel(
                 grad -= math.exp(alphas[col] + logpk - logll[mb])
             else:
                 for i in range(num_big_blanks):
-                    if (idx == big_blank_number[i]) and (t == T - big_blank_duration[i]) and (u == U - 1):
+                    if (idx == blank_ + 1 + i) and (t == T - big_blank_duration[i]) and (u == U - 1):
                         grad -= math.exp(alphas[col] + logpk - logll[mb])
 
             # grad of blank across t < T;
@@ -797,7 +791,7 @@ def compute_multiblank_grad_kernel(
                 grad -= math.exp(alphas[col] + logpk - logll[mb] + betas[col + maxU])
             else:
                 for i in range(num_big_blanks):
-                    if (idx == big_blank_number[i]) and (t < T - big_blank_duration[i]):
+                    if (idx == blank_ + 1 + i) and (t < T - big_blank_duration[i]):
                       grad -= math.exp(alphas[col] + logpk - logll[mb] + betas[col + big_blank_duration[i] * maxU])
 
             # grad of correct token across u < U;

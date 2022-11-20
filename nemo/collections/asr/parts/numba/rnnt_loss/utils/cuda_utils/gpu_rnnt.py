@@ -389,7 +389,7 @@ class MultiblankGPURNNT(GPURNNT):
         if training:
             grads *= 0.0  # zero grads
 
-        used_offset, (denom, alphas, betas, llForward, llBackward, BBLabels, BBDuations) = self._prepare_workspace()
+        used_offset, (denom, alphas, betas, llForward, llBackward, bigblank_durations) = self._prepare_workspace()
 
         ######## START EXECUTION ########
         self.log_softmax(acts, denom)
@@ -409,8 +409,7 @@ class MultiblankGPURNNT(GPURNNT):
             self.maxU_,
             self.alphabet_size_,
             self.blank_,
-            BBLabels,
-            BBDuations,
+            bigblank_durations,
             self.num_big_blanks,
         )
 
@@ -430,8 +429,7 @@ class MultiblankGPURNNT(GPURNNT):
                 self.maxU_,
                 self.alphabet_size_,
                 self.blank_,
-                BBLabels,
-                BBDuations,
+                bigblank_durations,
                 self.num_big_blanks,
             )
 
@@ -454,8 +452,7 @@ class MultiblankGPURNNT(GPURNNT):
                 self.maxU_,
                 self.alphabet_size_,
                 self.blank_,
-                BBLabels,
-                BBDuations,
+                bigblank_durations,
                 self.num_big_blanks,
                 self.fastemit_lambda_,
                 self.clamp_,
@@ -536,7 +533,6 @@ class MultiblankGPURNNT(GPURNNT):
         llBackward = self.gpu_workspace[used_offset : used_offset + self.minibatch_]
         used_offset += self.minibatch_
 
-        BBLabels = self.big_blank_workspace[0:self.num_big_blanks]
-        BBDurations = self.big_blank_workspace[self.num_big_blanks:2* self.num_big_blanks]
+        bigblank_durations = self.big_blank_workspace[:self.num_big_blanks]
 
-        return used_offset, (denom, alphas, betas, llForward, llBackward, BBLabels, BBDurations,)
+        return used_offset, (denom, alphas, betas, llForward, llBackward, bigblank_durations)
