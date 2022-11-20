@@ -918,8 +918,8 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         reg_term = torch.sum(torch.abs(angle_cosines))
     
         # Combine losses
-        alpha = 0.50
-        beta = 5e-4
+        alpha = self.cfg.get("loss_alpha", 0.50)
+        beta = self.cfg.get("loss_beta", 5e-4)
         loss = (alpha * cross_entropy_loss) + (beta * reg_term)
         logging.info(f'Cross entropy loss: {cross_entropy_loss}, Reg_term: {reg_term}')
 
@@ -935,7 +935,10 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 output_tensor, _ = output_tensor
 
             def loss_func(output_tensor):
-                loss = self.loss_func(loss_mask, output_tensor)
+                if self.cfg.reg_loss:
+                    loss = self.loss_func(loss_mask, output_tensor)
+                else:
+                    loss = self.frozen_model.loss_func(loss_mask, output_tensor)
                 reduced_loss = average_losses_across_data_parallel_group([loss])
                 return loss, {'avg': reduced_loss}
 
