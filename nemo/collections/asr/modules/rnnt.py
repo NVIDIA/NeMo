@@ -1217,7 +1217,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
         self.joint_hidden = jointnet['joint_hidden']
         self.activation = jointnet['activation']
         self.num_extra_outputs = num_extra_outputs
-        self._num_classes = num_classes + 1 + num_extra_outputs  # add 2 for two blank symbols
+        self._num_classes = num_classes + 1 + num_extra_outputs
 
         # Optional arguments
         dropout = jointnet.get('dropout', 0.0)

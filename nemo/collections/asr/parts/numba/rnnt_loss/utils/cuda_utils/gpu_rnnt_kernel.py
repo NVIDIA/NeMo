@@ -454,7 +454,6 @@ def compute_multiblank_alphas_kernel(
     T = xlen[b]  # select AM length of current sample
     U = ylen[b] + 1  # select target length of current sample, +1 for the blank token
 
-
     labels: torch.Tensor = mlabels[b]  # mb label start point, equivalent to mlabels + b * (maxU - 1)
     offset = b * maxT * maxU  # pointer indexing offset
 
@@ -478,6 +477,9 @@ def compute_multiblank_alphas_kernel(
                 alphas[offset + t * maxU + u] = alphas[offset + (t - 1) * maxU + u] + logp(
                     denom, acts, maxT, maxU, alphabet_size, b, t - 1, 0, blank_
                 ) - sigma
+#                print("KERNAL", alphas[offset + (t - 1) * maxU + u], logp(
+#                    denom, acts, maxT, maxU, alphabet_size, b, t - 1, 0, blank_
+#                ) - sigma)
 
                 for i in range(num_big_blanks):
                     if t >= big_blank_duration[i]:
@@ -485,8 +487,8 @@ def compute_multiblank_alphas_kernel(
                             alphas[offset + t * maxU + u],
                             alphas[offset + (t - big_blank_duration[i]) * maxU + u] + logp(
                               denom, acts, maxT, maxU, alphabet_size, b, t - big_blank_duration[i], 0, big_blank_number[i]
-                            )
-                        ) - sigma
+                            ) - sigma
+                        )
 
         elif u < U:
             # for u in range(1, U) step to initialize alphas[b, 0, u]
@@ -515,6 +517,7 @@ def compute_multiblank_alphas_kernel(
                             alphas[offset + t * maxU + u],
                             big_blank_no_emit
                         )
+#        print("KERNAL ALPHA", b, t, u, alphas[offset + t * maxU + u], "sigma", sigma)
 
         # sync across all B=b and U=u
         cuda.syncthreads()
