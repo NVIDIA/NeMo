@@ -28,6 +28,7 @@ from nemo.collections.nlp.modules.common.prompt_encoder import (
     PromptEncoder,
     PromptEncoderMLP,
     PromptEncoderType,
+    ResidualMLPPromptEncoder,
 )
 from nemo.collections.nlp.modules.common.prompt_table import (
     PromptTable,
