@@ -37,6 +37,7 @@ from nemo.collections.nlp.modules.common import (
     VirtualPromptSource,
     VirtualPromptStyle,
 )
+from nemo.collections.nlp.modules.common.prompt_encoder import PromptEncoderLinearCombination
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.modules.common.text_generation_utils import (
     get_default_length_params,
@@ -139,6 +140,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         self.existing_tasks = list(self.cfg.get('existing_tasks', []))
         self.new_tasks = list(self.cfg.get('new_tasks', []))
         self.virtual_prompt_style = VirtualPromptStyle(cfg.virtual_prompt_style)
+        self.prompt_encoder_type = PromptEncoderType(self.cfg.p_tuning.get("encoder_type", "tpmlp").lower())
 
         if self.pipeline_parallel:
             assert (
@@ -157,12 +159,16 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             self.word_embeddings = self.frozen_model.model.language_model.embedding.word_embeddings
 
             # Prompt table stores all task embeddings, p-tuning virtual prompts get added to the table after training
-            self.prompt_table = PromptTable(
-                existing_tasks=self.existing_tasks,
-                task_templates=self.task_templates,
-                task_id_num_to_name=self.task_id_num_to_name,
-                hidden_size=self.hidden_size,
-            )
+
+            if not self.prompt_encoder_type == PromptEncoderType.LINEAR_COMBINATION:
+                self.prompt_table = PromptTable(
+                    existing_tasks=self.existing_tasks,
+                    task_templates=self.task_templates,
+                    task_id_num_to_name=self.task_id_num_to_name,
+                    hidden_size=self.hidden_size,
+                )
+            else:
+                self.prompt_table = None
 
         self.padded_vocab_size = self.frozen_model.padded_vocab_size
         self._prompt_table_key = VirtualPromptSource.PROMPT_TABLE.value
@@ -267,15 +273,14 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         new_task = self.new_tasks[0]
         total_virtual_tokens = self.task_templates[new_task]["total_virtual_tokens"]
 
-        encoder_type = PromptEncoderType(self.cfg.p_tuning.get("encoder_type", "tpmlp").lower())
-        if encoder_type == PromptEncoderType.TPMLP:
+        if self.prompt_encoder_type == PromptEncoderType.TPMLP:
             self.prompt_encoder = PromptEncoderMLP(
                 total_virtual_tokens=total_virtual_tokens,
                 hidden_size=self.cfg.p_tuning.get("encoder_hidden", 2048),
                 output_size=self.hidden_size,
                 init_std=self.cfg.p_tuning.get("init_std", 0.023),
             )
-        elif encoder_type == PromptEncoderType.BIGLSTM:
+        elif self.prompt_encoder_type == PromptEncoderType.BIGLSTM:
             self.prompt_encoder = BIGLSTMPromptEncoder(
                 total_virtual_tokens=total_virtual_tokens,
                 hidden_size=self.cfg.p_tuning.encoder_hidden,
@@ -283,15 +288,18 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 lstm_dropout=self.cfg.p_tuning.dropout,
                 num_layers=self.cfg.p_tuning.num_layers,
             )
-        elif encoder_type == PromptEncoderType.LSTM or encoder_type == PromptEncoderType.MLP:
+        elif self.prompt_encoder_type == PromptEncoderType.LSTM or self.prompt_encoder_type == PromptEncoderType.MLP:
             self.prompt_encoder = PromptEncoder(
-                encoder_type=encoder_type,
+                encoder_type=self.prompt_encoder_type,
                 total_virtual_tokens=total_virtual_tokens,
                 token_dim=self.hidden_size,
                 hidden_size=self.cfg.p_tuning.get("encoder_hidden", self.hidden_size // 2),
                 lstm_dropout=self.cfg.p_tuning.get("dropout", 0.0),
                 num_layers=self.cfg.p_tuning.get("num_layers", 2),
             )
+        elif self.prompt_encoder_type == PromptEncoderType.LINEAR_COMBINATION:
+            word_embedding = self.frozen_model.model.language_model.embedding.word_embeddings.weight.data
+            self.prompt_encoder = PromptEncoderLinearCombination(total_virtual_tokens, word_embedding)
         else:
             raise ValueError('not supported')
         # cast the model weights to bf16 only for 'bf16' precision
@@ -308,6 +316,8 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         are removed from the model to avoid needing to load unnecessary
         weights during inference or future p-tuning/prompt-tuning.
         """
+        if self.prompt_encoder_type == PromptEncoderType.LINEAR_COMBINATION:
+            return 
         # Save p-tuned prompts to prompt table
         if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING and self.frozen_model.model.pre_process:
             for taskname in self.new_tasks:
@@ -324,13 +334,14 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         """Freeze params of existing virtual prompts that should not be tuned further
         """
         # Only want new prompt tags to be tunable, leave existing prompt tags alone
-        for taskname in self.prompt_table.prompt_table.keys():
-            if taskname in set(self.new_tasks):
-                for params in self.prompt_table.prompt_table[taskname].parameters():
-                    params.requires_grad = True
-            else:
-                for params in self.prompt_table.prompt_table[taskname].parameters():
-                    params.requires_grad = False
+        if self.prompt_table:
+            for taskname in self.prompt_table.prompt_table.keys():
+                if taskname in set(self.new_tasks):
+                    for params in self.prompt_table.prompt_table[taskname].parameters():
+                        params.requires_grad = True
+                else:
+                    for params in self.prompt_table.prompt_table[taskname].parameters():
+                        params.requires_grad = False
 
         # Make sure word embeddings are frozen
         for params in self.word_embeddings.parameters():
@@ -356,7 +367,8 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         """
         state_dict_ = {}
         if self.frozen_model.model.pre_process:
-            state_dict_[self._prompt_table_key] = self.prompt_table.state_dict()
+            if self.prompt_table:
+                state_dict_[self._prompt_table_key] = self.prompt_table.state_dict()
 
             if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
                 state_dict_[self._prompt_encoder_key] = self.prompt_encoder.state_dict()
@@ -379,7 +391,8 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                         key_substring = ".".join(key.split(".")[1:])
                         state_dict_[key_substring] = state_dict[key]
 
-            self.prompt_table.load_state_dict(state_dict_, strict)
+            if self.prompt_table:
+                self.prompt_table.load_state_dict(state_dict_, strict)
 
             if (
                 self._prompt_encoder_key in state_dict
@@ -407,7 +420,8 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         virtual_prompt_params = {'params': []}
 
         if self.frozen_model.model.pre_process:
-            virtual_prompt_params['params'].extend([param for param in self.prompt_table.parameters()])
+            if self.prompt_table:
+                virtual_prompt_params['params'].extend([param for param in self.prompt_table.parameters()])
 
             if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
                 virtual_prompt_params['params'].extend([param for param in self.prompt_encoder.parameters()])
@@ -603,16 +617,25 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
             loss_tensor = torch.concat(loss_tensors_list)
             loss_mean = loss_tensor.mean()
+            l1_tensors_list = [loss_reduced['w_l1'] for loss_reduced in losses_reduced_per_micro_batch]
+            l1_tensor = torch.concat(l1_tensors_list)
+            l2_tensors_list = [loss_reduced['w_l2'] for loss_reduced in losses_reduced_per_micro_batch]
+            l2_tensor = torch.concat(l2_tensors_list)
+            l1_mean = l1_tensor.mean()
+            l2_mean = l2_tensor.mean()
         else:
             # we're not on the last pipeline stage so no losses
             loss_mean = torch.tensor(0.0).cuda()
+            l1_mean = torch.tensor(0.0).cuda()
+            l2_mean = torch.tensor(0.0).cuda()
 
-        return loss_mean
+        return {'loss_mean': loss_mean, 'l2_mean': l2_mean, 'l1_mean': l1_mean}
 
     def training_step(self, batch, batch_idx):
         # we zero grads here because we also call backward in the apex fwd/bwd functions
         self._optimizer.zero_grad()
         loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=False)
+        loss_mean, l2_mean, l1_mean = loss_mean['loss_mean'], loss_mean['l2_mean'], loss_mean['l1_mean']
         self.allreduce_gradients()
 
         ## logging
@@ -626,6 +649,8 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 self.log('loss_scale', loss_scale)
 
         self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True)
+        self.log('encoder_l2_reg', l2_mean.detach(), prog_bar=True, rank_zero_only=True)
+        self.log('encoder_l1_reg', l1_mean.detach(), prog_bar=True, rank_zero_only=True)
         lr = self._optimizer.param_groups[0]['lr']
         self.log('lr', lr, rank_zero_only=True)
         self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True)
@@ -646,6 +671,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
     def validation_step(self, batch, batch_idx):
         loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=True)
+        loss_mean, l2_mean, l1_mean = loss_mean['loss_mean'], loss_mean['l2_mean'], loss_mean['l1_mean']
         if loss_mean.item == 0.0:
             loss_mean = []
 
@@ -896,8 +922,9 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
             def loss_func(output_tensor):
                 loss = self.frozen_model.loss_func(loss_mask, output_tensor)
+                w_l1, w_l2 = self.prompt_encoder.encoder_reg()
                 reduced_loss = average_losses_across_data_parallel_group([loss])
-                return loss, {'avg': reduced_loss}
+                return loss, {'avg': reduced_loss, "w_l2": w_l2, "w_l1": w_l1}
 
             return output_tensor, loss_func
 

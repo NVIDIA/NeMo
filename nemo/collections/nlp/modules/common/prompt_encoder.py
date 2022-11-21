@@ -36,7 +36,7 @@ except (ImportError, ModuleNotFoundError):
     ModelType = AttnMaskType = AttnType = LayerType = ApexGuardDefaults()
 
 
-__all__ = ["PromptEncoder", "BIGLSTMPromptEncoder", "PromptEncoderType", "PromptEncoderMLP"]
+__all__ = ["PromptEncoder", "BIGLSTMPromptEncoder", "PromptEncoderType", "PromptEncoderMLP", "PromptEncoderLinearCombination"]
 
 
 class PromptEncoderType(enum.Enum):
@@ -44,6 +44,7 @@ class PromptEncoderType(enum.Enum):
     TPMLP = 'tpmlp'  # mlp model that support tensor parallel, better work together with a large language model
     MLP = 'mlp'
     LSTM = 'lstm'
+    LINEAR_COMBINATION = 'linear_combination'
 
 
 class BIGLSTMPromptEncoder(NeuralModule, Exportable):
@@ -295,4 +296,56 @@ class PromptEncoder(NeuralModule, Exportable):
         else:
             raise ValueError("Prompt encoder type not recognized. Please use one of MLP (recommended) or LSTM.")
 
+        return output_embeds
+
+class PromptEncoderLinearCombination(NeuralModule, Exportable):
+
+    @property
+    def input_types(self) -> Optional[Dict[str, NeuralType]]:
+        return {
+            "taskname_embeddings": NeuralType(('B', 'T', 'C'), ChannelType(), optional=False),
+        }
+
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        return {"output_embeds": NeuralType(('B', 'T', 'C'), ChannelType())}
+
+    def __init__(
+        self,
+        total_virtual_tokens: int,
+        original_embeddings: torch.Tensor,
+    ):
+        """
+        Initializes the PromptEncoder module.
+        Args:
+            total_virtual_tokens: the total number of vitural tokens
+            hidden_size: hidden dimension
+            lstm_dropout: the dropout used for the LSTM
+            num_layers: number of layers used in the LSTM
+        """
+        super().__init__()
+        self.total_virtual_tokens = total_virtual_tokens
+        self.original_embeddings= original_embeddings
+
+        assert self.original_embeddings.requires_grad == False
+        vocab_size, _ = self.original_embeddings.size()
+        t = torch.empty(vocab_size, self.total_virtual_tokens)
+        torch.nn.init.uniform_(t, 0.0, 1.0)
+        self.linear_combination = torch.nn.parameter.Parameter(data=t)
+
+    def encoder_reg(self,):
+        w = torch.nn.functional.relu(self.linear_combination)  # vocab_size, num_virtual_tokens
+        l2 = (w ** 2).mean().unsqueeze(0)
+        l1 = (w).mean().unsqueeze(0)
+        return l1, l2
+
+    @typecheck()
+    def forward(self, taskname_embeddings) -> torch.Tensor:
+        batch_size, _, _ = taskname_embeddings.shape
+        w = torch.nn.functional.relu(self.linear_combination)  # vocab_size, num_virtual_tokens
+        w_sum =  w.sum(dim=0)
+        w_norm = w / w_sum
+        output_embeds = self.original_embeddings.transpose(0, 1) @ w_norm
+        output_embeds = output_embeds.transpose(0, 1)  # (num_virtual_tokens, embedding_size)
+        output_embeds = output_embeds.expand(batch_size, output_embeds.size(0), output_embeds.size(1))  # (batch, num_virtual_tokens, embed_size)
         return output_embeds
