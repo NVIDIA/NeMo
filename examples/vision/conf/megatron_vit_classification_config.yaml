@@ -1,3 +1,5 @@
+# shared by ViT classification pretraining and fine-tuning
+
 name: megatron_vit_classify
 restore_from_path: null # used when starting from a .nemo file
 
@@ -42,6 +44,8 @@ exp_manager:
 
 
 model:
+  restore_from_pretrained: null # used in fine-tuning
+
   precision: ${trainer.precision}
   # specify micro_batch_size, global_batch_size, and model parallelism
   # gradient accumulation will be done automatically based on data_parallel_size
