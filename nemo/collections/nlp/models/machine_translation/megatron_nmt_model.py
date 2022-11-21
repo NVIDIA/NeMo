@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import itertools
+import enum
 import random
 from typing import List, Optional
 
@@ -60,6 +61,12 @@ except (ImportError, ModuleNotFoundError):
 __all__ = ["MegatronNMTModel"]
 
 
+class MultilingualModelType(enum.Enum):
+    one_to_many = 1
+    many_to_one = 2
+    many_to_many = 3
+
+
 class MegatronNMTModel(MegatronLMEncoderDecoderModel):
     """
     Megatron NMT training
@@ -78,32 +85,49 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
 
         self.validate_input_ids = cfg.get("validate_input_ids", True)
         self.objective = cfg.train_ds.get("objective", "nmt")
+
+        if self.objective == 'nmt-xlm':
+            if not self.multilingual:
+                raise ValueError("nmt-xlm objective requires model.multilingual=True")
+
         if self.multilingual:
             self._setup_multilingual_special_tokens()
+            self.multilingual_type = self._determine_multilingual_training_type()
+        else:
+            self.multilingual_type = None
 
         super().__init__(cfg, trainer=trainer)
 
-    def _setup_multilingual_special_tokens(self):
-        # This is how to specify En -> xx and xx -> En in the same model.
+    def _determine_multilingual_training_type(self):
+        """Determines whether we are doing one-many, many-one, or many-many training based on the config."""
+        if self.objective == 'nmt-xlm':
+            return MultilingualModelType.many_to_many
         if isinstance(self.src_language, ListConfig) and isinstance(self.tgt_language, ListConfig):
+            return MultilingualModelType.many_to_many
+        elif isinstance(self.src_language, ListConfig):
+            return MultilingualModelType.many_to_one
+        elif isinstance(self.tgt_language, ListConfig):
+            return MultilingualModelType.one_to_many
+        else:
+            raise ValueError(f"Invalid multilingual training config: {self.src_language}, {self.tgt_language}. Must have either src/tgt as a list of languages.")
+
+    def _setup_multilingual_special_tokens(self):
+        if self.multilingual_type == MultilingualModelType.many_to_many:
             if self.objective == 'nmt-xlm':
                 unique_langs = set(self.src_language + self.tgt_language)
             else:
                 # We don't take a set() for tgt_language here because the same lang can appear multiple times.
-                unique_langs = self.tgt_language
+                unique_langs = set(self.tgt_language)
             for lng in unique_langs:
                 self.special_tokens["<" + lng + ">"] = "<" + lng + ">"
-        elif isinstance(self.src_language, ListConfig):
-            if self.objective == 'nmt-xlm':
-                raise ValueError(f"Both src_language and tgt_language need to be lists for objective {self.objective}")
+        elif self.multilingual_type == MultilingualModelType.many_to_one:
+            # Do nothing here since many -> one does not need special tokens for the target language.
             pass
-        elif isinstance(self.tgt_language, ListConfig):
-            if self.objective == 'nmt-xlm':
-                raise ValueError(f"Both src_language and tgt_language need to be lists for objective {self.objective}")
+        elif self.multilingual_type == MultilingualModelType.one_to_many:
             for lng in self.tgt_language:
                 self.special_tokens["<" + lng + ">"] = "<" + lng + ">"
         else:
-            raise ValueError("Expect either cfg.src_language or cfg.tgt_language to be a list when multilingual=True.")
+            raise ValueError(f"Invalid multilingual training type: {self.multilingual_type}")
 
     def setup(self, stage=None):
         # NOTE: super().__init__ will try and setup train/val/test datasets, but we sidestep this using a if self._train_ds is not None condition
@@ -182,7 +206,6 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             encoder_sentencepiece_legacy=self._cfg.encoder_tokenizer.get('sentencepiece_legacy', False),
             decoder_sentencepiece_legacy=self._cfg.decoder_tokenizer.get('sentencepiece_legacy', False),
         )
-        import ipdb; ipdb.set_trace()
 
         # Set up pre and post processors as well.
         if self.multilingual:
@@ -239,14 +262,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                 tokenizer_cfg=self.cfg.decoder_tokenizer,
                 dataset_type='ul2',
             )
-            _ = MTEncDecModel.setup_multilingual_ids_and_processors(
-                src_language=self.src_language,
-                tgt_language=self.tgt_language,
-                encoder_tokenizer=self.encoder_tokenizer,  # Multilingual training requires shared tokenizers.
-                decoder_tokenizer=self.decoder_tokenizer,
-                encoder_tokenizer_library=self.encoder_tokenizer_library,
-                decoder_tokenizer_library=self.decoder_tokenizer_library,
-            )
+
         self.padded_vocab_size = self._vocab_size_with_padding(
             orig_vocab_size=self.encoder_tokenizer.vocab_size,
             make_vocab_size_divisible_by=self._cfg.get('make_vocab_size_divisible_by', 128),
@@ -670,6 +686,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             num_train_samples_after_blend = sum([x[0] for x in num_train_samples_per_dataset])
 
             datasets = []
+            import ipdb; ipdb.set_trace()
             if len(self.multilingual_ids) == 0:
                 self.multilingual_ids = [None] * len(cfg.src_file_name)
 
