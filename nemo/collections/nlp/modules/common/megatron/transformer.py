@@ -505,6 +505,7 @@ class CoreAttention(MegatronModule):
         rotary_pos_emb=None,
         relative_position_bias=None,
         headscale_tensor=None,
+        alibi_position_bias=None,# ALiBi positional embedding
     ):
 
         # ===================================
@@ -531,23 +532,40 @@ class CoreAttention(MegatronModule):
         # [sk, b, np, hn] -> [sk, b * np, hn]
         key_layer = key_layer.view(output_size[3], output_size[0] * output_size[1], -1)
 
-        # preallocting input tensor: [b * np, sq, sk]
-        matmul_input_buffer = torch.empty(
-            output_size[0] * output_size[1],
-            output_size[2],
-            output_size[3],
-            dtype=query_layer.dtype,
-            device=torch.cuda.current_device(),
-        )
+        if alibi_position_bias is None:
+            # preallocting input tensor: [b * np, sq, sk]
+            matmul_input_buffer = torch.empty(
+                output_size[0] * output_size[1],
+                output_size[2],
+                output_size[3],
+                dtype=query_layer.dtype,
+                device=torch.cuda.current_device(),
+            )
 
-        # Raw attention scores. [b * np, sq, sk]
-        matmul_result = torch.baddbmm(
-            matmul_input_buffer,
-            query_layer.transpose(0, 1),  # [b * np, sq, hn]
-            key_layer.transpose(0, 1).transpose(1, 2),  # [b * np, hn, sk]
-            beta=0.0,
-            alpha=(1.0 / self.norm_factor) if self.normalize_attention_scores else 1.0,
-        )
+            # Raw attention scores. [b * np, sq, sk]
+            matmul_result = torch.baddbmm(
+                matmul_input_buffer,
+                query_layer.transpose(0, 1),  # [b * np, sq, hn]
+                key_layer.transpose(0, 1).transpose(1, 2),  # [b * np, hn, sk]
+                beta=0.0,
+                alpha=(1.0 / self.norm_factor) if self.normalize_attention_scores else 1.0,
+            )
+        else:
+            matmul_input_buffer = alibi_position_bias[:output_size[0]*output_size[1], :, :output_size[3]]
+
+            if self.apply_query_key_layer_scaling:
+                beta = 1.0 / self.layer_number
+            else:
+                beta = 1.0
+
+            matmul_result = torch.baddbmm(
+                matmul_result,
+                query_layer.transpose(0, 1),  # [b * np, sq, hn]
+                key_layer.transpose(0, 1).transpose(1, 2),  # [b * np, hn, sk]
+                beta=beta, 
+                alpha=(1.0 / self.norm_factor) if self.normalize_attention_scores else 1.0,
+            )
+
 
         # change view to [b, np, sq, sk]
         attention_scores = matmul_result.view(*output_size)
@@ -774,6 +792,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         rotary_pos_emb=None,
         relative_position_bias=None,
         headscale_tensor=None,
+        alibi_position_bias=None,# ALiBi positional embedding
     ):
         """Forward method with activation checkpointing."""
 
@@ -882,6 +901,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         rotary_pos_emb=None,  # rotary positional embedding
         relative_position_bias=None,
         checkpoint_core_attention=False,
+        alibi_position_bias=None,# ALiBi positional embedding
     ):
         # hidden_states: [sq, b, h]
 
@@ -1024,6 +1044,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 rotary_pos_emb=rotary_pos_emb,
                 relative_position_bias=relative_position_bias,
                 headscale_tensor=self.head_scale_tensor if self.headscale else None,
+                alibi_position_bias=alibi_position_bias,
             )
 
         # =================
