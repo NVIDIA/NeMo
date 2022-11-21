@@ -61,7 +61,6 @@ def hydra_runner(
                 # Disable the creation of .hydra subdir
                 # https://hydra.cc/docs/tutorials/basic/running_your_app/working_directory
                 overrides.append("hydra.output_subdir=null")
-
                 # Hydra logging outputs only to stdout (no log file).
                 # https://hydra.cc/docs/configure_hydra/logging
                 overrides.append("hydra/job_logging=stdout")
