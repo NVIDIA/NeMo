@@ -12,7 +12,7 @@ elif [[ "$TEST_TASK" = "squad_ckpt" ]]; then
     CHECKPOINT_NAME=$(ls -tr ${CHECKPOINT_DIR}/* | tail -1)
     HPARAMS_FILE=${FINETUNE_DIR}/results/hparams.yaml
     params+=(evaluation.model.pretrained_checkpoint.checkpoint_dir=$CHECKPOINT_DIR)
-    params+=(evaluation.model.pretrained_checkpoint.checkpoint_name=${CHECKPOINT_NAME})
+    params+=(evaluation.model.pretrained_checkpoint.checkpoint_name="'${CHECKPOINT_NAME}'")
     params+=(evaluation.model.pretrained_checkpoint.hparams_file=$HPARAMS_FILE)
   fi
   if [[ ! -z $LOCAL_NEMO_PATH ]]; then
