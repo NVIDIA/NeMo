@@ -39,7 +39,7 @@ exp_manager:
 
 model:
   seed: 1234
-  nemo_path: ${name}.nemo # .nemo filename/absolute path to where the virtual prompt model parameters will be saved
+  nemo_path: ${exp_manager.exp_dir}/${name}.nemo # .nemo filename/absolute path to where the virtual prompt model parameters will be saved
   virtual_prompt_style: 'p-tuning' # one of 'prompt-tuning', 'p-tuning', or 'inference'
   tensor_model_parallel_size: 1 # intra-layer model parallelism
   pipeline_model_parallel_size: 1 # inter-layer model parallelism
