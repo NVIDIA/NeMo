@@ -97,6 +97,7 @@ class BertLMHead(MegatronModule):
             hidden_states,
             word_embeddings_weight,
             self.parallel_output,
+            sequence_parallel=self.sequence_parallel,
             bias=self.bias,
             async_tensor_model_parallel_allreduce=async_tensor_model_parallel_allreduce,
         )
@@ -104,7 +105,7 @@ class BertLMHead(MegatronModule):
 
 
 def post_language_model_processing(
-    lm_output, pooled_output, lm_head, binary_head, lm_labels, logit_weights, fp16_lm_cross_entropy
+    lm_output, pooled_output, lm_head, binary_head, lm_labels, logit_weights, fp16_lm_cross_entropy,sequence_parallel=False,
 ):
     # lm_logits: [s, b, vocab_size]
     lm_logits = lm_head(lm_output, logit_weights)
@@ -164,6 +165,7 @@ class BertModel(MegatronModule):
         onnx_safe=False,
         add_binary_head=True,
         megatron_legacy=False,
+        sequence_parallel=False,
     ):
         super(BertModel, self).__init__()
         # args = get_args()
@@ -172,6 +174,7 @@ class BertModel(MegatronModule):
         self.parallel_output = parallel_output
         self.pre_process = pre_process
         self.post_process = post_process
+        self.sequence_parallel = sequence_parallel
 
         init_method = init_method_normal(init_method_std)
         scaled_init_method = scaled_init_method_normal(init_method_std, num_layers)
@@ -205,6 +208,7 @@ class BertModel(MegatronModule):
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
             megatron_legacy=megatron_legacy,
+            sequence_parallel=sequence_parallel,
         )
 
         self.initialize_word_embeddings(
@@ -260,6 +264,7 @@ class BertModel(MegatronModule):
                 lm_labels,
                 self.word_embeddings_weight(),
                 self.fp16_lm_cross_entropy,
+                sequence_parallel=self.sequence_parallel,
             )
         else:
             return lm_output
