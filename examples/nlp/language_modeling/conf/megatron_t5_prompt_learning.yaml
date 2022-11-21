@@ -57,7 +57,6 @@ model:
     total_virtual_tokens: 100
     virtual_token_splits: [100] 
     truncate_field: context
-    answer_only_loss: True
     answer_field: answer
 
   p_tuning: # P-tuning specific params
