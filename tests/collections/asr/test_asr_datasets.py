@@ -774,6 +774,16 @@ class TestAudioDatasets:
             }
             dataset_factory = audio_to_audio_dataset.get_audio_to_target_dataset(config)
 
+            # Test number of channels
+            for signal in data:
+                assert data_num_channels[signal] == dataset.num_channels(
+                    signal
+                ), f'Num channels not correct for signal {signal}'
+                assert data_num_channels[signal] == dataset_factory.num_channels(
+                    signal
+                ), f'Num channels not correct for signal {signal}'
+
+            # Test returned examples
             for n in range(num_examples):
                 item = dataset.__getitem__(n)
                 item_factory = dataset_factory.__getitem__(n)

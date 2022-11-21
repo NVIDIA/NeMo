@@ -861,6 +861,15 @@ class AudioCollection(Audio):
             manifest_files: path to a single manifest file or a list of paths
             audio_to_manifest_key: dictionary mapping audio signals to keys of the manifest
         """
+        # Support for comma-separated manifests
+        if type(manifest_files) == str:
+            manifest_files = manifest_files.split(',')
+
+        for audio_key, manifest_key in audio_to_manifest_key.items():
+            # Support for comma-separated keys
+            if type(manifest_key) == str and ',' in manifest_key:
+                audio_to_manifest_key[audio_key] = manifest_key.split(',')
+
         # Keys from manifest which contain audio
         self.audio_to_manifest_key = audio_to_manifest_key
 
@@ -931,7 +940,7 @@ class AudioCollection(Audio):
                 # This dictionary entry points to multiple files
                 # Get the files and keep the list structure for this key
                 audio_files[audio_key] = [manifest.get_full_path(f, manifest_file) for f in audio_file]
-            elif audio_key == 'target' and audio_file is None:
+            elif audio_file is None and audio_key.startswith('target'):
                 # For inference, we don't need the target
                 audio_files[audio_key] = None
             else:

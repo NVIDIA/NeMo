@@ -16,7 +16,7 @@ import abc
 import math
 import random
 from collections import OrderedDict
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import librosa
 import numpy as np
@@ -24,7 +24,7 @@ import torch
 
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
-from nemo.collections.common.parts.preprocessing.collections import AudioCollection
+from nemo.collections.common.parts.preprocessing import collections
 from nemo.collections.common.parts.utils import flatten
 from nemo.core.classes import Dataset
 from nemo.core.neural_types import AudioSignal, EncodedRepresentation, LengthsType, NeuralType
@@ -318,34 +318,171 @@ def _audio_collate_fn(batch: List[dict]) -> Tuple[torch.Tensor]:
     return batched
 
 
+class ASRAudioProcessor:
+    """Class that processes an example from Audio collection and returns
+    a dictionary with prepared signals.
+
+    For example, the output dictionary may be the following
+    ```
+    {
+        'input_signal': input_signal_tensor,
+        'target_signal': target_signal_tensor,
+        'reference_signal': reference_signal_tensor,
+        'embedding_vector': embedding_vector
+    }
+    ```
+    Keys in the output dictionary are ordered with synchronous signals given first,
+    followed by asynchronous signals and embedding.
+
+    Args:
+        sample_rate: sample rate used for all audio signals
+        audio_duration: dictionary with duration for each signal to be loaded.
+                        If duration for a signal is set to None, the whole file will be loaded.
+        channel_selector: A dictionary providing a channel selector for each signal. If channel selector
+                          is None, all channels in the audio file will be loaded.
+        random_offset: If `True`, offset will be randomized when loading a subsegment
+                       from a file.
+        sync_signals: list of signals (keys of example.audio_signals) which will be loaded
+                      synchronously with the same start time and duration.
+        async_signals: list of signals (keys of example.audio_signals) which will be loaded
+                       asynchronously, with each signals possibly having a different start
+                       time and duration
+        embedding: a single key denoting the embedding file (from example.audio_signals)
+    """
+
+    def __init__(
+        self,
+        sample_rate,
+        audio_duration: Dict[str, float],
+        channel_selector: Dict[str, str],
+        random_offset: bool,
+        sync_signals: Optional[List[str]] = None,
+        async_signals: Optional[List[str]] = None,
+        embedding: Optional[str] = None,
+    ):
+
+        if sync_signals is None and async_signals is None and embedding is None:
+            raise ValueError(f'All signals cannot be None simultaneously.')
+
+        self.sample_rate = sample_rate
+        self.audio_duration = audio_duration
+        self.sync_signals = sync_signals
+        self.async_signals = async_signals
+        self.embedding = embedding
+        self.channel_selector = channel_selector
+        self.random_offset = random_offset
+
+        # All synchronized signals have the same duration
+        if self.sync_signals is not None:
+            sync_duration = audio_duration[self.sync_signals[0]]
+            # Check all others were setup correctly
+            for signal in self.sync_signals:
+                assert (
+                    audio_duration[signal] == sync_duration
+                ), f'Expecting audio duration {sync_duration} for {signal}, but received {audio_duration[signal]}'
+            self.sync_duration = sync_duration
+            if sync_duration is None:
+                logging.debug('Duration of synchronized signals set to None')
+            else:
+                logging.debug('Duration of synchronized signals set to %f', self.sync_duration)
+
+    def load_audio(self, audio_files: List[str], offset: float) -> Dict[str, torch.Tensor]:
+        """Given list of audio files in `audio_files`, load corresponding samples
+        and prepare an output dictionary.
+
+        Args:
+            audio_files: list of audio files to be loaded
+            offset: offset in seconds for loading audio
+
+        Returns:
+            An ordered dictionary of signals and their tensors.
+            For example, the output dictionary may be the following
+            ```
+            {
+                'input_signal': input_signal_tensor,
+                'target_signal': target_signal_tensor,
+                'reference_signal': reference_signal_tensor,
+                'embedding_vector': embedding_vector
+            }
+            ```
+            Keys in the output dictionary are ordered with synchronous signals given first,
+            followed by asynchronous signals and embedding.
+        """
+        output = OrderedDict()
+
+        # Load all signals with the same start and duration
+        if self.sync_signals is not None:
+            sync_audio_files = [audio_files[s] for s in self.sync_signals]
+            sync_channels_selectors = [self.channel_selector.get(s) for s in self.sync_signals]
+
+            sync_samples = load_samples_synchronized(
+                audio_files=sync_audio_files,
+                channel_selectors=sync_channels_selectors,
+                sample_rate=self.sample_rate,
+                duration=self.sync_duration,
+                fixed_offset=offset,
+                random_offset=self.random_offset,
+            )
+
+            for signal, samples in zip(self.sync_signals, sync_samples):
+                samples = list_to_multichannel(samples)
+                output[signal] = torch.tensor(samples)
+
+        # Load each signal independently
+        if self.async_signals is not None:
+            for signal in self.async_signals:
+                samples = load_samples(
+                    audio_file=audio_files[signal],
+                    sample_rate=self.sample_rate,
+                    duration=self.audio_duration[signal],
+                    channel_selector=self.channel_selector.get(signal),
+                    fixed_offset=offset,
+                    random_offset=self.random_offset,
+                )
+                samples = list_to_multichannel(samples)
+                output[signal] = torch.tensor(samples)
+
+        # Load embedding vector
+        if self.embedding is not None:
+            embedding = load_embedding(audio_files[self.embedding])
+            output[self.embedding] = torch.tensor(embedding)
+
+        return output
+
+    def process(self, example: collections.Audio.OUTPUT_TYPE) -> Dict[str, torch.Tensor]:
+        """Process an example from a collection of audio examples.
+
+        Args:
+            example: an example from Audio collection.
+
+        Returns:
+            An ordered dictionary of signals and their tensors.
+            For example, the output dictionary may be the following
+            ```
+            {
+                'input_signal': input_signal_tensor,
+                'target_signal': target_signal_tensor,
+                'reference_signal': reference_signal_tensor,
+                'embedding_vector': embedding_vector
+            }
+            ```
+            Keys in the output dictionary are ordered with synchronous signals given first,
+            followed by asynchronous signals and embedding.
+        """
+        audio = self.load_audio(audio_files=example.audio_files, offset=example.offset)
+        return audio
+
+
 @experimental
 class BaseAudioDataset(Dataset):
     """Base class of audio datasets, providing common functionality
     for other audio datasets.
 
-    Each line of the manifest file is expected to have the following format
-        ```
-        {
-            audio_key[0]: 'path/to/audio_file_0',
-            audio_key[1]: 'path/to/audio_file_1',
-            ...
-            'duration': duration_of_input,
-        }
-        ```
-
     Args:
-        manifest_filepath: Path to manifest file in a format described above.
-        sample_rate: Sample rate for loaded audio signals.
-        audio_to_manifest_key: Dictionary mapping audio signal labels to manifest keys.
-        audio_duration: Optional duration of each item returned by __getitem__.
-                        If `None`, complete audio will be loaded.
-                        If set, a subsegment will be loaded synchronously from
-                        target and audio, i.e., with the same start and end point.
-        random_offset: If `True`, offset will be randomized when loading a subsegment
-                       from a file.
-        max_duration: If audio exceeds this length, do not include in dataset.
-        min_duration: If audio is less than this length, do not include in dataset.
-        max_utts: Limit number of utterances.
+        collection: Collection of audio examples prepared from manifest files.
+        audio_processor: Used to process every example from the collection.
+                         A callable with `process` method. For reference,
+                         please check ASRAudioProcessor.
     """
 
     @property
@@ -355,38 +492,14 @@ class BaseAudioDataset(Dataset):
         """
 
     def __init__(
-        self,
-        manifest_filepath: str,
-        sample_rate: int,
-        audio_to_manifest_key: Dict[str, Union[str, List[str]]],
-        audio_duration: Optional[float] = None,
-        random_offset: bool = False,
-        max_duration: Optional[float] = None,
-        min_duration: Optional[float] = None,
-        max_utts: int = 0,
+        self, collection: collections.Audio, audio_processor: Callable,
     ):
-        """Instantiates an audio_dataset.
+        """Instantiates an audio dataset.
         """
         super().__init__()
 
-        if type(manifest_filepath) == str:
-            manifest_filepath = manifest_filepath.split(',')
-
-        for audio_key, manifest_key in audio_to_manifest_key.items():
-            if type(manifest_key) == str and ',' in manifest_key:
-                audio_to_manifest_key[audio_key] = manifest_key.split(',')
-
-        self.collection = AudioCollection(
-            manifest_files=manifest_filepath,
-            audio_to_manifest_key=audio_to_manifest_key,
-            min_duration=min_duration,
-            max_duration=max_duration,
-            max_number=max_utts,
-        )
-
-        self.sample_rate = sample_rate
-        self.audio_duration = audio_duration
-        self.random_offset = random_offset
+        self.collection = collection
+        self.audio_processor = audio_processor
 
     def num_channels(self, signal_key) -> int:
         """Returns the number of channels for a particular signal in
@@ -398,8 +511,7 @@ class BaseAudioDataset(Dataset):
         of the second axis (shape[1]).
 
         NOTE:
-        This assumes that all examples returned by `__getitem__`
-        have the same number of channels.
+        This assumes that all examples have the same number of channels.
         
         Args:
             signal_key: string, used to select a signal from the dictionary
@@ -410,6 +522,7 @@ class BaseAudioDataset(Dataset):
         """
         # Assumption: whole dataset has the same number of channels
         item = self.__getitem__(0)
+
         if item[signal_key].ndim == 1:
             return 1
         elif item[signal_key].ndim == 2:
@@ -419,7 +532,6 @@ class BaseAudioDataset(Dataset):
                 f'Unexpected number of dimension for signal {signal_key} with shape {item[signal_key].shape}'
             )
 
-    @abc.abstractmethod
     def __getitem__(self, index: int) -> Dict[str, torch.Tensor]:
         """Return a single example from the dataset.
 
@@ -431,11 +543,15 @@ class BaseAudioDataset(Dataset):
             For example:
             ```
             {
-                'input': input_tensor,
-                'target': target_tensor,
+                'input_signal': input_signal_tensor,
+                'target_signal': target_signal_tensor,
             }
             ```
         """
+        example = self.collection[index]
+        output = self.audio_processor.process(example=example)
+
+        return output
 
     def __len__(self) -> int:
         """Return the number of examples in the dataset.
@@ -507,22 +623,37 @@ class AudioToTargetDataset(BaseAudioDataset):
         input_channel_selector: Optional[int] = None,
         target_channel_selector: Optional[int] = None,
     ):
-        self.audio_to_manifest_key = {
-            'input': input_key,
-            'target': target_key,
+        audio_to_manifest_key = {
+            'input_signal': input_key,
+            'target_signal': target_key,
         }
-        self.input_channel_selector = input_channel_selector
-        self.target_channel_selector = target_channel_selector
+        audio_to_channel_selector = {
+            'input_signal': input_channel_selector,
+            'target_signal': target_channel_selector,
+        }
+        audio_to_duration = {
+            'input_signal': audio_duration,
+            'target_signal': audio_duration,
+        }
+
+        collection = collections.AudioCollection(
+            manifest_files=manifest_filepath,
+            audio_to_manifest_key=audio_to_manifest_key,
+            min_duration=min_duration,
+            max_duration=max_duration,
+            max_number=max_utts,
+        )
+
+        audio_processor = ASRAudioProcessor(
+            sample_rate=sample_rate,
+            sync_signals=['input_signal', 'target_signal'],
+            audio_duration=audio_to_duration,
+            channel_selector=audio_to_channel_selector,
+            random_offset=random_offset,
+        )
 
         super().__init__(
-            manifest_filepath=manifest_filepath,
-            audio_to_manifest_key=self.audio_to_manifest_key,
-            sample_rate=sample_rate,
-            audio_duration=audio_duration,
-            random_offset=random_offset,
-            max_duration=max_duration,
-            min_duration=min_duration,
-            max_utts=max_utts,
+            collection=collection, audio_processor=audio_processor,
         )
 
     @property
@@ -549,45 +680,6 @@ class AudioToTargetDataset(BaseAudioDataset):
             target_signal=sc_audio_type if self.num_channels('target_signal') == 1 else mc_audio_type,
             target_length=NeuralType(('B',), LengthsType()),
         )
-
-    def __getitem__(self, index: int) -> Dict[str, torch.Tensor]:
-        """Return a single example from the dataset.
-
-        Args:
-            index: integer index of an example in the collection
-
-        Returns:
-            Dictionary providing mapping from signal to its tensor.
-            ```
-            {
-                'input_signal': input_tensor,
-                'target_signal': target_tensor,
-            }
-            ```
-        """
-        example = self.collection[index]
-
-        input_file = example.audio_files['input']
-        target_file = example.audio_files['target']
-
-        # Load the same segment for different signals
-        input_signal, target_signal = load_samples_synchronized(
-            audio_files=[input_file, target_file],
-            channel_selectors=[self.input_channel_selector, self.target_channel_selector],
-            sample_rate=self.sample_rate,
-            duration=self.audio_duration,
-            fixed_offset=example.offset,
-            random_offset=self.random_offset,
-        )
-
-        # If necessary, convert a list of arrays into a multi-channel array
-        input_signal = list_to_multichannel(input_signal)
-        target_signal = list_to_multichannel(target_signal)
-
-        # Output dictionary
-        output = OrderedDict(input_signal=torch.tensor(input_signal), target_signal=torch.tensor(target_signal),)
-
-        return output
 
 
 @experimental
@@ -661,26 +753,48 @@ class AudioToTargetWithReferenceDataset(BaseAudioDataset):
         reference_is_synchronized: bool = True,
         reference_duration: Optional[float] = None,
     ):
-        self.audio_to_manifest_key = {
-            'input': input_key,
-            'target': target_key,
-            'reference': reference_key,
+        audio_to_manifest_key = {
+            'input_signal': input_key,
+            'target_signal': target_key,
+            'reference_signal': reference_key,
         }
-        self.input_channel_selector = input_channel_selector
-        self.target_channel_selector = target_channel_selector
-        self.reference_channel_selector = reference_channel_selector
-        self.reference_is_synchronized = reference_is_synchronized
-        self.reference_duration = reference_duration
+        audio_to_channel_selector = {
+            'input_signal': input_channel_selector,
+            'target_signal': target_channel_selector,
+            'reference_signal': reference_channel_selector,
+        }
+        audio_to_duration = {
+            'input_signal': audio_duration,
+            'target_signal': audio_duration,
+            'reference_signal': audio_duration if reference_is_synchronized else reference_duration,
+        }
+
+        if reference_is_synchronized:
+            sync_signals = ['input_signal', 'target_signal', 'reference_signal']
+            async_signals = None
+        else:
+            sync_signals = ['input_signal', 'target_signal']
+            async_signals = ['reference_signal']
+
+        collection = collections.AudioCollection(
+            manifest_files=manifest_filepath,
+            audio_to_manifest_key=audio_to_manifest_key,
+            min_duration=min_duration,
+            max_duration=max_duration,
+            max_number=max_utts,
+        )
+
+        audio_processor = ASRAudioProcessor(
+            sample_rate=sample_rate,
+            sync_signals=sync_signals,
+            async_signals=async_signals,
+            audio_duration=audio_to_duration,
+            channel_selector=audio_to_channel_selector,
+            random_offset=random_offset,
+        )
 
         super().__init__(
-            manifest_filepath=manifest_filepath,
-            audio_to_manifest_key=self.audio_to_manifest_key,
-            sample_rate=sample_rate,
-            audio_duration=audio_duration,
-            random_offset=random_offset,
-            max_duration=max_duration,
-            min_duration=min_duration,
-            max_utts=max_utts,
+            collection=collection, audio_processor=audio_processor,
         )
 
     @property
@@ -711,76 +825,6 @@ class AudioToTargetWithReferenceDataset(BaseAudioDataset):
             reference_signal=sc_audio_type if self.num_channels('reference_signal') == 1 else mc_audio_type,
             reference_length=NeuralType(('B',), LengthsType()),
         )
-
-    def __getitem__(self, index: int) -> Dict[str, torch.Tensor]:
-        """Return a single example from the dataset.
-
-        Args:
-            index: integer index of an example in the collection
-
-        Returns:
-            Dictionary providing mapping from signal to its tensor.
-            ```
-            {
-                'input_signal': input_tensor,
-                'target_signal': target_tensor,
-                'reference_signal': reference_tensor,
-            }
-            ```
-        """
-
-        example = self.collection[index]
-
-        input_file = example.audio_files['input']
-        target_file = example.audio_files['target']
-        reference_file = example.audio_files['reference']
-
-        if self.reference_is_synchronized:
-            # Load synchronized segments from input, target and reference
-            input_signal, target_signal, reference_signal = load_samples_synchronized(
-                audio_files=[input_file, target_file, reference_file],
-                channel_selectors=[
-                    self.input_channel_selector,
-                    self.target_channel_selector,
-                    self.reference_channel_selector,
-                ],
-                sample_rate=self.sample_rate,
-                duration=self.audio_duration,
-                fixed_offset=example.offset,
-                random_offset=self.random_offset,
-            )
-        else:
-            # Load the synchronized segments from input and target
-            input_signal, target_signal = load_samples_synchronized(
-                audio_files=[input_file, target_file],
-                channel_selectors=[self.input_channel_selector, self.target_channel_selector],
-                sample_rate=self.sample_rate,
-                duration=self.audio_duration,
-                fixed_offset=example.offset,
-                random_offset=self.random_offset,
-            )
-
-            # Reference is not synchronized with input/target, get samples independently
-            reference_signal = load_samples(
-                audio_file=reference_file,
-                sample_rate=self.sample_rate,
-                duration=self.reference_duration,
-                channel_selector=self.reference_channel_selector,
-            )
-
-        # If necessary, convert a list of arrays into a multi-channel array
-        input_signal = list_to_multichannel(input_signal)
-        target_signal = list_to_multichannel(target_signal)
-        reference_signal = list_to_multichannel(reference_signal)
-
-        # Output dictionary
-        output = OrderedDict(
-            input_signal=torch.tensor(input_signal),
-            target_signal=torch.tensor(target_signal),
-            reference_signal=torch.tensor(reference_signal),
-        )
-
-        return output
 
 
 @experimental
@@ -838,23 +882,39 @@ class AudioToTargetWithEmbeddingDataset(BaseAudioDataset):
         input_channel_selector: Optional[int] = None,
         target_channel_selector: Optional[int] = None,
     ):
-        self.audio_to_manifest_key = {
-            'input': input_key,
-            'target': target_key,
-            'embedding': embedding_key,
+        audio_to_manifest_key = {
+            'input_signal': input_key,
+            'target_signal': target_key,
+            'embedding_vector': embedding_key,
         }
-        self.input_channel_selector = input_channel_selector
-        self.target_channel_selector = target_channel_selector
+        audio_to_channel_selector = {
+            'input_signal': input_channel_selector,
+            'target_signal': target_channel_selector,
+        }
+        audio_to_duration = {
+            'input_signal': audio_duration,
+            'target_signal': audio_duration,
+        }
+
+        collection = collections.AudioCollection(
+            manifest_files=manifest_filepath,
+            audio_to_manifest_key=audio_to_manifest_key,
+            min_duration=min_duration,
+            max_duration=max_duration,
+            max_number=max_utts,
+        )
+
+        audio_processor = ASRAudioProcessor(
+            sample_rate=sample_rate,
+            sync_signals=['input_signal', 'target_signal'],
+            embedding='embedding_vector',
+            audio_duration=audio_to_duration,
+            channel_selector=audio_to_channel_selector,
+            random_offset=random_offset,
+        )
 
         super().__init__(
-            manifest_filepath=manifest_filepath,
-            audio_to_manifest_key=self.audio_to_manifest_key,
-            sample_rate=sample_rate,
-            audio_duration=audio_duration,
-            random_offset=random_offset,
-            max_duration=max_duration,
-            min_duration=min_duration,
-            max_utts=max_utts,
+            collection=collection, audio_processor=audio_processor,
         )
 
     @property
@@ -885,52 +945,3 @@ class AudioToTargetWithEmbeddingDataset(BaseAudioDataset):
             embedding_vector=NeuralType(('B', 'D'), EncodedRepresentation()),
             embedding_length=NeuralType(('B',), LengthsType()),
         )
-
-    def __getitem__(self, index):
-        """Return a single example from the dataset.
-
-        Args:
-            index: integer index of an example in the collection
-
-        Returns:
-            Dictionary providing mapping from signal to its tensor.
-            ```
-            {
-                'input_signal': input_tensor,
-                'target_signal': target_tensor,
-                'embedding_vector': embedding_tensor,
-            }
-            ```
-        """
-
-        example = self.collection[index]
-
-        input_file = example.audio_files['input']
-        target_file = example.audio_files['target']
-        embedding_file = example.audio_files['embedding']
-
-        # Load synchronized segments from input and target
-        input_signal, target_signal = load_samples_synchronized(
-            audio_files=[input_file, target_file],
-            channel_selectors=[self.input_channel_selector, self.target_channel_selector,],
-            sample_rate=self.sample_rate,
-            duration=self.audio_duration,
-            fixed_offset=example.offset,
-            random_offset=self.random_offset,
-        )
-
-        # Load embedding
-        embedding_vector = load_embedding(embedding_file)
-
-        # If necessary, convert a list of arrays into a multi-channel array
-        input_signal = list_to_multichannel(input_signal)
-        target_signal = list_to_multichannel(target_signal)
-
-        # Output dictionary
-        output = OrderedDict(
-            input_signal=torch.tensor(input_signal),
-            target_signal=torch.tensor(target_signal),
-            embedding_vector=torch.tensor(embedding_vector),
-        )
-
-        return output
