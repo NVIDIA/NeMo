@@ -899,6 +899,8 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             taskname_id = torch.cuda.LongTensor([self.tokenizer.text_to_ids(taskname)])
             taskname_embeddings = self.word_embeddings(taskname_id)
             virtual_token_embeds = self.prompt_encoder(taskname_embeddings=taskname_embeddings).squeeze()
+        elif self.virtual_prompt_source == VirtualPromptSource.PROMPT_TABLE:
+            virtual_token_embeds = self.prompt_table(torch.tensor(0).cuda())
         else:
             raise NotImplementedError
     
