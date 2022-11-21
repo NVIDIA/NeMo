@@ -505,7 +505,7 @@ class CoreAttention(MegatronModule):
         rotary_pos_emb=None,
         relative_position_bias=None,
         headscale_tensor=None,
-        alibi_position_bias=None,# ALiBi positional embedding
+        alibi_position_bias=None,  # ALiBi positional embedding
     ):
 
         # ===================================
@@ -551,7 +551,7 @@ class CoreAttention(MegatronModule):
                 alpha=(1.0 / self.norm_factor) if self.normalize_attention_scores else 1.0,
             )
         else:
-            matmul_input_buffer = alibi_position_bias[:output_size[0]*output_size[1], :, :output_size[3]]
+            matmul_input_buffer = alibi_position_bias[: output_size[0] * output_size[1], :, : output_size[3]]
 
             if self.apply_query_key_layer_scaling:
                 beta = 1.0 / self.layer_number
@@ -562,10 +562,9 @@ class CoreAttention(MegatronModule):
                 matmul_result,
                 query_layer.transpose(0, 1),  # [b * np, sq, hn]
                 key_layer.transpose(0, 1).transpose(1, 2),  # [b * np, hn, sk]
-                beta=beta, 
+                beta=beta,
                 alpha=(1.0 / self.norm_factor) if self.normalize_attention_scores else 1.0,
             )
-
 
         # change view to [b, np, sq, sk]
         attention_scores = matmul_result.view(*output_size)
@@ -792,7 +791,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         rotary_pos_emb=None,
         relative_position_bias=None,
         headscale_tensor=None,
-        alibi_position_bias=None,# ALiBi positional embedding
+        alibi_position_bias=None,  # ALiBi positional embedding
     ):
         """Forward method with activation checkpointing."""
 
@@ -901,7 +900,7 @@ class ParallelAttention(MegatronModule, adapter_mixins.AdapterModuleMixin):
         rotary_pos_emb=None,  # rotary positional embedding
         relative_position_bias=None,
         checkpoint_core_attention=False,
-        alibi_position_bias=None,# ALiBi positional embedding
+        alibi_position_bias=None,  # ALiBi positional embedding
     ):
         # hidden_states: [sq, b, h]
 
