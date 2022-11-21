@@ -179,6 +179,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 fp32_residual_connection=encoder_cfg.get('fp32_residual_connection', False),
                 activations_checkpoint_method=encoder_cfg.get('activations_checkpoint_method', None),
                 activations_checkpoint_num_layers=encoder_cfg.get('activations_checkpoint_num_layers', 1),
+                activations_checkpoint_granularity=encoder_cfg.get('activations_checkpoint_granularity', None),
                 layernorm_epsilon=encoder_cfg.get('layernorm_epsilon', 1e-5),
                 bias_activation_fusion=encoder_cfg.get('bias_activation_fusion', True),
                 bias_dropout_add_fusion=encoder_cfg.get('bias_dropout_add_fusion', True),
@@ -196,6 +197,9 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 num_self_attention_per_cross_attention=encoder_cfg.get('num_self_attention_per_cross_attention', 1),
                 megatron_legacy=encoder_cfg.get('megatron_legacy', False),
                 normalize_attention_scores=encoder_cfg.get('normalize_attention_scores', True),
+                num_moe_experts=encoder_cfg.get('num_moe_experts', 1),
+                moe_frequency=encoder_cfg.get('moe_frequency', 1),
+                moe_dropout=encoder_cfg.get('moe_dropout', 0.0),
             )
 
         if add_decoder:
@@ -279,11 +283,12 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 use_cpu_initialization=use_cpu_initialization,
                 hidden_dropout=decoder_cfg.get('hidden_dropout', 0.1),
                 attention_dropout=decoder_cfg.get('attention_dropout', 0.1),
-                ffn_dropout=encoder_cfg.get('ffn_dropout', 0.0),
+                ffn_dropout=decoder_cfg.get('ffn_dropout', 0.0),
                 precision=precision,
                 fp32_residual_connection=decoder_cfg.get('fp32_residual_connection', False),
                 activations_checkpoint_method=decoder_cfg.get('activations_checkpoint_method', None),
                 activations_checkpoint_num_layers=decoder_cfg.get('activations_checkpoint_num_layers', 1),
+                activations_checkpoint_granularity=decoder_cfg.get('activations_checkpoint_granularity', None),
                 layernorm_epsilon=decoder_cfg.get('layernorm_epsilon', 1e-5),
                 bias_activation_fusion=decoder_cfg.get('bias_activation_fusion', True),
                 bias_dropout_add_fusion=decoder_cfg.get('bias_dropout_add_fusion', True),
@@ -300,6 +305,9 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 parent_model_type=ModelType.encoder_and_decoder,
                 megatron_legacy=decoder_cfg.get('megatron_legacy', False),
                 normalize_attention_scores=decoder_cfg.get('normalize_attention_scores', True),
+                num_moe_experts=decoder_cfg.get('num_moe_experts', 1),
+                moe_frequency=decoder_cfg.get('moe_frequency', 1),
+                moe_dropout=decoder_cfg.get('moe_dropout', 0.0),
             )
 
         self.enc_dec_model = MegatronTransformerEncoderDecoderModule(
