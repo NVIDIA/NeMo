@@ -1,3 +1,5 @@
+from typing import Iterable
+
 import numpy as np
 import torch
 
@@ -47,7 +49,7 @@ class ContextWindow(torch.nn.Module):
 
 
 def assign_frame_level_spk_vector(
-    rttm_timestamps: list,
+    rttm_timestamps: Iterable,
     round_digits: int,
     frame_per_sec: int,
     sample_rate: int,
@@ -83,8 +85,6 @@ def assign_frame_level_spk_vector(
     speaker_mapping_dict = {rttm_key: x_int for x_int, rttm_key in enumerate(speakers)}
     fr_level_target = torch.zeros(total_fr_len, spk_num)
 
-    # If RTTM is not provided, then there is no speaker mapping dict in target_spks.
-    # Thus, return a zero-filled tensor as a placeholder.
     for count, (stt, end, spk_rttm_key) in enumerate(zip(stt_list, end_list, speaker_list)):
         stt, end = round(stt, round_digits), round(end, round_digits)
         # check if this sample is within the segment frame.

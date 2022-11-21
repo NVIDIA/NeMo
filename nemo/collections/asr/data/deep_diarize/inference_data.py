@@ -1,6 +1,7 @@
 import math
 
 import torch
+import torch.nn.functional as F
 from pyannote.core import Annotation, Segment
 
 from nemo.collections.asr.data.audio_to_diar_label import extract_seg_info_from_rttm
@@ -13,7 +14,7 @@ from nemo.core import Dataset
 
 def _inference_collate_fn(batch):
     packed_batch = list(zip(*batch))
-    features, feature_length, fr_targets, annotations, segment_annotations, full_segments = packed_batch
+    features, feature_length, fr_targets, annotations, segment_annotations, files = packed_batch
     assert len(features) == 1, "Currently inference/validation only supports a batch size of 1."
     return (
         features[0],
@@ -22,7 +23,7 @@ def _inference_collate_fn(batch):
         fr_targets[0],
         annotations[0],
         segment_annotations[0],
-        full_segments[0],
+        files[0],
     )
 
 
@@ -36,6 +37,7 @@ class RTTMDataset(Dataset):
         window_stride: float,
         subsampling: int,
         segment_seconds: int,
+        max_speakers: int,
     ):
         self.collection = DiarizationSpeechLabel(
             manifests_files=manifest_filepath.split(","), emb_dict=None, clus_label_dict=None,
@@ -47,6 +49,7 @@ class RTTMDataset(Dataset):
         self.frame_per_sec = int(1 / (window_stride * subsampling))
         self.subsampling = subsampling
         self.segment_seconds = segment_seconds
+        self.max_speakers = max_speakers
 
     def _pyannote_annotations(self, rttm_timestamps):
         stt_list, end_list, speaker_list = rttm_timestamps
@@ -80,8 +83,6 @@ class RTTMDataset(Dataset):
         n_segments = math.ceil((total_annotated_duration - sample.offset) / self.segment_seconds)
         start_offset = sample.offset
 
-        full_segment, _ = self._load_audio_segment(sample, total_annotated_duration, start_offset)
-
         segments, lengths, targets, segment_annotations = [], [], [], []
         for n_segment in range(n_segments):
             fr_level_target = assign_frame_level_spk_vector(
@@ -95,6 +96,8 @@ class RTTMDataset(Dataset):
                 end_duration=start_offset + self.segment_seconds,
                 speakers=speakers,
             )
+            # pad targets to max speakers
+            fr_level_target = F.pad(fr_level_target, pad=(0, self.max_speakers - fr_level_target.size(-1)))
             duration = self.segment_seconds
             segment, length = self._load_audio_segment(sample, duration, start_offset)
 
@@ -105,7 +108,7 @@ class RTTMDataset(Dataset):
                 self._segment_annotation(annotations, start_offset=start_offset, duration=self.segment_seconds)
             )
             start_offset += self.segment_seconds
-        return segments, lengths, targets, annotations, segment_annotations, full_segment
+        return segments, lengths, targets, annotations, segment_annotations, sample.audio_file
 
     def _load_audio_segment(self, sample, duration: float, start_offset: float):
         segment = self.featurizer.process(sample.audio_file, offset=start_offset, duration=duration)

@@ -1,4 +1,3 @@
-# {"audio_filepath": "/path/to/audio01.wav", "offset": 390.83, "duration": 13.45, "text": "-", "num_speakers": 2, "rttm_filepath": "/path/to/audio01.rttm"}
 name: "DeepDiarize"
 sample_rate: 16000
 num_workers: 8
@@ -7,7 +6,7 @@ chunk_seconds: 15
 model:
 
   num_workers: ${num_workers}
-  num_speakers: 2
+  num_speakers: 5
   feat_in: 80
   d_model: 512
   chunk_seconds: ${chunk_seconds}
@@ -52,12 +51,22 @@ model:
   threshold: 0.5
 
   train_ds:
-    manifest_filepath: ???
+    manifest_filepaths: ???
+    voxceleb_config:
+      voxceleb_path: ???
+      max_num_sequential_segments: 10
+      dominance_var: 0.11
+      min_dominance: 0.05
+      turn_prob: 0.875
+      mean_overlap: 0.19
+      mean_silence: 0.15
+      overlap_prob: 0.5
+      end_buffer: 0.5
+    weights: [0.5, 0.5]
     sample_rate: ${sample_rate}
     num_workers: ${num_workers}
     int_values: False
     batch_size: 32
-    tarred: False
     shuffle: False
     augmentor:
       noise:

@@ -41,7 +41,8 @@ class DER(Metric):
         logits = logits.transpose(0, 1)
         annotation = Annotation()
         start, end = None, None
-        for speaker_label, speaker_decisions in zip(['A', 'B'], logits):
+        speaker_idx = range(logits.size(0))
+        for speaker_label, speaker_decisions in zip(speaker_idx, logits):
             for idx, speaker_spoke in enumerate(speaker_decisions):
                 if speaker_spoke:
                     if start is None:

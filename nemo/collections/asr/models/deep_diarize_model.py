@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import itertools
-import pdb
 from typing import Any, Dict, List, Optional, Union
 
 import hydra.utils
@@ -24,9 +23,9 @@ from torch.utils.data import DataLoader
 from torchmetrics.functional import permutation_invariant_training
 from x_transformers import Decoder
 
+from nemo.collections.asr.data.deep_diarize.combined_data import CombinedSegmentDataset
 from nemo.collections.asr.data.deep_diarize.inference_data import RTTMDataset
 from nemo.collections.asr.data.deep_diarize.train_data import LocalRTTMStreamingSegmentsDataset, MultiStreamDataLoader
-from nemo.collections.asr.data.deep_diarize.train_tarred_data import TarredRTTMStreamingSegmentsDataset
 from nemo.collections.asr.data.deep_diarize.utils import ContextWindow
 from nemo.collections.asr.metrics.der import DER, FA, Confusion, MissedDetection
 from nemo.collections.asr.models.asr_model import ASRModel
@@ -219,7 +218,7 @@ class DeepDiarizeModel(ModelPT):
     def _permutation_mask(self, preds, y):
         if self.permutations is None:
             # todo: assumption of two speakers
-            self.permutations = torch.empty(preds.size(0), 2, dtype=torch.int).to(self.device)
+            self.permutations = torch.empty(preds.size(0), 5, dtype=torch.int).to(self.device)
 
         for x in range(preds.size(0)):
             with torch.no_grad():
@@ -247,12 +246,10 @@ class DeepDiarizeModel(ModelPT):
             loss = loss.mean()
         return loss
 
-    def _calculate_attractor_loss(self, attractors, y):
-        # loss would be calculated between outputs and number of speakers present in segment
-        outputs = self.fc(attractors).sigmoid().squeeze()
+    def _calculate_attractor_loss(self, attractors_speaker_exists, y):
         speaker_exists = y.transpose(1, 2).sum(2)
         speaker_exists[speaker_exists > 0] = 1
-        return self._calculate_train_loss(outputs, speaker_exists)
+        return self._calculate_train_loss(attractors_speaker_exists, speaker_exists)
 
     def training_step(self, batch, batch_idx):
         train_x, train_lengths, y, memory_reset = batch
@@ -268,12 +265,22 @@ class DeepDiarizeModel(ModelPT):
         seq_mask = torch.ones(train_x.size(0), train_x.size(1)).to(self.device)
         # shuffle frames before generating attractors
         attractors, _ = self.eda_module(self._shuffle(train_x, dim=1), seq_mask)
+
+        # loss would be calculated between outputs and number of speakers present in segment
+        # sigmoid results where greater than threshold should not be masked
+        attractors_speaker_exists = self.fc(attractors).sigmoid().squeeze()
         speaker_outputs = self.decoder(attractors, encoded_xl_features)
+        mask = torch.zeros(speaker_outputs.shape, device=self.device).transpose(1, 2)
+        # todo: expose threshold
+        mask[attractors_speaker_exists >= 0.5, :] = 1
+        mask = mask.transpose(1, 2)
+
+        speaker_outputs = mask * speaker_outputs
 
         if self.cfg.permute:
             y = self._permutation_mask(speaker_outputs, y)
         loss = self._calculate_train_loss(speaker_outputs, y)
-        existence_loss = self._calculate_attractor_loss(attractors, y)
+        existence_loss = self._calculate_attractor_loss(attractors_speaker_exists, y)
 
         self.logger.log_metrics(
             {
@@ -306,7 +313,7 @@ class DeepDiarizeModel(ModelPT):
         return attractors
 
     def validation_step(self, batch, batch_idx):
-        inputs, input_lengths, y, fr_level_ys, annotations, segment_annotations = batch
+        inputs, input_lengths, y, fr_level_ys, annotations, segment_annotations, files = batch
         segment_loss = 0
         if self.cfg.mem_enabled:
             mems = [
@@ -314,8 +321,8 @@ class DeepDiarizeModel(ModelPT):
                 for x in range(self.cfg.encoder.n_layers)
             ]
         speech_activity, attractors = None, None
-        for chunk, fr_level_y, segment_annotation, length in zip(
-            inputs, fr_level_ys, segment_annotations, input_lengths
+        for x, (chunk, fr_level_y, segment_annotation, length) in enumerate(
+            zip(inputs, fr_level_ys, segment_annotations, input_lengths)
         ):
             if self.cfg.conv_subsampling:
                 chunk, length = self.sub_sample_layer(chunk, lengths=length.unsqueeze(0))
@@ -329,10 +336,24 @@ class DeepDiarizeModel(ModelPT):
             seq_mask = torch.ones(chunk.size(0), chunk.size(1)).to(self.device)
             chunk_attractors, _ = self.eda_module(self._shuffle(chunk, dim=1), seq_mask)
 
+            # if attractors is None:
+            #     attractors = chunk_attractors
             if self.cfg.average_attractors:
                 attractors = self._process_attractors(chunk_attractors, attractors)
+            else:
+                attractors = chunk_attractors
+            # if x % 2 == 0:
+            #     attractors = torch.flip(attractors, [1])
 
+            # loss would be calculated between outputs and number of speakers present in segment
+            # sigmoid results where greater than threshold should not be masked
+            attractors_speaker_exists = self.fc(attractors).sigmoid().squeeze()
             speaker_outputs = self.decoder(attractors, encoded_xl_features)
+            mask = torch.zeros(speaker_outputs.shape, device=self.device).transpose(1, 2)
+            mask[attractors_speaker_exists.unsqueeze(0) >= 0.5, :] = 1
+            mask = mask.transpose(1, 2)
+
+            speaker_outputs = mask * speaker_outputs
 
             for k, metric in self.segment_metrics.items():
                 metric(speaker_outputs.squeeze(0), segment_annotation)
@@ -401,9 +422,10 @@ class DeepDiarizeModel(ModelPT):
 
         spec_augmentation = ASRModel.from_config_dict(self.cfg.spec_augment)
 
-        cls = TarredRTTMStreamingSegmentsDataset if cfg.tarred else LocalRTTMStreamingSegmentsDataset
-        datasets = cls.create_streaming_datasets(
-            manifest_filepath=cfg.manifest_filepath,
+        datasets = CombinedSegmentDataset.create_streaming_datasets(
+            manifest_filepaths=cfg.manifest_filepaths,
+            voxceleb_config=cfg.voxceleb_config,
+            weights=cfg.weights,
             preprocessor=preprocessor,
             featurizer=featurizer,
             context_window=context_window,
@@ -413,6 +435,7 @@ class DeepDiarizeModel(ModelPT):
             train_segment_seconds=self.cfg.chunk_seconds,
             batch_size=cfg.batch_size,
             max_workers=cfg.num_workers,
+            max_speakers=self.cfg.num_speakers,
         )
         self._train_dl = MultiStreamDataLoader(datasets)
 
@@ -426,6 +449,7 @@ class DeepDiarizeModel(ModelPT):
             window_stride=self.cfg.preprocessor.window_stride,
             subsampling=self.cfg.subsampling,
             segment_seconds=self.cfg.chunk_seconds,
+            max_speakers=self.cfg.num_speakers,
         )
         self._validation_dl = DataLoader(
             dataset, num_workers=cfg.num_workers, collate_fn=dataset.collate_fn, shuffle=False
