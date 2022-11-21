@@ -922,7 +922,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
             def loss_func(output_tensor):
                 loss = self.frozen_model.loss_func(loss_mask, output_tensor)
-                if hasattr(self.prompt_encoder, 'encoder_reg'):
+                if hasattr(self, 'prompt_encoder') and hasattr(self.prompt_encoder, 'encoder_reg'):
                     w_l1, w_l2 = self.prompt_encoder.encoder_reg()
                 else:
                     w_l1, w_l2 = torch.tensor(0.0).unsqueeze(0), torch.tensor(0.0).unsqueeze(0)
