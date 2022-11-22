@@ -44,8 +44,6 @@ exp_manager:
 
 
 model:
-  restore_from_pretrained: null # used in fine-tuning
-
   precision: ${trainer.precision}
   # specify micro_batch_size, global_batch_size, and model parallelism
   # gradient accumulation will be done automatically based on data_parallel_size
@@ -55,10 +53,12 @@ model:
   pipeline_model_parallel_size: 1 # inter-layer model parallelism
   virtual_pipeline_model_parallel_size: null # interleaved pipeline
 
+  restore_from_pretrained: null # used in fine-tuning
+
   # vision configs
   vision_pretraining_type: "classify"
   num_classes: 1000
-  patch_dim: 4
+  patch_dim: 16
   img_h: 224
   img_w: 224
   classes_fraction: 1.0

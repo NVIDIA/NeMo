@@ -38,6 +38,7 @@ from nemo.collections.nlp.modules.common.megatron.module import (
 
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
+    get_linear_layer,
     init_method_normal,
     parallel_lm_logits,
     scaled_init_method_normal,

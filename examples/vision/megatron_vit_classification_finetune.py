@@ -25,6 +25,7 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     MegatronHalfPrecisionPlugin,
     NLPDDPStrategy,
     PipelineMixedPrecisionPlugin,
+    NLPSaveRestoreConnector,
 )
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
@@ -81,6 +82,7 @@ def main(cfg) -> None:
 
     # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
     with open_dict(cfg):
+        cfg.model.finetune = True
         cfg.model.precision = cfg.trainer.precision
 
     model = MegatronVitClassificationModel.restore_from(
@@ -88,6 +90,7 @@ def main(cfg) -> None:
         trainer=trainer,
         override_config_path=cfg.model,
         save_restore_connector=NLPSaveRestoreConnector(),
+        strict=False,
     )
 
     trainer.fit(model)
