@@ -58,6 +58,7 @@ class LinearWithBiasSkip(nn.Module):
             return F.linear(x, self.weight), self.bias
         return F.linear(x, self.weight, self.bias), None
 
+
 def get_export_format(filename: str):
     _, ext = os.path.splitext(filename)
     try:
