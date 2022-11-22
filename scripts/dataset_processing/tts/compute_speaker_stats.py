@@ -75,8 +75,10 @@ def main():
 
     pitch_data_path = Path(os.path.join(sup_data_path, Pitch.name))
     if not os.path.exists(pitch_data_path):
-        raise ValueError(f"Pitch directory {pitch_data_path} does not exist. Make sure 'sup_data_path' is correct "
-                         f"and that you have computed the pitch using extract_sup_data.py")
+        raise ValueError(
+            f"Pitch directory {pitch_data_path} does not exist. Make sure 'sup_data_path' is correct "
+            f"and that you have computed the pitch using extract_sup_data.py"
+        )
 
     entries = read_manifest(manifest_path)
 

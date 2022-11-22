@@ -422,13 +422,15 @@ class TTSDataset(Dataset):
 
         if self.pitch_norm:
             # XOR to validate that both or neither pitch mean and std are provided
-            assert (self.pitch_mean is None) == (self.pitch_std is None), \
-                f"Found only 1 of (pitch_mean, pitch_std): ({self.pitch_mean}, {self.pitch_std})"
+            assert (self.pitch_mean is None) == (
+                self.pitch_std is None
+            ), f"Found only 1 of (pitch_mean, pitch_std): ({self.pitch_mean}, {self.pitch_std})"
 
             # XOR to validate that exactly 1 of (pitch_mean, pitch_std) or pitch_stats_path is provided.
-            assert (self.pitch_mean is None) != (pitch_stats_path is None), \
-                f"pitch_norm requires exactly 1 of (pitch_mean, pitch_std) or pitch_stats_path. " \
+            assert (self.pitch_mean is None) != (pitch_stats_path is None), (
+                f"pitch_norm requires exactly 1 of (pitch_mean, pitch_std) or pitch_stats_path. "
                 f"Provided: ({self.pitch_mean}, {self.pitch_std}) and {pitch_stats_path}"
+            )
 
         if pitch_stats_path is not None:
             with open(Path(pitch_stats_path), 'r', encoding="utf-8") as pitch_f:
