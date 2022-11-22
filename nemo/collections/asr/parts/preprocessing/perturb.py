@@ -277,7 +277,7 @@ class TimeStretchPerturbation(Perturbation):
 
 class SilencePerturbation(Perturbation):
     """
-    Applies random silence at the start or end of the audio.
+    Applies random silence at the start and/or end of the audio.
 
     Args:
         min_start_silence_secs (float): Min start silence level in secs
@@ -285,16 +285,17 @@ class SilencePerturbation(Perturbation):
         min_end_silence_secs (float): Min end silence level in secs
         max_end_silence_secs (float): Max end silence level in secs
         rng: Random number generator
+        value: (float): value representing silence to be added to audio array.
     """
 
     def __init__(
         self,
-        min_start_silence_secs=0,
-        max_start_silence_secs=0,
-        min_end_silence_secs=0,
-        max_end_silence_secs=0,
-        rng=None,
-        value=0,
+        min_start_silence_secs: float = 0,
+        max_start_silence_secs: float = 0,
+        min_end_silence_secs: float = 0,
+        max_end_silence_secs: float = 0,
+        rng: Optional[Any] = None,
+        value: float = 0,
     ):
         self._min_start_silence_secs = min_start_silence_secs
         self._max_start_silence_secs = max_start_silence_secs
