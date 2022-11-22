@@ -90,7 +90,8 @@ class DropPath(MegatronModule):
             return hidden_state
         keep_prob = 1 - self.drop_prob
         # work with diff dim tensors, not just 2D ConvNets
-        shape = (hidden_state.shape[0],) + (1,) * (hidden_state.ndim - 1)
+        # hidden_state: [s, b, h]
+        shape = (1,) + (hidden_state.shape[1],) + (1,) * (hidden_state.ndim - 2)
         random_tensor = keep_prob + \
             torch.rand(shape, dtype=hidden_state.dtype, device=hidden_state.device)
         random_tensor.floor_()  # binarize
