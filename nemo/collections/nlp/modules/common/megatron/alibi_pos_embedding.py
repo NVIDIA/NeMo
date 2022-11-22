@@ -17,44 +17,36 @@ import torch
 from einops import rearrange
 from torch import einsum, nn
 
-__all__ = ['RotaryEmbedding', 'apply_rotary_pos_emb']
+__all__ = ['build_alibi_tensor']
 
 
-class RotaryEmbedding(nn.Module):
-    def __init__(self, dim):
-        super().__init__()
-        inv_freq = 1.0 / (10000 ** (torch.arange(0, dim, 2).float() / dim))
-        self.register_buffer('inv_freq', inv_freq)
-
-    def forward(self, max_seq_len, offset=0):
-        seq = torch.arange(max_seq_len, device=self.inv_freq.device) + offset
-        freqs = einsum('i , j -> i j', seq.type_as(self.inv_freq), self.inv_freq)
-        # first part even vector components, second part odd vector components,
-        #  2 * dim in dimension size
-        emb = torch.cat((freqs, freqs), dim=-1)
-        # emb [seq_length, .., dim]
-        return rearrange(emb, 'n d -> n 1 1 d')
-
-
-def _rotate_half(x):
+def build_alibi_tensor(max_seq_len, num_attention_heads, batch_size):
     """
-    change sign so the last dimension becomes [-odd, +even]
+    Based on https://github.com/ofirpress/attention_with_linear_biases/blob/a35aaca144e0eb6b789dfcb46784c4b8e31b7983/fairseq/models/transformer.py#L742
+    Returns tensor shaped (batch_size * num_attention_heads, 1, max_seq_len)
     """
-    x = rearrange(x, '... (j d) -> ... j d', j=2)
-    x1, x2 = x.unbind(dim=-2)
-    return torch.cat((-x2, x1), dim=-1)
 
+    def get_slopes(n):
+        def get_slopes_power_of_2(n):
+            start = (2 ** (-2 ** -(math.log2(n) - 3)))
+            ratio = start
+            return [start * ratio ** i for i in range(n)]
 
-def apply_rotary_pos_emb(t, freqs):
-    """
-    input tensor t is of shape [seq_length, ..., dim]
-    rotary positional embeding tensor freqs is of shape [seq_length, ..., dim]
-    check https://kexue.fm/archives/8265 for detailed formulas
-    """
-    rot_dim = freqs.shape[-1]
-    # ideally t_pass is empty so rotary pos embedding is applied to all tensor t
-    t, t_pass = t[..., :rot_dim], t[..., rot_dim:]
-    # first part is cosine component
-    # second part is sine component, need to change signs with _rotate_half method
-    t = (t * freqs.cos()) + (_rotate_half(t) * freqs.sin())
-    return torch.cat((t, t_pass), dim=-1)
+        if math.log2(n).is_integer():
+            return get_slopes_power_of_2(n)
+        else:
+            closest_power_of_2 = 2 ** math.floor(math.log2(n))
+            return get_slopes_power_of_2(closest_power_of_2) + get_slopes(2 * closest_power_of_2)[0::2][
+                                                                :n - closest_power_of_2]
+
+    slopes = torch.Tensor(get_slopes(num_attention_heads))
+    alibi = slopes.unsqueeze(1).unsqueeze(1) * torch.arange(max_seq_len).unsqueeze(0).unsqueeze(0).expand(
+        num_attention_heads, -1, -1)
+    
+    #Select the part of the tensor that corresponds to our tensor parallel index.
+    tp_world_size = mpu.get_tensor_model_parallel_world_size()
+    tp_index = mpu.get_tensor_model_parallel_rank()
+    alibi = alibi.reshape((tp_world_size, -1, *alibi.shape[1:]))[tp_index]
+    
+    alibi = alibi.repeat(batch_size, 1, 1)
+    return alibi
