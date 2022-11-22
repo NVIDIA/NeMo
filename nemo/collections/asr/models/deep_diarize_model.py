@@ -270,12 +270,7 @@ class DeepDiarizeModel(ModelPT):
         # sigmoid results where greater than threshold should not be masked
         attractors_speaker_exists = self.fc(attractors).sigmoid().squeeze()
         speaker_outputs = self.decoder(attractors, encoded_xl_features)
-        mask = torch.zeros(speaker_outputs.shape, device=self.device).transpose(1, 2)
-        # todo: expose threshold
-        mask[attractors_speaker_exists >= 0.5, :] = 1
-        mask = mask.transpose(1, 2)
-
-        speaker_outputs = mask * speaker_outputs
+        speaker_outputs = self._apply_mask(attractors_speaker_exists, speaker_outputs)
 
         if self.cfg.permute:
             y = self._permutation_mask(speaker_outputs, y)
@@ -291,6 +286,14 @@ class DeepDiarizeModel(ModelPT):
             step=self.trainer.global_step,
         )
         return loss + (self.cfg.existence_alpha * existence_loss)
+
+    def _apply_mask(self, attractors_speaker_exists, speaker_outputs):
+        mask = torch.zeros(speaker_outputs.shape, device=self.device).transpose(1, 2)
+        # todo: expose threshold
+        mask[attractors_speaker_exists >= 0.5, :] = 1
+        mask = mask.transpose(1, 2)
+        speaker_outputs = mask * speaker_outputs
+        return speaker_outputs
 
     def _process_attractors(self, chunk_attractors: torch.Tensor, attractors: Optional[torch.Tensor]):
         if attractors is None:
@@ -349,11 +352,7 @@ class DeepDiarizeModel(ModelPT):
             # sigmoid results where greater than threshold should not be masked
             attractors_speaker_exists = self.fc(attractors).sigmoid().squeeze()
             speaker_outputs = self.decoder(attractors, encoded_xl_features)
-            mask = torch.zeros(speaker_outputs.shape, device=self.device).transpose(1, 2)
-            mask[attractors_speaker_exists.unsqueeze(0) >= 0.5, :] = 1
-            mask = mask.transpose(1, 2)
-
-            speaker_outputs = mask * speaker_outputs
+            speaker_outputs = self._apply_mask(attractors_speaker_exists.unsqueeze(0), speaker_outputs)
 
             for k, metric in self.segment_metrics.items():
                 metric(speaker_outputs.squeeze(0), segment_annotation)

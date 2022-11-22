@@ -36,7 +36,7 @@ from nemo.collections.asr.parts.preprocessing import WaveformFeaturizer
 @dataclass
 class VoxCelebConfig:
     voxceleb_path: str
-    max_num_sequential_segments: int
+    max_call_length_seconds: int
     dominance_var: float = 0.11
     min_dominance: float = 0.05
     turn_prob: float = 0.875
@@ -96,7 +96,7 @@ class VoxCelebDataset(IterableDataset):
         self.spec_augmentation = spec_augmentation
         self.context_window = context_window
         self.sample_rate = self.featurizer.sample_rate
-        self.max_sequential_segments = config.max_num_sequential_segments
+        self.max_sequential_segments = int(config.max_call_length_seconds / train_segment_seconds)
         self.round_digits = 2
         self.max_speakers = max_speakers
         self.frame_per_sec = int(1 / (window_stride * subsampling))
@@ -111,7 +111,8 @@ class VoxCelebDataset(IterableDataset):
         self.voxceleb = {}
         for speaker_id in os.listdir(config.voxceleb_path):
             files = os.path.join(config.voxceleb_path, speaker_id)
-            self.voxceleb[speaker_id] = [os.path.join(files, wav) for wav in glob.glob(files + '/**/*.wav')]
+            wav_files = [os.path.join(files, wav) for wav in glob.glob(files + '/**/*.wav')]
+            self.voxceleb[speaker_id] = wav_files
 
         self.speakers = list(self.voxceleb.keys())
 

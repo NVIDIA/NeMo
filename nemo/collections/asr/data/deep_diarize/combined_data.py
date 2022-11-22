@@ -110,7 +110,9 @@ class CombinedSegmentDataset(IterableDataset, ABC):
     ):
         datasets = []
         for manifest_filepath in manifest_filepaths:
-            calls = LocalRTTMStreamingSegmentsDataset.data_setup(manifest_filepath=manifest_filepath)
+            calls = LocalRTTMStreamingSegmentsDataset.data_setup(
+                manifest_filepath=manifest_filepath, max_speakers=max_speakers
+            )
             datasets.append(
                 LocalRTTMStreamingSegmentsDataset(
                     data_list=calls,

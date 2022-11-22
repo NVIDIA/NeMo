@@ -133,10 +133,9 @@ class LocalRTTMStreamingSegmentsDataset(IterableDataset):
         return random.sample(self.data_list, len(self.data_list))
 
     def process_data(self, data):
-        sample, rttm_timestamps = data
+        sample, rttm_timestamps, speakers = data
         start_segment = True
         stt_list, end_list, speaker_list = rttm_timestamps
-        speakers = sorted(list(set(speaker_list)))
         random.shuffle(speakers)
 
         total_annotated_duration = max(end_list)
@@ -172,7 +171,7 @@ class LocalRTTMStreamingSegmentsDataset(IterableDataset):
                 start_offset += duration
 
     @staticmethod
-    def data_setup(manifest_filepath: str):
+    def data_setup(manifest_filepath: str, max_speakers: int):
         collection = DiarizationSpeechLabel(
             manifests_files=manifest_filepath.split(","), emb_dict=None, clus_label_dict=None,
         )
@@ -185,8 +184,16 @@ class LocalRTTMStreamingSegmentsDataset(IterableDataset):
                 rttm_lines = f.readlines()
             # todo: unique ID isn't needed
             rttm_timestamps = extract_seg_info_from_rttm("", rttm_lines)
-            samples.append((sample, rttm_timestamps,))
-        return samples
+            stt_list, end_list, speaker_list = rttm_timestamps
+            speakers = sorted(list(set(speaker_list)))
+            samples.append((sample, rttm_timestamps, speakers))
+        pruned_samples = []
+        for sample in samples:
+            _, rttm_timestamps, speakers = sample
+            if len(speakers) <= max_speakers:
+                pruned_samples.append(sample)
+        print(f"pruned {len(samples) - len(pruned_samples)} out of {len(samples)} calls")
+        return pruned_samples
 
 
 class MultiStreamDataLoader:

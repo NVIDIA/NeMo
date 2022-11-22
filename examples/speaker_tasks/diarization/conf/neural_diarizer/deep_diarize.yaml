@@ -54,7 +54,7 @@ model:
     manifest_filepaths: ???
     voxceleb_config:
       voxceleb_path: ???
-      max_num_sequential_segments: 10
+      max_call_length_seconds: 1200 # 20 minute call max length
       dominance_var: 0.11
       min_dominance: 0.05
       turn_prob: 0.875
