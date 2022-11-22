@@ -16,6 +16,7 @@ import abc
 import math
 import random
 from collections import OrderedDict
+from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import librosa
@@ -36,222 +37,6 @@ __all__ = [
     'AudioToTargetWithReferenceDataset',
     'AudioToTargetWithEmbeddingDataset',
 ]
-
-
-def load_samples_synchronized(
-    audio_files: List[str],
-    sample_rate: int,
-    duration: Optional[float] = None,
-    channel_selectors: Optional[List[ChannelSelectorType]] = None,
-    fixed_offset: float = 0,
-    random_offset: bool = False,
-) -> List[np.ndarray]:
-    """Load samples from multiple files with the same start and end point.
-
-    Args:
-        audio_files: list of paths to audio files
-        sample_rate: desired sample rate for output samples
-        duration: Optional desired duration of output samples.
-                  If `None`, the complete files will be loaded.
-                  If set, a segment of `duration` seconds will be loaded from
-                  all files. Segment is synchronized across files, so that
-                  start and end points are the same.
-        channel_selectors: Optional channel selector for each signal, for selecting
-                           a subset of channels.
-        fixed_offset: Optional fixed offset when loading samples.
-        random_offset: If `True`, offset will be randomized when loading a short segment
-                       from a file. The value is randomized between fixed_offset and
-                       max_offset (set depending on the duration and fixed_offset).
-
-    Returns:
-        List with the same size as `audio_files` but containing numpy arrays
-        with samples from each audio file.
-        Each array has shape (num_samples, ) or (num_samples, num_channels), for single-
-        or multi-channel signal, respectively.
-        For example, if `audio_files = [path/to/file_1.wav, path/to/file_2.wav]`,
-        the output will be a list `output = [samples_1, samples_2]`.
-    """
-    if channel_selectors is None:
-        channel_selectors = [None] * len(audio_files)
-
-    output = []
-
-    if duration is None:
-        # Load complete files starting from a fixed offset
-        output = []
-
-        for audio_file, channel_selector in zip(audio_files, channel_selectors):
-            if isinstance(audio_file, str):
-                segment = AudioSegment.from_file(
-                    audio_file=audio_file,
-                    target_sr=sample_rate,
-                    offset=fixed_offset,
-                    channel_selector=channel_selector,
-                )
-                output.append(segment.samples)
-            elif isinstance(audio_file, list):
-                samples_list = []
-                for f in audio_file:
-                    segment = AudioSegment.from_file(
-                        audio_file=f, target_sr=sample_rate, offset=fixed_offset, channel_selector=channel_selector
-                    )
-                    samples_list.append(segment.samples)
-                output.append(samples_list)
-            elif audio_file is None:
-                # Support for inference, when the target signal is `None`
-                output.append([])
-            else:
-                raise RuntimeError(f'Unexpected audio_file type {type(audio_file)}')
-
-    else:
-        audio_durations = [librosa.get_duration(filename=f) for f in flatten(audio_files)]
-        min_duration = min(audio_durations)
-        available_duration = min_duration - fixed_offset
-
-        if available_duration <= 0:
-            raise ValueError(f'Fixed offset {fixed_offset}s is larger than shortest file {min_duration}s.')
-        elif min_duration < duration + fixed_offset:
-            logging.warning(
-                f'Shortest file ({min_duration}s) is less than desired duration {duration}s + fixed offset {fixed_offset}s. Returned signals will be shortened to {available_duration}s.'
-            )
-            offset = fixed_offset
-            num_samples = math.floor(available_duration * sample_rate)
-        elif random_offset:
-            # Randomize offset based on the shortest file
-            max_offset = min_duration - duration
-            offset = random.uniform(fixed_offset, max_offset)
-            # Fixed number of samples
-            num_samples = math.floor(duration * sample_rate)
-        else:
-            # Fixed offset
-            offset = fixed_offset
-            # Fixed number of samples
-            num_samples = math.floor(duration * sample_rate)
-
-        # Prepare segments
-        for audio_file, channel_selector in zip(audio_files, channel_selectors):
-            # Load segments starting from the same offset
-            if isinstance(audio_file, str):
-                segment = AudioSegment.segment_from_file(
-                    audio_file=audio_file,
-                    target_sr=sample_rate,
-                    n_segments=num_samples,
-                    offset=offset,
-                    channel_selector=channel_selector,
-                )
-                output.append(segment.samples)
-            elif isinstance(audio_file, list):
-                samples_list = []
-                for f in audio_file:
-                    segment = AudioSegment.segment_from_file(
-                        audio_file=f,
-                        target_sr=sample_rate,
-                        n_segments=num_samples,
-                        offset=offset,
-                        channel_selector=channel_selector,
-                    )
-                    samples_list.append(segment.samples)
-                output.append(samples_list)
-            else:
-                raise RuntimeError(f'Unexpected audio_file type {type(audio_file)}')
-
-    return output
-
-
-def load_samples(
-    audio_file: str,
-    sample_rate: int,
-    duration: Optional[float] = None,
-    channel_selector: ChannelSelectorType = None,
-    fixed_offset: float = 0,
-    random_offset: bool = False,
-) -> np.ndarray:
-    """Load samples from an audio file.
-    For a single-channel signal, the output is shape (num_samples,).
-    For a multi-channel signal, the output is shape (num_samples, num_channels).
-
-    Args:
-        audio_file: path to an audio file
-        sample_rate: desired sample rate for output samples
-        duration: Optional desired duration of output samples.
-                  If `None`, the complete file will be loaded.
-                  If set, a segment of `duration` seconds will be loaded.
-        channel_selector: Optional channel selector, for selecting a subset of channels.
-        fixed_offset: Optional fixed offset when loading samples.
-        random_offset: If `True`, offset will be randomized when loading a short segment
-                       from a file. The value is randomized between fixed_offset and
-                       max_offset (set depending on the duration and fixed_offset).
-
-    Returns:
-        Numpy array with samples from audio file.
-        The array has shape (num_samples,) for a single-channel signal
-        or (num_samples, num_channels) for a multi-channel signal.
-    """
-    output = load_samples_synchronized(
-        audio_files=[audio_file],
-        sample_rate=sample_rate,
-        duration=duration,
-        channel_selectors=[channel_selector],
-        fixed_offset=fixed_offset,
-        random_offset=random_offset,
-    )
-
-    return output[0]
-
-
-def load_embedding(filepath: str) -> np.ndarray:
-    """Load an embedding vector from a file.
-
-    Args:
-        filepath: path to a file storing a vector.
-                  Currently, it is assumed the file is a npy file.
-    
-    Returns:
-        Array loaded from filepath.
-    """
-    if filepath.endswith('.npy'):
-        with open(filepath, 'rb') as f:
-            embedding = np.load(f)
-    else:
-        raise RuntimeError(f'Unknown embedding file format in file: {filepath}')
-
-    return embedding
-
-
-def list_to_multichannel(signal: Union[np.ndarray, List[np.ndarray]]) -> np.ndarray:
-    """Convert a list of signals into a multi-channel signal by concatenating
-    the elements of the list along the channel dimension.
-
-    If input is not a list, it is returned unmodified.
-
-    Args:
-        signal: list of arrays
-
-    Returns:
-        Numpy array obrained by concatenating the elements of the list
-        along the channel dimension (axis=1).
-    """
-    if not isinstance(signal, list):
-        # Nothing to do there
-        return signal
-    elif len(signal) == 0:
-        # Nothing to do, return as is
-        return signal
-    elif len(signal) == 1:
-        # Nothing to concatenate, return the original format
-        return signal[0]
-
-    # If multiple signals are provided in a list, we concatenate them along the channel dimension
-    if signal[0].ndim == 1:
-        # Single-channel individual files
-        mc_signal = np.stack(signal, axis=1)
-    elif signal[0].ndim == 2:
-        # Multi-channel individual files
-        mc_signal = np.concatenate(signal, axis=1)
-    else:
-        raise RuntimeError(f'Unexpected target with {signal[0].ndim} dimensions.')
-
-    return mc_signal
 
 
 def _audio_collate_fn(batch: List[dict]) -> Tuple[torch.Tensor]:
@@ -281,6 +66,7 @@ def _audio_collate_fn(batch: List[dict]) -> Tuple[torch.Tensor]:
         ```
         (signal_0, signal_0_length, signal_1, signal_1_length, ..., signal_N, signal_N_length)
         ```
+        Note that the output format is obtained by interleaving signals and their length.
     """
     signals = batch[0].keys()
 
@@ -318,6 +104,13 @@ def _audio_collate_fn(batch: List[dict]) -> Tuple[torch.Tensor]:
     return batched
 
 
+@dataclass
+class SignalSetup:
+    signals: List[str]  # signal names
+    duration: Optional[Union[float, list]] = None  # duration for each signal
+    channel_selectors: Optional[List[ChannelSelectorType]] = None  # channel selector for loading each signal
+
+
 class ASRAudioProcessor:
     """Class that processes an example from Audio collection and returns
     a dictionary with prepared signals.
@@ -336,118 +129,115 @@ class ASRAudioProcessor:
 
     Args:
         sample_rate: sample rate used for all audio signals
-        audio_duration: dictionary with duration for each signal to be loaded.
-                        If duration for a signal is set to None, the whole file will be loaded.
-        channel_selector: A dictionary providing a channel selector for each signal. If channel selector
-                          is None, all channels in the audio file will be loaded.
         random_offset: If `True`, offset will be randomized when loading a subsegment
                        from a file.
-        sync_signals: list of signals (keys of example.audio_signals) which will be loaded
-                      synchronously with the same start time and duration.
-        async_signals: list of signals (keys of example.audio_signals) which will be loaded
-                       asynchronously, with each signals possibly having a different start
-                       time and duration
-        embedding: a single key denoting the embedding file (from example.audio_signals)
     """
 
     def __init__(
-        self,
-        sample_rate,
-        audio_duration: Dict[str, float],
-        channel_selector: Dict[str, str],
-        random_offset: bool,
-        sync_signals: Optional[List[str]] = None,
-        async_signals: Optional[List[str]] = None,
-        embedding: Optional[str] = None,
+        self, sample_rate: float, random_offset: bool,
     ):
-
-        if sync_signals is None and async_signals is None and embedding is None:
-            raise ValueError(f'All signals cannot be None simultaneously.')
-
         self.sample_rate = sample_rate
-        self.audio_duration = audio_duration
-        self.sync_signals = sync_signals
-        self.async_signals = async_signals
-        self.embedding = embedding
-        self.channel_selector = channel_selector
         self.random_offset = random_offset
 
-        # All synchronized signals have the same duration
-        if self.sync_signals is not None:
-            sync_duration = audio_duration[self.sync_signals[0]]
-            # Check all others were setup correctly
-            for signal in self.sync_signals:
-                assert (
-                    audio_duration[signal] == sync_duration
-                ), f'Expecting audio duration {sync_duration} for {signal}, but received {audio_duration[signal]}'
-            self.sync_duration = sync_duration
-            if sync_duration is None:
-                logging.debug('Duration of synchronized signals set to None')
-            else:
-                logging.debug('Duration of synchronized signals set to %f', self.sync_duration)
+        self.sync_setup = None
+        self.async_setup = None
+        self.embedding_setup = None
 
-    def load_audio(self, audio_files: List[str], offset: float) -> Dict[str, torch.Tensor]:
-        """Given list of audio files in `audio_files`, load corresponding samples
-        and prepare an output dictionary.
+    @property
+    def sample_rate(self) -> float:
+        return self._sample_rate
 
-        Args:
-            audio_files: list of audio files to be loaded
-            offset: offset in seconds for loading audio
+    @sample_rate.setter
+    def sample_rate(self, value: float):
+        if value <= 0:
+            raise ValueError(f'Sample rate must be positive, received {value}')
+
+        self._sample_rate = value
+
+    @property
+    def random_offset(self) -> bool:
+        return self._random_offset
+
+    @random_offset.setter
+    def random_offset(self, value: bool):
+        self._random_offset = value
+
+    @property
+    def sync_setup(self) -> SignalSetup:
+        """Return the current setup for synchronous signals.
 
         Returns:
-            An ordered dictionary of signals and their tensors.
-            For example, the output dictionary may be the following
-            ```
-            {
-                'input_signal': input_signal_tensor,
-                'target_signal': target_signal_tensor,
-                'reference_signal': reference_signal_tensor,
-                'embedding_vector': embedding_vector
-            }
-            ```
-            Keys in the output dictionary are ordered with synchronous signals given first,
-            followed by asynchronous signals and embedding.
+            A dataclass containing the list of signals, their
+            duration and channel selectors.
         """
-        output = OrderedDict()
+        return self._sync_setup
 
-        # Load all signals with the same start and duration
-        if self.sync_signals is not None:
-            sync_audio_files = [audio_files[s] for s in self.sync_signals]
-            sync_channels_selectors = [self.channel_selector.get(s) for s in self.sync_signals]
+    @sync_setup.setter
+    def sync_setup(self, value: Optional[SignalSetup]):
+        """Setup signals to be loaded synchronously.
 
-            sync_samples = load_samples_synchronized(
-                audio_files=sync_audio_files,
-                channel_selectors=sync_channels_selectors,
-                sample_rate=self.sample_rate,
-                duration=self.sync_duration,
-                fixed_offset=offset,
-                random_offset=self.random_offset,
-            )
+        Args:
+            value: An instance of SignalSetup with the following fields
+                - signals: list of signals (keys of example.audio_signals) which will be loaded
+                           synchronously with the same start time and duration.
+                - duration: Duration for each signal to be loaded.
+                            If duration is set to None, the whole file will be loaded.
+                - channel_selectors: A list of channel selector for each signal. If channel selector
+                                     is None, all channels in the audio file will be loaded.
+        """
+        if value is None or isinstance(value, SignalSetup):
+            self._sync_setup = value
+        else:
+            raise ValueError(f'Unexpected type {type(value)} for value {value}.')
 
-            for signal, samples in zip(self.sync_signals, sync_samples):
-                samples = list_to_multichannel(samples)
-                output[signal] = torch.tensor(samples)
+    @property
+    def async_setup(self) -> SignalSetup:
+        """Return the current setup for asynchronous signals.
 
-        # Load each signal independently
-        if self.async_signals is not None:
-            for signal in self.async_signals:
-                samples = load_samples(
-                    audio_file=audio_files[signal],
-                    sample_rate=self.sample_rate,
-                    duration=self.audio_duration[signal],
-                    channel_selector=self.channel_selector.get(signal),
-                    fixed_offset=offset,
-                    random_offset=self.random_offset,
-                )
-                samples = list_to_multichannel(samples)
-                output[signal] = torch.tensor(samples)
+        Returns:
+            A dataclass containing the list of signals, their
+            duration and channel selectors.
+        """
+        return self._async_setup
 
-        # Load embedding vector
-        if self.embedding is not None:
-            embedding = load_embedding(audio_files[self.embedding])
-            output[self.embedding] = torch.tensor(embedding)
+    @async_setup.setter
+    def async_setup(self, value: Optional[SignalSetup]):
+        """Setup signals to be loaded asynchronously.
 
-        return output
+        Args:
+        Args:
+            value: An instance of SignalSetup with the following fields
+                - signals: list of signals (keys of example.audio_signals) which will be loaded
+                           asynchronously with signals possibly having different start and duration
+                - duration: Duration for each signal to be loaded.
+                            If duration is set to None, the whole file will be loaded.
+                - channel_selectors: A list of channel selector for each signal. If channel selector
+                                     is None, all channels in the audio file will be loaded.
+        """
+        if value is None or isinstance(value, SignalSetup):
+            self._async_setup = value
+        else:
+            raise ValueError(f'Unexpected type {type(value)} for value {value}.')
+
+    @property
+    def embedding_setup(self) -> SignalSetup:
+        """Setup signals corresponding to an embedding vector.
+        """
+        return self._embedding_setup
+
+    @embedding_setup.setter
+    def embedding_setup(self, value: SignalSetup):
+        """Setup signals corresponding to an embedding vector.
+
+        Args:
+            value: An instance of SignalSetup with the following fields
+                - signals: list of signals (keys of example.audio_signals) which will be loaded
+                           as embedding vectors.
+        """
+        if value is None or isinstance(value, SignalSetup):
+            self._embedding_setup = value
+        else:
+            raise ValueError(f'Unexpected type {type(value)} for value {value}.')
 
     def process(self, example: collections.Audio.OUTPUT_TYPE) -> Dict[str, torch.Tensor]:
         """Process an example from a collection of audio examples.
@@ -469,8 +259,414 @@ class ASRAudioProcessor:
             Keys in the output dictionary are ordered with synchronous signals given first,
             followed by asynchronous signals and embedding.
         """
-        audio = self.load_audio(audio_files=example.audio_files, offset=example.offset)
+        audio = self.load_audio(example=example)
+        audio = self.process_audio(audio=audio)
         return audio
+
+    def load_audio(self, example: collections.Audio.OUTPUT_TYPE) -> Dict[str, torch.Tensor]:
+        """Given an example, load audio from `example.audio_files` and prepare
+        the output dictionary.
+
+        Args:
+            example: An example from an audio collection
+
+        Returns:
+            An ordered dictionary of signals and their tensors.
+            For example, the output dictionary may be the following
+            ```
+            {
+                'input_signal': input_signal_tensor,
+                'target_signal': target_signal_tensor,
+                'reference_signal': reference_signal_tensor,
+                'embedding_vector': embedding_vector
+            }
+            ```
+            Keys in the output dictionary are ordered with synchronous signals given first,
+            followed by asynchronous signals and embedding.
+        """
+        output = OrderedDict()
+
+        if self.sync_setup is not None:
+            # Load all signals with the same start and duration
+            sync_signals = self.load_sync_signals(example)
+            output.update(sync_signals)
+
+        if self.async_setup is not None:
+            # Load each signal independently
+            async_signals = self.load_async_signals(example)
+            output.update(async_signals)
+
+        # Load embedding vector
+        if self.embedding_setup is not None:
+            embedding = self.load_embedding(example)
+            output.update(embedding)
+
+        if not output:
+            raise RuntimeError('Output dictionary is empty. Please use `_setup` methods to setup signals to be loaded')
+
+        return output
+
+    def process_audio(self, audio: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+        """Process audio signals available in the input dictionary.
+
+        Args:
+            audio: A dictionary containing loaded signals `signal: tensor`
+
+        Returns:
+            An ordered dictionary of signals and their tensors.
+        """
+        # Currently, not doing any processing of the loaded signals.
+        return audio
+
+    def load_sync_signals(self, example: collections.Audio.OUTPUT_TYPE) -> Dict[str, torch.Tensor]:
+        """Load signals with the same start and duration.
+
+        Args:
+            example: an example from audio collection
+
+        Returns:
+            An ordered dictionary of signals and their tensors.
+        """
+        output = OrderedDict()
+        sync_audio_files = [example.audio_files[s] for s in self.sync_setup.signals]
+
+        sync_samples = self.get_samples_synchronized(
+            audio_files=sync_audio_files,
+            channel_selectors=self.sync_setup.channel_selectors,
+            sample_rate=self.sample_rate,
+            duration=self.sync_setup.duration,
+            fixed_offset=example.offset,
+            random_offset=self.random_offset,
+        )
+
+        for signal, samples in zip(self.sync_setup.signals, sync_samples):
+            output[signal] = torch.tensor(samples)
+
+        return output
+
+    def load_async_signals(self, example: collections.Audio.OUTPUT_TYPE) -> Dict[str, torch.Tensor]:
+        """Load each async signal independently, no constraints on starting
+        from the same time.
+
+        Args:
+            example: an example from audio collection
+
+        Returns:
+            An ordered dictionary of signals and their tensors.
+        """
+        output = OrderedDict()
+        for idx, signal in enumerate(self.async_setup.signals):
+            samples = self.get_samples(
+                audio_file=example.audio_files[signal],
+                sample_rate=self.sample_rate,
+                duration=self.async_setup.duration[idx],
+                channel_selector=self.async_setup.channel_selectors[idx],
+                fixed_offset=example.offset,
+                random_offset=self.random_offset,
+            )
+            output[signal] = torch.tensor(samples)
+        return output
+
+    @classmethod
+    def get_samples(
+        cls,
+        audio_file: str,
+        sample_rate: int,
+        duration: Optional[float] = None,
+        channel_selector: ChannelSelectorType = None,
+        fixed_offset: float = 0,
+        random_offset: bool = False,
+    ) -> np.ndarray:
+        """Get samples from an audio file.
+        For a single-channel signal, the output is shape (num_samples,).
+        For a multi-channel signal, the output is shape (num_samples, num_channels).
+
+        Args:
+            audio_file: path to an audio file
+            sample_rate: desired sample rate for output samples
+            duration: Optional desired duration of output samples.
+                    If `None`, the complete file will be loaded.
+                    If set, a segment of `duration` seconds will be loaded.
+            channel_selector: Optional channel selector, for selecting a subset of channels.
+            fixed_offset: Optional fixed offset when loading samples.
+            random_offset: If `True`, offset will be randomized when loading a short segment
+                        from a file. The value is randomized between fixed_offset and
+                        max_offset (set depending on the duration and fixed_offset).
+
+        Returns:
+            Numpy array with samples from audio file.
+            The array has shape (num_samples,) for a single-channel signal
+            or (num_samples, num_channels) for a multi-channel signal.
+        """
+        output = cls.get_samples_synchronized(
+            audio_files=[audio_file],
+            sample_rate=sample_rate,
+            duration=duration,
+            channel_selectors=[channel_selector],
+            fixed_offset=fixed_offset,
+            random_offset=random_offset,
+        )
+
+        return output[0]
+
+    @classmethod
+    def get_samples_synchronized(
+        cls,
+        audio_files: List[str],
+        sample_rate: int,
+        duration: Optional[float] = None,
+        channel_selectors: Optional[List[ChannelSelectorType]] = None,
+        fixed_offset: float = 0,
+        random_offset: bool = False,
+    ) -> List[np.ndarray]:
+        """Get samples from multiple files with the same start and end point.
+
+        Args:
+            audio_files: list of paths to audio files
+            sample_rate: desired sample rate for output samples
+            duration: Optional desired duration of output samples.
+                    If `None`, the complete files will be loaded.
+                    If set, a segment of `duration` seconds will be loaded from
+                    all files. Segment is synchronized across files, so that
+                    start and end points are the same.
+            channel_selectors: Optional channel selector for each signal, for selecting
+                            a subset of channels.
+            fixed_offset: Optional fixed offset when loading samples.
+            random_offset: If `True`, offset will be randomized when loading a short segment
+                        from a file. The value is randomized between fixed_offset and
+                        max_offset (set depending on the duration and fixed_offset).
+
+        Returns:
+            List with the same size as `audio_files` but containing numpy arrays
+            with samples from each audio file.
+            Each array has shape (num_samples, ) or (num_samples, num_channels), for single-
+            or multi-channel signal, respectively.
+            For example, if `audio_files = [path/to/file_1.wav, path/to/file_2.wav]`,
+            the output will be a list `output = [samples_file_1, samples_file_2]`.
+        """
+        if channel_selectors is None:
+            channel_selectors = [None] * len(audio_files)
+
+        if duration is None:
+            # Load complete files starting from a fixed offset
+            offset = fixed_offset  # fixed offset
+            num_samples = None  # no constrain on the number of samples
+
+        else:
+            # Fixed duration of the output
+            audio_durations = cls.get_duration(audio_files)
+            min_audio_duration = min(audio_durations)
+            available_duration = min_audio_duration - fixed_offset
+
+            if available_duration <= 0:
+                raise ValueError(f'Fixed offset {fixed_offset}s is larger than shortest file {min_duration}s.')
+
+            if duration + fixed_offset > min_audio_duration:
+                # The shortest file is shorter than the requested duration
+                logging.warning(
+                    f'Shortest file ({min_audio_duration}s) is less than the desired duration {duration}s + fixed offset {fixed_offset}s. Returned signals will be shortened to {available_duration} seconds.'
+                )
+                offset = fixed_offset
+                duration = available_duration
+            elif random_offset:
+                # Randomize offset based on the shortest file
+                max_offset = min_audio_duration - duration
+                offset = random.uniform(fixed_offset, max_offset)
+            else:
+                # Fixed offset
+                offset = fixed_offset
+
+            # Fixed number of samples
+            num_samples = math.floor(duration * sample_rate)
+
+        output = []
+
+        # Prepare segments
+        for idx, audio_file in enumerate(audio_files):
+            segment_samples = cls.get_samples_from_file(
+                audio_file=audio_file,
+                sample_rate=sample_rate,
+                offset=offset,
+                num_samples=num_samples,
+                channel_selector=channel_selectors[idx],
+            )
+            output.append(segment_samples)
+
+        return output
+
+    @classmethod
+    def get_samples_from_file(
+        cls,
+        audio_file: Union[str, List[str]],
+        sample_rate: int,
+        offset: float,
+        num_samples: Optional[int] = None,
+        channel_selector: Optional[ChannelSelectorType] = None,
+    ) -> np.ndarray:
+        """Get samples from a single or multiple files.
+        If loading samples from multiple files, they will
+        be concatenated along the channel dimension.
+
+        Args:
+            audio_file: path or a list of paths.
+            sample_rate: sample rate of the loaded samples
+            offset: fixed offset in seconds
+            num_samples: Optional, number of samples to load.
+                         If `None`, all available samples will be loaded.
+            channel_selector: Select a subset of available channels.
+
+        Returns:
+            An array with shape (samples,) or (samples, channels)
+        """
+        if isinstance(audio_file, str):
+            # Load samples from a single file
+            segment_samples = cls.get_segment_from_file(
+                audio_file=audio_file,
+                sample_rate=sample_rate,
+                offset=offset,
+                num_samples=num_samples,
+                channel_selector=channel_selector,
+            )
+        elif isinstance(audio_file, list):
+            # Load samples from multiple files and form a multi-channel signal
+            segment_samples = []
+            for a_file in audio_file:
+                a_file_samples = cls.get_segment_from_file(
+                    audio_file=a_file,
+                    sample_rate=sample_rate,
+                    offset=offset,
+                    num_samples=num_samples,
+                    channel_selector=channel_selector,
+                )
+                segment_samples.append(a_file_samples)
+            segment_samples = cls.list_to_multichannel(segment_samples)
+        elif audio_file is None:
+            # Support for inference, when the target signal is `None`
+            segment_samples = []
+        else:
+            raise RuntimeError(f'Unexpected audio_file type {type(audio_file)}')
+        return segment_samples
+
+    @staticmethod
+    def get_segment_from_file(
+        audio_file: str,
+        sample_rate: int,
+        offset: float,
+        num_samples: Optional[int] = None,
+        channel_selector: Optional[ChannelSelectorType] = None,
+    ) -> np.ndarray:
+        """Get a segment of samples from a single audio file.
+
+        Args:
+            audio_file: path to an audio file
+            sample_rate: sample rate of the loaded samples
+            offset: fixed offset in seconds
+            num_samples: Optional, number of samples to load.
+                         If `None`, all available samples will be loaded.
+            channel_selector: Select a subset of available channels.
+
+        Returns:
+           An array with shape (samples,) or (samples, channels) 
+        """
+        if num_samples is None:
+            segment = AudioSegment.from_file(
+                audio_file=audio_file, target_sr=sample_rate, offset=offset, channel_selector=channel_selector,
+            )
+
+        else:
+            segment = AudioSegment.segment_from_file(
+                audio_file=audio_file,
+                target_sr=sample_rate,
+                n_segments=num_samples,
+                offset=offset,
+                channel_selector=channel_selector,
+            )
+        return segment.samples
+
+    @staticmethod
+    def list_to_multichannel(signal: Union[np.ndarray, List[np.ndarray]]) -> np.ndarray:
+        """Convert a list of signals into a multi-channel signal by concatenating
+        the elements of the list along the channel dimension.
+
+        If input is not a list, it is returned unmodified.
+
+        Args:
+            signal: list of arrays
+
+        Returns:
+            Numpy array obtained by concatenating the elements of the list
+            along the channel dimension (axis=1).
+        """
+        if not isinstance(signal, list):
+            # Nothing to do there
+            return signal
+        elif len(signal) == 0:
+            # Nothing to do, return as is
+            return signal
+        elif len(signal) == 1:
+            # Nothing to concatenate, return the original format
+            return signal[0]
+
+        # If multiple signals are provided in a list, we concatenate them along the channel dimension
+        if signal[0].ndim == 1:
+            # Single-channel individual files
+            mc_signal = np.stack(signal, axis=1)
+        elif signal[0].ndim == 2:
+            # Multi-channel individual files
+            mc_signal = np.concatenate(signal, axis=1)
+        else:
+            raise RuntimeError(f'Unexpected target with {signal[0].ndim} dimensions.')
+
+        return mc_signal
+
+    @staticmethod
+    def get_duration(audio_files: List[str]) -> List[float]:
+        """Get duration for each audio file in `audio_files`.
+
+        Args:
+            audio_files: list of paths to audio files
+
+        Returns:
+            List of durations in seconds.
+        """
+        duration = [librosa.get_duration(filename=f) for f in flatten(audio_files)]
+        return duration
+
+    def load_embedding(self, example: collections.Audio.OUTPUT_TYPE) -> Dict[str, torch.Tensor]:
+        """Given an example, load embedding from `example.audio_files[embedding]`
+        and return it in a dictionary.
+
+        Args:
+            example: An example from audio collection
+
+        Returns:
+            An dictionary of embedding keys and their tensors.
+        """
+        output = OrderedDict()
+        for idx, signal in enumerate(self.embedding_setup.signals):
+            embedding_file = example.audio_files[signal]
+            embedding = self.load_embedding_vector(embedding_file)
+            output[signal] = torch.tensor(embedding)
+        return output
+
+    @staticmethod
+    def load_embedding_vector(filepath: str) -> np.ndarray:
+        """Load an embedding vector from a file.
+
+        Args:
+            filepath: path to a file storing a vector.
+                    Currently, it is assumed the file is a npy file.
+        
+        Returns:
+            Array loaded from filepath.
+        """
+        if filepath.endswith('.npy'):
+            with open(filepath, 'rb') as f:
+                embedding = np.load(f)
+        else:
+            raise RuntimeError(f'Unknown embedding file format in file: {filepath}')
+
+        return embedding
 
 
 @experimental
@@ -627,14 +823,6 @@ class AudioToTargetDataset(BaseAudioDataset):
             'input_signal': input_key,
             'target_signal': target_key,
         }
-        audio_to_channel_selector = {
-            'input_signal': input_channel_selector,
-            'target_signal': target_channel_selector,
-        }
-        audio_to_duration = {
-            'input_signal': audio_duration,
-            'target_signal': audio_duration,
-        }
 
         collection = collections.AudioCollection(
             manifest_files=manifest_filepath,
@@ -644,12 +832,11 @@ class AudioToTargetDataset(BaseAudioDataset):
             max_number=max_utts,
         )
 
-        audio_processor = ASRAudioProcessor(
-            sample_rate=sample_rate,
-            sync_signals=['input_signal', 'target_signal'],
-            audio_duration=audio_to_duration,
-            channel_selector=audio_to_channel_selector,
-            random_offset=random_offset,
+        audio_processor = ASRAudioProcessor(sample_rate=sample_rate, random_offset=random_offset,)
+        audio_processor.sync_setup = SignalSetup(
+            signals=['input_signal', 'target_signal'],
+            duration=audio_duration,
+            channel_selectors=[input_channel_selector, target_channel_selector],
         )
 
         super().__init__(
@@ -758,23 +945,6 @@ class AudioToTargetWithReferenceDataset(BaseAudioDataset):
             'target_signal': target_key,
             'reference_signal': reference_key,
         }
-        audio_to_channel_selector = {
-            'input_signal': input_channel_selector,
-            'target_signal': target_channel_selector,
-            'reference_signal': reference_channel_selector,
-        }
-        audio_to_duration = {
-            'input_signal': audio_duration,
-            'target_signal': audio_duration,
-            'reference_signal': audio_duration if reference_is_synchronized else reference_duration,
-        }
-
-        if reference_is_synchronized:
-            sync_signals = ['input_signal', 'target_signal', 'reference_signal']
-            async_signals = None
-        else:
-            sync_signals = ['input_signal', 'target_signal']
-            async_signals = ['reference_signal']
 
         collection = collections.AudioCollection(
             manifest_files=manifest_filepath,
@@ -784,14 +954,25 @@ class AudioToTargetWithReferenceDataset(BaseAudioDataset):
             max_number=max_utts,
         )
 
-        audio_processor = ASRAudioProcessor(
-            sample_rate=sample_rate,
-            sync_signals=sync_signals,
-            async_signals=async_signals,
-            audio_duration=audio_to_duration,
-            channel_selector=audio_to_channel_selector,
-            random_offset=random_offset,
-        )
+        audio_processor = ASRAudioProcessor(sample_rate=sample_rate, random_offset=random_offset,)
+
+        if reference_is_synchronized:
+            audio_processor.sync_setup = SignalSetup(
+                signals=['input_signal', 'target_signal', 'reference_signal'],
+                duration=audio_duration,
+                channel_selectors=[input_channel_selector, target_channel_selector, reference_channel_selector],
+            )
+        else:
+            audio_processor.sync_setup = SignalSetup(
+                signals=['input_signal', 'target_signal'],
+                duration=audio_duration,
+                channel_selectors=[input_channel_selector, target_channel_selector],
+            )
+            audio_processor.async_setup = SignalSetup(
+                signals=['reference_signal'],
+                duration=[reference_duration],
+                channel_selectors=[reference_channel_selector],
+            )
 
         super().__init__(
             collection=collection, audio_processor=audio_processor,
@@ -887,14 +1068,6 @@ class AudioToTargetWithEmbeddingDataset(BaseAudioDataset):
             'target_signal': target_key,
             'embedding_vector': embedding_key,
         }
-        audio_to_channel_selector = {
-            'input_signal': input_channel_selector,
-            'target_signal': target_channel_selector,
-        }
-        audio_to_duration = {
-            'input_signal': audio_duration,
-            'target_signal': audio_duration,
-        }
 
         collection = collections.AudioCollection(
             manifest_files=manifest_filepath,
@@ -904,14 +1077,13 @@ class AudioToTargetWithEmbeddingDataset(BaseAudioDataset):
             max_number=max_utts,
         )
 
-        audio_processor = ASRAudioProcessor(
-            sample_rate=sample_rate,
-            sync_signals=['input_signal', 'target_signal'],
-            embedding='embedding_vector',
-            audio_duration=audio_to_duration,
-            channel_selector=audio_to_channel_selector,
-            random_offset=random_offset,
+        audio_processor = ASRAudioProcessor(sample_rate=sample_rate, random_offset=random_offset,)
+        audio_processor.sync_setup = SignalSetup(
+            signals=['input_signal', 'target_signal'],
+            duration=audio_duration,
+            channel_selectors=[input_channel_selector, target_channel_selector],
         )
+        audio_processor.embedding_setup = SignalSetup(signals=['embedding_vector'])
 
         super().__init__(
             collection=collection, audio_processor=audio_processor,

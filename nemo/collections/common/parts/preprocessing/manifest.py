@@ -124,7 +124,7 @@ def __parse_item(line: str, manifest_file: str) -> Dict[str, Any]:
     return item
 
 
-def get_full_path(audio_file: str, manifest_file: str) -> str:
+def get_full_path(audio_file: str, manifest_file: str, audio_file_len_limit: int = 255) -> str:
     """Get full path to audio_file.
 
     If the audio_file is a relative path and does not exist,
@@ -136,6 +136,7 @@ def get_full_path(audio_file: str, manifest_file: str) -> str:
         audio_file: path to an audio file, either absolute or assumed relative
                     to the manifest directory
         manifest_file: path to a manifest file
+        audio_file_len_limit: limit for length of audio_file when using relative paths
 
     Returns:
         Full path to audio_file.
@@ -143,7 +144,7 @@ def get_full_path(audio_file: str, manifest_file: str) -> str:
     audio_file = Path(audio_file)
     manifest_dir = Path(manifest_file).parent
 
-    if (len(str(audio_file)) < 255) and not audio_file.is_file() and not audio_file.is_absolute():
+    if (len(str(audio_file)) < audio_file_len_limit) and not audio_file.is_file() and not audio_file.is_absolute():
         # assume audio_file path is relative to manifest_dir
         audio_file_path = manifest_dir / audio_file
         if audio_file_path.is_file():

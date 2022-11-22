@@ -26,11 +26,11 @@ from torch.utils.data import DataLoader
 
 from nemo.collections.asr.data import audio_to_audio_dataset, audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_audio import (
+    ASRAudioProcessor,
     AudioToTargetDataset,
     AudioToTargetWithEmbeddingDataset,
     AudioToTargetWithReferenceDataset,
     _audio_collate_fn,
-    list_to_multichannel,
 )
 from nemo.collections.asr.data.audio_to_text import TarredAudioToBPEDataset, TarredAudioToCharDataset
 from nemo.collections.asr.data.audio_to_text_dali import (
@@ -606,9 +606,9 @@ class TestAudioDatasets:
         target_list = [golden_target[:, n * num_channels : (n + 1) * num_channels] for n in range(num_targets)]
 
         # Check the original signal is not modified
-        assert (list_to_multichannel(golden_target) == golden_target).all()
+        assert (ASRAudioProcessor.list_to_multichannel(golden_target) == golden_target).all()
         # Check the list is converted back to the original signal
-        assert (list_to_multichannel(target_list) == golden_target).all()
+        assert (ASRAudioProcessor.list_to_multichannel(target_list) == golden_target).all()
 
     @pytest.mark.unit
     def test_audio_collate_fn(self):
