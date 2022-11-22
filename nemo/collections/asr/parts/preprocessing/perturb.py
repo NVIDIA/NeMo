@@ -275,6 +275,44 @@ class TimeStretchPerturbation(Perturbation):
         data._samples = y_stretch
 
 
+class SilencePerturbation(Perturbation):
+    """
+    Applies random silence at the start or end of the audio.
+
+    Args:
+        min_start_silence_secs (float): Min start silence level in secs
+        max_start_silence_secs (float): Max start silence level in secs
+        min_end_silence_secs (float): Min end silence level in secs
+        max_end_silence_secs (float): Max end silence level in secs
+        rng: Random number generator
+    """
+
+    def __init__(
+        self,
+        min_start_silence_secs=0,
+        max_start_silence_secs=0,
+        min_end_silence_secs=0,
+        max_end_silence_secs=0,
+        rng=None,
+        value=0,
+    ):
+        self._min_start_silence_secs = min_start_silence_secs
+        self._max_start_silence_secs = max_start_silence_secs
+        self._min_end_silence_secs = min_end_silence_secs
+        self._max_end_silence_secs = max_end_silence_secs
+
+        self._rng = random.Random() if rng is None else rng
+        self._value = value
+
+    def perturb(self, data):
+        start_silence_len = self._rng.uniform(self._min_start_silence_secs, self._max_start_silence_secs)
+        end_silence_len = self._rng.uniform(self._min_end_silence_secs, self._max_end_silence_secs)
+        start = np.full((int(start_silence_len * data.sample_rate),), self._value)
+        end = np.full((int(end_silence_len * data.sample_rate),), self._value)
+
+        data._samples = np.concatenate([start, data._samples, end])
+
+
 class GainPerturbation(Perturbation):
     """
     Applies random gain to the audio.
@@ -779,6 +817,7 @@ perturbation_types = {
     "speed": SpeedPerturbation,
     "time_stretch": TimeStretchPerturbation,
     "gain": GainPerturbation,
+    "silence": SilencePerturbation,
     "impulse": ImpulsePerturbation,
     "shift": ShiftPerturbation,
     "noise": NoisePerturbation,
