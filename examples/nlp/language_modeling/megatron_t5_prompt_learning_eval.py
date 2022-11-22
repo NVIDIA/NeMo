@@ -42,9 +42,9 @@ def main(cfg) -> None:
 
     # trainer required for restoring model parallel models
     trainer = Trainer(strategy=NLPDDPStrategy(), **cfg.trainer)
+    len_devices = cfg.trainer.devices if isinstance(cfg.trainer.devices, int) else len(cfg.trainer.devices)
     assert (
-        cfg.trainer.devices * cfg.trainer.num_nodes
-        == cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
+        len_devices * cfg.trainer.num_nodes == cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
     ), "devices * num_nodes should equal tensor_model_parallel_size * pipeline_model_parallel_size"
 
     app_state = AppState()
@@ -76,12 +76,15 @@ def main(cfg) -> None:
                 # This is for backward compatibility with old checkpoints that used `pretrained_language_model_path` instead of `language_model_path`.
                 if hasattr(prompt_learning_cfg, 'pretrained_language_model_path'):
                     prompt_learning_cfg.pretrained_language_model_path = cfg.language_model_path
+                    prompt_learning_cfg.language_model_path = cfg.language_model_path
                 else:
                     prompt_learning_cfg.language_model_path = cfg.language_model_path
             prompt_learning_cfg.micro_batch_size = cfg.data.get('micro_batch_size', 4)
             prompt_learning_cfg.global_batch_size = cfg.data.get('global_batch_size', 4)
+            prompt_learning_cfg.tensor_model_parallel_size = cfg.tensor_model_parallel_size
 
         # Now load prompt learning model with frozen T5 model base
+
         model = MegatronT5PromptLearningModel.restore_from(
             restore_path=cfg.virtual_prompt_model_file, trainer=trainer, override_config_path=prompt_learning_cfg
         )
