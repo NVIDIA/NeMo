@@ -765,9 +765,11 @@ def get_minimal_indices(Y_new: torch.LongTensor) -> torch.LongTensor:
             [0, 0, 0, 1, 1, 2]
     
     Args:
+        Y_new (Tensor):
+            Tensor containing cluster labels
 
     Returns:
-
+        (Tensor): Newly mapped cluster labels that has minimized indicies
     """
     Y_new_enlisted = torch.unique(Y_new).sort()[0].to(torch.long)
     sequence = torch.arange(torch.max(Y_new_enlisted) + 1)
@@ -785,7 +787,6 @@ def stitch_cluster_labels(Y_old, Y_new, with_history=True):
         Y_cumul (Tensor):
             Cumulated diarization labels. This will be concatenated with history embedding speaker label
             then compared with the predicted label Y_new.
-
         Y_new (Tensor):
             Contains predicted labels for reduced history embeddings concatenated with the predicted label.
             Permutation is not matched yet.
@@ -821,183 +822,248 @@ def stitch_cluster_labels(Y_old, Y_new, with_history=True):
             mapping_array = hungarian_algorithm(spk_count, U_set, P, Q, PmQ, QmP)
         matched_output = mapping_array[Y_new]
     matched_output = torch.tensor(matched_output)
+    matched_output = get_minimal_indices(matched_output)
     return matched_output
 
 
 @torch.jit.script
-def unravel_index(indices: torch.LongTensor, shape: List[int],) -> List[torch.LongTensor]:
+def calculate_removable_counts(
+    removable_counts_mat: torch.Tensor,
+    remain_count: int,
+    num_clus: int,
+    ) -> torch.Tensor:
     """
-    Converts flat indices into unraveled coordinates in a target shape.
-    This is a torch version of implementation that follows `numpy.unravel_index`.
+    Calculate removable counts based on the arguments and calculate how many counts should be
+    removed from the each cluster.
+
+    Example:
+        pre_clus_labels = [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2]
+        num_to_be_removed = 3
+        min_count_per_cluster = 2
+
+        Histogram:
+        0 |*****
+        1 |***
+        2 |*
+
+        Inputs:
+            removable_counts_mat = [5, 3, 1]
+            remain_count = 6
+            num_clus = 3
+
+        diff_counts = [1, 2, 2]
+        gradual_counts = [3, 4, 2]
+        cumsum_counts = [3, 7, 9]
+
+        Return:
+            removable_counts_mat = [2, 1, 0]
 
     Args:
-        indices (Tensor): 
-            A tensor of indices, (*, N).
-        shape (list): 
-            The targeted shape, (D,).
+        removable_counts_mat (Tensor):
+            Tensor containing how many vectors could be removed from each cluster
+        remain_count (int):
+            Integer value that indicates the number of vectors removed from the total set
+        num_clus (int):
+            Number of clusters in the given label sequence (cardinality of a label set)
 
     Returns:
-        unraveled coordinates, (*, N, D).
+        removable_counts_mat (Tensor):
+            Tensor containing the number of vectors should be removed from each cluster
     """
+    mat_post = torch.cat([torch.tensor([0]), removable_counts_mat.sort()[0], torch.tensor([0])], dim=0)
+    removable_count_args = removable_counts_mat.sort(descending=True)[1]
+    
+    # Calculate the size difference between clusters
+    diff_counts  = (mat_post[1:]- mat_post[-1])[:num_clus]
+    gradual_counts = torch.arange(num_clus, 0, -1) * diff_counts
+    cumsum_counts = torch.cumsum(gradual_counts, dim=0)
+    count, remain_count_rem = 0, remain_count
 
-    shape = torch.tensor(shape)
-    indices = indices % shape.prod()
+    # Find how many remaining counts we can use
+    ind: int = 0
+    for ind, num in enumerate(cumsum_counts):
+        if remain_count < num:
+            break
 
-    coord = torch.zeros(indices.size() + shape.size(), dtype=torch.int)
+    # Subtract the common values step by step
+    if ind > 0:
+        for knd in range(ind):
+            removable_counts_mat[removable_count_args[:num_clus-knd]] -=  diff_counts[knd] 
+            remain_count_rem -= int(diff_counts[knd].item())*(num_clus-knd)
+    assert remain_count >= 0, "remain_count should never be negative."
 
-    for i, dim in enumerate(reversed(shape)):
-        coord[..., i] = indices % dim
-        indices = torch.div(indices, dim, rounding_mode='trunc')
-
-    idx2d = coord.flip(-1)
-    return [idx2d[:, k] for k in range(idx2d.shape[1])]
-
-
-@torch.jit.script
-def preprocess_mat(mat: torch.Tensor, symm: bool = True, fill_diag_zero: bool = True):
-    if symm:
-        mat = 0.5 * (mat + mat.T)
-    if fill_diag_zero:
-        mat.fill_diagonal_(0)
-    return mat
-
-
-@torch.jit.script
-def get_closest_embeddings(cmat: torch.Tensor, ndx: torch.Tensor, target_num: int):
-    """
-    Get indeces of the embeddings we want to merge or drop.
-
-    Args:
-        cmat: (Tensor)
-        ndx: (Tensor)
-        target_num: (int)
-
-    Output:
-        index_2d: (numpy.array)
-    """
-    comb_limit = int(ndx.shape[0] / 2)
-    assert (
-        target_num <= comb_limit
-    ), f" target_num is {target_num}: {target_num} is bigger than comb_limit {comb_limit}"
-
-    cmat = preprocess_mat(cmat, symm=False, fill_diag_zero=True)
-    if torch.trace(cmat) > 0:
-        raise ValueError("Trace of the affinity matrix should be 0 to exclude the self-affinity values.")
-
-    # Sort the index to get the indices of the closest embedding vectors
-    indices = torch.argsort(cmat.flatten(), descending=True)
-    idx2d = unravel_index(indices=indices, shape=cmat.shape)
-    num_of_lower_half = int((cmat.shape[0] ** 2 - cmat.shape[0]) / 2)
-    idx2d = (idx2d[0][:num_of_lower_half], idx2d[1][:num_of_lower_half])
-
-    # Until we get the targeted number, add the closest indices
-    cdx: int = 0
-    left_set: List[int] = []
-    right_set: List[int] = []
-    total_set: List[int] = []
-    while len(left_set) < target_num and len(right_set) < target_num:
-        Ldx, Rdx = int(idx2d[0][cdx]), int(idx2d[1][cdx])
-        if (not Ldx in total_set) and (not Rdx in total_set):
-            left_set.append(Ldx)
-            right_set.append(Rdx)
-            total_set = left_set + right_set
-        cdx += 1
-    index_2d = torch.tensor([left_set, right_set])
-    return index_2d
+    # Add remaining values
+    num_labels = remain_count_rem // (num_clus - ind)
+    rem_labels = remain_count_rem  % (num_clus - ind)
+    removable_counts_mat[removable_count_args[:(num_clus - ind)]]-= num_labels
+    removable_counts_mat[removable_count_args[:rem_labels]] -= 1
+    return removable_counts_mat
 
 
-@torch.jit.script
-def get_mapped_index(mat: torch.Tensor, index: int) -> int:
-    return int(torch.where(mat == index)[0][0])
-
-
-@torch.jit.script
+# @torch.jit.script
 def get_merge_quantity(
-    new_emb_n: int, 
+    num_to_be_removed: int, 
     pre_clus_labels: torch.Tensor, 
-    min_segs_per_buffer: int,
+    min_count_per_cluster: int,
 ):
     """
     Determine which embeddings we need to reduce or merge in history buffer.
     We want to merge or remove the embedding in the bigger cluster first.
     At the same time, we keep the minimum number of embedding per cluster
-    with the variable named self._minimum_segments_per_buffer.
-    The while loop creates a numpy array emb_n_per_cluster.
-    that tells us how many embeddings we should remove/merge per cluster.
+    with the variable named min_count_per_cluster.
+
+    Constraint:
+        - Each cluster should keep the number of vectors over `min_count_per_cluster`.
+        - In total, `num_to_be_removed` of vectors should be removed from the total buffer.
+        - While merging embeddings, minimize the gap between quantities between clusters.
+
+    Example:
+        >>> num_to_be_removed = 3
+        >>> pre_clus_labels = [0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2]
+        >>> min_count_per_cluster = 2
+        >>> get_merge_quantity(num_to_be_removed, pre_clus_labels, min_count_per_cluster)
+        Return:   
+            torch.tensor([2, 1, 0]) # Sum should be equal to `num_to_be_removed` which is 3
 
     Args:
-        new_emb_n: (int)
+        num_to_be_removed: (int)
             the quantity of the newly obtained embedding from the new stream of input.
-
         pre_clus_labels: (Tensor)
             the speaker labels of (the history_embedding_buffer_emb) + (the new embeddings to be added)
+        min_count_per_cluster: (int)
+            Minimum vector quantity for each cluster
+
+    Returns:
+        removable_counts_mat: (Tensor)
+            Tensor containing the number of vectors should be removed from each cluster
     """
-    targeted_total_n = new_emb_n
-    spk_label_size = len(torch.unique(pre_clus_labels))
+    if num_to_be_removed > pre_clus_labels.shape[0]-1:
+        raise ValueError(f"num_to_be_removed: {num_to_be_removed} should be less than pre_clus_labels length - 1 {pre_clus_labels.shape[0]-1}")
+    remain_count = pre_clus_labels.shape[0] - num_to_be_removed
     spk_freq_count = torch.bincount(pre_clus_labels)
-    class_vol = spk_freq_count
-    emb_n_per_cluster = torch.zeros_like(class_vol)
-    arg_max_spk_freq = torch.argsort(spk_freq_count, descending=True)
-    count = 0
-    while int(torch.sum(emb_n_per_cluster)) < targeted_total_n:
-        recurr_idx = count % spk_label_size
-        curr_idx = int(arg_max_spk_freq[recurr_idx])
-        margin = int((spk_freq_count[curr_idx] - emb_n_per_cluster[curr_idx]) - min_segs_per_buffer)
-        if margin > 0:
-            target_number = min(margin, new_emb_n)
-            emb_n_per_cluster[curr_idx] += target_number
-            new_emb_n -= target_number
-        count += 1
-    assert (
-        sum(emb_n_per_cluster) == targeted_total_n
-    ), "emb_n_per_cluster does not match with targeted number new_emb_n."
-    return emb_n_per_cluster
+    num_clus = len(torch.unique(pre_clus_labels))
+    if remain_count < min_count_per_cluster * num_clus:
+        raise ValueError(f"The remaining embedding vectors should be more than { min_count_per_cluster * num_clus }")
+    
+    # Minimum vector counts should be excluded from the removable amount
+    min_seg_count = torch.tensor([min_count_per_cluster]*len(spk_freq_count)).to(pre_clus_labels.device)
+    min_seg_count_mat = torch.stack((min_seg_count, spk_freq_count)).min(0)[0]
+
+    # Exclude minimum quantities from the removable count matrix
+    remain_count -= int(torch.sum(min_seg_count_mat))
+    removable_counts_mat = spk_freq_count - min_seg_count_mat
+    
+    # Calculate removable counts from `remain_count` variable
+    removable_counts_mat = calculate_removable_counts(removable_counts_mat, remain_count, num_clus) 
+    if int(removable_counts_mat.sum()) != num_to_be_removed:
+        raise ValueError("Sum of `removable_counts_mat` is not equal to `num_to_be_removed` variable.")
+    if not torch.all(removable_counts_mat >= 0):
+        raise ValueError("Every value in `removable_counts_mat` should be non-negative value.")
+    return removable_counts_mat
 
 
 @torch.jit.script
-def merge_emb(
-    index_2d: torch.Tensor, 
+def merge_vectors(
+    selected_inds: torch.Tensor, 
     emb_ndx: torch.Tensor, 
     pre_cluster_labels: torch.Tensor
     ):
     """
+    Merge feature (embedding) vectors estimated to be the same cluster label.
 
     Args:
-        index_2d (Tensor):
+        selected_inds (Tensor):
+            Selected indices for merging
         emb_ndx (Tensor):
+            Feature (embedding) vectors
+            Dimension: (original vector counts) x (feature dimension)
         pre_cluster_labels (Tensor):
+            Original cluster labels before merging
 
+    Returns:
+        merged_vecs (Tensor):
+            Merged feature vectors that are concatenated
+            Dimension: (merged vector counts) x (feature dimension)
+        merged_clus_labels (Tensor):
+            Cluster labels for the merged feature vectors
+            Dimension: (merged vector counts)
+        index_mapping (Tuple):
+            index_mapping[0] contains bypassed vector labels
+            index_mapping[1] contains merged  vector labels
     """
-    LI, RI = index_2d[0, :], index_2d[1, :]
-    LI_argdx = index_2d[0].argsort()
-    LI, RI = LI[LI_argdx], RI[LI_argdx]
-    result_emb = 0.5 * (emb_ndx[LI, :] + emb_ndx[RI, :])
-    merged_clus_labels = pre_cluster_labels[torch.unique(LI)]
-
-    selected_inds: List[int] = [int(k) for k in torch.hstack((LI, RI))]
-    bypass_ndx_list: List[int] = []
+    if emb_ndx.shape[0] != pre_cluster_labels.shape[0]:
+        raise ValueError("pre_cluster_labels and emb_ndx have mismatch in dimension")
+    avg_emb = torch.mean(emb_ndx[selected_inds, :], dim=0)
+    merged_clus_labels = pre_cluster_labels[selected_inds]
+    selected_inds_list: List[int] = selected_inds.tolist()
+    bypass_inds_list: List[int] = []
     for k in range(emb_ndx.shape[0]):
-        if k not in selected_inds:
-            bypass_ndx_list.append(k)
-    bypass_ndx = torch.tensor(bypass_ndx_list)
-    if len(bypass_ndx) > 0:
-        result_emb = torch.vstack((emb_ndx[bypass_ndx], result_emb))
-        merged_clus_labels = torch.hstack((pre_cluster_labels[bypass_ndx], merged_clus_labels))
+        if k not in selected_inds_list:
+            bypass_inds_list.append(k)
+    bypass_inds = torch.tensor(bypass_inds_list)
+    selected_inds = torch.tensor(selected_inds_list)
+    merged_vecs = torch.vstack((emb_ndx[bypass_inds], avg_emb))
+    merged_clus_labels = torch.hstack((pre_cluster_labels[bypass_inds], merged_clus_labels[0]))
+    index_mapping: Tuple[torch.Tensor, torch.Tensor] = (bypass_inds, selected_inds)
+    return merged_vecs, merged_clus_labels, index_mapping
 
-    return result_emb, merged_clus_labels
+
+@torch.jit.script
+def get_closest_embeddings(
+    label_aff_mat: torch.Tensor, 
+    target_emb_index: torch.Tensor, 
+    merge_quantity: int
+    ) -> torch.Tensor:
+    """
+    Get indeces of the embeddings we want to merge or drop.
+
+    Args:
+        label_aff_mat: (Tensor)
+        target_emb_index: (Tensor)
+        merge_quantity: (int)
+
+    Output:
+        index_2d: (numpy.array)
+    """
+    comb_limit = int(target_emb_index.shape[0]-1)
+    if merge_quantity > comb_limit:
+        raise ValueError(f" merge_quantity is {merge_quantity}: {merge_quantity} is bigger than comb_limit {comb_limit}")
+
+    # Take summed values over one axis
+    sum_cmat = label_aff_mat.sum(0)
+
+    # (merge_quantity + 1) will become 1 embedding vector after merging
+    idx_aff_sum = torch.argsort(sum_cmat, descending=True)[:(merge_quantity+1)]
+    return idx_aff_sum
 
 
 @torch.jit.script
 def run_reducer(
     pre_embs: torch.Tensor, 
     target_spk_idx: int, 
-    target_num: int, 
+    merge_quantity: int, 
     pre_clus_labels: torch.Tensor, 
     ):
     """
     Reduce the number of embedding vectors by merging the closest embedding vectors.
-    This reducing algorithm is based on the assumption that the closest embeddings are the most redundant
+    - This merging algorithm is based on the assumption that the closest embeddings are the most redundant
     embedding vectors.
+    - The closest embedding vectors are chosen by selecting the highest top-N sum of each column in a given
+      affinity matrix.
+    - If merge_quantity is N, we choose (N+1) vectors into 1 embedding vector. Thus, we reduce N embeddings
+      in the original embedding vector set.
+
+    Example:
+        >>> merge_quantity = 1 # We merge 1+1 = 2 embedding vectors
+        >>> affinity_mat = [[1.0, 0.2, 0.8],
+                            [0.2, 1.0, 0.4],
+                            [0.8, 0.4, 1.0]]
+        >>> affinity_mat.sum(0) 
+        [2.0, 1.6, 2.2]
+
+        The first and the third embedding vectors are merged into one embedding vector.
+        >>> index_mapping # (bypassed indices, merged indices)
+        ([1], [0, 2]) 
 
     Args:
         pre_embs (Tensor):
@@ -1006,7 +1072,7 @@ def run_reducer(
             The affinity matrix of the `pre_embs`
         target_spk_idx (int):
             The targeted speaker index for merging
-        target_num (int):
+        merge_quantity (int):
             The count of embeddings to be reduced
         pre_clus_labels (list)
             The original cluster (speaker) index
@@ -1020,32 +1086,52 @@ def run_reducer(
     if pre_embs.shape[0] != pre_clus_labels.shape[0]:
         raise ValueError("Dimension mismatch between `pre_embs` and `pre_clus_labels`.")
 
-    ndx = torch.where(pre_clus_labels == target_spk_idx)[0]
-    if target_num > 0:
-        if target_num > (ndx.shape[0] // 2):
+    target_emb_index = torch.where(pre_clus_labels == target_spk_idx)[0]
+    org_size = target_emb_index.shape[0]
+    if merge_quantity > 0:
+        if merge_quantity > (target_emb_index.shape[0]-1):
             raise ValueError(
-                f"target_num {target_num} is larger than the half of targeted speaker's labels {ndx.shape[0]//2}"
+                f"merge_quantity {merge_quantity} is larger than the half of targeted speaker's labels {target_emb_index.shape[0]-1}"
             )
         affinity_mat = getCosAffinityMatrix(pre_embs)
         # Get the lower triangle of the affinity_mat array
-        cmat = torch.tril(affinity_mat[:, ndx][ndx, :])
-        if cmat.shape[0] != ndx.shape[0]:
+        label_aff_mat = affinity_mat[:, target_emb_index][target_emb_index, :]
+        if label_aff_mat.shape[0] != target_emb_index.shape[0]:
             raise ValueError(
-                "Dimension mismatch between targeted speaker affinity `cmat` and targeted speaker index `ndx`."
+                "Dimension mismatch between targeted speaker affinity `label_aff_mat` and targeted speaker index `target_emb_index`."
             )
-
         # Get the indices of the closest embedding vectors
-        index_2d = get_closest_embeddings(cmat, ndx, target_num)
-        spk_cluster_labels, emb_ndx = pre_clus_labels[ndx], pre_embs[ndx]
-
+        selected_inds = get_closest_embeddings(label_aff_mat, target_emb_index, merge_quantity)
+        spk_cluster_labels, selected_embs = pre_clus_labels[target_emb_index], pre_embs[target_emb_index]
+        
         # Merge the embeddings targeted by the 2-dim indices `index_2d`
-        merged_embs, merged_clus_labels = merge_emb(index_2d, emb_ndx, spk_cluster_labels)
-        if (ndx.shape[0] - target_num) != merged_embs.shape[0]:
+        merged_embs, merged_clus_labels, index_mapping = merge_vectors(selected_inds, selected_embs, spk_cluster_labels)
+        target_emb_index = torch.where(merged_clus_labels == target_spk_idx)[0]
+        if (org_size - merge_quantity) != merged_embs.shape[0]:
             raise ValueError("Reducer output is not matched to the target quantity")
+
     else:
-        merged_embs = pre_embs[ndx]
-        merged_clus_labels = pre_clus_labels[ndx]
-    return merged_embs, merged_clus_labels
+        merged_embs = pre_embs[target_emb_index]
+        merged_clus_labels = pre_clus_labels[target_emb_index]
+        index_mapping = (torch.arange(merged_embs.shape[0]), torch.arange(0))
+    return merged_embs, merged_clus_labels, index_mapping
+
+
+@torch.jit.script
+def get_first_arg_index(mat: torch.Tensor, label: int) -> int:
+    """
+    Get the index of the first element are specified by `index` variable.
+
+    Args:
+        mat (Tensor):
+            Source matrix filled with indices
+        label (int):
+            Label which we want to find the first occuring index
+
+    Returns:
+        (int) The first index of the given label
+    """
+    return int(torch.where(mat == label)[0][0])
 
 
 @torch.jit.script
@@ -1635,6 +1721,8 @@ class OnlineSpeakerClustering:
         sparse_search_volume: int,
         history_buffer_size: int,
         current_buffer_size: int,
+        cuda,
+        device,
     ):
         self.isOnline = False
 
@@ -1652,6 +1740,9 @@ class OnlineSpeakerClustering:
         self.p_value_queue_size = 3
         self.p_value_hist = []
 
+        self.cuda = cuda
+        self.device = device
+
         self._init_memory_buffer_variables()
         self._init_memory_embeddings()
 
@@ -1660,7 +1751,6 @@ class OnlineSpeakerClustering:
         self.memory_margin = 0
 
         self._minimum_segments_per_buffer = int(self.history_n / self.max_num_speakers)
-
         self.history_buffer_seg_end = 0
 
     def _init_memory_embeddings(self):
@@ -1781,7 +1871,7 @@ class OnlineSpeakerClustering:
         # Case-1: The very first step
         if len(self.history_embedding_buffer_emb) == 0:
             new_emb_n = self.total_segments_processed_count - (self.current_n + self.history_n)
-            hist_curr_boundary_emb_idx = get_mapped_index(_segment_indexes_mat, hist_curr_boundary)
+            hist_curr_boundary_emb_idx = get_first_arg_index(_segment_indexes_mat, hist_curr_boundary)
             pre_embs = emb_in[:hist_curr_boundary_emb_idx]
             self.pre_clus_labels = self.Y_fullhist[:hist_curr_boundary]
 
@@ -1794,8 +1884,8 @@ class OnlineSpeakerClustering:
             assert new_emb_n > 0, "new_emb_n should be a positve integer number."
 
             # Add embedding vectors to `pre_embs` so that we can merge it with reducer function.
-            emb_idx_stt = int(get_mapped_index(_segment_indexes_mat, label_stt))
-            emb_idx_end = int(get_mapped_index(_segment_indexes_mat, label_end))
+            emb_idx_stt = int(get_first_arg_index(_segment_indexes_mat, label_stt))
+            emb_idx_end = int(get_first_arg_index(_segment_indexes_mat, label_end))
             pre_embs = torch.vstack((self.history_embedding_buffer_emb, emb_in[emb_idx_stt:emb_idx_end]))
             self.pre_clus_labels = torch.hstack(
                 (self.history_embedding_buffer_label, self.Y_fullhist[label_stt:label_end])
@@ -1808,7 +1898,8 @@ class OnlineSpeakerClustering:
 
         # Update the history buffer index
         self.history_buffer_seg_end = hist_curr_boundary
-
+        if new_emb_n is not None and new_emb_n < 0:
+            raise ValueError(f"new_emb_n should not be negative but got new_emb_n: {new_emb_n}")
         return update_speaker_register, new_emb_n, pre_embs
 
     def make_constant_length_emb(self, emb_in, base_segment_indexes):
@@ -1883,17 +1974,17 @@ class OnlineSpeakerClustering:
 
             # Calculate how many embedding vectors should be reduced per speaker
             class_target_vol = get_merge_quantity(
-                new_emb_n=new_emb_n,
+                num_to_be_removed=new_emb_n,
                 pre_clus_labels=self.pre_clus_labels,
-                min_segs_per_buffer=self._minimum_segments_per_buffer,
+                min_count_per_cluster=self._minimum_segments_per_buffer,
             )
 
             # Merge the segments in the history buffer
             for spk_idx, target_num in enumerate(list(class_target_vol)):
-                merged_embs, merged_clus_labels = run_reducer(
+                merged_embs, merged_clus_labels, _ = run_reducer(
                     pre_embs=pre_embs,
                     target_spk_idx=spk_idx,
-                    target_num=target_num,
+                    merge_quantity=target_num,
                     pre_clus_labels=self.pre_clus_labels,
                 )
                 total_emb.append(merged_embs)
@@ -1901,9 +1992,9 @@ class OnlineSpeakerClustering:
 
             self.history_embedding_buffer_emb = torch.vstack(total_emb)
             self.history_embedding_buffer_label = torch.hstack(total_cluster_labels)
-            assert (
-                self.history_embedding_buffer_emb.shape[0] == self.history_n
-            ), f"History embedding size is not maintained correctly."
+            if self.history_embedding_buffer_emb.shape[0] != self.history_n:
+                raise ValueError("History embedding size is not maintained correctly.")
+
         else:
             total_emb.append(self.history_embedding_buffer_emb)
             total_cluster_labels.append(self.history_embedding_buffer_label)
@@ -1975,24 +2066,25 @@ class OnlineSpeakerClustering:
             self.Y_fullhist = Y_out
         return Y_out
 
-    def forward(self, emb: torch.Tensor, frame_index: int, cuda: bool, device: torch.device):
+    def forward_infer(self, emb: torch.Tensor, frame_index: int, cuda: bool, device: torch.device):
         mat = getCosAffinityMatrix(emb)
         if emb.shape[0] == 1:
-            return torch.zeros((1,), dtype=torch.int32)
+            Y = torch.zeros((1,), dtype=torch.int32)
 
-        nmesc = NMESC(
-            mat,
-            max_num_speakers=self.max_num_speakers,
-            max_rp_threshold=self.max_rp_threshold,
-            sparse_search=True,
-            maj_vote_spk_count=False,
-            sparse_search_volume=self.sparse_search_volume,
-            fixed_thres=self.fixed_thres,
-            nme_mat_size=256,
-            device=device,
-        )
+        else:
+            nmesc = NMESC(
+                mat,
+                max_num_speakers=self.max_num_speakers,
+                max_rp_threshold=self.max_rp_threshold,
+                sparse_search=True,
+                maj_vote_spk_count=False,
+                sparse_search_volume=self.sparse_search_volume,
+                fixed_thres=self.fixed_thres,
+                nme_mat_size=256,
+                device=device,
+            )
 
-        est_num_of_spk, affinity_mat = self.online_spk_num_estimation(emb, mat, nmesc, frame_index)
-        spectral_model = SpectralClustering(n_clusters=est_num_of_spk, cuda=cuda, device=device)
-        Y = spectral_model.forward(affinity_mat)
+            est_num_of_spk, affinity_mat = self.online_spk_num_estimation(emb, mat, nmesc, frame_index)
+            spectral_model = SpectralClustering(n_clusters=est_num_of_spk, cuda=cuda, device=device)
+            Y = spectral_model.forward(affinity_mat)
         return Y

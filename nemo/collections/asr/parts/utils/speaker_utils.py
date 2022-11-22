@@ -17,7 +17,6 @@ import math
 import os
 import shutil
 from copy import deepcopy
-from functools import reduce
 from typing import Dict, List, Tuple, Union
 
 import numpy as np
@@ -400,7 +399,15 @@ def write_cluster_labels(base_scale_idx, lines_cluster_labels, out_rttm_dir):
             f.write(clus_label_line)
 
 
-def generate_cluster_labels(segment_ranges, cluster_labels):
+def generate_cluster_labels(segment_ranges: List[str], cluster_labels: List[int]):
+    """
+    Generate cluster (speaker labels) from the segment_range list and cluster label list.
+
+    Args:
+
+    Returns:
+
+    """
     lines = []
     for idx, label in enumerate(cluster_labels):
         tag = 'speaker_' + str(label)
@@ -408,7 +415,7 @@ def generate_cluster_labels(segment_ranges, cluster_labels):
         lines.append(f"{stt} {end} {tag}")
     cont_lines = get_contiguous_stamps(lines)
     diar_hyp = merge_stamps(cont_lines)
-    return diar_hyp
+    return diar_hyp, lines
 
 
 def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, clustering_params):
@@ -474,7 +481,7 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
         if len(cluster_labels) != timestamps.shape[0]:
             raise ValueError("Mismatch of length between cluster_labels and timestamps.")
 
-        labels = generate_cluster_labels(timestamps, cluster_labels)
+        labels, lines = generate_cluster_labels(timestamps, cluster_labels)
 
         if out_rttm_dir:
             labels_to_rttmfile(labels, uniq_id, out_rttm_dir)
@@ -676,9 +683,7 @@ def combine_int_overlaps(intervals_in: List[List[int]]) -> List[List[int]]:
     else:
 
         merged: List[List[int]] = []
-        stt1: int = 0
         stt2: int = 0
-        end1: int = 0
         end2: int = 0
 
         intervals_in = [[int(x[0]), int(x[1])] for x in intervals_in]
@@ -689,7 +694,6 @@ def combine_int_overlaps(intervals_in: List[List[int]]) -> List[List[int]]:
 
         start, end = intervals[0][0], intervals[0][1]
         for i in range(1, num_intervals):
-            stt1, end1 = intervals[i - 1][0], intervals[i - 1][1]
             stt2, end2 = intervals[i][0], intervals[i][1]
             if end >= stt2:
                 end = max(end2, end)
@@ -917,7 +921,6 @@ def get_subsegments(offset: float, window: float, shift: float, duration: float)
             end = slice_end
         subsegments.append([start, end - start])
         start = offset + (slice_id + 1) * shift
-
     return subsegments
 
 @torch.jit.script
@@ -1012,7 +1015,8 @@ def get_speech_labels_for_update(
 
 @torch.jit.script
 def get_new_cursor_for_update(
-    frame_start: float, segment_range_ts: List[List[float]],
+    frame_start: float, 
+    segment_range_ts: List[List[float]],
 ):
     """
     For online speaker diarization.
@@ -1033,7 +1037,7 @@ def get_new_cursor_for_update(
     return cursor_for_old_segments, cursor_index
 
 
-@torch.jit.script
+# @torch.jit.script
 def get_online_segments_from_slices(
     buffer_start: float,
     buffer_end: float,
@@ -1082,7 +1086,7 @@ def get_online_segments_from_slices(
             raise ValueError("len(signal) is zero. Signal length should not be zero.")
         if len(signal) < slice_length:
             signal = repeat_signal(signal, len(signal), slice_length)
-
+        
         start_abs_sec = buffer_start + start_sec
         end_abs_sec = buffer_start + end_sec
 
@@ -1095,7 +1099,7 @@ def get_online_segments_from_slices(
     return ind_offset, sigs_list, sig_rangel_list, sig_indexes
 
 
-@torch.jit.script
+# @torch.jit.script
 def get_online_subsegments_from_buffer(
     buffer_start: float,
     buffer_end: float,
@@ -1121,7 +1125,6 @@ def get_online_subsegments_from_buffer(
         subsegments = get_subsegments(
             offset=range_t[0], window=window, shift=shift, duration=(range_t[1] - range_t[0]),
         )
-
         ind_offset, sigs, ranges, inds = get_online_segments_from_slices(
             buffer_start=buffer_start,
             buffer_end=buffer_end,
@@ -1490,7 +1493,7 @@ def embedding_normalize(embs, use_std=False, eps=1e-10):
     return embs
 
 
-@torch.jit.script
+# @torch.jit.script
 class OnlineSegmentor:
     """
     Online Segmentor for online (streaming) diarizer.
@@ -1549,7 +1552,8 @@ class OnlineSegmentor:
                 segment_indexes = segment_indexes[:cursor_index]
                 if not len(segment_raw_audio) == len(segment_range_ts) == len(segment_indexes):
                     raise ValueError("Scale-wise segment information has a mismatch in length.")
-
+                
+                csl = self.cumulative_speech_labels
                 speech_labels_for_update, self.cumulative_speech_labels = get_speech_labels_for_update(
                     self.frame_start,
                     self.buffer_end,
