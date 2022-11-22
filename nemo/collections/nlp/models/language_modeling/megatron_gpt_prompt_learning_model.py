@@ -33,6 +33,7 @@ from nemo.collections.nlp.modules.common import (
     PromptEncoderMLP,
     PromptEncoderType,
     PromptTable,
+    ResidualMLPPromptEncoder,
     VirtualPromptPlaceholderToken,
     VirtualPromptSource,
     VirtualPromptStyle,
@@ -282,6 +283,14 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 output_size=self.hidden_size,
                 lstm_dropout=self.cfg.p_tuning.dropout,
                 num_layers=self.cfg.p_tuning.num_layers,
+            )
+        elif encoder_type == PromptEncoderType.RESIDUAL_MLP:
+            self.prompt_encoder = ResidualMLPPromptEncoder(
+                total_virtual_tokens=total_virtual_tokens,
+                hidden_size=self.cfg.p_tuning.encoder_hidden,
+                output_size=self.hidden_size,
+                lstm_dropout=self.cfg.p_tuning.dropout,
+                num_layers=2,
             )
         elif encoder_type == PromptEncoderType.LSTM or encoder_type == PromptEncoderType.MLP:
             self.prompt_encoder = PromptEncoder(

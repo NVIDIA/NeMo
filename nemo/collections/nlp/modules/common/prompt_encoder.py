@@ -36,7 +36,13 @@ except (ImportError, ModuleNotFoundError):
     ModelType = AttnMaskType = AttnType = LayerType = ApexGuardDefaults()
 
 
-__all__ = ["PromptEncoder", "BIGLSTMPromptEncoder", "PromptEncoderType", "PromptEncoderMLP"]
+__all__ = [
+    "PromptEncoder", 
+    "BIGLSTMPromptEncoder", 
+    "PromptEncoderType", 
+    "PromptEncoderMLP",
+    "ResidualMLPPromptEncoder"
+]
 
 
 class PromptEncoderType(enum.Enum):
@@ -44,6 +50,7 @@ class PromptEncoderType(enum.Enum):
     TPMLP = 'tpmlp'  # mlp model that support tensor parallel, better work together with a large language model
     MLP = 'mlp'
     LSTM = 'lstm'
+    RESIDUAL_MLP = 'resmlp'
 
 
 class BIGLSTMPromptEncoder(NeuralModule, Exportable):
@@ -296,3 +303,72 @@ class PromptEncoder(NeuralModule, Exportable):
             raise ValueError("Prompt encoder type not recognized. Please use one of MLP (recommended) or LSTM.")
 
         return output_embeds
+    
+    
+class ResidualMLPPromptEncoder(NeuralModule, Exportable):
+    """
+    The prompt encoder network that is used to generate the virtual 
+    token embeddings for p-tuning.
+    """
+
+    @property
+    def input_types(self) -> Optional[Dict[str, NeuralType]]:
+        return {
+            "taskname_embeddings": NeuralType(('B', 'T', 'C'), ChannelType(), optional=False),
+        }
+
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        return {"output_embeds": NeuralType(('B', 'T', 'C'), ChannelType())}
+
+    def __init__(
+        self,
+        encoder_type: enum,
+        total_virtual_tokens: int,
+        token_dim: int,
+        hidden_size,
+        lstm_dropout: float,
+        num_layers: int,
+    ):
+        """
+        Initializes the PromptEncoder module.
+        Args:
+            total_virtual_tokens: the total number of vitural tokens
+            hidden_size: hidden dimension
+            lstm_dropout: the dropout used for the LSTM
+            num_layers: number of layers used in the LSTM
+        """
+        super().__init__()
+        self.token_dim = token_dim
+        self.input_size = token_dim
+        self.output_size = token_dim
+        self.hidden_size = hidden_size
+        self.total_virtual_tokens = total_virtual_tokens
+        self.encoder_type = encoder_type
+
+        # Set fixed indicies for forward pass
+        self.register_buffer('indices', torch.LongTensor(list(range(self.total_virtual_tokens))))
+
+        # embedding
+        self.embedding = torch.nn.Embedding(self.total_virtual_tokens, self.token_dim)
+
+        self.layer1 = nn.Linear(self.input_size, self.hidden_size)
+        self. layer2 = nn.Linear(self.hidden_size, self.output_size)
+        
+        self.res_coefficient = torch.nn.Parameter(torch.full((1, 2), 0.5).squeeze(0), requires_grad=True)
+        
+    @typecheck()
+    def forward(self, taskname_embeddings) -> torch.Tensor:
+        input_embeds = self.embedding(self.indices).unsqueeze(0)
+        batch_size, task_seq_length, _ = taskname_embeddings.shape
+        input_embeds = input_embeds.expand(batch_size, self.total_virtual_tokens, self.token_dim).clone()
+        length = min(task_seq_length, self.total_virtual_tokens)
+
+        # Replace general input with task specific embeddings to specify the correct task
+        input_embeds[:, 0:length, :] = taskname_embeddings[:, 0:length, :]
+        
+        inner = (self.res_coefficient[0] * self.layer1(input_embeds)) + ((1 - self.res_coefficient[0]) * input_embeds)
+        output_embeds = (self.res_coefficient[1] * self.layer2(input_embeds)) + ((1 - self.res_coefficient[1]) * input_embeds)
+
+        return output_embeds
+
