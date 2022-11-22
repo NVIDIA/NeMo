@@ -152,7 +152,7 @@ def _set_activations_checkpoint_params(tp, pp, num_layers, act_method, multiplie
             act_multiple = 16 // pp
         elif 26.0 <= model_size_in_b:
             if model_name != "gpt3":
-                act_multiple = 8 // pp
+                act_multiple = 16 // pp
             else:
                 act_multiple = 8 // pp
     act_multiple = max(act_multiple, 1)
@@ -407,7 +407,7 @@ def _tp_pp_mbs_grid_t5_80gb(model_size_in_b: float, valid_pp: List[int]) -> Tupl
     elif 165.5 < model_size_in_b <= 250:
         tp = [8]
         pp = [x for x in valid_pp if 4 <= x <= 32]
-        mbs = [1, 2, 4]
+        mbs = [1, 2, 4, 6, 8]
         min_model_parallel = 64
         max_model_parallel = 256
     return tp, pp, mbs, min_model_parallel, max_model_parallel

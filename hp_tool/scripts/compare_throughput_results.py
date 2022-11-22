@@ -53,6 +53,7 @@ def main(cfg):
         candidate_cfg = OmegaConf.load(config_path)
         model_cfg = candidate_cfg.get("model")
         encoder_cfg = model_cfg.get("encoder")
+        decoder_cfg = model_cfg.get("decoder")
         data_cfg = model_cfg.get("data")
         trainer_cfg = candidate_cfg.get("trainer")
 
@@ -75,8 +76,8 @@ def main(cfg):
         else:
             hs = encoder_cfg.get("hidden_size")
             ffn_hs = encoder_cfg.get("ffn_hidden_size")
-            layers = encoder_cfg.get("num_layers")
-            act_ckpt_layers = encoder_cfg.get("activations_checkpoint_num_layers") * 2
+            layers = encoder_cfg.get("num_layers") + decoder_cfg.get("num_layers")
+            act_ckpt_layers = encoder_cfg.get("activations_checkpoint_num_layers") + decoder_cfg.get("activations_checkpoint_num_layers")
             num_mbs_act = None
             act_per_pipe = None
         tp = model_cfg.get("tensor_model_parallel_size")
