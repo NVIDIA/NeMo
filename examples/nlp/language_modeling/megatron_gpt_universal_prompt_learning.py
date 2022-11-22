@@ -67,7 +67,11 @@ def main(cfg) -> None:
     # load existing or init new soft prompt GPT model
     if cfg.model.get("restore_path", None):
         model = MegatronGPTUniversalPromptLearningModel.restore_from(
-            cfg.model.restore_path, cfg.model, trainer=trainer, save_restore_connector=NLPSaveRestoreConnector()
+            cfg.model.restore_path,
+            cfg.model,
+            trainer=trainer,
+            save_restore_connector=NLPSaveRestoreConnector(),
+            strict=False,
         )
     else:
         model = MegatronGPTUniversalPromptLearningModel(cfg.model, trainer=trainer)

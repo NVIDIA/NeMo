@@ -494,27 +494,41 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         """
         Init the prompt encoder needed for universal prompt encoder
         """
+        if not parallel_state.is_unitialized():
+            padding_emb = self.word_embeddings(torch.tensor([self.pad_token_id]).cuda())
         perceiver_confs = OmegaConf.to_container(self.cfg.perceiver)
-        self.prompt_encoder = torch.nn.ModuleList()
-        for perceiver_conf in perceiver_confs:
-            init_method_std = perceiver_conf['init_method_std']
-            del perceiver_conf['init_method_std']
-            encoder_init = init_method_normal(init_method_std)
-            output_init = scaled_init_method_normal(init_method_std, perceiver_conf['num_layers'])
-            perceiver_conf['init_method'] = encoder_init
-            perceiver_conf['output_layer_init_method'] = output_init
+        if not hasattr(self, 'prompt_encoder'):
+            self.prompt_encoder = torch.nn.ModuleList()
+        for i, perceiver_conf in enumerate(perceiver_confs):
             trainable = perceiver_conf['trainable']
-            del perceiver_conf['trainable']
-            module = UniversalPromptEncoder(perceiver_conf, output_dim=self.frozen_model.cfg.hidden_size)
+            if not trainable and len(perceiver_confs) == len(self.prompt_encoder):
+                # not trainable and prompt encoder is populated already, use the previous initialized weights
+                continue
+            init_method_std = perceiver_conf['init_method_std']
+            if i == len(self.prompt_encoder):
+                # only instantiate it when it doesn't exist
+                del perceiver_conf['init_method_std']
+                encoder_init = init_method_normal(init_method_std)
+                output_init = scaled_init_method_normal(init_method_std, perceiver_conf['num_layers'])
+                perceiver_conf['init_method'] = encoder_init
+                perceiver_conf['output_layer_init_method'] = output_init
+                del perceiver_conf['trainable']
+                module = UniversalPromptEncoder(perceiver_conf, output_dim=self.frozen_model.cfg.hidden_size)
+            else:
+                module = self.prompt_encoder[i]
             if not trainable:
                 for param in module.parameters():
                     # no grad
                     param.requires_grad = False
-                    # zero out parameters
-                    if init_method_std == 0.0:
-                        param.zero_()
-            self.prompt_encoder.append(module)
-
+            # # zero out parameters
+            if init_method_std == 0.0 and trainable:
+                torch.nn.init.constant_(module.output_linear.weight, 0.0)
+                if not parallel_state.is_unitialized():
+                    with torch.no_grad():
+                        module.output_linear.bias[:] = padding_emb[0]
+            if i == len(self.prompt_encoder):
+                # append a new prompt encoder only when it doesn't not exist
+                self.prompt_encoder.append(module)
 
     def setup(self, stage=None):
         # NOTE: super().__init__ will try and setup train/val/test datasets, but we sidestep this using a if self._train_ds is not None condition
@@ -649,7 +663,7 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
             labels_text.append(label_text.strip())
         return preds_text, labels_text
 
-    def validation_step(self, batch, batch_idx, dataloader_idx):
+    def validation_step(self, batch, batch_idx, dataloader_idx=0):
         loss_mean = self.fwd_bwd_step(batch, forward_only=True)
         torch.distributed.broadcast(loss_mean, get_last_rank())
         # run inference
@@ -794,8 +808,9 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
                         item = {'input': i, 'output': p, 'gt': l}
                         item_str = json.dumps(item)
                         contents.append(item_str)
-                    with open(f'{dp_rank}_' + self._test_data_cfg.output_filepath + task_name + '.json', 'w') as f:
+                    with open(self._test_data_cfg.output_filepath + f'{dp_rank}_' + task_name + '.json', 'w') as f:
                         f.write('\n'.join(contents))
+        torch.distributed.barrier()
         return inputs, labels, preds
 
     def on_train_end(self):
