@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from lightning_lite.plugins.environments import TorchElasticEnvironment
 from megatron_t5_seq2seq_finetune import load_from_checkpoint_dir, load_from_nemo, validate_checkpoint_loading_args
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
@@ -127,7 +126,7 @@ def main(cfg) -> None:
             t5_cfg = MegatronT5FinetuneModel.restore_from(
                 restore_path=cfg.model.restore_from_path, trainer=trainer, return_config=True
             )
-            model = load_from_nemo(MegatronT5FinetuneModel, cfg, trainer, t5_cfg, modify_confg_fn=_modify_config)
+            model = load_from_nemo(MegatronT5FinetuneModel, cfg, trainer, modify_confg_fn=_modify_config)
         else:
             validate_checkpoint_loading_args(cfg.model.pretrained_checkpoint)
             model = load_from_checkpoint_dir(MegatronT5FinetuneModel, cfg, trainer, modify_confg_fn=_modify_config)
