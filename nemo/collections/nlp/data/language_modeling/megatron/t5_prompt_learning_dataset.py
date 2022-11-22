@@ -60,6 +60,7 @@ class T5PromptLearningDataset(BasePromptLearningDataset):
                 doc = json.loads(json_line)
 
             taskname = doc["taskname"]
+            print(self.task_templates)
             prompt_template = self.task_templates[taskname]["prompt_template"]
             prompt_template_fields = self.task_templates[taskname]["prompt_template_fields"]
             total_virtual_tokens = self.task_templates[taskname]["total_virtual_tokens"]
