@@ -11,8 +11,8 @@ trainer:
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
   replace_sampler_ddp: False
-  max_epochs: -1 # PTL default. In practice, max_steps will be reached first. 
-  max_steps: 750000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+  max_epochs: 300 # PTL default. In practice, max_steps will be reached first.
+  max_steps: -1 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10
   val_check_interval: 100
   limit_val_batches: 50
@@ -48,7 +48,7 @@ model:
   # specify micro_batch_size, global_batch_size, and model parallelism
   # gradient accumulation will be done automatically based on data_parallel_size
   micro_batch_size: 4 # limited by GPU memory
-  global_batch_size: 8 # will use more micro batches to reach global batch size
+  global_batch_size: 4096 # will use more micro batches to reach global batch size
   tensor_model_parallel_size: 1 # intra-layer model parallelism
   pipeline_model_parallel_size: 1 # inter-layer model parallelism
   virtual_pipeline_model_parallel_size: null # interleaved pipeline
@@ -67,7 +67,7 @@ model:
   drop_path_rate: 0.0
 
   # model architecture
-  encoder_seq_length: 3136
+  encoder_seq_length: 196
   max_position_embeddings: ${.encoder_seq_length}
   num_layers: 12
   hidden_size: 768
@@ -82,7 +82,6 @@ model:
   normalization: layernorm # Type of normalization layers
   layernorm_epsilon: 1e-5
   do_layer_norm_weight_decay: False # True means weight decay on all params
-  make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
   pre_process: True # add embedding
   post_process: True # add pooler
   persist_layer_norm: True # Use of persistent fused layer norm kernel.
@@ -153,12 +152,12 @@ model:
   optim:
     name: fused_adam
     lr: 5e-4
-    weight_decay: 0.05
+    weight_decay: 0.1
     betas: 
     - 0.9
     - 0.999
     sched:
       name: CosineAnnealing
-      warmup_steps: 12500
+      warmup_steps: 10000
       constant_steps: 0
       min_lr: 1e-5
