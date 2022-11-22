@@ -64,6 +64,9 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         subsampling_factor (int): the subsampling factor which should be power of 2
             Defaults to 4.
         subsampling_conv_channels (int): the size of the convolutions in the subsampling module
+            Defaults 'relu''.
+        subsampling_activation (str): activation function in subsampling, if applicable.
+            choices=['relu', 'sigmoid', 'tanh', 'silu']
             Defaults to -1 which would set it to d_model.
         reduction (str, Optional): the method of reduction, choices=['pooling', 'striding']. If no value
             is passed, then no reduction is performed and the models runs with the original 4x subsampling.
@@ -166,6 +169,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         subsampling='striding',
         subsampling_factor=4,
         subsampling_conv_channels=-1,
+        subsampling_activation='relu',
         reduction=None,
         reduction_position=None,
         reduction_factor=1,
@@ -193,6 +197,16 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         self.scale = math.sqrt(self.d_model)
         self.att_context_style = att_context_style
         self.subsampling_factor = subsampling_factor
+        if subsampling_activation == 'relu':
+            self.subsampling_activation = nn.ReLU()
+        elif subsampling_activation == 'sigmoid':
+            self.subsampling_activation = nn.Sigmoid()
+        elif subsampling_activation == 'tanh':
+            self.subsampling_activation = nn.Tanh()
+        elif subsampling_activation == 'silu':
+            self.subsampling_activation = nn.SiLU()
+        else:
+            raise ValueError("Unsupported activation for subsampling - please pass one of " "[relu, sigmoid, tanh, silu]")
 
         if att_context_size:
             self.att_context_size = list(att_context_size)
@@ -270,7 +284,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
                     feat_in=feat_in,
                     feat_out=d_model,
                     conv_channels=subsampling_conv_channels,
-                    activation=nn.ReLU(),
+                    activation=self.subsampling_activation,
                     is_causal=causal_downsampling,
                 )
         else:
