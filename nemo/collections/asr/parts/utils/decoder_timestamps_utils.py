@@ -118,7 +118,12 @@ class WERBPE_TS(WERBPE):
         word_ts, word_seq = [], []
         word_open_flag = False
         for idx, ch in enumerate(decoded_char_list):
+
+            # If the symbol is space and not an end of the utterance, move on
             if idx != end_idx and (space == ch and space in decoded_char_list[idx + 1]):
+                continue
+            # If the symbol is unkown symbol such as '<unk>' symbol, move on
+            elif ch in ['<unk>']:
                 continue
 
             if (idx == stt_idx or space == decoded_char_list[idx - 1] or (space in ch and len(ch) > 1)) and (
@@ -135,7 +140,7 @@ class WERBPE_TS(WERBPE):
                 word_ts.append([_stt, _end])
                 stitched_word = ''.join(decoded_char_list[stt_ch_idx : end_ch_idx + 1]).replace(space, '')
                 word_seq.append(stitched_word)
-        assert len(word_ts) == len(hypothesis.split()), "Hypothesis does not match word time stamp."
+        assert len(word_ts) == len(hypothesis.split()), "Text hypothesis does not match word timestamps."
         return word_ts
 
 
@@ -338,7 +343,6 @@ class ASRDecoderTimeStamps:
             self.word_ts_anchor_offset = if_none_get_default(self.params['word_ts_anchor_offset'], 0.12)
             self.asr_batch_size = if_none_get_default(self.params['asr_batch_size'], 16)
             self.model_stride_in_secs = 0.04
-
             # Conformer requires buffered inference and the parameters for buffered processing.
             self.chunk_len_in_sec = 5
             self.total_buffer_in_secs = 25
