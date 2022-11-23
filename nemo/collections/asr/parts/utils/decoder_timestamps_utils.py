@@ -743,7 +743,9 @@ class ASRDecoderTimeStamps:
         return hyp_words, word_ts
 
     @staticmethod
-    def get_word_ts_from_wordframes(idx, word_frames: List[List[float]], frame_duration: float, onset_delay: float, word_block_delay: float=2.25):
+    def get_word_ts_from_wordframes(
+        idx, word_frames: List[List[float]], frame_duration: float, onset_delay: float, word_block_delay: float = 2.25
+    ):
         """
         Extract word timestamps from word frames generated from pyctcdecode.
         """
