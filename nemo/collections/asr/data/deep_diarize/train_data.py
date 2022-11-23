@@ -141,34 +141,37 @@ class LocalRTTMStreamingSegmentsDataset(IterableDataset):
         total_annotated_duration = max(end_list)
         n_segments = math.ceil((total_annotated_duration - sample.offset) / self.train_segment_seconds)
         start_offset = sample.offset
-        for n_segment in range(n_segments):
-            duration = self.train_segment_seconds
+        try:
+            for n_segment in range(n_segments):
+                duration = self.train_segment_seconds
 
-            if (total_annotated_duration - start_offset) > self.minimum_segment_seconds:
-                targets = self.parse_rttm_for_ms_targets(
-                    rttm_timestamps=rttm_timestamps,
-                    offset=start_offset,
-                    end_duration=start_offset + duration,
-                    speakers=speakers,
-                )
-                # pad targets to max speakers
-                targets = F.pad(targets, pad=(0, self.max_speakers - targets.size(-1)))
-                train_segment = self.featurizer.process(sample.audio_file, offset=start_offset, duration=duration)
+                if (total_annotated_duration - start_offset) > self.minimum_segment_seconds:
+                    targets = self.parse_rttm_for_ms_targets(
+                        rttm_timestamps=rttm_timestamps,
+                        offset=start_offset,
+                        end_duration=start_offset + duration,
+                        speakers=speakers,
+                    )
+                    # pad targets to max speakers
+                    targets = F.pad(targets, pad=(0, self.max_speakers - targets.size(-1)))
+                    train_segment = self.featurizer.process(sample.audio_file, offset=start_offset, duration=duration)
 
-                train_length = torch.tensor(train_segment.shape[0]).long()
+                    train_length = torch.tensor(train_segment.shape[0]).long()
 
-                train_segment, train_length = self.preprocessor.get_features(
-                    train_segment.unsqueeze_(0), train_length.unsqueeze_(0)
-                )
+                    train_segment, train_length = self.preprocessor.get_features(
+                        train_segment.unsqueeze_(0), train_length.unsqueeze_(0)
+                    )
 
-                # todo: this stacking procedure requires thought when combined with spec augment
-                train_segment = self.context_window(train_segment.transpose(1, 2).squeeze(0)).unsqueeze(0)
-                train_segment = train_segment.transpose(1, 2)
-                train_segment = self.spec_augmentation(input_spec=train_segment, length=train_length)
+                    # todo: this stacking procedure requires thought when combined with spec augment
+                    train_segment = self.context_window(train_segment.transpose(1, 2).squeeze(0)).unsqueeze(0)
+                    train_segment = train_segment.transpose(1, 2)
+                    train_segment = self.spec_augmentation(input_spec=train_segment, length=train_length)
 
-                yield train_segment, train_length, targets, start_segment
-                start_segment = False
-                start_offset += duration
+                    yield train_segment, train_length, targets, start_segment
+                    start_segment = False
+                    start_offset += duration
+        except Exception as e:
+            print("Failed data-loading for", sample.audio_file, e)
 
     @staticmethod
     def data_setup(manifest_filepath: str, max_speakers: int):
