@@ -175,7 +175,13 @@ class MegatronBertModel(MegatronBaseModel):
 
             if not self.cfg.bert_binary_head:
                 types = None
-            output_tensor = self.forward(tokens, padding_mask, types, lm_labels, checkpoint_activations_all_layers=checkpoint_activations_all_layers)
+            output_tensor = self.forward(
+                tokens,
+                padding_mask,
+                types,
+                lm_labels,
+                checkpoint_activations_all_layers=checkpoint_activations_all_layers,
+            )
 
             def loss_func(output_tensor):
                 loss_dict = self.loss_func(loss_mask, sentence_order, output_tensor)
@@ -194,8 +200,16 @@ class MegatronBertModel(MegatronBaseModel):
 
         return fwd_output_and_loss_func
 
-    def forward(self, input_ids, attention_mask, token_type_ids, lm_labels=None, checkpoint_activations_all_layers=None):
-        output_tensor = self.model(input_ids, attention_mask, token_type_ids=token_type_ids, lm_labels=lm_labels, checkpoint_activations_all_layers = checkpoint_activations_all_layers)
+    def forward(
+        self, input_ids, attention_mask, token_type_ids, lm_labels=None, checkpoint_activations_all_layers=None
+    ):
+        output_tensor = self.model(
+            input_ids,
+            attention_mask,
+            token_type_ids=token_type_ids,
+            lm_labels=lm_labels,
+            checkpoint_activations_all_layers=checkpoint_activations_all_layers,
+        )
         if parallel_state.is_pipeline_last_stage():
             # Return the output tensor of encoder and transpose from [seq_len, batch, hidden] to [batch, seq_len, hidden]
             if torch.is_tensor(output_tensor):
