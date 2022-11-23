@@ -298,6 +298,9 @@ def load_data(
                     data[-1]['I'] = measures['insertions']
                     data[-1]['D'] = measures['deletions']
                     data[-1]['D-I'] = measures['deletions'] - measures['insertions']
+                    for k in item:
+                        if k not in data[-1]:
+                            data[-1][k] = item[k]
                 else:
                     for k in item:
                         if k not in data[-1]:
@@ -602,12 +605,12 @@ else:
         comparison_mode,
         args.names_compared,
     )
-if 'D' in data[0]:
-    data[0].pop('D')
-if 'I' in data[0]:
-    data[0].pop('I')
-if 'D-I' in data[0]:
-    data[0].pop('D-I')
+# if 'D' in data[0]:
+#     data[0].pop('D')
+# if 'I' in data[0]:
+#     data[0].pop('I')
+# if 'D-I' in data[0]:
+#     data[0].pop('D-I')
 
 print('Starting server...')
 app = dash.Dash(
