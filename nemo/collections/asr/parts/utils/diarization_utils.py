@@ -1544,7 +1544,7 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASRDecoderTimeStamps):
     def _init_asr_model(self):
         """
         Model initializations
-        
+
         Attributes:
             asr_model (NeMo ASR models):
         """

@@ -411,8 +411,13 @@ def generate_cluster_labels(segment_ranges: List[str], cluster_labels: List[int]
 
     Returns:
         diar_hyp (list):
+            List containing merged speaker-turn-level timestamps and labels in string format
+            Example:
+                >>>  diar_hyp = ['0.0 4.375 speaker_1', '4.375 5.125 speaker_0', ...]
 
         lines (list)
+            List containing raw segment-level timestamps and labels in raw digits
+                >>>  diar_hyp = ['0.0 0.25 speaker_1', '0.25 0.5 speaker_1', ..., '4.125 4.375 speaker_1']
     """
     lines = []
     for idx, label in enumerate(cluster_labels):
@@ -583,6 +588,7 @@ def read_rttm_lines(rttm_file_path):
 
     Args:
         rttm_file_path (str):
+            An absolute path to an RTTM file
 
     Returns:
         lines (list):
@@ -671,19 +677,24 @@ def merge_int_intervals(intervals_in: List[List[int]]) -> List[List[int]]:
     This algorithm needs a sorted range list in terms of the start time.
     Note that neighboring numbers lead to a merged range.
     Example:
-        [(1, 10), (11, 20)] -> [(1, 20)]
+        input: [(1, 10), (11, 20)]
+        output: [(1, 20)]
 
     Refer to the original code at https://stackoverflow.com/a/59378428
 
     Args:
-        ranges(list):
+        intervals_in (list):
             List containing ranges.
-            Example: [(102, 103), (104, 109), (107, 120)]
+            Example:
+                >>> intervals_in
+                [(102, 103), (104, 109), (107, 120)]
+
     Returns:
         merged_list (list):
             List containing the combined ranges.
-            Example: [(102, 120)]
-
+            Example:
+                >>> merged_list 
+                [(102, 120)]
     """
     num_intervals = len(intervals_in)
     if num_intervals == 0:
@@ -691,8 +702,7 @@ def merge_int_intervals(intervals_in: List[List[int]]) -> List[List[int]]:
     elif num_intervals == 1:
         return intervals_in
     else:
-
-        merged: List[List[int]] = []
+        merged_list: List[List[int]] = []
         stt2: int = 0
         end2: int = 0
 
@@ -709,13 +719,13 @@ def merge_int_intervals(intervals_in: List[List[int]]) -> List[List[int]]:
                 end = max(end2, end)
             else:
                 start, end = int(start), int(end)
-                merged.append([start, end])
+                merged_list.append([start, end])
                 start = stt2
                 end = max(end2, end)
 
         start, end = int(start), int(end)
-        merged.append([start, end])
-        return merged
+        merged_list.append([start, end])
+        return merged_list
 
 
 @torch.jit.script
@@ -974,6 +984,7 @@ def check_ranges(range_tensor):
         range_tup = range_tensor[k]
         if range_tup[1] < range_tup[0]:
             raise ValueError("Range start time should be preceding the end time but we got: {range_tup}")
+    return True
 
 @torch.jit.script
 def tensor_to_list(range_tensor: torch.Tensor) -> List[List[float]]:
@@ -1000,15 +1011,24 @@ def get_speech_labels_for_update(
 
     Args:
         frame_start (float):
+            Start of the middle audio chunk in the audio buffer
         buffer_end (float):
+            End of the audio buffer
         vad_timestamps (Tensor):
+            Tensor containing VAD intervals (start and end timestamps)
         cumulative_speech_labels (torch.Tensor):
-        cursor_for_old_segments: (float):
+            Cumulative speech/non-speech timestamps (equivalent to VAD timestamps)
+        cursor_for_old_segments (float):
+            Floating point number that indicates the point where new segments should replace
+            the old segments
 
     Returns:
-        return speech_label_for_new_segments (Tensor):
+        speech_label_for_new_segments (Tensor):
+            The intervals (start and end) timestamps where the new incoming speech segments should
+            be collected from
         cumulative_speech_labels (Tensor):
-
+            Cumulative speech/non-speech timestamps (equivalent to VAD timestamps) with newly added
+            speech/non-speech timestamps from the `vad_timestamps` input
     """
     update_overlap_range: List[float] = []
     if cursor_for_old_segments < frame_start:
@@ -1039,8 +1059,8 @@ def get_speech_labels_for_update(
     cumulative_speech_labels = torch.tensor(cumulative_speech_labels)
     
     # Check if the ranges are containing faulty values
-    check_ranges(speech_label_for_new_segments)
-    check_ranges(cumulative_speech_labels)
+    assert check_ranges(speech_label_for_new_segments)
+    assert check_ranges(cumulative_speech_labels)
     return speech_label_for_new_segments, cumulative_speech_labels
 
 
@@ -1147,6 +1167,7 @@ def get_online_segments_from_slices(
         sigs_list.append(signal)
         sig_rangel_list.append([start_abs_sec, end_abs_sec])
         sig_indexes.append(ind_offset)
+
     if not len(sigs_list) == len(sig_rangel_list) == len(sig_indexes):
         raise ValueError("Signal information lists have a mismatch.")
 
@@ -1163,9 +1184,9 @@ def get_online_subsegments_from_buffer(
     segment_indexes: List[int],
     window: float,
     shift: float,
-):
+    ) -> Tuple[List[torch.Tensor], List[List[float]], List[int]]:
     """
-    Generate sub-segments for online processing from the given segment information.
+    Generate subsegments for online processing from the given segment information.
     This function extracts subsegments (embedding vector level) time-series from the
     raw time-series buffer based on the segment interval (start and end timestamps) information.
 
@@ -1188,11 +1209,12 @@ def get_online_subsegments_from_buffer(
             Shift length in second
 
     Returns:
-        return sigs_list (list):
-
+        sigs_list (list):
+            List containing the tensors of the old and the newly added time-series signals
         sig_rangel_list (list):
+            List containing the old and the newly added intervals (timestamps) of the speech segments
         sig_indexes (list):
-
+            List containing the old and the newly added unique indices of semgents
     """
     sigs_list: List[torch.Tensor] = []
     sig_rangel_list: List[List[float]] = []

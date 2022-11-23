@@ -840,7 +840,6 @@ def stitch_cluster_labels(Y_old: torch.Tensor, Y_new: torch.Tensor, with_history
     Y_new = get_minimal_indices(Y_new)
 
     # TODO: This function needs to be converted to a fully torch.jit.script-able function.
-    # For th
     Y_old = Y_old.cpu().numpy()
     Y_new = Y_new.cpu().numpy()
 
