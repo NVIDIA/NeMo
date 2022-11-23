@@ -181,7 +181,7 @@ You may find the example config files of cache-aware streaming Conformer models 
 ``<NeMo_git_root>/examples/asr/conf/conformer/streaming/conformer_transducer_bpe_streaming.yaml`` for Transducer variant and
 at ``<NeMo_git_root>/examples/asr/conf/conformer/streaming/conformer_ctc_bpe.yaml`` for CTC variant.
 
-To simulate cache-aware stremaing, you may use the script at ``<NeMo_git_root>/examples/asr/asr_streaming/speech_to_text_streaming_infer.py``. It can simulate streaming in single stream or multi-stream mode (in batches) for an ASR model.
+To simulate cache-aware streaming, you may use the script at ``<NeMo_git_root>/examples/asr/asr_cache_aware_streaming/speech_to_text_cache_aware_streaming_infer.py``. It can simulate streaming in single stream or multi-stream mode (in batches) for an ASR model.
 This script can be used for models trained offline with full-context but the accuracy would not be great unless the chunk size is large enough which would result in high latency.
 It is recommended to train a model in streaming model with limited context for this script. More info can be found in the script.
 
