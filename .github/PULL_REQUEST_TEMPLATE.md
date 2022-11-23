@@ -2,8 +2,6 @@
 
 Add a one line overview of what this PR aims to accomplish.
 
-**Collection**: [Note which collection this PR will affect]
-
 # Changelog 
 - Add specific line by line info of high level changes in this PR.
 
@@ -20,12 +18,9 @@ Add a one line overview of what this PR aims to accomplish.
 - [ ] Did you write any new necessary tests?
 - [ ] Did you add or update any necessary documentation?
 - [ ] Does the PR affect components that are optional to install? (Ex: Numba, Pynini, Apex etc)
-  - [ ] Reviewer: Does the PR have correct import guards for all optional libraries?
-  
-**PR Type**:
-- [ ] New Feature
-- [ ] Bugfix
-- [ ] Documentation
+- [ ] Reviewer: Does the PR have correct import guards for all optional libraries?
+- [ ] Did you add GitHub tags on the right? e.g Add `ASR`, `bug` for an ASR bugfix
+
 
 If you haven't finished some of the above items you can still open "Draft" PR.
 
