@@ -59,23 +59,6 @@ class LinearWithBiasSkip(nn.Module):
         return F.linear(x, self.weight, self.bias), None
 
 
-# ScaledMaskedSoftmax replacement
-def mask_func(attention_scores, attention_mask):
-    attention_scores.masked_fill_(attention_mask, -10000.0)
-    return attention_scores
-
-
-def exportable_ScaledMaskedSoftmax(input, mask, scale):
-    if scale is not None:
-        input = input * scale
-
-    mask_output = mask_func(input, mask) if mask is not None else input
-    probs = torch.nn.Softmax(dim=-1)(mask_output)
-
-    probs = probs.half()
-    return probs
-
-
 def get_export_format(filename: str):
     _, ext = os.path.splitext(filename)
     try:
@@ -340,6 +323,26 @@ def simple_replace(BaseT: Type[nn.Module], DestT: Type[nn.Module]) -> Callable[[
     return expansion_fn
 
 
+def replace_MatchedScaleMaskSoftmax(n: nn.Module) -> Optional[nn.Linear]:
+    """
+    Replaces MatchedScaleMaskSoftmax with exportable softmax layer
+    Args:
+        n: module to replace
+    Returns:
+        exportable module
+    """
+
+    # including the import here to avoid circular imports
+    from nemo.collections.nlp.modules.common.megatron.fused_softmax import MatchedScaleMaskSoftmax
+
+    # disabling fusion for the MatchedScaleMaskSoftmax
+    mod = MatchedScaleMaskSoftmax(
+        n.input_in_fp16, n.input_in_bf16, n.attn_mask_type, False, n.mask_func, n.softmax_in_fp32, n.scale
+    )
+
+    return mod
+
+
 def wrap_module(BaseT: Type[nn.Module], DestT: Type[nn.Module]) -> Callable[[nn.Module], Optional[nn.Module]]:
     """
     Generic function generator to replace BaseT module with DestT wrapper. 
@@ -408,6 +411,7 @@ default_replacements = {
     "BatchNorm1d": wrap_module(nn.BatchNorm1d, CastToFloat),
     "BatchNorm2d": wrap_module(nn.BatchNorm2d, CastToFloat),
     "LayerNorm": wrap_module(nn.LayerNorm, CastToFloat),
+    "MatchedScaleMaskSoftmax": wrap_module(None, replace_MatchedScaleMaskSoftmax),
 }
 
 script_replacements = {
