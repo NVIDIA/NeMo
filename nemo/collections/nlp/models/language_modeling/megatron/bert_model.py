@@ -35,6 +35,7 @@ try:
     from apex.transformer.enums import AttnMaskType
     from apex.transformer.tensor_parallel.layers import set_tensor_model_parallel_attributes
     from apex.transformer import tensor_parallel
+
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
@@ -251,12 +252,12 @@ class BertModel(MegatronModule):
                 else:
                     self.binary_head = get_linear_layer(hidden_size, 2, init_method)
                 """
-                #if self.sequence_parallel:
+                # if self.sequence_parallel:
                 #    sequence_index = 0
                 #    hidden_states = tensor_parallel.gather_from_sequence_parallel_region()
                 #    pooled = hidden_states[sequence_index, :, :]
                 #    self.binary_head =  get_linear_layer(pooled)
-                #else:
+                # else:
                 self.binary_head = get_linear_layer(hidden_size, 2, init_method)
                 self._binary_head_key = 'binary_head'
 
@@ -264,7 +265,14 @@ class BertModel(MegatronModule):
         """See megatron.model.transformer.set_input_tensor()"""
         self.language_model.set_input_tensor(input_tensor)
 
-    def forward(self, bert_model_input, attention_mask, token_type_ids=None, lm_labels=None, checkpoint_activations_all_layers=None,):
+    def forward(
+        self,
+        bert_model_input,
+        attention_mask,
+        token_type_ids=None,
+        lm_labels=None,
+        checkpoint_activations_all_layers=None,
+    ):
 
         extended_attention_mask = bert_extended_attention_mask(attention_mask)
 
@@ -276,7 +284,11 @@ class BertModel(MegatronModule):
             input_ids = None
 
         lm_output = self.language_model(
-            input_ids, position_ids, extended_attention_mask, token_type_ids=token_type_ids, checkpoint_activations_all_layers=checkpoint_activations_all_layers,
+            input_ids,
+            position_ids,
+            extended_attention_mask,
+            token_type_ids=token_type_ids,
+            checkpoint_activations_all_layers=checkpoint_activations_all_layers,
         )
 
         if self.post_process and self.add_binary_head:
