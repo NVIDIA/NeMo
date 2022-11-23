@@ -364,11 +364,17 @@ class PromptEncoderLinearCombination(NeuralModule, Exportable):
             self.init_val = 0.0
         
 
+        if self.spaced_init == 'random':
+            r = torch.randperm(group_size * self.total_virtual_tokens).reshape(self.total_virtual_tokens, group_size)
+        elif self.spaced_init == 'spaced':
+            r = torch.arange(0, group_size * self.total_virtual_tokens, self.total_virtual_tokens).tile(self.total_virtual_tokens).reshape(self.total_virtual_tokens, group_size)
+            s = torch.arange(self.total_virtual_tokens).unsqueeze(1)
+            r = r + s
+        else:
+            r = torch.arange(group_size * self.total_virtual_tokens).reshape(self.total_virtual_tokens, group_size)
+
         for i in range(self.total_virtual_tokens):
-            if self.spaced_init:
-                t[torch.arange(i, vocab_size, group_size), i] = self.init_val
-            else:
-                t[i * group_size : (i + 1) * group_size, i] = self.init_val
+            t[r[i,:], i] = self.init_val
 
         m = torch.ones_like(t)
         if self.mask_restrict:
