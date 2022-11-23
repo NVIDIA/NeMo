@@ -87,6 +87,8 @@ def main(cfg) -> None:
             prompt_learning_cfg.sequence_parallel = False
             prompt_learning_cfg.activations_checkpoint_granularity = None
             prompt_learning_cfg.activations_checkpoint_method = None
+            prompt_learning_cfg.micro_batch_size = cfg.batch_size
+            prompt_learning_cfg.global_batch_size = cfg.global_batch_size
 
     # Load prompt tuned model, virtual_prompt_model_file must be provided in config
     # Now load prompt learning model with frozen gpt model base

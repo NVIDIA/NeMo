@@ -25,6 +25,7 @@ prompt_encoder_model_file: ??? # path to prompt encoder model file
 # pred_file_path: ??? # Path will model predictions will be written
 # data_paths: # paths to .jsonl files you want to perform inference on
 batch_size: 16
+global_batch_size: 16 # used for data parallel
 server: False
 port: 5555
 web_server: False # whether launch the web inference server
