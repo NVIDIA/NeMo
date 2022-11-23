@@ -1,0 +1,65 @@
+name: "spectrogram-enhancer"
+
+# Path to fastpitch .nemo model.
+spectrogram_predictor_path: ""
+
+model:
+  lr: 2e-4
+  n_bands: 80
+  latent_dim: 192
+  style_depth: 4
+  network_capacity: 16
+  mixed_prob: 0.9
+  fmap_max: 192
+
+  # Needed for treating spectrograms as images with pixel values around [0, 1].
+  # Given values are for LibriTTS, might still work for your data.
+  # In case of training not converging, calculate min and max values over your TTSDataset and update the config.
+  spectrogram_min_value: -13.18
+  spectrogram_max_value: 4.78
+
+  # train_ds config is taken from the fastpitch config
+  #   and is merged with this one.
+  # You might need to specify dataloader params and manifest/sup data path.
+  train_ds:
+    dataset:
+      manifest_filepath: ""
+      sup_data_path: ""
+    dataloader_params:
+      drop_last: true
+      shuffle: true
+      batch_size: 8
+      num_workers: 8
+
+trainer:
+  num_nodes: 1
+  devices: 1
+  accelerator: gpu
+  strategy: ddp
+  precision: 32
+  max_epochs: 4
+  accumulate_grad_batches: 1
+  gradient_clip_val: 1000.0
+  log_every_n_steps: 1000
+  # we don't really need validation
+  check_val_every_n_epoch: null  
+  limit_val_batches: 0.0
+  benchmark: false
+  # provided by exp_manager
+  enable_checkpointing: False 
+  logger: false
+
+exp_manager:
+  exp_dir: ""
+  name: ${name}
+  create_tensorboard_logger: true
+  create_checkpoint_callback: true
+  # no good stopping rule, keep every checkpoint
+  # tune n_epochs for size of your dataset to avoid wasting space
+  checkpoint_callback_params:
+    every_n_epochs: 1
+    save_on_train_epoch_end: true
+    save_top_k: -1
+    monitor: "g_loss"
+  resume_if_exists: false
+  resume_ignore_no_checkpoint: false
