@@ -42,7 +42,9 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin):
         super().__init__(cfg=cfg, trainer=trainer)
 
         if 'aux_ctc' not in self.cfg:
-            raise ValueError("The config need to have a section for the CTC decoder named as aux_ctc for Hybrid models.")
+            raise ValueError(
+                "The config need to have a section for the CTC decoder named as aux_ctc for Hybrid models."
+            )
         with open_dict(self.cfg.aux_ctc):
             if "feat_in" not in self.cfg.aux_ctc.decoder or (
                 not self.cfg.aux_ctc.decoder.feat_in and hasattr(self.encoder, '_feat_out')
