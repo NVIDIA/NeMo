@@ -668,10 +668,10 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         torch.distributed.broadcast(loss_mean, get_last_rank())
         # run inference
         input_ids = batch[0]
-        # add two as buffer
-        input_ids = torch.nn.functional.pad(input_ids, (0, 1 + 2, 0, 0))
+        # add three as buffer
+        input_ids = torch.nn.functional.pad(input_ids, (0, 1 + 3, 0, 0))
         context_lengths = batch[-1]
-        token_to_gen = batch[0].shape[1] - context_lengths.max() + 1
+        token_to_gen = input_ids.shape[1] - context_lengths.max()
 
         length_params: LengthParam = {
             "max_length": token_to_gen,
@@ -856,10 +856,10 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
             return None
         else:
             input_ids = batch[0]
-            # add two as buffer
-            input_ids = torch.nn.functional.pad(input_ids, (0, 1 + 2, 0, 0))
+            # add three as buffer
+            input_ids = torch.nn.functional.pad(input_ids, (0, 1 + 3, 0, 0))
             context_lengths = batch[-1]
-            token_to_gen = input_ids.shape[1] - context_lengths.max() + 1
+            token_to_gen = input_ids.shape[1] - context_lengths.max()
             length_params: LengthParam = {
                 "max_length": token_to_gen,
                 "min_length": inference_config["min_tokens_to_generate"],
