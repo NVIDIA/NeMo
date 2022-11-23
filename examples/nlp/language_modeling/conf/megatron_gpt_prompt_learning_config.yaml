@@ -20,7 +20,7 @@ trainer:
 exp_manager:
   explicit_log_dir: null
   exp_dir: null
-  name: ${name}
+  name: gpt_prompt_learning
   create_wandb_logger: False
   wandb_logger_kwargs:
     project: null
