@@ -70,7 +70,7 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
                 pretrained_cfg.masked_softmax_fusion = False
                 pretrained_cfg.global_batch_size = cfg.global_batch_size
                 pretrained_cfg.micro_batch_size = cfg.micro_batch_size
-                
+                pretrained_cfg.global_batch_per_gpu = cfg.global_batch_per_gpu
             self.retrieval_encoder = MegatronBARTModel.restore_from(
                         cfg.retriever.get("encoder_path"),
                         trainer=trainer, 
