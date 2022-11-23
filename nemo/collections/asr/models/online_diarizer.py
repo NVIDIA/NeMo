@@ -15,10 +15,13 @@
 import os
 import time
 from copy import deepcopy
+from dataclasses import dataclass, is_dataclass
+from typing import Dict
+
 import numpy as np
 import torch
 from omegaconf import DictConfig
-from typing import Dict
+
 from nemo.collections.asr.models import ClusteringDiarizer
 from nemo.collections.asr.parts.utils.nmesc_clustering import (
     OnlineSpeakerClustering,
@@ -32,9 +35,9 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
     get_embs_and_timestamps,
 )
 from nemo.utils import logging, model_utils
-from dataclasses import dataclass, is_dataclass
 
 __all__ = ['OnlineClusteringDiarizer']
+
 
 def timeit(method):
     """
@@ -46,6 +49,7 @@ def timeit(method):
     Return:
         `timed` function for measuring the elapsed time
     """
+
     def timed(*args, **kwargs):
         ts = time.time()
         result = method(*args, **kwargs)
@@ -58,6 +62,7 @@ def timeit(method):
         return result
 
     return timed
+
 
 class OnlineClusteringDiarizer(ClusteringDiarizer):
     """
@@ -79,6 +84,7 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
         (4) Label generation (`generate_cluster_labels` function call)
 
     """
+
     def __init__(self, cfg: DictConfig):
         super().__init__(cfg)
         self.cfg = model_utils.convert_model_config_to_dict_config(cfg)
@@ -311,12 +317,7 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
             maj_vote_labels.append(torch.mode(torch.tensor(self.base_scale_label_dict[seg_idx]))[0].item())
         return maj_vote_labels
 
-    def save_history_data(
-        self, 
-        scale_idx: int, 
-        total_cluster_labels: torch.Tensor, 
-        isOnline: bool,
-    ) -> torch.Tensor:
+    def save_history_data(self, scale_idx: int, total_cluster_labels: torch.Tensor, isOnline: bool,) -> torch.Tensor:
         """
         Save the temporary input to the class memory buffer.
 
@@ -400,10 +401,8 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
 
     @timeit
     def _extract_embeddings(
-        self, 
-        audio_signal: torch.Tensor,
-        segment_ranges: torch.Tensor, 
-        embeddings) -> torch.Tensor:
+        self, audio_signal: torch.Tensor, segment_ranges: torch.Tensor, embeddings
+    ) -> torch.Tensor:
         """
         Incrementally extract speaker embeddings based on audio_signal and segment_ranges varialbes.
         Unlike offline speaker diarization, speaker embedding and subsegment ranges are not saved to disk.
@@ -440,9 +439,7 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
 
     @timeit
     def _perform_online_clustering(
-        self, 
-        uniq_embs_and_timestamps: Dict[str, torch.Tensor], 
-        cuda=False,
+        self, uniq_embs_and_timestamps: Dict[str, torch.Tensor], cuda=False,
     ) -> torch.Tensor:
         """
         Launch online clustering for `uniq_embs_and_timestamps` input variable.
@@ -474,9 +471,11 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
         concat_emb, add_new = self.online_clus.get_reduced_mat(
             emb_in=curr_emb, base_segment_indexes=self.segment_indexes[self.base_scale_index]
         )
-        
+
         # Perform online version of clustering with history-concatenated embedding vectors
-        Y_concat = self.online_clus.forward_infer(emb=concat_emb, frame_index=self.frame_index, cuda=cuda, device=device)
+        Y_concat = self.online_clus.forward_infer(
+            emb=concat_emb, frame_index=self.frame_index, cuda=cuda, device=device
+        )
 
         # Match the permutation of the newly obtained speaker labels and the previous labels
         merged_clus_labels = self.online_clus.match_labels(Y_concat, add_new)
@@ -503,10 +502,7 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
         return diar_hyp
 
     @timeit
-    def diarize_step(
-        self, 
-        audio_buffer: torch.Tensor, 
-        vad_timestamps: torch.Tensor):
+    def diarize_step(self, audio_buffer: torch.Tensor, vad_timestamps: torch.Tensor):
         """
         A function for a unit diarization step. Each diarization step goes through the following steps:
 
@@ -536,7 +532,7 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
                 Speaker label hypothesis from the start of the session to the current position
         """
         self._transfer_timestamps_to_segmentor()
-        
+
         # In case buffer is not filled or there is no speech activity in the input
         if self.buffer_start < 0 or len(vad_timestamps) == 0:
             return self._get_interim_output()
