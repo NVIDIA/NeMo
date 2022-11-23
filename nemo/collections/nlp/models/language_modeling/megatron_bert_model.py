@@ -116,6 +116,7 @@ class MegatronBertModel(MegatronBaseModel):
             hidden_dropout=cfg.get('hidden_dropout', 0.1),
             precision=cfg.get('precision', 16),
             fp32_residual_connection=cfg.get('fp32_residual_connection', False),
+            activations_checkpoint_granularity=cfg.get('activations_checkpoint_granularity', None),
             activations_checkpoint_method=cfg.get('activations_checkpoint_method', None),
             activations_checkpoint_num_layers=cfg.get('activations_checkpoint_num_layers', 1),
             layernorm_epsilon=cfg.get('layernorm_epsilon', 1e-5),
