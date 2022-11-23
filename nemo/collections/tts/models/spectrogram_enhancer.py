@@ -118,12 +118,6 @@ def consistency_loss(condition, output, lengths):
     return (dist / rearrange(lengths, "b 1 -> b 1 1 1")).sum(dim=-1).mean()
 
 
-class ParallelSpectrogramBatch(TypedDict):
-    target: torch.FloatTensor
-    condition: torch.FloatTensor
-    lengths: torch.LongTensor
-
-
 class SpectrogramEnhancerModel(ModelPT, Exportable):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None, fastpitch: FastPitchModel = None) -> None:
         self.fastpitch = None
@@ -147,14 +141,9 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
     def set_fastpitch_model(self, fastpitch: FastPitchModel):
         self.fastpitch = fastpitch
         self.fastpitch.freeze()
-        # for param in self.fastpitch.parameters():
-        #    param.requires_grad = False
 
         self._cfg.train_ds = OmegaConf.merge(self.fastpitch._cfg.train_ds, self._cfg.train_ds)
         self.setup_training_data(self._cfg.train_ds)
-
-        self._cfg.validation_ds = OmegaConf.merge(self.fastpitch._cfg.validation_ds, self._cfg.validation_ds)
-        self.setup_validation_data(self._cfg.validation_ds)
 
     def move_to_correct_device(self, e):
         return type_as_recursive(e, next(iter(self.G.parameters())))
@@ -286,8 +275,8 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
 
         # train discriminator
         if optimizer_idx == 0:
-            generated_images = self.forward(condition, lengths, mixing=True, normalize=False)
-            fake_logits = self.D(generated_images, condition, lengths)
+            enhanced_spectrograms = self.forward(condition, lengths, mixing=True, normalize=False)
+            fake_logits = self.D(enhanced_spectrograms, condition, lengths)
 
             real_images = target.requires_grad_()
             real_logits = self.D(real_images, condition, lengths)
@@ -303,13 +292,14 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
 
         # train generator
         if optimizer_idx == 1:
-            generated_images = self.forward(condition, lengths, mixing=True)
-            fake_logits = self.D(generated_images, condition, lengths)
+            enhanced_spectrograms = self.forward(condition, lengths, mixing=True)
+            fake_logits = self.D(enhanced_spectrograms, condition, lengths)
             g_loss = gen_hinge_loss(fake_logits)
-            c_loss = 10 * consistency_loss(condition, generated_images, lengths)
+            c_loss = 10 * consistency_loss(condition, enhanced_spectrograms, lengths)
 
             self.log("g_loss", g_loss, prog_bar=True)
             self.log("c_loss", c_loss, prog_bar=True)
+
             return g_loss + c_loss
 
     def configure_optimizers(self):
@@ -323,7 +313,7 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
             self._train_dl = self.fastpitch._train_dl
 
     def setup_validation_data(self, val_data_config):
-        if self.fastpitch:
+        if self.fastpitch and val_data_config:
             self.fastpitch.setup_validation_data(val_data_config)
             self._validation_dl = self.fastpitch._validation_dl
 
@@ -332,6 +322,7 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
         return None
 
     def save_to(self, save_path: str):
+        # when saving this model for further use in a .nemo file, we do not care about TTS model used to train the n
         if self.fastpitch:
             fastpitch = self._modules.pop("fastpitch")
             super().save_to(save_path)
