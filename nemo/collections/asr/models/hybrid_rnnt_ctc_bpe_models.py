@@ -83,38 +83,41 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
             self.joint.set_wer(self.wer)
 
         # setup auxiliary CTC decoder if needed
-        if 'aux_ctc' in self.cfg:
-            with open_dict(self.cfg):
-                if self.tokenizer_type == "agg":
-                    self.cfg.aux_ctc.decoder.vocabulary = ListConfig(vocabulary)
-                else:
-                    self.cfg.aux_ctc.decoder.vocabulary = ListConfig(list(vocabulary.keys()))
+        if 'aux_ctc' not in self.cfg:
+            raise ValueError("The config need to have a section for the CTC decoder named as aux_ctc for Hybrid models.")
 
-            if self.cfg.aux_ctc.decoder["num_classes"] < 1:
-                logging.info(
-                    "\nReplacing placholder number of classes ({}) with actual number of classes - {}".format(
-                        self.cfg.aux_ctc.decoder["num_classes"], len(vocabulary)
-                    )
+        with open_dict(self.cfg):
+            if self.tokenizer_type == "agg":
+                self.cfg.aux_ctc.decoder.vocabulary = ListConfig(vocabulary)
+            else:
+                self.cfg.aux_ctc.decoder.vocabulary = ListConfig(list(vocabulary.keys()))
+
+        if self.cfg.aux_ctc.decoder["num_classes"] < 1:
+            logging.info(
+                "\nReplacing placholder number of classes ({}) with actual number of classes - {}".format(
+                    self.cfg.aux_ctc.decoder["num_classes"], len(vocabulary)
                 )
-                self.cfg.aux_ctc.decoder["num_classes"] = len(vocabulary)
-
-            # Setup CTC decoding
-            ctc_decoding_cfg = self.cfg.aux_ctc.get('decoding', None)
-            if ctc_decoding_cfg is None:
-                ctc_decoding_cfg = OmegaConf.structured(CTCBPEDecodingConfig)
-                with open_dict(self.cfg.aux_ctc):
-                    self.cfg.aux_ctc.decoding = ctc_decoding_cfg
-            self.ctc_decoding = CTCBPEDecoding(self.cfg.aux_ctc.decoding, tokenizer=self.tokenizer)
-
-            # Setup CTC WER
-            self.ctc_wer = WERBPE(
-                decoding=self.ctc_decoding,
-                use_cer=self.cfg.aux_ctc.get('use_cer', False),
-                dist_sync_on_step=True,
-                log_prediction=self.cfg.get("log_prediction", False),
             )
+            self.cfg.aux_ctc.decoder["num_classes"] = len(vocabulary)
 
-        self.use_rnnt_decoder = True
+        # Setup CTC decoding
+        ctc_decoding_cfg = self.cfg.aux_ctc.get('decoding', None)
+        if ctc_decoding_cfg is None:
+            ctc_decoding_cfg = OmegaConf.structured(CTCBPEDecodingConfig)
+            with open_dict(self.cfg.aux_ctc):
+                self.cfg.aux_ctc.decoding = ctc_decoding_cfg
+        self.ctc_decoding = CTCBPEDecoding(self.cfg.aux_ctc.decoding, tokenizer=self.tokenizer)
+
+        # Setup CTC WER
+        self.ctc_wer = WERBPE(
+            decoding=self.ctc_decoding,
+            use_cer=self.cfg.aux_ctc.get('use_cer', False),
+            dist_sync_on_step=True,
+            log_prediction=self.cfg.get("log_prediction", False),
+        )
+
+    # setting the RNNT decoder as the default one
+    self.use_rnnt_decoder = True
 
     def change_vocabulary(
         self,
