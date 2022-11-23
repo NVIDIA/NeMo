@@ -165,8 +165,15 @@ def run_ts_and_compare(ts_model, ts_input_list, ts_input_dict, output_example, c
 
         if torch.is_tensor(expected):
             tout = out.to('cpu')
-            logging.debug(f"Checking output {i}, shape: {expected.shape}:\n{expected}\n{tout}")
-            if not torch.allclose(tout, expected.cpu(), rtol=check_tolerance, atol=check_tolerance):
+            logging.debug(f"Checking output {i}, shape: {expected.shape}:\n")
+            this_good = True
+            try:
+                if not torch.allclose(tout, expected.cpu(), rtol=check_tolerance, atol=check_tolerance):
+                    this_good = False
+            except Exception:  # there may ne size mismatch and it may be OK
+                this_good = False
+            if not this_good:
+                logging.info(f"Results mismatch! PyTorch(expected):\n{expected}\nTorchScript:\n{tout}")
                 all_good = False
     return all_good
 
@@ -180,9 +187,14 @@ def run_ort_and_compare(sess, ort_input, output_example, check_tolerance=0.01):
 
         if torch.is_tensor(expected):
             tout = torch.from_numpy(out)
-            logging.debug(f"Checking output {i}, shape: {expected.shape}:\n{expected}\n{tout}")
-            if not torch.allclose(tout, expected.cpu(), rtol=check_tolerance, atol=100 * check_tolerance):
-                all_good = False
+            logging.debug(f"Checking output {i}, shape: {expected.shape}:\n")
+            this_good = True
+            try:
+                if not torch.allclose(tout, expected.cpu(), rtol=check_tolerance, atol=100 * check_tolerance):
+                    this_good = False
+            except Exception:  # there may ne size mismatch and it may be OK
+                this_good = False
+            if not this_good:
                 logging.info(f"onnxruntime results mismatch! PyTorch(expected):\n{expected}\nONNXruntime:\n{tout}")
                 all_good = False
     return all_good
