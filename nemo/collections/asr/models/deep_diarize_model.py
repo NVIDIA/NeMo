@@ -76,7 +76,6 @@ class DiarizeTransformerXLDecoder(torch.nn.Module):
                 ffn_dropout=dropout,
             )
             self.projection = torch.nn.Linear(hidden_dim, 1)
-        self.sigmoid = torch.nn.Sigmoid()
 
     def forward(self, attractors: torch.Tensor, encoded_xl_features: torch.Tensor) -> torch.Tensor:
         B, K, H = attractors.size()
@@ -98,7 +97,7 @@ class DiarizeTransformerXLDecoder(torch.nn.Module):
 
             # [B * K, N, H] -> [B * K, N] reshape to [B, N, K]
             activities = self.projection(output).view(B, K, N).transpose(1, 2)
-            return activities.sigmoid()
+            return activities
 
         output = self.decoder(
             decoder_states=attractors,
@@ -110,7 +109,7 @@ class DiarizeTransformerXLDecoder(torch.nn.Module):
 
         # [B * K, N, H] -> [B * K, N] reshape to [B, N, K]
         activities = self.projection(output).view(B, K, N).transpose(1, 2)
-        return self.sigmoid(activities)
+        return activities
 
 
 class DeepDiarizeModel(ModelPT):
@@ -178,9 +177,8 @@ class DeepDiarizeModel(ModelPT):
             cat_features=self.cfg.decoder.cat_features,
         )
 
-        self.loss = torch.nn.BCELoss()
-        self.train_loss = torch.nn.BCELoss(reduction='none' if self.cfg.focal else 'mean')
-        self.sigmoid = torch.nn.Sigmoid()
+        self.loss = torch.nn.BCEWithLogitsLoss()
+        self.train_loss = torch.nn.BCEWithLogitsLoss(reduction='none' if self.cfg.focal else 'mean')
         self.apply(self._init_weights)
         self.mems = None
 
@@ -267,8 +265,7 @@ class DeepDiarizeModel(ModelPT):
         attractors, _ = self.eda_module(self._shuffle(train_x, dim=1), seq_mask)
 
         # loss would be calculated between outputs and number of speakers present in segment
-        # sigmoid results where greater than threshold should not be masked
-        attractors_speaker_exists = self.fc(attractors).sigmoid().squeeze()
+        attractors_speaker_exists = self.fc(attractors).squeeze()
         speaker_outputs = self.decoder(attractors, encoded_xl_features)
         speaker_outputs = self._apply_mask(attractors_speaker_exists, speaker_outputs)
 
@@ -288,6 +285,7 @@ class DeepDiarizeModel(ModelPT):
         return loss + (self.cfg.existence_alpha * existence_loss)
 
     def _apply_mask(self, attractors_speaker_exists, speaker_outputs):
+        attractors_speaker_exists = attractors_speaker_exists.sigmoid()
         mask = torch.zeros(speaker_outputs.shape, device=self.device).transpose(1, 2)
         # todo: expose threshold
         mask[attractors_speaker_exists >= 0.5, :] = 1
@@ -350,7 +348,7 @@ class DeepDiarizeModel(ModelPT):
 
             # loss would be calculated between outputs and number of speakers present in segment
             # sigmoid results where greater than threshold should not be masked
-            attractors_speaker_exists = self.fc(attractors).sigmoid().squeeze()
+            attractors_speaker_exists = self.fc(attractors).squeeze()
             speaker_outputs = self.decoder(attractors, encoded_xl_features)
             speaker_outputs = self._apply_mask(attractors_speaker_exists.unsqueeze(0), speaker_outputs)
 
