@@ -84,7 +84,9 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
 
         # setup auxiliary CTC decoder if needed
         if 'aux_ctc' not in self.cfg:
-            raise ValueError("The config need to have a section for the CTC decoder named as aux_ctc for Hybrid models.")
+            raise ValueError(
+                "The config need to have a section for the CTC decoder named as aux_ctc for Hybrid models."
+            )
 
         with open_dict(self.cfg):
             if self.tokenizer_type == "agg":
