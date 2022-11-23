@@ -676,6 +676,9 @@ def merge_int_intervals(intervals_in: List[List[int]]) -> List[List[int]]:
     Merge the range pairs if there is overlap exists between the given ranges.
     This algorithm needs a sorted range list in terms of the start time.
     Note that neighboring numbers lead to a merged range.
+
+    Note: This function is designed to be compiled/imported with `@torch.jit.script` decorator.
+
     Example:
         input: [(1, 10), (11, 20)]
         output: [(1, 20)]
@@ -1000,7 +1003,7 @@ def get_speech_labels_for_update(
     vad_timestamps: torch.Tensor,
     cumulative_speech_labels: torch.Tensor,
     cursor_for_old_segments: float,
-):
+) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Bring the new speech labels from the current buffer. Followingly:
 
@@ -1054,7 +1057,7 @@ def get_speech_labels_for_update(
     # Keep cumulative VAD labels for the future use
     cumulative_speech_labels = merge_float_intervals(cumulative_speech_labels + new_incoming_speech_labels, margin=0)
 
-    # Check if there are any faulty timestamps
+    # Convert the lists back to type torch.Tensor
     speech_label_for_new_segments = torch.tensor(speech_label_for_new_segments)
     cumulative_speech_labels = torch.tensor(cumulative_speech_labels)
     
@@ -1068,7 +1071,7 @@ def get_speech_labels_for_update(
 def get_new_cursor_for_update(
     frame_start: float, 
     segment_range_ts: List[List[float]],
-):
+    ) -> Tuple[float, int]:
     """
     For online speaker diarization.
     Remove the old segments that overlap with the new frame (self.frame_start)
@@ -1110,7 +1113,7 @@ def get_online_segments_from_slices(
     ind_offset: int,
     window: float,
     sample_rate: int,
-):
+    ) -> Tuple[int, List[torch.Tensor], List[List[float]], List[int]]:
     """
     Create short speech segments from sclices for online processing purpose.
 

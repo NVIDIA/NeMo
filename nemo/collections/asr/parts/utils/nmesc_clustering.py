@@ -1043,7 +1043,7 @@ def merge_vectors(
             Dimension: (merged vector counts)
         index_mapping (Tuple):
             index_mapping[0] contains bypassed vector labels
-            index_mapping[1] contains merged  vector labels
+            index_mapping[1] contains merged vector labels
     """
     if emb_ndx.shape[0] != pre_cluster_labels.shape[0]:
         raise ValueError("pre_cluster_labels and emb_ndx have mismatch in dimension")
@@ -1071,27 +1071,34 @@ def get_closest_embeddings(
     """
     Get the indeces of the embedding vectors we want to merge.
     Example:
+        >>> merge_quantity = 2
         >>> label_aff_mat = [[1.0, 0.2, 0.8],
                              [0.2, 1.0, 0.4],
                              [0.8, 0.4, 1.0]]
-        >>> affinity_mat.sum(0) 
+        >>> label_aff_mat.sum(0) 
         [2.0, 1.6, 2.2]
-        # The closest embedding vectors are index 0, 2.
+
+        # The closest two embedding vectors are at index 0 and 2.
 
     Args:
         label_aff_mat: (Tensor)
             Symmetric affinity matrix of the given embedding vector set.
         target_emb_index: (Tensor)
             Targeted speaker index
-        merge_quantity: (int)
-            The count of t
+        merge_quantity (int):
+            The amount of vector counts that are expected to be removed from the set
+            Example:
+                Input: 10 vectors in a set
+                merge_quantity = 5
+                (5+1) vectors are merged into 1 vector
+                Output: 5 vectors in a set
 
     Output:
         index_2d: (numpy.array)
     """
     comb_limit = int(target_emb_index.shape[0]-1)
     if merge_quantity > comb_limit:
-        raise ValueError(f" merge_quantity is {merge_quantity}: {merge_quantity} is bigger than comb_limit {comb_limit}")
+        raise ValueError(f"Got merge_quantity of {merge_quantity}: {merge_quantity} is bigger than comb_limit {comb_limit}")
 
     # Take summed values over one axis
     sum_cmat = label_aff_mat.sum(0)
