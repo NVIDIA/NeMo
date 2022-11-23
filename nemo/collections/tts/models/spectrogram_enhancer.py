@@ -42,16 +42,20 @@ from typing import Dict, List, Optional, TypedDict, Union
 
 import torch
 import torch.nn.functional as F
+import torchvision
 from einops import rearrange, repeat
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
+from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger, WandbLogger
 from torch import Tensor, nn
 from torch.autograd import grad as torch_grad
+from torch.utils.tensorboard.writer import SummaryWriter
 
 import nemo
 from nemo.collections.tts.models import FastPitchModel
 from nemo.collections.tts.modules.spectrogram_enhancer import Discriminator, Generator, mask
 from nemo.core import Exportable, ModelPT
+from nemo.utils import logging
 
 
 def type_as_recursive(e, source: Tensor):
@@ -222,7 +226,7 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
 
     def resynthesize_tts_batch(self, batch):
         attn_prior, durs, speaker = None, None, None
-        audio, audio_lens, text, text_lens, attn_prior, pitch, _, speaker = batch  # map(lambda x: x.cuda(), batch)
+        (audio, audio_lens, text, text_lens, attn_prior, pitch, _, speaker,) = batch
         mels, mel_lens = self.fastpitch.preprocessor(input_signal=audio, length=audio_lens)
 
         mels_pred, *_, pitch = self.fastpitch(
@@ -288,6 +292,7 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
                 self.log("d_loss_gp", gp_loss, prog_bar=True)
                 return d_loss + gp_loss
 
+            self.log_illustration(target, condition, enhanced_spectrograms, lengths)
             return d_loss
 
         # train generator
@@ -329,3 +334,44 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
             self.fastpitch = fastpitch
         else:
             super().save_to(save_path)
+
+    def log_illustration(self, target, condition, enhanced, lengths):
+        if self.global_rank != 0:
+            return
+
+        if not self.loggers:
+            return
+
+        if self.trainer.global_step % self.trainer.log_every_n_steps != 0:
+            return
+        step = self.trainer.global_step // 2  # because of G/D training
+
+        idx = 0  # number of sample in the batch
+        with torch.no_grad():
+            length = int(lengths.flatten()[idx].item())
+            tensor = (
+                torch.stack([enhanced - condition, condition, enhanced, target], dim=0)
+                .cpu()[:, idx, :, :, :length]
+                .clamp(0.0, 1.0)
+            )
+
+            grid = torchvision.utils.make_grid(tensor, nrow=1)
+
+        # workaround for WandbLogger being put in a separate LoggerCollection (???)
+        # = flatmap
+        loggers = []
+        for logger in self.loggers:
+            if isinstance(logger, (list, LoggerCollection)):
+                loggers.extend(logger)
+            else:
+                loggers.append(logger)
+
+        for logger in loggers:
+            if isinstance(logger, TensorBoardLogger):
+                writer: SummaryWriter = logger.experiment
+                writer.add_image("spectrograms", grid, global_step=step)
+                writer.flush()
+            elif isinstance(logger, WandbLogger):
+                logger.log_image("spectrograms", [grid], caption=["residual, input, output, ground truth"], step=step)
+            else:
+                logging.warning("Unsupported logger type: %s", str(type(logger)))
