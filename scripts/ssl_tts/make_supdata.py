@@ -1,14 +1,23 @@
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import argparse
 import json
 import os
-import pickle
-import shutil
 import time
-from email.mime import audio
-from locale import normalize
 from multiprocessing import Pool
 from pathlib import Path
-from typing import Dict, List, Optional, Union
 
 import hydra.utils
 import librosa
@@ -17,18 +26,14 @@ import torch
 from omegaconf import open_dict
 from tqdm import tqdm
 
-from nemo.collections.asr.models import ssl_models
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 from nemo.collections.tts.models import ssl_tts
 from nemo.collections.tts.torch.helpers import get_base_dir
-from nemo.collections.tts.torch.tts_tokenizers import EnglishCharsTokenizer
 from nemo.core.classes import Dataset
 from nemo.utils import logging
 
 SUP_DATA_DIR = None
-
-wav_featurizer = WaveformFeaturizer(sample_rate=22050, int_values=False, augmentor=None)
 
 
 class AudioDataset(Dataset):
@@ -179,8 +184,7 @@ def load_wav(wav_path, pad_multiple=1024):
     return wav
 
 
-def save_pitch_contour(wav_and_id):
-    sup_data_dir = SUP_DATA_DIR
+def save_pitch_contour(wav_and_id, sup_data_dir):
     wav_path, wav_text_id = wav_and_id[0], wav_and_id[1]
     wav = load_wav(wav_path)
     pitch_contour_fn = f"pitch_contour_{wav_text_id}.pt"
@@ -259,9 +263,9 @@ def main():
     parser.add_argument(
         '--ssl_model_ckpt_path',
         type=str,
-        default="/home/pneekhara/NeMo2022/tensorboards/ConformerModels/ConformerCompatibleTry3/ConformerCompatible_Epoch3.ckpt",
+        required=True,
     )
-    parser.add_argument('--manifest_path', type=str, default="/home/pneekhara/NeMo2022/libri_val_formatted.json")
+    parser.add_argument('--manifest_path', type=str, required=True)
     parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--ssl_content_emb_type', type=str, default="embedding_and_probs")
     parser.add_argument('--use_unique_tokens', type=int, default=1)
@@ -272,7 +276,8 @@ def main():
 
     args = parser.parse_args()
 
-    device = "cuda"
+    device = "cuda:0" if torch.cuda.is_available() else "cpu"
+
     manifest_path = args.manifest_path
     ssl_model_ckpt_path = args.ssl_model_ckpt_path
 
