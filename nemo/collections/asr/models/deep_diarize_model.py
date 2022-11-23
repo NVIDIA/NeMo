@@ -271,6 +271,8 @@ class DeepDiarizeModel(ModelPT):
 
         if self.cfg.permute:
             y = self._permutation_mask(speaker_outputs, y)
+        print("FINITE SPEAKER OUTPUTS", torch.isfinite(speaker_outputs).all())
+        print("FINITE ATTRACTORS", torch.isfinite(attractors_speaker_exists).all())
         loss = self._calculate_train_loss(speaker_outputs, y)
         existence_loss = self._calculate_attractor_loss(attractors_speaker_exists, y)
 
