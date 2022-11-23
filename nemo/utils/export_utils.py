@@ -58,7 +58,6 @@ class LinearWithBiasSkip(nn.Module):
             return F.linear(x, self.weight), self.bias
         return F.linear(x, self.weight, self.bias), None
 
-
 def get_export_format(filename: str):
     _, ext = os.path.splitext(filename)
     try:
@@ -142,10 +141,12 @@ def verify_runtime(model, output, input_examples, input_names, check_tolerance=0
         logging.warning(f"ONNX generated at {output}, not verified - please install onnxruntime_gpu package.\n")
         onnx.checker.check_model(onnx_model, full_check=True)
         return
-    del onnx_model
     onnx_session_opt = onnxruntime.SessionOptions()
-    onnx_session_opt.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
-    sess = onnxruntime.InferenceSession(output, sess_options=onnx_session_opt, providers=['CUDAExecutionProvider'])
+    onnx_session_opt.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_BASIC
+    sess = onnxruntime.InferenceSession(
+        onnx_model.SerializeToString(), sess_options=onnx_session_opt, providers=['CUDAExecutionProvider']
+    )
+    del onnx_model
     all_good = True
     for input_example in input_examples:
         input_list, input_dict = parse_input_example(input_example)
@@ -210,7 +211,7 @@ try:
     from apex.transformer.tensor_parallel.layers import RowParallelLinear, ColumnParallelLinear
     from apex.transformer.functional.fused_softmax import FusedScaleMaskSoftmax
 
-    def replace_FusedLayerNorm(n: nn.Module) -> Optional[nn.BatchNorm2d]:
+    def replace_FusedLayerNorm(n: nn.Module) -> Optional[nn.LayerNorm]:
         """
         Replaces Apex's FusedLayerNorm with nn.LayerNorm. This is required for ONNX export.
         Args:
@@ -218,19 +219,16 @@ try:
         Returns:
            Equivalent LayerNorm module
         """
-        if (
-            not isinstance(n, FusedLayerNorm)
-            and not isinstance(n, FastLayerNorm)
-            and not isinstance(n, MixedFusedLayerNorm)
-        ):
+
+        p = next(n.parameters())
+        if isinstance(n, FusedLayerNorm) or isinstance(n, MixedFusedLayerNorm):
+            shape, eps, affine = n.normalized_shape, n.eps, n.elementwise_affine
+        elif isinstance(n, FastLayerNorm):
+            shape, eps, affine = n.weight.shape, n.epsilon, True
+        else:
             return None
 
-        dev = next(n.parameters()).device
-        if isinstance(n, FusedLayerNorm) or isinstance(n, MixedFusedLayerNorm):
-            mod = nn.LayerNorm(n.normalized_shape, eps=n.eps, elementwise_affine=n.elementwise_affine,).to(dev)
-        elif isinstance(n, FastLayerNorm):
-            mod = nn.LayerNorm(n.weight.shape, eps=n.epsilon, elementwise_affine=True, dtype=torch.float16,).to(dev)
-
+        mod = nn.LayerNorm(shape, eps=eps, elementwise_affine=affine, device=p.device, dtype=p.dtype)
         n_state = n.state_dict()
         mod.load_state_dict(n_state)
         return mod
@@ -247,7 +245,7 @@ try:
             raise ValueError("This function can only change the RowParallelLinear module.")
 
         dev = next(n.parameters()).device
-        mod = LinearWithBiasSkip(n.weight, n.bias, n.skip_bias_add).to(dev)
+        mod = LinearWithBiasSkip(n.weight, n.bias, n.skip_bias_add).to(device=dev)
 
         n_state = n.state_dict()
         mod.load_state_dict(n_state)
@@ -331,7 +329,6 @@ def replace_MatchedScaleMaskSoftmax(n: nn.Module) -> Optional[nn.Linear]:
     Returns:
         exportable module
     """
-
     # including the import here to avoid circular imports
     from nemo.collections.nlp.modules.common.megatron.fused_softmax import MatchedScaleMaskSoftmax
 
@@ -339,7 +336,6 @@ def replace_MatchedScaleMaskSoftmax(n: nn.Module) -> Optional[nn.Linear]:
     mod = MatchedScaleMaskSoftmax(
         n.input_in_fp16, n.input_in_bf16, n.attn_mask_type, False, n.mask_func, n.softmax_in_fp32, n.scale
     )
-
     return mod
 
 
