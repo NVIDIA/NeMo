@@ -84,8 +84,8 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin):
             log_prediction=self.cfg.get("log_prediction", False),
         )
 
-    # setting the RNNT decoder as the default one
-    self.use_rnnt_decoder = True
+        # setting the RNNT decoder as the default one
+        self.use_rnnt_decoder = True
 
     @torch.no_grad()
     def transcribe(
