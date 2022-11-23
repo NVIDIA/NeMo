@@ -63,7 +63,6 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         # All of the lines below need to be set when the parent class calls self._build_tokenizer()
-        # Q Why still yttm? I thought we are moving to spm?
         self.encoder_tokenizer_library = cfg.encoder_tokenizer.get('library', 'yttm')
         self.decoder_tokenizer_library = cfg.decoder_tokenizer.get('library', 'yttm')
         self.special_tokens = {}
@@ -209,7 +208,6 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         reduced_loss = super().validation_step(batch, batch_idx)
         tokens_enc, labels, enc_mask = batch['text_enc'], batch['labels'], batch['enc_mask']
 
-        # Q Take care of this. Look at p-tuning 
         predicted_tokens_ids, _ = self.decode(
             tokens_enc,
             enc_mask,

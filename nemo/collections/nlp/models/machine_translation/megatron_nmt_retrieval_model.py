@@ -33,8 +33,9 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 
 try:
     from apex.transformer import parallel_state
-    from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
-
+    from apex.transformer.pipeline_parallel.utils import (
+        _reconfigure_microbatch_calculator
+    )
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
@@ -172,6 +173,13 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
             Overrided from enc_dec_model.py
         """
         def fwd_output_and_loss_func_perceiver(batch, model):
+            """
+            1. Get the embeddings from the embedding matrix and add positional embeddings
+            2. Get the perceiver encodings from self.retriever. Embedding dropout? 
+            3. Concatenate the two
+            4. Pass it to the model forward using encoder inputs option
+            5. Figure out how to do batching here properly
+            """
             batch = [x.cuda(non_blocking=True) for x in batch]
             (
                 encoder_input_ids,
@@ -181,13 +189,7 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
                 encoder_attn_mask, 
                 decoder_attn_mask
             ) = batch[0:6]
-            """
-            1. Get the embeddings from the embedding matrix and add positional embeddings
-            2. Get the perceiver encodings from self.retriever. Embedding dropout? 
-            3. Concatenate the two
-            4. Pass it to the model forward using encoder inputs option
-            5. Figure out how to do batching here properly
-            """
+
             if model.encoder_cfg.get("position_embedding_type", "learned_absolute") != 'relative':
                 enc_position_ids = build_position_ids(encoder_input_ids)
             else:
@@ -279,12 +281,12 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
     
     def eval_step(self, batch, batch_idx, dataloader_idx):
         """"
-        batch comes from collate of RetrievalSeq2Seq and is a dict and is properly formatted.
+        In parent class: batch is bucketed using OLD NMT
+        Here batch comes from collate of RetrievalSeq2Seq and is a dict and is properly formatted.
         """
 
         # Eval step requires text datasets so we need to reconfigure MBS on each batch.
         app_state = AppState()
-
         _reconfigure_microbatch_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
@@ -295,16 +297,66 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
         # This returns the averaged loss across data-parallel groups.
         # gotta call super of super
         reduced_loss = super(MegatronNMTModel, self).validation_step(batch, batch_idx)
-        tokens_enc, labels, enc_mask = batch['text_enc'], batch['labels'], batch['enc_mask']
 
-        # Q Take care of this. Look at p-tuning 
-        predicted_tokens_ids, _ = self.decode(
-            tokens_enc,
-            enc_mask,
-            tokens_enc.size(1)
-            + self._cfg.max_generation_delta,  # Generate up to src-length + max generation delta. TODO: Implement better stopping when everything hits <EOS>.
-            tokenizer=self.decoder_tokenizer,
-        )
+        # Do the retrieval append here
+        if self.cfg.retriever.get('type', False) == 'text':
+            raise NotImplementedError
+        elif self.cfg.retriever.get('type', False) == 'perceiver':
+            batch = self.process_global_batch(batch)
+            batch = [x.cuda(non_blocking=True) for x in batch]
+            (
+                encoder_input_ids,
+                _, 
+                _, 
+                labels, 
+                encoder_attn_mask, 
+                _
+            ) = batch[0:6]
+            tokens_enc = encoder_input_ids
+            model = self.enc_dec_model
+
+            if model.encoder_cfg.get("position_embedding_type", "learned_absolute") != 'relative':
+                enc_position_ids = build_position_ids(encoder_input_ids)
+            else:
+                enc_position_ids = None
+            enc_input = model.encoder_embedding(encoder_input_ids, enc_position_ids, token_type_ids=None)
+            
+            enc_input_append = []
+            for idx in range(self.num_neighbors):
+                # Iterate over the neighbors and get the embeddings
+
+                # TODO: Can club all those calls into one but at the risk of extra padding
+                nn_src_ids = batch[6 + (idx * 4) + 0]
+                nn_tgt_ids = batch[6 + (idx * 4) + 1]
+                nn_src_mask = batch[6 + (idx * 4) + 2]
+                nn_tgt_mask = batch[6 + (idx * 4) + 3]
+                
+                # Compute perceiver embeddings. Dim is [B x S x H]
+                latent_src = self.retrieval_encoder.encode(nn_src_ids, nn_src_mask)
+                latent_tgt = self.retrieval_encoder.encode(nn_tgt_ids, nn_tgt_mask)
+                enc_input_append.append(latent_src)
+                enc_input_append.append(latent_tgt)
+
+            enc_input_append.append(enc_input.transpose(0,1))
+            # join latents with the encoder input embeddings
+            # Concatenate along the sequence dimension
+            enc_input = torch.cat(enc_input_append, dim=1)
+            
+            # Modify the mask to account for the new sequence length
+            prepend_length = 2 * self.num_neighbors * latent_src.shape[1]
+            mask_prepend = torch.ones((encoder_attn_mask.shape[0], prepend_length)).to(encoder_attn_mask.device)
+            encoder_attn_mask = torch.cat((mask_prepend, encoder_attn_mask), dim=1)
+
+            predicted_tokens_ids, _ = self.decode(
+                tokens_enc=tokens_enc, # will be bypassed
+                enc_mask=encoder_attn_mask,
+                encoder_input=enc_input, # bypasses tokens
+                num_tokens_to_generate=tokens_enc.size(1)
+                + self._cfg.max_generation_delta,  # Generate up to src-length + max generation delta. TODO: Implement better stopping when everything hits <EOS>.
+                tokenizer=self.decoder_tokenizer,
+            )
+        else:
+            raise NotImplementedError
 
         if self.multilingual:
             source_processor = self.source_processor_list[dataloader_idx]
@@ -330,7 +382,7 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
             'ground_truths': labels,
             'loss': reduced_loss,
         }
-            
+
 class RetrievalSeq2Seq(Dataset):
     """
     This class defines dataset for retrieval Seq2Seq model.    

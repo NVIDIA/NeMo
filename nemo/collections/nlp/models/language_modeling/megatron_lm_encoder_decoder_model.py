@@ -1073,7 +1073,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             )
 
         # Reset microbatch calculator to what it was before decoding.
-        global_batch_per_gpu = 64
+        global_batch_per_gpu = self.cfg.get('global_batch_per_gpu', 512) # 512 for local and 32 for 16-gpu machine
+
         if reconfigure_microbatch:
             _reconfigure_microbatch_calculator(
                 rank=app_state.global_rank,
@@ -1148,7 +1149,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         # get encoder hiddens (output)
         if enc_output is None:
-            # Encode returns a tensr of shape [batch, seq_len, hidden]
+            # Encode returns a tensor of shape [batch, seq_len, hidden]
             # All ranks will call `.encode()`, but only the last rank will have a non-empty output tensor.
             enc_output = self.encode(
                 tokens_enc=tokens_enc, enc_mask=enc_mask, encoder_input=encoder_input, reconfigure_microbatch=False
