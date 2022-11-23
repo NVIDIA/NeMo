@@ -123,6 +123,7 @@ def consistency_loss(condition, output, lengths):
 
 
 class SpectrogramEnhancerModel(ModelPT, Exportable):
+    """GAN-based model to add details to blurry spectrograms from TTS models like Tacotron or FastPitch."""
     def __init__(self, cfg: DictConfig, trainer: Trainer = None, fastpitch: FastPitchModel = None) -> None:
         self.fastpitch = None
         super().__init__(cfg=cfg, trainer=trainer)
@@ -327,7 +328,7 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
         return None
 
     def save_to(self, save_path: str):
-        # when saving this model for further use in a .nemo file, we do not care about TTS model used to train the n
+        # when saving this model for further use in a .nemo file, we do not care about TTS model used to train it
         if self.fastpitch:
             fastpitch = self._modules.pop("fastpitch")
             super().save_to(save_path)
@@ -358,7 +359,7 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
             grid = torchvision.utils.make_grid(tensor, nrow=1)
 
         # workaround for WandbLogger being put in a separate LoggerCollection (???)
-        # = flatmap
+        # = flatten
         loggers = []
         for logger in self.loggers:
             if isinstance(logger, (list, LoggerCollection)):
