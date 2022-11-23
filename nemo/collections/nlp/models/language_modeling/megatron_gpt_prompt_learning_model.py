@@ -307,9 +307,11 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             limit_vocab = self.cfg.p_tuning.get("limit_vocab", -1)
             normalize = self.cfg.p_tuning.get("normalize", False)
             use_relu = self.cfg.p_tuning.get("use_relu", False)
-            zero_init = self.cfg.p_tuning.get("zero_init", False)
+            init_val = self.cfg.p_tuning.get("init_val", "group")
+            spaced_init = self.cfg.p_tuning.get("spaced_init", False)
+            mask_restrict = self.cfg.p_tuning.get("mask_restrict", False)
             self.prompt_encoder = PromptEncoderLinearCombination(
-                total_virtual_tokens, word_embedding, l1_scale, l2_scale, limit_vocab, normalize, use_relu, zero_init
+                total_virtual_tokens, word_embedding, l1_scale, l2_scale, limit_vocab, normalize, use_relu, init_val, spaced_init, mask_restrict
             )
         elif self.prompt_encoder_type == PromptEncoderType.LINEAR_COMBINATION_BASELINE:
             word_embedding = self.frozen_model.model.language_model.embedding.word_embeddings.weight.data

@@ -326,7 +326,9 @@ class PromptEncoderLinearCombination(NeuralModule, Exportable):
         limit_vocab: int,
         normalize: bool,
         use_relu: bool,
-        zero_init: bool,
+        init_val: bool,
+        spaced_init: bool,
+        mask_restrict: bool,
     ):
         """
         Initializes the PromptEncoder module.
@@ -346,23 +348,38 @@ class PromptEncoderLinearCombination(NeuralModule, Exportable):
         self.l2_scale = l2_scale
         self.normalize = normalize
         self.use_relu = use_relu
-        self.zero_init = zero_init
+        self.spaced_init = spaced_init
+        self.mask_restrict = mask_restrict
 
         assert self.original_embeddings.requires_grad == False
         vocab_size, _ = self.original_embeddings.size()
         group_size = vocab_size // self.total_virtual_tokens
         t = torch.zeros((vocab_size, self.total_virtual_tokens))
-        if not self.zero_init:
-            for i in range(self.total_virtual_tokens):
-                t[i * group_size : (i + 1) * group_size, i] = 1.0 / group_size
+        
+        if init_val == 'group':
+            self.init_val = 1.0 / group_size
+        elif init_val == 'one':
+            self.init_val = 1.0
+        else:
+            self.init_val = 0.0
+        
 
+        for i in range(self.total_virtual_tokens):
+            if self.spaced_init:
+                t[torch.arange(i, vocab_size, group_size), i] = self.init_val
+            else:
+                t[i * group_size : (i + 1) * group_size, i] = self.init_val
+
+        m = torch.ones_like(t)
+        if self.mask_restrict:
+            m = (t > 0.0).int()
+        self.linear_combination_mask = torch.nn.parameter.Parameter(data=m, requires_grad=False)
         self.linear_combination = torch.nn.parameter.Parameter(data=t)
 
     def encoder_reg(self,):
+        w = self.linear_combination * self.linear_combination_mask
         if self.use_relu:
-            w = torch.nn.functional.relu(self.linear_combination)
-        else:
-            w = self.linear_combination
+            w = torch.nn.functional.relu(w)
         l2 = (w ** 2).sum(dim=0)
         l1 = torch.abs(w).sum(dim=0)
         return l1.mean().unsqueeze(0), l2.mean().unsqueeze(0)
@@ -370,15 +387,13 @@ class PromptEncoderLinearCombination(NeuralModule, Exportable):
     @typecheck()
     def forward(self, taskname_embeddings) -> torch.Tensor:
         batch_size, _, _ = taskname_embeddings.shape
+        w = self.linear_combination * self.linear_combination_mask
         if self.use_relu:
-            w = torch.nn.functional.relu(self.linear_combination)
-        else:
-            w = self.linear_combination
+            w = torch.nn.functional.relu(w)
 
         if self.normalize:
             w = w / w.sum(dim=0)
-        else:
-            pass
+
         output_embeds = self.original_embeddings.transpose(0, 1) @ w
         output_embeds = output_embeds.transpose(0, 1)  # (num_virtual_tokens, embedding_size)
         output_embeds = output_embeds.expand(
