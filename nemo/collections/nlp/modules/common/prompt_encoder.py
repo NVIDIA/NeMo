@@ -430,6 +430,8 @@ class PromptEncoderLinearCombinationBaseline(NeuralModule, Exportable):
         vocab_size, embedding_dim = self.original_embeddings.size()
         self.vocab_size = vocab_size
         self.embedding_dim = embedding_dim
+        self.l1_scale = 0.0
+        self.l2_scale = 0.0
 
         assert self.original_embeddings.requires_grad == False
         self.linear_combination = torch.nn.Linear(1, self.total_virtual_tokens * embedding_dim)
