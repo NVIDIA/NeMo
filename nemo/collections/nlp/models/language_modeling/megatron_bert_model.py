@@ -116,8 +116,12 @@ class MegatronBertModel(MegatronBaseModel):
             hidden_dropout=cfg.get('hidden_dropout', 0.1),
             precision=cfg.get('precision', 16),
             fp32_residual_connection=cfg.get('fp32_residual_connection', False),
-            activations_checkpoint_method=cfg.get('activations_checkpoint_method', None),
-            activations_checkpoint_num_layers=cfg.get('activations_checkpoint_num_layers', 1),
+            activations_checkpoint_granularity=self.cfg.get('activations_checkpoint_granularity', None),
+            activations_checkpoint_method=self.cfg.get('activations_checkpoint_method', None),
+            activations_checkpoint_num_layers=self.cfg.get('activations_checkpoint_num_layers', 1),
+            activations_checkpoint_layers_per_pipeline=self.cfg.get(
+                'activations_checkpoint_layers_per_pipeline', None
+            ),
             layernorm_epsilon=cfg.get('layernorm_epsilon', 1e-5),
             masked_softmax_fusion=cfg.get('masked_softmax_fusion', True),
             bias_gelu_fusion=cfg.get('bias_gelu_fusion', True),
@@ -147,7 +151,7 @@ class MegatronBertModel(MegatronBaseModel):
         return fwd_bwd_function
 
     def get_forward_output_and_loss_func(self):
-        def fwd_output_and_loss_func(batch, model):
+        def fwd_output_and_loss_func(batch, model, checkpoint_activations_all_layers=None):
             if parallel_state.get_pipeline_model_parallel_world_size() == 1:
                 batch = [x.cuda(non_blocking=True) for x in batch]
                 tokens, types, sentence_order, loss_mask, lm_labels, padding_mask = batch
@@ -171,7 +175,7 @@ class MegatronBertModel(MegatronBaseModel):
 
             if not self.cfg.bert_binary_head:
                 types = None
-            output_tensor = self.forward(tokens, padding_mask, types, lm_labels)
+            output_tensor = self.forward(tokens, padding_mask, types, lm_labels, checkpoint_activations_all_layers=checkpoint_activations_all_layers)
 
             def loss_func(output_tensor):
                 loss_dict = self.loss_func(loss_mask, sentence_order, output_tensor)
@@ -190,8 +194,8 @@ class MegatronBertModel(MegatronBaseModel):
 
         return fwd_output_and_loss_func
 
-    def forward(self, input_ids, attention_mask, token_type_ids, lm_labels=None):
-        output_tensor = self.model(input_ids, attention_mask, token_type_ids=token_type_ids, lm_labels=lm_labels)
+    def forward(self, input_ids, attention_mask, token_type_ids, lm_labels=None, checkpoint_activations_all_layers=None):
+        output_tensor = self.model(input_ids, attention_mask, token_type_ids=token_type_ids, lm_labels=lm_labels, checkpoint_activations_all_layers = checkpoint_activations_all_layers)
         if parallel_state.is_pipeline_last_stage():
             # Return the output tensor of encoder and transpose from [seq_len, batch, hidden] to [batch, seq_len, hidden]
             if torch.is_tensor(output_tensor):
@@ -245,6 +249,9 @@ class MegatronBertModel(MegatronBaseModel):
             custom_sync_context_handler=custom_sync_context_handler,
             custom_grad_sync_func=custom_grad_sync_func,
             sequence_parallel_enabled=self.cfg.get('sequence_parallel', False),
+            num_micro_batches_with_partial_activation_checkpoints=self.cfg.get(
+                'num_micro_batches_with_partial_activation_checkpoints', None
+            ),
         )
 
         if losses_reduced_per_micro_batch:
