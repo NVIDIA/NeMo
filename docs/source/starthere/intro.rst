@@ -19,7 +19,6 @@ Conversational AI architectures are typically large and require a lot of data an
 for training. NeMo uses `PyTorch Lightning <https://www.pytorchlightning.ai/>`_ for easy and performant multi-GPU/multi-node
 mixed-precision training.
 
-`Pre-trained NeMo models. <https://catalog.ngc.nvidia.com/models?query=nemo&orderBy=weightPopularDESC>`_ 
 
 .. raw:: html
 
@@ -32,13 +31,136 @@ For more information and questions, visit the `NVIDIA NeMo Discussion Board <htt
 Prerequisites
 -------------
 
-Before you begin using NeMo, it's assumed you meet the following prerequisites.
+To use NeMo you'll need:
 
-#. You have Python version 3.6, 3.7 or 3.8.
+#. Python version 3.8 or above
 
-#. You have Pytorch version 1.8.1.
+#. Pytorch version 1.12.0 or above
 
-#. You have access to an NVIDIA GPU for training.
+#. NVIDIA GPU for training.
+
+We test with Ubuntu Linux, typically using docker containers. You may be able to run on MacOS to try models.
+
+Installation
+------------
+Conda
+~~~~~
+
+We recommend installing NeMo in a fresh Conda environment.
+
+.. code-block:: bash
+
+    conda create --name nemo python==3.8
+    conda activate nemo
+
+Install PyTorch using their `configurator <https://pytorch.org/get-started/locally/>`_.
+
+.. code-block:: bash
+
+    conda install pytorch torchvision torchaudio -c pytorch
+
+.. note::
+
+  The command used to install PyTorch may depend on your system.
+
+Pip
+~~~
+Use this installation mode if you want the latest released version.
+
+.. code-block:: bash
+
+    apt-get update && apt-get install -y libsndfile1 ffmpeg
+    pip install Cython
+    pip install nemo_toolkit['all']
+
+.. note::
+
+    Depending on the shell used, you may need to use ``"nemo_toolkit[all]"`` instead in the above command.
+
+Pip from source
+~~~~~~~~~~~~~~~
+Use this installation mode if you want the a version from particular GitHub branch (e.g main).
+
+.. code-block:: bash
+
+    apt-get update && apt-get install -y libsndfile1 ffmpeg
+    pip install Cython
+    python -m pip install git+https://github.com/NVIDIA/NeMo.git@{BRANCH}#egg=nemo_toolkit[all]
+
+
+From source
+~~~~~~~~~~~
+Use this installation mode if you are contributing to NeMo.
+
+.. code-block:: bash
+
+    apt-get update && apt-get install -y libsndfile1 ffmpeg
+    git clone https://github.com/NVIDIA/NeMo
+    cd NeMo
+    ./reinstall.sh
+
+.. note::
+
+    If you only want the toolkit without additional conda-based dependencies, you may replace ``reinstall.sh``
+    with ``pip install -e .`` when your PWD is the root of the NeMo repository.
+
+RNNT
+~~~~
+Note that RNNT requires numba to be installed from conda.
+
+.. code-block:: bash
+
+  conda remove numba
+  pip uninstall numba
+  conda install -c conda-forge numba
+
+NeMo Megatron
+~~~~~~~~~~~~~
+If you are using NeMo Megatron training container everything is already installed.
+NeMo Megatron training requires NVIDIA Apex to be installed.
+Install it manually if not using the NVIDIA PyTorch container.
+
+.. code-block:: bash
+
+    git clone https://github.com/ericharper/apex.git
+    cd apex
+    git checkout nm_v1.11.0
+    pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" --global-option="--distributed_adam" --global-option="--deprecated_fused_adam" ./
+
+Transformer Engine
+~~~~~~~~~~~~~~~~~~
+NeMo Megatron GPT has been integrated with `NVIDIA Transformer Engine <https://github.com/NVIDIA/TransformerEngine>`_
+Transformer Engine enables FP8 training on NVIDIA Hopper GPUs.
+`Install <https://docs.nvidia.com/deeplearning/transformer-engine/user-guide/installation.html>`_ it manually if not using the NVIDIA PyTorch container.
+
+.. note::
+
+  This is an experimental feature. Transformer Engine requires PyTorch to be built with CUDA 11.8.
+
+NeMo Text Processing
+~~~~~~~~~~~~~~~~~~~~
+NeMo Text Processing, specifically (Inverse) Text Normalization, requires `Pynini <https://pypi.org/project/pynini/>`_ to be installed.
+
+.. code-block:: bash
+
+    bash NeMo/nemo_text_processing/install_pynini.sh
+
+Docker containers:
+~~~~~~~~~~~~~~~~~~
+To build a nemo container with Dockerfile from a branch, please run
+
+.. code-block:: bash
+
+    DOCKER_BUILDKIT=1 docker build -f Dockerfile -t nemo:latest .
+
+
+If you chose to work with main branch, we recommend using NVIDIA's PyTorch container version 22.09-py3 and then installing from GitHub.
+
+.. code-block:: bash
+
+    docker run --gpus all -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g \
+    -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit \
+    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:22.09-py3
 
 .. _quick_start_guide:
 
@@ -96,58 +218,6 @@ Below we is the code snippet of Audio Translator application.
     audio = text_to_audio(english_text[0])
 
 
-Installation
-------------
-
-Pip
-~~~
-Use this installation mode if you want the latest released version.
-
-.. code-block:: bash
-
-    apt-get update && apt-get install -y libsndfile1 ffmpeg
-    pip install Cython
-    pip install nemo_toolkit[all]
-
-Pip from source
-~~~~~~~~~~~~~~~
-Use this installation mode if you want the version from a particular GitHub branch (for example, ``main``).
-
-.. code-block:: bash
-
-    apt-get update && apt-get install -y libsndfile1 ffmpeg
-    pip install Cython
-    python -m pip install git+https://github.com/NVIDIA/NeMo.git@{BRANCH}#egg=nemo_toolkit[all]
-    # For v1.0.2, replace {BRANCH} with v1.0.2 like so:
-    # python -m pip install git+https://github.com/NVIDIA/NeMo.git@v1.0.2#egg=nemo_toolkit[all]
-
-From source
-~~~~~~~~~~~
-Use this installation mode if you are contributing to NeMo.
-
-.. code-block:: bash
-
-    apt-get update && apt-get install -y libsndfile1 ffmpeg
-    git clone https://github.com/NVIDIA/NeMo
-    cd NeMo
-    ./reinstall.sh
-
-Docker containers
-~~~~~~~~~~~~~~~~~
-To build a nemo container with Dockerfile from a branch,  please run 
-
-.. code-block:: bash
-
-    DOCKER_BUILDKIT=1 docker build -f Dockerfile -t nemo:latest.
-
-
-If you chose to work with the ``main`` branch, we recommend using `NVIDIA's PyTorch container version 21.05-py3 <https://ngc.nvidia.com/containers/nvidia:pytorch/tags>`_, then install from GitHub.
-
-.. code-block:: bash
-
-    docker run --gpus all -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g \
-    -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit \
-    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:21.05-py3
 
 
 `FAQ <https://github.com/NVIDIA/NeMo/discussions>`_
