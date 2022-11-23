@@ -37,8 +37,11 @@ from nemo.collections.nlp.modules.common import (
     VirtualPromptSource,
     VirtualPromptStyle,
 )
-from nemo.collections.nlp.modules.common.prompt_encoder import PromptEncoderLinearCombination
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
+from nemo.collections.nlp.modules.common.prompt_encoder import (
+    PromptEncoderLinearCombination,
+    PromptEncoderLinearCombinationBaseline,
+)
 from nemo.collections.nlp.modules.common.text_generation_utils import (
     get_default_length_params,
     get_default_sampling_params,
@@ -299,7 +302,20 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             )
         elif self.prompt_encoder_type == PromptEncoderType.LINEAR_COMBINATION:
             word_embedding = self.frozen_model.model.language_model.embedding.word_embeddings.weight.data
-            self.prompt_encoder = PromptEncoderLinearCombination(total_virtual_tokens, word_embedding)
+            l1_scale = self.cfg.p_tuning.get("l1_scale", 0.0)
+            l2_scale = self.cfg.p_tuning.get("l2_scale", 0.0)
+            limit_vocab = self.cfg.p_tuning.get("limit_vocab", -1)
+            normalize = self.cfg.p_tuning.get("normalize", False)
+            use_relu = self.cfg.p_tuning.get("use_relu", False)
+            zero_init = self.cfg.p_tuning.get("zero_init", False)
+            self.prompt_encoder = PromptEncoderLinearCombination(
+                total_virtual_tokens, word_embedding, l1_scale, l2_scale, limit_vocab, normalize, use_relu, zero_init
+            )
+        elif self.prompt_encoder_type == PromptEncoderType.LINEAR_COMBINATION_BASELINE:
+            word_embedding = self.frozen_model.model.language_model.embedding.word_embeddings.weight.data
+            self.prompt_encoder = PromptEncoderLinearCombinationBaseline(
+                total_virtual_tokens, word_embedding
+            )
         else:
             raise ValueError('not supported')
         # cast the model weights to bf16 only for 'bf16' precision
@@ -317,7 +333,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         weights during inference or future p-tuning/prompt-tuning.
         """
         if self.prompt_encoder_type == PromptEncoderType.LINEAR_COMBINATION:
-            return 
+            return
         # Save p-tuned prompts to prompt table
         if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING and self.frozen_model.model.pre_process:
             for taskname in self.new_tasks:
@@ -922,12 +938,17 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
             def loss_func(output_tensor):
                 loss = self.frozen_model.loss_func(loss_mask, output_tensor)
+                reduced_loss = average_losses_across_data_parallel_group([loss])
                 if hasattr(self, 'prompt_encoder') and hasattr(self.prompt_encoder, 'encoder_reg'):
                     w_l1, w_l2 = self.prompt_encoder.encoder_reg()
+                    l1_scale = self.prompt_encoder.l1_scale
+                    l2_scale = self.prompt_encoder.l1_scale
+                    final_loss = loss + (l1_scale * w_l1) + (l2_scale * w_l2)
                 else:
                     w_l1, w_l2 = torch.tensor(0.0).unsqueeze(0), torch.tensor(0.0).unsqueeze(0)
-                reduced_loss = average_losses_across_data_parallel_group([loss])
-                return loss, {'avg': reduced_loss, "w_l2": w_l2, "w_l1": w_l1}
+                    l1_scale, l2_scale = 0.0, 0.0
+                    final_loss = loss
+                return final_loss, {'avg': reduced_loss, "w_l2": w_l2, "w_l1": w_l1}
 
             return output_tensor, loss_func
 
