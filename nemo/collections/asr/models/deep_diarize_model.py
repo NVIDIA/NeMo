@@ -354,14 +354,16 @@ class DeepDiarizeModel(ModelPT):
             speaker_outputs = self.decoder(attractors, encoded_xl_features)
             speaker_outputs = self._apply_mask(attractors_speaker_exists.unsqueeze(0), speaker_outputs)
 
+            speaker_outputs_sigmoid = speaker_outputs.sigmoid().squeeze(0)
             for k, metric in self.segment_metrics.items():
-                metric(speaker_outputs.squeeze(0), segment_annotation)
+                metric(speaker_outputs_sigmoid, segment_annotation)
             segment_loss += self._calculate_val_loss(speaker_outputs, fr_level_y)
             speech_activity = (
                 speaker_outputs if speech_activity is None else torch.cat((speech_activity, speaker_outputs), dim=1)
             )
+        speech_activity_sigmoid = speech_activity.sigmoid().squeeze(0)
         for name, metric in self.call_metrics.items():
-            metric(speech_activity.squeeze(0), annotations)
+            metric(speech_activity_sigmoid, annotations)
             self.log(name, metric, sync_dist=True)
 
         for name, metric in self.segment_metrics.items():
