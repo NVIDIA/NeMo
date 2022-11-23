@@ -126,23 +126,23 @@ pipeline {
       parallel {
         stage('En TN grammars') {
           steps {
-            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize.py --text="1" --cache_dir /home/TestData/nlp/text_norm/ci/grammars/7-29-22'
+            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize.py --text="1" --cache_dir /home/TestData/nlp/text_norm/ci/grammars/11-16-22'
           }
         }
         stage('En ITN grammars') {
           steps {
-            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/inverse_text_normalization/inverse_normalize.py --language en --text="twenty" --cache_dir /home/TestData/nlp/text_norm/ci/grammars/7-29-22'
+            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/inverse_text_normalization/inverse_normalize.py --language en --text="twenty" --cache_dir /home/TestData/nlp/text_norm/ci/grammars/11-16-22'
           }
         }
         stage('Test En non-deterministic TN & Run all En TN/ITN tests (restore grammars from cache)') {
           steps {
-            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize_with_audio.py --text "\$.01" --n_tagged 2 --cache_dir /home/TestData/nlp/text_norm/ci/grammars/7-29-22'
-            sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/en/ -m "not pleasefixme" --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci/grammars/7-29-22'
+            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize_with_audio.py --text "\$.01" --n_tagged 2 --cache_dir /home/TestData/nlp/text_norm/ci/grammars/11-16-22'
+            sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/en/ -m "not pleasefixme" --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci/grammars/11-16-22'
           }
         }
         stage('Test En Hybrid TN') {
           steps {
-            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/hybrid/wfst_lm_rescoring.py --data /home/TestData/nlp/text_norm/hybrid_tn/test.txt --regenerate_pkl --cache_dir /home/TestData/nlp/text_norm/ci/grammars/7-29-22 | grep "all_correct: True" || exit 1'
+            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/hybrid/wfst_lm_rescoring.py --data /home/TestData/nlp/text_norm/hybrid_tn/test.txt --regenerate_pkl --cache_dir /home/TestData/nlp/text_norm/ci/grammars/11-16-22 | grep "all_correct: True" || exit 1'
           }
         }
       }
@@ -159,7 +159,7 @@ pipeline {
       parallel {
         stage('L2: Eng TN') {
           steps {
-            sh 'cd tools/text_processing_deployment && python pynini_export.py --output=/home/TestData/nlp/text_norm/output/ --grammars=tn_grammars --cache_dir /home/TestData/nlp/text_norm/ci/grammars/7-29-22 --language=en && ls -R /home/TestData/nlp/text_norm/output/ && echo ".far files created "|| exit 1'
+            sh 'cd tools/text_processing_deployment && python pynini_export.py --output=/home/TestData/nlp/text_norm/output/ --grammars=tn_grammars --cache_dir /home/TestData/nlp/text_norm/ci/grammars/11-16-22 --language=en && ls -R /home/TestData/nlp/text_norm/output/ && echo ".far files created "|| exit 1'
             sh 'cd nemo_text_processing/text_normalization/ &&  python normalize.py --input_file=/home/TestData/nlp/text_norm/ci/test.txt --input_case="lower_cased" --language=en --output_file=/home/TestData/nlp/text_norm/output/test.pynini.txt --verbose'
             sh 'cat /home/TestData/nlp/text_norm/output/test.pynini.txt'
             sh 'cmp --silent /home/TestData/nlp/text_norm/output/test.pynini.txt /home/TestData/nlp/text_norm/ci/test_goal_py_05-25.txt || exit 1'
@@ -169,7 +169,7 @@ pipeline {
 
         stage('L2: Eng ITN export') {
           steps {
-            sh 'cd tools/text_processing_deployment && python pynini_export.py --output=/home/TestData/nlp/text_denorm/output/ --grammars=itn_grammars --cache_dir /home/TestData/nlp/text_norm/ci/grammars/7-29-22 --language=en && ls -R /home/TestData/nlp/text_denorm/output/ && echo ".far files created "|| exit 1'
+            sh 'cd tools/text_processing_deployment && python pynini_export.py --output=/home/TestData/nlp/text_denorm/output/ --grammars=itn_grammars --cache_dir /home/TestData/nlp/text_norm/ci/grammars/11-16-22 --language=en && ls -R /home/TestData/nlp/text_denorm/output/ && echo ".far files created "|| exit 1'
             sh 'cd nemo_text_processing/inverse_text_normalization/ &&  python inverse_normalize.py --input_file=/home/TestData/nlp/text_denorm/ci/test.txt --language=en --output_file=/home/TestData/nlp/text_denorm/output/test.pynini.txt --verbose'
             sh 'cmp --silent /home/TestData/nlp/text_denorm/output/test.pynini.txt /home/TestData/nlp/text_denorm/ci/test_goal_py.txt || exit 1'
             sh 'rm -rf /home/TestData/nlp/text_denorm/output/*'
@@ -178,7 +178,7 @@ pipeline {
         stage('L2: TN with Audio (audio and raw text)') {
           steps {
             sh 'cd nemo_text_processing/text_normalization && \
-            python normalize_with_audio.py --language=en --cache_dir /home/TestData/nlp/text_norm/ci/grammars/7-29-22 --text "The total amounts to \\$4.76." \
+            python normalize_with_audio.py --language=en --cache_dir /home/TestData/nlp/text_norm/ci/grammars/11-16-22 --text "The total amounts to \\$4.76." \
             --audio_data /home/TestData/nlp/text_norm/audio_based/audio.wav | tail -n2 | head -n1 > /tmp/out_raw.txt 2>&1 && \
             cmp --silent /tmp/out_raw.txt /home/TestData/nlp/text_norm/audio_based/result.txt || exit 1'
           }
@@ -186,7 +186,7 @@ pipeline {
         stage('L2: TN with Audio (audio and text file)') {
           steps {
             sh 'cd nemo_text_processing/text_normalization && \
-            python normalize_with_audio.py --language=en --cache_dir /home/TestData/nlp/text_norm/ci/grammars/7-29-22 --text /home/TestData/nlp/text_norm/audio_based/text.txt \
+            python normalize_with_audio.py --language=en --cache_dir /home/TestData/nlp/text_norm/ci/grammars/11-16-22 --text /home/TestData/nlp/text_norm/audio_based/text.txt \
             --audio_data /home/TestData/nlp/text_norm/audio_based/audio.wav | tail -n2 | head -n1 > /tmp/out_file.txt 2>&1 && \
             cmp --silent /tmp/out_file.txt /home/TestData/nlp/text_norm/audio_based/result.txt || exit 1'
           }
@@ -194,7 +194,7 @@ pipeline {
         stage('L2: TN with Audio (manifest)') {
           steps {
             sh 'cd nemo_text_processing/text_normalization && \
-            python normalize_with_audio.py --language=en --audio_data /home/TestData/nlp/text_norm/audio_based/manifest.json --n_tagged=120 --cache_dir /home/TestData/nlp/text_norm/ci/grammars/7-29-22'
+            python normalize_with_audio.py --language=en --audio_data /home/TestData/nlp/text_norm/audio_based/manifest.json --n_tagged=120 --cache_dir /home/TestData/nlp/text_norm/ci/grammars/11-16-22'
           }
         }
       }
@@ -4254,7 +4254,9 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             validation_datasets=/home/TestData/an4_dataset/an4_val.json \
             sup_data_path=/home/TestData/an4_dataset/beta_priors \
             trainer.devices="[0]" \
-            +trainer.limit_train_batches=1 +trainer.limit_val_batches=1 trainer.max_epochs=1 \
+            +trainer.limit_train_batches=1 \
+            +trainer.limit_val_batches=1 \
+            trainer.max_epochs=1 \
             trainer.strategy=null \
             model.pitch_mean=212.35873413085938 \
             model.pitch_std=68.52806091308594 \
@@ -4272,6 +4274,31 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             ~model.text_normalizer_call_kwargs'
           }
         }
+        stage('RADTTS') {
+          steps {
+            sh 'python examples/tts/radtts.py \
+            train_dataset=/home/TestData/an4_dataset/an4_train.json \
+            validation_datasets=/home/TestData/an4_dataset/an4_val.json \
+            sup_data_path=/home/TestData/an4_dataset/radtts_beta_priors \
+            trainer.devices="[0]" \
+            +trainer.limit_train_batches=1 \
+            +trainer.limit_val_batches=1 \
+            trainer.max_epochs=1 \
+            trainer.strategy=null \
+            model.pitch_mean=212.35873413085938 \
+            model.pitch_std=68.52806091308594 \
+            model.train_ds.dataloader_params.batch_size=4 \
+            model.train_ds.dataloader_params.num_workers=0 \
+            model.validation_ds.dataloader_params.batch_size=4 \
+            model.validation_ds.dataloader_params.num_workers=0 \
+            export_dir=/home/TestData/radtts_test \
+            model.optim.lr=0.0001 \
+            model.modelConfig.decoder_use_partial_padding=True \
+            ~trainer.check_val_every_n_epoch \
+            ~model.text_normalizer \
+            ~model.text_normalizer_call_kwargs'
+          }
+        }
         stage('Mixer-TTS') {
           steps {
             sh 'python examples/tts/mixer_tts.py \
@@ -4279,7 +4306,9 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             validation_datasets=/home/TestData/an4_dataset/an4_val.json \
             sup_data_path=/home/TestData/an4_dataset/sup_data \
             trainer.devices="[0]" \
-            +trainer.limit_train_batches=1 +trainer.limit_val_batches=1 trainer.max_epochs=1 \
+            +trainer.limit_train_batches=1 \
+            +trainer.limit_val_batches=1 \
+            trainer.max_epochs=1 \
             trainer.strategy=null \
             model.pitch_mean=212.35873413085938 \
             model.pitch_std=68.52806091308594 \
@@ -4298,7 +4327,9 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
             train_dataset=/home/TestData/an4_dataset/an4_train.json \
             validation_datasets=/home/TestData/an4_dataset/an4_val.json \
             trainer.devices="[0]" \
-            +trainer.limit_train_batches=1 +trainer.limit_val_batches=1 +trainer.max_epochs=1 \
+            +trainer.limit_train_batches=1 \
+            +trainer.limit_val_batches=1 \
+            +trainer.max_epochs=1 \
             trainer.strategy=null \
             model.train_ds.dataloader_params.batch_size=4 \
             model.train_ds.dataloader_params.num_workers=0 \
