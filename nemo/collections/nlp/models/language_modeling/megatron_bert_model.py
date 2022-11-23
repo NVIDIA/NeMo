@@ -244,7 +244,7 @@ class MegatronBertModel(MegatronBaseModel):
             grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
             custom_sync_context_handler=custom_sync_context_handler,
             custom_grad_sync_func=custom_grad_sync_func,
-            equence_parallel_enabled=self.cfg.get('sequence_parallel', False),
+            sequence_parallel_enabled=self.cfg.get('sequence_parallel', False),
         )
 
         if losses_reduced_per_micro_batch:

@@ -235,14 +235,10 @@ class BertModel(MegatronModule):
                 if self.sequence_parallel:
                     hidden_states = tensor_parallel.gather_from_sequence_parallel_region()
                     pooled = hidden_states[sequence_index, :, :]
-
-                get_linear_layer(hidden_size, hidden_size, init_method)
+                    get_linear_layer(pooled)
+                else:
+                    get_linear_layer(hidden_size, 2, init_method)
                 """
-                
-                      if self.sequence_parallel:
-            hidden_states = tensor_parallel.gather_from_sequence_parallel_region()
-
-        
                 self.binary_head = get_linear_layer(hidden_size, 2, init_method)
                 self._binary_head_key = 'binary_head'
 
