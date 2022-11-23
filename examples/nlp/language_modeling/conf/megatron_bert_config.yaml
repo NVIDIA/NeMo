@@ -88,6 +88,7 @@ model:
   gradient_as_bucket_view: True # PyTorch DDP argument. Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
   
   # not implemented in NeMo yet
+  activations_checkpoint_granularity: null # 'selective' or 'full'
   activations_checkpoint_method: null # 'uniform', 'block'
   activations_checkpoint_num_layers: 1 
 
