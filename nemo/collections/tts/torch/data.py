@@ -1139,6 +1139,7 @@ class FastPitchSSLDataset(Dataset):
 
         data = []
         total_duration = 0
+        # TODO: Reuse code for reading manifests across all tts datasets
         for manifest_file in self.manifest_filepath:
             with open(Path(manifest_file).expanduser(), 'r') as f:
                 logging.info(f"Loading dataset from {manifest_file}.")
@@ -1192,7 +1193,9 @@ class FastPitchSSLDataset(Dataset):
             if speaker_stats_pitch_fp is None:
                 speaker_stats_pitch_fp = os.path.join(sup_data_dir, "speaker_pitch_stats.json")
 
-            assert os.path.exists(speaker_stats_pitch_fp), "speaker_stats_pitch_fp {} does not exist".format(
+            assert os.path.exists(
+                speaker_stats_pitch_fp
+            ), "speaker_stats_pitch_fp {} does not exist. Make sure to run scripts/ssl_tts/make_supdata.py before training.".format(
                 speaker_stats_pitch_fp
             )
 
@@ -1229,17 +1232,23 @@ class FastPitchSSLDataset(Dataset):
         if os.path.exists(content_emb_fp):
             content_embedding = torch.load(content_emb_fp)
         else:
-            raise ValueError(f"Content embedding file {content_emb_fp} does not exist")
+            raise ValueError(
+                f"Content embedding file {content_emb_fp} does not exist. Make sure to run scripts/ssl_tts/make_supdata.py before training."
+            )
 
         if os.path.exists(speaker_emb_fp):
             speaker_embedding = torch.load(speaker_emb_fp)
         else:
-            raise ValueError(f"Speaker embedding file {speaker_emb_fp} does not exist")
+            raise ValueError(
+                f"Speaker embedding file {speaker_emb_fp} does not exist. Make sure to run scripts/ssl_tts/make_supdata.py before training."
+            )
 
         if os.path.exists(duration_fp):
             duration = torch.load(duration_fp)
         else:
-            raise ValueError(f"Duration file {duration_fp} does not exist")
+            raise ValueError(
+                f"Duration file {duration_fp} does not exist. Make sure to run scripts/ssl_tts/make_supdata.py before training."
+            )
 
         encoded_len = torch.tensor(content_embedding.shape[1]).long()
 
@@ -1251,7 +1260,9 @@ class FastPitchSSLDataset(Dataset):
         if os.path.exists(pitch_contour_fp):
             return torch.load(pitch_contour_fp)
         else:
-            raise ValueError(f"Pitch contour file {pitch_contour_fp} does not exist")
+            raise ValueError(
+                f"Pitch contour file {pitch_contour_fp} does not exist. Make sure to run scripts/ssl_tts/make_supdata.py before training."
+            )
 
     def get_mel_spectrogram(self, wav_text_id):
         mel_spec_fn = f"mel_spec_{wav_text_id}.pt"
@@ -1259,7 +1270,9 @@ class FastPitchSSLDataset(Dataset):
         if os.path.exists(mel_spec_fp):
             return torch.load(mel_spec_fp)
         else:
-            raise ValueError(f"Mel spectrogram file {mel_spec_fp} does not exist")
+            raise ValueError(
+                f"Mel spectrogram file {mel_spec_fp} does not exist. Make sure to run scripts/ssl_tts/make_supdata.py before training."
+            )
 
     def pad_collate_fn(self, batch):
         """

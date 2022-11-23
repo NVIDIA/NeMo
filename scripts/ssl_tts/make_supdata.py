@@ -33,12 +33,9 @@ from nemo.collections.tts.torch.helpers import get_base_dir
 from nemo.core.classes import Dataset
 from nemo.utils import logging
 
-SUP_DATA_DIR = None
-
 
 class AudioDataset(Dataset):
-    def __init__(self, manifest_path, min_duration=0.5, max_duration=16.0):
-        global SUP_DATA_DIR
+    def __init__(self, manifest_path, min_duration=0.5, max_duration=16.0, pad_multiple=1024, sample_rate=22050):
         self.manifest_path = manifest_path
         self.data = []
         with open(manifest_path, "r") as f:
@@ -52,9 +49,9 @@ class AudioDataset(Dataset):
         self.sup_data_dir = os.path.join(self.base_data_dir, "sup_data")
         if not os.path.exists(self.sup_data_dir):
             os.makedirs(self.sup_data_dir)
-        SUP_DATA_DIR = self.sup_data_dir
-        self.pad_multiple = 1024
-        self.sample_rate = 22050
+
+        self.pad_multiple = pad_multiple
+        self.sample_rate = sample_rate
 
     def __len__(self):
         return len(self.data)
@@ -73,8 +70,6 @@ class AudioDataset(Dataset):
             )
             audio_length = torch.tensor(audio.shape[0]).long()
 
-        # print("audio", audio.shape)
-        # print("audio_length", audio_length)
         return audio, audio_length
 
     def pad_collate_fn(self, batch):
@@ -116,7 +111,7 @@ class AudioDataset(Dataset):
         }
 
 
-def segment_wav(wav, segment_length=44100, hop_size=22050, min_segment_size=22050):
+def segment_wav(wav, segment_length, segment_hop_size, min_segment_length):
     if len(wav) < segment_length:
         pad = torch.zeros(segment_length - len(wav))
         segment = torch.cat([wav, pad])
@@ -124,17 +119,17 @@ def segment_wav(wav, segment_length=44100, hop_size=22050, min_segment_size=2205
     else:
         si = 0
         segments = []
-        while si < len(wav) - min_segment_size:
+        while si < len(wav) - min_segment_length:
             segment = wav[si : si + segment_length]
             if len(segment) < segment_length:
                 pad = torch.zeros(segment_length - len(segment))
                 segment = torch.cat([segment, pad])
             segments.append(segment)
-            si += hop_size
+            si += segment_hop_size
         return segments
 
 
-def segment_batch(batch):
+def segment_batch(batch, segment_length=44100, segment_hop_size=22050, min_segment_length=22050):
     all_segments = []
     segment_indices = []
     si = 0
@@ -142,7 +137,7 @@ def segment_batch(batch):
         audio = batch['audio'][bidx]
         audio_length = batch['audio_len'][bidx]
         audio_actual = audio[:audio_length]
-        audio_segments = segment_wav(audio_actual)
+        audio_segments = segment_wav(audio_actual, segment_length, segment_hop_size, min_segment_length)
         all_segments += audio_segments
         segment_indices.append((si, si + len(audio_segments) - 1))
         si += len(audio_segments)
@@ -150,20 +145,20 @@ def segment_batch(batch):
     return torch.stack(all_segments), segment_indices
 
 
-def get_mel_spectrogram(fb, wav):
+def get_mel_spectrogram(fb, wav, stft_params):
     EPSILON = 1e-9
     window_fn = torch.hann_window
 
     spec = torch.stft(
         input=wav,
-        n_fft=1024,
-        hop_length=256,
-        win_length=1024,
-        window=window_fn(1024, periodic=False).to(torch.float).to('cuda') if window_fn else None,
+        n_fft=stft_params['n_fft'],  # 1024
+        hop_length=stft_params['hop_length'],  # 256
+        win_length=stft_params['win_length'],  # 1024
+        window=window_fn(stft_params['win_length'], periodic=False).to(torch.float).to('cuda') if window_fn else None,
         return_complex=True,
         center=True,
     )
-    # print("spec", s`pec.shape)
+
     if spec.dtype in [torch.cfloat, torch.cdouble]:
         spec = torch.view_as_real(spec)
     spec = torch.sqrt(spec.pow(2).sum(-1) + EPSILON)
@@ -174,8 +169,8 @@ def get_mel_spectrogram(fb, wav):
     return log_mel
 
 
-def load_wav(wav_path, pad_multiple=1024):
-    wav = AudioSegment.segment_from_file(wav_path, target_sr=22050, n_segments=-1, trim=False,).samples
+def load_wav(wav_path, sample_rate=22050, pad_multiple=1024):
+    wav = AudioSegment.segment_from_file(wav_path, target_sr=sample_rate, n_segments=-1, trim=False,).samples
 
     if wav.shape[0] % pad_multiple != 0:
         wav = np.concatenate([wav, np.zeros(pad_multiple - wav.shape[0] % pad_multiple)])
@@ -184,40 +179,44 @@ def load_wav(wav_path, pad_multiple=1024):
     return wav
 
 
-def save_pitch_contour(wav_and_id, sup_data_dir):
-    wav_path, wav_text_id = wav_and_id[0], wav_and_id[1]
-    wav = load_wav(wav_path)
+def save_pitch_contour(record):
+    wav_path = record['wav_path']
+    wav_text_id = record['wav_id']
+    sup_data_dir = record['sup_data_dir']
+    stft_params = record['stft_params']
+    wav = load_wav(wav_path, stft_params['sample_rate'], stft_params['pad_multiple'])
     pitch_contour_fn = f"pitch_contour_{wav_text_id}.pt"
     pitch_contour_fp = os.path.join(sup_data_dir, pitch_contour_fn)
 
     f0, _, _ = librosa.pyin(
         wav,
         fmin=librosa.note_to_hz('C2'),
-        fmax=500,
-        frame_length=1024,
-        hop_length=256,
-        sr=22050,
+        fmax=stft_params['yin_fmax'],
+        frame_length=stft_params['win_length'],
+        hop_length=stft_params['hop_length'],
+        sr=stft_params['sample_rate'],
         center=True,
         fill_na=0.0,
     )
 
     pitch_contour = torch.tensor(f0, dtype=torch.float32)
     torch.save(pitch_contour, pitch_contour_fp)
-    print("saved", pitch_contour_fp)
+    logging.info("saved {}".format(pitch_contour_fp))
 
     return pitch_contour
 
 
-def compute_pitch_stats(wav_and_id_list):
+def compute_pitch_stats(records):
     def _is_valid_pitch(pitch_mean, pitch_std):
         c1 = pitch_mean > 0 and pitch_mean < 1000
         c2 = pitch_std > 0 and pitch_std < 1000
         return c1 and c2
 
-    sup_data_dir = SUP_DATA_DIR
     speaker_wise_pitch_contours = {}
-    for item in wav_and_id_list:
-        _, wav_id, speaker = item
+    for item in records:
+        wav_id = item['wav_id']
+        speaker = item['speaker']
+        sup_data_dir = item['sup_data_dir']
         pitch_contour_fn = f"pitch_contour_{wav_id}.pt"
         pitch_contour_fp = os.path.join(sup_data_dir, pitch_contour_fn)
         if speaker not in speaker_wise_pitch_contours:
@@ -240,12 +239,12 @@ def compute_pitch_stats(wav_and_id_list):
             valid = True
 
             if not _is_valid_pitch(pitch_mean, pitch_std):
-                print("invalid pitch: {}".format(speaker))
+                logging.warning("invalid pitch: {}".format(speaker))
                 pitch_mean = 212.0
                 pitch_std = 70.0
                 valid = "False"
         else:
-            print("could not find pitch contour for speaker {}".format(speaker))
+            logging.warning("could not find pitch contour for speaker {}".format(speaker))
             valid = "False"
             pitch_mean = 212.0
             pitch_std = 70.0
@@ -261,9 +260,7 @@ def compute_pitch_stats(wav_and_id_list):
 def main():
     parser = argparse.ArgumentParser(description='Evaluate the model')
     parser.add_argument(
-        '--ssl_model_ckpt_path',
-        type=str,
-        required=True,
+        '--ssl_model_ckpt_path', type=str, required=True,
     )
     parser.add_argument('--manifest_path', type=str, required=True)
     parser.add_argument('--batch_size', type=int, default=32)
@@ -273,6 +270,19 @@ def main():
     parser.add_argument('--pool_workers', type=int, default=30)
     parser.add_argument('--compute_pitch_contours', type=int, default=1)
     parser.add_argument('--num_pitch_per_speaker', type=int, default=None)  # saves time.
+    parser.add_argument('--sample_rate', type=int, default=22050)
+    parser.add_argument('--pad_multiple', type=int, default=1024)
+    parser.add_argument('--ssl_downsampling_factor', type=int, default=4)
+    parser.add_argument('--stft_n_fft', type=int, default=1024)
+    parser.add_argument('--stft_hop_length', type=int, default=256)
+    parser.add_argument('--stft_win_length', type=int, default=1024)
+    parser.add_argument('--stft_n_mel', type=int, default=80)
+    parser.add_argument('--stft_fmin', type=int, default=0)
+    parser.add_argument('--stft_fmax', type=int, default=8000)
+    parser.add_argument('--yin_fmax', type=int, default=500)
+    parser.add_argument('--segment_length', type=int, default=44100)
+    parser.add_argument('--segment_hop_size', type=int, default=22050)
+    parser.add_argument('--min_segment_length', type=int, default=22050)
 
     args = parser.parse_args()
 
@@ -281,7 +291,7 @@ def main():
     manifest_path = args.manifest_path
     ssl_model_ckpt_path = args.ssl_model_ckpt_path
 
-    dataset = AudioDataset(manifest_path)
+    dataset = AudioDataset(manifest_path, pad_multiple=args.pad_multiple, sample_rate=args.sample_rate)
     dataloader = torch.utils.data.DataLoader(
         dataset,
         batch_size=args.batch_size,
@@ -298,8 +308,30 @@ def main():
     ssl_model.eval()
     ssl_model.to(device)
 
+    sample_rate = args.sample_rate
+    stft_params = {
+        "n_fft": args.stft_n_fft,
+        "hop_length": args.stft_hop_length,
+        "win_length": args.stft_win_length,
+        "n_mel": args.stft_n_mel,
+        "sample_rate": sample_rate,
+        "pad_multiple": args.pad_multiple,
+        "fmin": args.stft_fmin,
+        "fmax": args.stft_fmax,
+        "yin_fmax": args.yin_fmax,
+    }
+
     fb = (
-        torch.tensor(librosa.filters.mel(sr=22050, n_fft=1024, n_mels=80, fmin=0, fmax=8000), dtype=torch.float,)
+        torch.tensor(
+            librosa.filters.mel(
+                sr=sample_rate,
+                n_fft=stft_params['n_fft'],
+                n_mels=stft_params['n_mel'],
+                fmin=stft_params['fmin'],
+                fmax=stft_params['fmax'],
+            ),
+            dtype=torch.float,
+        )
         .unsqueeze(0)
         .to(device)
     )
@@ -323,8 +355,10 @@ def main():
                 normalize_content=True,
             )
 
-            batch_mel_specs = get_mel_spectrogram(fb, batch['audio'][:, :-1].to(device))
-            audio_segmented, segment_indices = segment_batch(batch)
+            batch_mel_specs = get_mel_spectrogram(fb, batch['audio'][:, :-1].to(device), stft_params)
+            audio_segmented, segment_indices = segment_batch(
+                batch, args.segment_length, args.segment_hop_size, args.min_segment_length
+            )
             audio_seg_len = torch.tensor([len(segment) for segment in audio_segmented]).to(device).long()
 
             _, batch_speaker_embeddings, _, _, _ = ssl_model.forward_for_export(
@@ -346,7 +380,7 @@ def main():
                 content_log_probs = content_log_probs.t()
                 content_probs = torch.exp(content_log_probs)
 
-                duration = torch.ones(content_embedding.shape[1]) * 4.0
+                duration = torch.ones(content_embedding.shape[1]) * args.ssl_downsampling_factor
 
                 bsi_start = segment_indices[idx][0]
                 bsi_end = segment_indices[idx][1]
@@ -366,7 +400,6 @@ def main():
 
                 if args.use_unique_tokens == 1:
                     token_predictions = torch.argmax(content_probs, dim=0)
-                    # print("token predictions:", token_predictions)
                     content_buffer = [final_content_embedding[:, 0]]
                     unique_content_embeddings = []
                     unique_tokens = []
@@ -375,25 +408,23 @@ def main():
                         if token_predictions[_t] == token_predictions[_t - 1]:
                             content_buffer.append(final_content_embedding[:, _t])
                         else:
-                            durations.append(len(content_buffer) * 4)
+                            durations.append(len(content_buffer) * args.ssl_downsampling_factor)
                             unique_content_embeddings.append(torch.mean(torch.stack(content_buffer), dim=0))
                             content_buffer = [final_content_embedding[:, _t]]
                             unique_tokens.append(token_predictions[_t].item())
 
                     if len(content_buffer) > 0:
-                        durations.append(len(content_buffer) * 4)
+                        durations.append(len(content_buffer) * args.ssl_downsampling_factor)
                         unique_content_embeddings.append(torch.mean(torch.stack(content_buffer), dim=0))
                         unique_tokens.append(token_predictions[_t].item())
 
                     unique_content_embedding = torch.stack(unique_content_embeddings)
                     final_content_embedding = unique_content_embedding.t()
                     duration = torch.tensor(durations).float()
-                    # print("duration ds", duration)
                     encoded_len = torch.tensor(final_content_embedding.shape[1]).long()
 
-                mel_len = int(batch['audio_len'][idx].item() / 256.0)
+                mel_len = int(batch['audio_len'][idx].item() / stft_params['hop_length'])
                 item_mel = batch_mel_specs[idx][:, :mel_len]
-                # print("item mel shape: ", item_mel.shape)
 
                 wav_text_id = batch["rel_audio_path_as_text_id"][idx]
                 content_emb_fn = f"{args.ssl_content_emb_type}_content_embedding_{wav_text_id}.pt"
@@ -412,27 +443,39 @@ def main():
                 torch.save(duration.cpu(), duration_fp)
 
             et = time.time()
-            print("Time per batch", bidx, len(dataloader), (et - st) / bidx)
+            logging.info(
+                "Processed Batch {} of {} | Time per batch: {:.4f} s".format(
+                    bidx + 1, len(dataloader), (et - st) / bidx
+                )
+            )
 
     if args.compute_pitch_contours == 1:
-        speaker_wise_fps = {}
+        speaker_wise_records = {}
         for row in wav_and_id_list:
             wav_path, wav_id, speaker = row
-            if speaker not in speaker_wise_fps:
-                speaker_wise_fps[speaker] = []
-            speaker_wise_fps[speaker].append(row)
+            if speaker not in speaker_wise_records:
+                speaker_wise_records[speaker] = []
+            speaker_wise_records[speaker].append(
+                {
+                    "wav_path": wav_path,
+                    "wav_id": wav_id,
+                    "sup_data_dir": dataset.sup_data_dir,
+                    "stft_params": stft_params,
+                    "speaker": speaker,
+                }
+            )
 
-        filtered_wav_and_id_list = []
-        for speaker in speaker_wise_fps:
+        filtered_records = []
+        for speaker in speaker_wise_records:
             if args.num_pitch_per_speaker is not None:
-                filtered_wav_and_id_list += speaker_wise_fps[speaker][: args.num_pitch_per_speaker]
+                filtered_records += speaker_wise_records[speaker][: args.num_pitch_per_speaker]
             else:
-                filtered_wav_and_id_list += speaker_wise_fps[speaker]
+                filtered_records += speaker_wise_records[speaker]
 
         with Pool(args.pool_workers) as p:
-            p.map(save_pitch_contour, filtered_wav_and_id_list)
+            p.map(save_pitch_contour, filtered_records)
 
-        compute_pitch_stats(filtered_wav_and_id_list)
+        compute_pitch_stats(filtered_records)
 
 
 if __name__ == '__main__':
