@@ -12,7 +12,6 @@ elif [[ "$TEST_TASK" = "xquad_ckpt" ]]; then
     params+=(evaluation.model.pretrained_checkpoint.checkpoint_dir=$CHECKPOINT_DIR)
     params+=(evaluation.model.pretrained_checkpoint.checkpoint_name="'${CHECKPOINT_NAME}'")
     params+=(evaluation.model.pretrained_checkpoint.hparams_file=$HPARAMS_FILE)
-  fi
   if [[ ! -z $LOCAL_NEMO_PATH ]]; then
     params+=("container_mounts=[${LOCAL_NEMO_PATH}:/opt/bignlp/NeMo]")
   fi
