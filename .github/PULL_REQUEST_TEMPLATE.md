@@ -19,7 +19,7 @@ Add a one line overview of what this PR aims to accomplish.
 - [ ] Did you add or update any necessary documentation?
 - [ ] Does the PR affect components that are optional to install? (Ex: Numba, Pynini, Apex etc)
 - [ ] Reviewer: Does the PR have correct import guards for all optional libraries?
-- [ ] Did you add GitHub tags on the right? e.g Add `ASR`, `bug` for an ASR bugfix
+- [ ] Did you add GitHub labels on the right? e.g Add `ASR`, `bug` for an ASR bugfix
 
 
 If you haven't finished some of the above items you can still open "Draft" PR.
