@@ -71,7 +71,7 @@ class BertLMHead(MegatronModule):
     """
 
     def __init__(
-        self, mpu_vocab_size, hidden_size, init_method, layernorm_epsilon, parallel_output, use_openai_gelu, onnx_safe
+        self, mpu_vocab_size, hidden_size, init_method, layernorm_epsilon, parallel_output, use_openai_gelu, onnx_safe, sequence_parallel
     ):
 
         super(BertLMHead, self).__init__()
@@ -79,6 +79,7 @@ class BertLMHead(MegatronModule):
         self.bias = torch.nn.Parameter(torch.zeros(mpu_vocab_size))
         set_tensor_model_parallel_attributes(self.bias, True, 0, 1)
         self.parallel_output = parallel_output
+        self.sequence_parallel = sequence_parallel
 
         self.dense = get_linear_layer(hidden_size, hidden_size, init_method)
         self.layernorm = get_layer_norm(hidden_size, eps=layernorm_epsilon)
@@ -105,7 +106,7 @@ class BertLMHead(MegatronModule):
 
 
 def post_language_model_processing(
-    lm_output, pooled_output, lm_head, binary_head, lm_labels, logit_weights, fp16_lm_cross_entropy,sequence_parallel=False,
+    lm_output, pooled_output, lm_head, binary_head, lm_labels, logit_weights, fp16_lm_cross_entropy,
 ):
     # lm_logits: [s, b, vocab_size]
     lm_logits = lm_head(lm_output, logit_weights)
@@ -224,10 +225,24 @@ class BertModel(MegatronModule):
                 parallel_output,
                 openai_gelu,
                 onnx_safe,
+                sequence_parallel,
             )
             self._lm_head_key = 'lm_head'
             self.binary_head = None
             if self.add_binary_head:
+                """
+                should we do something like this here for sequence parallel
+                if self.sequence_parallel:
+                    hidden_states = tensor_parallel.gather_from_sequence_parallel_region()
+                    pooled = hidden_states[sequence_index, :, :]
+
+                get_linear_layer(hidden_size, hidden_size, init_method)
+                """
+                
+                      if self.sequence_parallel:
+            hidden_states = tensor_parallel.gather_from_sequence_parallel_region()
+
+        
                 self.binary_head = get_linear_layer(hidden_size, 2, init_method)
                 self._binary_head_key = 'binary_head'
 
@@ -264,7 +279,6 @@ class BertModel(MegatronModule):
                 lm_labels,
                 self.word_embeddings_weight(),
                 self.fp16_lm_cross_entropy,
-                sequence_parallel=self.sequence_parallel,
             )
         else:
             return lm_output

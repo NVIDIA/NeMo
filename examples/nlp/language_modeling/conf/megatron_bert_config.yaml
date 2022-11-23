@@ -91,6 +91,11 @@ model:
   activations_checkpoint_method: null # 'uniform', 'block'
   activations_checkpoint_num_layers: 1 
 
+  ## Sequence Parallelism
+  # Makes tensor parallelism more memory efficient for LLMs (20B+) by parallelizing layer norms and dropout sequentially
+  # See Reducing Activation Recomputation in Large Transformer Models: https://arxiv.org/abs/2205.05198 for more details.
+  sequence_parallel: False
+  
   data:
     # Path to data must be specified by the user.
     # can override from the CLI: "model.data.data_prefix=[.5,/raid/data/pile/my-gpt3_00_text_document,.5,/raid/data/pile/my-gpt3_01_text_document]",
