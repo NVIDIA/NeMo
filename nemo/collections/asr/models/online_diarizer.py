@@ -15,14 +15,13 @@
 import os
 import time
 from copy import deepcopy
-import numpy as np
 import torch
 from omegaconf import DictConfig
 from typing import Dict
 from nemo.collections.asr.models import ClusteringDiarizer
 from nemo.collections.asr.parts.utils.nmesc_clustering import (
     OnlineSpeakerClustering,
-    getTempInterpolMultiScaleCosAffinityMatrix,
+    get_scale_interpolated_embs,
     split_input_data,
 )
 from nemo.collections.asr.parts.utils.speaker_utils import (
@@ -32,7 +31,6 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
     get_embs_and_timestamps,
 )
 from nemo.utils import logging, model_utils
-from dataclasses import dataclass, is_dataclass
 
 __all__ = ['OnlineClusteringDiarizer']
 
@@ -60,7 +58,8 @@ def timeit(method):
     return timed
 
 class OnlineClusteringDiarizer(ClusteringDiarizer):
-    """A class that enables online (streaming) clustering based diarization.
+    """
+    A class that enables online (streaming) clustering based diarization.
 
     - The instance created from `OnlineClusteringDiarizer` sets aside a certain amount of memory
       to provide the upcoming inference with history information
@@ -107,7 +106,8 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
         self._speaker_model.eval()
 
     def _init_online_clustering_module(self, clustering_params):
-        """Initialize online speaker clustering module
+        """
+        Initialize online speaker clustering module
 
         Attributes:
             online_clus (OnlineSpeakerClustering):
@@ -134,7 +134,9 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
         self.max_num_speakers = self.online_clus.max_num_speakers
 
     def _init_online_segmentor_module(self, sample_rate):
-        """Initialize an online segmentor module
+        """
+        Initialize an online segmentor module
+
         Attributes:
             online_segmentor (OnlineSegmentor):
                 online segmentation module that generates short speech segments from the VAD input
@@ -151,7 +153,7 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
                 This memory margin is dependent on the base scale length: margin = (buffer_length)/(base scale shift)
                 memory margin is automatically calculated to have minimal memory usage
             memory_segment_ranges (dict):
-                The segment range information kept in the memory buffer 
+                The segment range information kept in the memory buffer
             memory_segment_indexes (dict):
                 The segment indexes kept in the memory buffer
             memory_cluster_labels (Tensor):
@@ -211,6 +213,10 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
             |___Buffer___[___________]____________|
             |____________[   Frame   ]____________|
 
+            | <- buffer_start
+            |____________| <- frame_start
+            |_____________________________________| <- buffer_end
+
             buffer_start = 12.0
             buffer_end = 17.0
             frame_start = 14.0
@@ -258,10 +264,16 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
         self._init_temporal_major_voting_module()
         self._init_buffer_frame_timestamps()
 
-    def _clear_memory(self, scale_idx):
+    def _clear_memory(self, scale_idx: int):
         """
         Calculate how many segments should be removed from memory (`memory_margin`) and
-        save the necessary information
+        save the necessary information.
+        `keep_range` determines how many segments and their corresponding embedding, raw audio,
+        timestamps in the memory of the online diarizer instance.
+
+        Args:
+            scale_idx (int):
+                Scale index in integer type
         """
         base_scale_shift = self.multiscale_args_dict['scale_dict'][self.base_scale_index][1]
         self.memory_margin = int((self.buffer_end - self.buffer_start) / base_scale_shift)
@@ -278,7 +290,7 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
         self.segment_indexes[scale_idx] = self.segment_indexes[scale_idx][-keep_range:]
 
     @timeit
-    def _temporal_label_major_vote(self):
+    def _temporal_label_major_vote(self) -> torch.Tensor:
         """
         Take a majority voting for every segment on temporal steps. This feature significantly reduces the error coming
         from unstable speaker counting in the beginning of sessions.
@@ -304,9 +316,10 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
         scale_idx: int, 
         total_cluster_labels: torch.Tensor, 
         isOnline: bool,
-    ):
+    ) -> torch.Tensor:
         """
         Save the temporary input to the class memory buffer.
+
         - Clustering is done for (hist_N + curr_N) number of embeddings.
         - Thus, we need to remove the clustering results on the embedding memory.
         - If self.diar.history_buffer_seg_end is not None, that indicates streaming diarization system
@@ -390,7 +403,7 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
         self, 
         audio_signal: torch.Tensor,
         segment_ranges: torch.Tensor, 
-        embeddings):
+        embeddings) -> torch.Tensor:
         """
         Incrementally extract speaker embeddings based on audio_signal and segment_ranges varialbes.
         Unlike offline speaker diarization, speaker embedding and subsegment ranges are not saved to disk.
@@ -404,6 +417,7 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
                 Previously existing Torch tensor containing speaker embedding vector
             segment_ranges(Tensor):
                 Torch tensor containing the start and end of each segment
+
         Returns:
             embeddings (Tensor):
                 Concatenated speaker embedding vectors that match segment range information in `segment_ranges`.
@@ -429,7 +443,18 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
         self, 
         uniq_embs_and_timestamps: Dict[str, torch.Tensor], 
         cuda=False,
-    ):
+    ) -> torch.Tensor:
+        """
+        Launch online clustering for `uniq_embs_and_timestamps` input variable.
+
+        Args:
+            uniq_embs_and_timestamps (dict):
+                Dictionary containing embeddings, timestamps and multiscale weights.
+                If uniq_embs_and_timestamps contains only one scale, single scale diarization
+                is performed.
+            cuda (bool):
+                Boolean indicator for cuda usages
+        """
         device = torch.device("cuda") if cuda else torch.device("cpu")
 
         # Get base-scale (the highest index) information from uniq_embs_and_timestamps.
@@ -439,7 +464,7 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
             multiscale_segment_counts=uniq_embs_and_timestamps['multiscale_segment_counts'],
         )
 
-        curr_emb, self.scale_mapping_dict = getTempInterpolMultiScaleCosAffinityMatrix(
+        curr_emb, self.scale_mapping_dict = get_scale_interpolated_embs(
             multiscale_weights=uniq_embs_and_timestamps['multiscale_weights'],
             embeddings_in_scales=embeddings_in_scales,
             timestamps_in_scales=timestamps_in_scales,
@@ -447,14 +472,14 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
         )
 
         concat_emb, add_new = self.online_clus.get_reduced_mat(
-            emb=curr_emb, base_segment_indexes=self.segment_indexes[self.base_scale_index]
+            emb_in=curr_emb, base_segment_indexes=self.segment_indexes[self.base_scale_index]
         )
         
         # Perform online version of clustering with history-concatenated embedding vectors
         Y_concat = self.online_clus.forward_infer(emb=concat_emb, frame_index=self.frame_index, cuda=cuda, device=device)
 
         # Match the permutation of the newly obtained speaker labels and the previous labels
-        merged_clus_labels = self.online_clus.macth_labels(Y_concat, add_new, self.online_clus.isOnline)
+        merged_clus_labels = self.online_clus.match_labels(Y_concat, add_new)
 
         # Update history data
         for scale_idx, (window, shift) in self.multiscale_args_dict['scale_dict'].items():
@@ -486,7 +511,7 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
         A function for a unit diarization step. Each diarization step goes through the following steps:
 
         1. Segmentation:
-            Using `OnlineSegmentor` class, call `run_online_segmentation` methoed to get the segmentations.
+            Using `OnlineSegmentor` class, call `run_online_segmentation` method to get the segments.
         2. Embedding Extraction:
             Extract multiscale embeddings from the extracted speech segments.
         3. Online Clustering & Counting

@@ -1,3 +1,4 @@
+# pylint: disable=no-member
 # Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,7 +20,6 @@ import pytest
 import torch
 
 from nemo.collections.asr.parts.utils.nmesc_clustering import (
-    SpeakerClustering,
     get_merge_quantity,
     get_closest_embeddings,
     get_minimal_indices,
@@ -28,11 +28,12 @@ from nemo.collections.asr.parts.utils.nmesc_clustering import (
     run_reducer,
     split_input_data,
     stitch_cluster_labels,
+    SpeakerClustering,
     OnlineSpeakerClustering,
 )
 from nemo.collections.asr.parts.utils.speaker_utils import (
-    combine_float_overlaps,
-    combine_int_overlaps,
+    merge_float_intervals,
+    merge_int_intervals,
     get_subsegments,
     get_speech_labels_for_update,
     get_new_cursor_for_update,
@@ -71,7 +72,7 @@ def generate_mock_emb(n_emb_per_spk, perturb_sigma, emb_dim):
     return torch.rand(1, emb_dim).repeat(n_emb_per_spk, 1) + perturb_sigma * torch.rand(n_emb_per_spk, emb_dim)
 
 
-def generate_mock_data(
+def generate_toy_data(
     n_spks=2,
     spk_dur=3,
     emb_dim=192,
@@ -80,7 +81,6 @@ def generate_mock_data(
     ms_shift=[0.75, 0.5, 0.25],
     torch_seed=0,
 ):
-
     torch.manual_seed(torch_seed)
     spk_timestamps = [(spk_dur * k, spk_dur) for k in range(n_spks)]
     emb_list, seg_list = [], []
@@ -106,49 +106,35 @@ def generate_mock_data(
     return emb_tensor, segm_tensor, multiscale_segment_counts, multiscale_weights, spk_timestamps, ground_truth
 
 
-@pytest.mark.run_only_on('GPU')
-def test_speaker_counting(n_spks=3, total_dur_sec=30, num_speakers=-1, max_num_speakers=5, cuda=True):
-    speaker_clustering_python = SpeakerClustering(maj_vote_spk_count=False, cuda=cuda)
-    each_spk_dur = float(total_dur_sec / n_spks)
-    em, ts, mc, mw, _, _ = generate_mock_data(n_spks=n_spks, spk_dur=each_spk_dur)
-    Y = speaker_clustering_python.forward_infer(
-        embeddings_in_scales=em,
-        timestamps_in_scales=ts,
-        multiscale_segment_counts=mc,
-        multiscale_weights=mw,
-        oracle_num_speakers=num_speakers,
-        max_num_speakers=max_num_speakers,
-    )
-    return len(set(Y.tolist()))
-
-
 class TestDiarizationUtilFunctions:
+    """Tests diarization and speaker-task related utils.
     """
-    Tests diarization and speaker-task related utils.
-    Test functions include:
-        - Segment interval merging function
-        - Embedding merging
-    """
-
     @pytest.mark.unit
-    def test_combine_float_overlaps(self):
-        intervals = [[0.25, 1.7], [1.5, 3.0], [2.8, 5.0], [5.5, 10.0]]
-        target = [[0.25, 5.0], [5.5, 10.0]]
-        merged = combine_float_overlaps(intervals)
-        assert check_range_values(target, merged)
-
-    @pytest.mark.unit
-    def test_combine_int_overlaps(self):
+    def test_merge_int_intervals_ex1(self):
         intervals = [[1, 3], [2, 6], [8, 10], [15, 18]]
         target = [[1, 6], [8, 10], [15, 18]]
-        merged = combine_int_overlaps(intervals)
+        merged = merge_int_intervals(intervals)
         assert check_range_values(target, merged)
 
     @pytest.mark.unit
-    def test_combine_int_overlaps_edge(self):
+    def test_merge_int_intervals_ex2(self):
+        intervals = [[6, 8], [1, 9], [2, 4], [4, 7]]
+        target = [[1, 9]]
+        merged = merge_int_intervals(intervals)
+        assert check_range_values(target, merged)
+    
+    @pytest.mark.unit
+    def test_merge_float_overlaps(self):
+        intervals = [[0.25, 1.7], [1.5, 3.0], [2.8, 5.0], [5.5, 10.0]]
+        target = [[0.25, 5.0], [5.5, 10.0]]
+        merged = merge_float_intervals(intervals)
+        assert check_range_values(target, merged)
+
+    @pytest.mark.unit
+    def test_merge_int_intervals_edge_test(self):
         intervals = [[1, 4], [4, 5]]
         target = [[1, 5]]
-        merged = combine_int_overlaps(intervals)
+        merged = merge_int_intervals(intervals)
         assert check_range_values(target, merged)
 
     @pytest.mark.unit
@@ -240,7 +226,7 @@ class TestDiarizationUtilFunctions:
     @pytest.mark.parametrize("n_spks", [2, 3, 4, 5])
     @pytest.mark.parametrize("merge_quantity", [2, 3])
     def test_embedding_merger(self, n_spks, merge_quantity):
-        em, ts, mc, mw, spk_ts, gt = generate_mock_data(n_spks, spk_dur=5, perturb_sigma=10)
+        em, ts, mc, mw, spk_ts, gt = generate_toy_data(n_spks, spk_dur=5, perturb_sigma=10)
         em_s, ts_s = split_input_data(em, ts, mc)
         base_scale_idx = len(em_s) - 1
         target_speaker_index = 0
@@ -264,7 +250,7 @@ class TestDiarizationUtilFunctions:
     @pytest.mark.parametrize("target_speaker_index", [0, 1, 2])
     @pytest.mark.parametrize("merge_quantity", [2, 3])
     def test_embedding_reducer(self, n_spks, target_speaker_index, merge_quantity):
-        em, ts, mc, mw, spk_ts, gt = generate_mock_data(n_spks=n_spks, spk_dur=10)
+        em, ts, mc, mw, spk_ts, gt = generate_toy_data(n_spks=n_spks, spk_dur=10)
         em_s, ts_s = split_input_data(em, ts, mc)
         base_scale_idx = len(em_s) - 1
         merged_embs, merged_clus_labels, _ = run_reducer(
@@ -296,7 +282,7 @@ class TestDiarizationUtilFunctions:
     def test_get_online_subsegments_from_buffer(self):
         torch.manual_seed(0)
         sample_rate=16000
-        speech_labels_for_update=torch.tensor([[0.0000, 3.7600]])
+        speech_labels_for_update=torch.Tensor([[0.0000, 3.7600]])
         audio_buffer=torch.randn(5*sample_rate)
         segment_indexes=[]
         window=2.0
@@ -319,8 +305,8 @@ class TestDiarizationUtilFunctions:
             if len(signal) < int(window*sample_rate):
                 signal = repeat_signal(signal, len(signal), slice_length)
             assert len(signal) == int(slice_length), "Length mismatch"
-            assert ((np.abs(signal - sigs_list[k]) ).sum() < 1e-8)
-        assert (torch.tensor(sig_indexes) - torch.arange(len(range_target))).sum() < 1e-8
+            assert ((np.abs(signal - sigs_list[k]) ).sum() < 1e-8), "Audio stream mismatch"
+        assert (torch.tensor(sig_indexes) - torch.arange(len(range_target))).sum() < 1e-8, "Segment index mismatch"
 
             
     @pytest.mark.unit
@@ -345,10 +331,10 @@ class TestDiarizationUtilFunctions:
     @pytest.mark.parametrize("gt_cursor_for_old_segments", [4.0])
     @pytest.mark.parametrize("gt_cursor_index", [3])
     def test_get_new_cursor_for_update_mulsegs(
-        self, 
-        frame_start, 
-        segment_range_ts, 
-        gt_cursor_for_old_segments, 
+        self,
+        frame_start,
+        segment_range_ts,
+        gt_cursor_for_old_segments,
         gt_cursor_index
         ):
         cursor_for_old_segments, cursor_index = get_new_cursor_for_update(frame_start, segment_range_ts)
@@ -378,7 +364,6 @@ class TestDiarizationUtilFunctions:
             min_count_per_cluster=mspb,
         )
         assert all(class_target_vol == torch.tensor([3, 0, 0]))
-    
     
     @pytest.mark.unit
     @pytest.mark.parametrize("ntbr", [132 - 45])
@@ -426,7 +411,8 @@ class TestSpeakerClustering:
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
-    def test_clus_script_export(self):
+    @pytest.mark.parametrize("n_spks", [1, 2])
+    def test_clus_script_export(self, n_spks, total_dur_sec=30):
         exported_filename = 'speaker_clustering_script.pt'
         speaker_clustering_python = SpeakerClustering(maj_vote_spk_count=False, cuda=True)
         speaker_clustering_scripted_source = torch.jit.script(speaker_clustering_python)
@@ -435,10 +421,9 @@ class TestSpeakerClustering:
         assert os.path.exists(exported_filename)
         os.remove(exported_filename)
         assert not os.path.exists(exported_filename)
-        total_dur_sec = 30
-        n_spks = 3
+        
         each_spk_dur = float(total_dur_sec / n_spks)
-        em, ts, mc, mw, spk_ts, gt = generate_mock_data(n_spks=n_spks, spk_dur=each_spk_dur)
+        em, ts, mc, mw, _, _ = generate_toy_data(n_spks=n_spks, spk_dur=each_spk_dur)
         num_speakers = -1
         max_num_speakers = 8
         enhanced_count_thres = 80
@@ -499,24 +484,12 @@ class TestSpeakerClustering:
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     @pytest.mark.parametrize("n_spks", [1, 2])
-    def test_speaker_counting_cpu_spk_(self, n_spks):
-        est_n_spk = test_speaker_counting(n_spks=n_spks, cuda=False)
-        assert est_n_spk == n_spks, f"Clustering test failed at n_spks={n_spks} speaker test"
-
-    @pytest.mark.run_only_on('GPU')
-    @pytest.mark.unit
-    @pytest.mark.parametrize("n_spks", [1, 2, 3, 4, 5])
-    def test_speaker_counting_gpu_spk_(self, n_spks):
-        est_n_spk = test_speaker_counting(n_spks=n_spks)
-        assert est_n_spk == n_spks, f"Clustering test failed at n_spks={n_spks} speaker test"
-    
-    @pytest.mark.run_only_on('GPU')
-    @pytest.mark.unit
-    @pytest.mark.parametrize("n_spks", [1, 2, 3, 4, 5])
-    @pytest.mark.parametrize("SSV", [3, 10])
-    def test_offline_speaker_clustering(self, n_spks, SSV):
-        em, ts, mc, mw, spk_ts, gt = generate_mock_data(n_spks, spk_dur=10, perturb_sigma=2.0)
-        offline_speaker_clustering = SpeakerClustering(maj_vote_spk_count=False, cuda=True)
+    @pytest.mark.parametrize("spk_dur", [6])
+    @pytest.mark.parametrize("SSV", [10])
+    @pytest.mark.parametrize("perturb_sigma", [0.1])
+    def test_offline_speaker_clustering_cpu(self, n_spks, spk_dur, SSV, perturb_sigma):
+        em, ts, mc, mw, spk_ts, gt = generate_toy_data(n_spks=n_spks, spk_dur=spk_dur, perturb_sigma=perturb_sigma)
+        offline_speaker_clustering = SpeakerClustering(maj_vote_spk_count=False, cuda=False)
         assert isinstance(offline_speaker_clustering, SpeakerClustering)
 
         Y_out = offline_speaker_clustering.forward_infer(
@@ -526,44 +499,112 @@ class TestSpeakerClustering:
             multiscale_weights=mw,
             oracle_num_speakers=-1,
             max_num_speakers=8,
-            enhanced_count_thres=80,
+            enhanced_count_thres=40,
             sparse_search_volume=SSV,
             max_rp_threshold=0.15,
             fixed_thres=-1.0,
             )
         permuted_Y = stitch_cluster_labels(Y_old=gt, Y_new=Y_out)
+
+        # mc[-1] is the number of base scale segments
+        assert len(set(permuted_Y.tolist())) == n_spks
+        assert Y_out.shape[0] == mc[-1]
         assert all(permuted_Y == gt)
-        
+    
+    
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.unit
+    @pytest.mark.parametrize("n_spks", [1, 2])
+    @pytest.mark.parametrize("spk_dur", [6])
+    @pytest.mark.parametrize("SSV", [10])
+    @pytest.mark.parametrize("perturb_sigma", [0.1])
+    def test_offline_speaker_clustering_gpu(self, n_spks, spk_dur, SSV, perturb_sigma):
+        em, ts, mc, mw, spk_ts, gt = generate_toy_data(n_spks=n_spks, spk_dur=spk_dur, perturb_sigma=perturb_sigma)
+        offline_speaker_clustering = SpeakerClustering(maj_vote_spk_count=False, cuda=False)
+        assert isinstance(offline_speaker_clustering, SpeakerClustering)
+
+        Y_out = offline_speaker_clustering.forward_infer(
+            embeddings_in_scales=em,
+            timestamps_in_scales=ts,
+            multiscale_segment_counts=mc,
+            multiscale_weights=mw,
+            oracle_num_speakers=-1,
+            max_num_speakers=8,
+            enhanced_count_thres=40,
+            sparse_search_volume=SSV,
+            max_rp_threshold=0.15,
+            fixed_thres=-1.0,
+            )
+        permuted_Y = stitch_cluster_labels(Y_old=gt, Y_new=Y_out)
+
+        # mc[-1] is the number of base scale segments
+        assert len(set(permuted_Y.tolist())) == n_spks
+        assert Y_out.shape[0] == mc[-1]
+        assert all(permuted_Y == gt)
+    
+
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.unit
+    @pytest.mark.parametrize("n_spks", [1])
+    @pytest.mark.parametrize("spk_dur", [0.25, 0.5, 0.75, 1, 2, 4])
+    @pytest.mark.parametrize("SSV", [5])
+    @pytest.mark.parametrize("enhanced_count_thres", [40])
+    @pytest.mark.parametrize("min_samples_for_nmesc", [6])
+    def test_offline_speaker_clustering_very_short(self, n_spks, spk_dur, SSV, enhanced_count_thres, min_samples_for_nmesc):
+        em, ts, mc, mw, spk_ts, gt = generate_toy_data(n_spks=n_spks, spk_dur=spk_dur, perturb_sigma=0.1)
+        offline_speaker_clustering = SpeakerClustering(maj_vote_spk_count=False, min_samples_for_nmesc=0, cuda=True)
+        assert isinstance(offline_speaker_clustering, SpeakerClustering)
+        Y_out = offline_speaker_clustering.forward_infer(
+            embeddings_in_scales=em,
+            timestamps_in_scales=ts,
+            multiscale_segment_counts=mc,
+            multiscale_weights=mw,
+            oracle_num_speakers=-1,
+            max_num_speakers=8,
+            enhanced_count_thres=enhanced_count_thres,
+            sparse_search_volume=SSV,
+            max_rp_threshold=0.15,
+            fixed_thres=-1.0,
+            )
+        permuted_Y = stitch_cluster_labels(Y_old=gt, Y_new=Y_out)
+
+        # mc[-1] is the number of base scale segments
+        assert len(set(permuted_Y.tolist())) == n_spks
+        assert Y_out.shape[0] == mc[-1]
+        assert all(permuted_Y == gt)
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     @pytest.mark.parametrize("n_spks", [1, 2, 3, 4])
-    def test_online_speaker_clustering(self, n_spks):
-        spk_dur = 20  if n_spks == 1 else 10
-        em, ts, mc, mw, spk_ts, gt = generate_mock_data(n_spks, spk_dur=spk_dur, perturb_sigma=0.1)
+    @pytest.mark.parametrize("buffer_size", [20])
+    def test_online_speaker_clustering(self, n_spks, buffer_size):
+        step_per_frame = 2
+        spk_dur = 20 if n_spks == 1 else 10
+        em, ts, mc, _, _, gt = generate_toy_data(n_spks, spk_dur=spk_dur, perturb_sigma=0.1)
         em_s, ts_s = split_input_data(em, ts, mc)
-        base_scale_idx = len(em_s) - 1
 
-        emb_gen = em_s[base_scale_idx]
-        segment_indexes = ts_s[base_scale_idx]
+        emb_gen = em_s[-1]
+        segment_indexes = ts_s[-1]
         if torch.cuda.is_available():
             emb_gen, segment_indexes = emb_gen.to("cuda"), segment_indexes.to("cuda")
             cuda = True
         else:
             cuda = False
+
         device = emb_gen.device
+        history_buffer_size = buffer_size
+        current_buffer_size = buffer_size
 
         online_clus = OnlineSpeakerClustering(
             max_num_speakers=8,
             max_rp_threshold=0.15,
             sparse_search_volume=5,
-            history_buffer_size=20,
-            current_buffer_size=20,
+            history_buffer_size=history_buffer_size,
+            current_buffer_size=current_buffer_size,
             cuda=cuda,
             device=device,
             )
 
-        step_per_frame = 2
         n_frames = int(emb_gen.shape[0]/step_per_frame)
         evaluation_list = []
 
@@ -574,8 +615,12 @@ class TestSpeakerClustering:
            
             # Save history embeddings
             concat_emb, add_new = online_clus.get_reduced_mat(
-                emb=curr_emb, base_segment_indexes=base_segment_indexes
+                emb_in=curr_emb, base_segment_indexes=base_segment_indexes
             )
+
+            # Check history_buffer_size and history labels
+            assert online_clus.history_embedding_buffer_emb.shape[0] <= history_buffer_size, "History buffer size error"
+            assert online_clus.history_embedding_buffer_emb.shape[0] == online_clus.history_embedding_buffer_label.shape[0]
             
             # Call clustering function
             Y_concat = online_clus.forward_infer(emb=concat_emb, 
@@ -584,12 +629,12 @@ class TestSpeakerClustering:
                                                  device=device)
             
             # Resolve permutations
-            merged_clus_labels = online_clus.macth_labels(Y_concat, add_new=add_new, isOnline=online_clus.isOnline)
+            merged_clus_labels = online_clus.match_labels(Y_concat, add_new=add_new)
             assert len(merged_clus_labels) == (frame_index+1)*step_per_frame
+            
             # Resolve permutation issue by using stitch_cluster_labels function
             merged_clus_labels = stitch_cluster_labels(Y_old=gt[:len(merged_clus_labels)], Y_new=merged_clus_labels)
             evaluation_list.extend(list(merged_clus_labels == gt[:len(merged_clus_labels)]))
-
         
         assert online_clus.isOnline
         assert add_new

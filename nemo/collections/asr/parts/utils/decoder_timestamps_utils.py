@@ -336,7 +336,7 @@ class ASRDecoderTimeStamps:
             self.encdec_class = EncDecCTCModelBPE
             self.decoder_delay_in_sec = if_none_get_default(self.params['decoder_delay_in_sec'], 0.08)
             self.word_ts_anchor_offset = if_none_get_default(self.params['word_ts_anchor_offset'], 0.12)
-            self.asr_batch_size = if_none_get_default(self.params['asr_batch_size'], 16)
+            self.asr_batch_size = if_none_get_default(self.params['asr_batch_size'], 1)
             self.model_stride_in_secs = 0.04
 
             # Conformer requires buffered inference and the parameters for buffered processing.
@@ -588,16 +588,16 @@ class ASRDecoderTimeStamps:
         # Disable config overwriting
         OmegaConf.set_struct(cfg.preprocessor, True)
 
-        onset_delay = (
+        self.onset_delay = (
             math.ceil(((self.total_buffer_in_secs - self.chunk_len_in_sec) / 2) / self.model_stride_in_secs) + 1
         )
-        mid_delay = math.ceil(
+        self.mid_delay = math.ceil(
             (self.chunk_len_in_sec + (self.total_buffer_in_secs - self.chunk_len_in_sec) / 2)
             / self.model_stride_in_secs
         )
-        tokens_per_chunk = math.ceil(self.chunk_len_in_sec / self.model_stride_in_secs)
+        self.tokens_per_chunk = math.ceil(self.chunk_len_in_sec / self.model_stride_in_secs)
 
-        return onset_delay, mid_delay, tokens_per_chunk
+        return self.onset_delay, self.mid_delay, self.tokens_per_chunk
 
     def run_ASR_BPE_CTC(self, asr_model: Type[EncDecCTCModelBPE]) -> Tuple[Dict, Dict]:
         """

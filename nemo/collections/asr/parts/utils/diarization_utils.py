@@ -21,7 +21,45 @@ from datetime import datetime
 from typing import Dict, List, Tuple
 
 import numpy as np
+import torch
 
+# , FrameBatchVAD
+from omegaconf import OmegaConf
+from sklearn.preprocessing import OneHotEncoder
+
+import nemo.collections.asr as nemo_asr
+from nemo.collections import nlp as nemo_nlp
+from nemo.collections.asr.metrics.der import (
+    concat_perm_word_error_rate,
+    get_online_DER_stats,
+    get_partial_ref_labels,
+    score_labels,
+)
+from nemo.collections.asr.metrics.wer import word_error_rate
+from nemo.collections.asr.models import ClusteringDiarizer, OnlineClusteringDiarizer
+from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
+from nemo.collections.asr.models.ctc_models import EncDecCTCModel
+from nemo.collections.asr.parts.utils.decoder_timestamps_utils import (
+    WERBPE_TS,
+    ASRDecoderTimeStamps,
+    FrameBatchASR_Logits,
+)
+from nemo.collections.asr.parts.utils.speaker_utils import (
+    audio_rttm_map,
+    get_uniqname_from_filepath,
+    labels_to_pyannote_object,
+    labels_to_rttmfile,
+    rttm_to_labels,
+    write_rttm2manifest,
+)
+from nemo.collections.asr.parts.utils.streaming_utils import AudioFeatureIterator, FrameBatchASR
+from nemo.collections.asr.parts.utils.vad_utils import (
+    generate_overlap_vad_seq,
+    generate_vad_segment_table,
+    get_vad_stream_status,
+    prepare_manifest,
+)
+import time 
 from nemo.utils import logging
 
 try:
@@ -306,8 +344,11 @@ class OfflineDiarWithASR:
         self.run_ASR = None
         self.realigning_lm = None
         self.ctm_exists = False
+        self.is_streaming = False
         self.frame_VAD = {}
 
+        self.color_palette = self.get_color_palette()
+        self.csv_columns = self.get_csv_columns()
         self.make_file_lists()
 
 
@@ -1382,7 +1423,7 @@ def add_timestamp_offset(words, word_ts, offset):
     words_adj, word_ts_adj = [], []
     for w, x in zip(words, word_ts):
         word_range = [round(x[0] + offset, 2), round(x[1] + offset, 2)]
-        if word_range[1] > 0.0:
+        if word_range[1] >= 0.0:
             word_ts_adj.append(word_range)
             words_adj.append(w)
     return words_adj, word_ts_adj
@@ -1449,7 +1490,7 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASRDecoderTimeStamps):
             frame_overlap (int)
                 duration of overlaps before and after current frame, seconds
         '''
-        self.diar = OnlineDiarizer(cfg)
+        self.diar = OnlineClusteringDiarizer(cfg)
         self.offline_mode = False
         self._cfg_diarizer = cfg.diarizer
         self.audio_queue_buffer = np.array([])
@@ -1511,7 +1552,6 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASRDecoderTimeStamps):
         self.load_online_VAD_model(self.params)
         self.asr_model = self.set_asr_model()
         self._init_FrameBatchASR()
-        self.load_punctuation_model()
         self._init_diar_eval_variables()
 
     def _init_streaming_buffer_params(self):
@@ -1904,7 +1944,7 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASRDecoderTimeStamps):
             frame_index = 0
             frame_start = 0
             buffer_start = None
-            launcher_end_time = 0.0 
+            launcher_end_time = 0.0
             audio_buffer=np.zeros(shape=self.audio_buffer.shape, dtype=np.float32)
             prev_char = ''
             word_seq = []
