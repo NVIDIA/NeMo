@@ -403,7 +403,8 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
         self, 
         audio_signal: torch.Tensor,
         segment_ranges: torch.Tensor, 
-        embeddings) -> torch.Tensor:
+        embeddings
+        ) -> torch.Tensor:
         """
         Incrementally extract speaker embeddings based on audio_signal and segment_ranges varialbes.
         Unlike offline speaker diarization, speaker embedding and subsegment ranges are not saved to disk.
@@ -487,7 +488,7 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
 
         return cluster_label_hyp
 
-    def _get_interim_output(self):
+    def _get_interim_output(self) -> torch.Tensor:
         """
         In case buffer is not filled or there is no speech activity in the input, generate temporary output.
 
@@ -506,7 +507,8 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
     def diarize_step(
         self, 
         audio_buffer: torch.Tensor, 
-        vad_timestamps: torch.Tensor):
+        vad_timestamps: torch.Tensor
+        ) -> torch.Tensor:
         """
         A function for a unit diarization step. Each diarization step goes through the following steps:
 
@@ -577,7 +579,7 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
             self.multiscale_embeddings_and_timestamps, self.multiscale_args_dict
         )
 
-        # Step 3: Clustering: Perform an online version of clustering algorithm
+        # Step 3 - Clustering: Perform an online version of clustering algorithm
         cluster_label_hyp = self._perform_online_clustering(embs_and_timestamps[self.uniq_id], cuda=self.cuda,)
 
         # Step 4: Generate RTTM style diarization labels from segment ranges and cluster labels
