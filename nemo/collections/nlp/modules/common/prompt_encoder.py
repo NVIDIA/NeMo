@@ -326,8 +326,8 @@ class PromptEncoderLinearCombination(NeuralModule, Exportable):
         limit_vocab: int,
         normalize: bool,
         use_relu: bool,
-        init_val: bool,
-        spaced_init: bool,
+        init_val: str,
+        spaced_init: str,
         mask_restrict: bool,
     ):
         """
