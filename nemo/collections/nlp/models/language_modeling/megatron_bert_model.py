@@ -263,7 +263,7 @@ class MegatronBertModel(MegatronBaseModel):
             pass
         elif self.megatron_amp_o2:
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1 or self.cfg.get('sequence_parallel', False):
-            # when using pipeline parallelism grads must be all-reduced after the pipeline (not asynchronously)
+                # when using pipeline parallelism grads must be all-reduced after the pipeline (not asynchronously)
                 self._optimizer.allreduce_main_grads()
         else:
             # async grad allreduce is not currently implemented for O1/autocasting mixed precision training
@@ -462,7 +462,6 @@ class MegatronBertModel(MegatronBaseModel):
             We want this to do nothing as we are zeroing grads during the training_step.
         """
         return
-
 
     def _append_sequence_parallel_module_grads(self, module, grads):
         """ Helper method for allreduce_sequence_parallel_gradients"""
