@@ -71,7 +71,15 @@ class BertLMHead(MegatronModule):
     """
 
     def __init__(
-        self, mpu_vocab_size, hidden_size, init_method, layernorm_epsilon, parallel_output, use_openai_gelu, onnx_safe, sequence_parallel
+        self,
+        mpu_vocab_size,
+        hidden_size,
+        init_method,
+        layernorm_epsilon,
+        parallel_output,
+        use_openai_gelu,
+        onnx_safe,
+        sequence_parallel,
     ):
 
         super(BertLMHead, self).__init__()
