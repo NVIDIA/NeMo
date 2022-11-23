@@ -585,6 +585,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 dtype=self.autocast_dtype,
                 grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
                 sequence_parallel_enabled=self.cfg.get("sequence_parallel", False),
+                sync_batch_comm=self.frozen_model.cfg.get('sync_batch_comm', False),
             )
         else:
             losses_reduced_per_micro_batch = forward_backward_no_pipelining(
@@ -595,6 +596,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 tensor_shape=tensor_shape,
                 dtype=self.autocast_dtype,
                 grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
+                sync_batch_comm=self.frozen_model.cfg.get('sync_batch_comm', False),
             )
 
         # only the last stages of the pipeline return losses
@@ -706,6 +708,12 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         # Set values back to their training state to continue training
         self.virtual_prompt_style = current_virtual_prompt_style
         self.virtual_prompt_source = current_virtual_prompt_source
+
+        # Revert prompt table back to previous state
+        if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING and self.frozen_model.model.pre_process:
+            for taskname in current_new_tasks:
+                if taskname in self.prompt_table.prompt_table:
+                    del self.prompt_table.prompt_table[taskname]
 
         with open_dict(self.cfg):
             self.cfg.existing_tasks = current_existing_tasks

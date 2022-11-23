@@ -949,8 +949,7 @@ class OfflineDiarWithASR:
         session_trans_dict['transcription'] = ' '.join(word_seq_list)
         # add sentences to transcription information dict
         session_trans_dict['sentences'] = sentences
-
-        # Skip logging and saving of results if the system is in streaming mode.
+        
         if not self.is_streaming:
             self._write_and_log(uniq_id, session_trans_dict, audacity_label_words, gecko_dict, sentences)
         return session_trans_dict
