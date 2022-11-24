@@ -946,10 +946,9 @@ def get_subsegments(offset: float, window: float, shift: float, duration: float)
         start = offset + (slice_id + 1) * shift
     return subsegments
 
+
 @torch.jit.script
-def get_target_sig(
-    sig, start_sec: float, end_sec: float, slice_length: int, sample_rate: int,
-) -> torch.Tensor:
+def get_target_sig(sig, start_sec: float, end_sec: float, slice_length: int, sample_rate: int,) -> torch.Tensor:
     """
     Extract time-series signal from the given audio buffer based on the start and end
     timestamps.
@@ -989,12 +988,14 @@ def check_ranges(range_tensor):
             raise ValueError("Range start time should be preceding the end time but we got: {range_tup}")
     return True
 
+
 @torch.jit.script
 def tensor_to_list(range_tensor: torch.Tensor) -> List[List[float]]:
     """
     For online segmentation. Force the list elements to be float type.
     """
     return [[float(range_tensor[k][0]), float(range_tensor[k][1])] for k in range(range_tensor.shape[0])]
+
 
 @torch.jit.script
 def get_speech_labels_for_update(
@@ -1060,7 +1061,7 @@ def get_speech_labels_for_update(
     # Convert the lists back to type torch.Tensor
     speech_label_for_new_segments = torch.tensor(speech_label_for_new_segments)
     cumulative_speech_labels = torch.tensor(cumulative_speech_labels)
-    
+
     # Check if the ranges are containing faulty values
     assert check_ranges(speech_label_for_new_segments)
     assert check_ranges(cumulative_speech_labels)
@@ -1068,10 +1069,7 @@ def get_speech_labels_for_update(
 
 
 @torch.jit.script
-def get_new_cursor_for_update(
-    frame_start: float, 
-    segment_range_ts: List[List[float]],
-    ) -> Tuple[float, int]:
+def get_new_cursor_for_update(frame_start: float, segment_range_ts: List[List[float]],) -> Tuple[float, int]:
     """
     For online speaker diarization.
     Remove the old segments that overlap with the new frame (self.frame_start)
@@ -1113,7 +1111,7 @@ def get_online_segments_from_slices(
     ind_offset: int,
     window: float,
     sample_rate: int,
-    ) -> Tuple[int, List[torch.Tensor], List[List[float]], List[int]]:
+) -> Tuple[int, List[torch.Tensor], List[List[float]], List[int]]:
     """
     Create short speech segments from sclices for online processing purpose.
 
@@ -1163,7 +1161,7 @@ def get_online_segments_from_slices(
             raise ValueError("len(signal) is zero. Signal length should not be zero.")
         if len(signal) < slice_length:
             signal = repeat_signal(signal, len(signal), slice_length)
-        
+
         start_abs_sec = buffer_start + start_sec
         end_abs_sec = buffer_start + end_sec
 
@@ -1623,14 +1621,14 @@ class OnlineSegmentor:
         cumulative_speech_labels (Tensor):
             Torch tensor matrix containing culmulative VAD (speech activity) timestamps
     """
+
     def __init__(self, sample_rate: int):
-        self.frame_start: float= 0.0
-        self.buffer_start: float= 0.0
-        self.buffer_end: float= 0.0
+        self.frame_start: float = 0.0
+        self.buffer_start: float = 0.0
+        self.buffer_end: float = 0.0
         self.sample_rate: int = sample_rate
         self.cumulative_speech_labels: torch.Tensor = torch.tensor([])
 
-    
     def run_online_segmentation(
         self,
         audio_buffer: torch.Tensor,
@@ -1687,9 +1685,8 @@ class OnlineSegmentor:
                 speech_labels_for_update = vad_timestamps
                 self.cumulative_speech_labels = speech_labels_for_update
             else:
-                # Calculate a cursor for the update point 
-                cursor_for_old_segments, cursor_index = get_new_cursor_for_update(self.frame_start, 
-                                                                                  segment_range_ts)
+                # Calculate a cursor for the update point
+                cursor_for_old_segments, cursor_index = get_new_cursor_for_update(self.frame_start, segment_range_ts)
 
                 segment_range_ts = segment_range_ts[:cursor_index]
                 segment_raw_audio = segment_raw_audio[:cursor_index]
@@ -1697,7 +1694,7 @@ class OnlineSegmentor:
 
                 if not len(segment_raw_audio) == len(segment_range_ts) == len(segment_indexes):
                     raise ValueError("Scale-wise segment information has a mismatch in length.")
-                
+
                 speech_labels_for_update, self.cumulative_speech_labels = get_speech_labels_for_update(
                     self.frame_start,
                     self.buffer_end,
@@ -1705,7 +1702,7 @@ class OnlineSegmentor:
                     vad_timestamps,
                     cursor_for_old_segments,
                 )
-            
+
             # Collect the timeseries signal from the buffer
             sigs_list, sig_rangel_list, sig_indexes = get_online_subsegments_from_buffer(
                 buffer_start=self.buffer_start,
@@ -1725,4 +1722,3 @@ class OnlineSegmentor:
         if not len(segment_raw_audio) == len(segment_range_ts) == len(segment_indexes):
             raise ValueError("Segment information has a mismatch in length.")
         return segment_raw_audio, segment_range_ts, segment_indexes
-
