@@ -308,12 +308,7 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
         maj_vote_labels = []
         for seg_idx in self.memory_segment_indexes[self.base_scale_index]:
             if seg_idx not in self.base_scale_label_dict:
-                try:
-                    self.base_scale_label_dict[seg_idx] = [self.memory_cluster_labels[seg_idx]]
-                except:
-                    import ipdb
-
-                    ipdb.set_trace()
+                self.base_scale_label_dict[seg_idx] = [self.memory_cluster_labels[seg_idx]]
             else:
                 while len(self.base_scale_label_dict[seg_idx]) > self.temporal_label_major_vote_buffer_size:
                     self.base_scale_label_dict[seg_idx].pop(0)
