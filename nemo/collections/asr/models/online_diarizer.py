@@ -72,7 +72,7 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
     - The overall diarization process is done by calling `diarize_step` function.
       `diarize_step` function goes through the following stpes:
         (1) Segmentation (`OnlineSegmentor` class)
-        (2) Embedding extraction (`_extract_embeddings` function call)
+        (2) Embedding extraction (`_extract_online_embeddings` function call)
         (3) Online speaker counting and speaker clustering (`OnlineClusteringDiarizer` class)
         (4) Label generation (`generate_cluster_labels` function call)
 
@@ -302,7 +302,10 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
         maj_vote_labels = []
         for seg_idx in self.memory_segment_indexes[self.base_scale_index]:
             if seg_idx not in self.base_scale_label_dict:
-                self.base_scale_label_dict[seg_idx] = [self.memory_cluster_labels[seg_idx]]
+                try:
+                    self.base_scale_label_dict[seg_idx] = [self.memory_cluster_labels[seg_idx]]
+                except:
+                    import ipdb; ipdb.set_trace()
             else:
                 while len(self.base_scale_label_dict[seg_idx]) > self.temporal_label_major_vote_buffer_size:
                     self.base_scale_label_dict[seg_idx].pop(0)
@@ -399,7 +402,7 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
         return torch_embs
 
     @timeit
-    def _extract_embeddings(
+    def _extract_online_embeddings(
         self, 
         audio_signal: torch.Tensor,
         segment_ranges: torch.Tensor, 
@@ -561,7 +564,7 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
             self.segment_indexes[scale_idx] = range_inds
 
             # Step 2-1: Extract speaker embeddings from the extracted subsegment timestamps.
-            embeddings = self._extract_embeddings(
+            embeddings = self._extract_online_embeddings(
                 audio_signal=self.segment_raw_audio[scale_idx],
                 segment_ranges=self.segment_range_ts[scale_idx],
                 embeddings=self.emb_vectors[scale_idx],
