@@ -24,9 +24,9 @@ from nemo.collections.asr.parts.utils.nmesc_clustering import (
     OnlineSpeakerClustering,
     SpeakerClustering,
     get_closest_embeddings,
-    get_scale_interpolated_embs,
     get_merge_quantity,
     get_minimal_indices,
+    get_scale_interpolated_embs,
     getCosAffinityMatrix,
     merge_vectors,
     run_reducer,
@@ -245,8 +245,7 @@ class TestDiarizationUtilFunctions:
         merged_embs, merged_clus_labels, _ = merge_vectors(index_2d, emb_ndx, spk_cluster_labels)
         # Check the number of merged embeddings and labels
         assert (torch.sum(gt == target_speaker_index).item() - merge_quantity) == merged_clus_labels.shape[0]
-    
-    
+
     @pytest.mark.unit
     @pytest.mark.parametrize("n_spks", [1, 8])
     @pytest.mark.parametrize("spk_dur", [0.2, 0.25, 0.5, 1, 10])
@@ -276,10 +275,7 @@ class TestDiarizationUtilFunctions:
         em, ts, mc, mw, spk_ts, gt = generate_toy_data(n_spks=n_spks, spk_dur=10)
         em_s, ts_s = split_input_data(em, ts, mc)
         merged_embs, merged_clus_labels, _ = run_reducer(
-            pre_embs=em_s[-1], 
-            target_spk_idx=target_speaker_index, 
-            merge_quantity=merge_quantity,
-            pre_clus_labels=gt,
+            pre_embs=em_s[-1], target_spk_idx=target_speaker_index, merge_quantity=merge_quantity, pre_clus_labels=gt,
         )
         assert (torch.sum(gt == target_speaker_index).item() - merge_quantity) == merged_clus_labels.shape[0]
 
@@ -535,7 +531,9 @@ class TestSpeakerClustering:
     @pytest.mark.parametrize("SSV", [5])
     @pytest.mark.parametrize("enhanced_count_thres", [40])
     @pytest.mark.parametrize("min_samples_for_nmesc", [6])
-    def test_offline_speaker_clustering_very_short_cpu(self, n_spks, spk_dur, SSV, enhanced_count_thres, min_samples_for_nmesc):
+    def test_offline_speaker_clustering_very_short_cpu(
+        self, n_spks, spk_dur, SSV, enhanced_count_thres, min_samples_for_nmesc
+    ):
         em, ts, mc, mw, spk_ts, gt = generate_toy_data(n_spks=n_spks, spk_dur=spk_dur, perturb_sigma=0.1)
         offline_speaker_clustering = SpeakerClustering(maj_vote_spk_count=False, min_samples_for_nmesc=0, cuda=False)
         assert isinstance(offline_speaker_clustering, SpeakerClustering)
@@ -550,7 +548,7 @@ class TestSpeakerClustering:
             sparse_search_volume=SSV,
             max_rp_threshold=0.15,
             fixed_thres=-1.0,
-            )
+        )
         permuted_Y = stitch_cluster_labels(Y_old=gt, Y_new=Y_out)
 
         # mc[-1] is the number of base scale segments
@@ -565,7 +563,9 @@ class TestSpeakerClustering:
     @pytest.mark.parametrize("SSV", [5])
     @pytest.mark.parametrize("enhanced_count_thres", [40])
     @pytest.mark.parametrize("min_samples_for_nmesc", [6])
-    def test_offline_speaker_clustering_very_short_gpu(self, n_spks, spk_dur, SSV, enhanced_count_thres, min_samples_for_nmesc):
+    def test_offline_speaker_clustering_very_short_gpu(
+        self, n_spks, spk_dur, SSV, enhanced_count_thres, min_samples_for_nmesc
+    ):
         em, ts, mc, mw, spk_ts, gt = generate_toy_data(n_spks=n_spks, spk_dur=spk_dur, perturb_sigma=0.1)
         offline_speaker_clustering = SpeakerClustering(maj_vote_spk_count=False, min_samples_for_nmesc=0, cuda=True)
         assert isinstance(offline_speaker_clustering, SpeakerClustering)

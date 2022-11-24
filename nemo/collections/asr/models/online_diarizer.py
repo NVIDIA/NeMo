@@ -311,7 +311,9 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
                 try:
                     self.base_scale_label_dict[seg_idx] = [self.memory_cluster_labels[seg_idx]]
                 except:
-                    import ipdb; ipdb.set_trace()
+                    import ipdb
+
+                    ipdb.set_trace()
             else:
                 while len(self.base_scale_label_dict[seg_idx]) > self.temporal_label_major_vote_buffer_size:
                     self.base_scale_label_dict[seg_idx].pop(0)
@@ -404,11 +406,8 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
 
     @timeit
     def _extract_online_embeddings(
-        self, 
-        audio_signal: torch.Tensor,
-        segment_ranges: torch.Tensor, 
-        embeddings
-        ) -> torch.Tensor:
+        self, audio_signal: torch.Tensor, segment_ranges: torch.Tensor, embeddings
+    ) -> torch.Tensor:
         """
         Incrementally extract speaker embeddings based on audio_signal and segment_ranges varialbes.
         Unlike offline speaker diarization, speaker embedding and subsegment ranges are not saved to disk.

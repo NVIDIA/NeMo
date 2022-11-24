@@ -1859,7 +1859,7 @@ class OnlineSpeakerClustering:
         sparse_search_volume: int = 15,
         history_buffer_size: int = 150,
         current_buffer_size: int = 150,
-        min_spk_counting_buffer_size = 3,
+        min_spk_counting_buffer_size=3,
         min_frame_per_spk: int = 15,
         p_update_freq: int = 5,
         p_value_skip_frame_thres: int = 50,
@@ -2027,7 +2027,9 @@ class OnlineSpeakerClustering:
         est_num_of_spk = self.limit_frames_per_speaker(frame_index, raw_est_num_of_spk)
         return est_num_of_spk, affinity_mat
 
-    def prepare_embedding_update(self, emb_in: torch.Tensor, base_segment_indexes: List[int]) -> Tuple[bool, int, torch.Tensor]:
+    def prepare_embedding_update(
+        self, emb_in: torch.Tensor, base_segment_indexes: List[int]
+    ) -> Tuple[bool, int, torch.Tensor]:
         """
         This function performs the following tasks:
             1. Decide whether to extract more embeddings or not (by setting `update_speaker_register`)
