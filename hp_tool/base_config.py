@@ -491,6 +491,8 @@ def generate_base_config(
         base_cfg["model"]["optim"]["sched"]["constant_steps"] = int(
             0.166 * base_cfg["trainer"]["max_steps"]
         )
+        if model_size_in_b <= 13.0:
+            base_cfg["model"]["sequence_parallel"] = False
 
     else:
         base_cfg["model"]["global_batch_size"] = int(gbs)

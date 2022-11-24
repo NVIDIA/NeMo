@@ -184,7 +184,7 @@ def calculate_model_size_params(
         else:
             raise ValueError("Model_size for mT5 must be smaller than 250B parameters.")
     elif model_name == "bert":
-        ffn, lr = None, 1e-4
+        lr = 1e-4
         if model_size_in_b < 0.25:
             hs, att_h, lr = 768, 12, 2e-4
         elif model_size_in_b < 0.5:
@@ -205,6 +205,7 @@ def calculate_model_size_params(
             hs, att_h = 6144, 48
         else:
             raise ValueError("Model_size for BERT must be smaller than 25B parameters.")
+        ffn = 4 * hs
         
     else:
         raise NotImplementedError("Model name is not valid.")

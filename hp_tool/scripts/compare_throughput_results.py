@@ -230,7 +230,7 @@ def calculate_tflops(
         hw_tflops_per_gpu = hw_flops_per_gpu / 1e12
 
     elif model_name == "bert":
-         model_flops = (
+        model_flops = (
             72 * gbs * layers * enc_seq_len * hs * hs * ( 1 + (enc_seq_len/(6*hs)) + (vocab/(12 * hs * layers)))
         ) / time_per_step
         model_flops_per_gpu = model_flops / (nodes * gpus_per_node)

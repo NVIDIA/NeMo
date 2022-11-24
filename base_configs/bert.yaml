@@ -74,7 +74,7 @@ model:
 
   tokenizer:
     library: 'megatron'
-    type: 'BertWordPieceCase'
+    type: 'BertWordPieceLowerCase'
     model: null
     vocab_file: ${data_dir}/vocab.txt  
     merge_file: null 
@@ -97,19 +97,23 @@ model:
   gradient_as_bucket_view: True # PyTorch DDP argument. Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
  
   # not implemented in NeMo yet
-  activations_checkpoint_method: 'block' # 'uniform', 'block'
+  activations_checkpoint_granularity: selective
+  activations_checkpoint_method: block # 'uniform', 'block'
   activations_checkpoint_num_layers: 1
+  num_micro_batches_with_partial_activation_checkpoints: null
+  activations_checkpoint_layers_per_pipeline: null
+  sequence_parallel: True
 
   data:
     data_prefix:
       - 1.0
-      - ${data_dir}/my-t5_00_bert_tokenizer_text_document
+      - ${data_dir}/bc_rn_owt_sto_wiki_dedup_shuf_cleaned_0.7_mmap
     index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
     data_impl: mmap
     splits_string: 900,50,50
     seq_length: 512 #${model.encoder_seq_length}
     skip_warmup: True
-    num_workers: 0
+    num_workers: 2
     dataloader_type: single # cyclic
     reset_position_ids: False # Reset position ids after end-of-document token
     reset_attention_mask: False # Reset attention mask after end-of-document token
@@ -118,7 +122,7 @@ model:
     short_seq_prob: 0.1 # Probability of producing a short sequence.
   
   optim:
-    name: fused_adam
+    name: distributed_fused_adam
     lr: 2e-4
     weight_decay: 0.01 
     betas: 
