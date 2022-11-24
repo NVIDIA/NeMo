@@ -1185,7 +1185,7 @@ def get_online_subsegments_from_buffer(
     segment_indexes: List[int],
     window: float,
     shift: float,
-    ) -> Tuple[List[torch.Tensor], List[List[float]], List[int]]:
+) -> Tuple[List[torch.Tensor], List[List[float]], List[int]]:
     """
     Generate subsegments for online processing from the given segment information.
     This function extracts subsegments (embedding vector level) time-series from the
