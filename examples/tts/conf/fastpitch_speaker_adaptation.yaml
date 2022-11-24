@@ -30,13 +30,6 @@ window: hann
 phoneme_dict_path: "scripts/tts_dataset_files/cmudict-0.7b_nv22.08"
 heteronyms_path: "scripts/tts_dataset_files/heteronyms-052722"
 whitelist_path: "nemo_text_processing/text_normalization/en/data/whitelist/lj_speech.tsv"
-
-finetune_multispeaker:
-  freeze_all: false
-  freeze_encoder: false
-  freeze_decoder: false
-  add_random_speaker: true
-  add_adapter: false
   
 model:
   learn_alignment: true
@@ -46,6 +39,10 @@ model:
   max_token_duration: 75
   symbols_embedding_dim: 384
   pitch_embedding_kernel_size: 3
+
+  speaker_emb_condition_decoder: true
+  speaker_emb_condition_prosody: true
+  speaker_emb_condition_aligner: true
 
   pitch_fmin: ${pitch_fmin}
   pitch_fmax: ${pitch_fmax}
@@ -67,7 +64,7 @@ model:
     adapter_name: "adapter"  # Name of the adapter, used by the script
     adapter_module_name: "encoder+decoder+duration_predictor+pitch_predictor+aligner"  # Name of the adapter module. Combine multiple modules with '+' between module names.
     adapter_state_dict_name: "adapters.pt"  # If the individual adapters must be saved, a file name can be provided here. null disables this.
-    add_random_speaker: True # If the new speaker embedding will be initialized with random embedding.
+    add_weight_speaker: True # If the new speaker is unseen then use weighted mean of existing speaker embeddings as new speaker embedding.
 
     # Config of the adapter module itself
     _target_: nemo.collections.common.parts.adapter_modules.LinearAdapter
@@ -76,10 +73,6 @@ model:
     activation: swish
     norm_position: 'pre'  # Can be `pre` or `post`
     dropout: 0.0  # float, dropout for the adapter
-
-    freeze_all: True
-    freeze_encoder: False
-    freeze_decoder: False
 
     # Adapter strategy config
     adapter_strategy:
@@ -254,6 +247,15 @@ model:
     filter_size: 256
     dropout: 0.1
     n_layers: 2
+
+  global_style_token:
+    _target_: nemo.collections.tts.modules.submodules.GlobalStyleToken
+    cnn_filters: [32, 32, 64, 64, 128, 128] 
+    dropout: 0.2 
+    gru_hidden: ${model.symbols_embedding_dim}
+    gst_size: ${model.symbols_embedding_dim}
+    n_style_token: 10
+    n_style_attn_head: 4
 
   optim:
     name: adamw

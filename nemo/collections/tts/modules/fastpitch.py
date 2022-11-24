@@ -172,7 +172,7 @@ if adapter_mixins.get_registered_adapter(TemporalPredictor) is None:
     adapter_mixins.register_adapter(base_class=TemporalPredictor, adapter_class=TemporalPredictorAdapter)
 
 
-class FastPitchModule(NeuralModule):
+class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
     def __init__(
         self,
         encoder_module: NeuralModule,
@@ -180,6 +180,7 @@ class FastPitchModule(NeuralModule):
         duration_predictor: NeuralModule,
         pitch_predictor: NeuralModule,
         aligner: NeuralModule,
+        global_style_token_encoder: NeuralModule,
         n_speakers: int,
         symbols_embedding_dim: int,
         pitch_embedding_kernel_size: int,
@@ -196,6 +197,8 @@ class FastPitchModule(NeuralModule):
         self.duration_predictor = duration_predictor
         self.pitch_predictor = pitch_predictor
         self.aligner = aligner
+        self.global_style_token_encoder = global_style_token_encoder
+        self.use_gst = global_style_token_encoder is not None
         self.learn_alignment = aligner is not None
         self.use_duration_predictor = True
         self.binarize = False
@@ -236,6 +239,8 @@ class FastPitchModule(NeuralModule):
             "attn_prior": NeuralType(('B', 'T_spec', 'T_text'), ProbsType(), optional=True),
             "mel_lens": NeuralType(('B'), LengthsType(), optional=True),
             "input_lens": NeuralType(('B'), LengthsType(), optional=True),
+            "gst_ref_spec": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType(), optional=True),
+            "gst_ref_spec_lens": NeuralType(('B'), LengthsType(), optional=True),
         }
 
     @property
@@ -266,6 +271,8 @@ class FastPitchModule(NeuralModule):
         attn_prior=None,
         mel_lens=None,
         input_lens=None,
+        gst_ref_spec=None,
+        gst_ref_spec_lens=None,
     ):
 
         if not self.learn_alignment and self.training:
@@ -277,6 +284,13 @@ class FastPitchModule(NeuralModule):
             spk_emb = 0
         else:
             spk_emb = self.speaker_emb(speaker).unsqueeze(1)
+
+        # GST Speaker Embedding
+        if self.use_gst and gst_ref_spec is not None and gst_ref_spec_lens is not None:
+            ref_spec_mask = (torch.arange(gst_ref_spec_lens.max()).to(gst_ref_spec.device).expand(gst_ref_spec_lens.shape[0], gst_ref_spec_lens.max()) 
+                < gst_ref_spec_lens.unsqueeze(1)
+            ).unsqueeze(2)
+            spk_emb += self.global_style_token_encoder(gst_ref_spec, ref_spec_mask).unsqueeze(1)
 
         # Input FFT
         enc_out, enc_mask = self.encoder(input=text, conditioning=spk_emb)

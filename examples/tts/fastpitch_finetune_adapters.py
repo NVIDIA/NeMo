@@ -19,6 +19,7 @@ import pytorch_lightning as pl
 from dataclasses import is_dataclass
 from nemo.collections.common.callbacks import LogEpochTimeCallback
 from nemo.collections.tts.models import FastPitchModel
+from nemo.collections.tts.modules.submodules import WeightedSpeakerEmbedding
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
@@ -71,7 +72,7 @@ def add_global_adapter_cfg(model, global_adapter_cfg):
         model.update_adapter_cfg(model.cfg.adapters)
 
 
-@hydra_runner(config_path="conf", config_name="fastpitch_align_44100")
+@hydra_runner(config_path="conf", config_name="fastpitch_speaker_adaptation")
 def main(cfg):
     if hasattr(cfg.model.optim, 'sched'):
         logging.warning("You are using an optimizer scheduler while finetuning. Are you sure this is intended?")
@@ -79,41 +80,23 @@ def main(cfg):
         logging.warning("The recommended learning rate for finetuning is 2e-4")
 
     trainer = pl.Trainer(**cfg.trainer)
-    exp_log_dir = exp_manager(trainer, cfg.get("exp_manager", None))   
-    n_speakers = cfg.model.n_speakers
-
-    if cfg.model.adapter.add_random_speaker:
-        cfg.model.n_speakers += 1
-
+    exp_log_dir = exp_manager(trainer, cfg.get("exp_manager", None))
+    # Initialize FastPitchModel
     model = FastPitchModel(cfg=update_model_config_to_support_adapter(cfg.model), trainer=trainer)
-    model.fastpitch.speaker_emb = torch.nn.Embedding(n_speakers, model.fastpitch.speaker_emb.embedding_dim)
     model.maybe_init_from_pretrained_checkpoint(cfg=cfg)
 
-
-    # Add new speaker embedding
-    if cfg.model.adapter.add_random_speaker and model.fastpitch.speaker_emb is not None:
-        old_emb = model.fastpitch.speaker_emb
-
-        # Choose random
-        new_speaker_emb = torch.rand(1, old_emb.embedding_dim)
-        # Choose existing
-        # new_speaker_emb = old_emb.weight[0, :].unsqueeze(0).detach().clone()
-
-        new_emb = torch.nn.Embedding(old_emb.num_embeddings+1, old_emb.embedding_dim).from_pretrained(
-            torch.cat([old_emb.weight.detach().clone(), new_speaker_emb], axis=0), freeze=True)
-        model.fastpitch.speaker_emb = new_emb
-        model.cfg.n_speakers += 1
-
-    # Setup adapters
+    # Extract adapter parameters
     with open_dict(cfg.model.adapter):
-        # Extract the name of the adapter (must be give for training)
+        # get bool variable to determine if weighted speaker embeddings should be used or not
+        add_weight_speaker = cfg.model.adapter.pop("add_weight_speaker", False)
+        # variable to determine which speaker embeddings should used to get weighted mean speaker
+        add_weight_speaker_list = cfg.model.adapter.pop("add_weight_speaker_list", None)
+        # Extract the name of the adapter (must be given for training)
         adapter_name = cfg.model.adapter.pop("adapter_name", "adapter")
+        # Extract the name of the modules where adapters need to be added (must be given for training)
         adapter_module_name = cfg.model.adapter.pop("adapter_module_name", None)
+        # Name of the adapter checkpoint which will be saved after training
         adapter_state_dict_name = cfg.model.adapter.pop("adapter_state_dict_name", None)
-        cfg.model.adapter.pop("add_random_speaker", None)
-        freeze_all = cfg.model.adapter.pop("freeze_all", False)
-        freeze_encoder = cfg.model.adapter.pop("freeze_encoder", False)
-        freeze_decoder = cfg.model.adapter.pop("freeze_decoder", False)
 
         # augment adapter name with module name, if not provided by user
         if adapter_module_name is not None and ':' not in adapter_name:
@@ -121,27 +104,32 @@ def main(cfg):
 
         # Extract the global adapter config, if provided
         adapter_global_cfg = cfg.model.adapter.pop(model.adapter_global_cfg_key, None)
-        if adapter_global_cfg is not None:
-            add_global_adapter_cfg(model, adapter_global_cfg)
 
+    # Freeze model
+    model.freeze()
+    
+    # Add weighted speaker embedding module in speaker representation
+    if add_weight_speaker and model.fastpitch.speaker_emb is not None:
+        old_emb = model.fastpitch.speaker_emb
+        new_emb = WeightedSpeakerEmbedding(pretrained_embedding=old_emb, speaker_list=add_weight_speaker_list)
+        model.fastpitch.speaker_emb = new_emb
+    
+    # Setup adapters
+    if adapter_global_cfg is not None:
+        add_global_adapter_cfg(model, adapter_global_cfg)
 
-    # model.add_adapter(name='encoder+decoder+duration_predictor+pitch_predictor+aligner:adapter', cfg=adapter_cfg)
+    # Add adapters
     model.add_adapter(name=adapter_name, cfg=cfg.model.adapter)
     assert model.is_adapter_available()
-
+    # enable adapters
     model.set_enabled_adapters(enabled=False)
     model.set_enabled_adapters(adapter_name, enabled=True)
-    
-    # Freeze 
-    if freeze_all: model.freeze()
-    if freeze_encoder: model.fastpitch.encoder.freeze()
-    if freeze_decoder: model.fastpitch.decoder.freeze()
 
     # Set model to training mode.
     model = model.train()
     # Then, Unfreeze just the adapter weights that were enabled above (no part of model)
     model.unfreeze_enabled_adapters()
-
+    # summarize the model
     model.summarize()
 
     lr_logger = pl.callbacks.LearningRateMonitor()
@@ -149,7 +137,7 @@ def main(cfg):
     trainer.callbacks.extend([lr_logger, epoch_time_logger])
     trainer.fit(model)
 
-    # Save the adapter state dict
+    # Save the adapter state dict after training has completed
     if adapter_state_dict_name is not None:
         state_path = exp_log_dir if exp_log_dir is not None else os.getcwd()
         ckpt_path = os.path.join(state_path, "checkpoints")

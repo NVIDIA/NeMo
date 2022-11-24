@@ -19,6 +19,7 @@ import pickle
 import random
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Union
+from collections import defaultdict
 
 import librosa
 import numpy as np
@@ -51,6 +52,7 @@ from nemo.collections.tts.torch.tts_data_types import (
     SpeakerID,
     TTSDataType,
     Voiced_mask,
+    GSTRefAudio,
     WithLens,
 )
 from nemo.core.classes import Dataset
@@ -447,6 +449,15 @@ class TTSDataset(Dataset):
     def add_speaker_id(self, **kwargs):
         pass
 
+    def add_gst_ref_audio(self, **kwargs):
+        if SpeakerID not in self.sup_data_types_set:
+            self.speaker_to_index = None
+        else:
+            self.speaker_to_index = defaultdict(list)
+            for i, d in enumerate(self.data):
+                self.speaker_to_index[d.get('speaker_id', None)].append(i)
+            self.speaker_to_index = {k: set(v) for k, v in self.speaker_to_index.items()}
+
     def get_spec(self, audio):
         with torch.cuda.amp.autocast(enabled=False):
             spec = self.stft(audio)
@@ -580,6 +591,25 @@ class TTSDataset(Dataset):
         if SpeakerID in self.sup_data_types_set:
             speaker_id = torch.tensor(sample["speaker_id"]).long()
 
+        gst_ref_audio, gst_ref_audio_length = None, None
+        if GSTRefAudio in self.sup_data_types_set:
+            ref_sample = sample
+            if self.speaker_to_index is not None:
+                if len(self.speaker_to_index[sample["speaker_id"]]) > 1:
+                    ref_pool = self.speaker_to_index[sample["speaker_id"]] - set([index])
+                else: 
+                    ref_pool = self.speaker_to_index[sample["speaker_id"]]
+                ref_sample = self.data[random.sample(ref_pool, 1)[0]]
+            ref_features = self.featurizer.process(
+                ref_sample["audio_filepath"],
+                trim=self.trim,
+                trim_ref=self.trim_ref,
+                trim_top_db=self.trim_top_db,
+                trim_frame_length=self.trim_frame_length,
+                trim_hop_length=self.trim_hop_length)
+
+            gst_ref_audio, gst_ref_audio_length = ref_features, torch.tensor(ref_features.shape[0]).long()
+
         return (
             audio,
             audio_length,
@@ -596,6 +626,8 @@ class TTSDataset(Dataset):
             speaker_id,
             voiced_mask,
             p_voiced,
+            gst_ref_audio,
+            gst_ref_audio_length,
         )
 
     def __len__(self):
@@ -628,6 +660,8 @@ class TTSDataset(Dataset):
             _,
             voiced_masks,
             p_voiceds,
+            _,
+            gst_ref_audio_lengths,
         ) = zip(*batch)
 
         max_audio_len = max(audio_lengths).item()
@@ -636,6 +670,7 @@ class TTSDataset(Dataset):
         max_durations_len = max([len(i) for i in durations_list]) if Durations in self.sup_data_types_set else None
         max_pitches_len = max(pitches_lengths).item() if Pitch in self.sup_data_types_set else None
         max_energies_len = max(energies_lengths).item() if Energy in self.sup_data_types_set else None
+        max_gst_ref_audio_len = max(gst_ref_audio_lengths).item() if GSTRefAudio in self.sup_data_types_set else None
 
         if LogMel in self.sup_data_types_set:
             log_mel_pad = torch.finfo(batch[0][4].dtype).tiny
@@ -649,7 +684,8 @@ class TTSDataset(Dataset):
             if AlignPriorMatrix in self.sup_data_types_set
             else []
         )
-        audios, tokens, log_mels, durations_list, pitches, energies, speaker_ids, voiced_masks, p_voiceds = (
+        audios, tokens, log_mels, durations_list, pitches, energies, speaker_ids, voiced_masks, p_voiceds, gst_ref_audios = (
+            [],
             [],
             [],
             [],
@@ -678,6 +714,8 @@ class TTSDataset(Dataset):
                 speaker_id,
                 voiced_mask,
                 p_voiced,
+                gst_ref_audio,
+                gst_ref_audios_length,
             ) = sample_tuple
 
             audio = general_padding(audio, audio_len.item(), max_audio_len)
@@ -712,6 +750,9 @@ class TTSDataset(Dataset):
             if SpeakerID in self.sup_data_types_set:
                 speaker_ids.append(speaker_id)
 
+            if GSTRefAudio in self.sup_data_types_set:
+                gst_ref_audios.append(general_padding(gst_ref_audio, gst_ref_audios_length.item(), max_gst_ref_audio_len))
+
         data_dict = {
             "audio": torch.stack(audios),
             "audio_lens": torch.stack(audio_lengths),
@@ -728,6 +769,8 @@ class TTSDataset(Dataset):
             "speaker_id": torch.stack(speaker_ids) if SpeakerID in self.sup_data_types_set else None,
             "voiced_mask": torch.stack(voiced_masks) if Voiced_mask in self.sup_data_types_set else None,
             "p_voiced": torch.stack(p_voiceds) if P_voiced in self.sup_data_types_set else None,
+            "gst_ref_audio": torch.stack(gst_ref_audios) if GSTRefAudio in self.sup_data_types_set else None,
+            "gst_ref_audio_lens": torch.stack(gst_ref_audio_lengths) if GSTRefAudio in self.sup_data_types_set else None,
         }
 
         return data_dict
