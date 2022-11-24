@@ -17,15 +17,11 @@
 This script can be used to extract ngram mapping vocabulary from joined giza alignments and to index custom phrases.
 """
 
-import glob
 import math
 import os
-import re
 from argparse import ArgumentParser
 from collections import defaultdict
-from typing import Dict, Optional, TextIO, Tuple
-
-from fuzzywuzzy import process
+from typing import Dict, List, Optional, Tuple
 
 parser = ArgumentParser(description="Produce data for the Spellchecking ASR Customization")
 parser.add_argument(
@@ -54,6 +50,26 @@ def process_line(line: str) -> Optional[Tuple[str, str, str, int]]:
     return src, dst, align
 
 
+def update_vocabs_with_aligned_fragment(
+    inputs: List[str],
+    replacements: List[str],
+    full_vocab: Dict[str, dict],
+    src_vocab: Dict[str, int],
+    dst_vocab: Dict[str, int],
+    clean: bool=False
+) -> None:
+    inp = " ".join(inputs)
+    rep = " ".join(replacements)
+    if clean:
+        rep = rep.replace("<DELETE>", "").replace("+", "").replace(" ", "").replace("_", " ")
+        inp = inp.replace(" ", "").replace("_", " ")
+    if not rep in full_vocab[inp]:
+        full_vocab[inp][rep] = 0
+    full_vocab[inp][rep] += 1
+    src_vocab[inp] += 1
+    dst_vocab[rep] += 1
+
+
 def get_replacement_vocab() -> None:
     """Loops through the file with alignment results, counts frequencies of different replacement segments.
     """
@@ -78,17 +94,89 @@ def get_replacement_vocab() -> None:
             begin = 0
             for begin in range(len(inputs)):
                 for end in range(begin + 1, begin + 5):
-                    inp = " ".join(inputs[begin:end])
-                    rep = " ".join(replacements[begin:end])
-                    if not rep in full_vocab[inp]:
-                        full_vocab[inp][rep] = 0
-                    full_vocab[inp][rep] += 1
-                    src_vocab[inp] += 1
-                    dst_vocab[rep] += 1
+                    update_vocabs_with_aligned_fragment(
+                        inputs[begin:end],
+                        replacements[begin:end], 
+                        full_vocab,
+                        src_vocab,
+                        dst_vocab
+                    )
 
     with open(args.vocab_filename, "w", encoding="utf-8") as out:
         for inp in full_vocab:
             for rep in full_vocab[inp]:
+                out.write(
+                    inp
+                    + "\t"
+                    + rep
+                    + "\t"
+                    + str(full_vocab[inp][rep])
+                    + "\t"
+                    + str(src_vocab[inp])
+                    + "\t"
+                    + str(dst_vocab[rep])
+                    + "\n"
+                )
+
+
+def get_sub_misspells():
+    """Loops through the file with alignment results, extract aligned segments if they correspond to whole words.
+    """
+    full_vocab = defaultdict(dict)
+    src_vocab = defaultdict(int)
+    dst_vocab = defaultdict(int)
+    n = 0
+    with open(args.alignment_filename, "r", encoding="utf-8") as f:
+        for line in f:
+            n += 1
+            if n % 100000 == 0:
+                print(n)
+            t = process_line(line)
+            if t is None:
+                continue
+            src, dst, replacement = t
+            inputs = src.split(" ")
+            replacements = replacement.split(" ")
+            if len(inputs) != len(replacements):
+                raise ValueError("Length mismatch in: " + line)
+            begin = 0
+            for i in range(len(inputs)):
+                if inputs[i] == "_" and replacements[i] == "_":  # if corresponding spaces are aligned, this is safe word border
+                    update_vocabs_with_aligned_fragment(
+                        inputs[begin:i],
+                        replacements[begin:i], 
+                        full_vocab,
+                        src_vocab,
+                        dst_vocab,
+                        clean=True
+                    )
+                    begin = i + 1
+            if begin > 0:  # last fragment until the end
+                update_vocabs_with_aligned_fragment(
+                    inputs[begin:],
+                    replacements[begin:], 
+                    full_vocab,
+                    src_vocab,
+                    dst_vocab,
+                    clean=True
+                )
+            # add the whole phrase itself
+            update_vocabs_with_aligned_fragment(
+                inputs,
+                replacements, 
+                full_vocab,
+                src_vocab,
+                dst_vocab,
+                clean=True
+            )
+
+    with open(args.out_filename, "w", encoding="utf-8") as out:
+        for inp in full_vocab:
+            for rep in full_vocab[inp]:
+                if full_vocab[inp][rep] / src_vocab[inp] <= 1/200:
+                    continue
+                if rep == "":
+                    continue
                 out.write(
                     inp
                     + "\t"
@@ -137,8 +225,6 @@ def index_by_vocab() -> None:
             if t is None:
                 continue
             phrase, _, _ = t
-            # if not phrase.startswith("y o x t e r"):
-            #    continue
             ok = True
             inputs = phrase.split(" ")
             begin = 0
@@ -166,8 +252,6 @@ def index_by_vocab() -> None:
                         # add current replacement as ngram
                         if lp > -4.0:
                             index_keys[begin][rep + " "] = lp
-                            # if phrase.startswith("y o x t e r"):
-                            #    print(phrase, begin, rep, lp, rep_before_clean, inp, sep="; ")
 
             for b in range(len(index_keys)):
                 for ngram, lp in sorted(index_keys[b].items(), key=lambda item: item[1], reverse=True):
@@ -186,73 +270,7 @@ def index_by_vocab() -> None:
     for ngram, freq in sorted(index_freq.items(), key=lambda item: item[1], reverse=True):
         for phrase, b, length, lp in ngram_to_phrase_and_position[ngram]:
             out.write(ngram + "\t" + phrase + "\t" + str(b) + "\t" + str(length) + "\t" + str(lp) + "\n")
-
-    return
-    correct = 0
-    n = 0
-    # now simulate search for pred_text of the same phrases
-    with open(args.alignment_filename, "r", encoding="utf-8") as f:
-        for line in f:
-            n += 1
-            if n % 1000 == 0:
-                print(n)
-            t = process_line(line)
-            if t is None:
-                continue
-            ref, hyp, _ = t
-            inputs = hyp.split(" ")
-            candidates = defaultdict(int)
-            begin = 0
-            for begin in range(len(inputs)):
-                for end in range(begin + 1, min(len(inputs) + 1, begin + 7)):
-                    ngram = " ".join(inputs[begin:end]) + " "
-                    if ngram not in ngram_to_phrase_and_position:
-                        continue
-                    for phrase, b, length, lp in ngram_to_phrase_and_position[ngram]:
-                        candidates[phrase] += 1
-            k = 0
-            for candidate, freq in sorted(candidates.items(), key=lambda item: item[1], reverse=True):
-                out.write(hyp + "\t" + candidate + "\t" + str(freq) + "\t" + ref + "\n")
-                if candidate == ref:
-                    correct += 1
-                k += 1
-                if k > 20:
-                    break
-
     out.close()
-    print("Correct=", correct)
-    print("Total=", n)
-    print("Accuracy=", correct / n)
-
-
-def search_by_edit_distance():
-    correct = 0
-    n = 0
-    refs = []
-    hyps = []
-    with open(args.alignment_filename, "r", encoding="utf-8") as f:
-        for line in f:
-            n += 1
-            if n % 1000 == 0:
-                print(n)
-            t = process_line(line)
-            if t is None:
-                continue
-            ref, hyp, _ = t
-            ref = ref.replace(" ", "").replace("_", " ")
-            hyp = hyp.replace(" ", "").replace("_", " ")
-            refs.append(ref)
-            hyps.append(hyp)
-
-    for hyp, ref in zip(hyps, refs):
-        candidates = process.extract(hyp, refs, limit=20)
-        for candidate, score in candidates:
-            print(hyp + "\t" + candidate + "\t" + str(score) + "\t" + ref)
-            if candidate == ref:
-                correct += 1
-    print("Correct=", correct)
-    print("Total=", n)
-    print("Accuracy=", correct / n)
 
 
 def main() -> None:
@@ -260,8 +278,8 @@ def main() -> None:
         get_replacement_vocab()
     elif args.mode == "index_by_vocab":
         index_by_vocab()
-    elif args.mode == "edit_distance":
-        search_by_edit_distance()
+    elif args.mode == "get_sub_misspells":
+        get_sub_misspells()
     else:
         raise ValueError("unknown mode: " + args.mode)
 
