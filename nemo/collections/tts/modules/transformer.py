@@ -11,15 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Optional, List
-from omegaconf import DictConfig
+from typing import List, Optional
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from omegaconf import DictConfig
 
 from nemo.collections.asr.parts.utils import adapter_utils
-from nemo.core.classes import NeuralModule, typecheck, adapter_mixins
+from nemo.core.classes import NeuralModule, adapter_mixins, typecheck
 from nemo.core.neural_types.elements import EncodedRepresentation, LengthsType, MaskType, TokenIndex
 from nemo.core.neural_types.neural_type import NeuralType
 
@@ -292,8 +292,11 @@ class FFTransformerDecoderAdapter(FFTransformerDecoder, adapter_mixins.AdapterMo
         return cfg
 
 
-class FFTransformerEncoderAdapter(FFTransformerDecoderAdapter, FFTransformerEncoder, adapter_mixins.AdapterModuleMixin):
+class FFTransformerEncoderAdapter(
+    FFTransformerDecoderAdapter, FFTransformerEncoder, adapter_mixins.AdapterModuleMixin
+):
     pass
+
 
 """
 Register any additional information

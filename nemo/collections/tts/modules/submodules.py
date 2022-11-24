@@ -178,7 +178,7 @@ class ConvNorm(torch.nn.Module, adapter_mixins.AdapterModuleMixin):
             ret = self.norm(ret)
 
         if self.is_adapter_available():
-            ret = self.forward_enabled_adapters(ret.transpose(1,2)).transpose(1, 2)
+            ret = self.forward_enabled_adapters(ret.transpose(1, 2)).transpose(1, 2)
         return ret
 
 

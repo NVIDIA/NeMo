@@ -41,14 +41,14 @@
 # CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-from typing import Optional, List
-from omegaconf import DictConfig
+from typing import List, Optional
 
 import torch
+from omegaconf import DictConfig
 
 from nemo.collections.asr.parts.utils import adapter_utils
 from nemo.collections.tts.helpers.helpers import binarize_attention_parallel, regulate_len
-from nemo.core.classes import NeuralModule, typecheck, adapter_mixins
+from nemo.core.classes import NeuralModule, adapter_mixins, typecheck
 from nemo.core.neural_types.elements import (
     EncodedRepresentation,
     Index,
@@ -95,7 +95,7 @@ class ConvReLUNorm(torch.nn.Module, adapter_mixins.AdapterModuleMixin):
         out = self.dropout(out)
 
         if self.is_adapter_available():
-            out = self.forward_enabled_adapters(out.transpose(1,2)).transpose(1, 2)
+            out = self.forward_enabled_adapters(out.transpose(1, 2)).transpose(1, 2)
 
         return out
 

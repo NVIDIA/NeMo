@@ -13,19 +13,20 @@
 # limitations under the License.
 
 import os
-import torch
-import pytorch_lightning as pl
-
 from dataclasses import is_dataclass
+
+import pytorch_lightning as pl
+import torch
+from omegaconf import DictConfig, OmegaConf, open_dict
+
 from nemo.collections.common.callbacks import LogEpochTimeCallback
 from nemo.collections.tts.models import FastPitchModel
 from nemo.collections.tts.modules.submodules import WeightedSpeakerEmbedding
+from nemo.core import adapter_mixins
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
-from nemo.core import adapter_mixins
-from omegaconf import DictConfig, open_dict, OmegaConf
 
 def update_model_config_to_support_adapter(config) -> DictConfig:
     with open_dict(config):
@@ -147,7 +148,6 @@ def main(cfg):
 
         # Save the adapter modules in a seperate file
         model.save_adapters(str(state_path))
-
 
 
 if __name__ == '__main__':
