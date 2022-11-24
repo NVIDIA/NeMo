@@ -41,6 +41,8 @@ class TestHydraRunner:
         # Run the call as subprocess.
         subprocess.check_call(call, shell=True, stdout=sys.stdout, stderr=sys.stdout)
 
+        # Make sure that .hydra dir is not present.
+        assert not path.exists(f".hydra")
         # Make sure that default hydra log file is not present.
         assert not path.exists(f"my_app.log")
 
@@ -65,6 +67,8 @@ class TestHydraRunner:
         # Run the call as subprocess.
         subprocess.check_call(call, shell=True, stdout=sys.stdout, stderr=sys.stdout)
 
+        # Make sure that .hydra dir is not present.
+        assert not path.exists(f".hydra")
         # Make sure that default hydra log file is not present.
         assert not path.exists(f"my_app.log")
 
