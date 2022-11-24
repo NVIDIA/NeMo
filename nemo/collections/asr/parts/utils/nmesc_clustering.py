@@ -42,7 +42,7 @@ from torch.linalg import eigh, eigvalsh
 
 
 @torch.jit.script
-def cos_similarity(a: torch.Tensor, b: torch.Tensor, eps=torch.tensor(3.5e-4)) -> torch.Tensor:
+def cos_similarity(emb_a: torch.Tensor, emb_b: torch.Tensor, eps=torch.tensor(3.5e-4)) -> torch.Tensor:
     """
     Calculate cosine similarities of the given two set of tensors. The output is an N by N
     matrix where N is the number of feature vectors.
@@ -57,8 +57,11 @@ def cos_similarity(a: torch.Tensor, b: torch.Tensor, eps=torch.tensor(3.5e-4)) -
         res (Tensor):
             N by N matrix containing the cosine similarities of the values.
     """
-    a_norm = a / (torch.norm(a, dim=1).unsqueeze(1) + eps)
-    b_norm = b / (torch.norm(a, dim=1).unsqueeze(1) + eps)
+    # If number of embedding count is 1, it creates nan values
+    if emb_a.shape[0] == 1 or emb_b.shape[0] == 1:
+        raise ValueError(f"Number of feature vectors should be greater than 1 but got {emb_a.shape} and {emb_b.shape}")
+    a_norm = emb_a / (torch.norm(emb_a, dim=1).unsqueeze(1) + eps)
+    b_norm = emb_b / (torch.norm(emb_b, dim=1).unsqueeze(1) + eps)
     res = torch.mm(a_norm, b_norm.transpose(0, 1))
     res.fill_diagonal_(1)
     return res
@@ -284,7 +287,6 @@ def getTheLargestComponent(affinity_mat: torch.Tensor, seg_index: int, device: t
     Returns:
         connected_nodes (Tensor):
             A tensor containing booleans that indicate whether the node is connected.
-
     """
     num_of_segments = affinity_mat.shape[0]
 
@@ -475,13 +477,13 @@ def get_scale_interpolated_embs(
     scale_list = list(range(len(timestamps_in_scales)))
     for scale_idx in scale_list:
         mapping_argmat = session_scale_mapping_dict[scale_idx]
-        emb_t = embeddings_in_scales[scale_idx].half().to(device)
+        emb_t = embeddings_in_scales[scale_idx].to(device)
         mapping_argmat = mapping_argmat.to(device)
         repeat_list = getRepeatedList(mapping_argmat, torch.tensor(emb_t.shape[0])).to(device)
         rep_emb_t = torch.repeat_interleave(emb_t, repeats=repeat_list, dim=0)
         rep_mat_list.append(rep_emb_t)
     stacked_scale_embs = torch.stack(rep_mat_list)
-    context_emb = torch.matmul(stacked_scale_embs.permute(2, 1, 0), multiscale_weights.t().half()).squeeze().t()
+    context_emb = torch.matmul(stacked_scale_embs.permute(2, 1, 0), multiscale_weights.t()).squeeze().t()
     if len(context_emb.shape) < 2:
         context_emb = context_emb.unsqueeze(0)
     context_emb =context_emb.to(device)
@@ -611,10 +613,10 @@ def addAnchorEmb(emb: torch.Tensor, anchor_sample_n: int, anchor_spk_n: int, sig
     sigma = torch.tensor(sigma).to(emb.device)
     new_emb_list = []
     for _ in range(anchor_spk_n):
-        emb_m = torch.tile(torch.randn(1, emb_dim), (anchor_sample_n, 1)).half().to(emb.device)
-        emb_noise = torch.randn(anchor_sample_n, emb_dim).T.to(emb.device).half()
+        emb_m = torch.tile(torch.randn(1, emb_dim), (anchor_sample_n, 1)).to(emb.device)
+        emb_noise = torch.randn(anchor_sample_n, emb_dim).T.to(emb.device)
         emb_noise = torch.matmul(
-            torch.diag(std_org).half(), emb_noise / torch.max(torch.abs(emb_noise), dim=0)[0].unsqueeze(0)
+            torch.diag(std_org), emb_noise / torch.max(torch.abs(emb_noise), dim=0)[0].unsqueeze(0)
         ).T
         emb_gen = emb_m + sigma * emb_noise
         new_emb_list.append(emb_gen)
@@ -1868,8 +1870,8 @@ class OnlineSpeakerClustering:
         sparse_search_volume: int = 15,
         history_buffer_size: int = 150,
         current_buffer_size: int = 150,
-        min_spk_counting_buffer_size = 7,
-        min_frame_per_spk: int = 20,
+        min_spk_counting_buffer_size = 3,
+        min_frame_per_spk: int = 15,
         p_update_freq: int = 5,
         p_value_skip_frame_thres: int = 50,
         p_value_queue_size: int = 3,
@@ -2009,7 +2011,7 @@ class OnlineSpeakerClustering:
         """
         return min(est_num_of_spk, int(1 + frame_index // self.min_frame_per_spk))
 
-    def online_spk_num_estimation(self, mat_in, nmesc, frame_index):
+    def online_spk_num_estimation(self, mat_in: torch.Tensor, nmesc, frame_index: int) -> Tuple[int, torch.Tensor]:
         """
         Online version of speaker estimation involves speaker counting buffer and application of per-speaker
         frame count limit.
@@ -2032,11 +2034,11 @@ class OnlineSpeakerClustering:
         """
         est_num_of_spk, p_hat_value = self.onlineNMEanalysis(nmesc, frame_index)
         affinity_mat = getAffinityGraphMat(mat_in, p_hat_value)
-        est_num_of_spk = self.speaker_counter_buffer(est_num_of_spk)
-        est_num_of_spk = self.limit_frames_per_speaker(frame_index, est_num_of_spk)
+        raw_est_num_of_spk = self.speaker_counter_buffer(est_num_of_spk)
+        est_num_of_spk = self.limit_frames_per_speaker(frame_index, raw_est_num_of_spk)
         return est_num_of_spk, affinity_mat
 
-    def prepare_embedding_update(self, emb_in: torch.Tensor, base_segment_indexes: List[int]):
+    def prepare_embedding_update(self, emb_in: torch.Tensor, base_segment_indexes: List[int]) -> Tuple[bool, int, torch.Tensor]:
         """
         This function performs the following tasks:
             1. Decide whether to extract more embeddings or not (by setting `update_speaker_register`)
@@ -2116,7 +2118,7 @@ class OnlineSpeakerClustering:
             raise ValueError(f"new_emb_n should not be negative but got new_emb_n: {new_emb_n}")
         return update_speaker_register, new_emb_n, pre_embs
 
-    def make_constant_length_emb(self, emb_in, base_segment_indexes):
+    def make_constant_length_emb(self, emb_in: torch.Tensor, base_segment_indexes: torch.Tensor) -> torch.Tensor:
         """
         This function deals with edge cases when the number of segments decreases and the number of embedding falls
         short for the labels.
