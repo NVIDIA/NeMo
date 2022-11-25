@@ -177,7 +177,7 @@ class DeepDiarizeModel(ModelPT):
             cat_features=self.cfg.decoder.cat_features,
         )
 
-        self.loss = torch.nn.BCEWithLogitsLoss()
+        self.valid_loss = torch.nn.BCEWithLogitsLoss()
         self.train_loss = torch.nn.BCEWithLogitsLoss(reduction='none' if self.cfg.focal else 'mean')
         self.apply(self._init_weights)
         self.mems = None
@@ -271,8 +271,6 @@ class DeepDiarizeModel(ModelPT):
 
         if self.cfg.permute:
             y = self._permutation_mask(speaker_outputs, y)
-        print("FINITE SPEAKER OUTPUTS", torch.isfinite(speaker_outputs).all())
-        print("FINITE ATTRACTORS", torch.isfinite(attractors_speaker_exists).all())
         loss = self._calculate_train_loss(speaker_outputs, y)
         existence_loss = self._calculate_attractor_loss(attractors_speaker_exists, y)
 
@@ -374,9 +372,9 @@ class DeepDiarizeModel(ModelPT):
         self.log('segment_val_loss', segment_loss / len(inputs), sync_dist=True)
 
     def _calculate_val_loss(self, logits, y):
-        loss = self.loss(logits, y.unsqueeze(0))
+        loss = self.valid_loss(logits, y.unsqueeze(0))
         # calculate the loss after we flipped the speaker labels as well
-        invert_loss = self.loss(logits, torch.flip(y, dims=(-1,)).unsqueeze(0))
+        invert_loss = self.valid_loss(logits, torch.flip(y, dims=(-1,)).unsqueeze(0))
         # take the minimum loss
         loss = min(loss, invert_loss)
         return loss

@@ -17,7 +17,7 @@ import os
 import random
 from dataclasses import dataclass
 from itertools import chain, cycle
-from typing import Iterable, List
+from typing import Iterable, List, Optional
 
 import numpy as np
 import sox
@@ -35,7 +35,7 @@ from nemo.collections.asr.parts.preprocessing import WaveformFeaturizer
 
 @dataclass
 class VoxCelebConfig:
-    voxceleb_path: str
+    voxceleb_path: Optional[str]
     max_call_length_seconds: int
     dominance_var: float = 0.11
     min_dominance: float = 0.05

@@ -127,17 +127,18 @@ class CombinedSegmentDataset(IterableDataset, ABC):
                     max_speakers=max_speakers,
                 )
             )
-        datasets.append(
-            VoxCelebDataset(
-                preprocessor=preprocessor,
-                featurizer=featurizer,
-                spec_augmentation=spec_augmentation,
-                context_window=context_window,
-                window_stride=window_stride,
-                subsampling=subsampling,
-                config=voxceleb_config,
-                max_speakers=max_speakers,
-                train_segment_seconds=train_segment_seconds,
+        if voxceleb_config.voxceleb_path is not None:
+            datasets.append(
+                VoxCelebDataset(
+                    preprocessor=preprocessor,
+                    featurizer=featurizer,
+                    spec_augmentation=spec_augmentation,
+                    context_window=context_window,
+                    window_stride=window_stride,
+                    subsampling=subsampling,
+                    config=voxceleb_config,
+                    max_speakers=max_speakers,
+                    train_segment_seconds=train_segment_seconds,
+                )
             )
-        )
         return [ConcatDataset(datasets, batch_size=split_size, weights=weights) for _ in range(num_workers)]
