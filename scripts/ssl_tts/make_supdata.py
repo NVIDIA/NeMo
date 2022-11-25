@@ -252,8 +252,6 @@ def compute_pitch_stats(records):
         speaker_pitch_stats[speaker] = {"pitch_mean": pitch_mean, "pitch_std": pitch_std, "valid": valid}
 
     with open(os.path.join(sup_data_dir, "speaker_pitch_stats.json"), "w") as f:
-        print(sup_data_dir)
-        print("speaker_pitch_stats.json")
         json.dump(speaker_pitch_stats, f)
 
 

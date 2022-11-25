@@ -113,8 +113,15 @@ def get_ssl_features_disentangled(
     """
     Extracts content embedding, speaker embedding and duration tokens to be used as inputs for FastPitchModel_SSL 
     synthesizer. Content embedding and speaker embedding extracted using SSLDisentangler model.
-    Can specify content embedding type to include only 
-
+    Args:
+        ssl_model: SSLDisentangler model
+        wav_featurizer: WaveformFeaturizer object
+        audio_path: path to audio file
+        emb_type: Can be one of embedding_and_probs, embedding, probs, log_probs
+        use_unique_tokens: If True, content embeddings with same predicted token are grouped and duration is different.
+        device: device to run the model on
+    Returns:
+        content_embedding, speaker_embedding, duration
     """
     wav = load_wav(audio_path, wav_featurizer)
     audio_signal = wav[None]
