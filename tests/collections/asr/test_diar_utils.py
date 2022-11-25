@@ -45,6 +45,7 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
 
 MAX_SEED_COUNT = 2
 
+
 def check_range_values(target, source):
     bool_list = []
     for tgt, src in zip(target, source):
@@ -71,13 +72,13 @@ def matrix(mat, use_tensor=True, dtype=torch.long):
 def generate_orthogonal_embs(total_spks, perturb_sigma, emb_dim):
     """Generate a set of artificial orthogonal embedding vectors from random numbers
     """
-    gaus = torch.randn (emb_dim, emb_dim)
-    _svd = torch.linalg.svd (gaus)
+    gaus = torch.randn(emb_dim, emb_dim)
+    _svd = torch.linalg.svd(gaus)
     orth = _svd[0] @ _svd[2]
     orth_embs = orth[:total_spks]
     # Assert orthogonality
     assert torch.abs(getCosAffinityMatrix(orth_embs) - torch.diag(torch.ones(total_spks))).sum() < 1e-4
-    return orth_embs 
+    return orth_embs
 
 
 def generate_toy_data(
@@ -100,7 +101,7 @@ def generate_toy_data(
             segments_stt_dur = get_subsegments(offset=offset, window=window, shift=shift, duration=dur)
             segments = [[x[0], x[0] + x[1]] for x in segments_stt_dur]
             emb_cent = random_orhtogonal_embs[spk_idx, :]
-            emb = emb_cent.tile((len(segments), 1))  + 0.1* torch.rand(len(segments), emb_dim)
+            emb = emb_cent.tile((len(segments), 1)) + 0.1 * torch.rand(len(segments), emb_dim)
             seg_list.extend(segments)
             emb_list.append(emb)
             multiscale_segment_counts[scale_idx] += emb.shape[0]
@@ -512,7 +513,9 @@ class TestSpeakerClustering:
     @pytest.mark.parametrize("seed", np.arange(MAX_SEED_COUNT).tolist())
     def test_offline_speaker_clustering_gpu(self, n_spks, total_sec, SSV, perturb_sigma, seed):
         spk_dur = total_sec / n_spks
-        em, ts, mc, mw, spk_ts, gt = generate_toy_data(n_spks=n_spks, spk_dur=spk_dur, perturb_sigma=perturb_sigma, torch_seed=seed)
+        em, ts, mc, mw, spk_ts, gt = generate_toy_data(
+            n_spks=n_spks, spk_dur=spk_dur, perturb_sigma=perturb_sigma, torch_seed=seed
+        )
         offline_speaker_clustering = SpeakerClustering(maj_vote_spk_count=False, cuda=True)
         assert isinstance(offline_speaker_clustering, SpeakerClustering)
 
@@ -546,7 +549,9 @@ class TestSpeakerClustering:
     def test_offline_speaker_clustering_very_short_cpu(
         self, n_spks, spk_dur, SSV, enhanced_count_thres, min_samples_for_nmesc, seed,
     ):
-        em, ts, mc, mw, spk_ts, gt = generate_toy_data(n_spks=n_spks, spk_dur=spk_dur, perturb_sigma=0.1, torch_seed=seed)
+        em, ts, mc, mw, spk_ts, gt = generate_toy_data(
+            n_spks=n_spks, spk_dur=spk_dur, perturb_sigma=0.1, torch_seed=seed
+        )
         offline_speaker_clustering = SpeakerClustering(maj_vote_spk_count=False, min_samples_for_nmesc=0, cuda=False)
         assert isinstance(offline_speaker_clustering, SpeakerClustering)
         Y_out = offline_speaker_clustering.forward_infer(
@@ -579,7 +584,9 @@ class TestSpeakerClustering:
     def test_offline_speaker_clustering_very_short_gpu(
         self, n_spks, spk_dur, SSV, enhanced_count_thres, min_samples_for_nmesc, seed
     ):
-        em, ts, mc, mw, spk_ts, gt = generate_toy_data(n_spks=n_spks, spk_dur=spk_dur, perturb_sigma=0.1, torch_seed=seed)
+        em, ts, mc, mw, spk_ts, gt = generate_toy_data(
+            n_spks=n_spks, spk_dur=spk_dur, perturb_sigma=0.1, torch_seed=seed
+        )
         offline_speaker_clustering = SpeakerClustering(maj_vote_spk_count=False, min_samples_for_nmesc=0, cuda=True)
         assert isinstance(offline_speaker_clustering, SpeakerClustering)
         Y_out = offline_speaker_clustering.forward_infer(
