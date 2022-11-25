@@ -1005,7 +1005,9 @@ def get_merge_quantity(
     if int(removable_counts_mat.sum()) != num_to_be_removed:
         raise ValueError("Sum of `removable_counts_mat` is not equal to `num_to_be_removed` variable.")
     if not torch.all(removable_counts_mat >= 0) or not torch.all(spk_freq_count - min_seg_count_mat >= 0):
-        raise ValueError("Every value in `removable_counts_mat` should be always non-negative value but got {removable_counts_mat}")
+        raise ValueError(
+            "Every value in `removable_counts_mat` should be always non-negative value but got {removable_counts_mat}"
+        )
     return removable_counts_mat
 
 
