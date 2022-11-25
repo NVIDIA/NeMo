@@ -506,7 +506,7 @@ class TestSpeakerClustering:
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     @pytest.mark.parametrize("n_spks", [1, 2, 3, 4, 5, 6, 7])
-    @pytest.mark.parametrize("total_sec", [15, 30])
+    @pytest.mark.parametrize("total_sec", [30])
     @pytest.mark.parametrize("SSV", [10])
     @pytest.mark.parametrize("perturb_sigma", [0.1])
     @pytest.mark.parametrize("seed", np.arange(MAX_SEED_COUNT).tolist())
