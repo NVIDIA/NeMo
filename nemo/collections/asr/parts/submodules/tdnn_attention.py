@@ -64,7 +64,7 @@ class StatsPoolLayer(nn.Module):
             else:
                 pooled = mean
         else:
-            mask = make_mask(lengths=length, ndims=encoder_output.dim(), valid_ones=False)
+            mask = make_seq_mask_like(like=encoder_output, lengths=length, valid_ones=False)
             encoder_output = encoder_output.masked_fill(mask, 0.0)
             # [B, D, T] -> [B, D]
             means = encoder_output.mean(dim=-1)
@@ -87,10 +87,23 @@ class StatsPoolLayer(nn.Module):
 
 
 @torch.jit.script_if_tracing
-def make_mask(lengths: torch.Tensor, ndims: int, valid_ones: bool = True) -> torch.Tensor:
-    mask = torch.arange(lengths.max(), device=lengths.device).repeat(lengths.shape[0], 1).lt(lengths.unsqueeze(-1))
-    for _ in range(ndims - mask.dim()):
+def make_seq_mask_like(
+        like: torch.Tensor,
+        lengths: torch.Tensor,
+        valid_ones: bool = True,
+        time_dim: int = -1
+) -> torch.Tensor:
+    mask = (
+        torch.arange(like.shape[time_dim], device=like.device)
+        .repeat(lengths.shape[0], 1)
+        .lt(lengths.unsqueeze(-1))
+    )
+    # Match number of dims in `like` tensor
+    for _ in range(like.dim() - mask.dim()):
         mask = mask.unsqueeze(1)
+    # If time dim != -1, transpose to proper dim.
+    if time_dim != -1:
+        mask = mask.transpose(time_dim, -1)
     if not valid_ones:
         mask = ~mask
     return mask
