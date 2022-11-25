@@ -332,9 +332,9 @@ class AudioToMelSpectrogramPreprocessorX(AudioPreprocessor, Exportable):
         log_zero_guard_value: Union[float, str] = 2 ** -24,
         dither: float = 1e-5,
         window: str = "hann",
-        pad_to: Optional[int] = 0,
+        pad_to: int = 0,
         pad_value: float = 0.,
-        # Doubt anyone uses any of these options anymore. Don't convolute the code.
+        # Doubt anyone uses any of these options anymore. Don't convolute the code by supporting thm.
         frame_splicing: int = 1,  # Deprecated arguments; kept for config compatibility
         exact_pad: bool = False,  # Deprecated arguments; kept for config compatibility
         nb_augmentation_prob: float = 0.0,  # Deprecated arguments; kept for config compatibility
@@ -403,6 +403,11 @@ class AudioToMelSpectrogramPreprocessorX(AudioPreprocessor, Exportable):
             "processed_length": NeuralType(("B",), LengthsType()),
         }
 
+    @property
+    def featurizer(self):
+        """Though `featurizer` is not part of the `AudioPreprocessor` spec, calling code may behave as if it is."""
+        return self._mel_spec_extractor
+
     def input_example(self, max_batch: int = 8, max_dim: int = 32000, min_length: int = 200):
         batch_size = torch.randint(low=1, high=max_batch, size=[1]).item()
         max_length = torch.randint(low=min_length, high=max_dim, size=[1]).item()
@@ -464,7 +469,7 @@ class AudioToMelSpectrogramPreprocessorX(AudioPreprocessor, Exportable):
         # Use the log zero guard for the sqrt zero guard
         guard_value = self._resolve_log_zero_guard_value(features.dtype)
         if self._normalize_strategy == "per_feature" or self._normalize_strategy == "all_features":
-            # 'all_features' will reduce over entire sample, 'per_feature' reduces over each channel
+            # 'all_features' reduces over each sample; 'per_feature' reduces over each channel
             reduce_dim = 2
             if self._normalize_strategy == "all_features":
                 reduce_dim = [1, 2]
