@@ -22,3 +22,9 @@ TTS:
 
 core:
 - nemo/core/**/*
+
+CI:
+- .github/**/*
+- Jenkinsfile
+- Dockerfile
+- ci.groovy
