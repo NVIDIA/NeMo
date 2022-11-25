@@ -88,16 +88,9 @@ class StatsPoolLayer(nn.Module):
 
 @torch.jit.script_if_tracing
 def make_seq_mask_like(
-        like: torch.Tensor,
-        lengths: torch.Tensor,
-        valid_ones: bool = True,
-        time_dim: int = -1
+    like: torch.Tensor, lengths: torch.Tensor, valid_ones: bool = True, time_dim: int = -1
 ) -> torch.Tensor:
-    mask = (
-        torch.arange(like.shape[time_dim], device=like.device)
-        .repeat(lengths.shape[0], 1)
-        .lt(lengths.unsqueeze(-1))
-    )
+    mask = torch.arange(like.shape[time_dim], device=like.device).repeat(lengths.shape[0], 1).lt(lengths.unsqueeze(-1))
     # Match number of dims in `like` tensor
     for _ in range(like.dim() - mask.dim()):
         mask = mask.unsqueeze(1)
