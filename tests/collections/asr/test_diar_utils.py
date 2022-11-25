@@ -43,6 +43,7 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
     merge_int_intervals,
 )
 
+MAX_SEED_COUNT = 2
 
 def check_range_values(target, source):
     bool_list = []
@@ -67,17 +68,23 @@ def matrix(mat, use_tensor=True, dtype=torch.long):
     return mat
 
 
-def generate_mock_emb(n_emb_per_spk, perturb_sigma, emb_dim):
-    """Generate a set of artificial embedding vectors from random numbers
+def generate_orthogonal_embs(total_spks, perturb_sigma, emb_dim):
+    """Generate a set of artificial orthogonal embedding vectors from random numbers
     """
-    return torch.rand(1, emb_dim).repeat(n_emb_per_spk, 1) + perturb_sigma * torch.rand(n_emb_per_spk, emb_dim)
+    gaus = torch.randn (emb_dim, emb_dim)
+    _svd = torch.linalg.svd (gaus)
+    orth = _svd[0] @ _svd[2]
+    orth_embs = orth[:total_spks]
+    # Assert orthogonality
+    assert torch.abs(getCosAffinityMatrix(orth_embs) - torch.diag(torch.ones(total_spks))).sum() < 1e-4
+    return orth_embs 
 
 
 def generate_toy_data(
     n_spks=2,
     spk_dur=3,
     emb_dim=192,
-    perturb_sigma=0.01,
+    perturb_sigma=0.0,
     ms_window=[1.5, 1.0, 0.5],
     ms_shift=[0.75, 0.5, 0.25],
     torch_seed=0,
@@ -87,11 +94,13 @@ def generate_toy_data(
     emb_list, seg_list = [], []
     multiscale_segment_counts = [0 for _ in range(len(ms_window))]
     ground_truth = []
+    random_orhtogonal_embs = generate_orthogonal_embs(n_spks, perturb_sigma, emb_dim)
     for scale_idx, (window, shift) in enumerate(zip(ms_window, ms_shift)):
         for spk_idx, (offset, dur) in enumerate(spk_timestamps):
             segments_stt_dur = get_subsegments(offset=offset, window=window, shift=shift, duration=dur)
             segments = [[x[0], x[0] + x[1]] for x in segments_stt_dur]
-            emb = generate_mock_emb(n_emb_per_spk=len(segments), perturb_sigma=perturb_sigma, emb_dim=emb_dim,)
+            emb_cent = random_orhtogonal_embs[spk_idx, :]
+            emb = emb_cent.tile((len(segments), 1))  + 0.1* torch.rand(len(segments), emb_dim)
             seg_list.extend(segments)
             emb_list.append(emb)
             multiscale_segment_counts[scale_idx] += emb.shape[0]
@@ -447,10 +456,10 @@ class TestSpeakerClustering:
             'timestamps': ts,
             'multiscale_segment_counts': mc,
             'multiscale_weights': mw,
-            'oracle_num_speakers': torch.LongTensor([num_speakers]),
-            'max_num_speakers': torch.LongTensor([max_num_speakers]),
-            'enhanced_count_thres': torch.LongTensor([enhanced_count_thres]),
-            'sparse_search_volume': torch.LongTensor([sparse_search_volume]),
+            'oracle_num_speakers': torch.Tensor([num_speakers]),
+            'max_num_speakers': torch.Tensor([max_num_speakers]),
+            'enhanced_count_thres': torch.Tensor([enhanced_count_thres]),
+            'sparse_search_volume': torch.Tensor([sparse_search_volume]),
             'max_rp_threshold': torch.tensor([max_rp_threshold]),
             'fixed_thres': torch.tensor([fixed_thres]),
         }
@@ -467,7 +476,7 @@ class TestSpeakerClustering:
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     @pytest.mark.parametrize("n_spks", [1, 2])
-    @pytest.mark.parametrize("spk_dur", [6, 20])
+    @pytest.mark.parametrize("spk_dur", [20])
     @pytest.mark.parametrize("SSV", [10])
     @pytest.mark.parametrize("perturb_sigma", [0.1])
     def test_offline_speaker_clustering_cpu(self, n_spks, spk_dur, SSV, perturb_sigma):
@@ -497,11 +506,13 @@ class TestSpeakerClustering:
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     @pytest.mark.parametrize("n_spks", [1, 2, 3, 4, 5, 6, 7])
-    @pytest.mark.parametrize("spk_dur", [6])
+    @pytest.mark.parametrize("total_sec", [15, 30])
     @pytest.mark.parametrize("SSV", [10])
     @pytest.mark.parametrize("perturb_sigma", [0.1])
-    def test_offline_speaker_clustering_gpu(self, n_spks, spk_dur, SSV, perturb_sigma):
-        em, ts, mc, mw, spk_ts, gt = generate_toy_data(n_spks=n_spks, spk_dur=spk_dur, perturb_sigma=perturb_sigma)
+    @pytest.mark.parametrize("seed", np.arange(MAX_SEED_COUNT).tolist())
+    def test_offline_speaker_clustering_gpu(self, n_spks, total_sec, SSV, perturb_sigma, seed):
+        spk_dur = total_sec / n_spks
+        em, ts, mc, mw, spk_ts, gt = generate_toy_data(n_spks=n_spks, spk_dur=spk_dur, perturb_sigma=perturb_sigma, torch_seed=seed)
         offline_speaker_clustering = SpeakerClustering(maj_vote_spk_count=False, cuda=True)
         assert isinstance(offline_speaker_clustering, SpeakerClustering)
 
@@ -527,14 +538,15 @@ class TestSpeakerClustering:
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     @pytest.mark.parametrize("n_spks", [1])
-    @pytest.mark.parametrize("spk_dur", [0.25, 0.5, 0.75, 1, 2, 4])
+    @pytest.mark.parametrize("spk_dur", [0.25, 0.5, 0.75, 1, 1.5, 2])
     @pytest.mark.parametrize("SSV", [5])
     @pytest.mark.parametrize("enhanced_count_thres", [40])
     @pytest.mark.parametrize("min_samples_for_nmesc", [6])
+    @pytest.mark.parametrize("seed", np.arange(MAX_SEED_COUNT).tolist())
     def test_offline_speaker_clustering_very_short_cpu(
-        self, n_spks, spk_dur, SSV, enhanced_count_thres, min_samples_for_nmesc
+        self, n_spks, spk_dur, SSV, enhanced_count_thres, min_samples_for_nmesc, seed,
     ):
-        em, ts, mc, mw, spk_ts, gt = generate_toy_data(n_spks=n_spks, spk_dur=spk_dur, perturb_sigma=0.1)
+        em, ts, mc, mw, spk_ts, gt = generate_toy_data(n_spks=n_spks, spk_dur=spk_dur, perturb_sigma=0.1, torch_seed=seed)
         offline_speaker_clustering = SpeakerClustering(maj_vote_spk_count=False, min_samples_for_nmesc=0, cuda=False)
         assert isinstance(offline_speaker_clustering, SpeakerClustering)
         Y_out = offline_speaker_clustering.forward_infer(
@@ -563,10 +575,11 @@ class TestSpeakerClustering:
     @pytest.mark.parametrize("SSV", [5])
     @pytest.mark.parametrize("enhanced_count_thres", [40])
     @pytest.mark.parametrize("min_samples_for_nmesc", [6])
+    @pytest.mark.parametrize("seed", np.arange(MAX_SEED_COUNT).tolist())
     def test_offline_speaker_clustering_very_short_gpu(
-        self, n_spks, spk_dur, SSV, enhanced_count_thres, min_samples_for_nmesc
+        self, n_spks, spk_dur, SSV, enhanced_count_thres, min_samples_for_nmesc, seed
     ):
-        em, ts, mc, mw, spk_ts, gt = generate_toy_data(n_spks=n_spks, spk_dur=spk_dur, perturb_sigma=0.1)
+        em, ts, mc, mw, spk_ts, gt = generate_toy_data(n_spks=n_spks, spk_dur=spk_dur, perturb_sigma=0.1, torch_seed=seed)
         offline_speaker_clustering = SpeakerClustering(maj_vote_spk_count=False, min_samples_for_nmesc=0, cuda=True)
         assert isinstance(offline_speaker_clustering, SpeakerClustering)
         Y_out = offline_speaker_clustering.forward_infer(
@@ -584,18 +597,21 @@ class TestSpeakerClustering:
         permuted_Y = stitch_cluster_labels(Y_old=gt, Y_new=Y_out)
 
         # mc[-1] is the number of base scale segments
-        assert len(set(permuted_Y.tolist())) == n_spks
         assert Y_out.shape[0] == mc[-1]
         assert all(permuted_Y == gt)
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     @pytest.mark.parametrize("n_spks", [1, 2, 3, 4])
-    @pytest.mark.parametrize("buffer_size", [20])
-    def test_online_speaker_clustering(self, n_spks, buffer_size):
+    @pytest.mark.parametrize("total_sec", [30])
+    @pytest.mark.parametrize("buffer_size", [30])
+    @pytest.mark.parametrize("sigma", [0.1])
+    @pytest.mark.parametrize("seed", np.arange(MAX_SEED_COUNT).tolist())
+    def test_online_speaker_clustering(self, n_spks, total_sec, buffer_size, sigma, seed):
         step_per_frame = 2
-        spk_dur = 20 if n_spks == 1 else 10
-        em, ts, mc, _, _, gt = generate_toy_data(n_spks, spk_dur=spk_dur, perturb_sigma=0.1)
+        spk_dur = total_sec / n_spks
+        # spk_dur = 2*spk_dur if n_spks == 1 else spk_dur
+        em, ts, mc, _, _, gt = generate_toy_data(n_spks, spk_dur=spk_dur, perturb_sigma=sigma, torch_seed=seed)
         em_s, ts_s = split_input_data(em, ts, mc)
 
         emb_gen = em_s[-1]
@@ -613,7 +629,7 @@ class TestSpeakerClustering:
         online_clus = OnlineSpeakerClustering(
             max_num_speakers=8,
             max_rp_threshold=0.15,
-            sparse_search_volume=5,
+            sparse_search_volume=30,
             history_buffer_size=history_buffer_size,
             current_buffer_size=current_buffer_size,
             cuda=cuda,
@@ -648,7 +664,7 @@ class TestSpeakerClustering:
             # Resolve permutations
             merged_clus_labels = online_clus.match_labels(Y_concat, add_new=add_new)
             assert len(merged_clus_labels) == (frame_index + 1) * step_per_frame
-
+            print(merged_clus_labels)
             # Resolve permutation issue by using stitch_cluster_labels function
             merged_clus_labels = stitch_cluster_labels(Y_old=gt[: len(merged_clus_labels)], Y_new=merged_clus_labels)
             evaluation_list.extend(list(merged_clus_labels == gt[: len(merged_clus_labels)]))

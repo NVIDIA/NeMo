@@ -920,7 +920,7 @@ def calculate_removable_counts(removable_counts_mat: torch.Tensor, remain_count:
     removable_count_args = removable_counts_mat.sort(descending=True)[1]
 
     # Calculate the size difference between clusters
-    diff_counts = (zero_padded_counts[1:] - zero_padded_counts[-1])[:num_clus]
+    diff_counts = (zero_padded_counts[1:] - zero_padded_counts[:-1])[:num_clus]
     gradual_counts = torch.arange(num_clus, 0, -1).to(device) * diff_counts
     cumsum_counts = torch.cumsum(gradual_counts, dim=0)
     count, remain_count_rem = 0, remain_count
@@ -946,7 +946,7 @@ def calculate_removable_counts(removable_counts_mat: torch.Tensor, remain_count:
     return removable_counts_mat
 
 
-@torch.jit.script
+# @torch.jit.script
 def get_merge_quantity(
     num_to_be_removed: int, pre_clus_labels: torch.Tensor, min_count_per_cluster: int,
 ) -> torch.Tensor:
@@ -1004,8 +1004,8 @@ def get_merge_quantity(
     removable_counts_mat = calculate_removable_counts(removable_counts_mat, remain_count, num_clus)
     if int(removable_counts_mat.sum()) != num_to_be_removed:
         raise ValueError("Sum of `removable_counts_mat` is not equal to `num_to_be_removed` variable.")
-    if not torch.all(removable_counts_mat >= 0):
-        raise ValueError("Every value in `removable_counts_mat` should be non-negative value.")
+    if not torch.all(removable_counts_mat >= 0) or not torch.all(spk_freq_count - min_seg_count_mat >= 0):
+        raise ValueError("Every value in `removable_counts_mat` should be always non-negative value but got {removable_counts_mat}")
     return removable_counts_mat
 
 

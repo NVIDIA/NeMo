@@ -91,6 +91,7 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
 
         self.uniq_id = self._cfg_diarizer.get('uniq_id', None)
         self.decimals = self._cfg_diarizer.get('decimals', 2)
+        self.use_temporal_label_major_vote = self._cfg_diarizer.get('use_temporal_label_major_vote', False)
         self.AUDIO_RTTM_MAP = audio_rttm_map(self.cfg.diarizer.manifest_filepath)
         self.sample_rate = self.cfg.sample_rate
         torch.manual_seed(0)
@@ -183,7 +184,6 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
                 Dictionary containing multiple speaker labels for major voting
                 Speaker labels from multiple steps are saved for each segment index.
         """
-        self.use_temporal_label_major_vote = True
         self.temporal_label_major_vote_buffer_size = 11
         self.base_scale_label_dict = {}
 
