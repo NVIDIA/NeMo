@@ -92,7 +92,6 @@ def get_speaker_embedding(ssl_model, wav_featurizer, audio_paths, duration=None,
             break
 
     signal_batch = torch.stack(all_segments)
-    print("signal batch", signal_batch.shape)
     signal_length_batch = torch.stack([torch.tensor(signal_batch.shape[1]) for _ in range(len(all_segments))])
     signal_batch = signal_batch.to(device)
     signal_length_batch = signal_length_batch.to(device)

@@ -396,8 +396,8 @@ class FastPitchModel_SSL(ModelPT):
         elif durs_gt is not None:
             durs = durs_gt
         else:
-            # by default, each ConformerSSL frame corresponds to 4 mel frames
-            durs = torch.ones_like(enc_mask) * 4.0
+            ssl_downsampling_factor = self._cfg.get("ssl_downsampling_factor", 4)  # backward compatibility
+            durs = torch.ones_like(enc_mask) * ssl_downsampling_factor
 
         enc_mask = enc_mask[:, :, None]
         if pitch_contour is not None and compute_pitch == False:

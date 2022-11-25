@@ -864,6 +864,7 @@ def prepare_lr_scheduler(
         # Compute effective num max_steps
         if isinstance(train_dataloader, dict):
             # for multi-task setting train_dataloader is a dictionary of multiple dataloaders
+            # (Eg. SSLDisentangler model in ssl_tts.py)
             # _train_dataloader set to one of the items in the dictionary used for computing max_steps
             _train_dataloader = train_dataloader[list(train_dataloader.keys())[0]]
         else:
