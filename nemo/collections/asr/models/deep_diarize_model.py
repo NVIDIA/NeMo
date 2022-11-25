@@ -215,8 +215,7 @@ class DeepDiarizeModel(ModelPT):
 
     def _permutation_mask(self, preds, y):
         if self.permutations is None:
-            # todo: assumption of two speakers
-            self.permutations = torch.empty(preds.size(0), 5, dtype=torch.int).to(self.device)
+            self.permutations = torch.empty(preds.size(0), self.num_speakers, dtype=torch.int).to(self.device)
 
         for x in range(preds.size(0)):
             with torch.no_grad():
