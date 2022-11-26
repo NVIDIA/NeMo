@@ -125,8 +125,8 @@ def make_seq_mask_like(
 
     Returns:
         A :class:`torch.Tensor` containing 1's and 0's for valid and invalid tokens, respectively, if `valid_ones`, else
-        vice-versa. Mask will have the same number of dimensions as `shape_tensor`. Batch and time dimensions will match
-        the `shape_tensor`. All other dimensions will be singletons. E.g., if `shape_tensor.shape == [3, 4, 5]` and
+        vice-versa. Mask will have the same number of dimensions as `like`. Batch and time dimensions will match
+        the `like`. All other dimensions will be singletons. E.g., if `like.shape == [3, 4, 5]` and
         `time_dim == -1', mask will have shape `[3, 1, 5]`.
     """
     # Mask with shape [B, T]
@@ -461,8 +461,8 @@ class FilterbankFeaturesTA(nn.Module):
     def __init__(
         self,
         sample_rate: int = 16000,
-        window_size: float = 0.025,
-        window_stride: float = 0.01,
+        n_window_size: int = 320,
+        n_window_stride: int = 160,
         normalize: Optional[str] = "per_feature",
         nfilt: int = 64,
         n_fft: Optional[int] = None,
@@ -477,12 +477,12 @@ class FilterbankFeaturesTA(nn.Module):
         pad_to: int = 0,
         pad_value: float = 0.,
         # Seems like no one uses these options anymore. Don't convolute the code by supporting thm.
+        use_grads: bool = False,  # Deprecated arguments; kept for config compatibility
+        max_duration: float = 16.7,  # Deprecated arguments; kept for config compatibility
         frame_splicing: int = 1,  # Deprecated arguments; kept for config compatibility
         exact_pad: bool = False,  # Deprecated arguments; kept for config compatibility
         nb_augmentation_prob: float = 0.0,  # Deprecated arguments; kept for config compatibility
         nb_max_freq: int = 4000,  # Deprecated arguments; kept for config compatibility
-        n_window_size: Optional[int] = None,  # Deprecated arguments; kept for config compatibility
-        n_window_stride: Optional[int] = None,  # Deprecated arguments; kept for config compatibility
         mag_power: float = 2.0,  # Deprecated arguments; kept for config compatibility
         rng: Optional[random.Random] = None,  # Deprecated arguments; kept for config compatibility
         stft_exact_pad: bool = False,  # Deprecated arguments; kept for config compatibility
@@ -496,7 +496,7 @@ class FilterbankFeaturesTA(nn.Module):
         supported_log_zero_guard_strings = {"eps", "tiny"}
         if isinstance(log_zero_guard_value, str) and log_zero_guard_value not in supported_log_zero_guard_strings:
             raise ValueError(
-                f"Log zero  guard value must either be a float or a member of {supported_log_zero_guard_strings}"
+                f"Log zero guard value must either be a float or a member of {supported_log_zero_guard_strings}"
             )
 
         # Copied from `AudioPreprocessor` due to the ad-hoc structuring of the Mel Spec extractor class
@@ -513,8 +513,8 @@ class FilterbankFeaturesTA(nn.Module):
         if window not in self.torch_windows:
             raise ValueError(f"Got window value '{window}' but expected a member of {self.torch_windows.keys()}")
 
-        self._win_length = int(sample_rate * window_size)
-        self._hop_length = int(sample_rate * window_stride)
+        self._win_length = n_window_size
+        self._hop_length = n_window_stride
         self._sample_rate = sample_rate
         self._normalize_strategy = normalize
         self._use_log = log
