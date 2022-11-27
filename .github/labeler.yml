@@ -23,6 +23,9 @@ TTS:
 core:
 - nemo/core/**/*
 
+common:
+- nemo/collections/common/**/*
+
 CI:
 - .github/**/*
 - Jenkinsfile
