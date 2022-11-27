@@ -24,7 +24,7 @@ from packaging import version
 from nemo.collections.asr.parts.numba.spec_augment import SpecAugmentNumba, spec_augment_launch_heuristics
 from nemo.collections.asr.parts.preprocessing.features import FilterbankFeatures, FilterbankFeaturesTA
 from nemo.collections.asr.parts.submodules.spectr_augment import SpecAugment, SpecCutout
-from nemo.core.classes import NeuralModule, typecheck, Exportable
+from nemo.core.classes import Exportable, NeuralModule, typecheck
 from nemo.core.neural_types import (
     AudioSignal,
     LengthsType,

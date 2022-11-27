@@ -34,7 +34,7 @@
 # This file contains code artifacts adapted from https://github.com/ryanleary/patter
 import math
 import random
-from typing import Union, Optional, Tuple
+from typing import Optional, Tuple, Union
 
 import librosa
 import numpy as np
@@ -47,6 +47,7 @@ from nemo.utils import logging
 
 try:
     import torchaudio
+
     HAVE_TORCHAUDIO = True
 except ModuleNotFoundError:
     HAVE_TORCHAUDIO = False
@@ -109,10 +110,7 @@ def splice_frames(x, frame_splicing):
 
 @torch.jit.script_if_tracing
 def make_seq_mask_like(
-        lengths: torch.Tensor,
-        like: torch.Tensor,
-        time_dim: int = -1,
-        valid_ones: bool = True
+    lengths: torch.Tensor, like: torch.Tensor, time_dim: int = -1, valid_ones: bool = True
 ) -> torch.Tensor:
     """
 
@@ -130,11 +128,7 @@ def make_seq_mask_like(
         `time_dim == -1', mask will have shape `[3, 1, 5]`.
     """
     # Mask with shape [B, T]
-    mask = (
-        torch.arange(like.shape[time_dim], device=like.device)
-        .repeat(lengths.shape[0], 1)
-        .lt(lengths.view(-1, 1))
-    )
+    mask = torch.arange(like.shape[time_dim], device=like.device).repeat(lengths.shape[0], 1).lt(lengths.view(-1, 1))
     # [B, T] -> [B, *, T] where * is any number of singleton dimensions to expand to like tensor
     for _ in range(like.dim() - mask.dim()):
         mask = mask.unsqueeze(1)
@@ -458,6 +452,7 @@ class FilterbankFeaturesTA(nn.Module):
     See `AudioToMelSpectrogramPreprocessor` for args.
 
     """
+
     def __init__(
         self,
         sample_rate: int = 16000,
@@ -475,7 +470,7 @@ class FilterbankFeaturesTA(nn.Module):
         dither: float = 1e-5,
         window: str = "hann",
         pad_to: int = 0,
-        pad_value: float = 0.,
+        pad_value: float = 0.0,
         # Seems like no one uses these options anymore. Don't convolute the code by supporting thm.
         use_grads: bool = False,  # Deprecated arguments; kept for config compatibility
         max_duration: float = 16.7,  # Deprecated arguments; kept for config compatibility
@@ -536,7 +531,7 @@ class FilterbankFeaturesTA(nn.Module):
             n_fft=n_fft,
             f_max=highfreq,
             f_min=lowfreq,
-            wkwargs={"periodic": False}
+            wkwargs={"periodic": False},
         )
 
     @property
