@@ -193,7 +193,7 @@ class ConvSubsampling(torch.nn.Module):
                             bias = True,
                         ),
                         
-                        nn.BatchNorm1d(d_model),
+                        nn.BatchNorm1d(in_channels),
                         activation,
 
                         torch.nn.Conv1d(
