@@ -25,6 +25,7 @@ from nemo.core.neural_types import LabelsType, LengthsType, LogprobsType, LossTy
 from nemo.core.utils.numba_utils import NUMBA_INSTALLATION_MESSAGE
 from nemo.utils import logging, model_utils
 
+
 class RNNTLossPytorch(Loss):
     @property
     def input_types(self):
