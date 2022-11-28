@@ -20,11 +20,11 @@ from typing import Dict, List, Set, Tuple
 """Utility functions for Spellchecking ASR Customization."""
 
 
-
 SPACE_REGEX = re.compile(r"[\u2000-\u200F]", re.UNICODE)
 APOSTROPHES_REGEX = re.compile(r"[’'‘`ʽ']")
 CHARS_TO_IGNORE_REGEX = re.compile(r"[\.\,\?\:\-!;()«»…\]\[/\*–‽+&_\\½√>€™$•¼}{~—=“\"”″‟„]")
-
+OOV_REGEX = "[^ '\-aiuenrbomkygwthszdcjfvplxq1234567890]"
+    
 
 def replace_diacritics(text):
     text = re.sub(r"[éèëēêęěė]", "e", text)
@@ -55,6 +55,12 @@ def preprocess_apostrophes_space_diacritics(text):
     text = re.sub(r" '", " ", text)  # delete apostrophes at the beginning of word
     text = re.sub(r"' ", " ", text)  # delete apostrophes at the end of word
     text = re.sub(r" +", " ", text)  # merge multiple spaces
+    return text
+
+
+def remove_oov_characters(text):
+    text = re.sub(OOV_REGEX, " ", text)  # delete oov characters
+    text = " ".join(text.split())
     return text
 
 
