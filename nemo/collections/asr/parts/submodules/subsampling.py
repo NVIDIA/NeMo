@@ -172,17 +172,14 @@ class ConvSubsampling(torch.nn.Module):
             in_channels = conv_channels
 
             # D.R. adding this.. 
-            layers.append(nn.BatchNorm1d(conv_channels))
-
+            layers.append(nn.BatchNorm2d(conv_channels))
             layers.append(activation)
+            # D.R. end
 
             for i in range(self._sampling_num - 1):
-                # D.R.
-                # torch.nn.Conv2d(
-                # D.R. adding activation between layers
                 layers.extend(
                     [
-                        torch.nn.Conv1d(
+                        torch.nn.Conv2d(
                             in_channels=in_channels,
                             out_channels=in_channels,
                             kernel_size=self._kernel_size,
@@ -192,11 +189,13 @@ class ConvSubsampling(torch.nn.Module):
                             # D.R adding bias
                             bias = True,
                         ),
-                        
-                        nn.BatchNorm1d(in_channels),
-                        activation,
 
-                        torch.nn.Conv1d(
+                        # D.R. adding this
+                        nn.BatchNorm2d(in_channels),
+                        activation,
+                        # end of D.R.
+
+                        torch.nn.Conv2d(
                             in_channels=in_channels,
                             out_channels=conv_channels,
                             kernel_size=1,
