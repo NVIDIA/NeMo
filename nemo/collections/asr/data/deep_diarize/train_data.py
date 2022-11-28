@@ -154,7 +154,9 @@ class LocalRTTMStreamingSegmentsDataset(IterableDataset):
                     )
                     # pad targets to max speakers
                     targets = F.pad(targets, pad=(0, self.max_speakers - targets.size(-1)))
-                    train_segment = self.featurizer.process(sample.audio_file, offset=start_offset, duration=duration)
+                    train_segment = self.featurizer.process(
+                        sample.audio_file, offset=start_offset, duration=duration, channel_selector='average'
+                    )
 
                     train_length = torch.tensor(train_segment.shape[0]).long()
 

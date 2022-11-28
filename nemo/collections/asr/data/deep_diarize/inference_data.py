@@ -111,7 +111,9 @@ class RTTMDataset(Dataset):
         return segments, lengths, targets, annotations, segment_annotations, sample.audio_file
 
     def _load_audio_segment(self, sample, duration: float, start_offset: float):
-        segment = self.featurizer.process(sample.audio_file, offset=start_offset, duration=duration)
+        segment = self.featurizer.process(
+            sample.audio_file, offset=start_offset, duration=duration, channel_selector='average'
+        )
         length = torch.tensor(segment.shape[0]).long()
         segment, length = self.preprocessor.get_features(segment.unsqueeze_(0), length.unsqueeze_(0))
         segment = self.context_window(segment.transpose(1, 2).squeeze(0)).unsqueeze(0)

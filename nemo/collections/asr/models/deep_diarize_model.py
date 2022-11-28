@@ -220,8 +220,8 @@ class DeepDiarizeModel(ModelPT):
             self.permutations = torch.empty(preds.size(0), self.num_speakers, dtype=torch.int).to(self.device)
 
         for x in range(preds.size(0)):
-            finite_preds = torch.all(0 <= preds[x]) and torch.all(preds[x] <= 1)
-            finite_y = torch.all(0 <= y[x]) and torch.all(y[x] <= 1)
+            finite_preds = torch.all(0 <= preds[x]) and torch.all(preds[x] <= 1) and torch.all(torch.isfinite(preds))
+            finite_y = torch.all(0 <= y[x]) and torch.all(y[x] <= 1) and torch.all(torch.isfinite(y))
             if finite_preds and finite_y:
                 with torch.no_grad():
                     calc_loss, permutation = permutation_invariant_training(
@@ -232,7 +232,9 @@ class DeepDiarizeModel(ModelPT):
                     )
                 self.permutations[x] = permutation
             else:
-                print(f"Received infinite preds {finite_preds} infinite y {finite_y}")
+                print(
+                    f"Received infinite preds {finite_preds} {torch.all(torch.isfinite(preds))} infinite y {finite_y} {torch.all(torch.isfinite(y))}"
+                )
                 self.permutations[x] = torch.arange(0, self.num_speakers, dtype=torch.int).to(self.device)
 
         for x, labels in enumerate(y):

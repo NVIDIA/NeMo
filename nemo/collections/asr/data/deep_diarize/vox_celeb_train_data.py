@@ -370,7 +370,7 @@ class VoxCelebDataset(IterableDataset):
             for sample in speaker_timelines[key]:
                 start_offset = int(sample['total_offset'])
                 speech = self.featurizer.process(
-                    sample['utt'], offset=sample['offset'], duration=sample['length']
+                    sample['utt'], offset=sample['offset'], duration=sample['length'], channel_selector='average'
                 ).numpy()
                 end_offset = start_offset + len(speech)
                 data[start_offset:end_offset] = speech
