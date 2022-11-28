@@ -98,7 +98,7 @@ class MHAResidualAddAdapterStrategyConfig(adapter_mixin_strategies.ResidualAddAd
     )  # mandatory field
 
 
-class MultiHeadAttentionAdapter(mha.MultiHeadAttention, adapter_modules.AbstractAdapterModuleMixin):
+class MultiHeadAttentionAdapter(mha.MultiHeadAttention, adapter_modules.AdapterModuleUtil):
     """Multi-Head Attention layer of Transformer.
      Args:
          n_head (int): number of heads
@@ -188,7 +188,7 @@ class MultiHeadAttentionAdapterConfig:
 
 
 class RelPositionMultiHeadAttentionAdapter(
-    mha.RelPositionMultiHeadAttention, adapter_modules.AbstractAdapterModuleMixin
+    mha.RelPositionMultiHeadAttention, adapter_modules.AdapterModuleUtil
 ):
     """Multi-Head Attention layer of Transformer-XL with support of relative positional encoding.
     Paper: https://arxiv.org/abs/1901.02860
@@ -295,7 +295,7 @@ class RelPositionMultiHeadAttentionAdapterConfig:
     )
 
 
-class PositionalEncodingAdapter(mha.PositionalEncoding, adapter_modules.AbstractAdapterModuleMixin):
+class PositionalEncodingAdapter(mha.PositionalEncoding, adapter_modules.AdapterModuleUtil):
 
     """
     Absolute positional embedding adapter.
@@ -342,7 +342,7 @@ class PositionalEncodingAdapterConfig:
     _target_: str = "{0}.{1}".format(PositionalEncodingAdapter.__module__, PositionalEncodingAdapter.__name__)
 
 
-class RelPositionalEncodingAdapter(mha.RelPositionalEncoding, adapter_modules.AbstractAdapterModuleMixin):
+class RelPositionalEncodingAdapter(mha.RelPositionalEncoding, adapter_modules.AdapterModuleUtil):
     """
     Relative positional encoding for TransformerXL's layers
     See : Appendix B in https://arxiv.org/abs/1901.02860
