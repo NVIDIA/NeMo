@@ -1187,6 +1187,8 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
         self.vocabulary = vocabulary
 
         self._vocab_size = num_classes
+        self.num_extra_outputs = num_extra_outputs
+        self._num_classes = num_classes + 1 + num_extra_outputs
 
         if experimental_fuse_loss_wer is not None:
             # Override fuse_loss_wer from deprecated argument
@@ -1217,8 +1219,6 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
         self.pred_hidden = jointnet['pred_hidden']
         self.joint_hidden = jointnet['joint_hidden']
         self.activation = jointnet['activation']
-        self.num_extra_outputs = num_extra_outputs
-        self._num_classes = num_classes + 1 + num_extra_outputs
 
         # Optional arguments
         dropout = jointnet.get('dropout', 0.0)

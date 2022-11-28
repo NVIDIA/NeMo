@@ -71,7 +71,9 @@ def _states_to_device(dec_state, device='cpu'):
 
 class _GreedyRNNTInfer(Typing, ConfidenceMeasureMixin):
     """A greedy transducer decoder.
+
     Provides a common abstraction for sample level and batch level greedy decoding.
+
     Args:
         decoder_model: rnnt_utils.AbstractRNNTDecoder implementation.
         joint_model: rnnt_utils.AbstractRNNTJoint implementation.
@@ -83,21 +85,25 @@ class _GreedyRNNTInfer(Typing, ConfidenceMeasureMixin):
             greedy decoding (sample / batched). When set to true, the Hypothesis will contain
             the non-null value for `alignments` in it. Here, `alignments` is a List of List of
             Tuple(Tensor (of length V + 1), Tensor(scalar, label after argmax)).
+
             The length of the list corresponds to the Acoustic Length (T).
             Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more targets from a vocabulary.
             U is the number of target tokens for the current timestep Ti.
         preserve_frame_confidence: Bool flag which preserves the history of per-frame confidence scores generated
             during greedy decoding (sample / batched). When set to true, the Hypothesis will contain
             the non-null value for `frame_confidence` in it. Here, `frame_confidence` is a List of List of floats.
+
             The length of the list corresponds to the Acoustic Length (T).
             Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more confidence scores.
             U is the number of target tokens for the current timestep Ti.
         confidence_method_cfg: A dict-like object which contains the method name and settings to compute per-frame
             confidence scores.
+
             name: The method name (str).
                 Supported values:
                     - 'max_prob' for using the maximum token probability as a confidence.
                     - 'entropy' for using normalized entropy of a log-likelihood vector.
+
             entropy_type: Which type of entropy to use (str). Used if confidence_method_cfg.name is set to `entropy`.
                 Supported values:
                     - 'gibbs' for the (standard) Gibbs entropy. If the temperature α is provided,
@@ -115,9 +121,11 @@ class _GreedyRNNTInfer(Typing, ConfidenceMeasureMixin):
                         Rényi entropy formula is the following: H_α = 1/(1-α)*log_2(sum_i(p^α_i)),
                         where α is a parameter. When α == 1, it works like the Gibbs entropy.
                         More: https://en.wikipedia.org/wiki/R%C3%A9nyi_entropy
+
             temperature: Temperature scale for logsoftmax (α for entropies). Here we restrict it to be > 0.
                 When the temperature equals one, scaling is not applied to 'max_prob',
                 and any entropy type behaves like the Shannon entropy: H = -sum_i(p_i*log(p_i))
+
             entropy_norm: A mapping of the entropy value to the interval [0,1].
                 Supported values:
                     - 'lin' for using the linear mapping.
@@ -176,11 +184,13 @@ class _GreedyRNNTInfer(Typing, ConfidenceMeasureMixin):
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Common prediction step based on the AbstractRNNTDecoder implementation.
+
         Args:
             label: (int/torch.Tensor): Label or "Start-of-Signal" token.
             hidden: (Optional torch.Tensor): RNN State vector
             add_sos (bool): Whether to add a zero vector at the begging as "start of sentence" token.
             batch_size: Batch size of the output tensor.
+
         Returns:
             g: (B, U, H) if add_sos is false, else (B, U + 1, H)
             hid: (h, c) where h is the final sequence hidden state and c is
@@ -206,10 +216,12 @@ class _GreedyRNNTInfer(Typing, ConfidenceMeasureMixin):
     def _joint_step(self, enc, pred, log_normalize: Optional[bool] = None):
         """
         Common joint step based on AbstractRNNTJoint implementation.
+
         Args:
             enc: Output of the Encoder model. A torch.Tensor of shape [B, 1, H1]
             pred: Output of the Decoder model. A torch.Tensor of shape [B, 1, H2]
             log_normalize: Whether to log normalize or not. None will log normalize only for CPU.
+
         Returns:
              logits of shape (B, T=1, U=1, V + 1)
         """
@@ -228,7 +240,9 @@ class _GreedyRNNTInfer(Typing, ConfidenceMeasureMixin):
 
 class GreedyRNNTInfer(_GreedyRNNTInfer):
     """A greedy transducer decoder.
+
     Sequence level greedy decoding, performed auto-repressively.
+
     Args:
         decoder_model: rnnt_utils.AbstractRNNTDecoder implementation.
         joint_model: rnnt_utils.AbstractRNNTJoint implementation.
@@ -240,21 +254,25 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
             greedy decoding (sample / batched). When set to true, the Hypothesis will contain
             the non-null value for `alignments` in it. Here, `alignments` is a List of List of
             Tuple(Tensor (of length V + 1), Tensor(scalar, label after argmax)).
+
             The length of the list corresponds to the Acoustic Length (T).
             Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more targets from a vocabulary.
             U is the number of target tokens for the current timestep Ti.
         preserve_frame_confidence: Bool flag which preserves the history of per-frame confidence scores generated
             during greedy decoding (sample / batched). When set to true, the Hypothesis will contain
             the non-null value for `frame_confidence` in it. Here, `frame_confidence` is a List of List of floats.
+
             The length of the list corresponds to the Acoustic Length (T).
             Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more confidence scores.
             U is the number of target tokens for the current timestep Ti.
         confidence_method_cfg: A dict-like object which contains the method name and settings to compute per-frame
             confidence scores.
+
             name: The method name (str).
                 Supported values:
                     - 'max_prob' for using the maximum token probability as a confidence.
                     - 'entropy' for using normalized entropy of a log-likelihood vector.
+
             entropy_type: Which type of entropy to use (str). Used if confidence_method_cfg.name is set to `entropy`.
                 Supported values:
                     - 'gibbs' for the (standard) Gibbs entropy. If the temperature α is provided,
@@ -269,9 +287,11 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
                         Rényi entropy formula is the following: H_α = 1/(1-α)*log_2(sum_i(p^α_i)),
                         where α is a parameter. When α == 1, it works like the Gibbs entropy.
                         More: https://en.wikipedia.org/wiki/R%C3%A9nyi_entropy
+
             temperature: Temperature scale for logsoftmax (α for entropies). Here we restrict it to be > 0.
                 When the temperature equals one, scaling is not applied to 'max_prob',
                 and any entropy type behaves like the Shannon entropy: H = -sum_i(p_i*log(p_i))
+
             entropy_norm: A mapping of the entropy value to the interval [0,1].
                 Supported values:
                     - 'lin' for using the linear mapping.
@@ -307,10 +327,12 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
     ):
         """Returns a list of hypotheses given an input batch of the encoder hidden embedding.
         Output token is generated auto-repressively.
+
         Args:
             encoder_output: A tensor of size (batch, features, timesteps).
             encoded_lengths: list of int representing the length of each sequence
                 output sequence.
+
         Returns:
             packed list containing batch number of sentences (Hypotheses).
         """
@@ -457,7 +479,9 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
 
 class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
     """A batch level greedy transducer decoder.
+
     Batch level greedy decoding, performed auto-repressively.
+
     Args:
         decoder_model: rnnt_utils.AbstractRNNTDecoder implementation.
         joint_model: rnnt_utils.AbstractRNNTJoint implementation.
@@ -469,21 +493,25 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             greedy decoding (sample / batched). When set to true, the Hypothesis will contain
             the non-null value for `alignments` in it. Here, `alignments` is a List of List of
             Tuple(Tensor (of length V + 1), Tensor(scalar, label after argmax)).
+
             The length of the list corresponds to the Acoustic Length (T).
             Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more targets from a vocabulary.
             U is the number of target tokens for the current timestep Ti.
         preserve_frame_confidence: Bool flag which preserves the history of per-frame confidence scores generated
             during greedy decoding (sample / batched). When set to true, the Hypothesis will contain
             the non-null value for `frame_confidence` in it. Here, `frame_confidence` is a List of List of floats.
+
             The length of the list corresponds to the Acoustic Length (T).
             Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more confidence scores.
             U is the number of target tokens for the current timestep Ti.
         confidence_method_cfg: A dict-like object which contains the method name and settings to compute per-frame
             confidence scores.
+
             name: The method name (str).
                 Supported values:
                     - 'max_prob' for using the maximum token probability as a confidence.
                     - 'entropy' for using normalized entropy of a log-likelihood vector.
+
             entropy_type: Which type of entropy to use (str). Used if confidence_method_cfg.name is set to `entropy`.
                 Supported values:
                     - 'gibbs' for the (standard) Gibbs entropy. If the temperature α is provided,
@@ -498,9 +526,11 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                         Rényi entropy formula is the following: H_α = 1/(1-α)*log_2(sum_i(p^α_i)),
                         where α is a parameter. When α == 1, it works like the Gibbs entropy.
                         More: https://en.wikipedia.org/wiki/R%C3%A9nyi_entropy
+
             temperature: Temperature scale for logsoftmax (α for entropies). Here we restrict it to be > 0.
                 When the temperature equals one, scaling is not applied to 'max_prob',
                 and any entropy type behaves like the Shannon entropy: H = -sum_i(p_i*log(p_i))
+
             entropy_norm: A mapping of the entropy value to the interval [0,1].
                 Supported values:
                     - 'lin' for using the linear mapping.
@@ -543,10 +573,12 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
     ):
         """Returns a list of hypotheses given an input batch of the encoder hidden embedding.
         Output token is generated auto-repressively.
+
         Args:
             encoder_output: A tensor of size (batch, features, timesteps).
             encoded_lengths: list of int representing the length of each sequence
                 output sequence.
+
         Returns:
             packed list containing batch number of sentences (Hypotheses).
         """
@@ -997,10 +1029,12 @@ class ExportedModelGreedyBatchedRNNTInfer:
     def __call__(self, audio_signal: torch.Tensor, length: torch.Tensor):
         """Returns a list of hypotheses given an input batch of the encoder hidden embedding.
         Output token is generated auto-repressively.
+
         Args:
             encoder_output: A tensor of size (batch, features, timesteps).
             encoded_lengths: list of int representing the length of each sequence
                 output sequence.
+
         Returns:
             packed list containing batch number of sentences (Hypotheses).
         """
@@ -1411,6 +1445,7 @@ class TorchscriptGreedyBatchedRNNTInfer(ExportedModelGreedyBatchedRNNTInfer):
 
         return input_states
 
+
 class GreedyMultiblankRNNTInfer(_GreedyRNNTInfer):
     """A greedy transducer decoder.
 
@@ -1420,7 +1455,7 @@ class GreedyMultiblankRNNTInfer(_GreedyRNNTInfer):
         decoder_model: rnnt_utils.AbstractRNNTDecoder implementation.
         joint_model: rnnt_utils.AbstractRNNTJoint implementation.
         blank_index: int index of the blank token. Can be 0 or len(vocabulary).
-        big_blank_durations: a list containing durations for big blank the model supports. 
+        big_blank_durations: a list containing durations for big blank the model supports.
         max_symbols_per_step: Optional int. The maximum number of symbols that can be added
             to a sequence in a single time step; if set to None then there is
             no limit.
@@ -2228,4 +2263,3 @@ class GreedyBatchedRNNTInferConfig:
     preserve_alignments: bool = False
     preserve_frame_confidence: bool = False
     confidence_method_cfg: Optional[ConfidenceMethodConfig] = None
-
