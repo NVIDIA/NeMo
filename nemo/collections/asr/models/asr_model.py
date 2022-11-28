@@ -13,15 +13,16 @@
 # limitations under the License.
 import logging
 from abc import ABC, abstractmethod
-from typing import List, Optional, Union
+from typing import List
 
 import torch
 
 from nemo.core.classes import ModelPT
+from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.mixins import AccessMixin
 from nemo.utils import logging, model_utils
-from nemo.utils.export_utils import cast_all
+from nemo.utils.cast_utils import cast_all
 
 __all__ = ['ASRModel']
 

@@ -539,6 +539,7 @@ class DialogueGPTClassificationModel(NLPModel):
                 for i in generated_tokens
             ]
             generated_tokens = torch.cat(generated_tokens, axis=0)
+            num_prompt_tokens = 0
 
         elif self.cfg.library == "megatron":
 
@@ -709,7 +710,7 @@ class DialogueGPTClassificationModel(NLPModel):
         self.data_prepared = True
 
     def setup(self, stage=None):
-        super().setup()
+        super().setup(stage)
         if self.cfg.library == "megatron" and self.prompt_learning and stage == "fit":
             if self.cfg.virtual_prompt_style == VirtualPromptStyle.PROMPT_TUNING:
                 self.language_model.init_new_prompts()

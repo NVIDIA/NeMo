@@ -385,7 +385,6 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             if is_concat:
                 dataset = audio_to_text_dataset.get_concat_tarred_dataset(
                     config=config,
-                    tokenizer=self.tokenizer,
                     shuffle_n=shuffle_n,
                     global_rank=self.global_rank,
                     world_size=self.world_size,
@@ -394,7 +393,6 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             else:
                 dataset = audio_to_text_dataset.get_tarred_dataset(
                     config=config,
-                    tokenizer=self.tokenizer,
                     shuffle_n=shuffle_n,
                     global_rank=self.global_rank,
                     world_size=self.world_size,
@@ -727,13 +725,14 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             'shuffle': False,
             'num_workers': config.get('num_workers', min(batch_size, os.cpu_count() - 1)),
             'pin_memory': True,
+            'channel_selector': config.get('channel_selector', None),
         }
 
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
         return temporary_datalayer
 
     @classmethod
-    def list_available_models(cls) -> Optional[PretrainedModelInfo]:
+    def list_available_models(cls) -> List[PretrainedModelInfo]:
         """
         This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
 
