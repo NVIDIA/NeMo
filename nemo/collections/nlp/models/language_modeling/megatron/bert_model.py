@@ -80,7 +80,7 @@ class BertLMHead(MegatronModule):
         parallel_output,
         use_openai_gelu,
         onnx_safe,
-        sequence_parallel = False,
+        sequence_parallel=False,
     ):
 
         super(BertLMHead, self).__init__()
