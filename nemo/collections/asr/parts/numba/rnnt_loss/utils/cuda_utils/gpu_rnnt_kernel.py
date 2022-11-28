@@ -27,7 +27,6 @@
 # limitations under the License.
 
 import math
-from typing import List
 
 import torch
 from numba import cuda
