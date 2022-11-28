@@ -59,7 +59,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         d_model (int): the hidden size of the model
         feat_out (int): the size of the output features
             Defaults to -1 (means feat_out is d_model)
-        subsampling (str): the method of subsampling, choices=['vggnet', 'striding', 'stacking', 'stacking_norm', 'pooling']
+        subsampling (str): the method of subsampling, choices=['vggnet', 'striding', 'stacking', 
+        'stacking_norm', 'pooling', 'dw_striding']
             Defaults to striding.
         subsampling_factor (int): the subsampling factor which should be power of 2
             Defaults to 4.
@@ -277,7 +278,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
                     feat_in=feat_in,
                     feat_out=d_model,
                 )
-            else:
+            elif subsampling == 'striding' or subsampling == 'dw_striding':
                 self.pre_encode = ConvSubsampling(
                     subsampling=subsampling,
                     subsampling_factor=subsampling_factor,
@@ -287,6 +288,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
                     activation=self.subsampling_activation,
                     is_causal=causal_downsampling,
                 )
+            else:
+                raise ValueError(f"Unsupported subsampling type: {subsampling}")
         else:
             self.pre_encode = nn.Linear(feat_in, d_model)
 
