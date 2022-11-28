@@ -34,6 +34,7 @@ from typing import List, Optional
 import torch
 from omegaconf import DictConfig, OmegaConf
 
+from nemo.collections.asr.losses.rnnt_pytorch import RNNTLossPytorch
 from nemo.core.classes import Loss, typecheck
 from nemo.core.neural_types import LabelsType, LengthsType, LogprobsType, LossType, NeuralType
 from nemo.core.utils.numba_utils import NUMBA_INSTALLATION_MESSAGE
@@ -173,7 +174,9 @@ def resolve_rnnt_loss(loss_name: str, blank_idx: int, loss_kwargs: dict = None) 
         _warn_unused_additional_kwargs(loss_name, loss_kwargs)
 
     elif loss_name == 'pytorch':
-        loss_func = RNNTLossPytorch(blank=blank_idx, big_blank=big_blank_idx, huge_blank=huge_blank_idx, reduction='none')
+        loss_func = RNNTLossPytorch(
+            blank=blank_idx, reduction='none'
+        )
 
     else:
         raise ValueError(
@@ -182,111 +185,6 @@ def resolve_rnnt_loss(loss_name: str, blank_idx: int, loss_kwargs: dict = None) 
 
     return loss_func
 
-class RNNTLossPytorch(Loss):
-    @property
-    def input_types(self):
-        """Input types definitions for CTCLoss.
-        """
-        return {
-            "acts": NeuralType(('B', 'T', 'T', 'D'), LogprobsType()),
-            "labels": NeuralType(('B', 'T'), LabelsType()),
-            "act_lens": NeuralType(tuple('B'), LengthsType()),
-            "label_lens": NeuralType(tuple('B'), LengthsType()),
-        }
-
-    @property
-    def output_types(self):
-        """Output types definitions for CTCLoss.
-        loss:
-            NeuralType(None)
-        """
-        return {"loss": NeuralType(elements_type=LossType())}
-
-    def __init__(self, blank, blank_duration, reduction):
-        super().__init__()
-        self.blank = blank
-        self.big_blank = 1 + blank
-        self.huge_blank = 2 + blank
-        self.blank_duration = blank_duration
-        self.reduction = reduction
-
-    @typecheck()
-    def forward(self, acts, labels, act_lens, label_lens):
-        acts = torch.log_softmax(acts, -1)
-        forward_logprob = self.compute_forward_prob(acts, labels, act_lens, label_lens)
-        return -forward_logprob
-
-    def compute_forward_prob(self, acts, labels, act_lens, label_lens):
-        B, T, U, _ = acts.shape
-
-        log_alpha = torch.zeros(B, T, U)
-        log_alpha = log_alpha.cuda()
-        for t in range(T):
-            for u in range(U):
-                if u == 0:
-                    if t == 0:
-                        log_alpha[:, t, u] = 0.0
-                    else:
-                        tmp = log_alpha[:, t-1, u] + acts[:, t-1, 0, self.blank] 
-                        if t >= self.blank_duration:
-                            tt = log_alpha[:, t-self.blank_duration, u] + acts[:, t-self.blank_duration, 0, self.big_blank]
-                            tmp2 = torch.logsumexp(torch.stack([tmp, tt]), dim=0)
-#                            log_alpha[:, t, u] = torch.logsumexp(torch.stack([tmp, tt]), dim=0)
-                            if t >= 2 * self.blank_duration:
-                                tt = log_alpha[:, t-2 * self.blank_duration, u] + acts[:, t-2*self.blank_duration, 0, self.huge_blank]
-                                log_alpha[:, t, u] = torch.logsumexp(torch.stack([tmp2, tt]), dim=0)
-                            else:
-                                log_alpha[:, t, u] = tmp2
-
-                        else:
-                            log_alpha[:, t, u] = tmp
-                            
-                else:
-                    if t == 0:
-                        gathered = torch.gather(acts[:, t, u-1], dim=1, index=labels[:,u-1].view(-1,1).type(torch.int64) ).reshape(-1)
-                        log_alpha[:, t, u] = log_alpha[:, t,u-1] + gathered.cuda()
-                    else:
-                        tmp = torch.logsumexp(torch.stack([
-                            log_alpha[:, t-1, u] + acts[:, t-1, u, self.blank],
-                            log_alpha[:, t, u-1] + torch.gather(acts[:, t, u-1], dim=1, index=labels[:,u-1].view(-1,1).type(torch.int64) ).reshape(-1)
-                        ]), dim=0)
-                        if t >= self.blank_duration:
-                            tmp2 = torch.logsumexp(torch.stack([
-                                tmp,
-                                log_alpha[:, t-self.blank_duration, u] + acts[:, t-self.blank_duration, u, self.big_blank],
-                            ]), dim=0)
-                            if t >= 2 * self.blank_duration:
-                                log_alpha[:, t, u] = torch.logsumexp(torch.stack([
-                                    tmp2,
-                                    log_alpha[:, t-2*self.blank_duration, u] + acts[:, t-2*self.blank_duration, u, self.huge_blank],
-                                ]), dim=0)
-                            else:
-                                log_alpha[:, t, u] = tmp2
-                        else:
-                            log_alpha[:, t, u] = tmp
-
-        log_probs = []
-        for b in range(B):
-            tt = log_alpha[b, act_lens[b]-1, label_lens[b]] + acts[b, act_lens[b]-1, label_lens[b], self.blank]
-            if act_lens[b] >= self.blank_duration:
-                jj = log_alpha[b, act_lens[b]-self.blank_duration, label_lens[b]] + acts[b, act_lens[b]-self.blank_duration, label_lens[b], self.big_blank]
-                tt = torch.logsumexp(torch.stack([
-                      tt, jj
-                ]), dim=0)
-                if act_lens[b] >= 2 * self.blank_duration:
-                    kk = log_alpha[b, act_lens[b]-2 * self.blank_duration, label_lens[b]] + acts[b, act_lens[b]-2 * self.blank_duration, label_lens[b], self.huge_blank]
-                    to_append = torch.logsumexp(torch.stack([
-                          tt, kk
-                    ]), dim=0)
-                else:
-                    to_append = tt
-                
-                log_probs.append(to_append)
-            else:
-                log_probs.append(tt)
-        log_prob = torch.stack(log_probs) 
-
-        return log_prob
 
 class RNNTLoss(Loss):
     @property
