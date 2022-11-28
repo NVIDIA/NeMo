@@ -169,6 +169,10 @@ class LocalRTTMStreamingSegmentsDataset(IterableDataset):
                     train_segment = train_segment.transpose(1, 2)
                     train_segment = self.spec_augmentation(input_spec=train_segment, length=train_length)
 
+                    if not torch.all(torch.isfinite(train_segment)):
+                        print(f"Was not able to properly load {sample.audio_file}")
+                        return
+
                     yield train_segment, train_length, targets, start_segment
                     start_segment = False
                     start_offset += duration
