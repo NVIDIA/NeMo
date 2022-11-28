@@ -1623,52 +1623,347 @@ class GreedyBatchedMultiblankRNNTInfer(_GreedyRNNTInfer):
                         # Collect batch indices where blanks occurred now/past
                         blank_indices = (blank_mask == 1).nonzero(as_tuple=False)
 
-                        # Recover prior state for all samples which predicted blank now/past
-                        if hidden is not None:
-                            # LSTM has 2 states
-                            hidden_prime = self.decoder.batch_copy_states(hidden_prime, hidden, blank_indices)
+    def _setup_blank_index(self):
+        self._blank_index = len(self.cfg.joint.vocabulary)
 
-                        elif len(blank_indices) > 0 and hidden is None:
-                            # Reset state if there were some blank and other non-blank predictions in batch
-                            # Original state is filled with zeros so we just multiply
-                            # LSTM has 2 states
-                            hidden_prime = self.decoder.batch_copy_states(hidden_prime, None, blank_indices, value=0.0)
+        logging.info(f"Blank token id = {self._blank_index}; vocab size = {len(self.cfg.joint.vocabulary) + 1}")
 
-                        # Recover prior predicted label for all samples which predicted blank now/past
-                        k[blank_indices] = last_label[blank_indices, 0]
+    def run_encoder(self, audio_signal, length):
+        enc_out = self.encoder(audio_signal, length)
+        enc_out, encoded_length = enc_out  # ASSUME: single output
+        return enc_out, encoded_length
 
-                        # Update new label and hidden state for next iteration
-                        last_label = k.view(-1, 1)
-                        hidden = hidden_prime
+    def run_decoder_joint(self, enc_logits, targets, target_length, *states):
+        # ASSUME: Decoder is RNN Transducer
+        if targets is None:
+            targets = torch.zeros(enc_logits.shape[0], 1, dtype=torch.int32, device=enc_logits.device)
+            target_length = torch.ones(enc_logits.shape[0], dtype=torch.int32, device=enc_logits.device)
 
-                        # Update predicted labels, accounting for time mask
-                        # If blank was predicted even once, now or in the past,
-                        # Force the current predicted label to also be blank
-                        # This ensures that blanks propogate across all timesteps
-                        # once they have occured (normally stopping condition of sample level loop).
-                        for kidx, ki in enumerate(k):
-                            if blank_mask[kidx] == 0:
-                                hypotheses[kidx].y_sequence.append(ki)
-                                hypotheses[kidx].timestep.append(time_idx)
-                                hypotheses[kidx].score += float(v[kidx])
+        num_states = 0
+        if states is not None and len(states) > 0:
+            num_states = len(states)
 
-                    symbols_added += 1
+        dec_out = self.decoder_joint(enc_logits, targets, target_length, *states)
 
-        # Remove trailing empty list of alignments at T_{am-len} x Uj
+        # unpack dec output
+        if num_states > 0:
+            new_states = dec_out[-num_states:]
+            dec_out = dec_out[:-num_states]
+        else:
+            new_states = None
+
+        return dec_out, new_states
+
+    def _get_initial_states(self, batchsize):
+        # ASSUME: LSTM STATES of shape (layers, batchsize, dim)
+        input_state_nodes = [ip for ip in self.decoder_joint_inputs if 'state' in ip.name]
+        num_states = len(input_state_nodes)
+        if num_states == 0:
+            return
+
+        input_states = []
+        for state_id in range(num_states):
+            # Hardcode shape size for LSTM (1 is for num layers in LSTM, which is flattened for export)
+            ip_shape = [1, batchsize, self.cfg.model_defaults.pred_hidden]
+            input_states.append(torch.zeros(*ip_shape, device=self.device))
+
+        return input_states
+
+class GreedyMultiblankRNNTInfer(_GreedyRNNTInfer):
+    """A greedy transducer decoder.
+
+    Sequence level greedy decoding, performed auto-repressively.
+
+    Args:
+        decoder_model: rnnt_utils.AbstractRNNTDecoder implementation.
+        joint_model: rnnt_utils.AbstractRNNTJoint implementation.
+        blank_index: int index of the blank token. Can be 0 or len(vocabulary).
+        big_blank_durations: a list containing durations for big blank the model supports. 
+        max_symbols_per_step: Optional int. The maximum number of symbols that can be added
+            to a sequence in a single time step; if set to None then there is
+            no limit.
+        preserve_alignments: Bool flag which preserves the history of alignments generated during
+            greedy decoding (sample / batched). When set to true, the Hypothesis will contain
+            the non-null value for `alignments` in it. Here, `alignments` is a List of List of
+            Tuple(Tensor (of length V + 1 + num-big-blanks), Tensor(scalar, label after argmax)).
+            The length of the list corresponds to the Acoustic Length (T).
+            Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more targets from a vocabulary.
+            U is the number of target tokens for the current timestep Ti.
+        preserve_frame_confidence: Bool flag which preserves the history of per-frame confidence scores generated
+            during greedy decoding (sample / batched). When set to true, the Hypothesis will contain
+            the non-null value for `frame_confidence` in it. Here, `frame_confidence` is a List of List of floats.
+            The length of the list corresponds to the Acoustic Length (T).
+            Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more confidence scores.
+            U is the number of target tokens for the current timestep Ti.
+        confidence_method_cfg: A dict-like object which contains the method name and settings to compute per-frame
+            confidence scores.
+            name: The method name (str).
+                Supported values:
+                    - 'max_prob' for using the maximum token probability as a confidence.
+                    - 'entropy' for using normalized entropy of a log-likelihood vector.
+            entropy_type: Which type of entropy to use (str). Used if confidence_method_cfg.name is set to `entropy`.
+                Supported values:
+                    - 'gibbs' for the (standard) Gibbs entropy. If the temperature α is provided,
+                        the formula is the following: H_α = -sum_i((p^α_i)*log(p^α_i)).
+                        Note that for this entropy, the temperature should comply the following inequality:
+                        1/log(V) <= α <= -1/log(1-1/V) where V is the model vocabulary size.
+                    - 'tsallis' for the Tsallis entropy with the Boltzmann constant one.
+                        Tsallis entropy formula is the following: H_α = 1/(α-1)*(1-sum_i(p^α_i)),
+                        where α is a parameter. When α == 1, it works like the Gibbs entropy.
+                        More: https://en.wikipedia.org/wiki/Tsallis_entropy
+                    - 'renui' for the Rényi entropy.
+                        Rényi entropy formula is the following: H_α = 1/(1-α)*log_2(sum_i(p^α_i)),
+                        where α is a parameter. When α == 1, it works like the Gibbs entropy.
+                        More: https://en.wikipedia.org/wiki/R%C3%A9nyi_entropy
+            temperature: Temperature scale for logsoftmax (α for entropies). Here we restrict it to be > 0.
+                When the temperature equals one, scaling is not applied to 'max_prob',
+                and any entropy type behaves like the Shannon entropy: H = -sum_i(p_i*log(p_i))
+            entropy_norm: A mapping of the entropy value to the interval [0,1].
+                Supported values:
+                    - 'lin' for using the linear mapping.
+                    - 'exp' for using exponential mapping with linear shift.
+    """
+
+    def __init__(
+        self,
+        decoder_model: rnnt_abstract.AbstractRNNTDecoder,
+        joint_model: rnnt_abstract.AbstractRNNTJoint,
+        blank_index: int,
+        big_blank_durations: list,
+        max_symbols_per_step: Optional[int] = None,
+        preserve_alignments: bool = False,
+        preserve_frame_confidence: bool = False,
+        confidence_method_cfg: Optional[DictConfig] = None,
+    ):
+        super().__init__(
+            decoder_model=decoder_model,
+            joint_model=joint_model,
+            blank_index=blank_index,
+            big_blank_durations=big_blank_durations,
+            max_symbols_per_step=max_symbols_per_step,
+            preserve_alignments=preserve_alignments,
+            preserve_frame_confidence=preserve_frame_confidence,
+            confidence_method_cfg=confidence_method_cfg,
+        )
+        self.big_blank_durations = big_blank_durations
+
+    @typecheck()
+    def forward(
+        self,
+        encoder_output: torch.Tensor,
+        encoded_lengths: torch.Tensor,
+        partial_hypotheses: Optional[List[rnnt_utils.Hypothesis]] = None,
+    ):
+        """Returns a list of hypotheses given an input batch of the encoder hidden embedding.
+        Output token is generated auto-repressively.
+        Args:
+            encoder_output: A tensor of size (batch, features, timesteps).
+            encoded_lengths: list of int representing the length of each sequence
+                output sequence.
+        Returns:
+            packed list containing batch number of sentences (Hypotheses).
+        """
+        # Preserve decoder and joint training state
+        decoder_training_state = self.decoder.training
+        joint_training_state = self.joint.training
+
+        with torch.inference_mode():
+            # Apply optional preprocessing
+            encoder_output = encoder_output.transpose(1, 2)  # (B, T, D)
+
+            self.decoder.eval()
+            self.joint.eval()
+
+            hypotheses = []
+            # Process each sequence independently
+            with self.decoder.as_frozen(), self.joint.as_frozen():
+                for batch_idx in range(encoder_output.size(0)):
+                    inseq = encoder_output[batch_idx, :, :].unsqueeze(1)  # [T, 1, D]
+                    logitlen = encoded_lengths[batch_idx]
+
+                    partial_hypothesis = partial_hypotheses[batch_idx] if partial_hypotheses is not None else None
+                    hypothesis = self._greedy_decode(inseq, logitlen, partial_hypotheses=partial_hypothesis)
+                    hypotheses.append(hypothesis)
+
+            # Pack results into Hypotheses
+            packed_result = pack_hypotheses(hypotheses, encoded_lengths)
+
+        self.decoder.train(decoder_training_state)
+        self.joint.train(joint_training_state)
+
+        return (packed_result,)
+
+    @torch.no_grad()
+    def _greedy_decode(
+        self, x: torch.Tensor, out_len: torch.Tensor, partial_hypotheses: Optional[rnnt_utils.Hypothesis] = None
+    ):
+        # x: [T, 1, D]
+        # out_len: [seq_len]
+
+        # Initialize blank state and empty label set in Hypothesis
+        hypothesis = rnnt_utils.Hypothesis(score=0.0, y_sequence=[], dec_state=None, timestep=[], last_token=None)
+
+        if partial_hypotheses is not None:
+            hypothesis.last_token = partial_hypotheses.last_token
+            hypothesis.y_sequence = (
+                partial_hypotheses.y_sequence.cpu().tolist()
+                if isinstance(partial_hypotheses.y_sequence, torch.Tensor)
+                else partial_hypotheses.y_sequence
+            )
+            if partial_hypotheses.dec_state is not None:
+                hypothesis.dec_state = self.decoder.batch_concat_states([partial_hypotheses.dec_state])
+                hypothesis.dec_state = _states_to_device(hypothesis.dec_state, x.device)
+
         if self.preserve_alignments:
-            for batch_idx in range(batchsize):
-                if len(hypotheses[batch_idx].alignments[-1]) == 0:
-                    del hypotheses[batch_idx].alignments[-1]
+            # Alignments is a 2-dimensional dangling list representing T x U
+            hypothesis.alignments = [[]]
 
-        # Remove trailing empty list of confidence scores at T_{am-len} x Uj
         if self.preserve_frame_confidence:
-            for batch_idx in range(batchsize):
-                if len(hypotheses[batch_idx].frame_confidence[-1]) == 0:
-                    del hypotheses[batch_idx].frame_confidence[-1]
+            hypothesis.frame_confidence = [[]]
 
-        # Preserve states
-        for batch_idx in range(batchsize):
-            hypotheses[batch_idx].dec_state = self.decoder.batch_select_state(hidden, batch_idx)
+        # For timestep t in X_t
+        blank_optimization = True
+        big_blank_duration = 1
+
+        big_blank_durations = [int(i) for i in duration.split(",")]
+        big_blank_indices = [self._blank_index + 1 + i for i in range(len(big_blank_durations))]
+
+        for time_idx in range(out_len):
+            if blank_optimization and big_blank_duration > 1:
+                big_blank_duration -= 1
+                continue
+            # Extract encoder embedding at timestep t
+            # f = x[time_idx, :, :].unsqueeze(0)  # [1, 1, D]
+            f = x.narrow(dim=0, start=time_idx, length=1)
+
+            # Setup exit flags and counter
+            not_blank = True
+            symbols_added = 0
+
+            # While blank is not predicted, or we dont run out of max symbols per timestep
+            while not_blank and (self.max_symbols is None or symbols_added < self.max_symbols):
+                # In the first timestep, we initialize the network with RNNT Blank
+                # In later timesteps, we provide previous predicted label as input.
+                if hypothesis.last_token is None and hypothesis.dec_state is None:
+                    last_label = self._SOS
+                else:
+                    last_label = label_collate([[hypothesis.last_token]])
+
+                # Perform prediction network and joint network steps.
+                g, hidden_prime = self._pred_step(last_label, hypothesis.dec_state)
+                # If preserving per-frame confidence, log_normalize must be true
+                logp = self._joint_step(f, g, log_normalize=True if self.preserve_frame_confidence else None)[
+                    0, 0, 0, :
+                ]
+
+                del g
+
+                # torch.max(0) op doesnt exist for FP 16.
+                if logp.dtype != torch.float32:
+                    logp = logp.float()
+
+                # get index k, of max prob
+                v, k = logp.max(0)
+                k = k.item()  # K is the label at timestep t_s in inner loop, s >= 0.
+
+                if self.preserve_alignments:
+                    # insert logprobs into last timestep
+                    hypothesis.alignments[-1].append((logp.to('cpu'), torch.tensor(k, dtype=torch.int32)))
+
+                if self.preserve_frame_confidence:
+                    # insert confidence into last timestep
+                    hypothesis.frame_confidence[-1].append(self._get_confidence(logp))
+
+                del logp
+
+                # If blank token is predicted, exit inner loop, move onto next timestep t
+                if k >= self._blank_index:
+                    not_blank = False
+
+                    if self.preserve_alignments:
+                        # convert Ti-th logits into a torch array
+                        hypothesis.alignments.append([])  # blank buffer for next timestep
+
+                    if self.preserve_frame_confidence:
+                        hypothesis.frame_confidence.append([])  # blank buffer for next timestep
+                else:
+                    # Append token to label set, update RNN state.
+                    hypothesis.y_sequence.append(k)
+                    hypothesis.score += float(v)
+                    hypothesis.timestep.append(time_idx)
+                    hypothesis.dec_state = hidden_prime
+                    hypothesis.last_token = k
+
+                # Increment token counter.
+                symbols_added += 1
+
+        # Remove trailing empty list of Alignments
+        if self.preserve_alignments:
+            if len(hypothesis.alignments[-1]) == 0:
+                del hypothesis.alignments[-1]
+
+        # Remove trailing empty list of per-frame confidence
+        if self.preserve_frame_confidence:
+            if len(hypothesis.frame_confidence[-1]) == 0:
+                del hypothesis.frame_confidence[-1]
+
+        # Unpack the hidden states
+        hypothesis.dec_state = self.decoder.batch_select_state(hypothesis.dec_state, 0)
+
+        return hypothesis
+
+
+class GreedyBatchedMultiblankRNNTInfer(_GreedyRNNTInfer):
+    """A batch level greedy transducer decoder.
+    Batch level greedy decoding, performed auto-repressively.
+    Args:
+        decoder_model: rnnt_utils.AbstractRNNTDecoder implementation.
+        joint_model: rnnt_utils.AbstractRNNTJoint implementation.
+        blank_index: int index of the blank token. Can be 0 or len(vocabulary).
+        max_symbols_per_step: Optional int. The maximum number of symbols that can be added
+            to a sequence in a single time step; if set to None then there is
+            no limit.
+        preserve_alignments: Bool flag which preserves the history of alignments generated during
+            greedy decoding (sample / batched). When set to true, the Hypothesis will contain
+            the non-null value for `alignments` in it. Here, `alignments` is a List of List of
+            Tuple(Tensor (of length V + 1), Tensor(scalar, label after argmax)).
+            The length of the list corresponds to the Acoustic Length (T).
+            Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more targets from a vocabulary.
+            U is the number of target tokens for the current timestep Ti.
+        preserve_frame_confidence: Bool flag which preserves the history of per-frame confidence scores generated
+            during greedy decoding (sample / batched). When set to true, the Hypothesis will contain
+            the non-null value for `frame_confidence` in it. Here, `frame_confidence` is a List of List of floats.
+            The length of the list corresponds to the Acoustic Length (T).
+            Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more confidence scores.
+            U is the number of target tokens for the current timestep Ti.
+        confidence_method_cfg: A dict-like object which contains the method name and settings to compute per-frame
+            confidence scores.
+            name: The method name (str).
+                Supported values:
+                    - 'max_prob' for using the maximum token probability as a confidence.
+                    - 'entropy' for using normalized entropy of a log-likelihood vector.
+            entropy_type: Which type of entropy to use (str). Used if confidence_method_cfg.name is set to `entropy`.
+                Supported values:
+                    - 'gibbs' for the (standard) Gibbs entropy. If the temperature α is provided,
+                        the formula is the following: H_α = -sum_i((p^α_i)*log(p^α_i)).
+                        Note that for this entropy, the temperature should comply the following inequality:
+                        1/log(V) <= α <= -1/log(1-1/V) where V is the model vocabulary size.
+                    - 'tsallis' for the Tsallis entropy with the Boltzmann constant one.
+                        Tsallis entropy formula is the following: H_α = 1/(α-1)*(1-sum_i(p^α_i)),
+                        where α is a parameter. When α == 1, it works like the Gibbs entropy.
+                        More: https://en.wikipedia.org/wiki/Tsallis_entropy
+                    - 'renui' for the Rényi entropy.
+                        Rényi entropy formula is the following: H_α = 1/(1-α)*log_2(sum_i(p^α_i)),
+                        where α is a parameter. When α == 1, it works like the Gibbs entropy.
+                        More: https://en.wikipedia.org/wiki/R%C3%A9nyi_entropy
+            temperature: Temperature scale for logsoftmax (α for entropies). Here we restrict it to be > 0.
+                When the temperature equals one, scaling is not applied to 'max_prob',
+                and any entropy type behaves like the Shannon entropy: H = -sum_i(p_i*log(p_i))
+            entropy_norm: A mapping of the entropy value to the interval [0,1].
+                Supported values:
+                    - 'lin' for using the linear mapping.
+                    - 'exp' for using exponential mapping with linear shift.
+    """
 
         return hypotheses
 
@@ -1685,12 +1980,10 @@ class ExportedModelGreedyBatchedRNNTInfer:
     def __call__(self, audio_signal: torch.Tensor, length: torch.Tensor):
         """Returns a list of hypotheses given an input batch of the encoder hidden embedding.
         Output token is generated auto-repressively.
-
         Args:
             encoder_output: A tensor of size (batch, features, timesteps).
             encoded_lengths: list of int representing the length of each sequence
                 output sequence.
-
         Returns:
             packed list containing batch number of sentences (Hypotheses).
         """
@@ -1831,15 +2124,11 @@ class ExportedModelGreedyBatchedRNNTInfer:
                         last_label = k.copy().reshape(-1, 1)
                     hidden = hidden_prime
 
-                    # Update predicted labels, accounting for time mask
-                    # If blank was predicted even once, now or in the past,
-                    # Force the current predicted label to also be blank
-                    # This ensures that blanks propogate across all timesteps
-                    # once they have occured (normally stopping condition of sample level loop).
-                    for kidx, ki in enumerate(k):
-                        if blank_mask[kidx] == 0:
-                            label[kidx].append(ki)
-                            timesteps[kidx].append(time_idx)
+                    # Batched joint step - Output = [B, V + 1 + num-big-blanks]
+                    # If preserving per-frame confidence, log_normalize must be true
+                    logp = self._joint_step(f, g, log_normalize=True if self.preserve_frame_confidence else None)[
+                        :, 0, 0, :
+                    ]
 
                     symbols_added += 1
         return label, timesteps
@@ -2012,23 +2301,29 @@ class ONNXGreedyBatchedRNNTInfer(ExportedModelGreedyBatchedRNNTInfer):
 
             input_states.append(torch.zeros(*ip_shape))
 
-        return input_states
+                # Start inner loop
+                while not_blank and (self.max_symbols is None or symbols_added < self.max_symbols):
+                    # Batch prediction and joint network steps
+                    # If very first prediction step, submit SOS tag (blank) to pred_step.
+                    # This feeds a zero tensor as input to AbstractRNNTDecoder to prime the state
+                    if time_idx == 0 and symbols_added == 0 and hidden is None:
+                        g, hidden_prime = self._pred_step(self._SOS, hidden, batch_size=batchsize)
+                    else:
+                        # Set a dummy label for the blank value
+                        # This value will be overwritten by "blank" again the last label update below
+                        # This is done as vocabulary of prediction network does not contain "blank" token of RNNT
+                        last_label_without_blank_mask = last_label >= self._blank_index
+                        last_label_without_blank[last_label_without_blank_mask] = 0  # temp change of label
+                        last_label_without_blank[~last_label_without_blank_mask] = last_label[
+                            ~last_label_without_blank_mask
+                        ]
 
 
-class TorchscriptGreedyBatchedRNNTInfer(ExportedModelGreedyBatchedRNNTInfer):
-    def __init__(
-        self,
-        encoder_model: str,
-        decoder_joint_model: str,
-        cfg: DictConfig,
-        device: str,
-        max_symbols_per_step: Optional[int] = 10,
-    ):
-        super().__init__(
-            encoder_model=encoder_model,
-            decoder_joint_model=decoder_joint_model,
-            max_symbols_per_step=max_symbols_per_step,
-        )
+                    # Batched joint step - Output = [B, V + 1 + num-big-blanks]
+                    # If preserving per-frame confidence, log_normalize must be true
+                    logp = self._joint_step(f, g, log_normalize=True if self.preserve_frame_confidence else None)[
+                        :, 0, 0, :
+                    ]
 
         self.cfg = cfg
         self.device = device
