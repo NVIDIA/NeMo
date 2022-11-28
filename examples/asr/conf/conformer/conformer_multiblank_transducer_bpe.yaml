@@ -1,4 +1,4 @@
-# It contains the default values for training a Conformer-Transducer ASR model, large size (~120M) with Transducer loss and sub-word encoding.
+# It contains the default values for training a Multiblank Conformer-Transducer ASR model with stateless decoders, large size (~120M) with Transducer loss and sub-word encoding.
 
 # Architecture and training config:
 # Default learning parameters in this config are set for effective batch size of 2K. To train it with smaller effective
@@ -17,10 +17,10 @@
 #
 
 # You may find more info about Conformer-Transducer here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html#conformer-transducer
+# Multiblank transducer is decribed in https://arxiv.org/pdf/2211.03541
 # Pre-trained models of Conformer-Transducer can be found here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/results.html
-# The checkpoint of the large model trained on NeMo ASRSET with this recipe can be found here: https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_conformer_transducer_large
 
-name: "Conformer-Transducer-BPE"
+name: "Multiblank-Conformer-Transducer-BPE"
 
 model:
   sample_rate: 16000

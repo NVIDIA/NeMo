@@ -129,8 +129,7 @@ class AbstractRNNTDecoding(ABC):
         super(AbstractRNNTDecoding, self).__init__()
         self.cfg = decoding_cfg
         self.blank_id = blank_id
-        self.big_blank_id_list = big_blank_id_list
-        self.big_blank_duration_list = big_blank_duration_list
+        self.big_blank_durations = self.cfg.get("big_blank_durations", None)
         self.compute_hypothesis_token_set = self.cfg.get("compute_hypothesis_token_set", False)
         self.preserve_alignments = self.cfg.get('preserve_alignments', None)
         self.joint_fused_batch_size = self.cfg.get('fused_batch_size', None)
@@ -162,30 +161,50 @@ class AbstractRNNTDecoding(ABC):
             raise ValueError("If `compute_timesteps` flag is set, then `preserve_alignments` flag must also be set.")
 
         if self.cfg.strategy == 'greedy':
-
-            self.decoding = greedy_decode.GreedyRNNTInfer(
-                decoder_model=decoder,
-                joint_model=joint,
-                blank_index=self.blank_id,
-                big_blank_duration_list=self.big_blank_duration_list,
-                max_symbols_per_step=(
-                    self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
-                ),
-                preserve_alignments=self.preserve_alignments,
-            )
+            if self.big_blank_durations is not None:
+                self.decoding = greedy_decode.GreedyMultiblankRNNTInfer(
+                    decoder_model=decoder,
+                    joint_model=joint,
+                    blank_index=self.blank_id,
+                    big_blank_durations=self.big_blank_durations,
+                    max_symbols_per_step=(
+                        self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
+                    ),
+                    preserve_alignments=self.preserve_alignments,
+                )
+            else:
+                self.decoding = greedy_decode.GreedyRNNTInfer(
+                    decoder_model=decoder,
+                    joint_model=joint,
+                    blank_index=self.blank_id,
+                    max_symbols_per_step=(
+                        self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
+                    ),
+                    preserve_alignments=self.preserve_alignments,
+                )
 
         elif self.cfg.strategy == 'greedy_batch':
-
-            self.decoding = greedy_decode.GreedyBatchedRNNTInfer(
-                decoder_model=decoder,
-                joint_model=joint,
-                blank_index=self.blank_id,
-                big_blank_duration_list=self.big_blank_duration_list,
-                max_symbols_per_step=(
-                    self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
-                ),
-                preserve_alignments=self.preserve_alignments,
-            )
+            if self.big_blank_durations is not None:
+                self.decoding = greedy_decode.GreedyBatchedMultiblankRNNTInfer(
+                    decoder_model=decoder,
+                    joint_model=joint,
+                    blank_index=self.blank_id,
+                    big_blank_durations=self.big_blank_durations,
+                    max_symbols_per_step=(
+                        self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
+                    ),
+                    preserve_alignments=self.preserve_alignments,
+                )
+            else:
+                self.decoding = greedy_decode.GreedyBatchedRNNTInfer(
+                    decoder_model=decoder,
+                    joint_model=joint,
+                    blank_index=self.blank_id,
+                    max_symbols_per_step=(
+                        self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
+                    ),
+                    preserve_alignments=self.preserve_alignments,
+                )
 
         elif self.cfg.strategy == 'beam':
 
@@ -929,7 +948,6 @@ class RNNTWER(Metric):
 @dataclass
 class RNNTDecodingConfig:
     strategy: str = "greedy_batch"
-    duration: str = ""
     compute_hypothesis_token_set: bool = False
 
     # preserve decoding alignments
