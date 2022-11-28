@@ -1428,7 +1428,6 @@ class GreedyBatchedRNNTInferConfig:
     confidence_method_cfg: Optional[ConfidenceMethodConfig] = None
 
 
-
 class GreedyMultiblankRNNTInfer(_GreedyRNNTInfer):
     """A greedy transducer decoder.
 
