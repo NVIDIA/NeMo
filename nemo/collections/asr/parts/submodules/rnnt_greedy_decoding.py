@@ -1411,6 +1411,7 @@ class TorchscriptGreedyBatchedRNNTInfer(ExportedModelGreedyBatchedRNNTInfer):
 
         return input_states
 
+
 class GreedyMultiblankRNNTInfer(_GreedyRNNTInfer):
     """A greedy transducer decoder.
 
@@ -2228,4 +2229,3 @@ class GreedyBatchedRNNTInferConfig:
     preserve_alignments: bool = False
     preserve_frame_confidence: bool = False
     confidence_method_cfg: Optional[ConfidenceMethodConfig] = None
-
