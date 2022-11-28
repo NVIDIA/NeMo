@@ -15,6 +15,8 @@
 # ##########################################################################
 
 
+import contextlib
+
 import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf
@@ -26,18 +28,10 @@ from nemo.collections.tts.helpers.helpers import plot_alignment_to_numpy
 from nemo.collections.tts.losses.radttsloss import AttentionBinarizationLoss, RADTTSLoss
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.core.classes import Exportable
-from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.neural_types.elements import (
-    Index,
-    LengthsType,
-    MelSpectrogramType,
-    ProbsType,
-    RegressionValuesType,
-    TokenDurationType,
-    TokenIndex,
-    TokenLogDurationType,
-)
+from nemo.core.classes.common import typecheck
+from nemo.core.neural_types.elements import Index, MelSpectrogramType, TokenIndex
 from nemo.core.neural_types.neural_type import NeuralType
+from nemo.core.optim.radam import RAdam
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
@@ -47,8 +41,13 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         if isinstance(cfg, dict):
             cfg = OmegaConf.create(cfg)
+        self.normalizer = None
+        self.text_normalizer_call = None
+        self.text_normalizer_call_kwargs = {}
+        self._setup_normalizer(cfg)
 
-        self._setup_tokenizer(cfg.validation_ds.dataset)
+        self.tokenizer = None
+        self._setup_tokenizer(cfg)
 
         assert self.tokenizer is not None
 
@@ -79,11 +78,7 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         self._tb_logger = None
         self.cfg = cfg
         self.log_train_images = False
-
-        self.normalizer = None
-        self.text_normalizer_call = None
-        self.text_normalizer_call_kwargs = {}
-        self._setup_normalizer(cfg)
+        # print("intial self normalizer", self.normalizer)
 
     def batch_dict(self, batch_data):
         if len(batch_data) < 14:
@@ -163,7 +158,7 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         loss_outputs['binarization_loss'] = (binarization_loss, 1.0)
 
         for k, (v, w) in loss_outputs.items():
-            self.log("train/" + k, loss_outputs[k][0])
+            self.log("train/" + k, loss_outputs[k][0], on_step=True)
 
         return {'loss': loss}
 
@@ -233,7 +228,7 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
 
         for k, v in loss_outputs.items():
             if k != "binarization_loss":
-                self.log("val/" + k, loss_outputs[k][0])
+                self.log("val/" + k, loss_outputs[k][0], sync_dist=True, on_epoch=True)
 
         attn = outputs[0]["attn"]
         attn_soft = outputs[0]["attn_soft"]
@@ -267,24 +262,26 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
                 self.model.parameters(), lr=self.optim.lr, weight_decay=self.optim.weight_decay
             )
         elif self.optim.name == 'RAdam':  # False for inference riva
-            optimizer = torch.optim.RAdam(
-                self.model.parameters(), lr=self.optim.lr, weight_decay=self.optim.weight_decay
-            )
+            optimizer = RAdam(self.model.parameters(), lr=self.optim.lr, weight_decay=self.optim.weight_decay)
         else:
             logging.info("Unrecognized optimizer %s! Please choose the right optimizer" % (self.optim.name))
             exit(1)
 
         return optimizer
 
-    @staticmethod
-    def _loader(cfg):
+    def _loader(self, cfg):
         try:
             _ = cfg.dataset.manifest_filepath
         except omegaconf.errors.MissingMandatoryValue:
             logging.warning("manifest_filepath was skipped. No dataset for this model.")
             return None
-
-        dataset = instantiate(cfg.dataset)
+        # print("inside loader self normalizer", self.normalizer)
+        dataset = instantiate(
+            cfg.dataset,
+            text_normalizer=self.normalizer,
+            text_normalizer_call_kwargs=self.text_normalizer_call_kwargs,
+            text_tokenizer=self.tokenizer,
+        )
         return torch.utils.data.DataLoader(  # noqa
             dataset=dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params,
         )
@@ -373,7 +370,17 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
             logging.warning("parse() is meant to be called in eval mode.")
         if normalize and self.text_normalizer_call is not None:
             text = self.text_normalizer_call(text, **self.text_normalizer_call_kwargs)
-        return torch.tensor(self.tokenizer(text)).long().unsqueeze(0).cuda().to(self.device)
+
+        eval_phon_mode = contextlib.nullcontext()
+        if hasattr(self.tokenizer, "set_phone_prob"):
+            eval_phon_mode = self.tokenizer.set_phone_prob(prob=1)
+            print("changed to one")
+
+        with eval_phon_mode:
+            tokens = self.tokenizer.encode(text)
+        print("text to token phone_prob")
+
+        return torch.tensor(tokens).long().unsqueeze(0).cuda().to(self.device)
 
     @property
     def tb_logger(self):
@@ -399,6 +406,3 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
 
     def forward_for_export(self, text, lens, speaker_id, speaker_id_text, speaker_id_attributes):
         return self.model.forward_for_export(text, lens, speaker_id, speaker_id_text, speaker_id_attributes)
-
-    def get_export_subnet(self, subnet=None):
-        return self.model.get_export_subnet(subnet)

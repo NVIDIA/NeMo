@@ -13,6 +13,8 @@
 # limitations under the License.
 
 import json
+import os
+import pickle
 
 import torch
 from tqdm.auto import tqdm
@@ -20,7 +22,7 @@ from tqdm.auto import tqdm
 from nemo.collections.nlp.modules.common import VirtualPromptSource
 from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
 from nemo.core import Dataset
-from nemo.utils import logging
+from nemo.utils import AppState, logging
 
 __all__ = ['GPTPromptLearningDataset']
 
@@ -30,7 +32,7 @@ class GPTPromptLearningDataset(Dataset):
     The dataset class for prompt-tuning or p-tuning pretrained GPT models.
     
     Args:
-        dataset_paths (list[strings]): paths to .jsonl or .json files 
+        data (list[strings], list[dicts]): (1) paths to .jsonl or .json files, (2) dict objects corresponding to each input example
         tokenizer (tokenizer): Tokenizer from frozen language model
         virtual_prompt_source (Enum): Either VirtualPromptSource.PROMPT_TABLE or VirtualPromptSource.PROMPT_ENCODER
         task_templates (dict): Dictionary containing all task template information needed to format prompts. Created in the GPTPromptLearningModel class.
@@ -46,7 +48,7 @@ class GPTPromptLearningDataset(Dataset):
 
     def __init__(
         self,
-        dataset_paths,
+        data,
         tokenizer,
         virtual_prompt_source: VirtualPromptSource,
         task_templates: dict,
@@ -58,6 +60,8 @@ class GPTPromptLearningDataset(Dataset):
         add_eos: bool = True,
         for_train: bool = True,
         tokens_to_generate=None,
+        cache_data_path: str = None,  # the cache file
+        load_cache: bool = True,  # whether to load from the cache if it is available
     ):
         self.tokenizer = tokenizer
         self.virtual_prompt_source = virtual_prompt_source
@@ -80,13 +84,30 @@ class GPTPromptLearningDataset(Dataset):
 
         logging.info("Loading and tokenizing dataset ... ")
 
-        # Datasets are a list of file path strings to .json or .jsonl files
-        if isinstance(dataset_paths[0], str):
-            for path in dataset_paths:
-                dataset = open(path, 'r', encoding='utf-8')
-                self.load_data(dataset)
+        if load_cache and cache_data_path is not None and os.path.exists(cache_data_path):
+            # load it from the cache
+            logging.info(f'load the data from the cache file {cache_data_path}')
+            with open(cache_data_path, 'rb') as f:
+                self.examples = pickle.load(f)
         else:
-            raise ValueError("Datasets must be a list of filepath strings")
+            # Data is just a list of dicts already loaded from a json file or passed in directly as a dict
+            if isinstance(data[0], dict):
+                self.load_data(data)
+
+            # Datasets are a list of file path strings to .json or .jsonl files
+            elif isinstance(data[0], str):
+                for path in data:
+                    dataset = open(path, 'r', encoding='utf-8')
+                    self.load_data(dataset)
+            else:
+                raise ValueError("Datasets must be a list of filepath strings or a list of data example dicts")
+            if cache_data_path is not None:
+                # the first worker save the results into the cache file
+                app_state = AppState()
+                if app_state._global_rank == 0:
+                    with open(cache_data_path, 'wb') as f:
+                        pickle.dump(self.examples, f)
+                    logging.info(f'save the data to the cache file {cache_data_path}')
 
     def load_data(self, dataset):
         """
@@ -154,6 +175,11 @@ class GPTPromptLearningDataset(Dataset):
                 elif self.virtual_prompt_source == VirtualPromptSource.PROMPT_TABLE:
                     taskname_id = self.task_templates[taskname]["task_id_num"]
 
+                elif self.virtual_prompt_source == VirtualPromptSource.NO_PROMPT:
+                    taskname_id = -1
+                else:
+                    raise ValueError("Invalid virtual prompt source specified")
+
                 # Find answer field indices if training and answer_only_loss is True
                 answer_start_idx = None
                 if answer_only_loss and self.for_train:
@@ -177,7 +203,6 @@ class GPTPromptLearningDataset(Dataset):
         doc,
     ):
         # Sanity check amount of virtual token
-        assert total_virtual_tokens > 0, "There should be at least one virtual prompt token"
         assert (
             total_virtual_tokens < self.max_seq_length
         ), "virtual prompt tokens should not exceed max sequence length"
@@ -292,7 +317,7 @@ class GPTPromptLearningDataset(Dataset):
     def __getitem__(self, idx):
         return self.examples[idx]
 
-    def collate_fn(self, batch):
+    def collate_fn(self, batch, tp_workers=0):
         """ Prepares input_ids, labels, loss mask, attention_mask, and position ids for global batch """
         taskname_ids, input_ids, answer_starts = zip(*batch)
 
@@ -303,13 +328,19 @@ class GPTPromptLearningDataset(Dataset):
             taskname_ids = torch.tensor(taskname_ids)
 
         # Task ids are just used for a look up embeddings for prompt-table
-        elif self.virtual_prompt_source == VirtualPromptSource.PROMPT_TABLE:
+        elif self.virtual_prompt_source in [VirtualPromptSource.PROMPT_TABLE, VirtualPromptSource.NO_PROMPT]:
             taskname_ids = torch.tensor(taskname_ids)
 
         # Get max sequence length of batch
         batch_max = max(len(ids) for ids in input_ids)
-        input_ids, loss_mask = self.pad_batch_and_build_loss_mask(input_ids, batch_max, answer_starts)
 
+        if tp_workers > 1:
+            # more sure the sequence length is multiply of number of tp_workers, needed for sequence parallel.
+            resi_padding = (tp_workers - (batch_max - 1) % tp_workers) % tp_workers
+        else:
+            resi_padding = 0
+        batch_max += resi_padding
+        input_ids, loss_mask = self.pad_batch_and_build_loss_mask(input_ids, batch_max, answer_starts)
         # Should be a label for every token in batch, label is the next token
         labels = input_ids[:, 1:].contiguous()
         input_ids = input_ids[:, :-1].contiguous()
@@ -333,6 +364,7 @@ class GPTPromptLearningDataset(Dataset):
     def pad_batch_and_build_loss_mask(self, input_ids, batch_max, answer_starts):
         """ Pad input_ids in batch to max batch length while building loss mask """
         batch_loss_masks = []
+        padded_input_ids = []
         for ids, answer_start_idx in zip(input_ids, answer_starts):
             if answer_start_idx is not None:
                 # Loss mask where answer tokens are 1.0 and all other tokens are 0.0
@@ -344,17 +376,19 @@ class GPTPromptLearningDataset(Dataset):
             # Pad to max length
             input_length = len(ids)
             padding_length = batch_max - input_length
-            ids.extend([self.pad_token_id] * padding_length)
+            pad_extend = [self.pad_token_id] * padding_length
+            ids = ids + pad_extend
+            padded_input_ids.append(ids)
 
             # Account for padding in loss mask
             loss_mask.extend([0.0] * padding_length)
             batch_loss_masks.append(torch.tensor(loss_mask, dtype=torch.float))
 
         # Make into torch tensors
-        input_ids = torch.tensor(input_ids, dtype=torch.long)
+        padded_input_ids = torch.tensor(padded_input_ids, dtype=torch.long)
         batch_loss_masks = torch.stack(batch_loss_masks)
 
-        return input_ids, batch_loss_masks
+        return padded_input_ids, batch_loss_masks
 
     def inference_collate_fn(self, batch):
         """

@@ -21,7 +21,6 @@ from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import (
     get_indexed_dataset_,
     get_samples_mapping,
-    make_text_memmap_bin_compatibility,
 )
 from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import TextMemMapDataset
 from nemo.core.classes import Dataset
@@ -86,8 +85,12 @@ class SequenceToSequenceDataset(Dataset):
                     + self.tgt_tokenizer.text_to_ids(tgt.strip())
                     + [self.tgt_tokenizer.eos_id]
                 )
-                if len(src) <= self.max_src_seq_length and len(tgt) < self.max_tgt_seq_length:
-                    self.examples.append({'src': src, 'tgt': tgt})
+                # Truncate to max sequence length.
+                if len(src) > self.max_src_seq_length:
+                    src = src[-self.max_src_seq_length + 1 :]
+                if len(tgt) > self.max_tgt_seq_length:
+                    tgt = tgt[-self.max_tgt_seq_length + 1 :]
+                self.examples.append({'src': src, 'tgt': tgt})
 
         logging.info(f'Dataset Length : {len(self.examples)}')
 
@@ -264,13 +267,12 @@ class TextMemmapSequenceToSequenceDataset(IndexedSequenceToSequenceDataset):
         )
 
     def _get_examples(self):
-        self.src_indexed_dataset = TextMemMapDataset(dataset_paths=[self.src_file_name], tokenizer=self.src_tokenizer)
-        self.tgt_indexed_dataset = TextMemMapDataset(dataset_paths=[self.tgt_file_name], tokenizer=self.tgt_tokenizer)
-
-        # Create compatibility with Megatron samples mapping
-        if self.max_num_samples is not None:
-            make_text_memmap_bin_compatibility(self.src_indexed_dataset)
-            make_text_memmap_bin_compatibility(self.tgt_indexed_dataset)
+        self.src_indexed_dataset = TextMemMapDataset(
+            dataset_paths=[self.src_file_name], tokenizer=self.src_tokenizer, header_lines=0
+        )
+        self.tgt_indexed_dataset = TextMemMapDataset(
+            dataset_paths=[self.tgt_file_name], tokenizer=self.tgt_tokenizer, header_lines=0
+        )
 
         assert len(self.src_indexed_dataset) == len(
             self.tgt_indexed_dataset

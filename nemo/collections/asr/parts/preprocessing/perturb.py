@@ -38,7 +38,7 @@ import os
 import random
 import subprocess
 from tempfile import NamedTemporaryFile
-from typing import List, Optional, Union
+from typing import Any, List, Optional, Union
 
 import librosa
 import numpy as np
@@ -275,6 +275,45 @@ class TimeStretchPerturbation(Perturbation):
         data._samples = y_stretch
 
 
+class SilencePerturbation(Perturbation):
+    """
+    Applies random silence at the start and/or end of the audio.
+
+    Args:
+        min_start_silence_secs (float): Min start silence level in secs
+        max_start_silence_secs (float): Max start silence level in secs
+        min_end_silence_secs (float): Min end silence level in secs
+        max_end_silence_secs (float): Max end silence level in secs
+        rng: Random number generator
+        value: (float): value representing silence to be added to audio array.
+    """
+
+    def __init__(
+        self,
+        min_start_silence_secs: float = 0,
+        max_start_silence_secs: float = 0,
+        min_end_silence_secs: float = 0,
+        max_end_silence_secs: float = 0,
+        rng: Optional[Any] = None,
+        value: float = 0,
+    ):
+        self._min_start_silence_secs = min_start_silence_secs
+        self._max_start_silence_secs = max_start_silence_secs
+        self._min_end_silence_secs = min_end_silence_secs
+        self._max_end_silence_secs = max_end_silence_secs
+
+        self._rng = random.Random() if rng is None else rng
+        self._value = value
+
+    def perturb(self, data):
+        start_silence_len = self._rng.uniform(self._min_start_silence_secs, self._max_start_silence_secs)
+        end_silence_len = self._rng.uniform(self._min_end_silence_secs, self._max_end_silence_secs)
+        start = np.full((int(start_silence_len * data.sample_rate),), self._value)
+        end = np.full((int(end_silence_len * data.sample_rate),), self._value)
+
+        data._samples = np.concatenate([start, data._samples, end])
+
+
 class GainPerturbation(Perturbation):
     """
     Applies random gain to the audio.
@@ -332,6 +371,9 @@ class ImpulsePerturbation(Perturbation):
         if not self._shift_impulse:
             impulse_norm = (impulse.samples - min(impulse.samples)) / (max(impulse.samples) - min(impulse.samples))
             data._samples = signal.fftconvolve(data._samples, impulse_norm, "same")
+            data._samples = data._samples / max(
+                abs(data._samples)
+            )  # normalize data samples to [-1,1] after rir convolution to avoid nans with fp16 training
         else:
             # Find peak and shift peak to left
             impulse_norm = (impulse.samples - min(impulse.samples)) / (max(impulse.samples) - min(impulse.samples))
@@ -340,6 +382,9 @@ class ImpulsePerturbation(Perturbation):
             impulse_resp = impulse_norm[max_ind:]
             delay_after = len(impulse_resp)
             data._samples = signal.fftconvolve(data._samples, impulse_resp, "full")[:-delay_after]
+            data._samples = data._samples / max(
+                abs(data._samples)
+            )  # normalize data samples to [-1,1] after rir convolution to avoid nans with fp16 training
 
 
 class ShiftPerturbation(Perturbation):
@@ -425,7 +470,12 @@ class NoisePerturbation(Perturbation):
             self._manifest, target_sr, self._rng, tarred_audio=self._tarred_audio, audio_dataset=self._data_iterator
         )
 
-    def perturb(self, data):
+    def perturb(self, data, ref_mic=0):
+        """
+        Args:
+            data (AudioSegment): audio data
+            ref_mic (int): reference mic index for scaling multi-channel audios
+        """
         noise = read_one_audiosegment(
             self._manifest,
             data.sample_rate,
@@ -433,14 +483,35 @@ class NoisePerturbation(Perturbation):
             tarred_audio=self._tarred_audio,
             audio_dataset=self._data_iterator,
         )
-        self.perturb_with_input_noise(data, noise)
+        self.perturb_with_input_noise(data, noise, ref_mic=ref_mic)
 
-    def perturb_with_input_noise(self, data, noise, data_rms=None):
+    def perturb_with_input_noise(self, data, noise, data_rms=None, ref_mic=0):
+        """
+        Args:
+            data (AudioSegment): audio data
+            noise (AudioSegment): noise data
+            data_rms (Union[float, List[float]): rms_db for data input
+            ref_mic (int): reference mic index for scaling multi-channel audios
+        """
+        if data.num_channels != noise.num_channels:
+            raise ValueError(
+                f"Found mismatched channels for data ({data.num_channels}) and noise ({noise.num_channels})."
+            )
+
+        if not (0 <= ref_mic < data.num_channels):
+            raise ValueError(
+                f" reference mic ID must be an integer in [0, {data.num_channels}), got {ref_mic} instead."
+            )
+
         snr_db = self._rng.uniform(self._min_snr_db, self._max_snr_db)
         if data_rms is None:
             data_rms = data.rms_db
-        noise_gain_db = min(data_rms - noise.rms_db - snr_db, self._max_gain_db)
-        # logging.debug("noise: %s %s %s", snr_db, noise_gain_db, noise_record.audio_file)
+
+        if data.num_channels > 1:
+            noise_gain_db = data_rms[ref_mic] - noise.rms_db[ref_mic] - snr_db
+        else:
+            noise_gain_db = data_rms - noise.rms_db - snr_db
+        noise_gain_db = min(noise_gain_db, self._max_gain_db)
 
         # calculate noise segment to use
         start_time = self._rng.uniform(0.0, noise.duration - data.duration)
@@ -457,14 +528,36 @@ class NoisePerturbation(Perturbation):
         else:
             data._samples += noise._samples
 
-    def perturb_with_foreground_noise(
-        self, data, noise, data_rms=None, max_noise_dur=2, max_additions=1,
-    ):
+    def perturb_with_foreground_noise(self, data, noise, data_rms=None, max_noise_dur=2, max_additions=1, ref_mic=0):
+        """
+        Args:
+            data (AudioSegment): audio data
+            noise (AudioSegment): noise data
+            data_rms (Union[float, List[float]): rms_db for data input
+            max_noise_dur: (float): max noise duration
+            max_additions (int): number of times for adding noise
+            ref_mic (int): reference mic index for scaling multi-channel audios
+        """
+        if data.num_channels != noise.num_channels:
+            raise ValueError(
+                f"Found mismatched channels for data ({data.num_channels}) and noise ({noise.num_channels})."
+            )
+
+        if not (0 <= ref_mic < data.num_channels):
+            raise ValueError(
+                f" reference mic ID must be an integer in [0, {data.num_channels}), got {ref_mic} instead."
+            )
+
         snr_db = self._rng.uniform(self._min_snr_db, self._max_snr_db)
         if not data_rms:
             data_rms = data.rms_db
 
-        noise_gain_db = min(data_rms - noise.rms_db - snr_db, self._max_gain_db)
+        if data.num_channels > 1:
+            noise_gain_db = data_rms[ref_mic] - noise.rms_db[ref_mic] - snr_db
+        else:
+            noise_gain_db = data_rms - noise.rms_db - snr_db
+        noise_gain_db = min(noise_gain_db, self._max_gain_db)
+
         n_additions = self._rng.randint(1, max_additions)
 
         for i in range(n_additions):
@@ -725,6 +818,7 @@ perturbation_types = {
     "speed": SpeedPerturbation,
     "time_stretch": TimeStretchPerturbation,
     "gain": GainPerturbation,
+    "silence": SilencePerturbation,
     "impulse": ImpulsePerturbation,
     "shift": ShiftPerturbation,
     "noise": NoisePerturbation,

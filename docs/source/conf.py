@@ -41,8 +41,6 @@ autodoc_mock_imports = [
     'torch.optim',
     'torch.utils.data',
     'torch.utils.data.sampler',
-    'torchvision',
-    'torchvision.models',
     'torchtext',
     'ruamel.yaml',  # ruamel.yaml has ., which is troublesome for this regex
     'hydra',  # hydra-core in requirements, hydra during import
@@ -58,6 +56,7 @@ autodoc_mock_imports = [
     'joblib',
     'IPython',
     'ipadic',
+    'psutil',
 ]
 
 _skipped_autodoc_mock_imports = ['wrapt', 'numpy']
@@ -110,7 +109,7 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx.ext.autosectionlabel",
     "sphinxcontrib.bibtex",
-    # "sphinx_rtd_theme",
+    "sphinx_copybutton",
 ]
 
 bibtex_bibfiles = [
@@ -118,7 +117,8 @@ bibtex_bibfiles = [
     'nlp/nlp_all.bib',
     'nlp/text_normalization/tn_itn_all.bib',
     'tools/tools_all.bib',
-    'tts_all.bib',
+    'tts/tts_all.bib',
+    'text_processing/text_processing_all.bib',
     'core/adapters/adapter_bib.bib',
 ]
 

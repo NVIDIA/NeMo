@@ -1,4 +1,4 @@
-# Speaker Dirarzation
+# Speaker Diarization
 
 Documentation section for speaker related tasks can be found at:
  - [Speaker Diarization](https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/speaker_diarization/intro.html)
@@ -17,6 +17,7 @@ Documentation section for speaker related tasks can be found at:
 - [speakerverification_speakernet](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/speakerverification_speakernet)
 
 ## Supported Pretrained VAD models
+- [vad_multilingual_marblenet](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/vad_multilingual_marblenet)
 - [vad_marblenet](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/vad_marblenet)
 - [vad_telephony_marblenet](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/vad_telephony_marblenet)
 
@@ -28,40 +29,75 @@ Recommended models on NGC:
 - [stt_en_citrinet_1024](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/stt_en_citrinet_1024)
 
 ## Performance
+
+#### Clustering Diarizer 
 Diarization Error Rate (DER) table of `titanet_large.nemo` model on well known evaluation datasets. 
 
-|         Evaluation<br>Condition     | NIST SRE 2000 | AMI<br>(Lapel) | AMI<br>(MixHeadset) | CH109 |
-|:-----------------------------------:|:-------------:|:--------------:|:-------------------:|:-----:|
-|  Oracle VAD <br>KNOWN # of Speakers  |      6.73     |      2.03      |         1.73        |  1.19 |
-| Oracle VAD<br> UNKNOWN # of Speakers |     5.38     |      2.03      |         1.89        |  1.63 |
+|         Evaluation Condition           |   AMI(Lapel)   | AMI(MixHeadset)     |   CH109  | NIST SRE 2000 |  
+|:--------------------------------------:|:--------------:|:-------------------:|:--------:|:-------------:|
+|       Domain Configuration             |   Meeting      |        Meeting      |Telephonic| Telephonic    |
+|  Oracle VAD <br> Known # of Speakers   |     1.28       |         1.07        |  0.56    |     5.62      |
+|  Oracle VAD <br> Unknown # of Speakers |     1.28       |         1.4         |  0.88    |     4.33      | 
 
-* All models were tested using embedding extractor with window size 1.5s and shift length 0.75s
+* All models were tested using the domain specific `.yaml` files which can be found in `conf/inference/` folder.
 * The above result is based on the oracle Voice Activity Detection (VAD) result.
 * This result is based on [titanet_large.nemo](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/titanet_large) model.
 
-<br/>
+#### Neural Diarizer 
+Multi-scale Diarization Decoder (MSDD) model [Multi-scale Diarization decoder](https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/speaker_diarization/model.html)
+Diarization Error Rate (DER) table of [diar_msdd_telephonic.nemo](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/diar_msdd_telephonic) model on telephonic speech datasets.
+
+|                                 CH109| Forgiving                       | Fair                             | Full                            |
+|-------------------------------------:|---------------------------------|----------------------------------|---------------------------------|
+|              (collar, ignore_overlap)|  (0.25, True)                   |  (0.25, True)                    |   (0.0, False)                  |
+|                          False Alarm | -                               | 0.62%                            | 1.80%                           |
+|                                 Miss | -                               | 2.47%                            | 5.96%                           |
+|                            Confusion | -                               | 0.43%                            | 2.10%                           |
+|                                  DER | **0.58%**                       | **3.52%**                        | **9.86%**                       |
+
+
+|                             CALLHOME | Forgiving                       | Fair                             | Full                            |
+|-------------------------------------:|---------------------------------|----------------------------------|---------------------------------|
+|              (collar, ignore_overlap)|  (0.25, True)                   |  (0.25, True)                    |   (0.0, False)                  |
+|                          False Alarm | -                               | 1.05%                            | 2.24%                           |
+|                                 Miss | -                               | 7.62%                            | 11.09%                          |
+|                            Confusion | -                               | 4.06%                            | 6.03%                           |
+|                                  DER | **4.15%**                       | **12.73%**                       | **19.37%**                      |
+
+* Evaluation setting: Oracle VAD <br> Unknown number of speakers (max. 8)
+* Clustering parameter: `max_rp_threshold=0.15` 
+* All models were tested using the domain specific `.yaml` files which can be found in `conf/inference/` folder.
+* The above result is based on the oracle Voice Activity Detection (VAD) result.
 
 ## Run Speaker Diarization on Your Audio Files
 
-#### Example script
+#### Example script for clustering diarizer: with system-VAD
 ```bash
-  python offline_diarization.py \
+  python clustering_diarizer/offline_diar_infer.py \
     diarizer.manifest_filepath=<path to manifest file> \
     diarizer.out_dir='demo_output' \
-    diarizer.speaker_embeddings.model_path=<pretrained modelname or path to .nemo> \
-    diarizer.vad.model_path=<pretrained modelname or path to .nemo>
+    diarizer.speaker_embeddings.parameters.save_embeddings=False \
+    diarizer.vad.model_path=<pretrained model name or path to .nemo> \
+    diarizer.speaker_embeddings.model_path=<pretrained speaker embedding model name or path to .nemo> 
+```
+
+#### Example script for neural diarizer: with system-VAD
+```bash
+  python neural_diarizer/multiscale_diar_decoder_infer.py \
+    diarizer.manifest_filepath=<path to manifest file> \
+    diarizer.out_dir='demo_output' \
+    diarizer.speaker_embeddings.parameters.save_embeddings=False \
+    diarizer.vad.model_path=<pretrained model name or path to .nemo> \
+    diarizer.speaker_embeddings.model_path=<pretrained speaker embedding model name or path to .nemo> \
+    diarizer.msdd_model.model_path=<pretrained MSDD model name or path .nemo> \
 ```
 
 If you have oracle VAD files and groundtruth RTTM files for evaluation:
 Provide rttm files in the input manifest file and enable oracle_vad as shown below. 
-
 ```bash
-python offline_diarization.py \
-  python speaker_diarize.py \
-    diarizer.manifest_filepath=<path to manifest file> \
-    diarizer.out_dir='demo_output' \
-    diarizer.speaker_embeddings.model_path=<pretrained modelname or path to .nemo> \
-    diarizer.oracle_vad=True
+...
+    diarizer.oracle_vad=True \
+...
 ```
 
 #### Arguments
@@ -78,6 +114,17 @@ Mandatory fields are `audio_filepath`, `offset`, `duration`, `label:"infer"` and
 
 Some of important options in config file: 
 
+- **`diarizer.vad.model_path`: voice activity detection modle name or path to the model**
+
+Specify the name of VAD model, then the script will download the model from NGC. Currently, we have 'vad_multilingual_marblenet', 'vad_marblenet' and  'vad_telephony_marblenet' as options for VAD models.
+
+`diarizer.vad.model_path='vad_multilingual_marblenet'`
+
+
+Instead, you can also download the model from [vad_multilingual_marblenet](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/vad_multilingual_marblenet), [vad_marblenet](https://ngc.nvidia.com/catalog/models/nvidia:nemo:vad_marblenet) and [vad_telephony_marblenet](https://ngc.nvidia.com/catalog/models/nvidia:nemo:vad_telephony_marblenet) and specify the full path name to the model as below.
+
+`diarizer.vad.model_path='path/to/vad_multilingual_marblenet.nemo'`
+
 - **`diarizer.speaker_embeddings.model_path`: speaker embedding model name**
 
 Specify the name of speaker embedding model, then the script will download the model from NGC. Currently, we support 'titanet_large', 'ecapa_tdnn' and 'speakerverification_speakernet'.
@@ -88,35 +135,41 @@ You could also download *.nemo files from [this link](https://ngc.nvidia.com/cat
 
 `diarizer.speaker_embeddings.model_path='path/to/titanet_large.nemo'` 
  
-- **`diarizer.vad.model_path`: voice activity detection modle name or path to the model**
 
-Specify the name of VAD model, then the script will download the model from NGC. Currently, we have 'vad_marblenet' and  'vad_telephony_marblenet' as options for VAD models.
-
-`diarizer.vad.model_path='vad_telephony_marblenet'`
-
-
-Instead, you can also download the model from [vad_marblenet](https://ngc.nvidia.com/catalog/models/nvidia:nemo:vad_marblenet) and [vad_telephony_marblenet](https://ngc.nvidia.com/catalog/models/nvidia:nemo:vad_telephony_marblenet) and specify the full path name to the model as below.
-
-`diarizer.vad.model_path='path/to/vad_telephony_marblenet.nemo'`
-
-- **`diarizer.speaker_embeddings.parameters.multiscale_weights`: multiscale diarization (Experimental)**
+- **`diarizer.speaker_embeddings.parameters.multiscale_weights`: multiscale diarization **
 
 Multiscale diarization system employs multiple scales at the same time to obtain a finer temporal resolution. To use multiscale feature, at least two scales and scale weights should be provided. The scales should be provided in descending order, from the longest scale to the base scale (the shortest). If multiple scales are provided, multiscale_weights must be provided in list format. The following example shows how multiscale parameters are specified and the recommended parameters.
 
+- **`diarizer.msdd_model.model_path`: neural diarizer (multiscale diarization decoder) name**
+
+If you want to use a neural diarizer model (e.g., MSDD model), specify the name of the neural diarizer model, then the script will download the model from NGC. Currently, we support 'diar_msdd_telephonic'.
+
+Note that you should not specify a scale setting that does not match with the MSDD model you are using. For example, `diar_msdd_telephonic` model is based on 5 scales as in the configs in model configs.
+
+`diarizer.speaker_embeddings.model_path='diar_msdd_telephonic'
+
+You could also download [diar_msdd_telephonic](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/diar_msdd_telephonic)
+and specify the full path name to the speaker embedding model file (`*.nemo`).
+
+`diarizer.msdd_model.model_path='path/to/diar_msdd_telephonic.nemo'` 
+ 
+
 #### Example script: single-scale and multiscale
+
 Single-scale setting:
 ```bash
-  python offline_diarization.py \
-     ... <other paramerters> ...
+  python offline_diar_infer.py \
+     ... <other parameters> ...
      parameters.window_length_in_sec=1.5 \
      parameters.shift_length_in_sec=0.75 \
      parameters.multiscale_weights=null \
 ```
 
 Multiscale setting (base scale - window_length 0.5 s and shift_length 0.25):
+
 ```bash
-  python offline_diarization.py \
-     ... <other paramerters> ...
+  python offline_diar_infer.py \
+     ... <other parameters> ...
      parameters.window_length_in_sec=[1.5,1.0,0.5] \
      parameters.shift_length_in_sec=[0.75,0.5,0.25] \
      parameters.multiscale_weights=[0.33,0.33,0.33] \
@@ -126,34 +179,36 @@ Multiscale setting (base scale - window_length 0.5 s and shift_length 0.25):
 
 ## Run Speech Recognition with Speaker Diarization
 
-Using the script `offline_diarization_with_asr.py`, you can transcribe your audio recording with speaker labels as shown below:
+Using the script `offline_diar_with_asr_infer.py`, you can transcribe your audio recording with speaker labels as shown below:
 
 ```
 [00:03.34 - 00:04.46] speaker_0: back from the gym oh good how's it going 
-[00:04.46 - 00:09.96] speaker_1: oh pretty well it was really crowded today yeah i kind of assumed everylonewould be at the shore uhhuh
+[00:04.46 - 00:09.96] speaker_1: oh pretty well it was really crowded today yeah i kind of assumed everyone would be at the shore uhhuh
 [00:12.10 - 00:13.97] speaker_0: well it's the middle of the week or whatever so
 ```
 
-Currently, offline_diarization_with_asr supports QuartzNet English model and ConformerCTC model (`QuartzNet15x5Base-En`, `stt_en_conformer_ctc_large`). 
+Currently, NeMo offline diarization inference supports QuartzNet English model and ConformerCTC ASR models (e.g.,`QuartzNet15x5Base-En`, `stt_en_conformer_ctc_large`). 
 
 #### Example script
 
 ```bash
-python offline_diarization_with_asr.py \
+python offline_diar_with_asr_infer.py \
     diarizer.manifest_filepath=<path to manifest file> \
     diarizer.out_dir='demo_asr_output' \
-    diarizer.speaker_embeddings.model_path=<pretrained modelname or path to .nemo> \
-    diarizer.asr.model_path=<pretrained modelname or path to .nemo> \
+    diarizer.speaker_embeddings.model_path=<pretrained model name or path to .nemo> \
+    diarizer.asr.model_path=<pretrained model name or path to .nemo> \
+    diarizer.speaker_embeddings.parameters.save_embeddings=False \
     diarizer.asr.parameters.asr_based_vad=True
 ```
 If you have reference rttm files or oracle number of speaker information, you can provide those file paths and number of speakers in the manifest file path and pass `diarizer.clustering.parameters.oracle_num_speakers=True` as shown in the following example.
 
 ```bash
-python offline_diarization_with_asr.py \
+python offline_diar_with_asr_infer.py \
     diarizer.manifest_filepath=<path to manifest file> \
     diarizer.out_dir='demo_asr_output' \
-    diarizer.speaker_embeddings.model_path=<pretrained modelname or path to .nemo> \
-    diarizer.asr.model_path=<pretrained modelname or path to .nemo> \
+    diarizer.speaker_embeddings.model_path=<pretrained model name or path to .nemo> \
+    diarizer.asr.model_path=<pretrained model name or path to .nemo> \
+    diarizer.speaker_embeddings.parameters.save_embeddings=False \
     diarizer.asr.parameters.asr_based_vad=True \
     diarizer.clustering.parameters.oracle_num_speakers=True
 ```
@@ -180,7 +235,7 @@ For example, in `./demo_asr_output/`, you can check the results as below.
 ... 
 ```
 
-`my_audio1.json` file contains word-by-word json output with speaker label and time stamps. We also provide json output file for [gecko](https://gong-io.github.io/gecko/) tool, where you can visualize the diarization result along with ASR output.
+`my_audio1.json` file contains word-by-word json output with speaker label and time stamps. We also provide a json output file for [gecko](https://gong-io.github.io/gecko/) tool, where you can visualize the diarization result along with the ASR output.
 
 Example: `./demo_asr_output/pred_rttms/my_audio1.json`
 ```bash
@@ -219,7 +274,7 @@ Example: `./demo_asr_output/pred_rttms/my_audio1.txt`
 [00:04.46 - 00:09.96] speaker_1: pretty well it was really crowded today yeah i kind of assumed everylonewould be at the shore uhhuh
 [00:12.10 - 00:13.97] speaker_0: well it's the middle of the week or whatever so
 [00:13.97 - 00:15.78] speaker_1: but it's the fourth of july mm
-[00:16.90 - 00:21.80] speaker_0: so yeahg people still work tomorrow do you have to work tomorrow did you drive off yesterday
+[00:16.90 - 00:21.80] speaker_0: so yeah people still work tomorrow do you have to work tomorrow did you drive off yesterday
 ```
  
 In `speaker_outputs` folder we have three kinds of files as follows:
@@ -241,8 +296,8 @@ pip install https://github.com/kpu/kenlm/archive/master.zip
 You should provide a trained KenLM language model to use pyctcdecode. Binary or `.arpa` format can be provided to hydra configuration as below.
 
 ```bash
-  python offline_diarization_with_asr.py \
-    ... <other paramerters> ...
+  python offline_diar_with_asr_infer.py \
+    ... <other parameters> ...
     diarizer.asr.ctc_decoder_parameters.pretrained_language_model="/path/to/kenlm_language_model.binary"
 ```
 You can download publicly available language models (`.arpa` files) at [KALDI Tedlium Language Models](https://kaldi-asr.org/models/m5). Download [4-gram Big ARPA](https://kaldi-asr.org/models/5/4gram_big.arpa.gz) and provide the model path.
@@ -264,8 +319,8 @@ pip install arpa
  
 
 ```bash
-python offline_diarization_with_asr.py \
-    ... <other paramerters> ...
+python offline_diar_with_asr_infer.py \
+    ... <other parameters> ...
     diarizer.asr.realigning_lm_parameters.logprob_diff_threshold=1.2 \
     diarizer.asr.realigning_lm_parameters.arpa_language_model="/path/to/4gram_big.arpa"\
 ```

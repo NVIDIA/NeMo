@@ -37,13 +37,22 @@ import math
 import torch
 import torch.nn as nn
 
-from nemo.collections.common.parts.training_utils import avoid_float16_autocast_context
+from nemo.utils import avoid_float16_autocast_context
 
 __all__ = [
     'RelPositionMultiHeadAttention',
     'RelPositionalEncoding',
     'PositionalEncoding',
 ]
+
+
+@torch.jit.script
+def keep_in_cache_next(cache: torch.Tensor, cache_next: torch.Tensor, keep_size: torch.Tensor, cache_id: int):
+    # Current ONNX does not support a Tensor with a dimension of zero
+    # Needed to use Torch script to skip this part when this case happens
+    if keep_size < cache_next.size(-2):
+        cache_next[cache_id, :, :-keep_size, :] = cache[cache_id, :, -(cache_next.size(2) - keep_size) :, :]
+    return cache_next
 
 
 class MultiHeadAttention(nn.Module):
@@ -129,9 +138,10 @@ class MultiHeadAttention(nn.Module):
         returns:
             output (torch.Tensor): transformed `value` (batch, time1, d_model) weighted by the query dot key attention
         """
-        key, value, query, cache_next = self.update_cache(
-            key=key, value=value, query=query, cache=cache, cache_next=cache_next
-        )
+        key, value, query = self.update_cache(key=key, value=value, query=query, cache=cache, cache_next=cache_next)
+
+        if torch.is_autocast_enabled():
+            query, key, value = query.to(torch.float32), key.to(torch.float32), value.to(torch.float32)
 
         # temporary until we solve this more gracefully
         with avoid_float16_autocast_context():
@@ -148,12 +158,8 @@ class MultiHeadAttention(nn.Module):
             key = value = torch.cat((cache[self._cache_id], key), dim=1)
 
         if cache_next is not None:
-            cache_next_length = cache_next.size(2)
-            q_keep_size = q_length - self.cache_drop_size
-
-            cache_next[self._cache_id, :, :-q_keep_size, :] = cache[
-                self._cache_id, :, -(cache_next_length - q_keep_size) :, :
-            ].clone()
+            q_keep_size = torch.tensor(q_length - self.cache_drop_size, dtype=torch.int64).clip(min=1)
+            keep_in_cache_next(cache=cache, cache_next=cache_next, keep_size=q_keep_size, cache_id=self._cache_id)
             cache_next[self._cache_id, :, -q_keep_size:, :] = q_input[:, :q_keep_size, :]
 
         return key, value, query
@@ -213,6 +219,9 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
             output (torch.Tensor): transformed `value` (batch, time1, d_model) weighted by the query dot key attention
         """
         key, value, query = self.update_cache(key=key, value=value, query=query, cache=cache, cache_next=cache_next)
+
+        if torch.is_autocast_enabled():
+            query, key, value = query.to(torch.float32), key.to(torch.float32), value.to(torch.float32)
 
         # temporary until we solve this more gracefully
         with avoid_float16_autocast_context():
@@ -328,7 +337,6 @@ class RelPositionalEncoding(PositionalEncoding):
         # positive positions would be used for left positions and negative for right positions
         positions = torch.arange(length - 1, -length, -1, dtype=torch.float32, device=device).unsqueeze(1)
         self.create_pe(positions=positions)
-        self.center_pos = torch.tensor(self.pe.size(1) // 2 + 1, dtype=torch.int32, device=device)
 
     def forward(self, x, cache_len=0):
         """Compute positional encoding.
@@ -347,8 +355,9 @@ class RelPositionalEncoding(PositionalEncoding):
         # negative positions would be used for right and positive for left tokens
         # for input of length L, 2*L-1 positions are needed, positions from (L-1) to -(L-1)
         input_len = x.size(1) + cache_len
-        start_pos = self.center_pos - input_len
-        end_pos = self.center_pos + input_len - 1
+        center_pos = self.pe.size(1) // 2 + 1
+        start_pos = center_pos - input_len
+        end_pos = center_pos + input_len - 1
         pos_emb = self.pe[:, start_pos:end_pos]
         if self.dropout_emb:
             pos_emb = self.dropout_emb(pos_emb)

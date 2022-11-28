@@ -73,12 +73,12 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
     :class:`~nemo.collections.nlp.data.token_classification.punctuation_capitalization_tarred_dataset.BertPunctuationCapitalizationTarredDataset`.
 
     Args:
-        cfg (:obj:`DictConfig`): a model configuration. It should follow dataclass
+        cfg: a model configuration. It should follow dataclass
             :class:`~nemo.collections.nlp.models.token_classification.punctuation_capitalization_config.PunctuationCapitalizationModelConfig`
             See an example of full config in
             `nemo/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml
             <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml>`_
-        trainer (:obj:`pytorch_lightning.Trainer`): an instance of a PyTorch Lightning trainer
+        trainer: an instance of a PyTorch Lightning trainer
     """
 
     @property
@@ -299,7 +299,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
 
         Args:
             outputs (:obj:`pytorch_lightning.utilities.types.EPOCH_OUTPUT`): an output of all training steps. It is a
-                mandatory PyTorch Lightning parameter and it is not used in this method
+                mandatory PyTorch Lightning parameter, and it is not used in this method
         """
         shuffle = self._cfg.train_ds.get('shuffle')
         if shuffle is None:  # Encountered legacy config
@@ -348,7 +348,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
 
     def update_config_after_restoring_from_checkpoint(self, **kwargs) -> None:
         """
-        Set new values for some sections of config. Useful after restoring from checkpoint for fine tuning
+        Set new values for some sections of config. Useful after restoring from checkpoint for fine-tuning
         and testing if config parameters of a restored checkpoint are not suitable.
 
         For ``class_labels``, ``common_dataset_parameters``, ``train_ds``, ``validation_ds``, ``test_ds``, there is
@@ -380,7 +380,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
 
         Keyword Args:
             class_labels (:obj:`Union[DictConfig, Dict[str, str]]`): names of label id files used as label
-                id dictionaries. See more in :ref:`class labels config<class-labels-config-label>`.
+                id dictionaries. See more in :ref:`class labels' config<class-labels-config-label>`.
             common_dataset_parameters (:obj:`Union[DictConfig, Dict[str, Any]]`, `optional`): see more in
                 :ref:`common dataset parameters config<common-dataset-parameters-config-label>`.
             train_ds (:obj:`Union[DictConfig, Dict[str, Any]]`, `optional`): configuration of training dataset. See
@@ -694,7 +694,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
 
         This method also registers artifacts ``class_labels.punct_labels_file`` and ``class_labels.capit_labels_file``.
 
-        This method is called if do not plan to infer label ids from training file with labels. If training file
+        This method is called if you do not plan to infer label ids from training file with labels. If training file
         with labels is going to be used, then calling :meth:`~setup_training_data` is enough to set
         ``punct_label_ids`` and ``capit_label_ids`` and register label artifacts.
         """
@@ -779,6 +779,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 shuffle_n=cfg.tar_shuffle_n,
                 shard_strategy=cfg.shard_strategy,
                 label_info_save_dir=cfg.label_info_save_dir,
+                use_audio=cfg.use_audio,
             )
             dataset.check_for_label_consistency_with_model_config(
                 self.punct_label_ids,
@@ -793,11 +794,13 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                     f"dataset config must not be `None`. Whereas `text_file={cfg.text_file}` and "
                     f"`label_file={cfg.labels_file}`."
                 )
-            if cfg.tokens_in_batch is None:
+            if cfg.tokens_in_batch is None and cfg.use_bucketing:
                 raise ValueError(
                     f"If `use_tarred_dataset` is `False`, then you need to provide `tokens_in_batch` parameter."
                 )
-            text_file, labels_file = Path(cfg.ds_item) / cfg.text_file, Path(cfg.ds_item) / cfg.labels_file
+            text_file, labels_file, = Path(cfg.ds_item) / cfg.text_file, Path(cfg.ds_item) / cfg.labels_file
+            if cfg.audio_file:
+                audio_file = Path(cfg.ds_item) / cfg.audio_file
             if self.label_ids_are_set:
                 label_kwargs = {'punct_label_ids': self.punct_label_ids, 'capit_label_ids': self.capit_label_ids}
             else:
@@ -846,7 +849,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             else:
                 # If pickled features are saved `cache_dir` not in the same directory with original data files, then
                 # a full path to data directory have to be appended to `cache_dir`. This is done to avoid collisions
-                # cache for different datasets is save to same `cache_dir`.
+                # cache for different datasets is saved to same `cache_dir`.
                 cache_dir = Path(cfg.cache_dir).joinpath('fsroot', *text_file.expanduser().resolve().parts[1:-1])
             dataset = BertPunctuationCapitalizationDataset(
                 tokenizer=self.tokenizer,
@@ -867,6 +870,11 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 get_label_frequencies=cfg.get_label_frequences,
                 cache_dir=cache_dir,
                 label_info_save_dir=cfg.label_info_save_dir,
+                audio_file=audio_file if cfg.audio_file else None,
+                sample_rate=cfg.sample_rate,
+                use_audio=cfg.use_audio,
+                use_bucketing=cfg.use_bucketing,
+                preload_audios=cfg.preload_audios,
             )
         if cfg.shuffle and cfg.use_tarred_dataset:
             logging.warning(f"Shuffling in dataloader is not supported for tarred dataset.")
@@ -876,12 +884,12 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         return torch.utils.data.DataLoader(
             dataset=dataset,
             collate_fn=dataset.collate_fn,
-            batch_size=1,
+            batch_size=1 if cfg.use_bucketing else cfg.batch_size,
             shuffle=shuffle,
             num_workers=cfg.num_workers,
             pin_memory=cfg.pin_memory,
             drop_last=cfg.drop_last,
-            persistent_workers=cfg.persistent_workers,
+            persistent_workers=cfg.persistent_workers if cfg.num_workers > 0 else False,
         )
 
     def _setup_infer_dataloader(
@@ -892,9 +900,11 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         step: int,
         margin: int,
         dataloader_kwargs: Optional[Dict[str, Any]],
+        audio_queries: Optional[List[str]] = None,
+        target_sr: Optional[int] = None,
     ) -> torch.utils.data.DataLoader:
         """
-        Setup function for a infer data loader.
+        Setup function for an infer data loader.
 
         Args:
             queries (:obj:`List[str]`): lower cased text without punctuation
@@ -906,13 +916,21 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 cannot be greater than ``max_seq_length-2``.
             margin (:obj:`int`): number of tokens near the edge of a segment which label probabilities are not used in
                 final prediction computation.
+            audio_queries (:obj:`List[str]`, `optional`): paths to audio files.
+            target_sr (:obj:`int`, `optional`): target sample rate for audios.
         Returns:
             :obj:`torch.utils.data.DataLoader`: inference data loader
         """
         if dataloader_kwargs is None:
             dataloader_kwargs = {}
         dataset = BertPunctuationCapitalizationInferDataset(
-            tokenizer=self.tokenizer, queries=queries, max_seq_length=max_seq_length, step=step, margin=margin
+            tokenizer=self.tokenizer,
+            queries=queries,
+            max_seq_length=max_seq_length,
+            step=step,
+            margin=margin,
+            audio_queries=audio_queries,
+            target_sr=target_sr,
         )
         return torch.utils.data.DataLoader(
             dataset=dataset,
@@ -1119,7 +1137,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 predictions computation are marked with asterisk: ``[['[CLS]'*, 'h', 'e', 'l'*, '[SEP]'*],
                 ['[CLS]'*, 'e'*, 'l', 'l'*, '[SEP]'*], ['[CLS]'*, 'l'*, 'l', 'o', '[SEP]'*]]``.
             return_labels (:obj:`bool`, `optional`, defaults to :obj:`False`): whether to return labels in NeMo format
-                (see :ref:`nlp/punctuation_and_capitalization/NeMo Data Format`) instead of queries with restored
+                (see :ref:`nemo-data-format-label`) instead of queries with restored
                 punctuation and capitalization.
             dataloader_kwargs (:obj:`Dict[str, Any]`, `optional`): an optional dictionary with parameters of PyTorch
                 data loader. May include keys: ``'num_workers'``, ``'pin_memory'``, ``'worker_init_fn'``,
@@ -1158,9 +1176,11 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 enumerate(infer_datalayer), total=ceil(len(infer_datalayer.dataset) / batch_size), unit="batch"
             ):
                 inp_ids, inp_type_ids, inp_mask, subtokens_mask, start_word_ids, query_ids, is_first, is_last = batch
+                print("inp_ids:\n", inp_ids, "inp_type_ids:\n", inp_type_ids, "inp_mask:\n", inp_mask)
                 punct_logits, capit_logits = self.forward(
                     input_ids=inp_ids.to(d), token_type_ids=inp_type_ids.to(d), attention_mask=inp_mask.to(d),
                 )
+                print("punct_logits:\n", punct_logits, "capit_logits:\n", capit_logits)
                 _res = self._transform_logit_to_prob_and_remove_margins_and_extract_word_probs(
                     punct_logits, capit_logits, subtokens_mask, start_word_ids, margin, is_first, is_last
                 )
@@ -1214,7 +1234,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 pretrained_model_name="punctuation_en_distilbert",
                 location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/punctuation_en_distilbert/versions/"
                 "1.0.0rc1/files/punctuation_en_distilbert.nemo",
-                description="The model was trained with DiltilBERT base uncased checkpoint from HuggingFace on a "
+                description="The model was trained with DistilBERT base uncased checkpoint from HuggingFace on a "
                 "subset of data from the following sources: Tatoeba sentences, books from Project Gutenberg, "
                 "Fisher transcripts.",
             ),

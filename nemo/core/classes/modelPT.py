@@ -179,27 +179,32 @@ class ModelPT(LightningModule, Model):
             when model.save_to("mymodel.nemo") is called.
 
             How it works:
+
             1. It always returns existing absolute path which can be used during Model constructor call
                 EXCEPTION: src is None or "" in which case nothing will be done and src will be returned
             2. It will add (config_path, model_utils.ArtifactItem()) pair to self.artifacts
 
-            If "src" is local existing path, then it will be returned in absolute path form.
-            elif "src" starts with "nemo_file:unique_artifact_name":
-                .nemo will be untarred to a temporary folder location and an actual existing path will be returned
-            else an error will be raised.
+                .. code-block::
+
+                    If "src" is local existing path:
+                        then it will be returned in absolute path form.
+                    elif "src" starts with "nemo_file:unique_artifact_name":
+                        .nemo will be untarred to a temporary folder location and an actual existing path will be returned
+                    else:
+                        an error will be raised.
 
             WARNING: use .register_artifact calls in your models' constructors.
-            The returned path is not guaranteed to exist after you have exited your model's constuctor.
+            The returned path is not guaranteed to exist after you have exited your model's constructor.
 
             Args:
                 config_path (str): Artifact key. Usually corresponds to the model config.
                 src (str): Path to artifact.
                 verify_src_exists (bool): If set to False, then the artifact is optional and register_artifact will return None even if
                                           src is not found. Defaults to True.
-                save_restore_connector (SaveRestoreConnector): Can be overrided to add custom save and restore logic.
+                save_restore_connector (SaveRestoreConnector): Can be overridden to add custom save and restore logic.
 
             Returns:
-                str: If src is not None or empty it always returns absolute path which is guaranteed to exists during model instnce life
+                str: If src is not None or empty it always returns absolute path which is guaranteed to exist during model instance life
         """
 
         app_state = AppState()
@@ -611,15 +616,18 @@ class ModelPT(LightningModule, Model):
         """
             Used to create param groups for the optimizer.
             As an example, this can be used to specify per-layer learning rates:
+
             optim.SGD([
                         {'params': model.base.parameters()},
                         {'params': model.classifier.parameters(), 'lr': 1e-3}
                         ], lr=1e-2, momentum=0.9)
+
             See https://pytorch.org/docs/stable/optim.html for more information.
             By default, ModelPT will use self.parameters().
             Override this method to add custom param groups.
             In the config file, add 'optim_param_groups' to support different LRs
             for different components (unspecified params will use the default LR):
+
             model:
                 optim_param_groups:
                     encoder:
@@ -948,7 +956,7 @@ class ModelPT(LightningModule, Model):
         """
         return self._test_names[dataloader_idx]
 
-    def load_part_of_state_dict(self, state_dict, include, exclude, load_from_string):
+    def load_part_of_state_dict(self, state_dict, include, exclude, load_from_string=None):
 
         excluded_param_names = []
         # create dict
@@ -971,12 +979,18 @@ class ModelPT(LightningModule, Model):
 
         # Restore checkpoint part into current model
         self.load_state_dict(dict_to_load, strict=False)
-        logging.info(f'Model checkpoint partially restored from {load_from_string}')
-        if len(excluded_param_names) > 0:
-            logging.info(
-                f'The following parameters were excluded from loading from {load_from_string} : {excluded_param_names}'
-            )
-            logging.info(f'Make sure that this is what you wanted!')
+        if load_from_string is not None:
+            logging.info(f'Model checkpoint partially restored from {load_from_string}')
+            if len(excluded_param_names) > 0:
+                logging.info(
+                    f'The following parameters were excluded when loading from {load_from_string} : {excluded_param_names}'
+                )
+                logging.info(f'Make sure that this is what you wanted!')
+        else:
+            if len(excluded_param_names) > 0:
+                logging.info(
+                    f'The following parameters were excluded when loading checkpoint : {excluded_param_names}'
+                )
 
     @rank_zero_only
     def maybe_init_from_pretrained_checkpoint(self, cfg: OmegaConf, map_location: str = 'cpu'):
@@ -1098,7 +1112,7 @@ class ModelPT(LightningModule, Model):
 
                     # Restore checkpoint into current model
                     self.load_state_dict(restored_model.state_dict(), strict=False)
-                    logging.info(f'Model checkpoint restored from pretrained chackpoint with name : `{model_name}`')
+                    logging.info(f'Model checkpoint restored from pretrained checkpoint with name : `{model_name}`')
 
                     del restored_model
                 elif isinstance(cfg.init_from_pretrained_model, (DictConfig, dict)):
@@ -1134,7 +1148,7 @@ class ModelPT(LightningModule, Model):
                     # Restore checkpoint into current model
                     self.load_state_dict(ckpt['state_dict'], strict=False)
                     logging.info(
-                        f'Model checkpoint restored from pytorch lightning chackpoint with path : `{ckpt_path}`'
+                        f'Model checkpoint restored from pytorch lightning checkpoint with path : `{ckpt_path}`'
                     )
 
                     del ckpt
@@ -1149,7 +1163,7 @@ class ModelPT(LightningModule, Model):
                         exclude = model_load_cfg.pop('exclude', [])
 
                         self.load_part_of_state_dict(
-                            ckpt['state_dict'], include, exclude, f'nemo file with path `{model_path}`'
+                            ckpt['state_dict'], include, exclude, f'nemo file with path `{ckpt_path}`'
                         )
 
                         del ckpt
@@ -1492,7 +1506,7 @@ class ModelPT(LightningModule, Model):
 
             Here we are overriding this to maintain the default Pytorch nn.module behavior:
             https://github.com/pytorch/pytorch/blob/master/torch/nn/modules/module.py#L728
-        
+
         Moves all model parameters and buffers to the GPU.
 
         This also makes associated parameters and buffers different objects. So
