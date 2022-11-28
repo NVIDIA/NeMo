@@ -1669,6 +1669,23 @@ class GreedyBatchedMultiblankRNNTInfer(_GreedyRNNTInfer):
 
         return input_states
 
+
+@dataclass
+class GreedyRNNTInferConfig:
+    max_symbols_per_step: Optional[int] = 10
+    preserve_alignments: bool = False
+    preserve_frame_confidence: bool = False
+    confidence_method_cfg: Optional[ConfidenceMethodConfig] = None
+
+
+@dataclass
+class GreedyBatchedRNNTInferConfig:
+    max_symbols_per_step: Optional[int] = 10
+    preserve_alignments: bool = False
+    preserve_frame_confidence: bool = False
+    confidence_method_cfg: Optional[ConfidenceMethodConfig] = None
+
+
 class GreedyMultiblankRNNTInfer(_GreedyRNNTInfer):
     """A greedy transducer decoder.
 
