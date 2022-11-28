@@ -433,10 +433,10 @@ class WeightedSpeakerEmbedding(torch.nn.Module):
         return speaker_emb
 
 
-"""
-Global Style Token based Speaker Embedding
-"""
 class GlobalStyleToken(NeuralModule):
+    """
+    Global Style Token based Speaker Embedding
+    """
     def __init__(self, 
                  cnn_filters=[32, 32, 64, 64, 128, 128], 
                  dropout=0.2, 
@@ -589,6 +589,60 @@ class StyleAttention(NeuralModule):
         style_emb = style_emb.permute(1, 0, 2).contiguous().view(bs, -1)
 
         return style_emb
+
+
+class SVEmbeddingLinearProjectionNetwork(torch.nn.Module):
+    def __init__(self, speaker_embedding_dim, symbols_embedding_dim):
+        super(SVEmbeddingLinearProjectionNetwork, self).__init__()
+        self.speaker_proj = torch.nn.Linear(speaker_embedding_dim, symbols_embedding_dim)
+        self.bn1 = torch.nn.BatchNorm1d(num_features=symbols_embedding_dim)
+        self.act_fn = torch.nn.ReLU()
+
+    def forward(self, sv_embedding):
+        x = self.speaker_proj(sv_embedding)
+        return self.act_fn(self.bn1(x)).unsqueeze(1)
+
+
+
+class SpeakerEncoder(torch.nn.Module):
+    """
+    class SpeakerEncoder represents speakers representation. This module can combine GST (global style token)
+    based speaker embeddings, speaker embeddings from speaker verificaiton models and lookup table speaker
+    embeddings.
+    """
+    def __init__(self, gst_module=None, sv_projection_module=None, lookup_emb_projection_module=None):
+        """
+        Constructor.
+        Parameters:
+            - gst_module: Neural module to get GST based speaker embedding
+            - sv_projection_module: Neural module to get Speaker Verification based speaker embedding
+            - lookup_emb_projection_module: Neural module to project lookup speaker embedding
+        """ 
+        super(SpeakerEncoder, self).__init__()
+        self.gst_module = gst_module
+        self.sv_projection_module = sv_projection_module
+        self.lookup_emb_projection_module = lookup_emb_projection_module
+
+    def forward(self, spk_emb, gst_ref_spec=None, gst_ref_spec_lens=None, speaker_embedding=None):
+        x = spk_emb
+        # Project lookup speaker embedding
+        if self.lookup_emb_projection_module is not None:
+            x += self.lookup_emb_projection_module(spk_emb)
+
+        # Get GST based speaker embedding
+        if self.gst_module is not None and gst_ref_spec is not None and gst_ref_spec_lens is not None:
+            ref_spec_mask = (
+                torch.arange(gst_ref_spec_lens.max())
+                .to(gst_ref_spec.device)
+                .expand(gst_ref_spec_lens.shape[0], gst_ref_spec_lens.max())
+                < gst_ref_spec_lens.unsqueeze(1)
+             ).unsqueeze(2)
+            x += self.gst_module(gst_ref_spec, ref_spec_mask).unsqueeze(1)
+
+        # Project speaker embedding from Speaker Verification based 
+        if self.sv_projection_module is not None and speaker_embedding is not None:
+            x += self.sv_projection_module(speaker_embedding)
+        return x
 
 
 class Conv2d(torch.nn.Module):

@@ -180,7 +180,7 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
         duration_predictor: NeuralModule,
         pitch_predictor: NeuralModule,
         aligner: NeuralModule,
-        global_style_token_encoder: NeuralModule,
+        speaker_encoder: NeuralModule,
         n_speakers: int,
         symbols_embedding_dim: int,
         pitch_embedding_kernel_size: int,
@@ -197,8 +197,8 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
         self.duration_predictor = duration_predictor
         self.pitch_predictor = pitch_predictor
         self.aligner = aligner
-        self.global_style_token_encoder = global_style_token_encoder
-        self.use_gst = global_style_token_encoder is not None
+        self.speaker_encoder = speaker_encoder
+        self.use_speaker_encoder = speaker_encoder is not None
         self.learn_alignment = aligner is not None
         self.use_duration_predictor = True
         self.binarize = False
@@ -206,6 +206,7 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
         self.speaker_emb_condition_decoder = speaker_emb_condition_decoder
         self.speaker_emb_condition_aligner = speaker_emb_condition_aligner
 
+        # TODO: combine self.speaker_emb with self.speaker_encoder
         if n_speakers > 1:
             self.speaker_emb = torch.nn.Embedding(n_speakers, symbols_embedding_dim)
         else:
@@ -241,6 +242,7 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
             "input_lens": NeuralType(('B'), LengthsType(), optional=True),
             "gst_ref_spec": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType(), optional=True),
             "gst_ref_spec_lens": NeuralType(('B'), LengthsType(), optional=True),
+            "speaker_embedding": NeuralType(('B', 'D'), RegressionValuesType(), optional=True),
         }
 
     @property
@@ -273,6 +275,7 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
         input_lens=None,
         gst_ref_spec=None,
         gst_ref_spec_lens=None,
+        speaker_embedding=None,
     ):
 
         if not self.learn_alignment and self.training:
@@ -285,12 +288,13 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
         else:
             spk_emb = self.speaker_emb(speaker).unsqueeze(1)
 
-        # GST Speaker Embedding
-        if self.use_gst and gst_ref_spec is not None and gst_ref_spec_lens is not None:
-            ref_spec_mask = (torch.arange(gst_ref_spec_lens.max()).to(gst_ref_spec.device).expand(gst_ref_spec_lens.shape[0], gst_ref_spec_lens.max()) 
-                < gst_ref_spec_lens.unsqueeze(1)
-            ).unsqueeze(2)
-            spk_emb += self.global_style_token_encoder(gst_ref_spec, ref_spec_mask).unsqueeze(1)
+        if self.speaker_encoder is not None:
+            spk_emb = self.speaker_encoder(
+                spk_emb=spk_emb, 
+                gst_ref_spec=gst_ref_spec,
+                gst_ref_spec_lens=gst_ref_spec_lens,
+                speaker_embedding=speaker_embedding,
+            )
 
         # Input FFT
         enc_out, enc_mask = self.encoder(input=text, conditioning=spk_emb)

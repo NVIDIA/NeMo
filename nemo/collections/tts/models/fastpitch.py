@@ -141,10 +141,10 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
         output_fft = instantiate(self._cfg.output_fft)
         duration_predictor = instantiate(self._cfg.duration_predictor)
         pitch_predictor = instantiate(self._cfg.pitch_predictor)
-        speaker_emb_condition_prosody = cfg.get("speaker_emb_condition_prosody", False)
-        speaker_emb_condition_decoder = cfg.get("speaker_emb_condition_decoder", False)
-        speaker_emb_condition_aligner = cfg.get("speaker_emb_condition_aligner", False)
-        global_style_token_encoder = instantiate(self._cfg.get("global_style_token", None))
+        speaker_emb_condition_prosody = cfg.get("speaker_emb_condition_prosody", True)
+        speaker_emb_condition_decoder = cfg.get("speaker_emb_condition_decoder", True)
+        speaker_emb_condition_aligner = cfg.get("speaker_emb_condition_aligner", True)
+        speaker_encoder = instantiate(self._cfg.get("speaker_encoder", None))
 
         self.fastpitch = FastPitchModule(
             input_fft,
@@ -152,7 +152,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             duration_predictor,
             pitch_predictor,
             self.aligner,
-            global_style_token_encoder,
+            speaker_encoder,
             cfg.n_speakers,
             cfg.symbols_embedding_dim,
             cfg.pitch_embedding_kernel_size,
@@ -296,6 +296,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             "input_lens": NeuralType(('B'), LengthsType(), optional=True),
             "gst_ref_spec": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType(), optional=True),
             "gst_ref_spec_lens": NeuralType(('B'), LengthsType(), optional=True),
+            "speaker_embedding": NeuralType(('B', 'D'), RegressionValuesType(), optional=True),
         }
     )
     def forward(
@@ -312,6 +313,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
         input_lens=None,
         gst_ref_spec=None,
         gst_ref_spec_lens=None,
+        speaker_embedding=None,
     ):
         return self.fastpitch(
             text=text,
@@ -325,6 +327,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             input_lens=input_lens,
             gst_ref_spec=gst_ref_spec,
             gst_ref_spec_lens=gst_ref_spec_lens,
+            speaker_embedding=speaker_embedding,
         )
 
     @typecheck(output_types={"spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType())})
@@ -335,6 +338,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
         pace: float = 1.0, 
         gst_ref_spec: Optional['torch.tensor'] = None,
         gst_ref_spec_lens: Optional[int] = None,
+        speaker_embedding: Optional['torch.tensor'] = None,
     ) -> torch.tensor:
         if self.training:
             logging.warning("generate_spectrogram() is meant to be called in eval mode.")
@@ -348,11 +352,12 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             pace=pace,
             gst_ref_spec=gst_ref_spec,
             gst_ref_spec_lens=gst_ref_spec_lens,
+            speaker_embedding=speaker_embedding,
         )
         return spect
 
     def training_step(self, batch, batch_idx):
-        attn_prior, durs, speaker, energy, gst_ref_audio, gst_ref_audio_len = None, None, None, None, None, None
+        attn_prior, durs, speaker, energy, gst_ref_audio, gst_ref_audio_len, speaker_embedding = None, None, None, None, None, None, None
         if self.learn_alignment:
             assert self.ds_class_name == "TTSDataset", f"Unknown dataset class: {self.ds_class_name}"
             batch_dict = process_batch(batch, self._train_dl.dataset.sup_data_types_set)
@@ -366,6 +371,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             speaker = batch_dict.get("speaker_id", None)
             gst_ref_audio = batch_dict.get("gst_ref_audio", None)
             gst_ref_audio_len = batch_dict.get("gst_ref_audio_lens", None)
+            speaker_embedding = batch_dict.get("speaker_embedding", None)
         else:
             audio, audio_lens, text, text_lens, durs, pitch, speaker = batch
 
@@ -386,6 +392,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             attn_prior=attn_prior,
             mel_lens=spec_len,
             input_lens=text_lens,
+            speaker_embedding=speaker_embedding,
         )
         if durs is None:
             durs = attn_hard_dur
@@ -437,7 +444,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
         return loss
 
     def validation_step(self, batch, batch_idx):
-        attn_prior, durs, speaker, energy, gst_ref_audio, gst_ref_audio_len = None, None, None, None, None, None
+        attn_prior, durs, speaker, energy, gst_ref_audio, gst_ref_audio_len, speaker_embedding = None, None, None, None, None, None, None
         if self.learn_alignment:
             assert self.ds_class_name == "TTSDataset", f"Unknown dataset class: {self.ds_class_name}"
             batch_dict = process_batch(batch, self._train_dl.dataset.sup_data_types_set)
@@ -451,6 +458,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             speaker = batch_dict.get("speaker_id", None)
             gst_ref_audio = batch_dict.get("gst_ref_audio", None)
             gst_ref_audio_len = batch_dict.get("gst_ref_audio_lens", None)
+            speaker_embedding = batch_dict.get("speaker_embedding", None)
         else:
             audio, audio_lens, text, text_lens, durs, pitch, speaker = batch
 
@@ -472,6 +480,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             attn_prior=attn_prior,
             mel_lens=mel_lens,
             input_lens=text_lens,
+            speaker_embedding=speaker_embedding,
         )
         if durs is None:
             durs = attn_hard_dur
