@@ -181,14 +181,12 @@ def rnnt_loss_gpu(
     num_threads = max(1, num_threads)  # have to use at least 1 thread
 
     gpu_size, status = rnnt_helper.get_workspace_size(maxT, maxU, minibatch_size, gpu=True)
-
     if status != global_constants.RNNTStatus.RNNT_STATUS_SUCCESS:
         raise RuntimeError("Invalid parameter passed when calculating working space memory")
 
     # Select GPU index
     cuda.select_device(acts.device.index)
     gpu_workspace = torch.zeros(gpu_size, device=acts.device, dtype=acts.dtype, requires_grad=False)
-
 
     ### VIEW TENSORS AS VECTORS FOR POINTER INDEXING ###
     acts, acts_shape = rnnt_helper.flatten_tensor(acts)
@@ -238,8 +236,6 @@ def rnnt_loss_gpu(
     return True
 
 
-
-
 def multiblank_rnnt_loss_gpu(
     acts: torch.Tensor,
     labels: torch.Tensor,
@@ -267,10 +263,15 @@ def multiblank_rnnt_loss_gpu(
         costs: Zero vector of length [B] in which costs will be set.
         grads: Zero tensor of shape [B, T, U, V+1] where the gradient will be set.
         blank_label: Index of the blank token in the vocabulary.
+        big_blank_durations: A list of supported durations for big blank symbols
+            in the model, e.g. [2, 4, 8]. Note we only include durations for ``big
+            blanks'' here thus it does not include 1 for the standard blank.
         fastemit_lambda: Float scaling factor for FastEmit regularization. Refer to
             FastEmit: Low-latency Streaming ASR with Sequence-level Emission Regularization.
         clamp: Float value. When set to value >= 0.0, will clamp the gradient to [-clamp, clamp].
         num_threads: Number of threads for OpenMP.
+        sigma: logit-undernormalization weight used in the multi-blank model. Refer to
+            the multi-blank paper https://arxiv.org/pdf/2211.03541 for detailed explanations.
     """
     minibatch_size = acts.shape[0]
     maxT = acts.shape[1]

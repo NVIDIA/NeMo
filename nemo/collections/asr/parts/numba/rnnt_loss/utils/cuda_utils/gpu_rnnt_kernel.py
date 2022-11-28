@@ -409,7 +409,7 @@ def compute_multiblank_alphas_kernel(
     llForward: torch.Tensor,
     xlen: torch.Tensor,
     ylen: torch.Tensor,
-    mlabels: torch.Tensor,  # [B]
+    mlabels: torch.Tensor,
     minibatch: int,
     maxT: int,
     maxU: int,
@@ -425,6 +425,8 @@ def compute_multiblank_alphas_kernel(
         acts: Tensor of shape [B, T, U, V+1] flattened. Represents the logprobs activation tensor.
         denom: Tensor of shape [B, T, U] flattened. Represents the denominator of the logprobs activation tensor
             across entire vocabulary.
+        sigma: Hyper-parameter for logit-undernormalization technique for training multi-blank transducers.
+            Refer to https://arxiv.org/pdf/2211.03541 for explanation.
         alphas: Zero tensor of shape [B, T, U]. Will be updated inside the kernel with the forward variable
             probabilities.
         llForward: Zero tensor of shape [B]. Represents the log-likelihood of the forward pass.
@@ -439,8 +441,9 @@ def compute_multiblank_alphas_kernel(
         maxT: The maximum possible acoustic sequence length. Represents T in the logprobs tensor.
         maxU: The maximum possible target sequence length. Represents U in the logprobs tensor.
         alphabet_size: The vocabulary dimension V+1 (inclusive of RNNT blank).
-        blank_: Index of the RNNT blank token in the vocabulary. Generally the first or last token in the vocab.
-        big_blank_: Index of the RNNT big blank token in the vocabulary. Generally the first or last token in the vocab.
+        blank_: Index of the RNNT blank token in the vocabulary.
+        big_blank_durations: Vector of supported big blank durations of the model.
+        num_big_blanks: Number of big blanks of the model.
 
     Updates:
         Kernel inplace updates the following inputs:
@@ -473,47 +476,59 @@ def compute_multiblank_alphas_kernel(
         if u == 0:
             # for t in range(1, T) step to initialize alphas[b, t, 0]
             if t > 0 and t < T:
-                alphas[offset + t * maxU + u] = alphas[offset + (t - 1) * maxU + u] + logp(
-                    denom, acts, maxT, maxU, alphabet_size, b, t - 1, 0, blank_
-                ) - sigma
+                alphas[offset + t * maxU + u] = (
+                    alphas[offset + (t - 1) * maxU + u]
+                    + logp(denom, acts, maxT, maxU, alphabet_size, b, t - 1, 0, blank_)
+                    - sigma
+                )
 
                 for i in range(num_big_blanks):
                     if t >= big_blank_duration[i]:
                         alphas[offset + t * maxU + u] = rnnt_helper.log_sum_exp(
                             alphas[offset + t * maxU + u],
-                            alphas[offset + (t - big_blank_duration[i]) * maxU + u] + logp(
-                              denom, acts, maxT, maxU, alphabet_size, b, t - big_blank_duration[i], 0, blank_ + 1 + i
-                            ) - sigma
+                            alphas[offset + (t - big_blank_duration[i]) * maxU + u]
+                            + logp(
+                                denom, acts, maxT, maxU, alphabet_size, b, t - big_blank_duration[i], 0, blank_ + 1 + i
+                            )
+                            - sigma,
                         )
 
         elif u < U:
             # for u in range(1, U) step to initialize alphas[b, 0, u]
             if t == 0:
-                alphas[offset + u] = alphas[offset + u - 1] + logp(
-                    denom, acts, maxT, maxU, alphabet_size, b, 0, u - 1, labels[u - 1]
-                ) - sigma
+                alphas[offset + u] = (
+                    alphas[offset + u - 1]
+                    + logp(denom, acts, maxT, maxU, alphabet_size, b, 0, u - 1, labels[u - 1])
+                    - sigma
+                )
 
             # for t in range(1, T) for u in range(1, U) step to compute alphas[b, t, u]
             elif t > 0 and t < T:
-                no_emit = alphas[offset + (t - 1) * maxU + u] + logp(
-                    denom, acts, maxT, maxU, alphabet_size, b, t - 1, u, blank_
-                ) - sigma
-                emit = alphas[offset + t * maxU + u - 1] + logp(
-                    denom, acts, maxT, maxU, alphabet_size, b, t, u - 1, labels[u - 1]
-                ) - sigma
+                no_emit = (
+                    alphas[offset + (t - 1) * maxU + u]
+                    + logp(denom, acts, maxT, maxU, alphabet_size, b, t - 1, u, blank_)
+                    - sigma
+                )
+                emit = (
+                    alphas[offset + t * maxU + u - 1]
+                    + logp(denom, acts, maxT, maxU, alphabet_size, b, t, u - 1, labels[u - 1])
+                    - sigma
+                )
 
                 alphas[offset + t * maxU + u] = rnnt_helper.log_sum_exp(emit, no_emit)
 
                 for i in range(num_big_blanks):
                     if t >= big_blank_duration[i]:
-                        big_blank_no_emit = alphas[offset + (t - big_blank_duration[i]) * maxU + u] + logp(
-                            denom, acts, maxT, maxU, alphabet_size, b, t - big_blank_duration[i], u, blank_ + 1 + i
-                        ) - sigma
-                        alphas[offset + t * maxU + u] = rnnt_helper.log_sum_exp(
-                            alphas[offset + t * maxU + u],
-                            big_blank_no_emit
+                        big_blank_no_emit = (
+                            alphas[offset + (t - big_blank_duration[i]) * maxU + u]
+                            + logp(
+                                denom, acts, maxT, maxU, alphabet_size, b, t - big_blank_duration[i], u, blank_ + 1 + i
+                            )
+                            - sigma
                         )
-#        print("KERNAL ALPHA", b, t, u, alphas[offset + t * maxU + u], "sigma", sigma)
+                        alphas[offset + t * maxU + u] = rnnt_helper.log_sum_exp(
+                            alphas[offset + t * maxU + u], big_blank_no_emit
+                        )
 
         # sync across all B=b and U=u
         cuda.syncthreads()
@@ -521,18 +536,23 @@ def compute_multiblank_alphas_kernel(
     # After final sync, alphas[b, T-1, U - 1] + logprobs[b, T-1, U-1, blank] + denom[b, T-1, U-1] gives
     # log-likelihood of forward pass.
     if u == 0:
-        loglike = alphas[offset + (T - 1) * maxU + U - 1] + logp(
-            denom, acts, maxT, maxU, alphabet_size, b, T - 1, U - 1, blank_
-        ) - sigma
+        loglike = (
+            alphas[offset + (T - 1) * maxU + U - 1]
+            + logp(denom, acts, maxT, maxU, alphabet_size, b, T - 1, U - 1, blank_)
+            - sigma
+        )
 
         for i in range(num_big_blanks):
             if T >= big_blank_duration[i]:
-                big_blank_loglike = alphas[offset + (T - big_blank_duration[i]) * maxU + U - 1] + logp(
-                    denom, acts, maxT, maxU, alphabet_size, b, T - big_blank_duration[i], U - 1, blank_ + 1 + i
-                ) - sigma
+                big_blank_loglike = (
+                    alphas[offset + (T - big_blank_duration[i]) * maxU + U - 1]
+                    + logp(denom, acts, maxT, maxU, alphabet_size, b, T - big_blank_duration[i], U - 1, blank_ + 1 + i)
+                    - sigma
+                )
                 loglike = rnnt_helper.log_sum_exp(loglike, big_blank_loglike)
 
         llForward[b] = loglike
+
 
 @cuda.jit()
 def compute_multiblank_betas_kernel(
@@ -559,6 +579,8 @@ def compute_multiblank_betas_kernel(
         acts: Tensor of shape [B, T, U, V+1] flattened. Represents the logprobs activation tensor.
         denom: Tensor of shape [B, T, U] flattened. Represents the denominator of the logprobs activation tensor
             across entire vocabulary.
+        sigma: Hyper-parameter for logit-undernormalization technique for training multi-blank transducers.
+            Refer to https://arxiv.org/pdf/2211.03541 for explanation.
         betas: Zero tensor of shape [B, T, U]. Will be updated inside the kernel with the backward variable
             probabilities.
         llBackward: Zero tensor of shape [B]. Represents the log-likelihood of the backward pass.
@@ -574,6 +596,8 @@ def compute_multiblank_betas_kernel(
         maxU: The maximum possible target sequence length. Represents U in the logprobs tensor.
         alphabet_size: The vocabulary dimension V+1 (inclusive of RNNT blank).
         blank_: Index of the RNNT blank token in the vocabulary. Generally the first or last token in the vocab.
+        big_blank_durations: Vector of supported big blank durations of the model.
+        num_big_blanks: Number of big blanks of the model.
 
     Updates:
         Kernel inplace updates the following inputs:
@@ -593,12 +617,14 @@ def compute_multiblank_betas_kernel(
 
     # Initilize beta[b, t=T-1, u=U-1] for all b in B with log_probs[b, t=T-1, u=U-1, blank]
     if u == 0:
-        betas[offset + (T - 1) * maxU + U - 1] = logp(denom, acts, maxT, maxU, alphabet_size, b, T - 1, U - 1, blank_) - sigma
+        betas[offset + (T - 1) * maxU + U - 1] = (
+            logp(denom, acts, maxT, maxU, alphabet_size, b, T - 1, U - 1, blank_) - sigma
+        )
         for i in range(num_big_blanks):
             if T >= big_blank_duration[i] and big_blank_duration[i] == 1:
                 betas[offset + (T - 1) * maxU + U - 1] = rnnt_helper.log_sum_exp(
                     betas[offset + (T - 1) * maxU + U - 1],
-                    logp(denom, acts, maxT, maxU, alphabet_size, b, T - 1, U - 1, blank_ + 1 + i) - sigma
+                    logp(denom, acts, maxT, maxU, alphabet_size, b, T - 1, U - 1, blank_ + 1 + i) - sigma,
                 )
 
     # sync until all betas are initialized
@@ -612,52 +638,57 @@ def compute_multiblank_betas_kernel(
         if u == (U - 1):
             # for t in reversed(range(T - 1)) step to initialize betas[b, t, U-1]
             if t >= 0 and t < (T - 1):
-                betas[offset + t * maxU + U - 1] = betas[offset + (t + 1) * maxU + U - 1] + logp(
-                    denom, acts, maxT, maxU, alphabet_size, b, t, U - 1, blank_
-                ) - sigma
+                betas[offset + t * maxU + U - 1] = (
+                    betas[offset + (t + 1) * maxU + U - 1]
+                    + logp(denom, acts, maxT, maxU, alphabet_size, b, t, U - 1, blank_)
+                    - sigma
+                )
 
                 for i in range(num_big_blanks):
                     if t + big_blank_duration[i] < T:
                         betas[offset + t * maxU + U - 1] = rnnt_helper.log_sum_exp(
                             betas[offset + t * maxU + U - 1],
-                            betas[offset + (t + big_blank_duration[i]) * maxU + U - 1] + logp(
-                              denom, acts, maxT, maxU, alphabet_size, b, t, U - 1, blank_ + 1 + i
-                            ) - sigma
+                            betas[offset + (t + big_blank_duration[i]) * maxU + U - 1]
+                            + logp(denom, acts, maxT, maxU, alphabet_size, b, t, U - 1, blank_ + 1 + i)
+                            - sigma,
                         )
                     elif t + big_blank_duration[i] == T and big_blank_duration[i] != 1:
                         betas[offset + t * maxU + U - 1] = rnnt_helper.log_sum_exp(
                             betas[offset + t * maxU + U - 1],
-                            logp(
-                              denom, acts, maxT, maxU, alphabet_size, b, t, U - 1, blank_ + 1 + i
-                            ) - sigma
+                            logp(denom, acts, maxT, maxU, alphabet_size, b, t, U - 1, blank_ + 1 + i) - sigma,
                         )
-
-
 
         elif u < U:
             if t == T - 1:
                 # for u in reversed(range(U - 1)) step to initialize betas[b, T-1, u]
-                betas[offset + (T - 1) * maxU + u] = betas[offset + (T - 1) * maxU + u + 1] + logp(
-                    denom, acts, maxT, maxU, alphabet_size, b, T - 1, u, labels[u]
-                ) - sigma
+                betas[offset + (T - 1) * maxU + u] = (
+                    betas[offset + (T - 1) * maxU + u + 1]
+                    + logp(denom, acts, maxT, maxU, alphabet_size, b, T - 1, u, labels[u])
+                    - sigma
+                )
             elif (t >= 0) and (t < T - 1):
                 # for t in reversed(range(T - 1)) for u in reversed(range(U - 1)) step to compute betas[b, t, u]
-                no_emit = betas[offset + (t + 1) * maxU + u] + logp(
-                    denom, acts, maxT, maxU, alphabet_size, b, t, u, blank_
-                ) - sigma
-                emit = betas[offset + t * maxU + u + 1] + logp(
-                    denom, acts, maxT, maxU, alphabet_size, b, t, u, labels[u]
-                ) - sigma
+                no_emit = (
+                    betas[offset + (t + 1) * maxU + u]
+                    + logp(denom, acts, maxT, maxU, alphabet_size, b, t, u, blank_)
+                    - sigma
+                )
+                emit = (
+                    betas[offset + t * maxU + u + 1]
+                    + logp(denom, acts, maxT, maxU, alphabet_size, b, t, u, labels[u])
+                    - sigma
+                )
                 betas[offset + t * maxU + u] = rnnt_helper.log_sum_exp(emit, no_emit)
 
                 for i in range(num_big_blanks):
                     if t < T - big_blank_duration[i]:
-                        big_blank_no_emit = betas[offset + (t + big_blank_duration[i]) * maxU + u] + logp(
-                            denom, acts, maxT, maxU, alphabet_size, b, t, u, blank_ + 1 + i
-                        ) - sigma
+                        big_blank_no_emit = (
+                            betas[offset + (t + big_blank_duration[i]) * maxU + u]
+                            + logp(denom, acts, maxT, maxU, alphabet_size, b, t, u, blank_ + 1 + i)
+                            - sigma
+                        )
                         betas[offset + t * maxU + u] = rnnt_helper.log_sum_exp(
-                            betas[offset + t * maxU + u],
-                            big_blank_no_emit
+                            betas[offset + t * maxU + u], big_blank_no_emit
                         )
 
         # sync across all B=b and U=u
@@ -667,6 +698,7 @@ def compute_multiblank_betas_kernel(
     # log-likelihood of backward pass.
     if u == 0:
         llBackward[b] = betas[offset]
+
 
 @cuda.jit()
 def compute_multiblank_grad_kernel(
@@ -699,6 +731,8 @@ def compute_multiblank_grad_kernel(
         acts: Tensor of shape [B, T, U, V+1] flattened. Represents the logprobs activation tensor.
         denom: Tensor of shape [B, T, U] flattened. Represents the denominator of the logprobs activation tensor
             across entire vocabulary.
+        sigma: Hyper-parameter for logit-undernormalization technique for training multi-blank transducers.
+            Refer to https://arxiv.org/pdf/2211.03541 for explanation.
         alphas: Alpha variable, contains forward probabilities. A tensor of shape [B, T, U].
         betas: Beta varoable, contains backward probabilities. A tensor of shape [B, T, U].
         logll: Log-likelihood of the forward variable, represented as a vector of shape [B].
@@ -717,6 +751,8 @@ def compute_multiblank_grad_kernel(
         fastemit_lambda: Float scaling factor for FastEmit regularization. Refer to
             FastEmit: Low-latency Streaming ASR with Sequence-level Emission Regularization.
         clamp: Float value. When set to value >= 0.0, will clamp the gradient to [-clamp, clamp].
+        big_blank_durations: Vector of supported big blank durations of the model.
+        num_big_blanks: Number of big blanks of the model.
 
     Updates:
         Kernel inplace updates the following inputs:
@@ -765,7 +801,8 @@ def compute_multiblank_grad_kernel(
             if fastemit_lambda > 0.0 and u < U - 1:
                 fastemit_grad = fastemit_lambda * math.exp(
                     alphas[col]  # alphas(t, u)
-                    + (denom[col] + acts[col * alphabet_size + labels[u]]) - sigma  # y_hat(t, u)
+                    + (denom[col] + acts[col * alphabet_size + labels[u]])
+                    - sigma
                     + betas[col + 1]  # betas(t, u+1)
                     + logpk  # log Pr(k|t, u)
                     - logll[mb]  # total log likelihood for normalization
@@ -776,7 +813,7 @@ def compute_multiblank_grad_kernel(
             # Update the gradient of act[b, t, u, v] with the gradient from FastEmit regularization
             grad = grad + fastemit_grad
 
-            # // grad to last blank transition
+            # grad to last blank transition
             # grad[b, T-1, U-1, v=blank] -= exp(alphas[b, t, u) + logpk - logll[b])
             if (idx == blank_) and (t == T - 1) and (u == U - 1):
                 grad -= math.exp(alphas[col] + logpk - logll[mb])
@@ -792,7 +829,7 @@ def compute_multiblank_grad_kernel(
             else:
                 for i in range(num_big_blanks):
                     if (idx == blank_ + 1 + i) and (t < T - big_blank_duration[i]):
-                      grad -= math.exp(alphas[col] + logpk - logll[mb] + betas[col + big_blank_duration[i] * maxU])
+                        grad -= math.exp(alphas[col] + logpk - logll[mb] + betas[col + big_blank_duration[i] * maxU])
 
             # grad of correct token across u < U;
             # grad[b, t, u<U-1, v=label[u]] -= exp(alphas[b, t, u] + logpk - logll[b] + betas[b, t, u+1])

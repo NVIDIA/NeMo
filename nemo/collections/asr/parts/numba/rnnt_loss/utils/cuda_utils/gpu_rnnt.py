@@ -37,7 +37,6 @@ from nemo.collections.asr.parts.numba.rnnt_loss.utils import global_constants, r
 from nemo.collections.asr.parts.numba.rnnt_loss.utils.cuda_utils import gpu_rnnt_kernel, reduce
 
 
-
 class GPURNNT:
     def __init__(
         self,
@@ -76,9 +75,7 @@ class GPURNNT:
         self.gpu_workspace = cuda.as_cuda_array(
             workspace
         )  # a flat vector of floatX numbers that represents allocated memory slices
-
         self.blank_ = blank
-
         self.fastemit_lambda_ = fastemit_lambda
         self.clamp_ = abs(clamp)
         self.num_threads_ = num_threads
@@ -314,12 +311,17 @@ class MultiblankGPURNNT(GPURNNT):
         Helper class to launch the CUDA Kernels to compute the Transducer Loss.
 
         Args:
+            sigma: Hyper-parameter related to the logit-normalization method in training multi-blank transducers.
+                Refer to https://arxiv.org/pdf/2211.03541 for detailed explanations.
+            num_big_blanks: Number of big blank symbols the model has. This should not include the standard blank symbol.
             minibatch: Int representing the batch size.
             maxT: The maximum possible acoustic sequence length. Represents T in the logprobs tensor.
             maxU: The maximum possible target sequence length. Represents U in the logprobs tensor.
             alphabet_size: The vocabulary dimension V+1 (inclusive of RNNT blank).
             workspace: An allocated chunk of memory that will be sliced off and reshaped into required
                 blocks used as working memory.
+            big_blank_workspace: An allocated chunk of memory that will be sliced off and reshaped into required
+                blocks used as working memory specifically for the multi-blank related computations.
             blank: Index of the RNNT blank token in the vocabulary. Generally the first or last token in the vocab.
             fastemit_lambda: Float scaling factor for FastEmit regularization. Refer to
                 FastEmit: Low-latency Streaming ASR with Sequence-level Emission Regularization.
@@ -354,7 +356,6 @@ class MultiblankGPURNNT(GPURNNT):
             self.num_threads_ = numba.get_num_threads()
         else:
             self.num_threads_ = numba.get_num_threads()
-
 
     def compute_cost_and_score(
         self,
@@ -436,7 +437,9 @@ class MultiblankGPURNNT(GPURNNT):
             # Compute gradient
             grad_blocks_per_grid = self.minibatch_ * self.maxT_ * self.maxU_
             grad_threads_per_block = gpu_rnnt_kernel.GPU_RNNT_THREAD_SIZE
-            gpu_rnnt_kernel.compute_multiblank_grad_kernel[grad_blocks_per_grid, grad_threads_per_block, self.stream_, 0](
+            gpu_rnnt_kernel.compute_multiblank_grad_kernel[
+                grad_blocks_per_grid, grad_threads_per_block, self.stream_, 0
+            ](
                 grads,
                 acts,
                 denom,
@@ -533,6 +536,6 @@ class MultiblankGPURNNT(GPURNNT):
         llBackward = self.gpu_workspace[used_offset : used_offset + self.minibatch_]
         used_offset += self.minibatch_
 
-        bigblank_durations = self.big_blank_workspace[:self.num_big_blanks]
+        bigblank_durations = self.big_blank_workspace[: self.num_big_blanks]
 
         return used_offset, (denom, alphas, betas, llForward, llBackward, bigblank_durations)

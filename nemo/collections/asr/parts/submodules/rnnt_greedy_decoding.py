@@ -174,7 +174,7 @@ class _GreedyRNNTInfer(Typing):
             log_normalize: Whether to log normalize or not. None will log normalize only for CPU.
 
         Returns:
-             logits of shape (B, T=1, U=1, V + 3)
+             logits of shape (B, T=1, U=1, V + 1)
         """
         with torch.no_grad():
             logits = self.joint.joint(enc, pred)
@@ -187,7 +187,6 @@ class _GreedyRNNTInfer(Typing):
                     logits = logits.log_softmax(dim=len(logits.shape) - 1)
 
         return logits
-
 
 
 class GreedyRNNTInfer(_GreedyRNNTInfer):
@@ -228,7 +227,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
             preserve_alignments=preserve_alignments,
         )
 
-#    @typecheck()
+    @typecheck()
     def forward(
         self,
         encoder_output: torch.Tensor,
@@ -357,7 +356,6 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
                     hypothesis.dec_state = hidden_prime
                     hypothesis.last_token = k
 
-
                 # Increment token counter.
                 symbols_added += 1
 
@@ -387,7 +385,7 @@ class GreedyMultiblankRNNTInfer(_GreedyRNNTInfer):
         preserve_alignments: Bool flag which preserves the history of alignments generated during
             greedy decoding (sample / batched). When set to true, the Hypothesis will contain
             the non-null value for `alignments` in it. Here, `alignments` is a List of List of
-            Tuple(Tensor (of length V + 1), Tensor(scalar, label after argmax)).
+            Tuple(Tensor (of length V + 1 + num-big-blanks), Tensor(scalar, label after argmax)).
 
             The length of the list corresponds to the Acoustic Length (T).
             Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more targets from a vocabulary.
@@ -399,7 +397,7 @@ class GreedyMultiblankRNNTInfer(_GreedyRNNTInfer):
         decoder_model: rnnt_abstract.AbstractRNNTDecoder,
         joint_model: rnnt_abstract.AbstractRNNTJoint,
         blank_index: int,
-        big_blank_duration_list: list,
+        big_blank_durations: list,
         max_symbols_per_step: Optional[int] = None,
         preserve_alignments: bool = False,
     ):
@@ -407,13 +405,13 @@ class GreedyMultiblankRNNTInfer(_GreedyRNNTInfer):
             decoder_model=decoder_model,
             joint_model=joint_model,
             blank_index=blank_index,
-            big_blank_duration_list=big_blank_duration_list,
+            big_blank_durations=big_blank_durations,
             max_symbols_per_step=max_symbols_per_step,
             preserve_alignments=preserve_alignments,
         )
-        self.big_blank_duration_list = big_blank_duration_list,
+        self.big_blank_durations = big_blank_durations
 
-#    @typecheck()
+    @typecheck()
     def forward(
         self,
         encoder_output: torch.Tensor,
@@ -549,7 +547,6 @@ class GreedyMultiblankRNNTInfer(_GreedyRNNTInfer):
                     hypothesis.dec_state = hidden_prime
                     hypothesis.last_token = k
 
-
                 # Increment token counter.
                 symbols_added += 1
 
@@ -560,8 +557,6 @@ class GreedyMultiblankRNNTInfer(_GreedyRNNTInfer):
 
         # Unpack the hidden states
         hypothesis.dec_state = self.decoder.batch_select_state(hypothesis.dec_state, 0)
-
-        print("EOS")
         return hypothesis
 
 
@@ -735,7 +730,6 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     k_is_blank = k >= self._blank_index
                     blank_mask.bitwise_or_(k_is_blank)
 
-
                     del k_is_blank
 
                     # If preserving alignments, check if sequence length of sample has been reached
@@ -786,7 +780,6 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                             # Original state is filled with zeros so we just multiply
                             # LSTM has 2 states
                             hidden_prime = self.decoder.batch_copy_states(hidden_prime, None, blank_indices, value=0.0)
-
 
                         # Recover prior predicted label for all samples which predicted blank now/past
                         k[blank_indices] = last_label[blank_indices, 0]
@@ -1022,7 +1015,7 @@ class GreedyBatchedMultiblankRNNTInfer(_GreedyRNNTInfer):
         decoder_model: rnnt_abstract.AbstractRNNTDecoder,
         joint_model: rnnt_abstract.AbstractRNNTJoint,
         blank_index: int,
-        big_blank_duration_list: int,
+        big_blank_durations: int,
         max_symbols_per_step: Optional[int] = None,
         preserve_alignments: bool = False,
     ):
@@ -1030,11 +1023,10 @@ class GreedyBatchedMultiblankRNNTInfer(_GreedyRNNTInfer):
             decoder_model=decoder_model,
             joint_model=joint_model,
             blank_index=blank_index,
-#            big_blank_duration_list=big_blank_duration_list,
             max_symbols_per_step=max_symbols_per_step,
             preserve_alignments=preserve_alignments,
         )
-        self.big_blank_duration_list=big_blank_duration_list,
+        self.big_blank_durations = big_blank_durations
 
         # Depending on availability of `blank_as_pad` support
         # switch between more efficient batch decoding technique
@@ -1043,7 +1035,7 @@ class GreedyBatchedMultiblankRNNTInfer(_GreedyRNNTInfer):
         else:
             self._greedy_decode = self._greedy_decode_masked
 
-#    @typecheck()
+    @typecheck()
     def forward(
         self,
         encoder_output: torch.Tensor,
@@ -1130,7 +1122,9 @@ class GreedyBatchedMultiblankRNNTInfer(_GreedyRNNTInfer):
             big_blank_durations = [int(i) for i in duration.split(",")]
             big_blank_indices = [self._blank_index + 1 + i for i in range(len(big_blank_durations))]
 
-            big_blank_masks = [torch.full([batchsize], fill_value=0, dtype=torch.bool, device=device)] * len(big_blank_indices)
+            big_blank_masks = [torch.full([batchsize], fill_value=0, dtype=torch.bool, device=device)] * len(
+                big_blank_indices
+            )
 
             blank_optimization = True
             big_blank_duration = 1
@@ -1159,7 +1153,6 @@ class GreedyBatchedMultiblankRNNTInfer(_GreedyRNNTInfer):
 
                 # Start inner loop
                 while not_blank and (self.max_symbols is None or symbols_added < self.max_symbols):
-#                    print("HERE", big_blank_masks)
                     # Batch prediction and joint network steps
                     # If very first prediction step, submit SOS tag (blank) to pred_step.
                     # This feeds a zero tensor as input to AbstractRNNTDecoder to prime the state
@@ -1169,7 +1162,7 @@ class GreedyBatchedMultiblankRNNTInfer(_GreedyRNNTInfer):
                         # Perform batch step prediction of decoder, getting new states and scores ("g")
                         g, hidden_prime = self._pred_step(last_label, hidden, batch_size=batchsize)
 
-                    # Batched joint step - Output = [B, V + 1]
+                    # Batched joint step - Output = [B, V + 1 + num-big-blanks]
                     logp = self._joint_step(f, g, log_normalize=None)[:, 0, 0, :]
 
                     if logp.dtype != torch.float32:
@@ -1189,8 +1182,6 @@ class GreedyBatchedMultiblankRNNTInfer(_GreedyRNNTInfer):
                         big_blank_masks[i].bitwise_or_(k_is_big_blank)
 
                     del k_is_blank
-
-#                    print("blank mask is", blank_mask)
 
                     # If preserving alignments, check if sequence length of sample has been reached
                     # before adding alignment
@@ -1214,7 +1205,6 @@ class GreedyBatchedMultiblankRNNTInfer(_GreedyRNNTInfer):
                         for i in range(len(big_blank_masks) + 1):
                             if i == len(big_blank_masks) or not big_blank_masks[i].all():
                                 big_blank_duration = big_blank_durations[i - 1] if i > 0 else 1
-#                                print("setting duration", big_blank_duration)
                                 break
 
                         # If preserving alignments, convert the current Uj alignments into a torch.Tensor
@@ -1246,7 +1236,6 @@ class GreedyBatchedMultiblankRNNTInfer(_GreedyRNNTInfer):
                             # Original state is filled with zeros so we just multiply
                             # LSTM has 2 states
                             hidden_prime = self.decoder.batch_copy_states(hidden_prime, None, blank_indices, value=0.0)
-
 
                         # Recover prior predicted label for all samples which predicted blank now/past
                         k[blank_indices] = last_label[blank_indices, 0]
@@ -1349,7 +1338,11 @@ class GreedyBatchedMultiblankRNNTInfer(_GreedyRNNTInfer):
                         # Set a dummy label for the blank value
                         # This value will be overwritten by "blank" again the last label update below
                         # This is done as vocabulary of prediction network does not contain "blank" token of RNNT
-                        last_label_without_blank_mask = last_label == self._blank_index or last_label == self._big_blank_index or last_label == self._huge_blank_index
+                        last_label_without_blank_mask = (
+                            last_label == self._blank_index
+                            or last_label == self._big_blank_index
+                            or last_label == self._huge_blank_index
+                        )
                         last_label_without_blank[last_label_without_blank_mask] = 0  # temp change of label
                         last_label_without_blank[~last_label_without_blank_mask] = last_label[
                             ~last_label_without_blank_mask
@@ -1358,7 +1351,7 @@ class GreedyBatchedMultiblankRNNTInfer(_GreedyRNNTInfer):
                         # Perform batch step prediction of decoder, getting new states and scores ("g")
                         g, hidden_prime = self._pred_step(last_label_without_blank, hidden, batch_size=batchsize)
 
-                    # Batched joint step - Output = [B, V + ]
+                    # Batched joint step - Output = [B, V + 1 + num-big-blanks]
                     logp = self._joint_step(f, g, log_normalize=None)[:, 0, 0, :]
 
                     if logp.dtype != torch.float32:
@@ -1606,7 +1599,6 @@ class ONNXGreedyBatchedRNNTInfer:
 
                 # Get index k, of max prob for batch
                 k = np.argmax(logp, axis=1).astype(np.int32)
-
 
                 # Update blank mask with current predicted blanks
                 # This is accumulating blanks over all time steps T and all target steps min(max_symbols, U)

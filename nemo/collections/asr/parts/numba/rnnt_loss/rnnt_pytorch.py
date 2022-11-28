@@ -36,6 +36,7 @@ from nemo.collections.asr.parts.numba.rnnt_loss.utils.cpu_utils import cpu_rnnt
 
 __all__ = ['rnnt_loss', 'RNNTLossNumba']
 
+
 class _RNNTNumba(Function):
     @staticmethod
     def forward(ctx, acts, labels, act_lens, label_lens, blank, reduction, fastemit_lambda, clamp):
@@ -92,7 +93,9 @@ class _RNNTNumba(Function):
 
 class _MultiblankRNNTNumba(Function):
     @staticmethod
-    def forward(ctx, acts, labels, act_lens, label_lens, blank, big_blank_durations, reduction, fastemit_lambda, clamp, sigma):
+    def forward(
+        ctx, acts, labels, act_lens, label_lens, blank, big_blank_durations, reduction, fastemit_lambda, clamp, sigma
+    ):
         """
         log_probs: Tensor of (batch x seqLength x labelLength x outputDim) containing output from network
         labels: 2 dimensional Tensor containing all the targets of the batch with zero padded
@@ -100,6 +103,8 @@ class _MultiblankRNNTNumba(Function):
         label_lens: Tensor of (batch) containing label length of each example
         fastemit_lambda: Float scaling factor for FastEmit regularization. Refer to
             FastEmit: Low-latency Streaming ASR with Sequence-level Emission Regularization.
+        big_blank_durations, sigma: configurations for multi-blank transducer. Refer to
+            https://arxiv.org/pdf/2211.03541 for their explanation. 
         """
         is_cuda = acts.is_cuda
 
@@ -179,8 +184,17 @@ def rnnt_loss(
 
     return _RNNTNumba.apply(acts, labels, act_lens, label_lens, blank, reduction, fastemit_lambda, clamp)
 
+
 def multiblank_rnnt_loss(
-    acts, labels, act_lens, label_lens, blank=0, big_blank_durations=[], reduction='mean', fastemit_lambda: float = 0.0, clamp: float = 0.0
+    acts,
+    labels,
+    act_lens,
+    label_lens,
+    blank=0,
+    big_blank_durations=[],
+    reduction='mean',
+    fastemit_lambda: float = 0.0,
+    clamp: float = 0.0,
 ):
     """RNN Transducer Loss (functional form)
     Args:
@@ -189,6 +203,8 @@ def multiblank_rnnt_loss(
         act_lens: Tensor of size (batch) containing size of each output sequence from the network
         label_lens: Tensor of (batch) containing label length of each example
         blank (int, optional): blank label. Default: 0.
+        big_blank_durations, sigma: configurations for multi-blank transducer. Refer to
+            https://arxiv.org/pdf/2211.03541 for their explanation. 
         reduction (string, optional): Specifies the reduction to apply to the output:
             'none' | 'mean' | 'sum'. 'none': no reduction will be applied,
             'mean': the output losses will be divided by the target lengths and
@@ -207,7 +223,9 @@ def multiblank_rnnt_loss(
         # log_softmax is computed within GPU version.
         acts = torch.nn.functional.log_softmax(acts, -1)
 
-    return _MultiblankRNNTNumba.apply(acts, labels, act_lens, label_lens, blank, big_blank_durations, reduction, fastemit_lambda, clamp)
+    return _MultiblankRNNTNumba.apply(
+        acts, labels, act_lens, label_lens, blank, big_blank_durations, reduction, fastemit_lambda, clamp
+    )
 
 
 class RNNTLossNumba(Module):
@@ -256,11 +274,12 @@ class RNNTLossNumba(Module):
         )
 
 
-
 class MultiblankRNNTLossNumba(Module):
     """
     Parameters:
         blank (int, optional): blank label. Default: 0.
+        big_blank_durations, sigma: configurations for multi-blank transducer. Refer to
+            https://arxiv.org/pdf/2211.03541 for their explanation. 
         reduction (string, optional): Specifies the reduction to apply to the output:
             'none' | 'mean' | 'sum'. 'none': no reduction will be applied,
             'mean': the output losses will be divided by the target lengths and
@@ -270,7 +289,15 @@ class MultiblankRNNTLossNumba(Module):
         clamp: Float value. When set to value >= 0.0, will clamp the gradient to [-clamp, clamp].
     """
 
-    def __init__(self, blank=0, big_blank_durations=[], reduction='mean', fastemit_lambda: float = 0.0, clamp: float = -1, sigma: float = 0.0):
+    def __init__(
+        self,
+        blank=0,
+        big_blank_durations=[],
+        reduction='mean',
+        fastemit_lambda: float = 0.0,
+        clamp: float = -1,
+        sigma: float = 0.0,
+    ):
         super(MultiblankRNNTLossNumba, self).__init__()
         self.blank = blank
         self.big_blank_list = [blank + 1 + i for i in range(len(big_blank_durations))]
@@ -302,7 +329,16 @@ class MultiblankRNNTLossNumba(Module):
             acts = torch.nn.functional.log_softmax(acts, -1)
 
         return self.loss(
-            acts, labels, act_lens, label_lens, self.blank, self.big_blank_durations, self.reduction, self.fastemit_lambda, self.clamp, self.sigma
+            acts,
+            labels,
+            act_lens,
+            label_lens,
+            self.blank,
+            self.big_blank_durations,
+            self.reduction,
+            self.fastemit_lambda,
+            self.clamp,
+            self.sigma,
         )
 
 
