@@ -137,6 +137,8 @@ def get_ssl_features_disentangled(
     content_log_probs = content_log_probs.t()
     content_probs = torch.exp(content_log_probs)
 
+    ssl_downsampling_factor = ssl_model._cfg.encoder.subsampling_factor
+
     if emb_type == "probs":
         final_content_embedding = content_probs
 
@@ -154,7 +156,7 @@ def get_ssl_features_disentangled(
             f"{emb_type} is not valid. Valid emb_type includes probs, embedding, log_probs or embedding_and_probs."
         )
 
-    duration = torch.ones(final_content_embedding.shape[1]) * 4.0
+    duration = torch.ones(final_content_embedding.shape[1]) * ssl_downsampling_factor
     if use_unique_tokens:
         token_predictions = torch.argmax(content_probs, dim=0)
         content_buffer = [final_content_embedding[:, 0]]
@@ -165,13 +167,13 @@ def get_ssl_features_disentangled(
             if token_predictions[_t] == token_predictions[_t - 1]:
                 content_buffer.append(final_content_embedding[:, _t])
             else:
-                durations.append(len(content_buffer) * 4)
+                durations.append(len(content_buffer) * ssl_downsampling_factor)
                 unique_content_embeddings.append(torch.mean(torch.stack(content_buffer), dim=0))
                 content_buffer = [final_content_embedding[:, _t]]
                 unique_tokens.append(token_predictions[_t].item())
 
         if len(content_buffer) > 0:
-            durations.append(len(content_buffer) * 4)
+            durations.append(len(content_buffer) * ssl_downsampling_factor)
             unique_content_embeddings.append(torch.mean(torch.stack(content_buffer), dim=0))
             unique_tokens.append(token_predictions[_t].item())
 

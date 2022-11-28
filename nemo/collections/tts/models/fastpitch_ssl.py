@@ -26,7 +26,7 @@ from nemo.collections.asr.parts.preprocessing import features
 from nemo.collections.tts.helpers.helpers import plot_multipitch_to_numpy, plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.fastpitchloss import DurationLoss, MelLoss, PitchLoss
 from nemo.collections.tts.models import ssl_tts
-from nemo.collections.tts.modules.fastpitch import FastPitchModule, average_pitch
+from nemo.collections.tts.modules.fastpitch import FastPitchSSLModule, average_pitch
 from nemo.collections.tts.modules.transformer import mask_from_lens
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
@@ -71,8 +71,6 @@ class FastPitchModel_SSL(ModelPT):
         self.pitch_loss = PitchLoss(loss_scale=pitch_loss_scale)
         self.duration_loss = DurationLoss(loss_scale=dur_loss_scale)
 
-        self.aligner = None
-
         input_fft = None
         self.use_encoder = use_encoder = cfg.get("use_encoder", False)
         if use_encoder:
@@ -102,13 +100,11 @@ class FastPitchModel_SSL(ModelPT):
             # Maybe useful if we have clean and noisy datasets
             self.dataset_embedding_layer = torch.nn.Embedding(self.num_datasets, self._cfg.symbols_embedding_dim)
 
-        self.fastpitch = FastPitchModule(
+        self.fastpitch = FastPitchSSLModule(
             input_fft,
             output_fft,
             duration_predictor,
             pitch_predictor,
-            self.aligner,
-            cfg.n_speakers,
             cfg.symbols_embedding_dim,
             cfg.pitch_embedding_kernel_size,
             cfg.n_mel_channels,
@@ -143,33 +139,9 @@ class FastPitchModel_SSL(ModelPT):
         return self._tb_logger
 
     def forward(
-        self,
-        *,
-        text,
-        durs=None,
-        pitch=None,
-        speaker=None,
-        pace=1.0,
-        spec=None,
-        attn_prior=None,
-        mel_lens=None,
-        input_lens=None,
-        enc_out=None,
-        enc_mask=None,
+        self, *, enc_out=None, enc_mask=None, durs=None, pitch=None, pace=1.0,
     ):
-        return self.fastpitch(
-            text=text,
-            durs=durs,
-            pitch=pitch,
-            speaker=speaker,
-            pace=pace,
-            spec=spec,
-            attn_prior=attn_prior,
-            mel_lens=mel_lens,
-            input_lens=input_lens,
-            enc_out=enc_out,
-            enc_mask=enc_mask,
-        )
+        return self.fastpitch(enc_out=enc_out, enc_mask=enc_mask, durs=durs, pitch=pitch, pace=pace,)
 
     def compute_encoding(self, content_embedding, speaker_embedding, dataset_id=None):
         # content embedding is (B, C, T)
@@ -199,7 +171,6 @@ class FastPitchModel_SSL(ModelPT):
         encoded_len = batch["encoded_len"]
         speaker_embedding = batch["speaker_embedding"]
         mels = batch["mel_spectrogram"]
-        spec_len = batch["mel_len"]
         pitch = batch["pitch_contour"]
         dataset_id = batch["dataset_id"]
         durs = batch["duration"]
@@ -211,18 +182,8 @@ class FastPitchModel_SSL(ModelPT):
         enc_mask = mask_from_lens(encoded_len)
         enc_mask = enc_mask[:, :, None]
 
-        mels_pred, _, _, log_durs_pred, pitch_pred, attn_soft, attn_logprob, attn_hard, attn_hard_dur, pitch = self(
-            text=None,
-            durs=durs,
-            pitch=pitch,
-            speaker=None,
-            pace=1.0,
-            spec=None,
-            attn_prior=None,
-            mel_lens=spec_len,
-            input_lens=None,
-            enc_out=enc_out,
-            enc_mask=enc_mask,
+        mels_pred, _, _, log_durs_pred, pitch_pred, pitch = self(
+            enc_out=enc_out, enc_mask=enc_mask, durs=durs, pitch=pitch, pace=1.0,
         )
 
         loss = 0
@@ -275,18 +236,8 @@ class FastPitchModel_SSL(ModelPT):
         enc_mask = mask_from_lens(encoded_len)
         enc_mask = enc_mask[:, :, None]
 
-        mels_pred, _, _, log_durs_pred, pitch_pred, _, _, _, attn_hard_dur, pitch = self(
-            text=None,
-            durs=durs,
-            pitch=pitch,
-            speaker=None,
-            pace=1.0,
-            spec=None,
-            attn_prior=None,
-            mel_lens=spec_len,
-            input_lens=None,
-            enc_out=enc_out,
-            enc_mask=enc_mask,
+        mels_pred, _, _, log_durs_pred, pitch_pred, pitch = self(
+            enc_out=enc_out, enc_mask=enc_mask, durs=durs, pitch=pitch, pace=1.0
         )
 
         mel_loss = self.mel_loss(spect_predicted=mels_pred, spect_tgt=mels)
@@ -411,19 +362,7 @@ class FastPitchModel_SSL(ModelPT):
         else:
             pitch = None
 
-        mels_pred, _, _, log_durs_pred, pitch_pred, _, _, _, attn_hard_dur, pitch = self(
-            text=None,
-            durs=durs,
-            pitch=pitch,
-            speaker=None,
-            pace=1.0,
-            spec=None,
-            attn_prior=None,
-            mel_lens=None,
-            input_lens=None,
-            enc_out=enc_out,
-            enc_mask=enc_mask,
-        )
+        mels_pred, *_ = self(enc_out=enc_out, enc_mask=enc_mask, durs=durs, pitch=pitch, pace=1.0)
 
         wavs = []
         for idx in range(_bs):
