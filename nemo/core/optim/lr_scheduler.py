@@ -862,11 +862,12 @@ def prepare_lr_scheduler(
         num_workers = scheduler_config.get('t_num_workers')
 
         # Compute effective num max_steps
-        if isinstance(train_dataloader, dict):
+        if isinstance(train_dataloader, Iterable):
             # for multi-task setting train_dataloader is a dictionary of multiple dataloaders
             # (Eg. SSLDisentangler model in ssl_tts.py)
             # _train_dataloader set to one of the items in the dictionary used for computing max_steps
             _train_dataloader = train_dataloader[list(train_dataloader.keys())[0]]
+            logging.warning("More than one dataloader detected for training, lr scheduler will be based on the size of the 0th training dataset")
         else:
             _train_dataloader = train_dataloader
 

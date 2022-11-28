@@ -11,8 +11,8 @@ hifi_ckpt_path: ???
 
 # LJSpeech stats (per frame)
 # ignored if pitch_normalization: speaker_wise
-pitch_mean: 212.35873413085938
-pitch_std: 68.52806091308594
+pitch_mean: ??? #212.35873413085938
+pitch_std: ??? #68.52806091308594
 
 # Default values for dataset with sample_rate=22050
 sample_rate: 22050
