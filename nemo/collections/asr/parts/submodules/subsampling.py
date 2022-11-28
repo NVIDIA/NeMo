@@ -172,7 +172,7 @@ class ConvSubsampling(torch.nn.Module):
             in_channels = conv_channels
 
             # D.R. adding this.. 
-            layers.append(nn.BatchNorm1d(d_model))
+            layers.append(nn.BatchNorm1d(conv_channels))
 
             layers.append(activation)
 
