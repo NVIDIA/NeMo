@@ -92,6 +92,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         super().__init__(cfg, trainer)
 
         self.cfg = cfg
+        self._token_counter = None
         save_restore_connector = NLPSaveRestoreConnector()
         if os.path.isdir(cfg.get('language_model_path')):
             save_restore_connector.model_extracted_dir = cfg.get('language_model_path')
@@ -204,6 +205,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         # make sure the default pytorch lightning gradient clipping in the basemodel
         self.grad_clip_pl_default = True
         self.lowest_val_loss = None
+        self.training_top_tokens = None
 
     def load_task_templates(self, task_templates):
         """
@@ -304,19 +306,32 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             word_embedding = self.frozen_model.model.language_model.embedding.word_embeddings.weight.data
             l1_scale = self.cfg.p_tuning.get("l1_scale", 0.0)
             l2_scale = self.cfg.p_tuning.get("l2_scale", 0.0)
+            cs_scale = self.cfg.p_tuning.get("cs_scale", 0.0)
             limit_vocab = self.cfg.p_tuning.get("limit_vocab", -1)
             normalize = self.cfg.p_tuning.get("normalize", False)
             use_relu = self.cfg.p_tuning.get("use_relu", False)
             init_val = self.cfg.p_tuning.get("init_val", "group")
-            spaced_init = self.cfg.p_tuning.get("spaced_init", False)
+            spaced_init = self.cfg.p_tuning.get("spaced_init", "spaced")
             mask_restrict = self.cfg.p_tuning.get("mask_restrict", False)
             self.prompt_encoder = PromptEncoderLinearCombination(
-                total_virtual_tokens, word_embedding, l1_scale, l2_scale, limit_vocab, normalize, use_relu, init_val, spaced_init, mask_restrict
+                total_virtual_tokens, 
+                word_embedding, 
+                l1_scale, 
+                l2_scale, 
+                cs_scale, 
+                limit_vocab, 
+                normalize, 
+                use_relu, 
+                init_val, 
+                spaced_init, 
+                mask_restrict,
+                self.training_top_tokens
             )
         elif self.prompt_encoder_type == PromptEncoderType.LINEAR_COMBINATION_BASELINE:
             word_embedding = self.frozen_model.model.language_model.embedding.word_embeddings.weight.data
+            cs_scale = self.cfg.p_tuning.get("cs_scale", 0.0)
             self.prompt_encoder = PromptEncoderLinearCombinationBaseline(
-                total_virtual_tokens, word_embedding
+                total_virtual_tokens, word_embedding, cs_scale
             )
         else:
             raise ValueError('not supported')
@@ -355,8 +370,11 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         if self.prompt_table:
             for taskname in self.prompt_table.prompt_table.keys():
                 if taskname in set(self.new_tasks):
-                    for params in self.prompt_table.prompt_table[taskname].parameters():
-                        params.requires_grad = True
+                    for name, params in self.prompt_table.prompt_table[taskname].named_parameters():
+                        if name == 'idx':
+                            params.requires_grad = False
+                        else:
+                            params.requires_grad = True
                 else:
                     for params in self.prompt_table.prompt_table[taskname].parameters():
                         params.requires_grad = False
@@ -637,23 +655,27 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             loss_mean = loss_tensor.mean()
             l1_tensors_list = [loss_reduced['w_l1'] for loss_reduced in losses_reduced_per_micro_batch]
             l1_tensor = torch.concat(l1_tensors_list)
+            l1_mean = l1_tensor.mean()
             l2_tensors_list = [loss_reduced['w_l2'] for loss_reduced in losses_reduced_per_micro_batch]
             l2_tensor = torch.concat(l2_tensors_list)
-            l1_mean = l1_tensor.mean()
             l2_mean = l2_tensor.mean()
+            cs_tensors_list = [loss_reduced['w_cs'] for loss_reduced in losses_reduced_per_micro_batch]
+            cs_tensor = torch.concat(cs_tensors_list)
+            cs_mean = cs_tensor.mean()
         else:
             # we're not on the last pipeline stage so no losses
             loss_mean = torch.tensor(0.0).cuda()
             l1_mean = torch.tensor(0.0).cuda()
             l2_mean = torch.tensor(0.0).cuda()
+            cs_mean = torch.tensor(0.0).cuda()
 
-        return {'loss_mean': loss_mean, 'l2_mean': l2_mean, 'l1_mean': l1_mean}
+        return {'loss_mean': loss_mean, 'l2_mean': l2_mean, 'l1_mean': l1_mean, "cs_mean": cs_mean}
 
     def training_step(self, batch, batch_idx):
         # we zero grads here because we also call backward in the apex fwd/bwd functions
         self._optimizer.zero_grad()
         loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=False)
-        loss_mean, l2_mean, l1_mean = loss_mean['loss_mean'], loss_mean['l2_mean'], loss_mean['l1_mean']
+        loss_mean, l2_mean, l1_mean, cs_mean = loss_mean['loss_mean'], loss_mean['l2_mean'], loss_mean['l1_mean'], loss_mean['cs_mean']
         self.allreduce_gradients()
 
         ## logging
@@ -669,6 +691,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True)
         self.log('encoder_l2_reg', l2_mean.detach(), prog_bar=True, rank_zero_only=True)
         self.log('encoder_l1_reg', l1_mean.detach(), prog_bar=True, rank_zero_only=True)
+        self.log('prompt_cs', cs_mean.detach(), prog_bar=True, rank_zero_only=True)
         lr = self._optimizer.param_groups[0]['lr']
         self.log('lr', lr, rank_zero_only=True)
         self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True)
@@ -779,6 +802,9 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         if stage == 'test':
             return
 
+        self.setup_training_data()
+        self.setup_validation_data()
+
         if self.frozen_model.model.pre_process:
             if self.virtual_prompt_style == VirtualPromptStyle.PROMPT_TUNING:
                 self.init_new_prompts()
@@ -787,8 +813,6 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
             self.freeze_existing_virtual_prompt_params()
 
-        self.setup_training_data()
-        self.setup_validation_data()
 
     def setup_training_data(self, training_data_config=None):
         if self.cfg.data.get('train_ds', None):
@@ -807,6 +831,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 cache_data_path=self.cfg.data.get('train_cache_data_path', None),
                 load_cache=self.cfg.data.get('load_cache', False),
             )
+            self.training_top_tokens = self._train_ds.top_tokens
 
     def setup_validation_data(self, validation_data_config=None):
         if self.cfg.data.get('validation_ds', None):
@@ -942,15 +967,16 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 loss = self.frozen_model.loss_func(loss_mask, output_tensor)
                 reduced_loss = average_losses_across_data_parallel_group([loss])
                 if hasattr(self, 'prompt_encoder') and hasattr(self.prompt_encoder, 'encoder_reg'):
-                    w_l1, w_l2 = self.prompt_encoder.encoder_reg()
+                    w_l1, w_l2, w_cs = self.prompt_encoder.encoder_reg()
                     l1_scale = self.prompt_encoder.l1_scale
-                    l2_scale = self.prompt_encoder.l1_scale
-                    final_loss = loss + (l1_scale * w_l1) + (l2_scale * w_l2)
+                    l2_scale = self.prompt_encoder.l2_scale
+                    cs_scale = self.prompt_encoder.cs_scale
+                    final_loss = loss + (l1_scale * w_l1) + (l2_scale * w_l2) + (cs_scale * w_cs)
                 else:
-                    w_l1, w_l2 = torch.tensor(0.0).unsqueeze(0), torch.tensor(0.0).unsqueeze(0)
-                    l1_scale, l2_scale = 0.0, 0.0
+                    w_l1, w_l2, w_cs = torch.zeros(1), torch.zeros(1), torch.zeros(1)
+                    l1_scale, l2_scale, cs_scale = 0.0, 0.0, 0.0
                     final_loss = loss
-                return final_loss, {'avg': reduced_loss, "w_l2": w_l2, "w_l1": w_l1}
+                return final_loss, {'avg': reduced_loss, "w_l2": w_l2, "w_l1": w_l1, "w_cs": w_cs}
 
             return output_tensor, loss_func
 
