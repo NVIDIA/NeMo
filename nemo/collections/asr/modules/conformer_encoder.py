@@ -492,6 +492,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             padding_length.size(0), -1
         ) < padding_length.unsqueeze(-1)
 
+        pad_mask = ~pad_mask
+
         if self.use_att_mask:
             # pad_mask_for_att_mask is the mask which helps to ignore paddings
             pad_mask_for_att_mask = pad_mask.unsqueeze(1).repeat([1, max_audio_length, 1])
@@ -501,7 +503,6 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             # paddings should also get ignored, so pad_mask_for_att_mask is used to ignore their corresponding scores
             att_mask = torch.logical_and(pad_mask_for_att_mask, att_mask.to(pad_mask_for_att_mask.device))
 
-            pad_mask = ~pad_mask
             att_mask = ~att_mask
         else:
             att_mask = None
