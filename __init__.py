@@ -15,25 +15,23 @@
 """Model parallel utility interface."""
 
 from apex.transformer.tensor_parallel.cross_entropy import vocab_parallel_cross_entropy
-
 from apex.transformer.tensor_parallel.data import broadcast_data
-
 from apex.transformer.tensor_parallel.layers import (
     ColumnParallelLinear,
     RowParallelLinear,
     VocabParallelEmbedding,
-    set_tensor_model_parallel_attributes,
-    set_defaults_if_not_set_tensor_model_parallel_attributes,
     copy_tensor_model_parallel_attributes,
+    set_defaults_if_not_set_tensor_model_parallel_attributes,
+    set_tensor_model_parallel_attributes,
 )
-
 from apex.transformer.tensor_parallel.mappings import (
     copy_to_tensor_model_parallel_region,
     gather_from_tensor_model_parallel_region,
     reduce_from_tensor_model_parallel_region,
-    scatter_to_tensor_model_parallel_region,
     scatter_to_sequence_parallel_region,
+    scatter_to_tensor_model_parallel_region,
 )
+from apex.transformer.tensor_parallel.utils import split_tensor_along_last_dim
 
 from .random import (
     checkpoint,
@@ -42,9 +40,6 @@ from .random import (
     model_parallel_cuda_manual_seed,
     reset_checkpointed_activations_memory_buffer,
 )
-
-from apex.transformer.tensor_parallel.utils import split_tensor_along_last_dim
-
 
 __all__ = [
     # cross_entropy.py
