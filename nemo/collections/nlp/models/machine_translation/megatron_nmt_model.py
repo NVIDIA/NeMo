@@ -276,10 +276,12 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         rank = parallel_state.get_data_parallel_rank()
         world_size = parallel_state.get_data_parallel_world_size()
         dataloaders = []
-        if not isinstance(dataset, ListConfig):
+        bsz = 1
+        if not isinstance(dataset, List):
             # Ques: This is a hack for dataloader
             # TODO: Setup collate_fn properly
             dataset = [dataset]
+            bsz = 32
         for _dataset in dataset:
             sampler = torch.utils.data.distributed.DistributedSampler(
                 _dataset, num_replicas=world_size, rank=rank, shuffle=False
@@ -287,7 +289,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             dataloaders.append(
                 torch.utils.data.DataLoader(
                     dataset=_dataset,
-                    batch_size=32,
+                    batch_size=bsz,
                     sampler=sampler,
                     collate_fn=_dataset.collate_fn,
                     num_workers=cfg.get("num_workers", 0),
