@@ -63,6 +63,7 @@ class EMA(Callback):
                 current_step=trainer.global_step,
             )
             for optim in trainer.optimizers
+            if not isinstance(optim, EMAOptimizer)
         ]
 
     def on_validation_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
@@ -121,13 +122,14 @@ class EMA(Callback):
             if os.path.exists(ema_path):
                 ema_state_dict = torch.load(ema_path, map_location=torch.device('cpu'))
                 checkpoint['optimizer_states'] = ema_state_dict['optimizer_states']
+                for optimizer_state in checkpoint['optimizer_states']:
+                    optimizer_state['ema'] = list(ema_state_dict['state_dict'].values())
                 del ema_state_dict
                 logging.info("EMA weights have been loaded successfully. Continuing training with saved EMA weights.")
             else:
-                warnings.warn(
-                    "we were unable to find the associated EMA weights when re-loading, "
-                    "training will start with new EMA weights.",
-                    UserWarning,
+                raise MisconfigurationException(
+                    "Unable to find the associated EMA weights when re-loading, "
+                    f"training will start with new EMA weights. Expected them to be at: {ema_path}",
                 )
 
 
@@ -320,6 +322,10 @@ class EMAOptimizer(torch.optim.Optimizer):
         state_dict = {
             'opt': self.optimizer.state_dict(),
             'ema': self.ema_params,
+            'current_step': self.current_step,
+            'decay': self.decay,
+            'every_n_steps': self.every_n_steps,
+            'device': self.device,
         }
         return state_dict
 
@@ -328,6 +334,10 @@ class EMAOptimizer(torch.optim.Optimizer):
 
         self.optimizer.load_state_dict(state_dict['opt'])
         self.ema_params = tuple(param.to(self.device) for param in copy.deepcopy(state_dict['ema']))
+        self.current_step = state_dict['current_step']
+        self.decay = state_dict['decay']
+        self.device = state_dict['device']
+        self.every_n_steps = state_dict['every_n_steps']
         self.rebuild_ema_params = False
 
     def add_param_group(self, param_group):
