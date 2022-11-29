@@ -122,6 +122,7 @@ class EMA(Callback):
                 ema_state_dict = torch.load(ema_path, map_location=torch.device('cpu'))
                 checkpoint['optimizer_states'] = ema_state_dict['optimizer_states']
                 for optimizer_state in checkpoint['optimizer_states']:
+                    # update the ema state with the EMA saved model weights
                     optimizer_state['ema'] = list(ema_state_dict['state_dict'].values())
                 del ema_state_dict
                 logging.info("EMA weights have been loaded successfully. Continuing training with saved EMA weights.")
