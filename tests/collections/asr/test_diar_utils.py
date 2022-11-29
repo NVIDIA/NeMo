@@ -248,11 +248,11 @@ class TestDiarizationUtilFunctions:
         cmat = affinity_mat[:, ndx][ndx, :]
         # Check the dimension of the selected affinity values
         assert cmat.shape[0] == cmat.shape[1] == torch.sum(pre_clus_labels == target_speaker_index).item()
-        index_2d = get_closest_embeddings(cmat, ndx, merge_quantity)
+        index_2d, rest_inds = get_closest_embeddings(cmat, ndx, merge_quantity)
         # Check the most closest affinity value
         assert torch.max(cmat.sum(0)) == cmat.sum(0)[index_2d[0]]
         spk_cluster_labels, emb_ndx = pre_clus_labels[ndx], pre_embs[ndx]
-        merged_embs, merged_clus_labels, _ = merge_vectors(index_2d, emb_ndx, spk_cluster_labels)
+        merged_embs, merged_clus_labels = merge_vectors(index_2d, emb_ndx, spk_cluster_labels)
         # Check the number of merged embeddings and labels
         assert (torch.sum(gt == target_speaker_index).item() - merge_quantity) == merged_clus_labels.shape[0]
 

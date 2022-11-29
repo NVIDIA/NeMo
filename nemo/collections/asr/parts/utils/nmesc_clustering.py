@@ -946,7 +946,7 @@ def calculate_removable_counts(removable_counts_mat: torch.Tensor, remain_count:
     return removable_counts_mat
 
 
-# @torch.jit.script
+@torch.jit.script
 def get_merge_quantity(
     num_to_be_removed: int, pre_clus_labels: torch.Tensor, min_count_per_cluster: int,
 ) -> torch.Tensor:
@@ -1050,13 +1050,13 @@ def merge_vectors(selected_inds: torch.Tensor, emb_ndx: torch.Tensor, pre_cluste
     merged_vecs = torch.vstack((emb_ndx[bypass_inds], avg_emb))
     merged_clus_labels = torch.hstack((pre_cluster_labels[bypass_inds], merged_clus_labels[0]))
     index_mapping: Tuple[torch.Tensor, torch.Tensor] = (bypass_inds, selected_inds)
-    return merged_vecs, merged_clus_labels, index_mapping
+    return merged_vecs, merged_clus_labels
 
 
 @torch.jit.script
 def get_closest_embeddings(
     label_aff_mat: torch.Tensor, target_emb_index: torch.Tensor, merge_quantity: int
-) -> torch.Tensor:
+) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Get the indeces of the embedding vectors we want to merge.
     Example:
@@ -1094,9 +1094,10 @@ def get_closest_embeddings(
     # Take summed values over one axis
     sum_cmat = label_aff_mat.sum(0)
 
-    # (merge_quantity + 1) will become 1 embedding vector after merging
+    # `merge_quantity + 1` will become 1 embedding vector after merging
     idx_aff_sum = torch.argsort(sum_cmat, descending=True)[: (merge_quantity + 1)]
-    return idx_aff_sum
+    rest_inds = torch.argsort(sum_cmat, descending=True)[(merge_quantity + 1):]
+    return idx_aff_sum, rest_inds
 
 
 @torch.jit.script
@@ -1160,11 +1161,14 @@ def run_reducer(
                 "Dimension mismatch between targeted speaker affinity `label_aff_mat` and targeted speaker index `target_emb_index`."
             )
         # Get the indices of the closest embedding vectors
-        selected_inds = get_closest_embeddings(label_aff_mat, target_emb_index, merge_quantity)
+        selected_inds, rest_inds = get_closest_embeddings(label_aff_mat, target_emb_index, merge_quantity)
         spk_cluster_labels, selected_embs = pre_clus_labels[target_emb_index], pre_embs[target_emb_index]
 
+        # Note that we need to return the indices of speaker-specific indices from `target_emb_index`.
+        index_mapping = (target_emb_index[rest_inds.sort()[0]], target_emb_index[selected_inds])
+
         # Merge the embeddings targeted by the 2-dim indices `index_2d`
-        merged_embs, merged_clus_labels, index_mapping = merge_vectors(
+        merged_embs, merged_clus_labels = merge_vectors(
             selected_inds, selected_embs, spk_cluster_labels
         )
 
@@ -1176,8 +1180,9 @@ def run_reducer(
     else:
         merged_embs = pre_embs[target_emb_index]
         merged_clus_labels = pre_clus_labels[target_emb_index]
-        index_mapping = (torch.arange(merged_embs.shape[0]), torch.arange(0))
+        index_mapping = (target_emb_index, torch.arange(0))
     return merged_embs, merged_clus_labels, index_mapping
+
 
 
 @torch.jit.script
