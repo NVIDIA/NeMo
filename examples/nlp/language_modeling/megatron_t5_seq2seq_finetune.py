@@ -37,6 +37,8 @@ from nemo.utils import AppState, logging
 from nemo.utils.exp_manager import StatelessTimer, exp_manager
 from nemo.utils.model_utils import inject_model_parallel_rank
 
+import torch.multiprocessing as mp
+mp.set_start_method("spawn", force=True)
 
 def _modify_config(t5_cfg, cfg, add_cfg_to_tree=False):
     """

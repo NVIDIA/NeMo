@@ -30,6 +30,8 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import StatelessTimer, exp_manager
 
+import torch.multiprocessing as mp
+mp.set_start_method("spawn", force=True)
 
 """
 This is an example of how to ptune/prompt-tune a pretrained GPT model.
