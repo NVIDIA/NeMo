@@ -1096,7 +1096,7 @@ def get_closest_embeddings(
 
     # `merge_quantity + 1` will become 1 embedding vector after merging
     idx_aff_sum = torch.argsort(sum_cmat, descending=True)[: (merge_quantity + 1)]
-    rest_inds = torch.argsort(sum_cmat, descending=True)[(merge_quantity + 1):]
+    rest_inds = torch.argsort(sum_cmat, descending=True)[(merge_quantity + 1) :]
     return idx_aff_sum, rest_inds
 
 
@@ -1168,9 +1168,7 @@ def run_reducer(
         index_mapping = (target_emb_index[rest_inds.sort()[0]], target_emb_index[selected_inds])
 
         # Merge the embeddings targeted by the 2-dim indices `index_2d`
-        merged_embs, merged_clus_labels = merge_vectors(
-            selected_inds, selected_embs, spk_cluster_labels
-        )
+        merged_embs, merged_clus_labels = merge_vectors(selected_inds, selected_embs, spk_cluster_labels)
 
         if (org_size - merge_quantity) != merged_embs.shape[0]:
             raise ValueError(
@@ -1182,7 +1180,6 @@ def run_reducer(
         merged_clus_labels = pre_clus_labels[target_emb_index]
         index_mapping = (target_emb_index, torch.arange(0))
     return merged_embs, merged_clus_labels, index_mapping
-
 
 
 @torch.jit.script
