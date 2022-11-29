@@ -27,6 +27,7 @@ from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
 
 def log_softmax(x, axis=-1):
     x = torch.from_numpy(x)  # zero-copy
+    x = x.float()
     x = torch.log_softmax(x, dim=axis)
     x = x.numpy()
     return x
@@ -42,12 +43,14 @@ def log_softmax_grad(x, axis=-1):
 class TestRNNTCUDAKernels:
     @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Reductions can only be run when CUDA is available")
     @pytest.mark.unit
-    def test_compute_alphas_kernel(self):
+    @pytest.mark.parametrize('dtype', [torch.float32, torch.float16])
+    def test_compute_alphas_kernel(self, dtype):
         numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
         random = np.random.RandomState(0)
         original_shape = [1, 5, 11, 3]
         B, T, U, V = original_shape
+        threshold = 1e-5 if dtype == torch.float32 else 3e-4
 
         # Numpy kernel
         x = random.randn(*original_shape)
@@ -67,8 +70,8 @@ class TestRNNTCUDAKernels:
         else:
             stream = cuda.default_stream()
 
-        x_c = torch.tensor(x, device=device, dtype=torch.float32)
-        labels_c = torch.tensor(labels, device=device, dtype=torch.int64)
+        x_c = torch.tensor(x, device=device, dtype=dtype)
+        labels_c = torch.tensor(labels, device=device, dtype=torch.int32)
 
         # Allocate workspace memory
         denom = torch.zeros(B * T * U, device=device, dtype=x_c.dtype)
@@ -100,22 +103,24 @@ class TestRNNTCUDAKernels:
         alphas = alphas.view([B, T, U])
         diff = ground_alphas - alphas[0].cpu().numpy()
 
-        assert np.abs(diff).mean() <= 1e-5
-        assert np.square(diff).mean() <= 1e-10
+        assert np.abs(diff).mean() <= threshold
+        assert np.square(diff).mean() <= (threshold ** 2)
 
         ll_diff = ground_log_likelihood - llForward[0].cpu().numpy()
 
-        assert np.abs(ll_diff).mean() <= 1e-5
-        assert np.square(ll_diff).mean() <= 1e-10
+        assert np.abs(ll_diff).mean() <= threshold
+        assert np.square(ll_diff).mean() <= (threshold ** 2)
 
     @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Reductions can only be run when CUDA is available")
     @pytest.mark.unit
-    def test_compute_betas_kernel(self):
+    @pytest.mark.parametrize('dtype', [torch.float32, torch.float16])
+    def test_compute_betas_kernel(self, dtype):
         numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
         random = np.random.RandomState(0)
         original_shape = [1, 5, 11, 3]
         B, T, U, V = original_shape
+        threshold = 1e-5 if dtype == torch.float32 else 3e-4
 
         # Numpy kernel
         x = random.randn(*original_shape)
@@ -135,7 +140,7 @@ class TestRNNTCUDAKernels:
         else:
             stream = cuda.default_stream()
 
-        x_c = torch.tensor(x, device=device, dtype=torch.float32)
+        x_c = torch.tensor(x, device=device, dtype=dtype)
         labels_c = torch.tensor(labels, device=device, dtype=torch.int64)
 
         # Allocate workspace memory
@@ -168,17 +173,18 @@ class TestRNNTCUDAKernels:
         betas = betas.view([B, T, U])
         diff = ground_alphas - betas[0].cpu().numpy()
 
-        assert np.abs(diff).mean() <= 1e-5
-        assert np.square(diff).mean() <= 1e-10
+        assert np.abs(diff).mean() <= threshold
+        assert np.square(diff).mean() <= (threshold ** 2)
 
         ll_diff = ground_log_likelihood - llBackward[0].cpu().numpy()
 
-        assert np.abs(ll_diff).mean() <= 1e-5
-        assert np.square(ll_diff).mean() <= 1e-10
+        assert np.abs(ll_diff).mean() <= threshold
+        assert np.square(ll_diff).mean() <= (threshold ** 2)
 
     @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Reductions can only be run when CUDA is available")
     @pytest.mark.unit
-    def test_compute_grads_kernel(self):
+    @pytest.mark.parametrize('dtype', [torch.float32, torch.float16])
+    def test_compute_grads_kernel(self, dtype):
         numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
         fastemit_lambda = 0.0
@@ -187,6 +193,7 @@ class TestRNNTCUDAKernels:
         random = np.random.RandomState(0)
         original_shape = [1, 5, 11, 3]
         B, T, U, V = original_shape
+        threshold = 1e-5 if dtype == torch.float32 else 3e-5
 
         # Numpy kernel
         x = random.randn(*original_shape)
@@ -220,7 +227,7 @@ class TestRNNTCUDAKernels:
         else:
             stream = cuda.default_stream()
 
-        x_c = torch.tensor(x, device=device, dtype=torch.float32)
+        x_c = torch.tensor(x, device=device, dtype=dtype)
         labels_c = labels.clone().to(device=device, dtype=torch.int64)
 
         # Allocate workspace memory
@@ -283,12 +290,13 @@ class TestRNNTCUDAKernels:
         grads = grads.view([B, T, U, V])
         diff = true_grads - grads[0].cpu().numpy()
 
-        assert np.abs(diff).mean() <= 1e-5
-        assert np.square(diff).mean() <= 1e-10
+        assert np.abs(diff).mean() <= threshold
+        assert np.square(diff).mean() <= (threshold ** 2) * 5.0
 
     @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Reductions can only be run when CUDA is available")
     @pytest.mark.unit
-    def test_compute_grads_kernel_fastemit(self):
+    @pytest.mark.parametrize('dtype', [torch.float32, torch.float16])
+    def test_compute_grads_kernel_fastemit(self, dtype):
         numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
         fastemit_lambda = 0.001
@@ -297,6 +305,7 @@ class TestRNNTCUDAKernels:
         random = np.random.RandomState(0)
         original_shape = [1, 5, 11, 3]
         B, T, U, V = original_shape
+        threshold = 1e-5 if dtype == torch.float32 else 3e-5
 
         # Numpy kernel
         x = random.randn(*original_shape)
@@ -330,7 +339,7 @@ class TestRNNTCUDAKernels:
         else:
             stream = cuda.default_stream()
 
-        x_c = torch.tensor(x, device=device, dtype=torch.float32)
+        x_c = torch.tensor(x, device=device, dtype=dtype)
         labels_c = labels.clone().to(device=device, dtype=torch.int64)
 
         # Allocate workspace memory
@@ -393,12 +402,13 @@ class TestRNNTCUDAKernels:
         grads = grads.view([B, T, U, V])
         diff = true_grads - grads[0].cpu().numpy()
 
-        assert np.abs(diff).mean() <= 1e-5
-        assert np.square(diff).mean() <= 1e-10
+        assert np.abs(diff).mean() <= threshold
+        assert np.square(diff).mean() <= (threshold ** 2) * 5
 
     @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Reductions can only be run when CUDA is available")
     @pytest.mark.unit
-    def test_compute_grads_kernel_clamp(self):
+    @pytest.mark.parametrize('dtype', [torch.float32, torch.float16])
+    def test_compute_grads_kernel_clamp(self, dtype):
         numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
         fastemit_lambda = 0.0
@@ -407,6 +417,7 @@ class TestRNNTCUDAKernels:
         random = np.random.RandomState(0)
         original_shape = [1, 5, 11, 3]
         B, T, U, V = original_shape
+        threshold = 1e-5 if dtype == torch.float32 else 3e-5
 
         # Numpy kernel
         x = random.randn(*original_shape)
@@ -440,7 +451,7 @@ class TestRNNTCUDAKernels:
         else:
             stream = cuda.default_stream()
 
-        x_c = torch.tensor(x, device=device, dtype=torch.float32)
+        x_c = torch.tensor(x, device=device, dtype=dtype)
         labels_c = labels.clone().to(device=device, dtype=torch.int64)
 
         # Allocate workspace memory
@@ -503,8 +514,8 @@ class TestRNNTCUDAKernels:
         grads = grads.view([B, T, U, V])
         diff = true_grads - grads[0].cpu().numpy()
 
-        assert np.abs(diff).mean() <= 1e-5
-        assert np.square(diff).mean() <= 1e-10
+        assert np.abs(diff).mean() <= threshold
+        assert np.square(diff).mean() <= (threshold ** 2) * 5
 
 
 class TestTDTCUDAKernels:
