@@ -187,9 +187,7 @@ class MultiHeadAttentionAdapterConfig:
     _target_: str = "{0}.{1}".format(MultiHeadAttentionAdapter.__module__, MultiHeadAttentionAdapter.__name__)
 
 
-class RelPositionMultiHeadAttentionAdapter(
-    mha.RelPositionMultiHeadAttention, adapter_modules.AdapterModuleUtil
-):
+class RelPositionMultiHeadAttentionAdapter(mha.RelPositionMultiHeadAttention, adapter_modules.AdapterModuleUtil):
     """Multi-Head Attention layer of Transformer-XL with support of relative positional encoding.
     Paper: https://arxiv.org/abs/1901.02860
     Args:
