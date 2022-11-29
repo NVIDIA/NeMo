@@ -199,7 +199,12 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
         self.tokenizer = tokenizer
 
         super(RNNTBPEDecoding, self).__init__(
-            decoding_cfg=decoding_cfg, decoder=decoder, joint=joint, blank_id=blank_id, big_blank_id_list=big_blank_id_list, big_blank_duration_list=big_blank_duration_list
+            decoding_cfg=decoding_cfg,
+            decoder=decoder,
+            joint=joint,
+            blank_id=blank_id,
+            big_blank_id_list=big_blank_id_list,
+            big_blank_duration_list=big_blank_duration_list,
         )
 
     def _aggregate_token_confidence(self, hypothesis: Hypothesis) -> List[float]:

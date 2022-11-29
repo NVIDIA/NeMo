@@ -191,7 +191,9 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         blank_id: The id of the RNNT blank token.
     """
 
-    def __init__(self, decoding_cfg, decoder, joint, blank_id: int, big_blank_id_list: list, big_blank_duration_list: list):
+    def __init__(
+        self, decoding_cfg, decoder, joint, blank_id: int, big_blank_id_list: list, big_blank_duration_list: list
+    ):
         super(AbstractRNNTDecoding, self).__init__()
         self.cfg = decoding_cfg
         self.blank_id = blank_id
