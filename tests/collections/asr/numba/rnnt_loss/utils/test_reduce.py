@@ -24,13 +24,14 @@ from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
 class TestRNNTCUDAReductions:
     @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Reductions can only be run when CUDA is available")
     @pytest.mark.unit
-    def test_reduce_max(self):
+    @pytest.mark.parametrize('dtype', [np.float32, np.float16])
+    def test_reduce_max(self, dtype):
         numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
         random = np.random.RandomState(0)
         original_shape = [1, 5, 4, 3]
-        x = random.randn(*original_shape).reshape([-1])
-        dx = random.randn(*x.shape)
+        x = random.randn(*original_shape).reshape([-1]).astype(dtype)
+        dx = random.randn(*x.shape).astype(dtype)
 
         stream = cuda.stream()
         x_c = cuda.to_device(x, stream=stream)
@@ -53,13 +54,14 @@ class TestRNNTCUDAReductions:
 
     @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Reductions can only be run when CUDA is available")
     @pytest.mark.unit
-    def test_reduce_exp(self):
+    @pytest.mark.parametrize('dtype', [np.float32, np.float16])
+    def test_reduce_exp(self, dtype):
         numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
         random = np.random.RandomState(0)
         original_shape = [1, 5, 4, 2]
-        x = random.randn(*original_shape).reshape([-1])
-        dx = np.zeros_like(x)
+        x = random.randn(*original_shape).reshape([-1]).astype(dtype)
+        dx = np.zeros_like(x).astype(dtype)
 
         stream = cuda.stream()
         x_c = cuda.to_device(x, stream=stream)
