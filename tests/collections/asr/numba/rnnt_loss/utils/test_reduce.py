@@ -20,11 +20,15 @@ from nemo.collections.asr.parts.numba.rnnt_loss.utils.cuda_utils import reduce
 from nemo.core.utils import numba_utils
 from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
 
+DTYPES = [np.float32]
+if numba_utils.is_numba_cuda_fp16_supported():
+    DTYPES.append(np.float16)
+
 
 class TestRNNTCUDAReductions:
     @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Reductions can only be run when CUDA is available")
     @pytest.mark.unit
-    @pytest.mark.parametrize('dtype', [np.float32, np.float16])
+    @pytest.mark.parametrize('dtype', DTYPES)
     def test_reduce_max(self, dtype):
         numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
@@ -54,7 +58,7 @@ class TestRNNTCUDAReductions:
 
     @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Reductions can only be run when CUDA is available")
     @pytest.mark.unit
-    @pytest.mark.parametrize('dtype', [np.float32, np.float16])
+    @pytest.mark.parametrize('dtype', DTYPES)
     def test_reduce_exp(self, dtype):
         numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 

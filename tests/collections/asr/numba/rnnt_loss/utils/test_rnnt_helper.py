@@ -20,11 +20,15 @@ from nemo.collections.asr.parts.numba.rnnt_loss.utils import global_constants, r
 from nemo.core.utils import numba_utils
 from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
 
+DTYPES = [np.float32]
+if numba_utils.is_numba_cuda_fp16_supported():
+    DTYPES.append(np.float16)
+
 
 class TestRNNTHelper:
     @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Helpers can only be run when CUDA is available")
     @pytest.mark.unit
-    @pytest.mark.parametrize('dtype', [np.float32, np.float16])
+    @pytest.mark.parametrize('dtype', DTYPES)
     def test_log_sum_exp(self, dtype):
         numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
@@ -58,7 +62,7 @@ class TestRNNTHelper:
 
     @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Helpers can only be run when CUDA is available")
     @pytest.mark.unit
-    @pytest.mark.parametrize('dtype', [np.float32, np.float16])
+    @pytest.mark.parametrize('dtype', DTYPES)
     def test_log_sum_exp_neg_inf(self, dtype):
         numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
@@ -91,7 +95,7 @@ class TestRNNTHelper:
 
     @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Helpers can only be run when CUDA is available")
     @pytest.mark.unit
-    @pytest.mark.parametrize('dtype', [np.float32, np.float16])
+    @pytest.mark.parametrize('dtype', DTYPES)
     def test_div_up(self, dtype):
         numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
@@ -125,7 +129,7 @@ class TestRNNTHelper:
 
     @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Helpers can only be run when CUDA is available")
     @pytest.mark.unit
-    @pytest.mark.parametrize('dtype', [np.float32, np.float16])
+    @pytest.mark.parametrize('dtype', DTYPES)
     def test_add(self, dtype):
         numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
@@ -159,7 +163,7 @@ class TestRNNTHelper:
 
     @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Helpers can only be run when CUDA is available")
     @pytest.mark.unit
-    @pytest.mark.parametrize('dtype', [np.float32, np.float16])
+    @pytest.mark.parametrize('dtype', DTYPES)
     def test_maximum(self, dtype):
         numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
@@ -193,7 +197,7 @@ class TestRNNTHelper:
 
     @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Helpers can only be run when CUDA is available")
     @pytest.mark.unit
-    @pytest.mark.parametrize('dtype', [np.float32, np.float16])
+    @pytest.mark.parametrize('dtype', DTYPES)
     def test_identity(self, dtype):
         numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
@@ -257,7 +261,7 @@ class TestRNNTHelper:
 
     @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Helpers can only be run when CUDA is available")
     @pytest.mark.unit
-    @pytest.mark.parametrize('dtype', [np.float32, np.float16])
+    @pytest.mark.parametrize('dtype', DTYPES)
     def test_exponential(self, dtype):
         numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
@@ -290,7 +294,7 @@ class TestRNNTHelper:
 
     @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Helpers can only be run when CUDA is available")
     @pytest.mark.unit
-    @pytest.mark.parametrize('dtype', [np.float32, np.float16])
+    @pytest.mark.parametrize('dtype', DTYPES)
     def test_log_plus(self, dtype):
         numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
@@ -327,15 +331,15 @@ class TestRNNTHelper:
     @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Helpers can only be run when CUDA is available")
     @pytest.mark.parametrize('batch_size', [8, 128, 256])
     @pytest.mark.parametrize('fastemit_lambda', [0.0, 0.001])
-    @pytest.mark.parametrize('dtype', [np.float32, np.float16])
+    @pytest.mark.parametrize('dtype', DTYPES)
     @pytest.mark.unit
     def test_compute_costs_data(self, batch_size, fastemit_lambda, dtype):
         numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
         np.random.seed(0)
-        x = np.full([batch_size], fill_value=0.0).astype(dtype)  # np.random.rand(8192)
-        y = np.random.randn(batch_size)  # np.random.rand(8192)
-        threshold = 1e-5 if dtype == np.float32 else 5e-3
+        x = np.full([batch_size], fill_value=0.0)  # np.random.rand(8192)
+        y = np.random.randn(batch_size).astype(dtype)  # np.random.rand(8192)
+        threshold = 1e-5 if dtype == np.float32 else 1e-5
 
         stream = cuda.stream()
         x_c = cuda.to_device(x, stream=stream)
@@ -353,7 +357,7 @@ class TestRNNTHelper:
         x_new = x_c.copy_to_host(stream=stream)
         del x_c, y_c
 
-        res = -(y.copy())
+        res = -(y.astype(np.float32).copy())
         res *= 1.0 + fastemit_lambda
 
         for i in range(len(x_new)):

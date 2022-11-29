@@ -26,6 +26,11 @@ cuda_logger.setLevel(pylogger.ERROR)  # only show error
 __NUMBA_DEFAULT_MINIMUM_VERSION__ = "0.53.0"
 __NUMBA_MINIMUM_VERSION__ = os.environ.get("NEMO_NUMBA_MINVER", __NUMBA_DEFAULT_MINIMUM_VERSION__)
 
+__NUMBA_MINIMUM_VERSION_FP16_SUPPORTED__ = "0.57.0"
+NUMBA_FP16_SUPPORTED = model_utils.check_lib_version(
+    'numba', __NUMBA_MINIMUM_VERSION_FP16_SUPPORTED__, operator=operator.ge
+)
+
 
 NUMBA_INSTALLATION_MESSAGE = (
     "Could not import `numba`.\n"
@@ -146,6 +151,16 @@ def numba_cuda_is_supported(min_version: str) -> bool:
 
     else:
         return False
+
+
+def is_numba_cuda_fp16_supported():
+    """
+    Utility method that returns a bool, stating if FP16 is supported for numba cuda kernels or not.
+
+    Returns:
+        bool, whether Numba CUDA will support fp16 or not.
+    """
+    return NUMBA_FP16_SUPPORTED
 
 
 def skip_numba_cuda_test_if_unsupported(min_version: str):

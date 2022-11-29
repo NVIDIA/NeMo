@@ -25,6 +25,11 @@ from nemo.core.utils import numba_utils
 from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
 
 
+DTYPES = [torch.float32]
+if numba_utils.is_numba_cuda_fp16_supported():
+    DTYPES.append(torch.float16)
+
+
 def log_softmax(x, axis=-1):
     x = torch.from_numpy(x)  # zero-copy
     x = x.float()
@@ -43,7 +48,7 @@ def log_softmax_grad(x, axis=-1):
 class TestRNNTCUDAKernels:
     @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Reductions can only be run when CUDA is available")
     @pytest.mark.unit
-    @pytest.mark.parametrize('dtype', [torch.float32, torch.float16])
+    @pytest.mark.parametrize('dtype', DTYPES)
     def test_compute_alphas_kernel(self, dtype):
         numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
@@ -113,7 +118,7 @@ class TestRNNTCUDAKernels:
 
     @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Reductions can only be run when CUDA is available")
     @pytest.mark.unit
-    @pytest.mark.parametrize('dtype', [torch.float32, torch.float16])
+    @pytest.mark.parametrize('dtype', DTYPES)
     def test_compute_betas_kernel(self, dtype):
         numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
@@ -183,7 +188,7 @@ class TestRNNTCUDAKernels:
 
     @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Reductions can only be run when CUDA is available")
     @pytest.mark.unit
-    @pytest.mark.parametrize('dtype', [torch.float32, torch.float16])
+    @pytest.mark.parametrize('dtype', DTYPES)
     def test_compute_grads_kernel(self, dtype):
         numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
@@ -295,7 +300,7 @@ class TestRNNTCUDAKernels:
 
     @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Reductions can only be run when CUDA is available")
     @pytest.mark.unit
-    @pytest.mark.parametrize('dtype', [torch.float32, torch.float16])
+    @pytest.mark.parametrize('dtype', DTYPES)
     def test_compute_grads_kernel_fastemit(self, dtype):
         numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
@@ -407,7 +412,7 @@ class TestRNNTCUDAKernels:
 
     @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Reductions can only be run when CUDA is available")
     @pytest.mark.unit
-    @pytest.mark.parametrize('dtype', [torch.float32, torch.float16])
+    @pytest.mark.parametrize('dtype', DTYPES)
     def test_compute_grads_kernel_clamp(self, dtype):
         numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 

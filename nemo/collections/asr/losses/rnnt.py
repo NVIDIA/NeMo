@@ -40,6 +40,7 @@ from nemo.core.classes import Loss, typecheck
 from nemo.core.neural_types import LabelsType, LengthsType, LogprobsType, LossType, NeuralType
 from nemo.core.utils.k2_utils import K2_INSTALLATION_MESSAGE
 from nemo.core.utils.numba_utils import NUMBA_INSTALLATION_MESSAGE
+from nemo.core.utils import numba_utils
 from nemo.utils import logging, model_utils
 
 try:
@@ -98,7 +99,7 @@ RNNT_LOSS_RESOLVER = {
         min_version='0.53.0',
         is_available=NUMBA_RNNT_AVAILABLE,
         installation_msg=NUMBA_INSTALLATION_MESSAGE,
-        force_float32=True,
+        force_float32=not numba_utils.NUMBA_FP16_SUPPORTED,
     ),
     "pytorch": RNNTLossConfig(
         loss_name="pytorch",
@@ -387,7 +388,7 @@ class RNNTLoss(Loss):
                 for the standard "blank" symbol. In particular, say V is the number of non-blank tokens in
                 the vocabulary, then in the case of,
                 standard RNNT: num_classes = V
-                multiblank RNNT: num_classes = V + number-big-blanks (since we store big-blanks before 
+                multiblank RNNT: num_classes = V + number-big-blanks (since we store big-blanks before
                                  standard blank, and the standard blank is the last symbol in the vocab)
                 TDT: num_classes = V. Note, V here does not include any of the "duration outputs".
 
@@ -442,8 +443,11 @@ class RNNTLoss(Loss):
         max_targets_len = target_lengths.max()
 
         # Force cast joint to float32
-        # TODO: Remove once Numba supports FP16
-        if self._force_float32 and log_probs.dtype != torch.float32:
+        if not self._force_float32 and numba_utils.NUMBA_FP16_SUPPORTED:
+            # Execute the kernel in fp16
+            pass
+        elif self._force_float32 and log_probs.dtype != torch.float32:
+            # Upcast the activation tensor and compute loss and grads in fp32
             logits_orig = log_probs
             log_probs = log_probs.float()
             del logits_orig  # save memory *before* computing the loss
