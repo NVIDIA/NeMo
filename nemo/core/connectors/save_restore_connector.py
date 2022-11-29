@@ -74,6 +74,7 @@ class SaveRestoreConnector:
         strict: bool = True,
         return_config: bool = False,
         trainer: Trainer = None,
+        merge_into_model_config: OmegaConf = None,
     ):
         """
         Restores model instance (weights and configuration) into .nemo file
@@ -143,6 +144,9 @@ class SaveRestoreConnector:
                 if 'model' in conf:
                     conf = conf.model
 
+                if isinstance(merge_into_model_config, (OmegaConf, DictConfig)):
+                    conf = OmegaConf.merge(conf, merge_into_model_config)
+
                 if return_config:
                     instance = conf
                     return instance
@@ -206,6 +210,7 @@ class SaveRestoreConnector:
         strict: bool = True,
         return_config: bool = False,
         trainer: Trainer = None,
+        merge_into_model_config: OmegaConf = None,
     ):
         """
         Restores model instance (weights and configuration) into .nemo file
@@ -233,7 +238,14 @@ class SaveRestoreConnector:
         # Get path where the command is executed - the artifacts will be "retrieved" there
         # (original .nemo behavior)
         loaded_params = self.load_config_and_state_dict(
-            calling_cls, restore_path, override_config_path, map_location, strict, return_config, trainer,
+            calling_cls,
+            restore_path,
+            override_config_path,
+            map_location,
+            strict,
+            return_config,
+            trainer,
+            merge_into_model_config,
         )
         if not isinstance(loaded_params, tuple):
             return loaded_params

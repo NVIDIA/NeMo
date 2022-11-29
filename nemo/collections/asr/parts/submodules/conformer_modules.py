@@ -21,6 +21,7 @@ from nemo.collections.asr.parts.submodules.causal_convs import CausalConv1D
 from nemo.collections.asr.parts.submodules.multi_head_attention import (
     MultiHeadAttention,
     RelPositionMultiHeadAttention,
+    RelPositionMultiHeadAttentionLocal,
 )
 from nemo.collections.asr.parts.utils.activations import Swish
 from nemo.collections.common.parts.utils import activation_registry
@@ -89,6 +90,16 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
                 pos_bias_v=pos_bias_v,
                 max_cache_len=MHA_max_cache_len,
             )
+        elif self_attention_model == 'rel_pos_local_attn':
+            self.self_attn = RelPositionMultiHeadAttentionLocal(
+                n_head=n_heads,
+                n_feat=d_model,
+                dropout_rate=dropout_att,
+                pos_bias_u=pos_bias_u,
+                pos_bias_v=pos_bias_v,
+                max_cache_len=MHA_max_cache_len,
+                att_context_size=att_context_size,
+            )
         elif self_attention_model == 'abs_pos':
             self.self_attn = MultiHeadAttention(
                 n_head=n_heads, n_feat=d_model, dropout_rate=dropout_att, max_cache_len=MHA_max_cache_len
@@ -142,6 +153,16 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
                 key=x,
                 value=x,
                 mask=att_mask,
+                pos_emb=pos_emb,
+                cache=cache_last_channel,
+                cache_next=cache_last_channel_next,
+            )
+        elif self.self_attention_model == 'rel_pos_local_attn':
+            x = self.self_attn(
+                query=x,
+                key=x,
+                value=x,
+                mask=pad_mask,
                 pos_emb=pos_emb,
                 cache=cache_last_channel,
                 cache_next=cache_last_channel_next,

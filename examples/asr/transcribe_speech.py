@@ -15,7 +15,7 @@
 import contextlib
 import os
 from dataclasses import dataclass, is_dataclass
-from typing import Optional
+from typing import Any, Optional
 
 import pytorch_lightning as pl
 import torch
@@ -115,6 +115,8 @@ class TranscriptionConfig:
 
     # Decoding strategy for RNNT models
     rnnt_decoding: RNNTDecodingConfig = RNNTDecodingConfig(fused_batch_size=-1)
+
+    merge_into_model_config: Optional[Any] = None
 
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
