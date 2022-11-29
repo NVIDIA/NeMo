@@ -308,16 +308,15 @@ class MultiblankGPURNNT(GPURNNT):
         stream,
     ):
         """
-        Helper class to launch the CUDA Kernels to compute the Transducer Loss.
+        Helper class to launch the CUDA Kernels to compute Multi-blank Transducer Loss (https://arxiv.org/pdf/2211.03541).
 
         Args:
             sigma: Hyper-parameter related to the logit-normalization method in training multi-blank transducers.
-                Refer to https://arxiv.org/pdf/2211.03541 for detailed explanations.
             num_big_blanks: Number of big blank symbols the model has. This should not include the standard blank symbol.
             minibatch: Int representing the batch size.
             maxT: The maximum possible acoustic sequence length. Represents T in the logprobs tensor.
             maxU: The maximum possible target sequence length. Represents U in the logprobs tensor.
-            alphabet_size: The vocabulary dimension V+1 (inclusive of RNNT blank).
+            alphabet_size: The vocabulary dimension V + 1 + num-big-blanks
             workspace: An allocated chunk of memory that will be sliced off and reshaped into required
                 blocks used as working memory.
             big_blank_workspace: An allocated chunk of memory that will be sliced off and reshaped into required

@@ -251,7 +251,7 @@ def multiblank_rnnt_loss_gpu(
     sigma: float,
 ):
     """
-    Wrapper method for accessing GPU RNNT loss.
+    Wrapper method for accessing GPU Multi-blank RNNT loss (https://arxiv.org/pdf/2211.03541.pdf).
 
     CUDA implementation ported from [HawkAaron/warp-transducer](https://github.com/HawkAaron/warp-transducer).
 
@@ -262,10 +262,11 @@ def multiblank_rnnt_loss_gpu(
         label_lengths: Lengths of the target sequence as a vector of ints [B].
         costs: Zero vector of length [B] in which costs will be set.
         grads: Zero tensor of shape [B, T, U, V+1] where the gradient will be set.
-        blank_label: Index of the blank token in the vocabulary.
+        blank_label: Index of the standard blank token in the vocabulary.
         big_blank_durations: A list of supported durations for big blank symbols
             in the model, e.g. [2, 4, 8]. Note we only include durations for ``big
-            blanks'' here thus it does not include 1 for the standard blank.
+            blanks'' here and it should not include 1 for the standard blank.
+            Those big blanks have vocabulary indices after the standard blank index.
         fastemit_lambda: Float scaling factor for FastEmit regularization. Refer to
             FastEmit: Low-latency Streaming ASR with Sequence-level Emission Regularization.
         clamp: Float value. When set to value >= 0.0, will clamp the gradient to [-clamp, clamp].

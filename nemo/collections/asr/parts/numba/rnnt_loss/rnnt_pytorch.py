@@ -34,7 +34,7 @@ from torch.nn import Module
 from nemo.collections.asr.parts.numba.rnnt_loss import rnnt
 from nemo.collections.asr.parts.numba.rnnt_loss.utils.cpu_utils import cpu_rnnt
 
-__all__ = ['rnnt_loss', 'RNNTLossNumba']
+__all__ = ['rnnt_loss', 'RNNTLossNumba', 'MultiblankRNNTLossNumba']
 
 
 class _RNNTNumba(Function):
@@ -92,19 +92,21 @@ class _RNNTNumba(Function):
 
 
 class _MultiblankRNNTNumba(Function):
+    """
+    Numba class for multi-blank transducer loss (https://arxiv.org/pdf/2211.03541.pdf)
+    """
     @staticmethod
     def forward(
         ctx, acts, labels, act_lens, label_lens, blank, big_blank_durations, reduction, fastemit_lambda, clamp, sigma
     ):
         """
-        log_probs: Tensor of (batch x seqLength x labelLength x outputDim) containing output from network
-        labels: 2 dimensional Tensor containing all the targets of the batch with zero padded
-        act_lens: Tensor of size (batch) containing size of each output sequence from the network
-        label_lens: Tensor of (batch) containing label length of each example
-        fastemit_lambda: Float scaling factor for FastEmit regularization. Refer to
-            FastEmit: Low-latency Streaming ASR with Sequence-level Emission Regularization.
-        big_blank_durations, sigma: configurations for multi-blank transducer. Refer to
-            https://arxiv.org/pdf/2211.03541 for their explanation. 
+        big_blank_durations: list of durations for multi-blank transducer, e.g.
+            [2, 4, 8].
+        sigma: hyper-parameter for logit under-normalization method for training
+            multi-blank transducers. Recommended value 0.05.
+        Refer to https://arxiv.org/pdf/2211.03541 for detailed explanations for
+            the above parameters;
+        For other parameters for this class, refer to comment for class _RNNTNumba
         """
         is_cuda = acts.is_cuda
 
@@ -190,21 +192,26 @@ def multiblank_rnnt_loss(
     labels,
     act_lens,
     label_lens,
-    blank=0,
+    blank,
     big_blank_durations=[],
     reduction='mean',
     fastemit_lambda: float = 0.0,
     clamp: float = 0.0,
 ):
-    """RNN Transducer Loss (functional form)
+    """
+    Multi-blank RNN Transducer (https://arxiv.org/pdf/2211.03541.pdf) Loss (functional form)
     Args:
         acts: Tensor of (batch x seqLength x labelLength x outputDim) containing output from network
         labels: 2 dimensional Tensor containing all the targets of the batch with zero padded
         act_lens: Tensor of size (batch) containing size of each output sequence from the network
         label_lens: Tensor of (batch) containing label length of each example
-        blank (int, optional): blank label. Default: 0.
-        big_blank_durations, sigma: configurations for multi-blank transducer. Refer to
-            https://arxiv.org/pdf/2211.03541 for their explanation. 
+        blank (int, optional): standard blank label.
+        big_blank_durations: list of durations for multi-blank transducer, e.g.
+            [2, 4, 8].
+        sigma: hyper-parameter for logit under-normalization method for training
+            multi-blank transducers. Recommended value 0.05.
+        Refer to https://arxiv.org/pdf/2211.03541 for detailed explanations for
+            the last two params.
         reduction (string, optional): Specifies the reduction to apply to the output:
             'none' | 'mean' | 'sum'. 'none': no reduction will be applied,
             'mean': the output losses will be divided by the target lengths and
@@ -277,9 +284,13 @@ class RNNTLossNumba(Module):
 class MultiblankRNNTLossNumba(Module):
     """
     Parameters:
-        blank (int, optional): blank label. Default: 0.
-        big_blank_durations, sigma: configurations for multi-blank transducer. Refer to
-            https://arxiv.org/pdf/2211.03541 for their explanation. 
+        blank (int): standard blank label.
+        big_blank_durations: list of durations for multi-blank transducer, e.g.
+            [2, 4, 8].
+        sigma: hyper-parameter for logit under-normalization method for training
+            multi-blank transducers. Recommended value 0.05.
+        Refer to https://arxiv.org/pdf/2211.03541 for detailed explanations for
+            the above parameters;
         reduction (string, optional): Specifies the reduction to apply to the output:
             'none' | 'mean' | 'sum'. 'none': no reduction will be applied,
             'mean': the output losses will be divided by the target lengths and
@@ -291,7 +302,7 @@ class MultiblankRNNTLossNumba(Module):
 
     def __init__(
         self,
-        blank=0,
+        blank,
         big_blank_durations=[],
         reduction='mean',
         fastemit_lambda: float = 0.0,

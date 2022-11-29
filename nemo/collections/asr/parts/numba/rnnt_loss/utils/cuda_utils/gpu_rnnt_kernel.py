@@ -418,14 +418,13 @@ def compute_multiblank_alphas_kernel(
     num_big_blanks: int,
 ):
     """
-    Compute alpha (forward variable) probabilities over the transduction step.
+    Compute alpha (forward variable) probabilities for multi-blank transducuer loss (https://arxiv.org/pdf/2211.03541).
 
     Args:
-        acts: Tensor of shape [B, T, U, V+1] flattened. Represents the logprobs activation tensor.
+        acts: Tensor of shape [B, T, U, V + 1 + num_big_blanks] flattened. Represents the logprobs activation tensor.
         denom: Tensor of shape [B, T, U] flattened. Represents the denominator of the logprobs activation tensor
             across entire vocabulary.
         sigma: Hyper-parameter for logit-undernormalization technique for training multi-blank transducers.
-            Refer to https://arxiv.org/pdf/2211.03541 for explanation.
         alphas: Zero tensor of shape [B, T, U]. Will be updated inside the kernel with the forward variable
             probabilities.
         llForward: Zero tensor of shape [B]. Represents the log-likelihood of the forward pass.
@@ -440,7 +439,7 @@ def compute_multiblank_alphas_kernel(
         maxT: The maximum possible acoustic sequence length. Represents T in the logprobs tensor.
         maxU: The maximum possible target sequence length. Represents U in the logprobs tensor.
         alphabet_size: The vocabulary dimension V+1 (inclusive of RNNT blank).
-        blank_: Index of the RNNT blank token in the vocabulary.
+        blank_: Index of the RNNT standard blank token in the vocabulary.
         big_blank_durations: Vector of supported big blank durations of the model.
         num_big_blanks: Number of big blanks of the model.
 
@@ -457,8 +456,6 @@ def compute_multiblank_alphas_kernel(
 
     labels: torch.Tensor = mlabels[b]  # mb label start point, equivalent to mlabels + b * (maxU - 1)
     offset = b * maxT * maxU  # pointer indexing offset
-
-    # alphas += offset # pointer offset, ignored since we explicitly add offset
 
     # Initilize alpha[b, t=0, u=0] for all b in B
     if u == 0:
@@ -481,6 +478,7 @@ def compute_multiblank_alphas_kernel(
                     - sigma
                 )
 
+                # Now add the weights for big blanks.
                 for i in range(num_big_blanks):
                     if t >= big_blank_duration[i]:
                         alphas[offset + t * maxU + u] = rnnt_helper.log_sum_exp(
@@ -516,6 +514,7 @@ def compute_multiblank_alphas_kernel(
 
                 alphas[offset + t * maxU + u] = rnnt_helper.log_sum_exp(emit, no_emit)
 
+                # Now add the weights for big blanks.
                 for i in range(num_big_blanks):
                     if t >= big_blank_duration[i]:
                         big_blank_no_emit = (
@@ -541,6 +540,7 @@ def compute_multiblank_alphas_kernel(
             - sigma
         )
 
+        # Now add the weights for big blanks for the final weight computation.
         for i in range(num_big_blanks):
             if T >= big_blank_duration[i]:
                 big_blank_loglike = (
@@ -572,14 +572,13 @@ def compute_multiblank_betas_kernel(
     num_big_blanks: int,
 ):
     """
-    Compute beta (backward variable) probabilities over the transduction step.
+    Compute beta (backward variable) probabilities for multi-blank transducer loss (https://arxiv.org/pdf/2211.03541).
 
     Args:
-        acts: Tensor of shape [B, T, U, V+1] flattened. Represents the logprobs activation tensor.
+        acts: Tensor of shape [B, T, U, V + 1 + num-big-blanks] flattened. Represents the logprobs activation tensor.
         denom: Tensor of shape [B, T, U] flattened. Represents the denominator of the logprobs activation tensor
             across entire vocabulary.
         sigma: Hyper-parameter for logit-undernormalization technique for training multi-blank transducers.
-            Refer to https://arxiv.org/pdf/2211.03541 for explanation.
         betas: Zero tensor of shape [B, T, U]. Will be updated inside the kernel with the backward variable
             probabilities.
         llBackward: Zero tensor of shape [B]. Represents the log-likelihood of the backward pass.
@@ -594,7 +593,7 @@ def compute_multiblank_betas_kernel(
         maxT: The maximum possible acoustic sequence length. Represents T in the logprobs tensor.
         maxU: The maximum possible target sequence length. Represents U in the logprobs tensor.
         alphabet_size: The vocabulary dimension V+1 (inclusive of RNNT blank).
-        blank_: Index of the RNNT blank token in the vocabulary. Generally the first or last token in the vocab.
+        blank_: Index of the RNNT standard blank token in the vocabulary.
         big_blank_durations: Vector of supported big blank durations of the model.
         num_big_blanks: Number of big blanks of the model.
 
@@ -611,8 +610,6 @@ def compute_multiblank_betas_kernel(
 
     labels: torch.Tensor = mlabels[b]  # mb label start point, equivalent to mlabels + b * (maxU - 1)
     offset = b * maxT * maxU  # pointer indexing offset
-
-    # betas += offset # pointer offset, ignored since we explicitly add offset
 
     # Initilize beta[b, t=T-1, u=U-1] for all b in B with log_probs[b, t=T-1, u=U-1, blank]
     if u == 0:
@@ -643,6 +640,7 @@ def compute_multiblank_betas_kernel(
                     - sigma
                 )
 
+                # now add the weights from big blanks
                 for i in range(num_big_blanks):
                     if t + big_blank_duration[i] < T:
                         betas[offset + t * maxU + U - 1] = rnnt_helper.log_sum_exp(
@@ -679,6 +677,7 @@ def compute_multiblank_betas_kernel(
                 )
                 betas[offset + t * maxU + u] = rnnt_helper.log_sum_exp(emit, no_emit)
 
+                # now add the weights from big blanks
                 for i in range(num_big_blanks):
                     if t < T - big_blank_duration[i]:
                         big_blank_no_emit = (
@@ -722,16 +721,15 @@ def compute_multiblank_grad_kernel(
     clamp: float,
 ):
     """
-    Compute gradients over the transduction step.
+    Compute gradients for multi-blank transducer loss (https://arxiv.org/pdf/2211.03541).
 
     Args:
-        grads: Zero Tensor of shape [B, T, U, V+1]. Is updated by this kernel to contain the gradients
+        grads: Zero Tensor of shape [B, T, U, V + 1 + num_big_blanks]. Is updated by this kernel to contain the gradients
             of this batch of samples.
-        acts: Tensor of shape [B, T, U, V+1] flattened. Represents the logprobs activation tensor.
+        acts: Tensor of shape [B, T, U, V + 1 + num_big_blanks] flattened. Represents the logprobs activation tensor.
         denom: Tensor of shape [B, T, U] flattened. Represents the denominator of the logprobs activation tensor
             across entire vocabulary.
         sigma: Hyper-parameter for logit-undernormalization technique for training multi-blank transducers.
-            Refer to https://arxiv.org/pdf/2211.03541 for explanation.
         alphas: Alpha variable, contains forward probabilities. A tensor of shape [B, T, U].
         betas: Beta varoable, contains backward probabilities. A tensor of shape [B, T, U].
         logll: Log-likelihood of the forward variable, represented as a vector of shape [B].
