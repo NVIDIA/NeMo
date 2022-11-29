@@ -10,9 +10,9 @@ trainer:
   enable_checkpointing: False
   replace_sampler_ddp: False
   max_epochs: -1 # PTL default. In practice we don't usually train for more than 1 epoch.
-  max_steps: 100000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+  max_steps: 100 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10
-  val_check_interval: 100
+  val_check_interval: 20
   limit_val_batches: 50
   limit_test_batches: 500
   accumulate_grad_batches: 1
@@ -43,7 +43,7 @@ model:
   # model parallelism 
   micro_batch_size: 4
   global_batch_size: 8
-  tensor_model_parallel_size: 1
+  tensor_model_parallel_size: 2
   pipeline_model_parallel_size: 1
 
   # model architecture
@@ -114,7 +114,7 @@ model:
   # stage 0 and stage 2 to checkpoint 6 layers less stage 0, and so on. This is possible because later pipeline stage
   # uses less GPU memory with fewer outstanding micro-batch backpropagations. Used with 'num_micro_batches_with_partial_activation_checkpoints',
   # this feature removes most of activation checkpoints at the last pipeline stage, which is the critical execution path.
-  sequence_parallel: False
+  sequence_parallel: True
   
   data:
     # Path to data must be specified by the user.
@@ -125,7 +125,7 @@ model:
     #   - /raid/data/pile/my-gpt3_00_text_document
     #   - .5
     #   - /raid/data/pile/my-gpt3_01_text_document
-    data_prefix: ???
+    data_prefix: [/home/shanmugamr/data/roBerta/bc_rn_owt_sto_wiki_dedup_shuf_cleaned_0.7_mmap]
     index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
     data_impl: mmap
     splits_string: 900,50,50

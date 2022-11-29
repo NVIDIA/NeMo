@@ -244,20 +244,8 @@ class BertModel(MegatronModule):
             self.binary_head = None
             if self.add_binary_head:
                 """
-                should we do something like this here for sequence parallel
-                if self.sequence_parallel:
-                    hidden_states = tensor_parallel.gather_from_sequence_parallel_region()
-                    pooled = hidden_states[sequence_index, :, :]
-                    self.binary_head =  get_linear_layer(pooled)
-                else:
-                    self.binary_head = get_linear_layer(hidden_size, 2, init_method)
+                Should we do something here when sequence parallel is enabled ? 
                 """
-                # if self.sequence_parallel:
-                #    sequence_index = 0
-                #    hidden_states = tensor_parallel.gather_from_sequence_parallel_region()
-                #    pooled = hidden_states[sequence_index, :, :]
-                #    self.binary_head =  get_linear_layer(pooled)
-                # else:
                 self.binary_head = get_linear_layer(hidden_size, 2, init_method)
                 self._binary_head_key = 'binary_head'
 
