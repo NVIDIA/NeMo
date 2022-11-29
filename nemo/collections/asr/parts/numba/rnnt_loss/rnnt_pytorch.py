@@ -95,6 +95,7 @@ class _MultiblankRNNTNumba(Function):
     """
     Numba class for multi-blank transducer loss (https://arxiv.org/pdf/2211.03541.pdf)
     """
+
     @staticmethod
     def forward(
         ctx, acts, labels, act_lens, label_lens, blank, big_blank_durations, reduction, fastemit_lambda, clamp, sigma
