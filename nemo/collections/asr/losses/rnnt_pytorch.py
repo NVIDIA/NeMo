@@ -13,17 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import operator
-from dataclasses import dataclass
-from typing import List, Optional
-
 import torch
-from omegaconf import DictConfig, OmegaConf
 
-from nemo.core.classes import Loss, typecheck
+from nemo.core.classes import Loss
 from nemo.core.neural_types import LabelsType, LengthsType, LogprobsType, LossType, NeuralType
-from nemo.core.utils.numba_utils import NUMBA_INSTALLATION_MESSAGE
-from nemo.utils import logging, model_utils
 
 
 class RNNTLossPytorch(Loss):
