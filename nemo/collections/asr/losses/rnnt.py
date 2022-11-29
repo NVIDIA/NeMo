@@ -34,6 +34,7 @@ from typing import List, Optional
 import torch
 from omegaconf import DictConfig, OmegaConf
 
+from nemo.collections.asr.losses.rnnt_pytorch import RNNTLossPytorch
 from nemo.core.classes import Loss, typecheck
 from nemo.core.neural_types import LabelsType, LengthsType, LogprobsType, LossType, NeuralType
 from nemo.core.utils.numba_utils import NUMBA_INSTALLATION_MESSAGE
@@ -100,6 +101,12 @@ RNNT_LOSS_RESOLVER = {
         min_version='0.0',
         is_available=True,
         installation_msg="it just works but slow",
+    "pytorch": RNNTLossConfig(
+        loss_name="pytorch",
+        lib_name="torch",
+        min_version='0.0',
+        is_available=True,
+        installation_msg="Pure Pytorch implementation of RNN-T loss. Slow and for debugging purposes only.",
     ),
 }
 
@@ -180,7 +187,8 @@ def resolve_rnnt_loss(loss_name: str, blank_idx: int, big_blank_idx_list: list, 
         _warn_unused_additional_kwargs(loss_name, loss_kwargs)
 
     elif loss_name == 'pytorch':
-        loss_func = RNNTLossPytorch(blank=blank_idx, big_blank_list=big_blank_idx_list, blank_duration_list=blank_duration_list, reduction='none')
+        loss_func = RNNTLossPytorch(blank=blank_idx, reduction='none')
+        _warn_unused_additional_kwargs(loss_name, loss_kwargs)
 
     elif loss_name == 'multiblank_rnnt':
         fastemit_lambda = loss_kwargs.pop('fastemit_lambda', 0.0)
