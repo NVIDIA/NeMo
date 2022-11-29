@@ -1,0 +1,43 @@
+asr_eval:
+    random_seed: 42
+    cuda: null
+    
+    model_path: null  
+    pretrained_name: "stt_en_citrinet_1024_gamma_0_25" #??? # a list of models to run evaluation
+
+    inference_mode: 
+        mode: offline # either offline or chunked
+        chunk_len_in_secs: null # Need to specify if use buffered inference (default for conformer-offline is 20)
+        total_buffer_in_secs: 4 #null # Need to specify if use buffered inference (default for conformer-offline is 22)
+        model_stride: 8 #null 
+    
+    test_ds:
+        manifest_filepath: "/home/fjia/data/chris.json" #"/home/fjia/code/5_syn/english_test_single-sample.json"
+        sample_rate: 16000
+        batch_size: 32
+        shuffle: False
+        num_workers: 8
+        pin_memory: true
+        test_loss_idx: 0
+        
+#         augmentor:
+#           silence:
+#             prob: 1.0
+#             min_start_silence_secs: 0
+#             max_start_silence_secs: 5
+#             min_end_silence_secs: 0
+#             max_end_silence_secs: 5
+#           shift:
+#             prob: 1.0
+#             min_shift_ms: -5.0
+#             max_shift_ms: 5.0
+#           white_noise:
+#             prob: 1.0
+#             min_level: -90
+#             max_level: -46
+            
+    neural_vad_options: 
+        vad_model: null
+       
+       
+#     output_filename: "offline_out.json"
