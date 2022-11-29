@@ -50,6 +50,7 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         n_heads=4,
         conv_kernel_size=31,
         conv_norm_type='batch_norm',
+        conv_activation='glu_',
         conv_context_size=None,
         dropout=0.1,
         dropout_att=0.1,
@@ -74,6 +75,7 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
             kernel_size=conv_kernel_size,
             norm_type=conv_norm_type,
             conv_context_size=conv_context_size,
+            pointwise_activation = conv_activation,
         )
 
         # multi-headed self-attention module
