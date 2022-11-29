@@ -15,7 +15,7 @@
 
 import torch
 
-from nemo.core.classes import Loss, typecheck
+from nemo.core.classes import Loss
 from nemo.core.neural_types import LabelsType, LengthsType, LogprobsType, LossType, NeuralType
 
 
@@ -142,11 +142,21 @@ class MultiblankRNNTLossPytorch(Loss):
         self.reduction = reduction
         self.sigma = sigma
 
-    @typecheck()
     def forward(self, acts, labels, act_lens, label_lens):
         acts = torch.log_softmax(acts, -1) - self.sigma
         forward_logprob = self.compute_forward_prob(acts, labels, act_lens, label_lens)
-        return -forward_logprob
+
+        losses = -forward_logprob
+        if self.reduction == 'mean_batch':
+            losses = losses.mean()  # global batch size average
+        elif self.reduction == 'mean':
+            losses = torch.div(losses, label_lens).mean()
+        elif self.reduction == 'sum':
+            losses = losses.sum()
+        elif self.reduction == 'mean_volume':
+            losses = losses.sum() / label_lens.sum()  # same as above but longer samples weigh more
+
+        return losses
 
     def compute_forward_prob(self, acts, labels, act_lens, label_lens):
         B, T, U, _ = acts.shape
