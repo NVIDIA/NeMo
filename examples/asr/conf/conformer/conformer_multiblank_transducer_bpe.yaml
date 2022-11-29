@@ -169,6 +169,7 @@ model:
 
   decoding:
     strategy: "greedy_batch" # can be greedy, greedy_batch, beam, tsd, alsd.
+    big_blank_durations: [2, 4, 8]
 
     # greedy strategy config
     greedy:
