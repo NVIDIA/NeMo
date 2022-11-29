@@ -31,6 +31,7 @@ import math
 from typing import Optional, Tuple
 
 import torch
+import numba
 from numba import cuda
 
 from nemo.collections.asr.parts.numba.rnnt_loss.utils import global_constants
@@ -112,7 +113,7 @@ def compute_costs_data(source: torch.Tensor, dest: torch.Tensor, fastemit_lambda
     if idx < length:
         copy_data_1d(source, dest, idx)
         dest[idx] *= -1.0
-        dest[idx] *= 1.0 + fastemit_lambda
+        dest[idx] *= numba.float32(1.0 + fastemit_lambda)
 
 
 def get_workspace_size(
