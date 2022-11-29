@@ -116,6 +116,7 @@ class TranscriptionConfig:
     # Decoding strategy for RNNT models
     rnnt_decoding: RNNTDecodingConfig = RNNTDecodingConfig(fused_batch_size=-1)
 
+    # This will be merged with the model config, overriding existing parameters.
     merge_into_model_config: Optional[Any] = None
 
 

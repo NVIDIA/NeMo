@@ -268,6 +268,7 @@ class RelPositionMultiHeadAttentionLocal(RelPositionMultiHeadAttention):
         dropout_rate (float): dropout rate
         pos_bias_u (Tensor): the positional bias matrix U
         pos_bias_v (Tensor): the positional bias matrix V
+        att_context_size (
         max_cache_len (int): the maximum size of cache
     """
 
@@ -331,7 +332,6 @@ class RelPositionMultiHeadAttentionLocal(RelPositionMultiHeadAttention):
             mask = self._get_invalid_locations_mask_fixed_dilation(affected_seq_len, w, d)
             mask = mask[None, None, :, :]
         else:
-            # TODO not verified
             affected_seq_len = w * d.max()
             head_masks = []
             d_list = d.cpu().numpy().tolist()
@@ -491,7 +491,6 @@ class RelPositionMultiHeadAttentionLocal(RelPositionMultiHeadAttention):
             float_mask = mask.type_as(scores).masked_fill(mask, -10000.0)
             ones = float_mask.new_ones(size=float_mask.size())  # tensor of ones
             # diagonal mask with zeros everywhere and -inf inplace of padding
-            # TODO what pad value to use?
             d_mask = self.sliding_chunks_matmul_qk(ones, float_mask, w, padding_value=0.0)
 
             scores += d_mask

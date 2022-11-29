@@ -75,12 +75,17 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             Defaults to 4.
         self_attention_model (str): type of the attention layer and positional encoding
             'rel_pos': relative positional embedding and Transformer-XL
+            'rel_pos_local_attn': relative positional embedding and Transformer-XL with local attention using
+                overlapping windows. Attention context is determined by att_context_size parameter.
             'abs_pos': absolute positional embedding and Transformer
-            default is rel_pos.
+            Default is rel_pos.
         pos_emb_max_len (int): the maximum length of positional embeddings
-            Defaulst to 5000
+            Defaults to 5000
         n_heads (int): number of heads in multi-headed attention layers
             Defaults to 4.
+        att_context_size (List[int]): List of 2 ints corresponding to left and right attention context sizes,
+            or None for full context.
+            Defaults to None.
         xscaling (bool): enables scaling the inputs to the multi-headed attention layers by sqrt(d_model)
             Defaults to True.
         untie_biases (bool): whether to not share (untie) the bias weights between layers of Transformer-XL
