@@ -291,7 +291,8 @@ class TestRNNTLossPytorch:
         ag_costs, ag_grads = wrap_and_call(fn_ag, activations, labels, device)
 
         assert np.allclose(pt_costs, sum(expected_costs), atol=cost_threshold), "big_test average costs mismatch."
-        assert np.allclose(pt_grads, expected_grads, atol=grad_threshold, rtol=1e-3), "big_test grads for average cost mismatch."
+        assert np.allclose(pt_grads, expected_grads, atol=grad_threshold,
+                           rtol=1e-3), "big_test grads for average cost mismatch."
 
         assert np.allclose(pt_costs, np_costs), "big_test average costs mismatch."
         assert np.allclose(pt_grads, np_grads, rtol=1e-3), "big_test grads for average cost mismatch."
