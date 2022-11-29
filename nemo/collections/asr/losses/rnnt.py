@@ -90,7 +90,7 @@ RNNT_LOSS_RESOLVER = {
     ),
     "pytorch": RNNTLossConfig(
         loss_name="pytorch",
-        lib_name="pytorch",
+        lib_name="torch",
         min_version='0.0',
         is_available=True,
         installation_msg="This is a slow implementation of RNN-T using pytorch only for debugging purposes",
