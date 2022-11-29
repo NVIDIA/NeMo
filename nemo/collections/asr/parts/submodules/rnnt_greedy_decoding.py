@@ -1516,7 +1516,6 @@ class GreedyMultiblankRNNTInfer(_GreedyRNNTInfer):
             decoder_model=decoder_model,
             joint_model=joint_model,
             blank_index=blank_index,
-            big_blank_durations=big_blank_durations,
             max_symbols_per_step=max_symbols_per_step,
             preserve_alignments=preserve_alignments,
             preserve_frame_confidence=preserve_frame_confidence,
@@ -1602,8 +1601,7 @@ class GreedyMultiblankRNNTInfer(_GreedyRNNTInfer):
         blank_optimization = True
         big_blank_duration = 1
 
-        big_blank_durations = [int(i) for i in duration.split(",")]
-        big_blank_indices = [self._blank_index + 1 + i for i in range(len(big_blank_durations))]
+        big_blank_indices = [self._blank_index + 1 + i for i in range(len(self.big_blank_durations))]
 
         for time_idx in range(out_len):
             if blank_optimization and big_blank_duration > 1:
@@ -1862,8 +1860,7 @@ class GreedyBatchedMultiblankRNNTInfer(_GreedyRNNTInfer):
             # Get max sequence length
             max_out_len = out_len.max()
 
-            big_blank_durations = [int(i) for i in duration.split(",")]
-            big_blank_indices = [self._blank_index + 1 + i for i in range(len(big_blank_durations))]
+            big_blank_indices = [self._blank_index + 1 + i for i in range(len(self.big_blank_durations))]
 
             big_blank_masks = [torch.full([batchsize], fill_value=0, dtype=torch.bool, device=device)] * len(
                 big_blank_indices
