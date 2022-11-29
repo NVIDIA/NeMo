@@ -140,15 +140,19 @@ def get_ssl_features_disentangled(
     ssl_downsampling_factor = ssl_model._cfg.encoder.subsampling_factor
 
     if emb_type == "probs":
+        # content embedding is only character probabilities
         final_content_embedding = content_probs
 
     elif emb_type == "embedding":
+        # content embedding is only output of content head of SSL backbone
         final_content_embedding = content_embedding
 
     elif emb_type == "log_probs":
+        # content embedding is only log of character probabilities
         final_content_embedding = content_log_probs
 
     elif emb_type == "embedding_and_probs":
+        # content embedding is the concatenation of character probabilities and output of content head of SSL backbone
         final_content_embedding = torch.cat([content_embedding, content_probs], dim=0)
 
     else:
@@ -158,6 +162,10 @@ def get_ssl_features_disentangled(
 
     duration = torch.ones(final_content_embedding.shape[1]) * ssl_downsampling_factor
     if use_unique_tokens:
+        # group content embeddings with same predicted token (by averaging) and add the durations of the grouped embeddings
+        # Eg. By default each content embedding corresponds to 4 frames of spectrogram (ssl_downsampling_factor)
+        # If we group 3 content embeddings, the duration of the grouped embedding will be 12 frames.
+        # This is useful for adapting the duration during inference based on the speaker.
         token_predictions = torch.argmax(content_probs, dim=0)
         content_buffer = [final_content_embedding[:, 0]]
         unique_content_embeddings = []
