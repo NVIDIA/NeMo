@@ -82,7 +82,20 @@ class _RNNTNumba(Function):
 
         ctx.grads = grads
 
-class _RNNTNumba(Function):
+        return costs
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        if grad_output is not None and ctx.grads is not None:
+            grad_output = grad_output.view(-1, 1, 1, 1).to(ctx.grads)
+            return ctx.grads.mul_(grad_output), None, None, None, None, None, None, None
+
+
+class _MultiblankRNNTNumba(Function):
+    """
+    Numba class for multi-blank transducer loss (https://arxiv.org/pdf/2211.03541.pdf)
+    """
+
     @staticmethod
     def forward(
         ctx, acts, labels, act_lens, label_lens, blank, big_blank_durations, reduction, fastemit_lambda, clamp, sigma

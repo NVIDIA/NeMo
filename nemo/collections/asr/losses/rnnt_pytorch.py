@@ -116,6 +116,7 @@ class MultiblankRNNTLossPytorch(Loss):
     """
     Pure Python implementation of multi-blank transducer loss (https://arxiv.org/pdf/2211.03541.pdf)
     """
+
     @property
     def input_types(self):
         """Input types definitions for CTCLoss.
