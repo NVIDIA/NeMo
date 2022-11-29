@@ -734,6 +734,8 @@ class MegatronGPTUniversalPromptLearningModel(MegatronBaseModel, TextGeneration)
         averaged_metric = []
         metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
         # Log metrics for each provided validation/test dataset.
+        if isinstance(outputs[0], dict):
+            outputs = [outputs]
         for dataloader_idx, output in enumerate(outputs):
             if parallel_state.is_pipeline_last_stage():
                 # only the last pipeline parallel stages return loss
