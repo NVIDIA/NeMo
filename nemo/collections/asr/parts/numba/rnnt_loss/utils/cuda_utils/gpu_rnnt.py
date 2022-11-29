@@ -301,7 +301,6 @@ class MultiblankGPURNNT(GPURNNT):
         alphabet_size: int,
         workspace,
         big_blank_workspace,
-        num_big_blanks: int,
         blank: int,
         fastemit_lambda: float,
         clamp: float,
@@ -309,16 +308,15 @@ class MultiblankGPURNNT(GPURNNT):
         stream,
     ):
         """
-        Helper class to launch the CUDA Kernels to compute the Transducer Loss.
+        Helper class to launch the CUDA Kernels to compute Multi-blank Transducer Loss (https://arxiv.org/pdf/2211.03541).
 
         Args:
             sigma: Hyper-parameter related to the logit-normalization method in training multi-blank transducers.
-                Refer to https://arxiv.org/pdf/2211.03541 for detailed explanations.
             num_big_blanks: Number of big blank symbols the model has. This should not include the standard blank symbol.
             minibatch: Int representing the batch size.
             maxT: The maximum possible acoustic sequence length. Represents T in the logprobs tensor.
             maxU: The maximum possible target sequence length. Represents U in the logprobs tensor.
-            alphabet_size: The vocabulary dimension V+1 (inclusive of RNNT blank).
+            alphabet_size: The vocabulary dimension V + 1 + num-big-blanks
             workspace: An allocated chunk of memory that will be sliced off and reshaped into required
                 blocks used as working memory.
             big_blank_workspace: An allocated chunk of memory that will be sliced off and reshaped into required
@@ -349,6 +347,8 @@ class MultiblankGPURNNT(GPURNNT):
         self.clamp_ = abs(clamp)
         self.num_threads_ = num_threads
         self.stream_ = stream  # type: cuda.cudadrv.driver.Stream
+
+        self.sigma = sigma
 
         if num_threads > 0:
             numba.set_num_threads(min(multiprocessing.cpu_count(), num_threads))
@@ -395,9 +395,10 @@ class MultiblankGPURNNT(GPURNNT):
         self.log_softmax(acts, denom)
 
         # Compute alphas
-        gpu_rnnt_kernel.compute_alphas_kernel[self.minibatch_, self.maxU_, self.stream_, 0](
+        gpu_rnnt_kernel.compute_multiblank_alphas_kernel[self.minibatch_, self.maxU_, self.stream_, 0](
             acts,
             denom,
+            self.sigma,
             alphas,
             llForward,
             input_lengths,
@@ -414,9 +415,10 @@ class MultiblankGPURNNT(GPURNNT):
 
         if training:
             # Compute betas
-            gpu_rnnt_kernel.compute_betas_kernel[self.minibatch_, self.maxU_, self.stream_, 0](
+            gpu_rnnt_kernel.compute_multiblank_betas_kernel[self.minibatch_, self.maxU_, self.stream_, 0](
                 acts,
                 denom,
+                self.sigma,
                 betas,
                 llBackward,
                 input_lengths,
@@ -440,6 +442,7 @@ class MultiblankGPURNNT(GPURNNT):
                 grads,
                 acts,
                 denom,
+                self.sigma,
                 alphas,
                 betas,
                 llForward,

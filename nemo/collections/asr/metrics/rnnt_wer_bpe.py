@@ -218,6 +218,22 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
             hypothesis.words, hypothesis.token_confidence, hypothesis.y_sequence
         )
 
+    def _aggregate_token_confidence(self, hypothesis: Hypothesis) -> List[float]:
+        """
+        Implemented by subclass in order to reduce token confidence to a word-level confidence.
+
+        **Note**: Only supports Sentencepiece based tokenizers!
+
+        Args:
+            hypothesis: Hypothesis
+
+        Returns:
+            A list of word-level confidence scores.
+        """
+        return self._aggregate_token_confidence_subwords_sentencepiece(
+            hypothesis.words, hypothesis.token_confidence, hypothesis.y_sequence
+        )
+
     def decode_tokens_to_str(self, tokens: List[int]) -> str:
         """
         Implemented by subclass in order to decoder a token list into a string.

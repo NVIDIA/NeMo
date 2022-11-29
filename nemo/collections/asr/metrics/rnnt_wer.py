@@ -241,32 +241,58 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 pass
 
         if self.cfg.strategy == 'greedy':
-
-            self.decoding = greedy_decode.GreedyRNNTInfer(
-                decoder_model=decoder,
-                joint_model=joint,
-                blank_index=self.blank_id,
-                max_symbols_per_step=(
-                    self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
-                ),
-                preserve_alignments=self.preserve_alignments,
-                preserve_frame_confidence=self.preserve_frame_confidence,
-                confidence_method_cfg=self.confidence_method_cfg,
-            )
+            if self.big_blank_durations is not None:
+                self.decoding = greedy_decode.GreedyMultiblankRNNTInfer(
+                    decoder_model=decoder,
+                    joint_model=joint,
+                    blank_index=self.blank_id,
+                    big_blank_durations=self.big_blank_durations,
+                    max_symbols_per_step=(
+                        self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
+                    ),
+                    preserve_alignments=self.preserve_alignments,
+                    preserve_frame_confidence=self.preserve_frame_confidence,
+                    confidence_method_cfg=self.confidence_method_cfg,
+                )
+            else:
+                self.decoding = greedy_decode.GreedyRNNTInfer(
+                    decoder_model=decoder,
+                    joint_model=joint,
+                    blank_index=self.blank_id,
+                    max_symbols_per_step=(
+                        self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
+                    ),
+                    preserve_alignments=self.preserve_alignments,
+                    preserve_frame_confidence=self.preserve_frame_confidence,
+                    confidence_method_cfg=self.confidence_method_cfg,
+                )
 
         elif self.cfg.strategy == 'greedy_batch':
-
-            self.decoding = greedy_decode.GreedyBatchedRNNTInfer(
-                decoder_model=decoder,
-                joint_model=joint,
-                blank_index=self.blank_id,
-                max_symbols_per_step=(
-                    self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
-                ),
-                preserve_alignments=self.preserve_alignments,
-                preserve_frame_confidence=self.preserve_frame_confidence,
-                confidence_method_cfg=self.confidence_method_cfg,
-            )
+            if self.big_blank_durations is not None:
+                self.decoding = greedy_decode.GreedyBatchedMultiblankRNNTInfer(
+                    decoder_model=decoder,
+                    joint_model=joint,
+                    blank_index=self.blank_id,
+                    big_blank_durations=self.big_blank_durations,
+                    max_symbols_per_step=(
+                        self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
+                    ),
+                    preserve_alignments=self.preserve_alignments,
+                    preserve_frame_confidence=self.preserve_frame_confidence,
+                    confidence_method_cfg=self.confidence_method_cfg,
+                )
+            else:
+                self.decoding = greedy_decode.GreedyBatchedRNNTInfer(
+                    decoder_model=decoder,
+                    joint_model=joint,
+                    blank_index=self.blank_id,
+                    max_symbols_per_step=(
+                        self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
+                    ),
+                    preserve_alignments=self.preserve_alignments,
+                    preserve_frame_confidence=self.preserve_frame_confidence,
+                    confidence_method_cfg=self.confidence_method_cfg,
+                )
 
         elif self.cfg.strategy == 'beam':
 

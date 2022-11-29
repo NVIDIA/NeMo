@@ -48,7 +48,7 @@ except (ImportError, ModuleNotFoundError):
     WARP_RNNT_AVAILABLE = False
 
 try:
-    from nemo.collections.asr.parts.numba.rnnt_loss import RNNTLossNumba
+    from nemo.collections.asr.parts.numba.rnnt_loss import RNNTLossNumba, MultiblankRNNTLossNumba
 
     NUMBA_RNNT_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):
@@ -88,6 +88,13 @@ RNNT_LOSS_RESOLVER = {
         is_available=NUMBA_RNNT_AVAILABLE,
         installation_msg=NUMBA_INSTALLATION_MESSAGE,
     ),
+    "pytorch": RNNTLossConfig(
+        loss_name="pytorch",
+        lib_name="torch",
+        min_version='0.0',
+        is_available=True,
+        installation_msg="Pure Pytorch implementation of RNN-T loss. Slow and for debugging purposes only.",
+    ),
     "multiblank_rnnt": RNNTLossConfig(
         loss_name="multiblank_rnnt",
         lib_name="numba",
@@ -97,16 +104,10 @@ RNNT_LOSS_RESOLVER = {
     ),
     "multiblank_rnnt_pytorch": RNNTLossConfig(
         loss_name="pytorch",
-        lib_name="pytorch",
-        min_version='0.0',
-        is_available=True,
-        installation_msg="it just works but slow",
-    "pytorch": RNNTLossConfig(
-        loss_name="pytorch",
         lib_name="torch",
         min_version='0.0',
         is_available=True,
-        installation_msg="Pure Pytorch implementation of RNN-T loss. Slow and for debugging purposes only.",
+        installation_msg="Pure Pytorch implementation of Multiblank RNN-T loss. Slow and for debugging purposes only.",
     ),
 }
 
@@ -208,10 +209,10 @@ def resolve_rnnt_loss(loss_name: str, blank_idx: int, big_blank_idx_list: list, 
     elif loss_name == 'multiblank_rnnt_pytorch':
         big_blank_durations = loss_kwargs.pop('big_blank_durations', None)
         sigma = loss_kwargs.pop('sigma', 0.0)
-        big_blank_labels = [blank_idx + 1 + i for i in range(len(big_blank_durations))]
         loss_func = MultiblankRNNTLossPytorch(
             blank=blank_idx, big_blank_durations=big_blank_durations, reduction='none', sigma=sigma
         )
+        _warn_unused_additional_kwargs(loss_name, loss_kwargs)
 
     else:
         raise ValueError(
@@ -401,6 +402,23 @@ class RNNTLoss(Loss):
         self._blank = num_classes
         self.reduction = reduction
         self._loss = resolve_rnnt_loss(loss_name, blank_idx=self._blank, big_blank_idx_list=list(range(num_classes + 1, num_classes + len(blank_duration_list) + 1)), blank_duration_list=self._blank_duration_list, loss_kwargs=loss_kwargs, sigma=sigma)
+
+    def reduce(self, losses, target_lengths):
+
+        if isinstance(losses, List):
+            losses = torch.cat(losses, 0)
+            target_lengths = torch.cat(target_lengths, 0)
+
+        if self.reduction == 'mean_batch':
+            losses = losses.mean()  # global batch size average
+        elif self.reduction == 'mean':
+            losses = torch.div(losses, target_lengths).mean()
+        elif self.reduction == 'sum':
+            losses = losses.sum()
+        elif self.reduction == 'mean_volume':
+            losses = losses.sum() / target_lengths.sum()  # same as above but longer samples weigh more
+
+        return losses
 
     def reduce(self, losses, target_lengths):
 
