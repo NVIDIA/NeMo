@@ -12,8 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 import math
 
+import os
 import torch
 import torch.nn as nn
 from torch.nn import LayerNorm
@@ -21,6 +23,9 @@ from torch.nn import LayerNorm
 from nemo.collections.asr.parts.submodules.causal_convs import CausalConv2D
 from nemo.utils import avoid_bfloat16_autocast_context
 
+NORMS = os.getenv('SUBSAMPLING_NORMS')
+if NORMS:
+    print("NORMS activated!")
 
 class StackingSubsampling(torch.nn.Module):
     """Stacking subsampling which simply stacks consecutive frames to reduce the sampling rate
@@ -172,41 +177,39 @@ class ConvSubsampling(torch.nn.Module):
             in_channels = conv_channels
 
             # D.R. adding this.. 
-            # layers.append(nn.BatchNorm2d(conv_channels))
-            # layers.append(activation)
+            bias = False
+            if NORMS:
+                layers.append(nn.BatchNorm2d(conv_channels))
+                layers.append(activation)
+                bias = True
             # D.R. end
 
             for i in range(self._sampling_num - 1):
-                layers.extend(
-                    [
-                        torch.nn.Conv2d(
-                            in_channels=in_channels,
-                            out_channels=in_channels,
-                            kernel_size=self._kernel_size,
-                            stride=self._stride,
-                            padding=self._left_padding,
-                            groups=in_channels,
-                            # D.R adding bias
-                            # bias = True,
-                        ),
+                
+                layers.append(torch.nn.Conv2d(
+                    in_channels=in_channels,
+                    out_channels=in_channels,
+                    kernel_size=self._kernel_size,
+                    stride=self._stride,
+                    padding=self._left_padding,
+                    groups=in_channels,
+                    bias = bias))
 
-                        # D.R. adding this
-                        # nn.BatchNorm2d(in_channels),
-                        # activation,
+                # D.R. adding this
+                if NORMS:
+                    layers.append(nn.BatchNorm2d(in_channels))
+                    layers.append(activation)
                         # end of D.R.
 
-                        torch.nn.Conv2d(
-                            in_channels=in_channels,
-                            out_channels=conv_channels,
-                            kernel_size=1,
-                            stride=1,
-                            padding=0,
-                            groups=1,
-                            # D.R adding bias
-                            # bias = True,
-                        ),
-                    ]
-                )
+                layers.append(torch.nn.Conv2d(
+                    in_channels=in_channels,
+                    out_channels=conv_channels,
+                    kernel_size=1,
+                    stride=1,
+                    padding=0,
+                    groups=1,
+                    bias = bias))
+
                 layers.append(activation)
                 in_channels = conv_channels
 
