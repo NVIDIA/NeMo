@@ -279,11 +279,11 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
             )
 
             # Update config
-            with open_dict(self.cfg.ctc_decoder):
-                self.cfg.ctc_decoder = ctc_decoder_config
+            with open_dict(self.cfg.aux_ctc):
+                self.cfg.aux_ctc.decoder = ctc_decoder_config
 
-            with open_dict(self.cfg.ctc_decoding):
-                self.cfg.ctc_decoding = ctc_decoding_cfg
+            with open_dict(self.cfg.aux_ctc):
+                self.cfg.aux_ctc.decoding = ctc_decoding_cfg
 
             logging.info(f"Changed tokenizer of the CTC decoder to {self.ctc_decoder.vocabulary} vocabulary.")
 

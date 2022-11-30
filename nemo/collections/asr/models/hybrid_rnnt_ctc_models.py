@@ -227,7 +227,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin):
             if ctc_decoding_cfg is None:
                 # Assume same decoding config as before
                 logging.info("No `ctc_decoding_cfg` passed when changing decoding strategy, using internal config")
-                ctc_decoding_cfg = self.cfg.ctc_decoding
+                ctc_decoding_cfg = self.cfg.aux_ctc.decoding
 
             # Assert the decoding config with all hyper parameters
             ctc_decoding_cls = OmegaConf.structured(CTCDecodingConfig)
@@ -244,8 +244,8 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin):
             )
 
             # Update config
-            with open_dict(self.cfg.ctc_decoding):
-                self.cfg.ctc_aux.decoding = ctc_decoding_cfg
+            with open_dict(self.cfg.aux_ctc):
+                self.cfg.aux_ctc.decoding = ctc_decoding_cfg
 
             logging.info(f"Changed the tokenizer of the CTC decoder to {self.ctc_decoder.vocabulary} vocabulary.")
 

@@ -16,6 +16,7 @@ import copy
 import pytest
 import torch
 from omegaconf import DictConfig, ListConfig
+from nemo.collections.asr.metrics.wer import CTCDecodingConfig
 
 from nemo.collections.asr.models import EncDecHybridRNNTCTCModel
 from nemo.collections.asr.modules import RNNTDecoder, RNNTJoint, SampledRNNTJoint, StatelessTransducerDecoder
@@ -91,7 +92,8 @@ def asr_model():
             'feat_in': 1024,
             'num_classes': len(labels),
             'vocabulary': labels,
-        }
+        },
+        'decoding': DictConfig(CTCDecodingConfig)
     }
 
     modelConfig = DictConfig(
