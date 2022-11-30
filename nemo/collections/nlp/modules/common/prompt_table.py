@@ -65,7 +65,7 @@ class PromptTable(NeuralModule, Exportable):
                 self.prompt_table[taskname] = PromptEmbedding(
                     init_from_prompt_text=False,
                     hidden_size=self.hidden_size,
-                    total_virtual_tokens=total_virtual_tokens,
+                    total_virtual_tokens=x,
                 )
 
         # Make sure tasknames and task id nums line up correctly in prompt table
@@ -180,7 +180,7 @@ class PromptEmbedding(NeuralModule, Exportable):
 
         # Set embedding weights to be embeddings from prompt tokens
         if init_from_prompt_text:
-            self.prompt_embeddings.weight = nn.Parameter(word_embedding_weights)
+           self.prompt_embeddings.weight = torch.nn.parameter.Parameter(word_embedding_weights.clone().detach().float())
 
         # Set fixed indicies for forward pass
         self.register_buffer('indices', torch.LongTensor(list(range(self.total_virtual_tokens))))

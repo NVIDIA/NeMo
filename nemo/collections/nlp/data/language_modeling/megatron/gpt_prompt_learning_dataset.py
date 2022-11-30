@@ -18,6 +18,7 @@ import pickle
 
 import torch
 from tqdm.auto import tqdm
+from collections import Counter
 
 from nemo.collections.nlp.modules.common import VirtualPromptSource
 from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
@@ -120,6 +121,7 @@ class GPTPromptLearningDataset(Dataset):
             dataset: A list of json objects or a dictionary objects each
                      containing the information needed for a training example
         """
+        counter = Counter()
         skipped = 0
 
         for json_line in tqdm(dataset):
@@ -185,10 +187,12 @@ class GPTPromptLearningDataset(Dataset):
                 if answer_only_loss and self.for_train:
                     answer_start_idx = self._find_answer_start(taskname, input_ids, answer_field, doc)
 
+                counter.update(input_ids)
                 self.examples.append((taskname_id, input_ids, answer_start_idx))
             else:
                 skipped += 1
 
+        self.top_tokens = [k for (_, k) in sorted((-value,key) for (key,value) in counter.items())]
         logging.info(f'Skipped {skipped} sentences, sequence length too short or too long even after truncation')
 
     def _input_sanity_checks(

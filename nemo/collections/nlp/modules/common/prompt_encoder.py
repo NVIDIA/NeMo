@@ -17,6 +17,7 @@ from typing import Dict, Optional
 
 import torch
 from torch import nn
+from typing import List
 
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, init_method_normal
@@ -50,6 +51,10 @@ class PromptEncoderType(enum.Enum):
     TPMLP = 'tpmlp'  # mlp model that support tensor parallel, better work together with a large language model
     MLP = 'mlp'
     LSTM = 'lstm'
+    SIMPLE_LSTM = 'simple_lstm'
+    SIMPLE_MLP = 'simple_mlp'
+    BOTTLENECK_MLP = 'bottleneck_mlp'
+    EYE_MLP = 'eye_mlp'
     LINEAR_COMBINATION = 'linear_combination'
     LINEAR_COMBINATION_BASELINE = 'linear_combination_baseline'
 
@@ -230,6 +235,7 @@ class PromptEncoder(NeuralModule, Exportable):
         hidden_size,
         lstm_dropout: float,
         num_layers: int,
+        cs_scale: float,
     ):
         """
         Initializes the PromptEncoder module.
@@ -246,6 +252,9 @@ class PromptEncoder(NeuralModule, Exportable):
         self.hidden_size = hidden_size
         self.total_virtual_tokens = total_virtual_tokens
         self.encoder_type = encoder_type
+        self.l1_scale = 0.0
+        self.l2_scale = 0.0
+        self.cs_scale = cs_scale
 
         # Set fixed indicies for forward pass
         self.register_buffer('indices', torch.LongTensor(list(range(self.total_virtual_tokens))))
@@ -270,6 +279,33 @@ class PromptEncoder(NeuralModule, Exportable):
                 nn.Linear(self.hidden_size * 2, self.output_size),
             )
 
+        elif self.encoder_type == PromptEncoderType.SIMPLE_LSTM:
+            # LSTM
+            assert self.hidden_size % 2 == 0
+            self.lstm_head = torch.nn.LSTM(
+                input_size=self.input_size,
+                hidden_size=self.hidden_size // 2,
+                num_layers=num_layers,
+                dropout=lstm_dropout,
+                bidirectional=True,
+                batch_first=True,
+            )
+        elif self.encoder_type == PromptEncoderType.SIMPLE_MLP:
+            self.mlp_head = nn.Sequential(
+                nn.Linear(self.hidden_size, self.output_size),
+            )
+        elif self.encoder_type == PromptEncoderType.BOTTLENECK_MLP:
+            self.mlp_head = nn.Sequential(
+                nn.Linear(self.hidden_size, self.hidden_size // 2),
+                nn.Linear(self.hidden_size// 2, self.output_size),
+            )
+        elif self.encoder_type == PromptEncoderType.EYE_MLP:
+            assert self.hidden_size == self.output_size
+            l = nn.Linear(self.hidden_size, self.output_size, bias=True)
+            l.weight.data.copy_(torch.eye(self.hidden_size))
+            l.weight.requires_grad = False
+            l.bias.requires_grad = True
+            self.mlp_head = nn.Sequential(l)
         elif self.encoder_type == PromptEncoderType.MLP:
             if num_layers <= 1:
                 raise ValueError(
@@ -298,12 +334,37 @@ class PromptEncoder(NeuralModule, Exportable):
 
         if self.encoder_type == PromptEncoderType.LSTM:
             output_embeds = self.mlp_head(self.lstm_head(input_embeds)[0])
-        elif self.encoder_type == PromptEncoderType.MLP:
+        elif self.encoder_type == PromptEncoderType.SIMPLE_LSTM:
+            output_embeds = self.lstm_head(input_embeds)[0]
+        elif self.encoder_type in [PromptEncoderType.MLP, PromptEncoderType.SIMPLE_MLP,PromptEncoderType.BOTTLENECK_MLP, PromptEncoderType.EYE_MLP]:
             output_embeds = self.mlp_head(input_embeds)
         else:
             raise ValueError("Prompt encoder type not recognized. Please use one of MLP (recommended) or LSTM.")
 
         return output_embeds
+    
+    def encoder_reg(self,):
+        l1 = torch.zeros(1)
+        input_embeds = self.embedding(self.indices)
+        if self.encoder_type == PromptEncoderType.LSTM:
+            output_embeds = self.mlp_head(self.lstm_head(input_embeds)[0])
+        elif self.encoder_type == PromptEncoderType.SIMPLE_LSTM:
+            output_embeds = self.lstm_head(input_embeds)[0]
+        elif self.encoder_type == PromptEncoderType.MLP:
+            output_embeds = self.mlp_head(input_embeds)
+        elif self.encoder_type == PromptEncoderType.SIMPLE_MLP:
+            output_embeds = self.mlp_head(input_embeds)
+        elif self.encoder_type == PromptEncoderType.BOTTLENECK_MLP:
+            output_embeds = self.mlp_head(input_embeds)
+        elif self.encoder_type == PromptEncoderType.EYE_MLP:
+            output_embeds = self.mlp_head(input_embeds)
+
+        output_embeds_norm = output_embeds.norm(dim=1).unsqueeze(1) + 1e-8
+        output_embeds = output_embeds / output_embeds_norm
+        cs = output_embeds @ output_embeds.transpose(0, 1)
+        cs.fill_diagonal_(0.0)
+        cs = torch.abs(cs).mean().unsqueeze(0)
+        return l1, l1, cs
 
 
 class PromptEncoderLinearCombination(NeuralModule, Exportable):
@@ -323,12 +384,14 @@ class PromptEncoderLinearCombination(NeuralModule, Exportable):
         original_embeddings: torch.Tensor,
         l1_scale: float,
         l2_scale: float,
+        cs_scale: float,
         limit_vocab: int,
         normalize: bool,
         use_relu: bool,
         init_val: str,
         spaced_init: str,
         mask_restrict: bool,
+        top_tokens: List[int],
     ):
         """
         Initializes the PromptEncoder module.
@@ -340,12 +403,14 @@ class PromptEncoderLinearCombination(NeuralModule, Exportable):
         """
         super().__init__()
         self.total_virtual_tokens = total_virtual_tokens
-        if limit_vocab > -1:
-            self.original_embeddings = original_embeddings[:limit_vocab, :]
+        if limit_vocab > -1 and top_tokens is not None:
+            top_tokens = top_tokens[:limit_vocab]
+            self.original_embeddings = original_embeddings[top_tokens, :]
         else:
             self.original_embeddings = original_embeddings
         self.l1_scale = l1_scale
         self.l2_scale = l2_scale
+        self.cs_scale = cs_scale
         self.normalize = normalize
         self.use_relu = use_relu
         self.spaced_init = spaced_init
@@ -360,8 +425,10 @@ class PromptEncoderLinearCombination(NeuralModule, Exportable):
             self.init_val = 1.0 / group_size
         elif init_val == 'one':
             self.init_val = 1.0
-        else:
+        elif init_val == 'zero':
             self.init_val = 0.0
+        else:
+            self.init_val == 1.0 / vocab_size
         
 
         if self.spaced_init == 'random':
@@ -379,21 +446,33 @@ class PromptEncoderLinearCombination(NeuralModule, Exportable):
         m = torch.ones_like(t)
         if self.mask_restrict:
             m = (t > 0.0).int()
-        self.linear_combination_mask = torch.nn.parameter.Parameter(data=m, requires_grad=False)
+        self.mask = torch.nn.parameter.Parameter(data=m, requires_grad=False)
         self.linear_combination = torch.nn.parameter.Parameter(data=t)
+        self.cos = torch.nn.CosineSimilarity(dim=0)
 
     def encoder_reg(self,):
-        w = self.linear_combination * self.linear_combination_mask
+        w = self.linear_combination * self.mask
         if self.use_relu:
             w = torch.nn.functional.relu(w)
+        if self.normalize:
+            w = w / w.sum(dim=0)
+
         l2 = (w ** 2).sum(dim=0)
         l1 = torch.abs(w).sum(dim=0)
-        return l1.mean().unsqueeze(0), l2.mean().unsqueeze(0)
+
+        output_embeds = self.original_embeddings.transpose(0, 1) @ w
+        output_embeds = output_embeds.transpose(0, 1)  # (num_virtual_tokens, embedding_size)
+        output_embeds_norm = output_embeds.norm(dim=1).unsqueeze(1) + 1e-4
+        output_embeds = output_embeds / output_embeds_norm
+        cs = output_embeds @ output_embeds.transpose(0, 1)
+        cs.fill_diagonal_(0.0)
+        cs = torch.abs(cs).mean()
+        return l1.mean().unsqueeze(0), l2.mean().unsqueeze(0), cs.unsqueeze(0)
 
     @typecheck()
     def forward(self, taskname_embeddings) -> torch.Tensor:
         batch_size, _, _ = taskname_embeddings.shape
-        w = self.linear_combination * self.linear_combination_mask
+        w = self.linear_combination * self.mask
         if self.use_relu:
             w = torch.nn.functional.relu(w)
 
@@ -401,6 +480,7 @@ class PromptEncoderLinearCombination(NeuralModule, Exportable):
             w = w / w.sum(dim=0)
 
         output_embeds = self.original_embeddings.transpose(0, 1) @ w
+
         output_embeds = output_embeds.transpose(0, 1)  # (num_virtual_tokens, embedding_size)
         output_embeds = output_embeds.expand(
             batch_size, output_embeds.size(0), output_embeds.size(1)
@@ -420,7 +500,7 @@ class PromptEncoderLinearCombinationBaseline(NeuralModule, Exportable):
         return {"output_embeds": NeuralType(('B', 'T', 'C'), ChannelType())}
 
     def __init__(
-        self, total_virtual_tokens: int, original_embeddings: torch.Tensor,
+        self, total_virtual_tokens: int, original_embeddings: torch.Tensor, cs_scale: float, top_tokens: List[int]
     ):
         """
         Initializes the PromptEncoder module.
@@ -438,26 +518,35 @@ class PromptEncoderLinearCombinationBaseline(NeuralModule, Exportable):
         self.embedding_dim = embedding_dim
         self.l1_scale = 0.0
         self.l2_scale = 0.0
+        self.cs_scale = cs_scale
+        if top_tokens is not None:
+            self.original_embeddings = original_embeddings[top_tokens, :]
+        else:
+            self.original_embeddings = original_embeddings
 
         assert self.original_embeddings.requires_grad == False
-        self.linear_combination = torch.nn.Linear(1, self.total_virtual_tokens * embedding_dim)
-        # torch.nn.Embedding(self.total_virtual_tokens, embedding_dim)
-        t = self.original_embeddings.data[: self.total_virtual_tokens, :].reshape(
-            self.total_virtual_tokens * embedding_dim, 1
-        )
-        # self.linear_combination.weight.data = torch.randn((self.linear_combination.weight.shape), dtype=torch.float16)
+        #self.linear_combination = torch.nn.Linear(1, self.total_virtual_tokens * embedding_dim)
+        self.linear_combination = torch.nn.Embedding(self.total_virtual_tokens, embedding_dim)
+        t = self.original_embeddings.data[: self.total_virtual_tokens, :]
+        #self.linear_combination.weight.data = torch.ones((self.linear_combination.weight.shape))
         self.linear_combination.weight.data = t.clone().detach().float()
-        self.idx = torch.nn.parameter.Parameter(data=torch.ones(1), requires_grad=False)
+        self.idx = torch.nn.parameter.Parameter(data=torch.arange(self.total_virtual_tokens), requires_grad=False)
 
     def encoder_reg(self,):
         l1 = torch.zeros(1).type_as(self.linear_combination.weight)
-        l2 = torch.zeros(1).type_as(self.linear_combination.weight)
-        return l1, l2
+        output_embeds = self.linear_combination(self.idx)
+        output_embeds_norm = output_embeds.norm(dim=1).unsqueeze(1) + 1e-8
+        output_embeds = output_embeds / output_embeds_norm
+        cs = output_embeds @ output_embeds.transpose(0, 1)
+        cs.fill_diagonal_(0.0)
+        cs = torch.abs(cs).mean().unsqueeze(0)
+        return l1, l1, cs
 
     @typecheck()
     def forward(self, taskname_embeddings) -> torch.Tensor:
         batch_size, _, _ = taskname_embeddings.shape
-        output_embeds = self.linear_combination(self.idx).reshape(1, self.total_virtual_tokens, self.embedding_dim)
+        output_embeds = self.linear_combination(self.idx) 
+        output_embeds = output_embeds.unsqueeze(0)
         output_embeds = output_embeds.expand(
             batch_size, output_embeds.size(1), output_embeds.size(2)
         )  # (batch, num_virtual_tokens, embed_size)

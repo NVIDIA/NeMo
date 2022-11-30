@@ -293,14 +293,19 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 lstm_dropout=self.cfg.p_tuning.dropout,
                 num_layers=self.cfg.p_tuning.num_layers,
             )
-        elif self.prompt_encoder_type == PromptEncoderType.LSTM or self.prompt_encoder_type == PromptEncoderType.MLP:
+        elif self.prompt_encoder_type in [PromptEncoderType.LSTM, PromptEncoderType.MLP, PromptEncoderType.SIMPLE_LSTM, PromptEncoderType.SIMPLE_MLP, PromptEncoderType.BOTTLENECK_MLP, PromptEncoderType.EYE_MLP]:
+            hidden_size=self.cfg.p_tuning.get("encoder_hidden", self.hidden_size // 2),
+            if self.prompt_encoder_type in [PromptEncoderType.SIMPLE_LSTM, PromptEncoderType.SIMPLE_MLP, PromptEncoderType.BOTTLENECK_MLP, PromptEncoderType.EYE_MLP]:
+                hidden_size=self.hidden_size
+
             self.prompt_encoder = PromptEncoder(
                 encoder_type=self.prompt_encoder_type,
                 total_virtual_tokens=total_virtual_tokens,
                 token_dim=self.hidden_size,
-                hidden_size=self.cfg.p_tuning.get("encoder_hidden", self.hidden_size // 2),
+                hidden_size=hidden_size,
                 lstm_dropout=self.cfg.p_tuning.get("dropout", 0.0),
                 num_layers=self.cfg.p_tuning.get("num_layers", 2),
+                cs_scale = self.cfg.p_tuning.get("cs_scale", 0.0),
             )
         elif self.prompt_encoder_type == PromptEncoderType.LINEAR_COMBINATION:
             word_embedding = self.frozen_model.model.language_model.embedding.word_embeddings.weight.data
@@ -331,7 +336,8 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             word_embedding = self.frozen_model.model.language_model.embedding.word_embeddings.weight.data
             cs_scale = self.cfg.p_tuning.get("cs_scale", 0.0)
             self.prompt_encoder = PromptEncoderLinearCombinationBaseline(
-                total_virtual_tokens, word_embedding, cs_scale
+                total_virtual_tokens, word_embedding, cs_scale,
+                self.training_top_tokens
             )
         else:
             raise ValueError('not supported')
@@ -779,8 +785,9 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         # Revert prompt table back to previous state
         if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING and self.frozen_model.model.pre_process:
             for taskname in current_new_tasks:
-                if taskname in self.prompt_table.prompt_table:
-                    del self.prompt_table.prompt_table[taskname]
+                if hasattr(self.prompt_table, 'prompt_table'):
+                    if taskname in self.prompt_table.prompt_table:
+                        del self.prompt_table.prompt_table[taskname]
 
         with open_dict(self.cfg):
             self.cfg.existing_tasks = current_existing_tasks
@@ -979,7 +986,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                     l1_scale = self.prompt_encoder.l1_scale
                     l2_scale = self.prompt_encoder.l2_scale
                     cs_scale = self.prompt_encoder.cs_scale
-                    final_loss = loss + (l1_scale * w_l1) + (l2_scale * w_l2) + (cs_scale * w_cs)
+                    final_loss = loss + (l1_scale * w_l1.type_as(loss)) + (l2_scale * w_l2.type_as(loss)) + (cs_scale * w_cs.type_as(loss))
                 else:
                     w_l1, w_l2, w_cs = torch.zeros(1), torch.zeros(1), torch.zeros(1)
                     l1_scale, l2_scale, cs_scale = 0.0, 0.0, 0.0
