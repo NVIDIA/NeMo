@@ -21,6 +21,7 @@ import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from tqdm.auto import tqdm
+import copy
 
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
 from nemo.collections.asr.losses.ctc import CTCLoss
@@ -203,7 +204,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin):
                     self.ctc_decoder.unfreeze()
         return hypotheses, all_hypotheses
 
-    def change_vocabulary(self, ctc_decoding_cfg: Optional[DictConfig] = None, **kwargs):
+    def change_vocabulary(self, new_vocabulary: List[str], decoding_cfg: Optional[DictConfig] = None, ctc_decoding_cfg: Optional[DictConfig] = None):
         """
         Changes vocabulary used during RNNT decoding process. Use this method when fine-tuning a pre-trained model.
         This method changes only decoder and leaves encoder and pre-processing modules unchanged. For example, you would
@@ -220,34 +221,62 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin):
         Returns: None
 
         """
-        super().change_vocabulary(**kwargs)
+        super().change_vocabulary(new_vocabulary=new_vocabulary, decoding_cfg=decoding_cfg)
 
         # set up the new tokenizer for the CTC decoder
         if hasattr(self, 'ctc_decoder'):
-            if ctc_decoding_cfg is None:
-                # Assume same decoding config as before
-                logging.info("No `ctc_decoding_cfg` passed when changing decoding strategy, using internal config")
-                ctc_decoding_cfg = self.cfg.aux_ctc.decoding
+            if self.ctc_decoder.vocabulary == new_vocabulary:
+                logging.warning(f"Old {self.ctc_decoder.vocabulary} and new {new_vocabulary} match. Not changing anything.")
+            else:
+                if new_vocabulary is None or len(new_vocabulary) == 0:
+                    raise ValueError(f'New vocabulary must be non-empty list of chars. But I got: {new_vocabulary}')
+                decoder_config = self.ctc_decoder.to_config_dict()
+                new_decoder_config = copy.deepcopy(decoder_config)
+                new_decoder_config['vocabulary'] = new_vocabulary
+                new_decoder_config['num_classes'] = len(new_vocabulary)
 
-            # Assert the decoding config with all hyper parameters
-            ctc_decoding_cls = OmegaConf.structured(CTCDecodingConfig)
-            ctc_decoding_cls = OmegaConf.create(OmegaConf.to_container(ctc_decoding_cls))
-            ctc_decoding_cfg = OmegaConf.merge(ctc_decoding_cls, ctc_decoding_cfg)
+                del self.ctc_decoder
+                self.ctc_decoder = EncDecHybridRNNTCTCModel.from_config_dict(new_decoder_config)
+                del self.ctc_loss
+                self.ctc_loss = CTCLoss(
+                    num_classes=self.ctc_decoder.num_classes_with_blank - 1,
+                    zero_infinity=True,
+                    reduction=self.cfg.aux_ctc.get("ctc_reduction", "mean_batch"),
+                )
 
-            self.ctc_decoding = CTCDecoding(decoding_cfg=ctc_decoding_cfg, vocabulary=self.ctc_decoder.vocabulary)
+                if ctc_decoding_cfg is None:
+                    # Assume same decoding config as before
+                    logging.info("No `ctc_decoding_cfg` passed when changing decoding strategy, using internal config")
+                    ctc_decoding_cfg = self.cfg.aux_ctc.decoding
 
-            self.ctc_wer = WER(
-                decoding=self.ctc_decoding,
-                use_cer=self.ctc_wer.use_cer,
-                log_prediction=self.ctc_wer.log_prediction,
-                dist_sync_on_step=True,
-            )
+                # Assert the decoding config with all hyper parameters
+                ctc_decoding_cls = OmegaConf.structured(CTCDecodingConfig)
+                ctc_decoding_cls = OmegaConf.create(OmegaConf.to_container(ctc_decoding_cls))
+                ctc_decoding_cfg = OmegaConf.merge(ctc_decoding_cls, ctc_decoding_cfg)
 
-            # Update config
-            with open_dict(self.cfg.aux_ctc):
-                self.cfg.aux_ctc.decoding = ctc_decoding_cfg
+                self.ctc_decoding = CTCDecoding(decoding_cfg=ctc_decoding_cfg, vocabulary=self.ctc_decoder.vocabulary)
 
-            logging.info(f"Changed the tokenizer of the CTC decoder to {self.ctc_decoder.vocabulary} vocabulary.")
+                self.ctc_wer = WER(
+                    decoding=self.ctc_decoding,
+                    use_cer=self.ctc_wer.use_cer,
+                    log_prediction=self.ctc_wer.log_prediction,
+                    dist_sync_on_step=True,
+                )
+
+                # Update config
+                with open_dict(self.cfg.aux_ctc):
+                    self.cfg.aux_ctc.decoding = ctc_decoding_cfg
+
+                with open_dict(self.cfg.aux_ctc):
+                    self.cfg.aux_ctc.decoder = new_decoder_config
+
+                ds_keys = ['train_ds', 'validation_ds', 'test_ds']
+                for key in ds_keys:
+                    if key in self.cfg:
+                        with open_dict(self.cfg[key]):
+                            self.cfg[key]['labels'] = OmegaConf.create(new_vocabulary)
+
+                logging.info(f"Changed the tokenizer of the CTC decoder to {self.ctc_decoder.vocabulary} vocabulary.")
 
     def change_decoding_strategy(self, decoding_cfg: DictConfig, decoder_type: str = None):
         """
@@ -285,7 +314,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin):
         )
 
         # Update config
-        with open_dict(self.cfg.ctc):
+        with open_dict(self.cfg.aux_ctc):
             self.cfg.aux_ctc.decoding = decoding_cfg
 
         self.use_rnnt_decoder = False
