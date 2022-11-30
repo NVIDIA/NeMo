@@ -96,5 +96,45 @@ Now we need to clear our data:
   clear_data_set(test_manifest)
 
 
- 
+Tarred dataset:
+#################################
 
+Tarred dataset allows to store the dataset as large .tar files instead of small separate audio files. It may speed up the training and minimizes the load on the network in the cluster.
+
+The NeMo toolkit provides a script to get tarred dataset.
+
+.. code-block:: bash
+
+    python ${NEMO_ROOT}/scripts/speech_recognition/convert_to_tarred_audio_dataset.py \
+      --manifest_path=train_decoded_processed.json \
+      --target_dir=train_tarred_1bk \
+      --num_shards=1024 \
+      --max_duration=15.0 \
+      --min_duration=1.0 \
+      --shuffle \
+      --shuffle_seed=1 \
+      --sort_in_shards \
+      --workers=-1
+
+**************************
+Tokenization.
+**************************
+
+For Esperanto we use the standard Byte-pair encoding algorithm with 128, 512, and 1024 vocab size. It is worth noting that we have a relatively small training dataset (~250 hours). Usually it is not enough data to train the best ARS model with a big vocab size (512 or 1024 BPE tokens). Smaller vocab size should be better in our case. We will check this statement. 
+
+.. code-block:: bash
+    vocab_size=128
+    python ${NEMO_ROOT}/scripts/tokenizers/process_asr_text_tokenizer.py \
+      --manifest=dev_decoded_processed.json,train_decoded_processed.json \
+      --vocab_size=$vocab_size \
+      --data_root=tokenizer_bpe_maxlen_2 \
+      --tokenizer="spe" \
+      --spe_type=bpe \
+      --spe_character_coverage=1.0 \
+      --spe_max_sentencepiece_length=2 \
+      --log
+
+**************************
+Analysis of training parameters. 
+**************************
+Tuning of hyper parameters plays a huge role in the training of deep neural networks. The main list of parameters for training the ASR model in NeMo is presented at the link. As an encoder, a Conformer model is used here, the training parameters for which are already well configured based on the training English models. However, for a new language, the set of optimal parameters may differ. In this section, we will look at the set of simple parameters that can improve the quality of recognition for a new language without digging into the Conformer model too much .
