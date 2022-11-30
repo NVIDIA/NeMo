@@ -111,6 +111,7 @@ def generate_toy_data(
 class TestDiarizationUtilFunctions:
     """Tests diarization and speaker-task related utils.
     """
+
     @pytest.mark.unit
     @pytest.mark.parametrize("Y", [[3, 3, 3, 4, 4, 5], [100, 100, 100, 104, 104, 1005]])
     @pytest.mark.parametrize("target", [[0, 0, 0, 1, 1, 2]])
