@@ -50,6 +50,7 @@ class RTTMDataset(Dataset):
         self.subsampling = subsampling
         self.segment_seconds = segment_seconds
         self.max_speakers = max_speakers
+        self._prune_collection_max_speakers()
 
     def _pyannote_annotations(self, rttm_timestamps):
         stt_list, end_list, speaker_list = rttm_timestamps
@@ -124,3 +125,19 @@ class RTTMDataset(Dataset):
 
     def __len__(self):
         return len(self.collection)
+
+    def _prune_collection_max_speakers(self):
+        pruned_collection = []
+        for sample in self.collection:
+            with open(sample.rttm_file) as f:
+                rttm_lines = f.readlines()
+            # todo: unique ID isn't needed
+            rttm_timestamps = extract_seg_info_from_rttm("", rttm_lines)
+            stt_list, end_list, speaker_list = rttm_timestamps
+            speakers = sorted(list(set(speaker_list)))
+            if len(speakers) <= self.max_speakers:
+                pruned_collection.append(sample)
+        print(
+            f"validation:  dropped {len(self.collection) - len(pruned_collection)} calls out of {len(self.collection)}"
+        )
+        self.collection = pruned_collection
