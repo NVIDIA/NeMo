@@ -170,10 +170,11 @@ Decoding.
 **************************
 
 At the end of training, several checkpoints (usually 5) and one the best model (not always from the latest epoch) are stored in the model folder. Checkpoint averaging (script) can help to improve the final decoding accuracy. In our case, this did not give an improvement on the CTC models, however, for some RNNT models, it was possible to get an improvement in the range of 0.1-0.2% WER.
+
 To analyze recognition errors, you can use the Speech Data Explorer, similar to the Kinyarwanda example. After listening to files with an abnormally high WER (>50%), problematic files with wrong transcriptions and cutted or empty audio files were found in the dev and test sets.
 
 **************************
-Bonus:
+Bonus.
 **************************
 
 For additional analysis of the training dataset, you can decode it using an already trained model. Examples with high error rate (WER > 50%) are very likely to be problematic files. It is better to remove them from the training set. Sometimes a model is able to train text even for almost empty audio. Here you can see an example for this anomaly: …
