@@ -19,6 +19,8 @@ import numpy as np
 import torch
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
+from nemo.core.neural_types import ChannelType, MaskType, NeuralType
+from nemo.core.classes.exportable import Exportable
 
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import build_train_valid_test_datasets
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
@@ -74,7 +76,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_TE = False
 
 
-class MegatronGPTModel(MegatronBaseModel, TextGeneration):
+class MegatronGPTModel(MegatronBaseModel, TextGeneration, Exportable):
     """
     Megatron GPT pretraining
     """
@@ -241,8 +243,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         return super().configure_optimizers()
 
-    def forward(self, tokens, text_position_ids, attention_mask, labels):
-        output_tensor = self.model(tokens, text_position_ids, attention_mask, labels=labels)
+    def forward(self, tokens, text_position_ids, attention_mask, labels=None):
+        output_tensor = self.model(tokens, text_position_ids, attention_mask.bool(), labels=labels)
         return output_tensor
 
     def _get_fwd_bwd_function(self):
@@ -956,3 +958,53 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             return itertools.chain.from_iterable(module.parameters() for module in self.model)
         else:
             return self.model.parameters()
+
+
+    def input_example(self, max_batch=1, max_dim=1024, seq_len=6):
+        """
+        Generates input examples for exporting the model        
+        """
+
+        sample = next(self.parameters())
+        sz = (max_batch, seq_len)
+
+        input_ids = torch.randint(low=0, high=2048, size=sz, device=sample.device)
+        token_type_ids = torch.randint(low=0, high=1, size=sz, device=sample.device)
+        attention_mask = torch.zeros((max_batch, 1, seq_len, seq_len), dtype=torch.int).to(sample.device)
+
+        sample_input = {
+            'tokens': input_ids,
+            'text_position_ids': token_type_ids,
+            'attention_mask': attention_mask,
+        }
+
+        return tuple([sample_input])
+
+    @property
+    def input_types(self):
+        return {
+            "tokens": NeuralType(('B', 'T'), ChannelType()),
+            "text_position_ids": NeuralType(('B', 'T'), ChannelType()),
+            "attention_mask": NeuralType(('B', 'D', 'T', 'T'), MaskType()),
+        }
+
+    @property
+    def output_types(self):
+        return {"last_hidden_states": NeuralType(('T', 'B', 'D'), ChannelType())}
+
+    @property
+    def input_names(self):
+        return ['tokens', 'text_position_ids', 'attention_mask']
+
+    @property
+    def output_names(self):
+        return ['last_hidden_states']
+    
+    @property
+    def input_module(self):
+        return self
+
+    @property
+    def output_module(self):
+        return self
+
