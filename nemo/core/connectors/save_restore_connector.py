@@ -211,7 +211,7 @@ class SaveRestoreConnector:
         strict: bool = True,
         return_config: bool = False,
         trainer: Trainer = None,
-        merge_into_model_config: OmegaConf = None,
+        merge_into_model_config: Optional[OmegaConf] = None,
     ):
         """
         Restores model instance (weights and configuration) into .nemo file
