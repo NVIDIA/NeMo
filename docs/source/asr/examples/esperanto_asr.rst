@@ -61,6 +61,40 @@ Let's check:
 
   ['é', 'ǔ', 'á', '¨', 'ﬁ', '=', 'y', '`', 'q', 'ü', '♫', '‑', 'x', '¸', 'ʼ', '‹', '›', 'ñ']
   
-  
+Now we need to clear our data:
+
+.. code-block:: python
+
+  import re
+
+  def clear_data_set(manifest, char_rate_threshold=15, leav_cap_and_punct=False):
+
+      chars_to_ignore_regex = "[\.\,\?\:\-!;()«»…\]\[/\*–‽+&_\\½√>€™$•¼}{~—=“\"”″‟„]"
+      addition_ignore_regex = f"[{''.join(trash_char_list)}]"
+
+      manifest_clean = manifest + '.clean_all'
+      war_count = 0
+      with open(manifest, 'r') as fn_in, \
+          open(manifest_clean, 'w', encoding='utf-8') as fn_out:
+          for line in tqdm(fn_in, desc="Cleaning manifest data"):
+              line = line.replace("\n", "")
+              data = json.loads(line)
+              text = data["text"]
+              if len(text.replace(' ', '')) / float(data['duration']) > char_rate_threshold:
+                  print(f"[WARNING]: {data['audio_filepath']} has char rate > 15 per sec: {len(text)} chars, {data['duration']} duration")
+                  war_count += 1
+                  continue
+              text = re.sub(chars_to_ignore_regex, "", text)
+              text = re.sub(addition_ignore_regex, "", text)
+              data["text"] = text
+              data = json.dumps(data, ensure_ascii=False)
+              fn_out.write(f"{data}\n")
+      print(f"[INFO]: {war_count} files were removed from manifest")
+
+  clear_data_set(train_manifest)
+  clear_data_set(dev_manifest)
+  clear_data_set(test_manifest)
+
+
  
 
