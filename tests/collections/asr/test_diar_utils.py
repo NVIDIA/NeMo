@@ -110,6 +110,7 @@ def generate_toy_data(
     ground_truth = torch.tensor(ground_truth)
     return emb_tensor, segm_tensor, multiscale_segment_counts, multiscale_weights, spk_timestamps, ground_truth
 
+
 class TestDiarizationUtilFunctions:
     """Tests diarization and speaker-task related utils.
     """
