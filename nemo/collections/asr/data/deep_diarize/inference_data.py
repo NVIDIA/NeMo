@@ -73,45 +73,49 @@ class RTTMDataset(Dataset):
 
     def __getitem__(self, index):
         sample = self.collection[index]
-        with open(sample.rttm_file) as f:
-            rttm_lines = f.readlines()
-        if sample.offset is None:
-            sample.offset = 0
-        # todo: unique ID isn't needed
-        rttm_timestamps = extract_seg_info_from_rttm("", rttm_lines)
-        annotations = self._pyannote_annotations(rttm_timestamps)
-        stt_list, end_list, speaker_list = rttm_timestamps
-        total_annotated_duration = max(end_list)
-        speakers = sorted(list(set(speaker_list)))
-        n_segments = math.ceil((total_annotated_duration - sample.offset) / self.segment_seconds)
-        start_offset = sample.offset
+        try:
+            with open(sample.rttm_file) as f:
+                rttm_lines = f.readlines()
+            if sample.offset is None:
+                sample.offset = 0
+            # todo: unique ID isn't needed
+            rttm_timestamps = extract_seg_info_from_rttm("", rttm_lines)
+            annotations = self._pyannote_annotations(rttm_timestamps)
+            stt_list, end_list, speaker_list = rttm_timestamps
+            total_annotated_duration = max(end_list)
+            speakers = sorted(list(set(speaker_list)))
+            n_segments = math.ceil((total_annotated_duration - sample.offset) / self.segment_seconds)
+            start_offset = sample.offset
 
-        segments, lengths, targets, segment_annotations = [], [], [], []
-        for n_segment in range(n_segments):
-            fr_level_target = assign_frame_level_spk_vector(
-                rttm_timestamps=rttm_timestamps,
-                round_digits=self.round_digits,
-                frame_per_sec=self.frame_per_sec,
-                subsampling=self.subsampling,
-                preprocessor=self.preprocessor,
-                sample_rate=self.preprocessor._sample_rate,
-                start_duration=start_offset,
-                end_duration=start_offset + self.segment_seconds,
-                speakers=speakers,
-            )
-            # pad targets to max speakers
-            fr_level_target = F.pad(fr_level_target, pad=(0, self.max_speakers - fr_level_target.size(-1)))
-            duration = self.segment_seconds
-            segment, length = self._load_audio_segment(sample, duration, start_offset)
+            segments, lengths, targets, segment_annotations = [], [], [], []
+            for n_segment in range(n_segments):
+                fr_level_target = assign_frame_level_spk_vector(
+                    rttm_timestamps=rttm_timestamps,
+                    round_digits=self.round_digits,
+                    frame_per_sec=self.frame_per_sec,
+                    subsampling=self.subsampling,
+                    preprocessor=self.preprocessor,
+                    sample_rate=self.preprocessor._sample_rate,
+                    start_duration=start_offset,
+                    end_duration=start_offset + self.segment_seconds,
+                    speakers=speakers,
+                )
+                # pad targets to max speakers
+                fr_level_target = F.pad(fr_level_target, pad=(0, self.max_speakers - fr_level_target.size(-1)))
+                duration = self.segment_seconds
+                segment, length = self._load_audio_segment(sample, duration, start_offset)
 
-            segments.append(segment)
-            lengths.append(length)
-            targets.append(fr_level_target)
-            segment_annotations.append(
-                self._segment_annotation(annotations, start_offset=start_offset, duration=self.segment_seconds)
-            )
-            start_offset += self.segment_seconds
-        return segments, lengths, targets, annotations, segment_annotations, sample.audio_file
+                segments.append(segment)
+                lengths.append(length)
+                targets.append(fr_level_target)
+                segment_annotations.append(
+                    self._segment_annotation(annotations, start_offset=start_offset, duration=self.segment_seconds)
+                )
+                start_offset += self.segment_seconds
+            return segments, lengths, targets, annotations, segment_annotations, sample.audio_file
+        except Exception as e:
+            print(f"FAILED TO GET {sample.audio_file}", e)
+            raise e
 
     def _load_audio_segment(self, sample, duration: float, start_offset: float):
         segment = self.featurizer.process(
