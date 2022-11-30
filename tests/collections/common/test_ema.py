@@ -57,6 +57,7 @@ class ExampleModel(ModelPT):
         cfg = OmegaConf.structured({})
         super().__init__(cfg)
         self.l1 = torch.nn.modules.Linear(in_features=2, out_features=1)
+        self.bn = torch.nn.BatchNorm1d(1)
 
     def train_dataloader(self):
         dataset = OnesDataset(16)
@@ -67,7 +68,7 @@ class ExampleModel(ModelPT):
         return torch.utils.data.DataLoader(dataset, batch_size=2)
 
     def forward(self, batch):
-        output = self.l1(batch)
+        output = self.bn(self.l1(batch))
         return torch.nn.functional.l1_loss(output, torch.zeros(output.size()).to(output.device))
 
     def validation_step(self, batch, batch_idx):
