@@ -288,7 +288,7 @@ class ModelPT(LightningModule, Model):
             trainer: Optional, a pytorch lightning Trainer object that will be forwarded to the
                 instantiated model's constructor.
             save_restore_connector (SaveRestoreConnector): Can be overridden to add custom save and restore logic.
-            merge_into_model_config (OmegaConf): This will be merged with the model config,
+            merge_into_model_config (OmegaConf): If provided, this will be merged with the model config,
                 overriding existing parameters.
             Example:
                 ```

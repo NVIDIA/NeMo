@@ -226,7 +226,8 @@ class SaveRestoreConnector:
             return_config: If set to true, will return just the underlying config of the restored
                 model as an OmegaConf DictConfig object without instantiating the model.
             trainer: An optional Trainer object, passed to the model constructor.
-            merge_into_model_config (OmegaConf): This will be merged with the model config, overriding existing parameters.
+            merge_into_model_config (OmegaConf): If provided, this will be merged with the model config,
+                overriding existing parameters.
         Example:
             ```
             model = nemo.collections.asr.models.EncDecCTCModel.restore_from('asr.nemo')
