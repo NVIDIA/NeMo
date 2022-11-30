@@ -19,8 +19,6 @@ import numpy as np
 import torch
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
-from nemo.core.neural_types import ChannelType, MaskType, NeuralType
-from nemo.core.classes.exportable import Exportable
 
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import build_train_valid_test_datasets
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
@@ -50,6 +48,8 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import (
 )
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes.common import PretrainedModelInfo
+from nemo.core.classes.exportable import Exportable
+from nemo.core.neural_types import ChannelType, MaskType, NeuralType
 from nemo.utils import logging
 
 try:
@@ -959,7 +959,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration, Exportable):
         else:
             return self.model.parameters()
 
-
     def input_example(self, max_batch=1, max_dim=1024, seq_len=6):
         """
         Generates input examples for exporting the model        
@@ -999,7 +998,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration, Exportable):
     @property
     def output_names(self):
         return ['last_hidden_states']
-    
+
     @property
     def input_module(self):
         return self
@@ -1007,4 +1006,3 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration, Exportable):
     @property
     def output_module(self):
         return self
-
