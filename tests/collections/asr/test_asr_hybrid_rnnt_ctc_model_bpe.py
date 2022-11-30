@@ -250,7 +250,8 @@ class TestEncDecHybridRNNTCTCBPEModel:
             # rnn embedding + joint + bias
             pred_embedding = 3 * (asr_model.decoder.pred_hidden)
             joint_joint = 3 * (asr_model.joint.joint_hidden + 1)
-            assert asr_model.num_weights == (nw1 + (pred_embedding + joint_joint))
+            ctc_decoder = 3 * (asr_model.ctc_decoder._feat_in + 1)
+            assert asr_model.num_weights == (nw1 + (pred_embedding + joint_joint) + ctc_decoder)
 
     @pytest.mark.with_downloads()
     @pytest.mark.skipif(

@@ -256,7 +256,7 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
             del self.ctc_decoder
             self.ctc_decoder = EncDecHybridRNNTCTCBPEModel.from_config_dict(ctc_decoder_config)
             del self.ctc_loss
-            self.loss = CTCLoss(
+            self.ctc_loss = CTCLoss(
                 num_classes=self.ctc_decoder.num_classes_with_blank - 1,
                 zero_infinity=True,
                 reduction=self.cfg.aux_ctc.get("ctc_reduction", "mean_batch"),
