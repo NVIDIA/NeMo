@@ -32,10 +32,7 @@ from nemo.collections.asr.parts.utils.nmesc_clustering import (
     split_input_data,
     stitch_cluster_labels,
 )
-
-from nemo.collections.asr.parts.utils.speaker_utils import (
-    get_subsegments,
-)
+from nemo.collections.asr.parts.utils.speaker_utils import get_subsegments
 
 MAX_SEED_COUNT = 2
 
