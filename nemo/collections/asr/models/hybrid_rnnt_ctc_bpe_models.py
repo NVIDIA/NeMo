@@ -82,7 +82,7 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
             self.joint.set_loss(self.loss)
             self.joint.set_wer(self.wer)
 
-        # setup auxiliary CTC decoder if needed
+        # setup auxiliary CTC decoder
         if 'aux_ctc' not in self.cfg:
             raise ValueError(
                 "The config need to have a section for the CTC decoder named as aux_ctc for Hybrid models."
