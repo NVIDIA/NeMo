@@ -710,7 +710,6 @@ class TestAudioDatasets:
         }
 
         # Tolerance
-        max_diff_tol = 1e-6
         atol = 1e-6
 
         # Generate random signals
@@ -1115,7 +1114,6 @@ class TestAudioDatasets:
         }
 
         # Tolerance
-        max_diff_tol = 1e-6
         atol = 1e-6
 
         # Generate random signals
