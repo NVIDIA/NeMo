@@ -20,5 +20,43 @@ Mozilla Common Voice provides a dataset for Esperanto language with about 1400 h
 Download data:
 #################################
 
-To get data manifests for Esperanto you can use the default NeMo script `get_commonvoice_data.py <https://github.com/NVIDIA/NeMo/blob/main/scripts/dataset_processing/get_commonvoice_data.py>`_. But you need to change the variable COMMON_VOICE_URL to f"https://mozilla-common-voice-datasets.s3.dualstack.us-west-2.amazonaws.com/{}/{}-{}.tar.gz".format(args.version, args.version, args.language)and add to json.dump parameter ensure_ascii=False (otherwise you will get problems with utf-8 symbols) and quoting=csv.QUOTE_NONE to csv.DictReader (unclosed quotes occurs sometimes in text). Whole modified script can be found here – link.
+To get data manifests for Esperanto you can use the modefied NeMo script `get_commonvoice_data.py <https://github.com/NVIDIA/NeMo/blob/main/scripts/dataset_processing/get_commonvoice_data.py>`_(change link to my file).
+
+Data preprocessing:
+#################################
+
+Next, we need to clear the text data from punctuation and various trash characters. In addition to deleting a common set of elements (as in Kinyarwanda), you can build the frequency of characters encountered in the train set and add the rarest (occurring less than 10 times) to the list for deletion. This approach will remove various garbage and leave really important characters.
+We will also check the data for anomalies. The simplest anomaly can be a problematic audio file. The text for it will look normal, but the audio file itself may be cut off or empty. One way to detect a problem is to check for char rate (number of chars per second). If the char rate is too high (more than 15 chars per second), then something is clearly wrong with the file. It is better to filter such data from the training sample in advance. Other problematic files can be filtered out after receiving the first trained model. We will consider this method at the end of our tutorial.
+
+.. code-block:: python
+
+  def compute_char_counts(manifest):
+      char_counts = {}
+      with open(manifest, 'r') as fn_in:
+          for line in tqdm(fn_in, desc="Compute counts.."):
+              line = line.replace("\n", "")
+              data = json.loads(line)
+              text = data["text"]
+              for word in text.split():
+                  for char in word:
+                      if char not in char_counts:
+                          char_counts[char] = 1
+                      else:
+                          char_counts[char] += 1
+      return char_counts
+
+  char_counts = compute_char_counts(train_set)
+
+  threshold = 10
+  trash_char_list = []
+
+  for char in char_counts:
+      if char_counts[char] <= threshold:
+          trash_char_list.append(char)
+  print(trash_char_list)
+
+.. code-block:: python
+  print(trash_char_list)
+
+  ['é', 'ǔ', 'á', '¨', 'ﬁ', '=', 'y', '`', 'q', 'ü', '♫', '‑', 'x', '¸', 'ʼ', '‹', '›', 'ñ']
 
