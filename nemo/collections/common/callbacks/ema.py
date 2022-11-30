@@ -197,12 +197,6 @@ class EMAOptimizer(torch.optim.Optimizer):
         every_n_steps: int = 1,
         current_step: int = 0,
     ):
-
-        # copy most of the `Optimizer` methods into this instance. `__del__` is skipped in case the optimizer has
-        # implemented custom logic which we would not want to call on destruction of the `EMAOptimizer`.
-        # this allows us to use the underlying optimizer without having to go through the EMAOptimizer wrapper.
-        self.__dict__ = {k: v for k, v in optimizer.__dict__.items() if k not in ("step", "__del__")}
-
         self.optimizer = optimizer
         self.decay = decay
         self.device = device
