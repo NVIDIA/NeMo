@@ -155,3 +155,5 @@ It is usually required to use a large global batch size, since it allows to aver
 Precision:
 **************************
 By default, for model training in NeMo, it is recommended to use half precision (FP16 for V100 and BF16 for A100 GPU). This allows you to speed up the training process almost twice. However, the transition to half-precision sometimes has problems with the convergence of the model. At an unexpected moment, the metrics can explode due to an overflow of one of the BN statistics. In order to eliminate the influence of half precision on such a problem, we advise you to check the training in FP32.
+
+
