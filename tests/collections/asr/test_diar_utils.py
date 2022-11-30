@@ -19,7 +19,6 @@ import numpy as np
 import pytest
 import torch
 
-from nemo.collections.asr.data.audio_to_label import repeat_signal
 from nemo.collections.asr.parts.utils.nmesc_clustering import (
     OnlineSpeakerClustering,
     SpeakerClustering,
@@ -111,121 +110,30 @@ def generate_toy_data(
     ground_truth = torch.tensor(ground_truth)
     return emb_tensor, segm_tensor, multiscale_segment_counts, multiscale_weights, spk_timestamps, ground_truth
 
-# class TestSegmentationUtilFunctions:
-    # """Tests diarization and speaker-task related utils.
-    # """
-    # @pytest.mark.unit
-    # def test_merge_int_intervals_ex1(self):
-        # intervals = [[1, 3], [2, 6], [8, 10], [15, 18]]
-        # target = [[1, 6], [8, 10], [15, 18]]
-        # merged = merge_int_intervals(intervals)
-        # assert check_range_values(target, merged)
-
-    # @pytest.mark.unit
-    # def test_merge_int_intervals_ex2(self):
-        # intervals = [[6, 8], [1, 9], [2, 4], [4, 7]]
-        # target = [[1, 9]]
-        # merged = merge_int_intervals(intervals)
-        # assert check_range_values(target, merged)
-
-    # @pytest.mark.unit
-    # def test_merge_float_overlaps(self):
-        # intervals = [[0.25, 1.7], [1.5, 3.0], [2.8, 5.0], [5.5, 10.0]]
-        # target = [[0.25, 5.0], [5.5, 10.0]]
-        # merged = merge_float_intervals(intervals)
-        # assert check_range_values(target, merged)
-
-    # @pytest.mark.unit
-    # def test_merge_int_intervals_edge_test(self):
-        # intervals = [[1, 4], [4, 5]]
-        # target = [[1, 5]]
-        # merged = merge_int_intervals(intervals)
-        # assert check_range_values(target, merged)
-
-    # @pytest.mark.unit
-    # def test_get_speech_labels_for_update(self):
-        # frame_start = 3.0
-        # buffer_end = 6.0
-        # cumulative_speech_labels = torch.tensor([[0.0000, 3.7600]])
-        # vad_timestamps = torch.tensor([[0.9600, 4.8400]])
-        # cursor_for_old_segments = 1.0
-        # speech_labels_for_update, cumulative_speech_labels = get_speech_labels_for_update(
-            # frame_start, buffer_end, cumulative_speech_labels, vad_timestamps, cursor_for_old_segments,
-        # )
-        # assert (speech_labels_for_update - torch.tensor([[1.0000, 3.7600]])).sum() < 1e-8
-        # assert (cumulative_speech_labels - torch.tensor([[0.9600, 4.8400]])).sum() < 1e-8
-
-    # @pytest.mark.unit
-    # def test_get_online_subsegments_from_buffer(self):
-        # torch.manual_seed(0)
-        # sample_rate = 16000
-        # speech_labels_for_update = torch.Tensor([[0.0000, 3.7600]])
-        # audio_buffer = torch.randn(5 * sample_rate)
-        # segment_indexes = []
-        # window = 2.0
-        # shift = 1.0
-        # slice_length = int(window * sample_rate)
-        # range_target = [[0.0, 2.0], [1.0, 3.0], [2.0, 3.76]]
-        # sigs_list, sig_rangel_list, sig_indexes = get_online_subsegments_from_buffer(
-            # buffer_start=0.0,
-            # buffer_end=5.0,
-            # sample_rate=sample_rate,
-            # speech_labels_for_update=speech_labels_for_update,
-            # audio_buffer=audio_buffer,
-            # segment_indexes=segment_indexes,
-            # window=window,
-            # shift=shift,
-        # )
-        # assert check_range_values(target=range_target, source=sig_rangel_list)
-        # for k, rg in enumerate(sig_rangel_list):
-            # signal = get_target_sig(audio_buffer, rg[0], rg[1], slice_length, sample_rate)
-            # if len(signal) < int(window * sample_rate):
-                # signal = repeat_signal(signal, len(signal), slice_length)
-            # assert len(signal) == int(slice_length), "Length mismatch"
-            # assert (np.abs(signal - sigs_list[k])).sum() < 1e-8, "Audio stream mismatch"
-        # assert (torch.tensor(sig_indexes) - torch.arange(len(range_target))).sum() < 1e-8, "Segment index mismatch"
-
-    # @pytest.mark.unit
-    # @pytest.mark.parametrize("frame_start", [3.0])
-    # @pytest.mark.parametrize("segment_range_ts", [[[0.0, 2.0]]])
-    # @pytest.mark.parametrize("gt_cursor_for_old_segments", [1.0])
-    # @pytest.mark.parametrize("gt_cursor_index", [1])
-    # def test_get_new_cursor_for_update_mulsegs(
-        # self, frame_start, segment_range_ts, gt_cursor_for_old_segments, gt_cursor_index
-    # ):
-        # cursor_for_old_segments, cursor_index = get_new_cursor_for_update(frame_start, segment_range_ts)
-        # assert cursor_for_old_segments == gt_cursor_for_old_segments
-        # assert cursor_index == gt_cursor_index
-
-    # @pytest.mark.unit
-    # @pytest.mark.parametrize("frame_start", [4.0])
-    # @pytest.mark.parametrize("segment_range_ts", [[[0.0, 2.0], [1.0, 3.0], [2.0, 3.76]]])
-    # @pytest.mark.parametrize("gt_cursor_for_old_segments", [4.0])
-    # @pytest.mark.parametrize("gt_cursor_index", [3])
-    # def test_get_new_cursor_for_update_mulsegs(
-        # self, frame_start, segment_range_ts, gt_cursor_for_old_segments, gt_cursor_index
-    # ):
-        # cursor_for_old_segments, cursor_index = get_new_cursor_for_update(frame_start, segment_range_ts)
-        # assert cursor_for_old_segments == gt_cursor_for_old_segments
-        # assert cursor_index == gt_cursor_index
-
-
 class TestDiarizationUtilFunctions:
     """Tests diarization and speaker-task related utils.
     """
-
     @pytest.mark.unit
-    def test_minimal_index_p1(self):
-        Y = matrix([3, 3, 3, 4, 4, 5])
+    @pytest.mark.parametrize("Y", [[3, 3, 3, 4, 4, 5], [100, 100, 100, 104, 104, 1005]])
+    @pytest.mark.parametrize("target", [[0, 0, 0, 1, 1, 2]])
+    @pytest.mark.parametrize("offset", [1, 10])
+    def test_minimal_index_ex2(self, Y, target, offset):
+        Y = torch.tensor(Y)
+        target = torch.tensor(target)
         min_Y = get_minimal_indices(Y)
-        target = matrix([0, 0, 0, 1, 1, 2])
+        assert check_labels(target, min_Y)
+        min_Y = get_minimal_indices(Y + offset)
         assert check_labels(target, min_Y)
 
-    @pytest.mark.unit
-    def test_minimal_index_p2(self):
-        Y = matrix([4, 0, 0, 5, 4, 5])
+    @pytest.mark.parametrize("Y", [[4, 0, 0, 5, 4, 5], [14, 12, 12, 19, 14, 19]])
+    @pytest.mark.parametrize("target", [[1, 0, 0, 2, 1, 2]])
+    @pytest.mark.parametrize("offset", [1, 10])
+    def test_minimal_index_ex2(self, Y, target, offset):
+        Y = torch.tensor(Y)
+        target = torch.tensor(target)
         min_Y = get_minimal_indices(Y)
-        target = matrix([1, 0, 0, 2, 1, 2])
+        assert check_labels(target, min_Y)
+        min_Y = get_minimal_indices(Y + offset)
         assert check_labels(target, min_Y)
 
     @pytest.mark.unit
