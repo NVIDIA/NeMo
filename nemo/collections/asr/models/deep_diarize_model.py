@@ -448,6 +448,7 @@ class DeepDiarizeModel(ModelPT):
             subsampling=self.cfg.subsampling,
             segment_seconds=self.cfg.chunk_seconds,
             max_speakers=self.cfg.num_speakers,
+            max_val_speakers=self.cfg.max_val_speakers,
         )
         self._validation_dl = DataLoader(
             dataset, num_workers=cfg.num_workers, collate_fn=dataset.collate_fn, shuffle=False

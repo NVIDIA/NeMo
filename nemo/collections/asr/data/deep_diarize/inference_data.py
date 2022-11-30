@@ -38,6 +38,7 @@ class RTTMDataset(Dataset):
         subsampling: int,
         segment_seconds: int,
         max_speakers: int,
+        max_val_speakers: int,
     ):
         self.collection = DiarizationSpeechLabel(
             manifests_files=manifest_filepath.split(","), emb_dict=None, clus_label_dict=None,
@@ -50,6 +51,7 @@ class RTTMDataset(Dataset):
         self.subsampling = subsampling
         self.segment_seconds = segment_seconds
         self.max_speakers = max_speakers
+        self.max_val_speakers = max_val_speakers
         self._prune_collection_max_speakers()
 
     def _pyannote_annotations(self, rttm_timestamps):
@@ -135,7 +137,7 @@ class RTTMDataset(Dataset):
             rttm_timestamps = extract_seg_info_from_rttm("", rttm_lines)
             stt_list, end_list, speaker_list = rttm_timestamps
             speakers = sorted(list(set(speaker_list)))
-            if len(speakers) <= self.max_speakers:
+            if len(speakers) <= self.max_val_speakers:
                 pruned_collection.append(sample)
         print(
             f"validation:  dropped {len(self.collection) - len(pruned_collection)} calls out of {len(self.collection)}"

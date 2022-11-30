@@ -49,6 +49,7 @@ model:
   min_seconds_for_segment: 0.2
   combine_segments_seconds: 0.3
   threshold: 0.5
+  max_val_speakers: ${num_speakers}
 
   train_ds:
     manifest_filepaths: ???
