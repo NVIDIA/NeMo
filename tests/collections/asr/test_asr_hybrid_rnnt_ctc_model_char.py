@@ -17,7 +17,7 @@ import pytest
 import torch
 from omegaconf import DictConfig, ListConfig
 
-from nemo.collections.asr.metrics.wer import CTCDecodingConfig, CTCDecoding
+from nemo.collections.asr.metrics.wer import CTCDecoding, CTCDecodingConfig
 from nemo.collections.asr.models import EncDecHybridRNNTCTCModel
 from nemo.collections.asr.modules import RNNTDecoder, RNNTJoint, SampledRNNTJoint, StatelessTransducerDecoder
 from nemo.collections.asr.parts.submodules import rnnt_beam_decoding as beam_decode

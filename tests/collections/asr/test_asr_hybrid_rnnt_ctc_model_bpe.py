@@ -20,7 +20,7 @@ import pytest
 import torch
 from omegaconf import DictConfig
 
-from nemo.collections.asr.metrics.wer import CTCDecodingConfig
+from nemo.collections.asr.metrics.wer_bpe import CTCBPEDecoding, CTCBPEDecodingConfig
 from nemo.collections.asr.models.hybrid_rnnt_ctc_bpe_models import EncDecHybridRNNTCTCBPEModel
 from nemo.collections.asr.parts.submodules import rnnt_beam_decoding as beam_decode
 from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode
@@ -88,7 +88,7 @@ def asr_model(test_data_dir):
             'num_classes': -2,
             'vocabulary': None,
         },
-        'decoding': DictConfig(CTCDecodingConfig),
+        'decoding': DictConfig(CTCBPEDecodingConfig),
     }
 
     modelConfig = DictConfig(
@@ -294,3 +294,16 @@ class TestEncDecHybridRNNTCTCBPEModel:
         asr_model.change_decoding_strategy(decoding_cfg=new_strategy)
         assert isinstance(asr_model.decoding.decoding, beam_decode.BeamRNNTInfer)
         assert asr_model.decoding.decoding.search_type == "alsd"
+
+        assert asr_model.ctc_decoding is not None
+        assert isinstance(asr_model.ctc_decoding, CTCBPEDecoding)
+        assert asr_model.ctc_decoding.cfg.strategy == "greedy"
+        assert asr_model.ctc_decoding.preserve_alignments is False
+        assert asr_model.ctc_decoding.compute_timestamps is False
+
+        cfg = CTCBPEDecodingConfig(preserve_alignments=True, compute_timestamps=True)
+        asr_model.change_decoding_strategy(cfg, decoder_type="ctc")
+
+        assert asr_model.ctc_decoding.preserve_alignments is True
+        assert asr_model.ctc_decoding.compute_timestamps is True
+        assert asr_model.use_rnnt_decoder is False

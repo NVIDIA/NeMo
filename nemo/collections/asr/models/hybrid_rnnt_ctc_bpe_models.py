@@ -336,13 +336,11 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
             logging.info(f"Changed decoding strategy of the RNNT decoder to \n{OmegaConf.to_yaml(self.cfg.decoding)}")
         elif decoder_type == 'ctc':
             if not hasattr(self, 'ctc_decoding'):
-                raise ValueError(
-                    "The model does not have the ctc_decoding module and therefore does not support ctc decoding."
-                )
+                raise ValueError("The model does not have the ctc_decoding module and does not support ctc decoding.")
             if decoding_cfg is None:
                 # Assume same decoding config as before
                 logging.info("No `decoding_cfg` passed when changing decoding strategy, using internal config")
-                decoding_cfg = self.cfg.ctc_decoding.decoding
+                decoding_cfg = self.cfg.aux_ctc.decoding
 
             # Assert the decoding config with all hyper parameters
             decoding_cls = OmegaConf.structured(CTCBPEDecodingConfig)
@@ -359,12 +357,12 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
             )
 
             # Update config
-            with open_dict(self.cfg.ctc):
-                self.cfg.ctc_decoding.decoding = decoding_cfg
+            with open_dict(self.cfg.aux_ctc.decoding):
+                self.cfg.aux_ctc.decoding = decoding_cfg
 
             self.use_rnnt_decoder = False
             logging.info(
-                f"Changed decoding strategy of the CTC decoder to \n{OmegaConf.to_yaml(self.cfg.ctc_decoding.decoding)}"
+                f"Changed decoding strategy of the CTC decoder to \n{OmegaConf.to_yaml(self.cfg.aux_ctc.decoding)}"
             )
         else:
             raise ErrorValue(f"decoder_type={decoder_type} is not supported. Supported values: [ctc,rnnt]")
