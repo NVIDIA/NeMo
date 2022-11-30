@@ -53,7 +53,7 @@ We will also check the data for anomalies. The simplest anomaly can be a problem
   for char in char_counts:
       if char_counts[char] <= threshold:
           trash_char_list.append(char)
-  print(trash_char_list)
+
 
 .. code-block:: python
   print(trash_char_list)
