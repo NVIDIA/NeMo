@@ -243,11 +243,17 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
             return output, loss_func
         
         def fwd_output_and_loss_func_concat(batch, model):
-            raise NotImplementedError
             # TODO: Figure out the logic for shiftign and fixing the padding and adding new tokens. 
             # Probably a better idea to just add them in the get_item in the RetrievalSeq2Seq
             batch = [x.cuda(non_blocking=True) for x in batch]
-            encoder_input_ids, decoder_input_ids, loss_mask, lm_labels, encoder_attn_mask, decoder_attn_mask, nn_src_list_ids, nn_tgt_list = batch
+            (
+                encoder_input_ids,
+                decoder_input_ids, 
+                loss_mask, 
+                lm_labels, 
+                encoder_attn_mask, 
+                decoder_attn_mask
+            ) = batch[0:6]
             # ! for retrieval embeddings figure out how to do this
             """
             1. Get the embeddings from the embedding matrix and add positional embeddings
@@ -276,15 +282,15 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
             return fwd_output_and_loss_func_concat
         elif self.cfg.retriever.get('type', False) == 'perceiver':
             return fwd_output_and_loss_func_perceiver
+            # return fwd_output_and_loss_func_concat
         else:
             raise NotImplementedError
     
-    def eval_step(self, batch, batch_idx, dataloader_idx):
+    def eval_step(self, batch, batch_idx, dataloader_idx, no_ret=False):
         """"
         In parent class: batch is bucketed using OLD NMT
         Here batch comes from collate of RetrievalSeq2Seq and is a dict and is properly formatted.
         """
-
         # Eval step requires text datasets so we need to reconfigure MBS on each batch.
         app_state = AppState()
         _reconfigure_microbatch_calculator(
@@ -322,20 +328,22 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
             enc_input = model.encoder_embedding(encoder_input_ids, enc_position_ids, token_type_ids=None)
             
             enc_input_append = []
-            for idx in range(self.num_neighbors):
-                # Iterate over the neighbors and get the embeddings
 
-                # TODO: Can club all those calls into one but at the risk of extra padding
-                nn_src_ids = batch[6 + (idx * 4) + 0]
-                nn_tgt_ids = batch[6 + (idx * 4) + 1]
-                nn_src_mask = batch[6 + (idx * 4) + 2]
-                nn_tgt_mask = batch[6 + (idx * 4) + 3]
-                
-                # Compute perceiver embeddings. Dim is [B x S x H]
-                latent_src = self.retrieval_encoder.encode(nn_src_ids, nn_src_mask)
-                latent_tgt = self.retrieval_encoder.encode(nn_tgt_ids, nn_tgt_mask)
-                enc_input_append.append(latent_src)
-                enc_input_append.append(latent_tgt)
+            if not no_ret:
+                for idx in range(self.num_neighbors):
+                    # Iterate over the neighbors and get the embeddings
+
+                    # TODO: Can club all those calls into one but at the risk of extra padding
+                    nn_src_ids = batch[6 + (idx * 4) + 0]
+                    nn_tgt_ids = batch[6 + (idx * 4) + 1]
+                    nn_src_mask = batch[6 + (idx * 4) + 2]
+                    nn_tgt_mask = batch[6 + (idx * 4) + 3]
+                    
+                    # Compute perceiver embeddings. Dim is [B x S x H]
+                    latent_src = self.retrieval_encoder.encode(nn_src_ids, nn_src_mask)
+                    latent_tgt = self.retrieval_encoder.encode(nn_tgt_ids, nn_tgt_mask)
+                    enc_input_append.append(latent_src)
+                    enc_input_append.append(latent_tgt)
 
             enc_input_append.append(enc_input.transpose(0,1))
             # join latents with the encoder input embeddings
@@ -343,9 +351,10 @@ class MegatronNMTRetrievalModel(MegatronNMTModel):
             enc_input = torch.cat(enc_input_append, dim=1)
             
             # Modify the mask to account for the new sequence length
-            prepend_length = 2 * self.num_neighbors * latent_src.shape[1]
-            mask_prepend = torch.ones((encoder_attn_mask.shape[0], prepend_length)).to(encoder_attn_mask.device)
-            encoder_attn_mask = torch.cat((mask_prepend, encoder_attn_mask), dim=1)
+            if not no_ret:
+                prepend_length = 2 * self.num_neighbors * latent_src.shape[1]
+                mask_prepend = torch.ones((encoder_attn_mask.shape[0], prepend_length)).to(encoder_attn_mask.device)
+                encoder_attn_mask = torch.cat((mask_prepend, encoder_attn_mask), dim=1)
 
             predicted_tokens_ids, _ = self.decode(
                 tokens_enc=tokens_enc, # will be bypassed
