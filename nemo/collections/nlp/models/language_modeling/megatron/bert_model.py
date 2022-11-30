@@ -243,9 +243,6 @@ class BertModel(MegatronModule):
             self._lm_head_key = 'lm_head'
             self.binary_head = None
             if self.add_binary_head:
-                """
-                Should we do something here when sequence parallel is enabled ? 
-                """
                 self.binary_head = get_linear_layer(hidden_size, 2, init_method)
                 self._binary_head_key = 'binary_head'
 
