@@ -31,7 +31,8 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     scaled_init_method_normal,
 )
 from nemo.collections.nlp.modules.common.megatron.vocab_parallel_cross_entropy import vocab_parallel_cross_entropy
-
+from nemo.collections.nlp.modules.common.megatron.transformations import MegatronGaussianHiddenTransform 
+from nemo.collections.nlp.modules.common.megatron.transformations import MegatronMIMHiddenLoss 
 try:
     from apex.transformer import tensor_parallel, parallel_state
     from apex.transformer.enums import AttnMaskType, ModelType
@@ -102,6 +103,8 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         add_decoder=True,
         share_token_embeddings=True,
         share_decoder_tokens_head_embeddings=True,
+        hidden_transforms=None,
+        loss_transforms=None
     ):
         super(MegatronTokenLevelEncoderDecoderModule, self).__init__()
 
@@ -117,7 +120,8 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         self.label_smoothing = label_smoothing
         self.share_token_embeddings = share_token_embeddings
         self.share_decoder_tokens_head_embeddings = share_decoder_tokens_head_embeddings
-
+        self.hidden_transforms = hidden_transforms
+        self.loss_transforms = loss_transforms
         encoder_kv_channels, decoder_kv_channels = self._validate_config()
 
         encoder, decoder = None, None
@@ -362,7 +366,8 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 raise Exception('input_tensor must have either length 1 or 2')
         else:
             raise Exception('Stage must have at least either encoder or decoder')
-
+    
+    
     def forward(
         self,
         enc_input_ids=None,
@@ -376,6 +381,9 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         enc_input=None,
         output_enc_hidden_only=False,
     ):
+
+        ##TODO: Remove this code. it is debug code.
+        #hidden_transformations = [MegatronGaussianHiddenTransform()]
         """
         Return value is per token / per dimension (i.e., non collapsed loss value)
         """
@@ -418,8 +426,29 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 )
             else:
                 enc_output = self.enc_dec_model.encoder_hidden_state
-            return enc_output
+        
+        if output_enc_hidden_only:
+            if self.hidden_transforms is not None:
+                for transformation in self.hidden_transforms:
+                    output = enc_output["hiddens"] if type(enc_output) is dict else enc_output 
+                    enc_output = eval(transformation).transform(output)
+            return {"output_tensor": enc_output["hiddens"]}
         else:
+            if enc_output is None and self.hidden_transforms is not None:
+                enc_output = self.enc_dec_model.encode(
+                    enc_input=enc_input,
+                    enc_attn_mask=enc_attn_mask,
+                    enc_layer_past=None,
+                    enc_get_key_value=False,
+                    enc_self_attention_relative_position_bias=encoder_self_attention_relative_position_bias,
+                )
+                transformed_hiddens = None
+                for transformation in self.hidden_transforms:
+                    output = transformed_hiddens["hiddens"] if transformed_hiddens is not None else enc_output 
+                    transformed_hiddens = eval(transformation).transform(output)
+
+                enc_output = transformed_hiddens["hiddens"]
+
             if enc_output_attn_mask is None:
                 enc_output_attn_mask = enc_attn_mask
 
@@ -440,6 +469,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
             else:
                 # Note: This is when the decoder itself is split across PP ranks.
                 dec_input = None
+            
 
             # If enc_output is provided in `batch_for_pipeline`, we need to transpose it from [B x S x H] -> [S x B x H].
             if enc_output_provided:
@@ -482,22 +512,26 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                         tokens_loss = vocab_parallel_cross_entropy(token_logits, labels, label_smoothing)
                     else:
                         tokens_loss = vocab_parallel_cross_entropy(token_logits.float(), labels, label_smoothing)
-
                     # [s, b] -> [b, s]
+                    if self.loss_transforms is not None:
+                        for transformation in self.loss_transforms:
+                            tokens_loss = tokens_loss + eval(transformation).loss(transformed_hiddens)
+                        print ("Printing token loss: ", tokens_loss) # = torch.mul(tokens_loss, 5)
                     tokens_loss = tokens_loss.transpose(0, 1).contiguous()
 
-                    return tokens_loss
+                    return {"output_tensor": tokens_loss}
                 else:
                     # [s, b, h] -> [b, s, h]
                     token_logits = token_logits.transpose(0, 1).contiguous()
-                    return token_logits
+                    return {"output_tensor": token_logits}
 
             elif self.add_decoder and not self.add_encoder:
                 decoder_output, _ = output
-                return decoder_output
+                return {"output_tensor": decoder_output}
             else:
                 encoder_output = output
-                return encoder_output
+                return {"output_tensor": encoder_output}
+
 
     def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
         """For easy load when model is combined with other heads,

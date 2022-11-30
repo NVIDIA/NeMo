@@ -184,6 +184,14 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         else:
             embedding_dropout = self.cfg.embedding_dropout
 
+        hidden_transforms = None
+        if hasattr(self.cfg, 'hidden_transforms'):
+            hidden_transforms = self.cfg.hidden_transforms
+        
+        loss_transforms = None
+        if hasattr(self.cfg, 'loss_transforms'):
+            loss_transforms = self.cfg.loss_transforms
+        
         model = MegatronTokenLevelEncoderDecoderModule(
             encoder_cfg=self.cfg.encoder,
             decoder_cfg=self.cfg.decoder,
@@ -203,6 +211,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             add_decoder=add_decoder,
             share_token_embeddings=self.cfg.get('share_token_embeddings', True),
             share_decoder_tokens_head_embeddings=self.cfg.get('share_decoder_tokens_head_embeddings', True),
+            hidden_transforms=hidden_transforms,
+            loss_transforms=loss_transforms
         )
         return model
 
@@ -219,7 +229,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         output_enc_hidden_only=False,
         enc_input=None,
     ):
-        output_tensor = self.enc_dec_model(
+        output_dict = self.enc_dec_model(
             enc_input_ids=encoder_input_ids,
             dec_input_ids=decoder_input_ids,
             enc_attn_mask=encoder_attn_mask,
@@ -232,7 +242,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             enc_input=enc_input,
         )
 
-        return output_tensor
+        return output_dict["output_tensor"]
 
     def training_step(self, batch, batch_idx):
         """
@@ -404,7 +414,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             batch = [x.cuda(non_blocking=True) for x in batch]
             encoder_input_ids, decoder_input_ids, loss_mask, lm_labels, encoder_attn_mask, decoder_attn_mask = batch
 
-            output = model(
+            output_dict = model(
                 encoder_input_ids,  # enc_input_ids
                 encoder_attn_mask,  # enc_attn_mask
                 decoder_input_ids,  # dec_input_ids
@@ -418,7 +428,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 reduced_loss = average_losses_across_data_parallel_group([loss])
                 return loss, {'avg': reduced_loss}
 
-            return output, loss_func
+            return output_dict["output_tensor"], loss_func
 
         return fwd_output_and_loss_func
 
@@ -484,12 +494,12 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
             # map batch and shared args into forward args
             args = self._build_forward_args_from_kwargs(args_name=arg_names, args=batch, **kwargs)
-            output = model(*args)
+            output_dict = model(*args)
 
             def id_func(output_tensor):
                 return output_tensor, {output_name: output_tensor}
 
-            return output, id_func
+            return output_dict["output_tensor"], id_func
 
         return fwd_output_only_func
 
