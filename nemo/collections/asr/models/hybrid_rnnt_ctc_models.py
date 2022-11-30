@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import json
 import os
 import tempfile
@@ -21,7 +22,6 @@ import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from tqdm.auto import tqdm
-import copy
 
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
 from nemo.collections.asr.losses.ctc import CTCLoss
@@ -204,7 +204,12 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin):
                     self.ctc_decoder.unfreeze()
         return hypotheses, all_hypotheses
 
-    def change_vocabulary(self, new_vocabulary: List[str], decoding_cfg: Optional[DictConfig] = None, ctc_decoding_cfg: Optional[DictConfig] = None):
+    def change_vocabulary(
+        self,
+        new_vocabulary: List[str],
+        decoding_cfg: Optional[DictConfig] = None,
+        ctc_decoding_cfg: Optional[DictConfig] = None,
+    ):
         """
         Changes vocabulary used during RNNT decoding process. Use this method when fine-tuning a pre-trained model.
         This method changes only decoder and leaves encoder and pre-processing modules unchanged. For example, you would
@@ -226,7 +231,9 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin):
         # set up the new tokenizer for the CTC decoder
         if hasattr(self, 'ctc_decoder'):
             if self.ctc_decoder.vocabulary == new_vocabulary:
-                logging.warning(f"Old {self.ctc_decoder.vocabulary} and new {new_vocabulary} match. Not changing anything.")
+                logging.warning(
+                    f"Old {self.ctc_decoder.vocabulary} and new {new_vocabulary} match. Not changing anything."
+                )
             else:
                 if new_vocabulary is None or len(new_vocabulary) == 0:
                     raise ValueError(f'New vocabulary must be non-empty list of chars. But I got: {new_vocabulary}')
