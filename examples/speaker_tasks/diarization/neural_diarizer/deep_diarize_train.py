@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import pytorch_lightning as pl
+import torch
 from omegaconf import OmegaConf
 from torch import set_float32_matmul_precision
 
@@ -52,6 +53,12 @@ def main(cfg):
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
     deep_diarize = DeepDiarizeModel(cfg=cfg.model, trainer=trainer)
+
+    if cfg.model.pretrained_weights:
+        print("Loading pre-trained model weights")
+        weights = torch.load(cfg.model.pretrained_weights, map_location=torch.device('cpu'))['state_dict']
+        deep_diarize.load_state_dict(weights)
+
     trainer.fit(deep_diarize)
 
 
