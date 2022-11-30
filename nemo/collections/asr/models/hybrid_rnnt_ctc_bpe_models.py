@@ -183,13 +183,13 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
 
         new_joint_config['num_classes'] = len(vocabulary)
         del self.joint
-        self.joint = EncDecRNNTBPEModel.from_config_dict(new_joint_config)
+        self.joint = EncDecHybridRNNTCTCBPEModel.from_config_dict(new_joint_config)
 
         decoder_config = self.decoder.to_config_dict()
         new_decoder_config = copy.deepcopy(decoder_config)
         new_decoder_config.vocab_size = len(vocabulary)
         del self.decoder
-        self.decoder = EncDecRNNTBPEModel.from_config_dict(new_decoder_config)
+        self.decoder = EncDecHybridRNNTCTCBPEModel.from_config_dict(new_decoder_config)
 
         del self.loss
         self.loss = RNNTLoss(num_classes=self.joint.num_classes_with_blank - 1)
