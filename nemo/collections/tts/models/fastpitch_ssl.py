@@ -326,10 +326,17 @@ class FastPitchModel_SSL(ModelPT):
         dataset_id=0,
     ):
         """
-        content_embedding : (B, C, T)
-        speaker_embedding : (B, C)
-        pitch_contour : (B, T*4) (mel pitch) or None
-        compute_pitch: if true, predict pitch contour from content and speaker embedding.
+        Args:
+            content_embedding : Content embedding from SSL backbone (B, C, T) 
+            speaker_embedding : Speaker embedding from SSL backbone (B, C)
+            pitch_contour : Normalized Pitch contour derived from the mel spectrogram
+            encoded_len: Length of each content embedding, optional if batch size is 1. 
+            compute_pitch: if true, predict pitch contour from content and speaker embedding.
+            compute_duration: if true, predict duration from content and speaker embedding.
+            durs_gt: Ground truth duration of each content embedding, ignored if compute_duration is True.
+            dataset_id: Dataset id if training is conditioned on multiple datasets
+        Returns:
+            List of waveforms
         """
         _bs, _, _n_time = content_embedding.size()
         if encoded_len is None:
