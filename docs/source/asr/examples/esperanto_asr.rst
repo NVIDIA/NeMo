@@ -142,4 +142,39 @@ Analysis of training parameters.
 Tuning of hyper parameters plays a huge role in the training of deep neural networks. The main list of parameters for training the ASR model in NeMo is presented at the link. As an encoder, a Conformer model is used here, the training parameters for which are already well configured based on the training English models. However, for a new language, the set of optimal parameters may differ. In this section, we will look at the set of simple parameters that can improve the quality of recognition for a new language without digging into the Conformer model too much.
 
 
+Scheduler:
+#################################
+By default, the Conformer model in NeMo uses Noam as a learning rate scheduler. However, it has at least one disadvantage - the peak learning rate depends on the size of the model attention, the size of the global batch, and the number of warmup steps. The learning rate value itself for the optimizer is set in the config as some abstract number that will not be shown in reality. In order to still understand how the schedule of the scheduler will look like, it is better to plot it in advance before training. Or use the more understandable CosineAnealing scheduler. The code for plotting the scheduler is shown below:
+...
+
+Warmup steps:
+#################################
+This parameter is responsible for how quickly your scheduler will reach the peak learning rate. One step is the size of your global batch (local batch * gpu_num * accum_gradient). If you increase the learning rate too quickly, the model may diverge. The recommended number of steps is 8000-10000. If your model diverges, then you can try increasing this parameter.
+
+Batch size:
+#################################
+It is usually required to use a large global batch size, since it allows to average gradients over a larger number of training examples and to smooth out outliers. The good batch size is between 512 and 2048. Standard GPUs have 12-32 gigabytes of memory, which does not allow you to place such huge batches on them. Therefore, it is suggested to use grad_accamulation to artificially increase the size of the global batch and get the averaged gradient. As a local batch, it is not recommended to use a value greater than 32 (even if it fits on your GPU) because it can noticeably slow down the training speed. Most likely this is caused by the overhead of transferring data from RAM to the GPU memory ???.
+
+Precision:
+#################################
+By default, for model training in NeMo, it is recommended to use half precision (FP16 for V100 and BF16 for A100 GPU). This allows you to speed up the training process almost twice. However, the transition to half-precision sometimes has problems with the convergence of the model. At an unexpected moment, the metrics can explode due to an overflow of one of the BN statistics. In order to eliminate the influence of half precision on such a problem, we advise you to check the training in FP32.
+
+**************************
+Training.
+**************************
+
+....
+
+**************************
+Decoding.
+**************************
+
+At the end of training, several checkpoints (usually 5) and one the best model (not always from the latest epoch) are stored in the model folder. Checkpoint averaging (script) can help to improve the final decoding accuracy. In our case, this did not give an improvement on the CTC models, however, for some RNNT models, it was possible to get an improvement in the range of 0.1-0.2% WER.
+To analyze recognition errors, you can use the Speech Data Explorer, similar to the Kinyarwanda example. After listening to files with an abnormally high WER (>50%), problematic files with wrong transcriptions and cutted or empty audio files were found in the dev and test sets.
+
+**************************
+Bonus:
+**************************
+
+For additional analysis of the training dataset, you can decode it using an already trained model. Examples with high error rate (WER > 50%) are very likely to be problematic files. It is better to remove them from the training set. Sometimes a model is able to train text even for almost empty audio. Here you can see an example for this anomaly: …
 
