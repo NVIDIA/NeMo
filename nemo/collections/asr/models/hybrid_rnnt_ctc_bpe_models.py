@@ -20,6 +20,7 @@ from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 
 from nemo.collections.asr.losses.ctc import CTCLoss
+from nemo.collections.asr.losses.rnnt import RNNTLoss
 from nemo.collections.asr.metrics.rnnt_wer_bpe import RNNTBPEWER, RNNTBPEDecoding, RNNTBPEDecodingConfig
 from nemo.collections.asr.metrics.wer_bpe import WERBPE, CTCBPEDecoding, CTCBPEDecodingConfig
 from nemo.collections.asr.models.hybrid_rnnt_ctc_models import EncDecHybridRNNTCTCModel
@@ -253,17 +254,17 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
             ctc_decoder_config['num_classes'] = len(vocabulary)
 
             del self.ctc_decoder
-            self.ctc_decoder = EncDecCTCModelBPE.from_config_dict(ctc_decoder_config)
+            self.ctc_decoder = EncDecHybridRNNTCTCBPEModel.from_config_dict(ctc_decoder_config)
             del self.ctc_loss
             self.loss = CTCLoss(
                 num_classes=self.ctc_decoder.num_classes_with_blank - 1,
                 zero_infinity=True,
-                reduction=self.cfg.ctc_aux.get("ctc_reduction", "mean_batch"),
+                reduction=self.cfg.aux_ctc.get("ctc_reduction", "mean_batch"),
             )
 
             if ctc_decoding_cfg is None:
                 # Assume same decoding config as before
-                ctc_decoding_cfg = self.cfg.ctc_aux.decoding
+                ctc_decoding_cfg = self.cfg.aux_ctc.decoding
 
             # Assert the decoding config with all hyper parameters
             ctc_decoding_cls = OmegaConf.structured(CTCBPEDecodingConfig)
@@ -274,7 +275,7 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
 
             self.ctc_wer = WERBPE(
                 decoding=self.ctc_decoding,
-                use_cer=self.cfg.ctc_aux.get('use_cer', False),
+                use_cer=self.cfg.aux_ctc.get('use_cer', False),
                 log_prediction=self.cfg.get("log_prediction", False),
                 dist_sync_on_step=True,
             )
