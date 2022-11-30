@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import copy
+import os
 from typing import Optional, Union
 
 from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
@@ -61,6 +62,26 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
             cfg.joint.jointnet.encoder_hidden = cfg.model_defaults.enc_hidden
             cfg.joint.jointnet.pred_hidden = cfg.model_defaults.pred_hidden
 
+        # setup auxiliary CTC decoder
+        if 'aux_ctc' not in cfg:
+            raise ValueError(
+                "The config need to have a section for the CTC decoder named as aux_ctc for Hybrid models."
+            )
+
+        with open_dict(cfg):
+            if self.tokenizer_type == "agg":
+                cfg.aux_ctc.decoder.vocabulary = ListConfig(vocabulary)
+            else:
+                cfg.aux_ctc.decoder.vocabulary = ListConfig(list(vocabulary.keys()))
+
+        if cfg.aux_ctc.decoder["num_classes"] < 1:
+            logging.info(
+                "\nReplacing placholder number of classes ({}) with actual number of classes - {}".format(
+                    cfg.aux_ctc.decoder["num_classes"], len(vocabulary)
+                )
+            )
+            cfg.aux_ctc.decoder["num_classes"] = len(vocabulary)
+
         super().__init__(cfg=cfg, trainer=trainer)
 
         # Setup decoding object
@@ -81,26 +102,6 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
         if self.joint.fuse_loss_wer:
             self.joint.set_loss(self.loss)
             self.joint.set_wer(self.wer)
-
-        # setup auxiliary CTC decoder
-        if 'aux_ctc' not in self.cfg:
-            raise ValueError(
-                "The config need to have a section for the CTC decoder named as aux_ctc for Hybrid models."
-            )
-
-        with open_dict(self.cfg):
-            if self.tokenizer_type == "agg":
-                self.cfg.aux_ctc.decoder.vocabulary = ListConfig(vocabulary)
-            else:
-                self.cfg.aux_ctc.decoder.vocabulary = ListConfig(list(vocabulary.keys()))
-
-        if self.cfg.aux_ctc.decoder["num_classes"] < 1:
-            logging.info(
-                "\nReplacing placholder number of classes ({}) with actual number of classes - {}".format(
-                    self.cfg.aux_ctc.decoder["num_classes"], len(vocabulary)
-                )
-            )
-            self.cfg.aux_ctc.decoder["num_classes"] = len(vocabulary)
 
         # Setup CTC decoding
         ctc_decoding_cfg = self.cfg.aux_ctc.get('decoding', None)
