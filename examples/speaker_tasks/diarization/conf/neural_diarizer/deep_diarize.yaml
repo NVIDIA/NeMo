@@ -141,9 +141,9 @@ exp_manager:
   create_checkpoint_callback: True
   create_wandb_logger: False
   checkpoint_callback_params:
-    monitor: "val_loss"
+    monitor: "call_collar_der"
     mode: "min"
-    save_top_k: 1
+    save_top_k: 5
   wandb_logger_kwargs:
     name: null
     project: null
