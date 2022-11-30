@@ -123,6 +123,7 @@ Tokenization.
 For Esperanto we use the standard Byte-pair encoding algorithm with 128, 512, and 1024 vocab size. It is worth noting that we have a relatively small training dataset (~250 hours). Usually it is not enough data to train the best ARS model with a big vocab size (512 or 1024 BPE tokens). Smaller vocab size should be better in our case. We will check this statement. 
 
 .. code-block:: bash
+
     vocab_size=128
     python ${NEMO_ROOT}/scripts/tokenizers/process_asr_text_tokenizer.py \
       --manifest=dev_decoded_processed.json,train_decoded_processed.json \
