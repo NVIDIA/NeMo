@@ -61,6 +61,9 @@ from nemo.collections.asr.parts.utils.vad_utils import (
 )
 from nemo.collections.asr.parts.utils.streaming_utils import AudioFeatureIterator, FrameBatchASR, StreamingFeatureBufferer
 
+import time 
+from nemo.utils import logging
+
 try:
     import arpa
 
@@ -1429,7 +1432,7 @@ def add_timestamp_offset(words, word_ts, offset):
 
 @timeit
 def get_wer_feat_logit_single(
-    samples, frame_asr, frame_len, tokens_per_chunk, delay, model_stride_in_secs, frame_mask
+    feat_buffer, frame_asr, frame_len, tokens_per_chunk, delay, model_stride_in_secs, frame_mask
 ):
     """
     Create a preprocessor to convert audio samples into raw features,
@@ -1822,7 +1825,6 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASRDecoderTimeStamps):
         vad_mask, vad_timestamps = None, None
         return vad_mask, vad_timestamps
     
-    #TODO
     @timeit
     def run_ASR_decoder_step(self, frame_mask):
         buffer=self._streamingFeatBufferer.get_normalized_feature_buffer()

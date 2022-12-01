@@ -344,16 +344,22 @@ def inplace_buffer_merge(buffer, data, timesteps, model):
 
 class StreamingFeatureBufferer():
     """
-    Class to append each feature frame to a buffer and return
-    an array of buffers.
+    Class to append each feature frame to a buffer and return an array of buffers.
+    This class is designed to perform a real-life streaming decoding where only a single chunk
+    is provided at each step of a streaming pipeline.
     """
 
     def __init__(self, asr_model, chunk_size=1.6, buffer_size=5.0, chunk_look_back=0.01):
         '''
         Args:
-          asr_model: reference to the asr model for which the feature needs to be created
-          chunk_size: duration of the new chunk of audio
-          buffer_size: size of the total audio in seconds maintained in the buffer
+            asr_model:
+                Reference to the asr model instance for which the feature needs to be created
+            chunk_size (float):
+                Duration of the new chunk of audio
+            buffer_size (float):
+                Size of the total audio in seconds maintained in the buffer
+            chunk_look_back (float):
+                Size of the look-back length for middle chunk
         '''
 
         self.NORM_CONSTANT = 1e-5
@@ -364,10 +370,6 @@ class StreamingFeatureBufferer():
         self.n_chunk_look_back = int(chunk_look_back*self.sr)
         timestep_duration = asr_model._cfg.preprocessor.window_stride
         self.n_chunk_samples = int(chunk_size*self.sr)
-        print(timestep_duration)
-        print(buffer_size)
-        print(chunk_size)
-        print(timestep_duration)
         self.buffer_size = buffer_size
         total_buffer_len = int(buffer_size / timestep_duration)
         self.n_feat = asr_model._cfg.preprocessor.features
@@ -375,7 +377,6 @@ class StreamingFeatureBufferer():
         self.buffer = np.ones([self.n_feat, total_buffer_len], dtype=np.float32) * self.ZERO_LEVEL_SPEC_DB_VAL
         self.feature_chunk_len = int(chunk_size / timestep_duration)
 
-        #self.chunk_available = False
         self.feature_buffer_len = total_buffer_len
 
         self.feature_buffer = (
@@ -384,7 +385,6 @@ class StreamingFeatureBufferer():
         self.reset()
         self.buffered_len = 0
         cfg = copy.deepcopy(asr_model._cfg)
-        #self.frame_len = frame_len
         OmegaConf.set_struct(cfg.preprocessor, False)
 
         cfg.preprocessor.dither = 0.0
@@ -404,10 +404,20 @@ class StreamingFeatureBufferer():
             np.ones([self.n_feat, self.feature_buffer_len], dtype=np.float32) * self.ZERO_LEVEL_SPEC_DB_VAL
         )
     def _add_chunk_to_buffer(self, chunk):
+        """
+        Add time-series audio signal to `sample_buffer`
+
+        Args:
+            chunk (np.array):
+                Numpy array filled with time-series audio signal
+        """
         self.sample_buffer[ : -self.n_chunk_samples] = self.sample_buffer[self.n_chunk_samples:]
         self.sample_buffer[-self.n_chunk_samples:] = chunk
 
     def _update_feature_buffer(self, feat_chunk):
+        """
+        Add an extracted feature to `feature_buffer`
+        """
         self.feature_buffer[:, :-self.feature_chunk_len] = self.feature_buffer[:, self.feature_chunk_len:]
         self.feature_buffer[:,-self.feature_chunk_len:] = feat_chunk
 
@@ -421,6 +431,9 @@ class StreamingFeatureBufferer():
         return normalized_buffer
 
     def _convert_buffer_to_features(self):
+        """
+        Extract features from the time-series audio buffer `sample_buffer`.
+        """
         # samples for conversion to features.
         # Add look_back to have context for the first feature
         samples = self.sample_buffer[:-(self.n_chunk_samples + self.n_chunk_look_back)]
@@ -430,11 +443,17 @@ class StreamingFeatureBufferer():
         features, features_len = self.raw_preprocessor(input_signal=audio_signal, length=audio_signal_len, )
         features = features.squeeze()
         # update feature buffer with features corresponding to one chunk of audio
-        print(self.feature_chunk_len)
         self._update_feature_buffer(features[:,-self.feature_chunk_len:].cpu().numpy())
-        # self.feature_buffer = features.cpu().numpy()
 
     def update_feature_buffer(self, chunk):
+        """
+        Update time-series signal `chunk` to the buffer then generate features out of the
+        signal in the audio buffer.
+
+        Args:
+            chunk (np.array):
+                Numpy array filled with time-series audio signal
+        """
         if len(chunk) > self.n_chunk_samples:
             raise(ValueError(f"chunk should be of length {self.n_chunk_samples} or less"))
         if len(chunk) < self.n_chunk_samples:
@@ -443,8 +462,6 @@ class StreamingFeatureBufferer():
             chunk = temp_chunk
         self._add_chunk_to_buffer(chunk)
         self._convert_buffer_to_features()
-
-
 
 
 class AudioFeatureIterator(IterableDataset):
@@ -471,7 +488,6 @@ class AudioFeatureIterator(IterableDataset):
         self.buffer = np.ones([self.n_feat, total_buffer_len], dtype=np.float32) * self.ZERO_LEVEL_SPEC_DB_VAL
         self.feature_chunk_len = int(chunk_size/timestep_duration)
 
-        #self.chunk_available = False
         self.feature_buffer_len = total_buffer_len
 
         self.feature_buffer = (
@@ -526,7 +542,6 @@ class AudioFeatureIterator(IterableDataset):
         self._features, self._features_len = self.raw_preprocessor(input_signal=audio_signal, length=audio_signal_len, )
         self._features = self._features.squeeze()
         # update feature buffer with features corresponding to one chunk of audio
-        print(self.feature_chunk_len)
         self._update_feature_buffer(self._features[-self.feature_chunk_len:])
 
     def update_feature_buffer(self, chunk):
