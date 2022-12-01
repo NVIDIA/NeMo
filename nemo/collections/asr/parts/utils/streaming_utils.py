@@ -342,6 +342,220 @@ def inplace_buffer_merge(buffer, data, timesteps, model):
     buffer += data
     return buffer
 
+class StreamingFeatureBufferer():
+    """
+    Class to append each feature frame to a buffer and return an array of buffers.
+    This class is designed to perform a real-life streaming decoding where only a single chunk
+    is provided at each step of a streaming pipeline.
+    """
+
+    def __init__(self, asr_model, chunk_size=1.6, buffer_size=5.0, chunk_look_back=0.01):
+        '''
+        Args:
+            asr_model:
+                Reference to the asr model instance for which the feature needs to be created
+            chunk_size (float):
+                Duration of the new chunk of audio
+            buffer_size (float):
+                Size of the total audio in seconds maintained in the buffer
+            chunk_look_back (float):
+                Size of the look-back length for middle chunk
+        '''
+
+        self.NORM_CONSTANT = 1e-5
+        self.ZERO_LEVEL_SPEC_DB_VAL = -16.635  # Log-Melspectrogram value for zero signal
+        self.asr_model = asr_model
+        self.sr = asr_model._cfg.sample_rate
+        self.chunk_size = chunk_size
+        self.n_chunk_look_back = int(chunk_look_back*self.sr)
+        timestep_duration = asr_model._cfg.preprocessor.window_stride
+        self.n_chunk_samples = int(chunk_size*self.sr)
+        self.buffer_size = buffer_size
+        total_buffer_len = int(buffer_size / timestep_duration)
+        self.n_feat = asr_model._cfg.preprocessor.features
+        self.sample_buffer = np.zeros(int(buffer_size*self.sr))
+        self.buffer = np.ones([self.n_feat, total_buffer_len], dtype=np.float32) * self.ZERO_LEVEL_SPEC_DB_VAL
+        self.feature_chunk_len = int(chunk_size / timestep_duration)
+
+        self.feature_buffer_len = total_buffer_len
+
+        self.feature_buffer = (
+                np.ones([self.n_feat, self.feature_buffer_len], dtype=np.float32) * self.ZERO_LEVEL_SPEC_DB_VAL
+        )
+        self.reset()
+        self.buffered_len = 0
+        cfg = copy.deepcopy(asr_model._cfg)
+        OmegaConf.set_struct(cfg.preprocessor, False)
+
+        cfg.preprocessor.dither = 0.0
+        cfg.preprocessor.pad_to = 0
+        cfg.preprocessor.normalize = "None"
+        self.raw_preprocessor = EncDecCTCModelBPE.from_config_dict(cfg.preprocessor)
+        self.raw_preprocessor.to(asr_model.device)
+
+    def reset(self):
+        '''
+        Reset frame_history and decoder's state
+        '''
+        self.buffer = np.ones(shape=self.buffer.shape, dtype=np.float32) * self.ZERO_LEVEL_SPEC_DB_VAL
+        self.frame_buffers = []
+        self.sample_buffer = np.zeros(int(self.buffer_size * self.sr))
+        self.feature_buffer = (
+            np.ones([self.n_feat, self.feature_buffer_len], dtype=np.float32) * self.ZERO_LEVEL_SPEC_DB_VAL
+        )
+    def _add_chunk_to_buffer(self, chunk):
+        """
+        Add time-series audio signal to `sample_buffer`
+
+        Args:
+            chunk (np.array):
+                Numpy array filled with time-series audio signal
+        """
+        self.sample_buffer[ : -self.n_chunk_samples] = self.sample_buffer[self.n_chunk_samples:]
+        self.sample_buffer[-self.n_chunk_samples:] = chunk
+
+    def _update_feature_buffer(self, feat_chunk):
+        """
+        Add an extracted feature to `feature_buffer`
+        """
+        self.feature_buffer[:, :-self.feature_chunk_len] = self.feature_buffer[:, self.feature_chunk_len:]
+        self.feature_buffer[:,-self.feature_chunk_len:] = feat_chunk
+
+    def get_raw_feature_buffer(self):
+        return self.feature_buffer
+
+    def get_normalized_feature_buffer(self):
+        mean_from_buffer = np.mean(self.feature_buffer)
+        stdev_from_buffer = np.std(self.feature_buffer)
+        normalized_buffer = (self.feature_buffer - mean_from_buffer) / (stdev_from_buffer + self.NORM_CONSTANT)
+        return normalized_buffer
+
+    def _convert_buffer_to_features(self):
+        """
+        Extract features from the time-series audio buffer `sample_buffer`.
+        """
+        # samples for conversion to features.
+        # Add look_back to have context for the first feature
+        samples = self.sample_buffer[:-(self.n_chunk_samples + self.n_chunk_look_back)]
+        device = self.asr_model.device
+        audio_signal = torch.from_numpy(samples).unsqueeze_(0).to(device)
+        audio_signal_len = torch.Tensor([samples.shape[0]]).to(device)
+        features, features_len = self.raw_preprocessor(input_signal=audio_signal, length=audio_signal_len, )
+        features = features.squeeze()
+        # update feature buffer with features corresponding to one chunk of audio
+        self._update_feature_buffer(features[:,-self.feature_chunk_len:].cpu().numpy())
+
+    def update_feature_buffer(self, chunk):
+        """
+        Update time-series signal `chunk` to the buffer then generate features out of the
+        signal in the audio buffer.
+
+        Args:
+            chunk (np.array):
+                Numpy array filled with time-series audio signal
+        """
+        if len(chunk) > self.n_chunk_samples:
+            raise(ValueError(f"chunk should be of length {self.n_chunk_samples} or less"))
+        if len(chunk) < self.n_chunk_samples:
+            temp_chunk = np.zeros(self.n_chunk_samples, dtype='float32')
+            temp_chunk[:chunk.shape[0]] = chunk
+            chunk = temp_chunk
+        self._add_chunk_to_buffer(chunk)
+        self._convert_buffer_to_features()
+
+
+class AudioFeatureIterator(IterableDataset):
+    def __init__(self, samples, frame_len, preprocessor, device):
+        self._samples = samples
+        self._frame_len = frame_len
+        self._start = 0
+        self.output = True
+        self.count = 0
+        timestep_duration = preprocessor._cfg['window_stride']
+
+        self.NORM_CONSTANT = 1e-5
+        self.ZERO_LEVEL_SPEC_DB_VAL = -16.635  # Log-Melspectrogram value for zero signal
+        self.asr_model = asr_model
+        self.sr = asr_model._cfg.sample_rate
+        self.chunk_size = chunk_size
+        self.n_chunk_look_back = chunk_look_back*self.sr
+        timestep_duration = asr_model._cfg.preprocessor.window_stride
+        self.n_chunk_samples = int(chunk_size*self.sr)
+
+        total_buffer_len = int(buffer_size / timestep_duration)
+        self.n_feat = asr_model._cfg.preprocessor.features
+        self.sample_buffer = np.zeros(buffer_size*self.sr)
+        self.buffer = np.ones([self.n_feat, total_buffer_len], dtype=np.float32) * self.ZERO_LEVEL_SPEC_DB_VAL
+        self.feature_chunk_len = int(chunk_size/timestep_duration)
+
+        self.feature_buffer_len = total_buffer_len
+
+        self.feature_buffer = (
+                np.ones([self.n_feat, self.feature_buffer_len], dtype=np.float32) * self.ZERO_LEVEL_SPEC_DB_VAL
+        )
+        self.reset()
+        self.buffered_len = 0
+        cfg = copy.deepcopy(asr_model._cfg)
+        self.frame_len = frame_len
+        OmegaConf.set_struct(cfg.preprocessor, False)
+
+        cfg.preprocessor.dither = 0.0
+        cfg.preprocessor.pad_to = 0
+        cfg.preprocessor.normalize = "None"
+        self.raw_preprocessor = EncDecCTCModelBPE.from_config_dict(cfg.preprocessor)
+        self.raw_preprocessor.to(asr_model.device)
+
+    def reset(self):
+        '''
+        Reset frame_history and decoder's state
+        '''
+        self.buffer = np.ones(shape=self.buffer.shape, dtype=np.float32) * self.ZERO_LEVEL_SPEC_DB_VAL
+        self.frame_buffers = []
+        self.sample_buffer = np.zeros(buffer_size * self.sr)
+        self.feature_buffer = (
+            np.ones([self.n_feat, self.feature_buffer_len], dtype=np.float32) * self.ZERO_LEVEL_SPEC_DB_VAL
+        )
+    def _add_chunk_to_buffer(self, chunk):
+        self.sample_buffer[ : -self.n_chunk_samples] = self.sample_buffer[self.n_chunk_samples:]
+        self.sample_buffer[-self.n_chunk_samples:] = chunk
+
+    def _update_feature_buffer(self, feat_chunk):
+        self.feature_buffer[:, :-self.feature_chunk_len] = self.feature_buffer[:, self.feature_chunk_len:]
+        self._feature_buffer[:,-self.feature_chunk_len:] = feat_chunk
+
+    def get_raw_feature_buffer(self):
+        return self._feature_buffer
+
+    def get_normalized_feature_buffer(self):
+        mean_from_buffer = np.mean(self._feature_buffer)
+        stdev_from_buffer = np.std(self._feature_buffer)
+        normalized_buffer = (self.feature_buffer - mean_from_buffer) / (stdev_from_buffer + self.NORM_CONSTANT)
+        return normalized_buffer
+
+    def _convert_buffer_to_features(self):
+        # samples for conversion to features.
+        # Add look_back to have context for the first feature
+        samples = self.sample_buffer[:-(self.n_chunk_samples + self.n_chunk_look_back)]
+        device = self.asr_model.device
+        audio_signal = torch.from_numpy(samples).unsqueeze_(0).to(device)
+        audio_signal_len = torch.Tensor([samples.shape[0]]).to(device)
+        self._features, self._features_len = self.raw_preprocessor(input_signal=audio_signal, length=audio_signal_len, )
+        self._features = self._features.squeeze()
+        # update feature buffer with features corresponding to one chunk of audio
+        self._update_feature_buffer(self._features[-self.feature_chunk_len:])
+
+    def update_feature_buffer(self, chunk):
+        if len(chunk) > self.chunk_size:
+            raise(ValueError(f"chunk should be of length {chunk_size} or less"))
+        if len(chunk) < self.chunk_size:
+            temp_chunk = np.zeros(self.chunk_size, dtype='float32')
+            temp_chunk[:chunk.shape[0]] = chunk
+            chunk = temp_chunk
+        self._add_chunk_to_buffer(chunk)
+        self._convert_buffer_to_features()
+
+
+
 
 class AudioFeatureIterator(IterableDataset):
     def __init__(self, samples, frame_len, preprocessor, device):
@@ -1242,110 +1456,12 @@ class CacheAwareStreamingAudioBuffer:
                     dtype=audio_chunk.dtype,
                 )
             else:
-                if isinstance(self.streaming_cfg.pre_encode_cache_size, list):
-                    pre_encode_cache_size = self.streaming_cfg.pre_encode_cache_size[1]
-                else:
-                    pre_encode_cache_size = self.streaming_cfg.pre_encode_cache_size
-
-                start_pre_encode_cache = self.buffer_idx - pre_encode_cache_size
-                if start_pre_encode_cache < 0:
-                    start_pre_encode_cache = 0
-                cache_pre_encode = self.buffer[:, :, start_pre_encode_cache : self.buffer_idx]
-                if cache_pre_encode.size(-1) < pre_encode_cache_size:
-                    zeros_pads = torch.zeros(
-                        (
-                            audio_chunk.size(0),
-                            audio_chunk.size(-2),
-                            pre_encode_cache_size - cache_pre_encode.size(-1),
-                        ),
-                        device=audio_chunk.device,
-                        dtype=audio_chunk.dtype,
+                if stream_id < 0:
+                    self.buffer = torch.nn.functional.pad(self.buffer, pad=(0, 0, 0, 0, 0, 1))
+            self.streams_length = torch.cat(
+                        (self.streams_length, torch.tensor([0], device=self.streams_length.device)), dim=-1
                     )
-
-            added_len = cache_pre_encode.size(-1)
-            audio_chunk = torch.cat((cache_pre_encode, audio_chunk), dim=-1)
-
-            if self.online_normalization:
-                audio_chunk, x_mean, x_std = normalize_batch(
-                    x=audio_chunk,
-                    seq_len=torch.tensor([audio_chunk.size(-1)] * audio_chunk.size(0)),
-                    normalize_type=self.model_normalize_type,
-                )
-
-            if zeros_pads is not None:
-                # TODO: check here when zero_pads is not None and added_len is already non-zero
-                audio_chunk = torch.cat((zeros_pads, audio_chunk), dim=-1)
-                added_len += zeros_pads.size(-1)
-
-            max_chunk_lengths = self.streams_length - self.buffer_idx
-            max_chunk_lengths = max_chunk_lengths + added_len
-            chunk_lengths = torch.clamp(max_chunk_lengths, min=0, max=audio_chunk.size(-1))
-
-            self.buffer_idx += shift_size
-            self.step += 1
-            yield audio_chunk, chunk_lengths
-
-    def is_buffer_empty(self):
-        if self.buffer_idx >= self.buffer.size(-1):
-            return True
-        else:
-            return False
-
-    def __len__(self):
-        return len(self.buffer)
-
-    def reset_buffer(self):
-        self.buffer = None
-        self.buffer_idx = 0
-        self.streams_length = None
-        self.step = 0
-
-    def reset_buffer_pointer(self):
-        self.buffer_idx = 0
-        self.step = 0
-
-    def extract_preprocessor(self):
-        cfg = copy.deepcopy(self.model._cfg)
-        self.model_normalize_type = cfg.preprocessor.normalize
-        OmegaConf.set_struct(cfg.preprocessor, False)
-        cfg.preprocessor.dither = 0.0
-        cfg.preprocessor.pad_to = 0
-        if self.online_normalization:
-            cfg.preprocessor.normalize = "None"
-
-        preprocessor = self.model.from_config_dict(cfg.preprocessor)
-        return preprocessor.to(self.get_model_device())
-
-    def append_audio_file(self, audio_filepath, stream_id=-1):
-        audio = get_samples(audio_filepath)
-        processed_signal, processed_signal_length, stream_id = self.append_audio(audio, stream_id)
-        return processed_signal, processed_signal_length, stream_id
-
-    def append_audio(self, audio, stream_id=-1):
-        processed_signal, processed_signal_length = self.preprocess_audio(audio)
-        processed_signal, processed_signal_length, stream_id = self.append_processed_signal(
-            processed_signal, stream_id
-        )
-        return processed_signal, processed_signal_length, stream_id
-
-    def append_processed_signal(self, processed_signal, stream_id=-1):
-        processed_signal_length = torch.tensor(processed_signal.size(-1), device=processed_signal.device)
-        if stream_id >= 0 and (self.streams_length is not None and stream_id >= len(self.streams_length)):
-            raise ValueError("Not valid stream_id!")
-        if self.buffer is None:
-            if stream_id >= 0:
-                raise ValueError("stream_id can not be specified when there is no stream.")
-            self.buffer = processed_signal
-            self.streams_length = torch.tensor([processed_signal_length], device=processed_signal.device)
-        else:
-            if self.buffer.size(1) != processed_signal.size(1):
-                raise ValueError("Buffer and the processed signal have different dimensions!")
-            if stream_id < 0:
-                self.buffer = torch.nn.functional.pad(self.buffer, pad=(0, 0, 0, 0, 0, 1))
-                self.streams_length = torch.cat(
-                    (self.streams_length, torch.tensor([0], device=self.streams_length.device)), dim=-1
-                )
-                stream_id = len(self.streams_length) - 1
+            stream_id = len(self.streams_length) - 1
             needed_len = self.streams_length[stream_id] + processed_signal_length
             if needed_len > self.buffer.size(-1):
                 self.buffer = torch.nn.functional.pad(self.buffer, pad=(0, needed_len - self.buffer.size(-1)))
