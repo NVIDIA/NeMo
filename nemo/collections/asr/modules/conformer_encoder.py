@@ -193,51 +193,10 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         self.att_context_style = att_context_style
         self.subsampling_factor = subsampling_factor
 
-        if att_context_size:
-            self.att_context_size = list(att_context_size)
-        else:
-            self.att_context_size = [-1, -1]
 
-        if isinstance(conv_context_size, ListConfig):
-            conv_context_size = list(conv_context_size)
+        set_context_sizes(att_context_size, conv_context_size, conv_kernel_size)
+        set_chunking_params(att_context_style)
 
-        if conv_context_size is not None:
-            if (
-                not isinstance(conv_context_size, list)
-                and not isinstance(conv_context_size, str)
-                and not isinstance(conv_context_size, ListConfig)
-            ):
-                raise ValueError(
-                    f"Invalid conv_context_size! It should be the string 'causal' or a list of two integers."
-                )
-            if conv_context_size == "causal":
-                conv_context_size = [conv_kernel_size - 1, 0]
-            else:
-                if conv_context_size[0] + conv_context_size[1] + 1 != conv_kernel_size:
-                    raise ValueError(f"Invalid conv_context_size: {self.conv_context_size}!")
-        else:
-            conv_context_size = [(conv_kernel_size - 1) // 2, (conv_kernel_size - 1) // 2]
-        self.conv_context_size = conv_context_size
-
-        if att_context_style == "chunked_limited":
-            # the left context for self-attention in chunked_limited mode should be dividable by the right context
-            # right context=att_context_size[1]+1, and left_context=self.att_context_size[0]
-            if self.att_context_size[0] > 0 and self.att_context_size[0] % (self.att_context_size[1] + 1) > 0:
-                raise ValueError("att_context_size[0] % (att_context_size[1] + 1) should be zero!")
-            if self.att_context_size[1] < 0:
-                raise ValueError("Right context can not be unlimited for chunked_limited style!")
-            self.chunk_size = self.att_context_size[1] + 1
-
-            # left_chunks_num specifies the number of chunks to be visible by each chunk on the left side
-            if self.att_context_size[0] >= 0:
-                self.left_chunks_num = self.att_context_size[0] // self.chunk_size
-            else:
-                self.left_chunks_num = 100000
-
-        elif att_context_style == "regular":
-            self.chunk_size = None
-        else:
-            raise ValueError("Invalid att_context_style!")
 
         if xscaling:
             self.xscale = math.sqrt(d_model)
@@ -637,6 +596,58 @@ class ConformerEncoderAdapter(ConformerEncoder, adapter_mixins.AdapterModuleMixi
     def _update_adapter_cfg_input_dim(self, cfg: DictConfig):
         cfg = adapter_utils.update_adapter_cfg_input_dim(self, cfg, module_dim=self.d_model)
         return cfg
+
+    def set_context_sizes(self, att_context_size, conv_context_size, conv_kernel_size):
+        # convert att_context_size to a standard list of lists
+        if att_context_size:
+            self.att_context_size = list(att_context_size)
+            for i, ats in enumerate(self.att_context_size):
+                if is_instance(ats, ListConfig):
+                    self.att_context_size[i] = list(ats)
+        else:
+            self.att_context_size = [[-1, -1]]
+
+        # convert att_context_size to a standard list
+        if isinstance(conv_context_size, ListConfig):
+            conv_context_size = list(conv_context_size)
+
+        if conv_context_size is not None:
+            if (
+                not isinstance(conv_context_size, list)
+                and not isinstance(conv_context_size, str)
+            ):
+                raise ValueError(
+                    f"Invalid conv_context_size! It should be the string 'causal' or a list of two integers."
+                )
+            if conv_context_size == "causal":
+                conv_context_size = [conv_kernel_size - 1, 0]
+            else:
+                if conv_context_size[0] + conv_context_size[1] + 1 != conv_kernel_size:
+                    raise ValueError(f"Invalid conv_context_size: {self.conv_context_size}!")
+        else:
+            conv_context_size = [(conv_kernel_size - 1) // 2, (conv_kernel_size - 1) // 2]
+        self.conv_context_size = conv_context_size
+
+    def set_chunking_params(self, att_context_style):
+        if att_context_style == "chunked_limited":
+            # the left context for self-attention in chunked_limited mode should be dividable by the right context
+            # right context=att_context_size[1]+1, and left_context=self.att_context_size[0]
+            if self.att_context_size[0] > 0 and self.att_context_size[0] % (self.att_context_size[1] + 1) > 0:
+                raise ValueError("att_context_size[0] % (att_context_size[1] + 1) should be zero!")
+            if self.att_context_size[1] < 0:
+                raise ValueError("Right context can not be unlimited for chunked_limited style!")
+            self.chunk_size = self.att_context_size[1] + 1
+
+            # left_chunks_num specifies the number of chunks to be visible by each chunk on the left side
+            if self.att_context_size[0] >= 0:
+                self.left_chunks_num = self.att_context_size[0] // self.chunk_size
+            else:
+                self.left_chunks_num = 100000
+
+        elif att_context_style == "regular":
+            self.chunk_size = None
+        else:
+            raise ValueError("Invalid att_context_style!")
 
 
 """
