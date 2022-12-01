@@ -105,6 +105,7 @@ We will also check the data for anomalies. The simplest anomaly can be a problem
 Let's check:
 
 .. code-block:: python
+
   print(trash_char_list)
 
   ['é', 'ǔ', 'á', '¨', 'ﬁ', '=', 'y', '`', 'q', 'ü', '♫', '‑', 'x', '¸', 'ʼ', '‹', '›', 'ñ']
