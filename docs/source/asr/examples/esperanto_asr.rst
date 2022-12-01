@@ -226,7 +226,7 @@ Training.
 We can use three main scenarios for training:
 
 * Training from scratch.
-* Finetuning already trained models on other languages (English, Spanish, Italian).
+* Finetuning already trained models on other languages.
 * Finetuning on an English SSL (Self-supervised learning) model.
 
 For the training of the Conformer-CTC model, we use `speech_to_text_ctc_bpe.py <https://github.com/NVIDIA/NeMo/tree/stable/examples/asr/asr_ctc/speech_to_text_ctc_bpe.py>`_ with the default config `conformer_ctc_bpe.yaml <https://github.com/NVIDIA/NeMo/tree/stable/examples/asr/conf/conformer/conformer_ctc_bpe.yaml>`_. Here you can see the ecample how to run this training:
@@ -253,6 +253,12 @@ For the training of the Conformer-CTC model, we use `speech_to_text_ctc_bpe.py <
     model.validation_ds.manifest_filepath=$VAL_MANIFEST \
     model.test_ds.manifest_filepath=$TEST_MANIFEST
 
+For finetuning from alread trained models we use three languages:
+
+* Esnglish `stt_en_conformer_ctc_large <https://huggingface.co/nvidia/stt_en_conformer_ctc_large>`_ (several thousand hours of English speech). 
+* Spanish `stt_es_conformer_ctc_large <https://huggingface.co/nvidia/stt_es_conformer_ctc_large>`_ (1340 hours of Spanish speech).
+* Italian `stt_it_conformer_ctc_large <https://huggingface.co/nvidia/stt_it_conformer_ctc_large>`_ (487 hours of Italian speech).
+
 To finetune a model with the same vocab size, you just need to set the desired model via
 
 .. code-block:: bash
@@ -275,6 +281,7 @@ There is no need to change anything for the SSL model, it will replace the vocab
 
     ++init_from_nemo_model=${PRETRAINED_MODEL} \
 
+As the SSL model we use `ssl_en_conformer_large <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/ssl_en_conformer_large>`_ which is trained using LibriLight corpus (~56k hrs of unlabeled English speech).
 All models for finetuing are available on Nvidia NeMo Hugging Face or NGC repo. 
 
 +----------------------------------+----------+------------+-------------+
