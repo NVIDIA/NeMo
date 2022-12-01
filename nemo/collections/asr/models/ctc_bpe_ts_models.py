@@ -197,7 +197,7 @@ class TSEncDecCTCModelBPE(EncDecCTCModelBPE):
         processed_signal = mask * pre_encoded_audio.permute(0, 2, 1)    # [B, d_model, T]
         
         # target estimate
-        if 'reconstruction' in self.decoder_losses:
+        if 'reconstruction' in self.decoder_losses and target_signal is not None:
             target_signal_estimate = self.decoder_losses['reconstruction']['decoder'](encoder_output=processed_signal)
 
         encoded, encoded_len, _, _ = self.encoder(audio_signal=processed_signal, length=pre_encoded_audio_lengths)
@@ -483,8 +483,8 @@ class TSEncDecCTCModelBPE(EncDecCTCModelBPE):
             'synthetic_generation': config['synthetic_generation'],
             'num_workers': config.get('num_workers', min(batch_size, os.cpu_count() - 1)),
             'pin_memory': True,
+            'num_sources': config["num_sources"],
             'dataset': config['dataset'],
-            'num_sources': config["num_sources"]
         }
 
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))

@@ -1177,6 +1177,7 @@ class StaticTargetAudioToBPEDataset_wsj(AudioToBPEDataset):
             "other_audio_files",
             "other_durations",
             "scale_factors",
+            "other_durations"
         ]
         
         super().__init__(
@@ -1228,6 +1229,9 @@ class StaticTargetAudioToBPEDataset_wsj(AudioToBPEDataset):
         other_audio_files = sample.other_audio_files
         other_durations = sample.other_durations
         scale_factors = sample.scale_factors
+        other_offsets = sample.other_offsets
+        if other_offsets is None:
+            other_offsets = [0.0] * len(other_audio_files)
         
 
         target_pt, target_pt_len, text, text_len = super().__getitem__(index)[:4]
@@ -1236,12 +1240,15 @@ class StaticTargetAudioToBPEDataset_wsj(AudioToBPEDataset):
         enrollment_audio_file = other_audio_files[-1]
         overlap_durations = other_durations[:-1]
         enrollment_duration = other_durations[-1]
+        overlap_offsets = other_offsets[:-1]
+        enrollment_offset = other_offsets[-1]
+
 
         overlapping_pts = [self.featurizer.process(
-            x, duration=y, trim=self.trim, orig_sr=sample.orig_sr) for x, y in zip(overlap_audio_files, overlap_durations)]
+            x, duration=y, offset=z, trim=self.trim, orig_sr=sample.orig_sr) for x, y, z in zip(overlap_audio_files, overlap_durations, overlap_offsets)]
         
         enroll_pt = self.featurizer.process(
-            enrollment_audio_file, duration=enrollment_duration, trim=self.trim, orig_sr=sample.orig_sr)
+            enrollment_audio_file, duration=enrollment_duration, offset=enrollment_offset, trim=self.trim, orig_sr=sample.orig_sr)
 
         enroll_pt_len = torch.tensor(enroll_pt.shape[0]).long()
 
