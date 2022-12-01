@@ -153,6 +153,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
             strategy: str value which represents the type of decoding that can occur.
                 Possible values are :
                 -   greedy (for greedy decoding).
+                -   beam (for DeepSpeed KenLM based decoding).
 
             compute_timestamps: A bool flag, which determines whether to compute the character/subword, or
                 word based timestamp mapping the output log-probabilities to discrite intervals of timestamps.
@@ -230,6 +231,25 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 preserve_alignments: Same as above, overrides above value.
                 compute_timestamps: Same as above, overrides above value.
                 preserve_frame_confidence: Same as above, overrides above value.
+
+            "beam":
+                beam_size: int, defining the beam size for beam search. Must be >= 1.
+                    If beam_size == 1, will perform cached greedy search. This might be slightly different
+                    results compared to the greedy search above.
+
+                return_best_hypothesis: optional bool, whether to return just the best hypothesis or all of the
+                    hypotheses after beam search has concluded. This flag is set by default.
+
+                beam_alpha: float, the strength of the Language model on the final score of a token.
+                    final_score = acoustic_score + beam_alpha * lm_score + beam_beta * seq_length.
+
+                beam_beta: float, the strength of the sequence length penalty on the final score of a token.
+                    final_score = acoustic_score + beam_alpha * lm_score + beam_beta * seq_length.
+
+                kenlm_path: str, path to a KenLM ARPA or .binary file (depending on the strategy chosen).
+                    If the path is invalid (file is not found at path), will raise a deferred error at the moment
+                    of calculation of beam search, so that users may update / change the decoding strategy
+                    to point to the correct file.
 
         blank_id: The id of the RNNT blank token.
     """
@@ -874,13 +894,15 @@ class AbstractCTCDecoding(ConfidenceMixin):
 
 class CTCDecoding(AbstractCTCDecoding):
     """
-    Used for performing CTC auto-regressive / non-auto-regressive decoding of the logprobs.
+    Used for performing CTC auto-regressive / non-auto-regressive decoding of the logprobs for character
+    based models.
 
     Args:
         decoding_cfg: A dict-like object which contains the following key-value pairs.
             strategy: str value which represents the type of decoding that can occur.
                 Possible values are :
                 -   greedy (for greedy decoding).
+                -   beam (for DeepSpeed KenLM based decoding).
 
             compute_timestamps: A bool flag, which determines whether to compute the character/subword, or
                 word based timestamp mapping the output log-probabilities to discrite intervals of timestamps.
@@ -958,7 +980,25 @@ class CTCDecoding(AbstractCTCDecoding):
                 preserve_alignments: Same as above, overrides above value.
                 compute_timestamps: Same as above, overrides above value.
                 preserve_frame_confidence: Same as above, overrides above value.
-                confidence_method: Same as above, overrides confidence_cfg.method.
+
+            "beam":
+                beam_size: int, defining the beam size for beam search. Must be >= 1.
+                    If beam_size == 1, will perform cached greedy search. This might be slightly different
+                    results compared to the greedy search above.
+
+                return_best_hypothesis: optional bool, whether to return just the best hypothesis or all of the
+                    hypotheses after beam search has concluded. This flag is set by default.
+
+                beam_alpha: float, the strength of the Language model on the final score of a token.
+                    final_score = acoustic_score + beam_alpha * lm_score + beam_beta * seq_length.
+
+                beam_beta: float, the strength of the sequence length penalty on the final score of a token.
+                    final_score = acoustic_score + beam_alpha * lm_score + beam_beta * seq_length.
+
+                kenlm_path: str, path to a KenLM ARPA or .binary file (depending on the strategy chosen).
+                    If the path is invalid (file is not found at path), will raise a deferred error at the moment
+                    of calculation of beam search, so that users may update / change the decoding strategy
+                    to point to the correct file.
 
         blank_id: The id of the RNNT blank token.
     """

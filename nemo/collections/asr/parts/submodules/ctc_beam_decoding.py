@@ -60,52 +60,13 @@ def _states_to_device(dec_state, device='cpu'):
 
 
 class AbstractBeamCTCInfer(Typing):
-    """A greedy CTC decoder.
+    """A beam CTC decoder.
 
-    Provides a common abstraction for sample level and batch level greedy decoding.
+    Provides a common abstraction for sample level beam decoding.
 
     Args:
-        blank_index: int index of the blank token. Can be 0 or len(vocabulary).
-        preserve_alignments: Bool flag which preserves the history of logprobs generated during
-            decoding (sample / batched). When set to true, the Hypothesis will contain
-            the non-null value for `logprobs` in it. Here, `logprobs` is a torch.Tensors.
-        compute_timestamps: A bool flag, which determines whether to compute the character/subword, or
-                word based timestamp mapping the output log-probabilities to discrite intervals of timestamps.
-                The timestamps will be available in the returned Hypothesis.timestep as a dictionary.
-        preserve_frame_confidence: Bool flag which preserves the history of per-frame confidence scores
-            generated during decoding. When set to true, the Hypothesis will contain
-            the non-null value for `frame_confidence` in it. Here, `frame_confidence` is a List of floats.
-        confidence_method_cfg: A dict-like object which contains the method name and settings to compute per-frame
-            confidence scores.
-
-            name: The method name (str).
-                Supported values:
-                    - 'max_prob' for using the maximum token probability as a confidence.
-                    - 'entropy' for using a normalized entropy of a log-likelihood vector.
-
-            entropy_type: Which type of entropy to use (str). Used if confidence_method_cfg.name is set to `entropy`.
-                Supported values:
-                    - 'gibbs' for the (standard) Gibbs entropy. If the temperature α is provided,
-                        the formula is the following: H_α = -sum_i((p^α_i)*log(p^α_i)).
-                        Note that for this entropy, the temperature should comply the following inequality:
-                        1/log(V) <= α <= -1/log(1-1/V) where V is the model vocabulary size.
-                    - 'tsallis' for the Tsallis entropy with the Boltzmann constant one.
-                        Tsallis entropy formula is the following: H_α = 1/(α-1)*(1-sum_i(p^α_i)),
-                        where α is a parameter. When α == 1, it works like the Gibbs entropy.
-                        More: https://en.wikipedia.org/wiki/Tsallis_entropy
-                    - 'renui' for the Rényi entropy.
-                        Rényi entropy formula is the following: H_α = 1/(1-α)*log_2(sum_i(p^α_i)),
-                        where α is a parameter. When α == 1, it works like the Gibbs entropy.
-                        More: https://en.wikipedia.org/wiki/R%C3%A9nyi_entropy
-
-            temperature: Temperature scale for logsoftmax (α for entropies). Here we restrict it to be > 0.
-                When the temperature equals one, scaling is not applied to 'max_prob',
-                and any entropy type behaves like the Shannon entropy: H = -sum_i(p_i*log(p_i))
-
-            entropy_norm: A mapping of the entropy value to the interval [0,1].
-                Supported values:
-                    - 'lin' for using the linear mapping.
-                    - 'exp' for using exponential mapping with linear shift.
+        blank_id: int, index of the blank token. Can be 0 or len(vocabulary).
+        beam_size: int, size of the beam used in the underlying beam search engine.
 
     """
 
@@ -140,9 +101,22 @@ class AbstractBeamCTCInfer(Typing):
         self.override_fold_consecutive_value = None
 
     def set_vocabulary(self, vocab: List[str]):
+        """
+        Set the vocabulary of the decoding framework.
+
+        Args:
+            vocab: List of str. Each token corresponds to its location in the vocabulary emitted by the model.
+                Note that this vocabulary must NOT contain the "BLANK" token.
+        """
         self.vocab = vocab
 
     def set_decoding_type(self, decoding_type: str):
+        """
+        Sets the decoding type of the framework. Can support either char or subword models.
+
+        Args:
+            decoding_type: Str corresponding to decoding type. Only supports "char" and "subword".
+        """
         decoding_type = decoding_type.lower()
         supported_types = ['char', 'subword']
 
@@ -157,6 +131,17 @@ class AbstractBeamCTCInfer(Typing):
     def forward(
         self, decoder_output: torch.Tensor, decoder_lengths: torch.Tensor,
     ) -> Tuple[List[Union[rnnt_utils.Hypothesis, rnnt_utils.NBestHypotheses]]]:
+        """Returns a list of hypotheses given an input batch of the encoder hidden embedding.
+        Output token is generated auto-repressively.
+
+        Args:
+            decoder_output: A tensor of size (batch, timesteps, features) or (batch, timesteps) (each timestep is a label).
+            decoder_lengths: list of int representing the length of each sequence
+                output sequence.
+
+        Returns:
+            packed list containing batch number of sentences (Hypotheses).
+        """
         raise NotImplementedError()
 
     def __call__(self, *args, **kwargs):
@@ -238,13 +223,16 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
 
         self.vocab = None  # This must be set by specific method by user before calling forward() !
 
-        if search_type == "default":
+        if search_type == "default" or search_type == "nemo":
             self.search_algorithm = self.default_beam_search
         elif search_type == "pyctcdecode":
             self.search_algorithm = self._pyctcdecode_beam_search
+
+            raise NotImplementedError(f"The search type of `pyctcdecode` is currently not supported.\n" f"")
         else:
             raise NotImplementedError(
-                f"The search type ({search_type}) supplied is not supported!\n" f"Please use one of : (default, nemo)"
+                f"The search type ({search_type}) supplied is not supported!\n"
+                f"Please use one of : (default, nemo, pyctcdecode)"
             )
 
         self.beam_alpha = beam_alpha
@@ -271,7 +259,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
         Output token is generated auto-repressively.
 
         Args:
-            decoder_output: A tensor of size (batch, timesteps, features) or (batch, timesteps) (each timestep is a label).
+            decoder_output: A tensor of size (batch, timesteps, features).
             decoder_lengths: list of int representing the length of each sequence
                 output sequence.
 
@@ -288,7 +276,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
             # Process each sequence independently
             prediction_tensor = decoder_output
 
-            if prediction_tensor.ndim < 3 or prediction_tensor.ndim > 3:
+            if prediction_tensor.ndim != 3:
                 raise ValueError(
                     f"`decoder_output` must be a tensor of shape [B, T, V] (log probs, float). "
                     f"Provided shape = {prediction_tensor.shape}"
@@ -359,27 +347,40 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
             data = [x[sample_id, : out_len[sample_id], :].softmax(dim=-1) for sample_id in range(len(x))]
             beams_batch = self.default_beam_scorer.forward(log_probs=data, log_probs_length=None)
 
+        # For each sample in the batch
         nbest_hypotheses = []
         for beams_idx, beams in enumerate(beams_batch):
+            # For each beam candidate / hypothesis in each sample
             hypotheses = []
             for candidate_idx, candidate in enumerate(beams):
                 hypothesis = rnnt_utils.Hypothesis(
                     score=0.0, y_sequence=[], dec_state=None, timestep=[], last_token=None
                 )
 
+                # For subword encoding, NeMo will double encode the subword (multiple tokens) into a
+                # singular unicode id. In doing so, we preserve the semantic of the unicode token, and
+                # compress the size of the final KenLM ARPA / Binary file.
+                # In order to do double encoding, we shift the subword by some token offset.
+                # This step is ignored for character based models.
                 if self.decoding_type == 'subword':
                     pred_token_ids = [ord(c) - self.token_offset for c in candidate[1]]
                 else:
                     pred_token_ids = candidate[1]
 
+                # We preserve the token ids and the score for this hypothesis
                 hypothesis.y_sequence = pred_token_ids
                 hypothesis.score = candidate[0]
 
+                # If alignment must be preserved, we preserve a view of the output logprobs.
+                # Note this view is shared amongst all beams within the sample, be sure to clone it if you
+                # require specific processing for each sample in the beam.
+                # This is done to preserve memory.
                 if self.preserve_alignments:
                     hypothesis.alignments = x[beams_idx][: out_len[beams_idx]]
 
                 hypotheses.append(hypothesis)
 
+            # Wrap the result in NBestHypothesis.
             hypotheses = rnnt_utils.NBestHypotheses(hypotheses)
             nbest_hypotheses.append(hypotheses)
 
@@ -389,15 +390,6 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
     def _pyctcdecode_beam_search(
         self, x: torch.Tensor, out_len: torch.Tensor
     ) -> List[Union[rnnt_utils.Hypothesis, rnnt_utils.NBestHypotheses]]:
-        """
-
-        Args:
-            x:
-            out_len:
-
-        Returns:
-
-        """
         raise NotImplementedError(
             "Currently, pyctcdecode has not ben formally integrated into the decoding framework."
         )
@@ -462,7 +454,8 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
     def set_decoding_type(self, decoding_type: str):
         super().set_decoding_type(decoding_type)
 
-        # Please check train_kenlm.py in scripts/asr_language_modeling/ to find out why we need TOKEN_OFFSET for BPE-based models
+        # Please check train_kenlm.py in scripts/asr_language_modeling/ to find out why we need
+        # TOKEN_OFFSET for BPE-based models
         if self.decoding_type == 'subword':
             self.token_offset = 100
 

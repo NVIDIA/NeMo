@@ -390,15 +390,13 @@ def main(cfg: EvalBeamSearchNGramConfig):
                 best_wer = candidate_wer
 
         logging.info(
-            'Best WER Candidate = {:.2%} :: Beam size = {}, Beam alpha = {}, Beam beta = {}'.format(
-                best_wer, best_wer_beam_size, best_wer_alpha, best_wer_beta
-            )
+            f'Best WER Candidate = {best_wer:.2%} :: Beam size = {best_wer_beam_size}, '
+            f'Beam alpha = {best_wer_alpha}, Beam beta = {best_wer_beta}'
         )
 
         logging.info(
-            'Best CER Candidate = {:.2%} :: Beam size = {}, Beam alpha = {}, Beam beta = {}'.format(
-                best_cer, best_cer_beam_size, best_cer_alpha, best_cer_beta
-            )
+            f'Best CER Candidate = {best_cer:.2%} :: Beam size = {best_cer_beam_size}, '
+            f'Beam alpha = {best_cer_alpha}, Beam beta = {best_cer_beta}'
         )
         logging.info(f"=================================================================================")
 
