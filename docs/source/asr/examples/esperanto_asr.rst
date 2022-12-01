@@ -191,52 +191,6 @@ Scheduler:
 #################################
 By default, the Conformer model in NeMo uses Noam as a learning rate scheduler. However, it has at least one disadvantage - the peak learning rate depends on the size of the model attention, the size of the global batch, and the number of warmup steps. The learning rate value itself for the optimizer is set in the config as some abstract number that will not be shown in reality. In order to still understand how the schedule of the scheduler will look like, it is better to plot it in advance before training. Or use the more understandable CosineAnealing scheduler. The code for plotting the default Noam scheduler is shown below:
 
-.. code-block:: python
-
-    import nemo
-    import torch
-    import matplotlib.pyplot as plt
-
-    # params:
-    train_files_num = 144000
-    global_batch_size = 1024
-    num_epoch = 300
-    warmup_steps = 10000
-    config_learning_rate = 5.0
-    attention_model_size = 512
-
-    steps_num = int(train_files_num / global_batch_size * num_epoch)
-    print(f"steps number is: {steps}")
-
-    model = torch.nn.Linear(2, 1)
-    optimizer = torch.optim.SGD(model.parameters(), lr=config_learning_rate)
-    scheduler = nemo.core.optim.lr_scheduler.NoamAnnealing(optimizer,
-                                                           d_model=attention_model_size,
-                                                           max_steps=steps,
-                                                           warmup_steps=warmup_steps,
-                                                           min_lr=1e-6)
-    lrs = []
-    init_lr, final_lr, max_lr = 0, 0, 0
-
-    for i in range(steps):
-        optimizer.step()
-        lr = optimizer.param_groups[0]["lr"]
-        lrs.append(lr)
-        scheduler.step()
-        if max_lr < lr:
-            max_lr = lr
-        if i == 0 :
-            init_lr = lr
-        if i == steps -2:
-            final_lr = lr
-
-    plt.plot(lrs)
-    print(f"Init LR is:  {init_lr:.5f}")
-    print(f"Max LR is:   {max_lr:.5f}")
-    print(f"Final LR is: {final_lr:.8f}")
-
-Attach image..
-
 Warmup steps:
 #################################
 This parameter is responsible for how quickly your scheduler will reach the peak learning rate. One step is the size of your global batch (local batch * gpu_num * accum_gradient). If you increase the learning rate too quickly, the model may diverge. The recommended number of steps is 8000-10000. If your model diverges, then you can try increasing this parameter.
@@ -244,6 +198,42 @@ This parameter is responsible for how quickly your scheduler will reach the peak
 Batch size:
 #################################
 It is usually required to use a large global batch size, since it allows to average gradients over a larger number of training examples and to smooth out outliers. The good batch size is between 512 and 2048. Standard GPUs have 12-32 gigabytes of memory, which does not allow you to place such huge batches on them. Therefore, it is suggested to use grad_accamulation to artificially increase the size of the global batch and get the averaged gradient. As a local batch, it is not recommended to use a value greater than 32 (even if it fits on your GPU) because it can noticeably slow down the training speed. Most likely this is caused by the overhead of transferring data from RAM to the GPU memory ???.
+
+Now we can plot our learning rate for CosineAnnealing schedule:
+
+.. code-block:: python
+
+    import nemo
+    import torch
+    import matplotlib.pyplot as plt
+
+    # params:
+    train_files_num = 144000     # number of training audio_files
+    global_batch_size = 1024     # local_batch * gpu_num * accum_gradient
+    num_epoch = 300
+    warmup_steps = 10000
+    config_learning_rate = 1e-3
+    attention_model_size = 512
+
+    steps_num = int(train_files_num / global_batch_size * num_epoch)
+    print(f"steps number is: {steps_num}")
+
+    optimizer = torch.optim.SGD(model.parameters(), lr=config_learning_rate)
+    scheduler = nemo.core.optim.lr_scheduler.CosineAnnealing(optimizer,
+                                                             max_steps=steps_num,
+                                                             warmup_steps=warmup_steps,
+                                                             min_lr=1e-6)
+    lrs = []
+
+    for i in range(steps_num):
+        optimizer.step()
+        lr = optimizer.param_groups[0]["lr"]
+        lrs.append(lr)
+        scheduler.step()
+
+    plt.plot(lrs)
+
+Attach image..
 
 Precision:
 #################################
@@ -335,9 +325,19 @@ All models for finetuing are available on Nvidia NeMo Hugging Face or NGC repo.
 Decoding.
 **************************
 
-At the end of training, several checkpoints (usually 5) and one the best model (not always from the latest epoch) are stored in the model folder. Checkpoint averaging (script) can help to improve the final decoding accuracy. In our case, this did not give an improvement on the CTC models, however, for some RNNT models, it was possible to get an improvement in the range of 0.1-0.2% WER.
+At the end of training, several checkpoints (usually 5) and one the best model (not always from the latest epoch) are stored in the model folder. Checkpoint averaging (script) can help to improve the final decoding accuracy. In our case, this did not give an improvement on the CTC models, however, for some RNNT models, it was possible to get an improvement in the range of 0.1-0.2% WER. To make averiging use the following command:
 
-To analyze recognition errors, you can use the Speech Data Explorer, similar to the Kinyarwanda example. After listening to files with an abnormally high WER (>50%), problematic files with wrong transcriptions and cutted or empty audio files were found in the dev and test sets.
+.. code-block:: bash
+
+    python ${NEMO_ROOT}/scripts/checkpoint_averaging/checkpoint_averaging.py <your_trained_model.nemo>
+
+To analyze recognition errors, you can use the Speech Data Explorer, similar to the Kinyarwanda example.
+After listening to files with an abnormally high WER (>50%), we found many problematic files with wrong transcriptions and cutted or empty audio files in the dev and test sets.
+
+.. code-block:: bash
+
+    python ${NEMO_ROOT}/tools/speech_data_explorer/data_explorer.py <your manifest file>
+
 
 **************************
 Bonus.
