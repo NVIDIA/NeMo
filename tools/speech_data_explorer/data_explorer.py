@@ -298,13 +298,10 @@ def load_data(
                     data[-1]['I'] = measures['insertions']
                     data[-1]['D'] = measures['deletions']
                     data[-1]['D-I'] = measures['deletions'] - measures['insertions']
-                    for k in item:
-                        if k not in data[-1]:
-                            data[-1][k] = item[k]
-                else:
-                    for k in item:
-                        if k not in data[-1]:
-                            data[-1][k] = item[k]
+                for k in item:
+                    if k not in data[-1]:
+                        data[-1][k] = item[k]
+                        
             if estimate_audio:
                 filepath = absolute_audio_filepath(item['audio_filepath'], data_filename)
                 signal, sr = librosa.load(path=filepath, sr=None)
