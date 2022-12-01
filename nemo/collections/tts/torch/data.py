@@ -19,6 +19,7 @@ import pickle
 import random
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Union
+from functools import partial
 
 import librosa
 import numpy as np
@@ -288,8 +289,16 @@ class TTSDataset(Dataset):
                 f"Please choose one from {list(WINDOW_FN_SUPPORTED.keys())}."
             )
 
-        self.stft = lambda x: torch.stft(
-            input=x,
+        # self.stft = lambda x: torch.stft(
+        #     input=x,
+        #     n_fft=self.n_fft,
+        #     hop_length=self.hop_len,
+        #     win_length=self.win_length,
+        #     window=window_fn(self.win_length, periodic=False).to(torch.float) if window_fn else None,
+        #     return_complex=True,
+        # )
+        self.stft = partial(
+            torch.stft,
             n_fft=self.n_fft,
             hop_length=self.hop_len,
             win_length=self.win_length,

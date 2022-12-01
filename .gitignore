@@ -165,6 +165,7 @@ examples/*/wandb
 examples/*/data
 wandb
 dump.py
+data/
 
 docs/sources/source/test_build/
 
@@ -174,4 +175,3 @@ examples/neural_graphs/*.yml
 
 .hydra/
 nemo_experiments/
-

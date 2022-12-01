@@ -340,6 +340,10 @@ class GermanPhonemesTokenizer(BaseCharsTokenizer):
         return [self._token2id[p] for p in cs]
 
 
+def _default_english_preprocess(text):
+    return english_text_preprocessing(text, lower=False)
+
+
 class EnglishPhonemesTokenizer(BaseTokenizer):
     # fmt: off
     PUNCT_LIST = (  # Derived from LJSpeech and "/" additionally
@@ -375,7 +379,7 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
         sep='|',  # To be able to distinguish between 2/3 letters codes.
         add_blank_at=None,
         pad_with_space=False,
-        text_preprocessing_func=lambda text: english_text_preprocessing(text, lower=False),
+        text_preprocessing_func=_default_english_preprocess,
     ):
         """English phoneme-based tokenizer.
         Args:
@@ -643,10 +647,10 @@ class IPATokenizer(BaseTokenizer):
 
 class ChinesePhonemesTokenizer(BaseTokenizer):
     # fmt: off
-    PRONUNCIATION_LIST = ['#' + i for i in ['^', 'A', 'AI', 'AN', 'ANG', 'AO', 'B', 'C', 'CH', 'D', 
-                    'E', 'EI', 'EN', 'ENG', 'ER', 'F', 'G', 'H', 'I', 'IE', 
-                    'IN', 'ING', 'IU', 'J', 'K', 'L', 'M', 'N', 'O', 'ONG', 
-                    'OU', 'P', 'Q', 'R', 'S', 'SH', 'T', 'U', 'UI', 'UN', 
+    PRONUNCIATION_LIST = ['#' + i for i in ['^', 'A', 'AI', 'AN', 'ANG', 'AO', 'B', 'C', 'CH', 'D',
+                    'E', 'EI', 'EN', 'ENG', 'ER', 'F', 'G', 'H', 'I', 'IE',
+                    'IN', 'ING', 'IU', 'J', 'K', 'L', 'M', 'N', 'O', 'ONG',
+                    'OU', 'P', 'Q', 'R', 'S', 'SH', 'T', 'U', 'UI', 'UN',
                     'V', 'VE', 'VN', 'W', 'X', 'Y', 'Z', 'ZH']]
     TONES_LIST = ['#1', '#2', '#3', '#4', '#5']
     PUNCT_LIST = (  # Derived from LJSpeech and "/" additionally
