@@ -54,7 +54,7 @@ from nemo.collections.asr.models import ClusteringDiarizer
 from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
 from sklearn.preprocessing import OneHotEncoder
-from nemo.collections.asr.parts.utils.streaming_utils import AudioFeatureIterator, FrameBatchASR
+from nemo.collections.asr.parts.utils.streaming_utils import AudioFeatureIterator, FrameBatchASR, StreamingFeatureBufferer
 # , FrameBatchVAD
 from omegaconf import OmegaConf
 
@@ -1347,7 +1347,7 @@ def add_timestamp_offset(words, word_ts, offset):
     words_adj, word_ts_adj = [], []
     for w, x in zip(words, word_ts):
         word_range = [round(x[0] + offset,2), round(x[1] + offset,2)] 
-        if word_range[1] >  0.0:
+        if word_range[1] >= 0.0:
             word_ts_adj.append(word_range)
             words_adj.append(w)
     return words_adj, word_ts_adj
@@ -1355,19 +1355,19 @@ def add_timestamp_offset(words, word_ts, offset):
 from nemo.collections.asr.metrics.der import score_labels, get_partial_ref_labels, get_online_DER_stats
 
 @timeit
-def get_wer_feat_logit_single(samples, frame_asr, frame_len, tokens_per_chunk, delay, model_stride_in_secs, frame_mask):
+def get_wer_feat_logit_single(feat_buffer, frame_asr, frame_len, tokens_per_chunk, delay, model_stride_in_secs, frame_mask):
     """
     Create a preprocessor to convert audio samples into raw features,
     Normalization will be done per buffer in frame_bufferer.
     """
     hyps = []
     tokens_list = []
-    frame_asr.reset()
-    feature_frame_shape = frame_asr.read_audio_samples(samples, delay, model_stride_in_secs, frame_mask)
-    hyp, tokens, log_prob  = frame_asr.transcribe_with_ts(tokens_per_chunk, delay)
+    features = torch.from_numpy(feat_buffer).unsqueeze(0)
+    feat_len = torch.tensor(feat_buffer.shape[1]).unsqueeze(0)
+    hyp, tokens, log_prob  = frame_asr.transcribe_with_ts(features, feat_len, tokens_per_chunk, delay, streaming_mode=True)
     hyps.append(hyp)
     tokens_list.append(tokens)
-    return hyps, tokens_list, feature_frame_shape, log_prob
+    return hyps, tokens_list, features.shape, log_prob
 
 class MaskedFeatureIterator(AudioFeatureIterator):
     def __init__(self, samples, frame_len, preprocessor, device, frame_mask=None):
@@ -1388,14 +1388,6 @@ class FrameBatchASR_Logits_Sample(FrameBatchASR_Logits):
         self.total_buffer = total_buffer
         self.batch_size = batch_size
     
-    @timeit
-    def read_audio_samples(self, samples, delay: float, model_stride_in_secs: float, frame_mask):
-        self.device = self.asr_model.device
-        # samples = np.pad(samples, (0, int(delay * model_stride_in_secs * self.asr_model._cfg.sample_rate)))
-        frame_reader = MaskedFeatureIterator(samples, self.frame_len, self.raw_preprocessor, self.device, frame_mask)
-        self.set_frame_reader(frame_reader)
-        return frame_reader._features.shape
-
     def buffer_reset(self):
         self.clear_buffer()
         self.reset()
@@ -1435,6 +1427,8 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASR_TIMESTAMPS):
         self._init_asr_params()
         self._init_asr_model()
         self._init_streaming_buffer_params()
+        #asr_model
+        self._streamingFeatBufferer = StreamingFeatureBufferer(self.asr_model, chunk_size=self.frame_len, buffer_size=self.frame_len + 2*self.frame_overlap)
         self.reset()
 
         write_txt(f"{self.diar._out_dir}/reset.flag", self.string_out.strip())
@@ -1496,6 +1490,7 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASR_TIMESTAMPS):
             self.word_ts_seq.extend(word_timetamps)
 
         elif len(words) > 0:
+            # print("words:", words) 
             # Find the first word that starts after frame_start point in state buffer self.word_seq
             before_frame_start_old = torch.tensor(self.word_ts_seq)[:,0] < self.frame_start + update_margin
             if all(before_frame_start_old):
@@ -1514,7 +1509,7 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASR_TIMESTAMPS):
             del self.word_ts_seq[old_end:]
             self.word_seq.extend(words[new_stt:])
             self.word_ts_seq.extend(word_timetamps[new_stt:])
-    
+
     def create_single_session(self, uniq_id, diar_hyp_list):
         """
         Create single session dictionaries to make the streaming online output compatible with offline diarization.
@@ -1724,8 +1719,10 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASR_TIMESTAMPS):
         vad_mask, vad_timestamps = None, None
         return vad_mask, vad_timestamps
     
+    #TODO
     @timeit
-    def run_ASR_decoder_step(self, buffer, frame_mask):
+    def run_ASR_decoder_step(self, frame_mask):
+        buffer=self._streamingFeatBufferer.get_normalized_feature_buffer()
         hyps, tokens_list, feats_shape, log_prob = get_wer_feat_logit_single(buffer,
                                                     self.frame_asr,
                                                     self.chunk_len_in_sec,
@@ -1735,6 +1732,9 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASR_TIMESTAMPS):
                                                     frame_mask,
                                                 )
         self.frame_asr.buffer_reset()
+        print("tokens")
+        print(tokens_list)
+     
         logits_len = torch.from_numpy(np.array([len(tokens_list[0])]))
         greedy_predictions = torch.from_numpy(np.array(tokens_list[0])).unsqueeze(0)
         text, char_ts, _word_ts = self.werbpe_ts.ctc_decoder_predictions_tensor_with_ts(
@@ -1743,8 +1743,10 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASR_TIMESTAMPS):
         words, word_ts = text[0].split(), _word_ts[0]
         if len(words) != len(word_ts):
             raise ValueError("words and word_ts length mismatch")
-        offset = self.buffer_start - self.onset_delay_in_sec
+        offset = self.buffer_start - self.onset_delay_in_sec + 1
         words_adj, word_ts_adj = add_timestamp_offset(words, word_ts, offset)
+        print(words_adj, word_ts_adj)
+        # import ipdb; ipdb.set_trace()
         return words_adj, word_ts_adj
 
     def update_launcher_timestamps(self):
@@ -1837,7 +1839,7 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASR_TIMESTAMPS):
         self.word_seq = []
         self.word_ts_seq = []
 
-    
+   #TODO 1 
     @torch.no_grad()
     def run_step(self, frame=None):
         """
@@ -1853,13 +1855,14 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASR_TIMESTAMPS):
 
         """
         # Save the input frame into audio buffer.
+        self._streamingFeatBufferer.update_feature_buffer(frame)
         self.audio_buffer = self.update_audio_frame_input(frame=frame, buffer=self.audio_buffer)
         
         # Run VAD decoder to get VAD-mask and VAD-timestamps
         vad_mask, vad_timestamps = self.run_VAD_decoder_step(buffer=self.audio_buffer) 
        
         # Run ASR decoder step to obatain word sequence (`words`) and word timestamps (`word_timestamps`)
-        words, word_timestamps = self.run_ASR_decoder_step(buffer=self.audio_buffer, frame_mask=vad_mask)
+        words, word_timestamps = self.run_ASR_decoder_step(frame_mask=vad_mask)
    
         # Use ASR based VAD timestamp if no VAD timestamps are provided
         if vad_timestamps is None:
@@ -1876,5 +1879,7 @@ class OnlineDiarWithASR(OfflineDiarWithASR, ASR_TIMESTAMPS):
         diar_hyp = self.diar.diarize_step(audio_buffer_tensor, vad_timestamps_tensor)
 
         self.frame_index += 1
+        print("run_step:", words, word_timestamps, diar_hyp)
+        # import ipdb; ipdb.set_trace()
         return words, word_timestamps, diar_hyp
     

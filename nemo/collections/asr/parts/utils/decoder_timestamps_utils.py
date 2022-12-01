@@ -267,6 +267,23 @@ class FrameBatchASR_Logits(FrameBatchASR):
         self.set_frame_reader(frame_reader)
 
     @torch.no_grad()
+    def infer_buffer_logits(self, feat_signal, feat_signal_len):
+        feat_signal, feat_signal_len = feat_signal.to(self.asr_model.device), feat_signal_len.to(self.asr_model.device)
+        print("In infer")
+        print(feat_signal_len.shape)
+        log_probs, encoded_len, predictions = self.asr_model(
+              processed_signal=feat_signal, processed_signal_length=feat_signal_len
+        )
+        preds = torch.unbind(predictions)
+        for pred in preds:
+            self.all_preds.append(pred.cpu().numpy())
+        log_probs_tup = torch.unbind(log_probs)
+        for log_prob in log_probs_tup:
+            self.all_logprobs.append(log_prob)
+        del encoded_len
+        del predictions
+
+    @torch.no_grad()
     def _get_batch_preds(self):
         device = self.asr_model.device
         for batch in iter(self.data_loader):
@@ -286,22 +303,29 @@ class FrameBatchASR_Logits(FrameBatchASR):
             del predictions
 
     def transcribe_with_ts(
-        self, tokens_per_chunk: int, delay: int,
+        self, feat_signal, feat_signal_len,tokens_per_chunk: int, delay: int, streaming_mode=False
     ):
-        self.infer_logits()
+        self.infer_buffer_logits(feat_signal, feat_signal_len)
         self.unmerged = []
         self.part_logprobs = []
-        for idx, pred in enumerate(self.all_preds):
-            decoded = pred.tolist()
-            _stt, _end = len(decoded) - 1 - delay, len(decoded) - 1 - delay + tokens_per_chunk
-            self.unmerged += decoded[len(decoded) - 1 - delay : len(decoded) - 1 - delay + tokens_per_chunk]
-            self.part_logprobs.append(self.all_logprobs[idx][_stt:_end, :])
-        self.unmerged_logprobs = torch.cat(self.part_logprobs, 0)
+        if streaming_mode:
+            self.unmerged = self.all_preds[0].tolist()
+            self.part_logprobs.append( self.all_logprobs[0])
+            self.unmerged_logprobs = torch.cat(self.part_logprobs, 0)
+        else:
+            for idx, pred in enumerate(self.all_preds):
+                decoded = pred.tolist()
+                _stt, _end = len(decoded) - 1 - delay, len(decoded) - 1 - delay + tokens_per_chunk
+                self.unmerged += decoded[len(decoded) - 1 - delay : len(decoded) - 1 - delay + tokens_per_chunk]
+                self.part_logprobs.append(self.all_logprobs[idx][_stt:_end, :])
+            
+            self.unmerged = self.all_preds[0].tolist()
+            self.part_logprobs.append( self.all_logprobs[0])
+            self.unmerged_logprobs = torch.cat(self.part_logprobs, 0)
         assert (
             len(self.unmerged) == self.unmerged_logprobs.shape[0]
         ), "Unmerged decoded result and log prob lengths are different."
         return self.greedy_merge(self.unmerged), self.unmerged, self.unmerged_logprobs
-
 
 class ASR_TIMESTAMPS:
     """
