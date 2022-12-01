@@ -304,6 +304,8 @@ There is no need to change anything for the SSL model, it will replace the vocab
 As the SSL model we use `ssl_en_conformer_large <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/ssl_en_conformer_large>`_ which is trained using LibriLight corpus (~56k hrs of unlabeled English speech).
 All models for finetuing are available on Nvidia NeMo Hugging Face or NGC repo. 
 
+In the following table you can see all results for training from scratch and finetuning for Conformer-CTC-large model.
+
 +----------------------------------+----------+------------+-------------+
 | Training mode                    | BPE size | DEV, WER % | TEST, WER % |
 +==================================+==========+============+=============+
@@ -319,6 +321,8 @@ All models for finetuing are available on Nvidia NeMo Hugging Face or NGC repo.
 +----------------------------------+----------+------------+-------------+
 | Finetuning (SSL English)         |    128   |     2.90   |     4.76    |
 +----------------------------------+----------+------------+-------------+
+
+As you can see the best way to get Esperanto ASR model is to finetuning pretraind SSL model for English language.
 
 
 **************************
@@ -336,7 +340,7 @@ After listening to files with an abnormally high WER (>50%), we found many probl
 
 .. code-block:: bash
 
-    python ${NEMO_ROOT}/tools/speech_data_explorer/data_explorer.py <your manifest file>
+    python ${NEMO_ROOT}/tools/speech_data_explorer/data_explorer.py <your_decoded_manifest_file>
 
 
 **************************
