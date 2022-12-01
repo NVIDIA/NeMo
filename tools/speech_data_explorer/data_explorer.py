@@ -301,7 +301,7 @@ def load_data(
                 for k in item:
                     if k not in data[-1]:
                         data[-1][k] = item[k]
-                        
+
             if estimate_audio:
                 filepath = absolute_audio_filepath(item['audio_filepath'], data_filename)
                 signal, sr = librosa.load(path=filepath, sr=None)
